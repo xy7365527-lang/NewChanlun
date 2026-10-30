@@ -37,6 +37,31 @@ jobs:
             grep -q 'running 1 test' "../owned34p/${test##*::}.log" || failed=1
           done
           exit "$failed"
+      - name: Adjacent sequence and navigation contracts
+        if: always()
+        run: |
+          set -o pipefail
+          failed=0
+          for test in v3::generation::tests::closed_sequence_memo_splice_budget_and_corrupt_noop_preserve_state v3::generation::tests::sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard v3::generation::tests::delta_sequence_foreign_budget_and_allocation_failure_preserve_binding v3::generation::tests::delta_sequence_plain_rank_splice_matches_independent_full_writer v3::generation::tests::delta_sequence_owned_rank_splice_matches_independent_full_writer v3::generation::tests::delta_sequence_owned_failures_do_not_advance_keys_or_root v3::source_audit::closed_array_role_probe::source_field_uses_borrowed_entry_without_generic_retry; do
+            set +e
+            cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- "$test" --exact --test-threads 1 --nocapture 2>&1 | tee "../owned34p/${test##*::}.log"
+            rc=${PIPESTATUS[0]}
+            set -e
+            echo "$test $rc" >> ../owned34p/results.txt
+            if [ "$rc" != 0 ]; then failed=1; fi
+            grep -q 'running 1 test' "../owned34p/${test##*::}.log" || failed=1
+          done
+          cargo test --locked --features s_session,s_allocation_json_testonly --test s_content_sequence -- --test-threads 1 --nocapture 2>&1 | tee ../owned34p/sequence.log || failed=1
+          exit "$failed"
+      - name: Strict affected feature compilation
+        if: always()
+        run: |
+          set -o pipefail
+          failed=0
+          for features in s_session s_session,s_incremental s_session,s_capture_native_testonly,s_allocation_json_testonly; do
+            cargo check --locked --tests --lib --bin s_structure_session --features "$features" 2>&1 | tee "../owned34p/check-$features.log" || failed=1
+          done
+          exit "$failed"
       - name: Record Linux formatting
         if: always()
         run: |

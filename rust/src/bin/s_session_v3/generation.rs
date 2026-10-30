@@ -4354,6 +4354,57 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
+    fn closed_sequence_memo_splice_budget_and_corrupt_noop_preserve_state() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        let budget = OwnedBudget::new(1 << 20);
+        let foreign = OwnedBudget::new(1 << 20);
+        let leaves = [[1; 32], [2; 32]];
+        let bad_root = sc::frame(sc::tag::SEQ_LEAF, &[9; 32]);
+        let mut slab = CaptureSlab::new(1, 32, &budget).unwrap();
+        slab.push(bad_root, sc::tag::SEQ_LEAF, &leaves[1]).unwrap();
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        super::super::audit_store::with_owned_store_probe(&capture, &budget, 64, 4096, |store| {
+            let mut memo = SequenceMemo::default();
+            for wrong in [None, Some(&foreign)] {
+                let error = memo.sync_codec(store, &leaves, "错store账本", wrong).unwrap_err();
+                assert!(error.to_string().contains(sc::capture_allocation::INCOMPLETE));
+                assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
+                assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
+            }
+            let first = memo.sync_codec(store, &leaves, "初次", Some(&budget)).unwrap();
+            let previous = memo.seq;
+            let same = memo.sync_splice_codec(store, SequenceSplice {
+                expected_previous: previous,
+                unchanged_prefix: 2,
+                replacement_suffix: &[],
+            }, "无变化", Some(&budget)).unwrap();
+            assert_eq!(first, same);
+            memo.sync_splice_codec(store, SequenceSplice {
+                expected_previous: previous,
+                unchanged_prefix: 1,
+                replacement_suffix: &leaves[1..],
+            }, "同根重建", Some(&budget)).unwrap();
+            assert_eq!(memo.seq, previous);
+            memo.discard();
+            memo.keys = SequenceKeys::owned(&budget).unwrap();
+            memo.keys.reserve_admitted(store.generic_store(), 1).unwrap();
+            memo.keys.replace_reserved(&leaves[..1]).unwrap();
+            memo.seq = Some(SequenceRef::from_parts_unchecked(bad_root, 1));
+            memo.bound = true;
+            let corrupted = memo.seq;
+            let error = memo.sync_codec(store, &leaves[..1], "损坏无变化", Some(&budget)).unwrap_err();
+            assert!(error.to_string().contains(sc::code::NODE_DIGEST));
+            assert_eq!(memo.seq, corrupted);
+            assert_eq!(memo.keys.as_slice(), &leaves[..1]);
+            memo.discard();
+        });
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
     fn sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard() {
         let budget = sc::capture_allocation::OwnedBudget::new(96);
         let other = sc::capture_allocation::OwnedBudget::new(96);
