@@ -2075,9 +2075,9 @@ pub(crate) fn json_from_view(
 pub(crate) fn json_from_view_admitted(
     s: &(impl super::audit_store::CodecRead + ?Sized),
     value: JsonView<'_>,
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, sc::ContextError> {
     if s.codec_work().is_none() {
-        return json_from_view(value, s.allocation_budget().as_ref());
+        return json_from_view(value, s.allocation_budget().as_ref()).map_err(Into::into);
     }
     fn bytes(value: JsonView<'_>) -> Option<usize> {
         if let Some(text) = value.as_str() {
@@ -2136,13 +2136,13 @@ pub(crate) fn json_from_view_admitted(
         }
         serde_json::to_value(value).map_err(|e| e.to_string())
     }
-    let amount = bytes(value).ok_or_else(|| s.native_overflow().to_string())?;
+    let amount = bytes(value).ok_or_else(|| sc::ContextError::from(s.native_overflow()))?;
     let permit = s
         .codec_work()
         .unwrap()
         .reserve_native(amount)
-        .map_err(|e| e.to_string())?;
-    plain(value).map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit))))
+        .map_err(sc::ContextError::from)?;
+    plain(value).map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit)))).map_err(Into::into)
 }
 
 /// 旧 wire 整数投影的共同核：只转换整数，浮点/空值/文本保持原值。

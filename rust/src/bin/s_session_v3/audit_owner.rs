@@ -6554,6 +6554,148 @@ mod publication_degrade_verdict_tests {
         });
         publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace).map_err(Into::into)
     }
+
+    fn resource_error(failure: ScratchFailure) -> newchan_rust::s_content::CodecError {
+        let mut error = None;
+        let result = native::Budget::new(4096, 0)
+            .unwrap()
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                error = Some(work.reject(failure));
+                Ok::<_, String>(())
+            });
+        assert!(result.is_err());
+        error.unwrap()
+    }
+
+    #[test]
+    fn publication_origin_survives_clone_and_two_contexts() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            assert_eq!(
+                verdict(|work| {
+                    let original = work.reject(failure);
+                    let cloned = original.clone();
+                    assert_eq!(original, cloned);
+                    let error = PublishError::from(cloned);
+                    Err(error.clone().context("S3PrepareInvalid：").context("S3DriverInvalid："))
+                }),
+                Ok(())
+            );
+        }
+    }
+
+    #[test]
+    fn publication_distinct_in_capture_resource_origin_is_valid() {
+        assert_eq!(
+            verdict(|work| {
+                let _first = publish_err(work.reject(ScratchFailure::Budget));
+                Err(publish_err(work.reject(ScratchFailure::Allocation)))
+            }),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn publication_prior_capture_display_and_rewrap_cannot_sign_again() {
+        let ((codec, typed), old_trace) = failure_trace::capture(|| {
+            let codec = resource_error(ScratchFailure::Budget);
+            let typed = publish_err(codec.clone());
+            (codec, typed)
+        });
+        assert!(old_trace.bridges(&typed));
+        let expected = typed.to_string();
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Budget));
+                assert_eq!(typed.to_string(), expected);
+                Err(typed.clone())
+            }),
+            Err(expected.clone())
+        );
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Budget));
+                Err(publish_err(codec.clone()))
+            }),
+            Err(expected)
+        );
+    }
+
+    #[test]
+    fn publication_nested_capture_respects_birth_interval() {
+        let ((before, inside, inner), outer) = failure_trace::capture(|| {
+            let before = resource_error(ScratchFailure::Budget);
+            let ((before, inside), inner) = failure_trace::capture(|| {
+                (
+                    publish_err(before.clone()),
+                    publish_err(resource_error(ScratchFailure::Allocation)),
+                )
+            });
+            (before, inside, inner)
+        });
+        assert!(!inner.bridges(&before));
+        assert!(inner.bridges(&inside));
+        assert!(outer.bridges(&before));
+        assert!(outer.bridges(&inside));
+        assert!(outer.only_resource());
+    }
+
+    #[test]
+    fn publication_panic_restores_trace_without_reusing_events() {
+        let mut escaped = None;
+        let ((after, inner), outer) = failure_trace::capture(|| {
+            let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                failure_trace::capture(|| {
+                    escaped = Some(publish_err(resource_error(ScratchFailure::Budget)));
+                    let _ = resource_error(ScratchFailure::Ledger);
+                    panic!("P57捕获恢复");
+                });
+            }));
+            assert!(panic.is_err());
+            let (after, inner) = failure_trace::capture(|| {
+                publish_err(resource_error(ScratchFailure::Allocation))
+            });
+            (after, inner)
+        });
+        assert!(!outer.only_resource(), "被捕获的内层panic不能抹去Ledger");
+        assert!(!inner.bridges(escaped.as_ref().unwrap()));
+        assert!(inner.bridges(&after));
+        assert!(outer.bridges(escaped.as_ref().unwrap()));
+        let (_, fresh) = failure_trace::capture(|| ());
+        assert!(!fresh.bridges(&after));
+    }
+
+    #[test]
+    fn publication_sql_and_io_wrappers_preserve_source_and_display() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            assert_eq!(
+                verdict(|work| {
+                    let wrapped = rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(work.reject(failure)),
+                    );
+                    let expected = wrapped.to_string();
+                    let error = PublishError::from(wrapped);
+                    assert_eq!(error.to_string(), expected);
+                    Err(error.context("PublicationInvalid："))
+                }),
+                Ok(())
+            );
+            assert_eq!(
+                verdict(|work| {
+                    let wrapped = std::io::Error::other(work.reject(failure));
+                    let expected = wrapped.to_string();
+                    let error = PublishError::from(wrapped);
+                    assert_eq!(error.to_string(), expected);
+                    Err(error)
+                }),
+                Ok(())
+            );
+        }
+    }
+
     fn other_scope_ledger() -> String {
         let mut seen = None;
         let _ = native::Budget::new(4096, 0)
@@ -6624,7 +6766,7 @@ mod publication_degrade_verdict_tests {
             ("S3WriterResourcesInvalid", |e| {
                 e.context("S3WriterResourcesInvalid：")
             }),
-            ("StaleWriter", |e| e.context("StaleWriter：")),
+            ("StaleWriter", |e| e.context("StaleWriter：construction资格失效：")),
         ];
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
             assert_eq!(

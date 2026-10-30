@@ -663,7 +663,10 @@ pub mod failure_trace {
         impl Drop for Restore {
             fn drop(&mut self) {
                 if let Some(outer) = self.outer.take() {
-                    ACTIVE.with(|active| active.set(outer));
+                    let child = ACTIVE.with(|active| active.replace(outer));
+                    if let Some(child) = child {
+                        update(|outer| outer.absorb(child));
+                    }
                 }
                 if self.top {
                     ROOT.with(|root| root.set(self.root));

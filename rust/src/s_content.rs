@@ -199,6 +199,23 @@ impl ContextError {
             ..self
         }
     }
+    fn from_wrapped(message: String, inner: Option<&(dyn std::error::Error + 'static)>) -> Self {
+        #[cfg(feature = "s_incremental")]
+        let proof = inner.and_then(|error| {
+            if let Some(codec) = error.downcast_ref::<CodecError>() {
+                capture_allocation::scratch::failure_trace::bridge(codec)
+            } else {
+                error.downcast_ref::<Self>().and_then(|error| error.proof)
+            }
+        });
+        #[cfg(not(feature = "s_incremental"))]
+        let _ = inner;
+        Self {
+            message,
+            #[cfg(feature = "s_incremental")]
+            proof,
+        }
+    }
     pub fn into_message(self) -> String {
         self.message
     }
@@ -245,8 +262,23 @@ macro_rules! context_other {
     )*};
 }
 #[cfg(feature = "s_session")]
-context_other!(rusqlite::Error);
-context_other!(serde_json::Error, std::io::Error,
+impl From<rusqlite::Error> for ContextError {
+    fn from(error: rusqlite::Error) -> Self {
+        let message = error.to_string();
+        match error {
+            rusqlite::Error::FromSqlConversionFailure(_, _, inner) => {
+                Self::from_wrapped(message, Some(inner.as_ref()))
+            }
+            _ => Self::from(message),
+        }
+    }
+}
+impl From<std::io::Error> for ContextError {
+    fn from(error: std::io::Error) -> Self {
+        Self::from_wrapped(error.to_string(), error.get_ref().map(|e| e as &dyn std::error::Error))
+    }
+}
+context_other!(serde_json::Error,
     std::num::ParseIntError, std::num::TryFromIntError, std::str::Utf8Error,
     std::string::FromUtf8Error);
 impl From<ContextError> for String {

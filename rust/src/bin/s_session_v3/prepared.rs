@@ -1008,7 +1008,7 @@ impl Runtime {
                         &objects,
                         &manifest.batch_id,
                         material,
-                    ).map_err(Into::into)?;
+                    )?;
                     aux_index::stage_in_material(
                         tx,
                         &mut store,
@@ -1087,7 +1087,7 @@ impl Runtime {
                     &objects,
                     &manifest.batch_id,
                     material,
-                ).map_err(Into::into)?;
+                )?;
                 aux_index::stage_in_material(
                     tx,
                     &mut store,
