@@ -29,3 +29,7 @@ jobs:
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session committed_history_binds_manifest_source_public_roots_without_writes -- --test-threads 1
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session valid_but_substituted_snapshot_is_rejected_against_manifest -- --test-threads 1
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session v3::source_audit:: -- --test-threads 1 --nocapture
+      - name: Check ordinary owner projection and multicut outputs
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_ -- --test-threads 1 --nocapture
+      - name: Check ordinary build without incremental feature
+        run: cargo check --locked --features s_session --bin s_structure_session --jobs 4

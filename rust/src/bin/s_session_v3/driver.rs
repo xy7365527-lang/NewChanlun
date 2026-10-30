@@ -7312,6 +7312,49 @@ mod tests {
         s_fact_cache::warm_lane_reset();
         (cold, reply.unwrap(), events)
     }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_multicut_complete_outputs_match_frozen_oracle() {
+        let steps = vec![
+            S4Step { kind: "append", rows: vec![s4_bar(1, 0)], revision: "1" },
+            S4Step { kind: "append", rows: vec![s4_bar(2, 0)], revision: "1" },
+            S4Step { kind: "append", rows: vec![s4_bar(3, 0)], revision: "1" },
+            S4Step { kind: "revision_mid", rows: vec![s4_bar(2, 7)], revision: "2" },
+            S4Step { kind: "insert_mid", rows: vec![("insert".into(), 25, 40, 43, 37, 41)], revision: "1" },
+            S4Step { kind: "append", rows: vec![s4_bar(4, 0)], revision: "1" },
+            S4Step { kind: "revision_tail", rows: vec![s4_bar(4, -6)], revision: "2" },
+        ];
+        let plan = s4_clock(steps.len());
+        let new = Fixture::with_clock(plan.clone());
+        let old = Fixture::with_clock(plan);
+        for (index, step) in steps.iter().enumerate() {
+            let message = s4_message(index + 1, step);
+            super::super::source_audit::reset_ordinary_proof_stats();
+            let (mut expected, reply, _) = super::super::history::without_ordinary_proofs_for_test(|| s4_cold_handle(&old, &message));
+            let oracle_stats = super::super::source_audit::ordinary_proof_stats();
+            assert_eq!((oracle_stats.hits, oracle_stats.executions), (0, 0));
+            super::admission_private::s4_read_trace::enable();
+            let mut actual = new.open("1").unwrap();
+            let coverage = super::admission_private::s4_read_trace::finish();
+            assert_eq!(coverage, [index as u64, index as u64 * 3], "{}", step.kind);
+            assert_eq!(actual.handle(message).unwrap(), reply, "{}", step.kind);
+            assert_eq!(prepared::tests::runtime_root_tables(&actual.conn, false),
+                prepared::tests::runtime_root_tables(&expected.conn, false), "{}", step.kind);
+            prepared::tests::runtime_root_compare_reachable_bytes(&actual.conn, &expected.conn);
+            let new_roots = super::super::history::tests::layout_published_arrays(&mut actual.conn);
+            let old_roots = super::super::history::tests::layout_published_arrays(&mut expected.conn);
+            assert_eq!(new_roots, old_roots, "{}", step.kind);
+        }
+        super::super::source_audit::reset_ordinary_proof_stats();
+        super::admission_private::s4_read_trace::enable();
+        let _reopened = new.open("1").unwrap();
+        let coverage = super::admission_private::s4_read_trace::finish();
+        assert_eq!(coverage, [steps.len() as u64, steps.len() as u64 * 3]);
+        let stats = super::super::source_audit::ordinary_proof_stats();
+        assert!(stats.hits > 0 && stats.executions > 0);
+        eprintln!("ORDINARY_PROOF_MULTICUT cuts={} hits={} executions={} coverage={coverage:?}", steps.len(), stats.hits, stats.executions);
+    }
+
     /// 跑 S4 序列；`cold` 为 false 时只跑增量臂（S5 大样本测量）。返回每代 JSON 行。
     #[cfg(feature = "s_incremental")]
     fn s4_run(steps: &[S4Step], cold: bool) -> Vec<Value> {

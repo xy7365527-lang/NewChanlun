@@ -2014,6 +2014,146 @@ mod tests {
         nodes
     }
     #[cfg(feature = "s_incremental")]
+    struct OrdinaryFixture {
+        path: std::path::PathBuf,
+        db: Connection,
+        metadata: ManifestMetadata,
+        roots: ManifestRoots,
+        manifest: UnpublishedManifest,
+    }
+    #[cfg(feature = "s_incremental")]
+    impl OrdinaryFixture {
+        fn new(change: FixtureChange, mutation: Option<&str>) -> Self {
+            let path = std::env::temp_dir().join(format!("s1640-projection-{}-{}.sqlite",
+                std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            let mut writer = Connection::open(&path).unwrap();
+            let tx = writer.transaction().unwrap();
+            let (metadata, roots, manifest) = fixtures_with(&tx, change);
+            if let Some(sql) = mutation { tx.execute(sql, []).unwrap(); }
+            tx.commit().unwrap();
+            drop(writer);
+            let db = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+            Self { path, db, metadata, roots, manifest }
+        }
+    }
+    #[cfg(feature = "s_incremental")]
+    impl Drop for OrdinaryFixture {
+        fn drop(&mut self) { let _ = std::fs::remove_file(&self.path); }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_publication_complete_outputs_two_frontiers_and_release() {
+        use crate::v3::audit_store::{CodecRead, HashReader};
+        let mut fixture = OrdinaryFixture::new(FixtureChange::Observations, None);
+        let tx = fixture.db.transaction().unwrap();
+        let mut source = crate::v3::content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::metered(&mut source, None, None, None);
+        let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
+            fixture.roots.view(), &fixture.manifest.batch_id, 0).unwrap();
+        let outputs = [rendered(&mut reader, &normal_reference(expected.snapshot.view())),
+            rendered(&mut reader, &normal_reference(expected.delta.view()))];
+        reader.clear_overlay();
+        let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
+        for _ in 0..2 {
+            let actual = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
+                fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
+            assert_eq!(actual.snapshot, expected.snapshot);
+            assert_eq!(actual.delta, expected.delta);
+            assert_eq!([rendered(&mut reader, &normal_reference(actual.snapshot.view())),
+                rendered(&mut reader, &normal_reference(actual.delta.view()))], outputs);
+            projection.commit_cut();
+            assert!(!projection.previous.is_empty());
+            assert!(projection.current.is_empty());
+            reader.clear_overlay();
+        }
+        let mut foreign_source = crate::v3::content_store::ReadStore::new(&tx).unwrap();
+        let foreign_reader = HashReader::metered(&mut foreign_source, None, None, None);
+        assert!(projection.check(&tx, &foreign_reader).is_err());
+        projection.commit_cut();
+        assert!(projection.previous.is_empty() && projection.batch_previous.is_empty());
+        drop(projection);
+        assert_eq!(ORDINARY_PUBLICATION_BYTES.with(|s| s.get().0), 0);
+        let heap = crate::v3::audit_owner::allocation_probe::Window::start();
+        {
+            let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
+            for _ in 0..2 {
+                resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
+                    fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
+                projection.commit_cut();
+                reader.clear_overlay();
+            }
+        }
+        let observed = heap.finish();
+        eprintln!("ORDINARY_PROJECTION_HEAP {observed}");
+        assert_eq!(observed["live_before"], observed["live_after"]);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_publication_keeps_per_cut_rejection_matrix() {
+        use crate::v3::audit_store::HashReader;
+        let mut cases = vec![
+            (FixtureChange::OldPlaceholder, None), (FixtureChange::CurrentBatchString, None),
+            (FixtureChange::Duplicate, None), (FixtureChange::OldObservationPlaceholder, None),
+            (FixtureChange::LegacyFullDelta, None), (FixtureChange::LifeMismatch, None),
+            (FixtureChange::ForeignIdentity, None),
+        ];
+        for sql in [
+            "UPDATE s_content_objects SET kind='other' WHERE object_id='obj3-old'",
+            "UPDATE s_content_objects SET withdrawn_generation=2,withdrawal_reason='reason' WHERE object_id='obj3-old'",
+            "DELETE FROM s_content_objects WHERE object_id='obj3-old'",
+            "UPDATE s_content_objects SET batch_id='other' WHERE object_id='obj3-old'",
+            "UPDATE s_content_objects SET first_known_generation=1,first_known_cut='cut-1' WHERE object_id='obj3-new'",
+            "UPDATE s_content_observations SET published_generation=1 WHERE observation_id='ob-new'",
+        ] { cases.push((FixtureChange::Observations, Some(sql))); }
+        for (change, mutation) in cases {
+            let mut fixture = OrdinaryFixture::new(change, mutation);
+            let tx = fixture.db.transaction().unwrap();
+            let mut source = crate::v3::content_store::ReadStore::new(&tx).unwrap();
+            let mut reader = HashReader::metered(&mut source, None, None, None);
+            let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
+                fixture.roots.view(), &fixture.manifest.batch_id, 0).err().unwrap();
+            reader.clear_overlay();
+            let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
+            for _ in 0..2 {
+                let actual = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
+                    fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).err().unwrap();
+                assert_eq!(actual, expected);
+                reader.clear_overlay();
+            }
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_publication_exact_declarations_never_hit_good_root_entry() {
+        use crate::v3::audit_store::HashReader;
+        let mut fixture = OrdinaryFixture::new(FixtureChange::None, None);
+        let tx = fixture.db.transaction().unwrap();
+        let mut nodes = sc::MemoryNodes::new();
+        let valid = sc::write_value(&mut nodes, &object("old", "1", text("batch-old"))).unwrap().content_ref();
+        let mut missing = object("missing", "1", text("batch-old"));
+        let V::Object(fields) = &mut missing else { unreachable!() };
+        fields.retain(|(key, _)| key != "lifecycle");
+        let missing = sc::write_value(&mut nodes, &missing).unwrap().content_ref();
+        let mut reader = HashReader::metered(&mut nodes, None, None, None);
+        let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
+        projection.read_fields(&mut reader, (&valid).into()).unwrap();
+        projection.commit_cut();
+        for index in 0..3 {
+            let mut invalid = valid.clone();
+            match index { 0 => invalid.kind = Kind::Array, 1 => invalid.extent = Some(valid.extent.unwrap() + 1),
+                _ => invalid.format = "wrong-format".into() }
+            let expected = read_publication_fields(&mut reader, (&invalid).into()).err().unwrap();
+            assert_eq!(projection.read_fields(&mut reader, (&invalid).into()).err().unwrap(), expected);
+        }
+        for _ in 0..2 { assert!(projection.read_fields(&mut reader, (&missing).into()).is_err()); }
+        assert!(projection.current.is_empty());
+        assert_eq!(projection.previous.len(), 1);
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_publication_fields_same_roots_output_and_fewer_real_lookups() {
         use crate::v3::audit_store::CodecRead;

@@ -5458,6 +5458,55 @@ pub(super) mod tests {
         assert!(verified.audit_cut(&tx, &other_history.cuts[0], None, None, None, |_| Ok(())).is_err());
     }
 
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
+        let f = published();
+        let mut conn = Connection::open_with_flags(f.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let tx = conn.transaction().unwrap();
+        let control = control_audit::prepare_s3_control_history(&tx).unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let verified = read_verified_public_history(&tx, &raw, control, None, None, None,
+            None, None, None, None, SourcePolicy::Ordinary).unwrap();
+        let cut = &verified.history().cuts[0];
+        let mut session = verified.ordinary_source_session().unwrap();
+        let audit = |reader: &mut HashReader<'_>, proofs: &mut super::source_audit::OrdinaryProofs| {
+            super::source_audit::audit_generated_with_proofs(reader, cut.roots.generated_state.view(),
+                (&raw).into(), &cut.metadata.profile_id, &cut.metadata.rule_revision, None, None, proofs)
+        };
+        super::source_audit::reset_ordinary_proof_stats();
+        session.audit_cut(&tx, cut, None, None, None, audit).unwrap();
+        let first = super::source_audit::ordinary_proof_stats();
+        assert!(first.executions > 0);
+        session.audit_cut(&tx, cut, None, None, None, audit).unwrap();
+        let second = super::source_audit::ordinary_proof_stats();
+        assert!(second.hits > first.hits);
+        assert_eq!(first.executions, second.executions);
+        let failure = session.audit_cut(&tx, cut, None, None, None, |reader, proofs| {
+            audit(reader, proofs)?;
+            Err::<(), _>(err("catalog sentinel"))
+        }).unwrap_err();
+        assert!(failure.contains("catalog sentinel"));
+        assert!(session.proofs.is_none());
+        assert!(session.audit_cut(&tx, cut, None, None, None, |_, _| Ok(())).unwrap_err().contains("已拒绝"));
+        super::source_audit::reset_ordinary_proof_stats();
+        let mut reopened = verified.ordinary_source_session().unwrap();
+        reopened.audit_cut(&tx, cut, None, None, None, audit).unwrap();
+        assert_eq!(super::source_audit::ordinary_proof_stats().hits, 0);
+        assert_eq!(super::source_audit::ordinary_proof_stats().executions, first.executions);
+        let mut foreign = Connection::open_with_flags(f.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let foreign_tx = foreign.transaction().unwrap();
+        assert!(reopened.audit_cut(&foreign_tx, cut, None, None, None, |_, _| Ok(())).is_err());
+        assert!(reopened.proofs.is_none());
+        let mut expired = verified.ordinary_source_session().unwrap();
+        let deadline = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        assert!(expired.audit_cut(&tx, cut, Some(deadline), None, None, |reader, proofs| {
+            super::source_audit::audit_generated_with_proofs(reader, cut.roots.generated_state.view(),
+                (&raw).into(), &cut.metadata.profile_id, &cut.metadata.rule_revision, Some(deadline), None, proofs)
+        }).is_err());
+        assert!(expired.proofs.is_none());
+    }
+
     #[test]
     fn committed_history_binds_manifest_source_public_roots_without_writes() {
         let mut f = published();
