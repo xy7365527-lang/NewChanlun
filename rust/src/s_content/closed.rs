@@ -340,7 +340,11 @@ impl<'capture> ClosedCapturedOwner<'capture> {
     ) -> Result<super::SequenceRef, CodecError> {
         let budget = self.budget.clone();
         super::sequence::sequence_rebuild_suffix_ctx(
-            &mut CodecContext::Closed(self), seq, keep, leaves, Some(&budget),
+            &mut CodecContext::Closed(self),
+            seq,
+            keep,
+            leaves,
+            Some(&budget),
         )
     }
     pub fn swap_sequence_read_trace(&mut self, enabled: bool) -> bool {

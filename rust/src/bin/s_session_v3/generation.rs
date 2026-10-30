@@ -1835,27 +1835,29 @@ impl SequenceMemo {
             .unchanged_prefix
             .checked_add(edit.replacement_suffix.len())
             .ok_or_else(|| format!("GenError：{what} splice 长度溢出"))?;
-        let mut next_keys = if !self.bound && (budget.is_some() || store.generic_store().codec_work().is_some()) {
-            Some(match budget {
-                Some(b) => SequenceKeys::owned(b)?,
-                None => SequenceKeys::default(),
-            })
-        } else {
-            None
-        };
+        let mut next_keys =
+            if !self.bound && (budget.is_some() || store.generic_store().codec_work().is_some()) {
+                Some(match budget {
+                    Some(b) => SequenceKeys::owned(b)?,
+                    None => SequenceKeys::default(),
+                })
+            } else {
+                None
+            };
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
             .reserve_admitted(store.generic_store(), length)?;
-        let seq = store.rebuild_sequence_suffix(
-            &previous,
-            edit.unchanged_prefix as u64,
-            edit.replacement_suffix,
-            budget,
-        )
-        .map_err(|error| {
-            PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
-        })?;
+        let seq = store
+            .rebuild_sequence_suffix(
+                &previous,
+                edit.unchanged_prefix as u64,
+                edit.replacement_suffix,
+                budget,
+            )
+            .map_err(|error| {
+                PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
+            })?;
         let built = array_from_sequence(store.generic_store(), &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1897,14 +1899,15 @@ impl SequenceMemo {
             return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
         }
         // 初次Owned绑定暂留局部，失败不冻结模式；现有Owned真实扩容先同时留账旧新块。
-        let mut next_keys = if !self.bound && (budget.is_some() || store.generic_store().codec_work().is_some()) {
-            Some(match budget {
-                Some(b) => SequenceKeys::owned(b)?,
-                None => SequenceKeys::default(),
-            })
-        } else {
-            None
-        };
+        let mut next_keys =
+            if !self.bound && (budget.is_some() || store.generic_store().codec_work().is_some()) {
+                Some(match budget {
+                    Some(b) => SequenceKeys::owned(b)?,
+                    None => SequenceKeys::default(),
+                })
+            } else {
+                None
+            };
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
@@ -1920,15 +1923,11 @@ impl SequenceMemo {
             None if keys.is_empty() => SequenceRef::empty(),
             _ => return Err((format!("GenError：{what} 序列缓存计数不一致，须discard")).into()),
         };
-        let seq = store.rebuild_sequence_suffix(
-            &previous,
-            common as u64,
-            &elements[common..],
-            budget,
-        )
-        .map_err(|error| {
-            PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
-        })?;
+        let seq = store
+            .rebuild_sequence_suffix(&previous, common as u64, &elements[common..], budget)
+            .map_err(|error| {
+                PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
+            })?;
         let built = array_from_sequence(store.generic_store(), &seq).map_err(producer_error)?;
         next_keys
             .as_mut()

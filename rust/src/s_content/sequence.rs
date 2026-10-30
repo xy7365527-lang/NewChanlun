@@ -38,12 +38,12 @@
 #[cfg(feature = "s_allocation_json_testonly")]
 use super::capture_allocation::work::WorkMap;
 use super::capture_allocation::OwnedBudget;
-use super::{
-    be_u64, checked_frame_len, digest_at, frame, length_overflow_error, parse_root,
-    root_string, sequence_shape_error, split_index, tag, CodecError,
-    NodeDigest, NodeSink, NodeSource, MAX_FRAME_LEN,
-};
 use super::closed::CodecContext;
+use super::{
+    be_u64, checked_frame_len, digest_at, frame, length_overflow_error, parse_root, root_string,
+    sequence_shape_error, split_index, tag, CodecError, NodeDigest, NodeSink, NodeSource,
+    MAX_FRAME_LEN,
+};
 use std::collections::HashMap;
 use std::hash::Hash;
 

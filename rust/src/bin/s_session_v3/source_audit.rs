@@ -804,7 +804,10 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
 }
 impl CodecStore for ArrayAuditSource<'_, '_, '_, '_> {
     fn rebuild_sequence_suffix(
-        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<sc::SequenceRef, sc::CodecError> {
         if self.source.owned_codec_active() {

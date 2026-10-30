@@ -605,7 +605,10 @@ pub(crate) trait CodecRead: NodeSource {
 }
 pub(crate) trait CodecStore: CodecRead + NodeSink {
     fn rebuild_sequence_suffix(
-        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<sc::SequenceRef, CodecError> {
         sc::sequence_rebuild_suffix_with_allocation(self.generic_store(), seq, keep, leaves, budget)
@@ -1039,7 +1042,10 @@ impl CodecRead for StoreView<'_, '_> {
 }
 impl CodecStore for StoreView<'_, '_> {
     fn rebuild_sequence_suffix(
-        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<sc::SequenceRef, CodecError> {
         match &mut self.backend {
