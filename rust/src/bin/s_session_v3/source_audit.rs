@@ -42,7 +42,9 @@ pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 mod ordinary_source;
 pub(super) use ordinary_source::OrdinaryProofs;
 #[cfg(all(test, feature = "s_incremental"))]
-pub(super) use ordinary_source::{stats as ordinary_proof_stats, reset_stats as reset_ordinary_proof_stats};
+pub(super) use ordinary_source::{
+    reset_stats as reset_ordinary_proof_stats, stats as ordinary_proof_stats,
+};
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -1673,8 +1675,11 @@ pub(super) fn audit_generated_for_audit<'a>(
     if !super::history::ordinary_proofs_enabled() {
         let state = state.into();
         // 冻结核只调用通用 verify_ref；对照臂仍须消费已核历史的 source Public 根资格。
-        s.verify_history_public_root(state, sc::Mode::Public).map_err(err)?;
-        return audit_generated_frozen_for_test(s, state, raw_prefix, profile, rule, deadline, budget);
+        s.verify_history_public_root(state, sc::Mode::Public)
+            .map_err(err)?;
+        return audit_generated_frozen_for_test(
+            s, state, raw_prefix, profile, rule, deadline, budget,
+        );
     }
     audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
@@ -1693,13 +1698,30 @@ pub(super) fn audit_generated_for_audit<'a>(
 }
 
 pub(super) fn audit_generated_with_proofs(
-    s: &mut super::history::HashReader<'_>, state: sc::RefView<'_>, raw: RawEventsView<'_>,
-    profile: &str, rule: &str, deadline: Option<std::time::Instant>,
-    budget: Option<&dyn super::audit_budget::Budget>, proofs: &mut OrdinaryProofs,
+    s: &mut super::history::HashReader<'_>,
+    state: sc::RefView<'_>,
+    raw: RawEventsView<'_>,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    proofs: &mut OrdinaryProofs,
 ) -> Result<Counts, String> {
     proofs.begin(profile, rule);
-    audit_generated_in_store(&mut super::audit_store::StoreView::for_audit(s), state, raw,
-        profile, rule, deadline, budget, None, None, None, None, Some(proofs))
+    audit_generated_in_store(
+        &mut super::audit_store::StoreView::for_audit(s),
+        state,
+        raw,
+        profile,
+        rule,
+        deadline,
+        budget,
+        None,
+        None,
+        None,
+        None,
+        Some(proofs),
+    )
 }
 
 // #1488 SFT-M1：故障对拍必须调用冻结旧核，不能借用重构后的同一实现。
@@ -2320,7 +2342,8 @@ fn audit_generated_in_store(
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
-    s.verify_history_public_root(state, sc::Mode::Public).map_err(err)?;
+    s.verify_history_public_root(state, sc::Mode::Public)
+        .map_err(err)?;
     let full_arrays = s.native_measure().is_some() || budget.is_none();
     let mut array_source = ArrayAuditSource {
         source: s,
@@ -2382,43 +2405,72 @@ fn audit_generated_in_store(
     let mut groups = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     source_call_note(|n| n.full_members_enumerations += 1);
-    if object_array.kind() != Kind::Array { return Err(err("预期数组")); }
+    if object_array.kind() != Kind::Array {
+        return Err(err("预期数组"));
+    }
     let mut cursor = if s.audit_full_array_scan() {
         s.array_cursor(object_array.view()).map_err(err)?
-    } else { None };
+    } else {
+        None
+    };
     let owned_items = if cursor.is_none() {
         Some(elements_ref(s, object_array.view())?)
-    } else { None };
+    } else {
+        None
+    };
     for i in 0..object_array.extent().ok_or_else(|| err("数组缺长度"))? {
         let record = if let Some(cursor) = &mut cursor {
             s.next_array_member(cursor).map_err(err)?
         } else {
-            s.native_ref_clone(&owned_items.as_ref().unwrap()[i as usize]).map_err(err)?
+            s.native_ref_clone(&owned_items.as_ref().unwrap()[i as usize])
+                .map_err(err)?
         };
         super::history::check_deadline(deadline)?;
         let memo_fields = s.fields.is_some();
         let object = if let Some(proofs) = ordinary.as_deref_mut() {
-            proofs.object(s, &record, raw, &producer, &mut FullObjectSlots { ids: &mut ids, groups: &mut groups },
-                &mut checked_refs, raw_prefix.len(), deadline, budget)?
-        } else { audit_object_record(
-            s,
-            &record,
-            raw,
-            &producer,
-            &mut ids,
-            &mut groups,
-            &mut checked_refs,
-            native_sources.as_deref_mut(),
-            raw_prefix.len(),
-            memo_fields,
-            deadline,
-            budget,
-        )? };
+            proofs.object(
+                s,
+                &record,
+                raw,
+                &producer,
+                &mut FullObjectSlots {
+                    ids: &mut ids,
+                    groups: &mut groups,
+                },
+                &mut checked_refs,
+                raw_prefix.len(),
+                deadline,
+                budget,
+            )?
+        } else {
+            audit_object_record(
+                s,
+                &record,
+                raw,
+                &producer,
+                &mut ids,
+                &mut groups,
+                &mut checked_refs,
+                native_sources.as_deref_mut(),
+                raw_prefix.len(),
+                memo_fields,
+                deadline,
+                budget,
+            )?
+        };
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit_with_proofs(s, objects.iter(), raw, &groups, rule, deadline, ordinary.as_deref_mut())?;
+    let pending = source_pending::audit_with_proofs(
+        s,
+        objects.iter(),
+        raw,
+        &groups,
+        rule,
+        deadline,
+        ordinary.as_deref_mut(),
+    )?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     #[cfg(test)]
@@ -2455,20 +2507,31 @@ fn audit_generated_in_store(
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::history::check_deadline(deadline)?;
         let shape = if let Some(proofs) = ordinary.as_deref_mut() {
-            proofs.shape(s, object, raw, &groups, &producer, &mut checked_refs,
-                raw_prefix.len(), deadline, budget)?
-        } else { audit_shape_record(
-            s,
-            object,
-            raw,
-            &groups,
-            &producer,
-            &mut checked_refs,
-            native_sources.as_deref_mut(),
-            raw_prefix.len(),
-            deadline,
-            budget,
-        )? };
+            proofs.shape(
+                s,
+                object,
+                raw,
+                &groups,
+                &producer,
+                &mut checked_refs,
+                raw_prefix.len(),
+                deadline,
+                budget,
+            )?
+        } else {
+            audit_shape_record(
+                s,
+                object,
+                raw,
+                &groups,
+                &producer,
+                &mut checked_refs,
+                native_sources.as_deref_mut(),
+                raw_prefix.len(),
+                deadline,
+                budget,
+            )?
+        };
         s.native_map_room(&mut shapes).map_err(err)?;
         shapes
             .insert(s.native_text(object.id.as_str())?, shape)
@@ -2483,17 +2546,27 @@ fn audit_generated_in_store(
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
         if let Some(proofs) = ordinary.as_deref_mut() {
-            proofs.witness(s, &witness, raw, &groups, &shapes, &mut FullWitnessSlots(&mut seen), deadline)?;
-        } else { audit_witness_record(
-            s,
-            &witness,
-            raw,
-            &groups,
-            &shapes,
-            &mut seen,
-            native_identity.as_deref_mut(),
-            deadline,
-        )?; }
+            proofs.witness(
+                s,
+                &witness,
+                raw,
+                &groups,
+                &shapes,
+                &mut FullWitnessSlots(&mut seen),
+                deadline,
+            )?;
+        } else {
+            audit_witness_record(
+                s,
+                &witness,
+                raw,
+                &groups,
+                &shapes,
+                &mut seen,
+                native_identity.as_deref_mut(),
+                deadline,
+            )?;
+        }
     }
     if seen.len() != shapes.len() * 3 {
         return Err(err("形态缺完整三槽见证"));
@@ -2509,7 +2582,9 @@ fn audit_generated_in_store(
         super::history::check_deadline(deadline)?;
         let kind = if let Some(proofs) = ordinary.as_deref_mut() {
             proofs.observation(s, &item)?
-        } else { text(s, &item, "kind")? };
+        } else {
+            text(s, &item, "kind")?
+        };
         match kind.as_str() {
             "insufficient_knowledge" => insufficient += 1,
             "domain_not_satisfied" => outside_domain += 1,
@@ -2771,7 +2846,10 @@ mod tests {
             "event_id": format!("e-{seq}"), "input_revision": "1"})
     }
     #[cfg(feature = "s_incremental")]
-    pub(super) fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, String> {
+    pub(super) fn original_sources(
+        raw: &[Value],
+        n: usize,
+    ) -> Result<BusinessMap<i64, Source>, String> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);
         for event in effective.iter() {

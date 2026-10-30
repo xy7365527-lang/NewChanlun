@@ -586,7 +586,9 @@ fn verify_cut_in_store(
     store
         .verify_history_public_root(generated_state, sc::Mode::Public)
         .map_err(err)?;
-    store.verify_history_public_root(delta, sc::Mode::Public).map_err(err)?;
+    store
+        .verify_history_public_root(delta, sc::Mode::Public)
+        .map_err(err)?;
     let frontier = text_ref(store, delta, "index_frontier")?;
     if !real_batch_id(&frontier) {
         return Err(err(format!(

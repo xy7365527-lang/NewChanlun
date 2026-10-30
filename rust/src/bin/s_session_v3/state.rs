@@ -915,7 +915,12 @@ fn audit_core_fresh_with_policy(
         materials.as_mut(),
         policy,
     )?;
-    let history::IndexedHistory { cuts, objects, object_sweep, .. } = verified_history.history();
+    let history::IndexedHistory {
+        cuts,
+        objects,
+        object_sweep,
+        ..
+    } = verified_history.history();
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
@@ -973,29 +978,46 @@ fn audit_core_fresh_with_policy(
     let allow_ordinary = source_cache.is_none();
     #[cfg(not(feature = "s_incremental"))]
     let allow_ordinary = true;
-    let mut ordinary_source = if allow_ordinary { verified_history.ordinary_source_session() } else { None };
+    let mut ordinary_source = if allow_ordinary {
+        verified_history.ordinary_source_session()
+    } else {
+        None
+    };
     let mut previous = -1i64;
     for cut in cuts {
-        let mut audit_cut = |store: &mut history::HashReader<'_>, proofs: Option<&mut source_audit::OrdinaryProofs>| audit_one_cut_sources(
-            cut,
-            raw.view(),
-            store,
-            &objects,
-            object_sweep.as_ref(),
-            &mut native_sources,
-            proofs,
-            previous,
-            deadline,
-            budget,
-            #[cfg(feature = "s_incremental")]
-            source_cache.as_deref_mut(),
-            #[cfg(feature = "s_incremental")]
-            None,
-        );
+        let mut audit_cut =
+            |store: &mut history::HashReader<'_>,
+             proofs: Option<&mut source_audit::OrdinaryProofs>| {
+                audit_one_cut_sources(
+                    cut,
+                    raw.view(),
+                    store,
+                    &objects,
+                    object_sweep.as_ref(),
+                    &mut native_sources,
+                    proofs,
+                    previous,
+                    deadline,
+                    budget,
+                    #[cfg(feature = "s_incremental")]
+                    source_cache.as_deref_mut(),
+                    #[cfg(feature = "s_incremental")]
+                    None,
+                )
+            };
         if let Some(session) = ordinary_source.as_mut() {
-            session.audit_cut(tx, cut, deadline, max_render_bytes, budget, |store, proofs| audit_cut(store, Some(proofs)))?;
+            session.audit_cut(
+                tx,
+                cut,
+                deadline,
+                max_render_bytes,
+                budget,
+                |store, proofs| audit_cut(store, Some(proofs)),
+            )?;
         } else if verified_history.qualified() {
-            verified_history.audit_cut(tx, cut, deadline, max_render_bytes, budget, |store| audit_cut(store, None))?;
+            verified_history.audit_cut(tx, cut, deadline, max_render_bytes, budget, |store| {
+                audit_cut(store, None)
+            })?;
         } else {
             audit_cut(&mut store, None)?;
         }
@@ -1030,7 +1052,13 @@ fn audit_core_fresh_with_policy(
     drop(ordinary_source);
     let raw_sources = native_sources.map(source_audit::NativeSourceAudit::into_raw_facts);
     let history::IndexedHistory {
-        control_facts, raw_prefixes, auxiliary_facts, cuts, objects, auxiliary, object_sweep,
+        control_facts,
+        raw_prefixes,
+        auxiliary_facts,
+        cuts,
+        objects,
+        auxiliary,
+        object_sweep,
     } = verified_history.into_history();
     Ok((
         AuditedState {
@@ -1083,11 +1111,21 @@ fn audit_one_cut_sources(
     #[cfg(not(feature = "s_incremental"))]
     let cached_counts: Option<source_audit::Counts> = None;
     if proofs.is_some() && (cached_counts.is_some() || native_sources.is_some()) {
-        return Err(err("ordinary来源证明不得与cached_counts/owner_source/Native复用并用"));
+        return Err(err(
+            "ordinary来源证明不得与cached_counts/owner_source/Native复用并用",
+        ));
     }
     let counts = if let Some(proofs) = proofs {
-        source_audit::audit_generated_with_proofs(store, cut.roots.generated_state.view(), prefix,
-            &cut.metadata.profile_id, &cut.metadata.rule_revision, deadline, budget, proofs)?
+        source_audit::audit_generated_with_proofs(
+            store,
+            cut.roots.generated_state.view(),
+            prefix,
+            &cut.metadata.profile_id,
+            &cut.metadata.rule_revision,
+            deadline,
+            budget,
+            proofs,
+        )?
     } else if let Some(counts) = cached_counts {
         counts
     } else {

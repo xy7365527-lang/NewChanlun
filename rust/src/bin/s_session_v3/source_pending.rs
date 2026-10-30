@@ -797,17 +797,30 @@ pub(super) fn audit_with_proofs<'a>(
     for request in elements(s, &request_array)? {
         super::super::history::check_deadline(deadline)?;
         if let Some(p) = proofs.as_deref_mut() {
-            p.request(s, &request, &FullStepLookup { steps: &steps, subjects: &step_subjects },
-                &mut FullRequestSlots { requests: &mut requests, bound: &mut bound }, equal_is_evidence)?;
-        } else { request_record(
-            s,
-            &request,
-            &steps,
-            &step_subjects,
-            &mut requests,
-            &mut bound,
-            equal_is_evidence,
-        )?; }
+            p.request(
+                s,
+                &request,
+                &FullStepLookup {
+                    steps: &steps,
+                    subjects: &step_subjects,
+                },
+                &mut FullRequestSlots {
+                    requests: &mut requests,
+                    bound: &mut bound,
+                },
+                equal_is_evidence,
+            )?;
+        } else {
+            request_record(
+                s,
+                &request,
+                &steps,
+                &step_subjects,
+                &mut requests,
+                &mut bound,
+                equal_is_evidence,
+            )?;
+        }
     }
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));

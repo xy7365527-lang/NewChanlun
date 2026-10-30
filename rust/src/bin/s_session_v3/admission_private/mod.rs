@@ -21,31 +21,61 @@ pub(crate) mod s4_read_trace {
         last: Option<(&'static str, Option<i64>)>,
     }
     thread_local! { static TRACE: RefCell<Trace> = RefCell::new(Trace::default()); }
-    pub(crate) fn enable() { TRACE.with(|t| *t.borrow_mut() = Trace { enabled: true, ..Trace::default() }); }
-    pub(crate) fn phase(phase: usize) { TRACE.with(|t| t.borrow_mut().phase = phase); }
+    pub(crate) fn enable() {
+        TRACE.with(|t| {
+            *t.borrow_mut() = Trace {
+                enabled: true,
+                ..Trace::default()
+            }
+        });
+    }
+    pub(crate) fn phase(phase: usize) {
+        TRACE.with(|t| t.borrow_mut().phase = phase);
+    }
     pub(crate) fn read(_: i32, _: i64, len: usize) {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
-            if t.enabled { let phase = t.phase; t.bytes[phase] += len as u64; }
+            if t.enabled {
+                let phase = t.phase;
+                t.bytes[phase] += len as u64;
+            }
         });
     }
     pub(crate) fn coverage(index: usize) {
         // 只比较同一次admission业务审计；Driver后续恢复也会解码Template。
-        TRACE.with(|t| { let mut t = t.borrow_mut(); if t.enabled && t.phase == 2 { t.coverage[index] += 1; } });
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if t.enabled && t.phase == 2 {
+                t.coverage[index] += 1;
+            }
+        });
     }
     pub(crate) fn audit_event(label: &'static str, generation: Option<i64>) {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
             if t.enabled && t.phase == 2 {
                 t.last = Some((label, generation));
-                eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={} coverage={:?}", label, generation, t.bytes[2], t.coverage);
-                eprintln!("S4_AUDIT_SQL phase={} generation={:?} bytes={} node_sql_reads={}", label, generation, t.bytes[2], crate::content_store::sql_reads_on_thread());
+                eprintln!(
+                    "S4_AUDIT_EVENT phase={} generation={:?} bytes={} coverage={:?}",
+                    label, generation, t.bytes[2], t.coverage
+                );
+                eprintln!(
+                    "S4_AUDIT_SQL phase={} generation={:?} bytes={} node_sql_reads={}",
+                    label,
+                    generation,
+                    t.bytes[2],
+                    crate::content_store::sql_reads_on_thread()
+                );
             }
         });
     }
     fn cache_counts(conn: &rusqlite::Connection) -> [(i32, i32, i32); 2] {
         use rusqlite::ffi;
-        [ffi::SQLITE_DBSTATUS_CACHE_HIT, ffi::SQLITE_DBSTATUS_CACHE_MISS].map(|verb| {
+        [
+            ffi::SQLITE_DBSTATUS_CACHE_HIT,
+            ffi::SQLITE_DBSTATUS_CACHE_MISS,
+        ]
+        .map(|verb| {
             let (mut current, mut highwater) = (0, 0);
             // SAFETY：同步借用有效连接与栈内输出；resetFlag=0，不改累计值或连接配置。
             let rc = unsafe {
@@ -96,11 +126,24 @@ pub(crate) mod s4_read_trace {
     pub(crate) fn begin(conn: &rusqlite::Connection, boundary: &'static str) {
         audit_window(conn, boundary, "begin", "pending");
     }
-    pub(crate) fn end<T, E>(conn: &rusqlite::Connection, boundary: &'static str, result: &Result<T, E>) {
-        audit_window(conn, boundary, "end", if result.is_ok() { "ok" } else { "error" });
+    pub(crate) fn end<T, E>(
+        conn: &rusqlite::Connection,
+        boundary: &'static str,
+        result: &Result<T, E>,
+    ) {
+        audit_window(
+            conn,
+            boundary,
+            "end",
+            if result.is_ok() { "ok" } else { "error" },
+        );
     }
     pub(crate) fn snapshot(label: &str, bytes: u128) {
-        TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
+        TRACE.with(|t| {
+            if t.borrow().enabled {
+                eprintln!("S4_READ_ACCOUNT {} {}", label, bytes);
+            }
+        });
     }
     #[cfg(feature = "s_incremental")]
     pub(crate) fn measured_bytes() -> [u64; 4] {
@@ -110,8 +153,15 @@ pub(crate) mod s4_read_trace {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
             if t.enabled {
-                eprintln!("S4_READ_SUMMARY bytes={:?} coverage={:?} last={:?}", t.bytes, t.coverage, t.last);
-                eprintln!("S4_AUDIT_SQL_SUMMARY bytes={} node_sql_reads={}", t.bytes[2], crate::content_store::sql_reads_on_thread());
+                eprintln!(
+                    "S4_READ_SUMMARY bytes={:?} coverage={:?} last={:?}",
+                    t.bytes, t.coverage, t.last
+                );
+                eprintln!(
+                    "S4_AUDIT_SQL_SUMMARY bytes={} node_sql_reads={}",
+                    t.bytes[2],
+                    crate::content_store::sql_reads_on_thread()
+                );
             }
             t.enabled = false;
             t.coverage
@@ -526,7 +576,13 @@ fn validate_prefix_inner(
                 .connect(true)
                 .map_err(|_| "PrivateSqliteOpenFailed")?;
             #[cfg(test)]
-            { s4_read_trace::snapshot("quick_start", shared.account.borrow().snapshot().wire_bytes); s4_read_trace::phase(1); }
+            {
+                s4_read_trace::snapshot(
+                    "quick_start",
+                    shared.account.borrow().snapshot().wire_bytes,
+                );
+                s4_read_trace::phase(1);
+            }
             let check: Result<(), String> = (|| {
                 let mut stmt = session
                     .connection()
@@ -547,13 +603,26 @@ fn validate_prefix_inner(
                 drop(rows);
                 drop(stmt);
                 #[cfg(test)]
-                { s4_read_trace::snapshot("audit_start", shared.account.borrow().snapshot().wire_bytes); s4_read_trace::phase(2); }
+                {
+                    s4_read_trace::snapshot(
+                        "audit_start",
+                        shared.account.borrow().snapshot().wire_bytes,
+                    );
+                    s4_read_trace::phase(2);
+                }
                 #[cfg(test)]
-                s4_read_trace::audit_window(session.connection(), "audit_business", "begin", "pending");
+                s4_read_trace::audit_window(
+                    session.connection(),
+                    "audit_business",
+                    "begin",
+                    "pending",
+                );
                 let result = audit_business(session.connection(), &shared, prefix);
                 #[cfg(test)]
                 s4_read_trace::audit_window(
-                    session.connection(), "audit_business", "end",
+                    session.connection(),
+                    "audit_business",
+                    "end",
                     if result.is_ok() { "ok" } else { "error" },
                 );
                 result

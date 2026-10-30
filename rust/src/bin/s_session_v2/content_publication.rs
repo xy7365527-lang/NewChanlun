@@ -647,7 +647,8 @@ fn resolve_indexed_templates_pending_core(
     resolved_family?;
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_resolve_obs_delta");
-    let resolved_family = resolve_observations(store, &mut delta, &observations, &metadata, batch_id, true);
+    let resolved_family =
+        resolve_observations(store, &mut delta, &observations, &metadata, batch_id, true);
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_obs_delta", &resolved_family);
     resolved_family?;
@@ -1260,7 +1261,17 @@ fn resolve_record_batch(
     m: &MetadataView<'_>,
     batch: &str,
 ) -> Result<(), String> {
-    resolve_record_batch_projected(store, root, path, record, first, stored_batch, m, batch, None)
+    resolve_record_batch_projected(
+        store,
+        root,
+        path,
+        record,
+        first,
+        stored_batch,
+        m,
+        batch,
+        None,
+    )
 }
 fn resolve_record_batch_projected(
     store: &mut (impl CodecStore + ?Sized),
@@ -1275,7 +1286,9 @@ fn resolve_record_batch_projected(
 ) -> Result<(), String> {
     let value = match projection {
         Some(p) => p.read_batch(store, record.view())?,
-        None => store.lookup_field_ref(record.view(), "batch_id").map_err(err)?,
+        None => store
+            .lookup_field_ref(record.view(), "batch_id")
+            .map_err(err)?,
     };
     if first == m.generation {
         if stored_batch != batch || value.kind() != Kind::TemplateBatch {
@@ -1360,7 +1373,9 @@ fn resolve_objects(
         let record = if let Some(cursor) = &mut cursor {
             store.next_array_member(cursor).map_err(err)?
         } else {
-            store.lookup_ref(array.view(), &[PathStep::Index(i)]).map_err(err)?
+            store
+                .lookup_ref(array.view(), &[PathStep::Index(i)])
+                .map_err(err)?
         };
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
         let fields = match memo.as_deref_mut() {
@@ -1465,7 +1480,9 @@ fn resolve_observations(
     {
         expected.insert_admitted(*id, store).map_err(err)?;
     }
-    let array = store.lookup_field_ref(root.view(), "observations").map_err(err)?;
+    let array = store
+        .lookup_field_ref(root.view(), "observations")
+        .map_err(err)?;
     let n = array_reference_len(&array, "observations")?;
     if n != expected.len() as u64 {
         return Err(err("观察与独立索引成员数不符"));
@@ -1481,8 +1498,11 @@ fn resolve_observations(
             ],
         )?;
         let record = if let Some(cursor) = &mut cursor {
-            cursor.next_with_prefix(store.generic_source(), &path.steps[..1])
-                .map_err(err)?.map(RefValue::Plain).ok_or_else(|| err("数组游标提前结束"))?
+            cursor
+                .next_with_prefix(store.generic_source(), &path.steps[..1])
+                .map_err(err)?
+                .map(RefValue::Plain)
+                .ok_or_else(|| err("数组游标提前结束"))?
         } else {
             store.lookup_ref(root.view(), &path.steps).map_err(err)?
         };
@@ -2024,21 +2044,38 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     impl OrdinaryFixture {
         fn new(change: FixtureChange, mutation: Option<&str>) -> Self {
-            let path = std::env::temp_dir().join(format!("s1640-projection-{}-{}.sqlite",
-                std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            let path = std::env::temp_dir().join(format!(
+                "s1640-projection-{}-{}.sqlite",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
             let mut writer = Connection::open(&path).unwrap();
             let tx = writer.transaction().unwrap();
             let (metadata, roots, manifest) = fixtures_with(&tx, change);
-            if let Some(sql) = mutation { tx.execute_batch(sql).unwrap(); }
+            if let Some(sql) = mutation {
+                tx.execute_batch(sql).unwrap();
+            }
             tx.commit().unwrap();
             drop(writer);
-            let db = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-            Self { path, db, metadata, roots, manifest }
+            let db = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+            Self {
+                path,
+                db,
+                metadata,
+                roots,
+                manifest,
+            }
         }
     }
     #[cfg(feature = "s_incremental")]
     impl Drop for OrdinaryFixture {
-        fn drop(&mut self) { let _ = std::fs::remove_file(&self.path); }
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+        }
     }
 
     #[cfg(feature = "s_incremental")]
@@ -2049,19 +2086,41 @@ mod tests {
         let tx = fixture.db.transaction().unwrap();
         let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
         let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);
-        let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
-            fixture.roots.view(), &fixture.manifest.batch_id, 0).unwrap();
-        let outputs = [rendered(&mut reader, &normal_reference(expected.snapshot.view())),
-            rendered(&mut reader, &normal_reference(expected.delta.view()))];
+        let expected = resolve_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            fixture.metadata.view(),
+            fixture.roots.view(),
+            &fixture.manifest.batch_id,
+            0,
+        )
+        .unwrap();
+        let outputs = [
+            rendered(&mut reader, &normal_reference(expected.snapshot.view())),
+            rendered(&mut reader, &normal_reference(expected.delta.view())),
+        ];
         reader.clear_overlay();
         let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
         for _ in 0..2 {
-            let actual = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
-                fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
+            let actual = resolve_ordinary_indexed_templates_pending_view(
+                &tx,
+                &mut reader,
+                fixture.metadata.view(),
+                fixture.roots.view(),
+                &fixture.manifest.batch_id,
+                0,
+                &mut projection,
+            )
+            .unwrap();
             assert_eq!(actual.snapshot, expected.snapshot);
             assert_eq!(actual.delta, expected.delta);
-            assert_eq!([rendered(&mut reader, &normal_reference(actual.snapshot.view())),
-                rendered(&mut reader, &normal_reference(actual.delta.view()))], outputs);
+            assert_eq!(
+                [
+                    rendered(&mut reader, &normal_reference(actual.snapshot.view())),
+                    rendered(&mut reader, &normal_reference(actual.delta.view()))
+                ],
+                outputs
+            );
             projection.commit_cut();
             assert!(!projection.previous.is_empty());
             assert!(projection.current.is_empty());
@@ -2080,15 +2139,25 @@ mod tests {
         {
             let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
             for round in 0..2 {
-                resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
-                    fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
+                resolve_ordinary_indexed_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    fixture.metadata.view(),
+                    fixture.roots.view(),
+                    &fixture.manifest.batch_id,
+                    0,
+                    &mut projection,
+                )
+                .unwrap();
                 reader.clear_overlay();
                 if round == 1 {
-                    two_frontiers = crate::v3::audit_owner::allocation_probe::live_bytes() - live_before;
+                    two_frontiers =
+                        crate::v3::audit_owner::allocation_probe::live_bytes() - live_before;
                 }
                 projection.commit_cut();
                 if round == 0 {
-                    one_frontier = crate::v3::audit_owner::allocation_probe::live_bytes() - live_before;
+                    one_frontier =
+                        crate::v3::audit_owner::allocation_probe::live_bytes() - live_before;
                 }
             }
         }
@@ -2104,9 +2173,12 @@ mod tests {
     fn ordinary_proof_publication_keeps_per_cut_rejection_matrix() {
         use crate::v3::audit_store::HashReader;
         let mut cases = vec![
-            (FixtureChange::OldPlaceholder, None), (FixtureChange::CurrentBatchString, None),
-            (FixtureChange::Duplicate, None), (FixtureChange::OldObservationPlaceholder, None),
-            (FixtureChange::LegacyFullDelta, None), (FixtureChange::LifeMismatch, None),
+            (FixtureChange::OldPlaceholder, None),
+            (FixtureChange::CurrentBatchString, None),
+            (FixtureChange::Duplicate, None),
+            (FixtureChange::OldObservationPlaceholder, None),
+            (FixtureChange::LegacyFullDelta, None),
+            (FixtureChange::LifeMismatch, None),
             (FixtureChange::ForeignIdentity, None),
         ];
         for sql in [
@@ -2122,13 +2194,30 @@ mod tests {
             let tx = fixture.db.transaction().unwrap();
             let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
             let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);
-            let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
-                fixture.roots.view(), &fixture.manifest.batch_id, 0).err().unwrap();
+            let expected = resolve_indexed_templates_pending_view(
+                &tx,
+                &mut reader,
+                fixture.metadata.view(),
+                fixture.roots.view(),
+                &fixture.manifest.batch_id,
+                0,
+            )
+            .err()
+            .unwrap();
             reader.clear_overlay();
             let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
             for _ in 0..2 {
-                let actual = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
-                    fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).err().unwrap();
+                let actual = resolve_ordinary_indexed_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    fixture.metadata.view(),
+                    fixture.roots.view(),
+                    &fixture.manifest.batch_id,
+                    0,
+                    &mut projection,
+                )
+                .err()
+                .unwrap();
                 assert_eq!(actual, expected);
                 reader.clear_overlay();
             }
@@ -2146,8 +2235,16 @@ mod tests {
         let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);
         let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
         // 同一只读事务的 generation 2 看不到 generation 3 的撤回，整 cut 成功后提升。
-        let warm = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader,
-            fixture.metadata.view(), fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
+        let warm = resolve_ordinary_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            fixture.metadata.view(),
+            fixture.roots.view(),
+            &fixture.manifest.batch_id,
+            0,
+            &mut projection,
+        )
+        .unwrap();
         let mut snapshot = rendered(&mut reader, &normal_reference(warm.snapshot.view()));
         let mut delta = rendered(&mut reader, &normal_reference(warm.delta.view()));
         projection.commit_cut();
@@ -2172,26 +2269,56 @@ mod tests {
         let mut delta = cv(&delta);
         for value in [&mut snapshot, &mut delta] {
             field_set(value, "index_frontier", V::BatchSelf);
-            field_set(value, "catalog_evidence", V::Object(vec![("batch_id".into(), V::BatchSelf)]));
+            field_set(
+                value,
+                "catalog_evidence",
+                V::Object(vec![("batch_id".into(), V::BatchSelf)]),
+            );
         }
         let next_roots = ManifestRoots {
             generated_state: fixture.roots.generated_state.clone(),
-            publication_template: sc::write_template(&mut reader, &snapshot).unwrap().content_ref(),
-            delta_template: sc::write_template(&mut reader, &delta).unwrap().content_ref(),
+            publication_template: sc::write_template(&mut reader, &snapshot)
+                .unwrap()
+                .content_ref(),
+            delta_template: sc::write_template(&mut reader, &delta)
+                .unwrap()
+                .content_ref(),
         };
         fixture.metadata.generation = 3;
         fixture.metadata.base_cut = "cut-2".into();
         fixture.metadata.structure_cut = "cut-3".into();
         fixture.metadata.input_frontier = 2;
         let next_batch = format!("batch3-{}", "f".repeat(64));
-        let expected = resolve_indexed_templates_pending_view(&tx, &mut reader,
-            fixture.metadata.view(), next_roots.view(), &next_batch, 1).err().unwrap();
-        assert!(expected.contains("withdrawn_generation 与独立记录不同"), "{expected}");
-        let actual = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader,
-            fixture.metadata.view(), next_roots.view(), &next_batch, 1, &mut projection).err().unwrap();
+        let expected = resolve_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            fixture.metadata.view(),
+            next_roots.view(),
+            &next_batch,
+            1,
+        )
+        .err()
+        .unwrap();
+        assert!(
+            expected.contains("withdrawn_generation 与独立记录不同"),
+            "{expected}"
+        );
+        let actual = resolve_ordinary_indexed_templates_pending_view(
+            &tx,
+            &mut reader,
+            fixture.metadata.view(),
+            next_roots.view(),
+            &next_batch,
+            1,
+            &mut projection,
+        )
+        .err()
+        .unwrap();
         assert_eq!(actual, expected);
         // 旧字段确实从成功前沿复用，而不是只跑一个新的冷坏 fixture。
-        assert!(projection.current.iter().any(|(key, value)| projection.previous.get(key)
+        assert!(projection.current.iter().any(|(key, value)| projection
+            .previous
+            .get(key)
             .is_some_and(|old| std::rc::Rc::ptr_eq(old, value))));
     }
 
@@ -2202,23 +2329,44 @@ mod tests {
         let mut fixture = OrdinaryFixture::new(FixtureChange::None, None);
         let tx = fixture.db.transaction().unwrap();
         let mut nodes = sc::MemoryNodes::new();
-        let valid = sc::write_value(&mut nodes, &object("old", "1", text("batch-old"))).unwrap().content_ref();
+        let valid = sc::write_value(&mut nodes, &object("old", "1", text("batch-old")))
+            .unwrap()
+            .content_ref();
         let mut missing = object("missing", "1", text("batch-old"));
-        let V::Object(fields) = &mut missing else { unreachable!() };
+        let V::Object(fields) = &mut missing else {
+            unreachable!()
+        };
         fields.retain(|(key, _)| key != "lifecycle");
         let missing = sc::write_value(&mut nodes, &missing).unwrap().content_ref();
         let mut reader = HashReader::ordinary_publication_reader_for_test(&mut nodes);
         let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
-        projection.read_fields(&mut reader, (&valid).into()).unwrap();
+        projection
+            .read_fields(&mut reader, (&valid).into())
+            .unwrap();
         projection.commit_cut();
         for index in 0..3 {
             let mut invalid = valid.clone();
-            match index { 0 => invalid.kind = Kind::Array, 1 => invalid.extent = Some(valid.extent.unwrap() + 1),
-                _ => invalid.format = "wrong-format".into() }
-            let expected = read_publication_fields(&mut reader, (&invalid).into()).err().unwrap();
-            assert_eq!(projection.read_fields(&mut reader, (&invalid).into()).err().unwrap(), expected);
+            match index {
+                0 => invalid.kind = Kind::Array,
+                1 => invalid.extent = Some(valid.extent.unwrap() + 1),
+                _ => invalid.format = "wrong-format".into(),
+            }
+            let expected = read_publication_fields(&mut reader, (&invalid).into())
+                .err()
+                .unwrap();
+            assert_eq!(
+                projection
+                    .read_fields(&mut reader, (&invalid).into())
+                    .err()
+                    .unwrap(),
+                expected
+            );
         }
-        for _ in 0..2 { assert!(projection.read_fields(&mut reader, (&missing).into()).is_err()); }
+        for _ in 0..2 {
+            assert!(projection
+                .read_fields(&mut reader, (&missing).into())
+                .is_err());
+        }
         assert!(projection.current.is_empty());
         assert_eq!(projection.previous.len(), 1);
     }
@@ -2938,25 +3086,47 @@ pub(crate) struct PublicationProjection<'scope, 'tx> {
 }
 type PublicationKey = (String, String, &'static str, Option<u64>);
 fn publication_key(record: sc::RefView<'_>) -> PublicationKey {
-    (record.format().into(), record.root().into(), record.kind().name(), record.extent())
+    (
+        record.format().into(),
+        record.root().into(),
+        record.kind().name(),
+        record.extent(),
+    )
 }
 impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
-    pub(crate) fn new(tx: &'scope Transaction<'tx>, store: &HashReader<'_>) -> Result<Self, String> {
-        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)? || !store.ordinary_bound_births_qualified() {
+    pub(crate) fn new(
+        tx: &'scope Transaction<'tx>,
+        store: &HashReader<'_>,
+    ) -> Result<Self, String> {
+        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?
+            || !store.ordinary_bound_births_qualified()
+        {
             return Err(err("ordinary投影需要同事务只读原件"));
         }
-        Ok(Self { transaction: tx, reader: store as *const _ as *const (),
-            previous: Default::default(), current: Default::default(),
-            batch_previous: Default::default(), batch_current: Default::default(), peak_bytes: 0 })
+        Ok(Self {
+            transaction: tx,
+            reader: store as *const _ as *const (),
+            previous: Default::default(),
+            current: Default::default(),
+            batch_previous: Default::default(),
+            batch_current: Default::default(),
+            peak_bytes: 0,
+        })
     }
     fn check(&self, tx: &Transaction<'_>, store: &HashReader<'_>) -> Result<(), String> {
-        if !std::ptr::eq(tx, self.transaction) || self.reader != store as *const _ as *const ()
-            || !store.ordinary_bound_births_qualified() {
+        if !std::ptr::eq(tx, self.transaction)
+            || self.reader != store as *const _ as *const ()
+            || !store.ordinary_bound_births_qualified()
+        {
             return Err(err("ordinary投影事务/reader不符"));
         }
         Ok(())
     }
-    fn read_fields(&mut self, store: &mut (impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<PublicationFields, String> {
+    fn read_fields(
+        &mut self,
+        store: &mut (impl CodecStore + ?Sized),
+        r: sc::RefView<'_>,
+    ) -> Result<PublicationFields, String> {
         let k = publication_key(r);
         let fields = match self.current.get(&k).or_else(|| self.previous.get(&k)) {
             Some(fields) => std::rc::Rc::clone(fields),
@@ -2965,13 +3135,26 @@ impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
         self.current.insert(k, std::rc::Rc::clone(&fields));
         Ok(PublicationFields::Ordinary(fields))
     }
-    fn read_batch(&mut self, store: &mut (impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<RefValue, String> {
+    fn read_batch(
+        &mut self,
+        store: &mut (impl CodecStore + ?Sized),
+        r: sc::RefView<'_>,
+    ) -> Result<RefValue, String> {
         let k = publication_key(r);
-        let value = match self.batch_current.get(&k).or_else(|| self.batch_previous.get(&k)) {
+        let value = match self
+            .batch_current
+            .get(&k)
+            .or_else(|| self.batch_previous.get(&k))
+        {
             Some(value) => value.clone(),
             None => {
                 let value = store.lookup_field_ref(r, "batch_id").map_err(err)?;
-                ContentRef { format: value.view().format().into(), root: value.root().into(), kind: value.kind(), extent: value.extent() }
+                ContentRef {
+                    format: value.view().format().into(),
+                    root: value.root().into(),
+                    kind: value.kind(),
+                    extent: value.extent(),
+                }
             }
         };
         self.batch_current.insert(k, value.clone());
@@ -2987,20 +3170,29 @@ impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
         let mut pointers = std::collections::HashSet::new();
         let mut bytes = 0usize;
         for map in [&self.previous, &self.current] {
-            bytes += map.capacity() * (std::mem::size_of::<(PublicationKey, std::rc::Rc<RefFields<'static>>)>() + 1);
+            bytes += map.capacity()
+                * (std::mem::size_of::<(PublicationKey, std::rc::Rc<RefFields<'static>>)>() + 1);
             for (k, fields) in map {
                 bytes += k.0.capacity() + k.1.capacity();
                 if pointers.insert(std::rc::Rc::as_ptr(fields)) {
                     if let RefFields::Plain(fields) = &**fields {
-                        bytes += fields.plain_retained_bytes().expect("ordinary retained fields")
-                            + std::mem::size_of::<RefFields<'static>>() + 2 * std::mem::size_of::<usize>();
+                        bytes += fields
+                            .plain_retained_bytes()
+                            .expect("ordinary retained fields")
+                            + std::mem::size_of::<RefFields<'static>>()
+                            + 2 * std::mem::size_of::<usize>();
                     }
                 }
             }
         }
         for map in [&self.batch_previous, &self.batch_current] {
             bytes += map.capacity() * (std::mem::size_of::<(PublicationKey, ContentRef)>() + 1);
-            bytes += map.iter().map(|(k, r)| k.0.capacity() + k.1.capacity() + r.format.capacity() + r.root.capacity()).sum::<usize>();
+            bytes += map
+                .iter()
+                .map(|(k, r)| {
+                    k.0.capacity() + k.1.capacity() + r.format.capacity() + r.root.capacity()
+                })
+                .sum::<usize>();
         }
         self.peak_bytes = self.peak_bytes.max(bytes);
         #[cfg(test)]
@@ -3018,10 +3210,23 @@ impl Drop for PublicationProjection<'_, '_> {
 thread_local! { static ORDINARY_PUBLICATION_BYTES: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0,0)) }; }
 
 pub(crate) fn resolve_ordinary_indexed_templates_pending_view(
-    tx: &Transaction<'_>, store: &mut HashReader<'_>, metadata: MetadataView<'_>,
-    roots: RootsView<'_>, batch_id: &str, previous_frontier: i64,
+    tx: &Transaction<'_>,
+    store: &mut HashReader<'_>,
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+    batch_id: &str,
+    previous_frontier: i64,
     projection: &mut PublicationProjection<'_, '_>,
 ) -> Result<PendingRefTemplates, String> {
     projection.check(tx, store)?;
-    resolve_indexed_templates_pending_core(tx, store, metadata, roots, batch_id, previous_frontier, None, Some(projection))
+    resolve_indexed_templates_pending_core(
+        tx,
+        store,
+        metadata,
+        roots,
+        batch_id,
+        previous_frontier,
+        None,
+        Some(projection),
+    )
 }

@@ -2099,14 +2099,17 @@ impl NativeArrayCursor {
                 count,
             })
         })();
-        if let Some(work) = work { work.observe(&result); }
+        if let Some(work) = work {
+            work.observe(&result);
+        }
         result
     }
 
     pub fn next(
         &mut self,
         source: &mut dyn NodeSource,
-    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
         self.next_with_prefix(source, &[])
     }
 
@@ -2114,11 +2117,14 @@ impl NativeArrayCursor {
         &mut self,
         source: &mut dyn NodeSource,
         prefix: &[PathStep],
-    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
         let mut source = CodecContext::Source(source);
         let work = source.work_budget();
         let result = self.next_inner(&mut source, prefix);
-        if let Some(work) = work { work.observe(&result); }
+        if let Some(work) = work {
+            work.observe(&result);
+        }
         result
     }
 
@@ -2126,12 +2132,16 @@ impl NativeArrayCursor {
         &mut self,
         source: &mut CodecContext<'_, '_>,
         prefix: &[PathStep],
-    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
-        if self.index == self.count { return Ok(None); }
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        if self.index == self.count {
+            return Ok(None);
+        }
         // 与 Index 相同，在读取当前元素的序列路径之前执行停止门。
         source.before_path_index(prefix, self.index)?;
         if let Some((root, count)) = self.root.take() {
-            self.stack.push((read_seq_node(source, &root, count)?, count))?;
+            self.stack
+                .push((read_seq_node(source, &root, count)?, count))?;
         }
         while let Some((node, count)) = self.stack.pop() {
             match node {
@@ -2164,8 +2174,8 @@ impl NativeArrayCursor {
 
 #[cfg(test)]
 mod s4_local_descent_tests {
-    use super::*;
     use super::super::{write_value, MemoryNodes, NodeRead, NodeSink, Value};
+    use super::*;
 
     struct Observed {
         nodes: MemoryNodes,
@@ -2175,23 +2185,46 @@ mod s4_local_descent_tests {
     impl NodeSource for Observed {
         fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
             self.trace.push(*digest);
-            match self.faults.iter().find(|(d, _)| d == digest).map(|(_, f)| *f) {
+            match self
+                .faults
+                .iter()
+                .find(|(d, _)| d == digest)
+                .map(|(_, f)| *f)
+            {
                 Some(0) => Ok(NodeRead::Missing),
-                Some(1) => Ok(NodeRead::Found { tag: tag::NULL, body: vec![1] }),
+                Some(1) => Ok(NodeRead::Found {
+                    tag: tag::NULL,
+                    body: vec![1],
+                }),
                 Some(_) => Err(CodecError::new("descent_source_error", root_string(digest))),
                 None => self.nodes.read(digest),
             }
         }
     }
     fn source(nodes: &MemoryNodes, faults: &[(NodeDigest, u8)]) -> Observed {
-        Observed { nodes: nodes.clone(), trace: Vec::new(), faults: faults.to_vec() }
+        Observed {
+            nodes: nodes.clone(),
+            trace: Vec::new(),
+            faults: faults.to_vec(),
+        }
     }
     type Outcome = Result<(Vec<(u64, NodeDigest, NodeDigest, bool)>, NodeDigest), CodecError>;
     fn descent(s: &mut Observed, root: &NodeDigest, n: u64, index: u64, legacy: bool) -> Outcome {
         let ctx = &mut CodecContext::Source(s);
-        let result = if legacy { legacy_descend_seq(ctx, root, n, index) }
-                     else { descend_seq(ctx, root, n, index) };
-        result.map(|(frames, leaf)| (frames.iter().map(|f| (f.n, f.left, f.right, f.went_left)).collect(), leaf))
+        let result = if legacy {
+            legacy_descend_seq(ctx, root, n, index)
+        } else {
+            descend_seq(ctx, root, n, index)
+        };
+        result.map(|(frames, leaf)| {
+            (
+                frames
+                    .iter()
+                    .map(|f| (f.n, f.left, f.right, f.went_left))
+                    .collect(),
+                leaf,
+            )
+        })
     }
     fn compare(nodes: &MemoryNodes, root: &NodeDigest, n: u64, faults: &[(NodeDigest, u8)]) {
         for index in 0..=n {
@@ -2203,30 +2236,47 @@ mod s4_local_descent_tests {
             if let Ok((frames, _)) = actual {
                 assert_eq!(old.trace.len() - new.trace.len(), frames.len());
                 if faults.is_empty() && index == 0 {
-                    eprintln!("DESCENT_READS n={n} index={index} before={} after={}", old.trace.len(), new.trace.len());
+                    eprintln!(
+                        "DESCENT_READS n={n} index={index} before={} after={}",
+                        old.trace.len(),
+                        new.trace.len()
+                    );
                 }
             }
         }
         for right in [false, true] {
             let mut old = source(nodes, faults);
             let mut new = source(nodes, faults);
-            let expected = legacy_boundary_leaf(&mut CodecContext::Source(&mut old), root, n, right);
+            let expected =
+                legacy_boundary_leaf(&mut CodecContext::Source(&mut old), root, n, right);
             let actual = boundary_leaf(&mut CodecContext::Source(&mut new), root, n, right);
             assert_eq!(actual, expected, "n={n} right={right} faults={faults:?}");
-            if n > 1 && actual.is_ok() { assert!(new.trace.len() < old.trace.len()); }
+            if n > 1 && actual.is_ok() {
+                assert!(new.trace.len() < old.trace.len());
+            }
         }
     }
     #[test]
     fn s4_local_descent_matches_legacy_missing_corrupt_source_and_boundaries() {
         for n in [0u64, 1, 2, 3, 31, 32, 33, 65] {
             let mut nodes = MemoryNodes::new();
-            let values = (0..n).map(|i| if i % 3 == 0 { Value::Null } else { Value::string(format!("item-{i}")) }).collect();
+            let values = (0..n)
+                .map(|i| {
+                    if i % 3 == 0 {
+                        Value::Null
+                    } else {
+                        Value::string(format!("item-{i}"))
+                    }
+                })
+                .collect();
             let built = write_value(&mut nodes, &Value::Array(values)).unwrap();
             let (_, body) = nodes.get(&built.digest).unwrap();
             let root = digest_at(body, 8);
             compare(&nodes, &root, n, &[]);
             for (digest, _, _) in nodes.iter() {
-                for fault in 0..3 { compare(&nodes, &root, n, &[(*digest, fault)]); }
+                for fault in 0..3 {
+                    compare(&nodes, &root, n, &[(*digest, fault)]);
+                }
             }
             if n > 1 {
                 let (_, body) = nodes.get(&root).unwrap();
@@ -2351,5 +2401,4 @@ mod s4_local_descent_tests {
             }
         }
     }
-
 }

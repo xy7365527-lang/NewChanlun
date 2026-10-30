@@ -5803,16 +5803,20 @@ mod tests {
         );
     }
     #[test]
-    fn history_public_coverage_ordinary_bound_births_sorted_insert_withdraw_revision_matches_full_projection() {
+    fn history_public_coverage_ordinary_bound_births_sorted_insert_withdraw_revision_matches_full_projection(
+    ) {
         let (mut nodes, entries) = projection_fixture();
         for g in [1, 2, 3, 4, 2] {
             let expected = at_cut_metered(&mut nodes, Layout::Sorted, &entries, g, None).unwrap();
             WIRE_PROJECTIONS.with(|v| v.set(0));
-            let actual = at_cut_projected_bound(
-                &mut nodes, Layout::Sorted, &entries, g, None, None, true,
-            ).unwrap();
+            let actual =
+                at_cut_projected_bound(&mut nodes, Layout::Sorted, &entries, g, None, None, true)
+                    .unwrap();
             assert_eq!(actual, expected, "cut={g}");
-            let deaths = entries.iter().filter(|e| e.life.withdrawn_generation.is_some_and(|d| d <= g)).count();
+            let deaths = entries
+                .iter()
+                .filter(|e| e.life.withdrawn_generation.is_some_and(|d| d <= g))
+                .count();
             assert_eq!(WIRE_PROJECTIONS.with(|v| v.get()), deaths);
         }
     }
@@ -5823,16 +5827,35 @@ mod tests {
         let (mut nodes, entries) = projection_fixture();
         let old_meter = RecordMeter::default();
         let new_meter = RecordMeter::default();
-        let old = at_cut_metered(&mut nodes, Layout::Sorted, &entries, 3, Some(&old_meter)).unwrap();
+        let old =
+            at_cut_metered(&mut nodes, Layout::Sorted, &entries, 3, Some(&old_meter)).unwrap();
         let new = at_cut_projected_bound(
-            &mut nodes, Layout::Sorted, &entries, 3, Some(&new_meter), None, true,
-        ).unwrap();
+            &mut nodes,
+            Layout::Sorted,
+            &entries,
+            3,
+            Some(&new_meter),
+            None,
+            true,
+        )
+        .unwrap();
         assert_eq!(new, old);
         assert_eq!(new_meter.records.get(), old_meter.records.get());
-        let stop = RecordMeter { records: std::cell::Cell::new(0), stop: true };
+        let stop = RecordMeter {
+            records: std::cell::Cell::new(0),
+            stop: true,
+        };
         assert!(at_cut_projected_bound(
-            &mut nodes, Layout::Sorted, &entries, 3, Some(&stop), None, true,
-        ).unwrap_err().contains("record_stop"));
+            &mut nodes,
+            Layout::Sorted,
+            &entries,
+            3,
+            Some(&stop),
+            None,
+            true,
+        )
+        .unwrap_err()
+        .contains("record_stop"));
         assert_eq!(stop.records.get(), 1);
     }
 
@@ -5841,9 +5864,8 @@ mod tests {
         let (mut nodes, mut entries) = projection_fixture();
         entries[0].life.published_generation = 10;
         let old = at_cut_metered(&mut nodes, Layout::Sorted, &entries, 1, None).unwrap_err();
-        let new = at_cut_projected_bound(
-            &mut nodes, Layout::Sorted, &entries, 1, None, None, true,
-        ).unwrap_err();
+        let new = at_cut_projected_bound(&mut nodes, Layout::Sorted, &entries, 1, None, None, true)
+            .unwrap_err();
         assert_eq!(new, old);
     }
 
@@ -5942,25 +5964,36 @@ mod tests {
     fn history_public_coverage_bound_births_entry_routes() {
         let mut fixture = crate::v3::prepared::tests::Fixture::new();
         let mut readonly = Connection::open_with_flags(
-            fixture.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        ).unwrap();
+            fixture.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
         let tx = readonly.transaction().unwrap();
         let mut source = content_store::ReadStore::new(&tx).unwrap();
         let mut reader = crate::v3::history::HashReader::new(&mut source);
         let mut loaded = load_for_history(&tx, &mut reader, 0).unwrap();
-        loaded.at_cut_bound_births(&tx, &mut reader, 0, None).unwrap();
+        loaded
+            .at_cut_bound_births(&tx, &mut reader, 0, None)
+            .unwrap();
         let capture = content_store::capture_for_prototype(&tx).unwrap();
-        let mut captured = crate::v3::history::HashReader::captured_for_audit(&capture, None).unwrap();
-        assert!(loaded.at_cut_bound_births(&tx, &mut captured, 0, None).is_err());
+        let mut captured =
+            crate::v3::history::HashReader::captured_for_audit(&capture, None).unwrap();
+        assert!(loaded
+            .at_cut_bound_births(&tx, &mut captured, 0, None)
+            .is_err());
         #[cfg(feature = "s_incremental")]
         {
             captured.enable_full_arrays_for_test();
             let mut native = load_for_history(&tx, &mut captured, 0).unwrap();
             assert!(native.native.is_some());
-            assert!(native.at_cut_bound_births(&tx, &mut reader, 0, None).is_err());
+            assert!(native
+                .at_cut_bound_births(&tx, &mut reader, 0, None)
+                .is_err());
         }
         let writable = fixture.conn.transaction().unwrap();
-        assert!(loaded.at_cut_bound_births(&writable, &mut reader, 0, None).is_err());
+        assert!(loaded
+            .at_cut_bound_births(&writable, &mut reader, 0, None)
+            .is_err());
     }
     #[test]
     fn history_public_coverage_complete_load_real_generations() {
@@ -6319,9 +6352,9 @@ mod tests {
             stage(&tx, &mut s, &p, &batch).unwrap();
             let stored = load(&tx, &mut s, g).unwrap();
             let old_arrays = at_cut_metered(&mut s, Layout::Sorted, &stored, g, None).unwrap();
-            let bound_arrays = at_cut_projected_bound(
-                &mut s, Layout::Sorted, &stored, g, None, None, true,
-            ).unwrap();
+            let bound_arrays =
+                at_cut_projected_bound(&mut s, Layout::Sorted, &stored, g, None, None, true)
+                    .unwrap();
             assert_eq!(bound_arrays, old_arrays, "complete load cut={g}");
             let member_state = sc::write_value(
                 &mut s,
@@ -6581,7 +6614,9 @@ mod tests {
                 "UPDATE s_content_objects SET birth_wire_root=?1 WHERE rowid=(SELECT MIN(rowid) FROM s_content_objects)",
                 params![bad.digest.as_slice()],
             ).unwrap();
-            assert!(load(&tx, &mut s, 3).unwrap_err().contains("出生公开元数据与独立记录不同"));
+            assert!(load(&tx, &mut s, 3)
+                .unwrap_err()
+                .contains("出生公开元数据与独立记录不同"));
         }
     }
     #[test]

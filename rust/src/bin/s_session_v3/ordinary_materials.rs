@@ -83,7 +83,8 @@ impl OrdinaryAuditMaterials {
         Self::production_pool()
     }
     pub(super) fn for_readonly_history(tx: &rusqlite::Transaction<'_>) -> Result<Self, CodecError> {
-        if !tx.is_readonly(rusqlite::MAIN_DB)
+        if !tx
+            .is_readonly(rusqlite::MAIN_DB)
             .map_err(|e| CodecError::new(sc::code::SOURCE, e.to_string()))?
         {
             return Err(CodecError::new(sc::code::SOURCE, "历史原件池需要只读事务"));

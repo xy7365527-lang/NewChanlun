@@ -405,15 +405,22 @@ pub(crate) trait CodecRead: NodeSource {
         super::business_json::strict_plain_json_admitted(bytes, self.codec_work())
     }
 
-    fn array_cursor(&mut self, r: sc::RefView<'_>) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
+    fn array_cursor(
+        &mut self,
+        r: sc::RefView<'_>,
+    ) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
         if self.allocation_budget().is_some() {
             Ok(None)
         } else {
             sc::path::NativeArrayCursor::new(self.generic_source(), r).map(Some)
         }
     }
-    fn next_array_member(&mut self, cursor: &mut sc::path::NativeArrayCursor) -> Result<RefValue, CodecError> {
-        cursor.next(self.generic_source())?
+    fn next_array_member(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+    ) -> Result<RefValue, CodecError> {
+        cursor
+            .next(self.generic_source())?
             .map(RefValue::Plain)
             .ok_or_else(|| CodecError::new(sc::code::EXTENT, "数组游标提前结束"))
     }
@@ -436,13 +443,14 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<(), CodecError> {
         sc::audit_verify_many_refview(self.generic_source(), refs, mode)
     }
-    fn verify_manifest_templates(
-        &mut self,
-        refs: [sc::RefView<'_>; 2],
-    ) -> Result<(), CodecError> {
+    fn verify_manifest_templates(&mut self, refs: [sc::RefView<'_>; 2]) -> Result<(), CodecError> {
         self.verify_many_ref(refs, sc::Mode::Template)
     }
-    fn verify_history_public_root(&mut self, r: sc::RefView<'_>, mode: sc::Mode) -> Result<(), CodecError> {
+    fn verify_history_public_root(
+        &mut self,
+        r: sc::RefView<'_>,
+        mode: sc::Mode,
+    ) -> Result<(), CodecError> {
         self.verify_ref(r, mode)
     }
     fn verify_manifest_public(&mut self, r: sc::RefView<'_>) -> Result<(), CodecError> {
@@ -798,13 +806,13 @@ impl CodecRead for StoreView<'_, '_> {
             Backend::Audit(s) => s.verify_many_ref(r, m),
         }
     }
-    fn verify_manifest_templates(
-        &mut self,
-        refs: [sc::RefView<'_>; 2],
-    ) -> Result<(), CodecError> {
+    fn verify_manifest_templates(&mut self, refs: [sc::RefView<'_>; 2]) -> Result<(), CodecError> {
         if let Some(expected) = self.manifest_templates {
             if [refs[0].digest()?, refs[1].digest()?] != expected {
-                return Err(CodecError::new(sc::code::SOURCE, "manifest模板覆盖根不匹配"));
+                return Err(CodecError::new(
+                    sc::code::SOURCE,
+                    "manifest模板覆盖根不匹配",
+                ));
             }
             #[cfg(test)]
             super::admission_private::s4_read_trace::coverage(0);
@@ -815,7 +823,10 @@ impl CodecRead for StoreView<'_, '_> {
     fn verify_manifest_public(&mut self, r: sc::RefView<'_>) -> Result<(), CodecError> {
         if let Some(expected) = self.manifest_public {
             if !expected.contains(&r.digest()?) {
-                return Err(CodecError::new(sc::code::SOURCE, "manifest Public覆盖根不匹配"));
+                return Err(CodecError::new(
+                    sc::code::SOURCE,
+                    "manifest Public覆盖根不匹配",
+                ));
             }
             return sc::audit_verify_refview_headers(self, [r]);
         }
@@ -891,7 +902,11 @@ impl CodecRead for StoreView<'_, '_> {
             Backend::Audit(s) => s.render_ref(r, o),
         }
     }
-    fn verify_history_public_root(&mut self, r: sc::RefView<'_>, mode: sc::Mode) -> Result<(), CodecError> {
+    fn verify_history_public_root(
+        &mut self,
+        r: sc::RefView<'_>,
+        mode: sc::Mode,
+    ) -> Result<(), CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => s.verify_history_public_root(r, mode),
             Backend::Audit(s) => s.verify_history_public_root(r, mode),

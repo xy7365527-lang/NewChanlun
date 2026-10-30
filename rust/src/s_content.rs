@@ -7925,7 +7925,10 @@ pub fn audit_verify_public_with_verified_subroots<'a, 'b>(
     for reference in verified {
         let (digest, kind, _) = verifier.verify_refview_header(reference)?;
         if kind == Kind::TemplateBatch {
-            return Err(CodecError::new(code::TEMPLATE_PLACEHOLDER, "Public覆盖不能包含模板占位"));
+            return Err(CodecError::new(
+                code::TEMPLATE_PLACEHOLDER,
+                "Public覆盖不能包含模板占位",
+            ));
         }
         verifier.seen.insert((digest, Flavor::Value))?;
         verifier.pushed.insert((digest, Flavor::Value))?;
@@ -9290,40 +9293,123 @@ mod verified_public_subroots_tests {
     #[test]
     fn s4_local_descent_public_subroots_reuse_only_complete_value_closure() {
         let mut nodes = MemoryNodes::new();
-        let child = write_value(&mut nodes, &Value::Array(vec![Value::String("payload".repeat(2000))])).unwrap().content_ref();
-        let root = write_value(&mut nodes, &Value::Array(vec![Value::edge_of_ref(&child).unwrap()])).unwrap().content_ref();
+        let child = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::String("payload".repeat(2000))]),
+        )
+        .unwrap()
+        .content_ref();
+        let root = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::edge_of_ref(&child).unwrap()]),
+        )
+        .unwrap()
+        .content_ref();
         let mut source = Counted { nodes, reads: 0 };
         verify(&mut source, &child).unwrap();
         let before = source.reads;
-        audit_verify_public_with_verified_subroots(&mut source, [&root].map(Into::into), [&child].map(Into::into)).unwrap();
+        audit_verify_public_with_verified_subroots(
+            &mut source,
+            [&root].map(Into::into),
+            [&child].map(Into::into),
+        )
+        .unwrap();
         let covered = source.reads - before;
         let before = source.reads;
         verify(&mut source, &root).unwrap();
         assert!(covered < source.reads - before);
         for wrong in [
-            ContentRef { format: "wrong".into(), ..child.clone() },
-            ContentRef { kind: Kind::Object, ..child.clone() },
-            ContentRef { extent: Some(999), ..child.clone() },
+            ContentRef {
+                format: "wrong".into(),
+                ..child.clone()
+            },
+            ContentRef {
+                kind: Kind::Object,
+                ..child.clone()
+            },
+            ContentRef {
+                extent: Some(999),
+                ..child.clone()
+            },
         ] {
-            assert!(audit_verify_public_with_verified_subroots(&mut source, [&root].map(Into::into), [&wrong].map(Into::into)).is_err());
+            assert!(audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&root].map(Into::into),
+                [&wrong].map(Into::into)
+            )
+            .is_err());
         }
-        let sibling = write_value(&mut source.nodes, &Value::Array(vec![Value::Edge([17; 32])])).unwrap().content_ref();
-        assert_eq!(audit_verify_public_with_verified_subroots(&mut source, [&sibling].map(Into::into), [&child].map(Into::into)).unwrap_err().code(), code::NODE_MISSING);
-        source.nodes.insert_unchecked(child.digest().unwrap(), tag::ARRAY, vec![0]);
-        assert_eq!(audit_verify_public_with_verified_subroots(&mut source, [&root].map(Into::into), [&child].map(Into::into)).unwrap_err().code(), code::NODE_DIGEST);
+        let sibling = write_value(
+            &mut source.nodes,
+            &Value::Array(vec![Value::Edge([17; 32])]),
+        )
+        .unwrap()
+        .content_ref();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&sibling].map(Into::into),
+                [&child].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::NODE_MISSING
+        );
+        source
+            .nodes
+            .insert_unchecked(child.digest().unwrap(), tag::ARRAY, vec![0]);
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&root].map(Into::into),
+                [&child].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::NODE_DIGEST
+        );
     }
     #[test]
     fn s4_local_descent_public_subroots_do_not_cover_json_inner_or_template() {
         let mut nodes = MemoryNodes::new();
-        let text = write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null))).unwrap().content_ref();
-        let array = write_value(&mut nodes, &Value::Array(vec![Value::edge_of_ref(&text).unwrap()])).unwrap().content_ref();
+        let text = write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null)))
+            .unwrap()
+            .content_ref();
+        let array = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::edge_of_ref(&text).unwrap()]),
+        )
+        .unwrap()
+        .content_ref();
         verify(&mut nodes, &array).unwrap();
         let digest = frame(tag::JSON_TEXT, &array.digest().unwrap());
-        nodes.put(digest, tag::JSON_TEXT, &array.digest().unwrap()).unwrap();
+        nodes
+            .put(digest, tag::JSON_TEXT, &array.digest().unwrap())
+            .unwrap();
         let nested = content_ref_of(&mut nodes, &root_string(&digest)).unwrap();
-        assert_eq!(audit_verify_public_with_verified_subroots(&mut nodes, [&nested].map(Into::into), [&array].map(Into::into)).unwrap_err().code(), code::JSON_TEXT_INTERNAL_KIND);
-        let template = write_template(&mut nodes, &Value::Array(vec![Value::BatchSelf])).unwrap().content_ref();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut nodes,
+                [&nested].map(Into::into),
+                [&array].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::JSON_TEXT_INTERNAL_KIND
+        );
+        let template = write_template(&mut nodes, &Value::Array(vec![Value::BatchSelf]))
+            .unwrap()
+            .content_ref();
         verify_template(&mut nodes, &template).unwrap();
-        assert_eq!(audit_verify_public_with_verified_subroots(&mut nodes, [&template].map(Into::into), std::iter::empty()).unwrap_err().code(), code::TEMPLATE_PLACEHOLDER);
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut nodes,
+                [&template].map(Into::into),
+                std::iter::empty()
+            )
+            .unwrap_err()
+            .code(),
+            code::TEMPLATE_PLACEHOLDER
+        );
     }
 }
