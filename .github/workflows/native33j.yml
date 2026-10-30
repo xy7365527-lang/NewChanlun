@@ -1,36 +1,141 @@
-name: Native deadline 33j red green
+name: Native and owned exact groups 33j
 on:
   push:
     branches: [codex/1640-native33j-diagnostic]
 jobs:
-  deadline:
+  rust-test-s-session-extra-groups:
+    name: rust-test-s-session-extras (${{ matrix.group }})
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        group: [native, owned]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      CARGO_INCREMENTAL: '0'
+      CARGO_INCREMENTAL: "0"
     defaults:
       run:
         working-directory: rust
-        shell: bash
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+
       - uses: ./.github/actions/rust-job-setup
-      - name: Original exact failure
+
+      # #1404：成员来源回归单列先执行，避免已登记的默认域失败使本片新锁被跳过。
+      #   #1588：该用例同时在 S bin 分片里执行（拆前即两处执行），本步保留其独立可见的信号。
+      - name: cargo test — TB-02-C member source binding
+        if: ${{ !cancelled() && matrix.group == 'content' }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
+
+      # #1608：#1394 的两个编译负例只在 --cfg 下编译；此处断言它们仍被类型边界拒绝（E0308 落在负例块内）。
+      #   放在 TB-02-C 单测之后复用已编好的 s_session 依赖；负例在类型检查阶段即失败，不做代码生成。
+      - name: 编译负例 — #1394 类型边界仍拒绝旧写法（#1608）
+        if: ${{ !cancelled() && matrix.group == 'content' }}
+        run: ../.github/scripts/check-compile-negatives-1394.sh
+
+      # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
+      - name: cargo test — 完整内容编码与共享图校验（#1394）
+        if: ${{ !cancelled() && matrix.group == 'content' }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
+
+      - name: cargo test — 内容向量、持久序列与累计资源（#1394）
+        if: ${{ !cancelled() && matrix.group == 'content' }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
+
+      # #1394 G-1：economic_session（含 P-14 读法锁、finance、content_store、store、finance_transport）
+      #   与 session_transport / session_protocol 的库测试此前没有任何 CI 步执行。2026-10-14 在 Linux
+      #   （glibc 2.36 容器）实跑：74 过、7 忽略（需 HFS 载体或外部夹具）、0 败，无需 --skip；只在 macOS
+      #   编译的 1 条（half_close_during_large_frame_drain_observes_actual_eof）与各 macOS 专属分支由
+      #   ci-macos.yml 作业覆盖。
+      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
+        if: ${{ !cancelled() && matrix.group == 'economic' }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 -- economic_session session_transport session_protocol
+
+      # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
+      #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
+      #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
+      - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
+        if: ${{ !cancelled() && matrix.group == 'native' }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+
+      # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
+      #   D-A：pager_probe 锁在此步设缓存实验输入执行，生产构建须不读、不生效（requested_cache_kib 为 null）。
+      - name: cargo test — s_incremental 生产增量构建（#1640）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        env:
+          S_NATIVE_SQLITE_CACHE_KIB: "262144"
+        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
+
+      # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
+      #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
+      - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
+
+      # #1640：release-only 锁（S4 等，#[ignore = "release-only: …"]）此前只在 issue-1488-uo-iter.yml 执行，
+      #   该 workflow 只在 codex/1488-uo-ci-20261019 推送时触发，PR 候选不覆盖。此处照搬其 release 步命令、
+      #   清单与单测 2700 s 上限：生产增量构建 s_session,s_incremental，--release --ignored --exact 逐条执行。
+      - name: build release-only locks（#1640，同 issue-1488-uo-iter）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
         run: |
-          git show 92865bbcffcf2ef56e51602789c0707060efb703:rust/src/bin/s_session_v3/admission_private/mod.rs > src/bin/s_session_v3/admission_private/mod.rs
+          set -o pipefail
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4 2>&1 | tee ../build-release.log
+
+      # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
+      #   复用 release-only 构建的 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。
+      - name: 生产增量 release 产物无测试钩子（#1640）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
+        run: |
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1
+          ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
+
+      - name: release-only locks (each exact, --release --ignored)（#1640）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
+        timeout-minutes: 50
+        run: |
           set +e
-          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture 2>&1 | tee /tmp/native33j-red.log
-          code=${PIPESTATUS[0]}
-          set -e
-          test "$code" -eq 101
-          grep -F 'assertion failed: !context.has_slot()' /tmp/native33j-red.log
-          grep -F '0 passed; 1 failed' /tmp/native33j-red.log
-      - name: Fixed exact deadline and prefix contracts
-        run: |
-          git show HEAD:rust/src/bin/s_session_v3/admission_private/mod.rs > src/bin/s_session_v3/admission_private/mod.rs
-          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture
-          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_ -- --nocapture
-      - name: Fixed production feature deadline
-        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture
+          fail=0
+          : > ../locks.tsv
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --list --format terse --ignored > ../list-release.txt 2>&1
+          total=0
+          while IFS= read -r t; do
+            [ -z "$t" ] && continue
+            case "$t" in \#*) continue;; esac
+            total=$((total + 1))
+            log="../out-release-$(echo $t | tr ':/' '__').log"
+            if ! grep -qx "$t: test" ../list-release.txt; then echo -e "$t\tNOT_LISTED_RELEASE" >> ../locks.tsv; fail=1; continue; fi
+            timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
+            rc=$?
+            cat "$log"
+            if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "$log"; then echo -e "$t\tPASS_RELEASE" >> ../locks.tsv; else echo -e "$t\tFAIL_RELEASE($rc)" >> ../locks.tsv; fail=1; fi
+          done < ../.github/1488-uo-release-locks.txt
+          if [ "$total" -eq 0 ]; then echo "::error title=Empty release-only lock list::nothing was executed"; fail=1; fi
+          cat ../locks.tsv
+          exit $fail
+
+      - name: Upload release-only lock logs（#1640）
+        if: ${{ always() && matrix.group == 'release-locks' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-only-locks-${{ github.run_id }}
+          path: |
+            build-release.log
+            list-release.txt
+            locks.tsv
+            out-release-*.log
+          if-no-files-found: warn
+
+  # #1722：保留原 check 名称。仅全矩阵成功可绿；失败、取消、跳过或无结果均拒绝。
+  rust-test-s-session-extras:
+    runs-on: ubuntu-latest
+    needs: rust-test-s-session-extra-groups
+    if: ${{ always() }}
+    timeout-minutes: 5
+    steps:
+      - name: Require all extras groups to succeed (#1722)
+        env:
+          EXTRAS_RESULT: ${{ needs.rust-test-s-session-extra-groups.result }}
+        run: test "$EXTRAS_RESULT" = success
+
