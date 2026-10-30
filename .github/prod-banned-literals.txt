@@ -341,6 +341,7 @@ first success certificate admitted before injected second-node refusal
 fixture成员完整性已核
 fixture许可不得取出
 flag 后接另一 flag 必须按缺值拒绝
+fresh overlay 不得带入写前成功表
 fresh verifier释放实际工作集，overlay固定布局仍在
 generation 是整数
 generation与独立依据不同
@@ -352,6 +353,7 @@ import hashlib,json,struct;h=hashlib.sha256();v=[None,-2**63,2**63-1,'中\0é\n"
 index实体与容量许可随index释放
 ingest-3 须与全程 31M 对照组同路
 init 不应写内容节点
+injected actual header failure
 injected write failure
 intern命中不重复签共享块费，临时复制已释放
 json_text 向量渲染逐字节一致
@@ -665,6 +667,7 @@ writer/recover闭合后无SHM
 单边body错误
 历史 Begin 标记不是未完成修订
 历史/raw增量账与全量oracle
+历史oracle的已知顺序差异单列，不改它迁就新核
 历史修订：全修订史条数必须大于有效账条数
 历史插入必须退出原代际身份，不得就地改写
 历史插入须开二代际
@@ -1642,6 +1645,7 @@ writer/recover闭合后无SHM
 非 s-session/3 域必须拒绝
 非对象记录必须拒绝
 非真空 FIRST 成员关系
+顶层闭包在业务审计前拒绝此故障
 顺序、ContentRef、kind、extent及render值一致
 顺序遍历必须实际减少重复祖先读取
 须原持有状态块许可
@@ -1657,6 +1661,7 @@ writer/recover闭合后无SHM
 预算 1 须出现耗尽
 预算前门拒绝不读SQL
 额度在实际复制/读取前拒绝
+首个previous的实际header失败不得发布命中成功
 首个入口没有旧池，之后旧池为完整候选
 首代不得凭新生成产品签发旧历史资格
 首代半途失败后坐标车道必须仍是失败前的空整根

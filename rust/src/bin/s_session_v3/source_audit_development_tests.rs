@@ -1,6 +1,8 @@
 use super::*;
 use super::tests::original_sources;
 use rusqlite::Connection;
+#[path = "source_audit_development_efdd.rs"]
+mod baseline;
 struct Config((usize, bool));
 impl Config {
     fn set(value: (usize, bool)) -> Self {
@@ -59,7 +61,7 @@ fn development_previous_only_repeated_prefix_and_disabled_paths_match_frozen() {
     let value = payload(&mut nodes, &state);
     let r = RefValue::from(sc::write_value(&mut nodes, &cv(&value).unwrap()).unwrap().content_ref());
     let sources = original_sources(&raw, raw.len()).unwrap();
-    let expected = frozen_oracle::audit_bounded2_batch(&mut nodes, &r, &sources, &rule).map_err(PublishError::from);
+    let expected = baseline::audit_development_batch(&mut nodes, &r, &sources, &rule);
     let conn = database(&nodes);
     for config in [(16384, false), (4, false), (0, false), (16384, true)] {
         let (result, stats) = run_batch(&conn, &r, &sources, &rule, config);
@@ -89,8 +91,13 @@ fn development_first_errors_match_frozen_without_reordering_barriers() {
     let mut v = good.clone(); v["entries"][1]["development"]["root"][0]["source_ref"]["receipt_id"] = json!("wrong"); cases.push(v);
     for (i, v) in cases.into_iter().enumerate() {
         let r = RefValue::from(sc::write_value(&mut nodes, &cv(&v).unwrap()).unwrap().content_ref());
-        let expected = frozen_oracle::audit_bounded2_batch(&mut nodes, &r, &sources, &rule).map_err(PublishError::from);
+        let expected = baseline::audit_development_batch(&mut nodes, &r, &sources, &rule);
         assert!(expected.is_err(), "case {i}");
+        let historical = frozen_oracle::audit_bounded2_batch(&mut nodes, &r, &sources, &rule).map_err(PublishError::from);
+        if i == 4 {
+            assert!(expected.as_ref().unwrap_err().to_string().contains("root"));
+            assert_eq!(historical, Err(err("CC007发展前缀为空")), "历史oracle的已知顺序差异单列，不改它迁就新核");
+        } else { assert_eq!(historical, expected, "historical case {i}"); }
         let conn = database(&nodes);
         for config in [(16384,false),(0,false),(16384,true)] {
             assert_eq!(run_batch(&conn, &r, &sources, &rule, config).0, expected, "case {i}, config {config:?}");
@@ -166,7 +173,7 @@ fn development_late_structural_error_precedes_early_business_error_and_public_re
     let (tag, _) = nodes.get(&late.digest().unwrap()).unwrap();
     nodes.insert_unchecked(late.digest().unwrap(), tag, vec![255]);
     let sources = original_sources(&raw, raw.len()).unwrap();
-    let expected = frozen_oracle::audit_bounded2_batch(&mut nodes, &r, &sources, &rule).map_err(PublishError::from);
+    let expected = baseline::audit_development_batch(&mut nodes, &r, &sources, &rule);
     assert!(expected.is_err());
     assert!(!expected.as_ref().unwrap_err().to_string().contains("source_ref不是"));
     let conn = database(&nodes);
@@ -192,4 +199,53 @@ fn development_generic_deadline_render_and_fresh_are_ineligible() {
         let reader = super::super::history::HashReader::metered(&mut nodes, deadline, max, None);
         assert!(reader.eligible_sqlite_base().is_none());
     }
+}
+
+#[test]
+fn development_hit_rechecks_actual_header_and_f_and_releases_after_fault() {
+    struct Fault<'a> { nodes: &'a mut sc::MemoryNodes, target: NodeDigest, calls: usize, fail_at: Option<usize> }
+    impl NodeSource for Fault<'_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            if digest == &self.target {
+                self.calls += 1;
+                if self.fail_at == Some(self.calls) {
+                    return Err(sc::CodecError::new(sc::code::SOURCE, "injected actual header failure"));
+                }
+            }
+            self.nodes.read(digest)
+        }
+    }
+    let (mut nodes, state, raw, rule) = super::tests::fixture();
+    let prime = payload(&mut nodes, &state);
+    let prime_ref = RefValue::from(sc::write_value(&mut nodes, &cv(&prime).unwrap()).unwrap().content_ref());
+    let target = sc::write_value(&mut nodes, &cv(&prime["entries"][0]["unit"]).unwrap()).unwrap().digest;
+    let mut later = prime.clone();
+    let mut entry = prime["entries"][2].clone();
+    entry["development"] = json!({"count":"2", "root":[prime["entries"][0]["unit"], prime["entries"][2]["unit"]]});
+    later["entries"] = json!([entry]);
+    let later_ref = RefValue::from(sc::write_value(&mut nodes, &cv(&later).unwrap()).unwrap().content_ref());
+    let sources = original_sources(&raw, raw.len()).unwrap();
+    let conn = database(&nodes);
+    let run = |fail_at| {
+        let _config = Config::set((16384,false));
+        let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
+        let mut session = DevelopmentAuditSession::new(&base, &sources, &rule);
+        let mut material = nodes.clone();
+        session.batch(&mut material, &prime_ref).unwrap();
+        let prior_hits = session.table.stats.hits;
+        let mut fault = Fault { nodes: &mut material, target, calls: 0, fail_at };
+        let frames = sc::frame_calls_on_thread();
+        let result = session.batch(&mut super::super::history::HashReader::new(&mut fault), &later_ref);
+        let f = sc::frame_calls_on_thread() - frames;
+        let hits = session.table.stats.hits - prior_hits;
+        drop(session);
+        assert_eq!(base.proof_stats().auxiliary_retained_bytes, 0);
+        (result, fault.calls, hits, f)
+    };
+    let good = run(None);
+    assert!(good.0.is_ok()); assert_eq!(good.2,2); assert!(good.1 > 0); assert!(good.3 > 0);
+    let failed = run(Some(good.1));
+    assert!(failed.0.unwrap_err().to_string().contains("injected actual header failure"));
+    assert_eq!(failed.2, 0, "首个previous的实际header失败不得发布命中成功");
+    assert_eq!(DEVELOPMENT_LAST.with(std::cell::Cell::get).retained_bytes, 0);
 }

@@ -1944,25 +1944,25 @@ impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
         let (entries, allocation_failure) = (16384usize, false);
         let metadata = std::mem::size_of::<Self>() + std::mem::size_of::<Option<Self>>()
             + 2 * std::mem::size_of::<DevelopmentStats>();
-        let proofs = base.proof_stats();
-        let room = sc::sqlite_audit::PROOF_CAP.saturating_sub(proofs.retained_bytes)
-            .saturating_sub(proofs.auxiliary_retained_bytes);
-        if entries > 0 && entries % 4 == 0 && !allocation_failure
-            && entries.checked_mul(std::mem::size_of::<DevelopmentSlot>())
-                .and_then(|n| n.checked_add(metadata)).is_some_and(|n| n <= room)
-            && table.slots.try_reserve_exact(entries).is_ok()
-        {
-            let bytes = table.slots.capacity().checked_mul(std::mem::size_of::<DevelopmentSlot>())
-                .and_then(|n| n.checked_add(metadata));
-            if let Some(lease) = bytes.and_then(|n| base.reserve_proof_bytes(n)) {
-                table.slots.resize(entries, DevelopmentSlot::default());
-                table.stats.disabled = false;
-                table.stats.capacity = table.slots.capacity();
-                table.stats.peak_bytes = bytes.unwrap();
-                table.stats.retained_bytes = bytes.unwrap();
-                table.lease = Some(lease);
-            } else {
-                table.slots = Vec::new();
+        let requested = entries.checked_mul(std::mem::size_of::<DevelopmentSlot>())
+            .and_then(|n| n.checked_add(metadata));
+        if entries > 0 && entries % 4 == 0 && !allocation_failure {
+            // Claim the sole auxiliary slot before allocating, including on a second-session refusal.
+            if let Some(lease) = requested.and_then(|n| base.reserve_proof_bytes(n)) {
+                if table.slots.try_reserve_exact(entries).is_ok() {
+                    let actual = table.slots.capacity().checked_mul(std::mem::size_of::<DevelopmentSlot>())
+                        .and_then(|n| n.checked_add(metadata));
+                    if actual == requested {
+                        table.slots.resize(entries, DevelopmentSlot::default());
+                        table.stats.disabled = false;
+                        table.stats.capacity = table.slots.capacity();
+                        table.stats.peak_bytes = actual.unwrap();
+                        table.stats.retained_bytes = actual.unwrap();
+                        table.lease = Some(lease);
+                    } else {
+                        table.slots = Vec::new();
+                    }
+                }
             }
         }
         Self { base, raw, rule, table }
