@@ -6110,7 +6110,7 @@ pub(super) mod tests {
             .iter()
             .map(|r| {
                 let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
-                if id[1].is_array() {
+                if id[0].is_array() && id[1].is_array() {
                     assert_eq!(
                         id[1][2], "structure-classification/1",
                         "g{gen} structure request contract"
@@ -6218,7 +6218,7 @@ pub(super) mod tests {
                 .filter_map(|r| {
                     let key: Value =
                         serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
-                    key[1].is_array().then(|| r["request_id"].clone())
+                    (key[0].is_array() && key[1].is_array()).then(|| r["request_id"].clone())
                 })
                 .collect::<Vec<_>>()
         };
