@@ -6052,7 +6052,7 @@ pub(super) mod tests {
                     Value::Array(slot) => (
                         slot[0].as_str().unwrap().to_string(),
                         slot[1].clone(),
-                        4 + labels.iter().position(|l| id[1] == *l).unwrap(),
+                        4 + labels.iter().position(|l| id[1] == *l).unwrap_or_else(|| panic!("g{gen} unexpected request key {id}")),
                     ),
                     Value::String(kind) => (kind.clone(), id[1].clone(), 0),
                     _ => unreachable!(),

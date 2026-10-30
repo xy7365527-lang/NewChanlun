@@ -165,11 +165,13 @@ fn pending_source_incoming_encloses_seed() {
 fn bounded2_revision_restore_preserves_archived_cuts() {
     fn run(layout: super::super::super::layout::Layout) -> Result<(), String> {
         super::super::super::layout::with_forced_layout_for_test(Some(layout), || {
-            let mut fixture = Fixture::with_clock_events(6, 3);
+            let mut fixture = Fixture::with_clock_events(18, 16);
             let rows = crate::tests::tb02b_oracle_rows();
             assert_eq!(rows.len(), 14);
-            let (envelope, token) = fixture.accept_begin_rows(1, &rows, 1);
-            fixture.publish(&envelope, &token)?;
+            for (offset, row) in rows.iter().copied().enumerate() {
+                let (envelope, token) = fixture.accept_begin(offset as i64 + 1, row, 1);
+                fixture.publish(&envelope, &token)?;
+            }
             let cuts = |f: &mut Fixture| -> Vec<Value> {
                 let tx = f.conn.transaction().unwrap();
                 let state = state::audit(&tx).unwrap();
@@ -189,10 +191,10 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
             assert!(!original_batches.is_empty(), "夹具必须有真实分型及后续单元");
             let row = rows[10];
             let revised = (row.0, row.1, row.2 + 1, row.3 + 1, row.4 + 1, row.5 + 1);
-            let (envelope, token) = fixture.accept_begin(2, revised, 2);
+            let (envelope, token) = fixture.accept_begin(15, revised, 2);
             fixture.publish(&envelope, &token)?;
             let before_restore = cuts(&mut fixture);
-            assert_eq!(&before_restore[..1], original_cuts.as_slice());
+            assert_eq!(&before_restore[..original_cuts.len()], original_cuts.as_slice());
             let withdrawn = {
                 let tx = fixture.conn.transaction().unwrap();
                 let state = state::audit(&tx).unwrap();
@@ -200,7 +202,7 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
                     .map(|o| o.id.as_str().to_owned()).collect::<Vec<_>>()
             };
             assert!(!withdrawn.is_empty(), "修订必须撤回旧批记录");
-            let (envelope, token) = fixture.accept_begin(3, row, 3);
+            let (envelope, token) = fixture.accept_begin(16, row, 3);
             fixture.publish(&envelope, &token)?;
             let after_restore = cuts(&mut fixture);
             assert_eq!(&after_restore[..before_restore.len()], before_restore.as_slice(), "全部归档 cut 的 AsKnown 内容不变");
@@ -293,7 +295,9 @@ fn assert_pending_w2_oracle(
     assert!(relations.is_empty());
     objects.extend(bi);
     let (segment, relations) = tb02c::build(segments, stroke, &by_coord, &raw, &prior, generation, cut, frontier, commit_ns.clone(), &fold).unwrap();
-    assert_eq!(segment.len(), 1);
+    assert_eq!(segment.len(), segments.seeds.len() + 1);
+    assert_eq!(segment.iter().filter(|o| o["kind"] == "CC-056.segment_version").count(), 1);
+    assert!(segment.iter().all(|o| matches!(o["kind"].as_str().unwrap(), "CC-011.seed_candidate" | "CC-056.segment_version")));
     assert!(relations.is_empty());
     objects.extend(segment);
     let latest = by_coord.values().max_by_key(|e| e["seq"].as_i64()).unwrap();
