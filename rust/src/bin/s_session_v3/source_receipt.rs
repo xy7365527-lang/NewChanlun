@@ -26,7 +26,7 @@ pub(crate) struct RawReceipt {
     rows: sc::CodecVec<RawRow>,
 }
 
-/// 仅供非准入接线与对拍：仍运行完整严格来源核，没有跨代成功缓存。
+/// Native 完整生成路径与对拍共用的严格来源核；成功后签发请求内收据，不复用跨代成功。
 #[allow(dead_code)]
 pub(crate) fn audit_raw_receipt(
     store: &mut dyn NodeStore,
