@@ -31,11 +31,14 @@ jobs:
           cargo test --locked --features s_session --bin s_structure_session native_n1_ -- --list | tee "$RUNNER_TEMP/n1-list.log"
           count=$(grep -c ': test$' "$RUNNER_TEMP/n1-list.log")
           echo "n1 tests listed: $count"
-          test "$count" -ge 22
+          test "$count" -ge 30
           cargo test --locked --features s_session --bin s_structure_session native_n1_ -- --nocapture | tee "$RUNNER_TEMP/n1-tests.log"
-          grep -E "test result: ok\. (2[2-9]|[3-9][0-9]) passed" "$RUNNER_TEMP/n1-tests.log"
-          cargo test --locked --features s_session --bin s_structure_session admission_anchor:: -- --nocapture | tee "$RUNNER_TEMP/n1-d1-anchor.log"
-          cargo test --locked --features s_session --bin s_structure_session admission_prepare_ -- --nocapture | tee "$RUNNER_TEMP/n1-d1-prepare.log"
+          grep -E "test result: ok\. ([3-9][0-9]|[1-9][0-9]{2,}) passed" "$RUNNER_TEMP/n1-tests.log"
+          for filter in 'admission_anchor::tests::' 'admission_prepare_' 'admission_private::tests::' 'admission::tests::' 'tests::accept_rejects_stale_epoch' 'tests::source_coord_invalid_input_rolls_back_whole_accept_batch' 'tests::pre_policy_records_deltas_' 'tests::historical_pre_policy_records_store_'; do
+            name=${filter//:/-}
+            cargo test --locked --features s_session --bin s_structure_session "$filter" -- --nocapture | tee "$RUNNER_TEMP/n1-$name.log"
+            grep -E 'test result: ok\. [1-9][0-9]* passed' "$RUNNER_TEMP/n1-$name.log"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

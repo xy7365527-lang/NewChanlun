@@ -113,6 +113,7 @@ pub(crate) enum Phase {
 
 /// 持原 Job 的 Rc 克隆；每次调用 `try_borrow_mut` 短借，借用冲突是首错而非 panic。
 /// 无取出 Job、无 finish/seal/重置口；seal 后仍指向 FinishedAdmission 的同一本账。
+#[derive(Clone)]
 pub(crate) struct NativeIoGate {
     job: Rc<RefCell<admission_job::Job>>,
     phase: Rc<Cell<Phase>>,
@@ -188,6 +189,52 @@ impl NativeIoGate {
     pub(crate) fn release(&self, grant: &admission_job::Grant) -> Result<(), NativeError> {
         self.with_job(|job| job.release(grant))
     }
+}
+
+/// 审计业务计费与 syscall 计费共用原 Job；SQL 调用期间不持有 Job 或 OWNER 借用。
+struct NativeAuditBudget {
+    gate: NativeIoGate,
+    delta: Cell<crate::DeltaShape>,
+}
+
+impl NativeAuditBudget {
+    fn job<T>(&self, run: impl FnOnce(&mut admission_job::Job) -> Result<T, AccountingError>) -> Result<T, AccountingError> {
+        let result = self.gate.with_job(run);
+        if let Err(error) = &result {
+            let _ = with_owner(|tls| tls.fail(error.clone()));
+        }
+        result.map_err(|error| match error {
+            NativeError::Job(error) => error,
+            NativeError::Code(_) => AccountingError::new("admission_reentrant", "N1原Job短借失败"),
+        })
+    }
+}
+
+impl super::super::audit_budget::Budget for NativeAuditBudget {
+    fn precheck(&self) -> Result<(), AccountingError> {
+        self.job(|job| job.pre_io_check())
+    }
+    fn prepare_node(&self) -> Result<(), AccountingError> {
+        self.job(|job| { job.pre_io_check()?; job.begin_first_read() })
+    }
+    fn accept_prepared_frame(&self, frame: &admission_job::CheckedFrame) -> Result<(), AccountingError> {
+        self.job(|job| job.accept_checked_usage(frame.usage()).map(|_| ()))
+    }
+    fn node(&self, digest: &newchan_rust::s_content::NodeDigest, tag: u8, body: &[u8]) -> Result<(), AccountingError> {
+        self.prepare_node()?;
+        let usage = admission_job::CheckedNodeUsage::checked(digest, tag, body)?;
+        self.job(|job| job.accept_checked_usage(&usage).map(|_| ()))
+    }
+    fn record(&self) -> Result<(), AccountingError> {
+        self.job(|job| job.charge_records(1))
+    }
+    fn before_write(&self) -> Option<&Cell<crate::DeltaShape>> { Some(&self.delta) }
+}
+
+/// 只由完整原审计签发；不能用 Default/当前形状猜测替代。
+pub(crate) struct NativeAuditReceipt {
+    token: u64,
+    delta: crate::DeltaShape,
 }
 
 // ---------------------------------------------------------------- 可写映射期 SHM 预算
@@ -676,6 +723,9 @@ fn owner_step(tls: &mut OwnerTls, class: Class, peer: Option<NativeCode>, effect
     if let Some(code) = peer {
         tls.fail(code.into());
     }
+    if tls.first.is_some() {
+        return Step::Deny(libc::EIO);
+    }
     if !tls.gate.startup_counted() {
         // Writer：原 writer 口径不计启动账，但不得扩大未覆盖的 SHM 可写范围。
         return match (class, effect) {
@@ -687,9 +737,6 @@ fn owner_step(tls: &mut OwnerTls, class: Class, peer: Option<NativeCode>, effect
             }
             _ => Step::Pass,
         };
-    }
-    if tls.first.is_some() {
-        return Step::Deny(libc::EIO);
     }
     let gate = match effect {
         Effect::Read | Effect::Write { .. } => tls.gate.pre_io_check(),
@@ -889,7 +936,18 @@ impl NativeHooks {
 
     /// owner 拥有的 FD：每次真实 I/O 前过门，返回后按实际 n 入账；其余 FD 原样透传。
     unsafe fn io(&self, fd: c_int, effect: Effect, call: impl FnOnce() -> isize) -> isize {
-        let owned = catch_unwind(AssertUnwindSafe(|| self.owned(fd))).unwrap_or(None);
+        let owned = match catch_unwind(AssertUnwindSafe(|| self.owned(fd))) {
+            Ok(owned) => owned,
+            Err(_) => {
+                self.unavailable.store(true, Ordering::SeqCst);
+                set_errno(libc::EIO);
+                return -1;
+            }
+        };
+        if self.active_any.load(Ordering::SeqCst) && self.unavailable.load(Ordering::SeqCst) {
+            set_errno(libc::EIO);
+            return -1;
+        }
         let Some((class, peer)) = owned else {
             return call();
         };
@@ -1093,8 +1151,56 @@ impl NativeOwner {
         let _ = with_owner(|tls| tls.gate.set_phase(Phase::Audit));
     }
 
+    /// 借 owner 的实际事务执行 D1 同一审计核；不另开事务或提交。
+    /// S2 仍以 LegacyAdmissionBudgetAdapterMissing 拒绝，不借此新增成功域。
+    pub(crate) fn audit_in(&self, tx: &rusqlite::Transaction<'_>) -> Result<NativeAuditReceipt, String> {
+        use super::super::audit_budget::Budget;
+        if let Some(error) = self.first_error() { return Err(format!("{error:?}")); }
+        self.recheck().map_err(|e| format!("{e:?}"))?;
+        let gate = with_owner(|tls| tls.gate.clone()).ok_or("NativeOwnerUnavailable")?;
+        if !gate.startup_counted() { return Err("NativeAuditPhaseInvalid".into()); }
+        self.enter_audit();
+        let budget = NativeAuditBudget { gate, delta: Cell::new(crate::DeltaShape::Current) };
+        budget.precheck().map_err(|e| e.to_string())?;
+        let deadline = budget.job(|job| job.first_read_deadline()).map_err(|e| e.to_string())?;
+        let result = super::super::admission_private::audit_core(
+            tx, &budget, deadline, &mut super::super::admission_private::RejectionPrefix::None,
+            |_, _, _, _, _| Err("NativeAcceptDoesNotServe".into()),
+        );
+        if let Some(error) = self.first_error() { return Err(format!("{error:?}")); }
+        result?;
+        Ok(NativeAuditReceipt { token: self.token, delta: budget.delta.get() })
+    }
+
+    /// 事务写核的受限消费者；只认同 owner 的审计收据，迁移仍使用原资格门。
+    /// 当前 S2/S3 规则不相交，生产接线与成功域批准另行解决，不能跳过版本检查。
+    pub(crate) fn accept_in(
+        &self,
+        tx: &rusqlite::Transaction<'_>,
+        audit: &NativeAuditReceipt,
+        text: &str,
+        profile: &std::path::Path,
+        epoch: &str,
+        context: Option<&crate::v2::InputContext>,
+    ) -> Result<serde_json::Value, String> {
+        if let Some(error) = self.first_error() { return Err(format!("{error:?}")); }
+        if audit.token != self.token || with_owner(|tls| tls.gate.phase()) != Some(Phase::Writer) {
+            return Err("NativeWriterQualificationMissing".into());
+        }
+        let _capture = crate::cache::begin_capture(crate::EVIDENCE_READ_BUDGET);
+        let prepared = crate::prepare_accept(text, profile)?;
+        // 形状是完整审计的输出；仅知道缺列不产生迁移授权。
+        if crate::policy_records_missing(tx)? && audit.delta != crate::DeltaShape::PrePolicyRecords {
+            return Err("PolicyRecordsMigrationNotAdmitted".into());
+        }
+        crate::migrate_in(tx)?;
+        crate::check_accept_connection(tx, &prepared)?;
+        crate::accept_body_in(tx, text, prepared, epoch, context)
+    }
+
     /// 钩子侧首错（含跨线程 peer_error）；owner 每个阶段边界先读它。
     pub(crate) fn first_error(&self) -> Option<NativeError> {
+        let unavailable = self.hooks.unavailable.load(Ordering::SeqCst);
         let peer = self
             .hooks
             .lock()
@@ -1102,6 +1208,9 @@ impl NativeOwner {
             .ok()
             .and_then(|a| a.peer_error);
         with_owner(|tls| {
+            if unavailable {
+                tls.fail(NativeCode::TrackingLost.into());
+            }
             if let Some(code) = peer {
                 tls.fail(code.into());
             }
@@ -1112,8 +1221,11 @@ impl NativeOwner {
 
     /// E8：seal 前把 SHM 预算全部闭合（finish_check 要求无未结 Grant）。
     pub(crate) fn settle_shm(&self, measured: Result<u64, ()>) -> Result<(), NativeError> {
-        with_owner(|tls| tls.budget.settle(&tls.gate, measured))
-        .unwrap_or(Err(NativeCode::Unavailable.into()))
+        with_owner(|tls| {
+            let result = tls.budget.settle(&tls.gate, measured);
+            if let Err(error) = &result { tls.fail(error.clone()); }
+            result
+        }).unwrap_or(Err(NativeCode::Unavailable.into()))
     }
 
     /// seal：先保存既有首错，再记 seal 错；成功返回同一 Job 的 FinishedAdmission。
@@ -1126,7 +1238,8 @@ impl NativeOwner {
             errors.record_first(first);
         }
         match started.seal() {
-            Ok(finished) => Some(finished),
+            Ok(finished) if errors.reported().is_none() => Some(finished),
+            Ok(_) => None,
             Err(error) => {
                 errors.record_seal(error);
                 None
@@ -1257,6 +1370,9 @@ unsafe fn install_once() -> Result<(), NativeCode> {
         mmap: fetch(c"mmap").map(|p| std::mem::transmute::<SyscallPtr, MmapFn>(p)),
         unlink: std::mem::transmute::<SyscallPtr, UnlinkFn>(need(c"unlink")?),
     };
+    if orig.pread.is_none() && orig.pread64.is_none() {
+        return Err(NativeCode::Unavailable);
+    }
     if HOOKS.set(NativeHooks::new(orig)).is_err() {
         return Err(NativeCode::Unavailable);
     }

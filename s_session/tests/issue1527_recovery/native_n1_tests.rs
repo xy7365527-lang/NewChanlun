@@ -525,3 +525,186 @@ fn native_n1_owner_rejects_second_owner_on_same_thread() {
     let mut errors = NativeErrors::default();
     let _ = first.destroy(&mut errors);
 }
+
+
+// ------------------------------------------------------------ 31V 原业务核的实际事务消费者
+
+fn native_input() -> String {
+    serde_json::json!({
+        "schema_revision":"1", "session_id":"s-session-testonly-001",
+        "source_namespace":"testonly.tick.ohlc", "source_epoch":"1",
+        "instrument":"TEST.TICK", "profile":"testonly_tick_1_1_ohlc",
+        "events":[{"event_id":"e1","revision":"1","seq":"1",
+            "received_at":"2026-09-09T00:00:00.000Z","raw_text":"10",
+            "price":"10","timestamp":"1","volume":"1"}]
+    }).to_string()
+}
+
+/// 比较所有业务表的完整 SQL 值，不以成功返回或选几列替代持久效果。
+fn logical_rows(conn: &rusqlite::Connection) -> Vec<(String, Vec<String>)> {
+    let names: Vec<String> = conn.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    ).unwrap().query_map([], |row| row.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+    names.into_iter().map(|name| {
+        let mut statement = conn.prepare(&format!("SELECT * FROM \"{}\"", name.replace('"', "\"\""))).unwrap();
+        let columns = statement.column_count();
+        let mut rows: Vec<String> = statement.query_map([], |row| {
+            let values = (0..columns).map(|i| row.get::<_, rusqlite::types::Value>(i)).collect::<Result<Vec<_>, _>>()?;
+            Ok(format!("{values:?}"))
+        }).unwrap().collect::<Result<_, _>>().unwrap();
+        rows.sort();
+        (name, rows)
+    }).collect()
+}
+
+#[test]
+fn native_n1_accept_in_matches_original_output_and_all_persisted_rows() {
+    let old = crate::tests::TestFiles::new();
+    let owned = crate::tests::TestFiles::new();
+    crate::tests::init_test_db(&old);
+    crate::tests::init_test_db(&owned);
+    let input = native_input();
+    let profile = crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json");
+    let expected = crate::accept_core(&old.db(), &input, &profile, crate::DEFAULT_WRITER_EPOCH, None).unwrap();
+    let mut connection = crate::open_db(&owned.db()).unwrap();
+    let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).unwrap();
+    let actual = crate::accept_in(&tx, &input, &profile, crate::DEFAULT_WRITER_EPOCH, None).unwrap();
+    assert_eq!(actual, expected);
+    tx.commit().unwrap();
+    assert_eq!(logical_rows(&connection), logical_rows(&crate::open_db(&old.db()).unwrap()));
+}
+
+#[test]
+fn native_n1_accept_in_caller_rollback_discards_all_business_effects() {
+    let files = crate::tests::TestFiles::new();
+    crate::tests::init_test_db(&files);
+    let mut connection = crate::open_db(&files.db()).unwrap();
+    let before = logical_rows(&connection);
+    let tx = connection.transaction().unwrap();
+    crate::accept_in(&tx, &native_input(), &crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json"), crate::DEFAULT_WRITER_EPOCH, None).unwrap();
+    assert_ne!(logical_rows(&tx), before);
+    tx.rollback().unwrap();
+    assert_eq!(logical_rows(&connection), before);
+}
+
+#[test]
+fn native_n1_accept_in_preserves_parse_profile_and_uninitialized_error_order() {
+    let files = crate::tests::TestFiles::new();
+    let profile = crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json");
+    let missing = files.db().with_extension("missing-profile");
+    for (input, selected) in [("not-json".to_owned(), &missing), (native_input(), &missing), (native_input(), &profile)] {
+        let expected = crate::accept_core(&files.db(), &input, selected, crate::DEFAULT_WRITER_EPOCH, None).unwrap_err();
+        let mut connection = rusqlite::Connection::open(&files.db()).unwrap();
+        let tx = connection.transaction().unwrap();
+        let actual = crate::accept_in(&tx, &input, selected, crate::DEFAULT_WRITER_EPOCH, None).unwrap_err();
+        assert_eq!(actual, expected);
+        tx.rollback().unwrap();
+    }
+}
+
+#[test]
+fn native_n1_migrate_in_uses_caller_transaction_and_is_idempotent() {
+    let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+    connection.execute_batch(crate::PRE_POLICY_RECORDS_DELTAS).unwrap();
+    assert!(crate::policy_records_missing(&connection).unwrap());
+    let tx = connection.transaction().unwrap();
+    crate::migrate_in(&tx).unwrap();
+    crate::migrate_in(&tx).unwrap();
+    assert!(!crate::policy_records_missing(&tx).unwrap());
+    tx.rollback().unwrap();
+    assert!(crate::policy_records_missing(&connection).unwrap());
+    let tx = connection.transaction().unwrap();
+    crate::migrate_in(&tx).unwrap();
+    tx.commit().unwrap();
+    assert!(!crate::policy_records_missing(&connection).unwrap());
+}
+
+#[test]
+fn native_n1_s2_audit_keeps_original_missing_budget_adapter_rejection() {
+    let files = crate::tests::TestFiles::new();
+    crate::tests::init_test_db(&files);
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(hooks(), gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    let mut connection = crate::open_db(&files.db()).unwrap();
+    let tx = connection.transaction().unwrap();
+    let error = owner.audit_in(&tx).err().expect("旧证据图没有非 mixed 同源费用适配，不发收据");
+    assert!(error.starts_with("LegacyAdmissionBudgetAdapterMissing"), "{error}");
+    tx.rollback().unwrap();
+    let mut errors = NativeErrors::default();
+    assert!(matches!(owner.teardown(connection, &mut errors), Teardown::Destroyed(_)));
+}
+
+fn native_s3_fixture() -> crate::tests::TestFiles {
+    let files = crate::tests::TestFiles::new();
+    let clock = files.db().with_extension("clock.json");
+    std::fs::write(&clock, serde_json::json!({
+        "schema_revision":"s-clock-plan/1", "clock_plan_id":"native-n1-31v",
+        "origin_utc":"2026-09-18T00:00:00Z", "unit":"ns",
+        "events":{"input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"}]}}
+    }).to_string()).unwrap();
+    crate::v3::init_v3(&files.db(), "s-session-testonly-001",
+        &crate::tests::fixture("catalog/signed-catalog.json"),
+        &crate::tests::fixture("profiles/ohlc_integer_tb02a_v1.json"), "1", &clock, 4).unwrap();
+    let connection = rusqlite::Connection::open(files.db()).unwrap();
+    connection.execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;").unwrap();
+    connection.close().unwrap();
+    files
+}
+
+#[test]
+fn native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate() {
+    let files = native_s3_fixture();
+    let consumed = super::super::test_prepare(&files.db()).consume().unwrap();
+    let source = crate::v3::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let started = consumed.into_job(source.existing).unwrap();
+    let gate = started.native_io_gate().unwrap();
+    let account = Rc::clone(&gate.job);
+    let before = account.borrow().snapshot();
+    let owner = NativeOwner::begin(hooks(), gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    let mut connection = rusqlite::Connection::open(files.db()).unwrap();
+    let tx = connection.transaction().unwrap();
+    let receipt = owner.audit_in(&tx).unwrap();
+    assert_eq!(receipt.delta, crate::DeltaShape::Current);
+    let after = account.borrow().snapshot();
+    assert!(after.nodes > before.nodes && after.node_bytes > before.node_bytes);
+    assert!(after.records > before.records);
+    let mut errors = NativeErrors::default();
+    owner.settle_shm(Ok(0)).unwrap();
+    let mut finished = owner.seal(started, &mut errors).expect("同一本 Job 完成 seal");
+    assert!(Rc::ptr_eq(&account, &finished.job));
+    owner.enter_writer();
+    let error = owner.accept_in(&tx, &receipt, &native_input(),
+        &crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json"), crate::DEFAULT_WRITER_EPOCH, None).unwrap_err();
+    assert!(error.starts_with("VersionMismatch"), "S3审计成功不能充作S2写资格：{error}");
+    tx.rollback().unwrap();
+    let destroyed = match owner.teardown(connection, &mut errors) {
+        Teardown::Destroyed(receipt) => receipt,
+        Teardown::Alive(_) => panic!("事务已关闭"),
+    };
+    n1_finish(&mut finished, &destroyed).unwrap();
+}
+
+#[test]
+fn native_n1_active_tracking_loss_never_delegates_real_io() {
+    let h = hooks();
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    h.unavailable.store(true, Ordering::SeqCst);
+    let called = Cell::new(false);
+    assert_eq!(unsafe { h.io(-1, Effect::Read, || { called.set(true); 7 }) }, -1);
+    assert!(!called.get());
+    assert_eq!(owner.first_error(), Some(NativeError::Code(NativeCode::TrackingLost)));
+    let _ = owner.destroy(&mut NativeErrors::default());
+}
+
+#[test]
+fn native_n1_writer_first_error_prevents_later_write_without_restarting_deadline() {
+    let (gate, _, now) = gate_with(1, 1 << 20);
+    gate.with_job(|job| job.begin_first_read()).unwrap();
+    gate.set_phase(Phase::Writer);
+    now.set(now.get() + Duration::from_secs(1));
+    let mut tls = OwnerTls { token: 1, gate, budget: ShmBudget::new(0, identity_bound()).unwrap(), first: None };
+    assert!(matches!(owner_step(&mut tls, Class::Main, None, Effect::Write { end: 1 }), Step::Pass));
+    tls.fail(NativeCode::TrackingLost.into());
+    assert!(matches!(owner_step(&mut tls, Class::Main, None, Effect::Write { end: 1 }), Step::Deny(libc::EIO)));
+}
