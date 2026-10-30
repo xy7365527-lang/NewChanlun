@@ -1083,3 +1083,232 @@ fn native_n1_vfs32f_failed_commit_rolls_back_with_callbacks_still_installed() {
     assert_eq!(account.borrow().snapshot().open_reservations, 0);
     assert!(other_process_can_lock(&file.0));
 }
+
+// 32F 故障注入在子进程首次 install 前替换 aSyscall 原指针；仍执行真实 libc I/O。
+#[derive(Default)]
+struct Faults32f {
+    pin_fail: Option<c_int>,
+    short_write: bool,
+    expire_write: Option<Rc<Cell<Instant>>>,
+    writes: Vec<(usize, isize)>,
+    maps: Vec<(u64, usize)>,
+    metadata_calls: usize,
+}
+thread_local! { static FAULTS32F: RefCell<Faults32f> = RefCell::new(Faults32f::default()); }
+unsafe extern "C" fn fstat32f(fd: c_int, out: *mut libc::stat) -> c_int {
+    if FAULTS32F.with(|f| f.borrow().pin_fail == Some(fd)) { set_errno(libc::EIO); -1 }
+    else { libc::fstat(fd, out) }
+}
+unsafe extern "C" fn pwrite32f(fd: c_int, p: *const c_void, n: usize, off: libc::off_t) -> isize {
+    let cap = FAULTS32F.with(|f| if f.borrow().short_write { n.min(3) } else { n });
+    let got = libc::pwrite(fd, p, cap, off);
+    if with_owner(|_| ()).is_some() {
+        FAULTS32F.with(|f| {
+            let mut f = f.borrow_mut(); f.writes.push((n, got));
+            if let Some(clock) = f.expire_write.take() { clock.set(clock.get() + Duration::from_secs(120)); }
+        });
+    }
+    got
+}
+unsafe extern "C" fn pwrite64_32f(fd: c_int, p: *const c_void, n: usize, off: i64) -> isize {
+    pwrite32f(fd, p, n, off as libc::off_t)
+}
+unsafe extern "C" fn mmap32f(p: *mut c_void, n: usize, prot: c_int, flags: c_int, fd: c_int, off: libc::off_t) -> *mut c_void {
+    if let Some(coverage) = with_owner(|tls| (tls.budget.covered(), tls.budget.grant_count())) {
+        FAULTS32F.with(|f| f.borrow_mut().maps.push(coverage));
+    }
+    libc::mmap(p, n, prot, flags, fd, off)
+}
+unsafe extern "C" fn fchmod32f(fd: c_int, mode: libc::mode_t) -> c_int {
+    FAULTS32F.with(|f| f.borrow_mut().metadata_calls += 1); libc::fchmod(fd, mode)
+}
+unsafe extern "C" fn fchown32f(fd: c_int, uid: libc::uid_t, gid: libc::gid_t) -> c_int {
+    FAULTS32F.with(|f| f.borrow_mut().metadata_calls += 1); libc::fchown(fd, uid, gid)
+}
+fn fault_hooks32f() -> &'static NativeHooks {
+    unsafe {
+        let vfs = rusqlite::ffi::sqlite3_vfs_find(std::ptr::null());
+        let set = (*vfs).xSetSystemCall.unwrap();
+        let get = (*vfs).xGetSystemCall.unwrap();
+        for (name, function) in [
+            (c"fstat", std::mem::transmute::<FstatFn, SyscallPtr>(fstat32f)),
+            (c"pwrite", std::mem::transmute::<PwriteFn, SyscallPtr>(pwrite32f)),
+            (c"pwrite64", std::mem::transmute::<Pwrite64Fn, SyscallPtr>(pwrite64_32f)),
+            (c"mmap", std::mem::transmute::<MmapFn, SyscallPtr>(mmap32f)),
+            (c"fchmod", std::mem::transmute::<FchmodFn, SyscallPtr>(fchmod32f)),
+            (c"fchown", std::mem::transmute::<FchownFn, SyscallPtr>(fchown32f)),
+        ] { if get(vfs, name.as_ptr()).is_some() { assert_eq!(set(vfs, name.as_ptr(), Some(function)), rusqlite::ffi::SQLITE_OK); } }
+    }
+    install().unwrap()
+}
+
+fn native_file32f(session: &NativeSession) -> *mut rusqlite::ffi::sqlite3_file {
+    let mut file = std::ptr::null_mut::<rusqlite::ffi::sqlite3_file>();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_file_control(session.state.as_ref().unwrap().raw,
+        c"main".as_ptr(), rusqlite::ffi::SQLITE_FCNTL_FILE_POINTER, (&mut file as *mut *mut rusqlite::ffi::sqlite3_file).cast()) }, rusqlite::ffi::SQLITE_OK);
+    assert!(!file.is_null()); file
+}
+unsafe fn map32f(file: *mut rusqlite::ffi::sqlite3_file, page: c_int, extend: c_int) -> (c_int, *mut c_void) {
+    let mut out = std::ptr::null_mut();
+    let rc = (*(*file).pMethods).xShmMap.unwrap()(file, page, 32768, extend, &mut out);
+    (rc, out)
+}
+fn assert_sidecars32f(file: &Path) {
+    assert!(file.exists());
+    assert!(PathBuf::from(format!("{}-wal", file.display())).exists());
+    assert!(PathBuf::from(format!("{}-shm", file.display())).exists());
+}
+
+fn shm_fd32f(h: &NativeHooks) -> c_int {
+    *h.lock().active.as_ref().unwrap().receipts.iter().find(|(_, class)| **class == Class::Shm).unwrap().0
+}
+#[test]
+fn native_n1_vfs32f_sparse_bextend0_reserves_before_real_mmap_once() {
+    if !native_child("native_n1_vfs32f_sparse_bextend0_reserves_before_real_mmap_once") { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture("sparse-map");
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let handle = native_file32f(&session);
+    let tx = session.begin().unwrap();
+    // TestOnly 夹具：在已建立DMS锁/region0后制造足长稀疏尾部，避免重开SHM时被SQLite截断。
+    assert_eq!(unsafe { libc::ftruncate(shm_fd32f(h), 98304) }, 0);
+    FAULTS32F.with(|f| f.borrow_mut().maps.clear());
+    let (rc, pointer) = unsafe { map32f(handle, 2, 0) };
+    assert_eq!(rc, rusqlite::ffi::SQLITE_OK); assert!(!pointer.is_null());
+    FAULTS32F.with(|f| { let f = f.borrow(); assert!(!f.maps.is_empty()); assert!(f.maps.iter().all(|(covered, grants)| *covered == 98304 && *grants >= 2)); });
+    let before = account.borrow().snapshot();
+    assert_eq!(before.store.pending, (98304 - b0) as u128);
+    unsafe { pointer.cast::<u8>().write_volatile(7); }
+    assert_eq!(unsafe { map32f(handle, 2, 0) }.0, rusqlite::ffi::SQLITE_OK);
+    assert_eq!(account.borrow().snapshot().open_reservations, before.open_reservations, "重复map不重预留");
+    tx.rollback().unwrap();
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_))); assert!(errors.reported().is_none(), "{errors:?}");
+    assert_eq!(account.borrow().snapshot().store.committed, before.store.pending);
+    assert_eq!(account.borrow().snapshot().open_reservations, 0); assert_sidecars32f(&file.0);
+}
+
+#[test]
+fn native_n1_vfs32f_pin_measure_failure_after_real_growth_settles_conservatively() {
+    use std::os::fd::AsRawFd;
+    if !native_child("native_n1_vfs32f_pin_measure_failure_after_real_growth_settles_conservatively") { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture("failed-pin");
+    let pin_fd = pin.as_raw_fd();
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let handle = native_file32f(&session);
+    let tx = session.begin().unwrap();
+    FAULTS32F.with(|f| { let mut f = f.borrow_mut(); f.pin_fail = Some(pin_fd); f.writes.clear(); });
+    assert_eq!(unsafe { map32f(handle, 1, 1) }.0, rusqlite::ffi::SQLITE_IOERR_SHMSIZE);
+    assert!(FAULTS32F.with(|f| f.borrow().writes.iter().any(|(_, n)| *n > 0)), "委托已真实分配，不是调用前拒绝");
+    let pending = account.borrow().snapshot().store.pending;
+    assert_eq!(pending, (65536 - b0) as u128);
+    drop(tx); // early return 的实际 RAII 路径，不人工 settle 或 rollback
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::ShmMeasureFailed)))));
+    assert_eq!(account.borrow().snapshot().store.committed, pending);
+    assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert_sidecars32f(&file.0); assert!(other_process_can_lock(&file.0));
+}
+
+#[test]
+fn native_n1_vfs32f_internal_page_write_expiry_stops_later_writes_and_cleans_up() {
+    if !native_child("native_n1_vfs32f_internal_page_write_expiry_stops_later_writes_and_cleans_up") { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture("partial-growth");
+    let (gate, account, clock) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let handle = native_file32f(&session);
+    let tx = session.begin().unwrap();
+    let before = account.borrow().snapshot().wire_bytes;
+    FAULTS32F.with(|f| { let mut f = f.borrow_mut(); f.writes.clear(); f.expire_write = Some(clock); });
+    assert_ne!(unsafe { map32f(handle, 1, 1) }.0, rusqlite::ffi::SQLITE_OK);
+    assert_eq!(FAULTS32F.with(|f| f.borrow().writes.clone()), vec![(1, 1)], "SQLite内部第一页面写完成后超期，后续页不得委托");
+    assert_eq!(account.borrow().snapshot().wire_bytes, before + 1, "失败仍计已写实际n");
+    assert!(std::fs::metadata(format!("{}-shm", file.0.display())).unwrap().len() > 32768);
+    drop(tx);
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Job(_)))));
+    assert_eq!(account.borrow().snapshot().store.committed, (65536 - b0) as u128);
+    assert_eq!(account.borrow().snapshot().open_reservations, 0); assert_sidecars32f(&file.0);
+}
+
+#[test]
+fn native_n1_vfs32f_owned_syscall_short_write_counts_returned_n() {
+    if !native_child("native_n1_vfs32f_owned_syscall_short_write_counts_returned_n") { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture("real-short-write");
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let tx = session.begin().unwrap();
+    let fd = shm_fd32f(h);
+    let before = account.borrow().snapshot().wire_bytes;
+    FAULTS32F.with(|f| f.borrow_mut().short_write = true);
+    // SQLite实际打开/归属的SHM FD，调用已安装的syscall门；真实libc只写3字节。
+    assert_eq!(unsafe { t_pwrite(fd, b"12345678".as_ptr().cast(), 8, 32760) }, 3);
+    let mut actual = [0u8; 3];
+    assert_eq!(unsafe { libc::pread(fd, actual.as_mut_ptr().cast(), 3, 32760) }, 3);
+    assert_eq!(&actual, b"123");
+    assert_eq!(account.borrow().snapshot().wire_bytes, before + 3);
+    tx.rollback().unwrap();
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(errors.reported().is_none(), "{errors:?}"); assert_sidecars32f(&file.0);
+}
+
+fn metadata_deadline32f(name: &str, chmod: bool) {
+    if !native_child(name) { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture(name);
+    let (gate, _, clock) = gate_with(1000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let tx = session.begin().unwrap();
+    let before = FAULTS32F.with(|f| f.borrow().metadata_calls);
+    clock.set(clock.get() + Duration::from_secs(2));
+    let fd = shm_fd32f(h);
+    let rc = unsafe { if chmod { t_fchmod(fd, 0o600) } else { t_fchown(fd, !0, !0) } };
+    assert_eq!(rc, -1); assert_eq!(errno(), libc::EIO);
+    assert_eq!(FAULTS32F.with(|f| f.borrow().metadata_calls), before, "超期不得委托原metadata syscall");
+    drop(tx);
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Job(_))))); assert_sidecars32f(&file.0);
+}
+#[test]
+fn native_n1_vfs32f_fchmod_deadline_before_delegate() { metadata_deadline32f("native_n1_vfs32f_fchmod_deadline_before_delegate", true); }
+#[test]
+fn native_n1_vfs32f_fchown_deadline_before_delegate() { metadata_deadline32f("native_n1_vfs32f_fchown_deadline_before_delegate", false); }
+
+#[test]
+fn native_n1_vfs32f_sleep_expiry_next_lock_is_not_busy_but_unlock_works() {
+    if !native_child("native_n1_vfs32f_sleep_expiry_next_lock_is_not_busy_but_unlock_works") { return; }
+    let h = install().unwrap();
+    let (file, pins, pin, b0) = wal_fixture("sleep-lock");
+    let (gate, account, clock) = gate_with(1000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let handle = native_file32f(&session);
+    let vfs = unsafe { rusqlite::ffi::sqlite3_vfs_find(session.state.as_ref().unwrap().vfs.as_ref().unwrap().name()) };
+    let tx = session.begin().unwrap();
+    let method = unsafe { (*(*handle).pMethods).xShmLock.unwrap() };
+    let exclusive = rusqlite::ffi::SQLITE_SHM_EXCLUSIVE;
+    assert_eq!(unsafe { method(handle, 7, 1, rusqlite::ffi::SQLITE_SHM_LOCK | exclusive) }, rusqlite::ffi::SQLITE_OK);
+    clock.set(clock.get() + Duration::from_secs(2));
+    assert_eq!(unsafe { (*vfs).xSleep.unwrap()(vfs, 1000) }, 0);
+    assert_eq!(unsafe { method(handle, 7, 1, rusqlite::ffi::SQLITE_SHM_LOCK | exclusive) }, rusqlite::ffi::SQLITE_IOERR_LOCK);
+    assert_eq!(unsafe { method(handle, 7, 1, rusqlite::ffi::SQLITE_SHM_UNLOCK | exclusive) }, rusqlite::ffi::SQLITE_OK);
+    drop(tx);
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Job(_)))));
+    assert_eq!(account.borrow().snapshot().open_reservations, 0); assert_sidecars32f(&file.0);
+}
