@@ -166,6 +166,12 @@ impl<'capture> ClosedCapturedOwner<'capture> {
     ) -> Result<RefOwner, CodecError> {
         path::lookup_path_owned_ctx(self, r, p)
     }
+    pub fn array_cursor_owned(&mut self, reference: RefView<'_>) -> Result<path::NativeArrayCursor, CodecError> {
+        path::NativeArrayCursor::new_ctx(&mut CodecContext::Closed(self), reference)
+    }
+    pub fn next_array_member_owned(&mut self, cursor: &mut path::NativeArrayCursor, prefix: &[path::PathStep]) -> Result<Option<RefOwner>, CodecError> {
+        cursor.next_output(&mut CodecContext::Closed(self), prefix)
+    }
     pub fn lookup_array_items_owned(
         &mut self,
         r: RefView<'_>,
@@ -1061,6 +1067,48 @@ mod tests {
             base,
         )
     }
+    #[test]
+    fn closed_array_cursor_matches_plain_frames_and_preserves_ledger() {
+        for count in [0, 1, 3, 9] {
+            let mut nodes = MemoryNodes::new();
+            let values = (0..count).map(|i| Value::string(format!("item-{i}"))).collect();
+            let built = write_value(&mut nodes, &Value::Array(values)).unwrap();
+            let reference = built.content_ref();
+            let mut plain = nodes.clone();
+            let f = frame_calls_on_thread();
+            let mut cursor = path::NativeArrayCursor::new(&mut plain, (&reference).into()).unwrap();
+            let mut expected = Vec::new();
+            while let Some(member) = cursor.next(&mut plain).unwrap() {
+                expected.push(member.root.clone());
+            }
+            let plain_f = frame_calls_on_thread() - f;
+            let (capture, budget, base) = capture(nodes.clone(), 65536);
+            let (other, foreign, foreign_base) = self::capture(nodes, 65536);
+            let mut owner = capture.closed_codec_for_allocation_prototype(0, 0, None).unwrap();
+            let mut foreign_owner = other.closed_codec_for_allocation_prototype(0, 0, None).unwrap();
+            let f = frame_calls_on_thread();
+            let mut cursor = owner.array_cursor_owned((&reference).into()).unwrap();
+            let before = frame_calls_on_thread();
+            assert_eq!(foreign_owner.next_array_member_owned(&mut cursor, &[]).unwrap_err().code(), capture_allocation::INCOMPLETE);
+            assert_eq!(frame_calls_on_thread(), before);
+            assert_eq!(foreign.snapshot().live_requested_layout_bytes, foreign_base);
+            let mut actual = Vec::new();
+            while let Some(member) = owner.next_array_member_owned(&mut cursor, &[]).unwrap() {
+                actual.push(member.root().to_string());
+            }
+            assert_eq!(actual, expected);
+            assert_eq!(frame_calls_on_thread() - f, plain_f);
+            drop(cursor);
+            drop(owner);
+            drop(foreign_owner);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            drop(capture);
+            drop(other);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+
     #[test]
     fn closed_codec_capture_borrows_without_copy_and_overlay_remains_independent() {
         let mut nodes = MemoryNodes::new();

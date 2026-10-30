@@ -51,6 +51,8 @@ jobs:
             if [ "$rc" != 0 ]; then failed=1; fi
             grep -q 'running 1 test' "../owned34p/${test##*::}.log" || failed=1
           done
+          cargo test --locked --features s_session,s_allocation_json_testonly --lib -- s_content::closed::tests::closed_array_cursor_matches_plain_frames_and_preserves_ledger --exact --test-threads 1 --nocapture 2>&1 | tee ../owned34p/cursor.log || failed=1
+          grep -q 'running 1 test' ../owned34p/cursor.log || failed=1
           cargo test --locked --features s_session,s_allocation_json_testonly --test s_content_sequence -- --test-threads 1 --nocapture 2>&1 | tee ../owned34p/sequence.log || failed=1
           exit "$failed"
       - name: Strict affected feature compilation

@@ -1515,11 +1515,7 @@ fn resolve_observations(
             ],
         )?;
         let record = if let Some(cursor) = &mut cursor {
-            cursor
-                .next_with_prefix(store.generic_source(), &path.steps[..1])
-                .map_err(err)?
-                .map(RefValue::Plain)
-                .ok_or_else(|| err("数组游标提前结束"))?
+            store.next_array_member_with_prefix(cursor, &path.steps[..1]).map_err(err)?
         } else {
             store.lookup_ref(root.view(), &path.steps).map_err(err)?
         };

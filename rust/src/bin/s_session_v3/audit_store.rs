@@ -421,8 +421,15 @@ pub(crate) trait CodecRead: NodeSource {
         &mut self,
         cursor: &mut sc::path::NativeArrayCursor,
     ) -> Result<RefValue, CodecError> {
+        self.next_array_member_with_prefix(cursor, &[])
+    }
+    fn next_array_member_with_prefix(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+        prefix: &[PathStep],
+    ) -> Result<RefValue, CodecError> {
         cursor
-            .next(self.generic_source())?
+            .next_with_prefix(self.generic_source(), prefix)?
             .map(RefValue::Plain)
             .ok_or_else(|| CodecError::new(sc::code::EXTENT, "数组游标提前结束"))
     }
@@ -804,6 +811,18 @@ impl CodecRead for StoreView<'_, '_> {
         }
     }
 
+    fn array_cursor(&mut self, r: sc::RefView<'_>) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.array_cursor(r),
+            Backend::Audit(s) => s.array_cursor(r),
+        }
+    }
+    fn next_array_member_with_prefix(&mut self, cursor: &mut sc::path::NativeArrayCursor, prefix: &[PathStep]) -> Result<RefValue, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.next_array_member_with_prefix(cursor, prefix),
+            Backend::Audit(s) => s.next_array_member_with_prefix(cursor, prefix),
+        }
+    }
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,

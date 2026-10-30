@@ -2079,14 +2079,18 @@ pub struct NativeArrayCursor {
     root: Option<(NodeDigest, u64)>,
     index: u64,
     count: u64,
+    owned_budget: Option<super::capture_allocation::OwnedBudget>,
 }
 
 impl NativeArrayCursor {
     pub fn new(source: &mut dyn NodeSource, reference: RefView<'_>) -> Result<Self, CodecError> {
-        let mut source = CodecContext::Source(source);
+        Self::new_ctx(&mut CodecContext::Source(source), reference)
+    }
+
+    pub(super) fn new_ctx(source: &mut CodecContext<'_, '_>, reference: RefView<'_>) -> Result<Self, CodecError> {
         let work = source.work_budget();
         let result = (|| {
-            let node = navigate_view(&mut source, reference, &[], false)?;
+            let node = navigate_view(source, reference, &[], false)?;
             if node.tag != tag::ARRAY {
                 return Err(step_kind_error("index", "0x05 数组", node.tag));
             }
@@ -2097,6 +2101,7 @@ impl NativeArrayCursor {
                 root: Some((root, count)),
                 index: 0,
                 count,
+                owned_budget: source.budget(),
             })
         })();
         if let Some(work) = work {
@@ -2119,20 +2124,28 @@ impl NativeArrayCursor {
         prefix: &[PathStep],
     ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
     {
-        let mut source = CodecContext::Source(source);
+        self.next_output(&mut CodecContext::Source(source), prefix)
+    }
+
+    pub(super) fn next_output<R: RefOutput>(&mut self, source: &mut CodecContext<'_, '_>, prefix: &[PathStep]) -> Result<Option<R>, CodecError> {
+        match (&self.owned_budget, source.budget()) {
+            (None, None) => {},
+            (Some(bound), Some(current)) if bound.same_ledger(&current) => {},
+            _ => return Err(CodecError::new(super::capture_allocation::INCOMPLETE, "数组游标必须保留原账本")),
+        }
         let work = source.work_budget();
-        let result = self.next_inner(&mut source, prefix);
+        let result = self.next_inner(source, prefix);
         if let Some(work) = work {
             work.observe(&result);
         }
         result
     }
 
-    fn next_inner(
+    fn next_inner<R: RefOutput>(
         &mut self,
         source: &mut CodecContext<'_, '_>,
         prefix: &[PathStep],
-    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    ) -> Result<Option<R>, CodecError>
     {
         if self.index == self.count {
             return Ok(None);
