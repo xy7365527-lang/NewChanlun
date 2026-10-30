@@ -18,6 +18,10 @@ pub struct ProofStats {
     pub probes: u64,
     pub retained_bytes: usize,
     pub disabled: bool,
+    pub auxiliary_retained_bytes: usize,
+    pub auxiliary_peak_bytes: usize,
+    pub auxiliary_released_bytes: usize,
+    pub combined_peak_bytes: usize,
 }
 pub(super) struct SuccessTable {
     slots: Vec<[u8; 33]>,
@@ -49,6 +53,7 @@ impl SuccessTable {
         }
         this.slots.resize(entries, [0; 33]);
         this.stats.retained_bytes = this.slots.capacity() * 33 + META_RESERVE;
+        this.stats.combined_peak_bytes = this.stats.retained_bytes;
         this
     }
     fn code(mode: Mode, flavor: Flavor) -> u8 {
@@ -144,6 +149,18 @@ impl<'conn> SqliteAuditBase<'conn> {
     pub fn proof_stats(&self) -> ProofStats {
         self.proofs.borrow().stats
     }
+    /// 仅一张附属短期证明表可占用余量。closure 固定容量不变。
+    pub fn reserve_proof_bytes(&self, bytes: usize) -> Option<ProofLease<'_, 'conn>> {
+        let mut proofs = self.proofs.borrow_mut();
+        let total = proofs.stats.retained_bytes.checked_add(bytes)?;
+        if proofs.stats.auxiliary_retained_bytes != 0 || bytes == 0 || total > PROOF_CAP {
+            return None;
+        }
+        proofs.stats.auxiliary_retained_bytes = bytes;
+        proofs.stats.auxiliary_peak_bytes = proofs.stats.auxiliary_peak_bytes.max(bytes);
+        proofs.stats.combined_peak_bytes = proofs.stats.combined_peak_bytes.max(total);
+        Some(ProofLease { base: self, bytes })
+    }
     pub fn checked_read(&self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
         self.materials.borrow_mut().read_material(digest, || {
             read_sql_material(self.conn, digest)?
@@ -184,6 +201,17 @@ impl<'conn> SqliteAuditBase<'conn> {
         }
         proofs.stats.commits += 1;
         Ok(())
+    }
+}
+pub struct ProofLease<'a, 'conn> {
+    base: &'a SqliteAuditBase<'conn>,
+    bytes: usize,
+}
+impl Drop for ProofLease<'_, '_> {
+    fn drop(&mut self) {
+        let mut proofs = self.base.proofs.borrow_mut();
+        proofs.stats.auxiliary_retained_bytes = 0;
+        proofs.stats.auxiliary_released_bytes += self.bytes;
     }
 }
 struct SqlReader<'a, 'conn>(&'a SqliteAuditBase<'conn>);

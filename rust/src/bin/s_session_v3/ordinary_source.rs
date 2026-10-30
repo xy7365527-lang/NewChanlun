@@ -438,6 +438,7 @@ impl OrdinaryProofs {
             false,
             deadline,
             budget,
+            None,
         )?;
         semantic_sources(&deps, &output.sources, raw);
         self.object_records

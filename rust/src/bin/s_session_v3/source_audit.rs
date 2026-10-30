@@ -1887,7 +1887,125 @@ fn audit_object_record(
         memo_fields,
         deadline,
         budget,
+        None,
     )
+}
+
+#[cfg(test)]
+#[path = "source_audit_development_tests.rs"]
+mod development_tests;
+
+#[derive(Clone, Copy, Default, Debug)]
+struct DevelopmentStats {
+    eligible_batches: u64,
+    hits: u64,
+    misses: u64,
+    current_full: u64,
+    previous_full: u64,
+    disabled: bool,
+    capacity: usize,
+    peak_bytes: usize,
+    retained_bytes: usize,
+    released_bytes: usize,
+}
+#[cfg(test)]
+thread_local! {
+    static DEVELOPMENT_CONFIG: std::cell::Cell<(usize, bool)> = const { std::cell::Cell::new((16384, false)) };
+    static DEVELOPMENT_LAST: std::cell::Cell<DevelopmentStats> = std::cell::Cell::new(DevelopmentStats::default());
+}
+#[derive(Clone, Copy, Default)]
+struct DevelopmentSlot {
+    digest: NodeDigest,
+    coord: i64,
+    occupied: bool,
+}
+struct DevelopmentTable<'a> {
+    slots: Vec<DevelopmentSlot>,
+    next: usize,
+    lease: Option<sc::sqlite_audit::ProofLease<'a, 'a>>,
+    stats: DevelopmentStats,
+}
+struct DevelopmentAuditSession<'a, 'raw> {
+    base: &'a sc::sqlite_audit::SqliteAuditBase<'a>,
+    raw: &'raw dyn RawLookup,
+    rule: &'raw str,
+    table: DevelopmentTable<'a>,
+}
+impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
+    fn new(base: &'a sc::sqlite_audit::SqliteAuditBase<'a>, raw: &'raw dyn RawLookup, rule: &'raw str) -> Self {
+        let mut table = DevelopmentTable {
+            slots: Vec::new(), next: 0, lease: None,
+            stats: DevelopmentStats { disabled: true, ..DevelopmentStats::default() },
+        };
+        #[cfg(test)]
+        let (entries, allocation_failure) = DEVELOPMENT_CONFIG.with(std::cell::Cell::get);
+        #[cfg(not(test))]
+        let (entries, allocation_failure) = (16384usize, false);
+        let metadata = std::mem::size_of::<Self>() + std::mem::size_of::<Option<Self>>()
+            + 2 * std::mem::size_of::<DevelopmentStats>();
+        let room = sc::sqlite_audit::PROOF_CAP.saturating_sub(base.proof_stats().retained_bytes);
+        if entries > 0 && entries % 4 == 0 && !allocation_failure
+            && entries.checked_mul(std::mem::size_of::<DevelopmentSlot>())
+                .and_then(|n| n.checked_add(metadata)).is_some_and(|n| n <= room)
+            && table.slots.try_reserve_exact(entries).is_ok()
+        {
+            let bytes = table.slots.capacity().checked_mul(std::mem::size_of::<DevelopmentSlot>())
+                .and_then(|n| n.checked_add(metadata));
+            if let Some(lease) = bytes.and_then(|n| base.reserve_proof_bytes(n)) {
+                table.slots.resize(entries, DevelopmentSlot::default());
+                table.stats.disabled = false;
+                table.stats.capacity = table.slots.capacity();
+                table.stats.peak_bytes = bytes.unwrap();
+                table.stats.retained_bytes = bytes.unwrap();
+                table.lease = Some(lease);
+            } else {
+                table.slots = Vec::new();
+            }
+        }
+        Self { base, raw, rule, table }
+    }
+    fn batch(&mut self, s: &mut (impl CodecRead + ?Sized), payload: &RefValue) -> Result<(), PublishError> {
+        self.table.stats.eligible_batches += 1;
+        audit_development_batch_inner(s, payload, self.raw, self.rule, Some(&mut self.table))
+    }
+}
+impl DevelopmentTable<'_> {
+    fn key(unit: &RefValue) -> Option<NodeDigest> {
+        let r = unit.view();
+        if r.format() != sc::CONTENT_FORMAT || r.kind() != Kind::Object || r.extent() != Some(3) {
+            return None;
+        }
+        r.digest().ok()
+    }
+    fn start(&self, digest: &NodeDigest) -> usize {
+        (u64::from_le_bytes(digest[..8].try_into().unwrap()) as usize % (self.slots.len() / 4)) * 4
+    }
+    fn lookup(&self, unit: &RefValue) -> Option<i64> {
+        if self.slots.is_empty() { return None; }
+        let key = Self::key(unit)?;
+        let start = self.start(&key);
+        self.slots[start..start + 4].iter()
+            .find(|slot| slot.occupied && slot.digest == key).map(|slot| slot.coord)
+    }
+    fn save(&mut self, unit: &RefValue, coord: i64) {
+        if self.slots.is_empty() { return; }
+        let Some(key) = Self::key(unit) else { return; };
+        let start = self.start(&key);
+        let index = (start..start + 4).find(|&i| !self.slots[i].occupied || self.slots[i].digest == key)
+            .unwrap_or(start + self.next % 4);
+        self.next = self.next.wrapping_add(1);
+        self.slots[index] = DevelopmentSlot { digest: key, coord, occupied: true };
+    }
+}
+impl Drop for DevelopmentTable<'_> {
+    fn drop(&mut self) {
+        self.slots = Vec::new();
+        self.lease = None;
+        self.stats.released_bytes = self.stats.retained_bytes;
+        self.stats.retained_bytes = 0;
+        #[cfg(test)]
+        DEVELOPMENT_LAST.with(|s| s.set(self.stats));
+    }
 }
 
 fn audit_development_unit(
@@ -1896,6 +2014,12 @@ fn audit_development_unit(
     raw: &(impl RawLookup + ?Sized),
     source_bound: bool,
 ) -> Result<(), PublishError> {
+    audit_development_unit_coord(s, unit, raw, source_bound).map(|_| ())
+}
+fn audit_development_unit_coord(
+    s: &mut (impl CodecRead + ?Sized), unit: &RefValue,
+    raw: &(impl RawLookup + ?Sized), source_bound: bool,
+) -> Result<i64, PublishError> {
     exact(unit, Kind::Object, if source_bound { 3 } else { 2 })?;
     let bar = field(s, unit, "bar")?;
     exact(&bar, Kind::Object, 5)?;
@@ -1913,7 +2037,7 @@ fn audit_development_unit(
             return Err(err("CC007单元source_ref不是同cut完整八字段原件"));
         }
     }
-    Ok(())
+    Ok(coord)
 }
 
 fn audit_development_batch(
@@ -1921,6 +2045,13 @@ fn audit_development_batch(
     payload: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     rule: &str,
+) -> Result<(), PublishError> {
+    audit_development_batch_inner(s, payload, raw, rule, None)
+}
+fn audit_development_batch_inner(
+    s: &mut (impl CodecRead + ?Sized), payload: &RefValue,
+    raw: &(impl RawLookup + ?Sized), rule: &str,
+    mut memo: Option<&mut DevelopmentTable<'_>>,
 ) -> Result<(), PublishError> {
     let source_bound = super::layout::Layout::of_rule(rule)? == super::layout::Layout::Bounded2;
     if !source_bound {
@@ -1933,7 +2064,9 @@ fn audit_development_batch(
         exact(&entry, Kind::Object, 3)?;
         let _fractal = text(s, &entry, "fractal_object_id")?;
         let unit = field(s, &entry, "unit")?;
-        audit_development_unit(s, &unit, raw, true)?;
+        if let Some(memo) = memo.as_deref_mut() { memo.stats.current_full += 1; }
+        let coord = audit_development_unit_coord(s, &unit, raw, true)?;
+        if let Some(memo) = memo.as_deref_mut() { memo.save(&unit, coord); }
         if field(s, &unit, "bar")? != bar {
             return Err(err("CC007单元bar与批记录不同"));
         }
@@ -1947,7 +2080,20 @@ fn audit_development_batch(
         exact(&prefix, Kind::Array, count as u64)?;
         let units = elements(s, &prefix)?;
         for previous in &units {
-            audit_development_unit(s, previous, raw, true)?;
+            if let Some(memo) = memo.as_deref_mut() {
+                if let Some(coord) = memo.lookup(previous) {
+                    sc::audit_verify_refview_headers(s.generic_source(), [previous.view()]).map_err(err)?;
+                    raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
+                    memo.stats.hits += 1;
+                    continue;
+                }
+                memo.stats.misses += 1;
+                memo.stats.previous_full += 1;
+                let coord = audit_development_unit_coord(s, previous, raw, true)?;
+                memo.save(previous, coord);
+            } else {
+                audit_development_unit(s, previous, raw, true)?;
+            }
         }
         if units.last() != Some(&unit) {
             return Err(err("CC007发展前缀末项不是本单元"));
@@ -1970,6 +2116,7 @@ fn audit_object_record_with_slots(
     memo_fields: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
+    mut development: Option<&mut DevelopmentAuditSession<'_, '_>>,
 ) -> Result<Object, PublishError> {
     let kind = if memo_fields {
         SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
@@ -2125,7 +2272,10 @@ fn audit_object_record_with_slots(
             )?;
         }
         if kind == CC007_DEVELOPMENT_BATCH_KIND {
-            audit_development_batch(s, &payload, raw, rule)?;
+            match development.as_deref_mut() {
+                Some(session) => session.batch(s, &payload)?,
+                None => audit_development_batch(s, &payload, raw, rule)?,
+            }
         }
         if kind == CC054_KNOWLEDGE_KIND {
             let contract = tb02b::contract_for_rule(producer.rule_revision())
@@ -2549,6 +2699,12 @@ fn audit_generated_in_store(
         }
         &ordinary_raw
     };
+    let mut development = if ordinary.is_none()
+        && budget.is_none() && deadline.is_none()
+        && super::layout::Layout::of_rule(rule).ok() == Some(super::layout::Layout::Bounded2)
+    {
+        s.source.eligible_sqlite_base().map(|base| DevelopmentAuditSession::new(base, &raw, rule))
+    } else { None };
     let current_generation = if crate::is_structure_rule(rule) {
         number(s, state, "generation")?
     } else {
@@ -2585,6 +2741,11 @@ fn audit_generated_in_store(
                 .map_err(err)?
         };
         super::history::check_deadline(deadline)?;
+        if development.as_ref().is_some_and(|session| {
+            !s.source.eligible_sqlite_base().is_some_and(|base| std::ptr::eq(base, session.base))
+        }) {
+            development = None;
+        }
         let memo_fields = s.fields.is_some();
         let object = if let Some(proofs) = ordinary.as_deref_mut() {
             proofs.object(
@@ -2602,21 +2763,21 @@ fn audit_generated_in_store(
                 budget,
             )?
         } else {
-            audit_object_record(
+            audit_object_record_with_slots(
                 s,
                 &record,
                 raw,
                 &producer,
                 rule,
                 current_generation,
-                &mut ids,
-                &mut groups,
+                &mut FullObjectSlots { ids: &mut ids, groups: &mut groups },
                 &mut checked_refs,
                 native_sources.as_deref_mut(),
                 raw_prefix.len(),
                 memo_fields,
                 deadline,
                 budget,
+                development.as_mut(),
             )?
         };
         s.native_codec_room(&mut objects, 1).map_err(err)?;

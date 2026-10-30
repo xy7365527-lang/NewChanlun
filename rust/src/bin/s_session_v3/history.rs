@@ -3517,7 +3517,7 @@ impl<'a> HashReader<'a> {
             history_public_roots: None,
         }
     }
-    fn eligible_sqlite_base(&self) -> Option<&sc::sqlite_audit::SqliteAuditBase<'_>> {
+    pub(super) fn eligible_sqlite_base(&self) -> Option<&'a sc::sqlite_audit::SqliteAuditBase<'a>> {
         if self.policy != SourcePolicy::Ordinary
             || self.owned.is_some()
             || self.work.is_some()

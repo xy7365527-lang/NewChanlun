@@ -754,6 +754,12 @@ impl<'a, 'source> StoreView<'a, 'source> {
             Backend::Audit(s) => &**s,
         }
     }
+    pub(super) fn eligible_sqlite_base(&self) -> Option<&'source sc::sqlite_audit::SqliteAuditBase<'source>> {
+        match &self.backend {
+            Backend::Generic(_) => None,
+            Backend::Audit(s) => s.eligible_sqlite_base(),
+        }
+    }
     pub(crate) fn owned_codec_active(&self) -> bool {
         match &self.backend {
             Backend::Generic(_) => false,

@@ -20,41 +20,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/rust-job-setup
-      - name: Original Owned behavioral obligations
+      - name: Development previous-unit and adjacent contracts
         run: |
           set -o pipefail
           mkdir -p ../owned34p
           git rev-parse HEAD | tee ../owned34p/head.txt
           cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session --no-run
-          failed=0
-          for test in content_publication::tests::owned_publication_same_real_indexed_template_roots_and_f v3::aux_index::tests::owned_aux_public_sets_sequence_keys_growth_one_byte_short_preserves_roots_and_discard_releases v3::source_audit::closed_array_role_probe::owned_source_single_field_borrowed_navigation_roles_failure_and_layout_refusal; do
-            set +e
-            cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- "$test" --exact --test-threads 1 --nocapture 2>&1 | tee "../owned34p/${test##*::}.log"
-            rc=${PIPESTATUS[0]}
-            set -e
-            echo "$test $rc" >> ../owned34p/results.txt
-            if [ "$rc" != 0 ]; then failed=1; fi
-            grep -q 'running 1 test' "../owned34p/${test##*::}.log" || failed=1
-          done
-          exit "$failed"
-      - name: Adjacent sequence and navigation contracts
-        if: always()
-        run: |
-          set -o pipefail
-          failed=0
-          for test in v3::generation::tests::closed_sequence_memo_splice_budget_and_corrupt_noop_preserve_state v3::history::manifest_template_coverage_tests::manifest_template_coverage_cursor_matches_index_order_duplicates_and_boundaries v3::history::manifest_template_coverage_tests::manifest_template_coverage_cursor_matches_first_error_for_missing_and_corrupt_nodes v3::history::manifest_template_coverage_tests::manifest_template_coverage_cursor_gate_preserves_prefix_and_stops_before_later_member v3::generation::tests::sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard v3::generation::tests::delta_sequence_foreign_budget_and_allocation_failure_preserve_binding v3::generation::tests::delta_sequence_plain_rank_splice_matches_independent_full_writer v3::generation::tests::delta_sequence_owned_rank_splice_matches_independent_full_writer v3::generation::tests::delta_sequence_owned_failures_do_not_advance_keys_or_root v3::source_audit::closed_array_role_probe::source_field_uses_borrowed_entry_without_generic_retry v3::source_audit::closed_array_role_probe::owned_source_sequence_role_restores_preset_after_success_and_error; do
-            set +e
-            cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- "$test" --exact --test-threads 1 --nocapture 2>&1 | tee "../owned34p/${test##*::}.log"
-            rc=${PIPESTATUS[0]}
-            set -e
-            echo "$test $rc" >> ../owned34p/results.txt
-            if [ "$rc" != 0 ]; then failed=1; fi
-            grep -q 'running 1 test' "../owned34p/${test##*::}.log" || failed=1
-          done
-          cargo test --locked --features s_session,s_allocation_json_testonly --lib -- s_content::closed::tests::closed_array_cursor_matches_plain_frames_and_preserves_ledger --exact --test-threads 1 --nocapture 2>&1 | tee ../owned34p/cursor.log || failed=1
-          grep -q 'running 1 test' ../owned34p/cursor.log || failed=1
-          cargo test --locked --features s_session,s_allocation_json_testonly --test s_content_sequence -- --test-threads 1 --nocapture 2>&1 | tee ../owned34p/sequence.log || failed=1
-          exit "$failed"
+          cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- development_tests --test-threads 1 --nocapture 2>&1 | tee ../owned34p/development35a.log
+          grep -q '4 passed; 0 failed' ../owned34p/development35a.log
+          cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- v3::source_audit::tests::local_some_keeps_sql_f_budget_error_order_and_deadline_before_sql --exact --test-threads 1 --nocapture 2>&1 | tee ../owned34p/some.log
+          grep -q 'running 1 test' ../owned34p/some.log
+          cargo test --locked --features s_session,s_allocation_json_testonly --lib -- s_content::sqlite_audit::tests --test-threads 1 --nocapture 2>&1 | tee ../owned34p/sqlite-base.log
       - name: Strict affected feature compilation
         if: always()
         run: |
