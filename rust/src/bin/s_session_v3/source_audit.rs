@@ -2705,6 +2705,8 @@ mod tests {
             audit_object_record(nodes, &changed, &sources, &producer, &rule, 1, &mut BusinessMap::plain(), &mut BusinessMap::plain(), &mut BusinessMap::plain(), None, raw.len(), false, None, None)
         };
         assert!(check(&mut nodes, &payload).is_ok());
+        let good_payload = RefValue::from(sc::write_value(&mut nodes, &cv(&payload).unwrap()).unwrap().content_ref());
+        frozen_oracle::audit_bounded2_batch(&mut nodes, &good_payload, &sources, &rule).unwrap();
         for mode in 0..4 {
             let mut bad = payload.clone();
             let unit = &mut bad["entries"][0]["unit"];
@@ -2714,21 +2716,56 @@ mod tests {
                 2 => unit["source_ref"]["revision"] = json!("999999"),
                 _ => unit["source_ref"]["seq"] = json!(1),
             }
+            let changed_unit = unit.clone();
+            *bad["entries"][0]["development"]["root"].as_array_mut().unwrap().last_mut().unwrap() = changed_unit;
             assert!(check(&mut nodes, &bad).is_err(), "正式审计须拒绝变异 {mode}");
+            let bad_payload = RefValue::from(sc::write_value(&mut nodes, &cv(&bad).unwrap()).unwrap().content_ref());
+            assert!(frozen_oracle::audit_bounded2_batch(&mut nodes, &bad_payload, &sources, &rule).is_err(), "独立oracle须拒绝变异 {mode}");
         }
         let mut changed = event.clone();
         changed["revision"] = json!(2);
-        changed["seq"] = json!(raw.len() + 1);
+        changed["seq"] = json!(raw.len());
         let mut revised = raw.clone();
         revised.push(changed);
         let revised_sources = original_sources(&revised, revised.len()).unwrap();
         assert_ne!(sources.get(&coord).unwrap().wire, revised_sources.get(&coord).unwrap().wire);
+        let effective = read_effective_events(&revised).unwrap();
+        let profile_hash = text(&mut nodes, &state_ref, "profile_hash").unwrap();
+        let catalog = text(&mut nodes, &state_ref, "catalog_revision").unwrap();
+        let scope_ref = field(&mut nodes, &state_ref, "scope").unwrap();
+        let mut scope_bytes = Vec::new();
+        sc::render_canonical(&mut nodes, &built(scope_ref.view()).unwrap().content_ref(), &mut scope_bytes).unwrap();
+        let scope: Value = serde_json::from_slice(&scope_bytes).unwrap();
+        let mut runtime = GenerationRuntime::new("bounded2-source-revision".into(), tb02a::PROFILE, &rule);
+        let revised_state = runtime.generate(&mut nodes, &GenerationInput {
+            all_events: (&revised).into(), effective: (&effective).into(), generation:2,
+            structure_cut:"cut-2", input_frontier:revised.len() as i64 - 1,
+            profile_id:tb02a::PROFILE, profile_hash:&profile_hash, rule_revision:&rule,
+            catalog_revision:&catalog, scope:&scope, semantic_commit_ns:None,
+            structure_prior:crate::v3::generation::StructurePriors::default(),
+            prior: PriorState { bi_records:vec![], version_record:None },
+        }).unwrap().generated_state.clone();
+        let revised_state = RefValue::from(revised_state);
+        let revised_objects = field(&mut nodes, &revised_state, "objects").unwrap();
+        let revised_record = elements(&mut nodes, &revised_objects).unwrap().into_iter()
+            .find(|record| text(&mut nodes, record, "kind").unwrap() == CC007_DEVELOPMENT_BATCH_KIND
+                && text(&mut nodes, record, "fact_key").unwrap() == key).unwrap();
+        let revised_payload_text = field(&mut nodes, &revised_record, "payload_json").unwrap();
+        let revised_payload_ref = nodes.lookup_ref(revised_payload_text.view(), &[PathStep::JsonText]).unwrap();
+        let mut revised_bytes = Vec::new();
+        sc::render_canonical(&mut nodes, &built(revised_payload_ref.view()).unwrap().content_ref(), &mut revised_bytes).unwrap();
+        let actual_revised: Value = serde_json::from_slice(&revised_bytes).unwrap();
+        let actual_unit = &actual_revised["entries"][0]["unit"];
+        assert_eq!(actual_unit["bar"], payload["entries"][0]["unit"]["bar"]);
+        assert_eq!(actual_unit["relations"], payload["entries"][0]["unit"]["relations"]);
+        assert_eq!(actual_unit["source_ref"], crate::tb02a_facts::raw_ref(revised.last().unwrap()));
         let unit = &payload["entries"][0]["unit"];
         let original_unit = sc::write_value(&mut nodes, &cv(unit).unwrap()).unwrap();
         let mut revised_unit = unit.clone();
         let revised_event = revised.last().unwrap();
         revised_unit["source_ref"] = crate::tb02a_facts::raw_ref(revised_event);
-        let revised_unit = sc::write_value(&mut nodes, &cv(&revised_unit).unwrap()).unwrap();
+        assert_eq!(&revised_unit, actual_unit);
+        let revised_unit = sc::write_value(&mut nodes, &cv(actual_unit).unwrap()).unwrap();
         assert_ne!(original_unit.digest, revised_unit.digest, "同OHLC而源revision变化必须改变单元身份");
         let old = json!({"bar": unit["bar"], "relations": unit["relations"]});
         let old = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(sc::write_value(&mut nodes, &cv(&old).unwrap()).unwrap().content_ref()));

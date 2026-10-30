@@ -614,7 +614,7 @@ pub(super) fn audit_generated_in_store(
     })
 }
 
-fn audit_bounded2_batch(
+pub(super) fn audit_bounded2_batch(
     s: &mut (impl CodecRead + ?Sized),
     payload: &RefValue,
     raw: &(impl RawLookup + ?Sized),

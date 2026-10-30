@@ -1,13 +1,14 @@
 # K线包含处理（Baohan / Inclusion Merge）
 
 > 正本：本文件是 K线包含处理 的教义正本。
-> 最后裁定：[#1419 P2](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769)（2026-10-30，W/2版本分隔与逐原件替代）；前次 #1565（2026-10-20，pending_since_cut）与 #1342（2026-10-13，初始方向）
+> 最后裁定：[#1419 P2](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769)（2026-10-30，W/2版本分隔、逐原件替代及31P单元源修订绑定）；前次 #1565（2026-10-20，pending_since_cut）与 #1342（2026-10-13，初始方向）
 > 受影响代码清单：见正文「#1419 P2 受影响代码清单」、「#1565 受影响代码清单」与「#1342 受影响代码清单」（后者工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1342-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v1.8
+**版本**: v1.9
 **状态**: 已结算
 **最后更新**: 2026-10-30
 **变更**:
+- v1.9 落31P：bounded-layout/2保留bar/24关系，新增完整source_ref；旧W2+/1只读。
 - v1.8 落 #1419 P2 的W/2完整发布身份、历史只读分派及逐原件替代，保留初始化政策与全部运行验收门。
 - v1.7 落 [#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565)：新增「未定前缀上 W 对象的发布与 `pending_since_cut`」节——定义为对象携带的到达事实、逐代原样延续；写明 S3「生成态不写生命周期元数据」的出处并就 W 所需一面正式化；附受影响代码清单
 - v1.6 补录 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)：组内极值根是**集合**（按到达序），组锚≠极值根且极值根可多根；集合语义进笔的 raw 间隔（见 `bi.md` §7.1），本文件不另立判据
@@ -176,23 +177,38 @@
 
 ### S3 的 W/2 发布身份（#1419 P2，2026-10-30）
 
-本段承接 [#1419 P2 裁定](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769)。S3 唯一新写完整串为 `s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1`。初始化政策没有改变，payload 的 `initialization_policy_revision` 仍为 `raw-initialization-w/1`。
+本段承接 [#1419 P2 裁定](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769) 及31P增补。S3唯一新写完整串为 `s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2`。初始化政策不变，payload的 `initialization_policy_revision` 仍为 `raw-initialization-w/1`。
 
-读侧先按完整规则身份选择版本。W/1 历史保持原 delta、withdrawal、公开关系与根，永久只读，不续写、不原地升级。W/2 中，活动未定原件消失且当代定向组的 `payload.members` 包含其 `source_coord` 时，独立出生索引逐原件写 `superseded_by_revision`、`superseded_by` 与 `replaces`。raw 修订先按同槽位身份修订处理。任意其他跨 kind 替代均拒绝，目标组后来撤回不改变先前合法关系。
+读侧按完整规则身份选择版本。W/1历史保持原delta、withdrawal、公开关系与根，永久只读，不续写、不原地升级。失败W2+/1完整串保留W2语义＋Bounded1布局，只读拒写；未知、混串、重复、错序拒绝。W/2中，活动未定原件消失且当代定向组的payload.members含其source_coord时，独立出生索引逐原件写superseded_by_revision、superseded_by与replaces。raw修订先按同槽位身份修订处理；其他跨kind替代拒绝，目标组后来撤回不改变先前合法关系。
 
-布局组件仍为 `bounded-layout/1`，布局的同 W 对照与 W 关系修正分开验收。W/1 原106代库兼容、W/2 两独立进程106代、逐断言迁移及消费者验收均保留。代码与锁由 `s_structure_session.rs` 的 `w_revision`、`s_session_v3/layout.rs` 的精确登记、`object_index.rs` 的对象计划和两条独立审计路径承接。原始文件缺件不以新造 W/1 夹具替代。
+31P在bounded-layout/2中保留单元五字段bar与24项relations，仅新增source_ref边，指向同cut同坐标当前有效八字段文本RawRefSpec：identity_key、payload_hash、receipt_id、event_id、input_revision、revision、seq、source_coord。revision/seq为规范十进制文本；复用bind_source登记根，不掺入generation/cut/生命周期，不扩大batch.input_refs。缺源、错坐标拒绝。旧/1单元字节不改；同OHLC不同源revision具有不同单元与batch身份，已撤回对象不得复活。
+
+W/1原106代兼容、W/2两独立进程106代、逐断言迁移、消费者验收及#1491 S86五常数/双跑/容量门全部保留。V6原25代完整比较加/2臂，仅显式分解source_ref差异。三条原pending_source输入使用独立W2内容与根oracle，原组数、replay/native/allocation检查不删。
+
+#### V7补充三条的历史W1根义务
+
+下列旧根保留，旧库原件缺件仍未通过；现役W2测试不销此账，原99条不改为102。不得新造W1夹具冒充历史原件。
+
+| 原入口／步骤 | 原W1根 |
+|---|---|
+| pending_source_unordered_same_ohlc／2 | `sc1-df7f1dbcbc367debe6b9ac60266642f470ad3406dc377f5c1500e476438b37d9` |
+| pending_source_ordered_same_ohlc／2 | `sc1-0f2e6a44172e30a311c000db204e35aa0d2eb93f4b14ec95554fab5c9d7dd804` |
+| pending_source_earlier_revision／4 | `sc1-2ebf6bd87172b57b300444b6fbc9d31c22557a61cb5d13f1bda2a0213cece0c2` |
 
 ### #1419 P2 受影响代码清单
 
-行号绑定实施候选 `b0548ef33d662862802359c495fc5de49aef7bf8`，不将下游工位尚未完成的改动记为已实现。
+行号以本次31P实施源码为准；下游JS/Python由原owner接续，测试与CI状态不由本清单宣布通过。
 
 | 侧 | 文件与行号 | 处置与owner |
 |---|---|---|
-| Rust | `rust/src/bin/s_structure_session.rs:133–153`、`s_session_v3/layout.rs:117–151` | #1419/#1491共同登记完整身份与W版本，W2唯一新写，W1历史只读 |
-| Rust | `rust/src/bin/s_session_v3/object_index.rs:1335/:1448/:2103/:3164` | #1419对象计划、替代目标核验、逐代审计传入同一绑定规则并核逐原件关系 |
-| Python | `s_session/s_tb02_contract.py:61/:68–78` | #1768原工位更新完整规则读表，payload政策仍为W/1；此候选不代写Python |
-| JS | `s_session/browser/q3-typed.js:54/:60–73` | #1789原工位更新完整规则读表及替代关系验证；此候选不代写JS |
-| Lean | `formal/Origin/RawInclusionInitialization.lean:4–9` | 只覆盖初始化几何，不覆盖S持久身份；P2不改该定义或证明 |
+| Rust | `rust/src/bin/s_structure_session.rs:133–153`、`s_session_v3/layout.rs:12–22,117–151`、`s_session_v3/mod.rs:172` | #1419/#1491精确登记W2+/2唯一新写，旧W2+/1仍W2只读，W1历史不变 |
+| Rust生成 | `rust/src/bin/s_session_v2/content_producer.rs:903–944,2302–2360` | #1419复用bind_source登记根，/2单元仅增source_ref，/1原编码保留 |
+| Rust审计 | `rust/src/bin/s_session_v3/source_audit.rs:1811–1876,2046`、`s_session_v3/source_audit_oracle.rs:217,617–666` | 正式审计与独立冻结oracle各自核batch当前unit及完整development前缀的五字段bar、24关系数、同cut完整八字段源边 |
+| Rust索引 | `rust/src/bin/s_session_v3/object_index.rs:1477–1498,1501–1620` | 同规则绑定的独立计划逐原件替代；单元源边经typed不可变身份进入索引，IdentityConflict及撤回拒复活门不改 |
+| Rust行为锁 | `rust/src/bin/s_session_v3/mod.rs:1036`、`source_audit.rs:2675`、`pending_source_tests.rs`、`generation.rs:5721,5771,6683–6805` | 三具名/2锁、原V6三锁与25代新/2臂；原三pending_source用独立serde配方、目录oracle、0x07文本边推完整内容及根 |
+| Python | `s_session/s_tb02_contract.py:60–78,305`；`s_session/tests/test_tb01c_s3_formal_dynamic.py` | #1768历史表仅s-session/1，不加入S3串；正式S3臂通过Controller.start_q与socket decode_frame/validate_reply消费，原双臂义务不变 |
+| JS | `s_session/browser/q3-typed.js:31–80,243–253,791–820`；`s_session/tests/build_tb01c_browser.cjs:6–17,39–44` | #1789承接精确表、unit exact、同坐标八字段source_ref、三跳绑定及生成tb01c-client.js bundle |
+| Lean | `formal/Origin/RawInclusionInitialization.lean:4–9` | 初始化几何不变；本次仅S持久身份与布局，Lean无受影响定义 |
 
 ## 未定前缀上 W 对象的发布与 `pending_since_cut`（[#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565) 裁定，2026-10-20，`[新缠论:选择]`）
 

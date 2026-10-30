@@ -1,5 +1,6 @@
 // #1394 r3：r2 原样真实输入的永久回归；不改原 Fixture 或生产 facts。
 use super::*;
+use newchan_rust::s_content::NodeSink;
 type Row = (&'static str, i64, i64, i64, i64, i64, i64);
 
 fn audit_summary(audited: &state::AuditedState) -> Value {
@@ -271,7 +272,7 @@ fn assert_pending_w2_oracle(
     assert!(stroke.endpoints.is_empty() && stroke.strokes.is_empty() && segments.candidates.is_empty());
     let metadata = &audited.cuts.last().unwrap().metadata;
     let cut = metadata.structure_cut.as_str();
-    let frontier = raw.len() as i64;
+    let frontier = raw.len() as i64 - 1;
     assert_eq!(metadata.generation, generation);
     assert_eq!(metadata.input_frontier, frontier);
     assert_eq!(metadata.rule_revision, crate::W_STRUCTURE_RULE_REVISION);
@@ -361,9 +362,10 @@ fn assert_pending_w2_oracle(
         "rule_revision":rule,"scope":scope,"raw_events":raw,"effective_events":effective,"objects":objects,
         "witnesses":[],"relations":[],"observations":observations,"catalog_axes":axes});
     let mut source = content_store::ReadStore::new(tx).unwrap();
-    let actual_root = &audited.cuts.last().unwrap().roots.generated_state;
+    let archived = &audited.cuts.last().unwrap().roots.generated_state;
+    let actual_root = sc::ContentRef::new(archived.kind(), &archived.digest().unwrap(), archived.extent());
     let mut actual_bytes = Vec::new();
-    sc::render_canonical(&mut source, actual_root, &mut actual_bytes).unwrap();
+    sc::render_canonical(&mut source, &actual_root, &mut actual_bytes).unwrap();
     let actual: Value = serde_json::from_slice(&actual_bytes).unwrap();
     for (field,want) in expected.as_object().unwrap() { assert_eq!(&actual[field], want, "generation {generation} complete W2 field {field}"); }
     assert_eq!(actual.as_object().unwrap().len(), expected.as_object().unwrap().len());
@@ -372,6 +374,6 @@ fn assert_pending_w2_oracle(
     let mut state = cv(&expected).unwrap();
     if let V::Object(fields) = &mut state { fields.iter_mut().find(|(key,_)| key=="objects").unwrap().1=V::Edge(object_root.digest); }
     let expected_root = sc::write_value(&mut nodes,&state).unwrap().content_ref();
-    assert_eq!(actual_root, &expected_root, "generation {generation} independent complete W2 root");
+    assert_eq!(actual_root, expected_root, "generation {generation} independent complete W2 root");
     objects
 }
