@@ -2,25 +2,16 @@ name: issue-1419 integration33z
 on:
   push:
     branches: [codex/1419-audit-proof33x]
-    paths-ignore:
-      - .github/workflows/issue-1419-integration33z.yml
-      - .github/workflows/issue-1419-g77-ab.yml
-      - .github/scripts/issue1419-g77-ab.py
-      - .github/scripts/compare-g77-tables.py
-      - rust/src/bin/s_session_v3/financial_session_tests.rs
 permissions:
   contents: read
 jobs:
-  compile:
+  owned-three:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        features: [s_session, "s_session,s_incremental", "s_session,s_capture_native_testonly,s_allocation_json_testonly"]
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "2"
+      RUSTFLAGS: "-D warnings"
     defaults:
       run:
         working-directory: rust
@@ -29,21 +20,32 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/rust-job-setup
-      - name: Check combined interfaces
+      - name: Original Owned behavioral obligations
         run: |
           set -o pipefail
-          mkdir -p ../integration33z
-          cargo check --locked --tests --lib --bin s_structure_session --features '${{ matrix.features }}' --message-format=json 2>../integration33z/stderr.log | tee ../integration33z/check.jsonl
+          mkdir -p ../owned34p
+          git rev-parse HEAD | tee ../owned34p/head.txt
+          cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session --no-run
+          failed=0
+          for test in content_publication::tests::owned_publication_same_real_indexed_template_roots_and_f v3::aux_index::tests::owned_aux_public_sets_sequence_keys_growth_one_byte_short_preserves_roots_and_discard_releases v3::source_audit::closed_array_role_probe::owned_source_single_field_borrowed_navigation_roles_failure_and_layout_refusal; do
+            set +e
+            cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- "$test" --exact --test-threads 1 --nocapture 2>&1 | tee "../owned34p/${test##*::}.log"
+            rc=${PIPESTATUS[0]}
+            set -e
+            echo "$test $rc" >> ../owned34p/results.txt
+            if [ "$rc" != 0 ]; then failed=1; fi
+            grep -q 'running 1 test' "../owned34p/${test##*::}.log" || failed=1
+          done
+          exit "$failed"
       - name: Record Linux formatting
         if: always()
         run: |
-          git diff --name-only c200ce2999e97596b8cd1f24d1873decb6fedbb3 HEAD -- '*.rs' | while read -r path; do
+          git diff --name-only 0476045d3f033f8adb2b5fc892b4492a98e6b762 HEAD -- '*.rs' | while read -r path; do
             rustfmt --edition 2021 --config skip_children=true "../$path"
           done
-          git diff -- '*.rs' > ../integration33z/rustfmt.patch
+          git diff -- '*.rs' > ../owned34p/rustfmt.patch
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: integration33z-${{ matrix.features }}
-          path: integration33z/
-
+          name: owned34p-${{ github.sha }}
+          path: owned34p/
