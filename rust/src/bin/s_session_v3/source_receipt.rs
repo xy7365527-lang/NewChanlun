@@ -20,6 +20,7 @@ pub(crate) struct RawReceipt {
     scope: NativeValue<ContentRef>,
     raw_from: usize,
     raw_to: usize,
+    deadline: Option<std::time::Instant>,
     counts: Counts,
     rows: sc::CodecVec<RawRow>,
 }
@@ -82,9 +83,53 @@ pub(crate) fn audit_raw_receipt(
         scope,
         raw_from,
         raw_to: raw.len(),
+        deadline,
         counts,
         rows,
     })
+}
+
+struct DeadlineSource<'a> {
+    source: &'a mut dyn sc::NodeSource,
+    deadline: Option<std::time::Instant>,
+}
+impl DeadlineSource<'_> {
+    fn check(&self) -> Result<(), sc::CodecError> {
+        super::super::history::check_deadline(self.deadline)
+            .map_err(|e| sc::CodecError::new("verify_deadline", e))
+    }
+}
+impl sc::NodeSource for DeadlineSource<'_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source.codec_work()
+    }
+    fn max_render_bytes(&self) -> Option<u64> { self.source.max_render_bytes() }
+    fn audit_full_array_scan(&self) -> bool { self.source.audit_full_array_scan() }
+    fn preserve_sequence_read_trace(&self) -> bool { self.source.preserve_sequence_read_trace() }
+    fn before_path_index(&mut self, prefix: &[sc::path::PathStep], index: u64) -> Result<(), sc::CodecError> {
+        self.check()?;
+        self.source.before_path_index(prefix, index)?;
+        self.check()
+    }
+    fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+        self.read_scoped(digest)?.into_plain()
+    }
+    fn read_scoped(&mut self, digest: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
+        self.check()?;
+        let read = self.source.read_scoped(digest)?;
+        self.check()?;
+        Ok(read)
+    }
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        self.checked_read_scoped(digest)?
+            .map(sc::job::ScopedFrame::into_frame).transpose()
+    }
+    fn checked_read_scoped(&mut self, digest: &NodeDigest) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        self.check()?;
+        let frame = self.source.checked_read_scoped(digest)?;
+        self.check()?;
+        Ok(frame)
+    }
 }
 
 fn same_ref(a: sc::RefView<'_>, b: sc::RefView<'_>) -> bool {
@@ -108,6 +153,7 @@ impl RawReceipt {
         store: &mut dyn NodeStore,
         roots: [sc::RefView<'_>; 4],
     ) -> Result<PreparedReceipt, String> {
+        super::super::history::check_deadline(self.deadline)?;
         if !same_ref((&self.scope).into(), roots[0])
             || !same_ref((&self.generated).into(), roots[1]) {
             return Err(err("P6四根中的scope/generated与已核来源不同"));
@@ -119,8 +165,10 @@ impl RawReceipt {
              s.native_plain_ref(roots[2]).map_err(err)?,
              s.native_plain_ref(roots[3]).map_err(err)?]
         };
-        let closure = closure_delta::probe_four_roots(store, roots, &EmptyFrontier)
+        let mut bounded = DeadlineSource { source: store, deadline: self.deadline };
+        let closure = closure_delta::probe_four_roots(&mut bounded, roots, &EmptyFrontier)
             .map_err(err)?;
+        super::super::history::check_deadline(self.deadline)?;
         Ok(PreparedReceipt { source: self, roots: owned, closure })
     }
 }
@@ -139,6 +187,7 @@ impl PreparedReceipt {
         raw_range: std::ops::Range<usize>,
         roots: [sc::RefView<'_>; 4],
     ) -> Result<RawReceipt, String> {
+        super::super::history::check_deadline(self.source.deadline)?;
         if self.source.token.as_str() != token || self.source.generation != generation
             || self.source.rule.as_str() != rule
             || self.source.raw_from != raw_range.start || self.source.raw_to != raw_range.end
@@ -146,6 +195,7 @@ impl PreparedReceipt {
         {
             return Err(err("P6发布收据与本请求、来源区间或四根不一致"));
         }
+        super::super::history::check_deadline(self.source.deadline)?;
         Ok(self.source)
     }
 }
@@ -153,6 +203,48 @@ impl PreparedReceipt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sc::capture_allocation::scratch::{CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkScope};
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    use std::time::{Duration, Instant};
+
+    struct Parent(AtomicUsize);
+    impl ScratchParent for Parent {
+        fn health(&self) -> Result<(), ScratchFailure> { Ok(()) }
+        fn invalidate(&self) { panic!("unexpected invalidation"); }
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
+            self.0.fetch_add(n, Ordering::SeqCst);
+            Ok(0)
+        }
+        fn release(&self, n: usize, _: ScratchCharge, _: u64) -> Result<(), ScratchFailure> {
+            assert!(self.0.fetch_sub(n, Ordering::SeqCst) >= n);
+            Ok(())
+        }
+    }
+    struct ScopedStore<'a> {
+        nodes: &'a mut sc::MemoryNodes,
+        work: &'a WorkScope,
+        reads: usize,
+        expire_at_read: Option<(usize, Instant)>,
+    }
+    impl sc::NodeSource for ScopedStore<'_> {
+        fn codec_work(&self) -> Option<&WorkScope> { Some(self.work) }
+        fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            self.reads += 1;
+            if let Some((at, deadline)) = self.expire_at_read {
+                if self.reads == at {
+                    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+                }
+            }
+            self.nodes.read(digest)
+        }
+    }
+    impl sc::NodeSink for ScopedStore<'_> {
+        fn codec_sink_work(&self) -> Option<&WorkScope> { Some(self.work) }
+        fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+            self.nodes.put(digest, tag, body)
+        }
+    }
+
     fn roots(s: &mut sc::MemoryNodes, state: &ContentRef) -> [ContentRef; 4] {
         let scope = field_ref(s, state.into(), "scope").unwrap();
         let v = scope.view();
@@ -160,6 +252,56 @@ mod tests {
             kind: v.kind(), extent: v.extent() };
         [scope, state.clone(), state.clone(), state.clone()]
     }
+
+    fn deadline_failure(boundary: usize) {
+        let (mut nodes, state, raw, rule) = super::super::tests::fixture();
+        let refs = roots(&mut nodes, &state);
+        let parent = Arc::new(Parent(AtomicUsize::new(0)));
+        CodecWork::new(parent.clone(), 8 * 1024 * 1024).unwrap().run(|work| {
+            let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let source = audit_raw_receipt(&mut store, "request-a", 1, (&state).into(),
+                (&raw).into(), 0, tb02a::PROFILE, &rule, Some(deadline), None).unwrap();
+            assert_eq!(source.deadline, Some(deadline));
+            assert!(work.snapshot().live > 0);
+            store.reads = 0;
+            let failure = match boundary {
+                0 => {
+                    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+                    let error = source.bind_four_roots(&mut store, refs.each_ref().map(Into::into))
+                        .err().expect("expired source receipt must not bind");
+                    assert_eq!(store.reads, 0);
+                    error
+                }
+                1 => {
+                    store.expire_at_read = Some((4, deadline));
+                    let error = source.bind_four_roots(&mut store, refs.each_ref().map(Into::into))
+                        .err().expect("expiry during traversal must not issue a receipt");
+                    assert_eq!(store.reads, 4);
+                    error
+                }
+                2 => {
+                    let receipt = source.bind_four_roots(&mut store, refs.each_ref().map(Into::into)).unwrap();
+                    assert!(work.snapshot().live > 0);
+                    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+                    receipt.consume("request-a", 1, &rule, 0..raw.len(), refs.each_ref().map(Into::into))
+                        .err().expect("expiry after binding must reject consumption")
+                }
+                _ => unreachable!(),
+            };
+            assert!(failure.contains("VerifyDeadline"), "{failure}");
+            assert_eq!(work.snapshot().live, 0);
+            Ok::<_, sc::CodecError>(())
+        }).unwrap();
+        assert_eq!(parent.0.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn p6_raw_receipt_expired_before_binding_releases_budget() { deadline_failure(0); }
+    #[test]
+    fn p6_raw_receipt_expired_during_closure_releases_budget() { deadline_failure(1); }
+    #[test]
+    fn p6_raw_receipt_expired_before_consumption_releases_budget() { deadline_failure(2); }
 
     #[test]
     fn p6_raw_receipt_preserves_full_event_and_only_requested_suffix() {
