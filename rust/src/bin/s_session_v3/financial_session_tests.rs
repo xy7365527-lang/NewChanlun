@@ -2327,15 +2327,45 @@ fn w2_prefix_cost_probe() {
     let mut f = Fixture::with_clock_plan(64, 106, &[("recover-1", 25)]);
     for (i, (id, c, o, h, l, cl)) in bars.iter().take(22).enumerate() {
         let n = i as i64 + 1;
-        if n == 3 { f.recover_writer("2", "recover-1"); }
+        if n == 3 {
+            f.recover_writer("2", "recover-1");
+        }
         let (envelope, token) = f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), 1);
         let started = std::time::Instant::now();
         if [10, 20, 22].contains(&n) {
             let (receipt, events, work) = state::traced(false, || f.publish(&envelope, &token));
             assert_eq!(receipt.unwrap().generation, n);
-            eprintln!("W2-COST {}", canonical_json(&json!({"generation":n,"elapsed_ns":started.elapsed().as_nanos().to_string(),"events":events,"work":work})));
+            eprintln!(
+                "W2-COST {}",
+                canonical_json(
+                    &json!({"generation":n,"elapsed_ns":started.elapsed().as_nanos().to_string(),"events":events,"work":work})
+                )
+            );
         } else {
             assert_eq!(f.publish(&envelope, &token).unwrap().generation, n);
         }
     }
+}
+
+#[test]
+#[ignore = "#1419 33G 只消费32V副本的g77，不代替正式恢复或106代验收"]
+fn w2_pending_cost_probe() {
+    let path = std::path::PathBuf::from(std::env::var("W2_PENDING_COPY").unwrap());
+    let mut conn = crate::open_db(&path).unwrap();
+    let generation: String = conn.query_row("SELECT value FROM meta WHERE key='generation'", [], |r| r.get(0)).unwrap();
+    assert_eq!(generation, "76");
+    let pending: i64 = conn.query_row("SELECT count(*) FROM s_input_messages WHERE status='AcceptedPending'", [], |r| r.get(0)).unwrap();
+    assert_eq!(pending, 1);
+    let envelope: String = conn.query_row("SELECT canonical_envelope FROM s_input_messages WHERE status='AcceptedPending'", [], |r| r.get(0)).unwrap();
+    let envelope: Value = serde_json::from_str(&envelope).unwrap();
+    assert_eq!(envelope["message_id"], "message-77");
+    let token: String = conn.query_row("SELECT value FROM meta WHERE key='begin_token'", [], |r| r.get(0)).unwrap();
+    let mut runtime = super::super::prepared::Runtime::new();
+    let started = std::time::Instant::now();
+    let (result, events, work) = state::traced(false, || {
+        runtime.commit(conn.transaction().unwrap(), &token, &envelope)
+    });
+    eprintln!("W2-PENDING-COST {}", canonical_json(&json!({"generation":77,"elapsed_ns":started.elapsed().as_nanos().to_string(),"events":events,"work":work,"error":result.as_ref().err()})));
+    assert_eq!(result.unwrap().generation, 77);
+    super::super::ordinary_materials::LAST_REPORT.with(|r| eprintln!("W2-MATERIALS {:?}", r.get()));
 }

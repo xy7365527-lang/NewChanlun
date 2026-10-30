@@ -74,7 +74,7 @@ jobs:
           head="$(git rev-parse HEAD)"
           for side in a b; do
             mkdir "$out/$side"
-            Q3_EXPORT_HEAD="$head" Q3_REAL_EXPORT="$out/$side/w2.json" cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact v3::financial_session::tests::export_real_s3_w2_fixture_and_sqlite_for_q3 --nocapture 2>&1 | tee "$out/$side/export.log"
+            Q3_EXPORT_HEAD="$head" Q3_REAL_EXPORT="$out/$side/w2.json" python3 ../.github/scripts/w2-runtime-process.py run --state "$out/$side/process.json" --log "$out/$side/export.log" -- cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact v3::financial_session::tests::export_real_s3_w2_fixture_and_sqlite_for_q3 --nocapture
             grep -F 'test result: ok. 1 passed;' "$out/$side/export.log"
           done
           python3 ../.github/scripts/compare-w2-runtime.py "$out" | tee "$out/comparison.log"
@@ -83,12 +83,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -czf "$RUNNER_TEMP/w2-runtime.tgz" -C "$RUNNER_TEMP" w2-runtime
+          python3 .github/scripts/w2-runtime-process.py package --directory "$RUNNER_TEMP/w2-runtime" --archive "$RUNNER_TEMP/w2-runtime.tgz" --state "$RUNNER_TEMP/w2-preservation.json"
       - name: Preserve full runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: issue-1419-w2-runtime-${{ github.sha }}
-          path: ${{ runner.temp }}/w2-runtime.tgz
+          path: |
+            ${{ runner.temp }}/w2-runtime.tgz
+            ${{ runner.temp }}/w2-preservation.json
+            ${{ runner.temp }}/w2-runtime/*/process.json
+            ${{ runner.temp }}/w2-runtime/*/export.log
           if-no-files-found: error
           retention-days: 14
