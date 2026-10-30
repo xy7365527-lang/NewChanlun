@@ -6754,6 +6754,58 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn publication_native_cut_scope_real_budget_preserves_origin() {
+        use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
+        let mut fixture = super::prepared::tests::Fixture::new();
+        let (envelope, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.publish(&envelope, &token).unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+        reader.audit_full_arrays = true;
+        let auxiliary = aux_index::load(&tx, &mut reader, 1).unwrap();
+        let mut objects = object_index::load_for_history(&tx, &mut reader, 1).unwrap();
+        let (bytes, batch): (Vec<u8>, String) = tx
+            .query_row(
+                "SELECT manifest_root,batch_id FROM s_content_publications WHERE generation=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
+        let (metadata, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
+        let projection = native_cut_projection(
+            &tx, &mut reader, &mut objects, &auxiliary,
+            metadata.view(), roots.view(), &batch, -1,
+        ).unwrap().unwrap();
+        content_publication::resolve_native_dual_templates_pending_view(
+            &tx, &mut reader, metadata.view(), roots.view(), &batch, -1, &projection,
+        ).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let work = budget.codec_work().unwrap();
+        let mut returned = None;
+        let (run, trace) = failure_trace::capture(|| {
+            work.run(|scope| {
+                let mut reader = HashReader::captured_for_audit(&capture, None)
+                    .map_err(PublishError::from)?
+                    .with_codec_work(scope, &budget);
+                let ballast = scope.reserve_native(budget.remaining()).unwrap();
+                let result = content_publication::resolve_native_dual_templates_pending_view(
+                    &tx, &mut reader, metadata.view(), roots.view(), &batch, -1, &projection,
+                );
+                returned = result.as_ref().err().cloned();
+                drop(ballast);
+                result.map(|_| ())
+            })
+        });
+        assert!(matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+        assert!(trace.only_resource(), "{trace:?}");
+        let error = returned.expect("真实投影scope绑定预算失败须返回原错误");
+        assert!(trace.bridges(&error), "真实投影scope资源来源须穿过双投影消费者：{error:?}");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     fn native_dual_real_multicut_roots_and_scoped_projection() {
         let mut fixture = super::prepared::tests::Fixture::new();
         for (n, row, revision) in [

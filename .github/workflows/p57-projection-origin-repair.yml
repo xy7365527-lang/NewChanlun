@@ -1,0 +1,44 @@
+name: P57 projection origin repair
+on:
+  workflow_dispatch:
+    inputs:
+      red_only:
+        description: '仅取得旧实现真实投影来源红证'
+        type: boolean
+        default: false
+jobs:
+  projection-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 真实父域双投影来源回归
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_native_cut_scope_real_budget_preserves_origin --jobs 4 -- --test-threads 1 --nocapture
+      - name: 真实双投影与冷读相邻合同
+        if: ${{ !inputs.red_only }}
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- native_dual_real_multicut_roots_and_scoped_projection native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage --test-threads 1
+      - name: 普通和增量入口严格编译
+        if: ${{ !inputs.red_only }}
+        env:
+          RUSTFLAGS: '-D warnings'
+        run: |
+          cargo check --locked --all-targets --features s_session --jobs 4
+          cargo check --locked --all-targets --features s_session,s_incremental --jobs 4
+      - name: formatter artifact
+        if: always()
+        run: |
+          cargo fmt --all
+          git diff --binary > /tmp/p57-projection-fmt.patch
+          test ! -s /tmp/p57-projection-fmt.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p57-projection-fmt
+          path: /tmp/p57-projection-fmt.patch
