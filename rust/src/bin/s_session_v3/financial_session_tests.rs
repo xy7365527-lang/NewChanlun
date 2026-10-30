@@ -2456,17 +2456,43 @@ fn w2_pending_cost_probe() {
             r.get(0)
         })
         .unwrap();
+    let side=std::env::var("W2_BASE_SIDE").unwrap_or_else(|_| "new".into());
+    assert!(side=="old" || side=="new");
+    let trace=std::env::var("W2_TRACE").map_or(true, |value| value=="1");
     let mut runtime = super::super::prepared::Runtime::new();
+    let mut commit = || runtime.commit(conn.transaction().unwrap(), &token, &envelope);
+    super::super::ordinary_materials::LAST_REPORT.with(|r|r.set(None));
+    super::super::ordinary_materials::LAST_PROOFS.with(|r|r.set(None));
     let started = std::time::Instant::now();
-    let (result, events, work) = state::traced(false, || {
-        runtime.commit(conn.transaction().unwrap(), &token, &envelope)
-    });
+    let mut run = || {
+        if trace { state::traced(false, &mut commit) }
+        else { (commit(), Vec::new(), Value::Null) }
+    };
+    let (result, events, work) = if side=="old" {
+        state::without_base_proofs_for_test(&mut run)
+    } else { run() };
+    let elapsed=started.elapsed().as_nanos().to_string();
+    let material=super::super::ordinary_materials::LAST_REPORT.with(|r|r.get()).map(|m|
+        json!({"logical_reads":m.logical_reads,"sql_material_reads":m.sql_material_reads,
+            "material_hits":m.material_hits,"slab_capacity":m.slab_capacity,
+            "retained_capacity_highwater":m.retained_capacity_highwater,
+            "saved_entries":m.saved_entries,"copied_for_return":m.copied_for_return}));
+    let proofs=super::super::ordinary_materials::LAST_PROOFS.with(|r|r.get()).map(|p|
+        json!({"hits":p.hits,"commits":p.commits,"entries":p.entries,
+            "retained_bytes":p.retained_bytes,"disabled":p.disabled}));
+    let reply=result.as_ref().ok().map(|r| json!({
+        "generation":r.generation,"structure_cut":r.structure_cut.as_str(),
+        "batch_id":r.batch_id.as_str(),"snapshot":format!("{:?}",r.snapshot),
+        "delta":format!("{:?}",r.delta),"message_receipt":r.message_receipt
+    }));
     eprintln!(
         "W2-PENDING-COST {}",
-        canonical_json(
-            &json!({"generation":77,"elapsed_ns":started.elapsed().as_nanos().to_string(),"events":events,"work":work,"error":result.as_ref().err()})
-        )
+        canonical_json(&json!({"generation":77,"side":side,"trace":trace,
+            "elapsed_ns":elapsed,"events":events,"work":work,
+            "material":material,"proofs":proofs,"reply":reply,
+            "error":result.as_ref().err()}))
     );
     assert_eq!(result.unwrap().generation, 77);
-    super::super::ordinary_materials::LAST_REPORT.with(|r| eprintln!("W2-MATERIALS {:?}", r.get()));
+    assert!(reply.is_some());
+
 }

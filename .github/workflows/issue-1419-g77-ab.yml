@@ -1,0 +1,96 @@
+name: issue-1419 g77 33W AB
+on:
+  push:
+    branches: [codex/1419-audit-proof33x]
+    paths:
+      - '.github/workflows/issue-1419-g77-ab.yml'
+      - '.github/scripts/issue1419-g77-ab.py'
+      - '.github/scripts/compare-g77-tables.py'
+      - 'rust/src/bin/s_session_v3/financial_session_tests.rs'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  g77:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "1"
+    steps:
+      - name: Start shared diagnostic time cap
+        run: echo "G77_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Record candidate and Linux-only formatting
+        run: |
+          mkdir -p g77-evidence
+          git rev-parse HEAD > g77-evidence/source-head.txt
+          echo "$GITHUB_RUN_ID" > g77-evidence/run-id.txt
+          rustfmt --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs
+          git diff -- '*.rs' > g77-evidence/rustfmt.patch
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: xy7365527-lang/NewChanlun
+          run-id: 41005347604
+          artifact-ids: 12958989023
+          path: g77-evidence/original-artifact
+          merge-multiple: true
+      - name: Extract fixed diagnostic source without opening original DB
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import tarfile
+          base = Path('g77-evidence')
+          with tarfile.open(base/'original-artifact/w2-runtime.tgz') as archive:
+              archive.extractall(base/'extracted-original', filter='data')
+          PY
+      - name: Compile the one release test executable
+        working-directory: rust
+        run: |
+          set -o pipefail
+          cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 --no-run --message-format=json 2>../g77-evidence/compile.stderr | tee ../g77-evidence/compile.jsonl
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          objects = [json.loads(line) for line in Path('../g77-evidence/compile.jsonl').read_text().splitlines() if line.startswith('{')]
+          binaries = [o['executable'] for o in objects if o.get('reason') == 'compiler-artifact' and o.get('executable') and o.get('profile', {}).get('test') and o['target']['name'] == 's_structure_session']
+          assert len(binaries) == 1, binaries
+          Path('../g77-evidence/executable.txt').write_text(binaries[0])
+          PY
+      - name: First diagnostic pair then bounded interleaved untraced pairs
+        run: python3 .github/scripts/issue1419-g77-ab.py "$(cat g77-evidence/executable.txt)"
+      - name: Retain every generated sample after writer stop
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import importlib.util, json, tarfile
+          spec = importlib.util.spec_from_file_location('supervisor', '.github/scripts/w2-runtime-process.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          root = Path('g77-evidence')
+          for statefile in root.glob('*/*/process.json'):
+              state = json.loads(statefile.read_text())
+              assert state['stopped'] and not module.live_group(state['process_group']), str(statefile)
+          for db in root.glob('*/*/w2.run/s.sqlite'):
+              assert (db.parent.parent/'process.json').exists(), str(db)
+          with tarfile.open(root/'samples.tgz', 'w:gz') as archive:
+              for folder in sorted(root.iterdir()):
+                  if folder.is_dir() and (folder.name == 'trace' or folder.name.startswith('pair')):
+                      archive.add(folder, arcname=folder.name)
+          PY
+      - name: Upload exact bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1419-g77-33w-${{ github.sha }}
+          path: |
+            g77-evidence/*.json
+            g77-evidence/*.txt
+            g77-evidence/*.stderr
+            g77-evidence/*.jsonl
+            g77-evidence/*.patch
+            g77-evidence/samples.tgz
+          retention-days: 7
