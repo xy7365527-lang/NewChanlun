@@ -65,19 +65,33 @@ jobs:
           path: ${{ runner.temp }}/w2-runtime/s_structure_session
           if-no-files-found: error
           retention-days: 14
-      - name: Export A then B in independent processes
+      - name: Export A in an independent supervised process
         shell: bash
         working-directory: rust
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/w2-runtime"
-          head="$(git rev-parse HEAD)"
-          for side in a b; do
-            mkdir "$out/$side"
-            Q3_EXPORT_HEAD="$head" Q3_REAL_EXPORT="$out/$side/w2.json" python3 ../.github/scripts/w2-runtime-process.py run --state "$out/$side/process.json" --log "$out/$side/export.log" -- cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact v3::financial_session::tests::export_real_s3_w2_fixture_and_sqlite_for_q3 --nocapture
-            grep -F 'test result: ok. 1 passed;' "$out/$side/export.log"
-          done
-          python3 ../.github/scripts/compare-w2-runtime.py "$out" | tee "$out/comparison.log"
+          out="$RUNNER_TEMP/w2-runtime/a"
+          mkdir "$out"
+          export Q3_EXPORT_HEAD="$(git rev-parse HEAD)" Q3_REAL_EXPORT="$out/w2.json"
+          exec python3 ../.github/scripts/w2-runtime-process.py run --state "$out/process.json" --log "$out/export.log" -- cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact v3::financial_session::tests::export_real_s3_w2_fixture_and_sqlite_for_q3 --nocapture
+      - name: Require complete A export
+        run: grep -F 'test result: ok. 1 passed;' "$RUNNER_TEMP/w2-runtime/a/export.log"
+      - name: Export B in an independent supervised process
+        shell: bash
+        working-directory: rust
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/w2-runtime/b"
+          mkdir "$out"
+          export Q3_EXPORT_HEAD="$(git rev-parse HEAD)" Q3_REAL_EXPORT="$out/w2.json"
+          exec python3 ../.github/scripts/w2-runtime-process.py run --state "$out/process.json" --log "$out/export.log" -- cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact v3::financial_session::tests::export_real_s3_w2_fixture_and_sqlite_for_q3 --nocapture
+      - name: Require complete B export
+        run: grep -F 'test result: ok. 1 passed;' "$RUNNER_TEMP/w2-runtime/b/export.log"
+      - name: Compare complete independent exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/compare-w2-runtime.py "$RUNNER_TEMP/w2-runtime" | tee "$RUNNER_TEMP/w2-runtime/comparison.log"
       - name: Package persistent originals even after failure
         if: always()
         shell: bash
