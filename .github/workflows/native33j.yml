@@ -26,7 +26,8 @@ jobs:
           set -e
           test "$code" -eq 101
           grep -F 'assertion failed: !context.has_slot()' /tmp/native33j-red.log
-          grep -F '0 passed; 1 failed' /tmp/native33j-red.log      - name: Fixed exact deadline and prefix contracts
+          grep -F '0 passed; 1 failed' /tmp/native33j-red.log
+      - name: Fixed exact deadline and prefix contracts
         run: |
           git show HEAD:rust/src/bin/s_session_v3/admission_private/mod.rs > src/bin/s_session_v3/admission_private/mod.rs
           cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture
