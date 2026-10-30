@@ -830,7 +830,7 @@ pub(super) fn closure_with(
     let mut reply = json!({"anchor":anchor,"path":request["path"],"after":request["after"],
         "target_ref":index.target.to_transport_json(),"total":digests.len().to_string(),
         "nodes":[],"next":sc::root_string(&digests[start]),"done":false,"ok":true});
-    // 末尾 LF 计入；占位 next 与真实值等长，done 由 false 改为 true 只会变短。
+    // 末尾 LF 计入；占位 next 与真实值等长。used 在末节点接纳前按 done=false 计量。
     let mut used = u64::try_from(canonical_json(&reply).len()).map_err(invalid)? + 1;
     let mut nodes = Vec::new();
     let mut end = start;
@@ -851,10 +851,13 @@ pub(super) fn closure_with(
         .to_json();
         let size = u64::try_from(canonical_json(&node).len()).map_err(invalid)?
             + u64::from(!nodes.is_empty());
-        if used.saturating_add(size) > budget {
+        // #1394 A6 §3.3：末节点使 done 从 false 变成 true，实际回复短一字节。
+        // 逐节点只序列化该节点；不反复序列化已装入的前缀。
+        let candidate_used = used.saturating_add(size) - u64::from(end + 1 == digests.len());
+        if candidate_used > budget {
             break;
         }
-        used += size;
+        used = candidate_used;
         nodes.push(node);
         end += 1;
     }

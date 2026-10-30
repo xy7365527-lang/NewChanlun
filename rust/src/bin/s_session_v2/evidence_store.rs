@@ -419,7 +419,7 @@ pub(super) fn batch_root_key_admitted(
     bytes
         .try_extend_bytes(batch_id.as_bytes())
         .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-    TextValue::from_bytes(bytes)
+    TextValue::from_bytes(bytes).map_err(newchan_rust::s_content::ContextError::into_message)
 }
 
 /// 一代 Delta 原件 → 私有根 key。
@@ -1215,6 +1215,8 @@ pub(super) fn publish_refs(
             if changed == 1 {
                 inserted += 1;
                 inserted_bytes += node.payload.len() as u64;
+                // #1640：暂停点只编入默认构建与 testonly 构建，s_incremental 生产构建不读 S_SESSION_PAUSE。
+                #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
                 if kind == RootKind::Batch
                     && inserted == 1
                     && staged.nodes.len() > 1

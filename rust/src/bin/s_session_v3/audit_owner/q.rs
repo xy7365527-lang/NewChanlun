@@ -8,6 +8,9 @@ use super::effects::{integer, optional_integer, text, Change, Effects, Operation
 use super::native::{Budget, Failure, JsonShape};
 use super::*;
 use crate::v3::audit_retention::{tree_slots, vec_bytes};
+fn publish_invalid(error: impl Into<super::PublishError>) -> Failure<super::PublishError> {
+    Failure::Invalid(super::publish_err(error))
+}
 fn invalid(e: impl std::fmt::Display) -> Failure {
     Failure::Invalid(super::invalid(e))
 }
@@ -142,7 +145,7 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<usize, Failure> {
+    ) -> Result<usize, Failure<super::PublishError>> {
         let before = budget.live();
         let raw_added = self.advance_inner(tx, effects, audited, budget)?;
         self.retained = self
@@ -152,7 +155,7 @@ impl Facts {
             .checked_sub(before)
             .and_then(|n| n.checked_sub(raw_added.manual))
             .and_then(|n| n.checked_sub(raw_added.native))
-            .ok_or_else(|| invalid("Q增量归属账不闭合"))?;
+            .ok_or_else(|| publish_invalid("Q增量归属账不闭合"))?;
         Ok(raw_added.manual)
     }
     pub(super) fn retained_bytes(&self) -> usize {
@@ -164,31 +167,31 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<RawCharges, Failure> {
+    ) -> Result<RawCharges, Failure<super::PublishError>> {
         let old_g = audited.cuts.last().map_or(0, |c| c.metadata.generation);
         let root_g = meta_number(tx, "generation")?;
         let publish = effects.operation == Operation::Publish;
         if root_g != old_g + i64::from(publish) {
-            return Err(invalid("固定写口改变了未声明的根代际"));
+            return Err(publish_invalid("固定写口改变了未声明的根代际"));
         }
         for change in &effects.changes {
             self.preservation(change, effects.operation, root_g)?;
         }
         let raw_added = self.raw(tx, effects, audited, budget)?;
-        let mut protocol = CheckedStatement::prepare(tx, c"SELECT next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1").map_err(invalid)?;
+        let mut protocol = CheckedStatement::prepare(tx, c"SELECT next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1").map_err(publish_invalid)?;
         let mut protocol_row = protocol
             .next()
-            .map_err(invalid)?
-            .ok_or_else(|| invalid("缺protocol"))?;
-        let next = protocol_row.integer(0).map_err(invalid)?;
+            .map_err(publish_invalid)?
+            .ok_or_else(|| publish_invalid("缺protocol"))?;
+        let next = protocol_row.integer(0).map_err(publish_invalid)?;
         let frontier = parse_canonical_i64(
-            protocol_row.text(1).map_err(invalid)?,
+            protocol_row.text(1).map_err(publish_invalid)?,
             "logical_phase_frontier",
         )?;
         drop(protocol_row);
-        protocol.finalize().map_err(invalid)?;
+        protocol.finalize().map_err(publish_invalid)?;
         if next != self.next + i64::from(effects.operation == Operation::Begin) {
-            return Err(invalid("phase frontier/attempt序列断裂"));
+            return Err(publish_invalid("phase frontier/attempt序列断裂"));
         }
         if publish {
             let d = new(exactly_one(
@@ -200,7 +203,7 @@ impl Facts {
                 "逐代 publication 未闭合",
             )?)?;
             if integer(&d[1])? != root_g {
-                return Err(invalid("Delta 不是连续新代"));
+                return Err(publish_invalid("Delta 不是连续新代"));
             }
             let lengths = [&p[3], &p[4], &p[5]].map(|c| {
                 if let SqlCell::Blob(b) = c {
@@ -218,7 +221,7 @@ impl Facts {
             )?;
             let f = integer(&d[8])?;
             if self.frontiers.last().is_some_and(|(_, old)| *old > f) {
-                return Err(invalid("发布前沿倒退"));
+                return Err(publish_invalid("发布前沿倒退"));
             }
             budget.vec_grow(&mut self.frontiers, 1)?;
             self.frontiers.push((root_g, f));
@@ -283,7 +286,7 @@ impl Facts {
             ));
         }
         if covered_new.len() != raw_insertions {
-            return Err(invalid("v2原始接纳序缺持久消息承接"));
+            return Err(publish_invalid("v2原始接纳序缺持久消息承接"));
         }
         let mut begins = 0;
         let mut commits = 0;
@@ -325,18 +328,18 @@ impl Facts {
                 )?;
                 recovers.push((ns, g));
             } else if !affected.iter().any(|(e, _)| *e == id) {
-                return Err(invalid("新 phase 未进入实际消息影响集"));
+                return Err(publish_invalid("新 phase 未进入实际消息影响集"));
             }
             if phase == "begin" {
                 begins += 1;
                 if ord != Some(self.next) {
-                    return Err(invalid("全局 Begin ordinal 非连续尾"));
+                    return Err(publish_invalid("全局 Begin ordinal 非连续尾"));
                 }
             }
             if phase == "commit" {
                 commits += 1;
                 if g != root_g {
-                    return Err(invalid("Commit 代际错误"));
+                    return Err(publish_invalid("Commit 代际错误"));
                 }
             }
             self.max_ns = self.max_ns.max(newchan_rust::session_protocol::nonnegative(
@@ -348,7 +351,7 @@ impl Facts {
             || commits != usize::from(publish)
             || frontier != self.max_ns
         {
-            return Err(invalid("phase frontier/attempt序列断裂"));
+            return Err(publish_invalid("phase frontier/attempt序列断裂"));
         }
         let _epochs_permit =
             budget.reserve(vec_bytes::<(&str, i64)>(effects.rows(Table::Epoch).count()))?;
@@ -384,11 +387,11 @@ impl Facts {
         if recovers != epochs
             || recovers.len() != usize::from(effects.operation == Operation::Recover)
         {
-            return Err(invalid("recover phase与writer换代时间/代际不闭合"));
+            return Err(publish_invalid("recover phase与writer换代时间/代际不闭合"));
         }
         let writer = meta_number(tx, "writer_epoch")?;
         if writer < 1 || self.epoch_to.is_some_and(|e| e != writer) {
-            return Err(invalid("writer_epoch与最后换代结果不一致"));
+            return Err(publish_invalid("writer_epoch与最后换代结果不一致"));
         }
         drop(affected);
         for (event, rowid, count, pending) in updates {
@@ -408,33 +411,33 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<RawCharges, Failure> {
+    ) -> Result<RawCharges, Failure<super::PublishError>> {
         let pairs = effects.rows(Table::Ohlc).count();
         let _paired_permit = budget.reserve(tree_slots::<i64, ()>(pairs))?;
         let mut paired = BTreeSet::new();
         let raw = &mut audited.raw;
         #[cfg(feature = "s_allocation_json_testonly")]
         if matches!(raw, bj::RawEvents::Owned(_)) {
-            return Err(invalid("增量 Q 不接受 Owned 原始账"));
+            return Err(publish_invalid("增量 Q 不接受 Owned 原始账"));
         }
         let mut raw_added = RawCharges::default();
         for change in effects.rows(Table::Raw) {
             let r = new(change)?;
             let seq = integer(&r[6])?;
             if seq != raw.len() as i64 {
-                return Err(invalid("raw seq 不是已核连续尾"));
+                return Err(publish_invalid("raw seq 不是已核连续尾"));
             }
             let pair = effects
                 .rows(Table::Ohlc)
                 .find(|p| p.new.as_ref().is_some_and(|p| p[1] == r[1] && p[2] == r[2]))
-                .ok_or_else(|| invalid("raw/OHLC 配对键缺失"))?;
+                .ok_or_else(|| publish_invalid("raw/OHLC 配对键缺失"))?;
             if !paired.insert(pair.rowid) {
-                return Err(invalid("raw/OHLC 配对重复"));
+                return Err(publish_invalid("raw/OHLC 配对重复"));
             }
             if matches!(raw, bj::RawEvents::Native(_)) {
                 let added = budget
                     .codec_work()?
-                    .run(|work| -> Result<usize, Failure> {
+                    .run(|work| -> Result<usize, Failure<super::PublishError>> {
                         let value = read_raw_event_at_admitted(tx, seq, Some(work))?;
                         let view = value.view();
                         let id = bj::text(view, "identity_key")?;
@@ -463,7 +466,7 @@ impl Facts {
                         budget
                             .live()
                             .checked_sub(before)
-                            .ok_or_else(|| invalid("Native原始账追加费用倒退"))
+                            .ok_or_else(|| publish_invalid("Native原始账追加费用倒退"))
                     })
                     .map_err(Failure::from)?;
                 raw_added.native = raw_added
@@ -473,7 +476,7 @@ impl Facts {
                 continue;
             }
             let bj::RawEvents::Plain(raw) = raw else {
-                return Err(invalid("原始账存储类型不支持增量追加"));
+                return Err(publish_invalid("原始账存储类型不支持增量追加"));
             };
             // decode_raw_row 17字段 + enrich_raw_row 5字段；SQL逐列复制一次，JSON键各复制一次。
             let paired_row = new(pair)?;
@@ -558,7 +561,7 @@ impl Facts {
             raw.push(value);
         }
         if paired.len() != pairs {
-            return Err(invalid("OHLC/raw 键集未闭合"));
+            return Err(publish_invalid("OHLC/raw 键集未闭合"));
         }
         Ok(raw_added)
     }
@@ -934,7 +937,7 @@ fn remove_pending(pending: &mut native::Tree<(i64, i64)>, event: &str, _budget: 
     pending.remove(event);
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn pending_normal_last_remove_releases_root_before_charge() {
     let budget = Budget::new(1_048_576, 0).unwrap();
@@ -960,7 +963,7 @@ fn pending_normal_last_remove_releases_root_before_charge() {
     assert_eq!(observed["allocated_bytes"], observed["released_bytes"]);
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_charge() {
     let mut fixture = prepared::tests::Fixture::new();

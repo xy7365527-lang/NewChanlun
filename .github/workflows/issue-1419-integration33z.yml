@@ -1,0 +1,42 @@
+name: issue-1419 integration33z
+on:
+  push:
+    branches: [codex/1419-audit-proof33x]
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        features: [s_session, "s_session,s_incremental", "s_session,s_capture_native_testonly,s_allocation_json_testonly"]
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/rust-job-setup
+      - name: Check combined interfaces
+        run: |
+          set -o pipefail
+          mkdir -p ../integration33z
+          cargo check --locked --tests --bin s_structure_session --features '${{ matrix.features }}' --message-format=json 2>../integration33z/stderr.log | tee ../integration33z/check.jsonl
+      - name: Record Linux formatting
+        if: always()
+        run: |
+          git diff --name-only c200ce2999e97596b8cd1f24d1873decb6fedbb3 HEAD -- '*.rs' | while read -r path; do
+            rustfmt --edition 2021 --config skip_children=true "../$path"
+          done
+          git diff -- '*.rs' > ../integration33z/rustfmt.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration33z-${{ matrix.features }}
+          path: integration33z/

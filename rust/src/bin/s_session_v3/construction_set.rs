@@ -3,7 +3,8 @@
 //! 两端均有同域 Public 完整闭包资格时才跳过共享 M 子树，绝不接生成器 changes。
 use super::super::audit_retention::vec_bytes;
 use super::super::audit_store::CodecRead;
-use super::{construction_state::stale, native, RawAdvanceBinding, SnapshotSeal};
+use super::{native, RawAdvanceBinding, SnapshotSeal};
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{self as sc, path::SequenceFragment, NodeDigest, SequenceRef};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,9 +21,9 @@ impl Declaration {
             extent: self.extent,
         }
     }
-    pub(super) fn read(reference: sc::RefView<'_>) -> Result<Self, String> {
+    pub(super) fn read(reference: sc::RefView<'_>) -> Result<Self, PublishError> {
         Ok(Self {
-            digest: reference.digest().map_err(|e| stale(&e.to_string()))?,
+            digest: reference.digest().map_err(|e| stale(e))?,
             kind: reference.kind(),
             extent: reference.extent(),
         })
@@ -30,13 +31,13 @@ impl Declaration {
     pub(super) fn reference(
         &self,
         s: &(impl CodecRead + ?Sized),
-    ) -> Result<super::super::audit_store::RefValue, String> {
+    ) -> Result<super::super::audit_store::RefValue, PublishError> {
         s.native_built_ref(&sc::Built {
             digest: self.digest,
             kind: self.kind,
             extent: self.extent,
         })
-        .map_err(|e| stale(&e.to_string()))
+        .map_err(|e| stale(e))
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,7 +61,11 @@ impl SequenceDelta {
         vec_bytes::<Edit>(self.edits.capacity())
     }
 }
-fn grow<T>(b: &native::Budget, v: &mut native::Reserved<Vec<T>>, value: T) -> Result<(), String> {
+fn grow<T>(
+    b: &native::Budget,
+    v: &mut native::Reserved<Vec<T>>,
+    value: T,
+) -> Result<(), PublishError> {
     b.vec_grow(v, 1).map_err(|_| stale("集合差异额度不足"))?;
     v.push(value);
     Ok(())
@@ -69,11 +74,9 @@ fn split(
     s: &mut (impl CodecRead + ?Sized),
     b: &native::Budget,
     stack: &mut native::Reserved<Vec<Span>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let span = stack.pop().ok_or_else(|| stale("空序列前沿"))?;
-    match sc::path::sequence_fragment(s.generic_source(), span.sequence)
-        .map_err(|e| stale(&e.to_string()))?
-    {
+    match sc::path::sequence_fragment(s.generic_source(), span.sequence).map_err(|e| stale(e))? {
         SequenceFragment::Branch { left, right } => {
             grow(
                 b,
@@ -96,10 +99,11 @@ fn split(
         _ => Err(stale("非分支序列不能拆分")),
     }
 }
-fn leaf(s: &mut (impl CodecRead + ?Sized), sequence: SequenceRef) -> Result<NodeDigest, String> {
-    match sc::path::sequence_fragment(s.generic_source(), sequence)
-        .map_err(|e| stale(&e.to_string()))?
-    {
+fn leaf(
+    s: &mut (impl CodecRead + ?Sized),
+    sequence: SequenceRef,
+) -> Result<NodeDigest, PublishError> {
+    match sc::path::sequence_fragment(s.generic_source(), sequence).map_err(|e| stale(e))? {
         SequenceFragment::Leaf(value) => Ok(value),
         _ => Err(stale("集合成员不是规范单叶")),
     }
@@ -110,15 +114,14 @@ fn difference(
     b: &native::Budget,
     old: Option<SequenceRef>,
     current: Option<SequenceRef>,
-) -> Result<SequenceDelta, String> {
+) -> Result<SequenceDelta, PublishError> {
     let mut before = b.empty().map_err(|_| stale("集合差异许可不足"))?;
     let mut after = b.empty().map_err(|_| stale("集合差异许可不足"))?;
     for (sequence, stack) in [(old, &mut before), (current, &mut after)] {
         if let Some(sequence) = sequence {
             if sequence.is_empty() {
                 // 即使空序列也触碰原件，不能只认 empty 摘要。
-                sc::path::sequence_fragment(s.generic_source(), sequence)
-                    .map_err(|e| stale(&e.to_string()))?;
+                sc::path::sequence_fragment(s.generic_source(), sequence).map_err(|e| stale(e))?;
             } else {
                 grow(
                     b,
@@ -198,12 +201,10 @@ fn array(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     key: &str,
-) -> Result<(Declaration, SequenceRef), String> {
-    let value = s
-        .lookup_field_ref(r, key)
-        .map_err(|e| stale(&e.to_string()))?;
-    let sequence = sc::path::array_sequence_refview(s.generic_source(), value.view())
-        .map_err(|e| stale(&e.to_string()))?;
+) -> Result<(Declaration, SequenceRef), PublishError> {
+    let value = s.lookup_field_ref(r, key).map_err(|e| stale(e))?;
+    let sequence =
+        sc::path::array_sequence_refview(s.generic_source(), value.view()).map_err(|e| stale(e))?;
     Ok((Declaration::read(value.view())?, sequence))
 }
 #[derive(Clone, Copy)]
@@ -230,7 +231,7 @@ impl Seed {
         seal: SnapshotSeal,
         previous: Option<Declaration>,
         committed: Option<CommittedSet>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if raw.owner_life() != seal.life {
             return Err(stale("集合raw与快照不属同owner"));
         }
@@ -289,7 +290,7 @@ impl OwnerSourceCheck {
         &self,
         root: sc::RefView<'_>,
         raw_prefix: usize,
-    ) -> Result<super::super::source_audit::Counts, String> {
+    ) -> Result<super::super::source_audit::Counts, PublishError> {
         if Declaration::read(root)? != self.root || raw_prefix != self.raw_prefix {
             return Err(stale("来源成功结果与实际持久cut/raw前沿不同"));
         }
@@ -308,7 +309,7 @@ impl PendingSet {
     pub(super) fn requires_source(&self) -> bool {
         self.source_check.is_some()
     }
-    pub(super) fn source_check(&self) -> Result<Option<&OwnerSourceCheck>, String> {
+    pub(super) fn source_check(&self) -> Result<Option<&OwnerSourceCheck>, PublishError> {
         if self.source_check.is_some() && self.stages.is_none() {
             return Err(stale("来源结果尚无完整实际stage封口"));
         }
@@ -317,7 +318,7 @@ impl PendingSet {
     pub(super) fn hold_parent_charge(
         &mut self,
         charge: Option<sc::capture_allocation::scratch::NativeReservation>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.parent_charge.is_some() {
             return Err(stale("集合父账许可重复移交"));
         }
@@ -327,7 +328,7 @@ impl PendingSet {
     pub(super) fn hold_resource_budget(
         &mut self,
         budget: super::native::Budget,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.resource_hold.is_some() {
             return Err(stale("集合资源父账重复移交"));
         }
@@ -350,7 +351,7 @@ impl PendingSet {
         ordered_events: usize,
         stage_count: usize,
         total_changes: u64,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.stages.is_some()
             || material_epoch < self.material_epoch
             || stage_count > ordered_events
@@ -369,7 +370,7 @@ impl PendingSet {
         &mut self,
         current: sc::RefView<'_>,
         raw: RawAdvanceBinding,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.closed
             || self.stages.is_none()
             || Declaration::read(current)? != self.current
@@ -385,7 +386,7 @@ impl PendingSet {
         &self,
         seal: SnapshotSeal,
         total_changes: u64,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let stages = self
             .stages
             .as_ref()
@@ -418,24 +419,24 @@ fn knowledge_at(
     s: &mut (impl CodecRead + ?Sized),
     objects: sc::RefView<'_>,
     ordinal: u64,
-) -> Result<Option<Knowledge>, String> {
+) -> Result<Option<Knowledge>, PublishError> {
     use sc::path::PathStep;
     let object = s
         .lookup_ref(objects, &[PathStep::Index(ordinal)])
-        .map_err(|e| stale(&e.to_string()))?;
+        .map_err(|e| stale(e))?;
     let kind = s
         .lookup_field_ref(object.view(), "kind")
-        .map_err(|e| stale(&e.to_string()))?;
+        .map_err(|e| stale(e))?;
     let value = super::super::business_json::render_json(s, kind.view())?;
     if value.view().as_str() != Some(crate::content_producer::CC054_KNOWLEDGE_KIND) {
         return Ok(None);
     }
     let payload = s
         .lookup_field_ref(object.view(), "payload_json")
-        .map_err(|e| stale(&e.to_string()))?;
+        .map_err(|e| stale(e))?;
     let inner = s
         .lookup_ref(payload.view(), &[PathStep::JsonText])
-        .map_err(|e| stale(&e.to_string()))?;
+        .map_err(|e| stale(e))?;
     let (requests, _) = array(s, inner.view(), "requests")?;
     Ok(Some(Knowledge { ordinal, requests }))
 }
@@ -446,7 +447,7 @@ pub(super) fn qualify(
     current: sc::RefView<'_>,
     material_epoch: u64,
     budget: &native::Budget,
-) -> Result<PendingSet, String> {
+) -> Result<PendingSet, PublishError> {
     if s.allocation_budget().is_some() {
         return Err(stale("集合owner尚无Owned同账入口"));
     }
@@ -516,7 +517,7 @@ pub(super) fn qualify(
                 let r = record.requests.reference(s)?;
                 seqs[i] = Some(
                     sc::path::array_sequence_refview(s.generic_source(), r.view())
-                        .map_err(|e| stale(&e.to_string()))?,
+                        .map_err(|e| stale(e))?,
                 );
             }
         }
@@ -577,7 +578,7 @@ impl LazySet {
         mut seed: Seed,
         current: sc::RefView<'_>,
         previous: Option<&super::super::source_audit::NativeSourceState>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if previous.is_none() {
             seed.bootstrap = true;
         }
@@ -595,7 +596,7 @@ impl LazySet {
         s: &mut (impl CodecRead + ?Sized),
         budget: &native::Budget,
         which: SourceArray,
-    ) -> Result<&'a SequenceDelta, String> {
+    ) -> Result<&'a SequenceDelta, PublishError> {
         let i = which.index();
         if self.arrays[i].is_none() {
             let current = self.current.reference(s)?;
@@ -623,18 +624,18 @@ impl LazySet {
         budget: &native::Budget,
         which: SourceArray,
         ordinal: u64,
-    ) -> Result<super::super::audit_store::RefValue, String> {
+    ) -> Result<super::super::audit_store::RefValue, PublishError> {
         self.delta(s, budget, which)?;
         let array = self.members[which.index()].unwrap().reference(s)?;
         s.lookup_ref(array.view(), &[sc::path::PathStep::Index(ordinal)])
-            .map_err(|e| stale(&e.to_string()))
+            .map_err(|e| stale(e))
     }
     pub(super) fn request_delta<'a>(
         &'a mut self,
         s: &mut (impl CodecRead + ?Sized),
         budget: &native::Budget,
         ordinal: u64,
-    ) -> Result<&'a SequenceDelta, String> {
+    ) -> Result<&'a SequenceDelta, PublishError> {
         self.delta(s, budget, SourceArray::Objects)?;
         if let Some(known) = self.knowledge {
             if known.ordinal != ordinal {
@@ -647,7 +648,7 @@ impl LazySet {
                 .ok_or_else(|| stale("requests ordinal不是当前CC054"))?;
             let r = found.requests.reference(s)?;
             let current = sc::path::array_sequence_refview(s.generic_source(), r.view())
-                .map_err(|e| stale(&e.to_string()))?;
+                .map_err(|e| stale(e))?;
             let old = if self.seed.bootstrap {
                 None
             } else {
@@ -656,7 +657,7 @@ impl LazySet {
                     .map(|prior| {
                         let r = prior.requests.reference(s)?;
                         sc::path::array_sequence_refview(s.generic_source(), r.view())
-                            .map_err(|e| stale(&e.to_string()))
+                            .map_err(|e| stale(e))
                     })
                     .transpose()?
             };
@@ -671,18 +672,18 @@ impl LazySet {
         budget: &native::Budget,
         knowledge_ordinal: u64,
         ordinal: u64,
-    ) -> Result<super::super::audit_store::RefValue, String> {
+    ) -> Result<super::super::audit_store::RefValue, PublishError> {
         self.request_delta(s, budget, knowledge_ordinal)?;
         let requests = self.knowledge.unwrap().requests.reference(s)?;
         s.lookup_ref(requests.view(), &[sc::path::PathStep::Index(ordinal)])
-            .map_err(|e| stale(&e.to_string()))
+            .map_err(|e| stale(e))
     }
     pub(super) fn finish(
         self,
         material_epoch: u64,
         counts: super::super::source_audit::Counts,
         raw_prefix: usize,
-    ) -> Result<PendingSet, String> {
+    ) -> Result<PendingSet, PublishError> {
         let [objects, witnesses, observations] = self.arrays;
         Ok(PendingSet {
             previous: self.seed.previous,
@@ -1004,4 +1005,8 @@ mod tests {
         let budget = native::Budget::new(512, 0).unwrap();
         assert!(difference(&mut nodes, &budget, Some(before), Some(after)).is_err());
     }
+}
+
+fn stale(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("StaleWriter：construction资格失效：")
 }

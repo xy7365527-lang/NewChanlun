@@ -113,6 +113,13 @@ struct ReadTrace {
 }
 
 impl ReadTrace {
+    /// #1640：开关与 `testonly_pause` 同门，`s_incremental` 生产构建不含此环境变量入口，恒不开轨迹。
+    #[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
+    fn start(_stream: &UnixStream) -> Option<Self> {
+        None
+    }
+
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     fn start(stream: &UnixStream) -> Option<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let directory = std::env::var_os("SESSION_TRANSPORT_TESTONLY_TRACE_DIR")?;

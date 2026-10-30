@@ -18,7 +18,7 @@ use std::ffi::CStr;
 
 /// #1394 frozen entry allocation within the existing S7 source budget. Releasing the
 /// old pool later does not enlarge this request's workspace allowance.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub(crate) struct ManifestWorkspaceBudget {
     #[serde(skip)]
@@ -33,7 +33,7 @@ pub(crate) struct ManifestWorkspaceBudget {
     frozen_live: Option<usize>,
     allowance: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl ManifestWorkspaceBudget {
     pub(crate) fn allowance(self) -> usize {
         self.allowance
@@ -48,7 +48,7 @@ impl ManifestWorkspaceBudget {
 /// 作为该组owner名下的“未覆盖新增真实分配”逐组列出并消耗A；O中从不加L，也不以max补差。
 /// 无法证明映射（缺父、无静止点读数、L0≠读数、L0装不下M、溢出、池候选同父、U>A、绑定时L0已变/换父）
 /// 一律拒绝，不改T/E/O/A。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Debug, serde::Serialize)]
 pub(crate) struct OldPoolItem {
     pub(crate) role: &'static str,
@@ -57,7 +57,7 @@ pub(crate) struct OldPoolItem {
     pub(crate) contract: usize,
 }
 /// 一个物理Ledger分组：静止点读数、本次L0、组内合同额与覆盖/未覆盖。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, serde::Serialize)]
 pub(crate) struct OldPoolHome {
     pub(crate) origin: &'static str,
@@ -70,7 +70,7 @@ pub(crate) struct OldPoolHome {
     pub(crate) uncovered: usize,
     pub(crate) owners: Vec<&'static str>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, serde::Serialize)]
 pub(crate) struct OldPoolPartition {
     items: Vec<OldPoolItem>,
@@ -86,7 +86,7 @@ pub(crate) struct OldPoolPartition {
     old_pool: usize,
     sealed: bool,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl OldPoolPartition {
     pub(crate) const ON_PARENT: &'static str = "candidate-parent";
     pub(crate) const KEEPER_PARENT: &'static str = "keeper-parent";
@@ -234,14 +234,14 @@ impl OldPoolPartition {
         Ok(self)
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn old_pool(&self) -> usize {
         self.old_pool
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn uncovered(&self) -> usize {
@@ -249,35 +249,35 @@ impl OldPoolPartition {
     }
     /// 各物理组L0之和（每个Ledger只计一次）。
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn l0(&self) -> usize {
         self.l0
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn parent_paid(&self) -> usize {
         self.parent_paid
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn external(&self) -> usize {
         self.external
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn items(&self) -> &[OldPoolItem] {
         &self.items
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn homes(&self) -> &[OldPoolHome] {
@@ -285,7 +285,7 @@ impl OldPoolPartition {
     }
     /// 未覆盖新增真实分配逐组列出：(role U, 来源组, 组内owner, 字节)。
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(crate) fn uncovered_items(
@@ -305,12 +305,12 @@ impl OldPoolPartition {
 
 /// #1488 P3-4：冷出生许可的铸造凭据。字段与构造只在本模块（冻结入口）可见，不可Clone/Copy；
 /// `BootstrapGrant::from_freeze`消费它，同crate其它代码无法伪造冷出生许可。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) struct FreezeSeal {
     domain: u64,
     limit: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl FreezeSeal {
     pub(crate) fn domain(&self) -> u64 {
         self.domain
@@ -321,26 +321,26 @@ impl FreezeSeal {
 }
 
 /// #1488 v4：唯一真实分配父与（R13兼容需要时）只读观察句柄；后者不可隐式转成Budget。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[cfg_attr(
-    all(not(test), feature = "s_capture_native_testonly"),
+    all(not(test), feature = "s_incremental"),
     allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
 )]
 pub(super) struct ParentPreparation {
     parent: super::audit_owner::native::Budget,
     observer: Option<super::audit_owner::native::BudgetObserver>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl ParentPreparation {
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn allocation_parent(&self) -> &super::audit_owner::native::Budget {
         &self.parent
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn observer(&self) -> Option<&super::audit_owner::native::BudgetObserver> {
@@ -351,54 +351,45 @@ impl ParentPreparation {
 #[derive(Default)]
 pub(super) struct RequestAuditContext {
     slot: Option<VerifiedHistoricalSlot>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     original_scan_scratch: super::content_store::OriginalScanScratch,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     source_keeper: Option<super::cross_request_source_cache::Keeper>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     workspace_budget: Option<ManifestWorkspaceBudget>,
     // #1394 显式接线域；普通预算冻结不自动启用强制cold准入。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     cold_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     handoff_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
     // #1488 v4：本次冻结签发的唯一冷出生许可；prepare_parent(None)或冷候选出生时消费一次。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     bootstrap: Option<super::audit_owner::native::BootstrapGrant>,
     // #1488 P1-1：old_pool映射所依据的同父账；绑定只接受同一父且L0未变。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     old_pool_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
     // #1488 P1-2：退回本context的slot其capture许可所在的父账（冷根）；只用于记下封存池的物理父账。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     slot_home: Option<super::audit_owner::native::Budget>,
     // #1488 wide16-0058：仅冷根首跑期间置位；首跑失败时旧来源池交还keeper供无票重跑。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     source_pool_return_armed: bool,
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) cold: usize,
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) hits: usize,
 }
@@ -406,9 +397,9 @@ impl Drop for RequestAuditContext {
     fn drop(&mut self) {
         // handler及Native bootstrap的正常/错误出口都在此释放slot原件，返回Driver前已释放。
         drop(self.slot.take());
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         drop(std::mem::take(&mut self.original_scan_scratch));
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         drop(self.old_pool_parent.get_mut().take());
         #[cfg(test)]
         super::state::trace_event("request_history_context_released", None);
@@ -417,60 +408,54 @@ impl Drop for RequestAuditContext {
 
 pub(super) struct VerifiedHistoricalSlot {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) binding: HistoricalDependencyBinding,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) capture: AuditCapture,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) node_count: usize,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) result: Rc<ImmutableHistoricalAudit>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) source_pending: Option<super::cross_request_source_cache::PendingPool>,
 }
 impl RequestAuditContext {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn original_scan_scratch(
         &mut self,
     ) -> &mut super::content_store::OriginalScanScratch {
         &mut self.original_scan_scratch
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
-        )
+        all(not(test), feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn original_scan_scratch_capacity_nodes(&self) -> usize {
         self.original_scan_scratch.capacity_nodes()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
-        )
+        all(not(test), feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
         let mut context = Self::default();
         context.source_keeper = Some(keeper);
         context
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn attach_source_keeper(
         &mut self,
         keeper: super::cross_request_source_cache::Keeper,
@@ -478,9 +463,9 @@ impl RequestAuditContext {
         self.source_keeper = Some(keeper);
     }
     /// 无同父候选的冻结（冷入口与fixture）：old_pool整体是他父/无父的O合同项。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn freeze_manifest_workspace_budget(
@@ -497,7 +482,7 @@ impl RequestAuditContext {
         )?;
         self.freeze_manifest_workspace_partition(total, legacy, partition.seal()?)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn freeze_manifest_workspace_partition(
         &mut self,
         total: usize,
@@ -547,25 +532,25 @@ impl RequestAuditContext {
         ));
         Ok(())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn manifest_workspace_budget(&self) -> Option<ManifestWorkspaceBudget> {
         self.workspace_budget
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn source_cache_enabled(&self) -> bool {
         self.source_keeper.is_some()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn take_source_pool(&mut self) -> Option<super::cross_request_source_cache::Pool> {
         self.source_keeper.as_mut()?.take()
     }
     /// #1488 wide16-0058：冷根首跑前后置位/复位；只影响首跑失败时旧来源池的去向。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn arm_source_pool_return(&mut self, armed: bool) {
         self.source_pool_return_armed = armed;
     }
     /// 未置位（非冷根首跑）时按原口径丢弃：任一错误不留可继续使用的旧池。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn return_source_pool_for_cold_rerun(
         &mut self,
         pool: Option<super::cross_request_source_cache::Pool>,
@@ -579,18 +564,18 @@ impl RequestAuditContext {
         }
     }
     pub(super) fn retained_source_bytes(&self) -> usize {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             self.source_keeper
                 .as_ref()
                 .map_or(0, |keeper| keeper.retained_source_bytes())
         }
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         {
             0
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn finish_source_keeper(
         mut self,
         _ended: super::audit_owner::Ended,
@@ -645,8 +630,8 @@ impl RequestAuditContext {
         self.slot.take()
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn retain(
         &mut self,
@@ -655,7 +640,7 @@ impl RequestAuditContext {
         node_count: usize,
         result: Rc<ImmutableHistoricalAudit>,
         hit: bool,
-        #[cfg(feature = "s_capture_native_testonly")] source_pending: Option<
+        #[cfg(feature = "s_incremental")] source_pending: Option<
             super::cross_request_source_cache::PendingPool,
         >,
     ) {
@@ -674,17 +659,14 @@ impl RequestAuditContext {
             capture,
             node_count,
             result,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             source_pending,
         });
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn before_binding(&mut self, tx: &Transaction<'_>) {
         if let Some(hook) = self.binding_hook.take() {
@@ -693,11 +675,8 @@ impl RequestAuditContext {
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn has_slot(&self) -> bool {
         self.slot.is_some()
@@ -708,18 +687,18 @@ impl RequestAuditContext {
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SqlCell {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     Null,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     Integer(i64),
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     Real(u64),
     Text(CodecVec<u8>),
@@ -728,8 +707,8 @@ pub(super) enum SqlCell {
 /// 参数与依赖 scope 在准入前只借用，不提前创建 Vec/String owner。
 #[derive(Clone, Copy)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(super) enum SqlCellView<'a> {
     Null,
@@ -751,11 +730,8 @@ pub(super) fn push_cell<T>(
     .map_err(storage)
 }
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
 )]
 fn reserve_cells<T>(
     values: &mut CodecVec<T>,
@@ -769,8 +745,8 @@ fn reserve_cells<T>(
 }
 impl SqlCellView<'_> {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn copy_admitted(self, store: &NativeAdmission<'_>) -> Result<SqlCell, String> {
         Ok(match self {
@@ -800,7 +776,7 @@ pub(super) struct ExactRows {
     pub(super) columns: CodecVec<super::business_json::TextValue>,
     pub(super) rows: CodecVec<CodecVec<SqlCell>>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn manual_cells_bytes(row: &CodecVec<SqlCell>) -> usize {
     use super::audit_retention::{sum, vec_bytes};
     sum([
@@ -823,7 +799,7 @@ pub(super) fn manual_cells_bytes(row: &CodecVec<SqlCell>) -> usize {
 }
 impl ExactRows {
     /// 返回仍由调用方手工账持有的分配；Native 自持许可与 Owned allocator 不二次退款。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn manual_heap_bytes(&self) -> usize {
         use super::audit_retention::{sum, vec_bytes};
         let text_bytes = |text: &super::business_json::TextValue| match text {
@@ -858,8 +834,8 @@ impl ExactRows {
     /// 原 SQL、原顺序与完整 storage class 绑定；唯一 Native 父域在复制前准入。
     /// SQLite 自身转换先经 CheckedStatement/CheckedRow 的 NOMEM 门再开放借用。
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
@@ -870,7 +846,9 @@ impl ExactRows {
     ) -> Result<Self, String> {
         let store = NativeAdmission(work);
         let sql_text = sql.to_str().map_err(storage)?;
-        let owned_sql = store.native_text(sql_text)?;
+        let owned_sql = store
+            .native_text(sql_text)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let mut owned_scope = CodecVec::default();
         store
             .native_codec_room(&mut owned_scope, scope.len())
@@ -902,7 +880,13 @@ impl ExactRows {
             .map_err(|e| e.to_string())?;
         for column in 0..count {
             let name = stmt.column_name(column).map_err(storage)?;
-            push_cell(&mut columns, store.native_text(name)?, work)?;
+            push_cell(
+                &mut columns,
+                store
+                    .native_text(name)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                work,
+            )?;
         }
         let mut rows = CodecVec::default();
         while let Some(mut row) = stmt.next().map_err(storage)? {
@@ -934,8 +918,8 @@ impl ExactRows {
         })
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn read(
         tx: &Transaction<'_>,
@@ -976,8 +960,8 @@ impl ExactRows {
     }
 }
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 fn storage(e: impl std::fmt::Display) -> String {
     format!("StorageUnavailable：历史原件绑定读取失败：{e}")
@@ -1002,8 +986,8 @@ impl HistoricalDependencyBinding {
         Self::read_admitted(tx, history, None)
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
@@ -1089,8 +1073,8 @@ impl HistoricalDependencyBinding {
         Ok(Self { frontier, material })
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn read_source(
         tx: &Transaction<'_>,
@@ -1121,7 +1105,7 @@ impl HistoricalDependencyBinding {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod tests {
     use super::super::{prepared::tests::Fixture, s_allocation, state};
     use super::*;
@@ -2246,7 +2230,7 @@ mod tests {
         let mut nodes = MemoryNodes::new();
         nodes.insert_unchecked([1; 32], 7, vec![1, 2, 3]);
         let original = AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         assert!(original
             .exact_original_tuples_equal(&AuditCapture::new(nodes.clone()))
@@ -2285,7 +2269,7 @@ mod tests {
         let tx = conn.transaction().unwrap();
         let (capture, count) = content_store::capture_for_request_prototype(&tx).unwrap();
         assert_eq!(count, 2);
-        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        let capture = capture.enable_native_frame_reuse().unwrap();
         drop(tx);
         (conn, capture)
     }
@@ -2422,7 +2406,7 @@ mod tests {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};
@@ -2444,13 +2428,13 @@ mod owner_retention {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl RequestAuditContext {
     pub(super) fn restore_slot(&mut self, slot: VerifiedHistoricalSlot) {
         self.slot = Some(slot);
     }
     /// #1488 P1-2：slot是在该父账上出生的（冷根内审计），退回后其capture许可仍挂该账。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn note_slot_home(&mut self, home: Option<&super::audit_owner::native::Budget>) {
         self.slot_home = home.cloned();
     }
@@ -2466,10 +2450,8 @@ impl RequestAuditContext {
     }
     /// 仅显式调用才将冻结额度用于强制cold审计；缺省context没有零预算合同。
     /// #1488 v4：等价于prepare_parent(None)，消费本次冻结的唯一BootstrapGrant。
-    #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
-    )]
+    /// #1640：只有测试调用；生产增量构建不编入（§2.3 第 2 层）。
+    #[cfg(test)]
     pub(super) fn enable_cold_admission_for_testonly(&mut self) -> Result<(), String> {
         self.prepare_parent(None).map(drop)
     }
@@ -2477,7 +2459,7 @@ impl RequestAuditContext {
     /// None=冷启动，仅消费一次BootstrapGrant；Some=暖路径，验证serial/父Arc/冻结合同后
     /// 绑定该真实父，并为外借观察句柄从同父同当前origin预留sponsor M。已有绑定不得换父。
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn prepare_parent(
@@ -2532,7 +2514,7 @@ impl RequestAuditContext {
             .filter(|g| g.domain() == contract.domain && g.limit() == contract.allowance)
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
@@ -2540,7 +2522,7 @@ impl RequestAuditContext {
     }
     /// #1488 strict消费者在audit_admission成功后调用；未绑定或过期均拒绝，绝不返回预建cold父。
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(crate) fn bound_parent_budget(&self) -> Result<super::audit_owner::native::Budget, String> {
@@ -2641,16 +2623,13 @@ impl RequestAuditContext {
             .unwrap_or(0)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl ExactRows {
     /// 可选保留的预算不足不是校验成功；原完整核已经完成，仅停止材料保留。
     /// SQL/取值错误仍直接传播。每行容量进入累计账，不先聚合一份无界全表。
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
-        )
+        all(not(test), feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn read_optional_bounded(
         tx: &Transaction<'_>,
@@ -2668,7 +2647,7 @@ impl ExactRows {
         Self::read_optional_bounded_params_in_parent(tx, sql, [], cap, parent)
     }
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(super) fn read_optional_bounded_params(
@@ -2850,10 +2829,18 @@ impl ExactRows {
                 return Err(scope.reject(ScratchFailure::Budget).to_string());
             }
             reserve_cells(&mut columns, count, Some(scope))?;
-            let owned_sql = admission.native_text(sql)?;
+            let owned_sql = admission
+                .native_text(sql)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             for i in 0..count {
                 let name = stmt.column_name(i).map_err(storage)?;
-                push_cell(&mut columns, admission.native_text(name)?, Some(scope))?;
+                push_cell(
+                    &mut columns,
+                    admission
+                        .native_text(name)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    Some(scope),
+                )?;
             }
             let mut result = Self {
                 sql: owned_sql,
@@ -2951,7 +2938,7 @@ impl ExactRows {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod r_owner_move_tests {
     use super::super::audit_owner::native::Budget;
     use super::super::audit_retention::Retained;
@@ -3153,7 +3140,7 @@ mod r_owner_move_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 // NOT_RUN：本轮只静态检查。
 mod handoff_domain_tests {
     use super::super::audit_owner::native::Budget;
@@ -3471,7 +3458,7 @@ mod handoff_domain_tests {
 
 /// #1488 0079（P24-adj）：冷根失败无票重跑的续租标记按本次冻结域编号对齐（每请求唯一），
 /// 防止前序请求残留的标记被本请求的发布误用。放在文件尾，不移动生产代码行号。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl ManifestWorkspaceBudget {
     pub(crate) fn freeze_domain(self) -> u64 {
         self.domain

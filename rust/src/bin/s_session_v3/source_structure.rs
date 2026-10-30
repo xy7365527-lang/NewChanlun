@@ -34,11 +34,11 @@ fn header(kind: &str) -> Option<(&'static str, &'static str, &'static str)> {
 pub(super) fn payload(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let p = object.fields.get_admitted(s, "payload_json")?;
     s.lookup_ref(p.view(), &[PathStep::JsonText]).map_err(err)
 }
-fn data(s: &mut (impl SourceFieldStore + ?Sized), object: &Object) -> Result<RefValue, String> {
+fn data(s: &mut (impl SourceFieldStore + ?Sized), object: &Object) -> Result<RefValue, PublishError> {
     let p = payload(s, object)?;
     field(s, &p, "data")
 }
@@ -46,7 +46,7 @@ fn same_slot(
     s: &mut (impl SourceFieldStore + ?Sized),
     slot: JsonView<'_>,
     want: &RefValue,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if super::super::history::hash_json_in_store(s, slot, None, None)? != digest(want)? {
         return Err(err("结构槽位不一致"));
     }
@@ -60,7 +60,7 @@ pub(super) fn audit_payload(
     sources: &SourceCoords,
     raw: &(impl RawLookup + ?Sized),
     current_generation: i64,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     exact(p, Kind::Object, 7)?;
     let (schema, semantic, policy) = header(kind).ok_or_else(|| err("未知结构头"))?;
     for (k, v) in [
@@ -168,7 +168,7 @@ impl Lookup for FullLookup<'_> {
 pub(super) fn references(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-) -> Result<sc::CodecVec<bj::TextValue>, String> {
+) -> Result<sc::CodecVec<bj::TextValue>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     let d = data(s, object)?;
@@ -176,7 +176,7 @@ pub(super) fn references(
         s: &mut (impl SourceFieldStore + ?Sized),
         r: &RefValue,
         out: &mut sc::CodecVec<bj::TextValue>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         match r.kind() {
             Kind::Array => {
                 for e in elements(s, r)? {
@@ -223,7 +223,7 @@ pub(super) fn audit_links(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
     lookup: &impl Lookup,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     for id in references(s, object)? {
         let child = lookup
             .object(id.as_str())
@@ -282,7 +282,7 @@ pub(super) fn audit_links(
         s: &mut (impl SourceFieldStore + ?Sized),
         unit: &RefValue,
         lookup: &impl Lookup,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let id = text(s, unit, "unit_object_id")?;
         let child = lookup
             .object(id.as_str())
@@ -360,7 +360,7 @@ pub(super) fn audit_full(
     s: &mut (impl SourceFieldStore + ?Sized),
     objects: &[Object],
     rule: &str,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if !crate::is_structure_rule(rule) {
         return Ok(());
     }
@@ -403,7 +403,7 @@ pub(super) fn audit_request(
     request: &RefValue,
     key: JsonView<'_>,
     lookup: &impl Lookup,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let address = key.index(1).ok_or_else(|| err("结构请求缺地址"))?;
     if address.as_array().is_none_or(|a| a.len() != 5)
         || address.index(2).and_then(|v| v.as_str()) != Some("structure-classification/1")
@@ -627,7 +627,7 @@ pub(super) fn audit_request(
 pub(super) fn expected_requests(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-) -> Result<usize, String> {
+) -> Result<usize, PublishError> {
     Ok(match object.kind.as_str() {
         "CC-011.segment_seed" | "CC-011.seed_candidate" => 3,
         "CC-013.segment" => {
@@ -717,7 +717,7 @@ mod tests {
         ]);
         json!({"request_id":canonical_json(&key),"subject_id":id,"axes":{"input_quality":"SUFFICIENT","applicability":"IN_DOMAIN","computation":"COMPLETE","validity":"CURRENT"},"reasons":[],"source_coords":[]})
     }
-    fn check(nodes: &mut sc::MemoryNodes, object: &Object, r: &Value) -> Result<(), String> {
+    fn check(nodes: &mut sc::MemoryNodes, object: &Object, r: &Value) -> Result<(), PublishError> {
         let original = put(nodes, r);
         let key: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
         audit_request(nodes, &original, (&key).into(), &One(object))
@@ -898,7 +898,7 @@ mod tests {
 pub(super) fn entity_id(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-) -> Result<Option<bj::TextValue>, String> {
+) -> Result<Option<bj::TextValue>, PublishError> {
     if object.kind == "CC-010.bi"
         || (is_kind(crate::V3_STRUCTURE_RULE_REVISION, object.kind.as_str())
             && !object.kind.starts_with("CC-055.")
@@ -914,7 +914,7 @@ pub(super) fn entity_id(
 pub(super) fn entity_references(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-) -> Result<sc::CodecVec<bj::TextValue>, String> {
+) -> Result<sc::CodecVec<bj::TextValue>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     let kind = object.kind.as_str();
@@ -1038,7 +1038,7 @@ fn entity_field_ids(
     name: &str,
     arity: Arity,
     out: &mut sc::CodecVec<bj::TextValue>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let value = field_path(s, d, name)?;
     match (arity, value.kind()) {
         (Arity::Optional, Kind::Null) => {}
@@ -1057,7 +1057,7 @@ fn field_path(
     s: &mut (impl SourceFieldStore + ?Sized),
     d: &RefValue,
     name: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let mut parts = name.split('.');
     let mut value = field(s, d, parts.next().unwrap_or(name))?;
     for part in parts {
@@ -1073,7 +1073,7 @@ fn push_entity_id(
     value: sc::RefView<'_>,
     name: &str,
     out: &mut sc::CodecVec<bj::TextValue>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let id = text_value(s, value, name)?;
     s.native_codec_room(out, 1).map_err(err)?;
     out.try_push(id).map_err(err)
@@ -1083,7 +1083,7 @@ fn points_back(
     other: &Object,
     name: &str,
     me: &bj::TextValue,
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     let od = data(s, other)?;
     let value = field(s, &od, name)?;
     Ok(value.kind() != Kind::Null && text_value(s, value.view(), name)?.as_str() == me.as_str())
@@ -1093,7 +1093,7 @@ fn field_entity<'a>(
     d: &RefValue,
     name: &str,
     lookup: &'a impl Lookup,
-) -> Result<Option<&'a Object>, String> {
+) -> Result<Option<&'a Object>, PublishError> {
     let value = field(s, d, name)?;
     if value.kind() == Kind::Null {
         return Ok(None);
@@ -1107,7 +1107,7 @@ fn audit_entity_fields(
     object: &Object,
     d: &RefValue,
     lookup: &impl Lookup,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let kind = object.kind.as_str();
     if !ENTITY_FIELDS.iter().any(|f| f.0 == kind) {
         return Ok(());
@@ -1190,7 +1190,7 @@ fn audit_entity_fields(
     Ok(())
 }
 
-fn current_entity<'a>(lookup: &'a impl Lookup, id: &str, kind: &str) -> Result<&'a Object, String> {
+fn current_entity<'a>(lookup: &'a impl Lookup, id: &str, kind: &str) -> Result<&'a Object, PublishError> {
     let object = lookup
         .entity(id)
         .ok_or_else(|| err("结构关系实体端点悬空"))?;
@@ -1203,7 +1203,7 @@ fn listed(
     s: &mut (impl SourceFieldStore + ?Sized),
     array: &RefValue,
     want: &str,
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     for item in elements(s, array)? {
         if scalar_value(s, item.view())?.view().as_str() == Some(want) {
             return Ok(true);
@@ -1211,7 +1211,7 @@ fn listed(
     }
     Ok(false)
 }
-fn require_sources(object: &Object, expected: &[i64]) -> Result<(), String> {
+fn require_sources(object: &Object, expected: &[i64]) -> Result<(), PublishError> {
     if &*object.sources != expected {
         return Err(err("结构关系来源与见证投影不同"));
     }
@@ -1221,7 +1221,7 @@ fn revision(
     s: &mut (impl SourceFieldStore + ?Sized),
     d: &RefValue,
     name: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     let rev = decimal(&text(s, d, name)?)?;
     if rev < 1 {
         return Err(err("结构关系版本不是正数"));
@@ -1234,7 +1234,7 @@ fn audit_relation(
     object: &Object,
     d: &RefValue,
     lookup: &impl Lookup,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let source = text(s, d, "source_id")?;
     let target = text(s, d, "target_id")?;
     let relation = text(s, d, "relation_kind")?;
@@ -1428,7 +1428,7 @@ fn audit_pair_sides(
     s: &mut (impl SourceFieldStore + ?Sized),
     d: &RefValue,
     lookup: &impl Lookup,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     for (idname, revname) in [("a_center_id", "a_revision"), ("b_center_id", "b_revision")] {
         let id = text(s, d, idname)?;
         let side = current_entity(lookup, id.as_str(), "CC-016.center")?;
@@ -2099,7 +2099,7 @@ mod ef_entity_tests {
         let second = cut(&mut n, &mut producer, RANGES.len(), 29, &records);
         (n, first, second)
     }
-    fn full(n: &mut sc::MemoryNodes, rows: &[Row]) -> Result<(), String> {
+    fn full(n: &mut sc::MemoryNodes, rows: &[Row]) -> Result<(), PublishError> {
         let objects: std::vec::Vec<_> = rows.iter().map(|r| build(n, r)).collect();
         audit_full(n, &objects, crate::V3_STRUCTURE_RULE_REVISION)
     }

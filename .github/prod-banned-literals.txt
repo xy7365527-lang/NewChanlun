@@ -1,0 +1,1567 @@
+#@ #1640 §2.3 第 3 层：生产增量产物禁串（测试门内字面量，自动生成，勿手改）。
+#@ 生成：python3 .github/scripts/gen-prod-banned-literals.py；每行一个字面，按字节匹配。
+"中文😀\n\u00e9\uD83D\uDE00"
+#1405前合同串长
+#1488 旧独立 oracle 与局部核首错一致
+'另一个档😀'
+(a) 须经冷根自然失败
+(b) ingest 须经冷根自然失败并无票重跑
+16M 下冷根不应失败
+1M 下首个 ingest 须恰经一次冷根自然失败且残留归零
+3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账
+4096B叶不再新增body布局
+46 首见于第三条收据
+512 cuts出生事件各过一次
+512 cuts撤回事件各过一次
+64→65 暖追加仅给既有窗口追加一根后续 bar
+A 仍命中租约素材
+A2 独立封存 oracle
+ALTER TABLE s_content_nodes RENAME TO s_testonly_hidden_nodes
+ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT 'x'
+AUDIT_PROTOTYPE_CAPTURE
+AUDIT_PROTOTYPE_DB
+AUDIT_PROTOTYPE_REPORT
+Accept不能推进发布游标
+Access期限检查没有返回
+B 首读仍 cold
+B11 恒等式：封存后live = 残余M + 封存池逐张许可之和
+B11：同父峰须在夹具帽内
+B11：审计前父账残余只有根控制块M
+Begin不能使A2或S漏过本次raw变化
+C4 池析构期间签发新许可
+CC-054 载荷 JSON
+CC-054 载荷是合法 JSON
+CC-054 载荷是文本
+COMMIT失败后owner必须退役
+COUNTS_FOOTPRINT_DB
+COUNTS_FOOTPRINT_EXPECTED_CUTS
+COUNTS_FOOTPRINT_LEGACY_BYTES
+COUNTS_FOOTPRINT_OWNER_DIR
+COUNTS_FOOTPRINT_REPORT
+CREATE TABLE conversion_rows(position INTEGER, text_value, optional_value, integer_value, optional_integer, blob_value); INSERT INTO conversion_rows VALUES(2,'中文😀',NULL,9223372036854775807,NULL,x'00ff'); INSERT INTO conversion_rows VALUES(1,'é','é',-9223372036854775808,7,x'');
+CREATE TABLE exact(a,b); INSERT INTO exact VALUES(NULL,1),(1.5,'abc'),(x'00ff','中'),('01',NULL),(7,x'')
+CREATE TABLE main.recover_lock_schema_probe(x)
+CREATE TEMP TABLE native_local_fault_seen(n INTEGER NOT NULL)
+CREATE TEMP TRIGGER candidate_fields_wire_sql_fault BEFORE INSERT ON s_content_nodes WHEN NEW.tag=8 BEGIN SELECT RAISE(ABORT,'candidate_fields_wire_SQL_fault'); END;
+CREATE TEMP TRIGGER candidate_union_insert_fault BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(ABORT,'unexpected_candidate_put_before_union_reject'); END;
+CREATE TRIGGER fail_publication BEFORE UPDATE OF value ON meta WHEN NEW.key='index_frontier' BEGIN SELECT RAISE(ABORT,'test-late-fault'); END;
+CREATE TRIGGER fail_real_commit BEFORE UPDATE OF value ON meta WHEN NEW.key='index_frontier' BEGIN SELECT RAISE(ABORT,'real-commit-fault'); END;
+CROSS_REQUEST_SOURCE_CACHE_DB
+CROSS_REQUEST_SOURCE_CACHE_REPORT
+CaptureDeadline😀prototype_audit_allocation_limit
+ContentRef 出现 exact 四字段之外的键 `extra`
+DB不得硬链到封存原件
+DB不得经symlink
+DEBUG_SHAPE
+Driver open失败
+F 后不得多加计账前期限门
+F1 变体：过桥后被吞的资源失败不能为无关错误背书
+F1：资源失败后闭包的非预算错误必须原样拒绝
+FK 故障 ref 不得混入
+FinancialReadInvalid：y
+Found 首读在 F 前起钟
+Fractal 不得接受非 CC-007 kind
+GenError：原始行出现非整数 JSON 数字 `1.5`（不把 token 静默改写）
+HANDLE_RUNNING
+ISSUE1394_MEASURE_PREFIX
+Incomplete/ContentAnchorUnavailable：Delta已退出保留窗口，须沿Watch Gap重建
+Incomplete/RetainedBytes：保留图像未移出原始账树
+Incomplete/X：z
+Incomplete：Watch批数越过冻结上限
+Incomplete：完整Q回复超过max_reply_bytes
+InvalidDomain：session_generation 必须大于0
+JSON和scope都析构后父账回到原基线
+JSON真实载荷析构归还原许可
+Key 全部 Plain 文本及 Proof Vec 新块须先计入同父域
+K物理live恰好计一次
+Missing 不伪造首读起钟
+MissingDependency：Q3CaptureInvalid：x
+MissingDependency：R4
+MissingDependency：R6：
+MissingDependency：R7
+MissingDependency：会话已失效：R4：WAL身份或stat改变
+MissingDependency：财务anchor与本片当前控制元组不同
+Mode::CapturedNative; eager default no stage vs explicit Native setter; no fallback
+NEXT106_ARM
+NEXT106_DB
+NEXT106_OUTPUT
+NEXT106_PROFILE
+NEXT106_REQUEST
+NEXT106_RESOURCES
+Native discard释放keys真实buffer及绑定
+Native shape 必须保留 parser session
+Native 旧许可保守留父账
+Native不再进入旧手工退款账
+Native不创建OwnedBudget
+Native准入不可擦除Owned JSON
+Native必须保持Plain名分
+Native捕获尚未获准
+Native移入许可返还失配
+Native解析必须保留Plain名分
+Native许可不得随借用store提前释放
+Native适配改变了对象身份语义
+None cursor不能擦除Owned
+None lease同核
+None 同一局部根只批读一次
+None入口不返回owned
+None兼容接口不可擦除Owned
+None预算本身不授予Native联合路径
+Noop occurrence 也须推进 material_epoch
+Null仍在wire之后拒绝
+Null仍在wire写入之后拒绝
+O=池合同额+M_K
+O=逐项合同额之和
+O=逐项合同额，不含L补差
+OHLC 未变：载荷同根
+OLD_TAG_PLACEHOLDER
+OPEN_RUNNING
+Owned capture 不能进入 Native memo
+Owned结果不能擦成旧std Fragment
+P55：闭包 Ok 但期间有语义失败 → 工作账损坏
+Plain map 不伪装成 Owned/scratch
+Public/Template memo仍由capture持账
+PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope
+PublicationInvalid：当前 begin_token 不符
+Public失败不污染既有独立Template memo
+Public证书不得跨入Template
+Publish回滚保留已提交Accept原件
+Q3CaptureInvalid：S3StateInvalid：QReplyInvalid：
+Q3_CONTENT_MEASURE_COUNTS
+Q3_CONTENT_MEASURE_COUNTS只能为0/1或不设置
+Q3_CONTENT_MEASURE_DB
+Q3_CONTENT_MEASURE_HASH
+Q3_CONTENT_MEASURE_OUTPUT
+Q3_CONTENT_MEASURE_RESOURCES
+QContentInvalid：length_overflow: index `18446744073709551616` 超出 u64 表达
+QWatchInvalid：QContentInvalid：QSnapshotInvalid：
+Q增量账与全量oracle
+Q缓存分项与全量oracle
+R material已退款，未迁移capture/scan费用仍随父Budget存活
+R14仅增加已批准的记录溯源列
+R2：Ledger 类 scratch 错误与桥同字也须拒绝
+R2：闭包 Ok 但期间有 Ledger → 工作账损坏
+R2：闭包期间任何 Ledger 构造都须拒绝
+REPLACE 删除不入计数
+REQUEST_AUDIT_ARM
+REQUEST_AUDIT_DB
+REQUEST_AUDIT_EXACT_BASELINE
+REQUEST_AUDIT_REPORT
+ROLLBACK TO shape_entry_fault; RELEASE shape_entry_fault
+ROLLBACK TO shape_leaf_fault; RELEASE shape_leaf_fault
+RUNTIME_ROOTS_OUTPUT
+Recover前owner持有已提交构造资格
+Recover前当期token可绑定
+Recover后换了父账
+Recover成功后晋升新资格
+S1394_PUBLICATION_PROBE_DB
+S1568_CHILD_CLOCK
+S1568_CHILD_DB
+S1568_CHILD_MODE
+S3 目录轴 finish
+S3DriverInvalid：prototype_capture_owned_payload_limit: codec 工作域分配失败
+S3DriverInvalid：固定 operation 出现未声明实际效果
+S3DriverInvalid：连接已退役或存在未终结事务
+S3StateInvalid：source: S3 内容存储：no such table: s_content_nodes
+S3_COLD_AUDIT_CODE_REVISION
+S3_COLD_AUDIT_OUTPUT_DIR
+S3_CONTENT_MEASURE_PREFIX
+S3_FINANCIAL_CLI_BIN
+S3_SESSION_R5_RUN
+S3_SESSION_REPLICA_DB
+S3_SESSION_REPLICA_MAIN_SHA256
+S3_SESSION_WORK
+S4_CACHE_BYTES
+S4_GENERATIONS
+S4_STAGE_JSON
+SAVEPOINT shape_entry_fault
+SAVEPOINT shape_leaf_fault
+SELECT '汉😀', NULL, '正常'
+SIGKILL 循环一次也没命中 init 中途（暂存存在、目标未发布）
+SQL 臂必须完整验证两根 Public 闭包
+SQL/行序/列名/非空scope/完整cell字节均须相同
+SQL与暂存同摘要异原件
+SQL增量账与全量oracle
+SQL文本实际复制失败必须保留来源
+STAGED_NODES_OUTPUT
+S_AUDIT_COST_DB
+S_AUDIT_COST_EXPECT_GENERATION
+S_EVIDENCE_MEASURE
+S_NATIVE_SQLITE_CACHE_KIB
+S_TEST_AUDIT_CACHE_SOURCE_BYTES
+SchemaUnsupported：history_mode不符
+SchemaUnsupported：projection anchor必须是exact四字段
+SchemaUnsupported：仅s-session/3
+SchemaUnsupported：仅unsupported/1
+SchemaUnsupported：缺非空字符串 payload_hash
+SchemaUnsupported：缺非空字符串 session_id
+SchemaUnsupported：缺非空字符串 source_namespace
+Some 保持旧SQL源F和HashReader F
+Some 的真实 SQL 读取保持原 15取10
+Some/期限不创建捕获
+Some须先拒绝high类型，不能提前读取缺失的low
+SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源
+SourceAuditInvalid：见证raw_bars不是同cut真实原始成员
+StaleWriter：construction资格失效：Recover迁移effects未闭合或持久epoch与换代证明不符
+StaleWriter：construction资格失效：Recover迁移旧资格不属于当前持久epoch
+StaleWriter：construction资格失效：Recover迁移父账或冻结域与交接摘要不符
+StaleWriter：construction资格失效：Recover迁移状态块许可不挂事务父账
+StaleWriter：construction资格失效：Recover迁移缺同快照完整原件
+StaleWriter：construction资格失效：Recover迁移缺父账交接摘要
+StaleWriter：construction资格失效：Recover迁移资格所记父账或冻结域与事务父账不符
+StaleWriter：construction资格失效：Recover迁移资格缺父账记录
+StaleWriter：construction资格失效：业务SQL不属于stage
+StaleWriter：construction资格失效：已有增量游标的材料域改变；禁止冷重签
+StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退
+StorageUnavailable：Owned原始账不是数组
+StorageUnavailable：priority 重复成员
+StorageUnavailable：records 与封存批次/同 cut 持久快照不一致
+StorageUnavailable：records 重复成员
+StorageUnavailable：本次对象缺不可变字段 kind
+TB1717_S_EXPORT
+TB1717_S_EXPORT 未设置
+TOP 窗口应产对象
+TOP/BOTTOM 窗口应产对象
+TOP/BOTTOM 窗口必产 CC007
+Template损坏必须拒绝
+TestOnly staging只允许Native
+TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
+TestOnly：Budget 故障仅用于 Owned 模式
+TestOnly：stop_after_accept
+TestOnly：stop_after_begin
+T物理占用不超E+O+A
+UPDATE catalog SET impl_status='implemented', proof_status='bad'; INSERT INTO catalog VALUES('后错',7,NULL,NULL,NULL);
+Value证书不得复用JsonInner判定
+["完整证据",1.0]
+actual 坏成员先于 expected 重复
+actual 坏成员先于 expected 非数组
+actual 完整重复
+actual 扫完成员才查重复
+actual 重复先于 expected 坏成员
+actual 重复先于 expected 非数组
+actual 非数组先于 expected 坏成员
+actual 非数组先于 expected 重复
+admit已完成真实COMMIT
+advance 审计结果跨 prepare 存活并持续计费
+audit_owner/b2_source_fault_tests.rs
+batch 字节长度与内容寻址 hash 必须与 Delta 域无关
+before-g 独立克隆及删除计费
+before-g和through-g必须共享一份事件表
+begin 临时许可随真实析构释放
+begin 校验沿同一父账出生
+bi 对象冒充版本记录必须拒绝
+birth==g不在before
+births实体与容量许可独立释放
+body 字节数溢出
+borrowed字段入口不得先造owned PathStep
+borrowed字段入口不得擦除codec
+borrowed字段入口不得退回generic read
+both Runtime Mode::CapturedNative, eager default stage=false vs explicit staged=true; no silent fallback
+cached root不能绕过实际observer门
+capture 外不记录
+capture借用不随overlay变化
+carried覆盖同父L0
+chunk长度错误
+clear 仍持有实际 hash buffer
+clear 保留真实桶容量
+clear 释放实际条目
+clear 销毁实际键和值后退对应许可
+clear_overlay后仍复用原件，必须真的省掉读取
+clear保留容量
+clear保留桶容量，外部句柄仍持共享块
+cold 无 prior 绑定分配
+cold_root_probe: injected
+cold后SQL及Q直接许可仍留同账
+commit 后读事务可核
+commit 语义时刻被篡改
+concat必须Owned
+control_ms 仅含全局控制检查与逐代期望准备，逐批控制头核对计入 structure_ms。沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。
+cursor代号越过已核永久发布历史
+cut SQL与暂存原件冲突
+cut 与首获知代不符
+cut暂存原件消失
+cut节点INSERT出现非目标实际写入
+cut节点tag或body长度错误
+cut节点数溢出
+cut闭包缺节点
+death==g仍参与本代
+delayed until final flush; not equivalent to eager injection timing
+delta_root 必须为32字节BLOB
+detail 投影后 actual 重复
+detail 投影后 expected 重复
+detail 浮点不转整数 wire
+detail 递归整数投影
+discard不改K的live
+each candidate仍完整fresh Public核验
+edits buffer 仍存活
+effects闭合仍非COMMIT
+empty节点body错误
+events触帽须溢出
+exact generated一次绑定
+expected 坏成员先于集合差异
+expected 完整重复
+expected 扫完成员才查重复
+expected 重复先于集合差异
+expected 非数组先于集合差异
+extent 是 U64 长度，按 §5.2 用规范十进制字符串传输
+field body错误
+first failure\"😀
+first success certificate admitted before injected second-node refusal
+fixture成员完整性已核
+fixture许可不得取出
+flag 后接另一 flag 必须按缺值拒绝
+fresh verifier释放实际工作集，overlay固定布局仍在
+generation 是整数
+generation与独立依据不同
+handle 的审计结果与 capture 已释放
+high不是文本
+hit仍逐次读取、OHLC、validate、raw hash、RawWire
+hit必须移动同一capture正文owner
+import hashlib,json,struct;h=hashlib.sha256();v=[None,-2**63,2**63-1,'中\0é\n"',bytes([0,255,128,1])];[(lambda b,t:h.update(t+struct.pack('>Q',len(b))+b))(x if type(x)is bytes else json.dumps(x,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode(),b'b' if type(x)is bytes else type(x).__name__.encode()) for x in v];print(h.hexdigest())
+index实体与容量许可随index释放
+ingest-3 须与全程 16M 对照组同路
+init 不应写内容节点
+injected write failure
+intern命中不重复签共享块费，临时复制已释放
+json_text 向量渲染逐字节一致
+json_text内部占位不得被共享上下文放行
+k = 严格小于 4 的最大 2 的幂 = 2
+keeper池按所在父账单列一组
+layout/1 分型载荷含后续发展
+layout/1 请求保持原线序
+legacy已超过S7
+memo 命中不应写节点
+memo 命中不应读节点
+memo 和正文随这次编码释放
+memo桶已真实销毁
+memo销毁后外部句柄仍持原共享许可
+merged 位次在 i64 内
+metadata不可漏账
+mixed None-owner原parser产出Plain
+mixed None-owner形状核只产生Plain
+mixed改变原legacy形状核
+null隔离子树费用，多个旧新buffer换代不遗留旧许可
+obj3 不是旧配方的换前缀
+obj3 配方必须是严格六字段
+obj3-正常身份
+oracle 字段是合法 JSON
+oracle 字段是文本
+oracle 文本是合法 JSON
+oracle 档案号
+oracle 档案哈希
+oracle 目录修订
+oracle 缺 CC-054
+oracle 规则修订
+oracle 载荷是合法 JSON
+oracle 载荷是文本
+original business；
+original wire cap；
+overlay覆写不能改变已有读取副本
+owned fragment不能擦除为std JSON
+owned manifest必须来自实际capture预算
+owned request须借anchor_view，不能擦std
+owned.sqlite 必须是普通文件
+owner不得经symlink
+owner不得重放旧birth
+owner不得重放旧death
+owner只释放overlay，Template memo归capture持有
+owning iterator消费首项仍持有原数组allocation
+pending 与 token 的真实 owner 全部析构才归零
+prepare 不提前生成数组
+producer 公开根
+projection实际owner与anchor预算不一致
+prototype_audit_allocation_incomplete：normal JSON shape不可擦除Owned
+prototype_audit_allocation_incomplete：owned原始账不可擦除为std值
+publication尾检身份不符
+publication尾检身份不符（0069负控注入）
+published > 当前代
+put 入参核 F；Missing 无旧 F
+put 总是实际 SELECT
+put不得提前核F
+queue Layout应被拒绝
+r3完整Some F次数
+r3完整Some读取轨迹
+raw 前缀链可用
+raw_bars 修订投影
+raw_bars 其它整数不投影
+raw_bars 投影后重复
+raw_events与独立依据不同
+raw_text必须文本
+raw父拥有者析构归还原载荷许可
+ready必须返回原回执
+read保留原F路径
+real-commit-fault
+receipt 查询不得用当前配置改写历史
+receipt 须经重绑点换到本请求冻结域
+recover 不改已发布 cut
+retained memo以自身allocator实际layout求和
+rollback 后视图仍必须拒绝
+s-session-testonly-001
+s-session/3 域登记
+schema域必须真实变化
+scope结束后各返回owner仍持费
+scope退出后根须继续持费
+scratch 已析构
+seal 完整绑定消费同父域
+seq分支body错误
+sidecar不得硬链到封存原件
+snapshot_root 必须为32字节BLOB
+splice 必须保留 layout/1 完整根
+split必须Owned
+sponsor随最后一个句柄释放
+staged租约缺父工作域
+stage之外的合法形状SQL也不能借最终行相等蒙混
+startup不得沿用旧请求缓存
+startup原件不能跨着恢复请求保留
+subset 和原字段独立持费
+superseded_by 自指
+s不得吸收进U
+tag转换先于复用和F
+test.content/重
+testonly-q-content-measurement/1
+testonly.ohlc.tb03b-long-financial-v1
+testonly.ohlc|1|TEST.OHLC|event-1
+testonly.tick.ohlc
+typed见证不可为空
+unicode_escape 向量渲染逐字节一致
+upserts 与独立索引成员数不符
+v4 L42：pending须在将封存它的同一父账内持票出生
+v4 L9：封存只移动已持票对象，父账不再追认新增
+v4 L9：封存池析构须把许可全部还回同一父账
+v4[B]：context/capture/scan对象均已析构，许可全部归还，无legacy retain
+v4[B]：pending析构后同父许可全部归还，无保守费用
+v4[B]：pending析构后无保守费用
+v4[B]：只返还cap本身；返还后父账仅剩根M，无保守retain
+v4[B]：失败Drop只归还新增cap；父账无codec retain残留，仅剩根M
+v4[B]：完整绑定在同父域计费
+v4[B]：新trial完整原件绑定在父域计费
+v4[B]：父账native只剩effects持有的cap许可，无codec retain
+v4[B]：绑定临时原件析构即归还
+v4[B]：绑定比较的临时完整原件析构即归还
+v4[B]：许可随对象析构全部归还
+v4：Native许可随事实对象析构返还原父域，回到调用方已持有工作
+v4：离开WorkScope且全部对象析构后只剩父账元数据，无滞留许可
+verification memo 随操作析构
+warm 只重核真实根 header
+wire `input_refs` 必须借 producer 的 wire_input_refs 同根
+wire merged_index 必须是文本
+wire 装配不得读取载荷子图（记录自身字段根除外）
+wire后生成原件损坏仍命中相同晚exact错误
+wire必须实际读不同internal根
+withdrawn > 当前代
+withdrawn_generation 与独立记录不同
+writer 换代历史被塞入未闭合行
+writer/recover闭合后无SHM
+①来源合同额之和
+②索引槽宽连带降幅
+一代不得出现两个版本对象
+一字节预算不得准入历史ordinal工作集
+一次实际计费读只计算一次 F
+七张 memo 表都须分配并逐张核对
+三个根仍持自己的原许可
+三个根跨域保留时仍持许可
+三份冻结原始账的例数
+三字段必须存在
+三槽不能靠空集合通过
+三次正常写应完整消费 owner effects 与新代
+上一项业务检查必须先发生
+上界先于来源读取
+上轮事务的根已消失：闭包必然缺节点
+下一事务必须得到非空真实赢家变化
+下一次未改原件须恢复暖前缀复用
+不再有 subject=null 的同价窗口请求
+不可因摘要相同丢Noop occurrence
+不多不少：闭包流恰为根闭包
+不存在.sqlite
+不得以K组冻结
+不得容忍缺槽或重槽
+不得覆盖坏原件假装修复成功
+不得覆盖既有报告或原料
+不能回填跨 scope memo
+不能拿含overlay的whole budget live充capture自身
+不足三根请求
+不足预算查询结果必须一致
+不足预算读出的 bytes 必须一致
+不跨请求保留共享根
+与旧稳定排序逐项同序，等键原ordinal不变
+业务缓存真实跨请求持账
+丢弃运行态后必须真的重新写节点
+两个fresh捕获各自持有正文owner
+两个实际读取各重算本次F
+两个旧buffer保留到两个新块同时准入完成
+两窗必须各自命中自己的 memo
+两窗都要按实际坐标记失效
+两请求各自持有真实父账
+两账物理live全部进入O+U
+中途失败必须析构已复制的第一根
+临时映射与输出缓冲各自只退原许可
+主库/-journal 字节须不变
+事后追认必须被拒
+事实键是规范 JSON
+事实键首项是 kind
+二代际 cut 保留当时对象
+二次分区必须仍拒绝，不得把s洗进静止点
+交错窗口第二次构造必须零重算（单槽 memo 会被对方驱逐）
+产出全闭包可核
+人工对象只能走通用口
+仅以 READ_ONLY 打开 owned.sqlite
+仅接受本轮新owner目录
+仅最后期限门发生变化
+仍有未消费发布时不得完成控制审计
+他域冷许可必须拒绝
+会话块与冷路径逐字节相同
+保留已有证据，禁止覆盖
+保留量是源字节账，非 RSS；只验证显式实际代号，不代表目标前缀已全部完成。
+修订前闭包可核
+修订后的陈旧视图必须拒绝
+修订后重新准备
+修订坐标 3、4 必须重算
+修订夹具须产生比较单元
+修订已接纳但未 Begin/发布也必须等待
+修订应有同槽新旧身份
+修订起点之前的坐标 0-2 未受影响、直接复用
+候选普通原件池
+候选规划不得改写原历史输入
+候选重新出生后 ingest-2 须命中完整候选、经 Carry 提交资格且租约有效
+借用 Key 查询不复制文本
+借用header仍核本次F，再遇真实容器额度门
+值节点header错误
+停止门之前不得预读下一成员正文
+停止门须先于 IO
+先释放正文，随后归还父账
+全raw/历史/SQL原件不得复制
+全修订史必须保留 b2 的两版（seq 序）
+全程按摘要严格升序
+全部参数类型与负零REAL位模式均须相同
+全部工作区准入完成前不改原顺序
+公开 wire 文本叶数组必须随源修订改根
+公开回复与普通路径逐字相同
+公开核验拒绝
+公开根不得复用生成态数值叶根
+公开身份不变
+公开边闭包可核
+公开逻辑值不得写占位
+公开逻辑值核验拒绝占位
+六字段身份对象
+共享事件clone不得重收载荷和控制块
+共享块可携原许可跨WorkScope存活
+共享态退化必须拒绝
+共享树源引用路径
+关系必须与其见证 bi 共用同一条源坐标根
+关系必须与其见证 bi 共用同一条输入引用根
+关系投影逐字段
+关系见证必须指向本代 bi 对象
+关系见证是文本
+具名版本不得全局过滤同价原因
+兼容anchor仅接无scope值
+内容边闭包可核
+内层 Ledger 须并入外层
+内层已完整成功并retain后，epoch才拒绝
+内层已消费的旧池不得复活
+再修订必须开新代际，不得就地改写二代际对象
+再修订须开三代际
+写入四字段对象
+写入文本视图
+写入逆序对象
+冷/暖完整原始 bytes 必须逐字节一致
+冷/暖快照必须一致
+冷/暖查询结果必须一致
+冷出生不得留事后移入余额
+冷捕获不得复用前缀
+冷核得到的新证明须进入最终审计前缀
+冷根审计失败清除保留后根上仍残留4096B许可
+冷清理不得把失败 owner 洗回有效
+冷臂须走完整路径
+冷读不得命中句柄
+冷读必须真的展开
+冷车道与暖车道输出必须一致
+冻结 profile hash 被改写
+冻结原始账是 JSON
+冻结来源可读
+冻结来源是 JSON
+冻结来源额度本身不启用强制cold准入
+准入不得写源库
+准入不得迁移
+准入冷核持真实父账
+准入只读，不迁移
+准备 raw 账本
+出现未登记的未知表
+出生候选不得读不可变内容
+出生后续代重建并保留候选
+出生引用仍持实际许可
+出生表、集合、路径和引用沿同一父账持有
+出生许可只可消费一次
+分批方式不得改变事实代际
+分支判定不是错误
+分量标签 `255` 未声明
+删除不存在的来源对象
+删除不存在的来源见证
+删除不存在的来源观察
+删除重插不累计历史节点许可
+前缀再切 start
+前缀成功不代替实际 profile 重核
+十二字段身份对象
+半途失败后坐标车道必须逐项保持上一代整根
+半途失败后引用叶车道必须保持上一代整根
+单边body错误
+历史 Begin 标记不是未完成修订
+历史/raw增量账与全量oracle
+历史修订：全修订史条数必须大于有效账条数
+历史插入必须退出原代际身份，不得就地改写
+历史插入须开二代际
+历史插入须开新代际对象
+历史摘要真实工作域失败必须保留来源
+历史规则只读审计
+历史规则库字节须不变
+原Pool配方逐storage-class及完整字节计费；不导出原行正文
+原S7=1不创建keeper
+原internal record核对不能由generated视图替代
+原业务错误：逐字
+原代际对象须有撤回事件
+原件池丢失依赖后，旧根证明不能依赖同一摘要重新生效
+原合同允许已核完整重建cursor重置租约
+原始回执 receipt_id 被篡改
+原始账带 raw_text
+原完整投影核必须恰好消费一次真实来源结果
+原文里的同名字段
+原核必须封存真实Counts
+原独占进程锁仍生效
+原绝对核验期限已到
+原许可跨工作域保留
+原证明收集已完成
+参数槽原件必须随根保留
+双故障必须拒绝
+发布索引批次与结构 Delta 不同
+发布索引根长度不足 32 字节（CHECK 被旁路）
+发布索引行被删除
+取消后不能重建成功scope
+变化JSON不是普通数组
+变化原件不得沿用旧证明
+变形 flag 不得创建库
+变形 flag 必须拒绝
+变形选择器不得创建库
+变更前须已复用暖前缀
+变更后的 clock 计划必须拒绝
+另一份证书对象不得冒充同一原件
+另一强owner仍持有事件载荷
+另一方准备 raw 账本
+另一线程回滚不得撤销本owner
+另一连接可见实际提交raw
+只为增长的events付新块
+只写入口拒读
+只在实际COMMIT成功后晋升
+只新增数组根和新字符串
+只有实际read集合持账
+叶本身是序列必须拒绝
+合法Merkle畸形在None/Some均须由原业务判据拒绝
+合法收紧额度保留完整候选；旧128倍门会提前丢弃
+合法独立新增节点
+同 OHLC 修订不能假称数值重放
+同 id 换载荷必须拒绝
+同 identity 异内容不一致
+同 identity 异内容不算重复
+同 key 异 clock 必须拒绝
+同 key 异内容必须拒绝
+同 spec 重绑不得写节点
+同captured mode下F/读取核不得漂移
+同owner快照命中无需重建cold
+同一allocation重复物理reserve必须被拒
+同一冻结库的持久发布输入未变；行为等价由七代独立库锁验证
+同一合同项不得重复入O
+同一合法字符串
+同一块在O与U中只计一次
+同一新record在snapshot/delta只读取一次十字段
+同一时刻只有一个MoveIn
+同一请求同一回复
+同一路径的成功正控确实经过实际分配器
+同一错误SQL元数据的拒绝判据/错误不漂移
+同代出生撤回不应残留
+同代同坐标只能有一条有效行
+同代际正常追加不得换身份
+同价标签留作证据
+同参考集重复构造不得重算比较单元
+同批尾部追加不得遮蔽历史修订
+同摘要切换到JsonInner后仍必须拒嵌套json_text
+同摘要收据不新增key
+同摘要收据只合并key，不合并事件
+同文同类的域外错误不得借当前资源失败降级
+同文无来源错误不得降级
+同暂存摘要异原件，拒绝
+同源坐标内容键变化必须重算
+同算法真实F读取计量
+后来wire补子不得变成前置核验依据
+后来的Ended不得签早先context
+后续代重建并保留候选
+后续根摘要损坏必须拒绝
+后续根缺子节点必须拒绝
+命中不重算见证身份
+命中临时 key 和验证工作均归还，不重复持费
+命中副本各自拥有非空 ref 文本，不能共享或偷走 memo 的原件
+四代每个完整record恰好承接kind与core两个source字段定位
+四字段对象不得被当成引用再求值摘要
+四投影进入同一 Job 节点核
+四条收据逐条可还原
+回退后独立扫描收费，坐标及来源命中不虚收
+回退时钟必须拒绝
+回退时钟拒绝后不得留下 msg-2 的接纳行
+回退重走仍复用同一原件
+固定写父账重复附接
+固定输出复用相同exact判据
+坏 JSON 必须在建库前拒绝
+坏 clock 必须在建库前拒绝
+坏 profile 必须在建库前拒绝
+坏SQL原件在prepare前拒绝
+坏原件失败不缓存
+坏库必须被原审计拒绝
+坐标在 i64 域内
+坐标数组两条路径必须同根
+坐标文本与注册坐标不一致必须拒绝
+坐标文本是合法 JSON
+坐标集合未变：源坐标数组同根
+块内含从 basis 根到目标的路径证明
+块含末尾 LF 不超过 max_reply_bytes
+增量 gen2: raw_events 覆盖全前缀
+增量 gen2: 发布期参数仍有未映射的旧身份
+增量 gen2: 对象集必须严格增长
+增量容量计数须与独立全遍历相等
+增量路径与全量 oracle 的逐代 batch_id/字节数必须逐项相同
+声明长度 7 与实际展开 6 不符
+复制阶段不新增digest验证
+复用F但当前Value角色仍拒绝
+复用前必须逐字节比较原件证书
+外 producer 的视图必须拒绝
+外写必须真实提交
+外部COMMIT失效必须在完整冷核前拒绝
+多根窗口照常发布形态
+大预算一块取完
+失效的单元必须重算
+失败token不可重签
+失败不可遗留半根，成功drop后全退
+失败不得改变父账live
+失败后 payload 必须仍在 certs_bytes 或读集账里
+失败后全表含接受/Begin/clock和全部节点精确保留
+失败复制必须销毁临时permit
+失败局部的所有许可必须回收
+失败必须逐行保留第一代 refs
+失败未消耗序号
+失败构造不留临时收费
+失败的声明 init 不得留下任何 meta
+失败直接返回，不能全量 fallback
+失败首次计算不能留下键或文本费用
+头部失败不能进入body/flush
+夹具事务必须已确认终结
+夹具必须产出 bi 对象
+夹具必须产出关系边
+夹具必须产出撤回事件
+夹具必须产出至少两条 bi 记录
+夹具必须实际产生多根极值端点
+夹具必须实际进入首次24项关系编码
+夹具必须覆盖同代确认沿用（confirmed 事件实际 0 次）
+夹具必须覆盖端点延伸（extended/endpoint_replaced 实际 0 次）
+夹具的源引用逻辑值必须非空，否则本判据没有意义
+夹具行必须存在
+子依赖原件不同（子未命中 ⟹ 未认证）不得认证父节点
+子值仍存活，原父析构不能退其费
+子账拒绝必须在真实 alloc 前
+子路径闭包小于整根闭包
+字段导航不得写入
+字段结果entries与UTF8 key必须真实留账
+孤立 token 不得创建库
+孤立 token 必须拒绝
+安装故障注入 progress_handler
+安装故障观察 update_hook
+完整SQL JSON逐字段对照
+完整cold须消费每代source/catalog的三个Public根
+完整generated或独立internal坏件必须在wire写入前拒绝
+完整raw/cuts/index与cold不同
+完整候选比较不能减少
+完整动态错误：重🧬 at line 12 column 34
+完整原件证明尚存时，控制头捕获不得因大句柄驱逐而展开历史batch
+完整审核cut数量必须等于根绑定的正常副本
+完整对拍必须实际产三槽见证
+完整捕获少一字节须失败
+完整整数预检先于任何节点写出
+完整核验的实际memo与栈仍计量
+完整正文 memo 保持真实 put 次数
+完整闭包应得到实际codec复用
+实测无同额来源物理许可
+实际 Vec/String capacity 加树/散列表保守槽位上界；非RSS
+实际 verifier 在首个分配前 typed 拒绝
+实际Layout拒绝必须保持typed首错
+实际source原件必须仍存在
+实际包含三槽见证及跨代 bi prior
+实际工作集合与memo持续计量
+实际工作集析构前许可仍须占账
+实际持有者析构后归还原账
+实际插入不再暗中扩桶
+审计诊断不得嵌套
+审计返回的对象索引必须与持久行一一对应
+审计返回的辅助索引必须与持久行一一对应
+容器离开闭包仍持元数据账
+对照只禁原件复用，保留611cc1d来源证明
+对象字段按键的 UTF-8 字节升序，与输入顺序无关
+对象键非字符串
+对齐坐标序列
+导航与完整三闭包须使用同scope真实Layout
+封存不得对已释放字节事后补签
+封存原件内容/发布代与独立索引不一致
+封存后不带走codec临时工作集
+封存完整原件再次消费同一父域
+封存批次是规范 JSON
+封存新增许可必须留在冷核同父账
+封存池析构不得让父账增长
+封存许可之和溢出
+封存降幅恰为①+②
+尾检必须失败
+局部峰不得混入大于5MiB的父峰
+展开长度必须等于 byte_len
+峰值漏计旧块
+崩溃现场重开
+嵌套数组顺序
+工作域元数据 M 与独立布局推导不符
+已从allowance扣除旧池，不在新父账再次seed
+已保留的确认证书必须仍有同源 confirms 关系
+已分配裸块不得在生产入口绑票
+已发布owner必须保留投影游标
+已命中memo仍须核当前权限门
+已有journal/容器占满同cap时codec不得再借另一份cap
+已有overlay继续逐次核F
+已有旧 cut 的后续代须真实保留来源池
+已核旧capture不因另一次失败而改动
+已核根只重读真实头
+已见根也必须重新核对 extent
+已见根也必须重新核对 kind
+干净整账本依赖面
+并行线程不得写入父线程观察结果
+应有沿用身份
+开窗线程本账的Rust请求layout（按线程记账，不含并发测试线程）；含旧候选/新effects/派生状态/业务缓存实际共存，不含C malloc与allocator内部
+异 capture 独立重新核验
+异内容不可能得到同一根指针
+引用carrier不能作为普通JSON进入逻辑根
+归还全部树槽费时，正常插入再移除的树根和载荷必须已真实释放
+当前 capture 臂必须独立完整验证两根 Public 闭包
+当前 occurrence 已匹配
+当前 std Arc 元数据实测
+当前余额只能由实际capture memo和overlay布局组成
+当前发布代 0 必须拒绝
+当前完整状态破坏，不能只凭旧根继续新请求
+当前根必须仍读取并严格核Frame/header
+当前根漏报来源对象删除
+当前根漏报见证删除
+当前根缺来源对象贡献
+当前根缺组贡献
+当前根缺见证贡献
+当前预算门拒绝
+形态依赖索引悬空
+形态记录不得走泛型面
+必须保留原grammar首错
+必须减少真实SQL读取
+必须到达第五次push的真实扩容拒绝
+必须存在类型正确的末代发布记录
+必须实测变化JSON所有者中途预算拒绝
+必须实际减少SQL读取
+必须实际减少同一FD VFS的audit wire
+必须实际接纳，不能用replay/已发布回执冒充新增raw
+必须实际改写一行，不能空表假通过
+必须实际消费尾检故障
+必须实际进入非空shape/三槽与CC054请求核
+必须对拍真实F，不以猜测计数冒充
+必须是原work同对象
+必须是许可之后新分配的块
+必须来自不同真实出生 Entry 的共享非空来源叶
+必须消费Accept后真实effects产生的CompleteCandidate，禁止重新手造原件
+必须消费原 checked frame
+必须真实wire写后触发，不是preflight拒绝
+必须真实非空typed与shape
+必须等于当前进程原legacy来源计量
+必须覆盖已撤回替代目标的完整身份史
+必须覆盖无后续 bar 的窗口
+必须覆盖有后续历史的窗口
+必须进入真实token消费者
+恢复侧布局不符须被拒收
+恢复后不得用当前配置覆盖历史生成结果
+恢复后整账本依赖面
+恢复后续接输入，结论不变
+恢复并重开后，旧 generation 的记录戳仍是历史未知
+成功/Err均恢复实际inner角色
+成功Template memo的集合和折叠map由capture实际持有
+成功capture Public memo的真实布局必须持续活到capture Drop
+成功memo仍持账
+成功memo布局持续活到capture Drop
+成功与两类失败均恢复inner角色
+成功种子仍逐根严格读取当前header
+成功链保留原来源池
+所有真实事实拥有者销毁后归基线
+所有结果销毁后只剩父账本元数据
+打开 oracle 库
+拒写前必须已成功写过若干节点，否则测的不是半途失败
+拒写恢复后坐标数组必须与干净车道同根
+拒写恢复后源引用数组必须与干净车道同根
+拒收整笔回滚
+拒绝clock构造前未产生未归还的临时许可
+拒绝不出生根账
+拒绝不得部分改账
+拒绝发生在任何追加/parser 推进之前
+拒绝同摘要坏原件后旧节点原样保留
+拒绝后实际owner归还原许可
+拒绝后释放全部暂存许可
+拒绝时不得写出半截渲染
+拒绝未保留结构化资源错误
+拒绝须发生在绑定 socket 之前
+持久root非32B
+持久根可达节点缺失
+持久消息 payload_hash 被篡改
+持久消息规范原件被替换
+持久证书跨捕获保留
+挂错父账的封存许可必须被拒
+按同一配方重导 id
+按池父账物理live计
+捕获结束必须释放瞬时读集
+捕获读集期限已到
+损坏fixture必须真实违反TEXT列类型
+损坏状态必须被拒绝
+损坏节点必须阻止普通cold-open
+排序临时工作区已经真实释放
+控制头不得保强证书
+控制头不得暗补或数字归一化
+控制表协议标记被改成旧域
+摘要不符先于 SQL 拒绝
+撤回JSON owner独立释放
+收到的节点足以完整核验 basis 根
+改为metadata扫描和晚exact，不再独立逐字段下降
+放弃后不保留候选
+故障必须实际到达候选尾检
+故障必须实际到达尾检，不能提前失败冒充负控
+故障旧 token 不能重入构造
+效果完成尚未提交
+数值叶 memo 必须按坐标失效（不只文本叶）
+数组实际准入失败必须到达发布判据
+数组序列闭包出现非序列节点
+数组结果容器必须另占真实Layout
+整数与浮点不去重
+整数与浮点有别
+整组接纳不应被后续超额组驱逐
+文本在reader/capture释放后仍持有原账本字节
+文本字节不是UTF8
+文本析构单独归还其许可
+文本消费入口只接受实际Owned字节所有者
+文本视图是 JSON
+新 message replay 必须由实际 Accept Q 效果取得写后资格
+新 store 闭包可核
+新写节点在表
+新坐标大于 memo 上界时应跳过整表遍历
+新块被拒绝时旧Vec必须完整保留
+新域必须在至少一代真正少发未变对象
+新域的 upserts 不得多于旧 full 域
+新域重新登记
+新增节点须全部可达
+新旧原件各核 F
+新根 header scratch 记本轮账
+新根加入不应废掉完整旧前缀
+新的外部旧epoch仍拒绝
+新规则 hot-wal.sqlite
+新请求须经重绑点换到本请求冻结域
+新载荷是合法 JSON
+无 Owned 构建不调用该分支
+无scope兼容入口
+无scope测试游标
+无scope的Native投影构造
+无占位的旧对象可直接公开核验
+无新输入的 advance 也必须读取原 generation，而不是当前配置
+无资格caller仍完整核验
+无资源失败记录时闭包错误不降级
+旧 AsKnown 快照不得被后续追加改写
+旧 Value 根证书不得进入本次 owner 子树资格
+旧 cut 必须保留原对象
+旧 epoch 必须拒绝
+旧 full 域的 Delta upserts 仍是完整活动集
+旧 loader 没有写前门；此控制应失败
+旧 post precheck 行为
+旧 receipt 查询须迁移并返回历史未知，不得冒充当前 v2 配置
+旧 root/walk 不得持有已从预算索引移除的根证书
+旧Begin token必须被拒
+旧RTask布局与叶栈在扩容前仍存活，capture body借用不新增布局
+旧Weak身份不得绑定已卸journal
+旧anchor仅支持普通Projection
+旧cursor_at仅支持None投影
+旧epoch推进必须被拒
+旧origin返还不回补新域A
+旧owner失效后不能重签相同非空delta
+旧serial raw token必须被拒
+旧token只支持None投影，请使用token_with_budget
+旧union/新fields必须生成逐字相同SQL节点原件集合
+旧串推导须回到111,334
+旧串推导须回到527,048
+旧事实不得借新原账放行
+旧候选超过父帽一半仍可正常finish
+旧口径下物理占用逃出T
+旧口径多放出物理−合同
+旧块析构后临时共存许可必须返还
+旧域MoveIn不可在新域拆分
+旧对象用本批占位
+旧批号形状非法
+旧数值修订只重放变化后缀
+旧来源返还不能增发当前A
+旧池析构不得让旧父账增长
+旧池须在下一请求核账
+旧版本完整内容逐字保留
+旧私有格式登记表混入新域
+旧行 input_refs 在投影域内
+旧观察必须保留首次 batch
+旧观察必须逐字段保留首次封存版本（含首次 batch_id）
+旧规则 hot-journal 现场.sqlite
+旧规则 hot-journal.sqlite
+旧规则 hot-wal.sqlite
+旧规则 scoped hot-wal.sqlite
+旧记录可在当前代发布
+旧记录可在当前代撤回
+旧请求句柄不能获得新分配资格
+旧路径每字段重复根寻路
+旧门即使不计effects也会撤候选
+明文正文无物理计费，来源合同项必须拒绝
+明确overlay来源直接读取且不缓存
+显式 s-session/2 缺参不得回落旧域
+显式只读库副本
+显式成本测量须设置 S_EVIDENCE_MEASURE
+显式规范测试资源
+普通 captured reader 不能取得 memo
+普通 lookup 语义失败不得变成资源拒绝
+普通 reader 没有历史审计资格
+普通MemoryNodes原encoder+sink两次实际F必须保留
+普通OHLC入口不可拆Owned
+普通cold-open须消费已验证history
+普通oracle仅Plain
+普通oracle只接Plain
+普通入口不能使mixed预留免账
+普通和Owned判定不一致
+普通投递引用被删除
+普通路径没有keeper
+普通追加不得使旧 prefix 失效
+暂存owner不属于当前事务连接
+暂存owner已失败，不可重试
+暂存必须属于尚未完成的事务
+暂存租约必须继承同一已签发工作域
+暂存节点数溢出
+暖/冷坐标文本序列逐位相同
+暖/冷源引用序列逐位相同
+暖入口有同父旧候选
+暖原件不重读 SQL
+暖捕获必须复用已核前缀（3 代）
+暖缓存应捕获已认证控制头
+暖读不得重新展开
+暖读必须复用已核句柄
+暖读必须逐字节比较原件证书
+暖追加必须保留并消费合法 history
+最后put之后停止
+最后强句柄之前不退费
+最早cold实际消费同父scope
+最终拒绝不得留下历史 slot
+最终桶拥有者销毁才回基线
+有效账取最新修订
+期限溢出不得panic
+期限门之前业务核已完成retain
+期限门仍先于预算前门与SQL
+期限门先于预算门与SQL
+期限门须在第二次 IO 前拒绝
+未冻结无出生许可
+未变对象必须逐字段保持
+未启用的线程不能签发
+未增长nodes不得再次占新块许可
+未声明的 recover 事件必须拒绝
+未接纳实读wire=3
+未接线命令带选择器不得创建库
+未提交消费状态回滚后撤销
+未提交的第二代 ref 不得混入
+未来出生/撤回不得改旧cut
+未来身份冲突不会遗留已建临时树许可
+未来非法data仍先全raw验证拒绝
+未比较齐旧依赖时不得返回旧根证明供前缀复用
+未登记源版本必须拒绝
+未知tag，拒绝flush
+未知版本不得创建库
+未签生产 profile 不得打开 Driver
+未被引用的历史身份不得读不可变内容
+未解析的批次占位不渲染
+未进账的追认许可必须使恒等式失败
+末个owner销毁才归还全部原许可
+末个返回owner销毁后回到原基线
+末态根表须与 ordinary 一致
+末次关闭须已检查点
+末次托管看见提交
+末窗口应可判
+本代 upsert 必须是完整活动集的真子集
+本代见证必须是完整见证集的真子集
+本副本全部来源原料已超过原S7余量；本轮无逐cut独立proof闭包，不能猜测可接纳数量
+本副本全部测得来源原料低于原S7余量；依赖元数据及运行资源尚未资格化，不能据此宣布整份proof可接纳或9011可容纳
+本夹具至少一个可判窗口
+本批新生不得用旧批号
+本批新生用旧批号
+本捕获尚未认证任何节点
+本次 Begin 的提交时刻必须是 clock 计划里的 commit_ns
+本次写入不准留下作废中间根
+本用例前提：id 自洽但头错
+本用例必须覆盖至少一个可判窗口
+本用例需要至少一个可判的 TOP/BOTTOM 窗口
+本用例需要至少一个步骤
+本用例需要至少一个组
+本用例需要至少三个可判窗口
+本用例需要至少三组
+材料域外写必须真实命中
+材料子账即出生时子账
+材料差异不是提交许可
+来源Counts六字段逐项对拍
+来源cache绑定允许合法新增，但仍逐tuple覆盖全部旧原件
+来源不明的同父许可必须拒绝
+来源依赖索引悬空
+来源原账与贡献不属同账
+来源合同项不得在父账物理reserve
+来源审计不得改写任何原件节点
+来源对象重审/组贡献未完整消费
+来源对象重审位置不匹配
+来源文本是合法 JSON
+来源版本变了必须真正撤销旧事实
+来源证书不签发完整候选资格
+来源证书身份坐标不可固定
+来源贡献前根不匹配
+来源贡献原账旧赢家不匹配
+来源贡献跨工作账本
+构造器暴露的 V 必须就是配方输入
+构造带边的图
+析构后不留旧父引用
+析构后回到残余
+查询结果必须一致
+树许可逐条累加
+校验失败不转原数组重判
+根 `batch/test` 展开长度不符
+根仍存在也不能略过完整当前状态核验
+根协议标记被改成旧域
+根审计读全修订史
+根文本大小写不符
+根残留未归零必须报错
+根许可不足必须早于晚life错误
+根证书应当被保留
+格式登记表被旁路 CHECK 塞入第二行
+槽位在 usize 内
+模式变化不得复用旧前缀/证书
+模板上下文可写占位
+模板上下文核验通过
+模板核验也拒绝（权限不得穿透 json_text 内部）
+正常 replay：4消息引用3 raw，3 cuts 全字段/根保持不变
+正常Q逐容器上界须低于旧整表128倍门
+正常closed原件仍可读
+正常strict JSON须解析成功
+正常wire→immutable顺序不变
+正常关闭后重开
+正常包不得仅因可选保留被丢弃而绕过后缀锁
+正常多个cut须具有正边际原件/Key费用
+正常完整审计必须留下capture
+正常小样本实测不能超过其推导预留；实测本身不授准入
+正常模板根应不在Counts三子图闭包中
+正常生命周期不应损坏账本
+正常稀疏原件测试必须保留 Native 域
+正常额度应持有完整候选
+正式Accept只签一次写前资格
+正式Accept实际effects已Carry
+正式OHLC原件一同提交
+正式Publish不能重跑完整来源核
+正式消息控制账一同提交
+正控必须实际经过decode_manifest
+正控必须消费非空真实原件
+正文块物理计费一次
+正文必须原Vec按值移动
+正负浮点零不去重
+正负浮点零有别
+此探针不读取原件
+步骤载荷的同价标签留作证据
+残余全体性扫描照实记录
+残留分支报错后同一 writer 须继续服务
+残留归零后无票重跑一次
+残留归零才析构根后无票重跑一次
+残留非零分支不得无票重跑
+段关系载荷 JSON
+段关系载荷是文本
+每cut不得重排序
+每个实际节点读仍核本次F
+每个真实对象kind及core各一次字段定位均消除
+每代真实 owner 销毁后归还原许可
+每根只记一次，且原因必须保存在 invalidate_root 前
+每次 load 重新建缓存，clear 后不继承旧结果
+每行新增、坐标和来源各访问一次
+比较文本是合法 JSON
+毫秒与计数均为逐代增量；cache 命中/失效为同一捕获内的句柄/节点粒度
+池与候选同父必须拒绝
+池封存在请求父账K
+注入拒写必须上抛
+注入残留许可
+注入的故障必须拒绝Publish
+注入确实多签
+注入须由真实封存消费
+活动公开闭包可核
+活动却带替代者
+活动却带理由
+浅共享不重复准入
+测试oracle仅接无scope值
+测试oracle只接普通delta
+测试oracle只接普通投影
+测试前缀/租约无效
+测试批次是可解析 JSON
+测试捕获已取消
+测试步号耗尽
+测试注入Recover交接失败
+测试注入Recover写后回滚
+测试父账不平
+测试观察句柄仍持父账；context退场不归还Native保守费
+测试观察器不能嵌套
+测试语义失败
+测试读取租约时锁不应中毒
+消息 epoch 正确也不能代替实际 writer 配置核验
+消费失败丢弃pending facts
+消费已有事实不再复制文本
+消费者失败/回滚不能抹掉上次真实Accept提交
+清空后应重新填充 memo
+清除 progress_handler
+渲染是合法 JSON
+游标/共享事件/临时排序载荷不可累计retain
+源修订必须按坐标失效 refs memo
+源修订必须按坐标失效单元 memo
+源引用变化必须改 obj3
+源引用变化必须改根
+源引用数组不缺源兜底
+源引用数组两条路径必须同根
+父与独立子值并存期间分别持费
+父线程注册不能泄漏
+父节点证书应已保留
+父账大于journal子帽仍须允许真实工作
+父账装不下inline+首块须报错
+父预留已回滚
+版本记录 kind
+物理树形泄漏进内容身份
+物理超合同部分列为U
+状态块许可须持有到PendingRawState析构
+独立 oracle 前缀下 UP 笔必须存在
+独立交叉核：来源节点数
+独立布局推导与字面 96B 不符
+独立来源账的赢家 key、坐标、source/original 桶按真实容量计费
+独立测量结果
+现场须带 -journal
+现存子树许可不得早退
+生产 diff（TB-02-A/B）
+生成态 merged_index
+生成态 merged_index 仍是数值（禁粗暴复用为 wire）
+生成态数值叶数组必须随源修订改根
+生成态是规范 JSON
+生成态装配不得读取载荷子图（记录自身字段根除外）
+登记新源版本
+登记真实当前 source
+监督器仍拥有锁
+目录必须含 13 轴之外的行
+目标存在却缺 catalog
+目标已存在时不进入清扫
+目标闭包完整
+相同OHLC不能隐藏来源修订
+相同原件集合不是同一capture owner
+相同原件须重绑定
+相同字段的两次 hit 各自持有完整、等额且独立的副本许可
+相同撤回/活动态不应在后续 cut 重编码
+真实 OwnedBudget 必须拒绝实际申请
+真实 S3 夹具没有可读的当前对象
+真实 memo 写故障
+真实 memo 读故障
+真实 memo 转换
+真实 put 前拒绝工作集分配
+真实 put 故障
+真实 revision 必须改变原件身份
+真实Accept不得降为无scope原始账
+真实B对象复用A已登记的引用
+真实COMMIT后才持有旧前缀facts
+真实Closed F与实际逻辑accept F各一次
+真实Job累计门与节点用量保持
+真实Native来源核必须有跨轮状态
+真实Plain载荷析构后归还许可
+真实checkout应被同账解码门拒绝
+真实encoder只做单次F
+真实history入口在Template失败时不得解码任何manifest
+真实raw准入须先于消费者失败
+真实scope元数据已释放
+真实scratch Layout已释放
+真实snapshot/delta八份持久keys均须留在原账，包括空raw
+真实source读取须减少
+真实state第二reader初值必须false
+真实wire SQL失败不吞错或预写immutable
+真实修订夹具必须产生撤回
+真实修订必须发生撤回
+真实修订（消失/返回）下增量与 oracle 的逐代 batch_id 必须相同
+真实冷审计必须命中history→source交接
+真实原始修订应有首次替代边
+真实只读审计持有原件池
+真实对象绑定预算失败须返回原错误
+真实提交后对象索引必须非空
+真实新raw尾ordinal
+真实旧行仍活着时，clone差一字节须拒绝
+真实析构全额还原父账
+真实父域raw前缀Budget须穿过PendingRawState与owner签发边界保留来源
+真实预算原因
+真实首代六份持久keys须全部绑定AuditedState原账，包括空keys
+真正drop后释放source归属
+真正尾检失败必须拒绝
+确实命中纯F复用，读后期限仍拒绝
+禁止用 put 入参 seed
+离域共享对象仍持有动态字段及共享块许可
+离域只读不能隐式免费深复制
+离域后真实keys容量仍持费
+离域结果仍持原许可
+离开 scope 不得释放已移动载荷许可
+离开 scope，非空身份缓存仍持原许可
+离开scope仍由事实账持有原桶许可
+离开工作域后结果仍持有原许可
+离开材料闭包不能提前返还cap
+私有根摘要正确不能代替公开批次身份核验
+租约结束后所有目标重新来自实际 SQL
+移出原件的正文仍持原许可
+移出键值不退其费用或树高水位费
+移动不退款、不重签
+移动后的真实 winner_edits buffer 仍持费
+移除坏素材正确回减，后续合法原件可保存
+稀疏owner只移动原件正文
+稀疏坐标不得被区间化
+空值不得创建库
+空值必须拒绝
+空值隔离验证metadata费用与Retained一致
+空桶不能再次退款
+空结果仍绑定全部列名
+空缓存的活桶仍收费
+空账撤回的 event_at 必须是精确 null
+窗口0 必须重算被修订的 suffix
+窗口0 记录根必须稳定
+窗口0 身份必须稳定
+窗口2 同样必须重算
+窗口2 记录根必须稳定
+窗口2 身份必须稳定
+第 2 代入口须带完整候选
+第一个副本独立退费
+第一代真实 delivery ref 必须已持久
+第一对象必须已写真实wire
+第一次错误直接返回，不重试全量
+第二个合法字节块
+第二次调用重新写入全部唯一材料
+签发后owner持有资格
+算法错误必须直传
+索引只初始化一次
+索引许可=槽数×现槽宽
+累计 11 超过上限 10
+纯F复用不放行当前Public判据
+纯统计callback读取真实owner overlay峰值
+组对象必须带请求
+组索引在域内
+组装 CC-006 wire
+组装 wire 模板
+结构 ?#%.sqlite
+结果owner构造/满容量/读取/移动/释放均无堆分配
+结果真实析构后父账全额还原
+结果许可持原父账直至真实析构
+结果闭包不能缺节点
+绝不打开 r5 原件
+续扫完毕与预算 0 结论相同
+缓存不得改变任何持久事实
+缓存不足不改变已提交回复
+缓存允许持账，但后续root与普通算法对拍必须相同
+编码不冒充真实发送
+缺 catalog_revision 不得默认 unknown 建库
+缺不可变字段 kind
+缺值不得创建库
+缺原wire不得产生Plan
+缺字段失败不缓存
+缺字段必须拒绝
+缺当前候选原件
+缺当前形态原件
+缺源前写入门序相同
+缺选择器值不得创建库
+耗尽游标须进检查点
+联合闭包缺节点
+节点证书应被保留
+节点长度越界
+补上子节点后闭包可核
+被拒合同项不留物理账
+被拒封存不留物理账
+被拒的 reset 不得删除原文件
+被拒的 reset 不得改动 S3 库
+被拒的重复许可已归还
+被拒追认不改父账
+被捕获的内层panic不能抹去Ledger
+被撤槽位不得读不可变内容
+被驱逐索引中的原件仍被 Capture 持有，不能漏记
+裁剪后正文容量缓存须匹配实存
+裁剪后正文长度缓存须匹配实存
+装不下只失去读集保留
+裸连接只允许只读检查，控制写入须有事务
+覆盖只活在当前manifest构造借用内
+见证/关系的出生序与原键序须在某个 cut 分离
+见证依赖索引悬空
+见证期内构造
+见证重审位置不匹配
+见证重审未完整消费
+观察渲染是合法 JSON
+观察闭包可核
+规范 JSON 是 UTF-8
+规范字节 UTF-8
+规范渲染是 UTF-8
+规范输出的资源拒绝必须穿过 WorkScope 尾检
+解析后公开闭包可核
+解析本批占位
+解析结果仍拥有许可
+解除拒写后必须可恢复
+计费put仍经过原node门
+记录是合法 JSON
+记录渲染是合法 JSON
+记录门必须在命中前拒绝
+记录闭包可核
+许可挂候选父账
+许可换账或改字节
+许可普查容量耗尽
+证书及临时树的实际销毁归还原许可
+证明许可持原父账到真实析构
+证明键不能绕过 root 保留预算
+诊断 DB 必须使用绝对路径
+诊断路径不得含 symlink
+诊断路径必须存在
+该场景必须存在跨代未变对象
+该窗口应产对象
+该窗口应可判
+该端点须已确认
+语义读取失败被错误改类
+语法失败不得留下原解析许可
+语法失败无载荷逃逸，原准入许可释放
+请求渲染是合法 JSON
+请求级拒绝不使会话失效
+请求结束仍有 statement 存活
+请求键是文本
+读 Delta 域模式
+读上一代前沿
+读冻结原始账
+读集加入即驱逐旧持久句柄
+调用间不得继承旧闭包
+负控前必须真命中缓存
+负控许可析构后父账回到残余
+资格所记冻结域须随合法重绑前进
+资源拒绝到跨层返回之间不得分配错误String或JSON
+资源档须为普通文件
+超出 i64 语法的实体必须拒绝
+超帽不留半张表
+超限清空后重算必须给出逐字段相同的原件
+超额移入不得部分改账
+越界窗口不是错误
+越界窗口必须返回 None
+越界索引不是错误
+足预算快照必须一致
+足预算查询结果必须一致
+足预算读出的 bytes 必须一致
+跨scope后仍由实际owner析构归还，保留父自身metadata
+跨事实代际的上一代实体必须全部撤回（实际 0 次）
+跨域保留的文本仍持原许可
+路径离域仍持有原许可
+跳跃或回退只过所跨事件，不重排序
+身份、版本、raw_text与OHLC完整字段由同核SQL原件比对
+身份对象可写
+身份嵌 input_refs，必须改根
+身份首错不受坏价格或首写失败替代
+转义失败仍扣已输出前缀
+转换前须为 Legacy
+转换后须为 Native
+转换拒绝消费owner后一次归还
+载荷头错误必须拒绝
+载荷必须是对象
+载荷是合法 JSON
+载荷渲染是合法 JSON
+输出缓冲离域后仍持原许可
+迁移后的幂等重投仍返回原消息与原 generation
+迁移和后续发布不得改写旧原件
+过期连接不得被读取
+返回Driver前已释放bootstrap原件
+返还离开codec后的字段entry+UTF8 key必须仍真实计量
+连首写尝试都不能发生
+追加/修订不能重新解码旧 raw
+追加代必须可恢复
+追加代拒写恢复
+追加尾部时注入拒写必须上抛
+追加请求须复用已核旧cut
+退役owner必须拒绝新事务
+逐代不可达锁不是假空
+逐代期望必须来自真实 Commit phase 的 clock 时刻
+逐代续接对拍不是假空
+逐元素相同 raw 的另一次 parser 也须自行创建新 session
+逐级owner与工作域元数据分别真实析构后归零
+逐级owner析构后立即归还自身许可
+造「同 id 换载荷」记录
+造上一代记录
+造头错的上一代记录
+逻辑读取门已停止
+部分输出被丢弃，缓冲与scope全部退费
+配置拒绝不得消费或提交 pending 原件
+配置改版后的幂等重投必须返回原生成记录戳
+重复 clear 不重复退款
+重复 key 不得创建库
+重复 key 必须拒绝
+重复cut不推进事件
+重复借用视图不增加赢家 key
+重复子图的每个逻辑位置仍读SQL并核本次F
+重复无写仍执行旧 C_g：完整事务 owner 与历史保持证明尚未接通
+重复构造必须命中单元 memo
+重复构造身份必须相同
+重复目录身份必须在建库前拒绝
+重复计费必须使恒等式失败
+重复许可必须被普查识别
+重复选择器不得创建库
+重复键必须拒绝
+重开不得用当前 v1 反填旧 generation
+重开仍须读取恢复发布实际写入的 v2 记录戳
+重新准备不同 raw 后，旧视图必须失效
+重新打开后即使配置回退，也只能读取结果实际使用的 v2 记录戳
+重新登记真实当前 source
+重算后必须回到零重算
+错旧身份须先拒绝，不能解码或走全量
+错父许可不进本父账
+错误Drop归还新增cap全部余额
+错误不入缓存，合法关系须重建
+错误后重试仍重新完整核验
+错误退出后，新load重新核判据
+键、身份文本及桶全部销毁后回基线
+闭包 Ok 的纯预算不足
+闭包块会话与冷 CLI 逐字节相同
+闭包缺子节点必须拒绝
+降级注入代入口须带候选
+降级重试的完整分支须标 abandon
+隐藏已加载 trigger 确实执行
+集合与两个叶迭代栈持账
+集合排列与对象键序
+零预算不得保留任何跨请求持有
+零预算查询结果必须一致
+零预算读出的 bytes 必须一致
+零额度必须在真实Owned标量分配处拒绝，不得Plain回退
+静止点内超合同的真实分配消耗A
+非 s-session/3 域必须拒绝
+非对象记录必须拒绝
+非真空 FIRST 成员关系
+顺序、ContentRef、kind、extent及render值一致
+顺序遍历必须实际减少重复祖先读取
+须原持有状态块许可
+须持有完整候选
+须持有已提交资格
+须显式提供主控新拥有的 S1394_PUBLICATION_PROBE_DB
+须有跨代不变的已过去 bar 批记录
+须有跨代后续 bar 增加而分型不换版本
+须正额度换域
+须至少一例含第二种候选
+预算 0 无调度检查点
+预算 1 须出现耗尽
+预算前门拒绝不读SQL
+额度在实际复制/读取前拒绝
+首个入口没有旧池，之后旧池为完整候选
+首代不得凭新生成产品签发旧历史资格
+首代半途失败后坐标车道必须仍是失败前的空整根
+首代拒写恢复
+首代车道坐标
+首次分区：K的L0≠静止点读数，必须拒绝
+首次底层读取耗时必须在job绝对期限内
+首次节点写失败
+首次读取不能为第二次续期
+首次资源拒绝必须传播出work.run
+首轮必须真的求过比较单元

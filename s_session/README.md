@@ -61,6 +61,8 @@ for name, port in [('manual', 18787), ('a', 18788), ('b', 18789)]:
 PY
 ```
 
+S3 写者有两种启动配置版本（#1640，ADR 0042 D4）：`s-launcher/3` 冻结 `s-structure-resources/1`，`s_resources` 必须恰好是原七字段，配 `s_session` 二进制；`s-launcher/4` 冻结 `s-structure-resources/2`，`s_resources` 必须恰好是七字段加 `incremental_retention_bytes`，只配 `s_session,s_incremental` 二进制。换二进制时须同时换启动配置，版本错配会在启动时被拒绝。tb01c fixture 是冻结输入，仍为七字段；切片 1 验收按 `incremental_retention_bytes = "268435456"` 另行给出。
+
 所有路径字段按配置文件所在目录解析；示例写成绝对路径以便核对。`state-dir` 与该数据库绑定，不能换一个控制目录采用未知进程。配置中的 `producer_id/producer_epoch` 是控制请求生产者身份；S 的 `writer_epoch` 和 Q 的 `query_epoch` 分别管理，不能互相代替。
 
 ## 独立启动、停止与恢复

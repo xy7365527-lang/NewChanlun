@@ -177,6 +177,14 @@ impl fmt::Display for ProducerError {
 }
 
 impl std::error::Error for ProducerError {}
+impl From<ProducerError> for newchan_rust::s_content::ContextError {
+    fn from(error: ProducerError) -> Self {
+        match error {
+            ProducerError::Codec(error) => Self::from_codec(error, "内容编码错误："),
+            error => error.to_string().into(),
+        }
+    }
+}
 
 /// 八字段原始引用（与全量配方 [`tb02a_facts::raw_ref`] 逐字段同型）。
 ///
@@ -822,7 +830,7 @@ impl Cc004Producer {
         })
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         for (_, root) in self.sources.values() {
             f("producer.sources", *root);
@@ -2315,13 +2323,13 @@ impl Cc004Producer {
                 #[cfg(test)]
                 let _phase = tests::emission_phase("fractal_relations_write_value");
                 let value = CValue::Array(relations);
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 let built = if shared.is_some() {
-                    sc::write_value_native_local_for_testonly(&mut *store, &value)?
+                    sc::write_value_native_local(&mut *store, &value)?
                 } else {
                     sc::write_value(&mut *store, &value)?
                 };
-                #[cfg(not(feature = "s_capture_native_testonly"))]
+                #[cfg(not(feature = "s_incremental"))]
                 let built = sc::write_value(&mut *store, &value)?;
                 built
             };
@@ -6213,7 +6221,7 @@ mod tests {
     }
 
     /// #1394 固定真实 24 关系树：保留四轴、六参考与全部实际价格，仅减少重复材料写入。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_local_fractal_relations_preserve_full_material_and_render_with_fewer_puts() {
         let mut tail = bar(123, 35, -5);
@@ -6231,7 +6239,7 @@ mod tests {
         let mut old = CountingStore::default();
         let mut local = CountingStore::default();
         let expected = sc::write_value(&mut old, &value).unwrap();
-        let actual = sc::write_value_native_local_for_testonly(&mut local, &value).unwrap();
+        let actual = sc::write_value_native_local(&mut local, &value).unwrap();
         assert_eq!(actual, expected);
         assert_eq!(old.puts, 1128);
         assert_eq!(local.puts, local.nodes.len());
@@ -6245,7 +6253,7 @@ mod tests {
         verify(&mut local, &actual.content_ref()).unwrap();
         let per_call = local.puts;
         assert_eq!(
-            sc::write_value_native_local_for_testonly(&mut local, &value).unwrap(),
+            sc::write_value_native_local(&mut local, &value).unwrap(),
             actual
         );
         assert_eq!(local.puts, 2 * per_call, "第二次调用重新写入全部唯一材料");

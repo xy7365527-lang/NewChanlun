@@ -1,6 +1,6 @@
 //! #1394：S3 正式写入口（`s-session/3`）的 CLI 接线：`serve` / 一次性 `advance` / 监督 `recover`。
 //!
-//! 参数与 exact 七字段资源档先核验，随后用同一 Driver 持锁、审计并监听。
+//! 参数与 exact 七字段（s_incremental 构建为 `/2` 八字段）资源档先核验，随后用同一 Driver 持锁、审计并监听。
 //! 普通 ready/receipt/ingest 沿用 typed 判据；C09 持久条件 FIFO 仍属 #1416，未知 op 拒绝。
 //! 第七资源门按 state 的跨请求审计源零保留不变式核显式正 cap，不计生成缓存或临时 heap。
 //! 本模块不提供默认数值；实际服务验收由调用方冻结具名资源输入并绑定当前二进制。
@@ -18,9 +18,15 @@ use std::time::Duration;
 /// 资源档文件上限；与 Q21 同口径，超过即拒绝，不做截断解析。
 const RESOURCE_FILE_BYTES: usize = 65_536;
 /// 资源档外壳版本：只登记**旧服务资源门**的七个字段，不引入新字段、新语义或任何默认值。
-const RESOURCES_REVISION: &str = "s-structure-resources/1";
+#[cfg(not(feature = "s_incremental"))]
+pub(super) const RESOURCES_REVISION: &str = "s-structure-resources/1";
+/// #1640（ADR 0042 D4）：增量构建只接受 `/2`——七门原样、第七门收窄为 legacy 审计来源缓存，
+/// 加第八门 `incremental_retention_bytes`（跨请求候选/keeper/old_pool/publication 工作域共同上限）。
+#[cfg(feature = "s_incremental")]
+pub(super) const RESOURCES_REVISION: &str = "s-structure-resources/2";
 /// 旧服务资源门的七字段（逐字取自 `s_session/s_service_control.py` 的 `s_resources`）。
 /// 缺一、多一或改名都拒绝；本模块不生成任何数值。
+#[cfg(not(feature = "s_incremental"))]
 pub(super) const GATE_FIELDS: [&str; 7] = [
     "max_frame_bytes",
     "read_timeout_ms",
@@ -30,6 +36,24 @@ pub(super) const GATE_FIELDS: [&str; 7] = [
     "queue_capacity",
     "max_connections",
 ];
+/// `/2` 八字段：前七门原样，第八门无默认值。
+#[cfg(feature = "s_incremental")]
+pub(super) const GATE_FIELDS: [&str; 8] = [
+    "max_frame_bytes",
+    "read_timeout_ms",
+    "write_timeout_ms",
+    "response_timeout_ms",
+    "audit_cache_source_bytes",
+    "queue_capacity",
+    "max_connections",
+    "incremental_retention_bytes",
+];
+#[cfg(not(feature = "s_incremental"))]
+const GATE_FIELDS_TEXT: &str =
+    "s_resources 必须是旧服务资源门的七个字段，缺一或多一都拒绝（不提供默认值）";
+#[cfg(feature = "s_incremental")]
+const GATE_FIELDS_TEXT: &str =
+    "s_resources 必须是 s-structure-resources/2 的八个字段（七门原样加 incremental_retention_bytes），缺一或多一都拒绝（不提供默认值）";
 /// 旧启动器对 Unix socket 路径的 100 字节上限（`s_service_control.py`），本入口沿用。
 const SOCKET_PATH_BYTES: usize = 100;
 
@@ -67,7 +91,7 @@ const RECOVER_FLAGS: [&str; 6] = [
 /// 本类型**不提供缺省值**，也不接受 Q21 字段或七字段之外的任何扩写；数值只能由调用方给出的
 /// 具名文件承载（本模块自己不生成、不推荐任何部署数值）。
 pub(super) struct SResources {
-    values: [usize; 7],
+    values: [usize; GATE_FIELDS.len()],
     canonical: String,
     digest: String,
 }
@@ -104,11 +128,9 @@ impl SResources {
         if gate.len() != GATE_FIELDS.len()
             || gate.keys().any(|key| !GATE_FIELDS.contains(&key.as_str()))
         {
-            return Err(err(
-                "s_resources 必须是旧服务资源门的七个字段，缺一或多一都拒绝（不提供默认值）",
-            ));
+            return Err(err(GATE_FIELDS_TEXT));
         }
-        let mut values = [0usize; 7];
+        let mut values = [0usize; GATE_FIELDS.len()];
         for key in GATE_FIELDS {
             let raw = gate[key]
                 .as_str()
@@ -572,7 +594,7 @@ fn serve_with_policy(
     mut admission: super::admission_anchor::PreparedAdmission,
     production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
-    let mode = s_allocation::load_testonly_environment()?;
+    let mode = s_allocation::load_environment_mode()?;
     let theta_diagnostic = theta_diagnostic_testonly()?;
     let resources =
         SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
@@ -593,9 +615,9 @@ fn serve_with_policy(
     let _frozen_profile = checked_profile_bytes(&admission.read_file(&options.profile, None)?)
         .map_err(|e| admission.diagnostic(e))?;
     serve_authorization(&resources)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let native_bootstrap = matches!(mode, s_allocation::Mode::CapturedNative);
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let (mut driver, identity) = if native_bootstrap {
         Driver::open_for_serve_with_identity(
             &options.db,
@@ -603,7 +625,9 @@ fn serve_with_policy(
             &options.epoch,
             clock,
             resources.limit("audit_cache_source_bytes"),
+            resources.limit("incremental_retention_bytes"),
             mode,
+            production,
             admission.into(),
         )?
     } else {
@@ -638,7 +662,7 @@ fn serve_with_policy(
         let identity = driver.identity()?;
         (driver, identity)
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     let mut driver = if theta_diagnostic {
         open_theta_diagnostic(&options, clock, &resources, mode, admission)?
     } else if production {
@@ -667,7 +691,7 @@ fn serve_with_policy(
         #[cfg(not(test))]
         unreachable!("fixture only exists in test builds")
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
     driver.finish_startup()?;
@@ -704,6 +728,10 @@ fn reply(
         if let Some(value) = control_instance_id {
             payload["control_instance_id"] = json!(value);
         }
+        #[cfg(feature = "s_incremental")]
+        {
+            payload["build_profile"] = json!(BUILD_PROFILE);
+        }
     }
     newchan_rust::session_protocol::reply_envelope(
         request,
@@ -724,7 +752,7 @@ fn advance_with_policy(
     mut admission: super::admission_anchor::PreparedAdmission,
     production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
-    let mode = s_allocation::load_testonly_environment()?;
+    let mode = s_allocation::load_environment_mode()?;
     let clock = v2::ClockPlan::parse(
         strict_json(&admission.read_file(&options.clock, None)?)
             .map_err(|e| admission.diagnostic(e))?,
@@ -890,6 +918,73 @@ mod tests {
         assert_eq!(a["causal_refs"][0]["payload_hash"], request["payload_hash"]);
         assert_ne!(a["payload_hash"], b["payload_hash"]);
         assert_ne!(a["message_id"], b["message_id"]);
+    }
+
+    fn owned_ready_request() -> Value {
+        let payload = json!({"op":"ready"});
+        json!({"schema_revision":PROTOCOL_REVISION,"session_id":"owned",
+            "session_generation":"1","source_namespace":"owned.test","source_epoch":"1",
+            "message_id":"ready-owned","producer_id":"owned-client","producer_epoch":"1",
+            "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload})
+    }
+
+    /// #1640 C4：增量构建只在 Ready 回复的摘要 payload 内自报构建身份，testonly 构建必须自报
+    /// testonly；默认 s_session 构建不发 build_profile，旧 Ready 回复与 launcher/3 用法不变。
+    /// 本测试在所有构建都编译（feature-delta 不得出现 removed），按 cfg 分支断言。
+    #[test]
+    fn ready_reply_reports_build_profile_in_hashed_payload() {
+        #[cfg(feature = "s_incremental")]
+        let declared = Some(BUILD_PROFILE);
+        #[cfg(not(feature = "s_incremental"))]
+        let declared: Option<&str> = None;
+        let expected = if !cfg!(feature = "s_incremental") {
+            None
+        } else if cfg!(feature = "s_capture_native_testonly") {
+            Some("testonly")
+        } else {
+            Some("production")
+        };
+        assert_eq!(declared, expected);
+        let request = owned_ready_request();
+        let identity = ("owned".into(), "1".into(), "2".into());
+        let ready = reply(
+            &request,
+            Ok(json!({"kind":"Ready"})),
+            &identity,
+            Some("current"),
+        );
+        let fields = ready["payload"].as_object().unwrap();
+        match expected {
+            Some(profile) => {
+                assert_eq!(fields["build_profile"], profile);
+                assert_eq!(fields.len(), 3);
+                let mut unprofiled = ready["payload"].clone();
+                unprofiled.as_object_mut().unwrap().remove("build_profile");
+                assert_ne!(
+                    ready["payload_hash"],
+                    sha256_hex(canonical_json(&unprofiled).as_bytes())
+                );
+            }
+            None => {
+                assert!(fields.get("build_profile").is_none());
+                assert_eq!(fields.len(), 2);
+            }
+        }
+        assert_eq!(ready["payload"]["control_instance_id"], "current");
+        assert_eq!(
+            ready["payload_hash"],
+            sha256_hex(canonical_json(&ready["payload"]).as_bytes())
+        );
+        assert!(ready.get("build_profile").is_none());
+        let receipt = reply(
+            &request,
+            Ok(json!({"kind":"Receipt"})),
+            &identity,
+            Some("current"),
+        );
+        assert!(receipt["payload"].get("build_profile").is_none());
+        let error = reply(&request, Err("Busy".into()), &identity, None);
+        assert!(error["payload"].get("build_profile").is_none());
     }
 
     #[test]

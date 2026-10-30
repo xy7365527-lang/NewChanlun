@@ -887,7 +887,7 @@ mod owned_cache_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_boundary_tests {
     use super::super::super::{audit_owner::native::Budget, business_json as bj};
     use super::*;
@@ -925,9 +925,11 @@ mod native_boundary_tests {
             .codec_work()
             .unwrap()
             .run(|work| {
-                let mut rows = bj::ScopedJsonArray::native(work)?;
+                let mut rows = bj::ScopedJsonArray::native(work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 for row in expected.as_array().unwrap() {
-                    rows.push(row.into())?;
+                    rows.push(row.into())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 }
                 bj::RawEvents::from_json_owner(rows.finish())
             })

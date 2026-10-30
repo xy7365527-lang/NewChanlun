@@ -389,7 +389,7 @@ impl<K: FixedKey, V> FixedRadix<K, V> {
         self.range(..)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(
             dead_code,
             reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"

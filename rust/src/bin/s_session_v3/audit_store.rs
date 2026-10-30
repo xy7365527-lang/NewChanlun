@@ -1,6 +1,7 @@
 //! #1394 封闭审计读取边界。动态来源没有捕获能力；唯有具体 HashReader 自己选择
 //! 与实际读取绑定的不可变 owner。两种路径都用同一业务函数，不传成功 token。
 pub(crate) use super::history::HashReader;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, CodecError, ContentRef, NodeDigest, NodeRead, NodeSink, NodeSource, NodeStore,
 };
@@ -383,14 +384,15 @@ pub(crate) trait CodecRead: NodeSource {
             mode,
         )
     }
-    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
+    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, PublishError> {
         if self.codec_work().is_some() && self.allocation_budget().is_none() {
             return self
                 .native_string(text)
                 .map(super::business_json::TextValue::Plain)
-                .map_err(|e| e.to_string());
+                .map_err(PublishError::from);
         }
         super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref())
+            .map_err(PublishError::from)
     }
     fn native_json_clone(
         &self,
@@ -401,10 +403,29 @@ pub(crate) trait CodecRead: NodeSource {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         super::business_json::strict_plain_json_admitted(bytes, self.codec_work())
     }
 
+    fn array_cursor(
+        &mut self,
+        r: sc::RefView<'_>,
+    ) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
+        if self.allocation_budget().is_some() {
+            Ok(None)
+        } else {
+            sc::path::NativeArrayCursor::new(self.generic_source(), r).map(Some)
+        }
+    }
+    fn next_array_member(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+    ) -> Result<RefValue, CodecError> {
+        cursor
+            .next(self.generic_source())?
+            .map(RefValue::Plain)
+            .ok_or_else(|| CodecError::new(sc::code::EXTENT, "数组游标提前结束"))
+    }
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -423,6 +444,19 @@ pub(crate) trait CodecRead: NodeSource {
         mode: sc::Mode,
     ) -> Result<(), CodecError> {
         sc::audit_verify_many_refview(self.generic_source(), refs, mode)
+    }
+    fn verify_manifest_templates(&mut self, refs: [sc::RefView<'_>; 2]) -> Result<(), CodecError> {
+        self.verify_many_ref(refs, sc::Mode::Template)
+    }
+    fn verify_history_public_root(
+        &mut self,
+        r: sc::RefView<'_>,
+        mode: sc::Mode,
+    ) -> Result<(), CodecError> {
+        self.verify_ref(r, mode)
+    }
+    fn verify_manifest_public(&mut self, r: sc::RefView<'_>) -> Result<(), CodecError> {
+        self.verify_ref(r, sc::Mode::Public)
     }
     fn verify_many_ref_fresh<'a>(
         &mut self,
@@ -526,8 +560,8 @@ pub(crate) trait CodecRead: NodeSource {
         }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn verify_audit_many_fresh(
         &mut self,
@@ -537,8 +571,8 @@ pub(crate) trait CodecRead: NodeSource {
         sc::audit_verify_many(self.generic_source(), r, mode)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     fn verify_many_fresh(
         &mut self,
@@ -664,16 +698,32 @@ enum Backend<'a, 'source> {
 /// 字段及Backend私有；不能把任意dyn store和另一份capture拼成一条准入路径。
 pub(crate) struct StoreView<'a, 'source> {
     backend: Backend<'a, 'source>,
+    manifest_templates: Option<[NodeDigest; 2]>,
+    manifest_public: Option<[NodeDigest; 2]>,
 }
 impl<'a, 'source> StoreView<'a, 'source> {
     pub(crate) fn generic(s: &'a mut dyn NodeStore) -> Self {
         Self {
             backend: Backend::Generic(s),
+            manifest_templates: None,
+            manifest_public: None,
         }
     }
     pub(crate) fn for_audit(s: &'a mut HashReader<'source>) -> Self {
         Self {
             backend: Backend::Audit(s),
+            manifest_templates: None,
+            manifest_public: None,
+        }
+    }
+    pub(crate) fn for_verified_manifest(
+        assembly: super::history::VerifiedManifestAssembly<'a, 'source>,
+    ) -> Self {
+        let (source, templates, public) = assembly.into_parts();
+        Self {
+            backend: Backend::Audit(source),
+            manifest_templates: Some(templates),
+            manifest_public: Some(public),
         }
     }
     fn store(&mut self) -> &mut dyn NodeStore {
@@ -732,7 +782,7 @@ impl CodecRead for StoreView<'_, '_> {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         match &self.backend {
             Backend::Generic(s) => s.parse_rendered_plain(bytes),
             Backend::Audit(s) => s.parse_rendered_plain(bytes),
@@ -757,6 +807,32 @@ impl CodecRead for StoreView<'_, '_> {
             Backend::Generic(s) => s.verify_many_ref(r, m),
             Backend::Audit(s) => s.verify_many_ref(r, m),
         }
+    }
+    fn verify_manifest_templates(&mut self, refs: [sc::RefView<'_>; 2]) -> Result<(), CodecError> {
+        if let Some(expected) = self.manifest_templates {
+            if [refs[0].digest()?, refs[1].digest()?] != expected {
+                return Err(CodecError::new(
+                    sc::code::SOURCE,
+                    "manifest模板覆盖根不匹配",
+                ));
+            }
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::coverage(0);
+            return sc::audit_verify_refview_headers(self, refs);
+        }
+        self.verify_many_ref(refs, sc::Mode::Template)
+    }
+    fn verify_manifest_public(&mut self, r: sc::RefView<'_>) -> Result<(), CodecError> {
+        if let Some(expected) = self.manifest_public {
+            if !expected.contains(&r.digest()?) {
+                return Err(CodecError::new(
+                    sc::code::SOURCE,
+                    "manifest Public覆盖根不匹配",
+                ));
+            }
+            return sc::audit_verify_refview_headers(self, [r]);
+        }
+        self.verify_ref(r, sc::Mode::Public)
     }
     fn verify_many_ref_fresh<'a>(
         &mut self,
@@ -826,6 +902,16 @@ impl CodecRead for StoreView<'_, '_> {
         match &mut self.backend {
             Backend::Generic(s) => s.render_ref(r, o),
             Backend::Audit(s) => s.render_ref(r, o),
+        }
+    }
+    fn verify_history_public_root(
+        &mut self,
+        r: sc::RefView<'_>,
+        mode: sc::Mode,
+    ) -> Result<(), CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.verify_history_public_root(r, mode),
+            Backend::Audit(s) => s.verify_history_public_root(r, mode),
         }
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), CodecError> {
@@ -1028,6 +1114,9 @@ impl NodeSource for StoreView<'_, '_> {
     fn audit_full_array_scan(&self) -> bool {
         self.source().audit_full_array_scan()
     }
+    fn preserve_sequence_read_trace(&self) -> bool {
+        self.source().preserve_sequence_read_trace()
+    }
     fn max_render_bytes(&self) -> Option<u64> {
         self.source().max_render_bytes()
     }
@@ -1148,7 +1237,7 @@ impl serde::Serialize for RefValue {
 mod ref_value_tests {
     use super::*;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_tree_removed_entry_keeps_payload_charge_after_tree_and_scope_drop() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -1187,7 +1276,7 @@ mod ref_value_tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_ref_outputs_charge_plain_text_and_preserve_values() {
         let built = sc::Built {
@@ -1247,7 +1336,7 @@ mod ref_value_tests {
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_optional_fields_preserve_absence_kind_and_scoped_reads() {
         let mut nodes = sc::MemoryNodes::new();
@@ -1277,7 +1366,7 @@ mod ref_value_tests {
             Some(sc::Kind::JsonText),
         ];
         let capture = sc::AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let ((), stats) = with_native_store_probe(&capture, 8 * 1024 * 1024, |store, _| {
             for (root, kind) in roots.iter().zip(expected) {
@@ -1383,8 +1472,8 @@ impl RefFields<'_> {
         }
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub fn len(&self) -> usize {
         match self {
@@ -1395,7 +1484,7 @@ impl RefFields<'_> {
 }
 
 /// 仅测试：真实capture/overlay/config进入实际HashReader backend，不制作owned成功token。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn with_native_store_probe<T>(
     capture: &sc::AuditCapture,
     limit: usize,

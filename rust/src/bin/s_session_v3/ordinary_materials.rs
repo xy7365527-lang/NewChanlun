@@ -71,11 +71,25 @@ pub(super) const METADATA_BYTES: usize = std::mem::size_of::<Option<OrdinaryAudi
     + 2 * std::mem::size_of::<Option<content_store::ReadStore<'static>>>()
     + std::mem::size_of::<Option<&'static mut OrdinaryAuditMaterials>>()
     + std::mem::size_of::<Stats>()
-    + std::mem::size_of::<OrdinaryAuditSeal>();
+    + std::mem::size_of::<OrdinaryAuditSeal>()
+    + std::mem::size_of::<Option<std::cell::RefCell<OrdinaryAuditMaterials>>>()
+    + std::mem::size_of::<Option<std::cell::RefMut<'static, OrdinaryAuditMaterials>>>();
 const _: () = assert!(METADATA_BYTES <= META_RESERVE);
 
 impl OrdinaryAuditMaterials {
     pub(super) fn new(_seal: OrdinaryAuditSeal) -> Self {
+        Self::production_pool()
+    }
+    pub(super) fn for_readonly_history(tx: &rusqlite::Transaction<'_>) -> Result<Self, CodecError> {
+        if !tx
+            .is_readonly(rusqlite::MAIN_DB)
+            .map_err(|e| CodecError::new(sc::code::SOURCE, e.to_string()))?
+        {
+            return Err(CodecError::new(sc::code::SOURCE, "历史原件池需要只读事务"));
+        }
+        Ok(Self::production_pool())
+    }
+    fn production_pool() -> Self {
         let slab_len = CAP - META_RESERVE;
         let layout = Layout::checked(
             ENTRIES,

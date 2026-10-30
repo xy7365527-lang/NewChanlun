@@ -461,7 +461,7 @@ fn b2_source_fault_hook(
         )
         .unwrap_err()
     };
-    assert!(expected.contains(fault.reason()), "{fault:?}: {expected}");
+    assert!(expected.to_string().contains(fault.reason()), "{fault:?}: {expected}");
     drop(store);
     let after_nodes: i64 = tx
         .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
@@ -474,7 +474,7 @@ fn b2_source_fault_hook(
         assert!(slot
             .borrow_mut()
             .replace(B2FaultObservation {
-                expected,
+                expected: expected.to_string(),
                 actual_raw: raw.len(),
                 semantic_nodes_added: after_nodes > before_nodes
             })

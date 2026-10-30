@@ -23,7 +23,7 @@ pub(super) enum SourceCoords {
     Shared(NativeRc<[i64]>),
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod tests {
     use super::*;
     fn event(identity: &str, coord: &str, revision: i64, seq: i64) -> Value {
@@ -124,7 +124,7 @@ mod tests {
                     "memo销毁后外部句柄仍持原共享许可"
                 );
                 assert!(budget.live() < after_first, "memo桶已真实销毁");
-                Ok::<_, String>(shared)
+                Ok::<_, PublishError>(shared)
             })
             .unwrap();
         assert!(budget.live() > before, "共享块可携原许可跨WorkScope存活");
@@ -159,7 +159,7 @@ mod tests {
                     scope_base,
                     "未来身份冲突不会遗留已建临时树许可"
                 );
-                Ok::<_, String>(())
+                Ok::<_, PublishError>(())
             })
             .unwrap();
         assert_eq!(budget.live(), before);
@@ -242,6 +242,7 @@ mod tests {
                 ParseDomain::JsonInner
             )
             .unwrap_err()
+            .to_string()
             .contains("完整八字段"));
         assert!(memo
             .references(
@@ -254,6 +255,7 @@ mod tests {
                 ParseDomain::JsonInner
             )
             .unwrap_err()
+            .to_string()
             .contains("生效来源"));
         assert!(memo
             .references(
@@ -417,8 +419,8 @@ impl<'a> IntoIterator for &'a SourceCoords {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum ParseDomain {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     Public,
     JsonInner,
@@ -432,7 +434,7 @@ struct SequenceKey {
     numeric: bool,
 }
 impl SequenceKey {
-    fn new(r: &RefValue, domain: ParseDomain, numeric: bool) -> Result<Self, String> {
+    fn new(r: &RefValue, domain: ParseDomain, numeric: bool) -> Result<Self, PublishError> {
         Ok(Self {
             digest: digest(r)?,
             kind: r.kind(),
@@ -477,8 +479,8 @@ pub(super) struct NativeSourceMemo<'capture> {
 }
 impl<'capture> NativeSourceMemo<'capture> {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn new(capture: &'capture sc::AuditCapture, raw: RawEventsView<'capture>) -> Self {
         #[cfg(test)]
@@ -504,22 +506,20 @@ impl<'capture> NativeSourceMemo<'capture> {
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     fn winner_intervals(
         raw: RawEventsView<'_>,
-    ) -> Result<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>, String> {
+    ) -> Result<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>, PublishError> {
         Self::winner_intervals_admitted(&super::super::audit_store::NativeAdmission(None), raw)?
             .ok_or_else(|| err("来源证书身份坐标不可固定"))
     }
     fn winner_intervals_admitted(
         s: &(impl CodecRead + ?Sized),
         raw: RawEventsView<'_>,
-    ) -> Result<Option<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>>, String> {
+    ) -> Result<Option<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>>, PublishError>
+    {
         // Establish fixed identity coordinates and no cross-identity coordinate alias.
         // Future malformed input disables proof reuse without changing an earlier cut's errors.
         let mut identity_coords = NativeTree::default();
@@ -552,7 +552,7 @@ impl<'capture> NativeSourceMemo<'capture> {
         let mut winners: NativeTree<&str, Winner> = NativeTree::default();
         let mut out: BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>> =
             bj::new_map(None);
-        let mut close = |winner: Winner, last: usize| -> Result<(), String> {
+        let mut close = |winner: Winner, last: usize| -> Result<(), PublishError> {
             for (numeric, d) in [(false, winner.wire), (true, winner.numeric)] {
                 if !out.contains_key(&(winner.coord, d, numeric)) {
                     s.native_map_room(&mut out).map_err(err)?;
@@ -613,7 +613,7 @@ impl<'capture> NativeSourceMemo<'capture> {
         &mut self,
         s: &(impl CodecRead + ?Sized),
         values: sc::CodecVec<i64>,
-    ) -> Result<NativeRc<[i64]>, String> {
+    ) -> Result<NativeRc<[i64]>, PublishError> {
         if let Some(shared) = self.intern.get(&*values) {
             return Ok(shared.clone());
         }
@@ -630,7 +630,7 @@ impl<'capture> NativeSourceMemo<'capture> {
         s: &mut (impl CodecRead + ?Sized),
         r: &RefValue,
         domain: ParseDomain,
-    ) -> Result<SourceCoords, String> {
+    ) -> Result<SourceCoords, PublishError> {
         let key = SequenceKey::new(r, domain, false)?;
         if !self.capture.contains(&key.digest) {
             return super::coords(s, r).map(SourceCoords::Original);
@@ -663,7 +663,7 @@ impl<'capture> NativeSourceMemo<'capture> {
         checked: &mut BusinessMap<(NodeDigest, bool), i64>,
         prefix: usize,
         domain: ParseDomain,
-    ) -> Result<SourceCoords, String> {
+    ) -> Result<SourceCoords, PublishError> {
         if !self.intervals_ready {
             self.intervals = Self::winner_intervals_admitted(s, self.raw)?;
             self.intervals_ready = true;

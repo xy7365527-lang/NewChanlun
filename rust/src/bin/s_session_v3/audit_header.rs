@@ -86,8 +86,12 @@ impl AuditMetadata {
     #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&NativeAdmission(None))
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
-    pub fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    pub fn try_clone_admitted(
+        &self,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, newchan_rust::s_content::ContextError> {
         Ok(Self {
             session_id: self.session_id.try_clone_admitted(store.codec_work())?,
             session_generation: self
@@ -143,7 +147,7 @@ impl AuditMetadata {
             },
             scope: store
                 .native_ref_clone(&self.scope)
-                .map_err(|e| e.to_string())?,
+                .map_err(newchan_rust::s_content::ContextError::from)?,
         })
     }
 }
@@ -192,7 +196,7 @@ impl std::fmt::Debug for AuditRoots {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;

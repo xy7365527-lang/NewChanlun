@@ -411,7 +411,8 @@ pub(crate) fn try_reply_view(
     let mut producer = bj::new_work(allocation);
     producer.try_extend_bytes(b"Q:").map_err(err)?;
     producer.try_extend_bytes(session.as_bytes()).map_err(err)?;
-    let producer = bj::TextValue::from_bytes(producer)?;
+    let producer = bj::TextValue::from_bytes(producer)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let causal_fields = [
         ("source_namespace", bj::field(request, "source_namespace")),
         ("source_epoch", bj::field(request, "source_epoch")),

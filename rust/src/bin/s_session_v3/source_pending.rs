@@ -22,7 +22,7 @@ const INITIAL: &str = "initial_direction_unsettled";
 const EQUAL_EXTREME: &str = "equal_extreme_identity";
 
 /// #1405 / #1343：只有具名 /2 合同把同价极值标签作为证据；/1 仍按原等待原因核验。
-pub(super) fn equal_is_evidence(rule: &str) -> Result<bool, String> {
+pub(super) fn equal_is_evidence(rule: &str) -> Result<bool, PublishError> {
     let contract =
         tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
     // #1419 独审 B1 同族：W 后继串的合同即 /2 加 W 知识域（`..CURRENT_CONTRACT`），同价证据口径同 /2。
@@ -40,7 +40,7 @@ fn request_reasons(
     waiting_count: usize,
     missing_direction: bool,
     equal_is_evidence: bool,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if waiting_count == 0 && missing_direction {
         return strings(s, request, &["direction_not_yet_established"]);
     }
@@ -75,7 +75,7 @@ pub(super) fn raw_bar(
     event: JsonView<'_>,
     deadline: Option<Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     let fields = BAR.map(|k| (k, bj::field(event, k)));
     super::super::history::hash_json_in_store(
         s,
@@ -86,13 +86,13 @@ pub(super) fn raw_bar(
 }
 
 pub(super) struct Step<'a> {
-    object: &'a Object,
-    fields: SourceFields<'static>,
-    key: bj::TextValue,
-    reasons: RefValue,
-    waiting_count: usize,
-    insufficient: bool,
-    incomplete: bool,
+    pub(super) object: &'a Object,
+    pub(super) fields: SourceFields<'static>,
+    pub(super) key: bj::TextValue,
+    pub(super) reasons: RefValue,
+    pub(super) waiting_count: usize,
+    pub(super) insufficient: bool,
+    pub(super) incomplete: bool,
 }
 
 /// 所有实现均借已核 Object；只抽出存储形状，不抽走任何业务判断。
@@ -129,7 +129,7 @@ impl StepView for Step<'_> {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) struct StepContribution {
     pub(super) object: super::super::native_shared::NativeRc<Object>,
     pub(super) fields: SourceFields<'static>,
@@ -139,14 +139,14 @@ pub(super) struct StepContribution {
     pub(super) insufficient: bool,
     pub(super) incomplete: bool,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl StepContribution {
     pub(super) fn bind(
         s: &mut (impl SourceFieldStore + ?Sized),
         object: super::super::native_shared::NativeRc<Object>,
         raw: &(impl RawLookup + ?Sized),
         equal_is_evidence: bool,
-    ) -> Result<(i64, Self), String> {
+    ) -> Result<(i64, Self), PublishError> {
         let (coord, step) = step_record(s, &object, raw, equal_is_evidence)?;
         let Step {
             object: _,
@@ -171,7 +171,7 @@ impl StepContribution {
         ))
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl StepView for StepContribution {
     fn object(&self) -> &Object {
         &self.object
@@ -196,7 +196,7 @@ impl StepView for StepContribution {
     }
 }
 
-fn payload(s: &mut (impl CodecRead + ?Sized), object: &Object) -> Result<RefValue, String> {
+fn payload(s: &mut (impl CodecRead + ?Sized), object: &Object) -> Result<RefValue, PublishError> {
     let payload = object.fields.get_admitted(s, "payload_json")?;
     s.lookup_ref(payload.view(), &[PathStep::JsonText])
         .map_err(err)
@@ -206,7 +206,7 @@ fn nulls(
     s: &(impl CodecRead + ?Sized),
     fields: &SourceFields<'_>,
     names: &[&str],
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     for name in names {
         if fields.get_admitted(s, name)?.kind() != Kind::Null {
             return Err(err("初始未定/seed步骤出现非空方向或累积结果"));
@@ -215,7 +215,11 @@ fn nulls(
     Ok(())
 }
 
-fn strings(s: &mut (impl CodecRead + ?Sized), r: &RefValue, want: &[&str]) -> Result<(), String> {
+fn strings(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+    want: &[&str],
+) -> Result<(), PublishError> {
     exact(r, Kind::Array, want.len() as u64)?;
     for (item, expected) in elements(s, r)?.iter().zip(want) {
         if text_value(s, item, "数组文本")? != *expected {
@@ -225,7 +229,11 @@ fn strings(s: &mut (impl CodecRead + ?Sized), r: &RefValue, want: &[&str]) -> Re
     Ok(())
 }
 
-fn singleton(s: &mut (impl CodecRead + ?Sized), r: &RefValue, coord: i64) -> Result<(), String> {
+fn singleton(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+    coord: i64,
+) -> Result<(), PublishError> {
     let values = coords(s, r)?;
     if &*values != [coord] {
         return Err(err("seed极值来源不是本cut首来源"));
@@ -239,7 +247,7 @@ fn comparisons(
     step: &SourceFields<'_>,
     seed: &RefValue,
     require_containment: bool,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let acc = SourceFields::read_subset(s, seed.view(), &["high", "low"])?;
     let incoming = step.get_admitted(s, "incoming")?;
     let incoming = SourceFields::read_subset(s, incoming.view(), &["high", "low"])?;
@@ -313,7 +321,7 @@ pub(super) fn step_record<'a>(
     object: &'a Object,
     raw: &(impl RawLookup + ?Sized),
     equal_is_evidence: bool,
-) -> Result<(i64, Step<'a>), String> {
+) -> Result<(i64, Step<'a>), PublishError> {
     let p = payload(s, object)?;
     exact(&p, Kind::Object, STEP.len() as u64)?;
     let fields = SourceFields::read_subset(s, p.view(), &STEP)?;
@@ -373,7 +381,7 @@ pub(super) fn knowledge_record<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &'a Object,
     knowledge: &mut Option<(RefValue, &'a Object)>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let p = payload(s, object)?;
     let key = object.fields.text(s, "fact_key")?;
     let parsed = parsed_json(s, key.as_bytes())?;
@@ -397,7 +405,7 @@ fn step_sequence_record(
     unsettled: &mut bool,
     pending: &mut sc::CodecVec<i64>,
     w: bool,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     step_sequence_record_view(
         s,
         step,
@@ -437,7 +445,7 @@ pub(super) fn step_sequence_record_view(
     unsettled: &mut bool,
     pending: &mut sc::CodecVec<i64>,
     w: bool,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if !prefix_equal {
         return Err(err("CC004来源不是截至incoming的同cut完整前缀"));
     }
@@ -525,7 +533,7 @@ pub(super) fn unsettled_seed_group(
     coord: i64,
     groups: &(impl GroupLookup + ?Sized),
     seed: &Option<RefValue>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let group = groups.get(&0).ok_or_else(|| err("初始未定缺seed组"))?;
     if groups.len() != 1
         || &*group.members != [coord]
@@ -578,7 +586,7 @@ const W_RAW_KIND: &str = crate::content_producer::CC004_UNDETERMINED_KIND;
 pub(super) fn w_raw_slot(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     let key = object.fields.text(s, "fact_key")?;
     let parsed = parsed_json(s, key.as_bytes())?;
     let coord = parsed
@@ -613,7 +621,7 @@ pub(super) fn audit_w(
     knowledge: &RefValue,
     check_groups: bool,
     first_out: &mut Option<NodeDigest>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let init = init.ok_or_else(|| err("W同cut缺初始化事实"))?;
     let p = payload(s, init)?;
     exact(&p, Kind::Object, 3)?;
@@ -715,7 +723,7 @@ pub(super) fn w_group(
     s: &mut (impl SourceFieldStore + ?Sized),
     group: &Group,
     first_digest: NodeDigest,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if text(s, &group.payload, "initialization_policy_revision")? != W_POLICY
         || digest(&field(s, &group.payload, "initial_direction_evidence")?)? != first_digest
     {
@@ -740,7 +748,7 @@ impl WRequestSeen {
         }
     }
     /// 一一绑定：初始化恰 1 条、未定原件逐一、待决组请求恰在等待期出现一次。
-    pub(super) fn check(&self, raws: usize, unsettled: bool) -> Result<(), String> {
+    pub(super) fn check(&self, raws: usize, unsettled: bool) -> Result<(), PublishError> {
         if self.init != 1 || self.raws != raws || self.pending != usize::from(unsettled) {
             return Err(err("W初始化/未定原件缺一一绑定的知识请求"));
         }
@@ -758,7 +766,7 @@ pub(super) fn w_request(
     objects: &(impl source_structure::Lookup + ?Sized),
     all_raw: &[i64],
     unsettled: bool,
-) -> Result<Option<i64>, String> {
+) -> Result<Option<i64>, PublishError> {
     exact(request, Kind::Object, 5)?;
     let fields = SourceFields::read_subset(
         s,
@@ -859,8 +867,16 @@ pub(super) trait StepLookup: source_structure::Lookup {
     fn contains_subject(&self, id: &str) -> bool;
 }
 pub(super) trait RequestSlots {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, String>;
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, String>;
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError>;
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError>;
 }
 struct FullStepLookup<'a, 'b, 'c> {
     steps: &'a BusinessMap<i64, Step<'b>>,
@@ -885,7 +901,11 @@ struct FullRequestSlots<'a> {
     bound: &'a mut BusinessMap<i64, ()>,
 }
 impl RequestSlots for FullRequestSlots<'_> {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, String> {
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError> {
         s.native_map_room(self.requests).map_err(err)?;
         Ok(self
             .requests
@@ -893,7 +913,11 @@ impl RequestSlots for FullRequestSlots<'_> {
             .map_err(err)?
             .is_some())
     }
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, String> {
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError> {
         s.native_map_room(self.bound).map_err(err)?;
         Ok(self.bound.insert(coord, ()).map_err(err)?.is_some())
     }
@@ -908,7 +932,7 @@ fn request_record(
     requests: &mut BusinessMap<bj::TextValue, ()>,
     bound: &mut BusinessMap<i64, ()>,
     equal_is_evidence: bool,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     request_record_with_slots(
         s,
         request,
@@ -930,7 +954,7 @@ pub(super) fn request_record_with_slots(
     slots: &mut impl RequestSlots,
     equal_is_evidence: bool,
     rule: &str,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     exact(request, Kind::Object, 5)?;
     let fields = SourceFields::read_subset(
         s,
@@ -1060,6 +1084,7 @@ pub(super) fn request_record_with_slots(
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn audit<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
     objects: impl IntoIterator<Item = &'a Object>,
@@ -1067,7 +1092,19 @@ pub(super) fn audit<'a>(
     groups: &BusinessMap<i64, Group>,
     rule: &str,
     deadline: Option<Instant>,
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
+    audit_with_proofs(s, objects, raw, groups, rule, deadline, None)
+}
+
+pub(super) fn audit_with_proofs<'a>(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    objects: impl IntoIterator<Item = &'a Object>,
+    raw: &BusinessMap<i64, Source>,
+    groups: &BusinessMap<i64, Group>,
+    rule: &str,
+    deadline: Option<Instant>,
+    mut proofs: Option<&mut OrdinaryProofs>,
+) -> Result<sc::CodecVec<i64>, PublishError> {
     #[cfg(test)]
     super::source_call_note(|n| {
         n.full_pending_calls += 1;
@@ -1104,7 +1141,10 @@ pub(super) fn audit<'a>(
                 return Err(err("同cut W未定原件坐标重复"));
             }
         } else if object.kind == CC004_STEP_KIND {
-            let (coord, step) = step_record(s, object, raw, equal_is_evidence)?;
+            let (coord, step) = match proofs.as_deref_mut() {
+                Some(p) => p.step(s, object, raw, equal_is_evidence)?,
+                None => step_record(s, object, raw, equal_is_evidence)?,
+            };
             s.native_map_room(&mut step_subjects).map_err(err)?;
             step_subjects
                 .insert(object.id.as_str(), coord)
@@ -1263,17 +1303,35 @@ pub(super) fn audit<'a>(
             }
             continue;
         }
-        request_record(
-            s,
-            &request,
-            &steps,
-            &step_subjects,
-            &structure_objects,
-            rule,
-            &mut requests,
-            &mut bound,
-            equal_is_evidence,
-        )?;
+        if let Some(p) = proofs.as_deref_mut() {
+            p.request(
+                s,
+                &request,
+                &FullStepLookup {
+                    steps: &steps,
+                    subjects: &step_subjects,
+                    objects: &structure_objects,
+                },
+                &mut FullRequestSlots {
+                    requests: &mut requests,
+                    bound: &mut bound,
+                },
+                equal_is_evidence,
+            )?;
+        } else {
+            request_record(
+                s,
+                &request,
+                &steps,
+                &step_subjects,
+                &structure_objects,
+                rule,
+                &mut requests,
+                &mut bound,
+                equal_is_evidence,
+                rule,
+            )?;
+        }
     }
     if w {
         w_seen.check(w_raws.len(), w_unsettled)?;

@@ -9,6 +9,166 @@ use super::audit_budget::Budget;
 use newchan_rust::s_content::{self as sc, job::CheckedFrame, NodeDigest};
 use std::cell::RefCell;
 
+#[cfg(test)]
+pub(crate) mod s4_read_trace {
+    use std::cell::RefCell;
+    #[derive(Default)]
+    struct Trace {
+        enabled: bool,
+        phase: usize,
+        bytes: [u64; 4],
+        coverage: [u64; 2],
+        last: Option<(&'static str, Option<i64>)>,
+    }
+    thread_local! { static TRACE: RefCell<Trace> = RefCell::new(Trace::default()); }
+    pub(crate) fn enable() {
+        TRACE.with(|t| {
+            *t.borrow_mut() = Trace {
+                enabled: true,
+                ..Trace::default()
+            }
+        });
+    }
+    pub(crate) fn phase(phase: usize) {
+        TRACE.with(|t| t.borrow_mut().phase = phase);
+    }
+    pub(crate) fn read(_: i32, _: i64, len: usize) {
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if t.enabled {
+                let phase = t.phase;
+                t.bytes[phase] += len as u64;
+            }
+        });
+    }
+    pub(crate) fn coverage(index: usize) {
+        // 只比较同一次admission业务审计；Driver后续恢复也会解码Template。
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if t.enabled && t.phase == 2 {
+                t.coverage[index] += 1;
+            }
+        });
+    }
+    pub(crate) fn audit_event(label: &'static str, generation: Option<i64>) {
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if t.enabled && t.phase == 2 {
+                t.last = Some((label, generation));
+                eprintln!(
+                    "S4_AUDIT_EVENT phase={} generation={:?} bytes={} coverage={:?}",
+                    label, generation, t.bytes[2], t.coverage
+                );
+                eprintln!(
+                    "S4_AUDIT_SQL phase={} generation={:?} bytes={} node_sql_reads={}",
+                    label,
+                    generation,
+                    t.bytes[2],
+                    crate::content_store::sql_reads_on_thread()
+                );
+            }
+        });
+    }
+    fn cache_counts(conn: &rusqlite::Connection) -> [(i32, i32, i32); 2] {
+        use rusqlite::ffi;
+        [
+            ffi::SQLITE_DBSTATUS_CACHE_HIT,
+            ffi::SQLITE_DBSTATUS_CACHE_MISS,
+        ]
+        .map(|verb| {
+            let (mut current, mut highwater) = (0, 0);
+            // SAFETY：同步借用有效连接与栈内输出；resetFlag=0，不改累计值或连接配置。
+            let rc = unsafe {
+                ffi::sqlite3_db_status(conn.handle(), verb, &mut current, &mut highwater, 0)
+            };
+            (rc, current, highwater)
+        })
+    }
+    #[test]
+    fn history_public_coverage_diagnostics_count_sql_without_probe_and_do_not_reset_pager() {
+        use crate::content_store::{init_schema, sql_reads_on_thread, ReadStore};
+        use newchan_rust::s_content::NodeSource;
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1, 's-session/3', '1', 'test-clock', '{}', 1, 'accept')",
+            [],
+        ).unwrap();
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let mut source = ReadStore::new(&tx).unwrap();
+        let before = sql_reads_on_thread();
+        source.read(&[0; 32]).unwrap();
+        source.read(&[0; 32]).unwrap();
+        assert_eq!(sql_reads_on_thread().checked_sub(before), Some(2));
+        let first = cache_counts(&tx);
+        assert_eq!(first[0].0, rusqlite::ffi::SQLITE_OK);
+        assert_eq!(first[1].0, rusqlite::ffi::SQLITE_OK);
+        assert!(first[0].1 > 0);
+        assert_eq!(cache_counts(&tx), first);
+    }
+    pub(crate) fn audit_window(
+        conn: &rusqlite::Connection,
+        boundary: &'static str,
+        edge: &'static str,
+        outcome: &'static str,
+    ) {
+        TRACE.with(|t| {
+            let t = t.borrow();
+            if t.enabled && t.phase == 2 {
+                let [hit, miss] = cache_counts(conn);
+                eprintln!("S4_AUDIT_WINDOW boundary={} edge={} outcome={} bytes={} node_sql_reads={} cache_hit={:?} cache_miss={:?}",
+                    boundary, edge, outcome, t.bytes[2],
+                    crate::content_store::sql_reads_on_thread(), hit, miss);
+            }
+        });
+    }
+    pub(crate) fn begin(conn: &rusqlite::Connection, boundary: &'static str) {
+        audit_window(conn, boundary, "begin", "pending");
+    }
+    pub(crate) fn end<T, E>(
+        conn: &rusqlite::Connection,
+        boundary: &'static str,
+        result: &Result<T, E>,
+    ) {
+        audit_window(
+            conn,
+            boundary,
+            "end",
+            if result.is_ok() { "ok" } else { "error" },
+        );
+    }
+    pub(crate) fn snapshot(label: &str, bytes: u128) {
+        TRACE.with(|t| {
+            if t.borrow().enabled {
+                eprintln!("S4_READ_ACCOUNT {} {}", label, bytes);
+            }
+        });
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn measured_bytes() -> [u64; 4] {
+        TRACE.with(|t| t.borrow().bytes)
+    }
+    pub(crate) fn finish() -> [u64; 2] {
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if t.enabled {
+                eprintln!(
+                    "S4_READ_SUMMARY bytes={:?} coverage={:?} last={:?}",
+                    t.bytes, t.coverage, t.last
+                );
+                eprintln!(
+                    "S4_AUDIT_SQL_SUMMARY bytes={} node_sql_reads={}",
+                    t.bytes[2],
+                    crate::content_store::sql_reads_on_thread()
+                );
+            }
+            t.enabled = false;
+            t.coverage
+        })
+    }
+}
+
 /// #1527：单线程观察顺序只由本次 validate 持有；不拥有或替换 Job。
 /// 每个固定阶段留首个次错，不积累回调轨迹；返回原首错为前缀。
 #[derive(Clone, Copy)]
@@ -391,6 +551,8 @@ fn validate_prefix_inner(
     account: &mut AdmissionAccounting<'_>,
     prefix: &mut RejectionPrefix<'_>,
 ) -> Result<crate::DeltaShape, String> {
+    #[cfg(test)]
+    s4_read_trace::snapshot("prelude_start", account.snapshot().wire_bytes);
     account.pre_io_check().map_err(|e| e.to_string())?;
     if account.is_mixed() {
         // #1527：父账已可消费，旧域SQL/walker完整闭合前仍不发布服务准入。
@@ -420,6 +582,14 @@ fn validate_prefix_inner(
             let session = registration
                 .connect(true)
                 .map_err(|_| "PrivateSqliteOpenFailed")?;
+            #[cfg(test)]
+            {
+                s4_read_trace::snapshot(
+                    "quick_start",
+                    shared.account.borrow().snapshot().wire_bytes,
+                );
+                s4_read_trace::phase(1);
+            }
             let check: Result<(), String> = (|| {
                 let mut stmt = session
                     .connection()
@@ -439,10 +609,35 @@ fn validate_prefix_inner(
                 }
                 drop(rows);
                 drop(stmt);
-                audit_business(session.connection(), &shared, prefix)
+                #[cfg(test)]
+                {
+                    s4_read_trace::snapshot(
+                        "audit_start",
+                        shared.account.borrow().snapshot().wire_bytes,
+                    );
+                    s4_read_trace::phase(2);
+                }
+                #[cfg(test)]
+                s4_read_trace::audit_window(
+                    session.connection(),
+                    "audit_business",
+                    "begin",
+                    "pending",
+                );
+                let result = audit_business(session.connection(), &shared, prefix);
+                #[cfg(test)]
+                s4_read_trace::audit_window(
+                    session.connection(),
+                    "audit_business",
+                    "end",
+                    if result.is_ok() { "ok" } else { "error" },
+                );
+                result
             })();
             // quick_check/业务结果在任何 close 回调之前保存。
             errors.borrow_mut().returned(ErrorPhase::Business, &check);
+            #[cfg(test)]
+            s4_read_trace::phase(3);
             errors.borrow_mut().phase = ErrorPhase::Close;
             let closed = session
                 .close()
@@ -467,6 +662,8 @@ fn validate_prefix_inner(
     errors
         .borrow_mut()
         .returned(ErrorPhase::Reconcile, &reconciled);
+    #[cfg(test)]
+    s4_read_trace::snapshot("end", account.snapshot().wire_bytes);
     errors.borrow_mut().phase = ErrorPhase::Deadline;
     let budget = account.check_deadline().map_err(|e| e.to_string());
     errors.borrow_mut().returned(ErrorPhase::Deadline, &budget);

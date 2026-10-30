@@ -368,3 +368,122 @@ fn replaced_and_oversized_materials_keep_sql_and_f_contract() {
     assert_eq!(p.stats.save_rejected_bytes, 2);
     assert!(p.stats.retained_capacity_highwater <= CAP);
 }
+
+#[test]
+fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
+    use std::cell::RefCell;
+    struct Meter {
+        events: RefCell<Vec<String>>,
+        fail_at: usize,
+    }
+    impl Meter {
+        fn event(&self, text: String) -> Result<(), CodecError> {
+            let mut events = self.events.borrow_mut();
+            events.push(text);
+            if events.len() == self.fail_at {
+                Err(CodecError::new("material_gate", "budget sentinel"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+    impl crate::v3::audit_budget::Budget for Meter {
+        fn precheck(&self) -> Result<(), CodecError> {
+            self.event("pre".into())
+        }
+        fn prepare_node(&self) -> Result<(), CodecError> {
+            self.event("prepare".into())
+        }
+        fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), CodecError> {
+            self.event(format!(
+                "accept:{:?}:{}:{}",
+                frame.digest(),
+                frame.tag(),
+                frame.body().len()
+            ))
+        }
+        fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+            self.event(format!("node:{digest:?}:{tag}:{}", body.len()))
+        }
+        fn record(&self) -> Result<(), CodecError> {
+            self.event("record".into())
+        }
+    }
+    let mut f = commit::tests::fixture();
+    let reference = {
+        let tx = f.conn.transaction().unwrap();
+        assert!(OrdinaryAuditMaterials::for_readonly_history(&tx).is_err());
+        let reference = sc::write_value(
+            &mut content_store::TxStore::new(&tx).unwrap(),
+            &sc::Value::Array(vec![
+                sc::Value::String("payload".repeat(200)),
+                sc::Value::Bool(true),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        tx.commit().unwrap();
+        reference
+    };
+    let mut conn = rusqlite::Connection::open_with_flags(
+        f.conn.path().unwrap(),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap();
+    let tx = conn.transaction().unwrap();
+    for fail_at in [usize::MAX, 1, 4, 9, 25] {
+        let mut pool = OrdinaryAuditMaterials::for_readonly_history(&tx).unwrap();
+        // 先让原件命中，再比较实际 Some 门，不靠冷读分支掩盖命中漏门。
+        sc::verify(
+            &mut pool.source(content_store::ReadStore::new(&tx).unwrap()),
+            &reference,
+        )
+        .unwrap();
+        let run = |source: &mut dyn NodeSource| {
+            let meter = Meter {
+                events: RefCell::new(Vec::new()),
+                fail_at,
+            };
+            let outcome = {
+                let mut reader = history::HashReader::metered(source, None, None, Some(&meter));
+                sc::verify(&mut reader, &reference)
+                    .map(|v| v.content_ref)
+                    .map_err(|e| e.to_string())
+            };
+            (outcome, meter.events.into_inner())
+        };
+        let expected = run(&mut content_store::ReadStore::new(&tx).unwrap());
+        let sql_before = content_store::sql_reads_on_thread();
+        let actual = run(&mut pool.source(content_store::ReadStore::new(&tx).unwrap()));
+        assert_eq!(actual, expected, "Some gate stop {fail_at}");
+        assert_eq!(
+            content_store::sql_reads_on_thread(),
+            sql_before,
+            "暖原件不重读 SQL"
+        );
+        assert!(pool.stats.material_hits > 0);
+        assert!(pool.stats.retained_capacity_highwater <= CAP);
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+#[test]
+fn ordinary_material_pool_actual_heap_released_after_readonly_scope() {
+    let f = commit::tests::fixture();
+    let mut conn = rusqlite::Connection::open_with_flags(
+        f.conn.path().unwrap(),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap();
+    let tx = conn.transaction().unwrap();
+    let heap = crate::v3::audit_owner::allocation_probe::Window::start();
+    let before = crate::v3::audit_owner::allocation_probe::live_bytes();
+    let pool = OrdinaryAuditMaterials::for_readonly_history(&tx).unwrap();
+    let retained = crate::v3::audit_owner::allocation_probe::live_bytes() - before;
+    assert_eq!(retained, pool.slab.capacity() as i64);
+    assert!(pool.stats.retained_capacity_highwater <= CAP);
+    drop(pool);
+    let observed = heap.finish();
+    assert_eq!(observed["live_before"], observed["live_after"]);
+    eprintln!("ORDINARY_MATERIAL_HEAP retained={retained} {observed}");
+}

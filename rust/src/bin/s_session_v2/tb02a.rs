@@ -368,7 +368,8 @@ pub(super) fn enrich_raw_view_admitted(
     use v3::audit_store::{CodecRead, NativeAdmission};
     let admission = NativeAdmission(work);
     if !ohlc {
-        return v3::business_json::json_from_view_admitted(&admission, row);
+        return v3::business_json::json_from_view_admitted(&admission, row)
+            .map_err(newchan_rust::s_content::ContextError::into_message);
     }
     let revision = row
         .get("revision")
@@ -437,7 +438,8 @@ pub(super) fn enrich_raw_view_admitted(
         &admission,
         JsonView::object_fields(&fields)
             .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
-    )?;
+    )
+    .map_err(newchan_rust::s_content::ContextError::into_message)?;
     drop(fields);
     drop(sql);
     stmt.finalize().map_err(missing)?;

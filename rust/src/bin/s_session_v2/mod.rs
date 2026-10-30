@@ -222,7 +222,7 @@ fn control_decode_admitted(
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, String> {
     control_native_owner(owner, work)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let permit = if work.is_some() {
         NativeAdmission(work)
             .native_reservation(
@@ -232,12 +232,12 @@ fn control_decode_admitted(
     } else {
         None
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     if work.is_some() {
         return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
     }
     let value = control_decode(raw, owner, legacy)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let value = match value {
         JsonOwner::Plain(value) => JsonOwner::Plain(value.with_reservation(permit)),
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -324,7 +324,8 @@ fn stored_control_clock_admitted(
     {
         return Err(err("clock计划/hash不一致"));
     }
-    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)?;
+    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     crate::v3::trace_request_clock(raw.as_str().len(), clock_start.elapsed());
     Ok(ControlClock { value, hash })
@@ -741,7 +742,8 @@ impl ControlSchema {
     ) -> Result<(), String> {
         control_native_owner(self.owner.as_ref(), work)?;
         ddl_table_entries(label, ddl, |name, stmt| {
-            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)?;
+            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let value = control_normalized_admitted(stmt, self.owner.as_ref(), work)?;
             control_insert(&mut self.tables, key, value, work).map_err(err)?;
             Ok(())
@@ -1144,7 +1146,7 @@ pub(super) struct ControlHistory {
     pending: usize,
 }
 impl ControlFacts {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn resume_owner(
         mut self,
         generation: i64,
@@ -1153,21 +1155,39 @@ impl ControlFacts {
         _bound: &crate::v3::audit_owner::BoundOriginals,
         retained: &mut crate::v3::audit_retention::RetainedDelta,
         admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
-    ) -> Result<ControlHistory, String> {
+    ) -> Result<ControlHistory, newchan_rust::s_content::ContextError> {
         if generation != self.headers.len() as i64 + 1 {
-            return Err(err("owner 新控制头非连续尾"));
+            return Err(err("owner 新控制头非连续尾").into());
         }
-        let key = (generation, admission.native_text(batch).map_err(err)?);
+        let key = (
+            generation,
+            admission.native_text(batch).map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?,
+        );
         let header = ControlHeader {
-            commit_ns: admission.native_text(commit_ns).map_err(err)?,
+            commit_ns: admission.native_text(commit_ns).map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?,
             consumed: false,
         };
         retained.add(&key);
         retained.add(&header);
         let capacity = self.headers.capacity();
-        admission.native_map_room(&mut self.headers).map_err(err)?;
-        if self.headers.insert(key, header).map_err(err)?.is_some() {
-            return Err(err("重复发布控制头"));
+        admission
+            .native_map_room(&mut self.headers)
+            .map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?;
+        if self
+            .headers
+            .insert(key, header)
+            .map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?
+            .is_some()
+        {
+            return Err(err("重复发布控制头").into());
         }
         retained
             .hash_capacity::<(i64, TextValue), ControlHeader>(capacity, self.headers.capacity());
@@ -1176,7 +1196,7 @@ impl ControlFacts {
             pending: 1,
         })
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn len(&self) -> usize {
         self.headers.len()
     }
@@ -1391,7 +1411,8 @@ fn control_canonical_text_admitted(
     control_native_owner(owner, work)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(owner) = owner {
-        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?);
+        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?)
+            .map_err(newchan_rust::s_content::ContextError::into_message);
     }
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());
@@ -1530,7 +1551,7 @@ pub(super) struct AuditMessage {
     pub(super) event: TextValue,
     pub(super) count: i64,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn read_audit_message(
     r: &mut CheckedRow<'_>,
     owner: Option<&OwnedBudget>,
@@ -1568,7 +1589,7 @@ pub(super) fn read_audit_message_admitted(
         count,
     })
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn validate_audit_message(
     conn: &Connection,
     m: &AuditMessage,
@@ -1648,9 +1669,12 @@ pub(super) fn validate_audit_message_admitted(
         &[ControlBind::Integer(seq)],
         |mut r| {
             Ok((
-                TextValue::from_sql_admitted(&mut r, 0, owner, work)?,
-                TextValue::from_sql_admitted(&mut r, 1, owner, work)?,
-                TextValue::from_sql_admitted(&mut r, 2, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 0, owner, work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                TextValue::from_sql_admitted(&mut r, 1, owner, work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                TextValue::from_sql_admitted(&mut r, 2, owner, work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 r.integer(3).map_err(|e| e.to_string())?,
             ))
         },
@@ -1829,10 +1853,14 @@ fn verify_control_catalog_admitted(
             &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
             |r| {
                 Ok((
-                    TextValue::from_sql_admitted(r, 0, owner, work)?,
-                    TextValue::from_sql_admitted(r, 1, owner, work)?,
-                    TextValue::from_sql_admitted(r, 2, owner, work)?,
-                    TextValue::from_sql_admitted(r, 3, owner, work)?,
+                    TextValue::from_sql_admitted(r, 0, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 ))
             },
         )?;
@@ -1905,7 +1933,7 @@ pub(super) fn validate_control_history_admitted(
     )
     .map_err(err)?;
     let clock = stored_control_clock_admitted(conn, owner, work)?;
-    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work)?)))?;
+    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,TextValue::from_sql_admitted(r,1,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?)))?;
     if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
@@ -1914,7 +1942,7 @@ pub(super) fn validate_control_history_admitted(
     let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
         .ok_or_else(|| err("缺session"))?;
     verify_control_catalog_admitted(conn, owner, work)?;
-    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
+    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,TextValue::from_sql_admitted(r,1,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,TextValue::from_sql_admitted(r,2,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
         .prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")
@@ -2504,8 +2532,17 @@ fn response(
     identity: &(String, String, String),
     control_instance_id: Option<&str>,
 ) -> Value {
-    let payload = result.unwrap_or_else(|error| json!({"ok":false,"error":error,"identity_binding":"verified_at_service_start_only"}));
+    #[cfg_attr(not(feature = "s_incremental"), allow(unused_mut))]
+    let mut payload = result.unwrap_or_else(|error| json!({"ok":false,"error":error,"identity_binding":"verified_at_service_start_only"}));
     let ready = payload["kind"] == "Ready";
+    // #1640 C4：v2 serve 在增量构建里同样编入，Ready 须在摘要 payload 内自报构建身份（取值同 v3），
+    // 供 launcher 拒绝 testonly 构建；默认 s_session 构建不发此字段，旧 v2 Ready 不变。
+    #[cfg(feature = "s_incremental")]
+    {
+        if ready {
+            payload["build_profile"] = json!(crate::v3::BUILD_PROFILE);
+        }
+    }
     let mut reply = newchan_rust::session_protocol::reply_envelope(
         e,
         payload,
@@ -4618,6 +4655,64 @@ mod tests {
         .get("control_instance_id")
         .is_none());
     }
+
+    /// #1640 C4：v2 Ready 与 v3 同规则自报构建身份；在所有构建都编译，按 cfg 分支断言。
+    #[test]
+    fn v2_ready_reply_reports_build_profile_in_hashed_payload() {
+        #[cfg(feature = "s_incremental")]
+        let declared = Some(crate::v3::BUILD_PROFILE);
+        #[cfg(not(feature = "s_incremental"))]
+        let declared: Option<&str> = None;
+        let expected = if !cfg!(feature = "s_incremental") {
+            None
+        } else if cfg!(feature = "s_capture_native_testonly") {
+            Some("testonly")
+        } else {
+            Some("production")
+        };
+        assert_eq!(declared, expected);
+        let request_payload = json!({"op":"ready"});
+        let e = json!({"schema_revision":"s-session/2","session_id":"test-c","session_generation":"1","source_namespace":"test.feed","source_epoch":"1","message_id":"ready-1","producer_id":"test-driver","producer_epoch":"1","payload_hash":sha256_hex(canonical_json(&request_payload).as_bytes()),"causal_refs":[],"payload":request_payload});
+        let identity = ("test-c".to_string(), "1".to_string(), "1".to_string());
+        let ready = response(
+            &e,
+            Ok(json!({"ok":true,"kind":"Ready"})),
+            &identity,
+            Some("first"),
+        );
+        let fields = ready["payload"].as_object().unwrap();
+        match expected {
+            Some(profile) => {
+                assert_eq!(fields["build_profile"], profile);
+                assert_eq!(fields.len(), 3);
+                let mut unprofiled = ready["payload"].clone();
+                unprofiled.as_object_mut().unwrap().remove("build_profile");
+                assert_ne!(
+                    ready["payload_hash"],
+                    sha256_hex(canonical_json(&unprofiled).as_bytes())
+                );
+            }
+            None => {
+                assert!(fields.get("build_profile").is_none());
+                assert_eq!(fields.len(), 2);
+            }
+        }
+        assert_eq!(
+            ready["payload_hash"],
+            sha256_hex(canonical_json(&ready["payload"]).as_bytes())
+        );
+        assert_eq!(ready["control_instance_id"], "first");
+        assert!(ready.get("build_profile").is_none());
+        let receipt = response(
+            &e,
+            Ok(json!({"ok":true,"kind":"Receipt"})),
+            &identity,
+            Some("first"),
+        );
+        assert!(receipt["payload"].get("build_profile").is_none());
+        let error = response(&e, Err("Busy".into()), &identity, None);
+        assert!(error["payload"].get("build_profile").is_none());
+    }
 }
 
 #[cfg(test)]
@@ -4710,7 +4805,7 @@ fn testonly_audit_cost_breakdown() {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;

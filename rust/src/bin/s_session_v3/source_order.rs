@@ -201,7 +201,7 @@ impl Order {
         }
         None
     }
-    pub(super) fn rank(&self, handle: Handle) -> Result<usize, String> {
+    pub(super) fn rank(&self, handle: Handle) -> Result<usize, PublishError> {
         let mut at = self
             .nodes
             .get(&handle)
@@ -226,7 +226,7 @@ impl Order {
         }
         Ok(rank)
     }
-    pub(super) fn value(&self, handle: Handle) -> Result<NodeDigest, String> {
+    pub(super) fn value(&self, handle: Handle) -> Result<NodeDigest, PublishError> {
         self.nodes
             .get(&handle)
             .filter(|n| n.borrow().live)
@@ -238,7 +238,7 @@ impl Order {
         s: &(impl CodecRead + ?Sized),
         rank: usize,
         value: NodeDigest,
-    ) -> Result<Handle, String> {
+    ) -> Result<Handle, PublishError> {
         if rank > self.len() {
             return Err(err("来源有序新增位置越界"));
         }
@@ -269,7 +269,7 @@ impl Order {
         s: &(impl CodecRead + ?Sized),
         handle: Handle,
         value: NodeDigest,
-    ) -> Result<Rc<RefCell<Node>>, String> {
+    ) -> Result<Rc<RefCell<Node>>, PublishError> {
         Rc::try_new_shallow(
             RefCell::new(Node {
                 handle,
@@ -290,7 +290,7 @@ impl Order {
         _s: &(impl CodecRead + ?Sized),
         rank: usize,
         expected: NodeDigest,
-    ) -> Result<Handle, String> {
+    ) -> Result<Handle, PublishError> {
         let handle = self.at(rank).ok_or_else(|| err("来源有序删除位置越界"))?;
         if self.value(handle)? != expected {
             return Err(err("来源有序删除原件不同"));
@@ -314,7 +314,7 @@ impl Order {
         &mut self,
         _s: &(impl CodecRead + ?Sized),
         handle: Handle,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.nodes.get(&handle).is_none_or(|n| n.borrow().live) {
             return Err(err("来源顺序活句柄或已回收句柄不能回收"));
         }
@@ -424,7 +424,7 @@ mod tests {
         assert!(tree.reclaim(&s, handle).is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_order_reclaimed_node_and_weak_tail_keep_original_parent_charge() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -456,7 +456,7 @@ mod tests {
                 drop(node);
                 assert!(weak.upgrade().is_none());
                 assert_eq!(budget.live(), scope_baseline + node_bytes, "弱尾保整块");
-                Ok::<_, String>((weak, node_bytes))
+                Ok::<_, PublishError>((weak, node_bytes))
             })
             .unwrap();
         assert_eq!(budget.live(), baseline + node_bytes, "原许可跨工作域保留");
@@ -464,7 +464,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_order_admission_failure_preserves_avl_and_next_handle() {
         const LIMIT: usize = 1024 * 1024;
@@ -483,7 +483,7 @@ mod tests {
                         let handle = tree.insert(&s, expected.len(), value).unwrap();
                         expected.push((handle, value));
                     }
-                    Ok::<_, String>((tree, expected))
+                    Ok::<_, PublishError>((tree, expected))
                 })
                 .unwrap();
             let next = tree.next;
@@ -518,7 +518,7 @@ mod tests {
                     assert_eq!(handle, next, "失败未消耗序号");
                     expected.insert(1, (handle, [8; 32]));
                     check(&tree, &expected);
-                    Ok::<_, String>(())
+                    Ok::<_, PublishError>(())
                 })
                 .unwrap();
             drop(root);
@@ -527,7 +527,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_order_rotations_remove_reinsert_and_drop_release_all_nodes() {
         let budget = crate::v3::audit_owner::native::Budget::new(4 * 1024 * 1024, 0).unwrap();
@@ -565,7 +565,7 @@ mod tests {
                 assert_eq!(tree.retained_bytes(), tree.nodes.allocation_bytes());
                 drop(tree);
                 assert_eq!(budget.live(), scope_baseline);
-                Ok::<_, String>(())
+                Ok::<_, PublishError>(())
             })
             .unwrap();
         assert_eq!(budget.live(), baseline);

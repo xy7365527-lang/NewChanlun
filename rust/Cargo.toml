@@ -78,8 +78,13 @@ lav_seal = ["dep:sha2"]
 #   + rusqlite（S 自有 SQLite/WAL 单写者）。
 s_allocation_sqlite_testonly = ["s_session"]
 s_allocation_json_testonly = ["s_session"]
-# #1394：S 显式原生 capture 对照臂，无局部分配预算或生产资格。
-s_capture_native_testonly = ["s_session"]
+# #1640（ADR 0042 D1）：S 写者增量路径生产构建。带本 feature 的 s_session 二进制只走增量路径
+#   （过渡期出生步见 ADR 0042「恢复与冷启动」），只接受 s-structure-resources/2；无运行时开关，
+#   回退＝换回上一版本二进制与资源档。切片 5 并入 s_session 默认并删除本 feature。
+s_incremental = ["s_session"]
+# #1394 → #1640：testonly ＝ 生产增量（s_incremental）+ 运行时 Ordinary/Native 对照臂选择（S_CAPTURE_NATIVE_TESTONLY）。
+#   生产资格见 ADR 0042；本 feature 只供测试对照臂，生产构建不得启用。
+s_capture_native_testonly = ["s_incremental"]
 # #1419 裁定（issuecomment-6265726014）：v2/v1 结构写者的测试种子工具。只有本 feature 的构建能造 seed 库；
 #   默认与发布构建不含（release 下 compile_error），CI「v2 写者机械锁」步断言发布构建未开。
 s_v2_seed_testonly = ["s_session"]

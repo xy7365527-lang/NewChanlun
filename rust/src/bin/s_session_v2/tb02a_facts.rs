@@ -1229,7 +1229,7 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
     previous_frontier: i64,
     withdrawals: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
     replaces: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
-) -> Result<crate::v3::business_json::JsonOwner, String> {
+) -> Result<crate::v3::business_json::JsonOwner, newchan_rust::s_content::ContextError> {
     use crate::v3::business_json::{self as bj, field, JsonOwner};
     use newchan_rust::s_content::{self as sc, CodecVec};
     use sc::capture_allocation::audit_json::{JsonArray, JsonView};
@@ -1246,12 +1246,12 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         s: &(impl crate::v3::audit_store::CodecRead + ?Sized),
         rows: &mut CodecVec<T>,
         v: T,
-    ) -> Result<(), String> {
+    ) -> Result<(), newchan_rust::s_content::ContextError> {
         if let Some(work) = s.codec_work() {
             rows.try_reserve_native(work, 1)
-                .map_err(|e| e.to_string())?;
+                .map_err(sc::ContextError::from)?;
         }
-        rows.try_push(v).map_err(|e| e.to_string())
+        rows.try_push(v).map_err(sc::ContextError::from)
     }
     struct Bytes<'a, S: crate::v3::audit_store::CodecRead + ?Sized> {
         bytes: CodecVec<u8>,
@@ -1276,18 +1276,18 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
     fn bytes<S: crate::v3::audit_store::CodecRead + ?Sized>(
         s: &S,
         value: &impl serde::Serialize,
-    ) -> Result<CodecVec<u8>, String> {
+    ) -> Result<CodecVec<u8>, newchan_rust::s_content::ContextError> {
         let mut out = Bytes {
             bytes: bj::new_work(s.allocation_budget().as_ref()),
             store: s,
         };
-        serde_json::to_writer(&mut out, value).map_err(|e| e.to_string())?;
+        serde_json::to_writer(&mut out, value).map_err(sc::ContextError::from)?;
         Ok(out.bytes)
     }
     fn parse(
         s: &(impl crate::v3::audit_store::CodecRead + ?Sized),
         text: &str,
-    ) -> Result<JsonOwner, String> {
+    ) -> Result<JsonOwner, newchan_rust::s_content::ContextError> {
         bj::legacy_json_owner_admitted(
             text.as_bytes(),
             s.allocation_budget().as_ref(),
@@ -1297,10 +1297,10 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
     fn fields(
         s: &(impl crate::v3::audit_store::CodecRead + ?Sized),
         values: &[(&str, JsonView<'_>)],
-    ) -> Result<JsonOwner, String> {
+    ) -> Result<JsonOwner, newchan_rust::s_content::ContextError> {
         bj::json_from_view_admitted(
             s,
-            JsonView::object_fields(values).map_err(|e| e.to_string())?,
+            JsonView::object_fields(values).map_err(sc::ContextError::from)?,
         )
     }
     let objects = objects.into();
@@ -1368,11 +1368,12 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         // 规范键相等即JSON相同，去重只借用首份原件。
         let mut waiting =
             bj::new_work::<(CodecVec<u8>, JsonOwner)>(store.allocation_budget().as_ref());
-        let mut add_reason = |reason: JsonView<'_>| -> Result<(), String> {
-            let key = bytes(store, &reason)?;
-            let owner = bj::json_from_view_admitted(store, reason)?;
-            push(store, &mut waiting, (key, owner))
-        };
+        let mut add_reason =
+            |reason: JsonView<'_>| -> Result<(), newchan_rust::s_content::ContextError> {
+                let key = bytes(store, &reason)?;
+                let owner = bj::json_from_view_admitted(store, reason)?;
+                push(store, &mut waiting, (key, owner))
+            };
         if let Some(k) = &knowledge {
             if axis == "CC-054" {
                 for r in field(k.view(), "waiting_reasons")
@@ -1904,19 +1905,19 @@ pub(super) fn replacing_group<'a>(old: &Value, new_objects: &'a [Value]) -> Opti
 mod catalog_axis_owner_tests {
     use super::*;
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(unused_imports, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     use newchan_rust::s_content::capture_allocation::scratch::{
         CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
     };
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(unused_imports, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     use std::sync::{Arc, Mutex};
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     struct Parent {
@@ -2009,7 +2010,7 @@ mod catalog_axis_owner_tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn catalog_root_outlives_scope_and_every_capacity_failure_releases_partial_axes() {
         let rows = objects();

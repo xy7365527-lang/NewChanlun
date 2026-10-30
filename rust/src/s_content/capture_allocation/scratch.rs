@@ -34,7 +34,7 @@ pub struct NativeReservation {
 impl NativeReservation {
     /// #1488：只消费父账已有的未分配原件费；不签发新额度。
     /// #1488 P3-a：生产父账（trait默认）恒拒且无生产调用方，只随测试/Native测试臂编译。
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     #[doc(hidden)]
     pub fn adopt(
         parent: Arc<dyn ScratchParent>,
@@ -139,7 +139,7 @@ pub trait ScratchParent: Send + Sync {
     fn origin(&self) -> u64 {
         0
     }
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     fn adopt_native(&self, _bytes: usize, _expected: u64) -> Result<u64, ScratchFailure> {
         Err(ScratchFailure::Ledger)
     }
@@ -461,7 +461,7 @@ impl WorkScope {
     pub fn check_current(&self) -> Result<(), CodecError> {
         self.handle.check_write()
     }
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     pub(crate) fn adopt_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.check_current()?;
         NativeReservation::adopt(
@@ -539,67 +539,63 @@ impl<T> std::ops::Deref for ScratchVec<T> {
     }
 }
 
-// #1488 0072：类型化失败旁路挂点。挂点替换原表达式且行号中性；生产构建下均为恒等函数，
-// 不记录、不改变行为。记录只在 `failure_trace::capture` 活动期间、且仅 testonly 构建发生。
 #[inline(always)]
 pub(crate) fn traced(failure: ScratchFailure) -> ScratchFailure {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     failure_trace::record(failure);
     failure
 }
 #[inline(always)]
 pub(crate) fn traced_semantic(semantic: bool) -> bool {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if semantic {
         failure_trace::record_semantic();
     }
     semantic
 }
-/// `CodecError` 的 Display 挂点：scratch 错误渲染进 String 即为“过桥”。
-#[inline(always)]
-pub(crate) fn shown(error: &CodecError) -> &std::borrow::Cow<'static, str> {
-    #[cfg(feature = "s_capture_native_testonly")]
-    failure_trace::record_bridge(error);
-    &error.detail
-}
-
-/// #1488 0072（独审 0070 R1/R2）：候选 publication 闭包期间全部失败的类别多重集。
-/// 降级判据只读本记录与作用域分类，不按错误文字判断资源种类：
-/// - `record`：每次 `ScratchHandle::fail` 与每次 `CodecError::scratch` 构造（含不记入任何作用域的
-///   Ledger 构造点：SourceClaim 字节不符、check_write 域已关闭等）；
-/// - `record_semantic`：工作域观察到的非 scratch codec 错误；
-/// - `record_bridge`：scratch 错误被渲染为 String（经 `invalid`/`err`/`stale` 等任意前缀包装上抛的起点）。
-///
-/// 记录是线程局部的 Copy 计数，访问不分配；`WorkScope` 不可 Send，同一闭包的 codec 工作都在本线程。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub mod failure_trace {
     use super::ScratchFailure;
-    use crate::s_content::CodecError;
-    use std::borrow::Cow;
+    use crate::s_content::{CodecError, ContextError};
     use std::cell::Cell;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) struct FailureOrigin {
+        capture: u64,
+        born: u64,
+    }
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) struct BridgeProof {
+        origin: FailureOrigin,
+        bridged: u64,
+        failure: ScratchFailure,
+    }
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct FailureTrace {
         pub budget: usize,
         pub allocation: usize,
         pub ledger: usize,
         pub semantic: usize,
-        /// Budget/Allocation 种类的 scratch 错误渲染进 String 的次数。
         pub bridged: usize,
-        /// 最近一次过桥错误的 (code, detail)，用于核对闭包错误的来源。
-        rendered: Option<(&'static str, &'static str)>,
+        capture: Option<u64>,
+        start: u64,
+        end: u64,
     }
     impl FailureTrace {
-        /// 期间至少一次 Budget/Allocation，且没有任何 Ledger 或语义失败。
         pub fn only_resource(&self) -> bool {
-            self.ledger == 0 && self.semantic == 0 && self.budget + self.allocation > 0
+            self.ledger == 0 && self.semantic == 0 && (self.budget > 0 || self.allocation > 0)
         }
-        /// 闭包错误确由过桥的 Budget/Allocation scratch 错误上抛而来：期间确有过桥，且闭包错误
-        /// 携带该次过桥的原样渲染（任意前缀包装均可）。只收紧不放宽：种类判断不读文字。
-        pub fn bridges(&self, error: &str) -> bool {
-            self.rendered.is_some_and(|(code, detail)| {
-                self.bridged > 0
-                    && error.contains(&CodecError::static_detail(code, detail).to_string())
+        pub fn bridges(&self, error: &ContextError) -> bool {
+            error.proof.is_some_and(|proof| {
+                self.capture == Some(proof.origin.capture)
+                    && self.start < proof.origin.born
+                    && proof.origin.born < proof.bridged
+                    && proof.bridged <= self.end
+                    && matches!(
+                        proof.failure,
+                        ScratchFailure::Budget | ScratchFailure::Allocation
+                    )
             })
         }
         fn absorb(&mut self, other: FailureTrace) {
@@ -608,12 +604,44 @@ pub mod failure_trace {
             self.ledger = self.ledger.saturating_add(other.ledger);
             self.semantic = self.semantic.saturating_add(other.semantic);
             self.bridged = self.bridged.saturating_add(other.bridged);
-            self.rendered = other.rendered.or(self.rendered);
         }
     }
-
+    static NEXT_CAPTURE: AtomicU64 = AtomicU64::new(1);
     thread_local! {
         static ACTIVE: Cell<Option<FailureTrace>> = const { Cell::new(None) };
+        static ROOT: Cell<Option<u64>> = const { Cell::new(None) };
+        static EVENT: Cell<u64> = const { Cell::new(0) };
+    }
+    fn next_event() -> Option<u64> {
+        EVENT.with(|event| {
+            let next = event.get().checked_add(1)?;
+            event.set(next);
+            Some(next)
+        })
+    }
+    pub(crate) fn born() -> Option<FailureOrigin> {
+        let capture = ROOT.with(Cell::get)?;
+        Some(FailureOrigin {
+            capture,
+            born: next_event()?,
+        })
+    }
+    pub(crate) fn bridge(error: &CodecError) -> Option<BridgeProof> {
+        let failure = error.scratch_failure?;
+        if !matches!(failure, ScratchFailure::Budget | ScratchFailure::Allocation) {
+            return None;
+        }
+        let origin = error.origin?;
+        if ROOT.with(Cell::get) != Some(origin.capture) {
+            return None;
+        }
+        let proof = BridgeProof {
+            origin,
+            bridged: next_event()?,
+            failure,
+        };
+        update(|trace| trace.bridged = trace.bridged.saturating_add(1));
+        Some(proof)
     }
     fn update(f: impl FnOnce(&mut FailureTrace)) {
         let _ = ACTIVE.try_with(|active| {
@@ -633,45 +661,62 @@ pub mod failure_trace {
     pub(super) fn record_semantic() {
         update(|t| t.semantic = t.semantic.saturating_add(1));
     }
-    pub(super) fn record_bridge(error: &CodecError) {
-        match error.scratch_failure {
-            Some(ScratchFailure::Budget | ScratchFailure::Allocation) => update(|t| {
-                t.bridged = t.bridged.saturating_add(1);
-                // scratch 错误恒为静态文字；若将来改为 Owned，则不登记渲染，过桥核对 fail-closed。
-                if let Cow::Borrowed(detail) = error.detail {
-                    t.rendered = Some((error.code, detail));
-                }
-            }),
-            Some(ScratchFailure::Ledger) => record(ScratchFailure::Ledger),
-            None => {}
-        }
-    }
-
-    /// 在新记录下执行 `f` 并返回其全部失败；嵌套时内层记录并入外层。panic 时也恢复外层。
     pub fn capture<T>(f: impl FnOnce() -> T) -> (T, FailureTrace) {
-        struct Restore(Option<Option<FailureTrace>>);
+        struct Restore {
+            outer: Option<Option<FailureTrace>>,
+            root: Option<u64>,
+            event: u64,
+            top: bool,
+        }
         impl Drop for Restore {
             fn drop(&mut self) {
-                if let Some(outer) = self.0.take() {
-                    let _ = ACTIVE.try_with(|active| active.set(outer));
+                if let Some(outer) = self.outer.take() {
+                    let child = ACTIVE.with(|active| active.replace(outer));
+                    if let Some(child) = child {
+                        update(|outer| outer.absorb(child));
+                    }
+                }
+                if self.top {
+                    ROOT.with(|root| root.set(self.root));
+                    EVENT.with(|event| event.set(self.event));
                 }
             }
         }
-        let outer = ACTIVE.with(|active| active.replace(Some(FailureTrace::default())));
-        let mut restore = Restore(Some(outer));
+        let outer = ACTIVE.with(Cell::get);
+        let mut restore = Restore {
+            outer: Some(outer),
+            root: ROOT.with(Cell::get),
+            event: EVENT.with(Cell::get),
+            top: outer.is_none(),
+        };
+        if restore.top {
+            let id = NEXT_CAPTURE
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .ok();
+            ROOT.with(|root| root.set(id));
+            EVENT.with(|event| event.set(0));
+        }
+        ACTIVE.with(|active| {
+            active.set(Some(FailureTrace {
+                capture: ROOT.with(Cell::get),
+                start: EVENT.with(Cell::get),
+                ..FailureTrace::default()
+            }))
+        });
         let value = f();
-        let trace = ACTIVE
-            .with(|active| active.replace(restore.0.take().unwrap()))
-            .unwrap_or_default();
+        let mut trace = ACTIVE
+            .with(|active| active.replace(restore.outer.take().unwrap()))
+            .unwrap();
+        trace.end = EVENT.with(Cell::get);
         drop(restore);
-        update(|t| t.absorb(trace));
+        update(|outer| outer.absorb(trace));
         (value, trace)
     }
 }
 
 /// #1488 0077 P55：测试面——以真实 `observe` 挂点（`traced_semantic`）登记一次非 scratch codec
 /// 错误，供 bin 侧降级判据真值表构造“语义失败”行。生产构建无此方法；置于文件末尾，生产行号不动。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(feature = "s_incremental", feature = "s_capture_native_testonly"))]
 impl WorkScope {
     #[doc(hidden)]
     pub fn observe_for_test(&self, error: &CodecError) {

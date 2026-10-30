@@ -15,9 +15,23 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BudgetExceeded;
 #[derive(Debug)]
-pub(crate) enum Failure {
+pub(crate) enum Failure<E = String> {
     BudgetExceeded,
-    Invalid(String),
+    Invalid(E),
+}
+
+impl From<super::PublishError> for Failure<super::PublishError> {
+    fn from(error: super::PublishError) -> Self {
+        Self::Invalid(error)
+    }
+}
+impl From<Failure> for Failure<super::PublishError> {
+    fn from(error: Failure) -> Self {
+        match error {
+            Failure::BudgetExceeded => Self::BudgetExceeded,
+            Failure::Invalid(error) => Self::Invalid(error.into()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -82,7 +96,7 @@ mod r6_codec_work_tests {
         let mut expected = Vec::new();
         sc::render_canonical(&mut nodes, &reference, &mut expected).unwrap();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let before = capture.retention();
         for _ in 0..2 {
@@ -181,7 +195,7 @@ mod r6_codec_work_tests {
             .unwrap()
             .content_ref();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let budget = Budget::new(65_536, 0).unwrap();
         let base = budget.live();
@@ -290,14 +304,14 @@ mod r6_codec_work_tests {
         send_sync::<Budget>();
     }
 }
-impl From<BudgetExceeded> for Failure {
+impl<E> From<BudgetExceeded> for Failure<E> {
     fn from(_: BudgetExceeded) -> Self {
         Self::BudgetExceeded
     }
 }
-impl From<String> for Failure {
+impl<E: From<String>> From<String> for Failure<E> {
     fn from(e: String) -> Self {
-        Self::Invalid(e)
+        Self::Invalid(e.into())
     }
 }
 #[derive(Clone)]
@@ -429,7 +443,7 @@ impl Drop for Permit {
 }
 impl Permit {
     /// #1488 Recover 锁：许可挂在 mark 所指父账上时返回许可字节（只读，不延长父账寿命）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn on_ledger_for_test(&self, mark: &LedgerMark) -> Option<usize> {
         mark.live_for(&self.budget).map(|_| self.bytes)
     }
@@ -711,13 +725,13 @@ impl Budget {
         Arc::ptr_eq(&self.0, &other.0)
     }
     /// #1488 P1-1/P1-2：请求收尾静止点的物理live读数；弱引用，不延长父账寿命、不进Ledger布局。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn quiescent_mark(&self) -> LedgerMark {
         LedgerMark(Arc::downgrade(&self.0), self.live())
     }
     /// #1488 0034 P3-1：Recover 交接所见父账身份与冻结域摘要（域序号、请求号、额度、总容量帽）。
     /// 弱引用，不延长父账寿命、不进Ledger布局；读不到当前冻结域即拒绝出摘要。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn handoff_stamp(&self) -> Result<BudgetStamp, BudgetExceeded> {
         Ok(BudgetStamp {
             ledger: Arc::downgrade(&self.0),
@@ -728,13 +742,13 @@ impl Budget {
         })
     }
     /// 测试读数：本句柄冻结域额度（构造正额度真实换域用）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn allowance_for_test(&self) -> usize {
         self.3
     }
 }
 /// #1488 0034 P3-1：Recover 换代证明绑定的父账身份与冻结预算摘要；迁移时逐项比对事务实际父账。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Debug)]
 pub(crate) struct BudgetStamp {
     ledger: std::sync::Weak<Ledger>,
@@ -743,7 +757,7 @@ pub(crate) struct BudgetStamp {
     allowance: usize,
     total_limit: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl BudgetStamp {
     /// 同一Ledger、同一冻结域（序号/请求号/额度）且总容量帽读数一致才算同账同域。
     /// 原Ledger已释放（strong=0）即不匹配，地址复用不会冒充原账。
@@ -789,10 +803,10 @@ impl BudgetStamp {
     }
 }
 /// #1488 P1-1/P1-2：某父账在请求收尾静止点（请求局部持有者已析构）的live；只认同一Ledger。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone)]
 pub(crate) struct LedgerMark(std::sync::Weak<Ledger>, usize);
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl LedgerMark {
     pub(crate) fn live_for(&self, budget: &Budget) -> Option<usize> {
         std::ptr::eq(self.0.as_ptr(), Arc::as_ptr(&budget.0)).then_some(self.1)
@@ -958,11 +972,8 @@ impl Budget {
         CodecWork::new_in_origin(self.0.clone(), allowance, self.1).map_err(Failure::from)
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
-        )
+        all(not(test), feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
         (
@@ -1214,7 +1225,7 @@ pub(crate) struct BootstrapGrant {
     domain: u64,
 }
 impl BootstrapGrant {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn from_freeze(seal: super::super::request_audit::FreezeSeal) -> Self {
         Self {
             limit: seal.limit(),
@@ -1526,7 +1537,7 @@ impl<V: Retained> Retained for Tree<V> {
 use newchan_rust::s_content::capture_allocation::scratch::{
     CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
 };
-impl From<ScratchFailure> for Failure {
+impl<E: From<&'static str>> From<ScratchFailure> for Failure<E> {
     fn from(e: ScratchFailure) -> Self {
         match e {
             ScratchFailure::Budget | ScratchFailure::Allocation => Self::BudgetExceeded,
@@ -1534,8 +1545,8 @@ impl From<ScratchFailure> for Failure {
         }
     }
 }
-impl<E: Into<Failure>> From<WorkError<E>> for Failure {
-    fn from(e: WorkError<E>) -> Self {
+impl<E: From<&'static str>, O: Into<Failure<E>>> From<WorkError<O>> for Failure<E> {
+    fn from(e: WorkError<O>) -> Self {
         match e {
             WorkError::Resource(e) => e.into(),
             WorkError::Operation(e) => e.into(),
@@ -1869,7 +1880,7 @@ mod r8_native_admission_tests {
         let digest = sc::frame(sc::tag::BYTES_CHUNK, &body);
         sc::NodeSink::put(&mut nodes, digest, sc::tag::BYTES_CHUNK, &body).unwrap();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let budget = Budget::new(65536, 0).unwrap();
         let base = budget.live();
@@ -1945,7 +1956,7 @@ mod r8_native_admission_tests {
             work: None,
             calls: 0,
         };
-        let expected = sc::write_value_native_local_for_testonly(&mut plain, &value).unwrap();
+        let expected = sc::write_value_native_local(&mut plain, &value).unwrap();
         let budget = Budget::new(1024 * 1024, 0).unwrap();
         let base = budget.live();
         budget
@@ -1956,7 +1967,7 @@ mod r8_native_admission_tests {
                     work: Some(scope),
                     calls: 0,
                 };
-                let actual = sc::write_value_native_local_for_testonly(&mut sink, &value)?;
+                let actual = sc::write_value_native_local(&mut sink, &value)?;
                 assert_eq!(actual, expected);
                 assert_eq!(sink.calls, plain.calls, "完整正文 memo 保持真实 put 次数");
                 assert!(scope.snapshot().attempts > 0);
@@ -1971,7 +1982,7 @@ mod r8_native_admission_tests {
                 work: Some(scope),
                 calls: 0,
             };
-            let result = sc::write_value_native_local_for_testonly(&mut sink, &value);
+            let result = sc::write_value_native_local(&mut sink, &value);
             assert_eq!(sink.calls, 0, "真实 put 前拒绝工作集分配");
             result
         });

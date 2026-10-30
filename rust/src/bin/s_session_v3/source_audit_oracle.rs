@@ -38,11 +38,15 @@ pub(super) fn audit_generated_in_store(
     let ordinary_effective;
     let mut ordinary_raw;
     let raw = if let Some(ledger) = native_ledger {
-        allocation = source_allocation(s)?;
-        ledger.advance(s, raw_prefix.len())?
+        allocation =
+            source_allocation(s).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        ledger
+            .advance(s, raw_prefix.len())
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
     } else {
         ordinary_effective = bj::effective(raw_prefix, deadline)?;
-        allocation = source_allocation(s)?;
+        allocation =
+            source_allocation(s).map_err(newchan_rust::s_content::ContextError::into_message)?;
         ordinary_raw = bj::new_map(allocation.as_ref());
         for event in ordinary_effective.iter() {
             super::super::history::check_deadline(deadline)?;
@@ -59,14 +63,17 @@ pub(super) fn audit_generated_in_store(
                             wire.view(),
                             deadline,
                             budget,
-                        )?,
+                        )
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
                         numeric: super::super::history::hash_json_in_store(
                             s,
                             numeric.view(),
                             deadline,
                             budget,
-                        )?,
-                        raw: super::super::history::hash_json_in_store(s, event, deadline, budget)?,
+                        )
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                        raw: super::super::history::hash_json_in_store(s, event, deadline, budget)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?,
                         bar: source_pending::raw_bar(s, event, deadline, budget)?,
                     },
                 )
@@ -75,11 +82,11 @@ pub(super) fn audit_generated_in_store(
         &ordinary_raw
     };
     let current_generation = if crate::is_structure_rule(rule) {
-        number(s, state, "generation")?
+        number(s, state, "generation").map_err(newchan_rust::s_content::ContextError::into_message)?
     } else {
         0
     };
-    let object_array = field_ref(s, state, "objects")?;
+    let object_array = field_ref(s, state, "objects").map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     super::super::state::trace_event("source_objects", None);
     // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
@@ -87,12 +94,17 @@ pub(super) fn audit_generated_in_store(
     let mut objects = bj::new_work(allocation.as_ref());
     let mut ids = bj::new_map(allocation.as_ref());
     let mut groups = bj::new_map(allocation.as_ref());
-    for record in elements_ref(s, object_array.view())? {
+    for record in elements_ref(s, object_array.view())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
         super::super::history::check_deadline(deadline)?;
         let kind = if s.fields.is_some() {
-            SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
+            SourceFields::read_subset(s, record.view(), &["kind"])
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                .text(s, "kind")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
         } else {
-            text(s, &record, "kind")?
+            text(s, &record, "kind").map_err(newchan_rust::s_content::ContextError::into_message)?
         };
         let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
             &SHAPE_SOURCE_FIELDS
@@ -103,7 +115,11 @@ pub(super) fn audit_generated_in_store(
         let id = fields.text(s, "object_id").map_err(err)?;
         s.native_map_room(&mut ids).map_err(err)?;
         if ids
-            .insert(s.native_text(id.as_str())?, ())
+            .insert(
+                s.native_text(id.as_str())
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                (),
+            )
             .map_err(err)?
             .is_some()
             || fields.integer(s, "object_revision").map_err(err)? != 1
@@ -133,11 +149,14 @@ pub(super) fn audit_generated_in_store(
             &source_ref,
             native_sources.as_deref_mut(),
             ParseDomain::JsonInner,
-        )?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if kind == CC006_SHAPE_KIND {
-            exact(&record, Kind::Object, 15)?;
+            exact(&record, Kind::Object, 15)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
         } else {
-            exact(&record, Kind::Object, 10)?;
+            exact(&record, Kind::Object, 10)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             if ![
                 CC004_STEP_KIND,
                 CC005_GROUP_KIND,
@@ -178,14 +197,18 @@ pub(super) fn audit_generated_in_store(
                 native_sources.as_deref_mut(),
                 raw_prefix.len(),
                 ParseDomain::JsonInner,
-            )? != sources
+            )
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != sources
             {
                 return Err(err("typed引用与source_coords不同"));
             }
             let key = fields.text(s, "fact_key").map_err(err)?;
-            let parsed_owner = parsed_json(s, key.as_bytes())?;
+            let parsed_owner = parsed_json(s, key.as_bytes())
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let parsed = parsed_owner.view();
-            if !canonical_matches(s, parsed, key.as_bytes())?
+            if !canonical_matches(s, parsed, key.as_bytes())
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
                 || parsed.as_array().is_none_or(|a| a.len() != 2)
                 || parsed
                     .index(0)
@@ -199,8 +222,10 @@ pub(super) fn audit_generated_in_store(
                 .typed_identity_scoped(
                     &kind,
                     &key,
-                    &built(payload.view())?,
-                    &built(refs.view())?,
+                    &built(payload.view())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    &built(refs.view())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
                     s.codec_work(),
                 )
                 .map_err(err)?;
@@ -225,11 +250,18 @@ pub(super) fn audit_generated_in_store(
                     ("policy_version", contract.policy),
                     ("view_role", "main"),
                 ] {
-                    if text(s, &payload, k)? != want {
+                    if text(s, &payload, k)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        != want
+                    {
                         return Err(err("新笔载荷语义头不同"));
                     }
                 }
-                if digest(&field(s, &payload, "slot")?)?
+                if digest(
+                    &field(s, &payload, "slot")
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
                     != super::super::history::hash_json_in_store(
                         s,
                         parsed
@@ -237,7 +269,8 @@ pub(super) fn audit_generated_in_store(
                             .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null),
                         deadline,
                         budget,
-                    )?
+                    )
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
                 {
                     return Err(err("新笔payload槽位与fact_key不同"));
                 }
@@ -256,20 +289,33 @@ pub(super) fn audit_generated_in_store(
             if kind == CC054_KNOWLEDGE_KIND {
                 let contract = tb02b::contract_for_rule(rule)
                     .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
-                if text(s, &payload, "domain")? != contract.knowledge_domain {
+                if text(s, &payload, "domain")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    != contract.knowledge_domain
+                {
                     return Err(err("TB-02-A 知识域与cut规则版本不符"));
                 }
             }
             if kind == CC005_GROUP_KIND {
-                let index = decimal(&text(s, &payload, "group_index")?)?;
-                let anchor = decimal(&text(s, &payload, "group_anchor")?)?;
-                let members_root = field(s, &payload, "members")?;
+                let index = decimal(
+                    &text(s, &payload, "group_index")
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let anchor = decimal(
+                    &text(s, &payload, "group_anchor")
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let members_root = field(s, &payload, "members")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 let members = source_coords(
                     s,
                     &members_root,
                     native_sources.as_deref_mut(),
                     ParseDomain::JsonInner,
-                )?;
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 if index < 0
                     || members.is_empty()
                     || !members.contains(&anchor)
@@ -277,19 +323,24 @@ pub(super) fn audit_generated_in_store(
                 {
                     return Err(err("组成员/锚/序号不符"));
                 }
-                let mut union = copy_coords(s, &members)?;
+                let mut union = copy_coords(s, &members)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 for key in ["direction_evidence", "confirmation_evidence"] {
                     super::super::history::check_deadline(deadline)?;
-                    let evidence = field(s, &payload, key)?;
+                    let evidence = field(s, &payload, key)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     if evidence.kind() != Kind::Null {
-                        let list = field(s, &evidence, "source_coords")?;
+                        let list = field(s, &evidence, "source_coords")
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                         let evidence_coords = source_coords(
                             s,
                             &list,
                             native_sources.as_deref_mut(),
                             ParseDomain::JsonInner,
-                        )?;
-                        union = union_coords(s, &union, &evidence_coords)?;
+                        )
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                        union = union_coords(s, &union, &evidence_coords)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     }
                 }
                 if &*union != &*sources {
@@ -302,7 +353,8 @@ pub(super) fn audit_generated_in_store(
                         Group {
                             payload: s.native_ref_clone(&payload).map_err(err)?,
                             members,
-                            sources: copy_source_coords(s, &sources)?,
+                            sources: copy_source_coords(s, &sources)
+                                .map_err(newchan_rust::s_content::ContextError::into_message)?,
                             anchor,
                         },
                     )
@@ -328,7 +380,8 @@ pub(super) fn audit_generated_in_store(
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
     let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
-    let ordered_groups = sorted_numeric_entries(s, &groups)?;
+    let ordered_groups = sorted_numeric_entries(s, &groups)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
         super::super::history::check_deadline(deadline)?;
         if *index != expected as i64 {
@@ -358,7 +411,8 @@ pub(super) fn audit_generated_in_store(
     super::super::state::trace_event("source_shapes", None);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::super::history::check_deadline(deadline)?;
-        exact(&object.refs, Kind::Array, 3)?;
+        exact(&object.refs, Kind::Array, 3)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let mut indices = [0; 3];
         let mut highs: [bj::TextValue; 3] =
             std::array::from_fn(|_| bj::TextValue::from(String::new()));
@@ -367,19 +421,27 @@ pub(super) fn audit_generated_in_store(
         let mut windows =
             std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
         let mut source_union = bj::new_work(allocation.as_ref());
-        for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
+        for (slot, part) in elements(s, &object.refs)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            .into_iter()
+            .enumerate()
+        {
             super::super::history::check_deadline(deadline)?;
-            exact(&part, Kind::Object, 3)?;
+            exact(&part, Kind::Object, 3)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let part_fields =
-                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
+                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let index = if let Some(fields) = &part_fields {
                 fields
-                    .scalar(s, "merged_index")?
+                    .scalar(s, "merged_index")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
                     .view()
                     .as_i64()
                     .ok_or_else(|| err("merged_index不是整数"))?
             } else {
-                number(s, &part, "merged_index")?
+                number(s, &part, "merged_index")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
             };
             indices[slot] = index;
             if slot > 0 && index != indices[slot - 1] + 1 {
@@ -391,7 +453,8 @@ pub(super) fn audit_generated_in_store(
             let raw_refs = if let Some(fields) = &part_fields {
                 fields.get_admitted(s, "raw_refs").map_err(err)?
             } else {
-                field(s, &part, "raw_refs")?
+                field(s, &part, "raw_refs")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
             };
             let members = source_references(
                 s,
@@ -402,14 +465,16 @@ pub(super) fn audit_generated_in_store(
                 native_sources.as_deref_mut(),
                 raw_prefix.len(),
                 ParseDomain::JsonInner,
-            )?;
+            )
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
             if members != group.members {
                 return Err(err("形态raw_refs不是同cut组成员"));
             }
             let deps = if let Some(fields) = &part_fields {
                 fields.get_admitted(s, "dependency_refs").map_err(err)?
             } else {
-                field(s, &part, "dependency_refs")?
+                field(s, &part, "dependency_refs")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
             };
             let dependency = source_references(
                 s,
@@ -420,13 +485,17 @@ pub(super) fn audit_generated_in_store(
                 native_sources.as_deref_mut(),
                 raw_prefix.len(),
                 ParseDomain::JsonInner,
-            )?;
-            let expected = difference_coords(s, &group.sources, &members)?;
+            )
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let expected = difference_coords(s, &group.sources, &members)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             if &*dependency != &*expected {
                 return Err(err("形态dependency_refs不是组事实来源差集"));
             }
-            source_union = union_coords(s, &source_union, &members)?;
-            source_union = union_coords(s, &source_union, &dependency)?;
+            source_union = union_coords(s, &source_union, &members)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            source_union = union_coords(s, &source_union, &dependency)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             windows[slot] = crate::content_manifest::Decimal::new(
                 object
                     .fields
@@ -438,12 +507,20 @@ pub(super) fn audit_generated_in_store(
             {
                 return Err(err("形态窗口不等于同cut组锚"));
             }
-            if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
-                highs[slot] = fields.text(s, "high")?;
-                lows[slot] = fields.text(s, "low")?;
+            if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+            {
+                highs[slot] = fields
+                    .text(s, "high")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                lows[slot] = fields
+                    .text(s, "low")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
             } else {
-                highs[slot] = text(s, &group.payload, "high")?;
-                lows[slot] = text(s, &group.payload, "low")?;
+                highs[slot] = text(s, &group.payload, "high")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                lows[slot] = text(s, &group.payload, "low")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
             }
         }
         if &*source_union != &*object.sources {
@@ -453,19 +530,23 @@ pub(super) fn audit_generated_in_store(
         let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
         let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
         let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
-        let comparisons_owner = parsed_json(s, comparison_text.as_bytes())?;
+        let comparisons_owner = parsed_json(s, comparison_text.as_bytes())
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let comparisons = comparisons_owner.view();
-        if !canonical_matches(s, comparisons, comparison_text.as_bytes())?
+        if !canonical_matches(s, comparisons, comparison_text.as_bytes())
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
             || comparisons.as_array().is_none_or(|v| v.len() != 4)
         {
             return Err(err("形态比较不是规范四项"));
         }
         let comparisons = Built {
-            digest: super::super::history::hash_json_in_store(s, comparisons, deadline, budget)?,
+            digest: super::super::history::hash_json_in_store(s, comparisons, deadline, budget)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
             kind: Kind::Array,
             extent: Some(4),
         };
-        let input_refs = built(object.refs.view())?;
+        let input_refs = built(object.refs.view())
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let identity = producer
             .shape_identity_scoped(
                 ShapeIdentityView {
@@ -493,18 +574,23 @@ pub(super) fn audit_generated_in_store(
         s.native_map_room(&mut shapes).map_err(err)?;
         shapes
             .insert(
-                s.native_text(object.id.as_str())?,
+                s.native_text(object.id.as_str())
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 Shape { groups: indices },
             )
             .map_err(err)?;
     }
-    let witness_array = field_ref(s, state, "witnesses")?;
+    let witness_array = field_ref(s, state, "witnesses")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     super::super::state::trace_event("source_witnesses", None);
     let mut seen = bj::new_map(allocation.as_ref());
-    for witness in elements(s, &witness_array)? {
+    for witness in
+        elements(s, &witness_array).map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
         super::super::history::check_deadline(deadline)?;
-        exact(&witness, Kind::Object, 9)?;
+        exact(&witness, Kind::Object, 9)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let fields = SourceFields::read_subset(
             s,
             witness.view(),
@@ -527,7 +613,14 @@ pub(super) fn audit_generated_in_store(
         s.native_map_room(&mut seen).map_err(err)?;
         if !(0..3).contains(&slot)
             || seen
-                .insert((s.native_text(object_id.as_str())?, slot), ())
+                .insert(
+                    (
+                        s.native_text(object_id.as_str())
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                        slot,
+                    ),
+                    (),
+                )
                 .map_err(err)?
                 .is_some()
         {
@@ -541,7 +634,8 @@ pub(super) fn audit_generated_in_store(
         if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
             return Err(err("见证锚与同cut组不同"));
         }
-        let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
+        let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         for (merged, field_name) in [
             ("merged_high", "high"),
             ("merged_low", "low"),
@@ -552,28 +646,33 @@ pub(super) fn audit_generated_in_store(
             let expected = if let Some(fields) = &payload_fields {
                 fields.get_admitted(s, field_name).map_err(err)?
             } else {
-                field(s, &group.payload, field_name)?
+                field(s, &group.payload, field_name)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
             };
             if actual != expected {
                 return Err(err("见证合并值不是同cut组事实"));
             }
         }
         let bars = fields.get_admitted(s, "raw_bars").map_err(err)?;
-        let items = elements(s, &bars)?;
+        let items =
+            elements(s, &bars).map_err(newchan_rust::s_content::ContextError::into_message)?;
         if items.len() != group.members.len() {
             return Err(err("见证raw_bars成员数不同"));
         }
         for (bar, coord) in items.iter().zip(&group.members) {
             super::super::history::check_deadline(deadline)?;
-            if digest(bar)? != raw.get(coord).expect("group members were bound to raw").raw {
+            if digest(bar).map_err(newchan_rust::s_content::ContextError::into_message)?
+                != raw.get(coord).expect("group members were bound to raw").raw
+            {
                 return Err(err("见证raw_bars不是同cut真实原始成员"));
             }
         }
-        let bars = built(bars.view())?;
+        let bars =
+            built(bars.view()).map_err(newchan_rust::s_content::ContextError::into_message)?;
         match native_identity.as_deref_mut() {
-            Some(memo) => {
-                memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?
-            }
+            Some(memo) => memo
+                .check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
             None => {
                 let want = super::super::generation::witness_identity_native(
                     s,
@@ -581,7 +680,8 @@ pub(super) fn audit_generated_in_store(
                     slot as usize,
                     mi as usize,
                     &bars,
-                )?;
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 if id.as_str() != want.as_str() {
                     return Err(err("见证ID不符"));
                 }
@@ -591,14 +691,20 @@ pub(super) fn audit_generated_in_store(
     if seen.len() != shapes.len() * 3 {
         return Err(err("形态缺完整三槽见证"));
     }
-    let observations = field_ref(s, state, "observations")?;
+    let observations = field_ref(s, state, "observations")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     super::super::state::trace_event("source_observations", None);
     let mut insufficient = 0;
     let mut outside_domain = 0;
-    for item in elements(s, &observations)? {
+    for item in
+        elements(s, &observations).map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
         super::super::history::check_deadline(deadline)?;
-        match text(s, &item, "kind")?.as_str() {
+        match text(s, &item, "kind")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            .as_str()
+        {
             "insufficient_knowledge" => insufficient += 1,
             "domain_not_satisfied" => outside_domain += 1,
             _ => {}
@@ -663,4 +769,8 @@ pub(super) fn audit_bounded2_batch(
         }
     }
     Ok(())
+}
+
+fn err(error: impl std::fmt::Display) -> String {
+    format!("SourceAuditInvalid：{error}")
 }

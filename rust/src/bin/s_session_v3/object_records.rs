@@ -187,12 +187,22 @@ const BATCH_ID_PREFIX: &str = "batch3-";
 pub(super) enum RecordError {
     /// 内容层编解码：缺节点、摘要不符、形状非法（含路径算子报出的非「缺字段」错误）。
     Codec(CodecError),
+    Context(newchan_rust::s_content::ContextError),
     /// producer 内部辅助记录与所调对象不符：缺字段／多字段／小字段值不匹配／边不同根。
-    Source { what: &'static str, detail: String },
+    Source {
+        what: &'static str,
+        detail: String,
+    },
     /// 独立索引给出的发布生命期不合法（见 [`validate_life`] 的逐条判据）。
-    Life { what: &'static str, detail: String },
+    Life {
+        what: &'static str,
+        detail: String,
+    },
     /// 跨 kind 混用：所调对象类型的字段面与其记录的 `kind` 不符。
-    Kind { what: &'static str, detail: String },
+    Kind {
+        what: &'static str,
+        detail: String,
+    },
 }
 
 impl From<CodecError> for RecordError {
@@ -205,6 +215,7 @@ impl fmt::Display for RecordError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RecordError::Codec(error) => write!(f, "内容编解码错误：{error}"),
+            RecordError::Context(error) => fmt::Display::fmt(error, f),
             RecordError::Source { what, detail } => write!(f, "{what} 与构造结果不符：{detail}"),
             RecordError::Life { what, detail } => write!(f, "发布生命期非法（{what}）：{detail}"),
             RecordError::Kind { what, detail } => write!(f, "跨 kind 拒绝（{what}）：{detail}"),
@@ -213,6 +224,15 @@ impl fmt::Display for RecordError {
 }
 
 impl std::error::Error for RecordError {}
+impl From<RecordError> for newchan_rust::s_content::ContextError {
+    fn from(error: RecordError) -> Self {
+        match error {
+            RecordError::Codec(error) => Self::from_codec(error, "内容编解码错误："),
+            RecordError::Context(error) => error,
+            error => error.to_string().into(),
+        }
+    }
+}
 
 /// 借用的内容对象：三型产物各自带公开边与内部辅助记录。
 ///
@@ -962,11 +982,13 @@ pub(crate) fn reproject_stored_wire_view(
     use sc::{capture_allocation::audit_json::JsonView as J, ValueView as B};
     let what = "持久对象 wire";
     let id_ref = store.lookup_ref(birth, &[PathStep::Field("object_id".into())])?;
-    let id = crate::v3::business_json::read_text(store, id_ref.view())
-        .map_err(|detail| RecordError::Source { what, detail })?;
+    let id = crate::v3::business_json::read_text(store, id_ref.view()).map_err(|detail| {
+        RecordError::Context(detail.context(&format!("{what} 与构造结果不符：")))
+    })?;
     let kind_ref = store.lookup_ref(birth, &[PathStep::Field("kind".into())])?;
-    let kind = crate::v3::business_json::read_text(store, kind_ref.view())
-        .map_err(|detail| RecordError::Source { what, detail })?;
+    let kind = crate::v3::business_json::read_text(store, kind_ref.view()).map_err(|detail| {
+        RecordError::Context(detail.context(&format!("{what} 与构造结果不符：")))
+    })?;
     validate_life_view(life, current_generation, id.as_str())?;
     let names: &[&str] = if kind.as_str() == CC006_SHAPE_KIND {
         &SHAPE_WIRE_FIELDS
@@ -1465,10 +1487,7 @@ fn render_canonical_text_view(
     })?;
     store
         .native_text(text)
-        .map_err(|detail| RecordError::Source {
-            what: "小固定结构",
-            detail,
-        })
+        .map_err(|detail| RecordError::Context(detail.context("小固定结构 与构造结果不符：")))
 }
 
 fn resolve_field(
@@ -1514,7 +1533,7 @@ fn read_text(
     })?;
     store
         .native_text(text)
-        .map_err(|detail| RecordError::Source { what, detail })
+        .map_err(|detail| RecordError::Context(detail.context(&format!("{what} 与构造结果不符："))))
 }
 
 /// 精确整数叶读取：只接受 `Number`（i64），拒绝浮点/布尔/null/文本。
@@ -2060,7 +2079,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_wire_records_and_birth_reference_keep_permits_after_scope() {
         let mut fixture = fixture();
@@ -2112,7 +2131,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_wire_bad_early_record_precedes_bad_late_life_and_releases_all_owners() {
         let mut fixture = fixture();
@@ -2160,7 +2179,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_wire_valid_record_late_life_error_and_early_resource_keep_priority() {
         let mut fixture = fixture();
@@ -3291,7 +3310,7 @@ impl std::fmt::Debug for LifeOwner {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};
