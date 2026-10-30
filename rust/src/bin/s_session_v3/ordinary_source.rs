@@ -557,6 +557,19 @@ mod tests {
             assert!(book.stats.hits > hits);
             let mut cold = OrdinaryProofs::default();
             assert_eq!(run(&mut nodes, &bad, &raw, &rule, &mut cold).unwrap_err(), expected);
+            // 第三路：已有成功前沿，但早期原件依赖已失效；晚处仍同时含重复和坏记录。
+            let mut invalidated = OrdinaryProofs::default();
+            run(&mut nodes, &root, &raw, &rule, &mut invalidated).unwrap();
+            invalidated.commit();
+            let mut changed = raw.clone();
+            changed[0]["revision"] = json!(raw[0]["revision"].as_i64().unwrap() + 1);
+            let early_error = oracle(&mut nodes, &root, &changed, &rule).unwrap_err();
+            let dual_error = oracle(&mut nodes, &bad, &changed, &rule).unwrap_err();
+            assert_eq!(dual_error, early_error, "{collection}: 晚处坏记录不得盖过早期来源错");
+            assert_eq!(run(&mut nodes, &bad, &changed, &rule, &mut invalidated).unwrap_err(), dual_error);
+            assert!(invalidated.stats.invalidations > 0);
+            let mut cold = OrdinaryProofs::default();
+            assert_eq!(run(&mut nodes, &bad, &changed, &rule, &mut cold).unwrap_err(), dual_error);
         }
     }
     #[test]

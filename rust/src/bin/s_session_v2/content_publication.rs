@@ -2127,6 +2127,66 @@ mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn ordinary_proof_publication_committed_active_fields_rejected_at_withdrawal_cut() {
+        use crate::v3::audit_store::HashReader;
+        let mut fixture = OrdinaryFixture::new(FixtureChange::None, Some(
+            "UPDATE s_content_objects SET withdrawn_generation=3,withdrawal_reason='superseded' WHERE object_id='obj3-old'"));
+        let tx = fixture.db.transaction().unwrap();
+        let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);
+        let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
+        // 同一只读事务的 generation 2 看不到 generation 3 的撤回，整 cut 成功后提升。
+        let warm = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader,
+            fixture.metadata.view(), fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
+        let mut snapshot = rendered(&mut reader, &normal_reference(warm.snapshot.view()));
+        let mut delta = rendered(&mut reader, &normal_reference(warm.delta.view()));
+        projection.commit_cut();
+        assert!(!projection.previous.is_empty() && projection.current.is_empty());
+
+        // 下一 cut 保留原 old 记录字节，却将它放入正确的撤回成员集合。
+        // 这样成员数/身份先过，实际拒绝必须来自逐 cut 的生命周期核对。
+        let old = snapshot["objects"].as_array_mut().unwrap().remove(0);
+        assert_eq!(old["object_id"], "obj3-old");
+        snapshot["withdrawn_objects"] = json!([old]);
+        snapshot["generation"] = json!("3");
+        snapshot["structure_cut"] = json!("cut-3");
+        delta["generation"] = json!("3");
+        delta["base_cut"] = json!("cut-2");
+        delta["next_cut"] = json!("cut-3");
+        delta["upserts"] = json!([]);
+        for value in [&mut snapshot, &mut delta] {
+            value["input_frontier"] = json!("2");
+            value["seq_range"] = json!({"from":"2","to":"2"});
+        }
+        let mut snapshot = cv(&snapshot);
+        let mut delta = cv(&delta);
+        for value in [&mut snapshot, &mut delta] {
+            field_set(value, "index_frontier", V::BatchSelf);
+            field_set(value, "catalog_evidence", V::Object(vec![("batch_id".into(), V::BatchSelf)]));
+        }
+        let next_roots = ManifestRoots {
+            generated_state: fixture.roots.generated_state.clone(),
+            publication_template: sc::write_template(&mut reader, &snapshot).unwrap().content_ref(),
+            delta_template: sc::write_template(&mut reader, &delta).unwrap().content_ref(),
+        };
+        fixture.metadata.generation = 3;
+        fixture.metadata.base_cut = "cut-2".into();
+        fixture.metadata.structure_cut = "cut-3".into();
+        fixture.metadata.input_frontier = 2;
+        let next_batch = format!("batch3-{}", "f".repeat(64));
+        let expected = resolve_indexed_templates_pending_view(&tx, &mut reader,
+            fixture.metadata.view(), next_roots.view(), &next_batch, 1).err().unwrap();
+        assert!(expected.contains("withdrawn_generation 与独立记录不同"), "{expected}");
+        let actual = resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader,
+            fixture.metadata.view(), next_roots.view(), &next_batch, 1, &mut projection).err().unwrap();
+        assert_eq!(actual, expected);
+        // 旧字段确实从成功前沿复用，而不是只跑一个新的冷坏 fixture。
+        assert!(projection.current.iter().any(|(key, value)| projection.previous.get(key)
+            .is_some_and(|old| std::rc::Rc::ptr_eq(old, value))));
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     fn ordinary_proof_publication_exact_declarations_never_hit_good_root_entry() {
         use crate::v3::audit_store::HashReader;
         let mut fixture = OrdinaryFixture::new(FixtureChange::None, None);
