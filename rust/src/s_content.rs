@@ -5313,6 +5313,17 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         Ok(got)
     }
 
+    fn remember_verified(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        #[cfg(feature = "s_incremental")]
+        if let Some(frontier) = self.closure_frontier {
+            if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
+                return Ok(());
+            }
+        }
+        self.seen.insert((digest, flavor))?;
+        Ok(())
+    }
+
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
         #[cfg(feature = "s_incremental")]
         if let Some(frontier) = self.closure_frontier {
@@ -5682,7 +5693,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let key = digest_at(&fbody, 0);
                             let value = digest_at(&fbody, 32);
                             self.validate_string_node(&key)?;
-                            self.seen.insert((key, Flavor::Value))?;
+                            self.remember_verified(key, Flavor::Value)?;
                             self.push_work(value, flavor)?;
                             let agg = FieldAgg {
                                 count: 1,

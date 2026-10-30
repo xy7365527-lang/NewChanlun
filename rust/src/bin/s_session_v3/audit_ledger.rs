@@ -406,6 +406,48 @@ pub(super) mod tests {
         }
     }
     #[test]
+    fn p6_two_object_generations_commit_disjoint_closure_deltas() {
+        use newchan_rust::s_content::{self as sc, closure_delta as cd};
+        fn unit(u: cd::Unit) -> Unit {
+            Unit { digest:u.digest,
+                flavor:match u.context { cd::Context::Value=>Flavor::Value, cd::Context::JsonInner=>Flavor::JsonInner },
+                mode:match u.mode { cd::VerificationMode::Public=>Mode::Public, cd::VerificationMode::Template=>Mode::Template } }
+        }
+        struct Committed<'a>(&'a Ledger);
+        impl cd::Frontier for Committed<'_> {
+            fn contains(&self, u: cd::Unit) -> Result<bool, sc::CodecError> {
+                self.0.contains_committed_unit(&unit(u)).map_err(|e|sc::CodecError::new(sc::code::SOURCE,e))
+            }
+        }
+        let (f,_,token,mut m,_)=prepared::tests::p6_candidate();
+        let mut l=ledger(&f.db_path(),"object-generations.sqlite",&m.rule_revision);
+        let mut nodes=sc::MemoryNodes::new();
+        let mut prior=BTreeSet::new();
+        for (generation,value) in [(1,sc::Value::Null),(2,sc::Value::Bool(true))] {
+            let r=sc::write_value(&mut nodes,&sc::Value::Object(vec![("k".into(),value)])).unwrap().content_ref();
+            m.generation=generation;
+            m.scope=r.clone();
+            let roots=content_manifest::ManifestRoots { generated_state:r.clone(),publication_template:r.clone(),delta_template:r.clone() };
+            let probe=cd::probe_four_roots(&mut nodes,[(&r).into();4],&Committed(&l)).unwrap();
+            let mut d=delta(&m,&roots);
+            d.new_units.clear();
+            probe.for_each_unit(|u| { d.new_units.insert(unit(u)); });
+            assert_eq!(d.new_units.len(),if generation==1 {6} else {4});
+            assert!(d.new_units.is_disjoint(&prior));
+            l.stage(&token,&d).unwrap();
+            assert!(l.committed_through().is_err());
+            l.bind(&token,&m,&roots).unwrap();
+            l.content_committed().unwrap();
+            assert_eq!(l.committed_through().unwrap(),generation);
+            for u in &d.new_units { assert!(l.contains_committed_unit(u).unwrap()); }
+            prior.extend(d.new_units);
+        }
+        assert_eq!(prior.len(),10);
+        let conn=Connection::open(&l.path).unwrap();
+        assert_eq!(conn.query_row("SELECT COUNT(*) FROM node",[],|r|r.get::<_,i64>(0)).unwrap(),10);
+        assert_eq!(conn.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    }
+    #[test]
     fn p6_ledger_committed_queries_reject_pending_bound_and_stale() {
         let (f,_,token,m,r)=prepared::tests::p6_candidate();
         let mut l=ledger(&f.db_path(),"frontier.sqlite",&m.rule_revision);
