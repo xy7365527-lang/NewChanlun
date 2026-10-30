@@ -9393,3 +9393,23 @@ mod manifest_template_coverage_tests {
 #[cfg(test)]
 #[path = "sqlite_base_tests.rs"]
 mod sqlite_base_tests;
+
+#[cfg(test)]
+mod development_eligibility_tests {
+    use super::*;
+    #[test]
+    fn actual_sqlite_base_rejects_deadline_and_max_render_without_reading() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
+        let mut reader = HashReader::sqlite_base(&base);
+        assert_eq!(reader.eligible_sqlite_base().is_some(), !cfg!(feature = "s_incremental"));
+        reader.deadline = Some(std::time::Instant::now());
+        assert!(reader.eligible_sqlite_base().is_none());
+        reader.deadline = None;
+        reader.max_render_bytes = Some(1);
+        assert!(reader.eligible_sqlite_base().is_none());
+        reader.max_render_bytes = None;
+        assert_eq!(reader.eligible_sqlite_base().is_some(), !cfg!(feature = "s_incremental"));
+        assert_eq!(base.material_stats().logical_reads, 0);
+    }
+}

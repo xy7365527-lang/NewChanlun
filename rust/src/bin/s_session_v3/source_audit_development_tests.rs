@@ -249,3 +249,68 @@ fn development_hit_rechecks_actual_header_and_f_and_releases_after_fault() {
     assert_eq!(failed.2, 0, "首个previous的实际header失败不得发布命中成功");
     assert_eq!(DEVELOPMENT_LAST.with(std::cell::Cell::get).retained_bytes, 0);
 }
+
+#[test]
+fn development_exclusion_budget_stop_at_ordinary_native_and_owned() {
+    #[derive(Default)]
+    struct Meter { events: std::cell::RefCell<Vec<String>>, stop_at: Option<usize> }
+    impl super::super::audit_budget::Budget for Meter {
+        fn precheck(&self) -> Result<(), sc::CodecError> {
+            self.events.borrow_mut().push("precheck".into());
+            if self.stop_at == Some(self.events.borrow().len()) { Err(sc::CodecError::new("development_stop", "budget stop")) } else { Ok(()) }
+        }
+        fn prepare_node(&self) -> Result<(), sc::CodecError> { self.precheck()?; self.events.borrow_mut().push("prepare".into()); Ok(()) }
+        fn accept_prepared_frame(&self, frame: &sc::job::CheckedFrame) -> Result<(), sc::CodecError> { self.events.borrow_mut().push(sc::root_string(frame.digest())); Ok(()) }
+        fn node(&self, d: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> { self.prepare_node()?; self.accept_prepared_frame(&sc::job::CheckedFrame::checked(d,tag,body.to_vec())?) }
+        fn record(&self) -> Result<(), sc::CodecError> { self.precheck()?; self.events.borrow_mut().push("record".into()); Ok(()) }
+    }
+    let (nodes, state, raw, rule) = super::tests::fixture();
+    let conn = database(&nodes);
+    let run = |enabled, stop_at| {
+        let _config = Config::set((if enabled {16384} else {0},false));
+        let base = sc::sqlite_audit::SqliteAuditBase::new(&conn,4096);
+        let meter = Meter { stop_at, ..Meter::default() };
+        let mut reader = super::super::history::HashReader::sqlite_base(&base).with_audit_gate(Some(&meter),None);
+        assert!(reader.eligible_sqlite_base().is_none());
+        let f = sc::frame_calls_on_thread();
+        let result = audit_generated_for_audit(&mut reader, &state, &raw, tb02a::PROFILE, &rule, None, Some(&meter));
+        assert_eq!(DEVELOPMENT_LAST.with(std::cell::Cell::get).eligible_batches,0);
+        drop(reader);
+        (result, base.material_stats().sql_material_reads, sc::frame_calls_on_thread()-f, meter.events.into_inner())
+    };
+    let old = run(false,None);
+    assert!(old.0.is_ok());
+    assert_eq!(run(true,None),old);
+    for stop in (1..=16).chain([old.3.len()/2,old.3.len()]) { assert_eq!(run(true,Some(stop)),run(false,Some(stop)), "stop_at {stop}"); }
+    let _config = Config::set((16384,false));
+    let base = sc::sqlite_audit::SqliteAuditBase::new(&conn,4096);
+    let mut reader = super::super::history::HashReader::sqlite_base(&base);
+    let mut ordinary = OrdinaryProofs::default(); ordinary.begin(tb02a::PROFILE,&rule);
+    let result = audit_generated_in_store(&mut super::super::audit_store::StoreView::for_audit(&mut reader), (&state).into(), (&raw).into(), tb02a::PROFILE,&rule,None,None,None,None,None,None,Some(&mut ordinary));
+    assert!(result.is_ok()); assert_eq!(DEVELOPMENT_LAST.with(std::cell::Cell::get).eligible_batches,0);
+    for policy in [super::super::history::SourcePolicy::NativeMeasured] {
+        let reader = super::super::history::HashReader::sqlite_base(&base).with_source_policy(policy);
+        assert!(reader.eligible_sqlite_base().is_none());
+    }
+    #[cfg(feature = "s_incremental")]
+    {
+        let reader = super::super::history::HashReader::sqlite_base(&base);
+        assert!(reader.eligible_sqlite_base().is_none());
+        let capture = sc::AuditCapture::new(nodes.clone()).enable_native_frame_reuse().unwrap();
+        super::super::audit_store::with_native_store_probe(&capture,8*1024*1024, |store,_| {
+            assert!(store.eligible_sqlite_base().is_none()); Ok(())
+        });
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    {
+        use sc::capture_allocation::{CaptureSlab,OwnedBudget};
+        let budget = OwnedBudget::new(16*1024*1024);
+        let bytes = nodes.iter().map(|(_,_,body)| body.len()).sum();
+        let mut slab = CaptureSlab::new(nodes.len(),bytes,&budget).unwrap();
+        for (d,tag,body) in nodes.iter() { slab.push(*d,tag,body).unwrap(); }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        super::super::audit_store::with_owned_store_probe(&capture,&budget,64,65536, |store| {
+            assert!(store.owned_codec_active()); assert!(store.eligible_sqlite_base().is_none());
+        });
+    }
+}

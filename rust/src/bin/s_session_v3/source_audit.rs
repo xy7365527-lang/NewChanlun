@@ -1946,10 +1946,10 @@ impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
             + 2 * std::mem::size_of::<DevelopmentStats>();
         let requested = entries.checked_mul(std::mem::size_of::<DevelopmentSlot>())
             .and_then(|n| n.checked_add(metadata));
-        if entries > 0 && entries % 4 == 0 && !allocation_failure {
+        if entries > 0 && entries % 4 == 0 {
             // Claim the sole auxiliary slot before allocating, including on a second-session refusal.
             if let Some(lease) = requested.and_then(|n| base.reserve_proof_bytes(n)) {
-                if table.slots.try_reserve_exact(entries).is_ok() {
+                if !allocation_failure && table.slots.try_reserve_exact(entries).is_ok() {
                     let actual = table.slots.capacity().checked_mul(std::mem::size_of::<DevelopmentSlot>())
                         .and_then(|n| n.checked_add(metadata));
                     if actual == requested {
