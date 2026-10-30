@@ -638,11 +638,10 @@ fn audit_bounded2_batch(
         }
         let prefix = field(s, &development, "root")?;
         exact(&prefix, Kind::Array, count as u64)?;
-        let mut units = elements(s, &prefix)?;
+        let units = elements(s, &prefix)?;
         if units.last() != Some(&current) {
             return Err(err("CC007发展前缀末项不是本单元"));
         }
-        units.push(current.clone());
         for unit in units {
             exact(&unit, Kind::Object, 3)?;
             let bar = field(s, &unit, "bar")?;

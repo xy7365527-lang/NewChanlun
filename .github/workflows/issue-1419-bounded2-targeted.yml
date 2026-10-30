@@ -15,9 +15,12 @@ jobs:
         working-directory: rust
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/rust-job-setup
       - name: Format changed Rust files and retain patch
         run: |
+          set -o pipefail
           mkdir -p ../bounded2-evidence
           git diff --name-only 411db6035fd974e269ccef0a2d8f39ce6ed22110 HEAD -- '*.rs' | while read -r path; do
             rustfmt --edition 2021 --config skip_children=true "../$path"

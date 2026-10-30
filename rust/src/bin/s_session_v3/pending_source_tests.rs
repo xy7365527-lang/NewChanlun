@@ -205,7 +205,7 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
                 let tx = fixture.conn.transaction().unwrap();
                 let state = state::audit(&tx).unwrap();
                 state.objects.iter().filter(|o| o.kind == content_producer::CC007_DEVELOPMENT_BATCH_KIND)
-                    .map(|o| o.object_id.clone()).collect::<Vec<_>>()
+                    .map(|o| o.id.clone()).collect::<Vec<_>>()
             };
             assert!(!original_batches.is_empty(), "夹具必须有真实分型及后续单元");
             let row = rows[10];
@@ -217,8 +217,8 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
             let withdrawn = {
                 let tx = fixture.conn.transaction().unwrap();
                 let state = state::audit(&tx).unwrap();
-                state.objects.iter().filter(|o| original_batches.contains(&o.object_id) && o.life.withdrawn_generation.is_some())
-                    .map(|o| o.object_id.clone()).collect::<Vec<_>>()
+                state.objects.iter().filter(|o| original_batches.contains(&o.id) && o.life.withdrawn_generation.is_some())
+                    .map(|o| o.id.clone()).collect::<Vec<_>>()
             };
             assert!(!withdrawn.is_empty(), "修订必须撤回旧批记录");
             let (envelope, token) = fixture.accept_begin(3, row, 3);
@@ -228,11 +228,11 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
             let tx = fixture.conn.transaction().unwrap();
             let state = state::audit(&tx).unwrap();
             for id in &withdrawn {
-                let object = state.objects.iter().find(|o| &o.object_id == id).unwrap();
+                let object = state.objects.iter().find(|o| &o.id == id).unwrap();
                 assert!(object.life.withdrawn_generation.is_some(), "旧身份不得复活");
             }
             let active_batches: Vec<_> = state.objects.iter().filter(|o| o.kind == content_producer::CC007_DEVELOPMENT_BATCH_KIND && o.life.withdrawn_generation.is_none()).collect();
-            assert!(active_batches.iter().any(|o| !original_batches.contains(&o.object_id)), "恢复必须生成新 batch 身份");
+            assert!(active_batches.iter().any(|o| !original_batches.contains(&o.id)), "恢复必须生成新 batch 身份");
             Ok(())
         })
     }
