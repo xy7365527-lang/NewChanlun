@@ -194,6 +194,16 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     }))
 }
 
+pub(super) trait CutSourceVerifier {
+    fn verify(
+        &mut self,
+        cut: &PublishedCut,
+        store: &mut HashReader<'_>,
+        objects: &[object_index::Entry],
+        sweep: Option<&object_index::HistorySweep>,
+    ) -> Result<(), String>;
+}
+
 pub(super) struct PublishedCut {
     pub metadata: AuditMetadata,
     pub roots: AuditRoots,
@@ -379,6 +389,7 @@ pub(super) fn read_indexed_history(
         None,
         SourcePolicy::Ordinary,
         false,
+        &mut None,
     )
 }
 
@@ -408,6 +419,7 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         SourcePolicy::Ordinary,
         false,
+        &mut None,
     )
 }
 
@@ -519,6 +531,25 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
     )
 }
 
+
+#[cfg(feature = "s_incremental")]
+pub(super) fn fold_certified_history(
+    tx: &Transaction<'_>,
+    raw: RawEventsView<'_>,
+    control: v2::ControlHistory,
+    capture: &sc::AuditCapture,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    certify: &mut dyn CutSourceVerifier,
+) -> Result<IndexedHistory, String> {
+    read_indexed_history_inner(
+        tx, raw, control, deadline, None, budget, true, Some(capture),
+        None, work, None, SourcePolicy::NativeMeasured, false,
+        &mut Some(certify),
+    )
+}
+
 pub(super) fn read_indexed_history_with_policy<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -547,6 +578,7 @@ pub(super) fn read_indexed_history_with_policy<'a>(
         materials,
         policy,
         false,
+        &mut None,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -742,6 +774,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
             Some(pool),
             policy,
             true,
+            &mut None,
         )?
     } else {
         read_indexed_history_with_policy(
@@ -871,6 +904,7 @@ fn read_indexed_history_inner(
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
     sealed_ordinary_materials: bool,
+    certify: &mut Option<&mut dyn CutSourceVerifier>,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
@@ -1064,6 +1098,7 @@ fn read_indexed_history_inner(
             deadline,
             budget,
             allocation.as_ref(),
+            certify,
         )?;
         if let Some(projection) = ordinary_publication.as_mut() {
             projection.commit_cut();
@@ -1160,6 +1195,7 @@ fn audit_one_published_cut<'capture>(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
+    certify: &mut Option<&mut dyn CutSourceVerifier>,
 ) -> Result<PublishedCut, String> {
     let codec_work = store.work;
     check_deadline(deadline)?;
@@ -1795,13 +1831,17 @@ fn audit_one_published_cut<'capture>(
         same_digest_selected(store, &snapshot, snapshot_fields.as_ref(), key, expected)?;
     }
 
-    Ok(PublishedCut {
+    let cut = PublishedCut {
         metadata: m,
         roots,
         batch_id,
         snapshot,
         delta,
-    })
+    };
+    if let Some(certify) = certify.as_deref_mut() {
+        certify.verify(&cut, store, objects.entries(), object_sweep.as_ref())?;
+    }
+    Ok(cut)
 }
 
 /// 两条路径共用全raw（包括未发布尾部）的hash及RawWire验证义务。
@@ -6339,7 +6379,7 @@ pub(super) mod tests {
             let cut = audit_one_published_cut(
                 &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
-                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None,
+                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None, &mut None,
             )?;
             drop(row);
             stmt.finalize().map_err(err)?;
@@ -8132,6 +8172,7 @@ pub(super) fn append_owner_cut(
     bound: &super::audit_owner::BoundOriginals,
     work: &sc::capture_allocation::scratch::WorkScope,
     native: &super::audit_owner::native::Budget,
+    certify: &mut dyn CutSourceVerifier,
 ) -> Result<
     (IndexedHistory, super::audit_retention::RetainedDelta),
     super::audit_owner::native::Failure,
@@ -8257,6 +8298,7 @@ pub(super) fn append_owner_cut(
         None,
         None,
         None,
+        &mut Some(certify),
     )
     .map_err(|e| format!("{e} [owner full cut g={generation}]"))?;
     drop(row);

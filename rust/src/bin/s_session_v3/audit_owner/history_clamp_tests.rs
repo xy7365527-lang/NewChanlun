@@ -252,3 +252,46 @@ fn h1_missing_commit_receipt_retires_after_real_commit() {
     assert!(after > before, "真实COMMIT完成但未交收据，不能伪装成回滚");
     h1_assert_stale(&owner);
 }
+
+#[test]
+fn h1_certified_cold_seed_and_real_online_use_same_cut_kernel() {
+    let f = fixture();
+    let owner = h1_owner(&f);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    let mut c = context();
+    for n in 2..=3 {
+        let envelope = b2_envelope(n);
+        let token = b2_accept_begin(&owner, &envelope, &mut c);
+        if n == 2 {
+            let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+            let native = owner.complete_budget_for_test();
+            let cert = native.codec_work().unwrap().run(|scope| {
+                state::HistoricalCertificate::cold(active.tx(), None, None, Some(scope))
+            }).unwrap();
+            let audited = cert.into_audited();
+            let mut complete = owner.complete.borrow_mut();
+            let candidate = complete.as_mut().unwrap();
+            assert_eq!(candidate.audited.h1_canonical(), audited.h1_canonical());
+            candidate.charge.historical_and_raw_capacity =
+                crate::v3::audit_retention::Retained::heap_bytes(&audited);
+            candidate.audited = audited;
+            drop(complete);
+            active.read_end().unwrap();
+        }
+        let (result, events, _) = state::traced(false, || {
+            owner.publish(&mut runtime, &token, &envelope, &mut c)
+        });
+        let (receipt, ended) = result.unwrap();
+        assert_eq!(receipt.generation, n);
+        owner.continue_with(ended).unwrap();
+        assert_eq!(events.iter().filter(|e| e["phase"] == "h1_certified_cut").count(), 1);
+        assert!(events.iter().any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
+        h1_compare_complete_history(&owner);
+        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        let cold = state::HistoricalCertificate::cold(active.tx(), None, None, None).unwrap();
+        assert_eq!(owner.complete.borrow().as_ref().unwrap().audited.h1_canonical(),
+            cold.historical().h1_canonical());
+        drop(cold);
+        active.read_end().unwrap();
+    }
+}
