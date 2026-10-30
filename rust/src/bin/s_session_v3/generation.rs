@@ -7082,7 +7082,11 @@ pub(super) mod tests {
         assert!(shapes.len() >= 2);
         assert!(shapes.iter().all(|o| o.get("fact_key").is_none()));
         let window = |shape: &Value| {
-            json!([shape["window_start"], shape["window_mid"], shape["window_end"]])
+            json!([
+                shape["window_start"],
+                shape["window_mid"],
+                shape["window_end"]
+            ])
         };
         assert_ne!(window(&shapes[0]), window(&shapes[1]));
         eprintln!("CC006 subject counterexample {}", json!(shapes));
