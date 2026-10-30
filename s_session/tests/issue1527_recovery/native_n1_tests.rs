@@ -863,7 +863,7 @@ fn native_n1_l3a_close_busy_keeps_callback_context_then_destroys() {
     assert_eq!(account.borrow().snapshot().open_reservations, 1);
     assert!(with_owner(|_| ()).is_some() && h.active_any.load(Ordering::SeqCst));
     assert_eq!(unsafe { rusqlite::ffi::sqlite3_finalize(stmt) }, rusqlite::ffi::SQLITE_OK);
-    session.state.as_ref().unwrap().owner.settle_shm(Ok(0)).unwrap();
+    session.settle_shm(Ok(0)).unwrap();
     hold_sqlite_lock_until_close(&session, &file);
     assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
     assert_eq!(drops.load(Ordering::Relaxed), 2, "仅成功close后释放两个回调上下文");

@@ -1192,6 +1192,11 @@ impl NativeSession {
         Ok(())
     }
 
+    /// 打开/事务失败后的清理仍可结清原预算，不要求再开启业务事务。
+    pub(crate) fn settle_shm(&self, measured: Result<u64, ()>) -> Result<(), NativeError> {
+        self.state.as_ref().expect("live session").owner.settle_shm(measured)
+    }
+
     pub(crate) fn begin(&mut self) -> Result<NativeTransaction<'_>, rusqlite::Error> {
         let state = self.state.as_mut().expect("live session");
         let view = state.view.as_mut().ok_or(rusqlite::Error::InvalidQuery)?;
