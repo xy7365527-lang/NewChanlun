@@ -38,7 +38,10 @@ pub(super) fn payload(
     let p = object.fields.get_admitted(s, "payload_json")?;
     s.lookup_ref(p.view(), &[PathStep::JsonText]).map_err(err)
 }
-fn data(s: &mut (impl SourceFieldStore + ?Sized), object: &Object) -> Result<RefValue, PublishError> {
+fn data(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    object: &Object,
+) -> Result<RefValue, PublishError> {
     let p = payload(s, object)?;
     field(s, &p, "data")
 }
@@ -1190,7 +1193,11 @@ fn audit_entity_fields(
     Ok(())
 }
 
-fn current_entity<'a>(lookup: &'a impl Lookup, id: &str, kind: &str) -> Result<&'a Object, PublishError> {
+fn current_entity<'a>(
+    lookup: &'a impl Lookup,
+    id: &str,
+    kind: &str,
+) -> Result<&'a Object, PublishError> {
     let object = lookup
         .entity(id)
         .ok_or_else(|| err("结构关系实体端点悬空"))?;
@@ -2334,7 +2341,10 @@ mod ef_entity_tests {
                 }
                 let lookup = Current(current);
                 let own = audit_links(&mut n, &lookup.0[i].1, &lookup).expect_err(what);
-                assert!(own.to_string().contains(want), "{what}: 自身 {own}；全读 {got}");
+                assert!(
+                    own.to_string().contains(want),
+                    "{what}: 自身 {own}；全读 {got}"
+                );
             }
         }
     }

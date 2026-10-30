@@ -62,7 +62,9 @@ fn edge(root: &Built) -> CV {
     CV::Edge(root.digest)
 }
 fn field(nodes: &mut dyn NodeStore, root: &Built, name: &str) -> Result<Built, sc::ContextError> {
-    let root = nodes.native_built_ref(root).map_err(sc::ContextError::from)?;
+    let root = nodes
+        .native_built_ref(root)
+        .map_err(sc::ContextError::from)?;
     let value = nodes
         .lookup_field_ref(root.view(), name)
         .map_err(sc::ContextError::from)?;
@@ -76,15 +78,24 @@ fn text(nodes: &mut dyn NodeStore, root: &Built) -> Result<Text, sc::ContextErro
     if root.kind != sc::Kind::String {
         return Err("结构字段不是文本".into());
     }
-    let root = nodes.native_built_ref(root).map_err(sc::ContextError::from)?;
+    let root = nodes
+        .native_built_ref(root)
+        .map_err(sc::ContextError::from)?;
     let owner = super::business_json::render_json(nodes, root.view())?;
     Text::new(owner.view().as_str().ok_or("结构字段不是文本")?, nodes)
 }
-fn field_text(nodes: &mut dyn NodeStore, root: &Built, name: &str) -> Result<Text, sc::ContextError> {
+fn field_text(
+    nodes: &mut dyn NodeStore,
+    root: &Built,
+    name: &str,
+) -> Result<Text, sc::ContextError> {
     let value = field(nodes, root, name)?;
     text(nodes, &value)
 }
-pub(crate) fn canonical_root_text(nodes: &mut dyn NodeStore, root: &Built) -> Result<Text, sc::ContextError> {
+pub(crate) fn canonical_root_text(
+    nodes: &mut dyn NodeStore,
+    root: &Built,
+) -> Result<Text, sc::ContextError> {
     enum Bytes {
         Native(sc::capture_allocation::scratch::ScratchBytes),
         Plain(std::vec::Vec<u8>),
@@ -105,7 +116,9 @@ pub(crate) fn canonical_root_text(nodes: &mut dyn NodeStore, root: &Built) -> Re
         Some(w) => Bytes::Native(w.bytes()),
         None => Bytes::Plain(std::vec::Vec::new()),
     };
-    let reference = nodes.native_built_ref(root).map_err(sc::ContextError::from)?;
+    let reference = nodes
+        .native_built_ref(root)
+        .map_err(sc::ContextError::from)?;
     nodes
         .render_ref(reference.view(), &mut bytes)
         .map_err(sc::ContextError::from)?;
@@ -275,9 +288,7 @@ pub(crate) fn fact<T: Serialize + ?Sized>(
     value: &T,
 ) -> Result<Built, sc::ContextError> {
     put(
-        &(value
-            .serialize(WireSerializer(nodes))
-            .map_err(|e| e.0)?),
+        &(value.serialize(WireSerializer(nodes)).map_err(|e| e.0)?),
         nodes,
     )
 }
@@ -293,7 +304,9 @@ fn verify_prior(
     record: &Built,
     kind: &str,
 ) -> Result<Built, sc::ContextError> {
-    let record_ref = nodes.native_built_ref(record).map_err(sc::ContextError::from)?;
+    let record_ref = nodes
+        .native_built_ref(record)
+        .map_err(sc::ContextError::from)?;
     nodes
         .verify_ref(record_ref.view(), sc::Mode::Public)
         .map_err(sc::ContextError::from)?;
@@ -358,7 +371,9 @@ fn read_prior(
         let data = verify_prior(nodes, producer, record, crate::tb02c::KINDS[2])?;
         let entity = field_text(nodes, &data, "entity_id")?;
         let revision_text = field_text(nodes, &data, "entity_revision")?;
-        let revision = revision_text.parse::<i64>().map_err(sc::ContextError::from)?;
+        let revision = revision_text
+            .parse::<i64>()
+            .map_err(sc::ContextError::from)?;
         if revision < 1 || Text::format(format_args!("{revision}"), nodes)? != revision_text {
             return Err("prior 非法修订".into());
         }
@@ -557,7 +572,8 @@ pub(super) fn build_cd(
             "TB-02-C：游标簿预算记录 `{}` 与段事实所读 `{}` 不同（#1604）",
             evidence.second_store.policy.label(),
             budget.scan_budget
-        ).into());
+        )
+        .into());
     }
     let truncated_from = facts.tail_window_bound.as_ref().map(|b| b.seg_start);
     let mut out = StructureOutput {
@@ -911,7 +927,9 @@ pub(super) fn build_cd(
         let normalized = put(&(CV::Object(fields.clone_in(nodes)?)), nodes)?;
         let changed = if let Some(p) = previous {
             let names = Vec::from_iter(fields.iter().map(|(k, _)| k.as_str()), nodes)?;
-            let r = nodes.native_built_ref(&p.data).map_err(sc::ContextError::from)?;
+            let r = nodes
+                .native_built_ref(&p.data)
+                .map_err(sc::ContextError::from)?;
             let prior_fields = nodes
                 .lookup_fields_ref(r.view(), &names)
                 .map_err(sc::ContextError::from)?;
@@ -1289,7 +1307,10 @@ fn anchor(id: &str) -> &str {
 fn center_anchor(id: &str) -> &str {
     id.strip_prefix("center:").unwrap_or(id)
 }
-fn unit_value(u: &crate::tb02e::SegUnit, nodes: &dyn sc::NodeSource) -> Result<CV, sc::ContextError> {
+fn unit_value(
+    u: &crate::tb02e::SegUnit,
+    nodes: &dyn sc::NodeSource,
+) -> Result<CV, sc::ContextError> {
     Ok(match u.range {
         Some(r) => obj(
             [
@@ -1333,7 +1354,12 @@ fn value_digest(value: &CV, nodes: &mut dyn NodeStore) -> Result<sc::NodeDigest,
         value => Ok(put(value, nodes)?.digest),
     }
 }
-fn root_eq(old: &Built, key: &str, new: CV, nodes: &mut dyn NodeStore) -> Result<bool, sc::ContextError> {
+fn root_eq(
+    old: &Built,
+    key: &str,
+    new: CV,
+    nodes: &mut dyn NodeStore,
+) -> Result<bool, sc::ContextError> {
     Ok(field(nodes, old, key)?.digest == value_digest(&new, nodes)?)
 }
 fn revision_of(nodes: &mut dyn NodeStore, old: Option<&Built>) -> Result<i64, sc::ContextError> {
@@ -1367,7 +1393,9 @@ fn same_fields(
             names.push(k, nodes)?;
         }
     }
-    let r = nodes.native_built_ref(old).map_err(sc::ContextError::from)?;
+    let r = nodes
+        .native_built_ref(old)
+        .map_err(sc::ContextError::from)?;
     let fields = nodes
         .lookup_fields_ref(r.view(), &names)
         .map_err(sc::ContextError::from)?;
@@ -1624,7 +1652,8 @@ fn segment_units(
                 if m < c.start_stroke || m > c.observed_through {
                     return Err(format!(
                         "TB02E_INPUT_CONTRACT：成员笔 {m} 不在 CC-013 stroke_refs 中"
-                    ).into());
+                    )
+                    .into());
                 }
                 let bi = evidence.stroke_facts.strokes.get(m).ok_or("成员笔越界")?;
                 let (s, e) = (bi.start.price, bi.end.price);
@@ -1701,7 +1730,8 @@ fn segment_units(
         return Err(format!(
             "TB02E_INPUT_CONTRACT：段对象与塔 L0 单元不符，本 cut 拒绝提交：{}",
             canonical_root_text(nodes, &root)?
-        ).into());
+        )
+        .into());
     }
     Ok(out)
 }
@@ -1735,10 +1765,10 @@ pub(super) fn build_ef_units(
         },
     };
     let units = Vec::try_from_iter(
-        inputs
-            .completed
-            .iter()
-            .map(|u| u.range.ok_or_else(|| sc::ContextError::from("完成单元缺区间"))),
+        inputs.completed.iter().map(|u| {
+            u.range
+                .ok_or_else(|| sc::ContextError::from("完成单元缺区间"))
+        }),
         nodes,
     )?;
     let facts = scan_center_facts_full(&units, center_from_segments);

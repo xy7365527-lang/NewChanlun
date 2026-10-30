@@ -172,7 +172,9 @@ struct RawReads<'a, T: ?Sized> {
     deps: &'a RefCell<Dependencies>,
 }
 impl<T: RawLookup + ?Sized> RawLookup for RawReads<'_, T> {
-    fn len(&self) -> usize { self.raw.len() }
+    fn len(&self) -> usize {
+        self.raw.len()
+    }
     fn get(&self, c: &i64) -> Option<&Source> {
         let value = self.raw.get(c);
         self.deps.borrow_mut().raw.push((*c, value.copied()));
@@ -1202,7 +1204,9 @@ mod tests {
     fn ordinary_proof_request_negative_subject_dependency_cannot_be_reused() {
         struct Steps(bool);
         impl source_structure::Lookup for Steps {
-            fn object(&self, _: &str) -> Option<&Object> { None }
+            fn object(&self, _: &str) -> Option<&Object> {
+                None
+            }
         }
         impl source_pending::StepLookup for Steps {
             fn get_step(&self, _: i64) -> Option<&dyn source_pending::StepView> {

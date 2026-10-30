@@ -1535,7 +1535,10 @@ fn w2_group_contains(
     if members.kind() != Kind::Array {
         return Err(publish_err("替代组members不是数组"));
     }
-    for n in 0..members.extent().ok_or_else(|| publish_err("替代组members缺长度"))? {
+    for n in 0..members
+        .extent()
+        .ok_or_else(|| publish_err("替代组members缺长度"))?
+    {
         let member = s
             .lookup_ref(members.view(), &[PathStep::Index(n)])
             .map_err(publish_err)?;
@@ -2224,7 +2227,8 @@ fn load_in_store(
     capture: Option<&sc::AuditCapture>,
     events: Option<&mut Option<NativeArc<HistoryEvents>>>,
 ) -> Result<sc::CodecVec<Entry>, PublishError> {
-    let rule = crate::meta_get_opt(tx, "rule_revision")?.ok_or_else(|| publish_err("缺完整规则身份"))?;
+    let rule =
+        crate::meta_get_opt(tx, "rule_revision")?.ok_or_else(|| publish_err("缺完整规则身份"))?;
     let mut leaf_bindings = capture.map(|capture| ShapeLeafBindings {
         capture,
         successful: bj::new_map(None),
@@ -2343,7 +2347,8 @@ pub(super) fn update_from_owner(
     _bound: &super::audit_owner::BoundOriginals,
     retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), PublishError> {
-    let rule = crate::meta_get_opt(tx, "rule_revision")?.ok_or_else(|| publish_err("缺完整规则身份"))?;
+    let rule =
+        crate::meta_get_opt(tx, "rule_revision")?.ok_or_else(|| publish_err("缺完整规则身份"))?;
     let mut changed = sc::CodecVec::default();
     s.native_codec_room(&mut changed, rowids.len())
         .map_err(publish_err)?;
@@ -2552,7 +2557,8 @@ pub(super) fn structure_prior_records(
     {
         match entry.kind.as_str() {
             "CC-013.segment" => {
-                s.native_codec_room(&mut prior.segments, 1).map_err(publish_err)?;
+                s.native_codec_room(&mut prior.segments, 1)
+                    .map_err(publish_err)?;
                 prior
                     .segments
                     .try_push(entry.internal.clone())
@@ -2577,7 +2583,10 @@ pub(super) fn structure_prior_records(
                     return Err(publish_err("活动中枢/关系版本对象不唯一"));
                 }
                 s.native_codec_room(&mut prior.ef, 1).map_err(publish_err)?;
-                prior.ef.try_push(entry.internal.clone()).map_err(publish_err)?;
+                prior
+                    .ef
+                    .try_push(entry.internal.clone())
+                    .map_err(publish_err)?;
             }
             "CC-004.undetermined_raw" => {
                 s.native_codec_room(&mut prior.w_undetermined, 1)
@@ -2594,7 +2603,10 @@ pub(super) fn structure_prior_records(
             | "CC-018.unit_core_position"
             | "CC-020.center_pair" => {
                 s.native_codec_room(&mut prior.ef, 1).map_err(publish_err)?;
-                prior.ef.try_push(entry.internal.clone()).map_err(publish_err)?;
+                prior
+                    .ef
+                    .try_push(entry.internal.clone())
+                    .map_err(publish_err)?;
             }
             _ => {}
         }
@@ -5078,7 +5090,12 @@ mod tests {
         )
         .err()
         .unwrap();
-        assert!(error.to_string().contains("candidate_fields_wire_SQL_fault"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains("candidate_fields_wire_SQL_fault"),
+            "{error}"
+        );
         assert_eq!(
             candidate_sql_material_for_test(&tx),
             before,

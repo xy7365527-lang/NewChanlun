@@ -28,6 +28,20 @@ jobs:
           set -o pipefail
           mkdir -p ../integration33z
           cargo check --locked --tests --bin s_structure_session --features '${{ matrix.features }}' --message-format=json 2>../integration33z/stderr.log | tee ../integration33z/check.jsonl
+      - name: Run targeted combined contracts
+        run: |
+          set -o pipefail
+          features='${{ matrix.features }}'
+          if [ "$features" = s_session ]; then
+            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_rule_ w_semantics_layout_neutral_between_layout1_and_bounded bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes ordinary_materials::tests ordinary_material_whole_readonly_audit_heap_releases manifest_template_coverage_ ordinary_proof_'
+          elif [ "$features" = s_session,s_incremental ]; then
+            filters='structure_fact_real_budget_preserves_origin_through_bi_error publication_origin_survives_clone_and_two_contexts publication_same_text_without_origin_rejects structure_rule_'
+          else
+            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior ordinary_proof_ structure_fact_real_budget_preserves_origin_through_bi_error structure_value::tests native_cut_projection_gate_ bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes'
+          fi
+          for filter in $filters; do
+            cargo test --locked --bin s_structure_session --features "$features" "$filter" -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log
+          done
       - name: Record Linux formatting
         if: always()
         run: |

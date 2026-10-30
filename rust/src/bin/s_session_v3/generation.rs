@@ -2788,7 +2788,10 @@ pub(super) mod tests {
         let mut returned = None;
         let (run, trace) = failure_trace::capture(|| {
             work.run(|scope| {
-                let mut store = NativeFixture { inner: &mut nodes, work: scope };
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work: scope,
+                };
                 let ballast = scope.reserve_native(budget.remaining()).unwrap();
                 let result = super::super::content_structure::fact(&mut store, "structure-fact")
                     .map_err(crate::content_bi::BiError::StructureFacts)
@@ -2798,7 +2801,10 @@ pub(super) mod tests {
                 result
             })
         });
-        assert!(matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+        assert!(
+            matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))),
+            "{run:?}"
+        );
         let error = returned.expect("真实结构事实资源拒绝");
         assert!(trace.only_resource(), "{trace:?}");
         assert!(trace.bridges(&error), "{error:?}");
