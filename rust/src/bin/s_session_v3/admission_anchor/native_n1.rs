@@ -1263,7 +1263,10 @@ impl NativeOwner {
         })();
         match result {
             Ok(()) => Ok(session),
-            Err(error) => Err(NativeOpenError { error, session }),
+            Err(error) => {
+                let _ = with_owner(|tls| tls.fail(NativeError::Business(error.clone())));
+                Err(NativeOpenError { error, session })
+            },
         }
     }
 

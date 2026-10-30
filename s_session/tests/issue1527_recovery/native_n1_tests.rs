@@ -873,7 +873,7 @@ fn native_n1_close_blob_busy_keeps_real_callbacks() {
     let raw = session.state.as_ref().unwrap().raw;
     let mut blob = std::ptr::null_mut();
     assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_open(raw, c"main".as_ptr(), c"payload".as_ptr(), c"data".as_ptr(), 1, 0, &mut blob) }, rusqlite::ffi::SQLITE_OK);
-    assert!(unsafe { rusqlite::ffi::sqlite3_next_stmt(raw, std::ptr::null_mut()) }.is_null(), "next_stmt不能检测blob BUSY");
+    // SQLite 3.53.2 的blob内部statement可见；另用backup覆盖next_stmt看不到的BUSY。
     assert!(!other_process_can_lock(&file.0));
     let peer = close_peer(&file, h);
     let mut errors = NativeErrors::default();
@@ -934,6 +934,58 @@ fn native_n1_open_failure_keeps_owner_until_explicit_close() {
     let error = owner.open(Path::new("/nonexistent/issue1527-no-create.db")).err().expect("不自动创建源");
     assert!(error.error.starts_with("NativeSqliteOpen:"));
     assert!(with_owner(|_| ()).is_some() && h.active_any.load(Ordering::SeqCst));
-    assert!(matches!(error.session.close(&mut NativeErrors::default()), Teardown::Destroyed(_)));
+    assert!(!error.session.state.as_ref().unwrap().raw.is_null(), "SQLite open失败仍可能返回待关闭句柄");
+    let mut errors = NativeErrors::default();
+    assert!(matches!(error.session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Business(e))) if e.starts_with("NativeSqliteOpen:")));
     assert!(with_owner(|_| ()).is_none() && !h.active_any.load(Ordering::SeqCst));
+}
+
+/// 尚未完成的 backup 在目的连接上不生成 statement，却阻止 sqlite3_close。
+fn pending_backup(destination: *mut rusqlite::ffi::sqlite3) -> (rusqlite::Connection, *mut rusqlite::ffi::sqlite3_backup) {
+    let source = rusqlite::Connection::open_in_memory().unwrap();
+    source.execute_batch("CREATE TABLE source(data BLOB); INSERT INTO source VALUES(zeroblob(65536));").unwrap();
+    let backup = unsafe { rusqlite::ffi::sqlite3_backup_init(destination, c"main".as_ptr(), source.handle(), c"main".as_ptr()) };
+    assert!(!backup.is_null());
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_backup_step(backup, 1) }, rusqlite::ffi::SQLITE_OK, "一页未完成");
+    assert!(unsafe { rusqlite::ffi::sqlite3_next_stmt(destination, std::ptr::null_mut()) }.is_null());
+    (source, backup)
+}
+
+#[test]
+fn native_n1_close_backup_busy_preserves_callbacks_where_31v_loses_them() {
+    // 31V的实际close序列负控：cache flush、next_stmt为空、rusqlite owned close。
+    let legacy = rusqlite::Connection::open_in_memory().unwrap();
+    let (_legacy_source, backup) = pending_backup(unsafe { legacy.handle() });
+    let calls = std::sync::Arc::new(AtomicU64::new(0));
+    let observed = calls.clone();
+    legacy.progress_handler(1, Some(move || { observed.fetch_add(1, Ordering::Relaxed); false })).unwrap();
+    legacy.flush_prepared_statement_cache();
+    assert!(unsafe { rusqlite::ffi::sqlite3_next_stmt(legacy.handle(), std::ptr::null_mut()) }.is_null());
+    let (legacy, error) = legacy.close().err().expect("backup令旧close返回BUSY");
+    assert_eq!(error.sqlite_error_code(), Some(rusqlite::ErrorCode::DatabaseBusy));
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_backup_finish(backup) }, rusqlite::ffi::SQLITE_OK);
+    legacy.execute_batch("SELECT 19").unwrap();
+    assert_eq!(calls.load(Ordering::Relaxed), 0, "负控实测：31V close路径已卸载progress");
+    println!("31Y backup negative control: next_stmt=null, close=BUSY, progress_calls={}", calls.load(Ordering::Relaxed));
+    legacy.close().unwrap();
+
+    let (mut session, file, h, _) = close_fixture("backup-close");
+    let (p, a, drops) = close_callbacks(&mut session);
+    let raw = session.state.as_ref().unwrap().raw;
+    let (_source, backup) = pending_backup(raw);
+    assert!(!other_process_can_lock(&file.0), "backup目的连接持有SQLite锁");
+    let peer = close_peer(&file, h);
+    let mut errors = NativeErrors::default();
+    let session = match session.close(&mut errors) { Teardown::Alive(s) => s, _ => panic!("真实backup BUSY") };
+    assert_eq!(errors.cleanup(), &[NativeError::Code(NativeCode::CloseBusy)]);
+    assert_eq!(drops.load(Ordering::Relaxed), 0);
+    assert!(fd_open(peer) && !other_process_can_lock(&file.0));
+    // SQLite禁止backup进行中使用目的连接执行其他SQL；先结束backup，尚不重试close。
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_backup_finish(backup) }, rusqlite::ffi::SQLITE_OK);
+    assert_live_callbacks(&session, &p, &a);
+    println!("31Y backup fixed: progress_calls={}, authorizer_calls={}, callback_drops={}", p.load(Ordering::Relaxed), a.load(Ordering::Relaxed), drops.load(Ordering::Relaxed));
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert_eq!(drops.load(Ordering::Relaxed), 2);
+    assert!(!fd_open(peer) && other_process_can_lock(&file.0));
 }
