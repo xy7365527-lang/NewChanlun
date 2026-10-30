@@ -1520,3 +1520,31 @@ fn native_n1_vfs32f_active_poison_close_cannot_drop_real_owner_lock() {
     let mut errors = NativeErrors::default(); assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
     assert!(errors.reported().is_some()); assert_sidecars32f(&file.0);
 }
+
+type SetSyscall32f = unsafe extern "C" fn(*mut rusqlite::ffi::sqlite3_vfs, *const c_char, Option<SyscallPtr>) -> c_int;
+static SET_SYSCALL32F: OnceLock<SetSyscall32f> = OnceLock::new();
+static SET_CALLS32F: AtomicU64 = AtomicU64::new(0);
+unsafe extern "C" fn fail_fourth_set32f(vfs: *mut rusqlite::ffi::sqlite3_vfs, name: *const c_char, syscall: Option<SyscallPtr>) -> c_int {
+    if SET_CALLS32F.fetch_add(1, Ordering::SeqCst) == 3 { rusqlite::ffi::SQLITE_NOTFOUND }
+    else { SET_SYSCALL32F.get().unwrap()(vfs, name, syscall) }
+}
+#[test]
+fn native_n1_vfs32f_partial_install_restores_syscalls_and_old_sqlite_works() {
+    if !native_child("native_n1_vfs32f_partial_install_restores_syscalls_and_old_sqlite_works") { return; }
+    let vfs = unsafe { rusqlite::ffi::sqlite3_vfs_find(std::ptr::null()) };
+    let set = unsafe { (*vfs).xSetSystemCall.unwrap() }; SET_SYSCALL32F.set(set).unwrap();
+    let get = unsafe { (*vfs).xGetSystemCall.unwrap() };
+    let names = [c"open", c"close", c"read", c"pread", c"pread64", c"write", c"pwrite", c"pwrite64", c"ftruncate", c"mmap", c"unlink", c"fchmod", c"fchown"];
+    let original: Vec<_> = names.iter().map(|name| unsafe { get(vfs, name.as_ptr()).map(|p| p as usize) }).collect();
+    unsafe { (*vfs).xSetSystemCall = Some(fail_fourth_set32f); }
+    assert!(matches!(install(), Err(NativeCode::Unavailable)));
+    unsafe { (*vfs).xSetSystemCall = Some(set); }
+    let restored: Vec<_> = names.iter().map(|name| unsafe { get(vfs, name.as_ptr()).map(|p| p as usize) }).collect();
+    assert_eq!(restored, original, "部分安装失败逐项复原原syscall指针");
+    assert!(SET_CALLS32F.load(Ordering::SeqCst) > 4, "实际走了失败后的复原调用");
+    let (file, _, _, _) = wal_fixture("failed-install-old");
+    let conn = rusqlite::Connection::open(&file.0).unwrap();
+    let count: i64 = conn.query_row("SELECT sum(length(data)) FROM payload", [], |row| row.get(0)).unwrap();
+    assert_eq!(count, 65536); conn.close().unwrap();
+    assert!(matches!(install(), Err(NativeCode::Unavailable)), "旧路径可用不等于N1恢复可用");
+}
