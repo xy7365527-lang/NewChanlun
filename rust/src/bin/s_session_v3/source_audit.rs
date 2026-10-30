@@ -1671,6 +1671,9 @@ pub(super) fn audit_generated_for_audit<'a>(
 ) -> Result<Counts, String> {
     #[cfg(test)]
     if !super::history::ordinary_proofs_enabled() {
+        let state = state.into();
+        // 冻结核只调用通用 verify_ref；对照臂仍须消费已核历史的 source Public 根资格。
+        s.verify_history_public_root(state, sc::Mode::Public).map_err(err)?;
         return audit_generated_frozen_for_test(s, state, raw_prefix, profile, rule, deadline, budget);
     }
     audit_generated_in_store(

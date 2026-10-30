@@ -2029,7 +2029,7 @@ mod tests {
             let mut writer = Connection::open(&path).unwrap();
             let tx = writer.transaction().unwrap();
             let (metadata, roots, manifest) = fixtures_with(&tx, change);
-            if let Some(sql) = mutation { tx.execute(sql, []).unwrap(); }
+            if let Some(sql) = mutation { tx.execute_batch(sql).unwrap(); }
             tx.commit().unwrap();
             drop(writer);
             let db = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
@@ -2140,7 +2140,7 @@ mod tests {
     fn ordinary_proof_publication_committed_active_fields_rejected_at_withdrawal_cut() {
         use crate::v3::audit_store::HashReader;
         let mut fixture = OrdinaryFixture::new(FixtureChange::None, Some(
-            "UPDATE s_content_objects SET withdrawn_generation=3,withdrawal_reason='superseded' WHERE object_id='obj3-old'"));
+            "UPDATE s_content_objects SET withdrawn_generation=3,withdrawal_reason='superseded' WHERE object_id='obj3-old'; UPDATE meta SET value='3' WHERE key='generation';"));
         let tx = fixture.db.transaction().unwrap();
         let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
         let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);

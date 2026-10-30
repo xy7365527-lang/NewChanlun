@@ -557,19 +557,22 @@ mod tests {
             assert!(book.stats.hits > hits);
             let mut cold = OrdinaryProofs::default();
             assert_eq!(run(&mut nodes, &bad, &raw, &rule, &mut cold).unwrap_err(), expected);
-            // 第三路：已有成功前沿，但早期原件依赖已失效；晚处仍同时含重复和坏记录。
+            // 第三路：保留完整前缀，再附晚处坏记录；已有成功前沿的早期原件依赖失效。
+            let mut late_bad_records: Vec<V> = values.iter().map(|v| V::Edge(v.digest().unwrap())).collect();
+            late_bad_records.push(V::Edge(malformed.digest));
+            let invalidated_bad = replace_field(&mut nodes, &root, STATE, collection, V::Array(late_bad_records));
             let mut invalidated = OrdinaryProofs::default();
             run(&mut nodes, &root, &raw, &rule, &mut invalidated).unwrap();
             invalidated.commit();
             let mut changed = raw.clone();
             changed[0]["revision"] = json!(raw[0]["revision"].as_i64().unwrap() + 1);
             let early_error = oracle(&mut nodes, &root, &changed, &rule).unwrap_err();
-            let dual_error = oracle(&mut nodes, &bad, &changed, &rule).unwrap_err();
+            let dual_error = oracle(&mut nodes, &invalidated_bad, &changed, &rule).unwrap_err();
             assert_eq!(dual_error, early_error, "{collection}: 晚处坏记录不得盖过早期来源错");
-            assert_eq!(run(&mut nodes, &bad, &changed, &rule, &mut invalidated).unwrap_err(), dual_error);
+            assert_eq!(run(&mut nodes, &invalidated_bad, &changed, &rule, &mut invalidated).unwrap_err(), dual_error);
             assert!(invalidated.stats.invalidations > 0);
             let mut cold = OrdinaryProofs::default();
-            assert_eq!(run(&mut nodes, &bad, &changed, &rule, &mut cold).unwrap_err(), dual_error);
+            assert_eq!(run(&mut nodes, &invalidated_bad, &changed, &rule, &mut cold).unwrap_err(), dual_error);
         }
     }
     #[test]
