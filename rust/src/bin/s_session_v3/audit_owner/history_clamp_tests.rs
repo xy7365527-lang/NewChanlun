@@ -398,3 +398,65 @@ fn h1_certified_open_failures_leave_no_candidate_or_write() {
     assert_eq!(parent.scratch_observation().0, 0);
     assert_eq!(runtime_root_tables(&f.conn, true), damaged);
 }
+
+
+#[test]
+fn h1_control_originals_are_retained_on_the_same_parent_and_released() {
+    let f = fixture();
+    let mut c = context();
+    let owner = h1_certified_owner(&f, &mut c);
+    let parent = owner.complete_budget_for_test();
+    let retained = owner.history_retained_bytes();
+    assert!(retained > 0);
+    assert!(owner.history_clamp.borrow().as_ref().unwrap().parent().unwrap().same_parent(&parent));
+    let before = parent.live();
+    owner.history_clamp.borrow_mut().as_mut().unwrap().retire();
+    assert_eq!(before - parent.live(), retained, "控制容器及工作域元数据都由父账先收后还");
+    assert_eq!(owner.history_retained_bytes(), 0);
+}
+
+#[test]
+fn h1_control_parent_rebind_precedes_warm_request_observation() {
+    let f = fixture();
+    let mut first = context();
+    let owner = h1_certified_owner(&f, &mut first);
+    let parent = owner.complete_budget_for_test();
+    let total = 536_870_912;
+    let partition = owner.old_pool_partition(None).unwrap();
+    let mut next = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(total));
+    next.freeze_manifest_workspace_partition(total, 0, partition).unwrap();
+    let current = next.prepare_parent(Some(&parent)).unwrap().allocation_parent().clone();
+    assert!(parent.same_parent(&current));
+    assert!(parent.check_current().is_err(), "真实冻结域已前进");
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    h1_publish_round(&owner, &mut runtime, &mut next, 2);
+    assert!(owner.complete_budget_for_test().same_parent(&parent));
+    let clamp = owner.history_clamp.borrow();
+    let bound = clamp.as_ref().unwrap().parent().unwrap();
+    assert!(bound.same_parent(&parent));
+    bound.check_current().unwrap();
+    drop(clamp);
+    h1_compare_complete_history(&owner);
+    assert!(!owner.retired.get());
+}
+
+#[test]
+fn h1_control_observation_budget_failure_retires_without_writing() {
+    use prepared::tests::runtime_root_tables;
+    let f = fixture();
+    let mut c = context();
+    let owner = h1_certified_owner(&f, &mut c);
+    let parent = owner.complete_budget_for_test();
+    let before = runtime_root_tables(&f.conn, true);
+    let held = parent.reserve(parent.remaining() - 1).unwrap();
+    let clock = v2::stored_clock(&owner.connection).unwrap();
+    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
+        &s_allocation::Mode::CapturedNative, &mut c).is_err());
+    drop(held);
+    assert!(owner.retired.get());
+    assert!(owner.connection.is_autocommit());
+    assert_eq!(owner.complete_retained_bytes(), 0);
+    assert_eq!(parent.scratch_observation().0, 0);
+    assert_eq!(runtime_root_tables(&f.conn, true), before);
+}

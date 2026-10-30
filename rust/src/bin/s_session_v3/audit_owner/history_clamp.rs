@@ -1,9 +1,11 @@
 //! #1481 U-A：既有 AuditConnection 的观测值，不是第二个连接 owner。
 //! 显式组件入口才启用。旧路径不增加前置；这里不签发历史认证。
-use super::{effects, request_audit::SqlCell, AuditTxn};
+use super::{effects, native, request_audit::SqlCell, AuditTxn};
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
+use newchan_rust::s_content::{CodecVec, capture_allocation::scratch::{CodecWork, WorkScope}};
 use rusqlite::{types::ValueRef, Connection};
 use std::{cell::RefCell, rc::Rc};
-use std::{collections::BTreeMap, fs::{File, Metadata}, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
+use std::{fs::{File, Metadata}, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 pub(super) fn stale(message: impl std::fmt::Display) -> String {
     format!("HistoricalAuditStale：{message}")
@@ -40,8 +42,8 @@ impl WatchedFile {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Files { main: Stamp, wal: Stamp, wal_header: Vec<u8> }
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Controls([BTreeMap<i64, Vec<u8>>; 2]);
+#[derive(Debug, PartialEq, Eq)]
+struct Controls([CodecVec<(i64, CodecVec<u8>)>; 2]);
 #[derive(Debug, PartialEq, Eq)]
 struct Observation {
     data_version: i64,
@@ -61,22 +63,40 @@ pub(super) struct Clamp {
     main: WatchedFile,
     wal: WatchedFile,
     baseline: Option<Observation>,
+    parent: Option<native::Budget>,
     control_limit: usize,
     checkpoint_threshold: i32,
     progress: physical::Progress,
 }
 impl Clamp {
     pub(super) fn open(connection: &Connection, path: &Path, control_limit: usize) -> Result<Self, String> {
+        Self::open_in_parent(connection, path, control_limit, None)
+    }
+    pub(super) fn open_in_parent(connection: &Connection, path: &Path, control_limit: usize, parent: Option<native::Budget>) -> Result<Self, String> {
+        if let Some(parent) = &parent { parent.check_current().map_err(|_| stale("控制父账已过期"))?; }
         let mode: String = connection.query_row("PRAGMA main.journal_mode", [], |r| r.get(0)).map_err(stale)?;
         if mode != "wal" { return Err(stale("H1组件要求既有WAL域，不自动改变journal_mode")); }
         let mut wal = path.as_os_str().to_os_string();
         wal.push("-wal");
         let wal = PathBuf::from(wal);
         let checkpoint_threshold = connection.query_row("PRAGMA wal_autocheckpoint", [], |r| r.get(0)).map_err(stale)?;
-        let result = Self { main: WatchedFile::open(path)?, wal: WatchedFile::open(&wal)?, baseline: None, control_limit, checkpoint_threshold, progress: physical::initial_progress(connection)? };
+        let result = Self { main: WatchedFile::open(path)?, wal: WatchedFile::open(&wal)?, baseline: None, parent, control_limit, checkpoint_threshold, progress: physical::initial_progress(connection)? };
         connection.wal_hook(Some(physical::observe_commit));
         Ok(result)
     }
+    pub(super) fn rebind_parent(&mut self, parent: &native::Budget) -> Result<(), String> {
+        let old = self.parent.as_ref().ok_or_else(|| stale("控制夹持缺原父账"))?;
+        if !old.same_parent(parent) { return Err(stale("控制夹持不能换父账")); }
+        parent.check_current().map_err(|_| stale("控制夹持新冻结域无效"))?;
+        self.parent = Some(parent.clone());
+        Ok(())
+    }
+    pub(super) fn parent(&self) -> Option<&native::Budget> { self.parent.as_ref() }
+    pub(super) fn retained_bytes(&self) -> usize {
+        if self.parent.is_none() { return 0; }
+        self.baseline.as_ref().map_or(0, |b| b.controls.retained_bytes())
+    }
+    pub(super) fn retire(&mut self) { self.baseline = None; self.parent = None; }
     fn files(&self) -> Result<Files, String> {
         use std::os::unix::fs::FileExt;
         let main = self.main.stamp()?;
@@ -95,7 +115,12 @@ impl Clamp {
             schema_version: active.tx().query_row("PRAGMA main.schema_version", [], |r| r.get(0)).map_err(stale)?,
             domain: active.read_domain().map_err(stale)?,
             total_changes: active.tx().total_changes(),
-            controls: Controls::read(active.tx(), self.control_limit)?,
+            controls: match &self.parent {
+                Some(parent) => parent.codec_work().map_err(resource_failure)?
+                    .run(|work| Controls::read(active.tx(), self.control_limit, Some(work)))
+                    .map_err(|error| resource_failure(native::Failure::from(error)))?,
+                None => Controls::read(active.tx(), self.control_limit, None)?,
+            },
             files: self.files()?,
         };
         if before != out.files { return Err(stale("锁内观测期间文件变化")); }
@@ -109,6 +134,9 @@ impl Clamp {
         Ok(())
     }
     pub(super) fn candidate(&self, active: &AuditTxn<'_>, effects: &effects::Effects) -> Result<WriteCandidate, String> {
+        if self.parent.is_some() && !effects.shared_parent {
+            return Err(stale("认证自身写effects未进入同一父账"));
+        }
         if !effects.has_exact_coverage(active.tx().total_changes()) {
             return Err(stale("自身写缺完整effects覆盖"));
         }
@@ -118,9 +146,7 @@ impl Clamp {
             || before.domain != after.domain || before.total_changes > after.total_changes {
             return Err(stale("自身写改变版本/schema/domain"));
         }
-        let mut expected = before.controls.clone();
-        expected.apply(effects, self.control_limit)?;
-        if expected != after.controls { return Err(stale("控制原件变化未由effects解释")); }
+        before.controls.verify_effects(&after.controls, effects)?;
         Self::own_files(&before.files, &after.files, self.progress.complete())?;
         if before.files != after.files && before.total_changes == after.total_changes {
             return Err(stale("无自身SQL效果却发生物理变化"));
@@ -202,45 +228,71 @@ impl Clamp {
     }
 }
 
+fn resource_failure(error: native::Failure) -> String {
+    match error {
+        native::Failure::BudgetExceeded => stale("控制原件超过当前父账额度"),
+        native::Failure::Invalid(error) => stale(error),
+    }
+}
+
 impl Controls {
     const SQL: [&'static str; 2] = [
         "SELECT rowid,* FROM main.meta ORDER BY rowid",
         "SELECT rowid,* FROM main.s_protocol_meta ORDER BY rowid",
     ];
-    fn read(connection: &Connection, limit: usize) -> Result<Self, String> {
+    fn retained_bytes(&self) -> usize {
+        self.0.iter().map(|rows| rows.capacity() * std::mem::size_of::<(i64, CodecVec<u8>)>()
+            + rows.iter().map(|(_, wire)| wire.capacity()).sum::<usize>()).sum::<usize>()
+            + CodecWork::metadata_bytes()
+    }
+    fn read(connection: &Connection, limit: usize, work: Option<&WorkScope>) -> Result<Self, String> {
         let mut out = Self(Default::default());
+        let admission = NativeAdmission(work);
         let mut used = 0usize;
         for (i, sql) in Self::SQL.into_iter().enumerate() {
             let mut statement = connection.prepare(sql).map_err(stale)?;
             let columns = statement.column_count();
             let mut rows = statement.query([]).map_err(stale)?;
             while let Some(row) = rows.next().map_err(stale)? {
-                let mut wire = Vec::new();
+                let mut wire = CodecVec::default();
                 for column in 0..columns {
-                    encode_value(&mut wire, row.get_ref(column).map_err(stale)?, limit.saturating_sub(used))?;
+                    encode_value(&mut wire, row.get_ref(column).map_err(stale)?, limit.saturating_sub(used), work)?;
                 }
                 used = used.checked_add(wire.len()).filter(|n| *n <= limit).ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
-                out.0[i].insert(row.get(0).map_err(stale)?, wire);
+                admission.native_codec_room(&mut out.0[i], 1).map_err(stale)?;
+                out.0[i].try_push((row.get(0).map_err(stale)?, wire)).map_err(stale)?;
             }
         }
         Ok(out)
     }
-    fn apply(&mut self, effects: &effects::Effects, limit: usize) -> Result<(), String> {
+    fn verify_effects(&self, after: &Self, effects: &effects::Effects) -> Result<(), String> {
         for (index, table) in [effects::Table::Meta, effects::Table::Protocol].into_iter().enumerate() {
-            for change in effects.rows(table) {
-                let old = change.old.as_ref().map(|row| encode_cells(row, limit)).transpose()?;
-                if self.0[index].get(&change.rowid) != old.as_ref() { return Err(stale("effects控制前像与生涯原件不符")); }
-                if let Some(row) = &change.new { self.0[index].insert(change.rowid, encode_cells(row, limit)?); }
-                else { self.0[index].remove(&change.rowid); }
+            let mut old = self.0[index].iter().peekable();
+            let mut new = after.0[index].iter().peekable();
+            // Recording::finish 按 (table, rowid, digest) 排序；控制表的 rowid 唯一。
+            let mut changes = effects.rows(table).peekable();
+            loop {
+                let Some(rowid) = [old.peek().map(|r| r.0), new.peek().map(|r| r.0), changes.peek().map(|c| c.rowid)]
+                    .into_iter().flatten().min() else { break; };
+                let before = if old.peek().is_some_and(|r| r.0 == rowid) { old.next().map(|r| &r.1) } else { None };
+                let actual = if new.peek().is_some_and(|r| r.0 == rowid) { new.next().map(|r| &r.1) } else { None };
+                if changes.peek().is_some_and(|c| c.rowid == rowid) {
+                    let change = changes.next().unwrap();
+                    if !matches_row(before, change.old.as_deref()) { return Err(stale("effects控制前像与生涯原件不符")); }
+                    if !matches_row(actual, change.new.as_deref()) { return Err(stale("控制原件变化未由effects解释")); }
+                } else if before != actual { return Err(stale("控制原件变化未由effects解释")); }
             }
         }
-        let bytes: usize = self.0.iter().flat_map(|m| m.values()).map(Vec::len).sum();
-        if bytes > limit { return Err(stale("控制原件超过组件调用方额度")); }
         Ok(())
     }
 }
-fn encode_cells(cells: &[SqlCell], limit: usize) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
+fn matches_row(wire: Option<&CodecVec<u8>>, cells: Option<&[SqlCell]>) -> bool {
+    let (wire, cells) = match (wire, cells) {
+        (None, None) => return true,
+        (Some(wire), Some(cells)) => (wire, cells),
+        _ => return false,
+    };
+    let mut offset = 0usize;
     for cell in cells {
         let value = match cell {
             SqlCell::Null => ValueRef::Null,
@@ -249,11 +301,19 @@ fn encode_cells(cells: &[SqlCell], limit: usize) -> Result<Vec<u8>, String> {
             SqlCell::Text(bytes) => ValueRef::Text(bytes),
             SqlCell::Blob(bytes) => ValueRef::Blob(bytes),
         };
-        encode_value(&mut out, value, limit)?;
+        let equal = with_value(value, |tag, bytes| {
+            let Some(end) = offset.checked_add(9).and_then(|n| n.checked_add(bytes.len())) else { return false; };
+            if end > wire.len() || wire[offset] != tag
+                || wire[offset+1..offset+9] != (bytes.len() as u64).to_le_bytes()
+                || wire[offset+9..end] != *bytes { return false; }
+            offset = end;
+            true
+        });
+        if !equal { return false; }
     }
-    Ok(out)
+    offset == wire.len()
 }
-fn encode_value(out: &mut Vec<u8>, value: ValueRef<'_>, limit: usize) -> Result<(), String> {
+fn with_value<T>(value: ValueRef<'_>, consume: impl FnOnce(u8, &[u8]) -> T) -> T {
     let fixed;
     let (tag, bytes): (u8, &[u8]) = match value {
         ValueRef::Null => (0, &[]),
@@ -261,9 +321,15 @@ fn encode_value(out: &mut Vec<u8>, value: ValueRef<'_>, limit: usize) -> Result<
         ValueRef::Real(n) => { fixed = n.to_bits().to_le_bytes(); (2, &fixed) },
         ValueRef::Text(b) => (3, b), ValueRef::Blob(b) => (4, b),
     };
-    let size = out.len().checked_add(9).and_then(|n| n.checked_add(bytes.len())).filter(|n| *n <= limit)
-        .ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
-    out.try_reserve(size - out.len()).map_err(stale)?;
-    out.push(tag); out.extend_from_slice(&(bytes.len() as u64).to_le_bytes()); out.extend_from_slice(bytes);
-    Ok(())
+    consume(tag, bytes)
+}
+fn encode_value(out: &mut CodecVec<u8>, value: ValueRef<'_>, limit: usize, work: Option<&WorkScope>) -> Result<(), String> {
+    with_value(value, |tag, bytes| {
+        let size = out.len().checked_add(9).and_then(|n| n.checked_add(bytes.len())).filter(|n| *n <= limit)
+            .ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
+        NativeAdmission(work).native_codec_room(out, size - out.len()).map_err(stale)?;
+        out.try_push(tag).map_err(stale)?;
+        out.try_extend_bytes(&(bytes.len() as u64).to_le_bytes()).map_err(stale)?;
+        out.try_extend_bytes(bytes).map_err(stale)
+    })
 }

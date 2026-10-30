@@ -365,11 +365,19 @@ impl AuditConnection {
         deadline: Option<std::time::Instant>,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<Self, String> {
-        let mut owner = Self::open_history_component(db, control_limit)?;
+        history::check_deadline(deadline)?;
+        if !context.source_cache_enabled() {
+            return Err(invalid("历史认证组件要求已冻结的Native请求域"));
+        }
+        let parent = match context.request_parent_budget() {
+            Some(parent) => parent,
+            None => context.prepare_parent(None)?.allocation_parent().clone(),
+        };
+        let mut owner = Self::open(db)?;
+        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open_in_parent(
+            &owner.connection, db, control_limit, Some(parent),
+        )?);
         let result = (|| {
-            if !context.source_cache_enabled() {
-                return Err(invalid("历史认证组件要求已冻结的Native请求域"));
-            }
             let active = owner.begin(TransactionBehavior::Deferred)?;
             active.seed_historical_certificate(deadline, context)?;
             let ended = active.read_end()?;
@@ -392,12 +400,36 @@ impl AuditConnection {
         result
     }
 
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn bind_history_parent(&self, context: &request_audit::RequestAuditContext) -> Result<(), String> {
+        let parent = self.history_clamp.borrow().as_ref().and_then(|c| c.parent()).cloned();
+        if let Some(parent) = parent {
+            let result = context.bind_complete_budget(&parent).and_then(|bound| {
+                self.history_clamp.borrow_mut().as_mut().unwrap().rebind_parent(&bound)
+            });
+            self.history_result(result)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn history_retained_bytes(&self) -> usize {
+        #[cfg(unix)]
+        { self.history_clamp.borrow().as_ref().map_or(0, |c| c.retained_bytes()) }
+        #[cfg(not(unix))]
+        { 0 }
+    }
+
     fn invalidate_construction(&self) {
         self.construction_lease.invalidate();
         drop(self.construction.borrow_mut().take());
     }
 
     fn clear_candidates(&self) {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.retired.get() {
+            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() { clamp.retire(); }
+        }
         self.invalidate_construction();
         self.clear_optional_candidates();
     }
@@ -408,6 +440,19 @@ impl AuditConnection {
             drop(self.source_keeper.borrow_mut().take());
             drop(self.complete.borrow_mut().take());
         }
+    }
+
+    // #1481：控制观测发生在 begin 内，必须先交接同父冻结域，不能等准入后的候选命中。
+    fn begin_in_request(
+        &self,
+        behavior: TransactionBehavior,
+        context: Option<&request_audit::RequestAuditContext>,
+    ) -> Result<AuditTxn<'_>, String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if let Some(context) = context { self.bind_history_parent(context)?; }
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let _ = context;
+        self.begin(behavior)
     }
 
     fn begin(&self, behavior: TransactionBehavior) -> Result<AuditTxn<'_>, String> {
@@ -476,7 +521,7 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: Option<&mut request_audit::RequestAuditContext>,
     ) -> Result<(String, Option<String>), String> {
-        let active = self.begin(TransactionBehavior::Deferred)?;
+        let active = self.begin_in_request(TransactionBehavior::Deferred, context.as_deref())?;
         let tx = active.tx();
         if let Some(context) = context {
             if !matches!(mode, s_allocation::Mode::CapturedNative) {
@@ -520,7 +565,7 @@ impl AuditConnection {
         clock: &v2::ClockPlan,
         context: Option<&mut request_audit::RequestAuditContext>,
     ) -> Result<(String, String, String), String> {
-        let active = self.begin(TransactionBehavior::Deferred)?;
+        let active = self.begin_in_request(TransactionBehavior::Deferred, context.as_deref())?;
         let tx = active.tx();
         match context {
             Some(context) => {
@@ -577,7 +622,7 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(Admission, Ended), String> {
-        let active = self.begin(TransactionBehavior::Deferred)?;
+        let active = self.begin_in_request(TransactionBehavior::Deferred, Some(context))?;
         let tx = active.tx();
         active.audit_admission(&envelope, mode, context)?;
         verify_writer_epoch(tx, epoch)?;
@@ -675,7 +720,7 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<Begun, String> {
-        let active = self.begin(TransactionBehavior::Immediate)?;
+        let active = self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
         let tx = active.tx();
         let reused = active.bind_existing(Some(context))?;
         let audited = if reused {
@@ -959,7 +1004,7 @@ impl AuditConnection {
             return;
         }
         // 完整候选由本 owner 的无写审计或固定 effects 核验签发；来源池独立移交。
-        let cap = context.complete_retention_cap();
+        let cap = context.complete_retention_cap().saturating_sub(self.history_retained_bytes());
         let raw_retained = self
             .construction
             .get_mut()
@@ -1168,6 +1213,7 @@ impl AuditTxn<'_> {
             )?.map_err(|_| invalid("冷认证完整候选超过请求预算"))
         }).map_err(|error| failure(native::Failure::from(error)))?;
         candidate.resources = context.bind_complete_budget(&candidate.resources)?;
+        self.owner.bind_history_parent(context)?;
         history::check_deadline(deadline)?;
         self.check_history()?;
         *self.complete.borrow_mut() = Some(candidate);
@@ -1474,7 +1520,7 @@ impl AuditConnection {
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn complete_retained_bytes(&self) -> usize {
-        self.complete
+        self.history_retained_bytes().saturating_add(self.complete
             .borrow()
             .as_ref()
             .map_or(0, |c| {
@@ -1487,7 +1533,7 @@ impl AuditConnection {
                     .borrow()
                     .as_ref()
                     .map_or(0, |c| c.retained_bytes()),
-            )
+            ))
     }
     /// #1488 P1-1（v4「冻结old_pool费用分区」）：O逐项照合同额收，不以max(L)补差；
     /// 同父物理L0由分区只读一次，超出同父合同额的真实分配为uncovered并消耗A。
@@ -1511,6 +1557,10 @@ impl AuditConnection {
                 P::ON_PARENT,
                 native::Budget::metadata_bytes(),
             )?;
+        }
+        let history_bytes = self.history_retained_bytes();
+        if history_bytes != 0 {
+            partition.item("history_clamp.control_originals", P::ON_PARENT, history_bytes)?;
         }
         if let Some(raw) = self.construction.borrow().as_ref() {
             // 状态许可从候选同一父账拆出；缺候选即无从证明驻留，由分区拒绝。
@@ -1768,7 +1818,7 @@ impl AuditConnection {
         &self,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(OldRawToken, Ended), String> {
-        let active = self.begin(TransactionBehavior::Immediate)?;
+        let active = self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
         active.audit_admission(
             &json!({"payload":{"op":"ready"}}),
             &s_allocation::Mode::CapturedNative,
@@ -2134,6 +2184,8 @@ impl AuditTxn<'_> {
                         state.advance_parent(&candidate.resources, &resources);
                     }
                     candidate.resources = resources;
+                    #[cfg(unix)]
+                    self.owner.bind_history_parent(context)?;
                     candidate.limit = context.complete_workspace_limit();
                     candidate.seal = seal;
                     candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
@@ -3241,6 +3293,8 @@ impl AuditTxn<'_> {
                     }
                 };
                 candidate.resources = resources;
+                #[cfg(unix)]
+                self.owner.bind_history_parent(context)?;
                 candidate.limit = context.complete_workspace_limit();
                 candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
             }
@@ -6564,7 +6618,7 @@ impl AuditConnection {
         context: &mut request_audit::RequestAuditContext,
         candidate: bool,
     ) -> Result<Option<(commit::CommitReceipt, Ended)>, String> {
-        let mut active = self.begin(TransactionBehavior::Immediate)?;
+        let mut active = self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
         // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
         active.bind_existing(Some(context))?;
         let resources =

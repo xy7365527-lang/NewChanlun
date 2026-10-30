@@ -24,7 +24,7 @@ impl CommitMonitor {
         }
         let state = Rc::new(RefCell::new(HookState {
             watch: Clamp { main: copy(&clamp.main)?, wal: copy(&clamp.wal)?, baseline: None,
-                control_limit: 0, checkpoint_threshold: clamp.checkpoint_threshold, progress: clamp.progress },
+                parent: None, control_limit: 0, checkpoint_threshold: clamp.checkpoint_threshold, progress: clamp.progress },
             result: None,
         }));
         ACTIVE.with(|slot| {
