@@ -5910,13 +5910,18 @@ pub(super) mod tests {
         for cut in 1..=7 {
             let expected: serde_json::Value = serde_json::from_slice(
                 &std::fs::read(legacy_s4_fixture_path(cut, "json")).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             assert_eq!(expected["head"], "4df2d10f92d1075f5fb761a1b112c9c949da5408");
             let mut conn = Connection::open_with_flags(
                 legacy_s4_fixture_path(cut, "db"),
                 rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-            ).unwrap();
-            assert_eq!(super::layout::Layout::of_library(&conn).unwrap(), super::layout::Layout::Sorted);
+            )
+            .unwrap();
+            assert_eq!(
+                super::layout::Layout::of_library(&conn).unwrap(),
+                super::layout::Layout::Sorted
+            );
             let before = super::prepared::tests::runtime_root_tables(&conn, true);
             super::admission_private::s4_read_trace::enable();
             super::admission_private::s4_read_trace::phase(2);
@@ -5938,7 +5943,10 @@ pub(super) mod tests {
                 assert!(proofs.hits > 0);
             }
             assert_eq!(
-                format!("{:?}", super::prepared::tests::runtime_root_tables(&conn, false)),
+                format!(
+                    "{:?}",
+                    super::prepared::tests::runtime_root_tables(&conn, false)
+                ),
                 expected["roots_debug"].as_str().unwrap(),
             );
             let expected_arrays: Vec<(i64, [NodeDigest; 5])> =
@@ -5951,25 +5959,44 @@ pub(super) mod tests {
                 let mut store = HashReader::metered(&mut sql, None, None, None);
                 let entries = object_index::load_for_audit(&tx, &mut store, cut as i64).unwrap();
                 let auxiliary = aux_index::load(&tx, &mut store, cut as i64).unwrap();
-                generations.iter().map(|&generation| {
-                    let (active, withdrawn, _) = object_index::at_cut(
-                        &mut store, super::layout::Layout::Sorted, &entries, generation,
-                    ).unwrap();
-                    let [witnesses, relations, observations] = aux_index::cut_members(
-                        &auxiliary, super::layout::Layout::Sorted, generation, false,
-                    ).unwrap();
-                    [
-                        active.digest, withdrawn.digest,
-                        hash_array(&witnesses).unwrap(), hash_array(&relations).unwrap(),
-                        hash_array(&observations).unwrap(),
-                    ]
-                }).collect::<Vec<_>>()
+                generations
+                    .iter()
+                    .map(|&generation| {
+                        let (active, withdrawn, _) = object_index::at_cut(
+                            &mut store,
+                            super::layout::Layout::Sorted,
+                            &entries,
+                            generation,
+                        )
+                        .unwrap();
+                        let [witnesses, relations, observations] = aux_index::cut_members(
+                            &auxiliary,
+                            super::layout::Layout::Sorted,
+                            generation,
+                            false,
+                        )
+                        .unwrap();
+                        [
+                            active.digest,
+                            withdrawn.digest,
+                            hash_array(&witnesses).unwrap(),
+                            hash_array(&relations).unwrap(),
+                            hash_array(&observations).unwrap(),
+                        ]
+                    })
+                    .collect::<Vec<_>>()
             };
             assert_eq!(
                 rebuilt,
-                expected_arrays.iter().map(|(_, roots)| *roots).collect::<Vec<_>>(),
+                expected_arrays
+                    .iter()
+                    .map(|(_, roots)| *roots)
+                    .collect::<Vec<_>>(),
             );
-            assert_eq!(super::prepared::tests::runtime_root_tables(&conn, true), before);
+            assert_eq!(
+                super::prepared::tests::runtime_root_tables(&conn, true),
+                before
+            );
         }
     }
 
@@ -5977,11 +6004,9 @@ pub(super) mod tests {
     #[test]
     fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
         let historical = legacy_s4_fixture_path(1, "db");
-        let mut conn = Connection::open_with_flags(
-            &historical,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        )
-        .unwrap();
+        let mut conn =
+            Connection::open_with_flags(&historical, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
         let tx = conn.transaction().unwrap();
         let control = control_audit::prepare_s3_control_history(&tx).unwrap();
         let raw = read_raw_events(&tx).unwrap();
@@ -6050,11 +6075,9 @@ pub(super) mod tests {
             super::source_audit::ordinary_proof_stats().executions,
             first.executions
         );
-        let mut foreign = Connection::open_with_flags(
-            &historical,
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        )
-        .unwrap();
+        let mut foreign =
+            Connection::open_with_flags(&historical, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
         let foreign_tx = foreign.transaction().unwrap();
         assert!(reopened
             .audit_cut(&foreign_tx, cut, None, None, None, |_, _| Ok(()))

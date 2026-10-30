@@ -7745,7 +7745,11 @@ mod tests {
         let coverage = super::admission_private::s4_read_trace::finish();
         assert_eq!(coverage, [steps.len() as u64, steps.len() as u64 * 3]);
         let stats = super::super::source_audit::ordinary_proof_stats();
-        assert_eq!((stats.hits, stats.executions), (0, 0), "W 规则不启用旧业务配方");
+        assert_eq!(
+            (stats.hits, stats.executions),
+            (0, 0),
+            "W 规则不启用旧业务配方"
+        );
         eprintln!(
             "ORDINARY_PROOF_MULTICUT cuts={} hits={} executions={} coverage={coverage:?}",
             steps.len(),

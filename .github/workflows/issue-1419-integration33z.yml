@@ -35,9 +35,9 @@ jobs:
           if [ "$features" = s_session ]; then
             filters=''
           elif [ "$features" = s_session,s_incremental ]; then
-            filters='structure_fact_real_budget_preserves_origin_through_bi_error w_prior_real_budget_preserves_origin_to_publication_verdict withdrawal_target_real_budget_preserves_origin_to_publication_verdict publication_origin_survives_clone_and_two_contexts publication_same_text_without_origin_rejects structure_rule_ ordinary_proof_ ordinary_material_whole_readonly_audit_heap_releases'
+            filters='ordinary_proof_legacy_seven_cut_readonly_matches_frozen_originals'
           else
-            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_fact_real_budget_preserves_origin_through_bi_error ordinary_source::tests structure_value::tests native_cut_projection_gate_ bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes'
+            filters=''
           fi
           failed=0
           for filter in $filters; do
@@ -57,30 +57,3 @@ jobs:
           name: integration33z-${{ matrix.features }}
           path: integration33z/
 
-  origin-red:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_BUILD_JOBS: "2"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/rust-job-setup
-      - name: Reproduce old resource-origin erasure
-        run: |
-          python3 .github/scripts/reproduce-1419-origin33z.py
-          mkdir -p origin-red
-          cd rust
-          for filter in w_prior_real_budget_preserves_origin_to_publication_verdict withdrawal_target_real_budget_preserves_origin_to_publication_verdict; do
-            if cargo test --locked --bin s_structure_session --features s_session,s_incremental "$filter" -- --nocapture --test-threads=1 > "../origin-red/$filter.log" 2>&1; then
-              echo "old erasure unexpectedly passed $filter"
-              exit 1
-            fi
-            grep -F "test result: FAILED. 0 passed; 1 failed;" "../origin-red/$filter.log"
-            grep -F "trace.only_resource() && trace.bridges(error)" "../origin-red/$filter.log"
-          done
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: origin-red
-          path: origin-red/

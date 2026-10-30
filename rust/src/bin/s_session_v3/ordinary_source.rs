@@ -827,7 +827,8 @@ mod tests {
         let bytes = std::fs::read(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/fixtures/s4-legacy4df/source.json"),
-        ).unwrap();
+        )
+        .unwrap();
         let fixture: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(fixture["head"], "4df2d10f92d1075f5fb761a1b112c9c949da5408");
         let mut nodes = sc::MemoryNodes::new();

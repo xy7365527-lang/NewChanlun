@@ -1011,9 +1011,7 @@ impl GenerationRuntime {
         {
             let mut prior_w = Vec::with_capacity(input.structure_prior.w_undetermined.len());
             for record in input.structure_prior.w_undetermined {
-                prior_w.push(
-                    read_w_prior(store, &self.producer, record)?,
-                );
+                prior_w.push(read_w_prior(store, &self.producer, record)?);
             }
             let w = self
                 .producer
@@ -2820,7 +2818,6 @@ pub(super) mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-
     #[cfg(feature = "s_incremental")]
     #[test]
     fn w_prior_real_budget_preserves_origin_to_publication_verdict() {
@@ -2830,11 +2827,14 @@ pub(super) mod tests {
         let effective = bj::effective(raw, None).unwrap();
         let scope = json!({"instrument":"W-prior", "exchange":"fixture"});
         let rule = crate::W_STRUCTURE_RULE_REVISION;
-        let mut runtime = GenerationRuntime::new("W-prior-origin".into(), crate::tb02a::PROFILE, rule);
+        let mut runtime =
+            GenerationRuntime::new("W-prior-origin".into(), crate::tb02a::PROFILE, rule);
         let mut nodes = MemoryNodes::new();
         let input = full_input(raw, effective.raw_view(), &scope, "cut-1", 1, 0, rule);
         let generated = runtime.generate(&mut nodes, &input).unwrap();
-        let object = generated.objects.iter()
+        let object = generated
+            .objects
+            .iter()
             .find(|object| object.kind() == crate::content_producer::CC004_UNDETERMINED_KIND)
             .expect("首根 W 未定原件");
         let record = match object.borrowed() {
@@ -2846,21 +2846,34 @@ pub(super) mod tests {
         let baseline = budget.live();
         let work = budget.codec_work().unwrap();
         let mut returned = None;
-        let (run, trace) = failure_trace::capture(|| work.run(|scope| {
-            let mut store = NativeFixture { inner: &mut nodes, work: scope };
-            let ballast = scope.reserve_native(budget.remaining()).unwrap();
-            let result = read_w_prior(&mut store, &runtime.producer, &record).map(|_| ());
-            returned = result.as_ref().err().cloned();
-            drop(ballast);
-            result
-        }));
-        assert!(matches!(&run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+        let (run, trace) = failure_trace::capture(|| {
+            work.run(|scope| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work: scope,
+                };
+                let ballast = scope.reserve_native(budget.remaining()).unwrap();
+                let result = read_w_prior(&mut store, &runtime.producer, &record).map(|_| ());
+                returned = result.as_ref().err().cloned();
+                drop(ballast);
+                result
+            })
+        });
+        assert!(
+            matches!(&run, Err(WorkError::Resource(ScratchFailure::Budget))),
+            "{run:?}"
+        );
         let error = returned.as_ref().expect("真实 W prior 资源拒绝");
-        assert!(error.to_string().starts_with("GenError：上一代未定原件不可核："));
+        assert!(error
+            .to_string()
+            .starts_with("GenError：上一代未定原件不可核："));
         assert!(trace.only_resource() && trace.bridges(error));
         super::super::audit_owner::publication_degrade_verdict_for_test(
-            run.unwrap_err(), returned, trace,
-        ).unwrap();
+            run.unwrap_err(),
+            returned,
+            trace,
+        )
+        .unwrap();
         assert_eq!(budget.live(), baseline);
     }
 
