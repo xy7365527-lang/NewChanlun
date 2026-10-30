@@ -84,7 +84,9 @@ def run_case(index, side, trace):
         p = record["probe"]
         okay = (p["error"] is None and p["generation"] == 77 and p["reply"] is not None
                 and p["side"] == side and p["trace"] == trace
-                and p["material"] is not None and p["proofs"] is not None)
+                and p["material"] is not None
+                and ((side == "old" and p["proofs"] is None)
+                     or (side == "new" and p["proofs"] is not None)))
     if not okay:
         summary["errors"] += 1
         save()
