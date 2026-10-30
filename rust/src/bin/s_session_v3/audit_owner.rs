@@ -42,7 +42,7 @@ mod q;
 
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
 #[cfg(all(test, feature = "s_incremental"))]
-pub(super) mod allocation_probe;
+pub(crate) mod allocation_probe;
 /// #1488 P3-1 TestOnly：冷根审计失败分支在根析构前记下（清除前根活许可, 清除后根活许可）。
 #[cfg(all(test, feature = "s_incremental"))]
 pub(super) mod cold_root_probe {

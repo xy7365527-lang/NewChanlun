@@ -2044,11 +2044,11 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_proof_publication_complete_outputs_two_frontiers_and_release() {
-        use crate::v3::audit_store::{CodecRead, HashReader};
+        use crate::v3::audit_store::HashReader;
         let mut fixture = OrdinaryFixture::new(FixtureChange::Observations, None);
         let tx = fixture.db.transaction().unwrap();
-        let mut source = crate::v3::content_store::ReadStore::new(&tx).unwrap();
-        let mut reader = HashReader::metered(&mut source, None, None, None);
+        let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);
         let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
             fixture.roots.view(), &fixture.manifest.batch_id, 0).unwrap();
         let outputs = [rendered(&mut reader, &normal_reference(expected.snapshot.view())),
@@ -2067,8 +2067,8 @@ mod tests {
             assert!(projection.current.is_empty());
             reader.clear_overlay();
         }
-        let mut foreign_source = crate::v3::content_store::ReadStore::new(&tx).unwrap();
-        let foreign_reader = HashReader::metered(&mut foreign_source, None, None, None);
+        let mut foreign_source = crate::content_store::ReadStore::new(&tx).unwrap();
+        let foreign_reader = HashReader::ordinary_publication_reader_for_test(&mut foreign_source);
         assert!(projection.check(&tx, &foreign_reader).is_err());
         projection.commit_cut();
         assert!(projection.previous.is_empty() && projection.batch_previous.is_empty());
@@ -2110,8 +2110,8 @@ mod tests {
         for (change, mutation) in cases {
             let mut fixture = OrdinaryFixture::new(change, mutation);
             let tx = fixture.db.transaction().unwrap();
-            let mut source = crate::v3::content_store::ReadStore::new(&tx).unwrap();
-            let mut reader = HashReader::metered(&mut source, None, None, None);
+            let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
+            let mut reader = HashReader::ordinary_publication_reader_for_test(&mut source);
             let expected = resolve_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
                 fixture.roots.view(), &fixture.manifest.batch_id, 0).err().unwrap();
             reader.clear_overlay();
@@ -2137,7 +2137,7 @@ mod tests {
         let V::Object(fields) = &mut missing else { unreachable!() };
         fields.retain(|(key, _)| key != "lifecycle");
         let missing = sc::write_value(&mut nodes, &missing).unwrap().content_ref();
-        let mut reader = HashReader::metered(&mut nodes, None, None, None);
+        let mut reader = HashReader::ordinary_publication_reader_for_test(&mut nodes);
         let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
         projection.read_fields(&mut reader, (&valid).into()).unwrap();
         projection.commit_cut();

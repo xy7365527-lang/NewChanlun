@@ -3089,6 +3089,10 @@ impl<'a> HashReader<'a> {
             history_public_roots: None,
         }
     }
+    #[cfg(test)]
+    pub(crate) fn ordinary_publication_reader_for_test(source: &'a mut dyn NodeSource) -> Self {
+        Self::metered(source, None, None, None)
+    }
     pub(super) fn metered(
         source: &'a mut dyn NodeSource,
         deadline: Option<std::time::Instant>,
