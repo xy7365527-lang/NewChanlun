@@ -7,8 +7,9 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,15 @@ from .claims import (
     LockTimeout,
     TicketClaim,
     advance,
+)
+from .cutover import (
+    DRAIN_ROOT,
+    CutoverError,
+    CutoverStore,
+    FrozenSnapshot,
+    LegacyProcess,
+    legacy_processes,
+    remote_barrier,
 )
 from .delivery import (
     EffectPending,
@@ -59,9 +69,10 @@ from .workunit import (
     DedicatedPilot,
     Ineligible,
     Playbook,
+    Queued,
     TicketEvidence,
     WorkUnit,
-    forbidden,
+    forbidden_for,
     judge_eligibility,
     parse_unit_run_id,
     parse_work_unit,
@@ -162,13 +173,15 @@ class TicketExecutor:
     """一张票在新执行器里的持有、动作锁与精确交付。所有 GitHub 写都经 App 身份。"""
 
     def __init__(self, unit: WorkUnit, gateway: RepoGateway, *, claims: ClaimStore, workers_log: Path = WORKERS_LOG,
-                 approvals: SignedApprovals | None = None, crash: Callable[[str], None] = _no_crash):
+                 approvals: SignedApprovals | None = None, crash: Callable[[str], None] = _no_crash,
+                 cutover: CutoverStore | None = None):
         self.unit = unit
         self.gateway = gateway
         self.claims = claims
         self.workers_log = workers_log
         self.approvals = approvals or SignedApprovals()
         self.crash = crash
+        self.cutover = cutover or CutoverStore()
 
     def _marker(self, kind: str, run_id: str, generation: int, head: str) -> str:
         return marker(kind, ticket=self.unit.ticket, run_id=run_id, generation=generation, head=head)
@@ -177,7 +190,7 @@ class TicketExecutor:
         return ApprovalDesk(run_dir / "approvals", self.unit.ticket, self.unit.run_id, self.approvals)
 
     def spec_approval(self, run_dir: Path, generation: int) -> Pending | None:
-        """接管票的 SPEC 授权：目标是 SPEC 票此刻正文的原始字节摘要，正文一变就换请求。"""
+        """需要 SPEC 授权的准入：目标是 SPEC 票此刻正文的原始字节摘要，正文一变就换请求。"""
         admission = self.unit.admission
         assert not isinstance(admission, DedicatedPilot)
         target = spec_body_target(admission.spec_auth.spec_issue, self.gateway.issue(admission.spec_auth.spec_issue))
@@ -194,10 +207,27 @@ class TicketExecutor:
             if isinstance(proof, Ineligible):
                 raise AdmissionRefused("专用票准入不成立：" + ", ".join(proof.reasons))
             return
+        if isinstance(self.unit.admission, Queued):
+            self._queue_check()
+            pending = self.spec_approval(run_dir, generation)
+            if pending is not None:
+                raise ApprovalRequired(pending)
+            return
         pending = self.spec_approval(run_dir, generation)
         if pending is not None:
             raise AdmissionRefused(f"{pending.status}：{pending.reason}；请求 {pending.request_path}")
         raise AdmissionRefused("takeover_barrier_unimplemented：旧票冻结排空屏障（SPEC 7.3）未实施，签批有效也不接管")
+
+    def _cutover_lock(self):
+        return self.cutover.frozen() if isinstance(self.unit.admission, Queued) else nullcontext()
+
+    def _queue_check(self) -> None:
+        from .queue import approved_scope, prove_queue
+        assert isinstance(self.unit.admission, Queued)
+        prove_queue(self.gateway, self.unit.ticket, self.cutover, self.unit.admission.proof)
+        scope = approved_scope(str(self.gateway.issue(self.unit.admission.spec_auth.spec_issue).get("body") or ""))
+        if any(not any(prefix.startswith(allowed) for allowed in scope) for prefix in self.unit.allowed_prefixes):
+            raise AdmissionRefused("registered scope exceeds current signed SPEC deepagents-scope")
 
     def _previous_run_quiet(self, previous: TicketClaim) -> None:
         run_dir = Path(previous.run_dir)
@@ -218,7 +248,7 @@ class TicketExecutor:
         """SPEC 7.4：intent → 镜像 → post-check → active，全程在票级动作锁内；崩溃后同 run 从记录处续做。"""
         unit = self.unit
         resolved = str(run_dir.resolve())
-        with self.claims.locked(unit.ticket) as txn:
+        with self.claims.locked(unit.ticket) as txn, self._cutover_lock():
             record = txn.record
             if record is not None and record.run_id == unit.run_id:
                 if record.run_dir != resolved:
@@ -238,6 +268,8 @@ class TicketExecutor:
                 claim = txn.write(TicketClaim(REPO, unit.ticket, unit.run_id, resolved,
                                               record.generation + 1 if record else 1, "intent",
                                               unit.admission.kind, False, None, None, _now()))
+            if isinstance(unit.admission, Queued):
+                self.admit(run_dir, claim.generation)
             journal = Journal(claim_effects(self.claims, unit.ticket, claim.run_id, claim.generation))
             if claim.state == "intent":
                 journal.converge("label", lambda: self._label_probe(), lambda: self.gateway.add_label(
@@ -253,6 +285,11 @@ class TicketExecutor:
                 claim = txn.write(advance(claim, "mirror", mirror_label=True, marker_comment=comment.get("url")))
             if claim.state == "mirrored":
                 problems = self._post_check(claim)
+                if isinstance(unit.admission, Queued) and not problems:
+                    try:
+                        self.admit(run_dir, claim.generation)
+                    except (ClaimRefused, CutoverError, ValueError) as error:
+                        problems.append(str(error))
                 if problems:
                     reason = "post_check_failed:" + ",".join(problems) + self._withdraw(journal, claim)
                     txn.write(advance(claim, "halt", reason=reason, mirror_label=False))
@@ -272,7 +309,7 @@ class TicketExecutor:
             problems.append("not_open")
         if MIRROR_LABEL not in labels:
             problems.append("mirror_label_missing")
-        problems.extend(f"forbidden:{name}" for name in forbidden(labels))
+        problems.extend(f"forbidden:{name}" for name in forbidden_for(self.unit.admission, labels))
         if self.gateway.find_marker(self.unit.ticket, self._marker(
                 "claim", claim.run_id, claim.generation, self.unit.base)) is None:
             problems.append("claim_marker_missing")
@@ -301,16 +338,23 @@ class TicketExecutor:
             return "ticket_not_open"
         if MIRROR_LABEL not in labels:
             return "mirror_label_removed"
-        hits = forbidden(labels)
+        hits = forbidden_for(self.unit.admission, labels)
         if hits:
             return "forbidden_label:" + ",".join(hits)
+        if isinstance(self.unit.admission, Queued):
+            try:
+                self._queue_check()
+            except (CutoverError, ClaimRefused, ValueError, OSError) as error:
+                return str(error)
         if pr_number is not None:
-            pr_hits = forbidden(self.gateway.label_names(self.gateway.issue(pr_number)))
+            pr_hits = forbidden_for(self.unit.admission, self.gateway.label_names(self.gateway.issue(pr_number)))
             if pr_hits:
                 return "pr_forbidden_label:" + ",".join(pr_hits)
         if not isinstance(self.unit.admission, DedicatedPilot):
             pending = self.spec_approval(run_dir, generation)
             if pending is not None:
+                if isinstance(self.unit.admission, Queued):
+                    raise ApprovalRequired(pending)
                 return f"spec_authorization:{pending.status}"
         return None
 
@@ -319,7 +363,7 @@ class TicketExecutor:
                head: Sha | None = None) -> Iterator[Boundary]:
         """SPEC 6：取票级锁 → 锁内复核持有与实时票面 → 锁内执行并记账 → 释放。复核不符即 halted，不执行。
         派工、本地提交与每一次 GitHub 写都经这里。发布动作带 head，需要候选签批的票在锁内重读权威链。"""
-        with self.claims.locked(self.unit.ticket) as txn:
+        with self.claims.locked(self.unit.ticket) as txn, self._cutover_lock():
             boundary = Boundary(txn, txn.require_holder(self.unit.run_id, run_dir, generation))
             problem = self._boundary_problem(pr_number, run_dir, generation)
             if problem is not None:
@@ -611,8 +655,9 @@ def _client(args: argparse.Namespace) -> GitHubAppClient:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="pilot1742.executor", description="新执行器：v2 专用票登记、持有、运行与释放")
+    parser = argparse.ArgumentParser(prog="pilot1742.executor", description="新执行器：v2 票登记、引擎队列、持有、运行与释放")
     parser.add_argument("--state-root", type=Path, default=DEFAULT_STATE_ROOT)
+    parser.add_argument("--drain-root", type=Path, default=DRAIN_ROOT, help="隔离测试用；部署保持缺省全局根")
     sub = parser.add_subparsers(dest="command", required=True)
     reg = sub.add_parser("register", help="主控登记首证专用票（只读 GitHub，写本机 WorkUnit）")
     reg.add_argument("--ticket", type=int, required=True)
@@ -632,6 +677,18 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--crash-at", choices=V2_CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
     run.add_argument("--resume", action="store_true",
                      help="停在中断处时恢复：清除操作员中断请求，按权威签批链重新判定，恢复载荷不作批准")
+    serve = sub.add_parser("serve", help="读取引擎放行队列，逐票运行或恢复")
+    modes = serve.add_mutually_exclusive_group(required=True)
+    modes.add_argument("--once", action="store_true")
+    modes.add_argument("--loop", action="store_true")
+    serve.add_argument("--poll-seconds", type=float, default=60)
+    serve.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
+    serve.add_argument("--private-key", type=Path, required=True)
+    cutover = sub.add_parser("cutover", help="全局冻结排空证据；不执行生产切换")
+    cutover.add_argument("operation", choices=("snapshot", "verify", "record"))
+    cutover.add_argument("--snapshot", type=Path)
+    cutover.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
+    cutover.add_argument("--private-key", type=Path)
     status = sub.add_parser("status", help="只读本机状态，不访问 GitHub")
     status.add_argument("--run-id", required=True)
     reconcile = sub.add_parser("reconcile", help="主控核实 pending 效果在 GitHub 上没有生效后，允许再发一次")
@@ -663,8 +720,61 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"claim": asdict(record) if record else None, "status": report}, ensure_ascii=False,
                              indent=2))
             return 0
+        source_repo = Path(__file__).resolve().parents[3]
+        cutover_store = CutoverStore(args.state_root, args.drain_root, getattr(args, "workers_log", WORKERS_LOG))
+        if args.command == "serve":
+            if args.poll_seconds <= 0:
+                raise ValueError("poll-seconds 须为正数")
+            try:
+                cutover_store.load()
+            except CutoverError as error:
+                print(f"queue inactive: {error}")
+                return 0
+        if args.command == "cutover":
+            snapshot_path = args.snapshot or args.state_root / "cutover-snapshot.json"
+            if args.operation == "snapshot":
+                snapshot = cutover_store.snapshot()
+                snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+                fd = os.open(snapshot_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w") as stream:
+                    json.dump(asdict(snapshot), stream, ensure_ascii=False, indent=2)
+                    stream.write("\n")
+                print(str(snapshot_path))
+                return 0
+            if args.private_key is None:
+                raise ValueError("cutover verify/record 需要 --private-key 显式路径")
         with _client(args) as client:
             gateway = RepoGateway(client)
+            if args.command == "cutover":
+                data = json.loads(snapshot_path.read_text())
+                data["legacy_snapshot"] = tuple(LegacyProcess(**p) for p in data["legacy_snapshot"])
+                head = subprocess.run(["git", "-C", str(source_repo), "rev-parse", "HEAD"], check=True,
+                                      capture_output=True, text=True).stdout.strip()
+                with (cutover_store.drain_root / "admission.lock").open("a") as lock:
+                    fcntl.flock(lock, fcntl.LOCK_SH)
+                    cutover_record = cutover_store.verify(FrozenSnapshot(**data), remote_barrier(gateway), legacy_processes(), head)
+                    if args.operation == "record":
+                        cutover_store.record(cutover_record)
+                print(json.dumps(asdict(cutover_record), ensure_ascii=False, indent=2))
+                return 0
+            if args.command == "serve":
+                from .queue import QueueIntake
+                intake = QueueIntake(args.state_root, gateway, store, cutover_store, source_repo)
+                def child(unit: WorkUnit) -> int:
+                    command = [sys.executable, "-m", "pilot1742.executor", "--state-root", str(args.state_root),
+                               "--drain-root", str(args.drain_root), "run", "--run-id", unit.run_id,
+                               "--workers-log", str(args.workers_log), "--private-key", str(args.private_key), "--resume"]
+                    return subprocess.run(command, check=False).returncode
+                while True:
+                    try:
+                        cutover_store.load()
+                    except CutoverError as error:
+                        print(f"queue inactive: {error}")
+                        return 0
+                    print(json.dumps(intake.once(child), ensure_ascii=False, indent=2), flush=True)
+                    if args.once:
+                        return 0
+                    time.sleep(args.poll_seconds)
             if args.command == "register":
                 unit = register(args.state_root, gateway, ticket=args.ticket, run_id=args.run_id, base=args.base,
                                 task=parse_task(args.task.read_text()), playbook=args.playbook,
@@ -678,14 +788,17 @@ def main(argv: list[str] | None = None) -> int:
 
             unit, task = load_unit(args.state_root, args.run_id)
             executor = TicketExecutor(unit, gateway, claims=store, workers_log=args.workers_log,
-                                      crash=_sigkill_at(args.crash_at))
+                                      crash=_sigkill_at(args.crash_at), cutover=cutover_store)
             try:
                 pilot = open_v2_run(args.state_root, unit, task, executor, PSTACK_MODELS.read_text())
             except Busy as error:
                 print(str(error), file=sys.stderr)
                 return EXIT_BUSY
             return drive(pilot, recheck_approval=args.resume)
-    except (*EXECUTOR_ERRORS, Halted, ToolRefusal, ValueError, FileNotFoundError) as error:
+    except ApprovalRequired as required:
+        print(json.dumps({"phase": "awaiting_human", "approval": decision_json(required.decision)}, ensure_ascii=False))
+        return 0
+    except (*EXECUTOR_ERRORS, Halted, ToolRefusal, ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f"{type(error).__name__}: {error}", file=sys.stderr)
         return 2
 

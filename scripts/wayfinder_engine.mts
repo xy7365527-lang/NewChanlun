@@ -19,7 +19,7 @@
  * 人工闸三处不动：spec 批准（闸一）/ 不预授权决策票 / 合入 main（闸二，本引擎不碰 main）。
  *
  * #1084 追加（2026-08-19 打回复核）——常驻控制面成为活机制：
- *   - 每轮区分五桶：全仓 ready-for-agent / 已获 sandcastle 拾取权 / blocked / claimed / running；
+ *   - 每轮区分五桶：全仓 ready-for-agent / 已获 ${releaseLabel()} 拾取权 / blocked / claimed / running；
  *   - 只由本控制面给合资格实装票（已批准 spec/DAG + 未 assign + 无 blocker）挂 sandcastle，
  *     不把全部历史 ready-for-agent 无差别放行（planReleases / classifyTicket 纯函数）；
  *   - gh 查询有限重试 + 指数退避 + fail-loud（单次网络失败不永久停摆）；
@@ -37,6 +37,8 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
+import { HOLD_LABELS, QUEUE_LABEL, releaseLabel, withQueueAdmission } from "../.sandcastle/deepagents-cutover.mts";
+export { releaseLabel, HOLD_LABELS };
 import { drainRequested, withLegacyAdmission } from "../.sandcastle/drain-control.mts";
 import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -60,7 +62,9 @@ export const SUPPORTED_SPEC_MODELS = SUPPORTED_MAIN_MODELS;
 // 闸一待批的 spec 票标签：编排者需人工批，故挂 ready-for-human（三态 triage 标签之一）。
 const SPEC_AWAIT_LABEL = "ready-for-human";
 // 实装票标签：ready-for-agent（已就绪）+ sandcastle（工蜂拾取闸，main.mts 读取）。
-const IMPL_LABELS = ["ready-for-agent", "sandcastle"];
+export function implLabels(label = releaseLabel()): string[] {
+  return label === QUEUE_LABEL ? ["ready-for-agent"] : ["ready-for-agent", "sandcastle"];
+}
 
 // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉（main.mts 同款）。
 const GH_ENV: NodeJS.ProcessEnv = {
@@ -165,9 +169,6 @@ export function isImplCandidate(c: Pick<ChildIssue, "title" | "labels">): boolea
   if (isDecisionTicket(c)) return false;
   return isImplTicket(c) || c.labels.includes(IMPL_LABEL);
 }
-
-/** 显式要人或待补信息的标签：带任一即不放行（人闸 / triage 未完）。 */
-export const HOLD_LABELS = ["needs-approval", "ready-for-human", "needs-info", "needs-triage", "wontfix"];
 
 /**
  * 纯决策图（v1 不碰，spec 出图走人工）：Notes 显式声明「本图为纯决策图，不带实装——理由：…」。
@@ -455,12 +456,13 @@ export function openBlockerCount(b: BlockedBySummary | undefined): number {
 }
 
 /** 单票分类（纯函数）：五桶判据，只吃归一化视图。 */
-export function classifyTicket(t: ReadyTicket): TicketBucket {
-  const hasSandcastle = t.labels.includes("sandcastle");
+export function classifyTicket(t: ReadyTicket, label = releaseLabel()): TicketBucket {
+  const hasReleaseLabel = t.labels.includes(label);
+  if (label === QUEUE_LABEL && t.labels.includes("sandcastle")) return "held";
   if (t.blockedBy > 0) return "blocked";
   // 已有负责人（任何 assignee）一律不放行：负责人是否仍活跃由人/审计判断，引擎不替人释放认领。
-  if (t.assignees.length > 0) return hasSandcastle ? "running" : "claimed";
-  if (hasSandcastle) return "released";
+  if (t.assignees.length > 0) return hasReleaseLabel ? "running" : "claimed";
+  if (hasReleaseLabel) return "released";
   if (t.labels.some((l) => HOLD_LABELS.includes(l))) return "held";
   // 汇总票（TB 汇验等）的工作由子票承担，子票未全关前不放行。
   if ((t.openChildren ?? 0) > 0) return "held";
@@ -483,8 +485,8 @@ export function explainTicket(t: ReadyTicket): string {
   const b = classifyTicket(t);
   if (b === "blocked") return `blocked（open blocker ${t.blockedBy}）`;
   if (b === "claimed") return `claimed（assignee ${t.assignees.join(",")}）`;
-  if (b === "running") return "running（已 assign 且带 sandcastle）";
-  if (b === "released") return "released（已带 sandcastle）";
+  if (b === "running") return `running（已 assign 且带 ${releaseLabel()}）`;
+  if (b === "released") return `released（已带 ${releaseLabel()}）`;
   if (b === "eligible") return "eligible（实装票 + 祖先链 SPEC 已批准 + 未 assign + 无 blocker）";
   const hold = t.labels.filter((l) => HOLD_LABELS.includes(l));
   if (hold.length) return `held（人闸标签 ${hold.join(",")}）`;
@@ -788,12 +790,15 @@ export function recheckBeforeRelease(v: {
   labels?: Array<{ name: string }>;
   assignees?: Array<{ login: string }>;
   blockedBy?: BlockedBySummary;
-}): string | null {
+}, label = releaseLabel()): string | null {
   if ((v.state ?? "OPEN").toUpperCase() !== "OPEN") return "票已关闭";
   if ((v.assignees ?? []).length > 0) return `已有负责人 ${(v.assignees ?? []).map((a) => a.login).join(",")}`;
   if (openBlockerCount(v.blockedBy) > 0) return "有 open blocker";
   const names = (v.labels ?? []).map((l) => l.name);
-  if (names.includes("sandcastle")) return "已带 sandcastle";
+  if (names.includes(label)) return `已带 ${label}`;
+  const other = label === QUEUE_LABEL ? "sandcastle" : QUEUE_LABEL;
+  if (names.includes(other)) return `已带另一放行标签 ${other}`;
+  if (label === QUEUE_LABEL && names.some(name => name.startsWith("agent:"))) return "旧 agent 标签";
   const hold = names.filter((l) => HOLD_LABELS.includes(l));
   if (hold.length) return `人闸标签 ${hold.join(",")}`;
   return null;
@@ -806,11 +811,12 @@ export function recheckBeforeRelease(v: {
 export function releaseTicket(
   number: number,
   io: { read: (args: string) => string; write: (args: string) => string } = { read: gh, write: ghOnce },
+  label = releaseLabel(),
 ): string | null {
   const v = JSON.parse(io.read(`issue view ${number} --json state,labels,assignees,blockedBy`));
-  const why = recheckBeforeRelease(v);
+  const why = recheckBeforeRelease(v, label);
   if (why) return why;
-  io.write(`issue edit ${number} --add-label sandcastle`);
+  io.write(`issue edit ${number} --add-label ${label}`);
   return null;
 }
 
@@ -834,11 +840,11 @@ export function renderStatus(
     "",
     `- open wayfinder:map：${maps.length} 张`,
     `- 扫描集 open（ready-for-agent ∪ wayfinder:impl）：${ready.length} 张`,
-    `  - 已获 sandcastle 拾取权（可拾取）：${b.released}`,
+    `  - 已获 ${releaseLabel()} 拾取权（可拾取）：${b.released}`,
     `  - blocked（有 open blocker）：${b.blocked}`,
     `  - claimed（已 assign）：${b.claimed}`,
-    `  - running（已 assign 且带 sandcastle）：${b.running}`,
-    `  - 待释放（合资格实装票，本轮挂 sandcastle）：${b.eligible}${eligibleList}`,
+    `  - running（已 assign 且带 ${releaseLabel()}）：${b.running}`,
+    `  - 待释放（合资格实装票，本轮挂 ${releaseLabel()}）：${b.eligible}${eligibleList}`,
     `  - 不合资格（决策/spec/未批准 spec/人闸标签等，不放行）：${b.held}`,
     "",
   ].join("\n");
@@ -1107,10 +1113,10 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, _cfg: 
       `Part of [SPEC #${specNumber}](${issueUrl(specNumber)})（map [#${mapNumber}](${issueUrl(mapNumber)}) 图内实施票）。` +
       (rulings ? `决策链：${rulings}。` : "") +
       `\n\n## 目标（spec ${t.id}）\n\n${t.summary ?? "（见 spec 对应条目）"}\n`;
-    const created = createIssue(`[impl] ${t.id} ${t.title}`, ticketBody, IMPL_LABELS);
+    const created = createIssue(`[impl] ${t.id} ${t.title}`, ticketBody, implLabels());
     addSubIssue(mapNumber, created.id);
     createdByPlanId.set(t.id, created);
-    console.log(`  ✓ 已开实装票 #${created.number}（${t.id}，${IMPL_LABELS.join("+")}）`);
+    console.log(`  ✓ 已开实装票 #${created.number}（${t.id}，${implLabels().join("+")}）`);
   }
 
   // blocking 边：depends_on 引用本计划内的 id。
@@ -1188,8 +1194,15 @@ function describeAction(a: Action): string {
 
 // ── 壳：轮询 + 每轮重算 ready 集 ───────────────────────────────────────────────
 
+export async function withEngineAdmission<T>(action: () => T | Promise<T>,
+  roots?: { stateRoot: string; drainRoot: string }): Promise<T> {
+  const label = roots ? releaseLabel(roots.stateRoot, roots.drainRoot) : releaseLabel();
+  return label === QUEUE_LABEL ? withQueueAdmission(action, roots?.stateRoot, roots?.drainRoot)
+    : withLegacyAdmission(action, roots?.drainRoot);
+}
+
 async function runOnce(cfg: EngineConfig): Promise<void> {
-  if (drainRequested()) return;
+  if (drainRequested() && releaseLabel() !== QUEUE_LABEL) return;
   const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
   console.log(`\n[wayfinder_engine] ${stamp} 一轮开始（${cfg.dryRun ? "dry-run" : "live"}）`);
   let maps: MapState[];
@@ -1214,7 +1227,7 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
         console.log(`    [dry-run] 将执行：${describeAction(action)}`);
       } else {
         try {
-          await withLegacyAdmission(() => executeAction(action, cfg));
+          await withEngineAdmission(() => executeAction(action, cfg));
         } catch (e) {
           console.error(`    ✗ 执行失败（${action.kind}）：${e}`);
         }
@@ -1236,12 +1249,12 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
   }
   for (const n of summary.eligible) {
     if (cfg.dryRun) {
-      console.log(`    [dry-run] 将释放（挂 sandcastle）：#${n}`);
+      console.log(`    [dry-run] 将释放（挂 ${releaseLabel()}）：#${n}`);
     } else {
       try {
-        const why = await withLegacyAdmission(() => releaseTicket(n));
+        const why = await withEngineAdmission(() => releaseTicket(n));
         if (why) console.log(`    · 写前复核不放行 #${n}：${why}`);
-        else console.log(`    ✓ 已释放（挂 sandcastle）：#${n}`);
+        else console.log(`    ✓ 已释放（挂 ${releaseLabel()}）：#${n}`);
       } catch (e) {
         console.error(`    ✗ 释放失败（#${n}）：${e}`);
       }
