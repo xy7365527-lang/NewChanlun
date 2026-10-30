@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      G77_MODE: "trace-first"
+      G77_MODE: "trace-only"
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "1"
     steps:
@@ -25,13 +25,13 @@ jobs:
         timeout-minutes: 1
       - uses: ./.github/actions/rust-job-setup
         timeout-minutes: 4
-      - name: Record candidate and Linux-only formatting
+      - name: Record candidate and check Linux formatting
         timeout-minutes: 1
         run: |
           mkdir -p g77-evidence
           git rev-parse HEAD > g77-evidence/source-head.txt
           echo "$GITHUB_RUN_ID" > g77-evidence/run-id.txt
-          rustfmt --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs rust/src/bin/s_session_v3/source_audit.rs rust/src/bin/s_session_v3/source_audit_development_tests.rs
+          rustfmt --check --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs rust/src/bin/s_session_v3/source_audit.rs rust/src/bin/s_session_v3/source_audit_development_tests.rs
           git diff -- '*.rs' > g77-evidence/rustfmt.patch
       - uses: actions/download-artifact@v4
         timeout-minutes: 3
@@ -76,7 +76,7 @@ jobs:
           test "$remaining" -gt 0
           timeout --signal=TERM --kill-after=10 "${remaining}s" "$(cat g77-evidence/executable.txt)" v3::source_audit::development_tests::development_measurement_ --nocapture --test-threads=1 > g77-evidence/selector-tests.txt 2>&1
           grep -F 'test result: ok. 2 passed;' g77-evidence/selector-tests.txt
-      - name: Trace attribution then at most five interleaved untraced pairs
+      - name: One trace attribution pair
         run: python3 .github/scripts/issue1419-g77-ab.py "$(cat g77-evidence/executable.txt)"
       - name: Retain every generated sample after writer stop
         if: always()

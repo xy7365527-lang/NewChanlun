@@ -2512,10 +2512,12 @@ fn w2_pending_cost_probe() {
     });
     eprintln!(
         "W2-PENDING-COST {}",
-        canonical_json(&json!({"generation":77,"side":side,"base_side":base_side,"trace":trace,
+        canonical_json(
+            &json!({"generation":77,"side":side,"base_side":base_side,"trace":trace,
             "elapsed_ns":elapsed,"events":events,"work":work,"f_calls":f_calls,
             "development":development,"material":material,"proofs":proofs,"reply":reply,
-            "error":result.as_ref().err()}))
+            "error":result.as_ref().err()})
+        )
     );
     assert_eq!(result.unwrap().generation, 77);
     assert!(reply.is_some());

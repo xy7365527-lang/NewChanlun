@@ -228,6 +228,29 @@ class MeasurementTest(unittest.TestCase):
         self.assertEqual(g77.summary['timings']['old']['values_seconds'], [1.0] * 5)
         self.assertTrue(g77.summary['benefit'].startswith('未测出收益'))
 
+    def test_trace_only_keeps_full_pair_without_measurement_series(self):
+        with patch.object(g77, 'machine', return_value={}), \
+             patch.object(g77, 'command_output', return_value={'stdout': 'synthetic'}), \
+             patch.object(g77.subprocess, 'Popen', side_effect=self.launch), \
+             patch.object(g77.subprocess, 'run', side_effect=self.command), \
+             patch.dict(g77.os.environ, {'G77_MODE': 'trace-only'}):
+            g77.main()
+        self.assertEqual([p.env['W2_PREVIOUS_SIDE'] for p in self.processes], ['old', 'new'])
+        self.assertTrue(all(p.env['W2_TRACE'] == '1' for p in self.processes))
+        self.assertTrue(all(p.env['W2_BASE_SIDE'] == 'new' for p in self.processes))
+        self.assertEqual(g77.summary['successes'], 2)
+        self.assertEqual(self.comparisons, 1)
+        self.assertEqual(g77.summary['mode'], 'trace-only')
+        self.assertEqual(g77.summary['max_measured_pairs'], 0)
+        self.assertEqual(g77.summary['status'], 'trace_pair_complete')
+        self.assertEqual(len(g77.summary['pairs']), 1)
+        self.assertTrue(g77.summary['pairs'][0]['trace'])
+        self.assertEqual(g77.summary['pairs'][0]['table_count'], 24)
+        g77.summarize_timings()
+        self.assertEqual(g77.summary['measured_pairs'], 0)
+        self.assertNotIn('timings', g77.summary)
+        self.assertNotIn('median_saving_seconds', g77.summary)
+
     def test_insufficient_time_keeps_trace_without_extending_window(self):
         calls = []
         def trace(index, enabled):
@@ -243,7 +266,7 @@ class MeasurementTest(unittest.TestCase):
 
     def test_old_trace_cannot_replace_this_candidate_trace(self):
         with patch.dict(g77.os.environ, {'G77_MODE': 'untraced'}), \
-             self.assertRaisesRegex(RuntimeError, 'trace-first required'):
+             self.assertRaisesRegex(RuntimeError, 'trace-first or trace-only required'):
             g77.main()
         self.assertEqual(g77.summary['cases'], [])
 
@@ -284,10 +307,12 @@ class MeasurementTest(unittest.TestCase):
     def test_workflow_uses_one_build_and_shared_deadline(self):
         text = Path(__file__).parents[1].joinpath('workflows/issue-1419-g77-ab.yml').read_text()
         self.assertEqual(text.count('cargo test --locked'), 1)
-        self.assertIn('G77_MODE: "trace-first"', text)
+        self.assertIn('G77_MODE: "trace-only"', text)
         self.assertIn('timeout-minutes: 35', text)
         self.assertIn('G77_STARTED + 35 * 60 - 120', text)
         self.assertIn('development_measurement_', text)
+        self.assertIn('rustfmt --check --edition 2021', text)
+        self.assertNotIn('rustfmt --edition 2021', text)
         self.assertNotIn('prior_trace_run', Path(g77.__file__).read_text())
 
 

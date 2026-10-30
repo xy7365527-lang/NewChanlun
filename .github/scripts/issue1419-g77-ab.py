@@ -232,11 +232,17 @@ def main():
     require((source / "source-head.txt").read_text().strip() ==
             "ca887d965a8a30848c4521b5684ae2b046ca5698", "wrong original source head")
     require((source / "run-id.txt").read_text().strip() == "41005347604", "wrong original run")
-    require(os.environ.get("G77_MODE", "trace-first") == "trace-first", "trace-first required")
+    mode = os.environ.get("G77_MODE", "trace-first")
+    require(mode in ("trace-first", "trace-only"), "trace-first or trace-only required")
+    summary["mode"] = mode
+    summary["max_measured_pairs"] = 0 if mode == "trace-only" else 5
     (out / "runner.json").write_text(json.dumps(machine(), indent=2))
     (out / "lscpu.txt").write_text(command_output(["lscpu"])["stdout"])
     started = time.monotonic()
     pair(0, True)
+    if mode == "trace-only":
+        summary["status"] = "trace_pair_complete"
+        return
     pair_cost = time.monotonic() - started
     for index in range(1, 6):
         if deadline - time.time() < pair_cost * 1.25 + 45:

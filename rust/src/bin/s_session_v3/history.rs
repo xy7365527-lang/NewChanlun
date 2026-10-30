@@ -1391,6 +1391,8 @@ fn audit_one_published_cut<'capture>(
     #[cfg(test)]
     super::admission_private::s4_read_trace::end(tx, "ord_obj_members", &members_result);
     members_result?;
+    #[cfg(test)]
+    super::state::trace_event("history_object_members_verified", Some(generation));
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
             p.arrays[0].1.clone(),

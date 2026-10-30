@@ -662,18 +662,27 @@ fn development_measurement_selector_restores_nested_error_and_unwind_scopes() {
     let before = DEVELOPMENT_CONFIG.with(std::cell::Cell::get);
     let last = DEVELOPMENT_LAST.with(std::cell::Cell::get);
     let (_, outer) = with_development_previous_for_test(true, || {
-        assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (16384, false));
+        assert_eq!(
+            DEVELOPMENT_CONFIG.with(std::cell::Cell::get),
+            (16384, false)
+        );
         let (result, _) = with_development_previous_for_test(false, || {
             assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (0, false));
             Err::<(), _>("expected test error")
         });
         assert!(result.is_err());
-        assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (16384, false));
+        assert_eq!(
+            DEVELOPMENT_CONFIG.with(std::cell::Cell::get),
+            (16384, false)
+        );
         assert!(std::panic::catch_unwind(|| {
             with_development_previous_for_test(false, || panic!("expected test unwind"))
         })
         .is_err());
-        assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (16384, false));
+        assert_eq!(
+            DEVELOPMENT_CONFIG.with(std::cell::Cell::get),
+            (16384, false)
+        );
         assert!(DEVELOPMENT_TOTAL.with(|s| s.get().is_some()));
     });
     assert_eq!(outer["sessions"], 0);
