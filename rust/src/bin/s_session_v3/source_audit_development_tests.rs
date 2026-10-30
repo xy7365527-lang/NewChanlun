@@ -278,7 +278,7 @@ fn development_exclusion_budget_stop_at_ordinary_native_and_owned() {
         let mut reader = super::super::history::HashReader::sqlite_base(&base).with_audit_gate(Some(&meter),None);
         assert!(reader.eligible_sqlite_base().is_none());
         let f = sc::frame_calls_on_thread();
-        let result = audit_generated_for_audit(&mut reader, &state, &raw, tb02a::PROFILE, &rule, None, Some(&meter));
+        let result = audit_generated_for_audit(&mut reader, state, raw, tb02a::PROFILE, rule, None, Some(&meter));
         assert_eq!(DEVELOPMENT_LAST.with(std::cell::Cell::get).eligible_batches,0);
         drop(reader);
         (result, base.material_stats().sql_material_reads, sc::frame_calls_on_thread()-f, meter.events.into_inner())
