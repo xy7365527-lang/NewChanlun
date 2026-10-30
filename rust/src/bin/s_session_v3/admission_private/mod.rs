@@ -655,11 +655,11 @@ fn validate_prefix_inner(
     errors
         .borrow_mut()
         .returned(ErrorPhase::Reconcile, &reconciled);
+    #[cfg(test)]
+    s4_read_trace::snapshot("end", account.snapshot().wire_bytes);
     errors.borrow_mut().phase = ErrorPhase::Deadline;
     let budget = account.check_deadline().map_err(|e| e.to_string());
     errors.borrow_mut().returned(ErrorPhase::Deadline, &budget);
-    #[cfg(test)]
-    s4_read_trace::snapshot("end", account.snapshot().wire_bytes);
     errors.into_inner().finish().map(|()| delta.get())
 }
 
