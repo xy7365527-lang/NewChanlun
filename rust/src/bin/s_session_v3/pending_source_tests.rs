@@ -40,7 +40,7 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
                     && object.life.withdrawn_generation.is_none()
             })
             .count();
-        // #1393 W（raw-initialization-w/1，S3 写者唯一规则）：等待期零正式组；首个相邻严格非包含对
+        // #1393 W 初始化几何（当前 S3 /2 串沿用此政策）：等待期零正式组；首个相邻严格非包含对
         // 出现时从 raw0 按其方向重折（逐例手算，(high,low) 按 source_coord 序）：
         // - 同 OHLC 三根互含，第 4 根 (17,6) 对 (12,3) 严格向上 ⟹ 第 4 步重折为 2 组；
         // - 较早修订：(12,3)→(16,6) 严格向上 2 组；a 改 (13,4) 仍严格向上 2 组；a 改 (17,6) 包含 b ⟹ 回到等待期；
@@ -288,7 +288,7 @@ fn assert_pending_w2_oracle(
             object["first_known_cut"] = payload["pending_since_cut"].clone();
         }
     }
-    let (mut objects, observations) = tb02a_facts::build(&trace, &by_coord, &[], &prior, generation, cut, frontier);
+    let (mut objects, _) = tb02a_facts::build(&trace, &by_coord, &[], &prior, generation, cut, frontier);
     let commit_ns = Some((generation * 10 + 2).to_string());
     let (bi, relations) = tb02b::build(stroke, &by_coord, &raw, &prior, generation, cut, frontier, commit_ns.clone());
     assert_eq!(bi.len(), 1);
@@ -333,6 +333,26 @@ fn assert_pending_w2_oracle(
             ids.insert(old, id);
         }
     }
+    let mut structure_requests = vec![];
+    for object in objects.iter().filter(|o| o["kind"] == "CC-011.seed_candidate") {
+        let data: Value = serde_json::from_str(object["payload_json"].as_str().unwrap()).unwrap();
+        let seed = &data["data"]["construction"];
+        assert!(seed["vector"].is_null());
+        assert_ne!(seed["length"], "odd_ge3");
+        let coords: Value = serde_json::from_str(object["source_coords_json"].as_str().unwrap()).unwrap();
+        for axis in ["length", "construction_conditions", "direction"] {
+            let outside = axis != "length";
+            structure_requests.push(json!({
+                "request_id":canonical_json(&json!([[object["kind"],data["slot"]],
+                    ["CC-011",axis,"structure-classification/1","construction",object["object_id"]]])),
+                "subject_id":object["object_id"],
+                "axes":{"input_quality":"SUFFICIENT","applicability":if outside {"OUTSIDE_DOMAIN"}else{"IN_DOMAIN"},
+                    "computation":"COMPLETE","validity":"CURRENT"},
+                "reasons":if outside {vec!["construction_length_outside_domain"]}else{vec![]},
+                "source_coords":coords
+            }));
+        }
+    }
     let knowledge = objects.iter_mut().find(|o| o["kind"] == "CC-054.knowledge_state").unwrap();
     let mut payload: Value = serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
     let requests = payload["requests"].as_array_mut().unwrap();
@@ -346,6 +366,17 @@ fn assert_pending_w2_oracle(
         else { (1, key[1].as_str().unwrap().parse::<i64>().unwrap(), match key[0].as_str().unwrap() {
             "CC-004.undetermined_raw"=>0, "CC-004.inclusion_step"=>1, "CC-005.inclusion_group"=>2, other=>panic!("unexpected {other}") }) }
     });
+    requests.extend(structure_requests);
+    let mut reasons: Vec<String> = serde_json::from_value(payload["waiting_reasons"].clone()).unwrap();
+    reasons.extend(segments.waiting_reasons.iter().map(|s| (*s).to_string()));
+    if segments.parse_invalid_from.is_some() { reasons.push(tb02c::PARSE_INVALID_REASON.to_string()); }
+    reasons.sort();
+    reasons.dedup();
+    payload["waiting_reasons"] = json!(reasons);
+    let all_coords: Vec<String> = by_coord.keys().map(ToString::to_string).collect();
+    let observations: Vec<Value> = reasons.iter().map(|reason| json!({"kind":"awaiting_scope","reason":reason,
+        "window_start":null,"window_mid":null,"window_end":null,
+        "detail":{"tb02a":true,"source_coords":all_coords,"input_frontier":frontier.to_string(),"waiting_reasons":reasons}})).collect();
     knowledge["payload_json"] = json!(canonical_json(&payload));
     knowledge["object_id"] = json!(pending_oracle_identity(knowledge, rule, &mut nodes));
     let mut dead: Vec<&Value> = previous.iter().filter(|old| !objects.iter().any(|new| new["object_id"] == old["object_id"])).collect();
@@ -373,6 +404,13 @@ fn assert_pending_w2_oracle(
     let mut actual_bytes = Vec::new();
     sc::render_canonical(&mut source, &actual_root, &mut actual_bytes).unwrap();
     let actual: Value = serde_json::from_slice(&actual_bytes).unwrap();
+    let actual_objects = actual["objects"].as_array().unwrap();
+    assert_eq!(actual_objects.len(), objects.len(), "generation {generation} complete object count");
+    for (index, (got, want)) in actual_objects.iter().zip(&objects).enumerate() {
+        for (field, value) in want.as_object().unwrap() {
+            assert_eq!(&got[field], value, "generation {generation} object {index} {} field {field}", want["kind"]);
+        }
+    }
     for (field,want) in expected.as_object().unwrap() { assert_eq!(&actual[field], want, "generation {generation} complete W2 field {field}"); }
     assert_eq!(actual.as_object().unwrap().len(), expected.as_object().unwrap().len());
     let record_edges = objects.iter().map(|object| V::Edge(pending_oracle_record(object,&mut nodes).digest)).collect();

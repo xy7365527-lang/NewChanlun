@@ -6043,6 +6043,10 @@ pub(super) mod tests {
             .iter()
             .map(|r| {
                 let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
+                if id[1].is_array() {
+                    assert_eq!(id[1][2], "structure-classification/1", "g{gen} structure request contract");
+                    return (3, 0, 0);
+                }
                 let labels = [
                     "shape_description",
                     "descriptive_labels",
@@ -6089,6 +6093,26 @@ pub(super) mod tests {
         expected_sorted.sort();
         actual.sort();
         assert_eq!(actual, expected_sorted, "g{gen} bounded 请求集合");
+        let normalize = |state: &Value, request: &Value| {
+            assert_eq!(request.as_object().unwrap().len(), 5);
+            let mut result = request.clone();
+            if let Some(id) = request["subject_id"].as_str() {
+                let matches: Vec<_> = state["objects"].as_array().unwrap().iter()
+                    .filter(|o| o["object_id"] == id).collect();
+                assert_eq!(matches.len(), 1);
+                result["subject_id"] = json!([matches[0]["kind"], matches[0]["fact_key"]]);
+            }
+            result
+        };
+        let expected_semantics: std::collections::BTreeMap<_, _> = requests_of(sorted).iter()
+            .filter(|r| {
+                let (slot, label) = key_of(r);
+                !(label.as_deref() == Some("subsequent_development") && realised.contains(&slot))
+            }).map(|r| (r["request_id"].as_str().unwrap().to_string(), normalize(sorted, r))).collect();
+        let actual_semantics: std::collections::BTreeMap<_, _> = bounded_requests.iter()
+            .map(|r| (r["request_id"].as_str().unwrap().to_string(), normalize(bounded, r))).collect();
+        assert_eq!(actual_semantics.len(), bounded_requests.len(), "请求不可重复");
+        assert_eq!(actual_semantics, expected_semantics, "g{gen} 全部请求五字段与主体绑定");
         for r in &bounded_requests {
             let (slot, label) = key_of(r);
             if label.as_deref() == Some("subsequent_development") {

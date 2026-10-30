@@ -42,6 +42,6 @@ layout/1 的库（S86 r6/r7 等冻结证据）由新二进制按库内 `rule_rev
 
 失败候选的完整 `raw-initialization-w/2+bounded-layout/1` 串继续精确登记为W2语义及Bounded1布局，只读拒写；旧单元编码、全部已登记历史串读法与原件不改。未知、混版本、重复、错序串拒绝，无fallback。前文最初的 `layout/1` 是Sorted历史布局，与此处 `bounded-layout/1` 区分。
 
-crosswalk只显式分解新增source_ref及其派生身份/根差异；bar、24关系、其余事实、次序和数量完整比较。V6原25代与三个具名锁保留，并加同W的新/2臂。三条原pending_source输入通过独立serde配方、目录oracle与codec根检查；旧W1三根缺件义务另列于baohan，不由新W2通过替代。实际测试收据以精确候选CI为准。
+crosswalk只显式分解新增source_ref及其派生身份/根差异；bar、24关系、其余事实、次序和数量完整比较。V6原25代与三个具名锁保留，并加同W的新/2臂。三条原pending_source输入要求通过独立serde配方、目录oracle与codec根检查；旧W1三根缺件义务另列于baohan，不由新W2通过替代。实际测试收据以精确候选CI为准。
 
 S86五常数、g1..86逐代上界、双跑、crosswalk、r6原件与容量门不变；新增源边按原公式核验，不拟合常数。#1481已冻结9011不追加重跑。原106代与28代exact由主控另排，不以靶向CI代替。
