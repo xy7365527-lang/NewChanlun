@@ -368,7 +368,7 @@ pub(super) fn enrich_raw_view_admitted(
     use v3::audit_store::{CodecRead, NativeAdmission};
     let admission = NativeAdmission(work);
     if !ohlc {
-        return v3::business_json::json_from_view_admitted(&admission, row);
+        return v3::business_json::json_from_view_admitted(&admission, row).map_err(Into::into);
     }
     let revision = row
         .get("revision")

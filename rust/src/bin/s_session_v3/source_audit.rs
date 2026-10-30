@@ -559,7 +559,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
     fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
         self.source.native_measure()
     }
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, newchan_rust::s_content::ContextError> {
         self.source.parse_rendered_plain(bytes)
     }
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {

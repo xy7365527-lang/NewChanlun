@@ -51,6 +51,7 @@
 
 #![allow(dead_code)]
 
+use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use super::fixed_radix::FixedRadix;
@@ -293,9 +294,9 @@ pub(super) struct Generated<'a> {
 
 impl<'a> Generated<'a> {
     /// 生成之后的**新闭包**核验（§5.4 写前读集的一道）；不替代调用方的完整审计。
-    pub(super) fn verify_new_closure(&self, store: &mut dyn NodeStore) -> Result<(), String> {
+    pub(super) fn verify_new_closure(&self, store: &mut dyn NodeStore) -> Result<(), PublishError> {
         sc::verify(&mut *store, &self.generated_state)
-            .map_err(|error| format!("GenError：生成态闭包核验失败：{error}"))?;
+            .map_err(|error| PublishError::from(error).context("GenError：生成态闭包核验失败："))?;
         Ok(())
     }
 
@@ -309,14 +310,12 @@ impl<'a> Generated<'a> {
         previous_frontier: i64,
         withdrawals: impl Into<RawEventsView<'changes>>,
         replaces: impl Into<RawEventsView<'changes>>,
-    ) -> Result<NativeValue<ContentRef>, String> {
+    ) -> Result<NativeValue<ContentRef>, PublishError> {
         let withdrawals = withdrawals.into();
         let replaces = replaces.into();
         if !self.is_ohlc {
-            return Err(
-                "VersionUnsupported：目录轴只存在于 OHLC 档案；非 OHLC 生成态没有该字段，拒绝假空"
-                    .to_string(),
-            );
+            return Err(("VersionUnsupported：目录轴只存在于 OHLC 档案；非 OHLC 生成态没有该字段，拒绝假空"
+                    .to_string()).into());
         }
         let mut rows = CodecVec::default();
         for object in &self.objects {
@@ -338,7 +337,7 @@ impl<'a> Generated<'a> {
         )?;
         // #1488：producer owner持续存活至同核整数检查和codec写出完成。
         let axes = write_json_view(&mut *store, axes_owner.view())
-            .map_err(|error| format!("GenError：目录轴写入失败：{error}"))?;
+            .map_err(|error| PublishError::from(error).context("GenError：目录轴写入失败："))?;
         let reference = native_ref(store, &axes)?;
         let state = emit_state(store, &self.meta, &self.roots, Some(&reference))?;
         let returned =
@@ -474,14 +473,14 @@ impl GenerationRuntime {
             bound.invalidate_after_consumer_failure();
             self.discard_runtime_state();
         }
-        result
+        result.map_err(Into::into)
     }
 
     fn advance_raw_bound_inner(
         &mut self,
         store: &mut dyn NodeStore,
         bound: &super::audit_owner::BoundRawAdvance<'_>,
-    ) -> Result<RawGenerationDelta, String> {
+    ) -> Result<RawGenerationDelta, PublishError> {
         bound.ensure_current()?;
         if self.delta_lane.is_none() {
             if self.raw_events_seq.bound || self.effective_events_seq.bound {
@@ -612,7 +611,7 @@ impl GenerationRuntime {
         if result.is_err() {
             self.discard_runtime_state();
         }
-        result
+        result.map_err(Into::into)
     }
 
     /// 仅受控 NativeReadLease 分支可提供 token；外部调用方不能用 bool 开启资格。
@@ -621,7 +620,7 @@ impl GenerationRuntime {
         store: &mut dyn NodeStore,
         input: &GenerationInput<'b>,
         native: &super::prepared::NativeGeneration,
-    ) -> Result<Generated<'b>, String> {
+    ) -> Result<Generated<'b>, PublishError> {
         let result = self.generate_impl(store, input, None, Some(native), None);
         if result.is_err() {
             self.discard_runtime_state();
@@ -635,7 +634,7 @@ impl GenerationRuntime {
         store: &mut dyn NodeStore,
         bound: &super::audit_owner::BoundRawAdvance<'b>,
         input: BoundGenerationInput<'b>,
-    ) -> Result<Generated<'b>, String> {
+    ) -> Result<Generated<'b>, PublishError> {
         let result = (|| {
             bound.ensure_current()?;
             self.check_generation_identity(input.profile_id, input.rule_revision)?;
@@ -704,7 +703,7 @@ impl GenerationRuntime {
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
         delta: Option<(s_fact_cache::EffectiveRawView<'_>, RawGenerationDelta)>,
-    ) -> Result<Generated<'b>, String> {
+    ) -> Result<Generated<'b>, PublishError> {
         if budget.is_some() && store.codec_work().is_some() {
             return Err(
                 "prototype_audit_allocation_incomplete：生成入口不能混用Owned keys账与Native父账"
@@ -739,7 +738,7 @@ impl GenerationRuntime {
                     .map_err(codec_error)?
                     .is_some()
                 {
-                    return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
+                    return Err(("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string()).into());
                 }
                 push_gen(&mut raw_bars, bar_of(event)?, store)?;
                 let node = event_node(&mut self.event_nodes, store, event)?;
@@ -832,7 +831,7 @@ impl GenerationRuntime {
                     .map(|shape| shape.map(ShapeBuild::Ordinary)),
             };
             match (shape, built_shape) {
-                (_, Ok(None)) => return Err(format!("GenError：形态窗 {start} 缺同次三组证据")),
+                (_, Ok(None)) => return Err((format!("GenError：形态窗 {start} 缺同次三组证据")).into()),
                 (_, Ok(Some(built_shape))) => {
                     let object = built_shape.object();
                     let views = group_views(state, start)?;
@@ -951,10 +950,9 @@ impl GenerationRuntime {
                     push_gen(&mut observations, (false, value), store)?;
                 }
                 (classified, Err(error)) => {
-                    return Err(format!(
-                        "GenError：形态窗 {start} 构造失败（滑窗判据={classified:?}）：{}",
-                        producer_error(error)
-                    ));
+                    return Err((producer_error(error).context(&format!(
+                        "GenError：形态窗 {start} 构造失败（滑窗判据={classified:?}）："
+                    ))).into());
                 }
             }
         }
@@ -1080,11 +1078,11 @@ impl GenerationRuntime {
             request_keys.push(RequestOrder::pending());
         }
         if request_keys.len() != requests.len() {
-            return Err(format!(
+            return Err((format!(
                 "GenError：CC-054 请求次序键 {} 条与请求 {} 条不符",
                 request_keys.len(),
                 requests.len()
-            ));
+            )).into());
         }
         // #1491 ADR 0037 §一：bounded-layout/1 的 `requests` 按 (window_start, label) 排列，新请求
         // 只落尾部；layout/1 保持原线序（步骤 → 组 → 形态/分型 → 待决）。
@@ -1180,7 +1178,7 @@ impl GenerationRuntime {
                     semantic_commit_ns: input.semantic_commit_ns,
                 },
             )
-            .map_err(|error| format!("GenError：TB-02-B 构造失败：{error}"))?;
+            .map_err(|error| bi_error(error).context("GenError：TB-02-B 构造失败："))?;
         for object in bi.objects {
             let kind = typed_kind(store, &object)?;
             let generated =
@@ -1202,7 +1200,7 @@ impl GenerationRuntime {
             push_gen(
                 &mut relations,
                 sc::write_value(&mut *store, relation)
-                    .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
+                    .map_err(|error| PublishError::from(error).context("GenError：关系值写入失败："))?,
                 store,
             )?;
         }
@@ -1294,13 +1292,13 @@ pub(super) struct RawGenerationDelta {
     pub changes: s_fact_cache::ParserChanges,
 }
 
-fn native_text(store: &dyn NodeStore, text: &str) -> Result<NativeValue<String>, String> {
+fn native_text(store: &dyn NodeStore, text: &str) -> Result<NativeValue<String>, PublishError> {
     NativeValue::<String>::try_from_str(text, store.codec_work()).map_err(codec_error)
 }
-fn native_ref(store: &dyn NodeStore, built: &Built) -> Result<NativeValue<ContentRef>, String> {
+fn native_ref(store: &dyn NodeStore, built: &Built) -> Result<NativeValue<ContentRef>, PublishError> {
     NativeValue::<ContentRef>::try_from_built(built, store.codec_work()).map_err(codec_error)
 }
-fn push_gen<T>(values: &mut CodecVec<T>, value: T, store: &dyn NodeStore) -> Result<(), String> {
+fn push_gen<T>(values: &mut CodecVec<T>, value: T, store: &dyn NodeStore) -> Result<(), PublishError> {
     if let Some(work) = store.codec_work() {
         values.try_reserve_native(work, 1).map_err(codec_error)?;
     }
@@ -1310,7 +1308,7 @@ fn extend_gen<T>(
     values: &mut CodecVec<T>,
     items: impl IntoIterator<Item = T>,
     store: &dyn NodeStore,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     for value in items {
         push_gen(values, value, store)?;
     }
@@ -1322,7 +1320,7 @@ fn shape_observation(
     kind: &str,
     reason: &str,
     positions: [Option<usize>; 3],
-) -> Result<Built, String> {
+) -> Result<Built, PublishError> {
     let window = positions.map(|position| position.map(Value::from).unwrap_or(Value::Null));
     let empty = [];
     let fields = [
@@ -1345,7 +1343,7 @@ fn shape_observation(
 fn stable_sort_typed_admitted(
     values: &mut [ProducedObject],
     store: &dyn NodeStore,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     stable_sort_admitted(values, store, |a, b| {
         (a.kind.as_str(), a.fact_key.as_deref(), a.object_id.as_str()).cmp(&(
             b.kind.as_str(),
@@ -1358,7 +1356,7 @@ fn stable_sort_admitted<T>(
     values: &mut [T],
     store: &dyn NodeStore,
     mut compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let mut order = collect_gen(0..values.len(), store)?;
     order.sort_unstable_by(|left, right| {
         compare(&values[*left], &values[*right]).then_with(|| left.cmp(right))
@@ -1380,7 +1378,7 @@ fn stable_sort_admitted<T>(
 fn collect_gen<T>(
     items: impl IntoIterator<Item = T>,
     store: &dyn NodeStore,
-) -> Result<CodecVec<T>, String> {
+) -> Result<CodecVec<T>, PublishError> {
     let mut values = CodecVec::default();
     extend_gen(&mut values, items, store)?;
     Ok(values)
@@ -1392,7 +1390,7 @@ fn emit_state(
     meta: &StateMeta,
     roots: &StateRoots,
     axes: Option<&ContentRef>,
-) -> Result<NativeValue<ContentRef>, String> {
+) -> Result<NativeValue<ContentRef>, PublishError> {
     let generation = super::super::content_manifest::Decimal::new(meta.generation);
     let frontier = super::super::content_manifest::Decimal::new(meta.input_frontier);
     let generation = sc::BorrowedNumberToken::parse(generation.as_str()).map_err(codec_error)?;
@@ -1425,7 +1423,7 @@ fn emit_state(
         &mut *store,
         VV::Object(&fields[..if axes.is_some() { 15 } else { 14 }]),
     )
-    .map_err(|error| format!("GenError：生成态写入失败：{error}"))?;
+    .map_err(|error| PublishError::from(error).context("GenError：生成态写入失败："))?;
     native_ref(store, &built)
 }
 
@@ -1469,7 +1467,7 @@ impl SequenceKeys {
             )
         }
     }
-    fn reserve_admitted(&mut self, store: &dyn NodeStore, length: usize) -> Result<(), String> {
+    fn reserve_admitted(&mut self, store: &dyn NodeStore, length: usize) -> Result<(), PublishError> {
         match self {
             Self::Plain(keys) => {
                 let additional = length.saturating_sub(keys.len());
@@ -1488,7 +1486,7 @@ impl SequenceKeys {
         }
     }
 
-    fn replace_reserved(&mut self, elements: &[NodeDigest]) -> Result<(), String> {
+    fn replace_reserved(&mut self, elements: &[NodeDigest]) -> Result<(), PublishError> {
         match self {
             Self::Plain(keys) => {
                 keys.clear();
@@ -1509,7 +1507,7 @@ impl SequenceKeys {
     }
 
     /// 容量已在改 keys/root 前预留；只截变化后缀，不复制未变前缀。
-    fn splice_reserved(&mut self, prefix: usize, suffix: &[NodeDigest]) -> Result<(), String> {
+    fn splice_reserved(&mut self, prefix: usize, suffix: &[NodeDigest]) -> Result<(), PublishError> {
         match self {
             Self::Plain(keys) => {
                 keys.truncate(prefix);
@@ -1572,7 +1570,7 @@ impl SequenceMemo {
         self.seq = None;
         self.bound = false;
     }
-    fn check_native_scope(&mut self, store: &dyn NodeStore) -> Result<(), String> {
+    fn check_native_scope(&mut self, store: &dyn NodeStore) -> Result<(), PublishError> {
         let keys = match &mut self.keys {
             SequenceKeys::Plain(keys) => keys,
             #[cfg(feature = "s_allocation_json_testonly")]
@@ -1595,7 +1593,7 @@ impl SequenceMemo {
         edit: SequenceSplice<'_>,
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
-    ) -> Result<Built, String> {
+    ) -> Result<Built, PublishError> {
         self.check_native_scope(store)?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
@@ -1611,14 +1609,14 @@ impl SequenceMemo {
             || self.bound != self.seq.is_some()
             || edit.unchanged_prefix > previous_len
         {
-            return Err(format!(
+            return Err((format!(
                 "GenError：{what} splice 旧根或前缀不匹配，须discard"
-            ));
+            )).into());
         }
         let previous = match self.seq {
             Some(seq) if seq.count() == previous_len as u64 => seq,
             None if previous_len == 0 => SequenceRef::empty(),
-            _ => return Err(format!("GenError：{what} 序列缓存计数不一致，须discard")),
+            _ => return Err((format!("GenError：{what} 序列缓存计数不一致，须discard")).into()),
         };
         let length = edit
             .unchanged_prefix
@@ -1643,7 +1641,7 @@ impl SequenceMemo {
             edit.replacement_suffix,
             budget,
         )
-        .map_err(|error| format!("GenError：{what} 序列后缀重建失败：{error}"))?;
+        .map_err(|error| PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败：")))?;
         let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1663,7 +1661,7 @@ impl SequenceMemo {
         elements: &[NodeDigest],
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
-    ) -> Result<Built, String> {
+    ) -> Result<Built, PublishError> {
         self.check_native_scope(store)?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
@@ -1696,7 +1694,7 @@ impl SequenceMemo {
         let previous = match self.seq {
             Some(seq) if seq.count() == keys.len() as u64 => seq,
             None if keys.is_empty() => SequenceRef::empty(),
-            _ => return Err(format!("GenError：{what} 序列缓存计数不一致，须discard")),
+            _ => return Err((format!("GenError：{what} 序列缓存计数不一致，须discard")).into()),
         };
         let seq = sc::sequence_rebuild_suffix_with_allocation(
             &mut *store,
@@ -1705,7 +1703,7 @@ impl SequenceMemo {
             &elements[common..],
             budget,
         )
-        .map_err(|error| format!("GenError：{what} 序列后缀重建失败：{error}"))?;
+        .map_err(|error| PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败：")))?;
         let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1726,7 +1724,7 @@ impl SequenceMemo {
 fn dedupe_observations(
     store: &mut dyn NodeStore,
     observations: &[(bool, Built)],
-) -> Result<CodecVec<Built>, String> {
+) -> Result<CodecVec<Built>, PublishError> {
     let mut seen = bj::new_map::<NativeValue<String>, ()>(None);
     let mut out = CodecVec::default();
     for (from_knowledge, built) in observations {
@@ -1760,10 +1758,10 @@ fn field_text_admitted(
     store: &mut dyn NodeStore,
     root: &ContentRef,
     name: &str,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let reference = store
         .lookup_field_ref(root.into(), name)
-        .map_err(|error| format!("GenError：小路径定位失败：{error}"))?;
+        .map_err(|error| PublishError::from(error).context("GenError：小路径定位失败："))?;
     let value = bj::render_json(store, reference.view())?;
     json_text(store, value.view())
 }
@@ -1788,7 +1786,7 @@ impl sc::capture_allocation::audit_json::JsonArray for JsonOwners<'_> {
         self.0.get(index).map(JsonOwner::view)
     }
 }
-fn json_text(store: &dyn NodeStore, view: JsonView<'_>) -> Result<TextValue, String> {
+fn json_text(store: &dyn NodeStore, view: JsonView<'_>) -> Result<TextValue, PublishError> {
     struct Output<'a> {
         bytes: CodecVec<u8>,
         source: &'a dyn NodeStore,
@@ -1814,19 +1812,19 @@ fn json_text(store: &dyn NodeStore, view: JsonView<'_>) -> Result<TextValue, Str
         source: store,
     };
     serde_json::to_writer(&mut output, &view)
-        .map_err(|e| format!("GenError：小字段渲染失败：{e}"))?;
+        .map_err(|e| PublishError::from(e).context("GenError：小字段渲染失败："))?;
     TextValue::from_bytes(output.bytes)
 }
 fn projection_field(
     store: &mut dyn NodeStore,
     root: &Built,
     path: &[&str],
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, PublishError> {
     let mut reference = store.native_built_ref(root).map_err(codec_error)?;
     for field in path {
         reference = store
             .lookup_field_ref(reference.view(), field)
-            .map_err(|e| format!("GenError：小路径定位失败：{e}"))?;
+            .map_err(|e| PublishError::from(e).context("GenError：小路径定位失败："))?;
     }
     bj::render_json(store, reference.view())
 }
@@ -1834,7 +1832,7 @@ fn catalog_projection_entry(
     store: &mut dyn NodeStore,
     object: &ProducedObject,
     requests: &[Built],
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, PublishError> {
     let payload = || {
         object.payload().ok_or_else(|| {
             format!(
@@ -1906,20 +1904,20 @@ fn path_of(
     store: &mut dyn NodeStore,
     root: &ContentRef,
     path: &[PathStep],
-) -> Result<ContentRef, String> {
+) -> Result<ContentRef, PublishError> {
     sc::path::lookup_path(&mut *store, root, path)
-        .map_err(|error| format!("GenError：小路径定位失败：{error}"))
+        .map_err(|error| PublishError::from(error).context("GenError：小路径定位失败："))
 }
 
 /// 小字段规范渲染（只对目录轴消费的小路径调用，不用于大载荷）。
-fn render_text(store: &mut dyn NodeStore, reference: &ContentRef) -> Result<String, String> {
+fn render_text(store: &mut dyn NodeStore, reference: &ContentRef) -> Result<String, PublishError> {
     let mut out: Vec<u8> = Vec::new();
     sc::render_canonical(&mut *store, reference, &mut out)
-        .map_err(|error| format!("GenError：小字段渲染失败：{error}"))?;
-    String::from_utf8(out).map_err(|error| format!("GenError：小字段渲染非 UTF-8：{error}"))
+        .map_err(|error| PublishError::from(error).context("GenError：小字段渲染失败："))?;
+    String::from_utf8(out).map_err(|error| PublishError::from(error).context("GenError：小字段渲染非 UTF-8："))
 }
 
-fn field_text(store: &mut dyn NodeStore, root: &ContentRef, name: &str) -> Result<String, String> {
+fn field_text(store: &mut dyn NodeStore, root: &ContentRef, name: &str) -> Result<String, PublishError> {
     let path = path_of(store, root, &[step_field(name)])?;
     render_text(store, &path)
 }
@@ -1937,7 +1935,7 @@ fn shape_witnesses(
     views: &[GroupEvidenceView<'_>; 3],
     start: usize,
     object: &Cc006Object,
-) -> Result<(CodecVec<WitnessRecord>, CodecVec<Built>), String> {
+) -> Result<(CodecVec<WitnessRecord>, CodecVec<Built>), PublishError> {
     let mut witnesses = CodecVec::default();
     let mut relations = CodecVec::default();
     for (slot, view) in views.iter().enumerate() {
@@ -1955,7 +1953,7 @@ fn shape_witnesses(
             push_gen(&mut bar_nodes, VV::Edge(node), store)?;
         }
         let bar_array = sc::write_value_view(&mut *store, VV::Array(&bar_nodes))
-            .map_err(|error| format!("GenError：见证 raw_bars 写入失败：{error}"))?;
+            .map_err(|error| PublishError::from(error).context("GenError：见证 raw_bars 写入失败："))?;
         let witness_id = witness_identity_native(store, &object.object_id, slot, mi, &bar_array)?;
         let source_index =
             super::super::content_manifest::Decimal::new(view.bar.source_index as i64);
@@ -1994,14 +1992,14 @@ fn shape_witnesses(
             ("witness_id", VV::String(&witness_id)),
         ];
         let built = sc::write_value_view(&mut *store, VV::Object(&fields))
-            .map_err(|error| format!("GenError：见证记录写入失败：{error}"))?;
+            .map_err(|error| PublishError::from(error).context("GenError：见证记录写入失败："))?;
         let fields = [
             ("object", VV::String(&witness_id)),
             ("relation_type", VV::String("has_witness")),
             ("subject", VV::String(&object.object_id)),
         ];
         let relation = sc::write_value_view(&mut *store, VV::Object(&fields))
-            .map_err(|error| format!("GenError：关系值写入失败：{error}"))?;
+            .map_err(|error| PublishError::from(error).context("GenError：关系值写入失败："))?;
         push_gen(
             &mut witnesses,
             WitnessRecord {
@@ -2026,7 +2024,7 @@ fn shape_witnesses(
         ("subject", VV::String(&window)),
     ];
     let classified = sc::write_value_view(&mut *store, VV::Object(&fields))
-        .map_err(|error| format!("GenError：关系值写入失败：{error}"))?;
+        .map_err(|error| PublishError::from(error).context("GenError：关系值写入失败："))?;
     push_gen(&mut relations, classified, store)?;
     Ok((witnesses, relations))
 }
@@ -2058,7 +2056,7 @@ pub(super) fn witness_identity_native(
     slot: usize,
     mi: usize,
     raw_bars: &Built,
-) -> Result<sc::capture_allocation::native_owned::NativeValue<String>, String> {
+) -> Result<sc::capture_allocation::native_owned::NativeValue<String>, PublishError> {
     let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
     let text = std::str::from_utf8(&bytes).expect("固定 ASCII witness 身份");
     store.native_string(text).map_err(codec_error)
@@ -2070,11 +2068,11 @@ fn witness_identity_bytes(
     slot: usize,
     mi: usize,
     raw_bars: &Built,
-) -> Result<[u8; 20], String> {
+) -> Result<[u8; 20], PublishError> {
     if object_id.contains('"') || object_id.contains('\\') {
-        return Err(format!(
+        return Err((format!(
             "GenError：对象身份 `{object_id}` 含需转义字符，拒绝拼入规范输入"
-        ));
+        )).into());
     }
     let mut hasher = Sha256::new();
     {
@@ -2084,13 +2082,13 @@ fn witness_identity_bytes(
             writer,
             r#"{{"mi":{mi},"object_id":"{object_id}","raw_bars":"#
         )
-        .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
+        .map_err(|e| PublishError::from(e).context("GenError：见证输入失败："))?;
         let reference = store.native_built_ref(raw_bars).map_err(codec_error)?;
         store
             .render_ref(reference.view(), &mut writer)
-            .map_err(|error| format!("GenError：见证输入流式渲染失败：{error}"))?;
+            .map_err(|error| PublishError::from(error).context("GenError：见证输入流式渲染失败："))?;
         write!(writer, r#","slot":{slot}}}"#)
-            .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
+            .map_err(|e| PublishError::from(e).context("GenError：见证输入失败："))?;
     }
     let digest = hasher.finalize();
     // 两种输出所有权共用同一个配方；固定 ASCII 暂存不分配堆内存。
@@ -2123,7 +2121,7 @@ fn event_node(
     memo: &mut FixedRadix<(i64, i64), NodeDigest>,
     store: &mut dyn NodeStore,
     event: JsonView<'_>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     let coord = bj::coord(event)?;
     let revision = bj::field(event, "revision")
         .as_i64()
@@ -2133,7 +2131,7 @@ fn event_node(
         return Ok(*node);
     }
     let built = sc::write_json_view(&mut *store, event)
-        .map_err(|error| format!("GenError：原始事件节点写入失败：{error}"))?;
+        .map_err(|error| PublishError::from(error).context("GenError：原始事件节点写入失败："))?;
     memo.insert_admitted((coord, revision), built.digest, &*store)
         .map_err(codec_error)?;
     Ok(built.digest)
@@ -2169,17 +2167,17 @@ fn group_views(state: &IncrFactsState, start: usize) -> Result<[GroupEvidenceVie
 fn typed_kind(
     store: &mut dyn NodeStore,
     object: &TypedObject,
-) -> Result<NativeValue<String>, String> {
+) -> Result<NativeValue<String>, PublishError> {
     let root = native_ref(store, &object.record)?;
     let kind = store
         .lookup_field_ref((&root).into(), "kind")
         .map_err(codec_error)?;
     if kind.kind() != Kind::String {
-        return Err(format!(
+        return Err((format!(
             "GenError：对象 {} 记录 kind 不是字符串（{:?}）",
             object.object_id,
             kind.kind()
-        ));
+        )).into());
     }
     let value = bj::render_json(store, kind.view())?;
     let text = value
@@ -2232,20 +2230,20 @@ fn json_to_cvalue(value: &Value) -> Result<CValue, String> {
     })
 }
 
-fn write_json(store: &mut dyn NodeStore, value: &Value) -> Result<Built, String> {
+fn write_json(store: &mut dyn NodeStore, value: &Value) -> Result<Built, PublishError> {
     write_json_view(store, value.into())
 }
 
 fn write_json_view(
     store: &mut (impl CodecStore + ?Sized),
     value: JsonView<'_>,
-) -> Result<Built, String> {
-    fn check(value: JsonView<'_>) -> Result<(), String> {
+) -> Result<Built, PublishError> {
+    fn check(value: JsonView<'_>) -> Result<(), PublishError> {
         if let Some(n) = value.number() {
             if n.as_i64().is_none() && n.as_u64().is_none() {
-                return Err(format!(
+                return Err((format!(
                     "GenError：原始行出现非整数 JSON 数字 `{n}`（不把 token 静默改写）"
-                ));
+                )).into());
             }
         } else if let Some(items) = value.as_array() {
             for item in items {
@@ -2261,7 +2259,7 @@ fn write_json_view(
     check(value)?;
     store
         .write_json_view(value)
-        .map_err(|error| format!("GenError：值写入失败：{error}"))
+        .map_err(|error| PublishError::from(error).context("GenError：值写入失败："))
 }
 
 /// #1491 ADR 0037 §一：CC-054 请求的 label 序（同一 window_start 内）。步骤与组请求的键尾是单坐标、
@@ -2325,7 +2323,7 @@ impl GenerationRuntime {
         developments: &[(String, FractalDevelopment)],
         gen: i64,
         cut: &str,
-    ) -> Result<Vec<TypedObject>, String> {
+    ) -> Result<Vec<TypedObject>, PublishError> {
         let mut ranges: std::collections::HashMap<String, (i64, i64)> =
             std::collections::HashMap::with_capacity(developments.len());
         let mut dirty: Vec<(i64, i64)> = Vec::new();
@@ -2358,7 +2356,7 @@ impl GenerationRuntime {
                 None => dirty.push(range),
             }
             if ranges.insert(id.clone(), range).is_some() {
-                return Err(format!("GenError：CC-007 分型 {id} 在同代重复出现"));
+                return Err((format!("GenError：CC-007 分型 {id} 在同代重复出现")).into());
             }
         }
         for (id, previous) in &self.development_ranges {
@@ -2435,16 +2433,34 @@ impl GenerationRuntime {
     }
 }
 
-fn producer_error(error: ProducerError) -> String {
-    format!("GenError：{error}")
+fn producer_failure(error: ProducerError) -> PublishError {
+    match error {
+        ProducerError::Codec(error) => PublishError::from_codec(error, "内容编码错误："),
+        error => error.to_string().into(),
+    }
 }
 
-fn record_error(error: object_records::RecordError) -> String {
-    format!("GenError：{error}")
+fn producer_error(error: ProducerError) -> PublishError {
+    producer_failure(error).context("GenError：")
 }
 
-fn codec_error(error: sc::CodecError) -> String {
-    format!("GenError：{error}")
+fn bi_error(error: crate::content_bi::BiError) -> PublishError {
+    match error {
+        crate::content_bi::BiError::Content(error) => producer_failure(error),
+        error => error.to_string().into(),
+    }
+}
+
+fn record_error(error: object_records::RecordError) -> PublishError {
+    match error {
+        object_records::RecordError::Codec(error) =>
+            PublishError::from_codec(error, "内容编解码错误："),
+        error => error.to_string().into(),
+    }.context("GenError：")
+}
+
+fn codec_error(error: sc::CodecError) -> PublishError {
+    PublishError::from_codec(error, "GenError：")
 }
 
 #[cfg(test)]

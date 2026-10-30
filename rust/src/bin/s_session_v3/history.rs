@@ -3602,7 +3602,7 @@ impl CodecRead for HashReader<'_> {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         super::business_json::strict_plain_json_admitted(bytes, self.work)
     }
 

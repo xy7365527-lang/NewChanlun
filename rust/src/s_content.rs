@@ -278,7 +278,12 @@ impl From<std::io::Error> for ContextError {
         Self::from_wrapped(error.to_string(), error.get_ref().map(|e| e as &dyn std::error::Error))
     }
 }
-context_other!(serde_json::Error,
+impl From<serde_json::Error> for ContextError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::from_wrapped(error.to_string(), std::error::Error::source(&error))
+    }
+}
+context_other!(
     std::num::ParseIntError, std::num::TryFromIntError, std::str::Utf8Error,
     std::string::FromUtf8Error);
 impl From<ContextError> for String {

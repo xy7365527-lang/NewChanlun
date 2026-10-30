@@ -401,7 +401,7 @@ pub(crate) trait CodecRead: NodeSource {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         super::business_json::strict_plain_json_admitted(bytes, self.codec_work())
     }
 
@@ -780,7 +780,7 @@ impl CodecRead for StoreView<'_, '_> {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         match &self.backend {
             Backend::Generic(s) => s.parse_rendered_plain(bytes),
             Backend::Audit(s) => s.parse_rendered_plain(bytes),

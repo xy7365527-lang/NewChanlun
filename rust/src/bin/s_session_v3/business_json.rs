@@ -1471,16 +1471,16 @@ impl TextValue {
         }
     }
     /// 存储选择来自传入真实Vec owner；Owned错误直接返回，不回普通分支。
-    pub fn from_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
+    pub fn from_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, sc::ContextError> {
         if bytes.allocation_budget().is_some() {
-            return Self::from_owned_bytes(bytes);
+            return Self::from_owned_bytes(bytes).map_err(Into::into);
         }
         // 保留原 String::from_utf8 的诊断文本；借用验证不拆所有权、不复制。
-        std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
+        std::str::from_utf8(&bytes).map_err(sc::ContextError::from)?;
         bytes
             .try_into_native_text()
             .map(Self::Plain)
-            .map_err(|e| e.to_string())
+            .map_err(sc::ContextError::from)
     }
     pub fn as_str(&self) -> &str {
         match self {
@@ -2187,7 +2187,7 @@ pub(crate) fn project_wire_integers_with_owner(
 pub(crate) fn render_json(
     s: &mut (impl super::audit_store::CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, sc::ContextError> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = s.allocation_budget() {
         struct Out {
@@ -2214,12 +2214,12 @@ pub(crate) fn render_json(
         };
         let result = s.render_ref(r, &mut out);
         if let Some(e) = out.error {
-            return Err(e.to_string());
+            return Err(e.into());
         }
-        result.map_err(|e| e.to_string())?;
+        result.map_err(sc::ContextError::from)?;
         return aj::OwnedJson::parse(&out.bytes, &b)
             .map(JsonOwner::Owned)
-            .map_err(|e| e.to_string());
+            .map_err(sc::ContextError::from);
     }
     if let Some(work) = s.codec_work() {
         struct ScratchOut {
@@ -2246,14 +2246,14 @@ pub(crate) fn render_json(
         };
         let result = s.render_ref(r, &mut out);
         if let Some(e) = out.error {
-            return Err(e.to_string());
+            return Err(e.into());
         }
-        result.map_err(|e| e.to_string())?;
+        result.map_err(sc::ContextError::from)?;
         // 借用 scratch bytes 解析；不把 Owned 容器 try_into_plain 擦域。
         return s.parse_rendered_plain(&out.bytes).map(JsonOwner::Plain);
     }
     let mut out = Vec::new();
-    s.render_ref(r, &mut out).map_err(|e| e.to_string())?;
+    s.render_ref(r, &mut out).map_err(sc::ContextError::from)?;
     s.parse_rendered_plain(&out).map(JsonOwner::Plain)
 }
 pub(crate) fn read_text(
@@ -2822,12 +2822,12 @@ pub(crate) fn strict_json_owner_admitted(
 pub(crate) fn strict_plain_json_admitted(
     bytes: &[u8],
     work: Option<&WorkScope>,
-) -> Result<PlainJson, String> {
+) -> Result<PlainJson, sc::ContextError> {
     let parsed = strict_json_owner_admitted(bytes, None, work).map_err(|error| match error {
-        StrictOwnerError::Syntax(e) => format!("SchemaUnsupported：{e}"),
-        StrictOwnerError::Allocation(e) => e.to_string(),
+        StrictOwnerError::Syntax(e) => sc::ContextError::from(e).context("SchemaUnsupported："),
+        StrictOwnerError::Allocation(e) => e.into(),
         #[cfg(feature = "s_allocation_json_testonly")]
-        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}"),
+        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}").into(),
     })?;
     match parsed {
         JsonOwner::Plain(value) => Ok(value),
@@ -2839,13 +2839,13 @@ pub(crate) fn legacy_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<JsonOwner, String> {
-    let permit = admit_json_parse(bytes, owner, work).map_err(|e| e.to_string())?;
+) -> Result<JsonOwner, sc::ContextError> {
+    let permit = admit_json_parse(bytes, owner, work).map_err(sc::ContextError::from)?;
     if let Some(owner) = owner {
         #[cfg(feature = "s_allocation_json_testonly")]
         return aj::OwnedJson::parse_legacy_shape(bytes, owner)
             .map(JsonOwner::Owned)
-            .map_err(|e| e.to_string());
+            .map_err(sc::ContextError::from);
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
             let _ = owner;
@@ -2854,7 +2854,7 @@ pub(crate) fn legacy_json_owner_admitted(
     }
     serde_json::from_slice(bytes)
         .map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, permit)))
-        .map_err(|e| e.to_string())
+        .map_err(sc::ContextError::from)
 }
 pub(crate) fn strict_json_owner(
     bytes: &[u8],
@@ -3742,7 +3742,7 @@ mod raw_events_layout_tests {
                             )
                             .map(JsonOwner::Plain)
                         } else {
-                            json_from_view_admitted(&NativeAdmission(Some(work)), (&input).into())
+                            json_from_view_admitted(&NativeAdmission(Some(work)), (&input).into()).map_err(Into::into)
                         }
                     };
                     let aggregate = make()?;
