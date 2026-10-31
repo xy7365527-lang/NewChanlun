@@ -366,7 +366,7 @@ mod tests {
         let synthetic_error = PyThetaStream::new(
             None,
             Some("P0"),
-            Some(super::run_records::SYNTHETIC_TB02A_PROFILE_ID.into()),
+            Some(crate::theta_v0::run_records::SYNTHETIC_TB02A_PROFILE_ID.into()),
         )
         .err()
         .expect("synthetic 只供 S 专用入口");
