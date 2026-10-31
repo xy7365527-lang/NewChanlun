@@ -3180,6 +3180,8 @@ pub(crate) struct HashReader<'a> {
     work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
     #[cfg(feature = "s_incremental")]
     native_budget: Option<&'a super::audit_owner::native::Budget>,
+    #[cfg(feature = "s_incremental")]
+    request_verifier: Option<sc::CapturedRequestVerifier<'a>>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
@@ -3512,6 +3514,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline: None,
             max_render_bytes,
             budget: None,
@@ -3621,6 +3625,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline: None,
             max_render_bytes: None,
             budget: None,
@@ -3641,6 +3647,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline,
             max_render_bytes: None,
             budget: None,
@@ -3662,6 +3670,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline,
             max_render_bytes,
             budget: None,
@@ -3687,6 +3697,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline,
             max_render_bytes,
             budget,
@@ -4051,6 +4063,22 @@ impl CodecRead for HashReader<'_> {
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
+        #[cfg(feature = "s_incremental")]
+        if self.request_verifier.is_some() {
+            let result = (|| {
+                self.request_verifier.as_ref().unwrap().check_current()?;
+                let digest = r.digest()?;
+                if matches!(&self.source, ReadOwner::Captured(c) if c.contains(&digest)) {
+                    self.request_verifier.as_mut().unwrap().verify_refview(r, m)
+                } else {
+                    sc::verify_refview(self, r, m)
+                }
+            })();
+            if result.is_err() {
+                self.request_verifier.as_mut().unwrap().invalidate();
+            }
+            return result;
+        }
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
             None => {
@@ -4091,6 +4119,13 @@ impl CodecRead for HashReader<'_> {
         m: sc::Mode,
     ) -> Result<(), sc::CodecError> {
         self.sync_owned();
+        #[cfg(feature = "s_incremental")]
+        if self.request_verifier.is_some() {
+            for item in r {
+                self.verify_ref(item, m)?;
+            }
+            return Ok(());
+        }
         match &mut self.owned {
             Some(o) => o.verify_many_cached_owned(r, m),
             None => {
@@ -8555,6 +8590,8 @@ pub(super) fn append_owner_cut(
     let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(err)?)?;
     let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
     let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
+    // 本对象只活在当前事务的新一代 append 内，不能携带到下一请求。
+    store.request_verifier = Some(sc::CapturedRequestVerifier::new(capture, work).map_err(err)?);
     store
         .verify_many_ref([snapshot.view(), delta.view()], sc::Mode::Public)
         .map_err(err)?;
@@ -8597,9 +8634,19 @@ pub(super) fn append_owner_cut(
     store.native_codec_room(&mut old.cuts, 1).map_err(err)?;
     old.cuts.try_push(cut).map_err(err)?;
     retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
+    #[cfg(test)]
+    let repeated_before = sc::frame_calls_on_thread();
     store
         .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
+    #[cfg(test)]
+    REQUEST_CLOSURE_REPEATS.with(|counts| {
+        let (requests, reads) = counts.get();
+        counts.set((
+            requests + 1,
+            reads + sc::frame_calls_on_thread() - repeated_before,
+        ));
+    });
     let facts = control.into_facts()?;
     verify_current_frontiers(&store, tx, &old.cuts, frontier, None)?;
     let auxiliary_facts = native_aux.map(|aux| aux.into_facts_retained(&mut retained));
@@ -9525,5 +9572,242 @@ mod effective_sequence_tests {
         eprintln!(
             "effective native measured_peak_bytes={peak} exact=accept below=reject drop_retained_delta=0"
         );
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+std::thread_local! {
+    pub(super) static REQUEST_CLOSURE_REPEATS: std::cell::Cell<(u64,u64)> = const { std::cell::Cell::new((0,0)) };
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod request_closure_tests {
+    use super::super::audit_owner::native::Budget;
+    use super::*;
+
+    fn fixture(n: usize) -> (sc::AuditCapture, ContentRef, ContentRef, ContentRef) {
+        let mut nodes = sc::MemoryNodes::new();
+        let child = sc::write_value(
+            &mut nodes,
+            &V::Array((0..n).map(|i| V::string(i.to_string())).collect()),
+        )
+        .unwrap();
+        let parent = sc::write_value(
+            &mut nodes,
+            &V::Object(vec![("items".into(), V::Edge(child.digest))]),
+        )
+        .unwrap();
+        let template = sc::write_template(
+            &mut nodes,
+            &V::Array(vec![V::BatchSelf, V::Edge(child.digest)]),
+        )
+        .unwrap();
+        (
+            sc::AuditCapture::new(nodes),
+            parent.content_ref(),
+            child.content_ref(),
+            template.content_ref(),
+        )
+    }
+    fn reader<'a>(
+        capture: &'a sc::AuditCapture,
+        work: &'a sc::capture_allocation::scratch::WorkScope,
+        budget: &'a Budget,
+    ) -> Result<HashReader<'a>, sc::CodecError> {
+        let mut r = HashReader::captured(capture, None).with_codec_work(work, budget);
+        r.audit_full_arrays = true;
+        r.request_verifier = Some(sc::CapturedRequestVerifier::new(capture, work)?);
+        Ok(r)
+    }
+    #[test]
+    fn h1_request_closure_shares_only_same_request_mode_and_keeps_canonical() {
+        for n in [1, 8, 32] {
+            let (capture, parent, child, _) = fixture(n);
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            let base = budget.live();
+            budget.codec_work().unwrap().run(|work| {
+                let mut r = reader(&capture, work, &budget)?;
+                let before = sc::frame_calls_on_thread();
+                r.verify_ref((&parent).into(), sc::Mode::Public)?;
+                let first = sc::frame_calls_on_thread() - before;
+                let before = sc::frame_calls_on_thread();
+                r.verify_many_ref([(&parent).into(), (&child).into()], sc::Mode::Public)?;
+                let repeat = sc::frame_calls_on_thread() - before;
+                assert_eq!(repeat, 2);
+                assert!(first > n as u64);
+                let before = sc::frame_calls_on_thread();
+                r.verify_ref((&parent).into(), sc::Mode::Template)?;
+                assert_eq!(sc::frame_calls_on_thread() - before, first, "Template 不消费 Public seen");
+                let before = sc::frame_calls_on_thread();
+                r.verify_many_ref_fresh([(&parent).into()], sc::Mode::Public)?;
+                assert_eq!(sc::frame_calls_on_thread() - before, first, "fresh 保持完整核验 oracle");
+                let mut actual = Vec::new();
+                r.render_ref((&parent).into(), &mut actual)?;
+                let mut expected = Vec::new();
+                sc::render_canonical(&mut capture.reader(), &parent, &mut expected)?;
+                assert_eq!(actual, expected);
+                drop(r);
+                let mut next = reader(&capture, work, &budget)?;
+                let before = sc::frame_calls_on_thread();
+                next.verify_ref((&parent).into(), sc::Mode::Public)?;
+                assert_eq!(sc::frame_calls_on_thread() - before, first, "新请求不能继承旧 seen");
+                eprintln!("closure_request array_elements={n} initial_frame_reads={first} repeated_root_header_reads={repeat}");
+                Ok::<_, sc::CodecError>(())
+            }).unwrap();
+            assert_eq!(budget.live(), base);
+        }
+    }
+    #[test]
+    fn h1_request_closure_rechecks_all_root_fields_and_revokes_both_modes() {
+        for field in 0..4 {
+            let (capture, parent, _, template) = fixture(4);
+            let mut bad = parent.clone();
+            match field {
+                0 => bad.format = "wrong".into(),
+                1 => bad.root = "not-a-root".into(),
+                2 => bad.kind = sc::Kind::Array,
+                _ => bad.extent = Some(99),
+            }
+            let expected =
+                sc::verify_refview(&mut capture.reader(), (&bad).into(), sc::Mode::Public)
+                    .unwrap_err();
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let mut r = reader(&capture, work, &budget)?;
+                    r.verify_ref((&parent).into(), sc::Mode::Public)?;
+                    r.verify_ref((&template).into(), sc::Mode::Template)?;
+                    let error = r.verify_ref((&bad).into(), sc::Mode::Public).unwrap_err();
+                    assert_eq!(error.code(), expected.code());
+                    for (reference, mode) in
+                        [(&parent, sc::Mode::Public), (&template, sc::Mode::Template)]
+                    {
+                        assert_eq!(
+                            r.verify_ref(reference.into(), mode).unwrap_err().code(),
+                            sc::code::SOURCE
+                        );
+                    }
+                    Err::<(), _>(error)
+                })
+                .unwrap_err();
+        }
+    }
+    #[test]
+    fn h1_request_closure_template_and_readset_negatives_match_full_oracle() {
+        let (capture, parent, _, template) = fixture(4);
+        let expected =
+            sc::verify_refview(&mut capture.reader(), (&template).into(), sc::Mode::Public)
+                .unwrap_err();
+        let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut r = reader(&capture, work, &budget)?;
+                r.verify_ref((&template).into(), sc::Mode::Template)?;
+                let error = r
+                    .verify_ref((&template).into(), sc::Mode::Public)
+                    .unwrap_err();
+                assert_eq!(error.code(), expected.code());
+                Err::<(), _>(error)
+            })
+            .unwrap_err();
+        // 相同 digest 在另一捕获内缺失或正文伪造，不因先前请求成功而获得资格。
+        for forged in [false, true] {
+            let mut nodes = sc::MemoryNodes::new();
+            if forged {
+                nodes.insert_unchecked(parent.digest().unwrap(), sc::tag::NULL, vec![]);
+            }
+            let other = sc::AuditCapture::new(nodes);
+            let expected =
+                sc::verify_refview(&mut other.reader(), (&parent).into(), sc::Mode::Public)
+                    .unwrap_err();
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    reader(&capture, work, &budget)?
+                        .verify_ref((&parent).into(), sc::Mode::Public)?;
+                    let error = reader(&other, work, &budget)?
+                        .verify_ref((&parent).into(), sc::Mode::Public)
+                        .unwrap_err();
+                    assert_eq!(error.code(), expected.code());
+                    Err::<(), _>(error)
+                })
+                .unwrap_err();
+        }
+    }
+    #[test]
+    fn h1_request_closure_overlay_conflict_and_failure_do_not_escape_revocation() {
+        let (capture, parent, _, _) = fixture(4);
+        let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut r = reader(&capture, work, &budget)?;
+                r.verify_ref((&parent).into(), sc::Mode::Public)?;
+                assert_eq!(
+                    r.put(parent.digest()?, sc::tag::NULL, &[])
+                        .unwrap_err()
+                        .code(),
+                    sc::code::NODE_DIGEST
+                );
+                let derived = sc::write_value(&mut r, &V::Array(vec![V::Edge(parent.digest()?)]))?
+                    .content_ref();
+                r.verify_ref((&derived).into(), sc::Mode::Public)?;
+                let mut bad = derived.clone();
+                bad.extent = Some(99);
+                let error = r.verify_ref((&bad).into(), sc::Mode::Public).unwrap_err();
+                assert_eq!(error.code(), sc::code::EXTENT);
+                assert_eq!(
+                    r.verify_ref((&derived).into(), sc::Mode::Public)
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                assert_eq!(
+                    r.verify_ref((&parent).into(), sc::Mode::Public)
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                Err::<(), _>(error)
+            })
+            .unwrap_err();
+    }
+    fn budget_case(limit: usize) -> (bool, usize) {
+        let (capture, parent, child, template) = fixture(8);
+        let budget = Budget::new(limit, 0).unwrap();
+        let base = budget.live();
+        let result = budget.codec_work().unwrap().run(|work| {
+            let work_base = budget.live();
+            let mut r = reader(&capture, work, &budget)?;
+            assert_eq!(
+                budget.live() - work_base,
+                std::mem::size_of::<sc::CapturedRequestVerifier<'_>>()
+            );
+            r.verify_many_ref([(&parent).into(), (&child).into()], sc::Mode::Public)?;
+            r.verify_ref((&template).into(), sc::Mode::Template)?;
+            let live = budget.live();
+            r.verify_many_ref([(&parent).into(), (&child).into()], sc::Mode::Public)?;
+            assert_eq!(budget.live(), live, "重读根头不能增驻留");
+            drop(r);
+            assert_eq!(budget.live(), work_base, "双 memo 与固定头全归还父账");
+            Ok::<_, sc::CodecError>(())
+        });
+        assert_eq!(budget.live(), base, "成功或拒绝均不泄漏请求证据");
+        (result.is_ok(), budget.peak())
+    }
+    #[test]
+    fn h1_request_closure_native_exact_peak_reject_and_release() {
+        let (ok, peak) = budget_case(8 * 1024 * 1024);
+        assert!(ok);
+        assert!(budget_case(peak).0);
+        assert!(!budget_case(peak - 1).0);
+        eprintln!("closure_request native_peak={peak} exact=accept below=reject released=true");
     }
 }

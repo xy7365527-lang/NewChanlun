@@ -225,6 +225,7 @@ TB1717_S_EXPORT 未设置
 TOP 窗口应产对象
 TOP/BOTTOM 窗口应产对象
 TOP/BOTTOM 窗口必产 CC007
+Template 不消费 Public seen
 Template损坏必须拒绝
 TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
@@ -317,6 +318,7 @@ fixture成员完整性已核
 fixture许可不得取出
 flag 后接另一 flag 必须按缺值拒绝
 fresh verifier释放实际工作集，overlay固定布局仍在
+fresh 保持完整核验 oracle
 generation 是整数
 generation与独立依据不同
 handle 的审计结果与 capture 已释放
@@ -402,6 +404,7 @@ real-commit-fault
 receipt 查询不得用当前配置改写历史
 receipt 须经重绑点换到本请求冻结域
 recover 不改已发布 cut
+resolved 两根每次仅重核真实根头
 retained memo以自身allocator实际layout求和
 rollback 后视图仍必须拒绝
 s-session-testonly-001
@@ -498,6 +501,7 @@ writer/recover闭合后无SHM
 两个fresh捕获各自持有正文owner
 两个实际读取各重算本次F
 两个旧buffer保留到两个新块同时准入完成
+两种布局的真实多代 append 必须消费请求证明
 两窗必须各自命中自己的 memo
 两窗都要按实际坐标记失效
 两请求各自持有真实父账
@@ -640,6 +644,7 @@ writer/recover闭合后无SHM
 原许可跨工作域保留
 原证明收集已完成
 参数槽原件必须随根保留
+双 memo 与固定头全归还父账
 双故障必须拒绝
 发布索引批次与结构 Delta 不同
 发布索引根长度不足 32 字节（CHECK 被旁路）
@@ -898,6 +903,7 @@ writer/recover闭合后无SHM
 成功memo仍持账
 成功memo布局持续活到capture Drop
 成功与两类失败均恢复inner角色
+成功或拒绝均不泄漏请求证据
 成功种子仍逐根严格读取当前header
 成功链保留原来源池
 所有真实事实拥有者销毁后归基线
@@ -968,6 +974,7 @@ writer/recover闭合后无SHM
 新根加入不应废掉完整旧前缀
 新的外部旧epoch仍拒绝
 新规则 hot-wal.sqlite
+新请求不能继承旧 seen
 新请求须经重绑点换到本请求冻结域
 新载荷是合法 JSON
 无 Owned 构建不调用该分支
@@ -1526,6 +1533,7 @@ writer/recover闭合后无SHM
 重新打开后即使配置回退，也只能读取结果实际使用的 v2 记录戳
 重新登记真实当前 source
 重算后必须回到零重算
+重读根头不能增驻留
 错旧身份须先拒绝，不能解码或走全量
 错父许可不进本父账
 错误Drop归还新增cap全部余额
