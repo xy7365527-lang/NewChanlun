@@ -1,4 +1,4 @@
-//! #1647：四根闭包 Δ 的非准入探针，共用严格 Verifier。
+//! #1647：四根严格核验的单位导出与非准入 Δ 探针。
 //! Frontier 是诊断输入，不签发 U-A 或来源资格；生产入口不得用此探针替代准入。
 use super::*;
 
@@ -47,6 +47,44 @@ impl Probe {
     }
 }
 
+pub const VERIFIER_REVISION: &str = "s-content-four-root-units/1";
+
+pub struct VerifiedUnits {
+    units: Probe,
+    roots: [Built; 4],
+}
+impl VerifiedUnits {
+    pub fn matches_roots(&self, roots: [RefView<'_>; 4]) -> Result<bool, CodecError> {
+        for (actual, expected) in roots.into_iter().zip(&self.roots) {
+            if actual.format() != CONTENT_FORMAT || actual.digest()? != expected.digest
+                || actual.kind() != expected.kind || actual.extent() != expected.extent {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    pub fn try_for_each_unit<E>(&self, mut visit: impl FnMut(Unit) -> Result<(), E>) -> Result<(), E> {
+        for (set, mode) in [(&self.units.public, Mode::Public), (&self.units.template, Mode::Template)] {
+            match set {
+                WorkSet::Plain(seen) => for &(digest, flavor) in seen { visit(Unit::new(digest, flavor, mode))?; },
+                WorkSet::Owned(seen) => for &(digest, flavor) in seen { visit(Unit::new(digest, flavor, mode))?; },
+            }
+        }
+        Ok(())
+    }
+}
+
+pub fn verify_four_roots(
+    source: &mut dyn NodeSource,
+    roots: [RefView<'_>; 4],
+) -> Result<VerifiedUnits, CodecError> {
+    let units = verify_roots(source, roots, None)?;
+    let root = |r: RefView<'_>| -> Result<Built, CodecError> {
+        Ok(Built { digest: r.digest()?, kind: r.kind(), extent: r.extent() })
+    };
+    Ok(VerifiedUnits { units, roots: [root(roots[0])?, root(roots[1])?, root(roots[2])?, root(roots[3])?] })
+}
+
 /// 顺序固定 scope、generated_state、publication_template、delta_template。
 /// 根四字段每次重核。任何失败直接返回；不会回退完整核验或返回部分单位。
 pub fn probe_four_roots(
@@ -54,13 +92,20 @@ pub fn probe_four_roots(
     roots: [RefView<'_>; 4],
     frontier: &dyn Frontier,
 ) -> Result<Probe, CodecError> {
+    verify_roots(source, roots, Some(frontier))
+}
+fn verify_roots(
+    source: &mut dyn NodeSource,
+    roots: [RefView<'_>; 4],
+    frontier: Option<&dyn Frontier>,
+) -> Result<Probe, CodecError> {
     let mut public = Verifier::new(source, Mode::Public);
-    public.closure_frontier = Some(frontier);
+    public.closure_frontier = frontier;
     public.verify_refview(roots[0])?;
     public.verify_refview(roots[1])?;
     let public = public.into_memo().seen;
     let mut template = Verifier::new(source, Mode::Template);
-    template.closure_frontier = Some(frontier);
+    template.closure_frontier = frontier;
     template.verify_refview(roots[2])?;
     template.verify_refview(roots[3])?;
     let template = template.into_memo().seen;
@@ -88,6 +133,28 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    fn p6_verified_export_matches_strict_units_and_binds_all_root_fields() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &Value::String("exported".into())).unwrap().content_ref();
+        let roots: [ContentRef; 4] = std::array::from_fn(|_| root.clone());
+        let expected = units(probe(&mut nodes, &roots, &EmptyFrontier).unwrap());
+        let verified = verify_four_roots(&mut nodes, roots.each_ref().map(Into::into)).unwrap();
+        let mut exported = BTreeSet::new();
+        verified.try_for_each_unit(|unit| { exported.insert(unit); Ok::<_, ()>(()) }).unwrap();
+        assert_eq!(exported, expected);
+        assert!(verified.matches_roots(roots.each_ref().map(Into::into)).unwrap());
+        for index in 0..4 {
+            let mut changed = roots.clone();
+            changed[index].extent = Some(u64::MAX);
+            assert!(!verified.matches_roots(changed.each_ref().map(Into::into)).unwrap());
+            assert!(verify_four_roots(&mut nodes, changed.each_ref().map(Into::into)).is_err());
+        }
+        let mut calls = 0;
+        assert!(verified.try_for_each_unit(|_| { calls += 1; Err::<(), _>(()) }).is_err());
+        assert_eq!(calls, 1);
+    }
+
     #[test]
     fn p6_closure_units_partition_modes_and_exclude_sequences() {
         let mut n = MemoryNodes::new();

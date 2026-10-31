@@ -7,6 +7,8 @@ use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::OpenOptionsExt;
 use newchan_rust::s_content::{ContentRef, RefView};
+#[cfg(feature = "s_incremental")]
+use newchan_rust::s_content as sc;
 use rusqlite::{params, OpenFlags};
 
 const FORMAT: &str = "s-audit-ledger/1";
@@ -83,6 +85,38 @@ pub(super) struct GenerationDelta {
     pub observations: BTreeMap<String, RelatedFact>,
     pub cover: BTreeMap<i64, String>,
     pub new_units: BTreeSet<Unit>,
+}
+
+pub(super) struct QueuedFacts {
+    pub generation: i64,
+    pub rule_revision: String,
+    pub raw: BTreeMap<i64, RawFact>,
+    pub objects: BTreeMap<String, ObjectFact>,
+    pub witnesses: BTreeMap<String, RelatedFact>,
+    pub observations: BTreeMap<String, RelatedFact>,
+    pub cover: BTreeMap<i64, String>,
+}
+impl QueuedFacts {
+    pub(super) fn bind(
+        self, metadata: &content_manifest::ManifestMetadata,
+        roots: &impl content_manifest::ManifestRootSource,
+    ) -> Result<GenerationDelta, String> {
+        if self.generation != metadata.generation || self.rule_revision != metadata.rule_revision {
+            return Err(error("排队事实与实际prepare代号或规则不匹配"));
+        }
+        let copy = |r: RefView<'_>| ContentRef {
+            format: r.format().to_owned(), root: r.root().to_owned(), kind: r.kind(), extent: r.extent(),
+        };
+        let roots = roots.view();
+        Ok(GenerationDelta {
+            generation: self.generation,
+            roots: [copy((&metadata.scope).into()), copy(roots.generated_state),
+                copy(roots.publication_template), copy(roots.delta_template)],
+            verifier_revision: String::new(),
+            raw: self.raw, objects: self.objects, witnesses: self.witnesses,
+            observations: self.observations, cover: self.cover, new_units: BTreeSet::new(),
+        })
+    }
 }
 
 pub(super) struct Identity {
@@ -194,13 +228,49 @@ impl Ledger {
         ).map_err(error)
     }
     pub(super) fn stage(&mut self, token: &str, delta: &GenerationDelta) -> Result<(), String> {
-        let result = self.stage_inner(token, delta);
+        let result = self.stage_inner(token, delta, delta.new_units.iter(), &delta.verifier_revision);
         if result.is_err() { self.invalidate(); }
         result
     }
-    fn stage_inner(&mut self, token: &str, d: &GenerationDelta) -> Result<(), String> {
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn stage_verified(
+        &mut self, token: &str, delta: &GenerationDelta,
+        verified: &sc::closure_delta::VerifiedUnits,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(), String> {
+        let result = (|| {
+            self.committed_through()?;
+            if !verified.matches_roots(delta.roots.each_ref().map(Into::into)).map_err(error)? {
+                return Err(error("闭包单位与待准备事实四根不匹配"));
+            }
+            let mut units = sc::CodecVec::default();
+            verified.try_for_each_unit(|u| -> Result<(), String> {
+                use sc::closure_delta::{Context, VerificationMode};
+                let unit = Unit { digest: u.digest,
+                    flavor: match u.context { Context::Value => Flavor::Value, Context::JsonInner => Flavor::JsonInner },
+                    mode: match u.mode { VerificationMode::Public => Mode::Public, VerificationMode::Template => Mode::Template } };
+                if !self.contains_committed_unit(&unit)? {
+                    match work {
+                        Some(work) => units.try_reserve_native(work, 1),
+                        None => units.try_reserve(1),
+                    }.map_err(error)?;
+                    units.try_push(unit).map_err(error)?;
+                }
+                Ok(())
+            })?;
+            units.sort_unstable();
+            self.stage_inner(token, delta, units.iter(), sc::closure_delta::VERIFIER_REVISION)
+        })();
+        if result.is_err() { self.invalidate(); }
+        result
+    }
+    fn stage_inner<'u>(
+        &mut self, token: &str, d: &GenerationDelta,
+        new_units: impl Iterator<Item = &'u Unit> + Clone,
+        verifier_revision: &str,
+    ) -> Result<(), String> {
         if !matches!(self.phase, Phase::Ready) { return Err(error("台账不在可准备状态")); }
-        if token.is_empty() || d.verifier_revision.is_empty() || self.through()?.checked_add(1) != Some(d.generation) {
+        if token.is_empty() || verifier_revision.is_empty() || self.through()?.checked_add(1) != Some(d.generation) {
             return Err(error("请求或逐代序号无效"));
         }
         for r in &d.roots { r.digest().map_err(error)?; }
@@ -238,19 +308,22 @@ impl Ledger {
             conn.execute("INSERT INTO cover VALUES(?1,?2) ON CONFLICT(seq) DO UPDATE SET group_id=excluded.group_id",
                 params![seq,group]).map_err(error)?;
         }
-        for unit in &d.new_units {
+        for unit in new_units.clone() {
             // new_units 必须真是本代新增集合，重复认证单位拒绝而非静默忽略。
             conn.execute("INSERT INTO node VALUES(?1,?2,?3,?4)",params![unit.digest.as_slice(),unit.flavor(),unit.mode(),d.generation]).map_err(error)?;
         }
         let roots = roots_value(&d.roots);
-        let units = canonical_json(&serde_json::to_value(&d.new_units).map_err(error)?);
-        let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":d.verifier_revision,
+        let unit_count = new_units.clone().count();
+        let unit_values = Value::Array(new_units.map(serde_json::to_value)
+            .collect::<Result<Vec<_>, _>>().map_err(error)?);
+        let units = canonical_json(&unit_values);
+        let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":verifier_revision,
             "raw":d.raw,"objects":d.objects,"witnesses":d.witnesses,"observations":d.observations,
-            "cover":d.cover,"new_units":d.new_units});
+            "cover":d.cover,"new_units":unit_values});
         let fold = sha256_hex(canonical_json(&json!([previous,delta])).as_bytes());
         conn.execute("INSERT INTO cert VALUES(?1,?2,?3,?4,?5,?6)",params![d.generation,
-            canonical_json(&roots),sha256_hex(units.as_bytes()),i64::try_from(d.new_units.len()).map_err(error)?,
-            fold,d.verifier_revision]).map_err(error)?;
+            canonical_json(&roots),sha256_hex(units.as_bytes()),i64::try_from(unit_count).map_err(error)?,
+            fold,verifier_revision]).map_err(error)?;
         conn.execute("UPDATE meta SET certified_through_generation=?1,fold_digest=?2 WHERE singleton=1",
             params![d.generation,fold]).map_err(error)?;
         self.check_storage()?;
@@ -319,6 +392,13 @@ pub(super) mod tests {
                 Unit {digest:[g as u8;32],flavor:Flavor::JsonInner,mode:Mode::Public}]),
         }
     }
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn queued_facts(generation: i64, rule: &str) -> QueuedFacts {
+        QueuedFacts { generation, rule_revision: rule.into(),
+            raw: BTreeMap::from([(generation - 1, RawFact { event_digest: [1; 32], bar_digest: [2; 32] })]),
+            objects: BTreeMap::new(), witnesses: BTreeMap::new(), observations: BTreeMap::new(),
+            cover: BTreeMap::new() }
+    }
     pub(crate) fn ledger(db:&Path,name:&str,rule:&str) -> Ledger {
         Ledger::fresh(&db.with_file_name(name),db,Identity {rule_revision:rule.into(),
             content_identity:"TestOnly-same-content".into(),binary_commit:"test-only".into()},64*1024*1024).unwrap()
@@ -361,6 +441,37 @@ pub(super) mod tests {
         assert_eq!(conn.query_row("SELECT withdrawn FROM object",[],|r|r.get::<_,i64>(0)).unwrap(),1);
         assert_eq!(online.through().unwrap(),3);
     }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_verified_units_difference_keeps_mode_and_first_generation() {
+        let (f, _, token, mut metadata, mut roots) = prepared::tests::p6_candidate();
+        let mut ledger = ledger(&f.db_path(), "verified-diff.sqlite", &metadata.rule_revision);
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &sc::Value::String("verified".into())).unwrap().content_ref();
+        metadata.scope = root.clone();
+        roots.generated_state = root.clone();
+        roots.publication_template = root.clone();
+        roots.delta_template = root.clone();
+        let refs = [&root, &root, &root, &root].map(Into::into);
+        let verified = sc::closure_delta::verify_four_roots(&mut nodes, refs).unwrap();
+        for generation in 1..=2 {
+            metadata.generation = generation;
+            let facts = delta(&metadata, &roots);
+            ledger.stage_verified(&token, &facts, &verified, None).unwrap();
+            ledger.bind(&token, &metadata, &roots).unwrap();
+            ledger.content_committed().unwrap();
+        }
+        let connection = ledger.connection.as_ref().unwrap();
+        let counts: Vec<i64> = connection.prepare("SELECT new_units_count FROM cert ORDER BY generation").unwrap()
+            .query_map([], |r| r.get(0)).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(counts, [2, 0]);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM node WHERE first_generation=1", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+        for mode in [Mode::Public, Mode::Template] {
+            assert!(ledger.contains_committed_unit(&Unit { digest: root.digest().unwrap(), flavor: Flavor::Value, mode }).unwrap());
+        }
+        assert!(!ledger.contains_committed_unit(&Unit { digest: root.digest().unwrap(), flavor: Flavor::JsonInner, mode: Mode::Public }).unwrap());
+    }
+
     #[test]
     fn p6_ledger_duplicate_unit_rolls_back_every_partition_and_discards() {
         let (f,_,token,mut m,r)=prepared::tests::p6_candidate();
