@@ -107,7 +107,7 @@ fn h1_sqlite_commit_failure_does_not_advance_clamp() {
     let owner = h1_owner(&f);
     let mut c = context();
     // 真实Accept通过原语义/effects后，由SQLite commit hook拒绝提交。
-    owner.connection.commit_hook(Some(|| true));
+    owner.connection.commit_hook(Some(|| true)).unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
     let before: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
     assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
@@ -234,7 +234,7 @@ fn h1_real_write_does_not_explain_external_main_change_before_checkpoint() {
         let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
         file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH)).unwrap();
         false
-    }));
+    })).unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
     let result = owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
         &s_allocation::Mode::CapturedNative, &mut context());
@@ -475,7 +475,7 @@ fn h1_certified_commit_failure_releases_controls_before_return() {
     let parent = owner.complete_budget_for_test();
     assert!(owner.history_retained_bytes() > 0);
     let before = runtime_root_tables(&f.conn, true);
-    owner.connection.commit_hook(Some(|| true));
+    owner.connection.commit_hook(Some(|| true)).unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
     assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
         &s_allocation::Mode::CapturedNative, &mut c).is_err());

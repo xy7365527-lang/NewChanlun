@@ -272,7 +272,7 @@ impl Runtime {
         self.audit_ledger.as_mut().ok_or("AuditLedgerStale：未安装台账")?.stage(token, delta)
     }
 
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn queue_audit_ledger(
         &mut self, token: String, facts: audit_ledger::QueuedFacts,
     ) -> Result<(), String> {

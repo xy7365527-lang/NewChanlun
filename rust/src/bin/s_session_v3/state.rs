@@ -1359,9 +1359,6 @@ impl HistoricalCertificate {
         &self.audited
     }
 
-    pub(super) fn into_audited(self) -> AuditedState {
-        self.audited
-    }
 }
 
 // #1394：仅ignored成本诊断开启的当前线程阶段记录，不进入生产代码或资源判据。
