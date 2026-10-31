@@ -231,6 +231,7 @@ Template损坏必须拒绝
 TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
 TestOnly-fee-failure
+TestOnly-other-rule
 TestOnly-raw-budget
 TestOnly-raw-partition
 TestOnly-same-content
@@ -286,6 +287,7 @@ commit 后读事务可核
 commit 语义时刻被篡改
 concat必须Owned
 control_ms 仅含全局控制检查与逐代期望准备，逐批控制头核对计入 structure_ms。沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。
+cover 键集必须恰为生效坐标全集
 cursor代号越过已核永久发布历史
 cut SQL与暂存原件冲突
 cut 与首获知代不符
@@ -477,6 +479,7 @@ writer/recover闭合后无SHM
 三个根跨域保留时仍持许可
 三份冻结原始账的例数
 三字段必须存在
+三根包含夹具必须出现真实 pending 行
 三槽不能靠空集合通过
 三次正常写应完整消费 owner effects 与新代
 上一项业务检查必须先发生
@@ -502,6 +505,7 @@ writer/recover闭合后无SHM
 业务缓存真实跨请求持账
 业务行持有同父账费用
 丢弃运行态后必须真的重新写节点
+丢弃重建后的 cover 逐行相同
 两个fresh捕获各自持有正文owner
 两个实际读取各重算本次F
 两个旧buffer保留到两个新块同时准入完成
@@ -536,6 +540,8 @@ writer/recover闭合后无SHM
 修订夹具须产生比较单元
 修订已接纳但未 Begin/发布也必须等待
 修订应有同槽新旧身份
+修订必须产生撤回
+修订赢家 seq 推进到 3
 修订起点之前的坐标 0-2 未受影响、直接复用
 候选普通原件池
 候选规划不得改写原历史输入
@@ -696,6 +702,7 @@ writer/recover闭合后无SHM
 同一错误SQL元数据的拒绝判据/错误不漂移
 同代出生撤回不应残留
 同代同坐标只能有一条有效行
+同代组成员重叠
 同代际正常追加不得换身份
 同价标签留作证据
 同参考集重复构造不得重算比较单元
@@ -741,6 +748,7 @@ writer/recover闭合后无SHM
 增量 gen2: 发布期参数仍有未映射的旧身份
 增量 gen2: 对象集必须严格增长
 增量容量计数须与独立全遍历相等
+增量臂与完整原件臂的 cover/raw 逐行相同
 增量路径与全量 oracle 的逐代 batch_id/字节数必须逐项相同
 声明长度 7 与实际展开 6 不符
 复制阶段不新增digest验证
@@ -919,6 +927,7 @@ writer/recover闭合后无SHM
 拒写前必须已成功写过若干节点，否则测的不是半途失败
 拒写恢复后坐标数组必须与干净车道同根
 拒写恢复后源引用数组必须与干净车道同根
+拒收后台账 cover/raw 不动
 拒收整笔回滚
 拒绝clock构造前未产生未归还的临时许可
 拒绝不出生根账

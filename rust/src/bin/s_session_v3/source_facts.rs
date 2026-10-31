@@ -21,6 +21,53 @@ pub(crate) struct BusinessRows {
     pub(crate) observations: sc::CodecVec<RelatedRow>,
 }
 
+/// 36M cover 行：键是本 cut 已核生效的 source_coord；owner 为同 cut CC005 的 object_id，None 即已发布未定原件 Pending。
+pub(crate) struct CoverRow {
+    pub(crate) coord: i64,
+    pub(crate) seq: i64,
+    pub(crate) owner: Option<NativeValue<String>>,
+}
+/// 同一次来源核导出的事实投影；只在分区核成功后签发，不能由调用方拼装。
+/// `removed` 是本代失去生效资格的坐标（修订改坐标）；`effective` 是本 cut 生效坐标总数。
+#[derive(Default)]
+pub(crate) struct SourceExports {
+    pub(crate) observation_sources: sc::CodecVec<(NodeDigest, NodeDigest)>,
+    pub(crate) cover: sc::CodecVec<CoverRow>,
+    pub(crate) removed: sc::CodecVec<i64>,
+    pub(crate) effective: usize,
+}
+impl SourceExports {
+    pub(crate) fn push_cover(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+        seq: i64,
+        owner: Option<&str>,
+    ) -> Result<(), String> {
+        let owner = owner
+            .map(|id| s.native_string(id))
+            .transpose()
+            .map_err(err)?;
+        s.native_codec_room(&mut self.cover, 1).map_err(err)?;
+        self.cover
+            .try_push(CoverRow { coord, seq, owner })
+            .map_err(err)
+    }
+    pub(crate) fn push_removed(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<(), String> {
+        s.native_codec_room(&mut self.removed, 1).map_err(err)?;
+        self.removed.try_push(coord).map_err(err)
+    }
+    pub(crate) fn finish(&mut self) {
+        self.observation_sources.sort_unstable_by_key(|row| row.0);
+        self.cover.sort_unstable_by_key(|row| row.coord);
+        self.removed.sort_unstable();
+    }
+}
+
 pub(crate) fn coordinates_digest(
     s: &(impl CodecRead + ?Sized),
     values: &[i64],
