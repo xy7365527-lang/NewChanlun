@@ -223,7 +223,7 @@ pub(crate) fn receipt_from_native(
 }
 
 impl RawReceipt {
-    pub(crate) fn export_business(
+    pub(in crate::v3) fn export_business(
         &mut self,
         store: &mut dyn NodeStore,
         objects: &super::super::object_index::Plan,
