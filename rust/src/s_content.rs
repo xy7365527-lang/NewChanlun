@@ -2038,6 +2038,79 @@ impl AuditMemo {
         }
     }
 }
+/// #1481：一次历史请求内的闭包证明，只绑定这一份不可变捕获与工作域。
+/// Public/Template 各用原 Verifier 的 memo；根四字段每次重核，不签持久资格。
+#[cfg(feature = "s_incremental")]
+pub struct CapturedRequestVerifier<'a> {
+    capture: &'a AuditCapture,
+    work: &'a capture_allocation::scratch::WorkScope,
+    public: Option<AuditMemo>,
+    template: Option<AuditMemo>,
+    failed: bool,
+    _header: capture_allocation::scratch::NativeReservation,
+}
+
+#[cfg(feature = "s_incremental")]
+impl<'a> CapturedRequestVerifier<'a> {
+    pub fn new(
+        capture: &'a AuditCapture,
+        work: &'a capture_allocation::scratch::WorkScope,
+    ) -> Result<Self, CodecError> {
+        let header = work.reserve_native(std::mem::size_of::<Self>())?;
+        Ok(Self {
+            capture,
+            work,
+            public: None,
+            template: None,
+            failed: false,
+            _header: header,
+        })
+    }
+
+    pub fn invalidate(&mut self) {
+        self.public = None;
+        self.template = None;
+        self.failed = true;
+    }
+
+    pub fn check_current(&self) -> Result<(), CodecError> {
+        if self.failed {
+            return Err(CodecError::new(code::SOURCE, "本请求闭包证明已撤销"));
+        }
+        self.work.check_current()
+    }
+
+    pub fn verify_refview(&mut self, reference: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        if let Err(error) = self.check_current() {
+            self.invalidate();
+            return Err(error);
+        }
+        let slot = match mode {
+            Mode::Public => &mut self.public,
+            Mode::Template => &mut self.template,
+        };
+        let mut verifier = Verifier::with_context(
+            CodecContext::OwnerCapture {
+                capture: self.capture,
+                work: self.work,
+            },
+            mode,
+            slot.take().unwrap_or_default(),
+        );
+        match verifier.verify_refview(reference) {
+            Ok(_) => {
+                *slot = Some(verifier.into_memo());
+                Ok(())
+            }
+            Err(error) => {
+                drop(verifier);
+                self.invalidate();
+                Err(error)
+            }
+        }
+    }
+}
+
 /// #1394 算法原型：完整自有节点捕获，无 NodeSink、无可变原件入口。
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
 enum CaptureNodes {

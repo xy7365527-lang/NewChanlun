@@ -1620,6 +1620,8 @@ impl<'capture> NativeSourceAudit<'capture> {
                 Some(&mut self.fields),
                 Some(&mut self.ledger),
                 None,
+                #[cfg(feature = "s_incremental")]
+                None,
             )
         })();
         if result.is_err() {
@@ -1677,6 +1679,8 @@ pub(super) fn audit_generated_metered<'a>(
         None,
         None,
         None,
+        #[cfg(feature = "s_incremental")]
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -1711,6 +1715,8 @@ pub(super) fn audit_generated_for_audit<'a>(
         None,
         None,
         None,
+        #[cfg(feature = "s_incremental")]
+        None,
     )
 }
 
@@ -1738,6 +1744,8 @@ pub(super) fn audit_generated_with_proofs(
         None,
         None,
         Some(proofs),
+        #[cfg(feature = "s_incremental")]
+        None,
     )
 }
 
@@ -2351,6 +2359,9 @@ fn audit_generated_in_store(
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
     mut ordinary: Option<&mut OrdinaryProofs>,
+    #[cfg(feature = "s_incremental")] mut observation_sources: Option<
+        &mut sc::CodecVec<(NodeDigest, NodeDigest)>,
+    >,
 ) -> Result<Counts, String> {
     #[cfg(test)]
     source_call_note(|n| {
@@ -2597,6 +2608,14 @@ fn audit_generated_in_store(
     source_call_note(|n| n.full_members_enumerations += 1);
     for item in elements(s, &observations)? {
         super::history::check_deadline(deadline)?;
+        #[cfg(feature = "s_incremental")]
+        if let Some(exported) = observation_sources.as_deref_mut() {
+            let sources = source_receipt::source_facts::observation_sources(s, &item, |index| {
+                groups.get(&index).map(|g| &g.sources[..])
+            })?;
+            s.native_codec_room(exported, 1).map_err(err)?;
+            exported.try_push((digest(&item)?, sources)).map_err(err)?;
+        }
         let kind = if let Some(proofs) = ordinary.as_deref_mut() {
             proofs.observation(s, &item)?
         } else {
