@@ -488,7 +488,10 @@ pub(crate) struct NativeMetadata {
 }
 #[cfg(feature = "s_incremental")]
 impl NativeMetadata {
-    pub(crate) fn from_view(m: MetadataView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
+    pub(crate) fn from_view(
+        m: MetadataView<'_>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, CodecError> {
         Ok(Self {
             session_id: NativeValue::<String>::try_from_str(m.session_id, work)?,
             session_generation: NativeValue::<String>::try_from_str(m.session_generation, work)?,
@@ -524,14 +527,32 @@ impl NativeMetadata {
         })
     }
     pub(crate) fn retained_bytes(&self) -> usize {
-        std::mem::size_of::<Self>() + [
-            &self.session_id, &self.session_generation, &self.writer_epoch,
-            &self.base_cut, &self.structure_cut, &self.clock_plan_hash, &self.semantic_commit_ns,
-            &self.profile_id, &self.profile_hash, &self.rule_revision, &self.catalog_revision,
-            &self.source_namespace, &self.source_epoch, &self.message_id, &self.payload_hash,
-            &self.producer_id, &self.producer_epoch, &self.clock_event_id,
-        ].iter().map(|text| text.capacity()).sum::<usize>()
-            + self.scope.format.capacity() + self.scope.root.capacity()
+        std::mem::size_of::<Self>()
+            + [
+                &self.session_id,
+                &self.session_generation,
+                &self.writer_epoch,
+                &self.base_cut,
+                &self.structure_cut,
+                &self.clock_plan_hash,
+                &self.semantic_commit_ns,
+                &self.profile_id,
+                &self.profile_hash,
+                &self.rule_revision,
+                &self.catalog_revision,
+                &self.source_namespace,
+                &self.source_epoch,
+                &self.message_id,
+                &self.payload_hash,
+                &self.producer_id,
+                &self.producer_epoch,
+                &self.clock_event_id,
+            ]
+            .iter()
+            .map(|text| text.capacity())
+            .sum::<usize>()
+            + self.scope.format.capacity()
+            + self.scope.root.capacity()
     }
     pub(crate) fn matches(&self, m: MetadataView<'_>) -> bool {
         self.session_id.as_str() == m.session_id
@@ -1461,15 +1482,29 @@ pub(crate) struct ManifestSourceReceipt {
 #[cfg(feature = "s_incremental")]
 impl ManifestSourceReceipt {
     pub(crate) fn take_verified_units(
-        &mut self, metadata: &ManifestMetadata,
-        roots: &(impl ManifestRootSource + ?Sized), manifest: &UnpublishedManifest,
+        &mut self,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
     ) -> Result<s_content::closure_delta::VerifiedUnits, String> {
-        if !self.metadata.matches(metadata.view()) || !same_roots(self.roots.view(), roots.view())
-            || self.manifest_value != manifest.value || self.batch_id != manifest.batch_id
-        { return Err("IdentityConflict：P6单位导出与当前清单不同".into()); }
-        self.source.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
-            metadata.input_frontier, (&metadata.scope).into(), roots.view().generated_state)?;
-        self.closure_units.take().ok_or_else(|| "AuditLedgerStale：P6单位未收集或已消费".into())
+        if !self.metadata.matches(metadata.view())
+            || !same_roots(self.roots.view(), roots.view())
+            || self.manifest_value != manifest.value
+            || self.batch_id != manifest.batch_id
+        {
+            return Err("IdentityConflict：P6单位导出与当前清单不同".into());
+        }
+        self.source.check_manifest(
+            metadata.generation,
+            &metadata.profile_id,
+            &metadata.rule_revision,
+            metadata.input_frontier,
+            (&metadata.scope).into(),
+            roots.view().generated_state,
+        )?;
+        self.closure_units
+            .take()
+            .ok_or_else(|| "AuditLedgerStale：P6单位未收集或已消费".into())
     }
     pub(crate) fn consume(
         self,
@@ -1479,13 +1514,21 @@ impl ManifestSourceReceipt {
         manifest: &UnpublishedManifest,
         raw_range: std::ops::Range<usize>,
     ) -> Result<crate::v3::audit_owner::RawReceipt, String> {
-        if !self.metadata.matches(metadata.view()) || !same_roots(self.roots.view(), roots.view())
-            || self.manifest_value != manifest.value || self.batch_id != manifest.batch_id
+        if !self.metadata.matches(metadata.view())
+            || !same_roots(self.roots.view(), roots.view())
+            || self.manifest_value != manifest.value
+            || self.batch_id != manifest.batch_id
         {
             return Err("IdentityConflict：P6组装证明与当前清单不同".into());
         }
-        self.source.check_request(token, metadata.generation, &metadata.rule_revision,
-            raw_range, (&metadata.scope).into(), roots.view().generated_state)?;
+        self.source.check_request(
+            token,
+            metadata.generation,
+            &metadata.rule_revision,
+            raw_range,
+            (&metadata.scope).into(),
+            roots.view().generated_state,
+        )?;
         Ok(self.source)
     }
 }
@@ -1499,19 +1542,31 @@ pub(crate) fn assemble_with_source(
     source: crate::v3::audit_owner::RawReceipt,
     budget: Option<crate::v3::ManifestWorkspaceBudget>,
     collect_units: bool,
-) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>, ManifestSourceReceipt), String> {
-    source.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
-        metadata.input_frontier, (&metadata.scope).into(), roots.view().generated_state)?;
-    let (mut manifest, workspace) = source.with_store(store, |bounded| {
-        match budget {
-            Some(budget) => assemble_workspace_units(bounded, metadata, roots, budget, collect_units)
-                .map_err(|e| e.to_string()),
-            None => {
-                let mut view = crate::v3::audit_store::StoreView::generic(bounded);
-                view.collect_manifest_units = collect_units;
-                assemble_unpublished_in_store(&mut view, metadata, roots)
-                    .map(|manifest| (manifest, None)).map_err(|e| e.to_string())
-            }
+) -> Result<
+    (
+        UnpublishedManifest,
+        Option<PreparedManifestWorkspace>,
+        ManifestSourceReceipt,
+    ),
+    String,
+> {
+    source.check_manifest(
+        metadata.generation,
+        &metadata.profile_id,
+        &metadata.rule_revision,
+        metadata.input_frontier,
+        (&metadata.scope).into(),
+        roots.view().generated_state,
+    )?;
+    let (mut manifest, workspace) = source.with_store(store, |bounded| match budget {
+        Some(budget) => assemble_workspace_units(bounded, metadata, roots, budget, collect_units)
+            .map_err(|e| e.to_string()),
+        None => {
+            let mut view = crate::v3::audit_store::StoreView::generic(bounded);
+            view.collect_manifest_units = collect_units;
+            assemble_unpublished_in_store(&mut view, metadata, roots)
+                .map(|manifest| (manifest, None))
+                .map_err(|e| e.to_string())
         }
     })?;
     let work = store.codec_work();
@@ -1521,8 +1576,10 @@ pub(crate) fn assemble_with_source(
         roots: NativeRoots::from_view(roots.view(), work).map_err(|e| e.to_string())?,
         manifest_value: manifest.value.clone(),
         closure_units: manifest.closure_units.take(),
-        batch_id: TextValue::Plain(NativeValue::<String>::try_from_str(&manifest.batch_id, work)
-            .map_err(|e| e.to_string())?),
+        batch_id: TextValue::Plain(
+            NativeValue::<String>::try_from_str(&manifest.batch_id, work)
+                .map_err(|e| e.to_string())?,
+        ),
     };
     Ok((manifest, workspace, proof))
 }
@@ -1602,28 +1659,41 @@ fn assemble_manifest_body(
     let sql = super::content_store::sql_reads_on_thread();
     let collect_units = {
         #[cfg(feature = "s_incremental")]
-        { store.collect_manifest_units }
+        {
+            store.collect_manifest_units
+        }
         #[cfg(not(feature = "s_incremental"))]
-        { false }
+        {
+            false
+        }
     };
     #[cfg(feature = "s_incremental")]
     let closure_units = if collect_units {
-        let units = s_content::closure_delta::verify_four_roots(store,
-            [metadata.scope, roots.generated_state, roots.publication_template, roots.delta_template])?;
+        let units = s_content::closure_delta::verify_four_roots(
+            store,
+            [
+                metadata.scope,
+                roots.generated_state,
+                roots.publication_template,
+                roots.delta_template,
+            ],
+        )?;
         require_kind(metadata.scope, Kind::Object, "scope")?;
         Some(units)
-    } else { None };
+    } else {
+        None
+    };
     if !collect_units {
-    #[cfg(test)]
-    crate::v3::diagnostic_trace_event("manifest_verify_scope", None);
-    store.verify_manifest_public(metadata.scope)?;
-    require_kind(metadata.scope, Kind::Object, "scope")?;
-    #[cfg(test)]
-    crate::v3::diagnostic_trace_event("manifest_verify_generated", None);
-    store.verify_manifest_public(roots.generated_state)?;
-    #[cfg(test)]
-    crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
-    store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;
+        #[cfg(test)]
+        crate::v3::diagnostic_trace_event("manifest_verify_scope", None);
+        store.verify_manifest_public(metadata.scope)?;
+        require_kind(metadata.scope, Kind::Object, "scope")?;
+        #[cfg(test)]
+        crate::v3::diagnostic_trace_event("manifest_verify_generated", None);
+        store.verify_manifest_public(roots.generated_state)?;
+        #[cfg(test)]
+        crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
+        store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;
     }
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_complete", None);
@@ -1780,7 +1850,9 @@ fn assemble_manifest_body(
     ];
     let value = store.write_template_view(VV::Object(&manifest_fields))?;
     let identity = s_content::frame(0x21, &value.digest);
-    Ok(ManifestBody { value, identity,
+    Ok(ManifestBody {
+        value,
+        identity,
         #[cfg(feature = "s_incremental")]
         closure_units,
     })

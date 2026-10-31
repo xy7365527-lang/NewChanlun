@@ -45,13 +45,13 @@ pub(super) use ordinary_source::OrdinaryProofs;
 pub(super) use ordinary_source::{
     reset_stats as reset_ordinary_proof_stats, stats as ordinary_proof_stats,
 };
-#[cfg(feature = "s_incremental")]
-#[path = "source_receipt.rs"]
-pub(super) mod source_receipt;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
+#[cfg(feature = "s_incremental")]
+#[path = "source_receipt.rs"]
+pub(super) mod source_receipt;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -5491,13 +5491,28 @@ mod owner_retention {
 impl NativeRawFacts {
     pub(super) fn h1_canonical(&self) -> Value {
         fn source(s: &Source) -> Value {
-            let Source { wire, numeric, raw, bar } = s;
+            let Source {
+                wire,
+                numeric,
+                raw,
+                bar,
+            } = s;
             json!({"wire":wire,"numeric":numeric,"raw":raw,"bar":bar})
         }
-        let Self { winners, sources, originals } = self;
-        let mut sources = sources.iter().map(|(k,v)|json!([k,source(v)])).collect::<Vec<_>>();
+        let Self {
+            winners,
+            sources,
+            originals,
+        } = self;
+        let mut sources = sources
+            .iter()
+            .map(|(k, v)| json!([k, source(v)]))
+            .collect::<Vec<_>>();
         sources.sort_by_key(crate::canonical_json);
-        let mut originals = originals.iter().map(|(k,(seq,s))|json!([k,seq,source(s)])).collect::<Vec<_>>();
+        let mut originals = originals
+            .iter()
+            .map(|(k, (seq, s))| json!([k, seq, source(s)]))
+            .collect::<Vec<_>>();
         originals.sort_by_key(crate::canonical_json);
         json!({"winners":winners.h1_canonical(),"sources":sources,"originals":originals})
     }

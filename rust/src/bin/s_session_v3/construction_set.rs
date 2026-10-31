@@ -305,8 +305,14 @@ impl OwnerSourceCheck {
     ) -> Result<super::super::source_audit::Counts, String> {
         super::super::history::check_deadline(self.deadline)?;
         super::super::history::check_deadline(deadline)?;
-        if !self.context.as_ref().is_some_and(|context| context.matches(metadata))
-            || usize::try_from(metadata.input_frontier).ok().and_then(|n| n.checked_add(1)) != Some(raw_prefix)
+        if !self
+            .context
+            .as_ref()
+            .is_some_and(|context| context.matches(metadata))
+            || usize::try_from(metadata.input_frontier)
+                .ok()
+                .and_then(|n| n.checked_add(1))
+                != Some(raw_prefix)
         {
             return Err(stale("来源成功结果与完整cut请求声明不同"));
         }
@@ -337,7 +343,10 @@ impl PendingSet {
         metadata: crate::content_manifest::NativeMetadata,
         deadline: Option<std::time::Instant>,
     ) -> Result<(), String> {
-        let source = self.source_check.as_mut().ok_or_else(|| stale("来源未成功不能绑定请求"))?;
+        let source = self
+            .source_check
+            .as_mut()
+            .ok_or_else(|| stale("来源未成功不能绑定请求"))?;
         if source.context.is_some() || self.stages.is_some() || self.closed {
             return Err(stale("来源请求绑定重复或越过stage边界"));
         }
@@ -347,10 +356,14 @@ impl PendingSet {
     }
     #[cfg(test)]
     pub(super) fn context_negatives_for_test(
-        &mut self, metadata: &crate::content_manifest::ManifestMetadata,
-        root: sc::RefView<'_>, raw_prefix: usize,
+        &mut self,
+        metadata: &crate::content_manifest::ManifestMetadata,
+        root: sc::RefView<'_>,
+        raw_prefix: usize,
     ) {
-        if !SOURCE_CONTEXT_NEGATIVES.with(|flag| flag.get()) { return; }
+        if !SOURCE_CONTEXT_NEGATIVES.with(|flag| flag.get()) {
+            return;
+        }
         let source = self.source_check.as_mut().unwrap();
         for changed in 0..7 {
             let mut wrong = metadata.clone();
@@ -363,12 +376,16 @@ impl PendingSet {
                 5 => wrong.scope.extent = Some(u64::MAX),
                 _ => wrong.input_frontier += 1,
             }
-            assert!(source.counts_for_cut(wrong.view(), root, raw_prefix, None).is_err());
+            assert!(source
+                .counts_for_cut(wrong.view(), root, raw_prefix, None)
+                .is_err());
         }
         let original = source.deadline;
         source.deadline = Some(std::time::Instant::now());
-        assert!(source.counts_for_cut(metadata.view(), root, raw_prefix, None)
-            .unwrap_err().contains("VerifyDeadline"));
+        assert!(source
+            .counts_for_cut(metadata.view(), root, raw_prefix, None)
+            .unwrap_err()
+            .contains("VerifyDeadline"));
         source.deadline = original;
     }
     pub(super) fn requires_source(&self) -> bool {
@@ -409,7 +426,10 @@ impl PendingSet {
                 .requests
                 .as_ref()
                 .map_or(0, SequenceDelta::retained_bytes)
-            + self.source_check.as_ref().and_then(|source| source.context.as_ref())
+            + self
+                .source_check
+                .as_ref()
+                .and_then(|source| source.context.as_ref())
                 .map_or(0, crate::content_manifest::NativeMetadata::retained_bytes)
     }
     pub(super) fn close_stages(

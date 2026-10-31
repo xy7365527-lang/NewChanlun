@@ -114,7 +114,9 @@ pub(super) fn publish_borrowed_staged(
     runtime: &[sc::NodeDigest],
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
-    #[cfg(feature = "s_incremental")] source_manifest: Option<content_manifest::ManifestSourceReceipt>,
+    #[cfg(feature = "s_incremental")] source_manifest: Option<
+        content_manifest::ManifestSourceReceipt,
+    >,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -166,7 +168,9 @@ pub(super) fn publish_borrowed_with_workspace_admitted(
     policy_records: &str,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
-    #[cfg(feature = "s_incremental")] source_manifest: Option<content_manifest::ManifestSourceReceipt>,
+    #[cfg(feature = "s_incremental")] source_manifest: Option<
+        content_manifest::ManifestSourceReceipt,
+    >,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -197,7 +201,9 @@ fn publish_prepared_inner(
         content_manifest::PreparedManifestWorkspace,
     >,
     work: Option<&WorkScope>,
-    #[cfg(feature = "s_incremental")] source_manifest: Option<content_manifest::ManifestSourceReceipt>,
+    #[cfg(feature = "s_incremental")] source_manifest: Option<
+        content_manifest::ManifestSourceReceipt,
+    >,
 ) -> Result<CommitReceipt, String> {
     let m = metadata;
     let (count, head): (i64, i64) = tx
@@ -252,8 +258,12 @@ fn publish_prepared_inner(
             let previous = content_publication::current_publication_frontier_admitted(tx, work)?;
             let from = usize::try_from(previous.checked_add(1).ok_or_else(|| err("来源前缀溢出"))?)
                 .map_err(err)?;
-            let to = usize::try_from(m.input_frontier.checked_add(1).ok_or_else(|| err("来源前沿溢出"))?)
-                .map_err(err)?;
+            let to = usize::try_from(
+                m.input_frontier
+                    .checked_add(1)
+                    .ok_or_else(|| err("来源前沿溢出"))?,
+            )
+            .map_err(err)?;
             let receipt = proof.consume(begin_token, m, roots, manifest, from..to)?;
             #[cfg(test)]
             source_audit::source_receipt::note_publication_consumed_for_test(receipt.rows().len());

@@ -1277,8 +1277,9 @@ impl QualifiedSourceCut {
     ) -> Result<super::super::source_audit::Counts, String> {
         raw.ensure_current()?;
         super::super::history::check_deadline(deadline)?;
-        let context = crate::content_manifest::NativeMetadata::from_view(metadata.view(), Some(access.work))
-            .map_err(invalid)?;
+        let context =
+            crate::content_manifest::NativeMetadata::from_view(metadata.view(), Some(access.work))
+                .map_err(invalid)?;
         let mut j = access.journal.lock().map_err(invalid)?;
         access.check(&j)?;
         if self.binding.root != construction_set::Declaration::read(root)?
@@ -1294,10 +1295,15 @@ impl QualifiedSourceCut {
         if bytes > j.cap {
             return Err(construction_state::stale("来源请求身份保留账超过材料帽"));
         }
-        j.set.as_mut().ok_or_else(|| construction_state::stale("来源集合已退役"))?
+        j.set
+            .as_mut()
+            .ok_or_else(|| construction_state::stale("来源集合已退役"))?
             .bind_source_context(context, deadline)?;
         #[cfg(test)]
-        j.set.as_mut().unwrap().context_negatives_for_test(metadata, root, raw.current_prefix());
+        j.set
+            .as_mut()
+            .unwrap()
+            .context_negatives_for_test(metadata, root, raw.current_prefix());
         j.extra_bytes = extra;
         j.bytes = bytes;
         j.peak = j.peak.max(bytes);

@@ -6920,12 +6920,37 @@ mod owner_retention {
 #[cfg(all(test, feature = "s_incremental"))]
 impl Entry {
     pub(super) fn h1_canonical(&self) -> Value {
-        fn built(b: &Built) -> Value { json!({"digest":b.digest,"kind":b.kind.name(),"extent":b.extent}) }
-        let Self { id, revision, kind, slot, generated, internal, immutable, birth_wire, life } = self;
-        let LifeOwner { first_known_generation, first_known_cut, published_generation, withdrawn_generation,
-            withdrawal_reason, superseded_by, batch } = life;
-        let slot = match slot { Slot::Shape(w) => json!(["shape", w]), Slot::Typed { kind, fact_key } => json!(["typed",kind,fact_key]) };
-        let batch = match batch { BatchOwner::CurrentBatch => json!(["current"]), BatchOwner::Existing(s) => json!(["existing",s]) };
+        fn built(b: &Built) -> Value {
+            json!({"digest":b.digest,"kind":b.kind.name(),"extent":b.extent})
+        }
+        let Self {
+            id,
+            revision,
+            kind,
+            slot,
+            generated,
+            internal,
+            immutable,
+            birth_wire,
+            life,
+        } = self;
+        let LifeOwner {
+            first_known_generation,
+            first_known_cut,
+            published_generation,
+            withdrawn_generation,
+            withdrawal_reason,
+            superseded_by,
+            batch,
+        } = life;
+        let slot = match slot {
+            Slot::Shape(w) => json!(["shape", w]),
+            Slot::Typed { kind, fact_key } => json!(["typed", kind, fact_key]),
+        };
+        let batch = match batch {
+            BatchOwner::CurrentBatch => json!(["current"]),
+            BatchOwner::Existing(s) => json!(["existing", s]),
+        };
         json!({"id":id,"revision":revision,"kind":kind,"slot":slot,"generated":built(generated),"internal":built(internal),
             "immutable":built(immutable),"birth_wire":birth_wire,"life":{"first_known_generation":first_known_generation,
             "first_known_cut":first_known_cut,"published_generation":published_generation,"withdrawn_generation":withdrawn_generation,
@@ -6936,13 +6961,36 @@ impl Entry {
 impl HistorySweep {
     pub(super) fn h1_canonical(&self) -> Value {
         fn rank(r: &NativeRank) -> Value {
-            match r { OrderKey::Shape(n) => json!(["shape",n]),
-                OrderKey::Typed(k,f,i,r) => json!(["typed",k.as_str(),f.as_str(),i.as_str(),r]) }
+            match r {
+                OrderKey::Shape(n) => json!(["shape", n]),
+                OrderKey::Typed(k, f, i, r) => {
+                    json!(["typed", k.as_str(), f.as_str(), i.as_str(), r])
+                }
+            }
         }
-        fn set(s: &RankSet) -> Value { json!(s.iter().map(|(((g,r),i),())|json!([g,rank(r),i])).collect::<Vec<_>>()) }
-        let Self { events, active, previous, projection, retained: _, visits: _ } = self;
-        let HistoryEvents { by_id, births, deaths, ranks, initial_entries: _, sort_passes: _ } = &**events;
-        let mut by_id = by_id.iter().map(|(k,v)|json!([k,v])).collect::<Vec<_>>();
+        fn set(s: &RankSet) -> Value {
+            json!(s
+                .iter()
+                .map(|(((g, r), i), ())| json!([g, rank(r), i]))
+                .collect::<Vec<_>>())
+        }
+        let Self {
+            events,
+            active,
+            previous,
+            projection,
+            retained: _,
+            visits: _,
+        } = self;
+        let HistoryEvents {
+            by_id,
+            births,
+            deaths,
+            ranks,
+            initial_entries: _,
+            sort_passes: _,
+        } = &**events;
+        let mut by_id = by_id.iter().map(|(k, v)| json!([k, v])).collect::<Vec<_>>();
         by_id.sort_by_key(crate::canonical_json);
         let projection = projection.as_ref().map(|p| {
             let OwnerProjection { wires, active, withdrawn, previous_cut, visits: _ } = p;

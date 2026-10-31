@@ -5,7 +5,10 @@ fn h1_owner(f: &prepared::tests::Fixture) -> AuditConnection {
 fn h1_assert_stale(owner: &AuditConnection) {
     assert!(owner.begin(TransactionBehavior::Immediate).is_err());
     assert!(owner.retired.get());
-    assert!(owner.begin(TransactionBehavior::Deferred).is_err(), "stale不能重审恢复");
+    assert!(
+        owner.begin(TransactionBehavior::Deferred).is_err(),
+        "stale不能重审恢复"
+    );
 }
 #[test]
 fn h1_unchanged_snapshot_survives_read_end() {
@@ -27,7 +30,9 @@ fn h1_real_own_accept_begin_publish_continues_same_life() {
         let envelope = b2_envelope(n);
         let token = b2_accept_begin(&owner, &envelope, &mut c);
         h1_compare_complete_history(&owner);
-        let (receipt, ended) = owner.publish(&mut runtime, &token, &envelope, &mut c).unwrap();
+        let (receipt, ended) = owner
+            .publish(&mut runtime, &token, &envelope, &mut c)
+            .unwrap();
         assert_eq!(receipt.generation, n);
         owner.continue_with(ended).unwrap();
         owner.assert_complete_matches_cold();
@@ -39,7 +44,9 @@ fn h1_real_own_accept_begin_publish_continues_same_life() {
 fn h1_other_connection_commit_is_sticky_stale() {
     let f = fixture();
     let owner = h1_owner(&f);
-    f.conn.execute("UPDATE meta SET value='999' WHERE key='generation'", []).unwrap();
+    f.conn
+        .execute("UPDATE meta SET value='999' WHERE key='generation'", [])
+        .unwrap();
     h1_assert_stale(&owner);
 }
 #[test]
@@ -67,20 +74,34 @@ fn h1_unexplained_main_stat_is_stale() {
     let f = fixture();
     let owner = h1_owner(&f);
     // 修改mtime不改SQL原件，data_version无法代替文件观测。
-    let file = std::fs::OpenOptions::new().write(true).open(f.db_path()).unwrap();
-    file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH)).unwrap();
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(f.db_path())
+        .unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH))
+        .unwrap();
     h1_assert_stale(&owner);
 }
 #[test]
 fn h1_control_bytes_change_in_same_connection_is_stale() {
     let f = fixture();
     let owner = h1_owner(&f);
-    owner.connection.execute("UPDATE meta SET value=value||' ' WHERE key='generation'", []).unwrap();
+    owner
+        .connection
+        .execute(
+            "UPDATE meta SET value=value||' ' WHERE key='generation'",
+            [],
+        )
+        .unwrap();
     h1_assert_stale(&owner);
 }
 #[test]
 fn h1_schema_and_domain_changes_are_stale() {
-    for statement in ["CREATE TABLE h1_illicit(x)", "PRAGMA foreign_keys=OFF", "CREATE TEMP TABLE h1_temp(x)"] {
+    for statement in [
+        "CREATE TABLE h1_illicit(x)",
+        "PRAGMA foreign_keys=OFF",
+        "CREATE TEMP TABLE h1_temp(x)",
+    ] {
         let f = fixture();
         let owner = h1_owner(&f);
         owner.connection.execute_batch(statement).unwrap();
@@ -97,7 +118,10 @@ fn h1_undeclared_write_rejected_before_sql_and_commit() {
     assert!(owner.retired.get());
     let owner = h1_owner(&f);
     let active = owner.begin(TransactionBehavior::Immediate).unwrap();
-    active.tx().execute("UPDATE meta SET value=value WHERE key='generation'", []).unwrap();
+    active
+        .tx()
+        .execute("UPDATE meta SET value=value WHERE key='generation'", [])
+        .unwrap();
     assert!(active.commit().is_err(), "裸SQL不能冒充已核effects");
     assert!(owner.retired.get());
 }
@@ -109,11 +133,26 @@ fn h1_sqlite_commit_failure_does_not_advance_clamp() {
     // 真实Accept通过原语义/effects后，由SQLite commit hook拒绝提交。
     owner.connection.commit_hook(Some(|| true)).unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
-    let before: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
-    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
-        &s_allocation::Mode::CapturedNative, &mut c).is_err());
+    let before: i64 = f
+        .conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .unwrap();
+    assert!(owner
+        .admit(
+            b2_envelope(2),
+            "1",
+            &clock,
+            tb02a::PROFILE,
+            Some("1"),
+            &s_allocation::Mode::CapturedNative,
+            &mut c
+        )
+        .is_err());
     assert!(owner.retired.get());
-    let after: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
+    let after: i64 = f
+        .conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .unwrap();
     assert_eq!(before, after);
 }
 
@@ -128,12 +167,23 @@ fn h1_compare_complete_history(owner: &AuditConnection) {
     assert_eq!(folded.historical().h1_canonical(), expected);
     drop(folded);
     if online != expected {
-        let first = online.bytes().zip(expected.bytes()).position(|(a,b)|a!=b).unwrap_or(online.len().min(expected.len()));
-        panic!("完整历史规范输出不同：byte={first}, online={}, cold={}",
-            String::from_utf8_lossy(&online.as_bytes()[first.saturating_sub(80)..(first+240).min(online.len())]),
-            String::from_utf8_lossy(&expected.as_bytes()[first.saturating_sub(80)..(first+240).min(expected.len())]));
+        let first = online
+            .bytes()
+            .zip(expected.bytes())
+            .position(|(a, b)| a != b)
+            .unwrap_or(online.len().min(expected.len()));
+        panic!(
+            "完整历史规范输出不同：byte={first}, online={}, cold={}",
+            String::from_utf8_lossy(
+                &online.as_bytes()[first.saturating_sub(80)..(first + 240).min(online.len())]
+            ),
+            String::from_utf8_lossy(
+                &expected.as_bytes()[first.saturating_sub(80)..(first + 240).min(expected.len())]
+            )
+        );
     }
-    drop(cold); drop(complete);
+    drop(cold);
+    drop(complete);
     active.read_end().unwrap();
 }
 #[test]
@@ -152,12 +202,25 @@ fn h1_complete_canonical_empty_history_is_deterministic() {
 // 只在测试设置原有SQLite阈值，再让H1读取并接管相同的PASSIVE行为。
 fn h1_owner_at_threshold(f: &prepared::tests::Fixture, pages: i32) -> AuditConnection {
     let owner = AuditConnection::open(&f.db_path()).unwrap();
-    owner.connection.pragma_update(None, "wal_autocheckpoint", pages).unwrap();
-    *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(&owner.connection, &f.db_path(), 1 << 20).unwrap());
-    owner.begin(TransactionBehavior::Deferred).unwrap().read_end().unwrap();
+    owner
+        .connection
+        .pragma_update(None, "wal_autocheckpoint", pages)
+        .unwrap();
+    *owner.history_clamp.borrow_mut() =
+        Some(history_clamp::Clamp::open(&owner.connection, &f.db_path(), 1 << 20).unwrap());
+    owner
+        .begin(TransactionBehavior::Deferred)
+        .unwrap()
+        .read_end()
+        .unwrap();
     owner
 }
-fn h1_publish_round(owner: &AuditConnection, runtime: &mut prepared::Runtime, c: &mut request_audit::RequestAuditContext, n: i64) {
+fn h1_publish_round(
+    owner: &AuditConnection,
+    runtime: &mut prepared::Runtime,
+    c: &mut request_audit::RequestAuditContext,
+    n: i64,
+) {
     let envelope = b2_envelope(n);
     let token = b2_accept_begin(owner, &envelope, c);
     let (receipt, ended) = owner.publish(runtime, &token, &envelope, c).unwrap();
@@ -191,14 +254,21 @@ fn h1_own_checkpoint_and_wal_reset_preserve_full_history() {
 fn h1_partial_checkpoint_waits_for_reader_then_resets() {
     let f = fixture();
     let reader = open_db(&f.db_path()).unwrap();
-    reader.execute_batch("BEGIN; SELECT COUNT(*) FROM meta;").unwrap();
+    reader
+        .execute_batch("BEGIN; SELECT COUNT(*) FROM meta;")
+        .unwrap();
     let owner = h1_owner_at_threshold(&f, 1);
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     let mut c = context();
     let before = h1_wal_round(&f);
     h1_publish_round(&owner, &mut runtime, &mut c, 2);
     assert_eq!(before, h1_wal_round(&f), "reader钉住旧WAL时不能重启");
-    let (_, frames, done): (i32, i32, i32) = f.conn.query_row("PRAGMA wal_checkpoint(NOOP)", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+    let (_, frames, done): (i32, i32, i32) = f
+        .conn
+        .query_row("PRAGMA wal_checkpoint(NOOP)", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .unwrap();
     assert!(done < frames, "确实发生未完成回填，而不是虚构reader");
     reader.execute_batch("ROLLBACK").unwrap();
     h1_publish_round(&owner, &mut runtime, &mut c, 3);
@@ -214,15 +284,25 @@ fn h1_zero_autocheckpoint_keeps_main_and_wal_round() {
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     h1_publish_round(&owner, &mut runtime, &mut context(), 2);
     let after = std::fs::metadata(f.db_path()).unwrap();
-    assert_eq!((before.len(), before.mtime(), before.mtime_nsec()), (after.len(), after.mtime(), after.mtime_nsec()));
+    assert_eq!(
+        (before.len(), before.mtime(), before.mtime_nsec()),
+        (after.len(), after.mtime(), after.mtime_nsec())
+    );
     assert_eq!(round, h1_wal_round(&f));
 }
 #[test]
 fn h1_external_checkpoint_is_not_own_effect() {
     let f = fixture();
     let owner = h1_owner(&f);
-    let (busy, log, done): (i32, i32, i32) = f.conn.query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
-    assert_eq!(busy, 0); assert!(log > 0); assert_eq!(log, done);
+    let (busy, log, done): (i32, i32, i32) = f
+        .conn
+        .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .unwrap();
+    assert_eq!(busy, 0);
+    assert!(log > 0);
+    assert_eq!(log, done);
     h1_assert_stale(&owner);
 }
 #[test]
@@ -230,14 +310,25 @@ fn h1_real_write_does_not_explain_external_main_change_before_checkpoint() {
     let f = fixture();
     let owner = h1_owner_at_threshold(&f, 1);
     let path = f.db_path();
-    owner.connection.commit_hook(Some(move || {
-        let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
-        file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH)).unwrap();
-        false
-    })).unwrap();
+    owner
+        .connection
+        .commit_hook(Some(move || {
+            let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+            file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH))
+                .unwrap();
+            false
+        }))
+        .unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
-    let result = owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
-        &s_allocation::Mode::CapturedNative, &mut context());
+    let result = owner.admit(
+        b2_envelope(2),
+        "1",
+        &clock,
+        tb02a::PROFILE,
+        Some("1"),
+        &s_allocation::Mode::CapturedNative,
+        &mut context(),
+    );
     assert!(result.is_err(), "自身checkpoint不能吞掉hook前的main变化");
     assert!(owner.retired.get());
     h1_assert_stale(&owner);
@@ -248,16 +339,33 @@ fn h1_missing_commit_receipt_retires_after_real_commit() {
     let owner = h1_owner(&f);
     owner.connection.wal_hook(None);
     let clock = v2::stored_clock(&owner.connection).unwrap();
-    let before: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
-    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
-        &s_allocation::Mode::CapturedNative, &mut context()).is_err());
-    let after: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
+    let before: i64 = f
+        .conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .unwrap();
+    assert!(owner
+        .admit(
+            b2_envelope(2),
+            "1",
+            &clock,
+            tb02a::PROFILE,
+            Some("1"),
+            &s_allocation::Mode::CapturedNative,
+            &mut context()
+        )
+        .is_err());
+    let after: i64 = f
+        .conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .unwrap();
     assert!(after > before, "真实COMMIT完成但未交收据，不能伪装成回滚");
     h1_assert_stale(&owner);
 }
 
-
-fn h1_certified_owner(f: &prepared::tests::Fixture, c: &mut request_audit::RequestAuditContext) -> AuditConnection {
+fn h1_certified_owner(
+    f: &prepared::tests::Fixture,
+    c: &mut request_audit::RequestAuditContext,
+) -> AuditConnection {
     AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, c).unwrap()
 }
 
@@ -277,15 +385,16 @@ fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
         super::super::with_test_writer_rule(Some(rule), || {
             let mut c = context();
             let (owner, events, _) = state::traced(false, || h1_certified_owner(&f, &mut c));
-            assert!(events.iter().any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == 1));
+            assert!(events
+                .iter()
+                .any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == 1));
             h1_compare_complete_history(&owner);
             let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
             construction_set::with_source_context_negatives_for_test(|| {
                 for (n, row, revision) in LAYOUT_MULTICUT_INPUTS.into_iter().skip(1) {
                     let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
-                    let (token, accept_events, _) = state::traced(false, || {
-                        b2_accept_begin(&owner, &envelope, &mut c)
-                    });
+                    let (token, accept_events, _) =
+                        state::traced(false, || b2_accept_begin(&owner, &envelope, &mut c));
                     h1_assert_raw_suffix_reads(&accept_events, true);
                     h1_compare_complete_history(&owner);
                     source_audit::reset_source_call_stats();
@@ -295,15 +404,23 @@ fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
                     let (receipt, ended) = result.unwrap();
                     h1_assert_raw_suffix_reads(&events, false);
                     assert_eq!(receipt.generation, n);
-                    assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default(),
-                        "认证在线不得完整来源重审");
-                    assert!(events.iter().any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
+                    assert_eq!(
+                        source_audit::source_call_stats(),
+                        source_audit::SourceCallStats::default(),
+                        "认证在线不得完整来源重审"
+                    );
+                    assert!(events
+                        .iter()
+                        .any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
                     owner.continue_with(ended).unwrap();
                     h1_compare_complete_history(&owner);
                     let expected = ordinary.publish(&envelope, &plain_token).unwrap();
                     assert_eq!(receipt.snapshot, expected.snapshot);
                     assert_eq!(receipt.delta, expected.delta);
-                    assert_eq!(runtime_root_tables(&f.conn, true), runtime_root_tables(&ordinary.conn, true));
+                    assert_eq!(
+                        runtime_root_tables(&f.conn, true),
+                        runtime_root_tables(&ordinary.conn, true)
+                    );
                     assert!(!owner.retired.get());
                 }
             });
@@ -327,7 +444,10 @@ fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
     });
     let error = result.err().expect("缺可信来源收据不得签历史资格");
     assert!(error.contains("历史认证在线缺同请求来源收据"), "{error}");
-    assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default());
+    assert_eq!(
+        source_audit::source_call_stats(),
+        source_audit::SourceCallStats::default()
+    );
     assert!(!events.iter().any(|e| e["phase"] == "h1_certified_cut"));
     assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
     assert!(owner.retired.get());
@@ -342,13 +462,19 @@ fn h1_certified_open_empty_and_reopen_from_originals() {
     for n in 1..=3 {
         let mut c = context();
         let (owner, events, _) = state::traced(false, || h1_certified_owner(&f, &mut c));
-        let generations = events.iter().filter(|e| e["phase"] == "h1_certified_cut")
-            .map(|e| e["generation"].as_i64().unwrap()).collect::<Vec<_>>();
+        let generations = events
+            .iter()
+            .filter(|e| e["phase"] == "h1_certified_cut")
+            .map(|e| e["generation"].as_i64().unwrap())
+            .collect::<Vec<_>>();
         assert_eq!(generations, (1..n).collect::<Vec<_>>());
         h1_compare_complete_history(&owner);
         let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
         h1_publish_round(&owner, &mut runtime, &mut c, n);
-        assert_eq!(owner.complete.borrow().as_ref().unwrap().audited.cuts.len(), n as usize);
+        assert_eq!(
+            owner.complete.borrow().as_ref().unwrap().audited.cuts.len(),
+            n as usize
+        );
     }
 }
 
@@ -358,14 +484,25 @@ fn h1_certified_missing_candidate_and_mode_switch_are_sticky_stale() {
     for missing in [true, false] {
         let mut c = context();
         let owner = h1_certified_owner(&f, &mut c);
-        if missing { owner.drop_complete_for_test(); }
+        if missing {
+            owner.drop_complete_for_test();
+        }
         source_audit::reset_source_call_stats();
         let active = owner.begin(TransactionBehavior::Deferred).unwrap();
-        let mode = if missing { s_allocation::Mode::CapturedNative } else { s_allocation::Mode::Ordinary };
-        assert!(active.audit_admission(&json!({"payload":{"op":"ready"}}), &mode, &mut c).is_err());
+        let mode = if missing {
+            s_allocation::Mode::CapturedNative
+        } else {
+            s_allocation::Mode::Ordinary
+        };
+        assert!(active
+            .audit_admission(&json!({"payload":{"op":"ready"}}), &mode, &mut c)
+            .is_err());
         drop(active);
         assert!(owner.retired.get());
-        assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default());
+        assert_eq!(
+            source_audit::source_call_stats(),
+            source_audit::SourceCallStats::default()
+        );
         assert_eq!(owner.complete_retained_bytes(), 0);
         assert!(owner.connection.is_autocommit());
         h1_assert_stale(&owner);
@@ -378,31 +515,46 @@ fn h1_certified_open_failures_leave_no_candidate_or_write() {
     let f = fixture();
     let before = runtime_root_tables(&f.conn, true);
     for (limit, deadline) in [
-        (536_870_912, Some(std::time::Instant::now() - std::time::Duration::from_secs(1))),
+        (
+            536_870_912,
+            Some(std::time::Instant::now() - std::time::Duration::from_secs(1)),
+        ),
         (1024, None),
     ] {
-        let mut c = request_audit::RequestAuditContext::with_source_keeper(cross_request_source_cache::Keeper::new(limit));
+        let mut c = request_audit::RequestAuditContext::with_source_keeper(
+            cross_request_source_cache::Keeper::new(limit),
+        );
         c.freeze_manifest_workspace_budget(limit, 0, 0).unwrap();
         let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
         let baseline = parent.live();
-        assert!(AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, deadline, &mut c).is_err());
+        assert!(AuditConnection::open_certified_history_component(
+            &f.db_path(),
+            1 << 20,
+            deadline,
+            &mut c
+        )
+        .is_err());
         assert!(!c.has_slot());
         assert_eq!(parent.live(), baseline);
         assert_eq!(parent.scratch_observation().0, 0);
         assert_eq!(runtime_root_tables(&f.conn, true), before);
     }
-    f.conn.execute("UPDATE s_content_publications SET batch_id='damaged'", []).unwrap();
+    f.conn
+        .execute("UPDATE s_content_publications SET batch_id='damaged'", [])
+        .unwrap();
     let damaged = runtime_root_tables(&f.conn, true);
     let mut c = context();
     let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
     let baseline = parent.live();
-    assert!(AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, &mut c).is_err());
+    assert!(
+        AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, &mut c)
+            .is_err()
+    );
     assert!(!c.has_slot());
     assert_eq!(parent.live(), baseline);
     assert_eq!(parent.scratch_observation().0, 0);
     assert_eq!(runtime_root_tables(&f.conn, true), damaged);
 }
-
 
 #[test]
 fn h1_control_originals_are_retained_on_the_same_parent_and_released() {
@@ -412,10 +564,21 @@ fn h1_control_originals_are_retained_on_the_same_parent_and_released() {
     let parent = owner.complete_budget_for_test();
     let retained = owner.history_retained_bytes();
     assert!(retained > 0);
-    assert!(owner.history_clamp.borrow().as_ref().unwrap().parent().unwrap().same_parent(&parent));
+    assert!(owner
+        .history_clamp
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .same_parent(&parent));
     let before = parent.live();
     owner.history_clamp.borrow_mut().as_mut().unwrap().retire();
-    assert_eq!(before - parent.live(), retained, "控制容器由父账先收后还，工作域元数据已随run释放");
+    assert_eq!(
+        before - parent.live(),
+        retained,
+        "控制容器由父账先收后还，工作域元数据已随run释放"
+    );
     assert_eq!(owner.history_retained_bytes(), 0);
 }
 
@@ -428,9 +591,15 @@ fn h1_control_parent_rebind_precedes_warm_request_observation() {
     let total = 536_870_912;
     let partition = owner.old_pool_partition(None).unwrap();
     let mut next = request_audit::RequestAuditContext::with_source_keeper(
-        cross_request_source_cache::Keeper::new(total));
-    next.freeze_manifest_workspace_partition(total, 0, partition).unwrap();
-    let current = next.prepare_parent(Some(&parent)).unwrap().allocation_parent().clone();
+        cross_request_source_cache::Keeper::new(total),
+    );
+    next.freeze_manifest_workspace_partition(total, 0, partition)
+        .unwrap();
+    let current = next
+        .prepare_parent(Some(&parent))
+        .unwrap()
+        .allocation_parent()
+        .clone();
     assert!(parent.same_parent(&current));
     assert!(parent.check_current().is_err(), "真实冻结域已前进");
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
@@ -455,8 +624,17 @@ fn h1_control_observation_budget_failure_retires_without_writing() {
     let before = runtime_root_tables(&f.conn, true);
     let held = parent.reserve(parent.remaining() - 1).unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
-    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
-        &s_allocation::Mode::CapturedNative, &mut c).is_err());
+    assert!(owner
+        .admit(
+            b2_envelope(2),
+            "1",
+            &clock,
+            tb02a::PROFILE,
+            Some("1"),
+            &s_allocation::Mode::CapturedNative,
+            &mut c
+        )
+        .is_err());
     drop(held);
     assert!(owner.retired.get());
     assert!(owner.connection.is_autocommit());
@@ -464,7 +642,6 @@ fn h1_control_observation_budget_failure_retires_without_writing() {
     assert_eq!(parent.scratch_observation().0, 0);
     assert_eq!(runtime_root_tables(&f.conn, true), before);
 }
-
 
 #[test]
 fn h1_certified_commit_failure_releases_controls_before_return() {
@@ -477,8 +654,17 @@ fn h1_certified_commit_failure_releases_controls_before_return() {
     let before = runtime_root_tables(&f.conn, true);
     owner.connection.commit_hook(Some(|| true)).unwrap();
     let clock = v2::stored_clock(&owner.connection).unwrap();
-    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
-        &s_allocation::Mode::CapturedNative, &mut c).is_err());
+    assert!(owner
+        .admit(
+            b2_envelope(2),
+            "1",
+            &clock,
+            tb02a::PROFILE,
+            Some("1"),
+            &s_allocation::Mode::CapturedNative,
+            &mut c
+        )
+        .is_err());
     // 不再begin或drop owner：Err本身必须已经完成退役与费用释放。
     assert!(owner.retired.get());
     assert!(owner.connection.is_autocommit());
@@ -492,12 +678,20 @@ fn h1_certified_commit_failure_releases_controls_before_return() {
 // Probe windows encompass check_appended_work, not all request source reads.
 // Every actual RawEventsView::get / RawIter::next in that window is counted.
 fn h1_assert_raw_suffix_reads(events: &[serde_json::Value], require_empty_step: bool) {
-    let values = |phase| events.iter().filter(|e| e["phase"] == phase)
-        .map(|e| e["generation"].as_i64().unwrap()).collect::<Vec<_>>();
+    let values = |phase| {
+        events
+            .iter()
+            .filter(|e| e["phase"] == phase)
+            .map(|e| e["generation"].as_i64().unwrap())
+            .collect::<Vec<_>>()
+    };
     let reads = values("h1_raw_suffix_reads");
     let deltas = values("h1_raw_suffix_delta");
     assert!(!reads.is_empty(), "must exercise real owner suffix checks");
-    assert_eq!(reads, deltas, "no previously certified raw event may be visited");
+    assert_eq!(
+        reads, deltas,
+        "no previously certified raw event may be visited"
+    );
     if require_empty_step {
         assert!(deltas.contains(&0), "Begin must exercise a no-new-raw step");
     }
@@ -508,9 +702,20 @@ fn h1_raw_suffix_probe_detects_linear_skip_regression() {
     let values = vec![serde_json::json!(null); 32];
     let (_, events, _) = state::traced(false, || {
         let _probe = super::super::business_json::H1RawSuffixProbe::start(1);
-        assert_eq!(super::super::business_json::RawEventsView::plain(&values)
-            .iter().skip(31).count(), 1);
+        assert_eq!(
+            super::super::business_json::RawEventsView::plain(&values)
+                .iter()
+                .skip(31)
+                .count(),
+            1
+        );
     });
-    let reads = events.iter().find(|e| e["phase"] == "h1_raw_suffix_reads").unwrap();
-    assert_eq!(reads["generation"], 32, "probe must see skipped prefix accesses");
+    let reads = events
+        .iter()
+        .find(|e| e["phase"] == "h1_raw_suffix_reads")
+        .unwrap();
+    assert_eq!(
+        reads["generation"], 32,
+        "probe must see skipped prefix accesses"
+    );
 }

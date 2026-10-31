@@ -23,6 +23,8 @@ AUDIT_PROTOTYPE_DB
 AUDIT_PROTOTYPE_REPORT
 Accept不能推进发布游标
 Access期限检查没有返回
+AuditLedgerStale：待准备事实代号不连续
+AuditLedgerStale：待准备事实请求或模式无效
 B 首读仍 cold
 B-1 拒绝不使会话失效
 B/B+1 接纳全部剩余节点，含 LF 与逗号
@@ -98,6 +100,7 @@ Native不创建OwnedBudget
 Native准入不可擦除Owned JSON
 Native必须保持Plain名分
 Native捕获尚未获准
+Native真实prepare须签发来源组装证明
 Native移入许可返还失配
 Native解析必须保留Plain名分
 Native许可不得随借用store提前释放
@@ -227,6 +230,8 @@ TOP/BOTTOM 窗口必产 CC007
 Template损坏必须拒绝
 TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
+TestOnly-raw-budget
+TestOnly-raw-partition
 TestOnly-same-content
 TestOnly-storage-fixture/1
 TestOnly：Budget 故障仅用于 Owned 模式
@@ -383,6 +388,7 @@ put 入参核 F；Missing 无旧 F
 put 总是实际 SELECT
 put不得提前核F
 queue Layout应被拒绝
+queued单位不增加同形真实owner无台账路径的组装次数
 r3完整Some F次数
 r3完整Some读取轨迹
 raw 前缀链可用
@@ -447,6 +453,7 @@ v4：Native许可随事实对象析构返还原父域，回到调用方已持有
 v4：离开WorkScope且全部对象析构后只剩父账元数据，无滞留许可
 verification memo 随操作析构
 warm 只重核真实根 header
+warm/cold Native每代各消费一次来源后缀，Ordinary不新增义务
 wire `input_refs` 必须借 producer 的 wire_input_refs 同根
 wire merged_index 必须是文本
 wire 装配不得读取载荷子图（记录自身字段根除外）
@@ -1122,6 +1129,7 @@ writer/recover闭合后无SHM
 来源对象重审位置不匹配
 来源文本是合法 JSON
 来源版本变了必须真正撤销旧事实
+来源认证必须在读取下一代之前完成
 来源证书不签发完整候选资格
 来源证书身份坐标不可固定
 来源贡献前根不匹配

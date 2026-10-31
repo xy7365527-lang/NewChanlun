@@ -98,13 +98,15 @@ pub(super) mod cold_root_probe {
 #[path = "construction_set.rs"]
 mod construction_set;
 #[cfg(feature = "s_incremental")]
-pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
-#[cfg(feature = "s_incremental")]
 pub(crate) use super::source_audit::source_receipt::RawReceipt;
+#[cfg(feature = "s_incremental")]
+pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
 #[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use effects::PublicationStageIdentity;
 #[cfg(feature = "s_incremental")]
-pub(crate) use effects::{MaterialAccess, QualifiedSourceCut, SourceCutBinding, SourceMaterial, StageKind};
+pub(crate) use effects::{
+    MaterialAccess, QualifiedSourceCut, SourceCutBinding, SourceMaterial, StageKind,
+};
 #[path = "construction_state.rs"]
 mod construction_state;
 #[cfg_attr(
@@ -351,7 +353,11 @@ impl AuditConnection {
     #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
     pub(super) fn open_history_component(db: &Path, control_limit: usize) -> Result<Self, String> {
         let owner = Self::open(db)?;
-        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(&owner.connection, db, control_limit)?);
+        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(
+            &owner.connection,
+            db,
+            control_limit,
+        )?);
         let active = owner.begin(TransactionBehavior::Deferred)?;
         active.read_end()?;
         Ok(owner)
@@ -375,7 +381,10 @@ impl AuditConnection {
         };
         let mut owner = Self::open(db)?;
         *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open_in_parent(
-            &owner.connection, db, control_limit, Some(parent),
+            &owner.connection,
+            db,
+            control_limit,
+            Some(parent),
         )?);
         let result = (|| {
             let active = owner.begin(TransactionBehavior::Deferred)?;
@@ -385,7 +394,9 @@ impl AuditConnection {
             owner.continue_with(ended)?;
             Ok(())
         })();
-        if result.is_err() { drop(context.take()); }
+        if result.is_err() {
+            drop(context.take());
+        }
         owner.history_result(result)?;
         owner.require_historical_certificate = true;
         Ok(owner)
@@ -401,11 +412,23 @@ impl AuditConnection {
     }
 
     #[cfg(all(feature = "s_incremental", unix))]
-    fn bind_history_parent(&self, context: &request_audit::RequestAuditContext) -> Result<(), String> {
-        let parent = self.history_clamp.borrow().as_ref().and_then(|c| c.parent()).cloned();
+    fn bind_history_parent(
+        &self,
+        context: &request_audit::RequestAuditContext,
+    ) -> Result<(), String> {
+        let parent = self
+            .history_clamp
+            .borrow()
+            .as_ref()
+            .and_then(|c| c.parent())
+            .cloned();
         if let Some(parent) = parent {
             let result = context.bind_complete_budget(&parent).and_then(|bound| {
-                self.history_clamp.borrow_mut().as_mut().unwrap().rebind_parent(&bound)
+                self.history_clamp
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .rebind_parent(&bound)
             });
             self.history_result(result)?;
         }
@@ -415,9 +438,16 @@ impl AuditConnection {
     #[cfg(feature = "s_incremental")]
     fn history_retained_bytes(&self) -> usize {
         #[cfg(unix)]
-        { self.history_clamp.borrow().as_ref().map_or(0, |c| c.retained_bytes()) }
+        {
+            self.history_clamp
+                .borrow()
+                .as_ref()
+                .map_or(0, |c| c.retained_bytes())
+        }
         #[cfg(not(unix))]
-        { 0 }
+        {
+            0
+        }
     }
 
     fn invalidate_construction(&self) {
@@ -428,7 +458,9 @@ impl AuditConnection {
     fn clear_candidates(&self) {
         #[cfg(all(feature = "s_incremental", unix))]
         if self.retired.get() {
-            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() { clamp.retire(); }
+            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() {
+                clamp.retire();
+            }
         }
         self.invalidate_construction();
         self.clear_optional_candidates();
@@ -449,7 +481,9 @@ impl AuditConnection {
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<AuditTxn<'_>, String> {
         #[cfg(all(feature = "s_incremental", unix))]
-        if let Some(context) = context { self.bind_history_parent(context)?; }
+        if let Some(context) = context {
+            self.bind_history_parent(context)?;
+        }
         #[cfg(not(all(feature = "s_incremental", unix)))]
         let _ = context;
         self.begin(behavior)
@@ -1004,7 +1038,9 @@ impl AuditConnection {
             return;
         }
         // 完整候选由本 owner 的无写审计或固定 effects 核验签发；来源池独立移交。
-        let cap = context.complete_retention_cap().saturating_sub(self.history_retained_bytes());
+        let cap = context
+            .complete_retention_cap()
+            .saturating_sub(self.history_retained_bytes());
         let raw_retained = self
             .construction
             .get_mut()
@@ -1201,17 +1237,31 @@ impl AuditTxn<'_> {
             native::Failure::BudgetExceeded => invalid("冷认证父预算不足"),
             native::Failure::Invalid(error) => error,
         };
-        let mut candidate = parent.codec_work().map_err(failure)?.run(|work| {
-            let audited = state::HistoricalCertificate::cold_for_request(
-                self.tx(), deadline, work, context,
-            )?;
-            let slot = context.take().ok_or_else(|| invalid("冷认证缺完整原件槽"))?;
-            CompleteCandidate::capture(
-                self.tx(), seal, slot, audited,
-                context.complete_workspace_limit(), context.complete_entry_reserved_bytes(),
-                Some(&parent),
-            )?.map_err(|_| invalid("冷认证完整候选超过请求预算"))
-        }).map_err(|error| failure(native::Failure::from(error)))?;
+        let mut candidate = parent
+            .codec_work()
+            .map_err(failure)?
+            .run(|work| {
+                let audited = state::HistoricalCertificate::cold_for_request(
+                    self.tx(),
+                    deadline,
+                    work,
+                    context,
+                )?;
+                let slot = context
+                    .take()
+                    .ok_or_else(|| invalid("冷认证缺完整原件槽"))?;
+                CompleteCandidate::capture(
+                    self.tx(),
+                    seal,
+                    slot,
+                    audited,
+                    context.complete_workspace_limit(),
+                    context.complete_entry_reserved_bytes(),
+                    Some(&parent),
+                )?
+                .map_err(|_| invalid("冷认证完整候选超过请求预算"))
+            })
+            .map_err(|error| failure(native::Failure::from(error)))?;
         candidate.resources = context.bind_complete_budget(&candidate.resources)?;
         self.owner.bind_history_parent(context)?;
         history::check_deadline(deadline)?;
@@ -1223,7 +1273,8 @@ impl AuditTxn<'_> {
     #[cfg(all(feature = "s_incremental", unix))]
     fn check_history(&self) -> Result<(), String> {
         let result = match self.owner.history_clamp.borrow_mut().as_mut() {
-            Some(clamp) => clamp.check(self), None => Ok(()),
+            Some(clamp) => clamp.check(self),
+            None => Ok(()),
         };
         self.owner.history_result(result)
     }
@@ -1286,7 +1337,9 @@ impl AuditTxn<'_> {
             let checked = (|| {
                 let clamp = self.owner.history_clamp.borrow();
                 let candidate = self.history_write.borrow();
-                let candidate = candidate.as_ref().ok_or_else(|| history_clamp::stale("提交缺已核自身effects"))?;
+                let candidate = candidate
+                    .as_ref()
+                    .ok_or_else(|| history_clamp::stale("提交缺已核自身effects"))?;
                 clamp.as_ref().unwrap().check_candidate(self, candidate)
             })();
             self.owner.history_result(checked)?;
@@ -1326,7 +1379,13 @@ impl AuditTxn<'_> {
         );
         #[cfg(all(feature = "s_incremental", unix))]
         let history_monitor = {
-            let armed = self.owner.history_clamp.borrow().as_ref().map(history_clamp::Clamp::arm_commit).transpose();
+            let armed = self
+                .owner
+                .history_clamp
+                .borrow()
+                .as_ref()
+                .map(history_clamp::Clamp::arm_commit)
+                .transpose();
             self.owner.history_result(armed)?
         };
         self.owner.connection.flush_prepared_statement_cache();
@@ -1364,7 +1423,13 @@ impl AuditTxn<'_> {
             }
             if result.is_ok() {
                 let candidate = self.history_write.borrow_mut().take().unwrap();
-                let checked = self.owner.history_clamp.borrow_mut().as_mut().unwrap().committed(candidate, history_monitor.as_ref().unwrap());
+                let checked = self
+                    .owner
+                    .history_clamp
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .committed(candidate, history_monitor.as_ref().unwrap());
                 self.owner.history_result(checked)?;
             }
         }
@@ -1523,20 +1588,22 @@ impl AuditConnection {
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn complete_retained_bytes(&self) -> usize {
-        self.history_retained_bytes().saturating_add(self.complete
-            .borrow()
-            .as_ref()
-            .map_or(0, |c| {
-                c.charge
-                    .total
-                    .saturating_add(native::Budget::metadata_bytes())
-            })
-            .saturating_add(
-                self.construction
-                    .borrow()
-                    .as_ref()
-                    .map_or(0, |c| c.retained_bytes()),
-            ))
+        self.history_retained_bytes().saturating_add(
+            self.complete
+                .borrow()
+                .as_ref()
+                .map_or(0, |c| {
+                    c.charge
+                        .total
+                        .saturating_add(native::Budget::metadata_bytes())
+                })
+                .saturating_add(
+                    self.construction
+                        .borrow()
+                        .as_ref()
+                        .map_or(0, |c| c.retained_bytes()),
+                ),
+        )
     }
     /// #1488 P1-1（v4「冻结old_pool费用分区」）：O逐项照合同额收，不以max(L)补差；
     /// 同父物理L0由分区只读一次，超出同父合同额的真实分配为uncovered并消耗A。
@@ -1563,7 +1630,11 @@ impl AuditConnection {
         }
         let history_bytes = self.history_retained_bytes();
         if history_bytes != 0 {
-            partition.item("history_clamp.control_originals", P::ON_PARENT, history_bytes)?;
+            partition.item(
+                "history_clamp.control_originals",
+                P::ON_PARENT,
+                history_bytes,
+            )?;
         }
         if let Some(raw) = self.construction.borrow().as_ref() {
             // 状态许可从候选同一父账拆出；缺候选即无从证明驻留，由分区拒绝。
@@ -2104,7 +2175,9 @@ impl AuditTxn<'_> {
         if self.owner.history_clamp.borrow().is_some() {
             self.check_history()?;
             if self.recording.borrow().is_none() {
-                return self.owner.history_result(Err(history_clamp::stale("写前缺声明effects记录")));
+                return self
+                    .owner
+                    .history_result(Err(history_clamp::stale("写前缺声明effects记录")));
             }
         }
         // 必须发生在任何固定 operation（含 Noop）的第一条写 SQL 之前。
@@ -2140,9 +2213,12 @@ impl AuditTxn<'_> {
     ) -> Result<(), String> {
         #[cfg(all(feature = "s_incremental", unix))]
         if self.owner.require_historical_certificate
-            && (!matches!(mode, s_allocation::Mode::CapturedNative) || !context.source_cache_enabled())
+            && (!matches!(mode, s_allocation::Mode::CapturedNative)
+                || !context.source_cache_enabled())
         {
-            return self.owner.history_result(Err(history_clamp::stale("认证生涯不能切换到非认证准入")));
+            return self
+                .owner
+                .history_result(Err(history_clamp::stale("认证生涯不能切换到非认证准入")));
         }
         #[cfg(feature = "s_incremental")]
         if self.owner.construction.borrow().is_some()
@@ -2207,14 +2283,18 @@ impl AuditTxn<'_> {
                 }
                 #[cfg(unix)]
                 if self.owner.history_clamp.borrow().is_some() {
-                    return self.owner.history_result(Err(history_clamp::stale("已核候选失效，禁止完整审计兜底")));
+                    return self.owner.history_result(Err(history_clamp::stale(
+                        "已核候选失效，禁止完整审计兜底",
+                    )));
                 }
                 // 尚未建立增量游标的独立冷入口保持既有完整审计。
                 drop(candidate);
             }
             #[cfg(unix)]
             if self.owner.require_historical_certificate {
-                return self.owner.history_result(Err(history_clamp::stale("认证生涯丢失历史候选，禁止完整审计兜底")));
+                return self.owner.history_result(Err(history_clamp::stale(
+                    "认证生涯丢失历史候选，禁止完整审计兜底",
+                )));
             }
             if self.owner.construction.borrow().is_some() {
                 self.owner.invalidate_construction();
@@ -3258,7 +3338,9 @@ impl AuditTxn<'_> {
             let reject_warm = || {
                 #[cfg(unix)]
                 if self.owner.require_historical_certificate {
-                    return self.owner.history_result(Err(history_clamp::stale("认证生涯缺同快照历史候选")));
+                    return self
+                        .owner
+                        .history_result(Err(history_clamp::stale("认证生涯缺同快照历史候选")));
                 }
                 if self.owner.construction.borrow().is_some() {
                     self.owner.invalidate_construction();
@@ -3459,9 +3541,13 @@ impl AuditTxn<'_> {
                         (limit / 8).min(recording_cap),
                         strict || {
                             #[cfg(unix)]
-                            { self.owner.history_clamp.borrow().is_some() }
+                            {
+                                self.owner.history_clamp.borrow().is_some()
+                            }
                             #[cfg(not(unix))]
-                            { false }
+                            {
+                                false
+                            }
                         },
                         &candidate.resources,
                         candidate.limit,
@@ -3570,7 +3656,10 @@ impl AuditTxn<'_> {
             #[cfg(unix)]
             let history_candidate = {
                 let clamp = self.owner.history_clamp.borrow();
-                clamp.as_ref().map(|c| c.candidate(self, &effects)).transpose()?
+                clamp
+                    .as_ref()
+                    .map(|c| c.candidate(self, &effects))
+                    .transpose()?
             };
             let set = effects.set.take();
             // 真实旧投影核仍负责 birth/revision/withdrawal/辅助合并的双向语义；
@@ -3625,7 +3714,9 @@ impl AuditTxn<'_> {
             }
             *self.complete.borrow_mut() = Some(candidate);
             #[cfg(unix)]
-            { *self.history_write.borrow_mut() = history_candidate; }
+            {
+                *self.history_write.borrow_mut() = history_candidate;
+            }
         }
         Ok(())
     }

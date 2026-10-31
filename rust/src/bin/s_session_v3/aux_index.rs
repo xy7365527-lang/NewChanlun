@@ -4410,10 +4410,22 @@ impl Index {
 #[cfg(all(test, feature = "s_incremental"))]
 impl NativeAuxFacts {
     pub(super) fn h1_canonical(&self) -> Value {
-        let Self { witnesses, relations, observations, born, duplicates, raw_scanned, raw_revisions } = self;
+        let Self {
+            witnesses,
+            relations,
+            observations,
+            born,
+            duplicates,
+            raw_scanned,
+            raw_revisions,
+        } = self;
         let maps = [witnesses, relations, observations].map(|m| {
-            let mut rows = m.iter().map(|(k,v)|json!([k.as_str(),v])).collect::<Vec<_>>();
-            rows.sort_by_key(crate::canonical_json); rows
+            let mut rows = m
+                .iter()
+                .map(|(k, v)| json!([k.as_str(), v]))
+                .collect::<Vec<_>>();
+            rows.sort_by_key(crate::canonical_json);
+            rows
         });
         json!({"identities":maps,"born":born.iter().map(|m|m.iter().map(|(k,v)|json!([k,v.as_ref()])).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "duplicates":duplicates,"raw_scanned":raw_scanned,"raw_revisions":raw_revisions.as_ref()})
@@ -4422,7 +4434,12 @@ impl NativeAuxFacts {
 #[cfg(all(test, feature = "s_incremental"))]
 impl Index {
     pub(super) fn h1_canonical(&self) -> Value {
-        let Self { witnesses, relations, observations, budget: _ } = self;
+        let Self {
+            witnesses,
+            relations,
+            observations,
+            budget: _,
+        } = self;
         json!({
             "witnesses":witnesses.iter().map(|w| { let Witness { id, object_id, slot, merged_index, generated, wire, first } = w;
                 json!({"id":id,"object_id":object_id,"slot":slot,"merged_index":merged_index,"generated":generated,"wire":wire,"first":first}) }).collect::<Vec<_>>(),

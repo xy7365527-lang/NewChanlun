@@ -536,7 +536,6 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
     )
 }
 
-
 #[cfg(feature = "s_incremental")]
 pub(super) fn fold_certified_history(
     tx: &Transaction<'_>,
@@ -549,8 +548,19 @@ pub(super) fn fold_certified_history(
     certify: &mut dyn CutSourceVerifier,
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
-        tx, raw, control, deadline, None, budget, true, Some(capture),
-        None, work, None, SourcePolicy::NativeMeasured, false,
+        tx,
+        raw,
+        control,
+        deadline,
+        None,
+        budget,
+        true,
+        Some(capture),
+        None,
+        work,
+        None,
+        SourcePolicy::NativeMeasured,
+        false,
         &mut Some(certify),
     )
 }
@@ -9012,8 +9022,18 @@ impl NativeRawPrefixes {
             let PrefixArray { count, stack } = value;
             json!({"count":count,"stack":stack.as_ref()})
         }
-        let Self { raw_nodes, raw_wire_nodes, prefixes, ordered } = self;
-        let NativeHistoryPrefixes { raw, wire, effective, last_coord } = prefixes;
+        let Self {
+            raw_nodes,
+            raw_wire_nodes,
+            prefixes,
+            ordered,
+        } = self;
+        let NativeHistoryPrefixes {
+            raw,
+            wire,
+            effective,
+            last_coord,
+        } = prefixes;
         json!({"raw_nodes":raw_nodes.as_ref(),"raw_wire_nodes":raw_wire_nodes.as_ref(),
             "prefixes":{"raw":array(raw),"wire":array(wire),"effective":effective.as_ref().map(array),"last_coord":last_coord},
             "ordered":ordered.h1_canonical()})

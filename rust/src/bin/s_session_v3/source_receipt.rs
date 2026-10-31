@@ -45,11 +45,12 @@ pub(crate) fn audit_raw_receipt(
     }
     let mut s = super::super::audit_store::StoreView::generic(store);
     let counts = audit_generated_in_store(
-        &mut s, generated, raw, profile, rule, deadline, budget,
-        None, None, None, None, None,
+        &mut s, generated, raw, profile, rule, deadline, budget, None, None, None, None, None,
     )?;
-    export_raw_receipt(&mut s, token, generation, generated, raw, raw_from,
-        profile, rule, deadline, budget, counts)
+    export_raw_receipt(
+        &mut s, token, generation, generated, raw, raw_from, profile, rule, deadline, budget,
+        counts,
+    )
 }
 
 fn export_raw_receipt(
@@ -69,7 +70,9 @@ fn export_raw_receipt(
         return Err(err("P6来源收据请求或raw区间无效"));
     }
     super::super::history::check_deadline(deadline)?;
-    let frontier = i64::try_from(raw.len()).map_err(err)?.checked_sub(1)
+    let frontier = i64::try_from(raw.len())
+        .map_err(err)?
+        .checked_sub(1)
         .ok_or_else(|| err("P6原始前沿溢出"))?;
     if number(s, generated, "generation")? != generation
         || number(s, generated, "input_frontier")? != frontier
@@ -86,16 +89,20 @@ fn export_raw_receipt(
         super::super::history::check_deadline(deadline)?;
         let event = raw.get(ordinal).ok_or_else(|| err("P6原始账区间缺行"))?;
         let seq = bj::field(event, "seq")
-            .as_i64().ok_or_else(|| err("P6原始seq非i64"))?;
+            .as_i64()
+            .ok_or_else(|| err("P6原始seq非i64"))?;
         if usize::try_from(seq).ok() != Some(ordinal) {
             return Err(err("P6原始seq与独立原件ordinal不连续"));
         }
-        let event_digest = super::super::history::hash_json_in_store(
-            s, event, deadline, budget,
-        )?;
+        let event_digest = super::super::history::hash_json_in_store(s, event, deadline, budget)?;
         let bar_digest = source_pending::raw_bar(s, event, deadline, budget)?;
         s.native_codec_room(&mut rows, 1).map_err(err)?;
-        rows.try_push(RawRow { seq, event_digest, bar_digest }).map_err(err)?;
+        rows.try_push(RawRow {
+            seq,
+            event_digest,
+            bar_digest,
+        })
+        .map_err(err)?;
     }
     super::super::history::check_deadline(deadline)?;
     Ok(RawReceipt {
@@ -128,9 +135,16 @@ pub(crate) fn receipt_from_native(
     let counts = qualified.consume(material, generated, raw, metadata, None)?;
     let result = export_raw_receipt(
         &mut super::super::audit_store::StoreView::generic(store),
-        token, metadata.generation, generated, raw.raw(), raw_from,
-        &metadata.profile_id, &metadata.rule_revision,
-        None, None, counts,
+        token,
+        metadata.generation,
+        generated,
+        raw.raw(),
+        raw_from,
+        &metadata.profile_id,
+        &metadata.rule_revision,
+        None,
+        None,
+        counts,
     )?;
     raw.ensure_current()?;
     Ok(result)
@@ -150,10 +164,20 @@ impl sc::NodeSource for DeadlineSource<'_> {
     fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
         self.source.codec_work()
     }
-    fn max_render_bytes(&self) -> Option<u64> { self.source.max_render_bytes() }
-    fn audit_full_array_scan(&self) -> bool { self.source.audit_full_array_scan() }
-    fn preserve_sequence_read_trace(&self) -> bool { self.source.preserve_sequence_read_trace() }
-    fn before_path_index(&mut self, prefix: &[sc::path::PathStep], index: u64) -> Result<(), sc::CodecError> {
+    fn max_render_bytes(&self) -> Option<u64> {
+        self.source.max_render_bytes()
+    }
+    fn audit_full_array_scan(&self) -> bool {
+        self.source.audit_full_array_scan()
+    }
+    fn preserve_sequence_read_trace(&self) -> bool {
+        self.source.preserve_sequence_read_trace()
+    }
+    fn before_path_index(
+        &mut self,
+        prefix: &[sc::path::PathStep],
+        index: u64,
+    ) -> Result<(), sc::CodecError> {
         self.check()?;
         self.source.before_path_index(prefix, index)?;
         self.check()
@@ -161,17 +185,27 @@ impl sc::NodeSource for DeadlineSource<'_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         self.read_scoped(digest)?.into_plain()
     }
-    fn read_scoped(&mut self, digest: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
+    fn read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
         self.check()?;
         let read = self.source.read_scoped(digest)?;
         self.check()?;
         Ok(read)
     }
-    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
         self.checked_read_scoped(digest)?
-            .map(sc::job::ScopedFrame::into_frame).transpose()
+            .map(sc::job::ScopedFrame::into_frame)
+            .transpose()
     }
-    fn checked_read_scoped(&mut self, digest: &NodeDigest) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+    fn checked_read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
         self.check()?;
         let frame = self.source.checked_read_scoped(digest)?;
         self.check()?;
@@ -191,8 +225,10 @@ impl sc::NodeSink for DeadlineSource<'_> {
 }
 
 fn same_ref(a: sc::RefView<'_>, b: sc::RefView<'_>) -> bool {
-    a.format() == b.format() && a.root() == b.root()
-        && a.kind() == b.kind() && a.extent() == b.extent()
+    a.format() == b.format()
+        && a.root() == b.root()
+        && a.kind() == b.kind()
+        && a.extent() == b.extent()
 }
 
 /// 同请求四根及来源结果绑定；不签发 U-A，不允许历史 frontier 输入。
@@ -210,7 +246,10 @@ impl RawReceipt {
         f: impl FnOnce(&mut dyn NodeStore) -> Result<T, String>,
     ) -> Result<T, String> {
         super::super::history::check_deadline(self.deadline)?;
-        let result = f(&mut DeadlineSource { source: store, deadline: self.deadline })?;
+        let result = f(&mut DeadlineSource {
+            source: store,
+            deadline: self.deadline,
+        })?;
         super::super::history::check_deadline(self.deadline)?;
         Ok(result)
     }
@@ -224,9 +263,12 @@ impl RawReceipt {
         generated: sc::RefView<'_>,
     ) -> Result<(), String> {
         super::super::history::check_deadline(self.deadline)?;
-        if self.token.as_str() != token || self.generation != generation
-            || self.rule.as_str() != rule || self.raw_from != raw_range.start
-            || self.raw_to != raw_range.end || !same_ref((&self.scope).into(), scope)
+        if self.token.as_str() != token
+            || self.generation != generation
+            || self.rule.as_str() != rule
+            || self.raw_from != raw_range.start
+            || self.raw_to != raw_range.end
+            || !same_ref((&self.scope).into(), scope)
             || !same_ref((&self.generated).into(), generated)
         {
             return Err(err("P6来源收据与发布请求不符"));
@@ -242,27 +284,56 @@ impl RawReceipt {
         scope: sc::RefView<'_>,
         generated: sc::RefView<'_>,
     ) -> Result<(), String> {
-        let raw_to = input_frontier.checked_add(1).and_then(|n| usize::try_from(n).ok())
+        let raw_to = input_frontier
+            .checked_add(1)
+            .and_then(|n| usize::try_from(n).ok())
             .ok_or_else(|| err("P6发布前沿无效"))?;
         if self.profile.as_str() != profile {
             return Err(err("P6来源profile与发布不同"));
         }
-        self.check_request(&self.token, generation, rule, self.raw_from..raw_to, scope, generated)
+        self.check_request(
+            &self.token,
+            generation,
+            rule,
+            self.raw_from..raw_to,
+            scope,
+            generated,
+        )
     }
     pub(crate) fn check_raw_partition(
-        &self, token: &str, metadata: &crate::content_manifest::ManifestMetadata,
+        &self,
+        token: &str,
+        metadata: &crate::content_manifest::ManifestMetadata,
         roots: &impl crate::content_manifest::ManifestRootSource,
     ) -> Result<std::ops::Range<usize>, String> {
         let roots = roots.view();
-        self.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
-            metadata.input_frontier, (&metadata.scope).into(), roots.generated_state)?;
-        self.check_request(token, metadata.generation, &metadata.rule_revision,
-            self.raw_from..self.raw_to, (&metadata.scope).into(), roots.generated_state)?;
+        self.check_manifest(
+            metadata.generation,
+            &metadata.profile_id,
+            &metadata.rule_revision,
+            metadata.input_frontier,
+            (&metadata.scope).into(),
+            roots.generated_state,
+        )?;
+        self.check_request(
+            token,
+            metadata.generation,
+            &metadata.rule_revision,
+            self.raw_from..self.raw_to,
+            (&metadata.scope).into(),
+            roots.generated_state,
+        )?;
         Ok(self.raw_from..self.raw_to)
     }
-    pub(crate) fn request_token(&self) -> &str { self.token.as_str() }
-    pub(crate) fn counts(&self) -> &Counts { &self.counts }
-    pub(crate) fn rows(&self) -> &[RawRow] { &self.rows }
+    pub(crate) fn request_token(&self) -> &str {
+        self.token.as_str()
+    }
+    pub(crate) fn counts(&self) -> &Counts {
+        &self.counts
+    }
+    pub(crate) fn rows(&self) -> &[RawRow] {
+        &self.rows
+    }
     pub(crate) fn bind_four_roots(
         self,
         store: &mut dyn NodeStore,
@@ -270,21 +341,31 @@ impl RawReceipt {
     ) -> Result<PreparedReceipt, String> {
         super::super::history::check_deadline(self.deadline)?;
         if !same_ref((&self.scope).into(), roots[0])
-            || !same_ref((&self.generated).into(), roots[1]) {
+            || !same_ref((&self.generated).into(), roots[1])
+        {
             return Err(err("P6四根中的scope/generated与已核来源不同"));
         }
         let owned = {
             let s = super::super::audit_store::StoreView::generic(store);
-            [s.native_plain_ref(roots[0]).map_err(err)?,
-             s.native_plain_ref(roots[1]).map_err(err)?,
-             s.native_plain_ref(roots[2]).map_err(err)?,
-             s.native_plain_ref(roots[3]).map_err(err)?]
+            [
+                s.native_plain_ref(roots[0]).map_err(err)?,
+                s.native_plain_ref(roots[1]).map_err(err)?,
+                s.native_plain_ref(roots[2]).map_err(err)?,
+                s.native_plain_ref(roots[3]).map_err(err)?,
+            ]
         };
-        let mut bounded = DeadlineSource { source: store, deadline: self.deadline };
-        let closure = closure_delta::probe_four_roots(&mut bounded, roots, &EmptyFrontier)
-            .map_err(err)?;
+        let mut bounded = DeadlineSource {
+            source: store,
+            deadline: self.deadline,
+        };
+        let closure =
+            closure_delta::probe_four_roots(&mut bounded, roots, &EmptyFrontier).map_err(err)?;
         super::super::history::check_deadline(self.deadline)?;
-        Ok(PreparedReceipt { source: self, roots: owned, closure })
+        Ok(PreparedReceipt {
+            source: self,
+            roots: owned,
+            closure,
+        })
     }
 }
 
@@ -303,10 +384,16 @@ impl PreparedReceipt {
         roots: [sc::RefView<'_>; 4],
     ) -> Result<RawReceipt, String> {
         super::super::history::check_deadline(self.source.deadline)?;
-        if self.source.token.as_str() != token || self.source.generation != generation
+        if self.source.token.as_str() != token
+            || self.source.generation != generation
             || self.source.rule.as_str() != rule
-            || self.source.raw_from != raw_range.start || self.source.raw_to != raw_range.end
-            || !self.roots.iter().zip(roots).all(|(a, b)| same_ref(a.into(), b))
+            || self.source.raw_from != raw_range.start
+            || self.source.raw_to != raw_range.end
+            || !self
+                .roots
+                .iter()
+                .zip(roots)
+                .all(|(a, b)| same_ref(a.into(), b))
         {
             return Err(err("P6发布收据与本请求、来源区间或四根不一致"));
         }
@@ -331,14 +418,23 @@ pub(crate) fn take_publication_consumed_for_test() -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sc::capture_allocation::scratch::{CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkScope};
-    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    use sc::capture_allocation::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkScope,
+    };
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
     use std::time::{Duration, Instant};
 
     struct Parent(AtomicUsize);
     impl ScratchParent for Parent {
-        fn health(&self) -> Result<(), ScratchFailure> { Ok(()) }
-        fn invalidate(&self) { panic!("unexpected invalidation"); }
+        fn health(&self) -> Result<(), ScratchFailure> {
+            Ok(())
+        }
+        fn invalidate(&self) {
+            panic!("unexpected invalidation");
+        }
         fn reserve(&self, n: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
             self.0.fetch_add(n, Ordering::SeqCst);
             Ok(0)
@@ -355,7 +451,9 @@ mod tests {
         expire_at_read: Option<(usize, Instant)>,
     }
     impl sc::NodeSource for ScopedStore<'_> {
-        fn codec_work(&self) -> Option<&WorkScope> { Some(self.work) }
+        fn codec_work(&self) -> Option<&WorkScope> {
+            Some(self.work)
+        }
         fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
             self.reads += 1;
             if let Some((at, deadline)) = self.expire_at_read {
@@ -367,7 +465,9 @@ mod tests {
         }
     }
     impl sc::NodeSink for ScopedStore<'_> {
-        fn codec_sink_work(&self) -> Option<&WorkScope> { Some(self.work) }
+        fn codec_sink_work(&self) -> Option<&WorkScope> {
+            Some(self.work)
+        }
         fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
             self.nodes.put(digest, tag, body)
         }
@@ -376,8 +476,12 @@ mod tests {
     fn roots(s: &mut sc::MemoryNodes, state: &ContentRef) -> [ContentRef; 4] {
         let scope = field_ref(s, state.into(), "scope").unwrap();
         let v = scope.view();
-        let scope = ContentRef { format: v.format().into(), root: v.root().into(),
-            kind: v.kind(), extent: v.extent() };
+        let scope = ContentRef {
+            format: v.format().into(),
+            root: v.root().into(),
+            kind: v.kind(),
+            extent: v.extent(),
+        };
         [scope, state.clone(), state.clone(), state.clone()]
     }
 
@@ -385,53 +489,92 @@ mod tests {
         let (mut nodes, state, raw, rule) = super::super::tests::fixture();
         let refs = roots(&mut nodes, &state);
         let parent = Arc::new(Parent(AtomicUsize::new(0)));
-        CodecWork::new(parent.clone(), 8 * 1024 * 1024).unwrap().run(|work| {
-            let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
-            let retained_before = parent.0.load(Ordering::SeqCst);
-            let deadline = Instant::now() + Duration::from_secs(3);
-            let source = audit_raw_receipt(&mut store, "request-a", 1, (&state).into(),
-                (&raw).into(), 0, tb02a::PROFILE, &rule, Some(deadline), None).unwrap();
-            assert_eq!(source.deadline, Some(deadline));
-            assert!(parent.0.load(Ordering::SeqCst) > retained_before);
-            store.reads = 0;
-            let failure = match boundary {
-                0 => {
-                    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
-                    let error = source.bind_four_roots(&mut store, refs.each_ref().map(Into::into))
-                        .err().expect("expired source receipt must not bind");
-                    assert_eq!(store.reads, 0);
-                    error
-                }
-                1 => {
-                    store.expire_at_read = Some((4, deadline));
-                    let error = source.bind_four_roots(&mut store, refs.each_ref().map(Into::into))
-                        .err().expect("expiry during traversal must not issue a receipt");
-                    assert_eq!(store.reads, 4);
-                    error
-                }
-                2 => {
-                    let receipt = source.bind_four_roots(&mut store, refs.each_ref().map(Into::into)).unwrap();
-                    assert!(work.snapshot().live > 0);
-                    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
-                    receipt.consume("request-a", 1, &rule, 0..raw.len(), refs.each_ref().map(Into::into))
-                        .err().expect("expiry after binding must reject consumption")
-                }
-                _ => unreachable!(),
-            };
-            assert!(failure.contains("VerifyDeadline"), "{failure}");
-            assert_eq!(work.snapshot().live, 0);
-            assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
-            Ok::<_, sc::CodecError>(())
-        }).unwrap();
+        CodecWork::new(parent.clone(), 8 * 1024 * 1024)
+            .unwrap()
+            .run(|work| {
+                let mut store = ScopedStore {
+                    nodes: &mut nodes,
+                    work,
+                    reads: 0,
+                    expire_at_read: None,
+                };
+                let retained_before = parent.0.load(Ordering::SeqCst);
+                let deadline = Instant::now() + Duration::from_secs(3);
+                let source = audit_raw_receipt(
+                    &mut store,
+                    "request-a",
+                    1,
+                    (&state).into(),
+                    (&raw).into(),
+                    0,
+                    tb02a::PROFILE,
+                    &rule,
+                    Some(deadline),
+                    None,
+                )
+                .unwrap();
+                assert_eq!(source.deadline, Some(deadline));
+                assert!(parent.0.load(Ordering::SeqCst) > retained_before);
+                store.reads = 0;
+                let failure = match boundary {
+                    0 => {
+                        std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+                        let error = source
+                            .bind_four_roots(&mut store, refs.each_ref().map(Into::into))
+                            .err()
+                            .expect("expired source receipt must not bind");
+                        assert_eq!(store.reads, 0);
+                        error
+                    }
+                    1 => {
+                        store.expire_at_read = Some((4, deadline));
+                        let error = source
+                            .bind_four_roots(&mut store, refs.each_ref().map(Into::into))
+                            .err()
+                            .expect("expiry during traversal must not issue a receipt");
+                        assert_eq!(store.reads, 4);
+                        error
+                    }
+                    2 => {
+                        let receipt = source
+                            .bind_four_roots(&mut store, refs.each_ref().map(Into::into))
+                            .unwrap();
+                        assert!(work.snapshot().live > 0);
+                        std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+                        receipt
+                            .consume(
+                                "request-a",
+                                1,
+                                &rule,
+                                0..raw.len(),
+                                refs.each_ref().map(Into::into),
+                            )
+                            .err()
+                            .expect("expiry after binding must reject consumption")
+                    }
+                    _ => unreachable!(),
+                };
+                assert!(failure.contains("VerifyDeadline"), "{failure}");
+                assert_eq!(work.snapshot().live, 0);
+                assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
         assert_eq!(parent.0.load(Ordering::SeqCst), 0);
     }
 
     #[test]
-    fn p6_raw_receipt_expired_before_binding_releases_budget() { deadline_failure(0); }
+    fn p6_raw_receipt_expired_before_binding_releases_budget() {
+        deadline_failure(0);
+    }
     #[test]
-    fn p6_raw_receipt_expired_during_closure_releases_budget() { deadline_failure(1); }
+    fn p6_raw_receipt_expired_during_closure_releases_budget() {
+        deadline_failure(1);
+    }
     #[test]
-    fn p6_raw_receipt_expired_before_consumption_releases_budget() { deadline_failure(2); }
+    fn p6_raw_receipt_expired_before_consumption_releases_budget() {
+        deadline_failure(2);
+    }
 
     #[test]
     fn p6_raw_partition_borrows_original_payload_and_releases_pending_parent_fees() {
@@ -446,45 +589,93 @@ mod tests {
         metadata.profile_id = tb02a::PROFILE.into();
         metadata.rule_revision = rule.clone();
         let manifest_roots = crate::content_manifest::ManifestRoots {
-            generated_state: refs[1].clone(), publication_template: refs[2].clone(), delta_template: refs[3].clone(),
+            generated_state: refs[1].clone(),
+            publication_template: refs[2].clone(),
+            delta_template: refs[3].clone(),
         };
         for wrong_token in [false, true] {
-            let name = if wrong_token { "raw-budget-reject.sqlite" } else { "raw-budget.sqlite" };
-            let mut ledger = audit_ledger::Ledger::fresh_raw_partition(&db.with_file_name(name), &db,
-                audit_ledger::Identity { rule_revision: rule.clone(), content_identity: "TestOnly-raw-budget".into(),
-                    binary_commit: "test-only".into() }, 64 * 1024 * 1024).unwrap();
+            let name = if wrong_token {
+                "raw-budget-reject.sqlite"
+            } else {
+                "raw-budget.sqlite"
+            };
+            let mut ledger = audit_ledger::Ledger::fresh_raw_partition(
+                &db.with_file_name(name),
+                &db,
+                audit_ledger::Identity {
+                    rule_revision: rule.clone(),
+                    content_identity: "TestOnly-raw-budget".into(),
+                    binary_commit: "test-only".into(),
+                },
+                64 * 1024 * 1024,
+            )
+            .unwrap();
             let parent = Arc::new(Parent(AtomicUsize::new(0)));
-            CodecWork::new(parent.clone(), 8 * 1024 * 1024).unwrap().run(|work| {
-                let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
-                let retained_before = parent.0.load(Ordering::SeqCst);
-                let source = audit_raw_receipt(&mut store, "raw-request", 1, (&generated).into(),
-                    (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
-                let payload = source.rows().as_ptr();
-                // NativeReservation直接归父账，WorkSnapshot只计scratch Layout。
-                let live = parent.0.load(Ordering::SeqCst);
-                assert!(live > retained_before);
-                let token = if wrong_token { "wrong-request" } else { "raw-request" };
-                let result = ledger.stage_raw_partition(token, &metadata, &manifest_roots, &source, Some(work));
-                assert_eq!(source.rows().as_ptr(), payload);
-                if wrong_token {
-                    assert!(result.is_err());
-                    assert!(ledger.raw_partition_through().is_err());
-                } else {
-                    result.unwrap();
-                    assert!(parent.0.load(Ordering::SeqCst) > live);
-                    let reader = rusqlite::Connection::open(db.with_file_name(name)).unwrap();
-                    assert_eq!(reader.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
-                    ledger.bind(token, &metadata, &manifest_roots).unwrap();
-                    ledger.content_committed().unwrap();
-                    assert_eq!(ledger.raw_partition_through().unwrap(), 1);
-                    assert!(ledger.committed_through().is_err());
-                }
-                assert_eq!(parent.0.load(Ordering::SeqCst), live);
-                drop(source);
-                assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
-                assert_eq!(work.snapshot().live, 0);
-                Ok::<_, sc::CodecError>(())
-            }).unwrap();
+            CodecWork::new(parent.clone(), 8 * 1024 * 1024)
+                .unwrap()
+                .run(|work| {
+                    let mut store = ScopedStore {
+                        nodes: &mut nodes,
+                        work,
+                        reads: 0,
+                        expire_at_read: None,
+                    };
+                    let retained_before = parent.0.load(Ordering::SeqCst);
+                    let source = audit_raw_receipt(
+                        &mut store,
+                        "raw-request",
+                        1,
+                        (&generated).into(),
+                        (&raw).into(),
+                        0,
+                        tb02a::PROFILE,
+                        &rule,
+                        None,
+                        None,
+                    )
+                    .unwrap();
+                    let payload = source.rows().as_ptr();
+                    // NativeReservation直接归父账，WorkSnapshot只计scratch Layout。
+                    let live = parent.0.load(Ordering::SeqCst);
+                    assert!(live > retained_before);
+                    let token = if wrong_token {
+                        "wrong-request"
+                    } else {
+                        "raw-request"
+                    };
+                    let result = ledger.stage_raw_partition(
+                        token,
+                        &metadata,
+                        &manifest_roots,
+                        &source,
+                        Some(work),
+                    );
+                    assert_eq!(source.rows().as_ptr(), payload);
+                    if wrong_token {
+                        assert!(result.is_err());
+                        assert!(ledger.raw_partition_through().is_err());
+                    } else {
+                        result.unwrap();
+                        assert!(parent.0.load(Ordering::SeqCst) > live);
+                        let reader = rusqlite::Connection::open(db.with_file_name(name)).unwrap();
+                        assert_eq!(
+                            reader
+                                .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                                .unwrap(),
+                            0
+                        );
+                        ledger.bind(token, &metadata, &manifest_roots).unwrap();
+                        ledger.content_committed().unwrap();
+                        assert_eq!(ledger.raw_partition_through().unwrap(), 1);
+                        assert!(ledger.committed_through().is_err());
+                    }
+                    assert_eq!(parent.0.load(Ordering::SeqCst), live);
+                    drop(source);
+                    assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
+                    assert_eq!(work.snapshot().live, 0);
+                    Ok::<_, sc::CodecError>(())
+                })
+                .unwrap();
             assert_eq!(parent.0.load(Ordering::SeqCst), 0);
         }
     }
@@ -493,19 +684,36 @@ mod tests {
     fn p6_raw_receipt_preserves_full_event_and_only_requested_suffix() {
         let (mut s, state, raw, rule) = super::super::tests::fixture();
         let from = raw.len() - 1;
-        let receipt = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
-            (&raw).into(), from, tb02a::PROFILE, &rule, None, None).unwrap();
+        let receipt = audit_raw_receipt(
+            &mut s,
+            "request-a",
+            1,
+            (&state).into(),
+            (&raw).into(),
+            from,
+            tb02a::PROFILE,
+            &rule,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(receipt.rows().len(), 1);
         let row = &receipt.rows()[0];
         assert_eq!(row.seq, from as i64);
-        assert_eq!(row.event_digest, super::super::super::history::hash_json_metered(
-            &raw[from], None, None).unwrap());
+        assert_eq!(
+            row.event_digest,
+            super::super::super::history::hash_json_metered(&raw[from], None, None).unwrap()
+        );
         let mut altered = raw[from].clone();
         altered["receipt_id"] = json!("different-original-receipt");
-        assert_ne!(row.event_digest, super::super::super::history::hash_json_metered(
-            &altered, None, None).unwrap());
-        assert_eq!(row.bar_digest, source_pending::raw_bar(
-            &s, (&altered).into(), None, None).unwrap());
+        assert_ne!(
+            row.event_digest,
+            super::super::super::history::hash_json_metered(&altered, None, None).unwrap()
+        );
+        assert_eq!(
+            row.bar_digest,
+            source_pending::raw_bar(&s, (&altered).into(), None, None).unwrap()
+        );
         assert!(receipt.counts().objects > 0);
     }
 
@@ -513,10 +721,21 @@ mod tests {
     fn p6_raw_receipt_source_failure_issues_nothing() {
         let (mut s, state, mut raw, rule) = super::super::tests::fixture();
         raw[0]["high"] = json!("99999");
-        let full = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule)
-            .unwrap_err();
-        let failure = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
-            (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).err().unwrap();
+        let full = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
+        let failure = audit_raw_receipt(
+            &mut s,
+            "request-a",
+            1,
+            (&state).into(),
+            (&raw).into(),
+            0,
+            tb02a::PROFILE,
+            &rule,
+            None,
+            None,
+        )
+        .err()
+        .unwrap();
         assert_eq!(failure, full);
     }
 
@@ -525,27 +744,66 @@ mod tests {
         let (mut s, state, raw, rule) = super::super::tests::fixture();
         let refs = roots(&mut s, &state);
         for changed in 0..8 {
-            let source = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
-                (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
-            let receipt = source.bind_four_roots(&mut s, refs.each_ref().map(Into::into)).unwrap();
+            let source = audit_raw_receipt(
+                &mut s,
+                "request-a",
+                1,
+                (&state).into(),
+                (&raw).into(),
+                0,
+                tb02a::PROFILE,
+                &rule,
+                None,
+                None,
+            )
+            .unwrap();
+            let receipt = source
+                .bind_four_roots(&mut s, refs.each_ref().map(Into::into))
+                .unwrap();
             let mut supplied = refs.clone();
-            if changed < 4 { supplied[changed].extent = Some(u64::MAX); }
-            let token = if changed == 4 { "request-b" } else { "request-a" };
+            if changed < 4 {
+                supplied[changed].extent = Some(u64::MAX);
+            }
+            let token = if changed == 4 {
+                "request-b"
+            } else {
+                "request-a"
+            };
             let generation = if changed == 5 { 2 } else { 1 };
             let revision = if changed == 6 { "other-rule" } else { &rule };
             let start = usize::from(changed == 7);
-            assert!(receipt.consume(token, generation, revision, start..raw.len(),
-                supplied.each_ref().map(Into::into)).is_err());
+            assert!(receipt
+                .consume(
+                    token,
+                    generation,
+                    revision,
+                    start..raw.len(),
+                    supplied.each_ref().map(Into::into)
+                )
+                .is_err());
         }
     }
 
     #[test]
     fn p6_raw_receipt_fourth_root_failure_issues_no_prepared_receipt() {
         let (mut s, state, raw, rule) = super::super::tests::fixture();
-        let source = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
-            (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
+        let source = audit_raw_receipt(
+            &mut s,
+            "request-a",
+            1,
+            (&state).into(),
+            (&raw).into(),
+            0,
+            tb02a::PROFILE,
+            &rule,
+            None,
+            None,
+        )
+        .unwrap();
         let mut refs = roots(&mut s, &state);
         refs[3].root = "not-a-content-root".into();
-        assert!(source.bind_four_roots(&mut s, refs.each_ref().map(Into::into)).is_err());
+        assert!(source
+            .bind_four_roots(&mut s, refs.each_ref().map(Into::into))
+            .is_err());
     }
 }
