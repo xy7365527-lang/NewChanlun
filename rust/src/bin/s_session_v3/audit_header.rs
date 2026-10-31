@@ -5,6 +5,7 @@ use super::{
 };
 use crate::content_manifest::{MetadataView, RootsView, SourceCommitView};
 
+#[cfg_attr(all(test, feature = "s_incremental"), derive(serde::Serialize))]
 pub(crate) struct AuditSourceCommit {
     pub source_namespace: TextValue,
     pub source_epoch: TextValue,
@@ -16,6 +17,7 @@ pub(crate) struct AuditSourceCommit {
     pub attempt_index: i64,
 }
 
+#[cfg_attr(all(test, feature = "s_incremental"), derive(serde::Serialize))]
 pub(crate) struct AuditMetadata {
     pub session_id: TextValue,
     pub session_generation: TextValue,
@@ -33,6 +35,7 @@ pub(crate) struct AuditMetadata {
     pub source_commit: AuditSourceCommit,
     pub scope: RefValue,
 }
+#[cfg_attr(all(test, feature = "s_incremental"), derive(serde::Serialize))]
 pub(crate) struct AuditRoots {
     pub generated_state: RefValue,
     pub publication_template: RefValue,
@@ -192,7 +195,7 @@ impl std::fmt::Debug for AuditRoots {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;

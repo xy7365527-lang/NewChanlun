@@ -2060,7 +2060,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_wire_records_and_birth_reference_keep_permits_after_scope() {
         let mut fixture = fixture();
@@ -2112,7 +2112,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_wire_bad_early_record_precedes_bad_late_life_and_releases_all_owners() {
         let mut fixture = fixture();
@@ -2160,7 +2160,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_wire_valid_record_late_life_error_and_early_resource_keep_priority() {
         let mut fixture = fixture();
@@ -3270,7 +3270,7 @@ impl std::fmt::Debug for LifeOwner {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};

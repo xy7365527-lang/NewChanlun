@@ -1562,19 +1562,19 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
 mod catalog_axis_owner_tests {
     use super::*;
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(unused_imports, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     use newchan_rust::s_content::capture_allocation::scratch::{
         CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
     };
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(unused_imports, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     use std::sync::{Arc, Mutex};
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     struct Parent {
@@ -1659,7 +1659,7 @@ mod catalog_axis_owner_tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn catalog_root_outlives_scope_and_every_capacity_failure_releases_partial_axes() {
         let rows = objects();

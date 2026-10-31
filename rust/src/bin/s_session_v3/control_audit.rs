@@ -481,7 +481,7 @@ mod tests {
         history.finish().unwrap();
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r12_native_control_cold_matches_plain_published_facts_on_parent_scope() {
         let domain = published_domain();
@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r12_native_control_cold_matches_plain_empty_domain_on_parent_scope() {
         let temp = Temp::new();

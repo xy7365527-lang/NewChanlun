@@ -9,14 +9,14 @@ use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json::TextValue;
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         unused_imports,
-        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
     )
 )]
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 #[allow(
     unused_imports,
@@ -170,13 +170,13 @@ impl ManifestRootSource for ManifestRoots {
         ManifestRoots::view(self)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeRoots {
     generated_state: NativeValue<ContentRef>,
     publication_template: NativeValue<ContentRef>,
     delta_template: NativeValue<ContentRef>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeRoots {
     fn from_view(roots: RootsView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
         Ok(Self {
@@ -189,7 +189,7 @@ impl NativeRoots {
         })
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl ManifestRootSource for NativeRoots {
     fn view(&self) -> RootsView<'_> {
         RootsView {
@@ -199,14 +199,14 @@ impl ManifestRootSource for NativeRoots {
         }
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn same_reference(a: s_content::RefView<'_>, b: s_content::RefView<'_>) -> bool {
     a.format() == b.format()
         && a.root() == b.root()
         && a.kind() == b.kind()
         && a.extent() == b.extent()
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn same_roots(a: RootsView<'_>, b: RootsView<'_>) -> bool {
     same_reference(a.generated_state, b.generated_state)
         && same_reference(a.publication_template, b.publication_template)
@@ -461,8 +461,8 @@ impl RootsOwner {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
-struct NativeMetadata {
+#[cfg(feature = "s_incremental")]
+pub(crate) struct NativeMetadata {
     session_id: NativeValue<String>,
     session_generation: NativeValue<String>,
     writer_epoch: NativeValue<String>,
@@ -486,9 +486,12 @@ struct NativeMetadata {
     attempt_index: i64,
     scope: NativeValue<ContentRef>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeMetadata {
-    fn from_view(m: MetadataView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
+    pub(crate) fn from_view(
+        m: MetadataView<'_>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, CodecError> {
         Ok(Self {
             session_id: NativeValue::<String>::try_from_str(m.session_id, work)?,
             session_generation: NativeValue::<String>::try_from_str(m.session_generation, work)?,
@@ -523,7 +526,35 @@ impl NativeMetadata {
             scope: NativeValue::<ContentRef>::try_from_view(m.scope, work)?,
         })
     }
-    fn matches(&self, m: MetadataView<'_>) -> bool {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + [
+                &self.session_id,
+                &self.session_generation,
+                &self.writer_epoch,
+                &self.base_cut,
+                &self.structure_cut,
+                &self.clock_plan_hash,
+                &self.semantic_commit_ns,
+                &self.profile_id,
+                &self.profile_hash,
+                &self.rule_revision,
+                &self.catalog_revision,
+                &self.source_namespace,
+                &self.source_epoch,
+                &self.message_id,
+                &self.payload_hash,
+                &self.producer_id,
+                &self.producer_epoch,
+                &self.clock_event_id,
+            ]
+            .iter()
+            .map(|text| text.capacity())
+            .sum::<usize>()
+            + self.scope.format.capacity()
+            + self.scope.root.capacity()
+    }
+    pub(crate) fn matches(&self, m: MetadataView<'_>) -> bool {
         self.session_id.as_str() == m.session_id
             && self.session_generation.as_str() == m.session_generation
             && self.writer_epoch.as_str() == m.writer_epoch
@@ -552,15 +583,17 @@ impl NativeMetadata {
 pub(super) struct UnpublishedManifest {
     pub value: Built,
     pub batch_id: TextValue,
+    #[cfg(feature = "s_incremental")]
+    closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 
 // #1394 Native-only, transaction-local manifest workspace. The constructor below is the
 // only issuer: successful unchanged manifest rules plus the complete actual read/write set.
 // Changing those rules requires incrementing this revision. Modes and Flavor::Value remain
 // fixed by assemble_manifest_body; no caller-provided "same" or root-only success token.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 const MANIFEST_WORKSPACE_REVISION: u32 = 1;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Copy, Debug, Default, serde::Serialize)]
 pub(crate) struct ManifestWorkspaceStats {
     pub issued: u64,
@@ -585,16 +618,16 @@ pub(crate) struct ManifestWorkspaceStats {
     pub last_workspace_source_cost: u64,
     pub max_recording_source_cost: u64,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 thread_local! {
     static MANIFEST_WORKSPACE_STATS: std::cell::Cell<ManifestWorkspaceStats> =
         std::cell::Cell::new(ManifestWorkspaceStats::default());
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn manifest_workspace_stats() -> ManifestWorkspaceStats {
     MANIFEST_WORKSPACE_STATS.with(std::cell::Cell::get)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn record_workspace_stats(f: impl FnOnce(&mut ManifestWorkspaceStats)) {
     MANIFEST_WORKSPACE_STATS.with(|stats| {
         let mut value = stats.get();
@@ -604,7 +637,7 @@ fn record_workspace_stats(f: impl FnOnce(&mut ManifestWorkspaceStats)) {
 }
 /// Opt-in TestOnly stderr diagnostics. This does not grant workspace qualification or
 /// alter protocol replies; failed diagnostic writes must not change the business result.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn diagnose_manifest_workspace(
     stage: &str,
     generation: i64,
@@ -619,7 +652,7 @@ fn diagnose_manifest_workspace(
     }
     use std::io::Write as _;
     let line = serde_json::json!({
-        "diagnostic": "NativeTestOnlyManifestWorkspace",
+        "diagnostic": "WriterRetentionWorkspace",
         "stage": stage,
         "generation": generation,
         "stats_scope": "thread_cumulative_sums_and_maxima",
@@ -630,7 +663,7 @@ fn diagnose_manifest_workspace(
     });
     let _ = writeln!(std::io::stderr().lock(), "{line}");
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) struct PreparedManifestWorkspace {
     revision: u32,
     format: &'static str,
@@ -645,7 +678,7 @@ pub(crate) struct PreparedManifestWorkspace {
     // originals 先释放，树许可后归还；随 workspace move，不复制全池。
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl PreparedManifestWorkspace {
     /// Consume into a fixed, exclusive transaction phase. The private lease has no raw SQL,
     /// hook or connection access API. Nothing qualified is returned to the Commit caller.
@@ -675,13 +708,13 @@ impl PreparedManifestWorkspace {
             roots,
             manifest,
             work,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             None,
         )
     }
     /// staged 臂：本租约新写节点只进暂存，由 Commit 的 Final cut 仅落可达闭包；
     /// 原件重绑仍只读真实 SQL，暂存层不冒充素材。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn resolve_in_publication_staged(
         self,
         tx: &mut rusqlite::Transaction<'_>,
@@ -702,7 +735,7 @@ impl PreparedManifestWorkspace {
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+        #[cfg(all(test, feature = "s_incremental"))] stage: Option<
             &super::staged_nodes::StageOwner<'_>,
         >,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
@@ -725,18 +758,18 @@ impl PreparedManifestWorkspace {
                 manifest,
                 previous_frontier,
                 work,
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 stage,
             )
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativePublicationLease<'lease, 'conn> {
     tx: &'lease mut rusqlite::Transaction<'conn>,
     insert_can_preserve: bool,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
     fn new(tx: &'lease mut rusqlite::Transaction<'conn>) -> Result<Self, CodecError> {
         let insert_can_preserve = super::content_store::publication_insert_gate(tx)?;
@@ -753,7 +786,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         manifest: &UnpublishedManifest,
         previous_frontier: i64,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+        #[cfg(all(test, feature = "s_incremental"))] stage: Option<
             &super::staged_nodes::StageOwner<'_>,
         >,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
@@ -762,7 +795,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         let before = manifest_workspace_stats();
         let tx = &*self.tx;
         let mut store = PublicationMaterialStore::new(tx, self.insert_can_preserve).with_work(work);
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         {
             store.stage = stage;
         }
@@ -858,7 +891,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
 
 /// Private to the fixed Native publication lease. The actual SQL rebind is the sole issuer;
 /// no constructor, serialization, transaction getter or caller-provided bool grants a base.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct PublicationMaterialStore<'a, 'conn> {
     tx: &'a rusqlite::Transaction<'conn>,
     originals: std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
@@ -867,14 +900,14 @@ struct PublicationMaterialStore<'a, 'conn> {
     poisoned: bool,
     work: Option<&'a s_content::capture_allocation::scratch::WorkScope>,
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     rebinding: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     staged_puts: std::collections::BTreeSet<NodeDigest>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
     fn new(tx: &'a rusqlite::Transaction<'conn>, insert_can_preserve: bool) -> Self {
         Self {
@@ -885,11 +918,11 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
             poisoned: false,
             work: None,
             tree_permit: None,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             stage: None,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             rebinding: false,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             staged_puts: Default::default(),
         }
     }
@@ -916,12 +949,12 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         originals: &std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
     ) -> Result<bool, CodecError> {
         // 重绑只认真实 SQL 原件，暂存层新节点不冒充素材。
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         {
             self.rebinding = true;
         }
         let result = self.rebind_originals_inner(originals);
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         {
             self.rebinding = false;
         }
@@ -961,13 +994,13 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
                 Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
             } else {
                 record_workspace_stats(|stats| stats.publication_fallback_sql_reads += 1);
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 if let Some(stage) = self.stage {
                     stage.check_transaction(self.tx)?;
                 }
                 let current =
                     super::content_store::publication_read_checked(self.tx, digest, self.work)?;
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 // 只回读本租约自己 put 进暂存的新节点；其余暂存不冒充素材。
                 if current.is_none() && !self.rebinding && self.staged_puts.contains(digest) {
                     if let Some(stage) = self.stage {
@@ -984,7 +1017,7 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         result
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl s_content::NodeSource for PublicationMaterialStore<'_, '_> {
     fn checked_read_scoped(
         &mut self,
@@ -1011,7 +1044,7 @@ impl s_content::NodeSource for PublicationMaterialStore<'_, '_> {
         self.current_checked(digest)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
     fn codec_sink_work(&self) -> Option<&s_content::capture_allocation::scratch::WorkScope> {
         self.work
@@ -1029,10 +1062,10 @@ impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
             tag,
             body,
             self.work,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             self.stage,
         );
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if self.stage.is_some()
             && matches!(result, Ok(super::content_store::PublicationPutEffect::Noop))
         {
@@ -1057,7 +1090,7 @@ impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
         }
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn diagnose_manifest_publication_reuse(
     generation: i64,
     budget: crate::v3::ManifestWorkspaceBudget,
@@ -1075,7 +1108,7 @@ fn diagnose_manifest_publication_reuse(
     use std::io::Write as _;
     let after = manifest_workspace_stats();
     let line = serde_json::json!({
-        "diagnostic": "NativeTestOnlyManifestWorkspace",
+        "diagnostic": "WriterRetentionWorkspace",
         "stage": "publish-material-owner-dropped",
         "generation": generation,
         "budget": budget,
@@ -1096,7 +1129,7 @@ fn diagnose_manifest_publication_reuse(
 // Source-cost encoding, not heap accounting: text = u64 length + UTF-8 bytes;
 // ContentRef = both texts + kind/extent-present bytes + optional u64 extent. Numeric
 // metadata fields are i64, budget fields u64; Built is digest/kind/presence/extent.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn workspace_certificate_source_cost(
     m: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
@@ -1159,7 +1192,7 @@ fn workspace_certificate_source_cost(
     }
     Some(cost)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct ManifestRecordingStore<'a> {
     inner: &'a mut dyn NodeStore,
     allowance: usize,
@@ -1172,7 +1205,7 @@ struct ManifestRecordingStore<'a> {
     puts: s_content::CodecVec<NodeDigest>,
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl ManifestRecordingStore<'_> {
     fn record(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         let Some(originals) = &mut self.originals else {
@@ -1239,7 +1272,7 @@ impl ManifestRecordingStore<'_> {
         Ok(())
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl s_content::NodeSource for ManifestRecordingStore<'_> {
     fn checked_read_scoped(
         &mut self,
@@ -1276,7 +1309,7 @@ impl s_content::NodeSource for ManifestRecordingStore<'_> {
         Ok(result)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl s_content::NodeSink for ManifestRecordingStore<'_> {
     fn codec_sink_work(&self) -> Option<&s_content::capture_allocation::scratch::WorkScope> {
         self.inner.codec_sink_work()
@@ -1302,12 +1335,22 @@ impl s_content::NodeSink for ManifestRecordingStore<'_> {
         Ok(())
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn assemble_unpublished_with_workspace(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     budget: crate::v3::ManifestWorkspaceBudget,
+) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>), CodecError> {
+    assemble_workspace_units(store, metadata, roots, budget, false)
+}
+#[cfg(feature = "s_incremental")]
+fn assemble_workspace_units(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &(impl ManifestRootSource + ?Sized),
+    budget: crate::v3::ManifestWorkspaceBudget,
+    collect_units: bool,
 ) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>), CodecError> {
     let reserved_certificate = workspace_certificate_source_cost(metadata, roots, None, None)
         .filter(|cost| *cost <= budget.allowance());
@@ -1323,7 +1366,10 @@ pub(crate) fn assemble_unpublished_with_workspace(
         puts: Default::default(),
         tree_permit: None,
     };
-    let manifest = assemble_unpublished(&mut recording, metadata, roots)?;
+    let mut view = crate::v3::audit_store::StoreView::generic(&mut recording);
+    view.collect_manifest_units = collect_units;
+    let manifest = assemble_unpublished_in_store(&mut view, metadata, roots)?;
+    drop(view);
     let recording_peak_source_cost = recording.source_cost;
     if recording.originals.is_some() {
         let actual = workspace_certificate_source_cost(
@@ -1421,6 +1467,147 @@ pub(crate) fn assemble_unpublished_with_workspace(
     Ok((manifest, workspace))
 }
 
+/// 同次来源成功和清单完整组装的请求内证明；无 Clone、无反序列化、无公开构造。
+/// 原件在发布租约内仍须真实重绑，本类型不授予跨代跳过权限。
+#[cfg(feature = "s_incremental")]
+pub(crate) struct ManifestSourceReceipt {
+    source: crate::v3::audit_owner::RawReceipt,
+    metadata: NativeMetadata,
+    roots: NativeRoots,
+    manifest_value: Built,
+    batch_id: TextValue,
+    #[cfg(feature = "s_incremental")]
+    closure_units: Option<s_content::closure_delta::VerifiedUnits>,
+}
+#[cfg(feature = "s_incremental")]
+impl ManifestSourceReceipt {
+    pub(crate) fn take_verified_units(
+        &mut self,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+    ) -> Result<s_content::closure_delta::VerifiedUnits, String> {
+        if !self.metadata.matches(metadata.view())
+            || !same_roots(self.roots.view(), roots.view())
+            || self.manifest_value != manifest.value
+            || self.batch_id != manifest.batch_id
+        {
+            return Err("IdentityConflict：P6单位导出与当前清单不同".into());
+        }
+        self.source.check_manifest(
+            metadata.generation,
+            &metadata.profile_id,
+            &metadata.rule_revision,
+            metadata.input_frontier,
+            (&metadata.scope).into(),
+            roots.view().generated_state,
+        )?;
+        self.closure_units
+            .take()
+            .ok_or_else(|| "AuditLedgerStale：P6单位未收集或已消费".into())
+    }
+    pub(crate) fn consume(
+        self,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+        raw_range: std::ops::Range<usize>,
+    ) -> Result<crate::v3::audit_owner::RawReceipt, String> {
+        let metadata_view = metadata.view();
+        let roots_view = roots.view();
+        #[cfg(test)]
+        let (metadata_view, roots_view) = {
+            let mut metadata_view = metadata_view;
+            let mut roots_view = roots_view;
+            if let Some(root) = self.source.binding_root_for_test() {
+                let target = match root {
+                    0 => &mut metadata_view.scope,
+                    1 => &mut roots_view.generated_state,
+                    2 => &mut roots_view.publication_template,
+                    3 => &mut roots_view.delta_template,
+                    _ => unreachable!(),
+                };
+                let other = if root == 0 {
+                    roots.view().generated_state
+                } else {
+                    metadata.view().scope
+                };
+                assert!(!same_reference(*target, other));
+                *target = other;
+            }
+            (metadata_view, roots_view)
+        };
+        if !self.metadata.matches(metadata_view)
+            || !same_roots(self.roots.view(), roots_view)
+            || self.manifest_value != manifest.value
+            || self.batch_id != manifest.batch_id
+        {
+            return Err("IdentityConflict：P6组装证明与当前清单不同".into());
+        }
+        self.source.check_request(
+            token,
+            metadata.generation,
+            &metadata.rule_revision,
+            raw_range,
+            (&metadata.scope).into(),
+            roots.view().generated_state,
+        )?;
+        Ok(self.source)
+    }
+}
+
+/// 沿用既有workspace/无workspace存储选择，只组装一次；不另跑四根Probe。
+#[cfg(feature = "s_incremental")]
+pub(crate) fn assemble_with_source(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &(impl ManifestRootSource + ?Sized),
+    source: crate::v3::audit_owner::RawReceipt,
+    budget: Option<crate::v3::ManifestWorkspaceBudget>,
+    collect_units: bool,
+) -> Result<
+    (
+        UnpublishedManifest,
+        Option<PreparedManifestWorkspace>,
+        ManifestSourceReceipt,
+    ),
+    String,
+> {
+    source.check_manifest(
+        metadata.generation,
+        &metadata.profile_id,
+        &metadata.rule_revision,
+        metadata.input_frontier,
+        (&metadata.scope).into(),
+        roots.view().generated_state,
+    )?;
+    let (mut manifest, workspace) = source.with_store(store, |bounded| match budget {
+        Some(budget) => assemble_workspace_units(bounded, metadata, roots, budget, collect_units)
+            .map_err(|e| e.to_string()),
+        None => {
+            let mut view = crate::v3::audit_store::StoreView::generic(bounded);
+            view.collect_manifest_units = collect_units;
+            assemble_unpublished_in_store(&mut view, metadata, roots)
+                .map(|manifest| (manifest, None))
+                .map_err(|e| e.to_string())
+        }
+    })?;
+    let work = store.codec_work();
+    let proof = ManifestSourceReceipt {
+        source,
+        metadata: NativeMetadata::from_view(metadata.view(), work).map_err(|e| e.to_string())?,
+        roots: NativeRoots::from_view(roots.view(), work).map_err(|e| e.to_string())?,
+        manifest_value: manifest.value.clone(),
+        closure_units: manifest.closure_units.take(),
+        batch_id: TextValue::Plain(
+            NativeValue::<String>::try_from_str(&manifest.batch_id, work)
+                .map_err(|e| e.to_string())?,
+        ),
+    };
+    Ok((manifest, workspace, proof))
+}
+
 pub(super) fn assemble_unpublished(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
@@ -1460,6 +1647,8 @@ pub(crate) fn assemble_unpublished_view_in_store(
     });
     Ok(UnpublishedManifest {
         value: body.value,
+        #[cfg(feature = "s_incremental")]
+        closure_units: body.closure_units,
         batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
     })
 }
@@ -1477,6 +1666,8 @@ pub(crate) fn take_assemble_call_reads_for_test() -> Vec<(u64, u64)> {
 struct ManifestBody {
     value: Built,
     identity: NodeDigest,
+    #[cfg(feature = "s_incremental")]
+    closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 fn assemble_manifest_body(
     store: &mut crate::v3::audit_store::StoreView<'_, '_>,
@@ -1490,13 +1681,46 @@ fn assemble_manifest_body(
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
     #[cfg(test)]
     let sql = super::content_store::sql_reads_on_thread();
-    store.verify_ref(metadata.scope, s_content::Mode::Public)?;
-    require_kind(metadata.scope, Kind::Object, "scope")?;
-    store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
-    store.verify_many_ref(
-        [roots.publication_template, roots.delta_template],
-        s_content::Mode::Template,
-    )?;
+    let collect_units = {
+        #[cfg(feature = "s_incremental")]
+        {
+            store.collect_manifest_units
+        }
+        #[cfg(not(feature = "s_incremental"))]
+        {
+            false
+        }
+    };
+    #[cfg(feature = "s_incremental")]
+    let closure_units = if collect_units {
+        let units = s_content::closure_delta::verify_four_roots(
+            store,
+            [
+                metadata.scope,
+                roots.generated_state,
+                roots.publication_template,
+                roots.delta_template,
+            ],
+        )?;
+        require_kind(metadata.scope, Kind::Object, "scope")?;
+        Some(units)
+    } else {
+        None
+    };
+    if !collect_units {
+        #[cfg(test)]
+        crate::v3::diagnostic_trace_event("manifest_verify_scope", None);
+        store.verify_manifest_public(metadata.scope)?;
+        require_kind(metadata.scope, Kind::Object, "scope")?;
+        #[cfg(test)]
+        crate::v3::diagnostic_trace_event("manifest_verify_generated", None);
+        store.verify_manifest_public(roots.generated_state)?;
+        #[cfg(test)]
+        crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
+        store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;
+    }
+    #[cfg(test)]
+    crate::v3::diagnostic_trace_event("manifest_verify_complete", None);
     #[cfg(test)]
     ASSEMBLE_VERIFY_SQL_READS
         .with(|reads| reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql));
@@ -1650,7 +1874,12 @@ fn assemble_manifest_body(
     ];
     let value = store.write_template_view(VV::Object(&manifest_fields))?;
     let identity = s_content::frame(0x21, &value.digest);
-    Ok(ManifestBody { value, identity })
+    Ok(ManifestBody {
+        value,
+        identity,
+        #[cfg(feature = "s_incremental")]
+        closure_units,
+    })
 }
 
 fn text(value: &str) -> VV<'_> {
@@ -1870,14 +2099,14 @@ mod tests {
     use newchan_rust::s_content::{MemoryNodes, NumberToken, Value as V};
     use serde_json::{json, Value as J};
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn test_body(bytes: &[u8]) -> s_content::CodecVec<u8> {
         let mut body = s_content::CodecVec::default();
         body.try_extend_bytes(bytes).unwrap();
         body
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_metadata_and_roots_outlive_scope_and_drop_independently() {
         let (_, metadata, roots, _, _, _) = fixture();
@@ -1907,7 +2136,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_copy_failure_preserves_inputs_and_does_not_validate_early() {
         let (_, metadata, mut roots, _, _, _) = fixture();
@@ -1962,7 +2191,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_recorded_body_and_puts_keep_original_permits_after_scope() {
         use s_content::NodeSink;
@@ -2017,7 +2246,7 @@ mod tests {
     }
 
     // #1488 0035：originals 树增量许可——每个新条目只并入一份单条上界，峰值不含整树重复许可。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence() {
         use s_content::NodeSink;
@@ -2070,7 +2299,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_publication_material_owner_normal_puts_keep_base_and_read_targets_cold() {
         use s_content::{NodeSink, NodeSource};
@@ -2352,7 +2581,7 @@ mod tests {
             assert_eq!(Decimal::new(n).as_str(), n.to_string());
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_manifest_scope_preserves_identity_and_accounts_outputs() {
         let (mut nodes, metadata, roots, _, _, _) = fixture();
