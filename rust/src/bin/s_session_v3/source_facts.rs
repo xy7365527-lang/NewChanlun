@@ -38,6 +38,28 @@ pub(crate) fn coordinates_digest(s: &(impl CodecRead + ?Sized), values: &[i64]) 
     super::super::super::history::hash_json_in_store(s, JsonView::BorrowedArray(&coordinates), None, None)
 }
 
+pub(crate) fn observation_sources<'a>(
+    s: &mut (impl CodecRead + ?Sized), record: &RefValue,
+    mut group_sources: impl FnMut(i64) -> Option<&'a [i64]>,
+) -> Result<NodeDigest, String> {
+    let detail = field(s, record, "detail")?;
+    let coordinates = match s.lookup_optional_field_ref(detail.view(), "source_coords").map_err(err)? {
+        Some(source) => coords(s, &source)?,
+        None => {
+            let mut values = sc::CodecVec::default();
+            for name in ["window_start", "window_mid", "window_end"] {
+                let window = scalar(s, record, name)?;
+                if window.view().is_null() { continue; }
+                let index = window.view().as_i64().ok_or_else(|| err("P6观察窗口不是组位置"))?;
+                let sources = group_sources(index).ok_or_else(|| err("P6观察窗口缺同cut组来源"))?;
+                values = union_coords(s, &values, sources)?;
+            }
+            values
+        }
+    };
+    coordinates_digest(s, &coordinates)
+}
+
 fn object_record(s: &mut (impl CodecStore + ?Sized), root: sc::RefView<'_>, kind: &str) -> Result<NodeDigest, String> {
     let names: &[&str] = if kind == CC006_SHAPE_KIND { &SHAPE_SOURCE_FIELDS } else { &TYPED_SOURCE_FIELDS };
     let fields = SourceFields::read_subset(s, root, names)?;
@@ -56,6 +78,8 @@ pub(crate) fn export(
 ) -> Result<BusinessRows, String> {
     let mut rows = BusinessRows { objects: sc::CodecVec::default(), withdrawals: sc::CodecVec::default(),
         witnesses: sc::CodecVec::default(), observations: sc::CodecVec::default() };
+    #[cfg(all(test, feature = "s_incremental"))]
+    let mut _test_budget_reservation = None;
     for entry in &objects.births {
         let reference = s.native_built_ref(&entry.generated).map_err(err)?;
         let root = reference.view();
@@ -69,6 +93,8 @@ pub(crate) fn export(
         rows.objects.try_push(ObjectRow { id: s.native_string(entry.id.as_str()).map_err(err)?, record,
             sources: digest(&sources)?, first_generation,
             first_cut: s.native_string(first_cut.as_str()).map_err(err)?, published_generation }).map_err(err)?;
+        #[cfg(all(test, feature = "s_incremental"))]
+        if _test_budget_reservation.is_none() { _test_budget_reservation = fee_probe::block_after_object(); }
     }
     for withdrawal in bj::RawEventsView::from(&objects.withdrawals) {
         let id = bj::field(withdrawal, "object_id").as_str().ok_or_else(|| err("P6撤回缺身份"))?;

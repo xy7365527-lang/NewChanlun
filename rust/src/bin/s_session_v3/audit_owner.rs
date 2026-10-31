@@ -6285,6 +6285,17 @@ mod raw_native_move_ownership_tests {
 
 #[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
+    pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
+        let total = 64 * 1024 * 1024;
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(
+            super::cross_request_source_cache::Keeper::new(total));
+        context.freeze_manifest_workspace_budget(total, 0, 0).unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let active = self.begin(rusqlite::TransactionBehavior::Deferred).unwrap();
+        active.audit_admission(&json!({"payload":{"op":"ready"}}), &s_allocation::Mode::CapturedNative, &mut context).unwrap();
+        self.continue_with(active.read_end().unwrap()).unwrap();
+        context
+    }
     pub(super) fn complete_budget_for_test(&self) -> native::Budget {
         self.complete
             .borrow()

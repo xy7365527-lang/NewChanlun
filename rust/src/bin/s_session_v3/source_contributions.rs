@@ -1675,24 +1675,6 @@ impl NativeSourceState {
         }
         Ok(())
     }
-    fn observation_sources(&self, s: &mut SourceMaterial<'_, '_, '_, '_>, record: &RefValue) -> Result<NodeDigest, String> {
-        let detail = field(s, record, "detail")?;
-        let coordinates = match s.lookup_optional_field_ref(detail.view(), "source_coords").map_err(err)? {
-            Some(source) => coords(s, &source)?,
-            None => {
-                let mut values = sc::CodecVec::default();
-                for name in ["window_start", "window_mid", "window_end"] {
-                    let window = scalar(s, record, name)?;
-                    if window.view().is_null() { continue; }
-                    let index = window.view().as_i64().ok_or_else(|| err("P6观察窗口不是组位置"))?;
-                    let group = self.groups.get(&index).ok_or_else(|| err("P6观察窗口缺同cut组来源"))?;
-                    values = union_coords(s, &values, &group.sources)?;
-                }
-                values
-            }
-        };
-        super::source_receipt::source_facts::coordinates_digest(s, &coordinates)
-    }
     fn observation_phase(&mut self, s: &mut SourceMaterial<'_, '_, '_, '_>, export_sources: bool) -> Result<sc::CodecVec<(NodeDigest, NodeDigest)>, String> {
         let mut exported = sc::CodecVec::default();
         let stream = Stream::Array(SourceArray::Observations);
@@ -1743,7 +1725,8 @@ impl NativeSourceState {
                 return Err(err("观察原件与材料差分不同"));
             }
             if export_sources {
-                let source_digest = self.observation_sources(s, &record)?;
+                let source_digest = super::source_receipt::source_facts::observation_sources(s, &record,
+                    |index| self.groups.get(&index).map(|g| g.sources.as_slice()))?;
                 vec_push(s, &mut exported, (digest_want, source_digest))?;
             }
             let kind = text(s, &record, "kind")?;

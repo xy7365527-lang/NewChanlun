@@ -1320,7 +1320,10 @@ impl Runtime {
         state::trace_stage("prepare_source_audit", path, generation);
         #[cfg(feature = "s_incremental")]
         let source_receipt = if native.is_some() {
-            Some(source_audit::source_receipt::audit_raw_receipt(
+            let audit = if self.audit_ledger.as_ref().is_some_and(|ledger| ledger.is_source_partitions()) {
+                source_audit::source_receipt::audit_source_partitions_receipt
+            } else { source_audit::source_receipt::audit_raw_receipt };
+            Some(audit(
                 store, token, generation, (&generated.generated_state).into(),
                 audited.raw.view(),
                 usize::try_from(previous.checked_add(1).ok_or_else(|| err("raw前缀溢出"))?).map_err(err)?,
@@ -1849,6 +1852,12 @@ pub(crate) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn p6_source_partitions_real_owner_matches_originals_and_withdrawals() {
+        source_partitions_real_owner(false);
+        source_partitions_real_owner(true);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn source_partitions_real_owner(admitted: bool) {
         let mut f = Fixture::new();
         let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
         let db = f.db_path();
@@ -1859,15 +1868,17 @@ pub(crate) mod tests {
             64 * 1024 * 1024).unwrap()).unwrap();
         let events = [("a",0,6,12,3,7,1),("b",1,14,20,10,15,1),("c",2,6,12,3,7,1),
             ("b",1,14,21,10,15,2),("b",1,6,10,4,7,3)];
+        if admitted { source_audit::source_receipt::fee_probe::start(-1); }
         let mut replaced = false;
         let mut removed = false;
         for (i, &(key, at, open, high, low, close, revision)) in events.iter().enumerate() {
             let g = i as i64 + 1;
             let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), revision);
             let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
-            let (_, ended) = owner.publish(&mut runtime, &token, &envelope,
-                &mut request_audit::RequestAuditContext::default()).unwrap();
+            let mut context = if admitted { owner.p6_source_context_for_test() } else { request_audit::RequestAuditContext::default() };
+            let (_, ended) = owner.publish(&mut runtime, &token, &envelope, &mut context).unwrap();
             owner.continue_with(ended).unwrap();
+            if admitted { runtime.discard(); }
             let ledger = runtime.audit_ledger.as_ref().unwrap();
             assert_eq!(ledger.partial_through().unwrap(), g);
             assert!(ledger.committed_through().is_err());
@@ -1944,6 +1955,61 @@ pub(crate) mod tests {
         assert!(replaced);
         assert!(removed);
         assert_eq!(Connection::open(&path).unwrap().query_row("SELECT format FROM meta",[],|r|r.get::<_,String>(0)).unwrap(),"s-audit-ledger/source-partitions/1");
+        assert!(Connection::open(&path).unwrap().query_row("SELECT COUNT(*) FROM observation",[],|r|r.get::<_,i64>(0)).unwrap() > 0);
+        drop(runtime);
+        if admitted {
+            let fees = source_audit::source_receipt::fee_probe::finish();
+            assert_eq!(fees.len(), 5);
+            assert!(fees.iter().all(|f| f.held > 0 && f.business_released > 0 && f.raw_released > 0 && !f.refused));
+            assert!(fees.iter().any(|f| f.projection_released > 0), "必须实际持有并释放observation投影");
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_source_partitions_fees_release_after_refusal_and_commit_failure() {
+        for budget_refusal in [true, false] {
+            let mut f = Fixture::new();
+            let db = f.db_path();
+            let path = db.with_file_name("source-fee-failure.sqlite");
+            let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+            let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            runtime.install_audit_ledger(audit_ledger::Ledger::fresh_source_partitions(&path, &db,
+                audit_ledger::Identity { rule_revision: rule, content_identity: "TestOnly-fee-failure".into(),
+                    binary_commit: "test-only".into() }, 64 * 1024 * 1024).unwrap()).unwrap();
+            source_audit::source_receipt::fee_probe::start(if budget_refusal { 3 } else { -1 });
+            for (i, row) in [("a",0,6,12,3,7),("b",1,14,20,10,15),("c",2,6,12,3,7)].into_iter().enumerate() {
+                let g = i as i64 + 1;
+                let (envelope, token) = f.accept_begin(g, row, 1);
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let reader = Connection::open(&path).unwrap();
+                if g == 3 && !budget_refusal {
+                    reader.execute_batch("BEGIN").unwrap();
+                    reader.query_row("SELECT COUNT(*) FROM raw",[],|r|r.get::<_,i64>(0)).unwrap();
+                }
+                let mut context = owner.p6_source_context_for_test();
+                let result = owner.publish(&mut runtime, &token, &envelope, &mut context);
+                if g < 3 { owner.continue_with(result.unwrap().1).unwrap(); runtime.discard(); }
+                else {
+                    assert!(result.is_err());
+                    if !budget_refusal { reader.execute_batch("ROLLBACK").unwrap(); }
+                    assert_eq!(meta_i64(&f.conn,"generation").unwrap(), if budget_refusal { 2 } else { 3 });
+                    assert!(runtime.audit_ledger.as_ref().unwrap().partial_through().is_err());
+                    assert_eq!(reader.query_row("SELECT COUNT(*) FROM raw",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+                }
+            }
+            drop(runtime);
+            let fees = source_audit::source_receipt::fee_probe::finish();
+            assert_eq!(fees.len(),3);
+            let failed = fees.iter().find(|f| f.generation == 3).unwrap();
+            assert!(failed.raw_released > 0);
+            if budget_refusal {
+                assert!(failed.refused && failed.refusal_released > 0);
+                assert_eq!(failed.business_released,0);
+            } else {
+                assert!(!failed.refused && failed.held > 0 && failed.business_released > 0);
+            }
+        }
     }
 
     #[cfg(feature = "s_incremental")]

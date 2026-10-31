@@ -1503,6 +1503,8 @@ pub(super) fn audit_native_source(
             binding,
             set: construction_set::LazySet::new(seed, root, previous.as_ref())?,
         };
+        #[cfg(all(test, feature = "s_incremental"))]
+        if export_sources { super::super::source_audit::source_receipt::fee_probe::bind(&access.budget); }
         let verdict = super::super::source_audit::audit_native_bound(
             previous,
             &mut material,

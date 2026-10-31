@@ -28,6 +28,8 @@ pub(crate) struct RawReceipt {
     rows: sc::CodecVec<RawRow>,
     observation_sources: sc::CodecVec<(NodeDigest, NodeDigest)>,
     business: Option<source_facts::BusinessRows>,
+    #[cfg(all(test, feature = "s_incremental"))]
+    fee_probe: Option<(super::super::audit_owner::native::Budget, usize, bool, usize)>,
 }
 
 /// Native 完整生成路径与对拍共用的严格来源核；成功后签发请求内收据，不复用跨代成功。
@@ -44,16 +46,52 @@ pub(crate) fn audit_raw_receipt(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
 ) -> Result<RawReceipt, String> {
+    audit_receipt(store, token, generation, generated, raw, raw_from, profile, rule, deadline, budget, false)
+}
+
+pub(crate) fn audit_source_partitions_receipt(
+    store: &mut dyn NodeStore,
+    token: &str,
+    generation: i64,
+    generated: sc::RefView<'_>,
+    raw: RawEventsView<'_>,
+    raw_from: usize,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::super::audit_budget::Budget>,
+) -> Result<RawReceipt, String> {
+    audit_receipt(store, token, generation, generated, raw, raw_from, profile, rule, deadline, budget, true)
+}
+
+fn audit_receipt(
+    store: &mut dyn NodeStore,
+    token: &str,
+    generation: i64,
+    generated: sc::RefView<'_>,
+    raw: RawEventsView<'_>,
+    raw_from: usize,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::super::audit_budget::Budget>,
+    export_sources: bool,
+) -> Result<RawReceipt, String> {
     if token.is_empty() || generation < 1 || raw_from > raw.len() {
         return Err(err("P6来源收据请求或raw区间无效"));
     }
     let mut s = super::super::audit_store::StoreView::generic(store);
+    let mut observation_sources = sc::CodecVec::default();
     let counts = audit_generated_in_store(
         &mut s, generated, raw, profile, rule, deadline, budget,
         None, None, None, None, None,
+        if export_sources { Some(&mut observation_sources) } else { None },
     )?;
-    export_raw_receipt(&mut s, token, generation, generated, raw, raw_from,
-        profile, rule, deadline, budget, counts)
+    observation_sources.sort_unstable_by_key(|row| row.0);
+    let mut receipt = export_raw_receipt(&mut s, token, generation, generated, raw, raw_from,
+        profile, rule, deadline, budget, counts)?;
+    receipt.observation_sources = observation_sources;
+    Ok(receipt)
 }
 
 fn export_raw_receipt(
@@ -116,6 +154,8 @@ fn export_raw_receipt(
         rows,
         observation_sources: sc::CodecVec::default(),
         business: None,
+        #[cfg(all(test, feature = "s_incremental"))]
+        fee_probe: None,
     })
 }
 
@@ -150,8 +190,18 @@ impl RawReceipt {
         if objects.generation != self.generation || auxiliary.generation != self.generation || self.business.is_some() {
             return Err(err("P6业务分区代号不同或重复导出"));
         }
-        self.business = Some(source_facts::export(&mut super::super::audit_store::StoreView::generic(store),
-            objects, auxiliary, &self.observation_sources)?);
+        #[cfg(all(test, feature = "s_incremental"))]
+        let probe = fee_probe::begin(self.generation).map(|parent| { let live = parent.live(); (parent, live) });
+        let exported = source_facts::export(&mut super::super::audit_store::StoreView::generic(store),
+            objects, auxiliary, &self.observation_sources);
+        #[cfg(all(test, feature = "s_incremental"))]
+        if let Some((parent, before)) = probe {
+            let refused = fee_probe::refusal(parent.live());
+            if let Some(released) = refused { assert!(exported.is_err()); assert!(released > 0); }
+            let held = if exported.is_ok() { parent.live().checked_sub(before).expect("业务行持有同父账费用") } else { 0 };
+            self.fee_probe = Some((parent, held, exported.is_err(), refused.unwrap_or(0)));
+        }
+        self.business = Some(exported?);
         Ok(())
     }
     pub(crate) fn business_rows(&self) -> Result<&source_facts::BusinessRows, String> {
@@ -410,12 +460,14 @@ mod tests {
             Ok::<(), sc::CodecError>(())
         }).unwrap();
         assert_eq!(parent.0.load(Ordering::SeqCst), 0);
-        CodecWork::new(parent.clone(), 128).unwrap().run(|work| {
+        let refused = CodecWork::new(parent.clone(), 128).unwrap().run(|work| {
             let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
             let source = super::super::super::audit_store::StoreView::generic(&mut store);
             assert!(source_facts::coordinates_digest(&source, &[0; 4096]).is_err());
             Ok::<(), sc::CodecError>(())
-        }).unwrap();
+        });
+        assert!(matches!(refused, Err(sc::capture_allocation::scratch::WorkError::Resource(
+            sc::capture_allocation::scratch::ScratchFailure::Budget))));
         assert_eq!(parent.0.load(Ordering::SeqCst), 0);
     }
 
@@ -593,5 +645,75 @@ mod tests {
         let mut refs = roots(&mut s, &state);
         refs[3].root = "not-a-content-root".into();
         assert!(source.bind_four_roots(&mut s, refs.each_ref().map(Into::into)).is_err());
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+pub(crate) mod fee_probe {
+    use super::*;
+    use super::super::super::audit_owner::native::{Budget, Permit};
+    #[derive(Default)]
+    pub(crate) struct Reading {
+        pub generation: i64,
+        pub held: usize,
+        pub raw_released: usize,
+        pub projection_released: usize,
+        pub business_released: usize,
+        pub refused: bool,
+        pub refusal_released: usize,
+    }
+    #[derive(Default)]
+    struct Probe { enabled: bool, reject: i64, current: i64, refusal_live: Option<usize>, parents: Vec<Budget>, rows: Vec<Reading> }
+    thread_local! { static PROBE: std::cell::RefCell<Probe> = Default::default(); }
+    pub(crate) fn start(reject: i64) { PROBE.with(|p| *p.borrow_mut() = Probe { enabled: true, reject, ..Default::default() }); }
+    pub(crate) fn bind(parent: &Budget) {
+        PROBE.with(|p| { let mut p = p.borrow_mut(); if p.enabled { p.parents.push(parent.clone()); } });
+    }
+    pub(super) fn begin(generation: i64) -> Option<Budget> {
+        PROBE.with(|p| { let mut p = p.borrow_mut(); if !p.enabled { return None; }
+            p.current = generation;
+            p.parents.last().cloned()
+        })
+    }
+    pub(crate) fn block_after_object() -> Option<Permit> {
+        PROBE.with(|p| { let mut p = p.borrow_mut(); if !p.enabled || p.current != p.reject { return None; }
+            p.reject = -1;
+            let parent = p.parents.last().unwrap().clone();
+            p.refusal_live = Some(parent.live());
+            Some(parent.reserve(parent.remaining()).expect("测试预留同一父账剩余额度"))
+        })
+    }
+    pub(super) fn refusal(after: usize) -> Option<usize> {
+        PROBE.with(|p| p.borrow_mut().refusal_live.take().map(|before| before.checked_sub(after).expect("预算拒绝不能遗留新增载荷")))
+    }
+    pub(super) fn record(reading: Reading) {
+        eprintln!("P6_SOURCE_FEES generation={} held={} raw_released={} projection_released={} business_released={} refused={} refusal_released={}",
+            reading.generation, reading.held, reading.raw_released, reading.projection_released,
+            reading.business_released, reading.refused, reading.refusal_released);
+        PROBE.with(|p| p.borrow_mut().rows.push(reading));
+    }
+    pub(crate) fn finish() -> Vec<Reading> {
+        PROBE.with(|p| { let mut p = p.borrow_mut();
+            for parent in &p.parents { assert_eq!(parent.live(), 0, "实际owner和runtime析构后同父账归零"); }
+            p.enabled = false;
+            p.parents.clear();
+            std::mem::take(&mut p.rows)
+        })
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+impl Drop for RawReceipt {
+    fn drop(&mut self) {
+        if let Some((parent, held, refused, refusal_released)) = self.fee_probe.take() {
+            let before = parent.live();
+            drop(std::mem::take(&mut self.rows));
+            let raw = parent.live();
+            drop(std::mem::take(&mut self.observation_sources));
+            let projection = parent.live();
+            drop(self.business.take());
+            fee_probe::record(fee_probe::Reading { generation: self.generation, held,
+                raw_released: before - raw, projection_released: raw - projection,
+                business_released: projection - parent.live(), refused, refusal_released });
+        }
     }
 }
