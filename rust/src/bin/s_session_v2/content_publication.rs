@@ -1033,23 +1033,28 @@ pub(crate) fn verify_current_begin_admitted(
     let expected_token = admission
         .native_format(format_args!("begin-{}", token_hash.as_str()))
         .map_err(err)?;
-    let commit_ns = newchan_rust::session_protocol::clock_phase_view(
-        (&clock.value).into(),
-        &cid,
-        "commit",
-        s.attempt_index,
-    )?;
+    // #1769：System 的 Commit 读数在准备时取样一次并封进元数据；此处只核持久 Begin 与前沿。
+    let commit_ns = if clock.is_system() {
+        m.semantic_commit_ns
+    } else {
+        newchan_rust::session_protocol::clock_phase_view(
+            (&clock.value).into(),
+            &cid,
+            "commit",
+            s.attempt_index,
+        )?
+    };
     if ordinal < 1
         || ordinal.checked_add(1) != Some(next_ordinal)
         || generation != m.generation
         || message_key.as_str() != expected_key.as_str()
-        || begin_ns.as_str()
-            != newchan_rust::session_protocol::clock_phase_view(
-                (&clock.value).into(),
-                &cid,
-                "begin",
-                s.attempt_index,
-            )?
+        || !newchan_rust::session_protocol::clock_persisted_matches(
+            (&clock.value).into(),
+            &cid,
+            "begin",
+            s.attempt_index,
+            begin_ns.as_str(),
+        )?
         || commit_ns != m.semantic_commit_ns
         || token != expected_token.as_str()
         || phase_frontier != begin_ns

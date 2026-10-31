@@ -281,19 +281,48 @@ impl<'a> S3Control<'a> {
         Ok(token)
     }
 
-    /// 本次已持久 Begin 对应的 Commit 时刻（同一 attempt 的 `commit_ns`）；未 Begin 即 `Err`。
+    /// 本次已持久 Begin 对应的 Commit 时刻；未 Begin 即 `Err`。
+    ///
+    /// Plan 读同一 attempt 的 `commit_ns`。System（#1769）在此取样一次：只由准备发布调用，
+    /// 读数封进批次元数据，发布事务以 [`Self::sealed_commit_matches`]／[`Self::commit_sealed`]
+    /// 沿用该值，不再取样。
     pub(super) fn commit_time(&self, view: &IngestView) -> Result<Option<String>, String> {
-        v2::commit_time_context(self.conn, &view.context)
+        v2::commit_reading_context(self.conn, &view.context)
+    }
+
+    /// 发布事务内核已封批的 Commit 读数（Plan 等于计划值；System 不早于持久相位前沿）。
+    pub(super) fn sealed_commit_matches(
+        &self,
+        view: &IngestView,
+        semantic_commit_ns: &str,
+    ) -> Result<bool, String> {
+        v2::sealed_commit_matches_context(self.conn, &view.context, semantic_commit_ns)
     }
 
     /// Commit（`AcceptedPending`，或本事务内刚接纳+Begin）：写 commit clock 事件、推进
     /// status/first_published_generation 与 delivery refs/policy（含保留窗口），入调用方同一事务。
+    #[cfg(test)]
     pub(super) fn commit(&self, view: &IngestView, gen: i64, frontier: i64) -> Result<(), String> {
         self.require_write_transaction()?;
         if view.state == StoredState::Committed {
             return Err("InvalidDomain：消息已提交，控制行不重复写".into());
         }
         v2::record_commit_context(self.conn, &view.context, gen, frontier)
+    }
+
+    /// 同 [`Self::commit`]，commit clock 读数取自本次已封批元数据（System 不在提交时取样）。
+    pub(super) fn commit_sealed(
+        &self,
+        view: &IngestView,
+        gen: i64,
+        frontier: i64,
+        semantic_commit_ns: &str,
+    ) -> Result<(), String> {
+        self.require_write_transaction()?;
+        if view.state == StoredState::Committed {
+            return Err("InvalidDomain：消息已提交，控制行不重复写".into());
+        }
+        v2::record_commit_sealed(self.conn, &view.context, gen, frontier, semantic_commit_ns)
     }
 
     /// recover：写 recover clock 事件并推进相位前沿（换代自身状态由调用方在同一事务内完成）。
