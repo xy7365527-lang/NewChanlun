@@ -410,7 +410,7 @@ impl OrdinaryProofs {
             }
             if let Some((i, g)) = g {
                 slots.reserve_group(s)?;
-                if slots.insert_group(s, *i, g.restore(s)?)? {
+                if slots.insert_group(s, &o.id, *i, g.restore(s)?)? {
                     return Err(err("同cut组合并序号重复"));
                 }
             }
