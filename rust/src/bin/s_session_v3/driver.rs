@@ -7694,4 +7694,150 @@ mod tests {
         let rows = s4_run(&steps, std::env::var("S4_COLD").as_deref() == Ok("1"));
         s4_write_rows(&rows);
     }
+
+    /// 36M 完整台账双路径锁（#1647 cover39k）：同一真实 owner 序列（三根 + `b` 同坐标修订）分别
+    /// 经 warm 增量臂（steady delta，D2 出生轨迹为空）与每代出错丢弃后的完整原件导出臂
+    /// （full_lease，出生标 discard）生产；两臂 cover/raw 行逐行相同，修订赢家 seq 推进而旧 seq
+    /// 保留。末步投一次改坐标修订：`raw_input` 以 IdentityConflict 拒收（同一业务身份不得换源
+    /// 位置），代号、raw、台账水位与 cover 均不动——生效坐标集随前缀单调不减，full-lease
+    /// 导出无需表达 Removed。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths() {
+        use super::super::audit_ledger;
+        // 与 handle 出错后的 owner/Runtime 丢弃同一动作：无候选，下一请求只能走完整分支。
+        fn forget_candidate(native: &mut Driver) {
+            native.conn.discard_after_error();
+            native.runtime.discard();
+        }
+        let step = |id: &str, seq: i64, bar: [i64; 4], revision: &'static str| S4Step {
+            kind: "owner",
+            rows: vec![(id.into(), seq, bar[0], bar[1], bar[2], bar[3])],
+            revision,
+        };
+        let steps = [
+            step("a", 0, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 20, 10, 15], "1"),
+            step("c", 2, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 21, 10, 15], "2"),
+        ];
+        let moved = step("b", 3, [14, 22, 10, 15], "3");
+        let full_births = |events: &[Value]| {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "generate_full_birth")
+                .map(|e| e["entry"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        let cover_rows = |path: &Path| {
+            let saved = Connection::open(path).unwrap();
+            let mut rows = saved
+                .prepare("SELECT source_coord, seq FROM cover ORDER BY source_coord")
+                .unwrap();
+            rows.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        };
+        let ledger_rows = |path: &Path| {
+            audit_ledger::tests::dump(path)
+                .into_iter()
+                .filter(|row| row.starts_with("cover:") || row.starts_with("raw:"))
+                .collect::<Vec<_>>()
+        };
+        let mut dumps = Vec::new();
+        for rebirth in [false, true] {
+            let f = Fixture::with_clock(s4_clock(steps.len() + 1));
+            let mut native = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                536_870_912,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            native.incremental_retention_bytes = Some(536_870_912);
+            let rule = meta_get_opt(&native.conn, "rule_revision")
+                .unwrap()
+                .unwrap();
+            let name = format!(
+                "cover-{}.sqlite",
+                if rebirth { "full-lease" } else { "delta" }
+            );
+            let path = f.db.with_file_name(&name);
+            native
+                .runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(&f.db, &name, &rule))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                if rebirth {
+                    forget_candidate(&mut native);
+                }
+                let message = s4_message(k, step);
+                let (reply, events, _) = state::traced(false, || native.handle(message));
+                reply.unwrap();
+                let births = full_births(&events);
+                if rebirth {
+                    assert_eq!(births, ["discard"], "第{k}代完整臂入口");
+                } else if k == 1 {
+                    // 首代是否带候选由启动准入决定，不是本锁对象；修订代（k=4）必须是 delta。
+                    assert!(births.is_empty() || births == ["startup"], "{births:?}");
+                } else {
+                    assert!(births.is_empty(), "第{k}代增量臂调用了完整分支：{births:?}");
+                }
+                let lane = if rebirth || !births.is_empty() {
+                    "full_lease"
+                } else {
+                    "delta"
+                };
+                let paths = state::stage_rows(&events)["paths"].clone();
+                assert!(
+                    paths.as_array().unwrap().contains(&json!(lane)),
+                    "第{k}代车道须为 {lane}（rebirth={rebirth}）：{paths}"
+                );
+                assert_eq!(meta_i64(&native.conn, "generation").unwrap(), k as i64);
+                assert_eq!(
+                    native.runtime.audit_qualification().unwrap().through,
+                    k as i64
+                );
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            assert_eq!(covers[2], vec![(0, 0), (1, 1), (2, 2)]);
+            assert_eq!(
+                covers[3],
+                vec![(0, 0), (1, 3), (2, 2)],
+                "修订赢家 seq 推进到 3"
+            );
+            let before = ledger_rows(&path);
+            if rebirth {
+                forget_candidate(&mut native);
+            }
+            let outcome = native.handle(s4_message(steps.len() + 1, &moved));
+            let text = match &outcome {
+                Ok(reply) => reply.to_string(),
+                Err(error) => error.clone(),
+            };
+            assert!(
+                text.contains("IdentityConflict") && text.contains("不得换源位置"),
+                "改坐标修订必须在接纳入口拒绝：{text}"
+            );
+            assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
+            assert_eq!(count(&native.conn, "raw_events"), 4);
+            assert_eq!(native.runtime.audit_qualification().unwrap().through, 4);
+            assert_eq!(ledger_rows(&path), before, "拒收后台账 cover/raw 不动");
+            drop(native);
+            assert_eq!(before.iter().filter(|r| r.starts_with("cover:")).count(), 3);
+            assert_eq!(before.iter().filter(|r| r.starts_with("raw:")).count(), 4);
+            dumps.push(before);
+        }
+        assert_eq!(
+            dumps[0], dumps[1],
+            "增量臂与完整原件臂的 cover/raw 逐行相同"
+        );
+    }
 }

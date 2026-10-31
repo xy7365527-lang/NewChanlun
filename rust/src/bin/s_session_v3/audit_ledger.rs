@@ -724,11 +724,15 @@ impl Ledger {
                         return Err(error("cover 失效坐标不在当前分区"));
                     }
                 }
+                // 行只在 (seq, owner, object_id) 变化时推进 certified_generation：Native 增量只列
+                // 触及坐标、完整原件导出列整份分区，同一内容在两条路径上必须落出同一行。
                 CoverChange::Group { seq, object_id } => {
                     conn.execute(
                         "INSERT INTO cover VALUES(?1,?2,'group',?3,?4) ON CONFLICT(source_coord) DO UPDATE SET
                          seq=excluded.seq, owner=excluded.owner, object_id=excluded.object_id,
-                         certified_generation=excluded.certified_generation",
+                         certified_generation=excluded.certified_generation
+                         WHERE seq IS NOT excluded.seq OR owner IS NOT excluded.owner
+                         OR object_id IS NOT excluded.object_id",
                         params![coord, seq, object_id, d.generation],
                     )
                     .map_err(error)?;
@@ -737,7 +741,9 @@ impl Ledger {
                     conn.execute(
                         "INSERT INTO cover VALUES(?1,?2,'pending',NULL,?3) ON CONFLICT(source_coord) DO UPDATE SET
                          seq=excluded.seq, owner=excluded.owner, object_id=excluded.object_id,
-                         certified_generation=excluded.certified_generation",
+                         certified_generation=excluded.certified_generation
+                         WHERE seq IS NOT excluded.seq OR owner IS NOT excluded.owner
+                         OR object_id IS NOT excluded.object_id",
                         params![coord, seq, d.generation],
                     )
                     .map_err(error)?;
