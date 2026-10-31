@@ -836,7 +836,7 @@ impl AuditConnection {
             let mut published = published;
             #[cfg(feature = "s_incremental")]
             if let Some(candidate) = published.1.complete.as_mut() {
-                if let Err(error) = candidate.audited.advance_qualified(runtime) {
+                if let Err(error) = candidate.advance_qualified(runtime) {
                     qualified_failed = true;
                     return Err(error);
                 }
@@ -1265,7 +1265,10 @@ impl AuditTxn<'_> {
                     deadline,
                     work,
                     context,
-                    qualified,
+                    qualified.map(|source| state::QualifiedSeed {
+                        source,
+                        budget: &parent,
+                    }),
                 )?;
                 let slot = context
                     .take()
@@ -2588,6 +2591,8 @@ struct CompleteCandidate {
     capture: Option<newchan_rust::s_content::AuditCapture>,
     node_count: usize,
     limit: usize,
+    // 40B B2：本次发布资格交接的许可，费用终检前持票并入账，提交后由交接消费。
+    qualification_reserve: Option<native::Permit>,
     // raw载荷必须先于Q持有的Plain raw许可析构。
     audited: state::AuditedState,
     q: q::Facts,
@@ -2600,6 +2605,30 @@ struct CompleteCandidate {
 }
 #[cfg(feature = "s_incremental")]
 impl CompleteCandidate {
+    /// 内容与台账均已提交后消费资格交接许可：新资格入账、旧资格与许可余量释放，
+    /// 总账按 `validate_effects` 同一公式重算；任一失败即候选作废。
+    fn advance_qualified(&mut self, runtime: &prepared::Runtime) -> Result<(), String> {
+        use super::audit_retention::sum;
+        let permit = self.qualification_reserve.take();
+        let delta = self
+            .audited
+            .advance_qualified(runtime, permit, &self.resources)?;
+        self.charge.historical_and_raw_capacity = delta
+            .apply(self.charge.historical_and_raw_capacity)
+            .map_err(|failure| match failure {
+                native::Failure::BudgetExceeded => invalid("资格交接保留账溢出"),
+                native::Failure::Invalid(error) => error,
+            })?;
+        self.charge.total = sum([
+            self.charge.node_source_and_certificates,
+            self.charge.node_capacity,
+            self.charge.historical_and_raw_capacity,
+            self.charge.current_sql_capacity,
+            self.charge.q_capacity,
+            self.charge.inline,
+        ]);
+        Ok(())
+    }
     fn refresh_capture_charge(&mut self) -> Result<(), String> {
         use super::audit_retention::sum;
         let capture = self
@@ -2875,6 +2904,7 @@ impl CompleteCandidate {
             audited,
             originals,
             charge,
+            qualification_reserve: None,
             resources: budget,
             _inline_permit: inline_permit,
         }))
@@ -3114,6 +3144,23 @@ impl CompleteCandidate {
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
+        }
+        // 40B B2：资格交接的持久上界在费用终检前持票并计入历史账；提交后交接只消费它。
+        if effects.operation == effects::Operation::Publish {
+            if let Some(transition) = self.audited.qualified_transition_bound() {
+                let Ok(permit) = budget.reserve(transition) else {
+                    return Ok(None);
+                };
+                let Some(total) = self
+                    .charge
+                    .historical_and_raw_capacity
+                    .checked_add(transition)
+                else {
+                    return Ok(None);
+                };
+                self.charge.historical_and_raw_capacity = total;
+                self.qualification_reserve = Some(permit);
+            }
         }
         let bound = BoundOriginals { _private: () };
         match self.audited.check_owner_raw(capture, &bound, &budget) {

@@ -265,6 +265,108 @@ pub(super) struct Qualification {
     pub content_identity: String,
     pub binary_commit: String,
 }
+impl Qualification {
+    /// cert.roots 规范 JSON 的字节上界：四个 `{"extent","format","kind","root"}` 对象。
+    pub(super) const ROOTS_BOUND: usize = {
+        const EXTENT: usize = 22;
+        const ROOT: usize = newchan_rust::s_content::ROOT_PREFIX.len() + 64;
+        const KIND: usize = "template_batch".len();
+        const SYNTAX: usize = 43;
+        5 + 4 * (SYNTAX + EXTENT + newchan_rust::s_content::CONTENT_FORMAT.len() + KIND + ROOT)
+    };
+    /// 一份资格全部字符串字段的字节上界；调用方据此在读取前预留，超过即拒绝。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn retained_bound(
+        rule_revision: usize,
+        content_identity: usize,
+        binary_commit: usize,
+    ) -> usize {
+        [
+            Self::ROOTS_BOUND,
+            64,
+            sc::closure_delta::VERIFIER_REVISION.len(),
+            rule_revision,
+            content_identity,
+            binary_commit,
+        ]
+        .into_iter()
+        .fold(0usize, usize::saturating_add)
+    }
+    /// 同一行上的借用视图，不分配；`stage` 前核旧资格与 H1 点查都走这里。
+    fn matches(&self, v: &QualificationView<'_>) -> bool {
+        self.through == v.through
+            && self.roots == v.roots
+            && self.fold_digest == v.fold_digest
+            && self.verifier_revision == v.verifier_revision
+            && self.rule_revision == v.rule_revision
+            && self.content_identity == v.content_identity
+            && self.binary_commit == v.binary_commit
+    }
+}
+struct QualificationView<'a> {
+    through: i64,
+    roots: &'a str,
+    fold_digest: &'a str,
+    verifier_revision: &'a str,
+    rule_revision: &'a str,
+    content_identity: &'a str,
+    binary_commit: &'a str,
+}
+impl QualificationView<'_> {
+    fn string_bytes(&self) -> usize {
+        [
+            self.roots,
+            self.fold_digest,
+            self.verifier_revision,
+            self.rule_revision,
+            self.content_identity,
+            self.binary_commit,
+        ]
+        .into_iter()
+        .map(str::len)
+        .fold(0usize, usize::saturating_add)
+    }
+    fn owned(&self) -> Qualification {
+        fn exact(s: &str) -> String {
+            let mut owned = String::with_capacity(s.len());
+            owned.push_str(s);
+            owned
+        }
+        Qualification {
+            through: self.through,
+            roots: exact(self.roots),
+            fold_digest: exact(self.fold_digest),
+            verifier_revision: exact(self.verifier_revision),
+            rule_revision: exact(self.rule_revision),
+            content_identity: exact(self.content_identity),
+            binary_commit: exact(self.binary_commit),
+        }
+    }
+}
+/// 与 `stage_inner` 写入 cert.roots 的 `canonical_json(roots_value)` 逐字节相同；写入预留好的缓冲。
+pub(super) fn roots_json_into(out: &mut String, roots: [RefView<'_>; 4]) -> Result<(), String> {
+    use std::fmt::Write as _;
+    out.push('[');
+    for (i, r) in roots.into_iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let extent = match r.extent() {
+            Some(n) => serde_json::to_string(&n.to_string()).map_err(error)?,
+            None => "null".to_owned(),
+        };
+        write!(
+            out,
+            "{{\"extent\":{extent},\"format\":{},\"kind\":{},\"root\":{}}}",
+            serde_json::to_string(r.format()).map_err(error)?,
+            serde_json::to_string(r.kind().name()).map_err(error)?,
+            serde_json::to_string(r.root()).map_err(error)?,
+        )
+        .map_err(error)?;
+    }
+    out.push(']');
+    Ok(())
+}
 
 struct Pending {
     token: NativeValue<String>,
@@ -475,40 +577,56 @@ impl Ledger {
     pub(super) fn wants_business_facts(&self) -> bool {
         self.is_source_partitions() || self.accepts_production()
     }
-    /// H1 的私有点查资格：绑定已提交完整水位、四根、规则、verifier 与内容库身份。
-    /// 不含连接、不可跨进程；任何字段不符即不能用它点查。
-    pub(super) fn qualification(&self) -> Result<Qualification, String> {
+    /// 当前已提交资格的借用视图：末代 cert 与 meta 同一语句取出，不分配；在 `stage_inner`
+    /// 的 BEGIN IMMEDIATE 内调用时读到的就是本事务改写前的已提交状态。
+    fn with_committed_qualification<R>(
+        &self,
+        f: impl FnOnce(&QualificationView<'_>) -> Result<R, String>,
+    ) -> Result<R, String> {
         let through = self.committed_through()?;
         if through < 1 {
             return Err(error("完整台账尚无已提交的一代"));
         }
         let conn = self.connection.as_ref().unwrap();
-        let (roots, fold_digest, verifier_revision): (String, String, String) = conn
-            .query_row(
-                "SELECT roots, fold_digest, verifier_revision FROM cert WHERE generation=?1",
-                [through],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .map_err(error)?;
-        let (meta_fold, content_identity, binary_commit): (String, String, String) = conn
-            .query_row(
-                "SELECT fold_digest, content_identity, binary_commit FROM meta WHERE singleton=1",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .map_err(error)?;
-        if meta_fold != fold_digest {
-            return Err(error("完整水位与末代 cert 折叠摘要不一致"));
-        }
-        Ok(Qualification {
-            through,
-            roots,
-            fold_digest,
-            verifier_revision,
-            rule_revision: self.rule_revision.clone(),
-            content_identity,
-            binary_commit,
+        conn.query_row(
+            "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, \
+             m.binary_commit FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1",
+            [through],
+            |r| {
+                let text = |i: usize| r.get_ref(i)?.as_str().map_err(rusqlite::Error::from);
+                let fold_digest = text(1)?;
+                if text(3)? != fold_digest {
+                    return Ok(Err(error("完整水位与末代 cert 折叠摘要不一致")));
+                }
+                Ok(f(&QualificationView {
+                    through,
+                    roots: text(0)?,
+                    fold_digest,
+                    verifier_revision: text(2)?,
+                    rule_revision: &self.rule_revision,
+                    content_identity: text(4)?,
+                    binary_commit: text(5)?,
+                }))
+            },
+        )
+        .map_err(error)?
+    }
+    /// H1 的私有点查资格：绑定已提交完整水位、四根、规则、verifier 与内容库身份。
+    /// 不含连接、不可跨进程；任何字段不符即不能用它点查。
+    pub(super) fn qualification(&self) -> Result<Qualification, String> {
+        self.with_committed_qualification(|v| Ok(v.owned()))
+    }
+    /// 39P：字符串总字节先对调用方已预留的上界核过，再按精确容量分配（B2）。
+    pub(super) fn qualification_bounded(&self, cap: usize) -> Result<Qualification, String> {
+        self.with_committed_qualification(|v| {
+            if v.string_bytes() > cap {
+                return Err(error("完整资格超过调用方保留上界"));
+            }
+            Ok(v.owned())
         })
+    }
+    fn matches_committed(&self, q: &Qualification) -> Result<bool, String> {
+        self.with_committed_qualification(|v| Ok(q.matches(v)))
     }
     /// 只接受本台账当前签发且水位未变的资格；台账 Pending/Bound/Stale 或已推进一代即拒绝。
     pub(super) fn contains_qualified_unit(
@@ -516,8 +634,7 @@ impl Ledger {
         q: &Qualification,
         unit: &Unit,
     ) -> Result<bool, String> {
-        let current = self.qualification()?;
-        if current != *q {
+        if !self.matches_committed(q)? {
             return Err(error("点查资格与当前已提交台账不符"));
         }
         self.contains_committed_unit(unit)
@@ -574,12 +691,15 @@ impl Ledger {
             delta,
             delta.new_units.iter(),
             &delta.verifier_revision,
+            None,
         );
         if result.is_err() {
             self.invalidate();
         }
         result
     }
+    /// `prior`（39P B1）：H1 持有的上一代资格；stage 在同一台账事务内先核它与当前已提交
+    /// 状态逐字段相同，再改写折叠链。外写 meta/cert 不能被新一代 stage 吸收为自洽。
     #[cfg(feature = "s_incremental")]
     pub(super) fn stage_verified(
         &mut self,
@@ -587,6 +707,7 @@ impl Ledger {
         delta: &GenerationDelta,
         verified: &sc::closure_delta::VerifiedUnits,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
+        prior: Option<&Qualification>,
     ) -> Result<(), String> {
         let result = (|| {
             self.committed_through()?;
@@ -626,6 +747,7 @@ impl Ledger {
                 delta,
                 units.iter(),
                 sc::closure_delta::VERIFIER_REVISION,
+                prior,
             )
         })();
         if result.is_err() {
@@ -639,6 +761,7 @@ impl Ledger {
         d: &GenerationDelta,
         new_units: impl Iterator<Item = &'u Unit> + Clone,
         verifier_revision: &str,
+        prior: Option<&Qualification>,
     ) -> Result<(), String> {
         if !matches!(self.phase, Phase::Ready) || !matches!(self.coverage, Coverage::Complete) {
             return Err(error("台账不在完整事实可准备状态"));
@@ -655,6 +778,18 @@ impl Ledger {
         self.check_storage()?;
         let conn = self.connection.as_ref().unwrap();
         conn.execute_batch("BEGIN IMMEDIATE").map_err(error)?;
+        if let Some(prior) = prior {
+            let detail = match self.matches_committed(prior) {
+                Ok(true) => None,
+                Ok(false) => Some("字段不同".to_owned()),
+                Err(e) => Some(e),
+            };
+            if let Some(detail) = detail {
+                return Err(error(format!(
+                    "上一代资格与台账当前已提交状态不符，不续写折叠链：{detail}"
+                )));
+            }
+        }
         let previous: String = conn
             .query_row("SELECT fold_digest FROM meta WHERE singleton=1", [], |r| {
                 r.get(0)
@@ -1264,7 +1399,7 @@ pub(super) mod tests {
             metadata.generation = generation;
             let facts = delta(&metadata, &roots);
             ledger
-                .stage_verified(&token, &facts, &verified, None)
+                .stage_verified(&token, &facts, &verified, None, None)
                 .unwrap();
             ledger.bind(&token, &metadata, &roots).unwrap();
             ledger.content_committed().unwrap();

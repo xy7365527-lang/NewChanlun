@@ -433,6 +433,11 @@ impl Permit {
     pub(crate) fn on_ledger_for_test(&self, mark: &LedgerMark) -> Option<usize> {
         mark.live_for(&self.budget).map(|_| self.bytes)
     }
+    /// 当前持有的许可字节；只读，不签发也不释放。
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn bytes(&self) -> usize {
+        self.bytes
+    }
     pub(crate) fn hold<T>(self, value: T) -> Reserved<T> {
         Reserved {
             inner: value,
