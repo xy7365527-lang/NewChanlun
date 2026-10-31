@@ -98,8 +98,18 @@ impl ClockPlan {
             == newchan_rust::session_protocol::ClockSource::System
     }
     /// 预检：Plan 核计划里有该相位；System 不产生未来读数，直接通过。
-    pub(super) fn require_planned(&self, id: &str, phase: &str, attempt: i64) -> Result<(), String> {
-        newchan_rust::session_protocol::clock_require_planned((&self.value).into(), id, phase, attempt)
+    pub(super) fn require_planned(
+        &self,
+        id: &str,
+        phase: &str,
+        attempt: i64,
+    ) -> Result<(), String> {
+        newchan_rust::session_protocol::clock_require_planned(
+            (&self.value).into(),
+            id,
+            phase,
+            attempt,
+        )
     }
 }
 
@@ -133,7 +143,11 @@ pub(super) mod system_clock_test {
         SAMPLES.with(|c| c.set(0));
     }
     pub(crate) fn push(values: &[i64]) {
-        QUEUE.with(|q| q.borrow_mut().get_or_insert_with(VecDeque::new).extend(values));
+        QUEUE.with(|q| {
+            q.borrow_mut()
+                .get_or_insert_with(VecDeque::new)
+                .extend(values)
+        });
     }
     pub(crate) fn samples() -> usize {
         SAMPLES.with(Cell::get)
@@ -3860,6 +3874,43 @@ mod tests {
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
             Some("idle")
         );
+    }
+
+    /// #1769：`s-clock-system/1` 只属于 s-session/3；s-session/2 init 在落盘前显式拒绝。
+    #[test]
+    fn v2_init_rejects_system_clock_without_writing() {
+        let dir = std::env::temp_dir().join(format!(
+            "s1769-v2-system-clock-{}-{}",
+            std::process::id(),
+            now_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        let clock_path = dir.join("clock.json");
+        std::fs::write(
+            &clock_path,
+            canonical_json(
+                &json!({"schema_revision":"s-clock-system/1","clock_id":"v2","unit":"ns"}),
+            ),
+        )
+        .unwrap();
+        let db = dir.join("s.sqlite");
+        let error = init_v2(
+            &db,
+            "test-system",
+            &base.join("catalog/signed-catalog.json"),
+            &base.join("profiles/ohlc_integer_tb02a_v1.json"),
+            "1",
+            &clock_path,
+            4,
+        )
+        .unwrap_err();
+        assert!(error.contains("只用于 s-session/3"), "{error}");
+        assert!(!db.exists(), "拒绝发生在建库前");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// #1653（#1576 独审 INFO-3）：`rule_revision` 键缺失时文案明示缺失，不显示空值；拒绝不放松。

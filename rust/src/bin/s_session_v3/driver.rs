@@ -843,6 +843,12 @@ mod tests {
                 preserve: false,
             }
         }
+        /// #1769：真实 System 时钟描述（固定三键）；读数由 `v2::system_clock_test` 注入。
+        fn system() -> Self {
+            Self::with_clock(
+                json!({"schema_revision":"s-clock-system/1","clock_id":"s3-driver-system","unit":"ns"}),
+            )
+        }
         fn open(&self, epoch: &str) -> Result<Driver, String> {
             Driver::open(
                 &self.db,
@@ -2082,6 +2088,208 @@ mod tests {
             "2"
         );
         assert!(after.conn.is_autocommit());
+    }
+
+    fn system_clock_rows(db: &Path) -> Vec<String> {
+        let conn = Connection::open(db).unwrap();
+        let mut stmt = conn
+            .prepare("SELECT clock_event_id||'|'||phase||'|'||attempt_index||'|'||semantic_ns FROM s_clock_events ORDER BY CAST(semantic_ns AS INTEGER)")
+            .unwrap();
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+        rows.collect::<Result<Vec<_>, _>>().unwrap()
+    }
+    fn cold_audit_commit_ns(db: &Path) -> Vec<String> {
+        let mut conn = open_db(db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let mut out = Vec::new();
+        for cut in &audited.cuts {
+            out.push(cut.metadata.semantic_commit_ns.as_str().to_owned());
+        }
+        drop(audited);
+        tx.rollback().unwrap();
+        out
+    }
+
+    /// #1769：System 每个生命周期相位只取样一次；重投、回执、重开、冷审计都读持久值。
+    #[test]
+    fn s_system_clock_samples_once_per_phase_through_driver() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut d = f.open("1").unwrap();
+        let receipt = d.handle(input.clone()).unwrap();
+        assert_eq!(receipt["kind"], "Committed");
+        assert_eq!(fake::samples(), 3, "accept/begin/commit 各取样一次");
+        assert_eq!(d.handle(input.clone()).unwrap(), receipt);
+        assert_eq!(d.handle(receipt_request(&input)).unwrap(), receipt);
+        drop(d);
+        let mut reopened = f.open("1").unwrap();
+        assert_eq!(reopened.handle(receipt_request(&input)).unwrap(), receipt);
+        drop(reopened);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["300".to_string()]);
+        assert_eq!(fake::samples(), 3, "重投、回执、重开和冷审计都不取样");
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "input-1|commit|0|300"
+            ]
+        );
+
+        fake::push(&[400]);
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        assert_eq!(fake::samples(), 4, "recover 取样一次");
+        let mut after = f.open("2").unwrap();
+        // 跨 epoch：旧 epoch 原件不再落账，已提交回执原样复用。
+        let stale = after.handle(input.clone());
+        assert!(
+            stale.as_ref().is_err_and(|e| e.contains("StaleWriter"))
+                || stale.as_ref() == Ok(&receipt),
+            "{stale:?}"
+        );
+        assert_eq!(after.handle(receipt_request(&input)).unwrap(), receipt);
+        assert_eq!(fake::samples(), 4);
+        fake::push(&[500, 600, 700]);
+        let mut second = Fixture::ingest(2);
+        second["payload"]["writer_epoch"] = json!("2");
+        second["payload_hash"] = json!(sha256_hex(canonical_json(&second["payload"]).as_bytes()));
+        assert_eq!(after.handle(second).unwrap()["kind"], "Committed");
+        assert_eq!(fake::samples(), 7);
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["300".to_string(), "700".to_string()]
+        );
+        assert_eq!(fake::samples(), 7);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "input-1|commit|0|300",
+                "recover-1|recover|-1|400",
+                "input-2|accept|-1|500",
+                "input-2|begin|0|600",
+                "input-2|commit|0|700",
+            ]
+        );
+    }
+
+    /// #1769：Begin 后中断、换代恢复再续推：已持久相位可审计，未提交 attempt 不冒充已提交。
+    #[test]
+    fn s_system_clock_recover_audits_persisted_phases() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut before = f.open("1").unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        assert_eq!(fake::samples(), 2);
+        fake::push(&[300]);
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        assert_eq!(fake::samples(), 3);
+        fake::push(&[400, 500]);
+        let mut resumed = f.open("2").unwrap();
+        assert_eq!(fake::samples(), 5, "续推只为新 attempt 取 begin/commit");
+        assert_eq!(
+            resumed.handle(receipt_request(&input)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(resumed);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["500".to_string()]);
+        assert_eq!(fake::samples(), 5);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "recover-1|recover|-1|300",
+                "input-1|begin|1|400",
+                "input-1|commit|1|500",
+            ]
+        );
+        let conn = Connection::open(&f.db).unwrap();
+        let attempts: i64 = conn
+            .query_row("SELECT attempt_count FROM s_input_messages", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(attempts, 2);
+        let commits: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_clock_events WHERE phase='commit' AND attempt_index=0",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(commits, 0, "中断的 attempt 0 没有 commit 读数");
+    }
+
+    /// #1769：Commit 取样早于持久 Begin 时拒绝，不落 commit、不发布；冷审计拒绝被改倒退的持久值。
+    #[test]
+    fn s_system_clock_regression_rejected_through_driver() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 150]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        let error = d.handle(Fixture::ingest(1)).unwrap_err();
+        assert!(error.contains("实际语义clock倒退"), "{error}");
+        drop(d);
+        let conn = Connection::open(&f.db).unwrap();
+        assert_eq!(count(&conn, "structure_deltas"), 0);
+        let commits: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_clock_events WHERE phase='commit'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(commits, 0);
+        drop(conn);
+
+        fake::install(Some(&[100, 200, 300]));
+        let ok = Fixture::system();
+        assert_eq!(
+            ok.open("1").unwrap().handle(Fixture::ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        Connection::open(&ok.db)
+            .unwrap()
+            .execute(
+                "UPDATE s_clock_events SET semantic_ns='250' WHERE phase='accept'",
+                [],
+            )
+            .unwrap();
+        let mut conn = open_db(&ok.db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let error = state::audit(&tx)
+            .err()
+            .expect("持久读数倒退必须被冷审计拒绝");
+        assert!(error.contains("system clock消息相位读数倒退"), "{error}");
+        tx.rollback().unwrap();
+        assert_eq!(fake::samples(), 3, "冷审计不取样");
     }
 
     // 仅调用正常 Driver，覆盖“新消息携带既有 raw”而控制账继续变化的情况。
