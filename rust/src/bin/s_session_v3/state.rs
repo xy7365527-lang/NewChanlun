@@ -48,6 +48,8 @@ pub(super) struct AuditedState {
     pub raw: super::business_json::RawEvents,
     pub budget: Option<sc::capture_allocation::OwnedBudget>,
     historical: HistoricalOwner,
+    #[cfg(feature = "s_incremental")]
+    certification: Option<HistoricalCertification>,
 }
 
 /// 全部旧历史判据成功后的纯结果；保留控制头与 Native 前缀状态，不含当前事务或提交许可。
@@ -366,6 +368,7 @@ pub(super) fn audit_native_in_request_measured(
                         budget: None,
                         raw,
                         historical: HistoricalOwner::Shared(result),
+                        certification: None,
                     });
                 }
             }
@@ -423,6 +426,7 @@ pub(super) fn audit_native_in_request_measured(
                 budget: audited.budget,
                 raw: audited.raw,
                 historical: HistoricalOwner::Shared(result),
+                certification: None,
             })
         })();
         // #1488 wide16-0058：冷根首跑失败后按旧口径无票重跑；首跑只借用、未改动旧来源池，
@@ -1003,6 +1007,8 @@ fn audit_core_fresh_with_policy(
                     source_cache.as_deref_mut(),
                     #[cfg(feature = "s_incremental")]
                     None,
+                    #[cfg(feature = "s_incremental")]
+                    false,
                 )
             };
         if let Some(session) = ordinary_source.as_mut() {
@@ -1064,6 +1070,8 @@ fn audit_core_fresh_with_policy(
         AuditedState {
             budget: raw.budget().cloned(),
             raw,
+            #[cfg(feature = "s_incremental")]
+            certification: None,
             historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
                 control_facts,
                 raw_prefixes,
@@ -1095,6 +1103,7 @@ fn audit_one_cut_sources(
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
     #[cfg(feature = "s_incremental")] owner_source: Option<&super::audit_owner::OwnerSourceCheck>,
+    #[cfg(feature = "s_incremental")] certified: bool,
 ) -> Result<(), String> {
     #[cfg(test)]
     trace_event("generated_sources", Some(cut.metadata.generation));
@@ -1103,7 +1112,14 @@ fn audit_one_cut_sources(
     // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
     #[cfg(feature = "s_incremental")]
     let cached_counts = match owner_source {
+        Some(source) if certified => Some(source.counts_for_cut(
+            cut.metadata.view(),
+            cut.roots.generated_state.view(),
+            prefix.len(),
+            deadline,
+        )?),
         Some(source) => Some(source.counts_for(cut.roots.generated_state.view(), prefix.len())?),
+        None if certified => return Err(err("历史认证在线缺同请求来源收据")),
         None => source_cache
             .as_deref_mut()
             .and_then(|cache| cache.lookup(cut)),
@@ -1127,6 +1143,9 @@ fn audit_one_cut_sources(
             proofs,
         )?
     } else if let Some(counts) = cached_counts {
+        if let Some(native) = native_sources.as_mut() {
+            native.advance_raw_facts(prefix.len())?;
+        }
         counts
     } else {
         match native_sources.as_mut() {
@@ -1188,6 +1207,228 @@ fn audit_one_cut_sources(
         native_sources.as_ref().map(|_| (previous + 1) as usize),
     )?;
     Ok(())
+}
+
+#[cfg(feature = "s_incremental")]
+struct HistoricalSourceFold<'a> {
+    raw: super::business_json::RawEventsView<'a>,
+    source: Option<source_audit::NativeSourceAudit<'a>>,
+    generation: i64,
+    previous: i64,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&'a dyn audit_budget::Budget>,
+    owner_source: Option<&'a super::audit_owner::OwnerSourceCheck>,
+    certified_online: bool,
+}
+
+#[cfg(feature = "s_incremental")]
+impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
+    fn verify(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        sweep: Option<&object_index::HistorySweep>,
+    ) -> Result<(), String> {
+        if cut.metadata.generation != self.generation + 1 {
+            return Err(err("历史认证代号不连续"));
+        }
+        audit_one_cut_sources(
+            cut,
+            self.raw,
+            store,
+            objects,
+            sweep,
+            &mut self.source,
+            None,
+            self.previous,
+            self.deadline,
+            self.budget,
+            None,
+            self.owner_source,
+            self.certified_online,
+        )?;
+        history::check_deadline(self.deadline)?;
+        self.generation = cut.metadata.generation;
+        self.previous = cut.metadata.input_frontier;
+        #[cfg(test)]
+        trace_event("h1_certified_cut", Some(self.generation));
+        Ok(())
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "#1481：历史认证组件，正式入口待 #1645/#1491")
+)]
+pub(super) struct HistoricalCertificate {
+    audited: AuditedState,
+}
+
+#[cfg(feature = "s_incremental")]
+struct HistoricalCertification;
+
+#[cfg(feature = "s_incremental")]
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "#1481：历史认证组件，正式入口待 #1645/#1491")
+)]
+impl HistoricalCertificate {
+    pub(super) fn cold(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn audit_budget::Budget>,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, String> {
+        Self::cold_captured(tx, deadline, budget, work).map(|(cert, _, _)| cert)
+    }
+
+    pub(super) fn cold_for_request(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        work: &sc::capture_allocation::scratch::WorkScope,
+        context: &mut super::request_audit::RequestAuditContext,
+    ) -> Result<AuditedState, String> {
+        drop(context.take());
+        let (cert, capture, node_count) = Self::cold_captured(tx, deadline, None, Some(work))?;
+        let AuditedState {
+            raw,
+            budget,
+            historical,
+            certification,
+        } = cert.audited;
+        let HistoricalOwner::Unique(result) = historical else {
+            unreachable!()
+        };
+        let result =
+            super::native_shared::NativeRc::try_new_shallow(result, Some(work)).map_err(err)?;
+        let binding = super::request_audit::HistoricalDependencyBinding::read_admitted(
+            tx,
+            &result,
+            Some(work),
+        )?;
+        history::check_deadline(deadline)?;
+        context.retain(binding, capture, node_count, result.clone(), false, None);
+        Ok(AuditedState {
+            raw,
+            budget,
+            historical: HistoricalOwner::Shared(result),
+            certification,
+        })
+    }
+
+    fn cold_captured(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn audit_budget::Budget>,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(Self, sc::AuditCapture, usize), String> {
+        history::check_deadline(deadline)?;
+        if let Some(budget) = budget {
+            budget.precheck().map_err(err)?;
+        }
+        let measure = audit_budget::NativeMeasure { budget, deadline };
+        let (capture, node_count) = content_store::capture_for_request_prototype_admitted_measured(
+            tx,
+            work,
+            Some(&measure),
+        )
+        .map_err(err)?;
+        let capture = capture
+            .enable_native_frame_reuse_admitted(work)
+            .map_err(err)?;
+        let control = control_audit::prepare_s3_control_history_admitted(
+            tx,
+            None,
+            work,
+            budget.and_then(|b| b.before_write()),
+        )?;
+        let raw = super::business_json::RawEvents::from_json_owner(
+            crate::read_raw_events_until_admitted_measured(tx, deadline, work, budget)?,
+        )?;
+        audit_profile_id_admitted(tx, None, work)?;
+        let mut sources = HistoricalSourceFold {
+            raw: raw.view(),
+            source: Some(source_audit::NativeSourceAudit::new_with_records_measured(
+                &capture,
+                raw.view(),
+                None,
+                work,
+                budget,
+                deadline,
+                history::SourcePolicy::NativeMeasured,
+            )?),
+            generation: 0,
+            previous: -1,
+            deadline,
+            budget,
+            owner_source: None,
+            certified_online: false,
+        };
+        let indexed = history::fold_certified_history(
+            tx,
+            raw.view(),
+            control,
+            &capture,
+            work,
+            deadline,
+            budget,
+            &mut sources,
+        )?;
+        verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), None, work)?;
+        let mut store = history::HashReader::captured_for_audit(&capture, None)
+            .map_err(err)?
+            .with_audit_gate(budget, deadline)
+            .with_source_policy(history::SourcePolicy::NativeMeasured)
+            .with_native_scope(work)
+            .map_err(err)?;
+        if let Some(last) = indexed.cuts.last() {
+            let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
+            catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        }
+        history::check_deadline(deadline)?;
+        let raw_sources = sources
+            .source
+            .take()
+            .map(source_audit::NativeSourceAudit::into_raw_facts);
+        drop(sources);
+        let history::IndexedHistory {
+            control_facts,
+            raw_prefixes,
+            auxiliary_facts,
+            cuts,
+            objects,
+            auxiliary,
+            object_sweep,
+        } = indexed;
+        drop(store);
+        Ok((
+            Self {
+                audited: AuditedState {
+                    budget: raw.budget().cloned(),
+                    raw,
+                    certification: Some(HistoricalCertification),
+                    historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
+                        control_facts,
+                        raw_prefixes,
+                        raw_sources,
+                        auxiliary_facts,
+                        object_facts: object_sweep,
+                        cuts,
+                        objects,
+                        auxiliary,
+                    }),
+                },
+            },
+            capture,
+            node_count,
+        ))
+    }
+
+    pub(super) fn historical(&self) -> &ImmutableHistoricalAudit {
+        &self.audited
+    }
 }
 
 // #1394：仅ignored成本诊断开启的当前线程阶段记录，不进入生产代码或资源判据。
@@ -2867,6 +3108,7 @@ mod owner_retention {
                 raw,
                 budget,
                 historical,
+                certification: _,
             } = self;
             if budget.is_some() {
                 return usize::MAX;
@@ -2877,6 +3119,11 @@ mod owner_retention {
             })
         }
     }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+thread_local! {
+    pub(super) static H1_DROP_SOURCE_RECEIPT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[cfg(feature = "s_incremental")]
@@ -2896,6 +3143,16 @@ impl AuditedState {
         source_check: Option<&super::audit_owner::OwnerSourceCheck>,
     ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
     {
+        #[cfg(test)]
+        let source_check = if H1_DROP_SOURCE_RECEIPT.with(|flag| flag.replace(false)) {
+            None
+        } else {
+            source_check
+        };
+        let certified = self.certification.is_some();
+        if certified && source_check.is_none() {
+            return Err(err("历史认证在线缺同请求来源收据").into());
+        }
         let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
             HistoricalOwner::Unique(v) => v,
@@ -2919,6 +3176,24 @@ impl AuditedState {
             auxiliary,
         } = historical;
         let previous = cuts.last().map_or(-1, |c| c.metadata.input_frontier);
+        let mut sources = HistoricalSourceFold {
+            raw: self.raw.view(),
+            source: Some(
+                source_audit::NativeSourceAudit::restore(
+                    capture,
+                    self.raw.view(),
+                    raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
+                    bound,
+                )?
+                .with_codec_work(work, native),
+            ),
+            generation: g - 1,
+            previous,
+            deadline: None,
+            budget: None,
+            owner_source: source_check,
+            certified_online: certified,
+        };
         let (updated, history_delta) = history::append_owner_cut(
             tx,
             self.raw.view(),
@@ -2940,44 +3215,37 @@ impl AuditedState {
             bound,
             work,
             native,
+            &mut sources,
         )?;
         retained.merge(history_delta);
-        let mut source = Some(
-            source_audit::NativeSourceAudit::restore(
-                capture,
-                self.raw.view(),
-                raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
-                bound,
-            )?
-            .with_codec_work(work, native),
-        );
         let mut store = history::HashReader::captured_for_audit(capture, None)
             .map_err(err)?
             .with_codec_work(work, native);
         let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
-        audit_one_cut_sources(
-            cut,
-            self.raw.view(),
-            &mut store,
-            &updated.objects,
-            updated.object_sweep.as_ref(),
-            &mut source,
-            None,
-            previous,
-            None,
-            None,
-            None,
-            source_check,
-        )?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
         catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        if certified {
+            source_check
+                .ok_or_else(|| err("历史认证在线缺同请求来源收据"))?
+                .counts_for_cut(
+                    cut.metadata.view(),
+                    cut.roots.generated_state.view(),
+                    usize::try_from(cut.metadata.input_frontier + 1).map_err(err)?,
+                    None,
+                )?;
+        }
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
-        let raw_sources = source.map(|source| source.into_raw_facts_retained(&mut retained));
+        let raw_sources = sources
+            .source
+            .take()
+            .map(|source| source.into_raw_facts_retained(&mut retained));
+        drop(sources);
         Ok((
             Self {
                 raw: self.raw,
                 budget: self.budget,
+                certification: self.certification,
                 historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
                     control_facts: updated.control_facts,
                     raw_prefixes: updated.raw_prefixes,
@@ -3190,5 +3458,149 @@ mod transaction_material_qualification {
                 Ok::<_, ()>(())
             });
         super::super::ordinary_materials::LAST_REPORT.with(|r| assert!(r.get().is_none()));
+    }
+}
+
+/// #1481 对拍规范输出：逐字段完整语义载荷；不包含分配许可、容量或测试计数。
+/// Optional Native facts按实际状态逐字段保留，不能用计数/fingerprint代替。
+#[cfg(all(test, feature = "s_incremental"))]
+impl ImmutableHistoricalAudit {
+    pub(super) fn h1_canonical(&self) -> String {
+        let Self {
+            control_facts,
+            raw_prefixes,
+            raw_sources,
+            auxiliary_facts,
+            object_facts,
+            cuts,
+            objects,
+            auxiliary,
+        } = self;
+        canonical_json(&json!({
+            "schema":"immutable-historical-audit/1",
+            "control_facts":control_facts.h1_canonical(),
+            "raw_prefixes":raw_prefixes.as_ref().map(history::NativeRawPrefixes::h1_canonical),
+            "raw_sources":raw_sources.as_ref().map(source_audit::NativeRawFacts::h1_canonical),
+            "auxiliary_facts":auxiliary_facts.as_ref().map(aux_index::NativeAuxFacts::h1_canonical),
+            "object_facts":object_facts.as_ref().map(object_index::HistorySweep::h1_canonical),
+            "cuts":cuts.iter().map(|c| { let history::PublishedCut { metadata, roots, batch_id, snapshot, delta } = c;
+                json!({"metadata":metadata,"roots":roots,"batch_id":batch_id,"snapshot":snapshot,"delta":delta}) }).collect::<Vec<_>>(),
+            "objects":objects.iter().map(object_index::Entry::h1_canonical).collect::<Vec<_>>(),
+            "auxiliary":auxiliary.h1_canonical(),
+        }))
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod h1_certificate_tests {
+    use super::*;
+
+    fn compare(tx: &Transaction<'_>) {
+        let expected = audit_native_current(tx).unwrap();
+        let (result, events, _) =
+            traced(false, || HistoricalCertificate::cold(tx, None, None, None));
+        let actual = result.unwrap();
+        assert_eq!(actual.historical().h1_canonical(), expected.h1_canonical());
+        assert_eq!(
+            serde_json::to_value(&actual.audited.raw).unwrap(),
+            serde_json::to_value(&expected.raw).unwrap(),
+        );
+        let certified = events
+            .iter()
+            .filter(|e| e["phase"] == "h1_certified_cut")
+            .map(|e| e["generation"].as_i64().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            certified,
+            (1..=expected.cuts.len() as i64).collect::<Vec<_>>()
+        );
+        for generation in certified {
+            let next = events
+                .iter()
+                .position(|e| e["phase"] == "h1_certified_cut" && e["generation"] == generation)
+                .unwrap();
+            if generation < expected.cuts.len() as i64 {
+                let following = events
+                    .iter()
+                    .position(|e| {
+                        e["phase"] == "history_decode_manifest" && e["generation"] == generation + 1
+                    })
+                    .unwrap();
+                assert!(next < following, "来源认证必须在读取下一代之前完成");
+            }
+        }
+    }
+
+    #[test]
+    fn h1_cert_cold_empty_revision_winner_and_unpublished_tail() {
+        let mut fixture = prepared::tests::Fixture::new();
+        compare(&fixture.conn.transaction().unwrap());
+        for (n, row, revision) in [
+            (1, ("a", 20, 6, 12, 3, 7), 1),
+            (2, ("b", 0, 8, 16, 6, 12), 1),
+            (3, ("a", 20, 8, 13, 4, 7), 2),
+        ] {
+            let (envelope, token) = fixture.accept_begin(n, row, revision);
+            compare(&fixture.conn.transaction().unwrap());
+            fixture.publish(&envelope, &token).unwrap();
+            compare(&fixture.conn.transaction().unwrap());
+        }
+        fixture.accept_begin(4, ("tail", 30, 8, 17, 6, 12), 1);
+        let tx = fixture.conn.transaction().unwrap();
+        compare(&tx);
+        let cert = HistoricalCertificate::cold(&tx, None, None, None).unwrap();
+        let prefixes = cert.historical().raw_prefixes.as_ref().unwrap();
+        assert_eq!(prefixes.checked_len(), 4);
+        assert_eq!(prefixes.published_len(), 3);
+    }
+
+    #[test]
+    fn h1_cert_rejects_control_manifest_current_sql_and_missing_original() {
+        let mut fixture = prepared::tests::Fixture::new();
+        let (envelope, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.publish(&envelope, &token).unwrap();
+        for sql in [
+            "UPDATE meta SET value='2' WHERE key='generation'",
+            "UPDATE s_content_publications SET batch_id='wrong'",
+            "UPDATE structure_deltas SET input_frontier=99",
+            "UPDATE catalog SET run_status='not_run' WHERE catalog_id='CC-005'",
+            "DELETE FROM s_content_nodes",
+        ] {
+            let tx = fixture.conn.transaction().unwrap();
+            tx.execute_batch(sql).unwrap();
+            assert!(audit_native_current(&tx).is_err(), "oracle: {sql}");
+            assert!(
+                HistoricalCertificate::cold(&tx, None, None, None).is_err(),
+                "cert: {sql}"
+            );
+            tx.rollback().unwrap();
+        }
+    }
+
+    #[test]
+    fn h1_cert_deadline_and_scratch_failure_release() {
+        let mut fixture = prepared::tests::Fixture::new();
+        let (envelope, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.publish(&envelope, &token).unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let expired = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        assert!(HistoricalCertificate::cold(&tx, Some(expired), None, None).is_err());
+        for limit in [1024, 64 * 1024 * 1024] {
+            let native = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+            let baseline = native.live();
+            let result = native
+                .codec_work()
+                .unwrap()
+                .run(|scope| HistoricalCertificate::cold(&tx, None, None, Some(scope)));
+            if limit == 1024 {
+                assert!(result.is_err());
+            } else {
+                let cert = result.unwrap();
+                assert_eq!(cert.historical().cuts.len(), 1);
+                drop(cert);
+            }
+            assert_eq!(native.live(), baseline);
+            assert_eq!(native.scratch_observation().0, 0);
+        }
     }
 }
