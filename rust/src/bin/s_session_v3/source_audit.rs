@@ -2591,7 +2591,7 @@ fn audit_generated_in_store(
         #[cfg(feature = "s_incremental")]
         if let Some(exported) = observation_sources.as_deref_mut() {
             let sources = source_receipt::source_facts::observation_sources(s, &item,
-                |index| groups.get(&index).map(|g| g.sources.as_slice()))?;
+                |index| groups.get(&index).map(|g| &g.sources[..]))?;
             s.native_codec_room(exported, 1).map_err(err)?;
             exported.try_push((digest(&item)?, sources)).map_err(err)?;
         }

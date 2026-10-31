@@ -327,11 +327,18 @@ impl RawReceipt {
         roots: &impl crate::content_manifest::ManifestRootSource,
     ) -> Result<std::ops::Range<usize>, String> {
         let roots = roots.view();
+        #[cfg(all(test, feature = "s_incremental"))]
+        let token = if self.business.is_some() { fee_probe::binding_token(self.generation, token) } else { token };
         self.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
             metadata.input_frontier, (&metadata.scope).into(), roots.generated_state)?;
         self.check_request(token, metadata.generation, &metadata.rule_revision,
             self.raw_from..self.raw_to, (&metadata.scope).into(), roots.generated_state)?;
         Ok(self.raw_from..self.raw_to)
+    }
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(crate) fn binding_root_for_test(&self) -> Option<usize> {
+        self.business.as_ref()?;
+        fee_probe::binding_root(self.generation)
     }
     pub(crate) fn request_token(&self) -> &str { self.token.as_str() }
     pub(crate) fn counts(&self) -> &Counts { &self.counts }
@@ -650,7 +657,6 @@ mod tests {
 
 #[cfg(all(test, feature = "s_incremental"))]
 pub(crate) mod fee_probe {
-    use super::*;
     use super::super::super::audit_owner::native::{Budget, Permit};
     #[derive(Default)]
     pub(crate) struct Reading {
@@ -663,9 +669,27 @@ pub(crate) mod fee_probe {
         pub refusal_released: usize,
     }
     #[derive(Default)]
-    struct Probe { enabled: bool, reject: i64, current: i64, refusal_live: Option<usize>, parents: Vec<Budget>, rows: Vec<Reading> }
+    struct Probe { enabled: bool, reject: i64, reject_binding: i64, reject_root: Option<(i64, usize)>, current: i64, refusal_live: Option<usize>, parents: Vec<Budget>, rows: Vec<Reading> }
     thread_local! { static PROBE: std::cell::RefCell<Probe> = Default::default(); }
     pub(crate) fn start(reject: i64) { PROBE.with(|p| *p.borrow_mut() = Probe { enabled: true, reject, ..Default::default() }); }
+    pub(crate) fn reject_binding_at(generation: i64) { PROBE.with(|p| p.borrow_mut().reject_binding = generation); }
+    pub(crate) fn reject_root_at(generation: i64, root: usize) {
+        assert!(root < 4);
+        PROBE.with(|p| p.borrow_mut().reject_root = Some((generation, root)));
+    }
+    pub(super) fn binding_root(generation: i64) -> Option<usize> {
+        PROBE.with(|p| {
+            let mut p = p.borrow_mut();
+            if p.enabled && p.reject_root.is_some_and(|(g, _)| g == generation) {
+                p.reject_root.take().map(|(_, root)| root)
+            } else { None }
+        })
+    }
+    pub(super) fn binding_token(generation: i64, token: &str) -> &str {
+        PROBE.with(|p| { let mut p = p.borrow_mut();
+            if p.enabled && p.reject_binding == generation { p.reject_binding = -1; "p6-wrong-request" } else { token }
+        })
+    }
     pub(crate) fn bind(parent: &Budget) {
         PROBE.with(|p| { let mut p = p.borrow_mut(); if p.enabled { p.parents.push(parent.clone()); } });
     }

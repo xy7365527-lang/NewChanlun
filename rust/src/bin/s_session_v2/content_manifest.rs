@@ -1479,7 +1479,27 @@ impl ManifestSourceReceipt {
         manifest: &UnpublishedManifest,
         raw_range: std::ops::Range<usize>,
     ) -> Result<crate::v3::audit_owner::RawReceipt, String> {
-        if !self.metadata.matches(metadata.view()) || !same_roots(self.roots.view(), roots.view())
+        let metadata_view = metadata.view();
+        let roots_view = roots.view();
+        #[cfg(test)]
+        let (metadata_view, roots_view) = {
+            let mut metadata_view = metadata_view;
+            let mut roots_view = roots_view;
+            if let Some(root) = self.source.binding_root_for_test() {
+                let target = match root {
+                    0 => &mut metadata_view.scope,
+                    1 => &mut roots_view.generated_state,
+                    2 => &mut roots_view.publication_template,
+                    3 => &mut roots_view.delta_template,
+                    _ => unreachable!(),
+                };
+                let other = if root == 0 { roots.view().generated_state } else { metadata.view().scope };
+                assert!(!same_reference(*target, other));
+                *target = other;
+            }
+            (metadata_view, roots_view)
+        };
+        if !self.metadata.matches(metadata_view) || !same_roots(self.roots.view(), roots_view)
             || self.manifest_value != manifest.value || self.batch_id != manifest.batch_id
         {
             return Err("IdentityConflict：P6组装证明与当前清单不同".into());

@@ -98,6 +98,7 @@ Native不创建OwnedBudget
 Native准入不可擦除Owned JSON
 Native必须保持Plain名分
 Native捕获尚未获准
+Native真实prepare须签发来源组装证明
 Native移入许可返还失配
 Native解析必须保留Plain名分
 Native许可不得随借用store提前释放
@@ -227,7 +228,11 @@ TOP/BOTTOM 窗口必产 CC007
 Template损坏必须拒绝
 TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
+TestOnly-fee-failure
+TestOnly-raw-budget
+TestOnly-raw-partition
 TestOnly-same-content
+TestOnly-source-failure
 TestOnly-storage-fixture/1
 TestOnly：Budget 故障仅用于 Owned 模式
 TestOnly：stop_after_accept
@@ -383,6 +388,7 @@ put 入参核 F；Missing 无旧 F
 put 总是实际 SELECT
 put不得提前核F
 queue Layout应被拒绝
+queued单位不增加同形真实owner无台账路径的组装次数
 r3完整Some F次数
 r3完整Some读取轨迹
 raw 前缀链可用
@@ -447,6 +453,7 @@ v4：Native许可随事实对象析构返还原父域，回到调用方已持有
 v4：离开WorkScope且全部对象析构后只剩父账元数据，无滞留许可
 verification memo 随操作析构
 warm 只重核真实根 header
+warm/cold Native每代各消费一次来源后缀，Ordinary不新增义务
 wire `input_refs` 必须借 producer 的 wire_input_refs 同根
 wire merged_index 必须是文本
 wire 装配不得读取载荷子图（记录自身字段根除外）
@@ -489,6 +496,7 @@ writer/recover闭合后无SHM
 不跨请求保留共享根
 与旧稳定排序逐项同序，等键原ordinal不变
 业务缓存真实跨请求持账
+业务行持有同父账费用
 丢弃运行态后必须真的重新写节点
 两个fresh捕获各自持有正文owner
 两个实际读取各重算本次F
@@ -791,12 +799,14 @@ writer/recover闭合后无SHM
 实际 Vec/String capacity 加树/散列表保守槽位上界；非RSS
 实际 verifier 在首个分配前 typed 拒绝
 实际Layout拒绝必须保持typed首错
+实际owner和runtime析构后同父账归零
 实际source原件必须仍存在
 实际包含三槽见证及跨代 bi prior
 实际工作集合与memo持续计量
 实际工作集析构前许可仍须占账
 实际持有者析构后归还原账
 实际插入不再暗中扩桶
+实际来源载荷失败必须拒绝
 审计诊断不得嵌套
 审计返回的对象索引必须与持久行一一对应
 审计返回的辅助索引必须与持久行一一对应
@@ -864,6 +874,7 @@ writer/recover闭合后无SHM
 必须实测变化JSON所有者中途预算拒绝
 必须实际减少SQL读取
 必须实际减少同一FD VFS的audit wire
+必须实际持有并释放observation投影
 必须实际接纳，不能用replay/已发布回执冒充新增raw
 必须实际改写一行，不能空表假通过
 必须实际消费尾检故障
@@ -1216,6 +1227,7 @@ writer/recover闭合后无SHM
 测试观察器不能嵌套
 测试语义失败
 测试读取租约时锁不应中毒
+测试预留同一父账剩余额度
 消息 epoch 正确也不能代替实际 writer 配置核验
 消费失败丢弃pending facts
 消费已有事实不再复制文本
@@ -1555,6 +1567,7 @@ writer/recover闭合后无SHM
 预算 0 无调度检查点
 预算 1 须出现耗尽
 预算前门拒绝不读SQL
+预算拒绝不能遗留新增载荷
 额度在实际复制/读取前拒绝
 首个入口没有旧池，之后旧池为完整候选
 首代不得凭新生成产品签发旧历史资格

@@ -1967,8 +1967,14 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn p6_source_partitions_fees_release_after_refusal_and_commit_failure() {
-        for budget_refusal in [true, false] {
+    fn p6_source_partitions_fees_release_after_refusal_commit_and_binding_failure() {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum Failure { Budget, Commit, Token, Root(usize) }
+        for failure in [Failure::Budget, Failure::Commit, Failure::Token,
+            Failure::Root(0), Failure::Root(1), Failure::Root(2), Failure::Root(3)] {
+            let budget_refusal = failure == Failure::Budget;
+            let commit_failure = failure == Failure::Commit;
+            let fail_generation = if failure == Failure::Token { 1 } else { 3 };
             let mut f = Fixture::new();
             let db = f.db_path();
             let path = db.with_file_name("source-fee-failure.sqlite");
@@ -1978,36 +1984,48 @@ pub(crate) mod tests {
                 audit_ledger::Identity { rule_revision: rule, content_identity: "TestOnly-fee-failure".into(),
                     binary_commit: "test-only".into() }, 64 * 1024 * 1024).unwrap()).unwrap();
             source_audit::source_receipt::fee_probe::start(if budget_refusal { 3 } else { -1 });
-            for (i, row) in [("a",0,6,12,3,7),("b",1,14,20,10,15),("c",2,6,12,3,7)].into_iter().enumerate() {
+            if failure == Failure::Token { source_audit::source_receipt::fee_probe::reject_binding_at(1); }
+            if let Failure::Root(root) = failure {
+                source_audit::source_receipt::fee_probe::reject_root_at(3, root);
+            }
+            for (i, row) in [("a",0,6,12,3,7),("b",1,14,20,10,15),("c",2,6,12,3,7)].into_iter().take(fail_generation).enumerate() {
                 let g = i as i64 + 1;
                 let (envelope, token) = f.accept_begin(g, row, 1);
                 let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
                 let reader = Connection::open(&path).unwrap();
-                if g == 3 && !budget_refusal {
+                if g == fail_generation as i64 && commit_failure {
                     reader.execute_batch("BEGIN").unwrap();
                     reader.query_row("SELECT COUNT(*) FROM raw",[],|r|r.get::<_,i64>(0)).unwrap();
                 }
                 let mut context = owner.p6_source_context_for_test();
                 let result = owner.publish(&mut runtime, &token, &envelope, &mut context);
-                if g < 3 { owner.continue_with(result.unwrap().1).unwrap(); runtime.discard(); }
+                if g < fail_generation as i64 { owner.continue_with(result.unwrap().1).unwrap(); runtime.discard(); }
                 else {
-                    assert!(result.is_err());
-                    if !budget_refusal { reader.execute_batch("ROLLBACK").unwrap(); }
-                    assert_eq!(meta_i64(&f.conn,"generation").unwrap(), if budget_refusal { 2 } else { 3 });
+                    let error = result.err().expect("实际来源载荷失败必须拒绝");
+                    match failure {
+                        Failure::Token => assert!(error.contains("P6来源收据与发布请求不符"), "{error}"),
+                        Failure::Root(_) => assert!(error.contains("P6组装证明与当前清单不同"), "{error}"),
+                        _ => {}
+                    }
+                    if commit_failure { reader.execute_batch("ROLLBACK").unwrap(); }
+                    assert_eq!(meta_i64(&f.conn,"generation").unwrap(), g - i64::from(!commit_failure));
                     assert!(runtime.audit_ledger.as_ref().unwrap().partial_through().is_err());
-                    assert_eq!(reader.query_row("SELECT COUNT(*) FROM raw",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+                    assert_eq!(reader.query_row("SELECT COUNT(*) FROM raw",[],|r|r.get::<_,i64>(0)).unwrap(),g-1);
                 }
             }
             drop(runtime);
             let fees = source_audit::source_receipt::fee_probe::finish();
-            assert_eq!(fees.len(),3);
-            let failed = fees.iter().find(|f| f.generation == 3).unwrap();
+            assert_eq!(fees.len(),fail_generation);
+            let failed = fees.iter().find(|f| f.generation == fail_generation as i64).unwrap();
             assert!(failed.raw_released > 0);
             if budget_refusal {
                 assert!(failed.refused && failed.refusal_released > 0);
                 assert_eq!(failed.business_released,0);
             } else {
                 assert!(!failed.refused && failed.held > 0 && failed.business_released > 0);
+                if matches!(failure, Failure::Token | Failure::Root(_)) {
+                    assert!(failed.projection_released > 0);
+                }
             }
         }
     }

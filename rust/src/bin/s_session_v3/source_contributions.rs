@@ -1726,7 +1726,7 @@ impl NativeSourceState {
             }
             if export_sources {
                 let source_digest = super::source_receipt::source_facts::observation_sources(s, &record,
-                    |index| self.groups.get(&index).map(|g| g.sources.as_slice()))?;
+                    |index| self.groups.get(&index).map(|g| &g.sources[..]))?;
                 vec_push(s, &mut exported, (digest_want, source_digest))?;
             }
             let kind = text(s, &record, "kind")?;
