@@ -1,7 +1,7 @@
 name: H1 history component 36h
 on:
   push:
-    branches: [codex/issue1481-history36h]
+    branches: [codex/issue1481-history36h, codex/issue1481-closure38h]
   workflow_dispatch:
 jobs:
   history:

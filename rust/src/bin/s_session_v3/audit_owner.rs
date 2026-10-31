@@ -5547,6 +5547,19 @@ pub(super) mod construction_tests {
     }
 
     #[test]
+    fn h1_request_closure_real_owner_multicut_reuses_resolved_roots() {
+        super::super::history::REQUEST_CLOSURE_REPEATS.with(|c| c.set((0, 0)));
+        b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild();
+        let (requests, reads) =
+            super::super::history::REQUEST_CLOSURE_REPEATS.with(std::cell::Cell::get);
+        assert!(requests >= 12, "两种布局的真实多代 append 必须消费请求证明");
+        assert_eq!(reads, requests * 2, "resolved 两根每次仅重核真实根头");
+        eprintln!(
+            "closure_request real_append_requests={requests} resolved_root_header_reads={reads}"
+        );
+    }
+
+    #[test]
     fn b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild() {
         use super::super::history::tests::{
             layout_published_arrays, layout_rebuilt_arrays, LAYOUT_ARRAYS, LAYOUT_MULTICUT_INPUTS,

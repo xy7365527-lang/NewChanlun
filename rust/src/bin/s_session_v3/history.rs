@@ -1558,7 +1558,12 @@ fn audit_one_published_cut<'capture>(
         }
     }
     if let Some(index) = ordered_raw.as_mut() {
-        index.advance_admitted(frontier as usize + 1, store)?;
+        let changes = index.advance_admitted(frontier as usize + 1, store)?;
+        if let Some(prefix) = native_prefix.as_mut() {
+            prefix
+                .sequence
+                .apply(&changes.winner_edits, raw_nodes, store)?;
+        }
     }
     same_digest(
         store,
@@ -1584,8 +1589,8 @@ fn audit_one_published_cut<'capture>(
         store,
         roots.generated_state.view(),
         "effective_events",
-        match native_prefix.as_ref().and_then(|p| p.effective.as_ref()) {
-            Some(prefix) => prefix.array_root()?,
+        match native_prefix.as_ref() {
+            Some(prefix) => prefix.sequence.array_root()?,
             None => {
                 let nodes = if let Some(index) = &ordered_raw {
                     // 修订/乱序后保留原 ARRAY 编码；只消除每 cut 的重新排序。
@@ -2675,12 +2680,266 @@ impl PrefixArray {
     }
 }
 
+struct EffectiveBlock {
+    node: allocator_api2::boxed::Box<EffectiveNode>,
+    permit: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+struct EffectiveNode {
+    count: u64,
+    digest: NodeDigest,
+    first: i64,
+    last: i64,
+    contents: EffectiveContents,
+}
+enum EffectiveContents {
+    Leaf(usize),
+    Branch(EffectiveBlock, EffectiveBlock),
+}
+impl EffectiveBlock {
+    fn allocate(node: EffectiveNode, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        let permit = store
+            .native_reservation(std::mem::size_of::<EffectiveNode>())
+            .map_err(err)?;
+        let node =
+            allocator_api2::boxed::Box::try_new(node).map_err(|_| err(store.native_overflow()))?;
+        Ok(Self { node, permit })
+    }
+    fn leaf(
+        coord: i64,
+        ordinal: usize,
+        digest: NodeDigest,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, String> {
+        #[cfg(test)]
+        record_effective_work(0);
+        Self::allocate(
+            EffectiveNode {
+                count: 1,
+                digest: sc::frame(sc::tag::SEQ_LEAF, &digest),
+                first: coord,
+                last: coord,
+                contents: EffectiveContents::Leaf(ordinal),
+            },
+            store,
+        )
+    }
+    fn branch(left: Self, right: Self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        let count = left
+            .node
+            .count
+            .checked_add(right.node.count)
+            .ok_or_else(|| err("effective count overflow"))?;
+        let digest = PrefixArray::branch(&left.node.digest, &right.node.digest, count)?;
+        #[cfg(test)]
+        record_effective_work(1);
+        Self::allocate(
+            EffectiveNode {
+                count,
+                digest,
+                first: left.node.first,
+                last: right.node.last,
+                contents: EffectiveContents::Branch(left, right),
+            },
+            store,
+        )
+    }
+    fn split(self) -> EffectiveContents {
+        let Self { node, permit } = self;
+        let EffectiveNode { contents, .. } = allocator_api2::boxed::Box::into_inner(node);
+        drop(permit);
+        contents
+    }
+}
+#[derive(Default)]
+struct EffectiveSequenceFacts {
+    root: Option<EffectiveBlock>,
+}
+impl EffectiveSequenceFacts {
+    #[cfg(feature = "s_incremental")]
+    fn retained_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |root| {
+            (root.node.count as usize)
+                .saturating_mul(2)
+                .saturating_sub(1)
+                .saturating_mul(std::mem::size_of::<EffectiveNode>())
+        })
+    }
+    fn array_root(&self) -> Result<NodeDigest, String> {
+        let (count, digest) = self
+            .root
+            .as_ref()
+            .map_or((0, sc::frame(sc::tag::SEQ_EMPTY, &[])), |r| {
+                (r.node.count, r.node.digest)
+            });
+        let mut body = [0; 40];
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[8..].copy_from_slice(&digest);
+        Ok(sc::frame(sc::tag::ARRAY, &body))
+    }
+    fn apply(
+        &mut self,
+        changes: &[bj::RawWinnerEdit],
+        raw: &[NodeDigest],
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<(), String> {
+        if changes.is_empty() {
+            return Ok(());
+        }
+        let mut edits = sc::CodecVec::default();
+        store
+            .native_vec_room(
+                &mut edits,
+                changes
+                    .len()
+                    .checked_mul(2)
+                    .ok_or_else(|| err(store.native_overflow()))?,
+            )
+            .map_err(err)?;
+        for change in changes {
+            if let Some(old) = change.old {
+                edits.try_push((old.coord, None)).map_err(err)?;
+            }
+            if let Some(new) = change.new {
+                edits
+                    .try_push((new.coord, Some(new.ordinal)))
+                    .map_err(err)?;
+            }
+        }
+        edits.sort_unstable_by_key(|&(coord, ordinal)| (coord, ordinal.is_some()));
+        let mut unique = 0;
+        for n in 0..edits.len() {
+            if unique > 0 && edits[unique - 1].0 == edits[n].0 {
+                edits[unique - 1] = edits[n];
+            } else {
+                edits[unique] = edits[n];
+                unique += 1;
+            }
+        }
+        edits.truncate(unique);
+        let mut pending = sc::CodecVec::default();
+        let mut peaks = sc::CodecVec::default();
+        let mut count = 0u64;
+        let mut cursor = 0;
+        store.native_vec_room(&mut pending, 1).map_err(err)?;
+        if let Some(root) = self.root.take() {
+            pending.try_push(root).map_err(err)?;
+        }
+        while let Some(block) = pending.pop() {
+            #[cfg(test)]
+            record_effective_work(2);
+            while cursor < edits.len() && edits[cursor].0 < block.node.first {
+                Self::emit_edit(edits[cursor], raw, &mut peaks, &mut count, store)?;
+                cursor += 1;
+            }
+            if cursor < edits.len() && edits[cursor].0 <= block.node.last {
+                if let EffectiveContents::Leaf(ordinal) = &block.node.contents {
+                    if edits[cursor].1 == Some(*ordinal) {
+                        Self::emit_block(block, &mut peaks, &mut count, store)?;
+                        cursor += 1;
+                        continue;
+                    }
+                }
+                match block.split() {
+                    EffectiveContents::Leaf(_) => {
+                        Self::emit_edit(edits[cursor], raw, &mut peaks, &mut count, store)?;
+                        cursor += 1;
+                    }
+                    EffectiveContents::Branch(left, right) => {
+                        store.native_vec_room(&mut pending, 2).map_err(err)?;
+                        pending.try_push(right).map_err(err)?;
+                        pending.try_push(left).map_err(err)?;
+                    }
+                }
+            } else {
+                Self::emit_block(block, &mut peaks, &mut count, store)?;
+            }
+        }
+        while cursor < edits.len() {
+            Self::emit_edit(edits[cursor], raw, &mut peaks, &mut count, store)?;
+            cursor += 1;
+        }
+        let mut root = peaks.pop();
+        while let Some(left) = peaks.pop() {
+            root = Some(EffectiveBlock::branch(left, root.unwrap(), store)?);
+        }
+        self.root = root;
+        Ok(())
+    }
+    fn emit_edit(
+        edit: (i64, Option<usize>),
+        raw: &[NodeDigest],
+        peaks: &mut sc::CodecVec<EffectiveBlock>,
+        count: &mut u64,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<(), String> {
+        if let (coord, Some(ordinal)) = edit {
+            let digest = *raw
+                .get(ordinal)
+                .ok_or_else(|| err("effective ordinal out of range"))?;
+            Self::emit_block(
+                EffectiveBlock::leaf(coord, ordinal, digest, store)?,
+                peaks,
+                count,
+                store,
+            )?;
+        }
+        Ok(())
+    }
+    fn emit_block(
+        block: EffectiveBlock,
+        peaks: &mut sc::CodecVec<EffectiveBlock>,
+        count: &mut u64,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<(), String> {
+        let mut pending = sc::CodecVec::default();
+        store.native_vec_room(&mut pending, 1).map_err(err)?;
+        pending.try_push(block).map_err(err)?;
+        while let Some(mut block) = pending.pop() {
+            let size = block.node.count;
+            if !size.is_power_of_two() || *count % size != 0 {
+                let EffectiveContents::Branch(left, right) = block.split() else {
+                    unreachable!()
+                };
+                #[cfg(test)]
+                record_effective_work(3);
+                store.native_vec_room(&mut pending, 2).map_err(err)?;
+                pending.try_push(right).map_err(err)?;
+                pending.try_push(left).map_err(err)?;
+                continue;
+            }
+            *count = count
+                .checked_add(size)
+                .ok_or_else(|| err("effective count overflow"))?;
+            while peaks
+                .last()
+                .is_some_and(|left| left.node.count == block.node.count)
+            {
+                block = EffectiveBlock::branch(peaks.pop().unwrap(), block, store)?;
+            }
+            store.native_vec_room(peaks, 1).map_err(err)?;
+            peaks.try_push(block).map_err(err)?;
+        }
+        Ok(())
+    }
+}
+#[cfg(test)]
+thread_local! { static EFFECTIVE_WORK: std::cell::Cell<[u64;4]> = const { std::cell::Cell::new([0;4]) }; }
+#[cfg(test)]
+fn record_effective_work(index: usize) {
+    EFFECTIVE_WORK.with(|s| {
+        let mut v = s.get();
+        v[index] += 1;
+        s.set(v);
+    });
+}
+
 /// 唯一 owner 随本次实际多 cut 循环创建及销毁，不跨事务或请求保存。
 struct NativeHistoryPrefixes {
     raw: PrefixArray,
     wire: PrefixArray,
     effective: Option<PrefixArray>,
     last_coord: Option<i64>,
+    sequence: EffectiveSequenceFacts,
 }
 impl NativeHistoryPrefixes {
     fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
@@ -2718,6 +2977,7 @@ impl NativeHistoryPrefixes {
             wire: PrefixArray::default(),
             effective: Some(PrefixArray::default()),
             last_coord: None,
+            sequence: EffectiveSequenceFacts::default(),
         })
     }
     fn append(&mut self, coord: i64, raw: NodeDigest, wire: NodeDigest) -> Result<(), String> {
@@ -2728,9 +2988,8 @@ impl NativeHistoryPrefixes {
             record_history_prefix_leaves(3, 1);
             record_history_prefix_leaves(5, 1);
         }
-        // 完整 raw 已核同身份坐标不变及严格递增修订。仅严格递增坐标的有序赢家
-        // 等于追加数组；重复/乱序由输入拓扑永久关闭本 cold 的 effective fold，
-        // 继续使用同一规范 hash_array。此处分派不消费任何根校验失败。
+        // #1481 完整 canonical 合同保留旧峰栈投影及 last_coord 原值。
+        // 生效根由同 cut 最终 winner_edits 更新的 sequence 提供。
         if self.last_coord.is_some_and(|last| coord <= last) {
             self.effective = None;
         }
@@ -2921,6 +3180,8 @@ pub(crate) struct HashReader<'a> {
     work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
     #[cfg(feature = "s_incremental")]
     native_budget: Option<&'a super::audit_owner::native::Budget>,
+    #[cfg(feature = "s_incremental")]
+    request_verifier: Option<sc::CapturedRequestVerifier<'a>>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
@@ -3253,6 +3514,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline: None,
             max_render_bytes,
             budget: None,
@@ -3362,6 +3625,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline: None,
             max_render_bytes: None,
             budget: None,
@@ -3382,6 +3647,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline,
             max_render_bytes: None,
             budget: None,
@@ -3403,6 +3670,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline,
             max_render_bytes,
             budget: None,
@@ -3428,6 +3697,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline,
             max_render_bytes,
             budget,
@@ -3792,6 +4063,22 @@ impl CodecRead for HashReader<'_> {
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
+        #[cfg(feature = "s_incremental")]
+        if self.request_verifier.is_some() {
+            let result = (|| {
+                self.request_verifier.as_ref().unwrap().check_current()?;
+                let digest = r.digest()?;
+                if matches!(&self.source, ReadOwner::Captured(c) if c.contains(&digest)) {
+                    self.request_verifier.as_mut().unwrap().verify_refview(r, m)
+                } else {
+                    sc::verify_refview(self, r, m)
+                }
+            })();
+            if result.is_err() {
+                self.request_verifier.as_mut().unwrap().invalidate();
+            }
+            return result;
+        }
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
             None => {
@@ -3832,6 +4119,13 @@ impl CodecRead for HashReader<'_> {
         m: sc::Mode,
     ) -> Result<(), sc::CodecError> {
         self.sync_owned();
+        #[cfg(feature = "s_incremental")]
+        if self.request_verifier.is_some() {
+            for item in r {
+                self.verify_ref(item, m)?;
+            }
+            return Ok(());
+        }
         match &mut self.owned {
             Some(o) => o.verify_many_cached_owned(r, m),
             None => {
@@ -4134,7 +4428,7 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn owner_retained_prefix_normal_append_and_revision_matches_oracle() {
+    fn h1_owner_retained_prefix_normal_append_and_revision_matches_oracle() {
         use crate::v3::audit_retention::{Retained, RetainedDelta};
         let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
         let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
@@ -6421,12 +6715,12 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn native_history_prefix_real_multicut_roots_and_linear_leaf_visits() {
+    fn h1_native_history_prefix_real_multicut_roots_and_linear_leaf_visits() {
         let bars = [(6, 12, 3, 7), (8, 16, 6, 12), (8, 13, 4, 7), (8, 17, 6, 12)];
         for (coords, ids, revisions, fast_effective, old_effective) in [
             ([0, 10, 20, 30], ["a", "b", "c", "d"], [1; 4], 4, 0),
-            ([20, 0, 10, 30], ["a", "b", "c", "d"], [1; 4], 1, 9),
-            ([0, 10, 20, 10], ["a", "b", "c", "b"], [1, 1, 1, 2], 3, 3),
+            ([20, 0, 10, 30], ["a", "b", "c", "d"], [1; 4], 1, 0),
+            ([0, 10, 20, 10], ["a", "b", "c", "b"], [1, 1, 1, 2], 3, 0),
             ([0, 100, 1000, 9010], ["a", "b", "c", "d"], [1; 4], 4, 0),
         ] {
             let mut fixture = super::prepared::tests::Fixture::new();
@@ -8109,8 +8403,21 @@ mod owner_retention {
         raw,
         wire,
         effective,
-        last_coord
+        last_coord,
+        sequence
     });
+    impl super::super::audit_retention::Retained for EffectiveSequenceFacts {
+        fn heap_bytes(&self) -> usize {
+            fn bytes(block: &EffectiveBlock) -> usize {
+                std::mem::size_of::<EffectiveNode>()
+                    + match &block.node.contents {
+                        EffectiveContents::Leaf(_) => 0,
+                        EffectiveContents::Branch(left, right) => bytes(left) + bytes(right),
+                    }
+            }
+            self.root.as_ref().map_or(0, bytes)
+        }
+    }
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
@@ -8261,6 +8568,7 @@ pub(super) fn append_owner_cut(
         .take()
         .ok_or_else(|| err("缺 raw R/F 事实"))?;
     let prefix_capacities = prefixes.retained_capacities();
+    let sequence_bytes = prefixes.sequence.retained_bytes();
     let mut prefixes = Some(prefixes);
     let mut ordered = Some(bj::RawPrefixIndex::restore(raw, ordered, bound)?);
     let mut effective = bj::new_map(None);
@@ -8282,6 +8590,8 @@ pub(super) fn append_owner_cut(
     let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(err)?)?;
     let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
     let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
+    // 本对象只活在当前事务的新一代 append 内，不能携带到下一请求。
+    store.request_verifier = Some(sc::CapturedRequestVerifier::new(capture, work).map_err(err)?);
     store
         .verify_many_ref([snapshot.view(), delta.view()], sc::Mode::Public)
         .map_err(err)?;
@@ -8324,13 +8634,25 @@ pub(super) fn append_owner_cut(
     store.native_codec_room(&mut old.cuts, 1).map_err(err)?;
     old.cuts.try_push(cut).map_err(err)?;
     retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
+    #[cfg(test)]
+    let repeated_before = sc::frame_calls_on_thread();
     store
         .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
+    #[cfg(test)]
+    REQUEST_CLOSURE_REPEATS.with(|counts| {
+        let (requests, reads) = counts.get();
+        counts.set((
+            requests + 1,
+            reads + sc::frame_calls_on_thread() - repeated_before,
+        ));
+    });
     let facts = control.into_facts()?;
     verify_current_frontiers(&store, tx, &old.cuts, frontier, None)?;
     let auxiliary_facts = native_aux.map(|aux| aux.into_facts_retained(&mut retained));
     let prefixes = prefixes.unwrap();
+    retained.release_bytes(sequence_bytes);
+    retained.add_bytes(prefixes.sequence.retained_bytes());
     for (before, after) in prefix_capacities
         .into_iter()
         .zip(prefixes.retained_capacities())
@@ -9033,9 +9355,459 @@ impl NativeRawPrefixes {
             wire,
             effective,
             last_coord,
+            sequence,
         } = prefixes;
         json!({"raw_nodes":raw_nodes.as_ref(),"raw_wire_nodes":raw_wire_nodes.as_ref(),
-            "prefixes":{"raw":array(raw),"wire":array(wire),"effective":effective.as_ref().map(array),"last_coord":last_coord},
+            "prefixes":{"raw":array(raw),"wire":array(wire),"effective":effective.as_ref().map(array),"last_coord":last_coord,"sequence":sequence.h1_canonical()},
             "ordered":ordered.h1_canonical()})
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl EffectiveSequenceFacts {
+    fn h1_canonical(&self) -> Value {
+        fn block(value: &EffectiveBlock) -> Value {
+            let node = &value.node;
+            let contents = match &node.contents {
+                EffectiveContents::Leaf(ordinal) => json!({"ordinal":ordinal}),
+                EffectiveContents::Branch(left, right) => {
+                    json!({"left":block(left),"right":block(right)})
+                }
+            };
+            json!({"count":node.count,"digest":node.digest,"first":node.first,"last":node.last,"contents":contents})
+        }
+        self.root.as_ref().map_or(Value::Null, block)
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod effective_sequence_tests {
+    use super::super::audit_retention::Retained;
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn digest(n: usize) -> NodeDigest {
+        sc::frame(sc::tag::STRING, &(n as u64).to_be_bytes())
+    }
+    fn edit(coord: i64, old: Option<usize>, new: usize) -> bj::RawWinnerEdit {
+        bj::RawWinnerEdit {
+            old: old.map(|ordinal| bj::RawWinner { coord, ordinal }),
+            new: Some(bj::RawWinner {
+                coord,
+                ordinal: new,
+            }),
+        }
+    }
+    #[test]
+    fn h1_effective_blocks_match_independent_array_each_cut() {
+        let admission = super::super::audit_store::NativeAdmission(None);
+        for length in [0, 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65] {
+            let raw = (0..length + 8).map(digest).collect::<Vec<_>>();
+            let mut facts = EffectiveSequenceFacts::default();
+            let mut oracle = BTreeMap::new();
+            assert_eq!(facts.array_root().unwrap(), hash_array(&[]).unwrap());
+            for n in 0..length {
+                let coord = (n as i64) * 10;
+                facts
+                    .apply(&[edit(coord, None, n)], &raw, &admission)
+                    .unwrap();
+                oracle.insert(coord, n);
+                assert_eq!(
+                    facts.array_root().unwrap(),
+                    hash_array(&oracle.values().map(|&i| raw[i]).collect::<Vec<_>>()).unwrap()
+                );
+            }
+            for (offset, coord) in [
+                0,
+                (length as i64 / 2) * 10,
+                (length.saturating_sub(1) as i64) * 10,
+                -5,
+                5,
+                i64::MAX,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let n = length + offset;
+                let old = oracle.insert(coord, n);
+                facts
+                    .apply(&[edit(coord, old, n)], &raw, &admission)
+                    .unwrap();
+                assert_eq!(
+                    facts.array_root().unwrap(),
+                    hash_array(&oracle.values().map(|&i| raw[i]).collect::<Vec<_>>()).unwrap(),
+                    "length={length} coord={coord}"
+                );
+                assert_eq!(facts.retained_bytes(), facts.heap_bytes());
+            }
+            EFFECTIVE_WORK.with(|s| s.set([0; 4]));
+            let before = facts.h1_canonical();
+            facts.apply(&[], &raw, &admission).unwrap();
+            assert_eq!(before, facts.h1_canonical());
+            assert_eq!(EFFECTIVE_WORK.with(std::cell::Cell::get), [0; 4]);
+        }
+    }
+    #[test]
+    fn h1_effective_final_winner_edits_and_coordinate_swaps() {
+        let raw = vec![
+            json!({"identity_key":"a","revision":1,"source_coord":"10"}),
+            json!({"identity_key":"b","revision":1,"source_coord":"20"}),
+            json!({"identity_key":"a","revision":2,"source_coord":"20"}),
+            json!({"identity_key":"b","revision":2,"source_coord":"10"}),
+            json!({"identity_key":"a","revision":3,"source_coord":"20"}),
+            json!({"identity_key":"c","revision":1,"source_coord":"0"}),
+        ];
+        let nodes = (0..raw.len()).map(digest).collect::<Vec<_>>();
+        let admission = super::super::audit_store::NativeAdmission(None);
+        let mut index = bj::RawPrefixIndex::new((&raw).into());
+        let mut facts = EffectiveSequenceFacts::default();
+        for cut in [2, 5, 6] {
+            let changes = index.advance_admitted(cut, &admission).unwrap();
+            facts
+                .apply(&changes.winner_edits, &nodes, &admission)
+                .unwrap();
+            let expected = index.ordered().map(|(_, i)| nodes[i]).collect::<Vec<_>>();
+            assert_eq!(facts.array_root().unwrap(), hash_array(&expected).unwrap());
+        }
+        let mut cold = EffectiveSequenceFacts::default();
+        let mut index = bj::RawPrefixIndex::new((&raw).into());
+        cold.apply(
+            &index
+                .advance_admitted(raw.len(), &admission)
+                .unwrap()
+                .winner_edits,
+            &nodes,
+            &admission,
+        )
+        .unwrap();
+        assert_eq!(facts.h1_canonical(), cold.h1_canonical());
+    }
+    #[test]
+    fn h1_effective_revision_work_tracks_height_then_append_reuses_blocks() {
+        let admission = super::super::audit_store::NativeAdmission(None);
+        for length in [32usize, 128, 512] {
+            let raw = (0..length + 3).map(digest).collect::<Vec<_>>();
+            let mut facts = EffectiveSequenceFacts::default();
+            let initial = (0..length)
+                .map(|n| edit(n as i64 * 10, None, n))
+                .collect::<Vec<_>>();
+            facts.apply(&initial, &raw, &admission).unwrap();
+            EFFECTIVE_WORK.with(|s| s.set([0; 4]));
+            facts
+                .apply(&[edit(0, Some(0), length)], &raw, &admission)
+                .unwrap();
+            let revision = EFFECTIVE_WORK.with(std::cell::Cell::get);
+            let height = length.ilog2() as u64;
+            assert_eq!(revision[0], 1);
+            assert!(
+                revision[1] <= height && revision[2] <= 2 * height + 1,
+                "{revision:?}"
+            );
+            EFFECTIVE_WORK.with(|s| s.set([0; 4]));
+            facts
+                .apply(
+                    &[edit(length as i64 * 10, None, length + 1)],
+                    &raw,
+                    &admission,
+                )
+                .unwrap();
+            let append = EFFECTIVE_WORK.with(std::cell::Cell::get);
+            assert_eq!(append[0], 1);
+            assert_eq!(append[2], 1);
+            EFFECTIVE_WORK.with(|s| s.set([0; 4]));
+            facts
+                .apply(&[edit(-1, None, length + 2)], &raw, &admission)
+                .unwrap();
+            let insertion = EFFECTIVE_WORK.with(std::cell::Cell::get);
+            assert!(insertion[1] >= length as u64 / 2);
+            let mut expected = vec![raw[length + 2], raw[length]];
+            expected.extend_from_slice(&raw[1..length]);
+            expected.push(raw[length + 1]);
+            assert_eq!(facts.array_root().unwrap(), hash_array(&expected).unwrap());
+            eprintln!("effective length={length} baseline_revision_leaf_visits={length} revision={revision:?} append={append:?} inverse={insertion:?}");
+        }
+    }
+    fn budget_case(limit: usize) -> (bool, usize) {
+        let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let parent_base = budget.live();
+        assert_eq!(
+            parent_base,
+            super::super::audit_owner::native::Budget::metadata_bytes()
+        );
+        let raw = (0..35).map(digest).collect::<Vec<_>>();
+        let result = budget.codec_work().unwrap().run(|work| {
+            let work_base = budget.live();
+            assert_eq!(
+                work_base - parent_base,
+                sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+            );
+            let admission = super::super::audit_store::NativeAdmission(Some(work));
+            let mut facts = EffectiveSequenceFacts::default();
+            for n in 0..32 {
+                facts.apply(&[edit(n as i64 * 10, None, n)], &raw, &admission)?;
+            }
+            assert_eq!(budget.live() - work_base, facts.retained_bytes());
+            facts.apply(&[edit(0, Some(0), 32)], &raw, &admission)?;
+            assert_eq!(budget.live() - work_base, facts.heap_bytes());
+            facts.apply(&[edit(-1, None, 33)], &raw, &admission)?;
+            facts.apply(&[edit(i64::MAX, None, 34)], &raw, &admission)?;
+            assert_eq!(budget.live() - work_base, facts.heap_bytes());
+            Ok::<_, String>(facts)
+        });
+        let success = result.is_ok();
+        let peak = budget.peak();
+        if let Ok(facts) = result {
+            assert_eq!(budget.live() - parent_base, facts.heap_bytes());
+            drop(facts);
+        }
+        assert_eq!(budget.live() - parent_base, 0, "失败或释放后不留半代结构");
+        (success, peak)
+    }
+    #[test]
+    fn h1_effective_native_parent_exact_peak_rejection_and_release() {
+        let (success, peak) = budget_case(8 * 1024 * 1024);
+        assert!(success);
+        assert!(budget_case(peak).0);
+        assert!(!budget_case(peak - 1).0);
+        eprintln!(
+            "effective native measured_peak_bytes={peak} exact=accept below=reject drop_retained_delta=0"
+        );
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+std::thread_local! {
+    pub(super) static REQUEST_CLOSURE_REPEATS: std::cell::Cell<(u64,u64)> = const { std::cell::Cell::new((0,0)) };
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod request_closure_tests {
+    use super::super::audit_owner::native::Budget;
+    use super::*;
+
+    fn fixture(n: usize) -> (sc::AuditCapture, ContentRef, ContentRef, ContentRef) {
+        let mut nodes = sc::MemoryNodes::new();
+        let child = sc::write_value(
+            &mut nodes,
+            &V::Array((0..n).map(|i| V::string(i.to_string())).collect()),
+        )
+        .unwrap();
+        let parent = sc::write_value(
+            &mut nodes,
+            &V::Object(vec![("items".into(), V::Edge(child.digest))]),
+        )
+        .unwrap();
+        let template = sc::write_template(
+            &mut nodes,
+            &V::Array(vec![V::BatchSelf, V::Edge(child.digest)]),
+        )
+        .unwrap();
+        (
+            sc::AuditCapture::new(nodes),
+            parent.content_ref(),
+            child.content_ref(),
+            template.content_ref(),
+        )
+    }
+    fn reader<'a>(
+        capture: &'a sc::AuditCapture,
+        work: &'a sc::capture_allocation::scratch::WorkScope,
+        budget: &'a Budget,
+    ) -> Result<HashReader<'a>, sc::CodecError> {
+        let mut r = HashReader::captured(capture, None).with_codec_work(work, budget);
+        r.audit_full_arrays = true;
+        r.request_verifier = Some(sc::CapturedRequestVerifier::new(capture, work)?);
+        Ok(r)
+    }
+    #[test]
+    fn h1_request_closure_shares_only_same_request_mode_and_keeps_canonical() {
+        for n in [1, 8, 32] {
+            let (capture, parent, child, _) = fixture(n);
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            let base = budget.live();
+            budget.codec_work().unwrap().run(|work| {
+                let mut r = reader(&capture, work, &budget)?;
+                let before = sc::frame_calls_on_thread();
+                r.verify_ref((&parent).into(), sc::Mode::Public)?;
+                let first = sc::frame_calls_on_thread() - before;
+                let before = sc::frame_calls_on_thread();
+                r.verify_many_ref([(&parent).into(), (&child).into()], sc::Mode::Public)?;
+                let repeat = sc::frame_calls_on_thread() - before;
+                assert_eq!(repeat, 2);
+                assert!(first > n as u64);
+                let before = sc::frame_calls_on_thread();
+                r.verify_ref((&parent).into(), sc::Mode::Template)?;
+                assert_eq!(sc::frame_calls_on_thread() - before, first, "Template 不消费 Public seen");
+                let before = sc::frame_calls_on_thread();
+                r.verify_many_ref_fresh([(&parent).into()], sc::Mode::Public)?;
+                assert_eq!(sc::frame_calls_on_thread() - before, first, "fresh 保持完整核验 oracle");
+                let mut actual = Vec::new();
+                r.render_ref((&parent).into(), &mut actual)?;
+                let mut expected = Vec::new();
+                sc::render_canonical(&mut capture.reader(), &parent, &mut expected)?;
+                assert_eq!(actual, expected);
+                drop(r);
+                let mut next = reader(&capture, work, &budget)?;
+                let before = sc::frame_calls_on_thread();
+                next.verify_ref((&parent).into(), sc::Mode::Public)?;
+                assert_eq!(sc::frame_calls_on_thread() - before, first, "新请求不能继承旧 seen");
+                eprintln!("closure_request array_elements={n} initial_frame_reads={first} repeated_root_header_reads={repeat}");
+                Ok::<_, sc::CodecError>(())
+            }).unwrap();
+            assert_eq!(budget.live(), base);
+        }
+    }
+    #[test]
+    fn h1_request_closure_rechecks_all_root_fields_and_revokes_both_modes() {
+        for field in 0..4 {
+            let (capture, parent, _, template) = fixture(4);
+            let mut bad = parent.clone();
+            match field {
+                0 => bad.format = "wrong".into(),
+                1 => bad.root = "not-a-root".into(),
+                2 => bad.kind = sc::Kind::Array,
+                _ => bad.extent = Some(99),
+            }
+            let expected =
+                sc::verify_refview(&mut capture.reader(), (&bad).into(), sc::Mode::Public)
+                    .unwrap_err();
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let mut r = reader(&capture, work, &budget)?;
+                    r.verify_ref((&parent).into(), sc::Mode::Public)?;
+                    r.verify_ref((&template).into(), sc::Mode::Template)?;
+                    let error = r.verify_ref((&bad).into(), sc::Mode::Public).unwrap_err();
+                    assert_eq!(error.code(), expected.code());
+                    for (reference, mode) in
+                        [(&parent, sc::Mode::Public), (&template, sc::Mode::Template)]
+                    {
+                        assert_eq!(
+                            r.verify_ref(reference.into(), mode).unwrap_err().code(),
+                            sc::code::SOURCE
+                        );
+                    }
+                    Err::<(), _>(error)
+                })
+                .unwrap_err();
+        }
+    }
+    #[test]
+    fn h1_request_closure_template_and_readset_negatives_match_full_oracle() {
+        let (capture, parent, _, template) = fixture(4);
+        let expected =
+            sc::verify_refview(&mut capture.reader(), (&template).into(), sc::Mode::Public)
+                .unwrap_err();
+        let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut r = reader(&capture, work, &budget)?;
+                r.verify_ref((&template).into(), sc::Mode::Template)?;
+                let error = r
+                    .verify_ref((&template).into(), sc::Mode::Public)
+                    .unwrap_err();
+                assert_eq!(error.code(), expected.code());
+                Err::<(), _>(error)
+            })
+            .unwrap_err();
+        // 相同 digest 在另一捕获内缺失或正文伪造，不因先前请求成功而获得资格。
+        for forged in [false, true] {
+            let mut nodes = sc::MemoryNodes::new();
+            if forged {
+                nodes.insert_unchecked(parent.digest().unwrap(), sc::tag::NULL, vec![]);
+            }
+            let other = sc::AuditCapture::new(nodes);
+            let expected =
+                sc::verify_refview(&mut other.reader(), (&parent).into(), sc::Mode::Public)
+                    .unwrap_err();
+            let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    reader(&capture, work, &budget)?
+                        .verify_ref((&parent).into(), sc::Mode::Public)?;
+                    let error = reader(&other, work, &budget)?
+                        .verify_ref((&parent).into(), sc::Mode::Public)
+                        .unwrap_err();
+                    assert_eq!(error.code(), expected.code());
+                    Err::<(), _>(error)
+                })
+                .unwrap_err();
+        }
+    }
+    #[test]
+    fn h1_request_closure_overlay_conflict_and_failure_do_not_escape_revocation() {
+        let (capture, parent, _, _) = fixture(4);
+        let budget = Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut r = reader(&capture, work, &budget)?;
+                r.verify_ref((&parent).into(), sc::Mode::Public)?;
+                assert_eq!(
+                    r.put(parent.digest()?, sc::tag::NULL, &[])
+                        .unwrap_err()
+                        .code(),
+                    sc::code::NODE_DIGEST
+                );
+                let derived = sc::write_value(&mut r, &V::Array(vec![V::Edge(parent.digest()?)]))?
+                    .content_ref();
+                r.verify_ref((&derived).into(), sc::Mode::Public)?;
+                let mut bad = derived.clone();
+                bad.extent = Some(99);
+                let error = r.verify_ref((&bad).into(), sc::Mode::Public).unwrap_err();
+                assert_eq!(error.code(), sc::code::EXTENT);
+                assert_eq!(
+                    r.verify_ref((&derived).into(), sc::Mode::Public)
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                assert_eq!(
+                    r.verify_ref((&parent).into(), sc::Mode::Public)
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                Err::<(), _>(error)
+            })
+            .unwrap_err();
+    }
+    fn budget_case(limit: usize) -> (bool, usize) {
+        let (capture, parent, child, template) = fixture(8);
+        let budget = Budget::new(limit, 0).unwrap();
+        let base = budget.live();
+        let result = budget.codec_work().unwrap().run(|work| {
+            let work_base = budget.live();
+            let mut r = reader(&capture, work, &budget)?;
+            assert_eq!(
+                budget.live() - work_base,
+                std::mem::size_of::<sc::CapturedRequestVerifier<'_>>()
+            );
+            r.verify_many_ref([(&parent).into(), (&child).into()], sc::Mode::Public)?;
+            r.verify_ref((&template).into(), sc::Mode::Template)?;
+            let live = budget.live();
+            r.verify_many_ref([(&parent).into(), (&child).into()], sc::Mode::Public)?;
+            assert_eq!(budget.live(), live, "重读根头不能增驻留");
+            drop(r);
+            assert_eq!(budget.live(), work_base, "双 memo 与固定头全归还父账");
+            Ok::<_, sc::CodecError>(())
+        });
+        assert_eq!(budget.live(), base, "成功或拒绝均不泄漏请求证据");
+        (result.is_ok(), budget.peak())
+    }
+    #[test]
+    fn h1_request_closure_native_exact_peak_reject_and_release() {
+        let (ok, peak) = budget_case(8 * 1024 * 1024);
+        assert!(ok);
+        assert!(budget_case(peak).0);
+        assert!(!budget_case(peak - 1).0);
+        eprintln!("closure_request native_peak={peak} exact=accept below=reject released=true");
     }
 }
