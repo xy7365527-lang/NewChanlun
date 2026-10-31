@@ -356,7 +356,23 @@ mod tests {
         let venue_error = PyThetaStream::new(None, Some("P0"), Some("P0".into()))
             .err()
             .expect("unsigned venue cannot borrow funding authorization");
-        assert!(venue_error.to_string().contains("venue_profile"));
+        assert!(
+            venue_error
+                .to_string()
+                .contains("AwaitingPolicy{cost_inputs}"),
+            "{venue_error}"
+        );
+        // #1774 B2：显式给 synthetic id 的通用调用被 usage 门拒绝（InvalidPolicy，不是缺资金）。
+        let synthetic_error = PyThetaStream::new(
+            None,
+            Some("P0"),
+            Some(super::run_records::SYNTHETIC_TB02A_PROFILE_ID.into()),
+        )
+        .err()
+        .expect("synthetic 只供 S 专用入口");
+        let text = synthetic_error.to_string();
+        assert!(text.contains("InvalidPolicy{venue_profile}"), "{text}");
+        assert!(text.contains("usage 不符"), "{text}");
         assert!(PyThetaStream::new(
             Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
             Some("P0"),
