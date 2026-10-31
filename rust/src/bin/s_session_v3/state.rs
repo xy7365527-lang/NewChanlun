@@ -1338,7 +1338,6 @@ pub(super) struct QualifiedCertification {
 #[cfg(feature = "s_incremental")]
 impl super::audit_retention::Retained for QualifiedCertification {
     fn heap_bytes(&self) -> usize {
-        use super::audit_retention::Retained as _;
         let frontier = match &self.frontier {
             CertifiedFrontier::Empty => 0,
             CertifiedFrontier::Qualified(q) => q.heap_bytes(),

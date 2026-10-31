@@ -1168,11 +1168,11 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     drop(held);
     assert_eq!(
         meta_i64(&f.conn, "generation").unwrap(),
-        1,
-        "短预算在写前拒绝"
+        0,
+        "短预算在写前拒绝，首代不发布"
     );
     assert_eq!(runtime_root_tables(&f.conn, true), before);
-    assert_eq!(h1_ledger_count(&f, "h1-short.sqlite", "cert"), 1);
+    assert_eq!(h1_ledger_count(&f, "h1-short.sqlite", "cert"), 0);
     assert!(owner.retired.get());
     assert!(owner.connection.is_autocommit());
     assert_eq!(owner.complete_retained_bytes(), 0);
