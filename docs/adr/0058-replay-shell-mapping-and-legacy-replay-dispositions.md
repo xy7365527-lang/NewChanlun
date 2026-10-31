@@ -169,7 +169,7 @@
 
 | 条目 | 终态 | 替代入口 | 失去的生产写权 | 保留用途 | 退场条件 |
 |---|---|---|---|---|---|
-| `bin/replay_compare.rs`（无 required-features）及只被它使用的 `trading::{replay, replay_comparator}`、`MinimalEngine`、`tests/replay_compare_test.rs`、`scripts/replay_compare.sh` | 冻结影子（#1532 表行） | `production_session` simulation | 本来就不持域库；不在生产二进制集合内（ADR 0039:220） | D4 回放对拍诊断；协议已断、不修复 | 沿用 ADR 0048:288 行：`#1390:17✓ ∧ #1413 CLOSED`；删除走 #1304 路径 |
+| `bin/replay_compare.rs`（无 required-features）及只被它使用的 `trading::{replay, replay_comparator}`、`MinimalEngine`、`tests/replay_compare_test.rs`、`scripts/replay_compare.sh` | 冻结影子（#1532 表行） | `production_session` simulation | 本来就不持域库；不在生产二进制集合内（ADR 0039:220） | D4 回放对拍诊断；协议已断、不修复 | 沿用 ADR 0048:288 行：`#1390:17✓ ∧ #1413 CLOSED`；删除走 #1304 路径。删除时 `replay_comparator.rs:151` 的待办注释与 DevSkim 抑制随文件一并消失，#1607 的退场臂至此才完成（裁定四第 2 条） |
 | `theta_replay`、`theta_accept`（`backtest_bin` 门内） | 冻结影子 | 同上 | `backtest_bin` 不进 `production_session` feature（ADR 0039:217） | 组件证据，输出必须标 provenance | 沿用 ADR 0048:287 行 |
 | `ThetaPiStream`/`PyThetaStream` | 冻结影子（ADR 0048:289 不变） | 同上 | 生产进程不加载 cdylib | 同上 | 沿用 ADR 0048:289 原条件；本票关票即满足其中「#1550 CLOSED」一项 |
 | 旧 Python 回放/session/API 外壳（`trading_system/`） | 按 ADR 0056:92 只做 adapter；逐条终态归 ADR 0048:289-290 与 TB-10 #1368 | — | — | — | 本票只给指针 |
@@ -177,7 +177,12 @@
 ### 四、#1528 与 #1607 的处置
 
 1. **#1528**：旧正文目标「替换为 `run_theta_v0_pi` 生产链」与 ADR 0039:217、ADR 0027:46 冲突，**不实施**。改题关闭为「不实施：与 ADR 0039 冻结影子终态冲突」。它要的「逐 bar 分类/信号/订单/持仓/账目」对拍由父票 #1411 的六面 oracle（ADR 0038:49-54）覆盖，不另开票。在制分支 `codex/issue1528-replay-compare-20261018`（origin head `72b1dbcc73`，见 #1528 评论 6243030915 / 6278136284）按 delivery-discipline.md:15 先处置，再关票：不合入，在 #1528 留下 head SHA 后删除远端分支。#1411 要复用这批组件，就按该 SHA 自取。
-2. **#1607**：选票面的「退场」臂，**不补齐**。文件不在本票删除（终态表的退场条件还没成立）。`replay_comparator.rs:151` 的 TODO 和 DevSkim 抑制注释改成带票号、指向 ADR 0058 的一行指路注释，这项订正归 #1413（TB-10-I 入口排除边界）。按 #1607 body :33「在 #1304 记录去向」，在 #1304 发去向登记，然后关闭 #1607。
+2. **#1607**：选票面的「退场」臂，**不补齐**。原验收合同（#1607 body :30-34）不变：退场 = 随冻结影子删除 ∧ 在 #1304 记录去向，完成后删掉 `replay_comparator.rs:151` 的待办注释和 DevSkim 抑制。
+   - 文件不在本票删除：终态表第一行的退场条件（ADR 0048:288）还没成立。本票也不为满足关票去删影子源码。
+   - 本票能交付的只是选臂与去向：在 #1304 发去向登记（臂 = 退场、删除走终态表第一行、ADR 0058 指针）。这一步只完成退场臂里「记录去向」那一半，**不算 #1607 完成**。
+   - **#1607 保持 OPEN**，直到影子文件按终态表第一行实际删除、`:151` 的待办注释与 DevSkim 抑制实际清除，再由删除那次交付关闭 #1607。
+   - 过渡期 `:151` 的 TODO 改为带 #1607 票号、指向 ADR 0058 的一行指路注释，这项订正归 #1413（TB-10-I 入口排除边界）；它只是注释过渡，不替代原「完成后删掉」义务。
+   - #1550 的映射裁定交付（合入并关闭 #1550）不依赖 #1607 关闭，也不表示 #1607 已实施完成。
 3. 两项处置都在 #1550 发冲突登记评论，补齐 ADR 0052:336 的验收项。
 
 ### 五、AT-14 实体报告 `[新缠论:选择]`
@@ -218,33 +223,33 @@
 - [ ] 命令：`rg -F 'at14-report/1' docs/adr/0058-replay-shell-mapping-and-legacy-replay-dispositions.md | wc -l` 输出 ≥ 1。
 - [ ] 命令：`rg -F 'dry-run' docs/adr/0058-replay-shell-mapping-and-legacy-replay-dispositions.md | wc -l` 输出 ≥ 1（冲突登记在正本内）。
 - [ ] 命令：`rg -F '0058-replay-shell-mapping' .chanlun/definitions/chong-traceability.md | wc -l` 输出 ≥ 1。
-- [ ] 命令（教义未改，diff 只限 #1550 行）：`git diff -U0 origin/main...decision/1550 -- .chanlun/definitions/chong-traceability.md | rg '^[-+][^-+]' | rg -v '^[-+]\| #1550 \|' | wc -l` 输出 = 0，且 `git diff -U0 origin/main...decision/1550 -- .chanlun/definitions/chong-traceability.md | rg '^[-+]\| #1550 \|' | wc -l` 输出 = 2。
+- [ ] 命令（教义未改，diff 只限 #1550 行）：先取两份输入，`CAND` 为待验发布候选（发布 PR 的 head commit，如 `CAND=$(gh pr view 1821 -R xy7365527-lang/NewChanlun --json headRefOid --jq .headRefOid)`，本地须已 `git fetch origin pull/1821/head`），`BASE` 为它的合前基线 `BASE=$(git merge-base origin/main "$CAND")`。然后 `git diff -U0 "$BASE" "$CAND" -- .chanlun/definitions/chong-traceability.md | rg '^[-+][^-+]' | rg -v '^[-+]\| #1550 \|' | wc -l` 输出 = 0，且 `git diff -U0 "$BASE" "$CAND" -- .chanlun/definitions/chong-traceability.md | rg '^[-+]\| #1550 \|' | wc -l` 输出 = 2，且 `git diff -U0 "$BASE" "$CAND" -- .chanlun/definitions/chong-traceability.md | rg '^@@' | rg -v '^@@ -65 \+65 @@' | wc -l` 输出 = 0（三行头所在 :1-3 无改动）。原决策分支 `decision/1550` 不含指针补丁，不作本项输入。
 - [ ] 命令：`rg -n 'MinimalEngine|run_theta_v0_pi|ThetaPiStream|replay_comparator' rust/src/bin/production_session.rs rust/src/bin/x_execution_session.rs | wc -l` 输出 = 0。
 - [ ] 票状态：`gh api repos/xy7365527-lang/NewChanlun/issues/1550/comments --paginate --jq '.[].body' | rg -F '#1528' | wc -l` 输出 ≥ 1，且把 `'#1607'` 代入同一命令也输出 ≥ 1（ADR 0052:336 项）。
 - [ ] 票状态：`gh issue view 1528 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `CLOSED`，且 `gh api repos/xy7365527-lang/NewChanlun/issues/1528/dependencies/blocked_by --jq '[.[]|select(.number==1381)]|length'` 输出 `0`。
 - [ ] 命令：`git ls-remote --heads origin codex/issue1528-replay-compare-20261018 | wc -l` 输出 = 0，且 `gh api repos/xy7365527-lang/NewChanlun/issues/1528/comments --paginate --jq '.[].body' | rg -F '0058-replay-shell-mapping' | wc -l` 输出 ≥ 1。
-- [ ] 票状态：`gh issue view 1607 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `CLOSED`。
+- [ ] 票状态（#1607 去向已登记、未冒充完成）：`gh api repos/xy7365527-lang/NewChanlun/issues/1304/comments --paginate --jq '.[].body' | rg -F '#1607' | wc -l` 输出 ≥ 1，且在影子文件实际删除前 `gh issue view 1607 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `OPEN`。
 - [ ] 票状态：`gh api repos/xy7365527-lang/NewChanlun/issues/1381/dependencies/blocked_by --jq '[.[]|select(.number==1769)]|length'` 输出 `1`。
 - [ ] 票状态：对 N ∈ {1304, 1411, 1413, 1418, 1769}，分别运行 `gh api repos/xy7365527-lang/NewChanlun/issues/N/comments --paginate --jq '.[].body' | rg -F '0058-replay-shell-mapping' | wc -l`，五次输出都 ≥ 1（当前基线都是 0）。
 - [ ] 票状态：`gh api repos/xy7365527-lang/NewChanlun/issues/1418/comments --paginate --jq '.[].body' | rg -F 'at14-report/1' | wc -l` 输出 ≥ 1。
 - [ ] 票状态：`gh api repos/xy7365527-lang/NewChanlun/issues/1413/comments --paginate --jq '.[].body' | rg -F 'replay_comparator.rs:151' | wc -l` 输出 ≥ 1。
 - [ ] 票状态：`gh issue view 1304 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `OPEN`，且 `gh issue view 1279 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `OPEN`。
 - [ ] 票状态：`gh issue view 1550 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `CLOSED`（PR 合入后）。
-- 下游运行验收（不在本票）：测试 `dual_run_determinism_h1`、`recovery_after_kill_h2`、`seek_no_future_leak_h3`、`asknown_evidence_segregation_h4` 归 #1411/#1418，CI 段归 #1418；文件 `.chanlun/review-results/issue1304-at14-*/at14-report.json` 存在，也归 #1418。
+- 下游运行验收（不在本票）：测试 `dual_run_determinism_h1`、`recovery_after_kill_h2`、`seek_no_future_leak_h3`、`asknown_evidence_segregation_h4` 归 #1411/#1418，CI 段归 #1418；文件 `.chanlun/review-results/issue1304-at14-*/at14-report.json` 存在，也归 #1418；#1607 关闭归影子删除那次交付，届时 `test -e rust/src/trading/replay_comparator.rs` 退出码非 0，且 #1607 状态为 `CLOSED`。
 
 ## 受影响票与 blocking 边变化
 
 | 票 | 状态 | 处置 | 边变化 |
 |---|---|---|---|
-| #1550 | OPEN→CLOSED | 本票；发 resolution 和 #1528/#1607 冲突登记评论 | 现有 blocked-by 1533/1536/1537/1538（都已 closed）、blocking 1366/1369/1551 不改；关票即解锁 |
+| #1550 | OPEN→CLOSED | 本票；发 resolution 和 #1528/#1607 冲突登记评论；关票不等 #1607 关闭 | 现有 blocked-by 1533/1536/1537/1538（都已 closed）、blocking 1366/1369/1551 不改；关票即解锁 |
 | #1528 | OPEN→CLOSED | 改题「不实施：与 ADR 0039 冻结影子终态冲突」；需求由 #1411 六面 oracle 承接；在制分支按 delivery-discipline.md:15 先处置 | **删** #1381 → #1528 |
-| #1607 | OPEN→CLOSED | 选「退场、不补齐」；注释订正转 #1413；在 #1304 记录去向 | 无（当前无边） |
+| #1607 | OPEN 保持 | 选「退场、不补齐」；在 #1304 记录去向；过渡注释订正转 #1413；影子按终态表第一行实际删除、`:151` 待办与 DevSkim 抑制清除后才关闭 | 无（当前无边） |
 | #1769 | OPEN | 承接登记：`dry-run` 与 evidence_class 三值冲突，回放路径只接 `simulation` | **加** #1769 → #1381（#1769 无 blocker，不成环） |
 | #1381 | OPEN | 承接：外壳输入 = `production-session-manifest/1` + `history-input-profile/1`（`evidence_class=simulation`） | 新增被 #1769 阻塞；原 blocked-by 1364/1353/1481/1443 不动 |
 | #1411 | OPEN | 承接：四个具名测试（ADR 0038:88-91）与六面导出；并入 #1528 的需求 | 无 |
 | #1418 | OPEN | 承接：`at14-report/1` schema、`issue1304-at14-*` 路径、ci.yml `production_session` 段回归锁 | 无（blocked-by #1411 不动） |
-| #1413 | OPEN | 承接：`replay_comparator.rs:151` 的 TODO/DevSkim 抑制改为带票号的指路注释 | 无 |
-| #1304 | OPEN 保持 | 发承接登记（外壳 seam、终态表、报告路径、#1607 去向）；不关票 | 无（blocked-by #1333 不动） |
+| #1413 | OPEN | 承接：`replay_comparator.rs:151` 的 TODO/DevSkim 抑制过渡改为带 #1607 票号的指路注释（不替代 #1607 退场删除） | 无 |
+| #1304 | OPEN 保持 | 发承接登记（外壳 seam、终态表、报告路径、#1607 去向；去向登记不等于 #1607 完成）；不关票 | 无（blocked-by #1333 不动） |
 | #1366 / #1369 / #1551 | OPEN | 被本票阻塞，本票关闭后解锁；TB-11 消费裁定五的判定口径 | 无新增 |
 | #1399 | OPEN | 不动（seek/AsKnown 实施方） | 无 |
 | #1368 | OPEN | 接收 Python 外壳逐条去向的指针（ADR 0056:92） | 无 |
@@ -256,7 +261,7 @@
 
 **受影响代码清单**（实施归各承接票，本 ADR 不改码）：
 - `rust/src/bin/production_session.rs:26`（`PROFILES` 含 `dry-run`）、`rust/src/bin/x_execution_session.rs:22/:55`（`MODES` 含 `dry-run`）：冲突登记转 #1769。
-- `rust/src/trading/replay_comparator.rs:151`（TODO 与 DevSkim 抑制注释）：改为指向本 ADR 的指路注释，归 #1413。
+- `rust/src/trading/replay_comparator.rs:151`（TODO 与 DevSkim 抑制注释）：过渡期改为带 #1607 票号、指向本 ADR 的指路注释，归 #1413；随影子删除而清除，归 #1607 退场。
 - `rust/src/bin/replay_compare.rs`、`rust/src/trading/replay.rs`、`rust/src/trading/replay_comparator.rs`、`rust/tests/replay_compare_test.rs`、`scripts/replay_compare.sh`：冻结影子，不改不删，退场按裁定三。
 - `.github/workflows/ci.yml:516-523`（`production_session` feature 段）：接入 ADR 0038:88-91 四个具名测试，归 #1411/#1418。
 
