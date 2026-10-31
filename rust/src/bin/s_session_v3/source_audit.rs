@@ -1786,9 +1786,11 @@ trait ObjectSlots {
         Ok(())
     }
     fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String>;
+    /// `id` 是该 CC005 对象的 object_id；36M cover 以它而非 group_index 作组身份。
     fn insert_group(
         &mut self,
         s: &(impl CodecRead + ?Sized),
+        id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, String>;
@@ -1796,6 +1798,7 @@ trait ObjectSlots {
 struct FullObjectSlots<'a> {
     ids: &'a mut BusinessMap<bj::TextValue, ()>,
     groups: &'a mut BusinessMap<i64, Group>,
+    owners: Option<&'a mut BusinessMap<i64, bj::TextValue>>,
 }
 impl ObjectSlots for FullObjectSlots<'_> {
     fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
@@ -1811,14 +1814,15 @@ impl ObjectSlots for FullObjectSlots<'_> {
     }
     fn insert_group(
         &mut self,
-        #[allow(
-            unused_variables,
-            reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-        )]
         s: &(impl CodecRead + ?Sized),
+        id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, String> {
+        if let Some(owners) = self.owners.as_deref_mut() {
+            s.native_map_room(owners).map_err(err)?;
+            owners.insert(index, s.native_text(id)?).map_err(err)?;
+        }
         Ok(self.groups.insert(index, group).map_err(err)?.is_some())
     }
 }
@@ -1841,7 +1845,11 @@ fn audit_object_record(
         record,
         raw,
         producer,
-        &mut FullObjectSlots { ids, groups },
+        &mut FullObjectSlots {
+            ids,
+            groups,
+            owners: None,
+        },
         checked_refs,
         native_sources,
         raw_prefix_len,
@@ -2043,6 +2051,7 @@ fn audit_object_record_with_slots(
             slots.reserve_group(s)?;
             if slots.insert_group(
                 s,
+                id.as_str(),
                 index,
                 Group {
                     payload: s.native_ref_clone(&payload).map_err(err)?,
@@ -2359,8 +2368,8 @@ fn audit_generated_in_store(
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
     mut ordinary: Option<&mut OrdinaryProofs>,
-    #[cfg(feature = "s_incremental")] mut observation_sources: Option<
-        &mut sc::CodecVec<(NodeDigest, NodeDigest)>,
+    #[cfg(feature = "s_incremental")] mut exports: Option<
+        &mut source_receipt::source_facts::SourceExports,
     >,
 ) -> Result<Counts, String> {
     #[cfg(test)]
@@ -2391,16 +2400,33 @@ fn audit_generated_in_store(
     let allocation;
     let ordinary_effective;
     let mut ordinary_raw;
+    // 36M cover 只能从完整原件的赢家 seq 导出；Native 账本路径不签发导出。
+    #[cfg(feature = "s_incremental")]
+    let mut winner_seqs = None;
     let raw = if let Some(ledger) = native_ledger {
+        #[cfg(feature = "s_incremental")]
+        if exports.is_some() {
+            return Err(err("cover 导出需要完整原件赢家 seq，不接 Native 账本"));
+        }
         allocation = source_allocation(s)?;
         ledger.advance_measured(s, raw_prefix.len(), deadline, budget)?
     } else {
         ordinary_effective = bj::effective(raw_prefix, deadline)?;
         allocation = source_allocation(s)?;
         ordinary_raw = bj::new_map(allocation.as_ref());
+        #[cfg(feature = "s_incremental")]
+        let mut seqs = bj::new_map(allocation.as_ref());
         for event in ordinary_effective.iter() {
             super::history::check_deadline(deadline)?;
             let coord = bj::coord(event)?;
+            #[cfg(feature = "s_incremental")]
+            if exports.is_some() {
+                let seq = bj::field(event, "seq")
+                    .as_i64()
+                    .ok_or_else(|| err("生效原件seq非i64"))?;
+                s.native_map_room(&mut seqs).map_err(err)?;
+                seqs.insert(coord, seq).map_err(err)?;
+            }
             let wire = bj::RawReference::new(event, false)?;
             let numeric = bj::RawReference::new(event, true)?;
             s.native_map_room(&mut ordinary_raw).map_err(err)?;
@@ -2421,6 +2447,10 @@ fn audit_generated_in_store(
                 )
                 .map_err(err)?;
         }
+        #[cfg(feature = "s_incremental")]
+        {
+            winner_seqs = Some(seqs);
+        }
         &ordinary_raw
     };
     let object_array = field_ref(s, state, "objects")?;
@@ -2431,6 +2461,7 @@ fn audit_generated_in_store(
     let mut objects = bj::new_work(allocation.as_ref());
     let mut ids = bj::new_map(allocation.as_ref());
     let mut groups = bj::new_map(allocation.as_ref());
+    let mut owners = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     source_call_note(|n| n.full_members_enumerations += 1);
     if object_array.kind() != Kind::Array {
@@ -2464,6 +2495,7 @@ fn audit_generated_in_store(
                 &mut FullObjectSlots {
                     ids: &mut ids,
                     groups: &mut groups,
+                    owners: Some(&mut owners),
                 },
                 &mut checked_refs,
                 raw_prefix.len(),
@@ -2471,13 +2503,16 @@ fn audit_generated_in_store(
                 budget,
             )?
         } else {
-            audit_object_record(
+            audit_object_record_with_slots(
                 s,
                 &record,
                 raw,
                 &producer,
-                &mut ids,
-                &mut groups,
+                &mut FullObjectSlots {
+                    ids: &mut ids,
+                    groups: &mut groups,
+                    owners: Some(&mut owners),
+                },
                 &mut checked_refs,
                 native_sources.as_deref_mut(),
                 raw_prefix.len(),
@@ -2527,6 +2562,30 @@ fn audit_generated_in_store(
     if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
+    #[cfg(feature = "s_incremental")]
+    if let Some(exported) = exports.as_deref_mut() {
+        // 分区核通过后才导出整份 cover：组成员挂 object_id，已证 pending 无组身份。
+        let seqs = winner_seqs
+            .as_ref()
+            .ok_or_else(|| err("cover 导出缺赢家 seq 对照"))?;
+        let mut owner_of = bj::new_map(allocation.as_ref());
+        for (index, group) in groups.iter() {
+            let owner = owners.get(index).ok_or_else(|| err("组序号缺 object_id"))?;
+            for coord in group.members.iter() {
+                super::history::check_deadline(deadline)?;
+                s.native_map_room(&mut owner_of).map_err(err)?;
+                owner_of.insert(*coord, owner.as_str()).map_err(err)?;
+            }
+        }
+        for (coord, _) in sorted_numeric_entries(s, raw)?.iter() {
+            super::history::check_deadline(deadline)?;
+            let seq = *seqs.get(coord).ok_or_else(|| err("生效坐标缺赢家 seq"))?;
+            exported.push_cover(s, *coord, seq, owner_of.get(coord).copied())?;
+        }
+        exported.effective = raw.len();
+    }
+    #[cfg(not(feature = "s_incremental"))]
+    let _ = &owners;
     let mut shapes = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::state::trace_event("source_shapes", None);
@@ -2609,12 +2668,16 @@ fn audit_generated_in_store(
     for item in elements(s, &observations)? {
         super::history::check_deadline(deadline)?;
         #[cfg(feature = "s_incremental")]
-        if let Some(exported) = observation_sources.as_deref_mut() {
+        if let Some(exported) = exports.as_deref_mut() {
             let sources = source_receipt::source_facts::observation_sources(s, &item, |index| {
                 groups.get(&index).map(|g| &g.sources[..])
             })?;
-            s.native_codec_room(exported, 1).map_err(err)?;
-            exported.try_push((digest(&item)?, sources)).map_err(err)?;
+            s.native_codec_room(&mut exported.observation_sources, 1)
+                .map_err(err)?;
+            exported
+                .observation_sources
+                .try_push((digest(&item)?, sources))
+                .map_err(err)?;
         }
         let kind = if let Some(proofs) = ordinary.as_deref_mut() {
             proofs.observation(s, &item)?

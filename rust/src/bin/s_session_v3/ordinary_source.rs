@@ -377,11 +377,12 @@ impl<T: ObjectSlots> ObjectSlots for ObjectWrites<'_, T> {
     fn insert_group(
         &mut self,
         s: &(impl CodecRead + ?Sized),
+        id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, String> {
         self.group = Some((index, GroupData::read(&group)));
-        self.slots.insert_group(s, index, group)
+        self.slots.insert_group(s, id, index, group)
     }
 }
 impl OrdinaryProofs {
@@ -1052,6 +1053,7 @@ mod tests {
                     &mut FullObjectSlots {
                         ids: &mut ids,
                         groups: &mut groups,
+                        owners: None,
                     },
                     &mut checked,
                     events.len(),
@@ -1106,6 +1108,7 @@ mod tests {
                 &mut FullObjectSlots {
                     ids: &mut bj::new_map(None),
                     groups: &mut bj::new_map(None),
+                    owners: None,
                 },
                 &mut bj::new_map(None),
                 events.len(),
