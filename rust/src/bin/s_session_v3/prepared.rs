@@ -283,7 +283,14 @@ impl Runtime {
             .stage(token, delta)
     }
 
-    #[cfg(all(test, feature = "s_incremental"))]
+    #[cfg(feature = "s_incremental")]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "#1647: retained production handoff for the pending complete facts producer; remove when wired"
+        )
+    )]
     pub(super) fn queue_audit_ledger(
         &mut self,
         token: String,
