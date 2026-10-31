@@ -588,6 +588,103 @@ fn open_theta_diagnostic(
     unreachable!("theta_diagnostic_testonly 在此构建只会返回 false 或拒绝")
 }
 
+/// #1640 1a（gates `policy1640-diagnostic`）：TestOnly 诊断场所入口的显式开关。只在
+/// `s_capture_native_testonly` 构建读取；值必须恰为诊断夹具记录 id，其它取值拒绝启动（不静默忽略）。
+/// 设置后 serve 以 `venue-profile-diagnostic-fixture`（`admissible:false`）开门、`require_admissible`
+/// 照旧为真：Ready 可达（launcher/4 据 `build_profile=testonly` 拒绝），任何 advance 仍被
+/// `InvalidPolicy{venue_profile}` 拒绝。launcher 以环境传入：`process_identity` 要求子进程 argv 与
+/// 启动命令逐字相同（`s_service_control.py`），新 flag 到不了真实 launcher 路径。生产构建不含本入口。
+#[cfg(feature = "s_capture_native_testonly")]
+const DIAGNOSTIC_FIXTURE_MARKER: &str = "S_DIAGNOSTIC_FIXTURE_TESTONLY";
+#[cfg(feature = "s_capture_native_testonly")]
+const DIAGNOSTIC_FIXTURE_VENUE: &str = "venue-profile-diagnostic-fixture";
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn diagnostic_fixture_testonly() -> Result<bool, String> {
+    let value = match std::env::var(DIAGNOSTIC_FIXTURE_MARKER) {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => Some(String::new()),
+    };
+    parse_diagnostic_fixture(value.as_deref())
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn parse_diagnostic_fixture(value: Option<&str>) -> Result<bool, String> {
+    match value {
+        None => Ok(false),
+        Some(DIAGNOSTIC_FIXTURE_VENUE) => Ok(true),
+        Some(_) => Err(format!(
+            "DiagnosticFixtureTestOnlyInvalid：{DIAGNOSTIC_FIXTURE_MARKER} 只接受 {DIAGNOSTIC_FIXTURE_VENUE}"
+        )),
+    }
+}
+
+/// Ready 回复带上场所自报；Receipt/错误回复不动。字段在 payload 内，随 `payload_hash` 一起被签。
+#[cfg(feature = "s_capture_native_testonly")]
+fn tag_ready(
+    result: Result<Value, String>,
+    tag: &super::driver::VenueProfileTag,
+) -> Result<Value, String> {
+    let mut payload = result?;
+    if payload["kind"] == "Ready" {
+        payload["venue_profile"] = json!(tag.venue_profile);
+        payload["admissible"] = json!(tag.admissible);
+    }
+    Ok(payload)
+}
+
+/// 诊断场所服务：只支持 Ordinary 对照臂；开门后先把自报写到 stderr（launcher 日志可见），再监听。
+#[cfg(feature = "s_capture_native_testonly")]
+fn serve_diagnostic_fixture(
+    options: &ServeOptions,
+    clock: v2::ClockPlan,
+    resources: &SResources,
+    mode: s_allocation::Mode,
+    admission: super::admission_anchor::PreparedAdmission,
+) -> Result<Option<super::admission::CommandOutput>, String> {
+    if !matches!(mode, s_allocation::Mode::Ordinary) {
+        return Err(format!(
+            "DiagnosticFixtureTestOnlyInvalid：{DIAGNOSTIC_FIXTURE_MARKER} 只支持 Ordinary 对照臂"
+        ));
+    }
+    let mut driver = Driver::open_for_serve_diagnostic_fixture_testonly(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        resources.limit("audit_cache_source_bytes"),
+        mode,
+        admission.into(),
+    )?;
+    let identity = driver.identity()?;
+    let tag = driver.venue_profile_tag();
+    {
+        use std::io::Write as _;
+        let line = json!({"diagnostic":"DiagnosticFixtureTestOnly","build_profile":BUILD_PROFILE,
+            "venue_profile":tag.venue_profile,"admissible":tag.admissible,
+            "require_admissible":tag.require_admissible});
+        let _ = writeln!(std::io::stderr().lock(), "{line}");
+    }
+    let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+    driver.finish_startup()?;
+    let bounds = resources.transport_bounds();
+    serve_unix(
+        &options.socket,
+        bounds,
+        |value| validate_envelope(value, PROTOCOL_REVISION),
+        |envelope| {
+            reply(
+                envelope,
+                tag_ready(driver.handle(envelope.clone()), &tag),
+                &identity,
+                control_instance_id.as_deref(),
+            )
+        },
+    )?;
+    Ok(None)
+}
+
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
 fn serve_with_policy(
     options: ServeOptions,
@@ -596,6 +693,8 @@ fn serve_with_policy(
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_environment_mode()?;
     let theta_diagnostic = theta_diagnostic_testonly()?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let diagnostic_fixture = diagnostic_fixture_testonly()?;
     let resources =
         SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
             .map_err(|e| admission.diagnostic(e))?;
@@ -615,6 +714,10 @@ fn serve_with_policy(
     let _frozen_profile = checked_profile_bytes(&admission.read_file(&options.profile, None)?)
         .map_err(|e| admission.diagnostic(e))?;
     serve_authorization(&resources)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    if diagnostic_fixture {
+        return serve_diagnostic_fixture(&options, clock, &resources, mode, admission);
+    }
     #[cfg(feature = "s_incremental")]
     let native_bootstrap = matches!(mode, s_allocation::Mode::CapturedNative);
     #[cfg(feature = "s_incremental")]
@@ -849,6 +952,59 @@ mod tests {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// #1640 1a：诊断场所开关只认夹具记录 id；未设走正式路径，其它取值拒绝启动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_switch_accepts_only_the_fixture_record_id() {
+        assert_eq!(parse_diagnostic_fixture(None), Ok(false));
+        assert_eq!(
+            parse_diagnostic_fixture(Some("venue-profile-diagnostic-fixture")),
+            Ok(true)
+        );
+        for invalid in ["1", "", "venue-profile-diagnostic-fixture/1", "P0"] {
+            let refused = parse_diagnostic_fixture(Some(invalid)).unwrap_err();
+            assert!(
+                refused.contains("DiagnosticFixtureTestOnlyInvalid"),
+                "{refused}"
+            );
+            assert!(refused.contains("只接受"), "{refused}");
+        }
+    }
+
+    /// #1640 1a：场所自报只进 Ready 的摘要 payload（随 payload_hash 被签），Receipt 与错误回复不动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_tags_only_ready_inside_hashed_payload() {
+        let tag = super::super::driver::VenueProfileTag {
+            venue_profile: "venue-profile-diagnostic-fixture/1".into(),
+            admissible: false,
+            require_admissible: true,
+        };
+        let request = owned_ready_request();
+        let identity = ("owned".into(), "1".into(), "2".into());
+        let ready = reply(
+            &request,
+            tag_ready(Ok(json!({"kind":"Ready"})), &tag),
+            &identity,
+            Some("current"),
+        );
+        let fields = ready["payload"].as_object().unwrap();
+        assert_eq!(fields["build_profile"], "testonly");
+        assert_eq!(
+            fields["venue_profile"],
+            "venue-profile-diagnostic-fixture/1"
+        );
+        assert_eq!(fields["admissible"], false);
+        assert_eq!(fields.len(), 5);
+        assert_eq!(
+            ready["payload_hash"],
+            sha256_hex(canonical_json(&ready["payload"]).as_bytes())
+        );
+        let receipt = tag_ready(Ok(json!({"kind":"Receipt"})), &tag).unwrap();
+        assert_eq!(receipt, json!({"kind":"Receipt"}));
+        assert_eq!(tag_ready(Err("Busy".into()), &tag), Err("Busy".into()));
+    }
 
     #[test]
     fn private_control_digest_binds_loaded_canonical_resources_and_rejects_invalid_declarations() {

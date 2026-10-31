@@ -187,6 +187,7 @@ SQL增量账与全量oracle
 STAGED_NODES_OUTPUT
 S_AUDIT_COST_DB
 S_AUDIT_COST_EXPECT_GENERATION
+S_DIAGNOSTIC_FIXTURE_TESTONLY
 S_EVIDENCE_MEASURE
 S_NATIVE_SQLITE_CACHE_KIB
 S_ORDINARY_WIRE_CHILD
@@ -928,6 +929,7 @@ writer/recover闭合后无SHM
 拒绝后释放全部暂存许可
 拒绝时不得写出半截渲染
 拒绝未保留结构化资源错误
+拒绝的 advance 不得发布
 拒绝须发生在绑定 socket 之前
 持久root非32B
 持久根可达节点缺失
@@ -943,6 +945,7 @@ writer/recover闭合后无SHM
 损坏状态必须被拒绝
 损坏节点必须阻止普通cold-open
 排序临时工作区已经真实释放
+接纳原件保留为 pending，等待可准入配置
 控制头不得保强证书
 控制头不得暗补或数字归一化
 控制表协议标记被改成旧域
