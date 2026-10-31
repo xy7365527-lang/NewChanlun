@@ -4758,3 +4758,26 @@ pub(crate) fn with_mixed_control_fixture(run: impl FnOnce(&Connection)) {
 }
 
 pub(crate) mod mixed_root;
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl ControlFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        let Self {
+            session_generation,
+            clock_plan_hash,
+            headers,
+        } = self;
+        let mut headers = headers
+            .iter()
+            .map(|((g, batch), header)| {
+                let ControlHeader {
+                    commit_ns,
+                    consumed,
+                } = header;
+                json!([g, batch, commit_ns, consumed])
+            })
+            .collect::<Vec<_>>();
+        headers.sort_by_key(crate::canonical_json);
+        json!({"session_generation":session_generation,"clock_plan_hash":clock_plan_hash,"headers":headers})
+    }
+}

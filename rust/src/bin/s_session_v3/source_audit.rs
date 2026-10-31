@@ -49,6 +49,9 @@ pub(super) use ordinary_source::{
 mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
+#[cfg(feature = "s_incremental")]
+#[path = "source_receipt.rs"]
+pub(super) mod source_receipt;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -1435,7 +1438,10 @@ impl<'raw> NativeRawLedger<'raw> {
                     self.stats.source_hashes += 4;
                 }
                 #[cfg(test)]
-                super::state::trace_raw_hashes(true, 4);
+                {
+                    super::state::trace_raw_hashes(true, 4);
+                    super::state::trace_event("historical_raw_source_hashes", None);
+                }
                 #[cfg(feature = "s_incremental")]
                 let capacity = self.originals.capacity();
                 s.native_map_room(&mut self.originals).map_err(err)?;
@@ -1580,6 +1586,17 @@ impl<'capture> NativeSourceAudit<'capture> {
     )]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
+    }
+    /// #1481：复用来源counts不等于已推进独立raw事实账。
+    pub(super) fn advance_raw_facts(&mut self, prefix_len: usize) -> Result<(), String> {
+        let measure = self.reader.native_measure();
+        self.ledger.advance_measured(
+            &mut super::audit_store::StoreView::for_audit(&mut self.reader),
+            prefix_len,
+            measure.as_ref().and_then(|m| m.deadline),
+            measure.as_ref().and_then(|m| m.budget),
+        )?;
+        Ok(())
     }
     pub(super) fn audit<'a>(
         &mut self,
@@ -2709,7 +2726,7 @@ mod tests {
         (store, root, raw, rule)
     }
 
-    fn tb1405_pending_fixture(
+    pub(super) fn tb1405_pending_fixture(
         rows: &[(&str, i64, i64, i64, i64, i64)],
     ) -> (MemoryNodes, ContentRef, Vec<Value>, String) {
         let files = TestFiles::new();
@@ -5471,4 +5488,35 @@ mod owner_retention {
         sources,
         originals
     });
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl NativeRawFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        fn source(s: &Source) -> Value {
+            let Source {
+                wire,
+                numeric,
+                raw,
+                bar,
+            } = s;
+            json!({"wire":wire,"numeric":numeric,"raw":raw,"bar":bar})
+        }
+        let Self {
+            winners,
+            sources,
+            originals,
+        } = self;
+        let mut sources = sources
+            .iter()
+            .map(|(k, v)| json!([k, source(v)]))
+            .collect::<Vec<_>>();
+        sources.sort_by_key(crate::canonical_json);
+        let mut originals = originals
+            .iter()
+            .map(|(k, (seq, s))| json!([k, seq, source(s)]))
+            .collect::<Vec<_>>();
+        originals.sort_by_key(crate::canonical_json);
+        json!({"winners":winners.h1_canonical(),"sources":sources,"originals":originals})
+    }
 }
