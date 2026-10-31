@@ -1171,10 +1171,14 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     let (result, events, _) = state::traced(false, || {
         owner.publish(&mut runtime, &token, &envelope, &mut c)
     });
-    assert!(result.is_err(), "交接上界持票失败不得发布");
+    let error = result.err().expect("交接上界持票失败不得发布");
     assert!(
         events.iter().any(|e| e["phase"] == "owner_suffix_complete"),
-        "本代其余分配已在余量内完成，拒绝发生在交接持票处"
+        "本代其余分配已在余量内完成，拒绝发生在交接持票处：{error}；phases={:?}",
+        events
+            .iter()
+            .map(|e| e["phase"].as_str().unwrap_or("").to_owned())
+            .collect::<Vec<_>>()
     );
     assert!(h1_qualified_cuts(&events).is_empty());
     assert_eq!(
