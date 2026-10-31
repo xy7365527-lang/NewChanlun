@@ -3145,23 +3145,6 @@ impl CompleteCandidate {
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
         }
-        // 40B B2：资格交接的持久上界在费用终检前持票并计入历史账；提交后交接只消费它。
-        if effects.operation == effects::Operation::Publish {
-            if let Some(transition) = self.audited.qualified_transition_bound() {
-                let Ok(permit) = budget.reserve(transition) else {
-                    return Ok(None);
-                };
-                let Some(total) = self
-                    .charge
-                    .historical_and_raw_capacity
-                    .checked_add(transition)
-                else {
-                    return Ok(None);
-                };
-                self.charge.historical_and_raw_capacity = total;
-                self.qualification_reserve = Some(permit);
-            }
-        }
         let bound = BoundOriginals { _private: () };
         match self.audited.check_owner_raw(capture, &bound, &budget) {
             Ok(added) => {
@@ -3293,6 +3276,23 @@ impl CompleteCandidate {
                     Err(native::Failure::BudgetExceeded) => return Ok(None),
                     Err(native::Failure::Invalid(error)) => return Err(error),
                 };
+        }
+        // 40B B2：资格交接的持久上界在本代后缀入账后、费用终检前持票并计入历史账；提交后交接只消费它。
+        if effects.operation == effects::Operation::Publish {
+            if let Some(transition) = self.audited.qualified_transition_bound() {
+                let Ok(permit) = budget.reserve(transition) else {
+                    return Ok(None);
+                };
+                let Some(total) = self
+                    .charge
+                    .historical_and_raw_capacity
+                    .checked_add(transition)
+                else {
+                    return Ok(None);
+                };
+                self.charge.historical_and_raw_capacity = total;
+                self.qualification_reserve = Some(permit);
+            }
         }
         #[cfg(test)]
         let effect_rows = effects.changes.len();
