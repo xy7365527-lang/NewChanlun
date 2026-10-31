@@ -73,6 +73,14 @@ pub(super) fn check_request_before_resume(
     Ok(())
 }
 
+/// #1640 1a：诊断场所入口的自报读数：场所 profile `id/版本`、是否可参与准入、本 Driver 是否仍要求准入。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct VenueProfileTag {
+    pub(super) venue_profile: String,
+    pub(super) admissible: bool,
+    pub(super) require_admissible: bool,
+}
+
 pub(super) struct Driver {
     conn: super::audit_owner::AuditConnection,
     /// 启动前冻结的互斥私有模式；Owned 与 Runtime 同账，不保留 capture/审计结果。
@@ -203,6 +211,47 @@ impl Driver {
         )?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
+    }
+    /// #1640 1a（gates `policy1640-diagnostic`）：仅 `s_capture_native_testonly` 构建、且 serve 显式带
+    /// `S_DIAGNOSTIC_FIXTURE_TESTONLY` 时可达。以诊断夹具场所 profile（`admissible:false`）开门，
+    /// `require_admissible` 照旧为真：Ready 可达（launcher/4 据 build_profile 拒绝），任何 advance 仍被
+    /// `InvalidPolicy{venue_profile}` 拒绝。与 #1769 的 theta 诊断臂不同，本入口不关准入。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn open_for_serve_diagnostic_fixture_testonly(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let theta_config = newchan_rust::theta_v0::config::ThetaConfig::diagnostic_fixture()
+            .map_err(|error| error.to_string())?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            None,
+            theta_config,
+            true,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+    /// #1640 1a：本 Driver 的场所 profile 自报（Ready payload 与启动诊断行共用同一份读数）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn venue_profile_tag(&self) -> VenueProfileTag {
+        VenueProfileTag {
+            venue_profile: self.theta_config.records.venue.record.label(),
+            admissible: self.theta_config.admissible(),
+            require_admissible: self.require_admissible,
+        }
     }
     /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
     /// #1640：增量构建的正式服务入口；`production` 时先构造生产配置并要求可准入（同
@@ -905,6 +954,52 @@ mod tests {
             )
             .unwrap();
         assert_eq!(pending, 1, "配置拒绝不得消费或提交 pending 原件");
+    }
+
+    /// #1640 1a（policy1640-diagnostic）：诊断场所入口以夹具开门、Ready 可达且自报 admissible:false，
+    /// 但 require_admissible 照旧为真：ingest 被 InvalidPolicy{venue_profile} 拒绝，不落 raw_events、不进 Begin。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_serve_entry_reaches_ready_but_refuses_every_advance() {
+        let f = Fixture::new();
+        let mut driver = Driver::open_for_serve_diagnostic_fixture_testonly(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1_048_576,
+            s_allocation::Mode::Ordinary,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        let tag = driver.venue_profile_tag();
+        assert_eq!(tag.venue_profile, "venue-profile-diagnostic-fixture/1");
+        assert!(!tag.admissible);
+        assert!(tag.require_admissible);
+        let ready = driver
+            .handle(envelope("fixture-ready", json!({"op":"ready"})))
+            .unwrap();
+        assert_eq!(ready["kind"], "Ready");
+        let error = driver.handle(Fixture::ingest(1)).unwrap_err();
+        assert!(error.contains("InvalidPolicy"), "{error}");
+        assert!(error.contains("venue_profile"), "{error}");
+        assert!(
+            error.contains("venue-profile-diagnostic-fixture/1"),
+            "{error}"
+        );
+        drop(driver);
+        let conn = Connection::open(&f.db).unwrap();
+        assert_eq!(count(&conn, "raw_events"), 0);
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
     }
 
     #[test]
