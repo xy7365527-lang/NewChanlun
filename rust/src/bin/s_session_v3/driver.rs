@@ -274,7 +274,7 @@ impl Driver {
             return Err("增量服务bootstrap只接受CapturedNative模式".into());
         }
         let theta_config = if production {
-            newchan_rust::theta_v0::config::ThetaConfig::for_production_profile("P0")
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
                 .map_err(|error| error.to_string())?
         } else {
             newchan_rust::theta_v0::config::ThetaConfig::default()
@@ -410,7 +410,7 @@ impl Driver {
         )
     }
 
-    /// 正式写入口：先构造当前生效生产配置，再打开库或恢复任何 pending。
+    /// 正式写入口：先构造当前生效生产配置（S 专用绑定 synthetic，#1774 B2），再打开库或恢复任何 pending。
     pub(super) fn open_production_with_request_and_mode(
         db: &Path,
         profile: &Path,
@@ -420,9 +420,34 @@ impl Driver {
         mode: s_allocation::Mode,
         admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        let theta_config =
-            newchan_rust::theta_v0::config::ThetaConfig::for_production_profile("P0")
-                .map_err(|error| error.to_string())?;
+        Self::open_production_bound(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            admission,
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer(),
+        )
+    }
+
+    /// 正式写入口的绑定步：配置构造失败 ⟹ 在任何库写或 pending 恢复之前返回。
+    #[allow(clippy::too_many_arguments)]
+    fn open_production_bound(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+        theta_config: Result<
+            newchan_rust::theta_v0::config::ThetaConfig,
+            newchan_rust::theta_v0::run_records::RunPolicyError,
+        >,
+    ) -> Result<Self, String> {
+        let theta_config = theta_config.map_err(|error| error.to_string())?;
         Self::open_with_request_and_mode_context(
             db,
             profile,
@@ -897,9 +922,16 @@ mod tests {
         assert_eq!(count(&open_db(&admitted.db).unwrap(), "raw_events"), 1);
     }
 
-    /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
+    /// #1774 AC7：synthetic v1 夹具（tick 已签、三项成本未签）经正式绑定步 open 失败并报 cost_inputs，
+    /// 在任何 pending begin 之前；#1405 的「配置拒绝不消费 pending」语义随之保留。
     #[test]
     fn production_open_rejects_unsigned_profile_before_pending_begin() {
+        use newchan_rust::theta_v0::run_records::{
+            production_venue_from_records, VenueUsage, ACTIVE_DATA_PROFILE_JSON,
+            ACTIVE_THETA_RISK_JSON, SYNTHETIC_TB02A_PROFILE_ID, VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        };
+        const SYNTHETIC_UNSIGNED_V1: &str =
+            include_str!("../../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
         let f = Fixture::new();
         let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
         let mode = s_allocation::Mode::Ordinary;
@@ -920,7 +952,16 @@ mod tests {
             super::super::audit_owner::Admission::Advance { .. }
         ));
         drop(conn);
-        let error = match Driver::open_production_with_request_and_mode(
+        let unsigned = newchan_rust::theta_v0::config::ThetaConfig::from_records(
+            production_venue_from_records(
+                &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+                VenueUsage::SStructureWriter,
+                |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+            ),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        );
+        let error = match Driver::open_production_bound(
             &f.db,
             &f.profile,
             "1",
@@ -928,13 +969,17 @@ mod tests {
             None,
             mode,
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            unsigned,
         ) {
-            Ok(_) => panic!("未签生产 profile 不得打开 Driver"),
+            Ok(_) => panic!("未签 synthetic profile 不得打开 Driver"),
             Err(error) => error,
         };
-        assert!(error.contains("AwaitingPolicy"), "{error}");
-        assert!(error.contains("venue_profile"), "{error}");
-        assert!(error.contains("cost_inputs"), "{error}");
+        assert!(error.starts_with("AwaitingPolicy{cost_inputs}"), "{error}");
+        assert!(!error.contains("venue_profile"), "{error}");
+        assert!(
+            error.contains("venue-profile-synthetic-tb02a.slippage_bps"),
+            "{error}"
+        );
         let conn = Connection::open(&f.db).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state")
@@ -954,6 +999,34 @@ mod tests {
             )
             .unwrap();
         assert_eq!(pending, 1, "配置拒绝不得消费或提交 pending 原件");
+    }
+
+    /// #1774 AC2：正式写入口绑定已签 synthetic v2，open 成功、配置 admissible、摘要 policy_records
+    /// 带 synthetic 签署版本而非诊断夹具或 P0。
+    #[test]
+    fn production_open_binds_signed_synthetic_profile() {
+        let f = Fixture::declared("testonly.ohlc");
+        let driver = Driver::open_production_with_request_and_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::Ordinary,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .expect("synthetic v2 已签，正式写入口可开");
+        assert!(driver.require_admissible);
+        assert!(driver.theta_config.admissible());
+        let labels = driver.theta_config.record_labels();
+        assert!(
+            labels.contains("venue-profile-synthetic-tb02a/2"),
+            "{labels}"
+        );
+        assert!(!labels.contains("venue-profile-P0"), "{labels}");
+        assert!(!labels.contains("diagnostic-fixture"), "{labels}");
+        let summary = driver.state_summary("test").unwrap();
+        assert_eq!(summary["policy_records"], json!(labels));
     }
 
     /// #1640 1a（policy1640-diagnostic）：诊断场所入口以夹具开门、Ready 可达且自报 admissible:false，

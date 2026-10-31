@@ -431,6 +431,7 @@ startup不得沿用旧请求缓存
 startup原件不能跨着恢复请求保留
 subset 和原字段独立持费
 superseded_by 自指
+synthetic v2 已签，正式写入口可开
 s不得吸收进U
 tag转换先于复用和F
 test.content/重
@@ -1112,7 +1113,7 @@ writer/recover闭合后无SHM
 未登记源版本必须拒绝
 未知tag，拒绝flush
 未知版本不得创建库
-未签生产 profile 不得打开 Driver
+未签 synthetic profile 不得打开 Driver
 未被引用的历史身份不得读不可变内容
 未解析的批次占位不渲染
 未进账的追认许可必须使恒等式失败

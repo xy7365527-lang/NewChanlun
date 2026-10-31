@@ -3353,13 +3353,29 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     v3::admission::write_current_result(&out)
 }
 
-/// 正式生产入口：配置先于任何 Begin 或库写操作；缺 tick/成本即停，不用诊断夹具。
+/// 正式生产入口：配置先于任何 Begin 或库写操作；S 专用绑定 synthetic（#1774 B2），缺成本即停，
+/// 不用诊断夹具。
 fn advance_core(
     db: &Path,
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
-    let config = ThetaConfig::for_production_profile("P0").map_err(|error| error.to_string())?;
+    advance_core_production(
+        db,
+        configured_epoch,
+        context,
+        ThetaConfig::for_s_structure_writer(),
+    )
+}
+
+/// 正式生产入口的绑定步：配置构造失败或不可准入 ⟹ 在任何 Begin 之前返回。
+fn advance_core_production(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+    config: Result<ThetaConfig, newchan_rust::theta_v0::run_records::RunPolicyError>,
+) -> Result<Value, String> {
+    let config = config.map_err(|error| error.to_string())?;
     if !config.admissible() {
         return Err(format!(
             "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
@@ -6075,18 +6091,34 @@ mod tests {
         assert_eq!(rows, 0, "失败的声明 init 不得留下任何 meta");
     }
 
+    /// #1774 AC7：synthetic v1 夹具（三项成本未签）经正式入口的绑定步在任何 Begin 之前拒绝。
     #[test]
     fn production_advance_rejects_unsigned_profile_before_begin() {
+        use newchan_rust::theta_v0::run_records::{
+            production_venue_from_records, VenueUsage, ACTIVE_DATA_PROFILE_JSON,
+            ACTIVE_THETA_RISK_JSON, SYNTHETIC_TB02A_PROFILE_ID, VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        };
+        const SYNTHETIC_UNSIGNED_V1: &str =
+            include_str!("../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(
             &files,
             &located_ohlc_input(&[("policy-gate", 0, 6, 12, 3, 7)]),
         );
-        let error = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
-        assert!(error.contains("AwaitingPolicy"), "{error}");
-        assert!(error.contains("venue_profile"), "{error}");
-        assert!(error.contains("cost_inputs"), "{error}");
+        let unsigned = ThetaConfig::from_records(
+            production_venue_from_records(
+                &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+                VenueUsage::SStructureWriter,
+                |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+            ),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        );
+        let error =
+            advance_core_production(&files.db(), DEFAULT_WRITER_EPOCH, None, unsigned).unwrap_err();
+        assert!(error.starts_with("AwaitingPolicy{cost_inputs}"), "{error}");
+        assert!(!error.contains("venue_profile"), "{error}");
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state")
@@ -6098,6 +6130,27 @@ mod tests {
             .unwrap()
             .unwrap_or_default()
             .is_empty());
+    }
+
+    /// #1774 AC2：正式入口绑定已签 synthetic v2，advance 产出并在输出戳上写 synthetic 签署版本。
+    #[test]
+    fn production_advance_stamps_synthetic_record_versions() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[("policy-synthetic", 0, 6, 12, 3, 7)]),
+        );
+        let out = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap();
+        let labels = ThetaConfig::for_s_structure_writer()
+            .unwrap()
+            .record_labels();
+        assert_eq!(out["policy_records"], json!(labels));
+        assert!(
+            labels.contains("venue-profile-synthetic-tb02a/2"),
+            "{labels}"
+        );
+        assert!(!labels.contains("diagnostic-fixture"), "{labels}");
     }
 
     #[test]
