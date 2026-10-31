@@ -799,7 +799,7 @@ writer/recover闭合后无SHM
 实际 Vec/String capacity 加树/散列表保守槽位上界；非RSS
 实际 verifier 在首个分配前 typed 拒绝
 实际Layout拒绝必须保持typed首错
-实际owner和runtime析构后同父账归零
+实际owner析构后仅存父账观察句柄元数据
 实际source原件必须仍存在
 实际包含三槽见证及跨代 bi prior
 实际工作集合与memo持续计量

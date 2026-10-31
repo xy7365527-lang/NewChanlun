@@ -718,7 +718,14 @@ pub(crate) mod fee_probe {
     }
     pub(crate) fn finish() -> Vec<Reading> {
         PROBE.with(|p| { let mut p = p.borrow_mut();
-            for parent in &p.parents { assert_eq!(parent.live(), 0, "实际owner和runtime析构后同父账归零"); }
+            for parent in &p.parents {
+                let (scratch, _, codec_metadata, _) = parent.scratch_observation();
+                eprintln!("P6_SOURCE_PARENT live={} parent_metadata={} scratch={} codec_metadata={}",
+                    parent.live(), Budget::metadata_bytes(), scratch, codec_metadata);
+                assert_eq!(parent.live(), Budget::metadata_bytes(), "实际owner析构后仅存父账观察句柄元数据");
+                assert_eq!(scratch, 0);
+                assert_eq!(codec_metadata, 0);
+            }
             p.enabled = false;
             p.parents.clear();
             std::mem::take(&mut p.rows)

@@ -21,11 +21,6 @@ pub(crate) struct BusinessRows {
     pub(crate) observations: sc::CodecVec<RelatedRow>,
 }
 
-struct HashSink<'a>(Option<&'a sc::capture_allocation::scratch::WorkScope>);
-impl NodeSink for HashSink<'_> {
-    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> { self.0 }
-    fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> { Ok(()) }
-}
 pub(crate) fn coordinates_digest(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<NodeDigest, String> {
     struct Coordinates(sc::CodecVec<bj::Decimal>);
     impl JsonArray for Coordinates {
@@ -60,15 +55,18 @@ pub(crate) fn observation_sources<'a>(
     coordinates_digest(s, &coordinates)
 }
 
-fn object_record(s: &mut (impl CodecStore + ?Sized), root: sc::RefView<'_>, kind: &str) -> Result<NodeDigest, String> {
-    let names: &[&str] = if kind == CC006_SHAPE_KIND { &SHAPE_SOURCE_FIELDS } else { &TYPED_SOURCE_FIELDS };
-    let fields = SourceFields::read_subset(s, root, names)?;
-    let mut values = sc::CodecVec::default();
-    s.native_codec_room(&mut values, names.len()).map_err(err)?;
-    for &name in names {
-        values.try_push((name, sc::ValueView::Edge(fields.get(name)?.digest().map_err(err)?))).map_err(err)?;
+fn object_record(s: &mut (impl CodecStore + ?Sized), root: sc::RefView<'_>) -> Result<NodeDigest, String> {
+    let original = bj::render_json(s, root)?;
+    let fields = original.view().as_object().ok_or_else(|| err("P6对象原件不是对象"))?;
+    let mut unstamped = sc::CodecVec::default();
+    s.native_codec_room(&mut unstamped, fields.len()).map_err(err)?;
+    for (name, value) in fields.iter() {
+        if !matches!(name, "first_known_generation" | "first_known_cut" | "published_generation") {
+            unstamped.try_push((name, value)).map_err(err)?;
+        }
     }
-    sc::write_value_view(&mut HashSink(s.codec_work()), sc::ValueView::Object(&values)).map(|v| v.digest).map_err(err)
+    let record = JsonView::object_fields(&unstamped).map_err(err)?;
+    super::super::super::history::hash_json_in_store(s, record, None, None)
 }
 pub(crate) fn export(
     s: &mut (impl CodecStore + ?Sized),
@@ -83,7 +81,7 @@ pub(crate) fn export(
     for entry in &objects.births {
         let reference = s.native_built_ref(&entry.generated).map_err(err)?;
         let root = reference.view();
-        let record = object_record(s, root, entry.kind.as_str())?;
+        let record = object_record(s, root)?;
         let source_text = field(s, root, "source_coords_json")?;
         let sources = s.lookup_ref(source_text.view(), &[PathStep::JsonText]).map_err(err)?;
         let first_generation = number(s, root, "first_known_generation")?;
