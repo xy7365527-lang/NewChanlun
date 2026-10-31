@@ -249,6 +249,18 @@ impl RawReceipt {
         }
         self.check_request(&self.token, generation, rule, self.raw_from..raw_to, scope, generated)
     }
+    pub(crate) fn check_raw_partition(
+        &self, token: &str, metadata: &crate::content_manifest::ManifestMetadata,
+        roots: &impl crate::content_manifest::ManifestRootSource,
+    ) -> Result<std::ops::Range<usize>, String> {
+        let roots = roots.view();
+        self.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
+            metadata.input_frontier, (&metadata.scope).into(), roots.generated_state)?;
+        self.check_request(token, metadata.generation, &metadata.rule_revision,
+            self.raw_from..self.raw_to, (&metadata.scope).into(), roots.generated_state)?;
+        Ok(self.raw_from..self.raw_to)
+    }
+    pub(crate) fn request_token(&self) -> &str { self.token.as_str() }
     pub(crate) fn counts(&self) -> &Counts { &self.counts }
     pub(crate) fn rows(&self) -> &[RawRow] { &self.rows }
     pub(crate) fn bind_four_roots(
@@ -420,6 +432,59 @@ mod tests {
     fn p6_raw_receipt_expired_during_closure_releases_budget() { deadline_failure(1); }
     #[test]
     fn p6_raw_receipt_expired_before_consumption_releases_budget() { deadline_failure(2); }
+
+    #[test]
+    fn p6_raw_partition_borrows_original_payload_and_releases_pending_parent_fees() {
+        use super::super::super::{audit_ledger, prepared};
+        let (fixture, _, _, mut metadata, _) = prepared::tests::p6_candidate();
+        let db = fixture.db_path();
+        let (mut nodes, generated, raw, rule) = super::super::tests::fixture();
+        let refs = roots(&mut nodes, &generated);
+        metadata.scope = refs[0].clone();
+        metadata.generation = 1;
+        metadata.input_frontier = raw.len() as i64 - 1;
+        metadata.profile_id = tb02a::PROFILE.into();
+        metadata.rule_revision = rule.clone();
+        let manifest_roots = crate::content_manifest::ManifestRoots {
+            generated_state: refs[1].clone(), publication_template: refs[2].clone(), delta_template: refs[3].clone(),
+        };
+        for wrong_token in [false, true] {
+            let name = if wrong_token { "raw-budget-reject.sqlite" } else { "raw-budget.sqlite" };
+            let mut ledger = audit_ledger::Ledger::fresh_raw_partition(&db.with_file_name(name), &db,
+                audit_ledger::Identity { rule_revision: rule.clone(), content_identity: "TestOnly-raw-budget".into(),
+                    binary_commit: "test-only".into() }, 64 * 1024 * 1024).unwrap();
+            let parent = Arc::new(Parent(AtomicUsize::new(0)));
+            CodecWork::new(parent.clone(), 8 * 1024 * 1024).unwrap().run(|work| {
+                let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
+                let source = audit_raw_receipt(&mut store, "raw-request", 1, (&generated).into(),
+                    (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
+                let payload = source.rows().as_ptr();
+                let live = work.snapshot().live;
+                assert!(live > 0);
+                let token = if wrong_token { "wrong-request" } else { "raw-request" };
+                let result = ledger.stage_raw_partition(token, &metadata, &manifest_roots, &source, Some(work));
+                assert_eq!(source.rows().as_ptr(), payload);
+                if wrong_token {
+                    assert!(result.is_err());
+                    assert!(ledger.raw_partition_through().is_err());
+                } else {
+                    result.unwrap();
+                    assert!(work.snapshot().live > live);
+                    let reader = rusqlite::Connection::open(db.with_file_name(name)).unwrap();
+                    assert_eq!(reader.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+                    ledger.bind(token, &metadata, &manifest_roots).unwrap();
+                    ledger.content_committed().unwrap();
+                    assert_eq!(ledger.raw_partition_through().unwrap(), 1);
+                    assert!(ledger.committed_through().is_err());
+                }
+                assert_eq!(work.snapshot().live, live);
+                drop(source);
+                assert_eq!(work.snapshot().live, 0);
+                Ok::<_, sc::CodecError>(())
+            }).unwrap();
+            assert_eq!(parent.0.load(Ordering::SeqCst), 0);
+        }
+    }
 
     #[test]
     fn p6_raw_receipt_preserves_full_event_and_only_requested_suffix() {
