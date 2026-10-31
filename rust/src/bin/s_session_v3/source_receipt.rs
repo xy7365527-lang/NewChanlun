@@ -456,11 +456,13 @@ mod tests {
             let parent = Arc::new(Parent(AtomicUsize::new(0)));
             CodecWork::new(parent.clone(), 8 * 1024 * 1024).unwrap().run(|work| {
                 let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
+                let retained_before = parent.0.load(Ordering::SeqCst);
                 let source = audit_raw_receipt(&mut store, "raw-request", 1, (&generated).into(),
                     (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
                 let payload = source.rows().as_ptr();
-                let live = work.snapshot().live;
-                assert!(live > 0);
+                // NativeReservation直接归父账，WorkSnapshot只计scratch Layout。
+                let live = parent.0.load(Ordering::SeqCst);
+                assert!(live > retained_before);
                 let token = if wrong_token { "wrong-request" } else { "raw-request" };
                 let result = ledger.stage_raw_partition(token, &metadata, &manifest_roots, &source, Some(work));
                 assert_eq!(source.rows().as_ptr(), payload);
@@ -469,7 +471,7 @@ mod tests {
                     assert!(ledger.raw_partition_through().is_err());
                 } else {
                     result.unwrap();
-                    assert!(work.snapshot().live > live);
+                    assert!(parent.0.load(Ordering::SeqCst) > live);
                     let reader = rusqlite::Connection::open(db.with_file_name(name)).unwrap();
                     assert_eq!(reader.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
                     ledger.bind(token, &metadata, &manifest_roots).unwrap();
@@ -477,8 +479,9 @@ mod tests {
                     assert_eq!(ledger.raw_partition_through().unwrap(), 1);
                     assert!(ledger.committed_through().is_err());
                 }
-                assert_eq!(work.snapshot().live, live);
+                assert_eq!(parent.0.load(Ordering::SeqCst), live);
                 drop(source);
+                assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
                 assert_eq!(work.snapshot().live, 0);
                 Ok::<_, sc::CodecError>(())
             }).unwrap();
