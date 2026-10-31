@@ -10,8 +10,10 @@ use newchan_rust::s_content::{ContentRef, RefView};
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content as sc;
 use rusqlite::{params, OpenFlags};
+use newchan_rust::s_content::capture_allocation::{native_owned::NativeValue, scratch::WorkScope};
 
 const FORMAT: &str = "s-audit-ledger/1";
+const RAW_PARTITION_FORMAT: &str = "s-audit-ledger/raw-partition/1";
 const SCHEMA: &str = "
 CREATE TABLE meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1), format TEXT NOT NULL,
  rule_revision TEXT NOT NULL, content_identity TEXT NOT NULL, binary_commit TEXT NOT NULL,
@@ -138,9 +140,21 @@ pub(super) struct Identity {
 }
 
 struct Pending {
-    token: String,
+    token: NativeValue<String>,
     generation: i64,
-    roots: [ContentRef; 4],
+    roots: [NativeValue<ContentRef>; 4],
+}
+impl Pending {
+    fn new(token: &str, generation: i64, roots: [RefView<'_>; 4], work: Option<&WorkScope>) -> Result<Self, String> {
+        Ok(Self {
+            token: NativeValue::<String>::try_from_str(token, work).map_err(error)?,
+            generation,
+            roots: [NativeValue::<ContentRef>::try_from_view(roots[0], work).map_err(error)?,
+                NativeValue::<ContentRef>::try_from_view(roots[1], work).map_err(error)?,
+                NativeValue::<ContentRef>::try_from_view(roots[2], work).map_err(error)?,
+                NativeValue::<ContentRef>::try_from_view(roots[3], work).map_err(error)?],
+        })
+    }
 }
 enum Phase {
     Ready,
@@ -148,10 +162,12 @@ enum Phase {
     Bound(Pending),
     Stale,
 }
+enum Coverage { Complete, RawPartition { through: i64 } }
 
 pub(super) struct Ledger {
     connection: Option<Connection>,
     phase: Phase,
+    coverage: Coverage,
     path: PathBuf,
     content_path: PathBuf,
     max_store_bytes: u64,
@@ -244,6 +260,7 @@ impl Ledger {
         let ledger = Self {
             connection: Some(conn),
             phase: Phase::Ready,
+            coverage: Coverage::Complete,
             path: path.to_owned(),
             content_path,
             max_store_bytes,
@@ -251,6 +268,25 @@ impl Ledger {
         };
         ledger.check_storage()?;
         Ok(ledger)
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn fresh_raw_partition(path: &Path, content_path: &Path, identity: Identity,
+        max_store_bytes: u64) -> Result<Self, String> {
+        let mut ledger = Self::fresh(path, content_path, identity, max_store_bytes)?;
+        ledger.connection.as_ref().unwrap().execute(
+            "UPDATE meta SET format=?1 WHERE singleton=1", [RAW_PARTITION_FORMAT]).map_err(error)?;
+        ledger.coverage = Coverage::RawPartition { through: 0 };
+        Ok(ledger)
+    }
+    pub(super) fn is_raw_partition(&self) -> bool {
+        matches!(self.coverage, Coverage::RawPartition { .. })
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn raw_partition_through(&self) -> Result<i64, String> {
+        match (&self.phase, &self.coverage) {
+            (Phase::Ready, Coverage::RawPartition { through }) => Ok(*through),
+            _ => Err(error("不是已提交的raw分区")),
+        }
     }
     fn check_storage(&self) -> Result<(), String> {
         let size = database_bytes(&self.content_path)?
@@ -273,7 +309,9 @@ impl Ledger {
     }
     /// 已提交存储读数，不是 U-A 资格；准备中连本连接的未提交行也不暴露。
     pub(super) fn committed_through(&self) -> Result<i64, String> {
-        if !matches!(self.phase, Phase::Ready) { return Err(error("台账前沿尚未提交或已丢弃")); }
+        if !matches!(self.phase, Phase::Ready) || !matches!(self.coverage, Coverage::Complete) {
+            return Err(error("完整台账尚未提交或仅有raw分区"));
+        }
         self.through()
     }
     pub(super) fn contains_committed_unit(&self, unit: &Unit) -> Result<bool, String> {
@@ -325,7 +363,9 @@ impl Ledger {
         new_units: impl Iterator<Item = &'u Unit> + Clone,
         verifier_revision: &str,
     ) -> Result<(), String> {
-        if !matches!(self.phase, Phase::Ready) { return Err(error("台账不在可准备状态")); }
+        if !matches!(self.phase, Phase::Ready) || !matches!(self.coverage, Coverage::Complete) {
+            return Err(error("台账不在完整事实可准备状态"));
+        }
         if token.is_empty() || verifier_revision.is_empty() || self.through()?.checked_add(1) != Some(d.generation) {
             return Err(error("请求或逐代序号无效"));
         }
@@ -383,8 +423,45 @@ impl Ledger {
         conn.execute("UPDATE meta SET certified_through_generation=?1,fold_digest=?2 WHERE singleton=1",
             params![d.generation,fold]).map_err(error)?;
         self.check_storage()?;
-        self.phase = Phase::Pending(Pending {token:token.to_owned(),generation:d.generation,roots:d.roots.clone()});
+        self.phase = Phase::Pending(Pending::new(token, d.generation, d.roots.each_ref().map(Into::into), None)?);
         Ok(())
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn stage_raw_partition(
+        &mut self, token: &str, metadata: &content_manifest::ManifestMetadata,
+        roots: &impl content_manifest::ManifestRootSource,
+        source: &super::source_audit::source_receipt::RawReceipt,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        let result = (|| {
+            let through = self.raw_partition_through()?;
+            if through.checked_add(1) != Some(metadata.generation) || metadata.rule_revision != self.rule_revision {
+                return Err(error("raw分区代号或规则不连续"));
+            }
+            let range = source.check_raw_partition(token, metadata, roots)?;
+            let r = roots.view();
+            let pending = Pending::new(token, metadata.generation,
+                [(&metadata.scope).into(), r.generated_state, r.publication_template, r.delta_template], work)?;
+            self.check_storage()?;
+            let conn = self.connection.as_ref().ok_or_else(|| error("raw分区已丢弃"))?;
+            conn.execute_batch("BEGIN IMMEDIATE").map_err(error)?;
+            let mut next: i64 = conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |r| r.get(0)).map_err(error)?;
+            if usize::try_from(next).ok() != Some(range.start) || source.rows().len() != range.len() {
+                return Err(error("raw来源后缀与已提交分区不衔接"));
+            }
+            for row in source.rows() {
+                if row.seq != next { return Err(error("raw来源后缀不连续")); }
+                conn.execute("INSERT INTO raw VALUES(?1,?2,?3,?4)", params![row.seq,
+                    row.event_digest.as_slice(), row.bar_digest.as_slice(), metadata.generation]).map_err(error)?;
+                next = next.checked_add(1).ok_or_else(|| error("raw序号溢出"))?;
+            }
+            source.check_raw_partition(token, metadata, roots)?;
+            self.check_storage()?;
+            self.phase = Phase::Pending(pending);
+            Ok(())
+        })();
+        if result.is_err() { self.invalidate(); }
+        result
     }
     pub(super) fn require_pending(&self) -> Result<(), String> {
         if matches!(self.phase, Phase::Pending(_) | Phase::Bound(_)) { Ok(()) }
@@ -396,9 +473,10 @@ impl Ledger {
         let expected: [RefView<'_>;4] = [(&m.scope).into(), v.generated_state,
             v.publication_template, v.delta_template];
         let result = match &self.phase {
-            Phase::Pending(p) | Phase::Bound(p) if p.token == token && p.generation == m.generation
+            Phase::Pending(p) | Phase::Bound(p) if p.token.as_str() == token && p.generation == m.generation
                 && m.rule_revision == self.rule_revision => {
-                if p.roots.iter().zip(expected).all(|(a,b)|root_value(a.into()) == root_value(b)) { Ok(()) }
+                if p.roots.iter().zip(expected).all(|(a,b)|a.format == b.format() && a.root == b.root()
+                    && a.kind == b.kind() && a.extent == b.extent()) { Ok(()) }
                 else { Err(error("台账四根与本请求 prepare 不一致")) }
             },
             _ => Err(error("台账请求、规则或代号不一致")),
@@ -417,7 +495,12 @@ impl Ledger {
             self.check_storage()?;
             Ok(())
         })();
-        if result.is_ok() { self.phase = Phase::Ready; } else { self.invalidate(); }
+        if result.is_ok() {
+            if let (Coverage::RawPartition { through }, Phase::Bound(p)) = (&mut self.coverage, &self.phase) {
+                *through = p.generation;
+            }
+            self.phase = Phase::Ready;
+        } else { self.invalidate(); }
         result
     }
     /// #1481 在原件单代核验后调用。在线与冷折叠只有内容 Commit 所在位置不同。
@@ -472,6 +555,24 @@ pub(super) mod tests {
         }
         result
     }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_raw_partition_cannot_reopen_or_append_to_complete_certified_ledger() {
+        let (f, _, token, metadata, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let path = db.with_file_name("completed-before-raw.sqlite");
+        let mut completed = ledger(&db, "completed-before-raw.sqlite", &metadata.rule_revision);
+        completed.fold_step(&token, &delta(&metadata, &roots), &metadata, &roots).unwrap();
+        drop(completed);
+        let before = dump(&path);
+        let identity = Identity { rule_revision: metadata.rule_revision.clone(), content_identity: "TestOnly-same-content".into(), binary_commit: "test-only".into() };
+        assert!(Ledger::fresh_raw_partition(&path, &db, identity, 64 * 1024 * 1024).is_err());
+        assert_eq!(dump(&path), before);
+        let reader = Connection::open(&path).unwrap();
+        assert_eq!(reader.query_row("SELECT certified_through_generation FROM meta", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(reader.query_row("SELECT format FROM meta", [], |r| r.get::<_, String>(0)).unwrap(), FORMAT);
+    }
+
     #[test]
     fn p6_ledger_component_fold_matches_online_rows_and_partition_keys() {
         let (f,_,token,mut m,r)=prepared::tests::p6_candidate();

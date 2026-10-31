@@ -258,6 +258,10 @@ impl Runtime {
         if self.audit_ledger.is_some() {
             return Err("AuditLedgerStale：同一 Runtime 不允许更换台账，须新建进程生命周期".into());
         }
+        #[cfg(feature = "s_incremental")]
+        if ledger.is_raw_partition() && !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+            return Err("AuditLedgerStale：raw分区只能接Native来源收据".into());
+        }
         self.audit_ledger = Some(ledger);
         Ok(())
     }
@@ -507,7 +511,15 @@ impl Runtime {
             { false }
         };
         if let Some(ledger) = &self.audit_ledger {
-            if !queued { ledger.require_pending()?; }
+            #[cfg(feature = "s_incremental")]
+            let raw_ready = if ledger.is_raw_partition() {
+                // #1647：具名raw分区在同次来源核验后stage，进入prepare前须仍是Ready。
+                ledger.raw_partition_through()?;
+                true
+            } else { false };
+            #[cfg(not(feature = "s_incremental"))]
+            let raw_ready = false;
+            if !queued && !raw_ready { ledger.require_pending()?; }
         }
         #[cfg(feature = "s_incremental")]
         if let Some(parent) = parent {
@@ -1410,6 +1422,11 @@ impl Runtime {
             delta_template: delta,
         };
         #[cfg(feature = "s_incremental")]
+        if let Some(ledger) = self.audit_ledger.as_mut().filter(|ledger| ledger.is_raw_partition()) {
+            let receipt = source_receipt.as_ref().ok_or_else(|| err("raw分区缺同次严格来源收据"))?;
+            ledger.stage_raw_partition(receipt.request_token(), metadata, &roots, receipt, sc::NodeSource::codec_work(store))?;
+        }
+        #[cfg(feature = "s_incremental")]
         let enabled_budget = workspace_budget.filter(|_| workspace_eligible && {
             #[cfg(test)]
             {
@@ -1845,6 +1862,80 @@ pub(crate) mod tests {
         tx.rollback().unwrap();
         f.runtime.discard();
         (f, e, token, metadata, roots)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn raw_partition(db: &Path, name: &str, rule: &str) -> audit_ledger::Ledger {
+        audit_ledger::Ledger::fresh_raw_partition(&db.with_file_name(name), db,
+            audit_ledger::Identity { rule_revision: rule.into(), content_identity: "TestOnly-raw-partition".into(),
+                binary_commit: "test-only".into() }, 64 * 1024 * 1024).unwrap()
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_raw_partition_real_owner_keeps_revisions_without_full_certificate() {
+        let mut f = Fixture::new();
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(raw_partition(&db, "raw-only.sqlite", &rule)).unwrap();
+        for n in 1..=3 {
+            let (envelope, token) = f.accept_begin(n, ("p6", 0, 6 + n, 12 + n, 3, 7 + n), n);
+            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let (_, ended) = owner.publish(&mut runtime, &token, &envelope,
+                &mut request_audit::RequestAuditContext::default()).unwrap();
+            owner.continue_with(ended).unwrap();
+            assert_eq!(runtime.audit_ledger.as_ref().unwrap().raw_partition_through().unwrap(), n);
+            assert!(runtime.audit_ledger.as_ref().unwrap().committed_through().is_err());
+            let raw = read_raw_events(&f.conn).unwrap();
+            assert_eq!(raw.len(), n as usize);
+            assert_eq!(read_effective_events(&raw).unwrap().len(), 1);
+            let saved = Connection::open(db.with_file_name("raw-only.sqlite")).unwrap();
+            for (seq, event) in raw.iter().enumerate() {
+                let (digest, bar, first): (Vec<u8>, Vec<u8>, i64) = saved.query_row(
+                    "SELECT event_digest, bar_digest, first_generation FROM raw WHERE seq=?1", [seq as i64],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+                assert_eq!(digest, super::super::history::hash_json_metered(event, None, None).unwrap());
+                let original_bar = json!({"source_coord": event["source_coord"], "open": event["open"],
+                    "high": event["high"], "low": event["low"], "close": event["close"]});
+                assert_eq!(bar, super::super::history::hash_json_metered(&original_bar, None, None).unwrap());
+                assert_eq!(first, seq as i64 + 1);
+            }
+            for table in ["cert", "object", "witness", "observation", "cover", "node"] {
+                assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+            }
+            assert_eq!(saved.query_row("SELECT certified_through_generation FROM meta", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        }
+        drop(runtime);
+        let identity = audit_ledger::Identity { rule_revision: rule, content_identity: "TestOnly-raw-partition".into(), binary_commit: "test-only".into() };
+        assert!(audit_ledger::Ledger::fresh_raw_partition(&db.with_file_name("raw-only.sqlite"), &db, identity, 64 * 1024 * 1024).is_err());
+        let saved = Connection::open(db.with_file_name("raw-only.sqlite")).unwrap();
+        assert_eq!(saved.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap(), 3);
+        assert_eq!(saved.query_row("SELECT format FROM meta", [], |r| r.get::<_, String>(0)).unwrap(), "s-audit-ledger/raw-partition/1");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_raw_partition_sidecar_commit_failure_keeps_content_and_stales() {
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(raw_partition(&db, "raw-failure.sqlite", &rule)).unwrap();
+        let reader = Connection::open(db.with_file_name("raw-failure.sqlite")).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        reader.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap();
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        assert!(owner.publish(&mut runtime, &token, &envelope,
+            &mut request_audit::RequestAuditContext::default()).is_err());
+        reader.execute_batch("ROLLBACK").unwrap();
+        assert!(runtime.audit_ledger.as_ref().unwrap().raw_partition_through().is_err());
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+        let saved = Connection::open(db.with_file_name("raw-failure.sqlite")).unwrap();
+        assert_eq!(saved.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        assert!(owner.publish(&mut runtime, &token, &envelope,
+            &mut request_audit::RequestAuditContext::default()).is_err());
     }
 
     #[cfg(feature = "s_incremental")]
