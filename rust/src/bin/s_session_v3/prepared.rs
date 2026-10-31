@@ -284,12 +284,13 @@ impl Runtime {
     }
 
     /// H1 点查资格：只在完整台账已提交至少一代且无进行中一代时签发（36M）。
+    /// 39P/40B：生产消费走 `audit_qualification_bounded`（先持票再读）；本无界读取只供测试。
     #[cfg(feature = "s_incremental")]
     #[cfg_attr(
         not(test),
         expect(
             dead_code,
-            reason = "#1647: H1 consumption interface; wired by #1481 under the #1645/#1491 gates"
+            reason = "#1481 39P：H1 生产路径改走 audit_qualification_bounded，无界读取只供测试"
         )
     )]
     pub(super) fn audit_qualification(&self) -> Result<audit_ledger::Qualification, String> {
@@ -298,14 +299,18 @@ impl Runtime {
             .ok_or("AuditLedgerStale：未安装台账")?
             .qualification()
     }
+    /// 39P B2：调用方已为 `cap` 字节持票；台账行超过上界在分配前拒绝。
     #[cfg(feature = "s_incremental")]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "#1647: H1 consumption interface; wired by #1481 under the #1645/#1491 gates"
-        )
-    )]
+    pub(super) fn audit_qualification_bounded(
+        &self,
+        cap: usize,
+    ) -> Result<audit_ledger::Qualification, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .qualification_bounded(cap)
+    }
+    #[cfg(feature = "s_incremental")]
     pub(super) fn contains_qualified_unit(
         &self,
         qualification: &audit_ledger::Qualification,
@@ -611,10 +616,12 @@ impl Runtime {
                     .ok_or("AuditLedgerStale：缺同次来源清单证明")?
                     .take_verified_units(&prepared.metadata, &prepared.roots, &prepared.manifest)?;
                 let delta = facts.bind(&prepared.metadata, &prepared.roots)?;
+                // 40B B1：H1 上一代资格在 stage 同一台账事务内先核，再改写折叠链。
+                let prior = bound_audit.and_then(state::AuditedState::prior_qualification);
                 self.audit_ledger
                     .as_mut()
                     .ok_or("AuditLedgerStale：未安装台账")?
-                    .stage_verified(token, &delta, &verified, work)?;
+                    .stage_verified(token, &delta, &verified, work, prior)?;
             }
             if let Some(ledger) = &mut self.audit_ledger {
                 ledger.bind(token, &prepared.metadata, &prepared.roots)?;
