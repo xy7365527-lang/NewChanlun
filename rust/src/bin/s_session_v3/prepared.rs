@@ -508,7 +508,15 @@ impl Runtime {
             { false }
         };
         if let Some(ledger) = &self.audit_ledger {
-            if !queued { ledger.require_pending()?; }
+            #[cfg(feature = "s_incremental")]
+            let raw_ready = if ledger.is_raw_partition() {
+                // #1647：具名raw分区在同次来源核验后stage，进入prepare前须仍是Ready。
+                ledger.raw_partition_through()?;
+                true
+            } else { false };
+            #[cfg(not(feature = "s_incremental"))]
+            let raw_ready = false;
+            if !queued && !raw_ready { ledger.require_pending()?; }
         }
         #[cfg(feature = "s_incremental")]
         if let Some(parent) = parent {
@@ -1413,7 +1421,7 @@ impl Runtime {
         #[cfg(feature = "s_incremental")]
         if let Some(ledger) = self.audit_ledger.as_mut().filter(|ledger| ledger.is_raw_partition()) {
             let receipt = source_receipt.as_ref().ok_or_else(|| err("raw分区缺同次严格来源收据"))?;
-            ledger.stage_raw_partition(receipt.request_token(), metadata, &roots, receipt, store.codec_work())?;
+            ledger.stage_raw_partition(receipt.request_token(), metadata, &roots, receipt, sc::NodeSource::codec_work(store))?;
         }
         #[cfg(feature = "s_incremental")]
         let enabled_budget = workspace_budget.filter(|_| workspace_eligible && {
