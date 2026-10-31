@@ -1120,8 +1120,8 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     use prepared::tests::runtime_root_tables;
     let f = prepared::tests::Fixture::new();
     let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
-    // 把资格身份放大到 32 MiB，使交接上界远大于本代其余分配（本夹具单代峰值约 5 MiB），
-    // 留 16 MiB 余量后短预算只在交接持票处生效。
+    // 请求父账总额 48 MiB；资格身份 32 MiB 在冷起步入账后，本代其余分配（本夹具单代峰值
+    // 约 5 MiB）仍在余量内，只有 32 MiB 的交接上界持票时超额，拒绝点落在交接处。
     let content_identity = "c".repeat(32 << 20);
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     runtime
@@ -1139,7 +1139,11 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
             .unwrap(),
         )
         .unwrap();
-    let mut c = context();
+    let total = 48 << 20;
+    let mut c = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(total),
+    );
+    c.freeze_manifest_workspace_budget(total, 0, 0).unwrap();
     let pre_open = c.prepare_parent(None).unwrap().allocation_parent().clone();
     let baseline = pre_open.live();
     let owner = AuditConnection::open_certified_history_component(
@@ -1162,13 +1166,12 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     let envelope = b2_envelope(2);
     let token = b2_accept_begin(&owner, &envelope, &mut c);
     let before = runtime_root_tables(&f.conn, true);
-    let held = parent.reserve(parent.remaining() - (16 << 20)).unwrap();
+    assert!(parent.remaining() < 32 << 20, "余量须小于交接上界");
     source_audit::reset_source_call_stats();
     let (result, events, _) = state::traced(false, || {
         owner.publish(&mut runtime, &token, &envelope, &mut c)
     });
     assert!(result.is_err(), "交接上界持票失败不得发布");
-    drop(held);
     assert!(
         events.iter().any(|e| e["phase"] == "owner_suffix_complete"),
         "本代其余分配已在余量内完成，拒绝发生在交接持票处"
