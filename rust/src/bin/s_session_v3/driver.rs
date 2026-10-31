@@ -957,7 +957,9 @@ mod tests {
     }
 
     /// #1640 1a（policy1640-diagnostic）：诊断场所入口以夹具开门、Ready 可达且自报 admissible:false，
-    /// 但 require_admissible 照旧为真：ingest 被 InvalidPolicy{venue_profile} 拒绝，不落 raw_events、不进 Begin。
+    /// 但 require_admissible 照旧为真：ingest 经既有接纳落为 AcceptedPending 原件后，在 advance 入口被
+    /// InvalidPolicy{venue_profile} 拒绝——不进 Begin、不发布、generation 不动（与生产路径先接纳再
+    /// 准入检查的既有次序一致，见 production_open_rejects_unsigned_profile_before_pending_begin）。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn diagnostic_fixture_serve_entry_reaches_ready_but_refuses_every_advance() {
@@ -980,6 +982,7 @@ mod tests {
             .handle(envelope("fixture-ready", json!({"op":"ready"})))
             .unwrap();
         assert_eq!(ready["kind"], "Ready");
+        let generation = ready["generation"].clone();
         let error = driver.handle(Fixture::ingest(1)).unwrap_err();
         assert!(error.contains("InvalidPolicy"), "{error}");
         assert!(error.contains("venue_profile"), "{error}");
@@ -989,7 +992,26 @@ mod tests {
         );
         drop(driver);
         let conn = Connection::open(&f.db).unwrap();
-        assert_eq!(count(&conn, "raw_events"), 0);
+        let pending: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, 1, "接纳原件保留为 pending，等待可准入配置");
+        assert_eq!(count(&conn, "raw_events"), 1);
+        assert_eq!(
+            count(&conn, "structure_deltas"),
+            0,
+            "拒绝的 advance 不得发布"
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "generation")
+                .unwrap()
+                .unwrap_or_default(),
+            generation.as_str().unwrap_or_default()
+        );
         assert_eq!(
             meta_get_opt(&conn, "advance_state")
                 .unwrap()
