@@ -604,10 +604,11 @@ pub(crate) struct NativeSourceVerdict {
     binding: SourceCutBinding,
     counts: Counts,
     state: NativeSourceState,
+    observation_sources: sc::CodecVec<(NodeDigest, NodeDigest)>,
 }
 impl NativeSourceVerdict {
-    pub(crate) fn into_parts(self) -> (SourceCutBinding, Counts, NativeSourceState) {
-        (self.binding, self.counts, self.state)
+    pub(crate) fn into_parts(self) -> (SourceCutBinding, Counts, NativeSourceState, sc::CodecVec<(NodeDigest, NodeDigest)>) {
+        (self.binding, self.counts, self.state, self.observation_sources)
     }
 }
 #[derive(Clone, Copy)]
@@ -1674,7 +1675,26 @@ impl NativeSourceState {
         }
         Ok(())
     }
-    fn observation_phase(&mut self, s: &mut SourceMaterial<'_, '_, '_, '_>) -> Result<(), String> {
+    fn observation_sources(&self, s: &mut SourceMaterial<'_, '_, '_, '_>, record: &RefValue) -> Result<NodeDigest, String> {
+        let detail = field(s, record, "detail")?;
+        let coordinates = match s.lookup_optional_field_ref(detail.view(), "source_coords").map_err(err)? {
+            Some(source) => coords(s, &source)?,
+            None => {
+                let mut values = sc::CodecVec::default();
+                for name in ["window_start", "window_mid", "window_end"] {
+                    let window = scalar(s, record, name)?;
+                    if window.view().is_null() { continue; }
+                    let index = window.view().as_i64().ok_or_else(|| err("P6观察窗口不是组位置"))?;
+                    let group = self.groups.get(&index).ok_or_else(|| err("P6观察窗口缺同cut组来源"))?;
+                    values = union_coords(s, &values, &group.sources)?;
+                }
+                values
+            }
+        };
+        super::source_receipt::source_facts::coordinates_digest(s, &coordinates)
+    }
+    fn observation_phase(&mut self, s: &mut SourceMaterial<'_, '_, '_, '_>, export_sources: bool) -> Result<sc::CodecVec<(NodeDigest, NodeDigest)>, String> {
+        let mut exported = sc::CodecVec::default();
         let stream = Stream::Array(SourceArray::Observations);
         let d = delta(s, stream)?;
         if d.old != self.observation_sequence {
@@ -1722,6 +1742,10 @@ impl NativeSourceState {
             if digest(&record)? != digest_want {
                 return Err(err("观察原件与材料差分不同"));
             }
+            if export_sources {
+                let source_digest = self.observation_sources(s, &record)?;
+                vec_push(s, &mut exported, (digest_want, source_digest))?;
+            }
             let kind = text(s, &record, "kind")?;
             let insufficient = kind == "insufficient_knowledge";
             let outside = kind == "domain_not_satisfied";
@@ -1752,7 +1776,8 @@ impl NativeSourceState {
             }
         }
         self.observation_sequence = current;
-        Ok(())
+        exported.sort_unstable_by_key(|row| row.0);
+        Ok(exported)
     }
 }
 struct WitnessKeys<'a> {
@@ -1788,6 +1813,7 @@ pub(crate) fn audit_native_bound(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
+    export_sources: bool,
 ) -> Result<NativeSourceVerdict, String> {
     #[cfg(test)]
     let before_calls = source_call_stats();
@@ -1861,7 +1887,7 @@ pub(crate) fn audit_native_bound(
         state.witness_phase(material, dirty_witness)?;
         #[cfg(test)]
         super::super::state::trace_event("source_observations", None);
-        state.observation_phase(material)?;
+        let observation_sources = state.observation_phase(material, export_sources)?;
         raw.ensure_current()?;
         state.work.order_path_visits = state.object_order.visits.get()
             + state.witness_order.visits.get()
@@ -1886,6 +1912,7 @@ pub(crate) fn audit_native_bound(
             binding: material.binding(),
             counts: state.counts(),
             state,
+            observation_sources,
         })
     })();
     if result.is_err() {

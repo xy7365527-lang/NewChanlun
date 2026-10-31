@@ -256,7 +256,7 @@ impl Runtime {
             return Err("AuditLedgerStale：同一 Runtime 不允许更换台账，须新建进程生命周期".into());
         }
         #[cfg(feature = "s_incremental")]
-        if ledger.is_raw_partition() && !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+        if ledger.is_partial() && !matches!(self.mode, s_allocation::Mode::CapturedNative) {
             return Err("AuditLedgerStale：raw分区只能接Native来源收据".into());
         }
         self.audit_ledger = Some(ledger);
@@ -509,9 +509,9 @@ impl Runtime {
         };
         if let Some(ledger) = &self.audit_ledger {
             #[cfg(feature = "s_incremental")]
-            let raw_ready = if ledger.is_raw_partition() {
+            let raw_ready = if ledger.is_partial() {
                 // #1647：具名raw分区在同次来源核验后stage，进入prepare前须仍是Ready。
-                ledger.raw_partition_through()?;
+                ledger.partial_through()?;
                 true
             } else { false };
             #[cfg(not(feature = "s_incremental"))]
@@ -925,7 +925,10 @@ impl Runtime {
                     let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
                     #[cfg(test)]
                     state::trace_stage("prepare_source_audit", "delta", generation);
-                    let (qualified, source) = super::audit_owner::audit_native_source_cut(
+                    let audit_source = if self.audit_ledger.as_ref().is_some_and(|ledger| ledger.is_source_partitions()) {
+                        super::audit_owner::audit_native_source_partitions_cut
+                    } else { super::audit_owner::audit_native_source_cut };
+                    let (qualified, source) = audit_source(
                         material,
                         capture,
                         source_slot.take(),
@@ -1372,7 +1375,7 @@ impl Runtime {
         objects: object_index::Plan,
         axes: sc::capture_allocation::native_owned::NativeValue<sc::ContentRef>,
         counts: source_audit::Counts,
-        #[cfg(feature = "s_incremental")] source_receipt: Option<source_audit::source_receipt::RawReceipt>,
+        #[cfg(feature = "s_incremental")] mut source_receipt: Option<source_audit::source_receipt::RawReceipt>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
         previous: i64,
@@ -1419,9 +1422,14 @@ impl Runtime {
             delta_template: delta,
         };
         #[cfg(feature = "s_incremental")]
-        if let Some(ledger) = self.audit_ledger.as_mut().filter(|ledger| ledger.is_raw_partition()) {
-            let receipt = source_receipt.as_ref().ok_or_else(|| err("raw分区缺同次严格来源收据"))?;
-            ledger.stage_raw_partition(receipt.request_token(), metadata, &roots, receipt, sc::NodeSource::codec_work(store))?;
+        if let Some(ledger) = self.audit_ledger.as_mut().filter(|ledger| ledger.is_partial()) {
+            let receipt = source_receipt.as_mut().ok_or_else(|| err("来源分区缺同次严格来源收据"))?;
+            if ledger.is_source_partitions() {
+                receipt.export_business(store, &objects, &auxiliary)?;
+                ledger.stage_source_partitions(receipt.request_token(), metadata, &roots, receipt, sc::NodeSource::codec_work(store))?;
+            } else {
+                ledger.stage_raw_partition(receipt.request_token(), metadata, &roots, receipt, sc::NodeSource::codec_work(store))?;
+            }
         }
         #[cfg(feature = "s_incremental")]
         let enabled_budget = workspace_budget.filter(|_| workspace_eligible && {
@@ -1836,6 +1844,106 @@ pub(crate) mod tests {
         tx.rollback().unwrap();
         f.runtime.discard();
         (f, e, token, metadata, roots)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_source_partitions_real_owner_matches_originals_and_withdrawals() {
+        let mut f = Fixture::new();
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let path = db.with_file_name("source-partitions.sqlite");
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(audit_ledger::Ledger::fresh_source_partitions(&path, &db,
+            audit_ledger::Identity { rule_revision: rule, content_identity: "TestOnly-source".into(), binary_commit: "test-only".into() },
+            64 * 1024 * 1024).unwrap()).unwrap();
+        let events = [("a",0,6,12,3,7,1),("b",1,14,20,10,15,1),("c",2,6,12,3,7,1),
+            ("b",1,14,21,10,15,2),("b",1,6,10,4,7,3)];
+        let mut replaced = false;
+        let mut removed = false;
+        for (i, &(key, at, open, high, low, close, revision)) in events.iter().enumerate() {
+            let g = i as i64 + 1;
+            let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), revision);
+            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let (_, ended) = owner.publish(&mut runtime, &token, &envelope,
+                &mut request_audit::RequestAuditContext::default()).unwrap();
+            owner.continue_with(ended).unwrap();
+            let ledger = runtime.audit_ledger.as_ref().unwrap();
+            assert_eq!(ledger.partial_through().unwrap(), g);
+            assert!(ledger.committed_through().is_err());
+            assert!(ledger.raw_partition_through().is_err());
+            let saved = Connection::open(&path).unwrap();
+            let tx = f.conn.transaction().unwrap();
+            let mut store = content_store::TxStore::new(&tx).unwrap();
+            let objects = object_index::load(&tx, &mut store, g).unwrap();
+            let mut originals = Vec::new();
+            for entry in &objects {
+                let mut bytes = Vec::new();
+                sc::render(&mut store, &entry.generated.content_ref(), &mut bytes).unwrap();
+                let original: Value = serde_json::from_slice(&bytes).unwrap();
+                let mut unstamped = original.clone();
+                for name in ["first_known_generation", "first_known_cut", "published_generation"] {
+                    unstamped.as_object_mut().unwrap().remove(name);
+                }
+                let sources: Value = serde_json::from_str(original["source_coords_json"].as_str().unwrap()).unwrap();
+                let row: (Vec<u8>,i64,String,i64,Vec<u8>,bool,i64) = saved.query_row(
+                    "SELECT record_digest,first_generation,first_cut,published_generation,source_digest,withdrawn,certified_generation FROM object WHERE id=?1",
+                    [entry.id.as_str()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).unwrap();
+                assert_eq!(row.0, super::super::history::hash_json_metered(&unstamped,None,None).unwrap());
+                assert_eq!(row.1, entry.life.first_known_generation);
+                assert_eq!(row.2, entry.life.first_known_cut.as_str());
+                assert_eq!(row.3, entry.life.published_generation);
+                assert_eq!(row.4, super::super::history::hash_json_metered(&sources,None,None).unwrap());
+                assert_eq!(row.5, entry.life.withdrawn_generation.is_some());
+                assert_eq!(row.6, entry.life.withdrawn_generation.unwrap_or(entry.life.first_known_generation));
+                replaced |= entry.life.superseded_by.is_some();
+                removed |= entry.life.withdrawal_reason.as_ref().is_some_and(|r| r.as_str() != "superseded_by_revision");
+                originals.push((entry,original));
+            }
+            let mut source = audit_store::StoreView::generic(&mut store);
+            let aux = aux_index::load(&tx, &mut source, g).unwrap();
+            for (table, entries) in [("witness", aux.witnesses.iter().map(|e| (e.id.as_str(), e.generated.view(), e.first)).collect::<Vec<_>>()),
+                ("observation", aux.observations.iter().map(|e| (e.id.as_str(), e.generated.view(), e.first)).collect::<Vec<_>>())] {
+                assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|r|r.get::<_,usize>(0)).unwrap(),entries.len());
+                for (id, root, first) in entries {
+                    let original = business_json::render_json(&mut source, root).unwrap();
+                    let mut bytes = Vec::new();
+                    source.render_ref(root,&mut bytes).unwrap();
+                    let value: Value = serde_json::from_slice(&bytes).unwrap();
+                    let mut coords = std::collections::BTreeSet::new();
+                    if table == "witness" {
+                        for bar in value["raw_bars"].as_array().unwrap() {
+                            coords.insert(business_json::coord(bar.into()).unwrap());
+                        }
+                    } else if let Some(values) = value["detail"].get("source_coords") {
+                        for value in values.as_array().unwrap() { coords.insert(value.as_str().unwrap().parse::<i64>().unwrap()); }
+                    } else {
+                        for window in ["window_start","window_mid","window_end"] {
+                            if let Some(index) = value[window].as_i64() {
+                                let (_, group) = originals.iter().find(|(e,v)| e.kind.as_str() == "CC-005.group" && e.life.first_known_generation <= first
+                                    && e.life.withdrawn_generation.is_none_or(|dead|dead>first)
+                                    && serde_json::from_str::<Value>(v["payload_json"].as_str().unwrap()).unwrap()["group_index"] == index.to_string()).unwrap();
+                                for coord in serde_json::from_str::<Vec<String>>(group["source_coords_json"].as_str().unwrap()).unwrap() { coords.insert(coord.parse::<i64>().unwrap()); }
+                            }
+                        }
+                    }
+                    let expected = json!(coords.iter().map(ToString::to_string).collect::<Vec<_>>());
+                    let row: (Vec<u8>,Vec<u8>,i64) = saved.query_row(&format!("SELECT record_digest,source_digest,certified_generation FROM {table} WHERE id=?1"), [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+                    assert_eq!(row.0, super::super::history::hash_json_metered(original.view(),None,None).unwrap());
+                    assert_eq!(row.1, super::super::history::hash_json_metered(&expected,None,None).unwrap());
+                    assert_eq!(row.2,first);
+                }
+            }
+            assert_eq!(saved.query_row("SELECT COUNT(*) FROM object",[],|r|r.get::<_,usize>(0)).unwrap(),objects.len());
+            for table in ["cert","cover","node"] {
+                assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|r|r.get::<_,i64>(0)).unwrap(),0);
+            }
+            assert_eq!(saved.query_row("SELECT certified_through_generation FROM meta",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+            if g >= 3 { assert!(!aux.witnesses.is_empty()); }
+        }
+        assert!(replaced);
+        assert!(removed);
+        assert_eq!(Connection::open(&path).unwrap().query_row("SELECT format FROM meta",[],|r|r.get::<_,String>(0)).unwrap(),"s-audit-ledger/source-partitions/1");
     }
 
     #[cfg(feature = "s_incremental")]

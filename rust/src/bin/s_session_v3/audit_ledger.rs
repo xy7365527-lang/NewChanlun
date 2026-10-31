@@ -14,6 +14,7 @@ use newchan_rust::s_content::capture_allocation::{native_owned::NativeValue, scr
 
 const FORMAT: &str = "s-audit-ledger/1";
 const RAW_PARTITION_FORMAT: &str = "s-audit-ledger/raw-partition/1";
+const SOURCE_PARTITIONS_FORMAT: &str = "s-audit-ledger/source-partitions/1";
 const SCHEMA: &str = "
 CREATE TABLE meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1), format TEXT NOT NULL,
  rule_revision TEXT NOT NULL, content_identity TEXT NOT NULL, binary_commit TEXT NOT NULL,
@@ -145,7 +146,7 @@ impl Pending {
     }
 }
 enum Phase { Ready, Pending(Pending), Bound(Pending), Stale }
-enum Coverage { Complete, RawPartition { through: i64 } }
+enum Coverage { Complete, RawPartition { through: i64 }, SourcePartitions { through: i64 } }
 
 pub(super) struct Ledger {
     connection: Option<Connection>,
@@ -223,6 +224,26 @@ impl Ledger {
             "UPDATE meta SET format=?1 WHERE singleton=1", [RAW_PARTITION_FORMAT]).map_err(error)?;
         ledger.coverage = Coverage::RawPartition { through: 0 };
         Ok(ledger)
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn fresh_source_partitions(path: &Path, content_path: &Path, identity: Identity,
+        max_store_bytes: u64) -> Result<Self, String> {
+        let mut ledger = Self::fresh(path, content_path, identity, max_store_bytes)?;
+        ledger.connection.as_ref().unwrap().execute(
+            "UPDATE meta SET format=?1 WHERE singleton=1", [SOURCE_PARTITIONS_FORMAT]).map_err(error)?;
+        ledger.coverage = Coverage::SourcePartitions { through: 0 };
+        Ok(ledger)
+    }
+    pub(super) fn is_source_partitions(&self) -> bool {
+        matches!(self.coverage, Coverage::SourcePartitions { .. })
+    }
+    pub(super) fn is_partial(&self) -> bool { self.is_raw_partition() || self.is_source_partitions() }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn partial_through(&self) -> Result<i64, String> {
+        match (&self.phase, &self.coverage) {
+            (Phase::Ready, Coverage::RawPartition { through } | Coverage::SourcePartitions { through }) => Ok(*through),
+            _ => Err(error("不是已提交的来源分区")),
+        }
     }
     pub(super) fn is_raw_partition(&self) -> bool {
         matches!(self.coverage, Coverage::RawPartition { .. })
@@ -376,8 +397,28 @@ impl Ledger {
         source: &super::source_audit::source_receipt::RawReceipt,
         work: Option<&WorkScope>,
     ) -> Result<(), String> {
+        if !self.is_raw_partition() { self.invalidate(); return Err(error("来源分区格式不匹配")); }
+        self.stage_partial(token, metadata, roots, source, work)
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn stage_source_partitions(
+        &mut self, token: &str, metadata: &content_manifest::ManifestMetadata,
+        roots: &impl content_manifest::ManifestRootSource,
+        source: &super::source_audit::source_receipt::RawReceipt,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        if !self.is_source_partitions() { self.invalidate(); return Err(error("来源分区格式不匹配")); }
+        self.stage_partial(token, metadata, roots, source, work)
+    }
+    #[cfg(feature = "s_incremental")]
+    fn stage_partial(
+        &mut self, token: &str, metadata: &content_manifest::ManifestMetadata,
+        roots: &impl content_manifest::ManifestRootSource,
+        source: &super::source_audit::source_receipt::RawReceipt,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
         let result = (|| {
-            let through = self.raw_partition_through()?;
+            let through = self.partial_through()?;
             if through.checked_add(1) != Some(metadata.generation) || metadata.rule_revision != self.rule_revision {
                 return Err(error("raw分区代号或规则不连续"));
             }
@@ -397,6 +438,25 @@ impl Ledger {
                 conn.execute("INSERT INTO raw VALUES(?1,?2,?3,?4)", params![row.seq,
                     row.event_digest.as_slice(), row.bar_digest.as_slice(), metadata.generation]).map_err(error)?;
                 next = next.checked_add(1).ok_or_else(|| error("raw序号溢出"))?;
+            }
+            if self.is_source_partitions() {
+                let rows = source.business_rows()?;
+                for row in &rows.objects {
+                    conn.execute("INSERT INTO object VALUES(?1,?2,?3,?4,?5,?6,0,?7)",
+                        params![row.id.as_str(), row.record.as_slice(), row.first_generation,
+                            row.first_cut.as_str(), row.published_generation, row.sources.as_slice(), metadata.generation]).map_err(error)?;
+                }
+                for id in &rows.withdrawals {
+                    let changed = conn.execute("UPDATE object SET withdrawn=1,certified_generation=?1 WHERE id=?2 AND withdrawn=0",
+                        params![metadata.generation, id.as_str()]).map_err(error)?;
+                    if changed != 1 { return Err(error("来源分区撤回身份缺失或已撤回")); }
+                }
+                for (table, values) in [("witness", &rows.witnesses), ("observation", &rows.observations)] {
+                    for row in values {
+                        conn.execute(&format!("INSERT INTO {table} VALUES(?1,?2,?3,?4)"),
+                            params![row.id.as_str(), row.record.as_slice(), row.sources.as_slice(), metadata.generation]).map_err(error)?;
+                    }
+                }
             }
             source.check_raw_partition(token, metadata, roots)?;
             self.check_storage()?;
@@ -439,7 +499,7 @@ impl Ledger {
             Ok(())
         })();
         if result.is_ok() {
-            if let (Coverage::RawPartition { through }, Phase::Bound(p)) = (&mut self.coverage, &self.phase) {
+            if let (Coverage::RawPartition { through } | Coverage::SourcePartitions { through }, Phase::Bound(p)) = (&mut self.coverage, &self.phase) {
                 *through = p.generation;
             }
             self.phase = Phase::Ready;

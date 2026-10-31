@@ -3,6 +3,8 @@
 //! raw 必须来自已校验的独立 read_raw_events 读集；不从生成态raw_events自证。
 use super::*;
 use sc::closure_delta::{self, EmptyFrontier, Probe};
+#[path = "source_facts.rs"]
+pub(crate) mod source_facts;
 
 pub(crate) struct RawRow {
     pub(crate) seq: i64,
@@ -24,6 +26,8 @@ pub(crate) struct RawReceipt {
     deadline: Option<std::time::Instant>,
     counts: Counts,
     rows: sc::CodecVec<RawRow>,
+    observation_sources: sc::CodecVec<(NodeDigest, NodeDigest)>,
+    business: Option<source_facts::BusinessRows>,
 }
 
 /// Native 完整生成路径与对拍共用的严格来源核；成功后签发请求内收据，不复用跨代成功。
@@ -110,6 +114,8 @@ fn export_raw_receipt(
         deadline,
         counts,
         rows,
+        observation_sources: sc::CodecVec::default(),
+        business: None,
     })
 }
 
@@ -125,15 +131,32 @@ pub(crate) fn receipt_from_native(
     raw: &super::super::audit_owner::BoundRawAdvance<'_>,
     raw_from: usize,
 ) -> Result<RawReceipt, String> {
-    let counts = qualified.consume(material, generated, raw, metadata, None)?;
-    let result = export_raw_receipt(
+    let (counts, observation_sources) = qualified.consume(material, generated, raw, metadata, None)?;
+    let mut result = export_raw_receipt(
         &mut super::super::audit_store::StoreView::generic(store),
         token, metadata.generation, generated, raw.raw(), raw_from,
         &metadata.profile_id, &metadata.rule_revision,
         None, None, counts,
     )?;
     raw.ensure_current()?;
+    result.observation_sources = observation_sources;
     Ok(result)
+}
+
+impl RawReceipt {
+    pub(crate) fn export_business(&mut self, store: &mut dyn NodeStore,
+        objects: &super::super::object_index::Plan, auxiliary: &super::super::aux_index::Plan,
+    ) -> Result<(), String> {
+        if objects.generation != self.generation || auxiliary.generation != self.generation || self.business.is_some() {
+            return Err(err("P6业务分区代号不同或重复导出"));
+        }
+        self.business = Some(source_facts::export(&mut super::super::audit_store::StoreView::generic(store),
+            objects, auxiliary, &self.observation_sources)?);
+        Ok(())
+    }
+    pub(crate) fn business_rows(&self) -> Result<&source_facts::BusinessRows, String> {
+        self.business.as_ref().ok_or_else(|| err("P6缺完整业务分区来源"))
+    }
 }
 
 struct DeadlineSource<'a> {

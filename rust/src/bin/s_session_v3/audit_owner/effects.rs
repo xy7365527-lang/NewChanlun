@@ -1265,6 +1265,7 @@ pub(crate) struct SourceCutBinding {
 pub(crate) struct QualifiedSourceCut {
     binding: SourceCutBinding,
     counts: super::super::source_audit::Counts,
+    observation_sources: sc::CodecVec<(sc::NodeDigest, sc::NodeDigest)>,
 }
 impl QualifiedSourceCut {
     pub(crate) fn consume(
@@ -1274,7 +1275,7 @@ impl QualifiedSourceCut {
         raw: &BoundRawAdvance<'_>,
         metadata: &crate::content_manifest::ManifestMetadata,
         deadline: Option<std::time::Instant>,
-    ) -> Result<super::super::source_audit::Counts, String> {
+    ) -> Result<(super::super::source_audit::Counts, sc::CodecVec<(sc::NodeDigest, sc::NodeDigest)>), String> {
         raw.ensure_current()?;
         super::super::history::check_deadline(deadline)?;
         let context = crate::content_manifest::NativeMetadata::from_view(metadata.view(), Some(access.work))
@@ -1301,7 +1302,7 @@ impl QualifiedSourceCut {
         j.extra_bytes = extra;
         j.bytes = bytes;
         j.peak = j.peak.max(bytes);
-        Ok(self.counts)
+        Ok((self.counts, self.observation_sources))
     }
 }
 
@@ -1416,6 +1417,7 @@ pub(super) fn audit_native_source(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
+    export_sources: bool,
 ) -> Result<
     (
         QualifiedSourceCut,
@@ -1507,10 +1509,11 @@ pub(super) fn audit_native_source(
             raw,
             profile,
             rule,
+            export_sources,
         )?;
         material.check()?;
         raw.ensure_current()?;
-        let (actual_binding, counts, source) = verdict.into_parts();
+        let (actual_binding, counts, source, observation_sources) = verdict.into_parts();
         if actual_binding != binding {
             return Err(construction_state::stale("来源核返回不同切面"));
         }
@@ -1536,7 +1539,7 @@ pub(super) fn audit_native_source(
         }
         j.set = Some(set);
         j.source_binding = None;
-        Ok((QualifiedSourceCut { binding, counts }, source))
+        Ok((QualifiedSourceCut { binding, counts, observation_sources }, source))
     })();
     if result.is_err() {
         if let Ok(mut j) = access.journal.lock() {

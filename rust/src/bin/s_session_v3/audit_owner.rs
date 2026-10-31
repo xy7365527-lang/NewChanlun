@@ -3412,7 +3412,15 @@ pub(crate) fn audit_native_source_cut(
     profile: &str,
     rule: &str,
 ) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
-    effects::audit_native_source(material, capture, previous, root, raw, profile, rule)
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule, false)
+}
+#[cfg(feature = "s_incremental")]
+pub(crate) fn audit_native_source_partitions_cut(
+    material: &MaterialAccess<'_, '_, '_>, capture: &mut newchan_rust::s_content::AuditCapture,
+    previous: Option<source_audit::NativeSourceState>, root: newchan_rust::s_content::RefView<'_>,
+    raw: &BoundRawAdvance<'_>, profile: &str, rule: &str,
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule, true)
 }
 #[cfg(feature = "s_incremental")]
 pub(crate) fn with_construction_material<T>(
