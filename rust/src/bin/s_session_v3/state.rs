@@ -1266,8 +1266,360 @@ pub(super) struct HistoricalCertificate {
     audited: AuditedState,
 }
 
+/// 历史认证标记。`qualified` 为 None 时是 36T 来源收据认证组件（无 P6 台账）；
+/// 正式三处准入切换（#1645/#1491 门内）时该档随旧入口一起退役，不并存为两档。
 #[cfg(feature = "s_incremental")]
-struct HistoricalCertification;
+struct HistoricalCertification {
+    qualified: Option<QualifiedCertification>,
+}
+
+/// #1481 39P：H1 消费 P6 完整资格的来源。资格只经 `Runtime` 的私有点查接口取得，
+/// H1 不持 Ledger 引用。内容库与二进制身份由安装台账的调用方声明；规则取库 meta。
+#[cfg(feature = "s_incremental")]
+pub(super) struct QualifiedSource<'a> {
+    pub runtime: &'a super::prepared::Runtime,
+    pub content_identity: String,
+    pub binary_commit: String,
+}
+
+/// 冷起步交给资格组件的来源与父账：持久载荷与临时缓冲都从这份父账持票出生（40B B2）。
+#[cfg(feature = "s_incremental")]
+pub(super) struct QualifiedSeed<'a> {
+    pub source: QualifiedSource<'a>,
+    pub budget: &'a super::audit_owner::native::Budget,
+}
+
+/// 本写者身份的持久副本；全部字符串按精确容量在父账许可内复制。
+#[cfg(feature = "s_incremental")]
+struct QualifiedIdentity {
+    rule_revision: String,
+    content_identity: String,
+    binary_commit: String,
+}
+#[cfg(feature = "s_incremental")]
+impl super::audit_retention::Retained for QualifiedIdentity {
+    fn heap_bytes(&self) -> usize {
+        super::audit_retention::sum([
+            self.rule_revision.capacity(),
+            self.content_identity.capacity(),
+            self.binary_commit.capacity(),
+        ])
+    }
+}
+#[cfg(feature = "s_incremental")]
+impl super::audit_retention::Retained for super::audit_ledger::Qualification {
+    fn heap_bytes(&self) -> usize {
+        super::audit_retention::sum([
+            self.roots.capacity(),
+            self.fold_digest.capacity(),
+            self.verifier_revision.capacity(),
+            self.rule_revision.capacity(),
+            self.content_identity.capacity(),
+            self.binary_commit.capacity(),
+        ])
+    }
+}
+
+/// H1 对 P6 完整资格的消费前沿，随完整候选跨事务保留，载荷持父账许可。
+/// `Empty`：历史尚无已发布代，首代台账提交后才取得首份资格。
+/// `Qualified(q)`：已按 `q` 逐代点查到 `q.through`，恒等于已消费的最高代。
+#[cfg(feature = "s_incremental")]
+pub(super) enum CertifiedFrontier {
+    Empty,
+    Qualified(super::audit_owner::native::Reserved<super::audit_ledger::Qualification>),
+}
+
+#[cfg(feature = "s_incremental")]
+pub(super) struct QualifiedCertification {
+    identity: super::audit_owner::native::Reserved<QualifiedIdentity>,
+    frontier: CertifiedFrontier,
+}
+
+#[cfg(feature = "s_incremental")]
+impl super::audit_retention::Retained for QualifiedCertification {
+    fn heap_bytes(&self) -> usize {
+        let frontier = match &self.frontier {
+            CertifiedFrontier::Empty => 0,
+            CertifiedFrontier::Qualified(q) => q.heap_bytes(),
+        };
+        self.identity.heap_bytes().saturating_add(frontier)
+    }
+}
+#[cfg(feature = "s_incremental")]
+impl super::audit_retention::Retained for HistoricalCertification {
+    fn heap_bytes(&self) -> usize {
+        self.qualified
+            .as_ref()
+            .map_or(0, super::audit_retention::Retained::heap_bytes)
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl CertifiedFrontier {
+    fn generation(&self) -> i64 {
+        match self {
+            Self::Empty => 0,
+            Self::Qualified(q) => q.through,
+        }
+    }
+    fn qualification(&self) -> Option<&super::audit_ledger::Qualification> {
+        match self {
+            Self::Empty => None,
+            Self::Qualified(q) => Some(&**q),
+        }
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl QualifiedCertification {
+    /// 冷：从空前沿按代消费全部已发布 cut，只用台账当前已提交的一份资格。
+    /// 身份与资格字符串在父账预留后再按精确容量复制；四根比较缓冲临时持票。
+    fn fold(
+        seed: QualifiedSeed<'_>,
+        rule_revision: &str,
+        cuts: &[history::PublishedCut],
+    ) -> Result<Self, String> {
+        let QualifiedSeed { source, budget } = seed;
+        let identity_bytes = super::audit_retention::sum([
+            rule_revision.len(),
+            source.content_identity.len(),
+            source.binary_commit.len(),
+        ]);
+        let permit = budget
+            .reserve(identity_bytes)
+            .map_err(|_| err("资格组件身份载荷父预算不足"))?;
+        let identity = QualifiedIdentity {
+            rule_revision: exact_copy(rule_revision),
+            content_identity: exact_copy(&source.content_identity),
+            binary_commit: exact_copy(&source.binary_commit),
+        };
+        let identity = finish_reserved(permit, identity)?;
+        let runtime = source.runtime;
+        let frontier = if cuts.is_empty() {
+            CertifiedFrontier::Empty
+        } else {
+            let transition = Self::transition_bound(&identity);
+            let mut permit = budget
+                .reserve(transition)
+                .map_err(|_| err("资格组件冷起步父预算不足"))?;
+            let temporary = Self::split_compare_permit(&mut permit)?;
+            let q = Self::read_qualification(runtime, &identity, permit)?;
+            let mut generation = 0;
+            for cut in cuts {
+                generation = Self::step(runtime, &q, generation, cut)?;
+            }
+            drop(temporary);
+            if generation != q.through {
+                return Err(err("完整台账水位超前于已发布历史"));
+            }
+            CertifiedFrontier::Qualified(q)
+        };
+        Ok(Self { identity, frontier })
+    }
+
+    /// 四根比较缓冲：输出串 ≤ ROOTS_BOUND，逐字段转义的短暂副本再计一份。
+    const COMPARE_BYTES: usize = super::audit_ledger::Qualification::ROOTS_BOUND * 2;
+
+    /// 本次交接的一张票：新资格全部字符串的持久上界 + 四根比较的临时缓冲。
+    /// 在线由 `validate_effects` 在费用终检前持票，交接只消费不再申请（40H B2）。
+    fn transition_bound(identity: &QualifiedIdentity) -> usize {
+        super::audit_ledger::Qualification::retained_bound(
+            identity.rule_revision.len(),
+            identity.content_identity.len(),
+            identity.binary_commit.len(),
+        )
+        .saturating_add(Self::COMPARE_BYTES)
+    }
+
+    /// 从转换票里拆出比较缓冲的那份；随 `step` 结束析构归还。
+    fn split_compare_permit(
+        permit: &mut super::audit_owner::native::Permit,
+    ) -> Result<super::audit_owner::native::Permit, String> {
+        permit
+            .split(Self::COMPARE_BYTES)
+            .map_err(|_| err("转换票不含四根比较缓冲"))
+    }
+
+    /// 在线：内容与台账都已提交后，用费用终检前已持的许可从上一代前沿消费新一代。
+    /// 返回保留账变化：新资格入账、旧资格与许可余量释放。
+    fn advance(
+        &mut self,
+        runtime: &super::prepared::Runtime,
+        cut: &history::PublishedCut,
+        permit: super::audit_owner::native::Permit,
+    ) -> Result<super::audit_retention::RetainedDelta, String> {
+        let reserved = permit.bytes();
+        let mut permit = permit;
+        let temporary = Self::split_compare_permit(&mut permit)?;
+        let q = Self::read_qualification(runtime, &self.identity, permit)?;
+        let generation = Self::step(runtime, &q, self.frontier.generation(), cut)?;
+        drop(temporary);
+        if generation != q.through {
+            return Err(err("已提交资格水位不是刚发布的一代"));
+        }
+        let mut delta = super::audit_retention::RetainedDelta::default();
+        delta.release_bytes(reserved);
+        delta.add(&*q);
+        if let Some(old) = self.frontier.qualification() {
+            delta.release(old);
+        }
+        self.frontier = CertifiedFrontier::Qualified(q);
+        Ok(delta)
+    }
+
+    /// 缺资格、部分账、Pending/Bound/Stale 均在此 Err；身份与核验判据版本逐字段核。
+    /// `permit` 须已覆盖 `transition_bound`；超出上界的台账行在分配前被 P6 拒绝。
+    fn read_qualification(
+        runtime: &super::prepared::Runtime,
+        identity: &QualifiedIdentity,
+        permit: super::audit_owner::native::Permit,
+    ) -> Result<super::audit_owner::native::Reserved<super::audit_ledger::Qualification>, String>
+    {
+        let q = runtime.audit_qualification_bounded(permit.bytes())?;
+        if q.rule_revision != identity.rule_revision
+            || q.content_identity != identity.content_identity
+            || q.binary_commit != identity.binary_commit
+        {
+            return Err(err("完整资格的规则/内容库/二进制身份与本写者不符"));
+        }
+        if q.verifier_revision != sc::closure_delta::VERIFIER_REVISION {
+            return Err(err("完整资格的核验判据版本与本二进制不符"));
+        }
+        finish_reserved(permit, q)
+    }
+
+    /// 单代 Δ 步：四根按模式作为认证单位逐一点查，末代四根须与资格四根逐字节相同。
+    /// 未提交的一代（超过 `through`）不成为 cert；任一单位不在已认证集即拒绝，不回落完整核验。
+    fn step(
+        runtime: &super::prepared::Runtime,
+        q: &super::audit_ledger::Qualification,
+        generation: i64,
+        cut: &history::PublishedCut,
+    ) -> Result<i64, String> {
+        use super::audit_ledger::{Flavor, Mode, Unit};
+        let g = cut.metadata.generation;
+        if g != generation + 1 {
+            return Err(err("历史资格代号不连续"));
+        }
+        if g > q.through {
+            return Err(err("已发布代尚无已提交的完整资格"));
+        }
+        if cut.metadata.rule_revision.as_str() != q.rule_revision {
+            return Err(err("已发布 cut 的规则与完整资格不符"));
+        }
+        let roots = [
+            (cut.metadata.scope.view(), Mode::Public),
+            (cut.roots.generated_state.view(), Mode::Public),
+            (cut.roots.publication_template.view(), Mode::Template),
+            (cut.roots.delta_template.view(), Mode::Template),
+        ];
+        for (root, mode) in roots {
+            let unit = Unit {
+                digest: root.digest().map_err(err)?,
+                flavor: Flavor::Value,
+                mode,
+            };
+            if !runtime.contains_qualified_unit(q, &unit)? {
+                return Err(err(format!("第 {g} 代根单位不在已认证单位集")));
+            }
+        }
+        if g == q.through {
+            // 比较缓冲的票由调用方从转换票拆出并持有到本步结束（`split_compare_permit`）。
+            let bound = super::audit_ledger::Qualification::ROOTS_BOUND;
+            let mut actual = String::with_capacity(bound);
+            super::audit_ledger::roots_json_into(&mut actual, roots.map(|(root, _)| root))?;
+            if actual.capacity() > bound {
+                return Err(err("四根比较缓冲超过预留上界"));
+            }
+            if actual != q.roots {
+                return Err(err("末代四根与完整资格四根不符"));
+            }
+        }
+        #[cfg(test)]
+        trace_event("h1_qualified_cut", Some(g));
+        Ok(g)
+    }
+
+    #[cfg(test)]
+    pub(super) fn frontier(&self) -> &CertifiedFrontier {
+        &self.frontier
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+fn exact_copy(text: &str) -> String {
+    let mut owned = String::with_capacity(text.len());
+    owned.push_str(text);
+    owned
+}
+/// 实际容量不得超过许可；超过是分配器口径与预留不符，按失效处理而不是扩票。
+#[cfg(feature = "s_incremental")]
+fn finish_reserved<T: super::audit_retention::Retained>(
+    permit: super::audit_owner::native::Permit,
+    value: T,
+) -> Result<super::audit_owner::native::Reserved<T>, String> {
+    let actual = super::audit_retention::Retained::heap_bytes(&value);
+    if actual > permit.bytes() {
+        return Err(err("持久载荷超过分配前许可"));
+    }
+    Ok(permit.finish(actual).hold(value))
+}
+
+#[cfg(feature = "s_incremental")]
+impl AuditedState {
+    /// 内容与台账均已提交后由 owner 调用；非资格组件为空操作，资格组件失败即 stale。
+    /// `permit` 是费用终检前为本次交接预留的许可（`qualified_transition_bound`）。
+    pub(super) fn advance_qualified(
+        &mut self,
+        runtime: &super::prepared::Runtime,
+        permit: Option<super::audit_owner::native::Permit>,
+    ) -> Result<super::audit_retention::RetainedDelta, String> {
+        let Some(qualified) = self
+            .certification
+            .as_mut()
+            .and_then(|c| c.qualified.as_mut())
+        else {
+            return Ok(Default::default());
+        };
+        let permit = permit.ok_or_else(|| err("资格推进缺费用终检前的许可"))?;
+        let cut = match &self.historical {
+            HistoricalOwner::Unique(v) => v.cuts.last(),
+            HistoricalOwner::Shared(v) => v.cuts.last(),
+        }
+        .ok_or_else(|| err("资格推进缺刚发布的一代"))?;
+        qualified.advance(runtime, cut, permit)
+    }
+
+    /// 资格组件下一次交接的持久上界；候选在费用终检前据此持票并入账。
+    pub(super) fn qualified_transition_bound(&self) -> Option<usize> {
+        self.certification
+            .as_ref()
+            .and_then(|c| c.qualified.as_ref())
+            .map(|q| QualifiedCertification::transition_bound(&q.identity))
+    }
+
+    /// stage 改写台账前须核的上一代资格；Empty 前沿由 stage 的代号连续检查覆盖。
+    pub(super) fn prior_qualification(&self) -> Option<&super::audit_ledger::Qualification> {
+        self.certification
+            .as_ref()
+            .and_then(|c| c.qualified.as_ref())
+            .and_then(|q| q.frontier.qualification())
+    }
+
+    /// 资格组件（身份 + 前沿）当前入账的保留字节。
+    #[cfg(test)]
+    pub(super) fn certification_retained(&self) -> usize {
+        super::audit_retention::Retained::heap_bytes(&self.certification)
+    }
+
+    #[cfg(test)]
+    pub(super) fn qualified_frontier(&self) -> Option<&CertifiedFrontier> {
+        self.certification
+            .as_ref()
+            .and_then(|c| c.qualified.as_ref())
+            .map(QualifiedCertification::frontier)
+    }
+}
 
 #[cfg(feature = "s_incremental")]
 #[cfg_attr(
@@ -1281,7 +1633,7 @@ impl HistoricalCertificate {
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::cold_captured(tx, deadline, budget, work).map(|(cert, _, _)| cert)
+        Self::cold_captured(tx, deadline, budget, work, None).map(|(cert, _, _)| cert)
     }
 
     pub(super) fn cold_for_request(
@@ -1289,9 +1641,11 @@ impl HistoricalCertificate {
         deadline: Option<std::time::Instant>,
         work: &sc::capture_allocation::scratch::WorkScope,
         context: &mut super::request_audit::RequestAuditContext,
+        qualified: Option<QualifiedSeed<'_>>,
     ) -> Result<AuditedState, String> {
         drop(context.take());
-        let (cert, capture, node_count) = Self::cold_captured(tx, deadline, None, Some(work))?;
+        let (cert, capture, node_count) =
+            Self::cold_captured(tx, deadline, None, Some(work), qualified)?;
         let AuditedState {
             raw,
             budget,
@@ -1323,6 +1677,7 @@ impl HistoricalCertificate {
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
+        qualified: Option<QualifiedSeed<'_>>,
     ) -> Result<(Self, sc::AuditCapture, usize), String> {
         history::check_deadline(deadline)?;
         if let Some(budget) = budget {
@@ -1403,12 +1758,32 @@ impl HistoricalCertificate {
             object_sweep,
         } = indexed;
         drop(store);
+        // 冷起步：原件逐代核过后，才从空前沿用同一 Δ 步消费台账已提交的完整资格。
+        let qualified = qualified
+            .map(|seed| -> Result<_, String> {
+                // 规则串只借用本行文本，复制前已按其长度在父账持票。
+                let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                    tx,
+                    c"SELECT value FROM meta WHERE key='rule_revision'",
+                )
+                .map_err(err)?;
+                let folded = {
+                    let mut row = stmt
+                        .next()
+                        .map_err(err)?
+                        .ok_or_else(|| err("库缺 rule_revision"))?;
+                    QualifiedCertification::fold(seed, row.text(0).map_err(err)?, &cuts)
+                };
+                stmt.finalize().map_err(err)?;
+                folded
+            })
+            .transpose()?;
         Ok((
             Self {
                 audited: AuditedState {
                     budget: raw.budget().cloned(),
                     raw,
-                    certification: Some(HistoricalCertification),
+                    certification: Some(HistoricalCertification { qualified }),
                     historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
                         control_facts,
                         raw_prefixes,
@@ -3088,7 +3463,7 @@ mod unrun_catalog_owner_tests {
 #[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
-    use crate::v3::audit_retention::{retained_struct, Retained};
+    use crate::v3::audit_retention::{retained_struct, sum, Retained};
 
     retained_struct!(ImmutableHistoricalAudit {
         control_facts,
@@ -3108,15 +3483,20 @@ mod owner_retention {
                 raw,
                 budget,
                 historical,
-                certification: _,
+                certification,
             } = self;
             if budget.is_some() {
                 return usize::MAX;
             }
-            raw.heap_bytes().saturating_add(match historical {
-                HistoricalOwner::Unique(v) => v.heap_bytes(),
-                HistoricalOwner::Shared(v) => v.heap_bytes(),
-            })
+            // 40B B2：资格组件的身份与前沿字符串是跨请求保留载荷，与历史同账。
+            sum([
+                raw.heap_bytes(),
+                match historical {
+                    HistoricalOwner::Unique(v) => v.heap_bytes(),
+                    HistoricalOwner::Shared(v) => v.heap_bytes(),
+                },
+                certification.heap_bytes(),
+            ])
         }
     }
 }

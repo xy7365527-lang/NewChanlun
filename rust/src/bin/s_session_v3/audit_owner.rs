@@ -363,6 +363,8 @@ impl AuditConnection {
         Ok(owner)
     }
 
+    /// `qualified`（39P）：传入时冷起步从空前沿消费 P6 完整资格，此后每次发布在内容与台账
+    /// 均已提交后从上一代前沿推进；资格缺失或不符即 stale。不传则为 36T 来源收据认证组件。
     #[cfg(all(feature = "s_incremental", unix))]
     #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
     pub(super) fn open_certified_history_component(
@@ -370,6 +372,7 @@ impl AuditConnection {
         control_limit: usize,
         deadline: Option<std::time::Instant>,
         context: &mut request_audit::RequestAuditContext,
+        qualified: Option<state::QualifiedSource<'_>>,
     ) -> Result<Self, String> {
         history::check_deadline(deadline)?;
         if !context.source_cache_enabled() {
@@ -388,7 +391,7 @@ impl AuditConnection {
         )?);
         let result = (|| {
             let active = owner.begin(TransactionBehavior::Deferred)?;
-            active.seed_historical_certificate(deadline, context)?;
+            active.seed_historical_certificate(deadline, context, qualified)?;
             let ended = active.read_end()?;
             history::check_deadline(deadline)?;
             owner.continue_with(ended)?;
@@ -824,12 +827,27 @@ impl AuditConnection {
         })();
         // #1647：内容事务已由 publish_degradable/commit_publication 确认提交，
         // 现在才提交旁挂事务。失败后不交出 Ended，不续租、不重试。
+        // 39P：两者都提交后 H1 才从上一代前沿消费本代资格；资格不符即 stale，不回落。
+        #[cfg(feature = "s_incremental")]
+        let mut qualified_failed = false;
         let result = result.and_then(|published| {
             runtime.commit_audit_ledger()?;
+            #[cfg(feature = "s_incremental")]
+            let mut published = published;
+            #[cfg(feature = "s_incremental")]
+            if let Some(candidate) = published.1.complete.as_mut() {
+                if let Err(error) = candidate.advance_qualified(runtime) {
+                    qualified_failed = true;
+                    return Err(error);
+                }
+            }
             Ok(published)
         });
         if result.is_err() {
-            if runtime.invalidate_audit_ledger() {
+            let retire = runtime.invalidate_audit_ledger();
+            #[cfg(feature = "s_incremental")]
+            let retire = retire || qualified_failed;
+            if retire {
                 self.retired.set(true);
                 self.clear_candidates();
             }
@@ -1219,6 +1237,7 @@ impl AuditTxn<'_> {
         &self,
         deadline: Option<std::time::Instant>,
         context: &mut request_audit::RequestAuditContext,
+        qualified: Option<state::QualifiedSource<'_>>,
     ) -> Result<(), String> {
         history::check_deadline(deadline)?;
         let parent = match context.request_parent_budget() {
@@ -1246,6 +1265,10 @@ impl AuditTxn<'_> {
                     deadline,
                     work,
                     context,
+                    qualified.map(|source| state::QualifiedSeed {
+                        source,
+                        budget: &parent,
+                    }),
                 )?;
                 let slot = context
                     .take()
@@ -2568,6 +2591,8 @@ struct CompleteCandidate {
     capture: Option<newchan_rust::s_content::AuditCapture>,
     node_count: usize,
     limit: usize,
+    // 40B B2：本次发布资格交接的许可，费用终检前持票并入账，提交后由交接消费。
+    qualification_reserve: Option<native::Permit>,
     // raw载荷必须先于Q持有的Plain raw许可析构。
     audited: state::AuditedState,
     q: q::Facts,
@@ -2580,6 +2605,33 @@ struct CompleteCandidate {
 }
 #[cfg(feature = "s_incremental")]
 impl CompleteCandidate {
+    /// 内容与台账均已提交后消费资格交接许可：新资格入账、旧资格与许可余量释放，
+    /// 总账按 `validate_effects` 同一公式重算；任一失败即候选作废。
+    fn advance_qualified(&mut self, runtime: &prepared::Runtime) -> Result<(), String> {
+        use super::audit_retention::sum;
+        let permit = self.qualification_reserve.take();
+        let delta = self.audited.advance_qualified(runtime, permit)?;
+        self.charge.historical_and_raw_capacity = delta
+            .apply(self.charge.historical_and_raw_capacity)
+            .map_err(|failure| match failure {
+                native::Failure::BudgetExceeded => invalid("资格交接保留账溢出"),
+                native::Failure::Invalid(error) => error,
+            })?;
+        self.charge.total = sum([
+            self.charge.node_source_and_certificates,
+            self.charge.node_capacity,
+            self.charge.historical_and_raw_capacity,
+            self.charge.current_sql_capacity,
+            self.charge.q_capacity,
+            self.charge.inline,
+        ]);
+        // 40H B2：交接期间旧新资格与比较缓冲同时存活的实际峰值进入最终封包峰值。
+        self.charge.handoff_peak = self.charge.handoff_peak.max(sum([
+            self.charge.entry_reserved_bytes,
+            self.resources.peak(),
+        ]));
+        Ok(())
+    }
     fn refresh_capture_charge(&mut self) -> Result<(), String> {
         use super::audit_retention::sum;
         let capture = self
@@ -2855,6 +2907,7 @@ impl CompleteCandidate {
             audited,
             originals,
             charge,
+            qualification_reserve: None,
             resources: budget,
             _inline_permit: inline_permit,
         }))
@@ -3226,6 +3279,23 @@ impl CompleteCandidate {
                     Err(native::Failure::BudgetExceeded) => return Ok(None),
                     Err(native::Failure::Invalid(error)) => return Err(error),
                 };
+        }
+        // 40B B2：资格交接的持久上界在本代后缀入账后、费用终检前持票并计入历史账；提交后交接只消费它。
+        if effects.operation == effects::Operation::Publish {
+            if let Some(transition) = self.audited.qualified_transition_bound() {
+                let Ok(permit) = budget.reserve(transition) else {
+                    return Ok(None);
+                };
+                let Some(total) = self
+                    .charge
+                    .historical_and_raw_capacity
+                    .checked_add(transition)
+                else {
+                    return Ok(None);
+                };
+                self.charge.historical_and_raw_capacity = total;
+                self.qualification_reserve = Some(permit);
+            }
         }
         #[cfg(test)]
         let effect_rows = effects.changes.len();
