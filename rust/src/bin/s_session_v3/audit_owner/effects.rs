@@ -1265,7 +1265,7 @@ pub(crate) struct SourceCutBinding {
 pub(crate) struct QualifiedSourceCut {
     binding: SourceCutBinding,
     counts: super::super::source_audit::Counts,
-    observation_sources: sc::CodecVec<(sc::NodeDigest, sc::NodeDigest)>,
+    exports: super::super::source_audit::source_receipt::source_facts::SourceExports,
 }
 impl QualifiedSourceCut {
     pub(crate) fn consume(
@@ -1278,7 +1278,7 @@ impl QualifiedSourceCut {
     ) -> Result<
         (
             super::super::source_audit::Counts,
-            sc::CodecVec<(sc::NodeDigest, sc::NodeDigest)>,
+            super::super::source_audit::source_receipt::source_facts::SourceExports,
         ),
         String,
     > {
@@ -1314,7 +1314,7 @@ impl QualifiedSourceCut {
         j.extra_bytes = extra;
         j.bytes = bytes;
         j.peak = j.peak.max(bytes);
-        Ok((self.counts, self.observation_sources))
+        Ok((self.counts, self.exports))
     }
 }
 
@@ -1529,7 +1529,7 @@ pub(super) fn audit_native_source(
         )?;
         material.check()?;
         raw.ensure_current()?;
-        let (actual_binding, counts, source, observation_sources) = verdict.into_parts();
+        let (actual_binding, counts, source, exports) = verdict.into_parts();
         if actual_binding != binding {
             return Err(construction_state::stale("来源核返回不同切面"));
         }
@@ -1559,7 +1559,7 @@ pub(super) fn audit_native_source(
             QualifiedSourceCut {
                 binding,
                 counts,
-                observation_sources,
+                exports,
             },
             source,
         ))
