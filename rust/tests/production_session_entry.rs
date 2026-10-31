@@ -4,8 +4,8 @@
 //! 哨兵；不连接任何真实场所（端点指向测试内本地监听器）。S 的 admission 锚用与
 //! `s_session/tests/issue1527_recovery/test_support.rs` 同口径的 TestOnly 造锚（生产签发归 #1657）。
 //!
-//! 两种构建都跑本文件：`production_session_testonly` 跑全部；纯 `production_session`（生产构建）只跑
-//! 不需要 S 开门的拒绝类测试，并真实执行生产 launcher 与生产 S 遇 TestOnly 开关即拒的接线。
+//! 两种构建都跑本文件，原八项在两种构建下都只走 S 正式配置路径（已签 synthetic profile，#1774）；
+//! 纯 `production_session`（生产构建）另真实执行生产 launcher 与生产 S 遇 TestOnly 开关即拒的接线。
 #![cfg(target_os = "linux")]
 #![cfg_attr(
     not(feature = "production_session_testonly"),
@@ -287,8 +287,7 @@ fn s_resources(space: &Space) -> PathBuf {
 }
 
 /// S 写者以诊断夹具 theta 配置开门的 TestOnly 开关（仅 `production_session_testonly` 构建认）。
-/// #1774 用户批后正式配置绑定已签 synthetic profile（`signed_synthetic_*` 两条锁住）；带 TestOnly
-/// 条件的八项原名测试仍显式走此臂，去 cfg 归 #1769 owner 在其最终 head 消费，本文件不折算。
+/// 本文件只在拒启负控里设置它；成功助手一律 `env_remove`，走已签 synthetic 正式配置（#1769）。
 const THETA_DIAGNOSTIC: (&str, &str) = ("S_THETA_DIAGNOSTIC_TESTONLY", "1");
 
 /// S 正式写者（`serve --protocol-revision s-session/3`）命令；不含 TestOnly 开关。
@@ -319,13 +318,10 @@ fn s_serve_command(space: &Space, db: &Path, limits: &Path) -> Command {
     command
 }
 
-/// 以 TestOnly 诊断 theta 臂拉起 S 写者，等 socket 就绪。
+/// 以正式配置（已签 synthetic profile）拉起 S 写者，等 socket 就绪。
 fn s_serve(space: &Space, db: &Path, limits: &Path) -> Child {
     let socket = space.path("s.sock");
-    let mut child = s_serve_command(space, db, limits)
-        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
-        .spawn()
-        .unwrap();
+    let mut child = s_serve_command(space, db, limits).spawn().unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
     while !socket.exists() {
         if let Some(status) = child.try_wait().unwrap() {
@@ -371,7 +367,7 @@ fn spawn_launcher(manifest: &Path) -> Child {
         .arg("--manifest")
         .arg(manifest)
         .env_remove(CREDENTIAL_KEY)
-        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
+        .env_remove(THETA_DIAGNOSTIC.0)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -492,7 +488,6 @@ fn simulation(space: &Space, profile: &str, credential: bool) -> (PathBuf, PathB
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn simulation_profile_spawns_isolated_domain_processes() {
     let space = Space::new();
     let (manifest, s_db) = simulation(&space, "simulation", false);
@@ -538,7 +533,6 @@ fn simulation_profile_spawns_isolated_domain_processes() {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn credential_sentinel_only_in_x_process_environment() {
     let space = Space::new();
     // 凭据文件须存在，launcher 才按 credential_scope 读取并只注入 X。
@@ -561,7 +555,6 @@ fn credential_sentinel_only_in_x_process_environment() {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn missing_credential_refuses_x_send_surface() {
     let space = Space::new();
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
@@ -659,7 +652,6 @@ fn manifest_rejects_execution_feed_as_structure_source() {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn s_rejects_same_shape_bars_from_undeclared_source() {
     let space = Space::new();
     let s_db = s_init_v3(&space, Some(&declaration("TestOnlyStructure", DECLARED_NS)));
@@ -731,7 +723,6 @@ fn s_ingest(socket: &Path, ns: &str, n: u32) -> Value {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn s_keeps_committing_while_x_is_stopped() {
     let space = Space::new();
     let (manifest, s_db) = simulation(&space, "simulation", false);
