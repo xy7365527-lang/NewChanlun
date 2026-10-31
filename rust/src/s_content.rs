@@ -8231,6 +8231,64 @@ mod r6_codec_memo_tests {
             Some(self.scope)
         }
     }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_request_closure_counts_units_sequence_frames_and_capture_lookups() {
+        for n in [1usize, 8, 32] {
+            let mut nodes = MemoryNodes::new();
+            let reference = write_value(
+                &mut nodes,
+                &Value::Array((0..n).map(|i| Value::string(i.to_string())).collect()),
+            )
+            .unwrap()
+            .content_ref();
+            let capture = AuditCapture::new(nodes)
+                .enable_native_frame_reuse()
+                .unwrap();
+            let CaptureNodes::Native(native) = &capture.nodes else {
+                unreachable!()
+            };
+            let parent = Arc::new(Parent(AtomicUsize::new(0)));
+            CodecWork::new(parent.clone(), 1024 * 1024).unwrap().run(|scope| {
+                let mut request = CapturedRequestVerifier::new(&capture, scope)?;
+                CAPTURE_BODY_READ_TRACE.with(|t| *t.borrow_mut() = Some((frame_calls_on_thread(), Vec::new())));
+                let before = native.index_lookups.get();
+                request.verify_refview((&reference).into(), Mode::Public)?;
+                let lookups = native.index_lookups.get() - before;
+                let (_, trace) = CAPTURE_BODY_READ_TRACE.with(|t| t.borrow_mut().take().unwrap());
+                let mut value_reads = 0;
+                let mut sequence_reads = 0;
+                let mut byte_reads = 0;
+                for (digest, _) in &trace {
+                    let tag = native.nodes.get(digest).unwrap().tag;
+                    match tag {
+                        tag::SEQ_EMPTY | tag::SEQ_LEAF | tag::SEQ_BRANCH => sequence_reads += 1,
+                        tag::BYTES_CHUNK => byte_reads += 1,
+                        _ if Kind::from_tag(tag).is_some() => value_reads += 1,
+                        _ => panic!("数组样本不含其他帧"),
+                    }
+                }
+                let units = request.public.as_ref().unwrap().seen.len();
+                assert_eq!(units, n + 1);
+                assert!(sequence_reads >= 2 * n - 1, "首次 ARRAY 仍遍历完整序列");
+                assert_eq!(lookups as usize, trace.len());
+                assert_eq!(value_reads + sequence_reads + byte_reads, trace.len());
+                let before = native.index_lookups.get();
+                CAPTURE_BODY_READ_TRACE.with(|t| *t.borrow_mut() = Some((frame_calls_on_thread(), Vec::new())));
+                request.verify_refview((&reference).into(), Mode::Public)?;
+                let repeated_lookups = native.index_lookups.get() - before;
+                let (_, repeat) = CAPTURE_BODY_READ_TRACE.with(|t| t.borrow_mut().take().unwrap());
+                assert_eq!(repeat.len(), 1);
+                assert_eq!(repeat[0].0, reference.digest()?);
+                assert_eq!(repeated_lookups, 1);
+                assert_eq!(request.public.as_ref().unwrap().seen.len(), units);
+                eprintln!("closure_request_detail elements={n} value_units={units} value_frame_reads={value_reads} sequence_frame_reads={sequence_reads} byte_frame_reads={byte_reads} capture_point_lookups={lookups} repeated_root_checks=1 repeated_capture_point_lookups={repeated_lookups}");
+                Ok::<_, CodecError>(())
+            }).unwrap();
+            assert_eq!(parent.0.load(Ordering::SeqCst), 0);
+        }
+    }
+
     #[test]
     fn r6_codec_into_memo_preserves_actual_work_domain() {
         let mut nodes = MemoryNodes::new();

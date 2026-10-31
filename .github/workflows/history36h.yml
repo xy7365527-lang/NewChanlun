@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-job-setup
+      - name: H1 closure request work accounting
+        run: cargo test --release --locked --features s_session,s_incremental --lib h1_request_closure --jobs 4 -- --test-threads 1 --nocapture
       - name: H1 life clamp and history locks
         run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session h1_ --jobs 4 -- --test-threads 1 --nocapture
       - name: Existing SQLite commit failure locks
