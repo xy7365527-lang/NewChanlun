@@ -44,6 +44,7 @@ test("显式两家族模型保留旧默认并拒绝路由外模型", () => {
     const command = a.buildPrintCommand(options);
     assert.match(command.command, new RegExp(model));
     assert.match(command.command, /host.docker.internal:8318/);
+    assert.doesNotMatch(command.command, /--skip-git-repo-check/);
     assert.notEqual(command.command, b.buildPrintCommand(options).command);
     assert.equal(command.stdin, options.prompt);
   }
@@ -55,6 +56,7 @@ for (const mode of ["PASS", "BLOCK", "failed", "missing-log", "missing-completed
   test(`宿主监督 ${mode} 不把缺证据转为通过`, async () => {
     const f = fixture(); const session = randomUUID();
     let closed = false, creates = 0;
+    let modelCommand = "";
     const output = { status: mode === "BLOCK" ? "blocked" : "completed", summary: `VERDICT: ${mode}`, findings: [], validation: [] };
     const handle: BindMountSandboxHandle = {
       worktreePath: "/review",
@@ -65,6 +67,7 @@ for (const mode of ["PASS", "BLOCK", "failed", "missing-log", "missing-completed
           const sessionsDir = JSON.parse(command.match(/^find (".*?") /)![1]!);
           return { stdout: `${sessionsDir}/2026/10/29/rollout-2026-10-29-${session}.jsonl\n`, stderr: "", exitCode: 0 };
         }
+        modelCommand = command;
         assert(command.includes("--output-schema /tmp/external-review-schema.json"));
         assert(command.includes("--disable multi_agent"));
         assert.equal(options?.stdin, f.launch.prompt);
@@ -105,6 +108,7 @@ for (const mode of ["PASS", "BLOCK", "failed", "missing-log", "missing-completed
       assert.equal(creates, 1); assert(closed);
       assert.equal(receipt.status, ["PASS", "BLOCK"].includes(mode) ? "completed" : "failed");
       if (receipt.status === "completed") {
+        assert.match(modelCommand, /(?:^|\s)--skip-git-repo-check(?:\s|$)/);
         assert.equal(receipt.result.summary, `VERDICT: ${mode}`);
         assert.equal(receipt.session_id, session);
         assert(receipt.turn_completed);

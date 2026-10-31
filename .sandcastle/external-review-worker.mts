@@ -162,7 +162,7 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
     await handle.copyFileIn(schema, "/tmp/external-review-schema.json");
     const built = provider.buildPrintCommand({ prompt: launch.prompt, dangerouslySkipPermissions: false });
     if (built.stdin !== launch.prompt || !built.command.includes("--disable multi_agent")) throw new Error("Codex 命令协议已漂移");
-    const command = built.command + " --output-schema /tmp/external-review-schema.json -c 'features.apps=false' -c 'features.plugins=false'"
+    const command = built.command + " --skip-git-repo-check --output-schema /tmp/external-review-schema.json -c 'features.apps=false' -c 'features.plugins=false'"
       + " -c 'web_search=\"disabled\"' -c 'shell_environment_policy.inherit=\"core\"' -";
     const transcript = new CodexTranscript(provider);
     const events = openSync(join(folder, "events.jsonl"), "wx", 0o600);
