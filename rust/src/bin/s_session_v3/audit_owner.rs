@@ -3750,7 +3750,19 @@ pub(crate) fn audit_native_source_cut(
     profile: &str,
     rule: &str,
 ) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
-    effects::audit_native_source(material, capture, previous, root, raw, profile, rule)
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule, false)
+}
+#[cfg(feature = "s_incremental")]
+pub(crate) fn audit_native_source_partitions_cut(
+    material: &MaterialAccess<'_, '_, '_>,
+    capture: &mut newchan_rust::s_content::AuditCapture,
+    previous: Option<source_audit::NativeSourceState>,
+    root: newchan_rust::s_content::RefView<'_>,
+    raw: &BoundRawAdvance<'_>,
+    profile: &str,
+    rule: &str,
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule, true)
 }
 #[cfg(feature = "s_incremental")]
 pub(crate) fn with_construction_material<T>(
@@ -6630,6 +6642,26 @@ mod raw_native_move_ownership_tests {
 
 #[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
+    pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
+        let total = 64 * 1024 * 1024;
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(
+            super::cross_request_source_cache::Keeper::new(total),
+        );
+        context
+            .freeze_manifest_workspace_budget(total, 0, 0)
+            .unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let active = self.begin(rusqlite::TransactionBehavior::Deferred).unwrap();
+        active
+            .audit_admission(
+                &json!({"payload":{"op":"ready"}}),
+                &s_allocation::Mode::CapturedNative,
+                &mut context,
+            )
+            .unwrap();
+        self.continue_with(active.read_end().unwrap()).unwrap();
+        context
+    }
     pub(super) fn complete_budget_for_test(&self) -> native::Budget {
         self.complete
             .borrow()
