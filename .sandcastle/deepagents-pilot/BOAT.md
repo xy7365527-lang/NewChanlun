@@ -34,7 +34,7 @@
 
 `endpoint` 必须是 HTTPS `/v1` 入口。`image` 必须是完整 `sha256:` 身份，且基底 VM 内有该镜像。模型能力经受管 SSH 管道从网关 VM 流到工蜂 VM，不进入运行包、提示或日志；网关 VM 由其 owner 显式管理，adapter 不启动它。工蜂读取 key 后立即删除文件，监督器结束时再删一次，收集后控制端在停 VM 前确认删除。
 
-fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使用 Boat CLI。控制端通过 `BOAT_API_KEY` 或 `PILOT_BOAT_API_KEY_FILE` 提供官方 scoped key。文件须位于仓外且权限为 0600，不读取 CLI 私有凭据。只授 `sandbox.fork`，设置有限 TTL，不使用 admin key。该 key 不进入配置、运行包、提示或云工蜂。官方创建与 scope 规则见 [Create and list keys](https://docs.boat.dev/api-keys/create-and-list) 和 [Scopes](https://docs.boat.dev/api-keys/scopes)。
+fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使用 Boat CLI。控制端通过 `BOAT_API_KEY` 或 `PILOT_BOAT_API_KEY_FILE` 提供官方 scoped key。文件须位于运行时源码仓库外，由当前用户持有，且是没有 group/other 权限的普通文件，建议设置为 0600。符号链接不被接受。控制端从同一个已打开的文件描述符核对类型、属主和权限后读取，不读取 CLI 私有凭据。只授 `sandbox.fork`，设置有限 TTL，不使用 admin key。该 key 不进入配置、运行包、提示或云工蜂。官方创建与 scope 规则见 [Create and list keys](https://docs.boat.dev/api-keys/create-and-list) 和 [Scopes](https://docs.boat.dev/api-keys/scopes)。
 
 ## 一次派工的生命周期
 
@@ -49,7 +49,9 @@ fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使
 
 ## 启动、观察和恢复
 
-设置 `PILOT_BOAT_CONFIG` 为上述文件的绝对路径，再使用原 `python -m pilot1742.executor` 或 `python -m pilot1742 run` 入口。调用方仍调用 `run_worker(role, brief)`。发布与批准入口不变。
+设置 `PILOT_BOAT_CONFIG` 为上述配置文件的绝对路径，设置 `PILOT_BOAT_API_KEY_FILE` 为控制端 scoped key 文件的绝对路径，再使用原 `python -m pilot1742.executor` 或 `python -m pilot1742 run` 入口。已有 `BOAT_API_KEY` 环境入口继续优先使用。调用方仍调用 `run_worker(role, brief)`，发布与批准入口不变。
+
+launchd 不继承交互终端的环境。部署 owner 须在执行器 plist 中填写 `__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__`，并用模板的 `PATH` 核对 `command -v boat` 能找到 CLI。切流命令预览的第 4、5 个参数分别接收这两个路径，详见 [切流部署步骤](../docs/migration-drain-1742.md#将引擎放行交给新执行器)。
 
 只读状态只读本地记录，不访问 Boat、不收集、不进入票级锁：
 

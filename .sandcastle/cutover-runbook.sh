@@ -3,8 +3,12 @@ set -euo pipefail
 repo="${1:-/Users/silencehan/Projects/NewChanlun-sandcastle-host}"
 venv="${2:-/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/venv}"
 key="${3:-/ABSOLUTE/PATH/TO/APP-PRIVATE-KEY.pem}"
+boat_config="${4:-/ABSOLUTE/PATH/TO/BOAT-CONFIG.json}"
+boat_key="${5:-/ABSOLUTE/PATH/TO/BOAT-CONTROLLER.key}"
 print_command() { printf '%q ' "$@"; printf '\n'; }
-executor=(env "PYTHONPATH=$repo/.sandcastle/deepagents-pilot" "$venv/bin/python" -m pilot1742.executor)
+executor=(env "PYTHONPATH=$repo/.sandcastle/deepagents-pilot"
+  "PILOT_BOAT_CONFIG=$boat_config" "PILOT_BOAT_API_KEY_FILE=$boat_key"
+  "$venv/bin/python" -m pilot1742.executor)
 printf '%s\n' '# #1742 D6 切流命令预览。本脚本只打印，不执行。' \
   '# 先由部署 owner 在安全轮次边界部署已合入且通过验收的 main。' \
   '# 确认日志路径、现役版本、进程父子关系、旧票去向和原聊天 owner 的交接记录。'
@@ -23,7 +27,8 @@ for label in sandcastle-claimer sandcastle-harvest wayfinder-engine decision-cla
 done
 print_command "${executor[@]}" cutover verify --workers-log "$repo/.sandcastle/logs/workers.jsonl" --private-key "$key"
 print_command "${executor[@]}" cutover record --workers-log "$repo/.sandcastle/logs/workers.jsonl" --private-key "$key"
-printf '%s\n' '# 把 plist 模板的 __REPO__、__VENV__、__PRIVATE_KEY_PATH__ 渲染成已核对的绝对路径。' \
+printf '%s\n' '# 把 plist 模板的 __REPO__、__VENV__、__PRIVATE_KEY_PATH__、__BOAT_CONFIG__、__BOAT_API_KEY_FILE__ 渲染成已核对的绝对路径。' \
+  '# 确认 plist 的 PATH 能找到 Boat CLI；密钥只填仓外文件路径，不填内容。' \
   '# 确认新执行器的 main 基线对象已在源检出中；先只读核对队列及逐 run 待批请求。'
 print_command launchctl bootstrap "gui/$UID" "$HOME/Library/LaunchAgents/com.newchanlun.wayfinder-engine.plist"
 print_command env "SANDCASTLE_HOST_REPO=$repo" bash "$repo/.sandcastle/run-wayfinder-engine.sh" --once --dry-run

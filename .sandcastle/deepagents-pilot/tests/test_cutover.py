@@ -1,5 +1,11 @@
 import json
+import os
+import plistlib
+import subprocess
+import sys
 from dataclasses import replace
+from pathlib import Path
+from xml.sax.saxutils import escape
 
 import pytest
 
@@ -180,6 +186,68 @@ def test_legacy_prefix_is_accepted_but_unfinished_work_stays_pending(barrier):
     record = store.verify(snap, remote, (), 'a' * 40)
     store.record(record)
     store.check_ticket(9999, record)
+
+
+@pytest.fixture
+def deployed_executor(tmp_path):
+    repo = tmp_path / 'deployed repo'
+    module = repo / '.sandcastle/deepagents-pilot/pilot1742'
+    module.mkdir(parents=True)
+    (module / '__init__.py').write_text('')
+    marker = tmp_path / 'executed'
+    (module / 'executor.py').write_text(
+        'import json, os\n'
+        'from pathlib import Path\n'
+        f'Path({str(marker)!r}).write_text("executed")\n'
+        'print(json.dumps({name: os.environ.get(name) for name in '
+        '("PILOT_BOAT_CONFIG", "PILOT_BOAT_API_KEY_FILE")}))\n')
+    venv = tmp_path / 'venv'
+    (venv / 'bin').mkdir(parents=True)
+    (venv / 'bin/python').symlink_to(sys.executable)
+    for command in ('gh', 'launchctl', 'boat'):
+        executable = venv / 'bin' / command
+        executable.write_text(f'#!{sys.executable}\nfrom pathlib import Path\n'
+                              f'Path({str(marker)!r}).write_text({command!r})\nraise SystemExit(91)\n')
+        executable.chmod(0o700)
+    paths = {
+        '__REPO__': str(repo),
+        '__VENV__': str(venv),
+        '__PRIVATE_KEY_PATH__': str(tmp_path / 'app.pem'),
+        '__BOAT_CONFIG__': str(tmp_path / 'Boat config.json'),
+        '__BOAT_API_KEY_FILE__': str(tmp_path / 'Boat controller.key'),
+    }
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in ('PILOT_BOAT_CONFIG', 'PILOT_BOAT_API_KEY_FILE')}
+    environment['PATH'] = str(venv / 'bin') + os.pathsep + environment.get('PATH', '')
+    expected = {'PILOT_BOAT_CONFIG': paths['__BOAT_CONFIG__'],
+                'PILOT_BOAT_API_KEY_FILE': paths['__BOAT_API_KEY_FILE__']}
+    return paths, environment, expected, marker
+
+
+def test_launchd_template_passes_boat_paths_to_executor(deployed_executor):
+    paths, environment, expected, _ = deployed_executor
+    template = Path(__file__).resolve().parents[2] / 'launchd/com.newchanlun.deepagents-executor.plist'
+    rendered = template.read_text()
+    for placeholder, value in paths.items():
+        rendered = rendered.replace(placeholder, escape(value))
+    config = plistlib.loads(rendered.encode())
+    child = subprocess.run(config['ProgramArguments'], cwd=config['WorkingDirectory'],
+                           env=environment | config['EnvironmentVariables'],
+                           capture_output=True, text=True, check=True)
+    assert json.loads(child.stdout) == expected
+
+
+def test_runbook_prints_boat_paths_without_executing(deployed_executor):
+    paths, environment, expected, marker = deployed_executor
+    script = Path(__file__).resolve().parents[2] / 'cutover-runbook.sh'
+    preview = subprocess.run(['bash', str(script), *paths.values()], env=environment,
+                             capture_output=True, text=True, check=True)
+    assert not marker.exists()
+    line = next(line for line in preview.stdout.splitlines() if ' serve --once ' in line)
+    child = subprocess.run(['bash', '-c', line], cwd=paths['__REPO__'], env=environment,
+                           capture_output=True, text=True, check=True)
+    assert json.loads(child.stdout) == expected
+    assert marker.read_text() == 'executed'
 
 
 def test_runbook_stops_healer_first_and_restores_it_last():

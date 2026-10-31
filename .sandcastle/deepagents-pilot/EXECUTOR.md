@@ -34,6 +34,8 @@ require_design: false
 cd /Users/silencehan/.codex/worktrees/deepagents-pilot-1742/NewChanlun
 VENV=/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/venv
 PEM=/Users/silencehan/Downloads/newchanlun-deepagents-1742.2026-10-26.private-key.pem
+export PILOT_BOAT_CONFIG=/绝对路径/boat-config.json
+export PILOT_BOAT_API_KEY_FILE=/仓外绝对路径/boat-controller.key
 executor() { PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
 git fetch origin <已推送的分支>
 BASE=$(git rev-parse origin/<已推送的分支>)
@@ -153,4 +155,6 @@ executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/wor
 
 状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。人工中断不会被队列自动清除，须使用显式 `executor run --resume`。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
 
-launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。把 `__REPO__`、`__VENV__` 和 `__PRIVATE_KEY_PATH__` 替换为部署路径后由部署 owner 安装。私钥路径在参数中，密钥内容不进入 plist 或环境变量。
+launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。部署 owner 把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 全部替换为已核对的绝对路径后安装。后两个占位符分别设置 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。配置和控制端 key 文件的要求见 [Boat 受管配置](BOAT.md#受管配置)。
+
+使用模板的 `PATH` 执行 `command -v boat`，确认服务能找到已登录的 CLI。模板默认包含 `/Users/silencehan/.local/bin`。App 私钥路径在参数中，Boat key 文件路径在环境中，两种密钥的内容都不进入 plist。

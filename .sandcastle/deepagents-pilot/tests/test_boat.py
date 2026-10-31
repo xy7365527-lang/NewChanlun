@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import os
 import subprocess
@@ -7,6 +8,7 @@ import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
 import pytest
@@ -16,7 +18,9 @@ from pilot1742.boat_execution import (
     BoatBinding,
     BoatCLI,
     BoatExecution,
+    BoatForkAPI,
     ExecutionUnknown,
+    ForkIntent,
     HistoricalLocal,
     new_execution,
     parse_execution,
@@ -24,7 +28,7 @@ from pilot1742.boat_execution import (
 )
 from pilot1742.cloud_package import build_skill_bundle, export_repository, safe_path
 from pilot1742.domain import EffectUnknown, Running, Terminal, WorkerKey
-from pilot1742.run import _status_text_paths
+from pilot1742.run import SOURCE_REPO, _status_text_paths
 
 
 def test_frozen_source_preserves_sha_without_config(env, tmp_path):
@@ -63,6 +67,102 @@ def test_existing_test_run_keeps_binding_without_current_config(env, monkeypatch
     same = env.create()
     assert same.spec.execution == HistoricalLocal()
     same.release()
+
+
+@pytest.fixture
+def fork_credentials(tmp_path, monkeypatch):
+    path = tmp_path / 'controller-key'
+    path.write_text('fixture-controller-only\n')
+    path.chmod(0o600)
+    monkeypatch.delenv('BOAT_API_KEY', raising=False)
+    monkeypatch.setenv('PILOT_BOAT_API_KEY_FILE', str(path))
+    requests = []
+
+    def request(req, timeout):
+        requests.append(req)
+        return io.BytesIO(b'{"id":"bx_original"}')
+
+    monkeypatch.setattr('pilot1742.boat_execution.urlopen', request)
+    return path, requests, ForkIntent('bx_base', 'same-key', '{}', time.time())
+
+
+def test_boat_fork_reads_private_file_outside_repo(fork_credentials):
+    _, requests, intent = fork_credentials
+    assert BoatForkAPI().fork(intent) == 'bx_original'
+    assert requests[0].headers['Authorization'] == 'Bearer fixture-controller-only'
+
+
+@pytest.mark.parametrize('mode', [0o640, 0o620, 0o610, 0o604, 0o602, 0o601])
+def test_boat_fork_rejects_shared_key_file(fork_credentials, mode):
+    path, requests, intent = fork_credentials
+    path.chmod(mode)
+    with pytest.raises(ValueError):
+        BoatForkAPI().fork(intent)
+    assert requests == []
+
+
+def test_boat_fork_rejects_symlink_and_directory(fork_credentials, tmp_path, monkeypatch):
+    path, requests, intent = fork_credentials
+    link = tmp_path / 'key-link'
+    link.symlink_to(path)
+    for invalid in (link, tmp_path):
+        monkeypatch.setenv('PILOT_BOAT_API_KEY_FILE', str(invalid))
+        with pytest.raises(ValueError):
+            BoatForkAPI().fork(intent)
+    assert requests == []
+
+
+def test_boat_fork_rejects_other_owner(fork_credentials, monkeypatch):
+    from pilot1742 import boat_execution
+
+    _, requests, intent = fork_credentials
+    real_fstat = os.fstat
+    with monkeypatch.context() as patched:
+        patched.setattr(boat_execution.os, 'fstat', lambda fd: SimpleNamespace(
+            st_mode=real_fstat(fd).st_mode, st_uid=os.getuid() + 1))
+        with pytest.raises(ValueError):
+            BoatForkAPI().fork(intent)
+    assert requests == []
+
+
+def test_boat_fork_rejects_repo_key_after_resolving_parent(fork_credentials, tmp_path, monkeypatch):
+    _, requests, intent = fork_credentials
+    repo_link = tmp_path / 'repo-link'
+    repo_link.symlink_to(SOURCE_REPO, target_is_directory=True)
+    with NamedTemporaryFile(dir=SOURCE_REPO) as stream:
+        stream.write(b'fixture-controller-only\n')
+        stream.flush()
+        for path in (Path(stream.name), repo_link / Path(stream.name).name):
+            monkeypatch.setenv('PILOT_BOAT_API_KEY_FILE', str(path))
+            with pytest.raises(ValueError):
+                BoatForkAPI().fork(intent)
+    assert requests == []
+
+
+def test_boat_fork_keeps_environment_token_priority(fork_credentials, monkeypatch):
+    path, requests, intent = fork_credentials
+    path.unlink()
+    monkeypatch.setenv('BOAT_API_KEY', 'fixture-environment')
+    assert BoatForkAPI().fork(intent) == 'bx_original'
+    assert requests[0].headers['Authorization'] == 'Bearer fixture-environment'
+
+
+def test_boat_fork_rejects_fifo_without_waiting(tmp_path, monkeypatch):
+    pipe = tmp_path / 'key-pipe'
+    os.mkfifo(pipe, 0o600)
+    monkeypatch.delenv('BOAT_API_KEY', raising=False)
+    monkeypatch.setenv('PILOT_BOAT_API_KEY_FILE', str(pipe))
+    child = (
+        'from pilot1742.boat_execution import BoatForkAPI, ForkIntent\n'
+        'try:\n'
+        '    BoatForkAPI().fork(ForkIntent("bx_base", "same-key", "{}", 0))\n'
+        'except ValueError:\n'
+        '    raise SystemExit(0)\n'
+        'raise SystemExit(1)\n'
+    )
+    result = subprocess.run([sys.executable, '-c', child],
+                            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
 
 
 def config():

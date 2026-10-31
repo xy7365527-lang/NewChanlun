@@ -6,6 +6,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import tarfile
 import time
@@ -139,7 +140,18 @@ class BoatForkAPI:
             source = os.environ.get("PILOT_BOAT_API_KEY_FILE")
             if not source:
                 raise ValueError("Boat fork需要BOAT_API_KEY或PILOT_BOAT_API_KEY_FILE，仅供控制端使用")
-            token = Path(source).read_text().strip()
+            path = Path(source)
+            if path.resolve().is_relative_to(Path(__file__).resolve().parents[3]):
+                raise ValueError("Boat控制端key文件必须位于运行时源码仓库外")
+            try:
+                descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(descriptor) as stream:
+                    info = os.fstat(stream.fileno())
+                    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+                        raise ValueError("Boat控制端key须为当前用户持有且无group/other权限的普通文件")
+                    token = stream.read().strip()
+            except OSError:
+                raise ValueError("无法读取明确指定的Boat控制端key文件") from None
         request = Request("https://boat.dev/api/v1/sandboxes/" + intent.source_sandbox + "/fork",
                           data=intent.body.encode(), method="POST",
                           headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",

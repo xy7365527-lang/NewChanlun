@@ -58,7 +58,13 @@ node --import tsx --test .sandcastle/drain-control.test.mts
 
 ## 将引擎放行交给新执行器
 
-`bash .sandcastle/cutover-runbook.sh` 只打印命令和核对点，不冻结、不写 GitHub、不卸载服务。参数依次为部署检出、venv 和私钥绝对路径。D6 获批后由部署 owner 逐步执行，不把打印成功算成部署。
+`bash .sandcastle/cutover-runbook.sh` 只打印命令和核对点，不冻结、不写 GitHub、不卸载服务。参数依次为部署检出、venv、App 私钥、Boat 配置和 Boat 控制端 key 文件的绝对路径。预览中的执行器命令显式携带 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。例如：
+
+```sh
+bash .sandcastle/cutover-runbook.sh "$REPO" "$VENV" "$PEM" "$PILOT_BOAT_CONFIG" "$PILOT_BOAT_API_KEY_FILE"
+```
+
+D6 获批后由部署 owner 逐步执行，不把打印成功算成部署。
 
 在 freeze 成功、仓库变量已设为 1 后，先卸载 health-monitor，防止周期自愈重新拉起旧 claimer；回退时最后恢复它。已在飞的 health-monitor 与其他旧控制进程一起进入快照，必须等它退出。执行器的 `cutover snapshot` 记录该代次、存活旧进程的 pid 加启动标识，以及 workers 日志的规范化绝对路径和字节位置。verify 拒绝用另一份日志解释该字节位置。快照文件用 `O_EXCL` 创建，不覆盖已有快照。等待这些进程退出和旧工作收尾，再在安全轮次边界停 claimer、harvest、旧 engine 及 decision-claimer。不要直接卸载仍带在飞子进程的父服务。
 
@@ -78,7 +84,7 @@ executor cutover record --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --pr
 
 启动新 engine 后，先运行 `--once --dry-run` 检查新放行标签。`executor serve --once` 是实际执行入口，不是 dry-run。它会为缺签批的票生成请求，只有有效 SPEC 签批才进行票面写入。写集与签批登记方法见 [新执行器队列操作](../deepagents-pilot/EXECUTOR.md#接收引擎放行队列)。
 
-安装 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist` 前，替换全部部署路径占位符。模板只有私钥文件路径，没有密钥内容。由部署 owner 加载服务并核对真实队列交付到精确 `awaiting_merge(h)`，代码和离线夹具不代替这一步。
+安装 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist` 前，把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 替换为已核对的绝对路径。确认模板的 `PATH` 能找到 Boat CLI。模板只保存配置和密钥文件的路径，不保存密钥内容。由部署 owner 加载服务并核对真实队列交付到精确 `awaiting_merge(h)`，代码和离线夹具不代替这一步。
 
 `drain-control resume --generation <当前代次>` 使既有切流记录立即失效。共享动作锁保证 resume 等当前动作完成再开放旧入口，新执行器的下一动作会停下。先让新执行器到安全边界，再完成或正式释放已持有的票，最后恢复旧服务和 health-monitor 自愈。不要同时启动两套消费者。
 
