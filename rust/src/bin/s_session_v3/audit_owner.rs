@@ -697,9 +697,9 @@ impl AuditConnection {
                             );
                         }
                         let event = required(payload, "clock_event_id")?;
-                        clock.phase(event, "accept", -1)?;
-                        clock.phase(event, "begin", 0)?;
-                        clock.phase(event, "commit", 0)?;
+                        clock.require_planned(event, "accept", -1)?;
+                        clock.require_planned(event, "begin", 0)?;
+                        clock.require_planned(event, "commit", 0)?;
                         // #1488：仅测试选择已审 owner 原型；所有正式准入与实际 Accept/COMMIT 原样执行。
                         #[cfg(all(test, feature = "s_incremental"))]
                         construction_tests::select_for_formal_accept(&active, context)?;
