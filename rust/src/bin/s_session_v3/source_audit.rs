@@ -1826,6 +1826,8 @@ impl ObjectSlots for FullObjectSlots<'_> {
         Ok(self.groups.insert(index, group).map_err(err)?.is_some())
     }
 }
+/// 生产路径自 36M 起直接调用 `audit_object_record_with_slots`，本包装只剩测试调用者。
+#[cfg(test)]
 fn audit_object_record(
     s: &mut (impl SourceFieldStore + ?Sized),
     record: &RefValue,
