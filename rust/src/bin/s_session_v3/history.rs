@@ -9482,28 +9482,38 @@ mod effective_sequence_tests {
     }
     fn budget_case(limit: usize) -> (bool, usize) {
         let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let parent_base = budget.live();
+        assert_eq!(
+            parent_base,
+            super::super::audit_owner::native::Budget::metadata_bytes()
+        );
         let raw = (0..35).map(digest).collect::<Vec<_>>();
         let result = budget.codec_work().unwrap().run(|work| {
+            let work_base = budget.live();
+            assert_eq!(
+                work_base - parent_base,
+                sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+            );
             let admission = super::super::audit_store::NativeAdmission(Some(work));
             let mut facts = EffectiveSequenceFacts::default();
             for n in 0..32 {
                 facts.apply(&[edit(n as i64 * 10, None, n)], &raw, &admission)?;
             }
-            assert_eq!(budget.live(), facts.retained_bytes());
+            assert_eq!(budget.live() - work_base, facts.retained_bytes());
             facts.apply(&[edit(0, Some(0), 32)], &raw, &admission)?;
-            assert_eq!(budget.live(), facts.heap_bytes());
+            assert_eq!(budget.live() - work_base, facts.heap_bytes());
             facts.apply(&[edit(-1, None, 33)], &raw, &admission)?;
             facts.apply(&[edit(i64::MAX, None, 34)], &raw, &admission)?;
-            assert_eq!(budget.live(), facts.heap_bytes());
+            assert_eq!(budget.live() - work_base, facts.heap_bytes());
             Ok::<_, String>(facts)
         });
         let success = result.is_ok();
         let peak = budget.peak();
         if let Ok(facts) = result {
-            assert_eq!(budget.live(), facts.heap_bytes());
+            assert_eq!(budget.live() - parent_base, facts.heap_bytes());
             drop(facts);
         }
-        assert_eq!(budget.live(), 0, "失败或释放后不留半代结构");
+        assert_eq!(budget.live() - parent_base, 0, "失败或释放后不留半代结构");
         (success, peak)
     }
     #[test]
@@ -9513,7 +9523,7 @@ mod effective_sequence_tests {
         assert!(budget_case(peak).0);
         assert!(!budget_case(peak - 1).0);
         eprintln!(
-            "effective native measured_peak_bytes={peak} exact=accept below=reject drop_live=0"
+            "effective native measured_peak_bytes={peak} exact=accept below=reject drop_retained_delta=0"
         );
     }
 }
