@@ -73,6 +73,14 @@ pub(super) fn check_request_before_resume(
     Ok(())
 }
 
+/// #1640 1a：诊断场所入口的自报读数：场所 profile `id/版本`、是否可参与准入、本 Driver 是否仍要求准入。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct VenueProfileTag {
+    pub(super) venue_profile: String,
+    pub(super) admissible: bool,
+    pub(super) require_admissible: bool,
+}
+
 pub(super) struct Driver {
     conn: super::audit_owner::AuditConnection,
     /// 启动前冻结的互斥私有模式；Owned 与 Runtime 同账，不保留 capture/审计结果。
@@ -203,6 +211,47 @@ impl Driver {
         )?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
+    }
+    /// #1640 1a（gates `policy1640-diagnostic`）：仅 `s_capture_native_testonly` 构建、且 serve 显式带
+    /// `S_DIAGNOSTIC_FIXTURE_TESTONLY` 时可达。以诊断夹具场所 profile（`admissible:false`）开门，
+    /// `require_admissible` 照旧为真：Ready 可达（launcher/4 据 build_profile 拒绝），任何 advance 仍被
+    /// `InvalidPolicy{venue_profile}` 拒绝。与 #1769 的 theta 诊断臂不同，本入口不关准入。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn open_for_serve_diagnostic_fixture_testonly(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let theta_config = newchan_rust::theta_v0::config::ThetaConfig::diagnostic_fixture()
+            .map_err(|error| error.to_string())?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            None,
+            theta_config,
+            true,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+    /// #1640 1a：本 Driver 的场所 profile 自报（Ready payload 与启动诊断行共用同一份读数）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn venue_profile_tag(&self) -> VenueProfileTag {
+        VenueProfileTag {
+            venue_profile: self.theta_config.records.venue.record.label(),
+            admissible: self.theta_config.admissible(),
+            require_admissible: self.require_admissible,
+        }
     }
     /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
     /// #1640：增量构建的正式服务入口；`production` 时先构造生产配置并要求可准入（同
@@ -978,6 +1027,74 @@ mod tests {
         assert!(!labels.contains("diagnostic-fixture"), "{labels}");
         let summary = driver.state_summary("test").unwrap();
         assert_eq!(summary["policy_records"], json!(labels));
+    }
+
+    /// #1640 1a（policy1640-diagnostic）：诊断场所入口以夹具开门、Ready 可达且自报 admissible:false，
+    /// 但 require_admissible 照旧为真：ingest 经既有接纳落为 AcceptedPending 原件后，在 advance 入口被
+    /// InvalidPolicy{venue_profile} 拒绝——不进 Begin、不发布、generation 不动（与生产路径先接纳再
+    /// 准入检查的既有次序一致，见 production_open_rejects_unsigned_profile_before_pending_begin）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_serve_entry_reaches_ready_but_refuses_every_advance() {
+        let f = Fixture::new();
+        let mut driver = Driver::open_for_serve_diagnostic_fixture_testonly(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1_048_576,
+            s_allocation::Mode::Ordinary,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        let tag = driver.venue_profile_tag();
+        assert_eq!(tag.venue_profile, "venue-profile-diagnostic-fixture/1");
+        assert!(!tag.admissible);
+        assert!(tag.require_admissible);
+        let ready = driver
+            .handle(envelope("fixture-ready", json!({"op":"ready"})))
+            .unwrap();
+        assert_eq!(ready["kind"], "Ready");
+        let generation = ready["generation"].clone();
+        let error = driver.handle(Fixture::ingest(1)).unwrap_err();
+        assert!(error.contains("InvalidPolicy"), "{error}");
+        assert!(error.contains("venue_profile"), "{error}");
+        assert!(
+            error.contains("venue-profile-diagnostic-fixture/1"),
+            "{error}"
+        );
+        drop(driver);
+        let conn = Connection::open(&f.db).unwrap();
+        let pending: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, 1, "接纳原件保留为 pending，等待可准入配置");
+        assert_eq!(count(&conn, "raw_events"), 1);
+        assert_eq!(
+            count(&conn, "structure_deltas"),
+            0,
+            "拒绝的 advance 不得发布"
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "generation")
+                .unwrap()
+                .unwrap_or_default(),
+            generation.as_str().unwrap_or_default()
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
     }
 
     #[test]
@@ -7766,5 +7883,203 @@ mod tests {
             .collect();
         let rows = s4_run(&steps, std::env::var("S4_COLD").as_deref() == Ok("1"));
         s4_write_rows(&rows);
+    }
+
+    /// 36M 完整台账双路径锁（#1647 cover39k）：同一真实 owner 序列（三根 + `b` 同坐标修订）分别
+    /// 经 warm Driver 增量臂（steady delta，D2 出生轨迹为空）与独立完整审计模式臂（每代新开
+    /// owner、无来源缓存，full_lease 完整原件导出）生产；两臂 cover/raw 行逐行相同，修订赢家
+    /// seq 推进而旧 seq 保留。增量臂末步投一次改坐标修订：`raw_input` 以 IdentityConflict 拒收
+    /// （同一业务身份不得换源位置），代号、raw、台账水位与 cover 均不动——生效坐标集随前缀
+    /// 单调不减，full-lease 导出无需表达 Removed。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths() {
+        use super::super::audit_ledger;
+        let step = |id: &str, seq: i64, bar: [i64; 4], revision: &'static str| S4Step {
+            kind: "owner",
+            rows: vec![(id.into(), seq, bar[0], bar[1], bar[2], bar[3])],
+            revision,
+        };
+        let steps = [
+            step("a", 0, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 20, 10, 15], "1"),
+            step("c", 2, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 21, 10, 15], "2"),
+        ];
+        let moved = step("b", 3, [14, 22, 10, 15], "3");
+        let full_births = |events: &[Value]| {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "generate_full_birth")
+                .map(|e| e["entry"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        let lane_of = |events: &[Value]| state::stage_rows(events)["paths"].clone();
+        let cover_rows = |path: &Path| {
+            let saved = Connection::open(path).unwrap();
+            let mut rows = saved
+                .prepare("SELECT source_coord, seq FROM cover ORDER BY source_coord")
+                .unwrap();
+            rows.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        };
+        let ledger_rows = |path: &Path| {
+            audit_ledger::tests::dump(path)
+                .into_iter()
+                .filter(|row| row.starts_with("cover:") || row.starts_with("raw:"))
+                .collect::<Vec<_>>()
+        };
+        let check_covers = |covers: &[Vec<(i64, i64)>]| {
+            assert_eq!(covers[2], vec![(0, 0), (1, 1), (2, 2)]);
+            assert_eq!(
+                covers[3],
+                vec![(0, 0), (1, 3), (2, 2)],
+                "修订赢家 seq 推进到 3"
+            );
+        };
+
+        // 增量臂：warm Driver，同一 owner 跨代持候选，稳态代不得进入完整分支。
+        let delta_rows = {
+            let f = Fixture::with_clock(s4_clock(steps.len() + 1));
+            let mut native = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                536_870_912,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            native.incremental_retention_bytes = Some(536_870_912);
+            let rule = meta_get_opt(&native.conn, "rule_revision")
+                .unwrap()
+                .unwrap();
+            let path = f.db.with_file_name("cover-delta.sqlite");
+            native
+                .runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(
+                    &f.db,
+                    "cover-delta.sqlite",
+                    &rule,
+                ))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let message = s4_message(k, step);
+                let (reply, events, _) = state::traced(false, || native.handle(message));
+                reply.unwrap();
+                let births = full_births(&events);
+                if k == 1 {
+                    // 首代是否带候选由启动准入决定，不是本锁对象；修订代（k=4）必须是 delta。
+                    assert!(births.is_empty() || births == ["startup"], "{births:?}");
+                } else {
+                    assert!(births.is_empty(), "第{k}代增量臂调用了完整分支：{births:?}");
+                }
+                let lane = if births.is_empty() {
+                    "delta"
+                } else {
+                    "full_lease"
+                };
+                let paths = lane_of(&events);
+                assert!(
+                    paths.as_array().unwrap().contains(&json!(lane)),
+                    "第{k}代车道须为 {lane}：{paths}"
+                );
+                assert_eq!(meta_i64(&native.conn, "generation").unwrap(), k as i64);
+                assert_eq!(
+                    native.runtime.audit_qualification().unwrap().through,
+                    k as i64
+                );
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            check_covers(&covers);
+            let before = ledger_rows(&path);
+            let outcome = native.handle(s4_message(steps.len() + 1, &moved));
+            let text = match &outcome {
+                Ok(reply) => reply.to_string(),
+                Err(error) => error.clone(),
+            };
+            assert!(
+                text.contains("IdentityConflict") && text.contains("不得换源位置"),
+                "改坐标修订必须在接纳入口拒绝：{text}"
+            );
+            assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
+            assert_eq!(count(&native.conn, "raw_events"), 4);
+            assert_eq!(native.runtime.audit_qualification().unwrap().through, 4);
+            assert_eq!(ledger_rows(&path), before, "拒收后台账 cover/raw 不动");
+            drop(native);
+            before
+        };
+
+        // 完整原件臂：每代新开 owner、默认请求上下文（无来源缓存）＝独立完整审计模式，
+        // 与 prepared 完整台账锁同一生产入口；每代恰一次完整分支、车道 full_lease。
+        let full_rows = {
+            let mut f = prepared::tests::Fixture::new();
+            let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+            let db = f.db_path();
+            let path = db.with_file_name("cover-full-lease.sqlite");
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(
+                    &db,
+                    "cover-full-lease.sqlite",
+                    &rule,
+                ))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let (id, seq, open, high, low, close) = &step.rows[0];
+                let (envelope, token) = f.accept_begin(
+                    k as i64,
+                    (id.as_str(), *seq, *open, *high, *low, *close),
+                    step.revision.parse().unwrap(),
+                );
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let (published, events, _) = state::traced(false, || {
+                    owner.publish(
+                        &mut runtime,
+                        &token,
+                        &envelope,
+                        &mut request_audit::RequestAuditContext::default(),
+                    )
+                });
+                let (_, ended) = published.unwrap();
+                owner.continue_with(ended).unwrap();
+                let births = full_births(&events);
+                assert_eq!(births.len(), 1, "第{k}代完整臂须恰一次完整分支：{births:?}");
+                let paths = lane_of(&events);
+                assert!(
+                    paths.as_array().unwrap().contains(&json!("full_lease")),
+                    "第{k}代车道须为 full_lease：{paths}"
+                );
+                assert_eq!(runtime.audit_qualification().unwrap().through, k as i64);
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            check_covers(&covers);
+            drop(runtime);
+            ledger_rows(&path)
+        };
+        assert_eq!(
+            delta_rows
+                .iter()
+                .filter(|r| r.starts_with("cover:"))
+                .count(),
+            3
+        );
+        assert_eq!(
+            delta_rows.iter().filter(|r| r.starts_with("raw:")).count(),
+            4
+        );
+        assert_eq!(
+            delta_rows, full_rows,
+            "增量臂与完整原件臂的 cover/raw 逐行相同"
+        );
     }
 }

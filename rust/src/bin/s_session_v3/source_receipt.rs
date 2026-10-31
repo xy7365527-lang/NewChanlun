@@ -26,7 +26,8 @@ pub(crate) struct RawReceipt {
     deadline: Option<std::time::Instant>,
     counts: Counts,
     rows: sc::CodecVec<RawRow>,
-    observation_sources: sc::CodecVec<(NodeDigest, NodeDigest)>,
+    /// 同次来源核导出的 observation 来源与 36M cover；raw-only 收据保持空导出。
+    exports: source_facts::SourceExports,
     business: Option<source_facts::BusinessRows>,
     #[cfg(all(test, feature = "s_incremental"))]
     fee_probe: Option<(
@@ -90,7 +91,7 @@ fn audit_receipt(
         return Err(err("P6来源收据请求或raw区间无效"));
     }
     let mut s = super::super::audit_store::StoreView::generic(store);
-    let mut observation_sources = sc::CodecVec::default();
+    let mut exports = source_facts::SourceExports::default();
     let counts = audit_generated_in_store(
         &mut s,
         generated,
@@ -105,17 +106,17 @@ fn audit_receipt(
         None,
         None,
         if export_sources {
-            Some(&mut observation_sources)
+            Some(&mut exports)
         } else {
             None
         },
     )?;
-    observation_sources.sort_unstable_by_key(|row| row.0);
+    exports.finish();
     let mut receipt = export_raw_receipt(
         &mut s, token, generation, generated, raw, raw_from, profile, rule, deadline, budget,
         counts,
     )?;
-    receipt.observation_sources = observation_sources;
+    receipt.exports = exports;
     Ok(receipt)
 }
 
@@ -183,7 +184,7 @@ fn export_raw_receipt(
         deadline,
         counts,
         rows,
-        observation_sources: sc::CodecVec::default(),
+        exports: source_facts::SourceExports::default(),
         business: None,
         #[cfg(all(test, feature = "s_incremental"))]
         fee_probe: None,
@@ -202,8 +203,7 @@ pub(crate) fn receipt_from_native(
     raw: &super::super::audit_owner::BoundRawAdvance<'_>,
     raw_from: usize,
 ) -> Result<RawReceipt, String> {
-    let (counts, observation_sources) =
-        qualified.consume(material, generated, raw, metadata, None)?;
+    let (counts, exports) = qualified.consume(material, generated, raw, metadata, None)?;
     let mut result = export_raw_receipt(
         &mut super::super::audit_store::StoreView::generic(store),
         token,
@@ -218,7 +218,7 @@ pub(crate) fn receipt_from_native(
         counts,
     )?;
     raw.ensure_current()?;
-    result.observation_sources = observation_sources;
+    result.exports = exports;
     Ok(result)
 }
 
@@ -244,7 +244,7 @@ impl RawReceipt {
             &mut super::super::audit_store::StoreView::generic(store),
             objects,
             auxiliary,
-            &self.observation_sources,
+            &self.exports.observation_sources,
         );
         #[cfg(all(test, feature = "s_incremental"))]
         if let Some((parent, before)) = probe {
@@ -270,6 +270,10 @@ impl RawReceipt {
         self.business
             .as_ref()
             .ok_or_else(|| err("P6缺完整业务分区来源"))
+    }
+    /// 36M cover 导出；只有带来源导出的收据（source-partitions 或完整台账生产）才持有。
+    pub(crate) fn cover(&self) -> &source_facts::SourceExports {
+        &self.exports
     }
 }
 
@@ -1140,7 +1144,7 @@ impl Drop for RawReceipt {
             let before = parent.live();
             drop(std::mem::take(&mut self.rows));
             let raw = parent.live();
-            drop(std::mem::take(&mut self.observation_sources));
+            drop(std::mem::take(&mut self.exports));
             let projection = parent.live();
             drop(self.business.take());
             fee_probe::record(fee_probe::Reading {
