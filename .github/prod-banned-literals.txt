@@ -23,8 +23,6 @@ AUDIT_PROTOTYPE_DB
 AUDIT_PROTOTYPE_REPORT
 Accept不能推进发布游标
 Access期限检查没有返回
-AuditLedgerStale：待准备事实代号不连续
-AuditLedgerStale：待准备事实请求或模式无效
 B 首读仍 cold
 B-1 拒绝不使会话失效
 B/B+1 接纳全部剩余节点，含 LF 与逗号
