@@ -1879,7 +1879,7 @@ pub(crate) mod tests {
             let mut originals = Vec::new();
             for entry in &objects {
                 let mut bytes = Vec::new();
-                sc::render(&mut store, &entry.generated.content_ref(), &mut bytes).unwrap();
+                sc::render_canonical(&mut store, &entry.generated.content_ref(), &mut bytes).unwrap();
                 let original: Value = serde_json::from_slice(&bytes).unwrap();
                 let mut unstamped = original.clone();
                 for name in ["first_known_generation", "first_known_cut", "published_generation"] {
@@ -1920,7 +1920,7 @@ pub(crate) mod tests {
                     } else {
                         for window in ["window_start","window_mid","window_end"] {
                             if let Some(index) = value[window].as_i64() {
-                                let (_, group) = originals.iter().find(|(e,v)| e.kind.as_str() == "CC-005.group" && e.life.first_known_generation <= first
+                                let (_, group) = originals.iter().find(|(e,v)| e.kind.as_str() == "CC-005.inclusion_group" && e.life.first_known_generation <= first
                                     && e.life.withdrawn_generation.is_none_or(|dead|dead>first)
                                     && serde_json::from_str::<Value>(v["payload_json"].as_str().unwrap()).unwrap()["group_index"] == index.to_string()).unwrap();
                                 for coord in serde_json::from_str::<Vec<String>>(group["source_coords_json"].as_str().unwrap()).unwrap() { coords.insert(coord.parse::<i64>().unwrap()); }
