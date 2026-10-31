@@ -1120,8 +1120,9 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     use prepared::tests::runtime_root_tables;
     let f = prepared::tests::Fixture::new();
     let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
-    // 把资格身份放大到 1 MiB，使交接上界远大于本代其余分配，短预算只在交接持票处生效。
-    let content_identity = "c".repeat(8 << 20);
+    // 把资格身份放大到 32 MiB，使交接上界远大于本代其余分配（本夹具单代峰值约 5 MiB），
+    // 留 16 MiB 余量后短预算只在交接持票处生效。
+    let content_identity = "c".repeat(32 << 20);
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     runtime
         .install_audit_ledger(
@@ -1154,18 +1155,25 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     )
     .unwrap();
     assert!(
-        h1_candidate_retained(&owner) >= 8 << 20,
+        h1_candidate_retained(&owner) >= 32 << 20,
         "身份载荷按实际容量入账"
     );
     let parent = owner.complete_budget_for_test();
-    let before = runtime_root_tables(&f.conn, true);
     let envelope = b2_envelope(2);
     let token = b2_accept_begin(&owner, &envelope, &mut c);
-    let held = parent.reserve(parent.remaining() - (4 << 20)).unwrap();
+    let before = runtime_root_tables(&f.conn, true);
+    let held = parent.reserve(parent.remaining() - (16 << 20)).unwrap();
     source_audit::reset_source_call_stats();
-    let result = owner.publish(&mut runtime, &token, &envelope, &mut c);
+    let (result, events, _) = state::traced(false, || {
+        owner.publish(&mut runtime, &token, &envelope, &mut c)
+    });
     assert!(result.is_err(), "交接上界持票失败不得发布");
     drop(held);
+    assert!(
+        events.iter().any(|e| e["phase"] == "owner_suffix_complete"),
+        "本代其余分配已在余量内完成，拒绝发生在交接持票处"
+    );
+    assert!(h1_qualified_cuts(&events).is_empty());
     assert_eq!(
         meta_i64(&f.conn, "generation").unwrap(),
         0,
@@ -1179,8 +1187,8 @@ fn h1_qualified_transition_short_budget_rejects_before_write_and_releases() {
     assert_eq!(parent.native_observation().0, 0);
     assert_eq!(parent.scratch_observation().0, 0);
     assert!(
-        pre_open.live() < baseline + (8 << 20),
-        "失败清理后 8 MiB 身份载荷已归还父账：{} vs 基线 {baseline}",
+        pre_open.live() < baseline + (32 << 20),
+        "失败清理后 32 MiB 身份载荷已归还父账：{} vs 基线 {baseline}",
         pre_open.live()
     );
 }
