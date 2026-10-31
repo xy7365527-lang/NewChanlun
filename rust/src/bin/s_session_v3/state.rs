@@ -48,6 +48,7 @@ pub(super) struct AuditedState {
     pub raw: super::business_json::RawEvents,
     pub budget: Option<sc::capture_allocation::OwnedBudget>,
     historical: HistoricalOwner,
+    #[cfg(feature = "s_incremental")]
     certification: Option<HistoricalCertification>,
 }
 
@@ -1069,6 +1070,7 @@ fn audit_core_fresh_with_policy(
         AuditedState {
             budget: raw.budget().cloned(),
             raw,
+            #[cfg(feature = "s_incremental")]
             certification: None,
             historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
                 control_facts,
@@ -1248,6 +1250,7 @@ pub(super) struct HistoricalCertificate {
     audited: AuditedState,
 }
 
+#[cfg(feature = "s_incremental")]
 struct HistoricalCertification;
 
 #[cfg(feature = "s_incremental")]
