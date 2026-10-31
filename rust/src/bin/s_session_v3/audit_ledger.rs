@@ -579,6 +579,7 @@ impl Ledger {
     }
     /// 当前已提交资格的借用视图：末代 cert 与 meta 同一语句取出，不分配；在 `stage_inner`
     /// 的 BEGIN IMMEDIATE 内调用时读到的就是本事务改写前的已提交状态。
+    /// 规则取持久 `meta.rule_revision` 并与安装规则同事务核（40H B1），不以内存副本替代。
     fn with_committed_qualification<R>(
         &self,
         f: impl FnOnce(&QualificationView<'_>) -> Result<R, String>,
@@ -590,7 +591,7 @@ impl Ledger {
         let conn = self.connection.as_ref().unwrap();
         conn.query_row(
             "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, \
-             m.binary_commit FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1",
+             m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1",
             [through],
             |r| {
                 let text = |i: usize| r.get_ref(i)?.as_str().map_err(rusqlite::Error::from);
@@ -598,12 +599,16 @@ impl Ledger {
                 if text(3)? != fold_digest {
                     return Ok(Err(error("完整水位与末代 cert 折叠摘要不一致")));
                 }
+                let rule_revision = text(6)?;
+                if rule_revision != self.rule_revision {
+                    return Ok(Err(error("台账持久规则与安装规则不一致")));
+                }
                 Ok(f(&QualificationView {
                     through,
                     roots: text(0)?,
                     fold_digest,
                     verifier_revision: text(2)?,
-                    rule_revision: &self.rule_revision,
+                    rule_revision,
                     content_identity: text(4)?,
                     binary_commit: text(5)?,
                 }))

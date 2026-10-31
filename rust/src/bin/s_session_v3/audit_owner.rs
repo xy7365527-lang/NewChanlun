@@ -2610,9 +2610,7 @@ impl CompleteCandidate {
     fn advance_qualified(&mut self, runtime: &prepared::Runtime) -> Result<(), String> {
         use super::audit_retention::sum;
         let permit = self.qualification_reserve.take();
-        let delta = self
-            .audited
-            .advance_qualified(runtime, permit, &self.resources)?;
+        let delta = self.audited.advance_qualified(runtime, permit)?;
         self.charge.historical_and_raw_capacity = delta
             .apply(self.charge.historical_and_raw_capacity)
             .map_err(|failure| match failure {
@@ -2627,6 +2625,11 @@ impl CompleteCandidate {
             self.charge.q_capacity,
             self.charge.inline,
         ]);
+        // 40H B2：交接期间旧新资格与比较缓冲同时存活的实际峰值进入最终封包峰值。
+        self.charge.handoff_peak = self.charge.handoff_peak.max(sum([
+            self.charge.entry_reserved_bytes,
+            self.resources.peak(),
+        ]));
         Ok(())
     }
     fn refresh_capture_charge(&mut self) -> Result<(), String> {

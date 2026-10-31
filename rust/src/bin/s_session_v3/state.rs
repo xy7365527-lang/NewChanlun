@@ -1399,14 +1399,16 @@ impl QualifiedCertification {
             CertifiedFrontier::Empty
         } else {
             let transition = Self::transition_bound(&identity);
-            let permit = budget
+            let mut permit = budget
                 .reserve(transition)
                 .map_err(|_| err("资格组件冷起步父预算不足"))?;
+            let temporary = Self::split_compare_permit(&mut permit)?;
             let q = Self::read_qualification(runtime, &identity, permit)?;
             let mut generation = 0;
             for cut in cuts {
-                generation = Self::step(runtime, &q, generation, cut, budget)?;
+                generation = Self::step(runtime, &q, generation, cut)?;
             }
+            drop(temporary);
             if generation != q.through {
                 return Err(err("完整台账水位超前于已发布历史"));
             }
@@ -1415,13 +1417,27 @@ impl QualifiedCertification {
         Ok(Self { identity, frontier })
     }
 
-    /// 本次交接的持久上界：新资格全部字符串；临时四根缓冲另在 `step` 内持票。
+    /// 四根比较缓冲：输出串 ≤ ROOTS_BOUND，逐字段转义的短暂副本再计一份。
+    const COMPARE_BYTES: usize = super::audit_ledger::Qualification::ROOTS_BOUND * 2;
+
+    /// 本次交接的一张票：新资格全部字符串的持久上界 + 四根比较的临时缓冲。
+    /// 在线由 `validate_effects` 在费用终检前持票，交接只消费不再申请（40H B2）。
     fn transition_bound(identity: &QualifiedIdentity) -> usize {
         super::audit_ledger::Qualification::retained_bound(
             identity.rule_revision.len(),
             identity.content_identity.len(),
             identity.binary_commit.len(),
         )
+        .saturating_add(Self::COMPARE_BYTES)
+    }
+
+    /// 从转换票里拆出比较缓冲的那份；随 `step` 结束析构归还。
+    fn split_compare_permit(
+        permit: &mut super::audit_owner::native::Permit,
+    ) -> Result<super::audit_owner::native::Permit, String> {
+        permit
+            .split(Self::COMPARE_BYTES)
+            .map_err(|_| err("转换票不含四根比较缓冲"))
     }
 
     /// 在线：内容与台账都已提交后，用费用终检前已持的许可从上一代前沿消费新一代。
@@ -1431,11 +1447,13 @@ impl QualifiedCertification {
         runtime: &super::prepared::Runtime,
         cut: &history::PublishedCut,
         permit: super::audit_owner::native::Permit,
-        budget: &super::audit_owner::native::Budget,
     ) -> Result<super::audit_retention::RetainedDelta, String> {
         let reserved = permit.bytes();
+        let mut permit = permit;
+        let temporary = Self::split_compare_permit(&mut permit)?;
         let q = Self::read_qualification(runtime, &self.identity, permit)?;
-        let generation = Self::step(runtime, &q, self.frontier.generation(), cut, budget)?;
+        let generation = Self::step(runtime, &q, self.frontier.generation(), cut)?;
+        drop(temporary);
         if generation != q.through {
             return Err(err("已提交资格水位不是刚发布的一代"));
         }
@@ -1477,7 +1495,6 @@ impl QualifiedCertification {
         q: &super::audit_ledger::Qualification,
         generation: i64,
         cut: &history::PublishedCut,
-        budget: &super::audit_owner::native::Budget,
     ) -> Result<i64, String> {
         use super::audit_ledger::{Flavor, Mode, Unit};
         let g = cut.metadata.generation;
@@ -1507,11 +1524,8 @@ impl QualifiedCertification {
             }
         }
         if g == q.through {
-            // 比较缓冲临时持票：输出串 ≤ ROOTS_BOUND，逐字段转义的短暂副本再计一份。
+            // 比较缓冲的票由调用方从转换票拆出并持有到本步结束（`split_compare_permit`）。
             let bound = super::audit_ledger::Qualification::ROOTS_BOUND;
-            let _temporary = budget
-                .reserve(bound.saturating_mul(2))
-                .map_err(|_| err("四根比较缓冲父预算不足"))?;
             let mut actual = String::with_capacity(bound);
             super::audit_ledger::roots_json_into(&mut actual, roots.map(|(root, _)| root))?;
             if actual.capacity() > bound {
@@ -1559,7 +1573,6 @@ impl AuditedState {
         &mut self,
         runtime: &super::prepared::Runtime,
         permit: Option<super::audit_owner::native::Permit>,
-        budget: &super::audit_owner::native::Budget,
     ) -> Result<super::audit_retention::RetainedDelta, String> {
         let Some(qualified) = self
             .certification
@@ -1574,7 +1587,7 @@ impl AuditedState {
             HistoricalOwner::Shared(v) => v.cuts.last(),
         }
         .ok_or_else(|| err("资格推进缺刚发布的一代"))?;
-        qualified.advance(runtime, cut, permit, budget)
+        qualified.advance(runtime, cut, permit)
     }
 
     /// 资格组件下一次交接的持久上界；候选在费用终检前据此持票并入账。

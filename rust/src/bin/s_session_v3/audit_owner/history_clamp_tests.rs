@@ -1061,58 +1061,67 @@ fn h1_qualified_ledger_commit_failure_and_external_identity_write_are_stale() {
 }
 
 #[test]
-fn h1_qualified_stage_rejects_externally_rewritten_fold_digest() {
-    let f = prepared::tests::Fixture::new();
-    let name = "h1-fold.sqlite";
-    let mut runtime = h1_qualified_runtime(&f, name);
-    let mut c = context();
-    let owner = h1_qualified_owner(&f, &mut c, &runtime).unwrap();
-    h1_publish_round(&owner, &mut runtime, &mut c, 1);
-    let held = h1_qualified_frontier(&owner).unwrap();
-    let external = Connection::open(f.db_path().with_file_name(name)).unwrap();
-    external
-        .execute(
-            "UPDATE meta SET fold_digest='changed' WHERE singleton=1",
-            [],
-        )
-        .unwrap();
-    // 内容库 U-A 看不到旁挂外写；只有 stage 前核 H1 持有的旧资格才能拦住折叠链被续写。
-    let envelope = b2_envelope(2);
-    let token = b2_accept_begin(&owner, &envelope, &mut c);
-    source_audit::reset_source_call_stats();
-    let (result, events, _) = state::traced(false, || {
-        owner.publish(&mut runtime, &token, &envelope, &mut c)
-    });
-    let error = result.err().unwrap();
-    assert!(
-        error.contains("上一代资格与台账当前已提交状态不符"),
-        "{error}"
-    );
-    assert_eq!(
-        source_audit::source_call_stats(),
-        source_audit::SourceCallStats::default()
-    );
-    assert!(events.iter().all(|e| e["phase"] != "h1_qualified_cut"));
-    assert_eq!(
-        meta_i64(&f.conn, "generation").unwrap(),
-        1,
-        "stage 失败在内容提交前，整代不发布"
-    );
-    assert_eq!(
-        h1_ledger_count(&f, name, "cert"),
-        1,
-        "外写不被新一代 stage 吸收"
-    );
-    let fold: String = external
-        .query_row("SELECT fold_digest FROM meta WHERE singleton=1", [], |r| {
-            r.get(0)
-        })
-        .unwrap();
-    assert_eq!(fold, "changed");
-    assert_ne!(fold, held.fold_digest);
-    assert!(owner.retired.get());
-    assert!(runtime.audit_qualification().is_err());
-    h1_assert_stale(&owner);
+fn h1_qualified_stage_rejects_externally_rewritten_fold_digest_or_rule_revision() {
+    // 两列都只改旁挂台账：内容库 U-A 看不到，只有 stage 前核 H1 持有的旧资格才能拦住续写。
+    for column in ["fold_digest", "rule_revision"] {
+        let f = prepared::tests::Fixture::new();
+        let name = "h1-meta.sqlite";
+        let mut runtime = h1_qualified_runtime(&f, name);
+        let mut c = context();
+        let owner = h1_qualified_owner(&f, &mut c, &runtime).unwrap();
+        h1_publish_round(&owner, &mut runtime, &mut c, 1);
+        let held = h1_qualified_frontier(&owner).unwrap();
+        let external = Connection::open(f.db_path().with_file_name(name)).unwrap();
+        external
+            .execute(
+                &format!("UPDATE meta SET {column}='changed' WHERE singleton=1"),
+                [],
+            )
+            .unwrap();
+        let envelope = b2_envelope(2);
+        let token = b2_accept_begin(&owner, &envelope, &mut c);
+        source_audit::reset_source_call_stats();
+        let (result, events, _) = state::traced(false, || {
+            owner.publish(&mut runtime, &token, &envelope, &mut c)
+        });
+        let error = result.err().unwrap();
+        assert!(
+            error.contains("上一代资格与台账当前已提交状态不符"),
+            "{column}: {error}"
+        );
+        assert_eq!(
+            source_audit::source_call_stats(),
+            source_audit::SourceCallStats::default()
+        );
+        assert!(events.iter().all(|e| e["phase"] != "h1_qualified_cut"));
+        assert_eq!(
+            meta_i64(&f.conn, "generation").unwrap(),
+            1,
+            "{column}: stage 失败在内容提交前，整代不发布"
+        );
+        assert_eq!(
+            h1_ledger_count(&f, name, "cert"),
+            1,
+            "{column}: 外写不被新一代 stage 吸收"
+        );
+        let value: String = external
+            .query_row(
+                &format!("SELECT {column} FROM meta WHERE singleton=1"),
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(value, "changed");
+        let kept = if column == "fold_digest" {
+            &held.fold_digest
+        } else {
+            &held.rule_revision
+        };
+        assert_ne!(&value, kept);
+        assert!(owner.retired.get());
+        assert!(runtime.audit_qualification().is_err());
+        h1_assert_stale(&owner);
+    }
 }
 
 #[test]
