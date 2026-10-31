@@ -1438,7 +1438,10 @@ impl<'raw> NativeRawLedger<'raw> {
                     self.stats.source_hashes += 4;
                 }
                 #[cfg(test)]
-                super::state::trace_raw_hashes(true, 4);
+                {
+                    super::state::trace_raw_hashes(true, 4);
+                    super::state::trace_event("historical_raw_source_hashes", None);
+                }
                 #[cfg(feature = "s_incremental")]
                 let capacity = self.originals.capacity();
                 s.native_map_room(&mut self.originals).map_err(err)?;
@@ -2723,7 +2726,7 @@ mod tests {
         (store, root, raw, rule)
     }
 
-    fn tb1405_pending_fixture(
+    pub(super) fn tb1405_pending_fixture(
         rows: &[(&str, i64, i64, i64, i64, i64)],
     ) -> (MemoryNodes, ContentRef, Vec<Value>, String) {
         let files = TestFiles::new();

@@ -6632,6 +6632,19 @@ mod tests {
                 "warm owner 不能全量重算历史保留费：{events:?}"
             );
         }
+        fn source_hashes(events: &[Value], work: &Value, new_rows: usize) {
+            let batches = |phase| {
+                events
+                    .iter()
+                    .filter(|event| event["phase"] == phase)
+                    .count()
+            };
+            let historical = batches("historical_raw_source_hashes");
+            let prepared = batches("prepare_raw_source_hashes");
+            assert_eq!(historical, new_rows, "historical source suffix: {events:?}");
+            assert_eq!(prepared, new_rows, "prepare source suffix: {events:?}");
+            assert_eq!(work["raw_source_hashes"], 4 * historical + 4 * prepared);
+        }
         fn same(n: &Driver, o: &Driver) {
             n.conn.assert_complete_matches_cold();
             assert_eq!(
@@ -6671,13 +6684,8 @@ mod tests {
                 n.conn.complete_retained_bytes() > 0,
                 "正常包不得仅因可选保留被丢弃而绕过后缀锁"
             );
-            if new.is_some() {
-                assert_eq!(work["raw_payload_hashes"], 1);
-                assert_eq!(work["raw_source_hashes"], 4);
-            } else {
-                assert_eq!(work["raw_payload_hashes"], 0);
-                assert_eq!(work["raw_source_hashes"], 0);
-            }
+            assert_eq!(work["raw_payload_hashes"], usize::from(new.is_some()));
+            source_hashes(&events, &work, usize::from(new.is_some()));
             eprintln!(
                 "{}",
                 json!({"scenario":"r4-normal-owner-request","message":e["message_id"],"expected_new_cut":new,"allocation":memory,"events":events,"work":work,
@@ -6850,7 +6858,7 @@ mod tests {
             );
         }
         assert_eq!(work["raw_payload_hashes"], 0);
-        assert_eq!(work["raw_source_hashes"], 4);
+        source_hashes(&events, &work, 1);
         eprintln!(
             "{}",
             json!({"scenario":"r4-retry-original-envelope","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})

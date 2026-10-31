@@ -486,7 +486,9 @@ mod tests {
     }
 
     fn deadline_failure(boundary: usize) {
-        let (mut nodes, state, raw, rule) = super::super::tests::fixture();
+        let (mut nodes, state, raw, rule) =
+            super::super::tests::tb1405_pending_fixture(&[("deadline-bar", 0, 1, 2, 0, 1)]);
+        assert_eq!(raw.len(), 1);
         let refs = roots(&mut nodes, &state);
         let parent = Arc::new(Parent(AtomicUsize::new(0)));
         CodecWork::new(parent.clone(), 8 * 1024 * 1024)
@@ -540,7 +542,10 @@ mod tests {
                             .bind_four_roots(&mut store, refs.each_ref().map(Into::into))
                             .unwrap();
                         assert!(work.snapshot().live > 0);
+                        assert_eq!(receipt.source.deadline, Some(deadline));
+                        assert!(Instant::now() < deadline);
                         std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+                        assert!(Instant::now() >= deadline);
                         receipt
                             .consume(
                                 "request-a",
