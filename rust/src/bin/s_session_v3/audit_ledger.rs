@@ -572,6 +572,7 @@ pub(super) mod tests {
             assert_eq!(c.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),0);
         }
     }
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn p6_two_object_generations_commit_disjoint_closure_deltas() {
         use newchan_rust::s_content::{self as sc, closure_delta as cd};
