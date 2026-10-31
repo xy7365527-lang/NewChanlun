@@ -89,9 +89,10 @@ pub(crate) fn export(
         let bars = field(s, entry.generated.view(), "raw_bars")?;
         let mut coordinates = sc::CodecVec::default();
         for bar in elements(s, &bars)? {
-            let value = bj::render_json(s, bar.view())?;
+            let value = text(s, bar.view(), "source_coord")?;
+            let coordinate = crate::parse_source_coord(value.as_str()).map_err(err)?;
             s.native_codec_room(&mut coordinates, 1).map_err(err)?;
-            coordinates.try_push(bj::coord(value.view())?).map_err(err)?;
+            coordinates.try_push(coordinate).map_err(err)?;
         }
         coordinates.sort_unstable();
         if coordinates.windows(2).any(|v| v[0] == v[1]) { return Err(err("P6见证来源身份重复")); }

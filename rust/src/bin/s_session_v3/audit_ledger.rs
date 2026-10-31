@@ -451,9 +451,10 @@ impl Ledger {
                         params![metadata.generation, id.as_str()]).map_err(error)?;
                     if changed != 1 { return Err(error("来源分区撤回身份缺失或已撤回")); }
                 }
-                for (table, values) in [("witness", &rows.witnesses), ("observation", &rows.observations)] {
+                for (sql, values) in [("INSERT INTO witness VALUES(?1,?2,?3,?4)", &rows.witnesses),
+                    ("INSERT INTO observation VALUES(?1,?2,?3,?4)", &rows.observations)] {
                     for row in values {
-                        conn.execute(&format!("INSERT INTO {table} VALUES(?1,?2,?3,?4)"),
+                        conn.execute(sql,
                             params![row.id.as_str(), row.record.as_slice(), row.sources.as_slice(), metadata.generation]).map_err(error)?;
                     }
                 }

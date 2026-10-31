@@ -396,6 +396,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn p6_business_source_coordinates_release_native_fees_on_success_and_refusal() {
+        let parent = Arc::new(Parent(AtomicUsize::new(0)));
+        let mut nodes = sc::MemoryNodes::default();
+        CodecWork::new(parent.clone(), 1024 * 1024).unwrap().run(|work| {
+            let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
+            let source = super::super::super::audit_store::StoreView::generic(&mut store);
+            let before = parent.0.load(Ordering::SeqCst);
+            let digest = source_facts::coordinates_digest(&source, &[0, 2, 9]).unwrap();
+            assert_eq!(digest, super::super::super::history::hash_json_metered(&json!(["0","2","9"]), None, None).unwrap());
+            assert_eq!(parent.0.load(Ordering::SeqCst), before);
+        });
+        assert_eq!(parent.0.load(Ordering::SeqCst), 0);
+        CodecWork::new(parent.clone(), 128).unwrap().run(|work| {
+            let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
+            let source = super::super::super::audit_store::StoreView::generic(&mut store);
+            assert!(source_facts::coordinates_digest(&source, &[0; 4096]).is_err());
+        });
+        assert_eq!(parent.0.load(Ordering::SeqCst), 0);
+    }
+
     fn roots(s: &mut sc::MemoryNodes, state: &ContentRef) -> [ContentRef; 4] {
         let scope = field_ref(s, state.into(), "scope").unwrap();
         let v = scope.view();

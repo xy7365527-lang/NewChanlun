@@ -1904,7 +1904,7 @@ pub(crate) mod tests {
             let aux = aux_index::load(&tx, &mut source, g).unwrap();
             for (table, entries) in [("witness", aux.witnesses.iter().map(|e| (e.id.as_str(), e.generated.view(), e.first)).collect::<Vec<_>>()),
                 ("observation", aux.observations.iter().map(|e| (e.id.as_str(), e.generated.view(), e.first)).collect::<Vec<_>>())] {
-                assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|r|r.get::<_,usize>(0)).unwrap(),entries.len());
+                assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|r|r.get::<_,i64>(0)).unwrap(),entries.len() as i64);
                 for (id, root, first) in entries {
                     let original = business_json::render_json(&mut source, root).unwrap();
                     let mut bytes = Vec::new();
@@ -1934,7 +1934,7 @@ pub(crate) mod tests {
                     assert_eq!(row.2,first);
                 }
             }
-            assert_eq!(saved.query_row("SELECT COUNT(*) FROM object",[],|r|r.get::<_,usize>(0)).unwrap(),objects.len());
+            assert_eq!(saved.query_row("SELECT COUNT(*) FROM object",[],|r|r.get::<_,i64>(0)).unwrap(),objects.len() as i64);
             for table in ["cert","cover","node"] {
                 assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"),[],|r|r.get::<_,i64>(0)).unwrap(),0);
             }
@@ -1999,12 +1999,28 @@ pub(crate) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn p6_raw_partition_sidecar_commit_failure_keeps_content_and_stales() {
+        partial_sidecar_failure(false);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_source_partitions_sidecar_commit_failure_keeps_content_and_stales() {
+        partial_sidecar_failure(true);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn partial_sidecar_failure(source_partitions: bool) {
         let mut f = Fixture::new();
         let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
         let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
         let db = f.db_path();
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
-        runtime.install_audit_ledger(raw_partition(&db, "raw-failure.sqlite", &rule)).unwrap();
+        let ledger = if source_partitions {
+            audit_ledger::Ledger::fresh_source_partitions(&db.with_file_name("raw-failure.sqlite"), &db,
+                audit_ledger::Identity { rule_revision: rule, content_identity: "TestOnly-source-failure".into(),
+                    binary_commit: "test-only".into() }, 64 * 1024 * 1024).unwrap()
+        } else { raw_partition(&db, "raw-failure.sqlite", &rule) };
+        runtime.install_audit_ledger(ledger).unwrap();
         let reader = Connection::open(db.with_file_name("raw-failure.sqlite")).unwrap();
         reader.execute_batch("BEGIN").unwrap();
         reader.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap();
@@ -2012,10 +2028,12 @@ pub(crate) mod tests {
         assert!(owner.publish(&mut runtime, &token, &envelope,
             &mut request_audit::RequestAuditContext::default()).is_err());
         reader.execute_batch("ROLLBACK").unwrap();
-        assert!(runtime.audit_ledger.as_ref().unwrap().raw_partition_through().is_err());
+        assert!(runtime.audit_ledger.as_ref().unwrap().partial_through().is_err());
         assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
         let saved = Connection::open(db.with_file_name("raw-failure.sqlite")).unwrap();
-        assert_eq!(saved.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        for table in ["raw", "object", "witness", "observation", "cert"] {
+            assert_eq!(saved.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        }
         assert!(owner.publish(&mut runtime, &token, &envelope,
             &mut request_audit::RequestAuditContext::default()).is_err());
     }
