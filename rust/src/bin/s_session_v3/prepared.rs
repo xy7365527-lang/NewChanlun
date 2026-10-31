@@ -284,14 +284,8 @@ impl Runtime {
     }
 
     /// H1 点查资格：只在完整台账已提交至少一代且无进行中一代时签发（36M）。
+    /// 39P：由 `state::QualifiedCertification` 在冷起步与每次发布后真实调用。
     #[cfg(feature = "s_incremental")]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "#1647: H1 consumption interface; wired by #1481 under the #1645/#1491 gates"
-        )
-    )]
     pub(super) fn audit_qualification(&self) -> Result<audit_ledger::Qualification, String> {
         self.audit_ledger
             .as_ref()
@@ -299,13 +293,6 @@ impl Runtime {
             .qualification()
     }
     #[cfg(feature = "s_incremental")]
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "#1647: H1 consumption interface; wired by #1481 under the #1645/#1491 gates"
-        )
-    )]
     pub(super) fn contains_qualified_unit(
         &self,
         qualification: &audit_ledger::Qualification,

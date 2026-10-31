@@ -363,6 +363,8 @@ impl AuditConnection {
         Ok(owner)
     }
 
+    /// `qualified`（39P）：传入时冷起步从空前沿消费 P6 完整资格，此后每次发布在内容与台账
+    /// 均已提交后从上一代前沿推进；资格缺失或不符即 stale。不传则为 36T 来源收据认证组件。
     #[cfg(all(feature = "s_incremental", unix))]
     #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
     pub(super) fn open_certified_history_component(
@@ -370,6 +372,7 @@ impl AuditConnection {
         control_limit: usize,
         deadline: Option<std::time::Instant>,
         context: &mut request_audit::RequestAuditContext,
+        qualified: Option<state::QualifiedSource<'_>>,
     ) -> Result<Self, String> {
         history::check_deadline(deadline)?;
         if !context.source_cache_enabled() {
@@ -388,7 +391,7 @@ impl AuditConnection {
         )?);
         let result = (|| {
             let active = owner.begin(TransactionBehavior::Deferred)?;
-            active.seed_historical_certificate(deadline, context)?;
+            active.seed_historical_certificate(deadline, context, qualified)?;
             let ended = active.read_end()?;
             history::check_deadline(deadline)?;
             owner.continue_with(ended)?;
@@ -824,12 +827,27 @@ impl AuditConnection {
         })();
         // #1647：内容事务已由 publish_degradable/commit_publication 确认提交，
         // 现在才提交旁挂事务。失败后不交出 Ended，不续租、不重试。
+        // 39P：两者都提交后 H1 才从上一代前沿消费本代资格；资格不符即 stale，不回落。
+        #[cfg(feature = "s_incremental")]
+        let mut qualified_failed = false;
         let result = result.and_then(|published| {
             runtime.commit_audit_ledger()?;
+            #[cfg(feature = "s_incremental")]
+            let mut published = published;
+            #[cfg(feature = "s_incremental")]
+            if let Some(candidate) = published.1.complete.as_mut() {
+                if let Err(error) = candidate.audited.advance_qualified(runtime) {
+                    qualified_failed = true;
+                    return Err(error);
+                }
+            }
             Ok(published)
         });
         if result.is_err() {
-            if runtime.invalidate_audit_ledger() {
+            let retire = runtime.invalidate_audit_ledger();
+            #[cfg(feature = "s_incremental")]
+            let retire = retire || qualified_failed;
+            if retire {
                 self.retired.set(true);
                 self.clear_candidates();
             }
@@ -1219,6 +1237,7 @@ impl AuditTxn<'_> {
         &self,
         deadline: Option<std::time::Instant>,
         context: &mut request_audit::RequestAuditContext,
+        qualified: Option<state::QualifiedSource<'_>>,
     ) -> Result<(), String> {
         history::check_deadline(deadline)?;
         let parent = match context.request_parent_budget() {
@@ -1246,6 +1265,7 @@ impl AuditTxn<'_> {
                     deadline,
                     work,
                     context,
+                    qualified,
                 )?;
                 let slot = context
                     .take()

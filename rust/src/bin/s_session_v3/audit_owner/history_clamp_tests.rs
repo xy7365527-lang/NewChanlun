@@ -366,7 +366,7 @@ fn h1_certified_owner(
     f: &prepared::tests::Fixture,
     c: &mut request_audit::RequestAuditContext,
 ) -> AuditConnection {
-    AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, c).unwrap()
+    AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, c, None).unwrap()
 }
 
 #[test]
@@ -531,7 +531,8 @@ fn h1_certified_open_failures_leave_no_candidate_or_write() {
             &f.db_path(),
             1 << 20,
             deadline,
-            &mut c
+            &mut c,
+            None
         )
         .is_err());
         assert!(!c.has_slot());
@@ -546,10 +547,14 @@ fn h1_certified_open_failures_leave_no_candidate_or_write() {
     let mut c = context();
     let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
     let baseline = parent.live();
-    assert!(
-        AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, &mut c)
-            .is_err()
-    );
+    assert!(AuditConnection::open_certified_history_component(
+        &f.db_path(),
+        1 << 20,
+        None,
+        &mut c,
+        None
+    )
+    .is_err());
     assert!(!c.has_slot());
     assert_eq!(parent.live(), baseline);
     assert_eq!(parent.scratch_observation().0, 0);
@@ -718,4 +723,307 @@ fn h1_raw_suffix_probe_detects_linear_skip_regression() {
         reads["generation"], 32,
         "probe must see skipped prefix accesses"
     );
+}
+
+// 39P：H1 消费 P6 完整资格。台账由同一 Runtime 的真实 prepare/publish 生产，H1 只经资格点查。
+fn h1_qualified_source(runtime: &prepared::Runtime) -> state::QualifiedSource<'_> {
+    state::QualifiedSource {
+        runtime,
+        content_identity: "TestOnly-same-content".into(),
+        binary_commit: "test-only".into(),
+    }
+}
+fn h1_qualified_runtime(f: &prepared::tests::Fixture, name: &str) -> prepared::Runtime {
+    let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    runtime
+        .install_audit_ledger(audit_ledger::tests::ledger(&f.db_path(), name, &rule))
+        .unwrap();
+    runtime
+}
+fn h1_qualified_owner(
+    f: &prepared::tests::Fixture,
+    c: &mut request_audit::RequestAuditContext,
+    runtime: &prepared::Runtime,
+) -> Result<AuditConnection, String> {
+    AuditConnection::open_certified_history_component(
+        &f.db_path(),
+        1 << 20,
+        None,
+        c,
+        Some(h1_qualified_source(runtime)),
+    )
+}
+fn h1_qualified_frontier(owner: &AuditConnection) -> state::CertifiedFrontier {
+    owner
+        .complete
+        .borrow()
+        .as_ref()
+        .expect("认证 owner 须持完整候选")
+        .audited
+        .qualified_frontier()
+        .expect("资格组件须持前沿")
+        .clone()
+}
+fn h1_qualified_cuts(events: &[serde_json::Value]) -> Vec<i64> {
+    events
+        .iter()
+        .filter(|e| e["phase"] == "h1_qualified_cut")
+        .map(|e| e["generation"].as_i64().unwrap())
+        .collect()
+}
+fn h1_ledger_count(f: &prepared::tests::Fixture, name: &str, table: &str) -> i64 {
+    Connection::open(f.db_path().with_file_name(name))
+        .unwrap()
+        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+fn h1_qualified_online_consumes_real_ledger_and_cold_rebuild_matches() {
+    let f = prepared::tests::Fixture::new();
+    let mut runtime = h1_qualified_runtime(&f, "h1-qualified.sqlite");
+    let mut c = context();
+    let (owner, events, _) = state::traced(false, || h1_qualified_owner(&f, &mut c, &runtime));
+    let owner = owner.unwrap();
+    assert!(h1_qualified_cuts(&events).is_empty());
+    assert_eq!(
+        h1_qualified_frontier(&owner),
+        state::CertifiedFrontier::Empty
+    );
+    assert!(runtime.audit_qualification().is_err(), "空台账不签资格");
+    for n in 1..=3 {
+        let envelope = b2_envelope(n);
+        let token = b2_accept_begin(&owner, &envelope, &mut c);
+        source_audit::reset_source_call_stats();
+        let (result, events, _) = state::traced(false, || {
+            owner.publish(&mut runtime, &token, &envelope, &mut c)
+        });
+        let (receipt, ended) = result.unwrap();
+        assert_eq!(receipt.generation, n);
+        assert_eq!(
+            source_audit::source_call_stats(),
+            source_audit::SourceCallStats::default(),
+            "资格消费不得触发完整来源重审"
+        );
+        assert_eq!(h1_qualified_cuts(&events), vec![n], "在线恰消费本代一次");
+        owner.continue_with(ended).unwrap();
+        h1_compare_complete_history(&owner);
+        let q = runtime.audit_qualification().unwrap();
+        assert_eq!(q.through, n);
+        assert_eq!(
+            h1_qualified_frontier(&owner),
+            state::CertifiedFrontier::Qualified(q),
+            "前沿恒等于台账当前已提交资格"
+        );
+        assert_eq!(h1_ledger_count(&f, "h1-qualified.sqlite", "cert"), n);
+        assert!(!owner.retired.get());
+    }
+    let online = h1_qualified_frontier(&owner);
+    drop(owner);
+    // 冷：新生涯从空前沿按同一步重放三代，取得与在线逐字段相同的前沿。
+    let mut cold_context = context();
+    let (cold, events, _) = state::traced(false, || {
+        h1_qualified_owner(&f, &mut cold_context, &runtime)
+    });
+    let cold = cold.unwrap();
+    assert_eq!(h1_qualified_cuts(&events), vec![1, 2, 3]);
+    assert_eq!(h1_qualified_frontier(&cold), online);
+    h1_compare_complete_history(&cold);
+    assert!(!cold.retired.get());
+}
+
+#[test]
+fn h1_qualified_cold_rejects_missing_partial_or_foreign_qualification() {
+    let f = fixture();
+    let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+    let empty = h1_qualified_runtime(&f, "h1-empty.sqlite");
+    let mut partial = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    partial
+        .install_audit_ledger(
+            audit_ledger::Ledger::fresh_source_partitions(
+                &f.db_path().with_file_name("h1-partial.sqlite"),
+                &f.db_path(),
+                audit_ledger::Identity {
+                    rule_revision: rule,
+                    content_identity: "TestOnly-same-content".into(),
+                    binary_commit: "test-only".into(),
+                },
+                64 * 1024 * 1024,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let none = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    for (runtime, expected) in [
+        (&empty, "完整台账尚无已提交的一代"),
+        (&partial, "完整台账尚未提交或仅有raw分区"),
+        (&none, "未安装台账"),
+    ] {
+        let mut c = context();
+        let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
+        let baseline = parent.live();
+        let error = h1_qualified_owner(&f, &mut c, runtime).err().unwrap();
+        assert!(error.contains(expected), "{error}");
+        assert!(!c.has_slot());
+        assert_eq!(parent.live(), baseline);
+    }
+}
+
+#[test]
+fn h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch() {
+    let f = prepared::tests::Fixture::new();
+    let mut runtime = h1_qualified_runtime(&f, "h1-identity.sqlite");
+    {
+        let mut c = context();
+        let owner = h1_qualified_owner(&f, &mut c, &runtime).unwrap();
+        h1_publish_round(&owner, &mut runtime, &mut c, 1);
+    }
+    let reject = |source: state::QualifiedSource<'_>, expected: &str| {
+        let mut c = context();
+        let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
+        let baseline = parent.live();
+        let error = AuditConnection::open_certified_history_component(
+            &f.db_path(),
+            1 << 20,
+            None,
+            &mut c,
+            Some(source),
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains(expected), "{error}");
+        assert!(!c.has_slot());
+        assert_eq!(parent.live(), baseline);
+    };
+    reject(
+        state::QualifiedSource {
+            content_identity: "other-content".into(),
+            ..h1_qualified_source(&runtime)
+        },
+        "规则/内容库/二进制身份与本写者不符",
+    );
+    reject(
+        state::QualifiedSource {
+            binary_commit: "other-binary".into(),
+            ..h1_qualified_source(&runtime)
+        },
+        "规则/内容库/二进制身份与本写者不符",
+    );
+    // 另一写者规则的库不得消费本台账资格：规则取库 meta，不取调用方声明。
+    let bounded = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+    let mut other = prepared::tests::Fixture::with_rule(&bounded);
+    let (e, t) = other.accept_begin(1, ("owner-raw", 0, 6, 12, 3, 7), 1);
+    other.publish(&e, &t).unwrap();
+    super::super::with_test_writer_rule(Some(&bounded), || {
+        let mut c = context();
+        let error = AuditConnection::open_certified_history_component(
+            &other.db_path(),
+            1 << 20,
+            None,
+            &mut c,
+            Some(h1_qualified_source(&runtime)),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            error.contains("规则/内容库/二进制身份与本写者不符"),
+            "{error}"
+        );
+        assert!(!c.has_slot());
+    });
+    // 外写：台账 cert 四根被改，末代四根对拍拒绝；node 行被删，根单位点查拒绝。
+    let ledger = f.db_path().with_file_name("h1-identity.sqlite");
+    let external = Connection::open(&ledger).unwrap();
+    let roots: String = external
+        .query_row("SELECT roots FROM cert WHERE generation=1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    external
+        .execute("UPDATE cert SET roots='[]' WHERE generation=1", [])
+        .unwrap();
+    reject(h1_qualified_source(&runtime), "末代四根与完整资格四根不符");
+    external
+        .execute("UPDATE cert SET roots=?1 WHERE generation=1", [&roots])
+        .unwrap();
+    let scope: Value = serde_json::from_str(&roots).unwrap();
+    let digest = newchan_rust::s_content::parse_root(scope[0]["root"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        external
+            .execute(
+                "DELETE FROM node WHERE digest=?1 AND flavor='value' AND mode='public'",
+                [digest.as_slice()],
+            )
+            .unwrap(),
+        1
+    );
+    reject(h1_qualified_source(&runtime), "根单位不在已认证单位集");
+    assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+}
+
+#[test]
+fn h1_qualified_ledger_commit_failure_and_external_identity_write_are_stale() {
+    for external_identity in [false, true] {
+        let f = prepared::tests::Fixture::new();
+        let name = "h1-stale.sqlite";
+        let mut runtime = h1_qualified_runtime(&f, name);
+        let mut c = context();
+        let owner = h1_qualified_owner(&f, &mut c, &runtime).unwrap();
+        h1_publish_round(&owner, &mut runtime, &mut c, 1);
+        let before = h1_qualified_frontier(&owner);
+        let external = Connection::open(f.db_path().with_file_name(name)).unwrap();
+        if external_identity {
+            external
+                .execute("UPDATE meta SET content_identity='replaced'", [])
+                .unwrap();
+        } else {
+            external.execute_batch("BEGIN").unwrap();
+            assert_eq!(
+                external
+                    .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                1
+            );
+        }
+        let envelope = b2_envelope(2);
+        let token = b2_accept_begin(&owner, &envelope, &mut c);
+        source_audit::reset_source_call_stats();
+        let (result, events, _) = state::traced(false, || {
+            owner.publish(&mut runtime, &token, &envelope, &mut c)
+        });
+        let error = result.err().unwrap();
+        assert_eq!(
+            source_audit::source_call_stats(),
+            source_audit::SourceCallStats::default(),
+            "拒绝后不得回落完整来源重审"
+        );
+        assert_eq!(
+            meta_i64(&f.conn, "generation").unwrap(),
+            2,
+            "内容已提交不伪称回滚"
+        );
+        if external_identity {
+            assert!(
+                error.contains("规则/内容库/二进制身份与本写者不符"),
+                "{error}"
+            );
+            assert_eq!(
+                h1_ledger_count(&f, name, "cert"),
+                2,
+                "台账已提交，H1 拒绝消费"
+            );
+            assert!(h1_qualified_cuts(&events).is_empty());
+        } else {
+            assert!(error.contains("AuditLedgerStale"), "{error}");
+            external.execute_batch("ROLLBACK").unwrap();
+            assert_eq!(h1_ledger_count(&f, name, "cert"), 1);
+        }
+        assert!(owner.retired.get());
+        assert!(owner.complete.borrow().is_none(), "前沿不随失败请求推进");
+        assert!(runtime.audit_qualification().is_err(), "台账已作废");
+        assert!(owner.connection.is_autocommit());
+        h1_assert_stale(&owner);
+        assert!(matches!(before, state::CertifiedFrontier::Qualified(_)));
+    }
 }

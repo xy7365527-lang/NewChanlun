@@ -1266,8 +1266,215 @@ pub(super) struct HistoricalCertificate {
     audited: AuditedState,
 }
 
+/// 历史认证标记。`qualified` 为 None 时是 36T 来源收据认证组件（无 P6 台账）；
+/// 正式三处准入切换（#1645/#1491 门内）时该档随旧入口一起退役，不并存为两档。
 #[cfg(feature = "s_incremental")]
-struct HistoricalCertification;
+struct HistoricalCertification {
+    qualified: Option<QualifiedCertification>,
+}
+
+/// #1481 39P：H1 消费 P6 完整资格的来源。资格只经 `Runtime` 的私有点查接口取得，
+/// H1 不持 Ledger 引用。内容库与二进制身份由安装台账的调用方声明；规则取库 meta。
+#[cfg(feature = "s_incremental")]
+pub(super) struct QualifiedSource<'a> {
+    pub runtime: &'a super::prepared::Runtime,
+    pub content_identity: String,
+    pub binary_commit: String,
+}
+
+/// H1 对 P6 完整资格的消费前沿（值类型，随完整候选跨事务保留）。
+/// `Empty`：历史尚无已发布代，首代台账提交后才取得首份资格。
+/// `Qualified(q)`：已按 `q` 逐代点查到 `q.through`，恒等于已消费的最高代。
+#[cfg(feature = "s_incremental")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum CertifiedFrontier {
+    Empty,
+    Qualified(super::audit_ledger::Qualification),
+}
+
+#[cfg(feature = "s_incremental")]
+pub(super) struct QualifiedCertification {
+    identity: super::audit_ledger::Identity,
+    frontier: CertifiedFrontier,
+}
+
+#[cfg(feature = "s_incremental")]
+impl CertifiedFrontier {
+    fn generation(&self) -> i64 {
+        match self {
+            Self::Empty => 0,
+            Self::Qualified(q) => q.through,
+        }
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl QualifiedCertification {
+    /// 冷：从空前沿按代消费全部已发布 cut，只用台账当前已提交的一份资格。
+    fn fold(
+        source: QualifiedSource<'_>,
+        rule_revision: String,
+        cuts: &[history::PublishedCut],
+    ) -> Result<Self, String> {
+        let QualifiedSource {
+            runtime,
+            content_identity,
+            binary_commit,
+        } = source;
+        let identity = super::audit_ledger::Identity {
+            rule_revision,
+            content_identity,
+            binary_commit,
+        };
+        let frontier = if cuts.is_empty() {
+            CertifiedFrontier::Empty
+        } else {
+            let q = Self::read_qualification(runtime, &identity)?;
+            let mut generation = 0;
+            for cut in cuts {
+                generation = Self::step(runtime, &q, generation, cut)?;
+            }
+            if generation != q.through {
+                return Err(err("完整台账水位超前于已发布历史"));
+            }
+            CertifiedFrontier::Qualified(q)
+        };
+        Ok(Self { identity, frontier })
+    }
+
+    /// 在线：本代内容与台账都已提交后，从上一代前沿用同一步消费新一代。
+    fn advance(
+        &mut self,
+        runtime: &super::prepared::Runtime,
+        cut: &history::PublishedCut,
+    ) -> Result<(), String> {
+        let q = Self::read_qualification(runtime, &self.identity)?;
+        let generation = Self::step(runtime, &q, self.frontier.generation(), cut)?;
+        if generation != q.through {
+            return Err(err("已提交资格水位不是刚发布的一代"));
+        }
+        self.frontier = CertifiedFrontier::Qualified(q);
+        Ok(())
+    }
+
+    /// 缺资格、部分账、Pending/Bound/Stale 均在此 Err；身份与核验判据版本逐字段核。
+    fn read_qualification(
+        runtime: &super::prepared::Runtime,
+        identity: &super::audit_ledger::Identity,
+    ) -> Result<super::audit_ledger::Qualification, String> {
+        let q = runtime.audit_qualification()?;
+        if q.rule_revision != identity.rule_revision
+            || q.content_identity != identity.content_identity
+            || q.binary_commit != identity.binary_commit
+        {
+            return Err(err("完整资格的规则/内容库/二进制身份与本写者不符"));
+        }
+        if q.verifier_revision != sc::closure_delta::VERIFIER_REVISION {
+            return Err(err("完整资格的核验判据版本与本二进制不符"));
+        }
+        Ok(q)
+    }
+
+    /// 单代 Δ 步：四根按模式作为认证单位逐一点查，末代四根须与资格四根逐字段相同。
+    /// 未提交的一代（超过 `through`）不成为 cert；任一单位不在已认证集即拒绝，不回落完整核验。
+    fn step(
+        runtime: &super::prepared::Runtime,
+        q: &super::audit_ledger::Qualification,
+        generation: i64,
+        cut: &history::PublishedCut,
+    ) -> Result<i64, String> {
+        use super::audit_ledger::{Flavor, Mode, Unit};
+        let g = cut.metadata.generation;
+        if g != generation + 1 {
+            return Err(err("历史资格代号不连续"));
+        }
+        if g > q.through {
+            return Err(err("已发布代尚无已提交的完整资格"));
+        }
+        if cut.metadata.rule_revision.as_str() != q.rule_revision {
+            return Err(err("已发布 cut 的规则与完整资格不符"));
+        }
+        let roots = [
+            (cut.metadata.scope.view(), Mode::Public),
+            (cut.roots.generated_state.view(), Mode::Public),
+            (cut.roots.publication_template.view(), Mode::Template),
+            (cut.roots.delta_template.view(), Mode::Template),
+        ];
+        for (root, mode) in roots {
+            let unit = Unit {
+                digest: root.digest().map_err(err)?,
+                flavor: Flavor::Value,
+                mode,
+            };
+            if !runtime.contains_qualified_unit(q, &unit)? {
+                return Err(err(format!("第 {g} 代根单位不在已认证单位集")));
+            }
+        }
+        if g == q.through && !Self::roots_match(&q.roots, roots.map(|(root, _)| root))? {
+            return Err(err("末代四根与完整资格四根不符"));
+        }
+        #[cfg(test)]
+        trace_event("h1_qualified_cut", Some(g));
+        Ok(g)
+    }
+
+    /// 资格四根是台账 cert 行的规范 JSON（format/root/kind/extent 四字段数组），逐字段对拍。
+    fn roots_match(expected: &str, roots: [sc::RefView<'_>; 4]) -> Result<bool, String> {
+        let expected: Value = serde_json::from_str(expected).map_err(err)?;
+        let Some(expected) = expected.as_array() else {
+            return Ok(false);
+        };
+        if expected.len() != 4 {
+            return Ok(false);
+        }
+        Ok(expected.iter().zip(roots).all(|(e, r)| {
+            e["format"] == r.format()
+                && e["root"] == r.root()
+                && e["kind"] == r.kind().name()
+                && e["extent"]
+                    == match r.extent() {
+                        Some(n) => Value::String(n.to_string()),
+                        None => Value::Null,
+                    }
+        }))
+    }
+
+    #[cfg(test)]
+    pub(super) fn frontier(&self) -> &CertifiedFrontier {
+        &self.frontier
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl AuditedState {
+    /// 内容与台账均已提交后由 owner 调用；非资格组件为空操作，资格组件失败即 stale。
+    pub(super) fn advance_qualified(
+        &mut self,
+        runtime: &super::prepared::Runtime,
+    ) -> Result<(), String> {
+        let Some(qualified) = self
+            .certification
+            .as_mut()
+            .and_then(|c| c.qualified.as_mut())
+        else {
+            return Ok(());
+        };
+        let cut = match &self.historical {
+            HistoricalOwner::Unique(v) => v.cuts.last(),
+            HistoricalOwner::Shared(v) => v.cuts.last(),
+        }
+        .ok_or_else(|| err("资格推进缺刚发布的一代"))?;
+        qualified.advance(runtime, cut)
+    }
+
+    #[cfg(test)]
+    pub(super) fn qualified_frontier(&self) -> Option<&CertifiedFrontier> {
+        self.certification
+            .as_ref()
+            .and_then(|c| c.qualified.as_ref())
+            .map(QualifiedCertification::frontier)
+    }
+}
 
 #[cfg(feature = "s_incremental")]
 #[cfg_attr(
@@ -1281,7 +1488,7 @@ impl HistoricalCertificate {
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::cold_captured(tx, deadline, budget, work).map(|(cert, _, _)| cert)
+        Self::cold_captured(tx, deadline, budget, work, None).map(|(cert, _, _)| cert)
     }
 
     pub(super) fn cold_for_request(
@@ -1289,9 +1496,11 @@ impl HistoricalCertificate {
         deadline: Option<std::time::Instant>,
         work: &sc::capture_allocation::scratch::WorkScope,
         context: &mut super::request_audit::RequestAuditContext,
+        qualified: Option<QualifiedSource<'_>>,
     ) -> Result<AuditedState, String> {
         drop(context.take());
-        let (cert, capture, node_count) = Self::cold_captured(tx, deadline, None, Some(work))?;
+        let (cert, capture, node_count) =
+            Self::cold_captured(tx, deadline, None, Some(work), qualified)?;
         let AuditedState {
             raw,
             budget,
@@ -1323,6 +1532,7 @@ impl HistoricalCertificate {
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
+        qualified: Option<QualifiedSource<'_>>,
     ) -> Result<(Self, sc::AuditCapture, usize), String> {
         history::check_deadline(deadline)?;
         if let Some(budget) = budget {
@@ -1403,12 +1613,20 @@ impl HistoricalCertificate {
             object_sweep,
         } = indexed;
         drop(store);
+        // 冷起步：原件逐代核过后，才从空前沿用同一 Δ 步消费台账已提交的完整资格。
+        let qualified = qualified
+            .map(|source| -> Result<_, String> {
+                let rule = crate::meta_get_opt(tx, "rule_revision")?
+                    .ok_or_else(|| err("库缺 rule_revision"))?;
+                QualifiedCertification::fold(source, rule, &cuts)
+            })
+            .transpose()?;
         Ok((
             Self {
                 audited: AuditedState {
                     budget: raw.budget().cloned(),
                     raw,
-                    certification: Some(HistoricalCertification),
+                    certification: Some(HistoricalCertification { qualified }),
                     historical: HistoricalOwner::Unique(ImmutableHistoricalAudit {
                         control_facts,
                         raw_prefixes,
