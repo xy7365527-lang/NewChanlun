@@ -156,8 +156,15 @@ def operator_pausable(run: PilotRun, wrapped: Any) -> Any:
     def call(*args: Any, **kwargs: Any) -> str:
         while run.interrupt_requested() is not None:
             interrupt({"ticket": run.spec.ticket, "operator_interrupt": run.interrupt_requested()})
-        with run.tool_call():
-            return wrapped.func(*args, **kwargs)
+        from .approval import decision_json
+        from .executor import ApprovalRequired
+
+        while True:
+            try:
+                with run.tool_call():
+                    return wrapped.func(*args, **kwargs)
+            except ApprovalRequired as required:
+                interrupt({"ticket": run.spec.ticket, "awaiting_approval": decision_json(required.decision)})
 
     return StructuredTool.from_function(call, name=wrapped.name, description=wrapped.description,
                                         args_schema=wrapped.args_schema)

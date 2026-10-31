@@ -152,6 +152,18 @@ class RepoGateway:
     def timeline(self, number: int) -> list[dict[str, Any]]:
         return self.client.paginate(self._p(f"/issues/{number}/timeline"))
 
+    def parent(self, number: int) -> int | None:
+        result = self.client.api("GET", self._p(f"/issues/{number}/parent"), tolerate=frozenset({404}))
+        if result.status == 404:
+            return None
+        parent_number = (result.data or {}).get("number")
+        if type(parent_number) is not int or parent_number <= 0:
+            raise IdentityError("父票读回不完整")
+        return parent_number
+
+    def queue(self, label: str) -> list[dict[str, Any]]:
+        return self.client.paginate(self._p("/issues"), {"labels": label, "state": "open"})
+
     def has_parent(self, number: int) -> bool:
         result = self.client.api("GET", self._p(f"/issues/{number}/parent"), tolerate=frozenset({404}))
         return result.status != 404

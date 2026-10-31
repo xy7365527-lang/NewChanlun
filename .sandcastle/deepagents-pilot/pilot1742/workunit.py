@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal, cast
 
 from .approval import SpecAuthorization
@@ -13,6 +14,9 @@ FORBIDDEN_LABELS = frozenset({"sandcastle", "ready-for-agent", "wayfinder:impl",
 FORBIDDEN_PREFIX = "agent:"
 MIRROR_LABEL = "deepagents"
 DEDICATED_MARKER = "deepagents:dedicated-pilot #1742"
+QUEUE_POLICY = json.loads((Path(__file__).resolve().parents[2] / "queue-policy.json").read_text())
+RELEASE_LABEL = str(QUEUE_POLICY["release_label"])
+HOLD_LABELS = frozenset(QUEUE_POLICY["hold_labels"])
 PARENT_EVENTS = frozenset({"parent_issue_added", "parent_issue_removed"})
 
 Playbook = Literal["feature", "bug-fix", "refactoring"]
@@ -120,7 +124,28 @@ class Takeover:
     kind: Literal["takeover"] = "takeover"
 
 
-Admission = DedicatedPilot | Takeover
+@dataclass(frozen=True)
+class QueueProof:
+    ticket: int
+    drain_generation: int
+    spec_issue: int
+
+
+@dataclass(frozen=True)
+class Queued:
+    proof: QueueProof
+    spec_auth: SpecAuthorization
+    kind: Literal["queued"] = "queued"
+
+
+Admission = DedicatedPilot | Takeover | Queued
+
+
+def forbidden_for(admission: Admission, labels: frozenset[str] | set[str]) -> tuple[str, ...]:
+    if not isinstance(admission, Queued):
+        return forbidden(labels)
+    return tuple(sorted(name for name in labels if name == "sandcastle" or name.startswith(FORBIDDEN_PREFIX)
+                        or name in HOLD_LABELS or name == "wayfinder:grilling"))
 
 
 @dataclass(frozen=True)
@@ -152,6 +177,11 @@ class WorkUnit:
             admission = {"kind": "dedicated_pilot", "scope_ref": self.admission.scope_ref, "eligibility": {
                 "ticket": proof.ticket, "labels_ever": list(proof.labels_ever), "has_parent": False,
                 "in_workers_log": False, "forbidden_hits": []}}
+        elif isinstance(self.admission, Queued):
+            queue_proof = self.admission.proof
+            admission = {"kind": "queued", "proof": {"ticket": queue_proof.ticket,
+                         "drain_generation": queue_proof.drain_generation, "spec_issue": queue_proof.spec_issue},
+                         "spec_auth": self.admission.spec_auth.to_json()}
         else:
             admission = {"kind": "takeover", "handoff": self.admission.handoff,
                          "spec_auth": self.admission.spec_auth.to_json()}
@@ -187,6 +217,13 @@ def parse_work_unit(data: dict[str, Any]) -> WorkUnit:
         if forbidden(set(labels)):
             raise ValueError("EligibilityProof 含禁用标签")
         admission = DedicatedPilot(EligibilityProof(ticket, labels, False, False, ()), str(raw["scope_ref"]))
+    elif raw.get("kind") == "queued":
+        proof = raw["proof"]
+        auth = SpecAuthorization.from_json(raw["spec_auth"])
+        if (proof.get("ticket") != ticket or proof.get("spec_issue") != auth.spec_issue
+                or type(proof.get("drain_generation")) is not int or proof["drain_generation"] < 1):
+            raise ValueError("QueueProof 不成立")
+        admission = Queued(QueueProof(ticket, proof["drain_generation"], auth.spec_issue), auth)
     elif raw.get("kind") == "takeover":
         admission = Takeover(dict(raw.get("handoff") or {}), SpecAuthorization.from_json(raw["spec_auth"]))
     else:
