@@ -147,6 +147,33 @@ enum RawStorage<'a> {
     Arena(ArrayView<'a>),
     Borrowed(&'a [JsonView<'a>]),
 }
+// #1481: observe actual raw accesses only inside the owner raw-suffix check.
+#[cfg(all(test, feature = "s_incremental"))]
+thread_local! {
+    static H1_RAW_ACCESSES: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(all(test, feature = "s_incremental"))]
+fn h1_raw_access() {
+    H1_RAW_ACCESSES.with(|n| { if let Some(value) = n.get() { n.set(Some(value + 1)); } });
+}
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) struct H1RawSuffixProbe;
+#[cfg(all(test, feature = "s_incremental"))]
+impl H1RawSuffixProbe {
+    pub(super) fn start(delta: usize) -> Self {
+        H1_RAW_ACCESSES.with(|n| assert!(n.replace(Some(0)).is_none()));
+        super::state::trace_event("h1_raw_suffix_delta", Some(delta as i64));
+        Self
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+impl Drop for H1RawSuffixProbe {
+    fn drop(&mut self) {
+        let reads = H1_RAW_ACCESSES.with(|n| n.replace(None).unwrap());
+        super::state::trace_event("h1_raw_suffix_reads", Some(reads as i64));
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct RawEventsView<'a> {
     storage: RawStorage<'a>,
@@ -178,6 +205,8 @@ impl<'a> RawEventsView<'a> {
         if i >= self.len {
             return None;
         }
+        #[cfg(all(test, feature = "s_incremental"))]
+        h1_raw_access();
         match self.storage {
             RawStorage::Plain(v) => Some((&v[i]).into()),
             RawStorage::Arena(v) => v.get(i),
@@ -256,6 +285,8 @@ impl<'a> Iterator for RawIter<'a> {
             return None;
         }
         self.left -= 1;
+        #[cfg(all(test, feature = "s_incremental"))]
+        h1_raw_access();
         match &mut self.storage {
             RawIterStorage::Plain(i) => i.next().map(JsonView::Plain),
             RawIterStorage::Arena(i) => i.next(),

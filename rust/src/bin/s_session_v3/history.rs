@@ -282,6 +282,8 @@ impl NativeRawPrefixes {
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
+        #[cfg(test)]
+        let _raw_probe = bj::H1RawSuffixProbe::start(append);
         // #1488 U2：不追认冷构造遗留的前缀容量；未持本父票者先取新块许可再分配，
         // 摘要移入后旧块析构，许可随容器移动。已由本父出生者只核身份。
         native.rebirth_codec_vec(&mut self.raw_nodes, work, append)?;
@@ -292,7 +294,10 @@ impl NativeRawPrefixes {
         self.raw_wire_nodes
             .try_reserve_native(work, append)
             .map_err(err)?;
-        for event in raw.iter().skip(self.raw_nodes.len()) {
+        // #1481: RawIter::skip walks the already certified prefix. Direct indexing
+        // preserves its checks while touching only the newly owned suffix.
+        for ordinal in self.raw_nodes.len()..raw.len() {
+            let event = raw.get(ordinal).ok_or_else(|| err("raw 后缀序号越界"))?;
             self.raw_nodes
                 .try_push(hash_json_in_store(&store, event, None, None)?)
                 .map_err(err)?;

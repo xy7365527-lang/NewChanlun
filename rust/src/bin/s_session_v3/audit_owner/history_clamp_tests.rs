@@ -283,13 +283,17 @@ fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
             construction_set::with_source_context_negatives_for_test(|| {
                 for (n, row, revision) in LAYOUT_MULTICUT_INPUTS.into_iter().skip(1) {
                     let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
-                    let token = b2_accept_begin(&owner, &envelope, &mut c);
+                    let (token, accept_events, _) = state::traced(false, || {
+                        b2_accept_begin(&owner, &envelope, &mut c)
+                    });
+                    h1_assert_raw_suffix_reads(&accept_events, true);
                     h1_compare_complete_history(&owner);
                     source_audit::reset_source_call_stats();
                     let (result, events, _) = state::traced(false, || {
                         owner.publish(&mut runtime, &token, &envelope, &mut c)
                     });
                     let (receipt, ended) = result.unwrap();
+                    h1_assert_raw_suffix_reads(&events, false);
                     assert_eq!(receipt.generation, n);
                     assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default(),
                         "认证在线不得完整来源重审");
@@ -483,4 +487,30 @@ fn h1_certified_commit_failure_releases_controls_before_return() {
     assert_eq!(parent.native_observation().0, 0);
     assert_eq!(parent.scratch_observation().0, 0);
     assert_eq!(runtime_root_tables(&f.conn, true), before);
+}
+
+// Probe windows encompass check_appended_work, not all request source reads.
+// Every actual RawEventsView::get / RawIter::next in that window is counted.
+fn h1_assert_raw_suffix_reads(events: &[serde_json::Value], require_empty_step: bool) {
+    let values = |phase| events.iter().filter(|e| e["phase"] == phase)
+        .map(|e| e["generation"].as_i64().unwrap()).collect::<Vec<_>>();
+    let reads = values("h1_raw_suffix_reads");
+    let deltas = values("h1_raw_suffix_delta");
+    assert!(!reads.is_empty(), "must exercise real owner suffix checks");
+    assert_eq!(reads, deltas, "no previously certified raw event may be visited");
+    if require_empty_step {
+        assert!(deltas.contains(&0), "Begin must exercise a no-new-raw step");
+    }
+}
+
+#[test]
+fn h1_raw_suffix_probe_detects_linear_skip_regression() {
+    let values = vec![serde_json::json!(null); 32];
+    let (_, events, _) = state::traced(false, || {
+        let _probe = super::super::business_json::H1RawSuffixProbe::start(1);
+        assert_eq!(super::super::business_json::RawEventsView::plain(&values)
+            .iter().skip(31).count(), 1);
+    });
+    let reads = events.iter().find(|e| e["phase"] == "h1_raw_suffix_reads").unwrap();
+    assert_eq!(reads["generation"], 32, "probe must see skipped prefix accesses");
 }
