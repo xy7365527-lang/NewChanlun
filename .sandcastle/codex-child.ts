@@ -127,14 +127,15 @@ function inside(path: string, root: string): boolean {
   return suffix === "" || (!isAbsolute(suffix) && suffix !== ".." && !suffix.startsWith(".." + sep));
 }
 
-function git(root: string, args: string[]): string {
-  return execFileSync("git", [
+function git(root: string, args: string[], trim = true): string {
+  const output = execFileSync("git", [
     "--no-replace-objects", "-c", "core.filemode=true", "-c", "diff.ignoreSubmodules=none",
     "-C", root, ...args,
   ], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
     env: gitEnvironment(),
-  }).trim();
+  });
+  return trim ? output.trim() : output.replace(/\n$/, "");
 }
 
 export function snapshotCheckout(checkout: string): CheckoutSnapshot {
@@ -148,7 +149,8 @@ export function snapshotCheckout(checkout: string): CheckoutSnapshot {
     root,
     branch: git(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]),
     head: git(root, ["rev-parse", "HEAD"]),
-    status: git(root, ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"]),
+    // Porcelain lines start with a status column; trimming would eat the first " M" and shift its path.
+    status: git(root, ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"], false),
   };
 }
 

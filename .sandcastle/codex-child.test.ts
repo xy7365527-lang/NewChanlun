@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
   assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
-  providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
+  providerOverrides, PROVIDER_KEY_ENV, runCodexChild, snapshotCheckout, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
 import { gitEnvironment } from "./git-environment.ts";
@@ -656,4 +656,14 @@ test("预检 git 子进程拿不到 CLIProxy 密钥及其他凭据变量（#1588
     }
     f.clean();
   }
+});
+
+test("snapshotCheckout keeps the status column of the first porcelain line", () => {
+  const f = fixture();
+  writeFileSync(join(f.options.checkout, "source.txt"), "changed\n");
+  writeFileSync(join(f.options.checkout, "新 文件.md"), "x\n");
+  const status = snapshotCheckout(f.options.checkout).status;
+  assert.equal(status.split("\n")[0], " M source.txt");
+  assert.ok(status.endsWith('"\\346\\226\\260 \\346\\226\\207\\344\\273\\266.md"'));
+  f.clean();
 });

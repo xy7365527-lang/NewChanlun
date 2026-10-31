@@ -55,3 +55,31 @@ node --import tsx --test .sandcastle/drain-control.test.mts
 ```
 
 测试仅用临时根，覆盖 freeze/claim 竞争、已准入收尾、冻结后无新增副作用、半写状态、代次恢复、并发开放准入及真实 SIGKILL 后内核释放锁。decision-claimer 相邻测试用独立临时根，覆盖 T 类断点、P 类 pDone 在冻结下保留，以及解冻后不重复评论或提交。真实部署、旧消费者排空和远端变量启用仍未执行。
+
+## 将引擎放行交给新执行器
+
+`bash .sandcastle/cutover-runbook.sh` 只打印命令和核对点，不冻结、不写 GitHub、不卸载服务。参数依次为部署检出、venv 和私钥绝对路径。D6 获批后由部署 owner 逐步执行，不把打印成功算成部署。
+
+在 freeze 成功、仓库变量已设为 1 后，先卸载 health-monitor，防止周期自愈重新拉起旧 claimer；回退时最后恢复它。已在飞的 health-monitor 与其他旧控制进程一起进入快照，必须等它退出。执行器的 `cutover snapshot` 记录该代次、存活旧进程的 pid 加启动标识，以及 workers 日志的规范化绝对路径和字节位置。verify 拒绝用另一份日志解释该字节位置。快照文件用 `O_EXCL` 创建，不覆盖已有快照。等待这些进程退出和旧工作收尾，再在安全轮次边界停 claimer、harvest、旧 engine 及 decision-claimer。不要直接卸载仍带在飞子进程的父服务。
+
+```sh
+executor cutover snapshot --workers-log "$PWD/.sandcastle/logs/workers.jsonl"
+executor cutover verify --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
+executor cutover record --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
+```
+
+`verify` 只读核对冻结代次、快照进程退出、旧工作的当前生命周期终态、快照后无新增 claim、App 读取的全部 `agent-*` job 已完成，以及 claimer 和 harvest 的 launchd 服务已卸载。日志按票和 branch 归约：历史重复 claim 不当场永久报错，但仍保留 pending，直到同一生命周期出现 `sandbox/closed` 或 `claim/rolled_back`。独立 reviewer/merger 沿用各自已有的终态。另一 branch 的关闭不能消除本 branch 的未决工作；缺 branch 的历史记录也不猜测归属。
+
+已知两条 `correction/error_record_*` 只保留审计，不打开或关闭工作；`implementer/failed` 和 `implementer/recovery_returned` 都不是排空终态。未知事件、无法读全分页、日志截断、仍未收尾的旧工作都拒绝。快照进程退出与日志终态是两份独立证据；日志不增长、PID 已消失、交接文字或实现完成都不能单独替代生命周期终态。缺失证据由部署 owner 对照进程、容器、工位和原 owner 的运行存储处置，本工具不伪造补记，也不新增逐票真人签批。
+
+冻结变量单独通过 `gh variable get SANDCASTLE_LEGACY_FREEZE` 回读。现有 App 没有 variables 权限，因此此项运维证据记为 `user-token-readonly`。它不充当人类批准，也不在 App 失败时接替写操作。读不到或值不是 1 都拒绝。
+
+`record` 重做上述验证后，以 0600 和 `O_EXCL` 创建全局 `/Volumes/AgentStorage/deepagents-exec/cutover.json`。内容相同的重复写入成功，内容不同的记录不覆盖。引擎和执行器都读取这份记录，不增加环境变量切流开关。引擎在同一把 drain 共享锁内改挂 `deepagents:queue`，新拆的实装票只先挂 `ready-for-agent`，放行步骤再挂队列标签。
+
+启动新 engine 后，先运行 `--once --dry-run` 检查新放行标签。`executor serve --once` 是实际执行入口，不是 dry-run。它会为缺签批的票生成请求，只有有效 SPEC 签批才进行票面写入。写集与签批登记方法见 [新执行器队列操作](../deepagents-pilot/EXECUTOR.md#接收引擎放行队列)。
+
+安装 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist` 前，替换全部部署路径占位符。模板只有私钥文件路径，没有密钥内容。由部署 owner 加载服务并核对真实队列交付到精确 `awaiting_merge(h)`，代码和离线夹具不代替这一步。
+
+`drain-control resume --generation <当前代次>` 使既有切流记录立即失效。共享动作锁保证 resume 等当前动作完成再开放旧入口，新执行器的下一动作会停下。先让新执行器到安全边界，再完成或正式释放已持有的票，最后恢复旧服务和 health-monitor 自愈。不要同时启动两套消费者。
+
+切流记录与快照在回退后保留供审计。再次切流前，由部署 owner 将失效的 `cutover.json` 和旧快照移入代次归档目录，再创建新代次记录。程序不自动删除或覆盖旧证据。
