@@ -1867,7 +1867,7 @@ pub(crate) mod tests {
             audit_ledger::Identity { rule_revision: rule, content_identity: "TestOnly-source".into(), binary_commit: "test-only".into() },
             64 * 1024 * 1024).unwrap()).unwrap();
         let events = [("a",0,6,12,3,7,1),("b",1,14,20,10,15,1),("c",2,6,12,3,7,1),
-            ("b",1,14,21,10,15,2),("b",1,6,10,4,7,3)];
+            ("b",1,14,21,10,15,2),("c",2,26,30,22,27,2)];
         if admitted { source_audit::source_receipt::fee_probe::start(-1); }
         let mut replaced = false;
         let mut removed = false;
