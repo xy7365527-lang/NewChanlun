@@ -251,7 +251,10 @@ impl Runtime {
 
     /// #1647 组件接口。完整折叠与 Δ 生产者由后续接线提供；不默认启用台账准入。
     #[allow(dead_code)]
-    pub(super) fn install_audit_ledger(&mut self, ledger: audit_ledger::Ledger) -> Result<(), String> {
+    pub(super) fn install_audit_ledger(
+        &mut self,
+        ledger: audit_ledger::Ledger,
+    ) -> Result<(), String> {
         if self.audit_ledger.is_some() {
             return Err("AuditLedgerStale：同一 Runtime 不允许更换台账，须新建进程生命周期".into());
         }
@@ -1792,27 +1795,50 @@ pub(crate) mod tests {
     }
 
     /// 首组件测试只借真实 prepare 的根，不把合成台账事实当作来源/闭包证明。
-    pub(crate) fn p6_candidate() -> (Fixture, Value, String, ManifestMetadata, content_manifest::ManifestRoots) {
+    pub(crate) fn p6_candidate() -> (
+        Fixture,
+        Value,
+        String,
+        ManifestMetadata,
+        content_manifest::ManifestRoots,
+    ) {
         use content_manifest::ManifestRootSource;
         let mut f = Fixture::new();
         let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
         let mut tx = f.conn.transaction().unwrap();
-        let prepared = f.runtime.prepare(&mut tx, &token, &e, None,
-            #[cfg(feature = "s_incremental")] None,
-            #[cfg(feature = "s_incremental")] None,
-            #[cfg(feature = "s_incremental")] None,
-            #[cfg(feature = "s_incremental")] None,
-            #[cfg(feature = "s_incremental")] None,
-            None,
-            #[cfg(feature = "s_incremental")] None,
-        ).unwrap();
+        let prepared = f
+            .runtime
+            .prepare(
+                &mut tx,
+                &token,
+                &e,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+            )
+            .unwrap();
         let copy = |v: sc::RefView<'_>| ContentRef {
-            format:v.format().to_owned(), root:v.root().to_owned(), kind:v.kind(), extent:v.extent(),
+            format: v.format().to_owned(),
+            root: v.root().to_owned(),
+            kind: v.kind(),
+            extent: v.extent(),
         };
         let r = prepared.roots.view();
         let roots = content_manifest::ManifestRoots {
-            generated_state:copy(r.generated_state), publication_template:copy(r.publication_template),
-            delta_template:copy(r.delta_template),
+            generated_state: copy(r.generated_state),
+            publication_template: copy(r.publication_template),
+            delta_template: copy(r.delta_template),
         };
         let metadata = prepared.metadata.clone();
         drop(prepared);

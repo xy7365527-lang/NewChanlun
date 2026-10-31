@@ -7027,79 +7027,140 @@ thread_local! {
 
 #[cfg(test)]
 mod p6_ledger_tests {
-    use super::*;
     use super::super::audit_ledger;
+    use super::*;
 
-    fn generation(db:&Path)->i64 {
-        Connection::open(db).unwrap().query_row("SELECT CAST(value AS INTEGER) FROM meta WHERE key='generation'",[],|r|r.get(0)).unwrap()
+    fn generation(db: &Path) -> i64 {
+        Connection::open(db)
+            .unwrap()
+            .query_row(
+                "SELECT CAST(value AS INTEGER) FROM meta WHERE key='generation'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
     }
-    fn schema(db:&Path)->Vec<(String,String)> {
-        let c=Connection::open(db).unwrap();
-        let mut s=c.prepare("SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name").unwrap();
-        let rows = s.query_map([],|r|Ok((r.get(0)?,r.get(1)?))).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+    fn schema(db: &Path) -> Vec<(String, String)> {
+        let c = Connection::open(db).unwrap();
+        let mut s = c
+            .prepare("SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name")
+            .unwrap();
+        let rows = s
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
         rows
     }
     #[test]
     fn p6_owner_content_commit_precedes_sidecar_and_keeps_content_schema() {
-        let (f,envelope,token,m,roots)=prepared::tests::p6_candidate();
-        let db=f.db_path();
-        let before=schema(&db);
-        let ledger=audit_ledger::tests::ledger(&db,"owner-ledger.sqlite",&m.rule_revision);
-        let owner=AuditConnection::open(&db).unwrap();
-        let mut runtime=prepared::Runtime::new();
+        let (f, envelope, token, m, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let before = schema(&db);
+        let ledger = audit_ledger::tests::ledger(&db, "owner-ledger.sqlite", &m.rule_revision);
+        let owner = AuditConnection::open(&db).unwrap();
+        let mut runtime = prepared::Runtime::new();
         runtime.install_audit_ledger(ledger).unwrap();
-        runtime.stage_audit_ledger(&token,&audit_ledger::tests::delta(&m,&roots)).unwrap();
-        let mut context=request_audit::RequestAuditContext::default();
-        let (receipt,ended)=owner.publish(&mut runtime,&token,&envelope,&mut context).unwrap();
-        assert_eq!(receipt.generation,1);
-        assert_eq!(generation(&db),1);
-        let l=Connection::open(db.with_file_name("owner-ledger.sqlite")).unwrap();
-        assert_eq!(l.query_row("SELECT certified_through_generation FROM meta",[],|r|r.get::<_,i64>(0)).unwrap(),1);
-        assert_eq!(schema(&db),before);
+        runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .unwrap();
+        let mut context = request_audit::RequestAuditContext::default();
+        let (receipt, ended) = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .unwrap();
+        assert_eq!(receipt.generation, 1);
+        assert_eq!(generation(&db), 1);
+        let l = Connection::open(db.with_file_name("owner-ledger.sqlite")).unwrap();
+        assert_eq!(
+            l.query_row("SELECT certified_through_generation FROM meta", [], |r| r
+                .get::<_, i64>(
+                0
+            ))
+            .unwrap(),
+            1
+        );
+        assert_eq!(schema(&db), before);
         owner.continue_with(ended).unwrap();
         assert!(!owner.retired.get());
     }
     #[test]
     fn p6_owner_sidecar_commit_failure_stales_after_content_commit_and_never_retries() {
-        let (f,envelope,token,m,roots)=prepared::tests::p6_candidate();
-        let db=f.db_path();
-        let ledger=audit_ledger::tests::ledger(&db,"busy-ledger.sqlite",&m.rule_revision);
-        let reader=Connection::open(db.with_file_name("busy-ledger.sqlite")).unwrap();
+        let (f, envelope, token, m, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "busy-ledger.sqlite", &m.rule_revision);
+        let reader = Connection::open(db.with_file_name("busy-ledger.sqlite")).unwrap();
         reader.execute_batch("BEGIN").unwrap();
-        assert_eq!(reader.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-        let owner=AuditConnection::open(&db).unwrap();
-        let mut runtime=prepared::Runtime::new();
+        assert_eq!(
+            reader
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        let owner = AuditConnection::open(&db).unwrap();
+        let mut runtime = prepared::Runtime::new();
         runtime.install_audit_ledger(ledger).unwrap();
-        runtime.stage_audit_ledger(&token,&audit_ledger::tests::delta(&m,&roots)).unwrap();
-        let mut context=request_audit::RequestAuditContext::default();
-        let failure=owner.publish(&mut runtime,&token,&envelope,&mut context).err().unwrap();
-        assert!(failure.contains("AuditLedgerStale"),"{failure}");
-        assert_eq!(generation(&db),1,"内容 Commit 已完成，不能伪称回滚");
+        runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .unwrap();
+        let mut context = request_audit::RequestAuditContext::default();
+        let failure = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .err()
+            .unwrap();
+        assert!(failure.contains("AuditLedgerStale"), "{failure}");
+        assert_eq!(generation(&db), 1, "内容 Commit 已完成，不能伪称回滚");
         assert!(owner.retired.get());
         assert!(owner.begin(TransactionBehavior::Immediate).is_err());
         reader.execute_batch("ROLLBACK").unwrap();
-        assert!(owner.publish(&mut runtime,&token,&envelope,&mut context).is_err(),"解除锁也不得自动重试");
-        assert!(runtime.stage_audit_ledger(&token,&audit_ledger::tests::delta(&m,&roots)).is_err());
-        assert_eq!(reader.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-        assert_eq!(generation(&db),1);
+        assert!(
+            owner
+                .publish(&mut runtime, &token, &envelope, &mut context)
+                .is_err(),
+            "解除锁也不得自动重试"
+        );
+        assert!(runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .is_err());
+        assert_eq!(
+            reader
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(generation(&db), 1);
     }
     #[test]
     fn p6_owner_content_failure_discards_pending_sidecar_without_publishing_generation() {
-        let (f,envelope,token,m,roots)=prepared::tests::p6_candidate();
-        let db=f.db_path();
-        let ledger=audit_ledger::tests::ledger(&db,"rollback-ledger.sqlite",&m.rule_revision);
-        let owner=AuditConnection::open(&db).unwrap();
-        let mut runtime=prepared::Runtime::new();
+        let (f, envelope, token, m, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "rollback-ledger.sqlite", &m.rule_revision);
+        let owner = AuditConnection::open(&db).unwrap();
+        let mut runtime = prepared::Runtime::new();
         runtime.install_audit_ledger(ledger).unwrap();
-        runtime.stage_audit_ledger(&token,&audit_ledger::tests::delta(&m,&roots)).unwrap();
-        runtime.set_after_prepare_for_request_test(Some(|_|Err("p6 injected content failure".into())));
-        let mut context=request_audit::RequestAuditContext::default();
-        let failure=owner.publish(&mut runtime,&token,&envelope,&mut context).err().unwrap();
-        assert!(failure.contains("p6 injected content failure"),"{failure}");
-        assert_eq!(generation(&db),0);
+        runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .unwrap();
+        runtime.set_after_prepare_for_request_test(Some(|_| {
+            Err("p6 injected content failure".into())
+        }));
+        let mut context = request_audit::RequestAuditContext::default();
+        let failure = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .err()
+            .unwrap();
+        assert!(failure.contains("p6 injected content failure"), "{failure}");
+        assert_eq!(generation(&db), 0);
         assert!(owner.retired.get());
-        let l=Connection::open(db.with_file_name("rollback-ledger.sqlite")).unwrap();
-        assert_eq!(l.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-        assert_eq!(l.query_row("SELECT COUNT(*) FROM raw",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        let l = Connection::open(db.with_file_name("rollback-ledger.sqlite")).unwrap();
+        assert_eq!(
+            l.query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            l.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
     }
 }

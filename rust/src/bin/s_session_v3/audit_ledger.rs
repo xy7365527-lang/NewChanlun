@@ -54,9 +54,15 @@ pub(super) struct RelatedFact {
     pub source_digest: [u8; 32],
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
-pub(super) enum Flavor { Value, JsonInner }
+pub(super) enum Flavor {
+    Value,
+    JsonInner,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
-pub(super) enum Mode { Public, Template }
+pub(super) enum Mode {
+    Public,
+    Template,
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 pub(super) struct Unit {
     pub digest: [u8; 32],
@@ -65,10 +71,16 @@ pub(super) struct Unit {
 }
 impl Unit {
     fn flavor(&self) -> &'static str {
-        match self.flavor { Flavor::Value => "value", Flavor::JsonInner => "json-inner" }
+        match self.flavor {
+            Flavor::Value => "value",
+            Flavor::JsonInner => "json-inner",
+        }
     }
     fn mode(&self) -> &'static str {
-        match self.mode { Mode::Public => "public", Mode::Template => "template" }
+        match self.mode {
+            Mode::Public => "public",
+            Mode::Template => "template",
+        }
     }
 }
 
@@ -130,7 +142,12 @@ struct Pending {
     generation: i64,
     roots: [ContentRef; 4],
 }
-enum Phase { Ready, Pending(Pending), Bound(Pending), Stale }
+enum Phase {
+    Ready,
+    Pending(Pending),
+    Bound(Pending),
+    Stale,
+}
 
 pub(super) struct Ledger {
     connection: Option<Connection>,
@@ -149,7 +166,7 @@ fn root_value(r: RefView<'_>) -> Value {
         "extent":r.extent().map(|n|n.to_string())})
 }
 fn roots_value(roots: &[ContentRef; 4]) -> Value {
-    Value::Array(roots.iter().map(|r|root_value(r.into())).collect())
+    Value::Array(roots.iter().map(|r| root_value(r.into())).collect())
 }
 fn file_bytes(path: &Path) -> Result<u64, String> {
     match std::fs::metadata(path) {
@@ -163,46 +180,85 @@ fn database_bytes(path: &Path) -> Result<u64, String> {
     for suffix in ["-wal", "-journal"] {
         let mut p = path.as_os_str().to_os_string();
         p.push(suffix);
-        n = n.checked_add(file_bytes(Path::new(&p))?).ok_or_else(||error("存储计数溢出"))?;
+        n = n
+            .checked_add(file_bytes(Path::new(&p))?)
+            .ok_or_else(|| error("存储计数溢出"))?;
     }
     Ok(n)
 }
 
 impl Ledger {
     /// 永不打开旧台账作可信输入。文件名必须是本次重建的新文件；不覆盖旧诊断原件。
-    pub(super) fn fresh(path: &Path, content_path: &Path, identity: Identity,
-        max_store_bytes: u64) -> Result<Self, String> {
-        if identity.rule_revision.is_empty() || identity.content_identity.is_empty()
-            || identity.binary_commit.is_empty() {
+    pub(super) fn fresh(
+        path: &Path,
+        content_path: &Path,
+        identity: Identity,
+        max_store_bytes: u64,
+    ) -> Result<Self, String> {
+        if identity.rule_revision.is_empty()
+            || identity.content_identity.is_empty()
+            || identity.binary_commit.is_empty()
+        {
             return Err(error("台账身份字段不能为空"));
         }
         let content_path = content_path.canonicalize().map_err(error)?;
-        let remaining = max_store_bytes.checked_sub(database_bytes(&content_path)?)
-            .ok_or_else(||error("内容库已超过 max_store_bytes"))?;
+        let remaining = max_store_bytes
+            .checked_sub(database_bytes(&content_path)?)
+            .ok_or_else(|| error("内容库已超过 max_store_bytes"))?;
         let pages = i64::try_from(remaining / 4096).map_err(error)?;
-        if pages == 0 { return Err(error("没有台账页空间")); }
-        std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
-            .open(path).map_err(error)?;
-        let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE
-            | OpenFlags::SQLITE_OPEN_NO_MUTEX).map_err(error)?;
-        conn.busy_timeout(std::time::Duration::ZERO).map_err(error)?;
-        conn.execute_batch("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")
+        if pages == 0 {
+            return Err(error("没有台账页空间"));
+        }
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)
             .map_err(error)?;
+        let conn = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(error)?;
+        conn.busy_timeout(std::time::Duration::ZERO)
+            .map_err(error)?;
+        conn.execute_batch(
+            "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;",
+        )
+        .map_err(error)?;
         conn.pragma_update(None, "page_size", 4096).map_err(error)?;
-        conn.pragma_update(None, "max_page_count", pages).map_err(error)?;
+        conn.pragma_update(None, "max_page_count", pages)
+            .map_err(error)?;
         conn.execute_batch(SCHEMA).map_err(error)?;
-        conn.execute("INSERT INTO meta VALUES(1,?1,?2,?3,?4,0,?5)", params![FORMAT,
-            identity.rule_revision, identity.content_identity, identity.binary_commit,
-            sha256_hex(b"s-audit-ledger/1")]).map_err(error)?;
-        let ledger = Self { connection: Some(conn), phase: Phase::Ready, path:path.to_owned(),
-            content_path, max_store_bytes, rule_revision:identity.rule_revision };
+        conn.execute(
+            "INSERT INTO meta VALUES(1,?1,?2,?3,?4,0,?5)",
+            params![
+                FORMAT,
+                identity.rule_revision,
+                identity.content_identity,
+                identity.binary_commit,
+                sha256_hex(b"s-audit-ledger/1")
+            ],
+        )
+        .map_err(error)?;
+        let ledger = Self {
+            connection: Some(conn),
+            phase: Phase::Ready,
+            path: path.to_owned(),
+            content_path,
+            max_store_bytes,
+            rule_revision: identity.rule_revision,
+        };
         ledger.check_storage()?;
         Ok(ledger)
     }
     fn check_storage(&self) -> Result<(), String> {
-        let size = database_bytes(&self.content_path)?.checked_add(database_bytes(&self.path)?)
-            .ok_or_else(||error("存储合账溢出"))?;
-        if size > self.max_store_bytes { return Err(error("内容库/WAL/台账合计超过 max_store_bytes")); }
+        let size = database_bytes(&self.content_path)?
+            .checked_add(database_bytes(&self.path)?)
+            .ok_or_else(|| error("存储合账溢出"))?;
+        if size > self.max_store_bytes {
+            return Err(error("内容库/WAL/台账合计超过 max_store_bytes"));
+        }
         Ok(())
     }
     pub(super) fn invalidate(&mut self) {
