@@ -12,15 +12,18 @@
  *
  * 跑法：npx tsx .sandcastle/health-monitor.mts [--heal] [--report <path>]
  */
+import { useScheduler } from "./scheduler-config.mts";
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
+const scheduler = useScheduler("health-monitor", ["wayfinderStaleMs", "claimStaleMs", "diskMinGiB", "healthProcessWaitMs", "healthProcessPollSeconds", "healthHttpTimeoutMs"]);
+
 // ── 阈值与路径（环境变量可覆盖） ─────────────────────────────────────────────
-export const WAYFINDER_STALE_MS = 10 * 60 * 1000;
-export const CLAIM_STALE_MS = 48 * 60 * 60 * 1000;
-export const DISK_MIN_GIB = Number(process.env.HEALTH_DISK_MIN_GIB ?? 100);
+export const WAYFINDER_STALE_MS = scheduler.wayfinderStaleMs;
+export const CLAIM_STALE_MS = scheduler.claimStaleMs;
+export const DISK_MIN_GIB = scheduler.diskMinGiB;
 
 const MAIN_REPO = process.env.HEALTH_MAIN_REPO ?? "/Users/silencehan/Projects/NewChanlun";
 const HOST_REPO = process.env.SANDCASTLE_HOST_REPO ?? "/Users/silencehan/Projects/NewChanlun-sandcastle-host";
@@ -224,12 +227,12 @@ export function healService(label: string, plist: string, uid: string, deps: Hea
 }
 
 /** 轮询进程出现（launchd 拉起有延迟），最多 waitMs。 */
-function waitForProcess(pattern: string, waitMs = 15_000): boolean {
+function waitForProcess(pattern: string, waitMs = scheduler.healthProcessWaitMs): boolean {
   const deadline = Date.now() + waitMs;
   for (;;) {
     if (pgrep(pattern)) return true;
     if (Date.now() >= deadline) return false;
-    sh("sleep", ["1"]);
+    sh("sleep", [String(scheduler.healthProcessPollSeconds)]);
   }
 }
 
@@ -361,7 +364,7 @@ async function checkCliproxy(): Promise<CheckResult> {
     const res = await fetch(CLIPROXY_URL, {
       method: "GET",
       headers: key ? { Authorization: `Bearer ${key}` } : {},
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(scheduler.healthHttpTimeoutMs),
     });
     let models = 0;
     if (res.ok) {
