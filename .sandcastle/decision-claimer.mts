@@ -1109,6 +1109,20 @@ function fallbackRunner(n: number, run: ModelRunner, record: (sw: ModelSwitch) =
 export interface ArchRun { arch: Archaeology; md: string; problems: string[] }
 export interface TriageRun { cls: Classification; ar: ArchRun }
 
+/** 先移走分类，再移走考古；中断时也不留下可被误当完成断点的跨代组合（#1742 D5）。 */
+function retireTriage(dir: string): void {
+  const files = [["classify", "json"], ["archaeology", "json"], ["archaeology", "md"]] as const;
+  const generations = readdirSync(dir).flatMap(f => {
+    const m = /^(?:classify|archaeology)\.retired-(\d+)\.(?:json|md)$/.exec(f);
+    return m ? [Number(m[1])] : [];
+  });
+  const k = Math.max(0, ...generations) + 1;
+  for (const [name, ext] of files) {
+    const path = join(dir, `${name}.${ext}`);
+    if (existsSync(path)) renameSync(path, join(dir, `${name}.retired-${k}.${ext}`));
+  }
+}
+
 /**
  * 分级+考古（#1742 M1）：fixed 缺省时一次联合调用同时交分级与考古，写 classify.json；
  * 考古解析不出或机械校验不过时带问题重跑一次，重跑沿用已得分级（提示声明「本次不再分级」）。
@@ -1119,6 +1133,8 @@ export async function runTriage(
   t: TicketContext, d: Pick<Deps, "model" | "srcDir">, dir: string, summary?: Summary,
   o: { feedback?: string; fixed?: Classification | "none"; round?: number; switches?: ModelSwitch[] } = {},
 ): Promise<TriageRun> {
+  // 新一轮联合分级前先撤下整组旧产物；旧两段式 fixed 恢复仍保留分类原件。
+  if (o.fixed === undefined) retireTriage(dir);
   let fb = o.feedback;
   let fixed = o.fixed;
   let cls: Classification | undefined = fixed === undefined || fixed === "none" ? undefined : fixed;
@@ -1347,12 +1363,8 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     if (loaded.retired) {
       log(`#${n} 旧 MAIN 会话作废：${loaded.retired}`);
       triaged = null;
-      // 不只清本次内存：若下一次模型调用中断，重入也不能把旧分类当 legacy 断点复用。
-      const cp = join(dir, "classify.json");
-      if (existsSync(cp)) {
-        const k = readdirSync(dir).filter((f) => f.startsWith("classify.retired-")).length + 1;
-        renameSync(cp, join(dir, `classify.retired-${k}.json`));
-      }
+      // 分类与考古一起退役；新分类写入后中断，也不能复用上一会话的考古。
+      retireTriage(dir);
     }
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。

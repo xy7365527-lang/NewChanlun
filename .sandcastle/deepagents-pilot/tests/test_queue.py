@@ -50,6 +50,49 @@ def authorize(v2, cutover, unit, signer):
     assert v2.writes() == []
 
 
+@pytest.mark.parametrize('registered_before_restart', [False, True])
+def test_released_drained_run_advances_to_next_generation(queued, registered_before_restart):
+    from conftest import FAKE, MODELS
+
+    from pilot1742.claims import advance
+    from pilot1742.executor import load_unit, open_v2_run
+
+    v2, cutover, intake, signer = queued
+    previous = intake.register(TICKET)
+    authorize(v2, cutover, previous, signer)
+    old_run = open_v2_run(v2.home, previous, load_unit(v2.home, previous.run_id)[1],
+                          executor(v2, cutover, previous), MODELS, launcher=FAKE, source_repo=v2.source)
+    old_run.release()
+    with intake.claims.locked(TICKET) as txn:
+        txn.write(advance(txn.record, 'release'))
+    if registered_before_restart:
+        assert intake.register(TICKET).run_id == f't{TICKET}-2'
+    seen = []
+
+    def child(unit):
+        seen.append(unit.run_id)
+        assert unit.run_id == f't{TICKET}-2'
+        ex = executor(v2, cutover, unit)
+        run_dir = PilotRun.run_dir(v2.home, unit.run_id)
+        if len(seen) == 1:
+            with pytest.raises(ApprovalRequired):
+                ex.claim(run_dir)
+            signer.publish(run_dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+        claim = ex.claim(run_dir)
+        assert claim.generation == 2 and claim.state == 'active'
+        return 75
+
+    rows = intake.once(child)
+    assert seen == [f't{TICKET}-2'], 'released old claim must not halt the next run'
+    assert rows[TICKET]['phase'] == 'active'
+    assert v2.claim_record()['run_id'] == f't{TICKET}-2'
+    writes = v2.writes()
+    intake.once(child)
+    assert seen == [f't{TICKET}-2', f't{TICKET}-2']
+    assert v2.writes() == writes
+    assert len(list((v2.home / 'units').glob('*.json'))) == 2
+
+
 def test_queue_roundtrip_does_not_change_dedicated_rules(queued):
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)

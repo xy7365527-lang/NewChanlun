@@ -2139,6 +2139,66 @@ test("R2-3 live：起草中断且取消认领失败，只有已核本票 MAIN �
   }
 });
 
+test("D5：新分类落盘后中断不能拼接旧考古，恢复只补新代考古", async () => {
+  for (const prior of ["retired-main", "legacy-without-session"]) {
+    const { d } = fakeDeps("dry-run", []);
+    let generation = "旧代";
+    const calls: ModelCall[] = [];
+    d.model = async (c) => {
+      calls.push(c);
+      if (c.role === "draft" && generation === "旧代") throw new Error("旧代起草中断");
+      const arch = { points: goodArchObj.points.map(p => ({ ...p, question: generation + p.question })) };
+      const text = c.role === "triage"
+        ? c.prompt.includes(FIXED) ? fence(arch) : fence({ class: generation === "旧代" ? "T" : "P", reason: generation, ...arch })
+        : c.role === "draft" ? goodDraft : fence(pass());
+      return { text, durationMs: 1, attempts: 1, ...sid(c) };
+    };
+    assert.equal((await processTicket(1531, d)).phase, "error");
+    const dir = join(d.outRoot, "1531");
+    assert.ok(loadTriageDone(dir), "旧代三份产物原本完整");
+    if (prior === "retired-main") {
+      execFileSync("git", ["-C", d.srcDir, "commit", "--allow-empty", "-m", "新取证提交"]);
+    } else {
+      fs.rmSync(join(dir, MAIN_SESSION_FILE));
+    }
+    generation = "新代";
+    const actualRename = fs.renameSync;
+    let interrupted = false;
+    fs.renameSync = ((from, to) => {
+      actualRename(from, to);
+      if (String(to) === join(dir, "classify.json")) {
+        interrupted = true;
+        throw new Error("新分类已发布，考古写入前中断");
+      }
+    }) as typeof fs.renameSync;
+    syncBuiltinESMExports();
+    let second;
+    try { second = await processTicket(1531, d); }
+    finally { fs.renameSync = actualRename; syncBuiltinESMExports(); }
+    assert.ok(interrupted, prior);
+    assert.equal(second.phase, "error");
+    assert.match(second.error ?? "", /新分类已发布/);
+    assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).reason, "新代");
+    assert.equal(loadTriageDone(dir), null, "新分类不能和旧考古组成完成断点");
+    assert.equal(JSON.parse(readFileSync(join(dir, "classify.retired-1.json"), "utf8")).reason, "旧代");
+    assert.ok(readFileSync(join(dir, "archaeology.retired-1.json"), "utf8").includes("旧代重的数量由谁定"));
+    assert.ok(readFileSync(join(dir, "archaeology.retired-1.md"), "utf8").includes("旧代重的数量由谁定"));
+    calls.length = 0;
+    const third = await processTicket(1531, d);
+    assert.equal(third.phase, "shadow_p", third.error ?? "");
+    assert.equal(third.resumedFrom, "triaged");
+    assert.equal(third.klass, "P");
+    assert.deepEqual(calls.map(c => c.role), ["triage", "draft", "review"]);
+    assert.ok(calls[0].prompt.includes(FIXED), "保留新代 P 分类，只补未完成考古");
+    const draft = calls.find(c => c.role === "draft")!.prompt;
+    assert.ok(draft.includes("新代重的数量由谁定") && !draft.includes("旧代重的数量由谁定"));
+    const done = loadTriageDone(dir)!;
+    assert.equal(done.cls.reason, "新代");
+    assert.ok(done.ar.arch.points.every(p => p.question.startsWith("新代")));
+    assert.ok(done.ar.md.includes("新代重的数量由谁定") && !done.ar.md.includes("旧代重的数量由谁定"));
+  }
+});
+
 test("R2-4：考古失败后取证提交改变，旧 MAIN 及其 T 分类一起退役", async () => {
   const { d, modelCalls, archCalls } = fakeDeps("dry-run", [
     fence({ class: "T", reason: "旧提交判接口" }),

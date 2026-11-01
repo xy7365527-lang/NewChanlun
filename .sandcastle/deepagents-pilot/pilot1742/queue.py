@@ -245,7 +245,7 @@ class QueueIntake:
                     runs.setdefault(ticket, set()).add(run_dir)
                     state = delivery_status(run_dir)
                     claim = self.claims.read(ticket)
-                    if claim and claim.state in ('halted', 'released'):
+                    if claim and claim.run_id == unit.run_id and claim.state in ('halted', 'released'):
                         results[ticket] = {'phase': 'halted', 'reason': claim.reason, 'run_id': unit.run_id}
                         continue
                     if state['phase'] in ('awaiting_merge', 'merged', 'stale'):
