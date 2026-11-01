@@ -2433,6 +2433,8 @@ struct AcceptReading {
     id: TextValue,
     ns: i64,
     generation: i64,
+    /// 进入原件 writer_epoch 的换代在 `writer_epoch_history` 中的位置；初始 epoch 为 None。
+    entered: Option<usize>,
 }
 /// accept/recover 记录发生时已发布的代，begin 记录目标代；三者都落在该窗口两端 commit 之间。
 fn generation_window(begin: bool, generation: i64) -> i64 {
@@ -2536,7 +2538,6 @@ fn validate_system_phase_order(
     }
     stmt.finalize().map_err(err)?;
 
-    // 原件只在其 writer_epoch 为当前持久 epoch 时接纳：accept 落在进入该 epoch 与离开该 epoch 的换代之间。
     let initial = match epochs.first() {
         Some(first) => first.from,
         None => parse_writer_epoch(
@@ -2546,14 +2547,17 @@ fn validate_system_phase_order(
         )
         .map_err(err)?,
     };
+    let mut accepts: CodecVec<AcceptReading> = control_json::new_work(owner);
     let mut stmt = CheckedStatement::prepare(
         conn,
-        c"SELECT m.canonical_envelope,e.semantic_ns FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='accept'",
+        c"SELECT e.clock_event_id,e.semantic_ns,e.generation,m.canonical_envelope FROM s_clock_events e JOIN s_input_messages m ON m.clock_event_id=e.clock_event_id WHERE e.phase='accept' ORDER BY e.generation",
     )
     .map_err(err)?;
     while let Some(mut r) = stmt.next().map_err(err)? {
-        let raw = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
-        let accept = system_ns(&mut r, 1)?;
+        let id = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let ns = system_ns(&mut r, 1)?;
+        let generation = r.integer(2).map_err(err)?;
+        let raw = TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?;
         let envelope = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
         let epoch = parse_writer_epoch(
             control_json::field(
@@ -2565,28 +2569,19 @@ fn validate_system_phase_order(
             "payload.writer_epoch",
         )
         .map_err(err)?;
-        let entered = epochs.iter().find(|s| s.to == epoch).map(|s| s.at);
+        let entered = epochs.iter().position(|s| s.to == epoch);
         if entered.is_none() && epoch != initial {
             return Err(err("原件writer_epoch不在换代链上"));
         }
         let left = epochs.iter().find(|s| s.from == epoch).map(|s| s.at);
-        if entered.is_some_and(|at| accept < at) || left.is_some_and(|at| accept > at) {
+        if entered.is_some_and(|i| ns < epochs[i].at) || left.is_some_and(|at| ns > at) {
             return Err(err("system clock接纳读数越出原件writer_epoch区间"));
         }
-    }
-    stmt.finalize().map_err(err)?;
-
-    let mut accepts: CodecVec<AcceptReading> = control_json::new_work(owner);
-    let mut stmt = CheckedStatement::prepare(
-        conn,
-        c"SELECT clock_event_id,semantic_ns,generation FROM s_clock_events WHERE phase='accept' ORDER BY generation",
-    )
-    .map_err(err)?;
-    while let Some(mut r) = stmt.next().map_err(err)? {
         let accept = AcceptReading {
-            id: TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?,
-            ns: system_ns(&mut r, 1)?,
-            generation: r.integer(2).map_err(err)?,
+            id,
+            ns,
+            generation,
+            entered,
         };
         control_push(&mut accepts, accept, work).map_err(err)?;
     }
@@ -2620,9 +2615,9 @@ fn validate_system_phase_order(
 
 /// 单写者在 Begin 后处于 begun：其间拒绝接纳与再 Begin，只有本 attempt 的 Commit 或一次 recover
 /// 能结束它。故每个代际窗口的历史只能是
-/// `接纳… (换代)* (未提交Begin 换代 (换代)*)* [已提交Begin Commit | 在途Begin]`，
-/// 其中被推进的消息之外的接纳都在该消息接纳之前。按 ordinal 合并 Begin 与换代，核存在一条
-/// 满足此文法且读数不倒退的交错。
+/// `(换代|接纳)* (未提交Begin 换代 (换代)*)* [已提交Begin Commit | 在途Begin]`，
+/// 被推进消息之外的接纳在该消息接纳之前，进入各接纳所属 epoch 的换代在该接纳之前。
+/// 按 ordinal 合并 Begin 与换代，核存在一条满足此文法且读数不倒退的交错。
 fn validate_system_interleaving(
     accepts: &[AcceptReading],
     begins: &[BeginReading],
@@ -2665,6 +2660,17 @@ fn validate_system_interleaving(
             next_epoch += 1;
         }
         let mut placed = -1;
+        // 进入本窗口接纳所属 epoch 的换代先于该接纳，因而先于首次 Begin，不能再结束本窗口的 attempt。
+        if let Some(last) = in_window.clone().filter_map(|a| a.entered).max() {
+            while next_epoch <= last {
+                let entered = epochs
+                    .get(next_epoch)
+                    .filter(|s| s.generation == window)
+                    .ok_or_else(|| err("system clock接纳所属epoch的换代不在本代际窗口之前"))?;
+                placed = entered.at;
+                next_epoch += 1;
+            }
+        }
         for (k, begin) in begins.iter().enumerate().take(end).skip(first) {
             if begin.id.as_str() != message {
                 return Err(err("同一代际窗口内Begin属于不同消息"));

@@ -1537,6 +1537,7 @@ writer/recover闭合后无SHM
 过期连接不得被读取
 返回Driver前已释放bootstrap原件
 返还离开codec后的字段entry+UTF8 key必须仍真实计量
+进入 epoch 2 的唯一换代不能同时结束该 epoch 原件的 Begin0
 连首写尝试都不能发生
 追加/修订不能重新解码旧 raw
 追加代必须可恢复

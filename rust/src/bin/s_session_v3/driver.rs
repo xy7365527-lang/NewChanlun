@@ -2380,6 +2380,66 @@ mod tests {
     }
 
     #[test]
+    fn s_system_clock_cold_audit_keeps_epoch_entry_before_its_accept() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[200]));
+        let f = Fixture::system();
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        let mut input = Fixture::ingest(1);
+        input["payload"]["writer_epoch"] = json!("2");
+        input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));
+        fake::push(&[200, 200]);
+        let mut before = f.open("2").unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        fake::push(&[200]);
+        recover(
+            &f.db,
+            "3",
+            &f.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        fake::push(&[400, 500]);
+        let mut resumed = f.open("3").unwrap();
+        assert_eq!(
+            resumed.handle(receipt_request(&input)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(resumed);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["500".to_string()]);
+        assert_eq!(fake::samples(), 6);
+        Connection::open(&f.db)
+            .unwrap()
+            .execute_batch(
+                "DELETE FROM s_clock_events WHERE clock_event_id='recover-2' AND phase='recover';
+                 DELETE FROM writer_epoch_history WHERE from_epoch='2' AND to_epoch='3';
+                 UPDATE meta SET value='2' WHERE key='writer_epoch';",
+            )
+            .unwrap();
+        let mut conn = open_db(&f.db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let error = state::audit(&tx)
+            .err()
+            .expect("进入 epoch 2 的唯一换代不能同时结束该 epoch 原件的 Begin0");
+        assert!(error.contains("未提交attempt缺结束它的换代"), "{error}");
+        tx.rollback().unwrap();
+        assert_eq!(fake::samples(), 6, "冷审计不取样");
+    }
+
+    #[test]
     fn s_system_clock_cold_audit_rejects_out_of_order_accept_and_recover() {
         use v2::system_clock_test as fake;
         fake::install(Some(&[100, 200, 300]));
