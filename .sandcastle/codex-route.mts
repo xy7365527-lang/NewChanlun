@@ -1,4 +1,5 @@
 /** #1617：受管执行面；每阶段独立 Codex home，同阶段可续跑，不切换 provider。 */
+import { useScheduler } from "./scheduler-config.mts";
 import { codex, type AgentProvider } from "@ai-hero/sandcastle";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,6 +8,8 @@ import { installCargoGuard } from "./cargo-guard.mts";
 import { MAIN_MODEL } from "./main-model.mts";
 import { providerOverrides, providerEnvironment, type KeyLookup } from "./codex-child.ts";
 import { DOCKER_INNER_SANDBOX } from "./docker-isolation.mts";
+
+const scheduler = useScheduler("codex-route", ["workerEffort"]);
 
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 export function codexRouteEnv(lookup?: KeyLookup): Record<string, string> {
@@ -25,7 +28,7 @@ export function codexWorker(options: { docker?: boolean; effort?: "low" | "mediu
     for (const file of [".zshenv", ".zlogin"]) writeFileSync(join(home, file), `source ${quote(guard.envFile)}\n`);
   }
   const provider = codex(MAIN_MODEL, {
-    effort: options.effort ?? "medium",
+    effort: options.effort ?? scheduler.workerEffort,
     sessionStorage: { hostSessionsDir: sessions, sandboxSessionsDir: `${workerHome}/sessions` },
   });
   const overrides = providerOverrides().map((entry) => docker

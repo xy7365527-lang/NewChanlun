@@ -21,6 +21,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+pub(crate) mod native_n1;
 mod ram;
 mod resources;
 pub(crate) mod terminal;

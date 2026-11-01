@@ -475,20 +475,31 @@ fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 policy_records 迁移事务失败：{e}"))?;
-    migrate_policy_records_in_transaction(&tx)?;
+    migrate_in(&tx)?;
     tx.commit()
         .map_err(|e| format!("提交 policy_records 迁移失败：{e}"))?;
     Ok(())
 }
 
-/// #1602 / #1481：调用方已经持 SQLite IMMEDIATE 锁；只允许准入核过的单次补列。
-fn migrate_policy_records_in_transaction(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
+/// #1527：复用已持有的写事务；执行条件和原迁移授权门缺一不可。
+fn migrate_in(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
     if policy_records_missing(tx)? {
         v3::admission::require_policy_records_migration()?;
-        tx.execute(&format!("ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"), [])
-            .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
+        tx.execute(
+            &format!(
+                "ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"
+            ),
+            [],
+        )
+        .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
     }
     Ok(())
+}
+
+/// #1602 / #1481：调用方已经持 SQLite IMMEDIATE 锁；只允许准入核过的单次补列。
+/// 与 #1527 N1 共用迁移实现，保留 H1 调用入口及原迁移授权门。
+fn migrate_policy_records_in_transaction(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
+    migrate_in(tx)
 }
 
 /// #1405/#1420 持久边界：写连接首次读取会回滚残留的 `-journal` 热日志，末次关闭会检查点并
@@ -2498,15 +2509,15 @@ fn cmd_accept(
     v3::admission::write_current_result(&out)
 }
 
-fn accept_core(
-    db: &Path,
-    text: &str,
-    profile_path: &Path,
-    configured_epoch: &str,
-    context: Option<&v2::InputContext>,
-) -> Result<Value, String> {
-    // #1394 第二段（2D）：一次 accept 共享一个捕获作用域（写入前会显式作废）。
-    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+struct PreparedAccept {
+    input: RawInputFile,
+    profile: Value,
+    profile_id: String,
+    profile_hash: String,
+    volume_unit: Option<String>,
+}
+
+fn prepare_accept(text: &str, profile_path: &Path) -> Result<PreparedAccept, String> {
     let input = tb02a::parse_input(&v2::strict_json(text.as_bytes())?)?;
     let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
     raw_input::validate_profile_binding(&input, &profile_id)?;
@@ -2515,15 +2526,25 @@ fn accept_core(
         .and_then(Value::as_str)
         .map(|s| s.to_string());
 
-    let mut conn = open_db(db)?;
-    ensure_initialized(&conn)?;
-    ensure_writable(&conn)?;
-    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+    Ok(PreparedAccept {
+        input,
+        profile,
+        profile_id,
+        profile_hash,
+        volume_unit,
+    })
+}
+
+fn check_accept_connection(conn: &Connection, prepared: &PreparedAccept) -> Result<(), String> {
+    let input = &prepared.input;
+    ensure_initialized(conn)?;
+    ensure_writable(conn)?;
+    if meta_get_opt(conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
     }
     #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
-    record_connection_pragmas(&conn, "accept");
-    let meta_session = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
+    record_connection_pragmas(conn, "accept");
+    let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
     if meta_session != input.session_id {
         return Err(format!(
             "IdentityConflict：输入 session_id=`{}` 与库 session_id=`{meta_session}` 不一致",
@@ -2531,28 +2552,42 @@ fn accept_core(
         ));
     }
 
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|e| format!("开 accept 事务失败：{e}"))?;
+    Ok(())
+}
+
+fn accept_body_in(
+    tx: &rusqlite::Transaction<'_>,
+    text: &str,
+    prepared: PreparedAccept,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let PreparedAccept {
+        input,
+        profile,
+        profile_id,
+        profile_hash,
+        volume_unit,
+    } = prepared;
     let results;
     {
-        verify_writer_epoch(&tx, configured_epoch)?;
-        verify_reachable_root(&tx)?;
+        verify_writer_epoch(tx, configured_epoch)?;
+        verify_reachable_root(tx)?;
 
-        let bound_profile_id = meta_get_opt(&tx, "profile_id")?.unwrap_or_default();
+        let bound_profile_id = meta_get_opt(tx, "profile_id")?.unwrap_or_default();
         if bound_profile_id.is_empty() {
             if profile_id == tb02a::PROFILE {
                 tx.execute_batch(tb02a::SCHEMA).map_err(|e| e.to_string())?;
             }
-            meta_set(&tx, "profile_id", &profile_id)?;
-            meta_set(&tx, "profile_hash", &profile_hash)?;
-            meta_set(&tx, "profile_definition", &canonical_json(&profile))?;
+            meta_set(tx, "profile_id", &profile_id)?;
+            meta_set(tx, "profile_hash", &profile_hash)?;
+            meta_set(tx, "profile_definition", &canonical_json(&profile))?;
         } else if bound_profile_id != profile_id {
             return Err(format!(
                 "IdentityConflict：session 已绑定 profile=`{bound_profile_id}`，本次 `{profile_id}` 不一致（不覆盖既有 cut 来源）"
             ));
         } else {
-            let bound_hash = meta_get_opt(&tx, "profile_hash")?.unwrap_or_default();
+            let bound_hash = meta_get_opt(tx, "profile_hash")?.unwrap_or_default();
             if bound_hash != profile_hash {
                 return Err(format!(
                     "IdentityConflict：profile_id=`{profile_id}` 已绑定规范哈希 `{bound_hash}`，本次字节哈希 `{profile_hash}` 不同（同名异字节，拒绝接纳元数据偷换已提交快照来源）"
@@ -2560,14 +2595,12 @@ fn accept_core(
             }
         }
 
-        results = raw_input::accept_events(&tx, &input, volume_unit.as_deref())?;
+        results = raw_input::accept_events(tx, &input, volume_unit.as_deref())?;
 
-        v2::record_accept(&tx, context, &results)?;
-        meta_set(&tx, "input_profile", &input.profile)?;
-        meta_set(&tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
+        v2::record_accept(tx, context, &results)?;
+        meta_set(tx, "input_profile", &input.profile)?;
+        meta_set(tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
     }
-    tx.commit()
-        .map_err(|e| format!("accept commit 失败：{e}"))?;
     Ok(json!({
         "ok": true,
         "session_id": input.session_id,
@@ -2576,6 +2609,42 @@ fn accept_core(
         "volume_unit": volume_unit,
         "results": results,
     }))
+}
+
+/// #1527 N1：原业务核的测试事务入口，保留对拍、回滚与错误次序 oracle。
+/// 生产接纳走 NativeOwner；此入口的事务提交或回滚由测试调用者负责。
+#[cfg(test)]
+fn accept_in(
+    tx: &rusqlite::Transaction<'_>,
+    text: &str,
+    profile_path: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+    let prepared = prepare_accept(text, profile_path)?;
+    check_accept_connection(tx, &prepared)?;
+    accept_body_in(tx, text, prepared, configured_epoch, context)
+}
+
+fn accept_core(
+    db: &Path,
+    text: &str,
+    profile_path: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+    let prepared = prepare_accept(text, profile_path)?;
+    let mut conn = open_db(db)?;
+    check_accept_connection(&conn, &prepared)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| format!("开 accept 事务失败：{e}"))?;
+    let result = accept_body_in(&tx, text, prepared, configured_epoch, context)?;
+    tx.commit()
+        .map_err(|e| format!("accept commit 失败：{e}"))?;
+    Ok(result)
 }
 
 // ────────────────────────────────────────────────────────────────────────────

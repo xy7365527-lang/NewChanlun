@@ -1,3 +1,4 @@
+import { useScheduler } from "./scheduler-config.mts";
 /** main-swarm 的 Docker 隔离与主控同型路由（#1617）。 */
 import type { AgentProvider, SandboxProvider } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
@@ -8,6 +9,8 @@ import { assertContainerIsolationContract, hardenProvider, type IsolationObserva
 import { IMAGE_ID, checkAdmission, type Admission, type AcceptanceRow, type AdmissionContext } from "./docker-acceptance.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
+
+const scheduler = useScheduler("swarm-route", ["dockerModelHttpTimeoutMs", "dockerModelProcessTimeoutMs"]);
 
 export const DOCKER_CLIPROXY_BASE_URL = "http://host.docker.internal:8318";
 
@@ -49,7 +52,7 @@ export const DOCKER_MODEL_PROBE = String.raw`
       model: "${MAIN_MODEL}",
       input: "Reply OK.",
     }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(${scheduler.dockerModelHttpTimeoutMs}),
   });
   const payload = await response.json();
   if (!response.ok) throw new Error("HTTP " + response.status + ": " + (payload?.error?.type || "model request failed"));
@@ -71,7 +74,7 @@ const runDockerProbe: DockerProbeRunner = (imageName, probe) => {
     "--entrypoint", "node", imageName, "-e", probe,
   ], {
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 75_000,
+    timeout: scheduler.dockerModelProcessTimeoutMs,
     env: { ...process.env, ...routeEnv },
   });
 };

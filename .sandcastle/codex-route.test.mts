@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { readSchedulerConfig } from "./scheduler-config.mts";
 import { codexWorker } from "./codex-route.mts";
 
 test("实装和独审默认 Codex/Astra，独立 home，同阶段 resume 保留", () => {
@@ -31,7 +32,8 @@ test("Docker Codex 使用容器可达网关，main 保留一票两阶段", () =>
   const main = readFileSync(new URL("./main.mts", import.meta.url), "utf8");
   assert.equal(main.match(/codexWorker\(\{ effort: EFFORT \}\)/g)?.length, 2);
   assert.doesNotMatch(main, /claudeWorker\(/);
-  assert.match(main, /MAX_TICKETS_PER_RUN = 1/);
+  assert.equal(readSchedulerConfig(undefined, {}).values.mainMaxTickets, 1);
+  assert.match(main, /MAX_TICKETS_PER_RUN = scheduler\.mainMaxTickets/);
 });
 
 test("main 受管提交使用专属模板，不改变既有 swarm 模板合同", () => {

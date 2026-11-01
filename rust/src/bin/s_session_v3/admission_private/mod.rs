@@ -413,18 +413,22 @@ fn audit_legacy_serve_prefix(
     })
 }
 
-fn audit_business(
-    conn: &rusqlite::Connection,
-    account: &SharedAccounting<'_, '_>,
+/// #1527 N1：业务审计核只借调用者事务；不另开事务、不提交、不撤下回调。
+/// D1 与 N1 使用同一分派和首错顺序；旧域缺费用适配仍拒绝签发准入。
+pub(super) fn audit_core(
+    tx: &rusqlite::Transaction<'_>,
+    account: &dyn Budget,
+    deadline: std::time::Instant,
     prefix: &mut RejectionPrefix<'_>,
+    mut legacy_serve: impl FnMut(
+        &rusqlite::Connection,
+        &std::path::Path,
+        &str,
+        &crate::v2::ClockPlan,
+        &std::path::Path,
+    ) -> Result<(), String>,
 ) -> Result<(), String> {
-    account.precheck().map_err(|e| e.to_string())?;
-    let _deadline = account
-        .with_account(|account| account.first_read_deadline())
-        .map_err(|e| e.to_string())?;
-    // rusqlite 的安全共享借用事务口；conn 的独占生命周期由 Session 保持。
-    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let result = (|| match crate::meta_get_opt(&tx, "protocol_revision")?.as_deref() {
+    match crate::meta_get_opt(tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
             // #1481：这里只核拒绝前缀与迁移前 schema；成功不代表历史已认证。
             // H1 冷折叠在实际持锁连接开门前完成，失败不得回落旧审计。
@@ -433,17 +437,17 @@ fn audit_business(
                 if matches!(prefix, RejectionPrefix::OrdinaryStartup { .. }) {
                     // #1481：Ordinary 诊断臂保持完整审计先于 open_db 迁移；
                     // 只按前缀分流，Native 的 H1 准入不得借用此对照臂兜底。
-                    super::state::audit_with_budget(&tx, Some(_deadline), None, Some(account))?;
+                    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
                 } else {
                     let work = match prefix {
                         RejectionPrefix::NativeStartup { work, .. } => *work,
                         _ => None,
                     };
                     super::control_audit::verify_s3_schema_admitted(
-                        &tx,
+                        tx,
                         None,
                         work,
-                        Some(account.delta),
+                        account.before_write(),
                     )?;
                 }
             }
@@ -452,22 +456,22 @@ fn audit_business(
                 RejectionPrefix::NativeStartup { context, work, .. } => {
                     if let Some(context) = context.as_deref_mut() {
                         super::state::audit_native_in_request_measured(
-                            &tx,
+                            tx,
                             context,
                             *work,
-                            Some(_deadline),
+                            Some(deadline),
                             Some(account),
                         )?;
                     } else {
                         super::state::audit_native_current_measured(
-                            &tx,
-                            Some(_deadline),
+                            tx,
+                            Some(deadline),
                             Some(account),
                         )?;
                     }
                 }
                 _ => {
-                    super::state::audit_with_budget(&tx, Some(_deadline), None, Some(account))?;
+                    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
                 }
             }
             match prefix {
@@ -477,24 +481,24 @@ fn audit_business(
                     epoch,
                     clock,
                     profile,
-                } => audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile),
+                } => legacy_serve(tx, db, epoch, clock, profile),
                 RejectionPrefix::OrdinaryStartup { epoch }
                 | RejectionPrefix::NativeStartup { epoch, .. } => {
-                    crate::verify_writer_epoch(&tx, epoch)?;
+                    crate::verify_writer_epoch(tx, epoch)?;
                     super::require_current_writer_rule(
-                        &crate::meta_get_opt(&tx, "rule_revision")?
+                        &crate::meta_get_opt(tx, "rule_revision")?
                             .ok_or_else(|| super::audit_owner::invalid("缺rule_revision"))?,
                     )
                 }
                 RejectionPrefix::UnboundRecover => super::require_current_writer_rule(
-                    &crate::meta_get_opt(&tx, "rule_revision")?
+                    &crate::meta_get_opt(tx, "rule_revision")?
                         .ok_or_else(|| super::audit_owner::invalid("缺rule_revision"))?,
                 ),
             }
         }
         None | Some(super::PREVIOUS_REVISION) => {
             // 完整原判据原样运行；旧证据图不是 s-content 分帧域，不能伪造 CheckedNodeUsage。
-            crate::v2::audit_private_startup(&tx, Some(account.delta))?;
+            crate::v2::audit_private_startup(tx, account.before_write())?;
             if let RejectionPrefix::LegacyServe {
                 db,
                 epoch,
@@ -502,12 +506,34 @@ fn audit_business(
                 profile,
             } = prefix
             {
-                audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile)?;
+                legacy_serve(tx, db, epoch, clock, profile)?;
             }
             Err("LegacyAdmissionBudgetAdapterMissing：完整旧域审计已调用，但旧证据图节点与Snapshot/Delta尚无Job同源费用适配，禁止签发准入".into())
         }
         _ => Err("PrivateAuditProtocolUnsupported".into()),
-    })();
+    }
+}
+
+fn audit_business(
+    conn: &rusqlite::Connection,
+    account: &SharedAccounting<'_, '_>,
+    prefix: &mut RejectionPrefix<'_>,
+) -> Result<(), String> {
+    account.precheck().map_err(|e| e.to_string())?;
+    let deadline = account
+        .with_account(|account| account.first_read_deadline())
+        .map_err(|e| e.to_string())?;
+    // rusqlite 的安全共享借用事务口；conn 的独占生命周期由 Session 保持。
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let result = audit_core(
+        &tx,
+        account,
+        deadline,
+        prefix,
+        |conn, db, epoch, clock, profile| {
+            audit_legacy_serve_prefix(conn, account, db, epoch, clock, profile)
+        },
+    );
     // #1527：先记录业务实际返回；此前回调观察到的首错仍居前。
     account
         .errors
