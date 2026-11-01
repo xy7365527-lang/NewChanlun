@@ -1,0 +1,60 @@
+{
+  "ticket": 1539,
+  "mode": "live",
+  "phase": "shadow_p",
+  "attempts": 2,
+  "durationsMs": {
+    "classify": 33937,
+    "archaeology1_1": 767610,
+    "archaeology1_2": 989017,
+    "draft1": 900598,
+    "review1": 120873,
+    "draft2": 1029731,
+    "review2": 133620,
+    "total": 4001463
+  },
+  "plannedWrites": [],
+  "klass": "P",
+  "archaeology": {
+    "A": 8,
+    "B": 5,
+    "C": 2,
+    "problems": []
+  },
+  "reviewCounts": {
+    "pass": 0,
+    "block": 2,
+    "parseError": 0
+  },
+  "reclassNotes": [],
+  "rounds": [
+    {
+      "attempt": 1,
+      "mode": "initial",
+      "drafter": "claude-fable-5-1",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "BLOCK",
+      "blocked": [
+        "R1",
+        "R2",
+        "R8"
+      ],
+      "problems": []
+    },
+    {
+      "attempt": 2,
+      "mode": "redo",
+      "drafter": "claude-opus-5-5",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "BLOCK",
+      "blocked": [
+        "R2",
+        "R8"
+      ],
+      "problems": []
+    }
+  ],
+  "landingRedrafts": [],
+  "convertedToP": true,
+  "commentsSeen": 1
+}
