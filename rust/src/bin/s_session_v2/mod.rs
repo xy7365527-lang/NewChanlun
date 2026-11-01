@@ -92,6 +92,83 @@ impl ClockPlan {
         newchan_rust::session_protocol::clock_phase_view((&self.value).into(), id, phase, attempt)
             .map(str::to_owned)
     }
+    /// #1769：`s-clock-system/1` 描述（相位读数在取样时落 `s_clock_events`，此后只读持久值）。
+    pub(super) fn is_system(&self) -> bool {
+        newchan_rust::session_protocol::clock_source_view((&self.value).into())
+            == newchan_rust::session_protocol::ClockSource::System
+    }
+    /// 预检：Plan 核计划里有该相位；System 不产生未来读数，直接通过。
+    pub(super) fn require_planned(
+        &self,
+        id: &str,
+        phase: &str,
+        attempt: i64,
+    ) -> Result<(), String> {
+        newchan_rust::session_protocol::clock_require_planned(
+            (&self.value).into(),
+            id,
+            phase,
+            attempt,
+        )
+    }
+}
+
+/// #1769：System 相位的唯一取样点。只在相位真实发生时调用一次；封批、重读、恢复与冷审计
+/// 一律读 `s_clock_events` 持久值。系统时钟早于纪元或超出 i64 显式拒绝，不钳位、不换钟。
+fn sample_system_ns() -> Result<String, String> {
+    #[cfg(test)]
+    if let Some(ns) = system_clock_test::next()? {
+        return Ok(ns);
+    }
+    let elapsed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "InvalidDomain：系统时钟早于UNIX纪元".to_string())?;
+    i64::try_from(elapsed.as_nanos())
+        .map(|ns| ns.to_string())
+        .map_err(|_| "InvalidDomain：系统时钟纳秒超出i64".into())
+}
+
+/// 测试注入：按队列给出 System 读数并计取样次数，证明非相位路径不取样。
+#[cfg(test)]
+pub(super) mod system_clock_test {
+    use std::cell::{Cell, RefCell};
+    use std::collections::VecDeque;
+    thread_local! {
+        static QUEUE: RefCell<Option<VecDeque<i64>>> = const { RefCell::new(None) };
+        static SAMPLES: Cell<usize> = const { Cell::new(0) };
+    }
+    /// 安装注入读数；None 恢复真实系统时钟。取样计数同时清零。
+    pub(crate) fn install(values: Option<&[i64]>) {
+        QUEUE.with(|q| *q.borrow_mut() = values.map(|v| v.iter().copied().collect()));
+        SAMPLES.with(|c| c.set(0));
+    }
+    pub(crate) fn push(values: &[i64]) {
+        QUEUE.with(|q| {
+            q.borrow_mut()
+                .get_or_insert_with(VecDeque::new)
+                .extend(values)
+        });
+    }
+    pub(crate) fn samples() -> usize {
+        SAMPLES.with(Cell::get)
+    }
+    pub(super) fn next() -> Result<Option<String>, String> {
+        SAMPLES.with(|c| c.set(c.get() + 1));
+        QUEUE.with(|q| match q.borrow_mut().as_mut() {
+            None => Ok(None),
+            Some(queue) => queue
+                .pop_front()
+                .map(|ns| Some(ns.to_string()))
+                .ok_or_else(|| "TestOnly：system clock 注入读数耗尽".to_string()),
+        })
+    }
+}
+
+/// 一个相位读数从哪里来：本相位取一次（Plan 读计划，System 取样），或沿用已封进批次的值。
+#[derive(Clone, Copy)]
+enum Reading<'a> {
+    Sample,
+    Sealed(&'a str),
 }
 
 #[derive(Clone)]
@@ -343,8 +420,51 @@ fn record_phase(
     ordinal: Option<i64>,
     generation: i64,
 ) -> Result<String, String> {
+    record_phase_reading(
+        conn,
+        clock,
+        id,
+        phase,
+        index,
+        key,
+        ordinal,
+        generation,
+        Reading::Sample,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn record_phase_reading(
+    conn: &Connection,
+    clock: &ClockPlan,
+    id: &str,
+    phase: &str,
+    index: i64,
+    key: &str,
+    ordinal: Option<i64>,
+    generation: i64,
+    reading: Reading<'_>,
+) -> Result<String, String> {
     check_clock(conn, clock)?;
-    let ns = clock.phase(id, phase, index)?;
+    let ns = match (reading, clock.is_system()) {
+        (Reading::Sample, false) => clock.phase(id, phase, index)?,
+        (Reading::Sample, true) => {
+            if id.is_empty() {
+                return Err("InvalidDomain：空clock_event_id".into());
+            }
+            sample_system_ns()?
+        }
+        (Reading::Sealed(sealed), false) => {
+            let planned = clock.phase(id, phase, index)?;
+            if planned != sealed {
+                return Err("IdentityConflict：封批clock读数与计划不同".into());
+            }
+            planned
+        }
+        (Reading::Sealed(sealed), true) => {
+            nonnegative(sealed, "sealed semantic_ns")?;
+            sealed.to_owned()
+        }
+    };
     let old = control_query_row(
         conn,
         c"SELECT logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",
@@ -450,7 +570,7 @@ pub(super) fn record_begin_context(
         .checked_add(1)
         .ok_or("InvalidDomain：attempt ordinal溢出")?;
     // Commit时刻也先核存在；绝不在已经Begin之后才发现计划根本没有该attempt。
-    c.clock.phase(c.id(), "commit", index)?;
+    c.clock.require_planned(c.id(), "commit", index)?;
     record_phase(
         conn,
         &c.clock,
@@ -511,6 +631,100 @@ pub(super) fn commit_time_context(
     Ok(Some(c.clock.phase(c.id(), "commit", index)?))
 }
 
+/// #1769：S3 准备发布时取本次 attempt 的 Commit 读数，每次发布只调用一次。
+/// Plan 读计划（与 [`commit_time_context`] 同值）；System 在此取样一次，须不早于已持久的
+/// 相位前沿（即本 attempt 的 Begin），倒退显式拒绝。值随后封进批次元数据，
+/// 由 [`record_commit_sealed`] 原样落 `s_clock_events`，此后不再取样。
+pub(super) fn commit_reading_context(
+    conn: &Connection,
+    c: &InputContext,
+) -> Result<Option<String>, String> {
+    if !c.clock.is_system() {
+        return commit_time_context(conn, c);
+    }
+    check_clock(conn, &c.clock)?;
+    let attempt = CommitAttempt::current(conn, c)?;
+    let mut readings = COMMIT_READINGS.lock().map_err(err)?;
+    let ns = match readings.get(&attempt.db) {
+        Some(first) if first.attempt == attempt.identity => first.ns.clone(),
+        _ => sample_system_ns()?,
+    };
+    if parse_canonical_i64(&ns, "clock")?
+        < parse_canonical_i64(&attempt.frontier, "clock frontier")?
+    {
+        return Err("InvalidDomain：实际语义clock倒退".into());
+    }
+    readings.insert(
+        attempt.db,
+        FirstCommitReading {
+            attempt: attempt.identity,
+            ns: ns.clone(),
+        },
+    );
+    Ok(Some(ns))
+}
+
+/// 每个库至多一个在途 attempt：Begin 未结束前拒绝新接纳与再 Begin，中断只能经 recover 换新 attempt。
+static COMMIT_READINGS: std::sync::Mutex<std::collections::BTreeMap<String, FirstCommitReading>> =
+    std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+struct FirstCommitReading {
+    attempt: String,
+    ns: String,
+}
+
+struct CommitAttempt {
+    db: String,
+    identity: String,
+    frontier: String,
+}
+impl CommitAttempt {
+    fn current(conn: &Connection, c: &InputContext) -> Result<Self, String> {
+        let (index, ordinal, begin_ns, frontier): (i64, i64, String, String) = conn
+            .query_row(
+                "SELECT m.attempt_count-1,e.attempt_ordinal,e.semantic_ns,p.logical_phase_frontier FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 JOIN s_protocol_meta p ON p.singleton=1 WHERE m.clock_event_id=?1 AND m.status='AcceptedPending'",
+                params![c.id()],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()
+            .map_err(err)?
+            .ok_or("MissingDependency：System commit读数前缺实际Begin")?;
+        Ok(Self {
+            db: conn.path().unwrap_or_default().to_owned(),
+            identity: canonical_json(&json!([c.id(), index, ordinal, begin_ns])),
+            frontier,
+        })
+    }
+}
+
+pub(super) fn sealed_commit_matches_context(
+    conn: &Connection,
+    c: &InputContext,
+    sealed: &str,
+) -> Result<bool, String> {
+    if !c.clock.is_system() {
+        return Ok(commit_time_context(conn, c)?.as_deref() == Some(sealed));
+    }
+    check_clock(conn, &c.clock)?;
+    let frontier: String = conn
+        .query_row(
+            "SELECT logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if parse_canonical_i64(sealed, "sealed commit")?
+        < parse_canonical_i64(&frontier, "clock frontier")?
+    {
+        return Err("InvalidDomain：实际语义clock倒退".into());
+    }
+    let attempt = CommitAttempt::current(conn, c)?;
+    match COMMIT_READINGS.lock().map_err(err)?.get(&attempt.db) {
+        Some(first) if first.attempt == attempt.identity => Ok(first.ns == sealed),
+        _ => Err("MissingDependency：System commit缺本attempt首次读数".into()),
+    }
+}
+
 pub fn seal_batch(
     conn: &Connection,
     c: Option<&InputContext>,
@@ -540,6 +754,20 @@ pub fn record_commit(
     record_commit_context(conn, c, gen, frontier)
 }
 
+/// #1769：S3 发布事务落 Commit：读数取自已封批元数据，不在提交时再取样。
+pub(super) fn record_commit_sealed(
+    conn: &Connection,
+    c: &InputContext,
+    gen: i64,
+    frontier: i64,
+    sealed_commit_ns: &str,
+) -> Result<(), String> {
+    if c.clock.is_system() && !sealed_commit_matches_context(conn, c, sealed_commit_ns)? {
+        return Err("IdentityConflict：封批commit读数与本attempt首次读数不同".into());
+    }
+    record_commit_reading(conn, c, gen, frontier, Reading::Sealed(sealed_commit_ns))
+}
+
 /// #1394 C：v2 与 S3 共用的 **Commit 机械规则**：commit clock 事件、status/first_published_generation
 /// 推进与 delivery refs/policy（含保留窗口）在调用方同一事务内完成；不核根状态。
 pub(super) fn record_commit_context(
@@ -548,8 +776,20 @@ pub(super) fn record_commit_context(
     gen: i64,
     frontier: i64,
 ) -> Result<(), String> {
+    if c.clock.is_system() {
+        return Err("MissingDependency：System commit必须带封批读数".into());
+    }
+    record_commit_reading(conn, c, gen, frontier, Reading::Sample)
+}
+fn record_commit_reading(
+    conn: &Connection,
+    c: &InputContext,
+    gen: i64,
+    frontier: i64,
+    reading: Reading<'_>,
+) -> Result<(), String> {
     let (index,ordinal):(i64,i64)=conn.query_row("SELECT m.attempt_count-1,e.attempt_ordinal FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 WHERE m.clock_event_id=?1",params![c.id()],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
-    record_phase(
+    record_phase_reading(
         conn,
         &c.clock,
         c.id(),
@@ -558,6 +798,7 @@ pub(super) fn record_commit_context(
         &c.key(),
         Some(ordinal),
         gen,
+        reading,
     )?;
     conn.execute("UPDATE s_input_messages SET status='Committed',first_published_generation=?1 WHERE status='AcceptedPending' AND accepted_seq<=?2",params![gen,frontier]).map_err(err)?;
     let keep: i64 = conn
@@ -1662,7 +1903,8 @@ pub(super) fn validate_audit_message_admitted(
     {
         return Err(err("消息持久结果与最早已发布前沿不符"));
     }
-    newchan_rust::session_protocol::clock_phase_view(clock, &event, "accept", -1).map_err(err)?;
+    newchan_rust::session_protocol::clock_require_planned(clock, &event, "accept", -1)
+        .map_err(err)?;
     let key_fields = [
         JsonView::String(&ns),
         JsonView::String(&se),
@@ -1686,7 +1928,8 @@ pub(super) fn validate_audit_phase(
     message: Option<(&str, i64, Option<i64>)>,
 ) -> Result<(), String> {
     let next_g = root_g.checked_add(1).ok_or_else(|| err("generation溢出"))?;
-    if newchan_rust::session_protocol::clock_phase_view(clock, id, phase, index).map_err(err)? != ns
+    if !newchan_rust::session_protocol::clock_persisted_matches(clock, id, phase, index, ns)
+        .map_err(err)?
         || g < 0
         || g > next_g
     {
@@ -1895,9 +2138,14 @@ pub(super) fn validate_control_history_admitted(
     )
     .map_err(err)?;
     let clock = stored_control_clock_admitted(conn, owner, work)?;
+    let system = newchan_rust::session_protocol::clock_source_view(clock.value.view())
+        == newchan_rust::session_protocol::ClockSource::System;
     let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work)?)))?;
     if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
+    }
+    if system && protocol_revision != "s-session/3" {
+        return Err(err("system clock只属于s-session/3"));
     }
     positive(&inc, "session_generation").map_err(err)?;
     let root_g = control_meta_i64_admitted(conn, "generation", owner, work)?;
@@ -2092,6 +2340,9 @@ pub(super) fn validate_control_history_admitted(
     {
         return Err(err("phase frontier/attempt序列断裂"));
     }
+    if system {
+        validate_system_phase_order(conn, owner, work)?;
+    }
     for id in &control_sorted_keys_admitted(&messages, owner, work)? {
         let (_, count, published) = messages.get(id.as_str()).unwrap();
         let indexes = begins_by_message.get(id.as_str());
@@ -2139,12 +2390,16 @@ pub(super) fn validate_control_history_admitted(
             &mut remaining,
             (g, batch_id),
             ControlHeader {
-                commit_ns: TextValue::from_str_admitted(
-                    clock.phase(id, "commit", *index).map_err(err)?,
-                    owner,
-                    work,
-                )
-                .map_err(err)?,
+                commit_ns: if system {
+                    persisted_commit_ns(conn, id.as_str(), *index, owner, work)?
+                } else {
+                    TextValue::from_str_admitted(
+                        clock.phase(id, "commit", *index).map_err(err)?,
+                        owner,
+                        work,
+                    )
+                    .map_err(err)?
+                },
                 consumed: false,
             },
             work,
@@ -2160,6 +2415,329 @@ pub(super) fn validate_control_history_admitted(
             headers: remaining,
         },
     })
+}
+
+struct EpochStep {
+    from: i64,
+    to: i64,
+    generation: i64,
+    at: i64,
+}
+struct BeginReading {
+    id: TextValue,
+    ns: i64,
+    generation: i64,
+    committed: bool,
+}
+struct AcceptReading {
+    id: TextValue,
+    ns: i64,
+    generation: i64,
+    epoch: i64,
+    /// 已发布 raw 的新身份接纳：接纳即 Committed，没有 attempt。
+    alias: bool,
+}
+/// accept/recover 记录发生时已发布的代，begin 记录目标代；三者都落在该窗口两端 commit 之间。
+fn generation_window(begin: bool, generation: i64) -> i64 {
+    if begin {
+        generation - 1
+    } else {
+        generation
+    }
+}
+fn system_ns(r: &mut CheckedRow<'_>, column: usize) -> Result<i64, String> {
+    nonnegative(r.text(column).map_err(err)?, "semantic_ns").map_err(err)
+}
+fn validate_system_phase_order(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT clock_event_id,semantic_ns FROM s_clock_events WHERE phase<>'recover' ORDER BY clock_event_id,attempt_index,phase",
+    )
+    .map_err(err)?;
+    let mut current: Option<TextValue> = None;
+    let mut prev = -1;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let id = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let ns = system_ns(&mut r, 1)?;
+        if current.as_ref().map(TextValue::as_str) != Some(id.as_str()) {
+            current = Some(id);
+            prev = -1;
+        }
+        if ns < prev {
+            return Err(err("system clock消息相位读数倒退"));
+        }
+        prev = ns;
+    }
+    stmt.finalize().map_err(err)?;
+
+    let mut epochs: CodecVec<EpochStep> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT from_epoch,to_epoch,generation_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let step = EpochStep {
+            from: parse_writer_epoch(r.text(0).map_err(err)?, "epoch.from").map_err(err)?,
+            to: parse_writer_epoch(r.text(1).map_err(err)?, "epoch.to").map_err(err)?,
+            generation: nonnegative(r.text(2).map_err(err)?, "epoch.generation").map_err(err)?,
+            at: system_ns(&mut r, 3)?,
+        };
+        if epochs
+            .last()
+            .is_some_and(|last: &EpochStep| step.at < last.at)
+        {
+            return Err(err("system clock writer换代读数倒退"));
+        }
+        control_push(&mut epochs, step, work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+
+    let mut commits: CodecVec<(i64, i64)> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT generation,semantic_ns FROM s_clock_events WHERE phase='commit' ORDER BY generation",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let g = r.integer(0).map_err(err)?;
+        let ns = system_ns(&mut r, 1)?;
+        if commits
+            .last()
+            .is_some_and(|&(_, last): &(i64, i64)| ns < last)
+        {
+            return Err(err("system clock全局相位读数倒退"));
+        }
+        control_push(&mut commits, (g, ns), work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+    let commit_at = |g: i64| {
+        commits
+            .binary_search_by_key(&g, |&(generation, _)| generation)
+            .ok()
+            .map(|i| commits[i].1)
+    };
+
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT phase,generation,semantic_ns FROM s_clock_events WHERE phase<>'commit'",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let begin = r.text(0).map_err(err)? == "begin";
+        let window = generation_window(begin, r.integer(1).map_err(err)?);
+        let ns = system_ns(&mut r, 2)?;
+        if commit_at(window).is_some_and(|after| ns < after)
+            || commit_at(window + 1).is_some_and(|before| ns > before)
+        {
+            return Err(err("system clock相位读数越出所属代际窗口"));
+        }
+    }
+    stmt.finalize().map_err(err)?;
+
+    let initial = match epochs.first() {
+        Some(first) => first.from,
+        None => parse_writer_epoch(
+            &control_meta_text_admitted(conn, "writer_epoch", owner, work)?
+                .ok_or_else(|| err("缺writer_epoch"))?,
+            "meta.writer_epoch",
+        )
+        .map_err(err)?,
+    };
+    let mut accepts: CodecVec<AcceptReading> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT e.clock_event_id,e.semantic_ns,e.generation,m.canonical_envelope,m.status,m.attempt_count,m.first_published_generation FROM s_clock_events e JOIN s_input_messages m ON m.clock_event_id=e.clock_event_id WHERE e.phase='accept' ORDER BY e.generation",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let id = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let ns = system_ns(&mut r, 1)?;
+        let generation = r.integer(2).map_err(err)?;
+        let raw = TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?;
+        let committed = r.text(4).map_err(err)? == "Committed";
+        let alias = committed && r.integer(5).map_err(err)? == 0;
+        // 接纳时 raw 已发布才记为零 attempt 的 Committed；推进消息则在接纳后的下一代首次发布。
+        let published = r.optional_integer(6).map_err(err)?;
+        if alias && published.is_none_or(|p| p > generation)
+            || !alias && published.is_some_and(|p| p != generation + 1)
+        {
+            return Err(err("system clock接纳代际与其raw首次发布不一致"));
+        }
+        let envelope = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
+        let epoch = parse_writer_epoch(
+            control_json::field(
+                control_json::field(envelope.view(), "payload"),
+                "writer_epoch",
+            )
+            .as_str()
+            .ok_or_else(|| err("原件缺writer_epoch"))?,
+            "payload.writer_epoch",
+        )
+        .map_err(err)?;
+        let accept = AcceptReading {
+            id,
+            ns,
+            generation,
+            epoch,
+            alias,
+        };
+        control_push(&mut accepts, accept, work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+
+    let mut begins: CodecVec<BeginReading> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT b.clock_event_id,b.semantic_ns,b.generation,c.attempt_index FROM s_clock_events b LEFT JOIN s_clock_events c ON c.clock_event_id=b.clock_event_id AND c.phase='commit' AND c.attempt_index=b.attempt_index WHERE b.phase='begin' ORDER BY b.attempt_ordinal",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let begin = BeginReading {
+            id: TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?,
+            ns: system_ns(&mut r, 1)?,
+            generation: r.integer(2).map_err(err)?,
+            committed: r.optional_integer(3).map_err(err)?.is_some(),
+        };
+        if begins.last().is_some_and(|last: &BeginReading| {
+            begin.ns < last.ns || begin.generation < last.generation
+        }) {
+            return Err(err("system clock全局相位读数倒退"));
+        }
+        control_push(&mut begins, begin, work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+    let in_flight = control_meta_text_admitted(conn, "advance_state", owner, work)?
+        .is_some_and(|state| state.as_str() != "idle");
+
+    let (mut a, mut b, mut e) = (0, 0, 0);
+    loop {
+        let window = [
+            accepts.get(a).map(|x| x.generation),
+            begins.get(b).map(|x| x.generation - 1),
+            epochs.get(e).map(|x| x.generation),
+        ]
+        .into_iter()
+        .flatten()
+        .min();
+        let Some(window) = window else { break };
+        let a_end = a + accepts[a..]
+            .iter()
+            .take_while(|x| x.generation == window)
+            .count();
+        let b_end = b + begins[b..]
+            .iter()
+            .take_while(|x| x.generation - 1 == window)
+            .count();
+        let e_end = e + epochs[e..]
+            .iter()
+            .take_while(|x| x.generation == window)
+            .count();
+        let epoch_at_start = if e == 0 { initial } else { epochs[e - 1].to };
+        validate_system_window(
+            &accepts[a..a_end],
+            &begins[b..b_end],
+            &epochs[e..e_end],
+            epoch_at_start,
+            in_flight && b_end == begins.len(),
+        )?;
+        (a, b, e) = (a_end, b_end, e_end);
+    }
+    Ok(())
+}
+
+/// 单写者的一个代际窗口只能是
+/// `(换代|别名接纳)* 推进消息接纳 (换代)* (未提交Begin 换代 (换代)*)* [已提交Begin Commit | 在途Begin]`：
+/// 有 pending 时拒绝一切接纳，begun 时只有本 attempt 的 Commit 或一次换代能结束它；
+/// 每次接纳都发生在其原件 writer_epoch 为当前 epoch 时。换代按 ordinal 排列，每个接纳因此
+/// 有唯一槽位（本窗口内其前的换代数）。核存在一条满足此文法且读数不倒退的交错。
+fn validate_system_window(
+    accepts: &[AcceptReading],
+    begins: &[BeginReading],
+    recovers: &[EpochStep],
+    epoch_at_start: i64,
+    last_in_flight: bool,
+) -> Result<(), String> {
+    let slot_of = |accept: &AcceptReading| -> Result<usize, String> {
+        let slot = if accept.epoch == epoch_at_start {
+            0
+        } else {
+            recovers
+                .iter()
+                .position(|s| s.to == accept.epoch)
+                .ok_or_else(|| err("原件writer_epoch不在本代际窗口的换代链上"))?
+                + 1
+        };
+        if slot > 0 && accept.ns < recovers[slot - 1].at
+            || recovers.get(slot).is_some_and(|s| accept.ns > s.at)
+        {
+            return Err(err("system clock接纳读数越出原件writer_epoch区间"));
+        }
+        Ok(slot)
+    };
+    let mut advanced: Option<(&str, usize, i64)> = None;
+    for accept in accepts.iter().filter(|x| !x.alias) {
+        if advanced.is_some() {
+            return Err(err("代际窗口内推进消息不唯一"));
+        }
+        advanced = Some((accept.id.as_str(), slot_of(accept)?, accept.ns));
+    }
+    for alias in accepts.iter().filter(|x| x.alias) {
+        let slot = slot_of(alias)?;
+        if advanced.is_some_and(|(_, m, ns)| slot > m || (slot == m && alias.ns > ns)) {
+            return Err(err("别名接纳不得晚于推进消息的接纳"));
+        }
+    }
+    if begins.is_empty() {
+        return Ok(());
+    }
+    let (message, mut next, mut placed) =
+        advanced.ok_or_else(|| err("Begin消息的接纳不在本代际窗口"))?;
+    for (k, begin) in begins.iter().enumerate() {
+        if begin.id.as_str() != message {
+            return Err(err("同一代际窗口内Begin属于不同消息"));
+        }
+        if begin.ns < placed {
+            return Err(err("system clock换代读数晚于下一次Begin"));
+        }
+        while let Some(idle) = recovers.get(next).filter(|s| s.at < begin.ns) {
+            placed = idle.at;
+            next += 1;
+        }
+        if begin.committed || (last_in_flight && k + 1 == begins.len()) {
+            while recovers.get(next).is_some_and(|s| s.at == begin.ns) {
+                next += 1;
+            }
+            if k + 1 != begins.len() || next != recovers.len() {
+                return Err(err("system clock换代读数落在未结束attempt的Begin之后"));
+            }
+        } else {
+            let cleared = recovers
+                .get(next)
+                .ok_or_else(|| err("未提交attempt缺结束它的换代"))?;
+            placed = cleared.at;
+            next += 1;
+        }
+    }
+    Ok(())
+}
+fn persisted_commit_ns(
+    conn: &Connection,
+    id: &str,
+    index: i64,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_query_row(
+        conn,
+        c"SELECT semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2",
+        &[ControlBind::Text(id), ControlBind::Integer(index)],
+        |mut r| TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(|e| e.to_string()),
+    )
 }
 
 fn process_lock(db: &Path) -> Result<File, String> {
@@ -2179,6 +2757,9 @@ fn init_v2(
         return Err("InvalidDomain：delivery retain必须大于0".into());
     }
     let clock = ClockPlan::load(clock_path)?;
+    if clock.is_system() {
+        return Err("SchemaUnsupported：s-clock-system/1 只用于 s-session/3".into());
+    }
     let (profile_def, profile_id, profile_hash) = load_profile(profile)?;
     let catalog_def = strict_json(&std::fs::read(catalog).map_err(err)?)?;
     let _lock = process_lock(db)?;
@@ -2419,9 +3000,9 @@ fn handle_with_policy_and_config(
                 clock: clock.clone(),
             };
             // 接纳前核可执行的初始clock，不能持久一个完全无后继计划的消息。
-            c.clock.phase(c.id(), "accept", -1)?;
-            c.clock.phase(c.id(), "begin", 0)?;
-            c.clock.phase(c.id(), "commit", 0)?;
+            c.clock.require_planned(c.id(), "accept", -1)?;
+            c.clock.require_planned(c.id(), "begin", 0)?;
+            c.clock.require_planned(c.id(), "commit", 0)?;
             drop(tx);
             drop(conn);
             if old["kind"] == "Unknown" {
@@ -3599,6 +4180,43 @@ mod tests {
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
             Some("idle")
         );
+    }
+
+    /// #1769：`s-clock-system/1` 只属于 s-session/3；s-session/2 init 在落盘前显式拒绝。
+    #[test]
+    fn v2_init_rejects_system_clock_without_writing() {
+        let dir = std::env::temp_dir().join(format!(
+            "s1769-v2-system-clock-{}-{}",
+            std::process::id(),
+            now_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        let clock_path = dir.join("clock.json");
+        std::fs::write(
+            &clock_path,
+            canonical_json(
+                &json!({"schema_revision":"s-clock-system/1","clock_id":"v2","unit":"ns"}),
+            ),
+        )
+        .unwrap();
+        let db = dir.join("s.sqlite");
+        let error = init_v2(
+            &db,
+            "test-system",
+            &base.join("catalog/signed-catalog.json"),
+            &base.join("profiles/ohlc_integer_tb02a_v1.json"),
+            "1",
+            &clock_path,
+            4,
+        )
+        .unwrap_err();
+        assert!(error.contains("只用于 s-session/3"), "{error}");
+        assert!(!db.exists(), "拒绝发生在建库前");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// #1653（#1576 独审 INFO-3）：`rule_revision` 键缺失时文案明示缺失，不显示空值；拒绝不放松。

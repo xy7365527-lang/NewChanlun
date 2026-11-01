@@ -282,7 +282,7 @@ fn publish_prepared_inner(
     if view.is_committed() || view.is_fresh() {
         return Err(err("本次发布消息不是已接纳未提交状态"));
     }
-    if control.commit_time(&view)?.as_deref() != Some(m.semantic_commit_ns.as_str()) {
+    if !control.sealed_commit_matches(&view, &m.semantic_commit_ns)? {
         return Err(err("本次提交时刻与持久 Begin 不同"));
     }
 
@@ -329,7 +329,7 @@ fn publish_prepared_inner(
         params![m.generation,manifest.batch_id,&manifest.value.digest[..],
             &resolved.snapshot.digest().map_err(err)?[..],&resolved.delta.digest().map_err(err)?[..]],
     ).map_err(err)?;
-    control.commit(&view, m.generation, m.input_frontier)?;
+    control.commit_sealed(&view, m.generation, m.input_frontier, &m.semantic_commit_ns)?;
     let admission = NativeAdmission(work);
     let generation_text = admission
         .native_format(format_args!("{}", m.generation))
