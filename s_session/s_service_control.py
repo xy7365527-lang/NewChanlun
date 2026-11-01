@@ -242,8 +242,9 @@ def admission_action(action):
         self._action_stage, self._action_returncode = "admission", None
         try:
             self.admission.prepare()
-            self._action_stage = "contract"
-            self.check_admission_contract()
+            if "admission_job_limits" in self.config:
+                self.admission.crosscheck_limits(self.config["admission_job_limits"])
+            self._action_environment = self.check_admission_contract()
             return action(self, *args, **kwargs)
         except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
             if not hasattr(exc, "control_receipt"):
@@ -406,11 +407,14 @@ class Controller:
 
     def check_admission_contract(self):
         """#1657：原件核验后、发布和 Rust R4 之前，共用二进制内的已审合同。"""
+        self._action_stage = "contract"
         version = self.config.get("admission_contract_version")
         if type(version) is not str or not version:
             raise ValueError("AdmissionContractVersionMissing")
         deadline = self.admission_deadline
+        self._action_stage = "runtime_probe"
         environment = self.admission.child_environment(self.runtime_environment(deadline))
+        self._action_stage, self._action_returncode = "contract", None
         sha = environment["S_CONTROL_ADMISSION_SHA256"]
         command = [self.config["binary"], "admission-contract", "--contract-version", version,
                    "--limits-sha", sha, "--startup-timeout-ms", str(self.config["startup_timeout_ms"])]
@@ -425,6 +429,7 @@ class Controller:
             raise ValueError("AdmissionContractReplyInvalid")
         remaining(deadline)
         self.admission.revalidate()
+        return environment
 
     def freeze_s_resources(self, deadline):
         """仅复制显式七值（s-launcher/4 为八值）；私有冻结文件随本次启动具名，不采用任何已有文件。"""
@@ -715,11 +720,9 @@ class Controller:
         s3 = is_s3(config)
         validate_s_resources(config)
         positive(writer_epoch, "writer_epoch")
-        if "admission_job_limits" in config:
-            self.admission.crosscheck_limits(config["admission_job_limits"])
+        environment = self._action_environment
+        self._action_stage = "admission"
         self.admission.publish()
-        self._action_stage = "runtime_probe"
-        environment = self.admission.child_environment(self.runtime_environment(deadline))
         self._action_stage, self._action_returncode = "resources", None
         remaining(deadline)
         resource_identity = self.freeze_s_resources(deadline) if s3 else None
@@ -846,12 +849,9 @@ class Controller:
             raise ValueError("须有本控制器记录且已确认原 S 停止，才可恢复换代")
         positive(new_epoch, "new_epoch")
         config = self.config
+        environment = self._action_environment
         self._action_stage = "admission"
-        if "admission_job_limits" in config:
-            self.admission.crosscheck_limits(config["admission_job_limits"])
         self.admission.publish()
-        self._action_stage = "runtime_probe"
-        environment = self.admission.child_environment(self.runtime_environment(deadline))
         self._action_stage, self._action_returncode = "recover_process", None
         command = [config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
                    "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id,

@@ -177,11 +177,22 @@ def _verify_batch_profile(batch, binding):
 def _profile_at_cut(conn, generation):
     if generation==0:
         return "", ""
-    row=conn.execute("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d "
+    row=conn.execute("SELECT b.batch_id,b.canonical_bytes FROM batches b JOIN structure_deltas d "
                      "ON d.index_frontier=b.batch_id WHERE d.generation=?",(generation,)).fetchone()
     if row is None:
         raise ValueError("cut来源不存在")
-    batch=json.loads(row[0])
+    # #1768：物理域先定（不按「整块列为空再试图」降级）；图域批次原件只由私有 batch/ 根展开。
+    integrity=_query_integrity()
+    sources=integrity.evidence_batch_sources(integrity._typed_rows(integrity.capture(conn)))
+    if sources is None:
+        data=row[1]
+    else:
+        if row[1]:
+            raise ValueError("图域批次仍带整块字节（与私有根混写），拒绝读取")
+        data=sources.get(row[0])
+        if data is None:
+            raise ValueError("图域批次缺私有根（引用不完整）")
+    batch=json.loads(data)
     if type(batch.get("profile_id")) is not str or type(batch.get("profile_hash")) is not str:
         raise ValueError("cut.profile_id/hash缺失")
     return batch["profile_id"],batch["profile_hash"]

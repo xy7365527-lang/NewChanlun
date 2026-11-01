@@ -65,6 +65,7 @@ class Fixture:
         self.owner_path.write_bytes(encode(self.owner))
         self.owner_path.chmod(owner_mode)
         self.db_hash = hashlib.sha256(self.db.read_bytes()).hexdigest()
+        self.stub()
 
     def load(self, env=None, deadline=None):
         return admission.RecoveryAdmission(self.db, self.state, deadline or time.monotonic() + 10,
@@ -86,7 +87,7 @@ class Fixture:
                 "session_id": "test", "session_generation": "1", "source_namespace": "test",
                 "source_epoch": "1", "producer_id": "test", "producer_epoch": "1", "writer_epoch": "1",
                 "query_epoch": "1", "port": "12345", "startup_timeout_ms": "10000",
-                "delivery_retain_generations": "1",
+                "delivery_retain_generations": "1", "admission_contract_version": "test-only/1",
                 "s_resources": {key: "1000" for key in control.S_RESOURCE_FIELDS}}
 
     def stub(self, output=None, rc=0):
@@ -97,7 +98,12 @@ class Fixture:
                 "with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()\n"
                 "result={'stub':True,'argv':args,'sha_match':sha==os.environ.get('S_CONTROL_ADMISSION_SHA256')}\n"
                 "print(json.dumps(result))\n") if output is None else "print(" + repr(output) + ")\n"
-        path.write_text("#!" + sys.executable + "\n" + body + f"raise SystemExit({rc})\n")
+        contract = ("import json,os,sys\n"
+                    "if sys.argv[1]=='admission-contract':\n"
+                    " print(json.dumps({'ok':True,'contract_version':'test-only/1',"
+                    "'sha256':os.environ['S_CONTROL_ADMISSION_SHA256']}))\n"
+                    " sys.exit(0)\n")
+        path.write_text("#!" + sys.executable + "\n" + contract + body + f"raise SystemExit({rc})\n")
         path.chmod(0o700)
         return path
 
@@ -118,6 +124,16 @@ class R4Tests(unittest.TestCase):
 
     def assert_source(self, fixture):
         self.assertEqual(hashlib.sha256(fixture.db.read_bytes()).hexdigest(), fixture.db_hash)
+
+    def test_fixture_contract_version_mismatch_still_rejects_before_spawn(self):
+        f = self.fixture()
+        config = {**f.config(), "admission_contract_version": "different-test-contract/1"}
+        with contextlib.closing(control.Controller(config, f.state)) as controller:
+            with patch.object(controller, "runtime_environment", return_value={}), \
+                 patch.object(controller, "start_process") as spawn:
+                with self.assertRaisesRegex(ValueError, "AdmissionContractReplyInvalid"):
+                    controller.start_s("1")
+                spawn.assert_not_called()
 
     def test_valid_anchor_no_env_counts_exact_payload_holds_fds_and_keeps_state_0755(self):
         f = self.fixture(owner_mode=0o644)
@@ -937,7 +953,8 @@ class RepairTests(unittest.TestCase):
                 reads, real_read = [], admission.os.read
                 def read(fd, size):
                     chunk = real_read(fd, size)
-                    reads.append((fd, len(chunk)))
+                    if stat.S_ISREG(os.fstat(fd).st_mode):
+                        reads.append((fd, len(chunk)))
                     return chunk
                 with patch.object(admission.os, "read", side_effect=read), \
                      patch.object(admission, "_object", wraps=admission._object) as strict, \
