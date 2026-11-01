@@ -248,6 +248,7 @@ T物理占用不超E+O+A
 UPDATE catalog SET impl_status='implemented', proof_status='bad'; INSERT INTO catalog VALUES('后错',7,NULL,NULL,NULL);
 Value证书不得复用JsonInner判定
 ["完整证据",1.0]
+accept 越出代际窗口必须拒绝
 accept/begin/commit 各取样一次
 actual 坏成员先于 expected 重复
 actual 坏成员先于 expected 非数组
@@ -415,6 +416,7 @@ receipt 查询不得用当前配置改写历史
 receipt 须经重绑点换到本请求冻结域
 recover 不改已发布 cut
 recover 取样一次
+recover 越出代际窗口必须拒绝
 resolved 两根每次仅重核真实根头
 retained memo以自身allocator实际layout求和
 rollback 后视图仍必须拒绝
@@ -496,6 +498,7 @@ writer/recover闭合后无SHM
 下一次未改原件须恢复暖前缀复用
 不再有 subject=null 的同价窗口请求
 不可因摘要相同丢Noop occurrence
+不同于首次读数的封批值不得落账
 不多不少：闭包流恰为根闭包
 不存在.sqlite
 不得以K组冻结
@@ -699,6 +702,7 @@ writer/recover闭合后无SHM
 同 spec 重绑不得写节点
 同captured mode下F/读取核不得漂移
 同owner快照命中无需重建cold
+同一 attempt 的 Commit 重读复用首次读数
 同一allocation重复物理reserve必须被拒
 同一冻结库的持久发布输入未变；行为等价由七代独立库锁验证
 同一合同项不得重复入O
@@ -1583,6 +1587,7 @@ writer/recover闭合后无SHM
 闭包块会话与冷 CLI 逐字节相同
 闭包缺子节点必须拒绝
 降级注入代入口须带候选
+降级重做发布复用首次 Commit 读数
 降级重试的完整分支须标 abandon
 隐藏已加载 trigger 确实执行
 集合与两个叶迭代栈持账

@@ -967,8 +967,20 @@ mod tests {
         let sealed = control.commit_time(&view).unwrap().unwrap();
         assert_eq!(sealed, "300");
         assert_eq!(fake::samples(), 3);
+        assert_eq!(
+            control.commit_time(&view).unwrap().as_deref(),
+            Some("300"),
+            "同一 attempt 的 Commit 重读复用首次读数"
+        );
+        assert_eq!(fake::samples(), 3);
         assert!(control.sealed_commit_matches(&view, &sealed).unwrap());
+        assert!(!control.sealed_commit_matches(&view, "301").unwrap());
         insert_delta(&tx, 1);
+        let other = expect_err(
+            control.commit_sealed(&view, 1, 0, "301"),
+            "不同于首次读数的封批值不得落账",
+        );
+        assert!(other.contains("首次读数不同"), "{other}");
         control.commit_sealed(&view, 1, 0, &sealed).unwrap();
         assert_eq!(fake::samples(), 3, "封批读数原样落账，提交时不再取样");
         tx.commit().unwrap();

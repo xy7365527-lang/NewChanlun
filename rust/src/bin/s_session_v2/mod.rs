@@ -643,25 +643,48 @@ pub(super) fn commit_reading_context(
         return commit_time_context(conn, c);
     }
     check_clock(conn, &c.clock)?;
-    let (pending, frontier): (i64, String) = conn
-        .query_row(
-            "SELECT m.attempt_count,p.logical_phase_frontier FROM s_input_messages m JOIN s_protocol_meta p ON p.singleton=1 WHERE m.clock_event_id=?1 AND m.status='AcceptedPending'",
-            params![c.id()],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(err)?;
-    if pending < 1 {
-        return Err("MissingDependency：System commit读数前缺实际Begin".into());
-    }
-    let ns = sample_system_ns()?;
+    let (db, attempt, frontier) = commit_attempt_key(conn, c)?;
+    let mut readings = COMMIT_READINGS.lock().map_err(err)?;
+    let ns = match readings.get(&db) {
+        Some((owner, ns)) if *owner == attempt => ns.clone(),
+        _ => sample_system_ns()?,
+    };
     if parse_canonical_i64(&ns, "clock")? < parse_canonical_i64(&frontier, "clock frontier")? {
         return Err("InvalidDomain：实际语义clock倒退".into());
     }
+    readings.insert(db, (attempt, ns.clone()));
     Ok(Some(ns))
 }
 
+/// #1769：每个库至多一个在途 attempt（Begin 未结束前拒绝新接纳与再 Begin，中断只能经 recover
+/// 换新 attempt），故按库保存该 attempt 的首次 Commit 读数。同一 attempt 的重读、封批与同请求
+/// 内回滚后重做的发布事务都复用它；新 attempt 覆盖旧项。只在进程内持有：进程中断时该 attempt
+/// 没有 Commit 行，恢复后续推的是新 attempt。
+static COMMIT_READINGS: std::sync::Mutex<std::collections::BTreeMap<String, (String, String)>> =
+    std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+/// 当前已持久 Begin 的 attempt 身份（库、clock 事件、attempt 序号、全局 ordinal、Begin 读数）
+/// 与当前相位前沿；未 Begin 即 `MissingDependency`。
+fn commit_attempt_key(
+    conn: &Connection,
+    c: &InputContext,
+) -> Result<(String, String, String), String> {
+    let (index, ordinal, begin_ns, frontier): (i64, i64, String, String) = conn
+        .query_row(
+            "SELECT m.attempt_count-1,e.attempt_ordinal,e.semantic_ns,p.logical_phase_frontier FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 JOIN s_protocol_meta p ON p.singleton=1 WHERE m.clock_event_id=?1 AND m.status='AcceptedPending'",
+            params![c.id()],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()
+        .map_err(err)?
+        .ok_or("MissingDependency：System commit读数前缺实际Begin")?;
+    let db = conn.path().unwrap_or_default().to_owned();
+    let attempt = canonical_json(&json!([c.id(), index, ordinal, begin_ns]));
+    Ok((db, attempt, frontier))
+}
+
 /// #1769：发布事务内核已封批的 Commit 读数。Plan 返回它是否等于计划值；System 不重新取样，
-/// 只核它是规范非负整数且不早于持久相位前沿，倒退显式拒绝。
+/// 早于持久相位前沿即拒绝，再返回它是否等于本 attempt 的首次 Commit 读数。
 pub(super) fn sealed_commit_matches_context(
     conn: &Connection,
     c: &InputContext,
@@ -683,7 +706,11 @@ pub(super) fn sealed_commit_matches_context(
     {
         return Err("InvalidDomain：实际语义clock倒退".into());
     }
-    Ok(true)
+    let (db, attempt, _) = commit_attempt_key(conn, c)?;
+    match COMMIT_READINGS.lock().map_err(err)?.get(&db) {
+        Some((owner, ns)) if *owner == attempt => Ok(ns == sealed),
+        _ => Err("MissingDependency：System commit缺本attempt首次读数".into()),
+    }
 }
 
 pub fn seal_batch(
@@ -723,6 +750,9 @@ pub(super) fn record_commit_sealed(
     frontier: i64,
     sealed_commit_ns: &str,
 ) -> Result<(), String> {
+    if c.clock.is_system() && !sealed_commit_matches_context(conn, c, sealed_commit_ns)? {
+        return Err("IdentityConflict：封批commit读数与本attempt首次读数不同".into());
+    }
     record_commit_reading(conn, c, gen, frontier, Reading::Sealed(sealed_commit_ns))
 }
 
@@ -2375,8 +2405,12 @@ pub(super) fn validate_control_history_admitted(
     })
 }
 
-/// #1769：System 冷审计的持久读数顺序。每条消息 accept ≤ begin₀ ≤ commit₀ ≤ begin₁ …，
-/// 全局 Begin 按 attempt_ordinal、Commit 按 generation 都不倒退。只读已落盘值，不取样。
+/// #1769：System 冷审计的持久读数偏序，全部由已落盘的结构关系推出，不按时间排序自证：
+/// - 同一消息按 attempt 序：accept ≤ begin₀ ≤ commit₀ ≤ begin₁ …；
+/// - 全局 Begin 按 attempt_ordinal、Commit 按 generation、换代按 writer_epoch_history.ordinal 不倒退；
+/// - 代际窗口：accept/recover 行记录发生时的已发布代 G，begin 行记录目标代 G+1；它们都发生在
+///   commit(G) 之后、commit(G+1) 之前（单写者：Begin 未结束前拒绝新接纳）。
+/// 只读已落盘值，不取样。
 fn validate_system_phase_order(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
@@ -2404,7 +2438,7 @@ fn validate_system_phase_order(
     stmt.finalize().map_err(err)?;
     for sql in [
         c"SELECT semantic_ns FROM s_clock_events WHERE phase='begin' ORDER BY attempt_ordinal",
-        c"SELECT semantic_ns FROM s_clock_events WHERE phase='commit' ORDER BY generation",
+        c"SELECT transitioned_at FROM writer_epoch_history ORDER BY ordinal",
     ] {
         let mut stmt = CheckedStatement::prepare(conn, sql).map_err(err)?;
         let mut prev = -1;
@@ -2417,6 +2451,50 @@ fn validate_system_phase_order(
         }
         stmt.finalize().map_err(err)?;
     }
+    let mut commits = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT generation,semantic_ns FROM s_clock_events WHERE phase='commit' ORDER BY generation",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let g = r.integer(0).map_err(err)?;
+        let ns = nonnegative(r.text(1).map_err(err)?, "semantic_ns").map_err(err)?;
+        if commits
+            .last()
+            .is_some_and(|&(_, last): &(i64, i64)| ns < last)
+        {
+            return Err(err("system clock全局相位读数倒退"));
+        }
+        control_push(&mut commits, (g, ns), work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+    let commit_at = |g: i64| {
+        commits
+            .binary_search_by_key(&g, |&(generation, _)| generation)
+            .ok()
+            .map(|i| commits[i].1)
+    };
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT phase,generation,semantic_ns FROM s_clock_events WHERE phase<>'commit'",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let begin = r.text(0).map_err(err)? == "begin";
+        let g = r.integer(1).map_err(err)?;
+        let ns = nonnegative(r.text(2).map_err(err)?, "semantic_ns").map_err(err)?;
+        let window = if begin { g - 1 } else { g };
+        if commit_at(window).is_some_and(|after| ns < after)
+            || window
+                .checked_add(1)
+                .and_then(|next| commit_at(next))
+                .is_some_and(|before| ns > before)
+        {
+            return Err(err("system clock相位读数越出所属代际窗口"));
+        }
+    }
+    stmt.finalize().map_err(err)?;
     Ok(())
 }
 fn persisted_commit_ns(

@@ -647,6 +647,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn system_clock_descriptor_dispatches_and_refuses_plan_reads() {
+        let system = json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ns"});
+        let view = ClockView::parse((&system).into()).unwrap();
+        assert_eq!(view.source(), ClockSource::System);
+        let again = json!({"unit":"ns","clock_id":"s-prod","schema_revision":S_CLOCK_SYSTEM});
+        assert_eq!(
+            view.hash_fixed().unwrap().as_str(),
+            ClockView::parse((&again).into())
+                .unwrap()
+                .hash_fixed()
+                .unwrap()
+                .as_str(),
+            "描述 hash 只由固定三键决定"
+        );
+        let error = view.phase("input-1", "commit", 0).unwrap_err();
+        assert!(error.contains("须读持久"), "{error}");
+        clock_require_planned((&system).into(), "input-1", "commit", 0).unwrap();
+        assert!(clock_persisted_matches((&system).into(), "input-1", "accept", -1, "7").unwrap());
+        assert!(clock_persisted_matches((&system).into(), "input-1", "accept", -1, "07").is_err());
+        for bad in [
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod"}),
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ms"}),
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"","unit":"ns"}),
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ns","events":{}}),
+        ] {
+            assert!(ClockView::parse((&bad).into()).is_err(), "{bad}");
+        }
+        let plan = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"c1","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{"input":{"accept_ns":"0","attempts":[{"begin_ns":"1","commit_ns":"2"}]}}});
+        let view = ClockView::parse((&plan).into()).unwrap();
+        assert_eq!(view.source(), ClockSource::Plan);
+        assert!(clock_require_planned((&plan).into(), "input", "commit", 0).is_ok());
+        assert!(clock_require_planned((&plan).into(), "missing", "commit", 0).is_err());
+        let planned = view.phase("input", "commit", 0).unwrap();
+        assert!(clock_persisted_matches((&plan).into(), "input", "commit", 0, planned).unwrap());
+        assert!(!clock_persisted_matches((&plan).into(), "input", "commit", 0, "999").unwrap());
+    }
+    #[test]
     fn exact_integer_contract_does_not_round_or_normalize_input() {
         for value in ["", "-0", "+1", "01", "-01", " 1", "1.0", "1e3"] {
             assert!(parse_canonical_i64(value, "quantity").is_err(), "{value}");
@@ -862,43 +899,6 @@ mod borrowed_control_tests {
         assert_eq!(calls, 0);
         drop(tree);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
-    }
-    #[test]
-    fn system_clock_descriptor_dispatches_and_refuses_plan_reads() {
-        let system = json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ns"});
-        let view = ClockView::parse((&system).into()).unwrap();
-        assert_eq!(view.source(), ClockSource::System);
-        let again = json!({"unit":"ns","clock_id":"s-prod","schema_revision":S_CLOCK_SYSTEM});
-        assert_eq!(
-            view.hash_fixed().unwrap().as_str(),
-            ClockView::parse((&again).into())
-                .unwrap()
-                .hash_fixed()
-                .unwrap()
-                .as_str(),
-            "描述 hash 只由固定三键决定"
-        );
-        let error = view.phase("input-1", "commit", 0).unwrap_err();
-        assert!(error.contains("须读持久"), "{error}");
-        clock_require_planned((&system).into(), "input-1", "commit", 0).unwrap();
-        assert!(clock_persisted_matches((&system).into(), "input-1", "accept", -1, "7").unwrap());
-        assert!(clock_persisted_matches((&system).into(), "input-1", "accept", -1, "07").is_err());
-        for bad in [
-            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod"}),
-            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ms"}),
-            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"","unit":"ns"}),
-            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ns","events":{}}),
-        ] {
-            assert!(ClockView::parse((&bad).into()).is_err(), "{bad}");
-        }
-        let plan = clock();
-        let view = ClockView::parse((&plan).into()).unwrap();
-        assert_eq!(view.source(), ClockSource::Plan);
-        assert!(clock_require_planned((&plan).into(), "input", "commit", 0).is_ok());
-        assert!(clock_require_planned((&plan).into(), "missing", "commit", 0).is_err());
-        let planned = view.phase("input", "commit", 0).unwrap();
-        assert!(clock_persisted_matches((&plan).into(), "input", "commit", 0, planned).unwrap());
-        assert!(!clock_persisted_matches((&plan).into(), "input", "commit", 0, "999").unwrap());
     }
     #[test]
     fn clock_error_priority_strict_inputs_and_owned_encoder_quota_stay_closed() {

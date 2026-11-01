@@ -2292,6 +2292,126 @@ mod tests {
         assert_eq!(fake::samples(), 3, "冷审计不取样");
     }
 
+    /// #1769 R2：冷审计按代际窗口与换代序核 Accept/Recover，不按时间排序自证。
+    #[test]
+    fn s_system_clock_cold_audit_rejects_out_of_window_accept_and_recover() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(input).unwrap()["kind"], "Committed");
+        drop(d);
+        fake::push(&[400]);
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        fake::push(&[500, 600, 700]);
+        let mut after = f.open("2").unwrap();
+        let mut second = Fixture::ingest(2);
+        second["payload"]["writer_epoch"] = json!("2");
+        second["payload_hash"] = json!(sha256_hex(canonical_json(&second["payload"]).as_bytes()));
+        assert_eq!(after.handle(second).unwrap()["kind"], "Committed");
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["300".to_string(), "700".to_string()]
+        );
+        let audit_error = |sql: &str| {
+            let conn = Connection::open(&f.db).unwrap();
+            conn.execute_batch(sql).unwrap();
+            drop(conn);
+            let mut conn = open_db(&f.db).unwrap();
+            let tx = conn.transaction().unwrap();
+            let error = state::audit(&tx).err();
+            tx.rollback().unwrap();
+            error
+        };
+        // accept₂ 落在 commit₁ 之前：单消息链、全局 Begin/Commit 与 frontier 都不变，只有窗口能拒绝。
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='50' WHERE clock_event_id='input-2' AND phase='accept'",
+        )
+        .expect("accept 越出代际窗口必须拒绝");
+        assert!(error.contains("代际窗口"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='500' WHERE clock_event_id='input-2' AND phase='accept'",
+        )
+        .is_none());
+        // recover 与换代历史同改为 50：双方配对仍一致，窗口拒绝。
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='50' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='50'",
+        )
+        .expect("recover 越出代际窗口必须拒绝");
+        assert!(error.contains("代际窗口"), "{error}");
+        assert_eq!(fake::samples(), 7, "冷审计不取样");
+    }
+
+    /// #1769 R1：候选尾检预算不足、同请求回滚后重做发布，复用同一 attempt 的首次 Commit 读数。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn s_system_clock_budget_degrade_reuses_first_commit_reading() {
+        use super::super::audit_owner::PUBLICATION_CANDIDATE_BUDGET_FAILURE;
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300, 400, 500, 600]));
+        let f = Fixture::system();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        assert_eq!(
+            warm.handle(Fixture::ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        assert_eq!(fake::samples(), 3);
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "第 2 代入口须带完整候选"
+        );
+        PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.set(true));
+        let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(2)));
+        assert!(
+            !PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.get()),
+            "故障必须实际到达候选尾检"
+        );
+        assert_eq!(reply.unwrap()["kind"], "Committed");
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["phase"] == "publication_candidate_abandoned")
+                .count(),
+            1
+        );
+        assert_eq!(fake::samples(), 6, "降级重做发布复用首次 Commit 读数");
+        drop(warm);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["300".to_string(), "600".to_string()]
+        );
+        assert_eq!(fake::samples(), 6);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "input-1|commit|0|300",
+                "input-2|accept|-1|400",
+                "input-2|begin|0|500",
+                "input-2|commit|0|600",
+            ]
+        );
+    }
+
     // 仅调用正常 Driver，覆盖“新消息携带既有 raw”而控制账继续变化的情况。
     #[cfg(feature = "s_incremental")]
     #[test]
