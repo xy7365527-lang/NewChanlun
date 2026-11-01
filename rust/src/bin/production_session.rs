@@ -276,8 +276,7 @@ fn run() -> Result<i32, String> {
     // ── init：只对尚不存在的库；S 一律带声明 init ──
     std::fs::create_dir_all(&m.state_dir).map_err(|e| format!("StorageUnavailable：{e}"))?;
     let decl = m.state_dir.join("structure-source.json");
-    std::fs::write(&decl, m.source.canonical())
-        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    std::fs::write(&decl, m.source.canonical()).map_err(|e| format!("StorageUnavailable：{e}"))?;
     if !s_db.exists() {
         let mut c = clean(Command::new(&s_bin), &S_PASS);
         c.args(["init", "--protocol-revision", "s-session/3", "--db"])

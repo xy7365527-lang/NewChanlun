@@ -659,7 +659,11 @@ fn structure_source_fixture(space: &Space, fault: &str) -> (PathBuf, PathBuf, Pa
     let source = declaration("TestOnlyStructure", DECLARED_NS);
     let db = s_init_v3(
         space,
-        if fault == "missing" { None } else { Some(&source) },
+        if fault == "missing" {
+            None
+        } else {
+            Some(&source)
+        },
     );
     if fault == "stored_corrupt" {
         let conn = Connection::open(&db).unwrap();
@@ -695,12 +699,15 @@ fn assert_source_refusal(fault: &str, expected_error: &str) {
     assert!(stderr.contains(expected_error), "{stderr}");
     if fault == "mismatch" {
         for ns in [DECLARED_NS, "testonly.other"] {
-            let canonical = newchan_rust::structure_source::Declaration::parse(
-                &declaration("TestOnlyStructure", ns),
-            )
+            let canonical = newchan_rust::structure_source::Declaration::parse(&declaration(
+                "TestOnlyStructure",
+                ns,
+            ))
             .unwrap()
             .canonical();
-            assert!(stderr.contains(&canonical), "{stderr}");
+            // S 的错误字段是 JSON 字符串；去掉外层引号后核对完整声明的转义内容。
+            let encoded = serde_json::to_string(&canonical).unwrap();
+            assert!(stderr.contains(&encoded[1..encoded.len() - 1]), "{stderr}");
         }
     }
     assert!(!space.path("s.sock").exists());
@@ -808,11 +815,7 @@ fn assert_launcher_source_failure(fault: &str) {
     );
     let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
     let manifest = launcher_manifest(&space, "simulation", &source, &db, &limits, &xp);
-    let out = run_refusal(
-        Command::new(launcher_bin())
-            .arg("--manifest")
-            .arg(manifest),
-    );
+    let out = run_refusal(Command::new(launcher_bin()).arg("--manifest").arg(manifest));
     assert_eq!(out.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&out.stderr);
     let events: Vec<Value> = stderr
@@ -821,13 +824,15 @@ fn assert_launcher_source_failure(fault: &str) {
         .filter_map(|line| serde_json::from_str(line).ok())
         .collect();
     assert!(
-        events.iter().any(|e| e["event"] == "exit"
-            && e["domain"] == "S"
-            && e["critical"] == true),
+        events
+            .iter()
+            .any(|e| e["event"] == "exit" && e["domain"] == "S" && e["critical"] == true),
         "{stderr}"
     );
     assert!(
-        events.iter().any(|e| e["event"] == "stopped" && e["failed"] == true),
+        events
+            .iter()
+            .any(|e| e["event"] == "stopped" && e["failed"] == true),
         "{stderr}"
     );
     assert!(!space.path("s.sock").exists());
@@ -859,7 +864,10 @@ fn production_session_new_s_init_and_serve_share_source_declaration() {
     let deadline = Instant::now() + Duration::from_secs(30);
     while !space.path("s.sock").exists() {
         if let Some(status) = launcher.try_wait().unwrap() {
-            panic!("launcher 提前退出 {status}：{}", launcher_stderr(&mut launcher));
+            panic!(
+                "launcher 提前退出 {status}：{}",
+                launcher_stderr(&mut launcher)
+            );
         }
         if Instant::now() >= deadline {
             stop(&mut launcher);
@@ -871,7 +879,9 @@ fn production_session_new_s_init_and_serve_share_source_declaration() {
     let stderr = launcher_stderr(&mut launcher);
     assert!(stderr.contains("\"event\":\"init\""), "{stderr}");
     let conn = Connection::open(&db).unwrap();
-    let stored = newchan_rust::structure_source::stored(&conn).unwrap().unwrap();
+    let stored = newchan_rust::structure_source::stored(&conn)
+        .unwrap()
+        .unwrap();
     assert_eq!(
         std::fs::read_to_string(space.path("launcher-state/structure-source.json")).unwrap(),
         stored.canonical()
