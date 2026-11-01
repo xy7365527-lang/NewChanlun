@@ -314,6 +314,7 @@ each candidate仍完整fresh Public核验
 edits buffer 仍存活
 effects闭合仍非COMMIT
 empty节点body错误
+epoch 2 原件不得早于进入 epoch 2 的换代接纳
 events触帽须溢出
 exact generated一次绑定
 expected 坏成员先于集合差异
@@ -1409,6 +1410,7 @@ writer/recover闭合后无SHM
 组索引在域内
 组装 CC-006 wire
 组装 wire 模板
+结束 attempt 0 的换代不得晚于 attempt 1 的 Begin
 结构 ?#%.sqlite
 结果owner构造/满容量/读取/移动/释放均无堆分配
 结果真实析构后父账全额还原

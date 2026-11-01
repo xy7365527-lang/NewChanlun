@@ -643,48 +643,60 @@ pub(super) fn commit_reading_context(
         return commit_time_context(conn, c);
     }
     check_clock(conn, &c.clock)?;
-    let (db, attempt, frontier) = commit_attempt_key(conn, c)?;
+    let attempt = CommitAttempt::current(conn, c)?;
     let mut readings = COMMIT_READINGS.lock().map_err(err)?;
-    let ns = match readings.get(&db) {
-        Some((owner, ns)) if *owner == attempt => ns.clone(),
+    let ns = match readings.get(&attempt.db) {
+        Some(first) if first.attempt == attempt.identity => first.ns.clone(),
         _ => sample_system_ns()?,
     };
-    if parse_canonical_i64(&ns, "clock")? < parse_canonical_i64(&frontier, "clock frontier")? {
+    if parse_canonical_i64(&ns, "clock")?
+        < parse_canonical_i64(&attempt.frontier, "clock frontier")?
+    {
         return Err("InvalidDomain：实际语义clock倒退".into());
     }
-    readings.insert(db, (attempt, ns.clone()));
+    readings.insert(
+        attempt.db,
+        FirstCommitReading {
+            attempt: attempt.identity,
+            ns: ns.clone(),
+        },
+    );
     Ok(Some(ns))
 }
 
-/// #1769：每个库至多一个在途 attempt（Begin 未结束前拒绝新接纳与再 Begin，中断只能经 recover
-/// 换新 attempt），故按库保存该 attempt 的首次 Commit 读数。同一 attempt 的重读、封批与同请求
-/// 内回滚后重做的发布事务都复用它；新 attempt 覆盖旧项。只在进程内持有：进程中断时该 attempt
-/// 没有 Commit 行，恢复后续推的是新 attempt。
-static COMMIT_READINGS: std::sync::Mutex<std::collections::BTreeMap<String, (String, String)>> =
+/// 每个库至多一个在途 attempt：Begin 未结束前拒绝新接纳与再 Begin，中断只能经 recover 换新 attempt。
+static COMMIT_READINGS: std::sync::Mutex<std::collections::BTreeMap<String, FirstCommitReading>> =
     std::sync::Mutex::new(std::collections::BTreeMap::new());
 
-/// 当前已持久 Begin 的 attempt 身份（库、clock 事件、attempt 序号、全局 ordinal、Begin 读数）
-/// 与当前相位前沿；未 Begin 即 `MissingDependency`。
-fn commit_attempt_key(
-    conn: &Connection,
-    c: &InputContext,
-) -> Result<(String, String, String), String> {
-    let (index, ordinal, begin_ns, frontier): (i64, i64, String, String) = conn
-        .query_row(
-            "SELECT m.attempt_count-1,e.attempt_ordinal,e.semantic_ns,p.logical_phase_frontier FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 JOIN s_protocol_meta p ON p.singleton=1 WHERE m.clock_event_id=?1 AND m.status='AcceptedPending'",
-            params![c.id()],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-        )
-        .optional()
-        .map_err(err)?
-        .ok_or("MissingDependency：System commit读数前缺实际Begin")?;
-    let db = conn.path().unwrap_or_default().to_owned();
-    let attempt = canonical_json(&json!([c.id(), index, ordinal, begin_ns]));
-    Ok((db, attempt, frontier))
+struct FirstCommitReading {
+    attempt: String,
+    ns: String,
 }
 
-/// #1769：发布事务内核已封批的 Commit 读数。Plan 返回它是否等于计划值；System 不重新取样，
-/// 早于持久相位前沿即拒绝，再返回它是否等于本 attempt 的首次 Commit 读数。
+struct CommitAttempt {
+    db: String,
+    identity: String,
+    frontier: String,
+}
+impl CommitAttempt {
+    fn current(conn: &Connection, c: &InputContext) -> Result<Self, String> {
+        let (index, ordinal, begin_ns, frontier): (i64, i64, String, String) = conn
+            .query_row(
+                "SELECT m.attempt_count-1,e.attempt_ordinal,e.semantic_ns,p.logical_phase_frontier FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 JOIN s_protocol_meta p ON p.singleton=1 WHERE m.clock_event_id=?1 AND m.status='AcceptedPending'",
+                params![c.id()],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()
+            .map_err(err)?
+            .ok_or("MissingDependency：System commit读数前缺实际Begin")?;
+        Ok(Self {
+            db: conn.path().unwrap_or_default().to_owned(),
+            identity: canonical_json(&json!([c.id(), index, ordinal, begin_ns])),
+            frontier,
+        })
+    }
+}
+
 pub(super) fn sealed_commit_matches_context(
     conn: &Connection,
     c: &InputContext,
@@ -706,9 +718,9 @@ pub(super) fn sealed_commit_matches_context(
     {
         return Err("InvalidDomain：实际语义clock倒退".into());
     }
-    let (db, attempt, _) = commit_attempt_key(conn, c)?;
-    match COMMIT_READINGS.lock().map_err(err)?.get(&db) {
-        Some((owner, ns)) if *owner == attempt => Ok(ns == sealed),
+    let attempt = CommitAttempt::current(conn, c)?;
+    match COMMIT_READINGS.lock().map_err(err)?.get(&attempt.db) {
+        Some(first) if first.attempt == attempt.identity => Ok(first.ns == sealed),
         _ => Err("MissingDependency：System commit缺本attempt首次读数".into()),
     }
 }
@@ -2405,12 +2417,28 @@ pub(super) fn validate_control_history_admitted(
     })
 }
 
-/// #1769：System 冷审计的持久读数偏序，全部由已落盘的结构关系推出，不按时间排序自证：
-/// - 同一消息按 attempt 序：accept ≤ begin₀ ≤ commit₀ ≤ begin₁ …；
-/// - 全局 Begin 按 attempt_ordinal、Commit 按 generation、换代按 writer_epoch_history.ordinal 不倒退；
-/// - 代际窗口：accept/recover 行记录发生时的已发布代 G，begin 行记录目标代 G+1；它们都发生在
-///   commit(G) 之后、commit(G+1) 之前（单写者：Begin 未结束前拒绝新接纳）。
-/// 只读已落盘值，不取样。
+struct EpochStep {
+    from: i64,
+    to: i64,
+    generation: i64,
+    at: i64,
+}
+struct BeginReading {
+    ns: i64,
+    generation: i64,
+    committed: bool,
+}
+/// accept/recover 记录发生时已发布的代，begin 记录目标代；三者都落在该窗口两端 commit 之间。
+fn generation_window(begin: bool, generation: i64) -> i64 {
+    if begin {
+        generation - 1
+    } else {
+        generation
+    }
+}
+fn system_ns(r: &mut CheckedRow<'_>, column: usize) -> Result<i64, String> {
+    nonnegative(r.text(column).map_err(err)?, "semantic_ns").map_err(err)
+}
 fn validate_system_phase_order(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
@@ -2425,7 +2453,7 @@ fn validate_system_phase_order(
     let mut prev = -1;
     while let Some(mut r) = stmt.next().map_err(err)? {
         let id = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
-        let ns = nonnegative(r.text(1).map_err(err)?, "semantic_ns").map_err(err)?;
+        let ns = system_ns(&mut r, 1)?;
         if current.as_ref().map(TextValue::as_str) != Some(id.as_str()) {
             current = Some(id);
             prev = -1;
@@ -2436,22 +2464,31 @@ fn validate_system_phase_order(
         prev = ns;
     }
     stmt.finalize().map_err(err)?;
-    for sql in [
-        c"SELECT semantic_ns FROM s_clock_events WHERE phase='begin' ORDER BY attempt_ordinal",
-        c"SELECT transitioned_at FROM writer_epoch_history ORDER BY ordinal",
-    ] {
-        let mut stmt = CheckedStatement::prepare(conn, sql).map_err(err)?;
-        let mut prev = -1;
-        while let Some(mut r) = stmt.next().map_err(err)? {
-            let ns = nonnegative(r.text(0).map_err(err)?, "semantic_ns").map_err(err)?;
-            if ns < prev {
-                return Err(err("system clock全局相位读数倒退"));
-            }
-            prev = ns;
+
+    let mut epochs: CodecVec<EpochStep> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT from_epoch,to_epoch,generation_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let step = EpochStep {
+            from: parse_writer_epoch(r.text(0).map_err(err)?, "epoch.from").map_err(err)?,
+            to: parse_writer_epoch(r.text(1).map_err(err)?, "epoch.to").map_err(err)?,
+            generation: nonnegative(r.text(2).map_err(err)?, "epoch.generation").map_err(err)?,
+            at: system_ns(&mut r, 3)?,
+        };
+        if epochs
+            .last()
+            .is_some_and(|last: &EpochStep| step.at < last.at)
+        {
+            return Err(err("system clock writer换代读数倒退"));
         }
-        stmt.finalize().map_err(err)?;
+        control_push(&mut epochs, step, work).map_err(err)?;
     }
-    let mut commits = control_json::new_work(owner);
+    stmt.finalize().map_err(err)?;
+
+    let mut commits: CodecVec<(i64, i64)> = control_json::new_work(owner);
     let mut stmt = CheckedStatement::prepare(
         conn,
         c"SELECT generation,semantic_ns FROM s_clock_events WHERE phase='commit' ORDER BY generation",
@@ -2459,7 +2496,7 @@ fn validate_system_phase_order(
     .map_err(err)?;
     while let Some(mut r) = stmt.next().map_err(err)? {
         let g = r.integer(0).map_err(err)?;
-        let ns = nonnegative(r.text(1).map_err(err)?, "semantic_ns").map_err(err)?;
+        let ns = system_ns(&mut r, 1)?;
         if commits
             .last()
             .is_some_and(|&(_, last): &(i64, i64)| ns < last)
@@ -2475,6 +2512,7 @@ fn validate_system_phase_order(
             .ok()
             .map(|i| commits[i].1)
     };
+
     let mut stmt = CheckedStatement::prepare(
         conn,
         c"SELECT phase,generation,semantic_ns FROM s_clock_events WHERE phase<>'commit'",
@@ -2482,19 +2520,101 @@ fn validate_system_phase_order(
     .map_err(err)?;
     while let Some(mut r) = stmt.next().map_err(err)? {
         let begin = r.text(0).map_err(err)? == "begin";
-        let g = r.integer(1).map_err(err)?;
-        let ns = nonnegative(r.text(2).map_err(err)?, "semantic_ns").map_err(err)?;
-        let window = if begin { g - 1 } else { g };
+        let window = generation_window(begin, r.integer(1).map_err(err)?);
+        let ns = system_ns(&mut r, 2)?;
         if commit_at(window).is_some_and(|after| ns < after)
-            || window
-                .checked_add(1)
-                .and_then(|next| commit_at(next))
-                .is_some_and(|before| ns > before)
+            || commit_at(window + 1).is_some_and(|before| ns > before)
         {
             return Err(err("system clock相位读数越出所属代际窗口"));
         }
     }
     stmt.finalize().map_err(err)?;
+
+    // 原件只在其 writer_epoch 为当前持久 epoch 时接纳：accept 落在进入该 epoch 与离开该 epoch 的换代之间。
+    let initial = match epochs.first() {
+        Some(first) => first.from,
+        None => parse_writer_epoch(
+            &control_meta_text_admitted(conn, "writer_epoch", owner, work)?
+                .ok_or_else(|| err("缺writer_epoch"))?,
+            "meta.writer_epoch",
+        )
+        .map_err(err)?,
+    };
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT m.canonical_envelope,e.semantic_ns FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='accept'",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let raw = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let accept = system_ns(&mut r, 1)?;
+        let envelope = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
+        let epoch = parse_writer_epoch(
+            control_json::field(
+                control_json::field(envelope.view(), "payload"),
+                "writer_epoch",
+            )
+            .as_str()
+            .ok_or_else(|| err("原件缺writer_epoch"))?,
+            "payload.writer_epoch",
+        )
+        .map_err(err)?;
+        let entered = epochs.iter().find(|s| s.to == epoch).map(|s| s.at);
+        if entered.is_none() && epoch != initial {
+            return Err(err("原件writer_epoch不在换代链上"));
+        }
+        let left = epochs.iter().find(|s| s.from == epoch).map(|s| s.at);
+        if entered.is_some_and(|at| accept < at) || left.is_some_and(|at| accept > at) {
+            return Err(err("system clock接纳读数越出原件writer_epoch区间"));
+        }
+    }
+    stmt.finalize().map_err(err)?;
+
+    let mut begins: CodecVec<BeginReading> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT b.semantic_ns,b.generation,c.attempt_index FROM s_clock_events b LEFT JOIN s_clock_events c ON c.clock_event_id=b.clock_event_id AND c.phase='commit' AND c.attempt_index=b.attempt_index WHERE b.phase='begin' ORDER BY b.attempt_ordinal",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let begin = BeginReading {
+            ns: system_ns(&mut r, 0)?,
+            generation: r.integer(1).map_err(err)?,
+            committed: r.optional_integer(2).map_err(err)?.is_some(),
+        };
+        if begins
+            .last()
+            .is_some_and(|last: &BeginReading| begin.ns < last.ns)
+        {
+            return Err(err("system clock全局相位读数倒退"));
+        }
+        control_push(&mut begins, begin, work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+
+    // 未提交的 attempt 只能由同一代际窗口内、下一次 Begin 之前的一次换代结束；在途的最后一个除外。
+    let in_flight = control_meta_text_admitted(conn, "advance_state", owner, work)?
+        .is_some_and(|state| state.as_str() != "idle");
+    let mut next_epoch = 0;
+    for (i, begin) in begins.iter().enumerate() {
+        if begin.committed || (in_flight && i + 1 == begins.len()) {
+            continue;
+        }
+        let window = begin.generation - 1;
+        while epochs.get(next_epoch).is_some_and(|s: &EpochStep| {
+            s.generation < window || (s.generation == window && s.at < begin.ns)
+        }) {
+            next_epoch += 1;
+        }
+        let cleared = epochs
+            .get(next_epoch)
+            .filter(|s| s.generation == window)
+            .ok_or_else(|| err("未提交attempt缺结束它的换代"))?;
+        if begins.get(i + 1).is_some_and(|next| cleared.at > next.ns) {
+            return Err(err("system clock换代读数晚于下一次Begin"));
+        }
+        next_epoch += 1;
+    }
     Ok(())
 }
 fn persisted_commit_ns(

@@ -2245,6 +2245,25 @@ mod tests {
             )
             .unwrap();
         assert_eq!(commits, 0, "中断的 attempt 0 没有 commit 读数");
+        drop(conn);
+        let audit_error = |sql: &str| {
+            Connection::open(&f.db).unwrap().execute_batch(sql).unwrap();
+            let mut conn = open_db(&f.db).unwrap();
+            let tx = conn.transaction().unwrap();
+            let error = state::audit(&tx).err();
+            tx.rollback().unwrap();
+            error
+        };
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='450' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='450'",
+        )
+        .expect("结束 attempt 0 的换代不得晚于 attempt 1 的 Begin");
+        assert!(error.contains("晚于下一次Begin"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='300' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='300'",
+        )
+        .is_none());
+        assert_eq!(fake::samples(), 5, "冷审计不取样");
     }
 
     /// #1769：Commit 取样早于持久 Begin 时拒绝，不落 commit、不发布；冷审计拒绝被改倒退的持久值。
@@ -2292,9 +2311,8 @@ mod tests {
         assert_eq!(fake::samples(), 3, "冷审计不取样");
     }
 
-    /// #1769 R2：冷审计按代际窗口与换代序核 Accept/Recover，不按时间排序自证。
     #[test]
-    fn s_system_clock_cold_audit_rejects_out_of_window_accept_and_recover() {
+    fn s_system_clock_cold_audit_rejects_out_of_order_accept_and_recover() {
         use v2::system_clock_test as fake;
         fake::install(Some(&[100, 200, 300]));
         let f = Fixture::system();
@@ -2332,7 +2350,6 @@ mod tests {
             tx.rollback().unwrap();
             error
         };
-        // accept₂ 落在 commit₁ 之前：单消息链、全局 Begin/Commit 与 frontier 都不变，只有窗口能拒绝。
         let error = audit_error(
             "UPDATE s_clock_events SET semantic_ns='50' WHERE clock_event_id='input-2' AND phase='accept'",
         )
@@ -2342,16 +2359,23 @@ mod tests {
             "UPDATE s_clock_events SET semantic_ns='500' WHERE clock_event_id='input-2' AND phase='accept'",
         )
         .is_none());
-        // recover 与换代历史同改为 50：双方配对仍一致，窗口拒绝。
         let error = audit_error(
             "UPDATE s_clock_events SET semantic_ns='50' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='50'",
         )
         .expect("recover 越出代际窗口必须拒绝");
         assert!(error.contains("代际窗口"), "{error}");
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='650' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='650'",
+        )
+        .expect("epoch 2 原件不得早于进入 epoch 2 的换代接纳");
+        assert!(error.contains("writer_epoch区间"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='400' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='400'",
+        )
+        .is_none());
         assert_eq!(fake::samples(), 7, "冷审计不取样");
     }
 
-    /// #1769 R1：候选尾检预算不足、同请求回滚后重做发布，复用同一 attempt 的首次 Commit 读数。
     #[cfg(feature = "s_incremental")]
     #[test]
     fn s_system_clock_budget_degrade_reuses_first_commit_reading() {
