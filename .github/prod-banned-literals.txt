@@ -29,6 +29,7 @@ B/B+1 接纳全部剩余节点，含 LF 与逗号
 B11 恒等式：封存后live = 残余M + 封存池逐张许可之和
 B11：同父峰须在夹具帽内
 B11：审计前父账残余只有根控制块M
+Begin 倒退必须拒绝
 Begin不能使A2或S漏过本次raw变化
 C4 池析构期间签发新许可
 CC-054 载荷 JSON
@@ -51,6 +52,7 @@ CREATE TRIGGER fail_real_commit BEFORE UPDATE OF value ON meta WHEN NEW.key='ind
 CROSS_REQUEST_SOURCE_CACHE_DB
 CROSS_REQUEST_SOURCE_CACHE_REPORT
 CaptureDeadline😀prototype_audit_allocation_limit
+Commit 取样倒退必须拒绝
 ContentRef 出现 exact 四字段之外的键 `extra`
 DB不得硬链到封存原件
 DB不得经symlink
@@ -221,6 +223,7 @@ StorageUnavailable：priority 重复成员
 StorageUnavailable：records 与封存批次/同 cut 持久快照不一致
 StorageUnavailable：records 重复成员
 StorageUnavailable：本次对象缺不可变字段 kind
+System 提交必须带封批读数
 TB1717_S_EXPORT
 TB1717_S_EXPORT 未设置
 TOP 窗口应产对象
@@ -240,10 +243,13 @@ TestOnly-storage-fixture/1
 TestOnly：Budget 故障仅用于 Owned 模式
 TestOnly：stop_after_accept
 TestOnly：stop_after_begin
+TestOnly：system clock 注入读数耗尽
 T物理占用不超E+O+A
 UPDATE catalog SET impl_status='implemented', proof_status='bad'; INSERT INTO catalog VALUES('后错',7,NULL,NULL,NULL);
 Value证书不得复用JsonInner判定
 ["完整证据",1.0]
+accept 越出代际窗口必须拒绝
+accept/begin/commit 各取样一次
 actual 坏成员先于 expected 重复
 actual 坏成员先于 expected 非数组
 actual 完整重复
@@ -308,6 +314,8 @@ each candidate仍完整fresh Public核验
 edits buffer 仍存活
 effects闭合仍非COMMIT
 empty节点body错误
+epoch 2 别名接纳不能先于 epoch 1 推进消息的接纳
+epoch 2 原件不得早于进入 epoch 2 的换代接纳
 events触帽须溢出
 exact generated一次绑定
 expected 坏成员先于集合差异
@@ -397,6 +405,7 @@ queued单位不增加同形真实owner无台账路径的组装次数
 r3完整Some F次数
 r3完整Some读取轨迹
 raw 前缀链可用
+raw 未发布前不能有零 attempt 的已提交接纳
 raw_bars 修订投影
 raw_bars 其它整数不投影
 raw_bars 投影后重复
@@ -409,6 +418,8 @@ real-commit-fault
 receipt 查询不得用当前配置改写历史
 receipt 须经重绑点换到本请求冻结域
 recover 不改已发布 cut
+recover 取样一次
+recover 越出代际窗口必须拒绝
 resolved 两根每次仅重核真实根头
 retained memo以自身allocator实际layout求和
 rollback 后视图仍必须拒绝
@@ -490,6 +501,7 @@ writer/recover闭合后无SHM
 下一次未改原件须恢复暖前缀复用
 不再有 subject=null 的同价窗口请求
 不可因摘要相同丢Noop occurrence
+不同于首次读数的封批值不得落账
 不多不少：闭包流恰为根闭包
 不存在.sqlite
 不得以K组冻结
@@ -515,6 +527,7 @@ writer/recover闭合后无SHM
 两窗都要按实际坐标记失效
 两请求各自持有真实父账
 两账物理live全部进入O+U
+中断的 attempt 0 没有 commit 读数
 中途失败必须析构已复制的第一根
 临时映射与输出缓冲各自只退原许可
 主库/-journal 字节须不变
@@ -592,6 +605,7 @@ writer/recover闭合后无SHM
 冷/暖快照必须一致
 冷/暖查询结果必须一致
 冷出生不得留事后移入余额
+冷审计不取样
 冷捕获不得复用前缀
 冷核得到的新证明须进入最终审计前缀
 冷根审计失败清除保留后根上仍残留4096B许可
@@ -691,6 +705,7 @@ writer/recover闭合后无SHM
 同 spec 重绑不得写节点
 同captured mode下F/读取核不得漂移
 同owner快照命中无需重建cold
+同一 attempt 的 Commit 重读复用首次读数
 同一allocation重复物理reserve必须被拒
 同一冻结库的持久发布输入未变；行为等价由七代独立库锁验证
 同一合同项不得重复入O
@@ -732,6 +747,7 @@ writer/recover闭合后无SHM
 回退重走仍复用同一原件
 固定写父账重复附接
 固定输出复用相同exact判据
+在途 attempt 的冷审计通过
 坏 JSON 必须在建库前拒绝
 坏 clock 必须在建库前拒绝
 坏 profile 必须在建库前拒绝
@@ -841,6 +857,8 @@ writer/recover闭合后无SHM
 封存池析构不得让父账增长
 封存许可之和溢出
 封存降幅恰为①+②
+封批值与计划不同必须拒绝
+封批读数原样落账，提交时不再取样
 尾检必须失败
 局部峰不得混入大于5MiB的父峰
 展开长度必须等于 byte_len
@@ -934,6 +952,7 @@ writer/recover闭合后无SHM
 拒绝不出生根账
 拒绝不得部分改账
 拒绝发生在任何追加/parser 推进之前
+拒绝发生在建库前
 拒绝同摘要坏原件后旧节点原样保留
 拒绝后实际owner归还原许可
 拒绝后释放全部暂存许可
@@ -946,6 +965,7 @@ writer/recover闭合后无SHM
 持久消息 payload_hash 被篡改
 持久消息规范原件被替换
 持久证书跨捕获保留
+持久读数倒退必须被冷审计拒绝
 挂错父账的封存许可必须被拒
 按同一配方重导 id
 按池父账物理live计
@@ -959,6 +979,8 @@ writer/recover闭合后无SHM
 控制头不得保强证书
 控制头不得暗补或数字归一化
 控制表协议标记被改成旧域
+描述 hash 只由固定三键决定
+描述绑定只含固定三键，不随读数变化
 摘要不符先于 SQL 拒绝
 撤回JSON owner独立释放
 收到的节点足以完整核验 basis 根
@@ -1052,6 +1074,8 @@ writer/recover闭合后无SHM
 旧请求句柄不能获得新分配资格
 旧路径每字段重复根寻路
 旧门即使不计effects也会撤候选
+早于 Begin 的封批值不得落账
+早于 Begin 的封批值必须拒绝
 明文正文无物理计费，来源合同项必须拒绝
 明确overlay来源直接读取且不缓存
 显式 s-session/2 缺参不得回落旧域
@@ -1344,6 +1368,7 @@ writer/recover闭合后无SHM
 离域只读不能隐式免费深复制
 离域后真实keys容量仍持费
 离域结果仍持原许可
+离开 epoch 1 之后不能再接纳 epoch 1 原件
 离开 scope 不得释放已移动载荷许可
 离开 scope，非空身份缓存仍持原许可
 离开scope仍由事实账持有原桶许可
@@ -1389,6 +1414,7 @@ writer/recover闭合后无SHM
 组索引在域内
 组装 CC-006 wire
 组装 wire 模板
+结束 attempt 0 的换代不得晚于 attempt 1 的 Begin
 结构 ?#%.sqlite
 结果owner构造/满容量/读取/移动/释放均无堆分配
 结果真实析构后父账全额还原
@@ -1396,6 +1422,7 @@ writer/recover闭合后无SHM
 结果闭包不能缺节点
 绝不打开 r5 原件
 续扫完毕与预算 0 结论相同
+续推只为新 attempt 取 begin/commit
 续片须能分别留下一个、两个节点
 缓存不得改变任何持久事实
 缓存不足不改变已提交回复
@@ -1513,6 +1540,7 @@ writer/recover闭合后无SHM
 过期连接不得被读取
 返回Driver前已释放bootstrap原件
 返还离开codec后的字段entry+UTF8 key必须仍真实计量
+进入 epoch 2 的唯一换代不能同时结束该 epoch 原件的 Begin0
 连首写尝试都不能发生
 追加/修订不能重新解码旧 raw
 追加代必须可恢复
@@ -1549,6 +1577,7 @@ writer/recover闭合后无SHM
 重复键必须拒绝
 重开不得用当前 v1 反填旧 generation
 重开仍须读取恢复发布实际写入的 v2 记录戳
+重投、回执、重开和冷审计都不取样
 重新准备不同 raw 后，旧视图必须失效
 重新打开后即使配置回退，也只能读取结果实际使用的 v2 记录戳
 重新登记真实当前 source
@@ -1564,7 +1593,9 @@ writer/recover闭合后无SHM
 闭包 Ok 的纯预算不足
 闭包块会话与冷 CLI 逐字节相同
 闭包缺子节点必须拒绝
+闲置换代不得落在成功 attempt 的 Begin 与 Commit 之间
 降级注入代入口须带候选
+降级重做发布复用首次 Commit 读数
 降级重试的完整分支须标 abandon
 隐藏已加载 trigger 确实执行
 集合与两个叶迭代栈持账
