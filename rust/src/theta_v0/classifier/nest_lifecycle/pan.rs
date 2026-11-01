@@ -227,6 +227,56 @@ pub fn provide_active_pan_live_windows(
     active: Segment,
     as_of: usize,
 ) -> PanLiveOutcome {
+    provide_active_pan_live_windows_impl(
+        level,
+        centers,
+        kinds,
+        confirmed_segments,
+        active,
+        as_of,
+        |_, _| {},
+    )
+}
+
+/// #1719 伴随输出：在选中真实 B 的同一位置建立绑定，旧调用合同不变。
+pub fn provide_active_pan_live_windows_with_policy(
+    level: u32,
+    centers: &[Center],
+    kinds: &[Option<MoveKind>],
+    confirmed_segments: &[Segment],
+    active: Segment,
+    as_of: usize,
+    policy: &CompletionPolicy,
+) -> (PanLiveOutcome, Option<HypothesisBridge>) {
+    let mut binding = None;
+    let outcome = provide_active_pan_live_windows_impl(
+        level,
+        centers,
+        kinds,
+        confirmed_segments,
+        active,
+        as_of,
+        |window, center| {
+            binding = Some(HypothesisBridge::selected(
+                LifecycleKey::from(&window),
+                super::super::center_lifecycle::CenterId::of(center),
+                policy.clone(),
+                as_of,
+            ));
+        },
+    );
+    (outcome, binding)
+}
+
+fn provide_active_pan_live_windows_impl(
+    level: u32,
+    centers: &[Center],
+    kinds: &[Option<MoveKind>],
+    confirmed_segments: &[Segment],
+    active: Segment,
+    as_of: usize,
+    mut selected: impl FnMut(PanLiveWindow, &Center),
+) -> PanLiveOutcome {
     // 诊断字段（票 #592）：frontier 起点与最近 confirmed 段末端的洞长——与下方
     // `frontier_not_after_confirmed` 判定同源同值（同一个 `confirmed_segments.last()`）。
     // 无 confirmed 段（B 锚尚未建立）时无洞可定义，记 0；产窗必经 `NoConfirmedCenterBefore`
@@ -276,7 +326,7 @@ pub fn provide_active_pan_live_windows(
     else {
         return PanLiveOutcome::StructureNotLocatable;
     };
-    PanLiveOutcome::Window(PanLiveWindow {
+    let window = PanLiveWindow {
         level,
         side: structure.side,
         seg_a: structure.seg_a,
@@ -286,7 +336,9 @@ pub fn provide_active_pan_live_windows(
         ),
         b_center_start: centers[center_index].start_index,
         gap_len,
-    })
+    };
+    selected(window, &centers[center_index]);
+    PanLiveOutcome::Window(window)
 }
 
 /// L1 活窗定位的结果与**未产窗原因码**（票 #527；诊断面，不进真值路径）。
