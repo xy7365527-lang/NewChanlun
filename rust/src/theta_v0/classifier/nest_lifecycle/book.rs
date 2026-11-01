@@ -38,11 +38,13 @@ pub struct NestLifecycleBook {
     bridges: BTreeMap<LifecycleKey, HypothesisBridge>,
     /// 按事实、级别、原对象和原政策版本去重；迁移不改变应用身份。
     applied_breaks: BTreeSet<BreakApplicationKey>,
-    /// 对已绑定、尚待清账对象首次收到的原事实留档，包含迟到拒绝的事实。
+    /// 首次收到的合法原事实留档，包含无绑定、迟到待恢复和终态保留的事实。
     /// 相同身份不准改写物理钟、known-at 或证据后重试放行。
     center_break_facts: BTreeMap<BreakIdentity, CenterBreakFact>,
     /// 第二层清账独立审计；只追加实际生效的清账。
     center_break_audits: Vec<CenterBreakAudit>,
+    /// #1719 每次消费的显式结果，迟到原件、目标和拒绝原因在此留档。
+    center_break_attempts: Vec<CenterBreakAttempt>,
 }
 
 impl NestLifecycleBook {
@@ -258,30 +260,43 @@ impl NestLifecycleBook {
         &self.center_break_audits
     }
 
+    pub fn center_break_attempts(&self) -> &[CenterBreakAttempt] {
+        &self.center_break_attempts
+    }
+
     /// #1719 首次绑定只可在原建仓 bar 登记；重发不覆盖原对象/政策/注册钟。
     /// 升级只接收已经由原迁移规则认可、且 provider 精确选中的新 B。
-    /// 缺账、冲突、迟绑均返回 false，不为旧对象猜配身份。
-    pub fn register_center_bridge(&mut self, binding: HypothesisBridge) -> bool {
+    /// 缺账、冲突、迟绑均返回 Rejected，不为旧对象猜配身份。
+    pub fn register_center_bridge(&mut self, binding: HypothesisBridge) -> BridgeRegistration {
         if binding.policy.version.trim().is_empty()
             || binding.lifecycle_key != binding.binding_key
             || binding.original_center_id != binding.center_id
             || binding.binding_key.b_center_start != binding.center_id.start_index
         {
-            return false;
+            return BridgeRegistration::Rejected;
         }
-        let Some(key) = self.bridge_entry(&binding.binding_key).map(|entry| entry.key) else {
-            return false;
+        let Some(key) = self
+            .bridge_entry(&binding.binding_key)
+            .map(|entry| entry.key)
+        else {
+            return BridgeRegistration::Rejected;
         };
         let Some(entry) = self.ledger.get(&key) else {
-            return false;
+            return BridgeRegistration::Rejected;
         };
         if binding.registered_at > entry.last_as_of {
-            return false;
+            return BridgeRegistration::Rejected;
         }
         if let Some(original) = self.bridges.get_mut(&key) {
             if bridge_identity(&original.binding_key, &binding.binding_key) {
                 // 同 start 异核心是冲突，不接受为另一种 B。
-                return original.center_id == binding.center_id;
+                return if original.center_id != binding.center_id {
+                    BridgeRegistration::Rejected
+                } else if original.policy != binding.policy {
+                    BridgeRegistration::PolicyFrozen
+                } else {
+                    BridgeRegistration::Accepted
+                };
             }
             // 只有原账本实际发生的 CenterUpgrade 才能改变 B。原政策即使
             // 调用方已换版本也不动，新的精确核心来自此次伴随输出。
@@ -293,102 +308,137 @@ impl NestLifecycleBook {
             {
                 original.center_id = binding.center_id;
                 original.binding_key = binding.binding_key;
-                return true;
+                return BridgeRegistration::Accepted;
             }
-            return false;
+            return BridgeRegistration::Rejected;
         }
         if binding.registered_at != entry.observed_at
             || entry.revisions.first().map(|revision| revision.key) != Some(binding.lifecycle_key)
         {
-            return false;
+            return BridgeRegistration::Rejected;
         }
         self.bridges.insert(key, binding);
-        true
+        BridgeRegistration::Accepted
     }
 
     /// #1719 只清原政策允许、精确 B 对应、从未可证且仍 Provisional 的对象。
-    /// 迟到到已经越过 known_at 的对象拒绝，不把事实改记为消费 bar。
-    /// 缺账/未绑定/未就绪均为空，且不提前占用幂等键。
+    /// 迟到事实不改账，完整留档并返回 LatePendingRecovery；恢复接线须按原钟重放。
+    /// 事实先于绑定到达也留档，调用方在绑定就绪后重送原件，不限定 S/B 消费顺序。
     pub fn apply_center_break(
         &mut self,
         fact: &CenterBreakFact,
         as_of: usize,
-    ) -> Vec<LifecycleRevision> {
-        if fact.physical_bar() > fact.known_at() || fact.known_at() > as_of {
-            return Vec::new();
-        }
+    ) -> CenterBreakResult {
         let identity = fact.identity();
-        if self
+        let rejection = if fact.physical_bar() > fact.known_at() || fact.known_at() > as_of {
+            Some(CenterBreakOutcome::InvalidClock)
+        } else if self
             .center_break_facts
             .get(&identity)
             .is_some_and(|original| original != fact)
         {
-            return Vec::new();
-        }
-        let targets: Vec<_> = self
-            .bridges
-            .iter()
-            .filter(|(key, bridge)| {
-                key.level == identity.level
-                    && bridge.center_id == identity.center_id
-                    && key.b_center_start == bridge.center_id.start_index
-                    && bridge.policy.anchor == CompletionAnchor::CenterBreak
-                    && bridge.registered_at <= fact.physical_bar()
-            })
-            .map(|(key, bridge)| (*key, bridge.clone()))
-            .collect();
-        // 缺账、终态或曾可证对象不启动第二层处理。迟到的原事实保留，
-        // 防止调用方改写 known-at 后再送同一个事实。
-        if !targets.iter().any(|(key, _)| {
-            self.ledger.get(key).is_some_and(|entry| {
-                entry.state == NestEventState::Provisional && entry.first_provable_at.is_none()
-            })
-        }) {
-            return Vec::new();
-        }
-        self.center_break_facts.entry(identity).or_insert(*fact);
-        let mut revisions = Vec::new();
-        for (key, bridge) in targets {
-            let application = BreakApplicationKey {
-                fact: identity,
-                original_key: bridge.lifecycle_key,
-                policy_version: bridge.policy.version.clone(),
-            };
-            if self.applied_breaks.contains(&application) {
-                continue;
-            }
-            let Some(entry) = self.ledger.get(&key) else {
-                continue;
-            };
-            if entry.state != NestEventState::Provisional
-                || entry.first_provable_at.is_some()
-                || entry.last_as_of > fact.known_at()
-            {
-                continue;
-            }
-            // 所有检查先完成，再推进门卫钟与写终态。终态原件和原五钟不被重写。
-            if self.ledger.admit(&key, fact.known_at()) != LedgerAdmission::Accepted {
-                continue;
-            }
-            let Some(entry) = self.ledger.get_mut(&key) else {
-                continue;
-            };
-            revisions.push(entry.invalidate(
-                InvalidatedReason::CenterBreak,
-                fact.known_at(),
-                None,
-            ));
-            self.center_break_audits.push(CenterBreakAudit {
+            Some(CenterBreakOutcome::FactConflict)
+        } else {
+            None
+        };
+        let mut result = CenterBreakResult {
+            revisions: Vec::new(),
+            attempts: Vec::new(),
+        };
+        if let Some(outcome) = rejection {
+            result.attempts.push(CenterBreakAttempt {
                 fact: *fact,
-                bridge,
-                settled_key: key,
                 consumed_at: as_of,
+                target: None,
+                outcome,
             });
-            self.applied_breaks.insert(application);
+        } else {
+            // 无目标也先保存原件；物理破坏早于注册不是拒绝理由（#1719 B5）。
+            self.center_break_facts.entry(identity).or_insert(*fact);
+            let targets: Vec<_> = self
+                .bridges
+                .iter()
+                .filter(|(key, bridge)| {
+                    key.level == identity.level && bridge.center_id == identity.center_id
+                })
+                .map(|(key, bridge)| (*key, bridge.clone()))
+                .collect();
+            for (key, bridge) in targets {
+                let application = BreakApplicationKey {
+                    fact: identity,
+                    original_key: bridge.lifecycle_key,
+                    policy_version: bridge.policy.version.clone(),
+                };
+                let entry = self.ledger.get(&key);
+                let target = CenterBreakTarget {
+                    key,
+                    last_as_of: entry.map(|entry| entry.last_as_of),
+                    physical_before_registration: fact.physical_bar() < bridge.registered_at,
+                    bridge: bridge.clone(),
+                };
+                let outcome = if self.applied_breaks.contains(&application) {
+                    CenterBreakOutcome::AlreadyApplied
+                } else if let Some(entry) = entry {
+                    if entry.state != NestEventState::Provisional
+                        || entry.first_provable_at.is_some()
+                    {
+                        CenterBreakOutcome::Preserved
+                    } else if bridge.policy.anchor != CompletionAnchor::CenterBreak {
+                        CenterBreakOutcome::PolicyDisallowed
+                    } else if key.b_center_start != bridge.center_id.start_index {
+                        CenterBreakOutcome::NotReady
+                    } else if entry.last_as_of > fact.known_at() {
+                        // ledger_kernel::admit 拒绝倒退；修订链要求 as_of 非降。
+                        // 不改终态、不改门卫钟、不用消费钟，不抢占已应用集合（#1719 B4）。
+                        CenterBreakOutcome::LatePendingRecovery
+                    } else {
+                        CenterBreakOutcome::Applied
+                    }
+                } else {
+                    CenterBreakOutcome::NoTarget
+                };
+                if outcome == CenterBreakOutcome::Applied {
+                    // 前置检查与 admit 同钟同规则；终态和曾可证对象未进入此处。
+                    assert_eq!(
+                        self.ledger.admit(&key, fact.known_at()),
+                        LedgerAdmission::Accepted
+                    );
+                    let entry = self.ledger.get_mut(&key).expect("已核目标存在");
+                    result.revisions.push(entry.invalidate(
+                        InvalidatedReason::CenterBreak,
+                        fact.known_at(),
+                        None,
+                    ));
+                    self.center_break_audits.push(CenterBreakAudit {
+                        fact: *fact,
+                        bridge,
+                        settled_key: key,
+                        consumed_at: as_of,
+                        physical_before_registration: target.physical_before_registration,
+                    });
+                    self.applied_breaks.insert(application);
+                }
+                result.attempts.push(CenterBreakAttempt {
+                    fact: *fact,
+                    consumed_at: as_of,
+                    target: Some(target),
+                    outcome,
+                });
+            }
+            if result.attempts.is_empty() {
+                result.attempts.push(CenterBreakAttempt {
+                    fact: *fact,
+                    consumed_at: as_of,
+                    target: None,
+                    outcome: CenterBreakOutcome::NoTarget,
+                });
+            }
         }
+        self.center_break_attempts
+            .extend(result.attempts.iter().cloned());
         #[cfg(debug_assertions)]
         self.assert_invariants();
-        revisions
+        result
     }
 
     /// `advance` 第 1 步：建仓 / 白名单桥迁移 / 终态吸收（含桥匹配到终态）。返回 `false`
@@ -916,36 +966,75 @@ impl NestLifecycleBook {
 
 #[cfg(test)]
 mod i4_bridge_missing_item_tests {
-    use super::*;
     use super::super::super::center_lifecycle::{CenterEventMachine, CenterId, PointOutcome};
+    use super::*;
     use crate::theta_v0::types::BspBits;
 
     #[test]
     fn i4_bridge_missing_ledger_item_is_noop_without_panic() {
         // 声明式合成结构夹具，不是正式 S 已发布输入。直接构造孤桥模拟缺账，
         // 不给生产接口新增测试专用写口。
-        let center = Center { start_index: 20, end_index: 49, zd: 100, zg: 110, dd: 90, gg: 120 };
-        let key = LifecycleKey {
-            level: 1, side: Side::Long, kind: NestDivergenceKind::Consolidation,
-            seg_a: (50, 59), seg_c_full: (69, 95), b_center_start: 20,
+        let center = Center {
+            start_index: 20,
+            end_index: 49,
+            zd: 100,
+            zg: 110,
+            dd: 90,
+            gg: 120,
         };
-        let bridge = HypothesisBridge::selected(key, CenterId::of(&center), CompletionPolicy {
-            version: "synthetic-missing/1".into(), anchor: CompletionAnchor::CenterBreak,
-        }, 95);
+        let key = LifecycleKey {
+            level: 1,
+            side: Side::Long,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: (50, 59),
+            seg_c_full: (69, 95),
+            b_center_start: 20,
+        };
+        let bridge = HypothesisBridge::selected(
+            key,
+            CenterId::of(&center),
+            CompletionPolicy {
+                version: "synthetic-missing/1".into(),
+                anchor: CompletionAnchor::CenterBreak,
+            },
+            95,
+        );
         let mut book = NestLifecycleBook::new();
-        assert!(!book.register_center_bridge(bridge.clone()));
+        assert_eq!(
+            book.register_center_bridge(bridge.clone()),
+            BridgeRegistration::Rejected
+        );
         book.bridges.insert(key, bridge);
         let mut machine = CenterEventMachine::new(1);
         machine.consume_chain(&[center]);
-        let event = match machine.push_point(BspBits { buy3: true, ..BspBits::default() },
-            100, Some(CenterId::of(&center))).unwrap() {
+        let event = match machine
+            .push_point(
+                BspBits {
+                    buy3: true,
+                    ..BspBits::default()
+                },
+                100,
+                Some(CenterId::of(&center)),
+            )
+            .unwrap()
+        {
             PointOutcome::Event(event) => event,
             other => panic!("合成夹具必须产 Broken：{other:?}"),
         };
         let fact = CenterBreakFact::from_event(&event, 100, 105).unwrap();
         let snapshot = book.clone();
-        assert!(book.apply_center_break(&fact, 110).is_empty());
-        assert_eq!(book, snapshot);
+        let result = book.apply_center_break(&fact, 110);
+        assert!(result.revisions.is_empty());
+        assert_eq!(result.attempts[0].outcome, CenterBreakOutcome::NoTarget);
+        assert_eq!(result.attempts[0].target.as_ref().unwrap().last_as_of, None);
+        assert_eq!(
+            book.entries().collect::<Vec<_>>(),
+            snapshot.entries().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            book.center_break_facts().copied().collect::<Vec<_>>(),
+            vec![fact]
+        );
         assert!(book.center_break_audits().is_empty());
     }
 }

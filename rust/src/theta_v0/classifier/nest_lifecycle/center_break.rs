@@ -2,6 +2,7 @@
 //! 尚未接正式 S 解码、持久事务或 launcher。
 
 use super::super::center_lifecycle::{CenterId, CenterLifecycleEvent};
+use super::entry::LifecycleRevision;
 use super::key::LifecycleKey;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,4 +130,51 @@ pub struct CenterBreakAudit {
     pub bridge: HypothesisBridge,
     pub settled_key: LifecycleKey,
     pub consumed_at: usize,
+    pub physical_before_registration: bool,
+}
+
+/// #1719 重送绑定须显式报告冻结政策，不能把新政策报为已接纳。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BridgeRegistration {
+    Accepted,
+    PolicyFrozen,
+    Rejected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CenterBreakOutcome {
+    Applied,
+    NoTarget,
+    NotReady,
+    LatePendingRecovery,
+    FactConflict,
+    PolicyDisallowed,
+    Preserved,
+    AlreadyApplied,
+    InvalidClock,
+}
+
+/// 每次消费的目标快照；迟到时保留拒绝所依据的门卫钟，供恢复按原钟重放。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CenterBreakTarget {
+    pub key: LifecycleKey,
+    pub bridge: HypothesisBridge,
+    pub last_as_of: Option<usize>,
+    pub physical_before_registration: bool,
+}
+
+/// 与实际清账凭证分开的追加审计，包含无目标、冲突和迟到待恢复。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CenterBreakAttempt {
+    pub fact: CenterBreakFact,
+    pub consumed_at: usize,
+    pub target: Option<CenterBreakTarget>,
+    pub outcome: CenterBreakOutcome,
+}
+
+/// 多目标可有不同结果；调用方须逐项消费 attempts，不能只看修订数。
+#[derive(Debug, Clone, PartialEq)]
+pub struct CenterBreakResult {
+    pub revisions: Vec<LifecycleRevision>,
+    pub attempts: Vec<CenterBreakAttempt>,
 }

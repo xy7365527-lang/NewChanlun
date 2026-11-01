@@ -218,6 +218,8 @@ struct LevelStats {
     /// 从未构成（结构完成时从未写 first_provable）落地次数——本探针硬编码
     /// structure_completed=false ⟹ 恒 0（票 #425 新增原因码，接线票 #426 后才可非零）。
     never_constituted: usize,
+    /// #1719 第二层中枢破坏清账，独立于既有失效原因。
+    invalid_center_break: usize,
     /// 身份消失 (a) 假设被推翻（真终局）——票 #559 裁定：两类分列，禁混记。
     identity_vanished_refuted: usize,
     /// 身份消失 (b) 观测接缝伪影（provider 换轨丢下）。
@@ -472,6 +474,7 @@ fn emit_report(
             NestEventState::Invalidated => match entry.invalidated_reason {
                 Some(InvalidatedReason::ForceOvertake) => level_stats.force_overtake += 1,
                 Some(InvalidatedReason::NeverConstituted) => level_stats.never_constituted += 1,
+                Some(InvalidatedReason::CenterBreak) => level_stats.invalid_center_break += 1,
                 Some(InvalidatedReason::IdentityVanished { cause }) => match cause {
                     VanishCause::HypothesisRefuted => level_stats.identity_vanished_refuted += 1,
                     VanishCause::ObservationSeam { .. } => level_stats.identity_vanished_seam += 1,
@@ -516,7 +519,7 @@ fn emit_report(
     );
     for (level, s) in &stats {
         println!(
-            "P409_LEVEL[{tag}] level={level} identities={} emissions={} force_true={} force_false={} unavail_missing={} unavail_coordmap={} invalid_force_overtake={} invalid_never_constituted={} invalid_identity_vanished_refuted={} invalid_identity_vanished_seam={} confirmed={} provisional_alive={} entries_with_first_provable={}",
+            "P409_LEVEL[{tag}] level={level} identities={} emissions={} force_true={} force_false={} unavail_missing={} unavail_coordmap={} invalid_force_overtake={} invalid_never_constituted={} invalid_center_break={} invalid_identity_vanished_refuted={} invalid_identity_vanished_seam={} confirmed={} provisional_alive={} entries_with_first_provable={}",
             s.identities,
             s.emissions,
             s.force_true,
@@ -525,6 +528,7 @@ fn emit_report(
             s.coord_failed,
             s.force_overtake,
             s.never_constituted,
+            s.invalid_center_break,
             s.identity_vanished_refuted,
             s.identity_vanished_seam,
             s.confirmed,

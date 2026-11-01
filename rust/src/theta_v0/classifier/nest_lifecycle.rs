@@ -130,15 +130,17 @@ mod window;
 
 pub use book::NestLifecycleBook;
 pub use center_break::{
-    CenterBreakAudit, CenterBreakFact, CompletionAnchor, CompletionPolicy, HypothesisBridge,
+    BridgeRegistration, CenterBreakAttempt, CenterBreakAudit, CenterBreakFact, CenterBreakOutcome,
+    CenterBreakResult, CenterBreakTarget, CompletionAnchor, CompletionPolicy, HypothesisBridge,
 };
 pub use entry::{
     ForceCheck, ForceEvidence, InvalidatedReason, LifecycleRevision, LifecycleRevisionKind,
     NestEventState, NestLifecycleEntry, NestPolicy, UnavailReason, VanishCause,
 };
 pub use feed::{
-    apply_center_breaks, feed_replay_bar, feed_replay_bar_with_bridges, provide_replay_live_windows,
-    PanCompletionEvent, PanLiveRun, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
+    apply_center_breaks, feed_replay_bar, feed_replay_bar_with_bridges,
+    provide_replay_live_windows, PanCompletionEvent, PanLiveRun, PanProviderPhase, ReplayBarFeed,
+    ReplayFeedStats,
 };
 pub use key::LifecycleKey;
 pub use observation::{

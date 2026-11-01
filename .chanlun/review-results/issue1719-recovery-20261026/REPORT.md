@@ -120,3 +120,66 @@ error[E0614]: type `nest_lifecycle::key::LifecycleKey` cannot be dereferenced
 同时检索 `rust/src`、`rust/tests` 中被更换接口的调用与结构体构造，未发现遗留旧签名调用；核查导入使用及相关 lint 声明，未发现新增的确定未使用导入问题。除已定位的 E0614 外，本轮人工复核没有发现其他确定编译问题，因此未扩大代码修改范围。
 
 返修验证：`git diff --check` 退出 0。本机未运行 cargo/rustc/rustfmt，Rust 测试实际执行数为 0，类型检查、借用检查、测试编译及执行仍待宿主封包后由 CI 验证。人工复核不能替代编译通过证据。本轮未执行 git add/commit/push，未修改 Git 元数据。
+
+
+## 返修 2
+
+2026-11-01，基于当前工位 `sandcastle/issue-1719`、HEAD `3b23c8652d7a0d49830bf538fb60c06c28714884`，只处理独审 43I 的 B2–B5、L1。已读 `/Volumes/AgentStorage/i4-review43i/REPORT.md` 全文、批准 SPEC 原件 `spec-6403536453.md:20–25、70–78`、CI 原始日志 `/Volumes/AgentStorage/i4-managed-resume42z/ci-8e51ce9f/job-124737588633.log`，并核对工位 PLAN、既有 REPORT、账本内核及相关源码。B1 已由返修 1 修复，本轮未重做。
+
+本节取代前文和 PLAN 中“registered_at ≤ physical_bar”“越过 known-at 后只返回空”以及 14 项测试的旧描述；旧文保留为本票历史。未新增 S/B 必须先后消费的生产前置条件。
+
+### B2 编译匹配
+
+`rust/src/bin/p409_pan_live_probe.rs:222、477、522、531` 增加独立的 `invalid_center_break` 字段、`Some(InvalidatedReason::CenterBreak)` 分支及报告输出，不并入力度反超、从未构成或身份消失计数。
+
+已执行要求的全仓搜索 `rg -n 'invalidated_reason|InvalidatedReason::' rust/`。其他穷尽原因码匹配为 `nest_lifecycle/book.rs:123、730` 和 `nest_lifecycle/entry.rs:342`，均已有 CenterBreak 分支；其余命中为构造、断言、带兜底的模式或诊断读取，未发现其他遗漏的穷尽 match。源码核对不能替代编译。
+
+### B3 格式
+
+本机可直接调用 `/opt/homebrew/bin/rustfmt`，版本 `rustfmt 1.9.0`。已对本分支全部 9 个新增/改动 Rust 文件按默认风格整理并检查，使用 `--edition 2021 --config skip_children=true`；skip_children 仅限制递归遍历范围，没有覆盖排版风格。包含 `book.rs` 的缺账测试模块及经 include 引入的 `i4_bridge_tests.rs`，后者也显式传入检查。`entry.rs`、`observation.rs`、`pan.rs` 无格式差异。本地 `rustfmt --check` 退出 0，CI 的 `cargo fmt --all -- --check` 仍待运行。
+
+### B4 显式结果与迟到待恢复
+
+`center_break.rs:138–179` 新增 `BridgeRegistration`、`CenterBreakOutcome`、目标快照、消费尝试与结果类型。`book.rs:263、327–443` 返回 `CenterBreakResult { revisions, attempts }`，逐目标区分 Applied、NoTarget、NotReady、LatePendingRecovery、FactConflict、PolicyDisallowed、Preserved、AlreadyApplied、InvalidClock。`feed.rs:290` 的批量入口返回逐事实结果，保留各目标的结果，不再把所有拒绝压成空修订。
+
+独立的 `center_break_attempts` 读面追加每次消费原件、消费钟、目标键、完整绑定及原政策、目标 last_as_of、注册前破坏标记和结果原因。迟到不占用应用键；相同身份改钟/改原件返回 FactConflict，首次原件不覆盖，冲突输入另留在尝试审计。实际清账凭证仍只放在 `center_break_audits`，与待恢复记录分开。
+
+本轮选择用户允许的第二支：**迟到不清账，返回 LatePendingRecovery 并完整留档**。具体依据如下。
+
+- `ledger_kernel/mod.rs:386–401` 的 `admit` 在 `:392–394` 对 `as_of < last_as_of` 明确返回 RetrogradeRejected。把原 known-at 传入该门户不能准入；保留 last_as_of、绕过 admit 直接清账会跳过既有准入规则。
+- `ledger_kernel/mod.rs:464–478` 的修订链不变量在 `:474` 要求 `revision.as_of >= prior`。本轮迟到夹具先在 106 延展并留下修订，再收到 known-at=105 的 Broken；若以 105 追加终态修订，将使修订链倒退。
+- `book.rs:765–774` 的 CenterBreak 不变量要求 `invalidated <= last_as_of`，该臂本轮未改。它允许终态钟早于门卫钟，但不能推翻 admit 与修订链的两条限制；不能只凭这一臂就绕过前两条。
+
+`book.rs:381–395` 先保留终态或曾可证对象，再判断政策、升级就绪与迟到。迟到不调用 admit、不写账本五钟或修订、不取当前消费 bar 清账。正常应用仍以原 known-at 经过原 admit 和 invalidate。这里没有声称恢复重放已交付，也没有要求 B 在推进对象前必须消费事实。
+
+### B5 注册前已物理破坏
+
+未在已读的批准 SPEC §七或 ADR0003 找到排除“physical_bar < registered_at”对象的批准条款，因此删除原过滤与“没有可应用目标就不留事实”的提前返回。`book.rs:357–377` 先留合法原件，按级别和精确 B 查目标，再按原政策、仍 Provisional、从未可证等既有条件处理。
+
+物理破坏 90、注册 95、known-at 100 的对象正常清账，终态钟为 100；`CenterBreakAudit.physical_before_registration` 和目标快照中的同名字段为 true，事实原件的物理钟保持 90。若 known-at=94 也早于注册，则原件照常留档，匹配到对象后明确返回 LatePendingRecovery，不倒写出生前终态。事实尚无绑定时返回 NoTarget 且保留原件；之后绑定就绪，调用方可以重送留档原件得到正常应用或明确的待恢复结果。
+
+### L1 政策冻结结果
+
+`book.rs:291–301` 对同一精确 B 重送绑定比较完整原政策；版本或锚不同返回 `BridgeRegistration::PolicyFrozen`，原政策、原对象与注册钟不动。`feed_replay_bar_with_bridges` 原样返回冻结结果，不再报告 accepted。CenterUpgrade 的原精确新 B 核验、原政策冻结及迁移行为不变。
+
+### 回归源码与实际验证
+
+本轮新增 3 项测试，全部保留 `i4_bridge_` 前缀。
+
+- `i4_bridge_physical_break_before_registration_is_applied_and_audited`：物理破坏早于注册仍按原 known-at 清账，并记录注册前破坏标记。
+- `i4_bridge_fact_before_binding_is_retained_for_matching_and_recovery`：事实先到、无目标留档，之后精确绑定可应用；known-at 早于注册则显式待恢复。
+- `i4_bridge_same_b_new_policy_version_returns_frozen`：相同锚仅换版本时，直接注册与伴随 feed 均返回冻结，原绑定保持。
+
+已更新原 clock guards、去重、双向政策冻结、升级待精确 B、终态迁移、缺账等断言以消费新结果。clock guards 断言迟到目标、原件、门卫钟及留档，改 known-at 的冲突不能放行；`i4_bridge_provable_and_terminal_entries_keep_all_bits` 同时覆盖迟到与普通事实，对曾可证、Confirmed、Invalidated 的账本条目逐字段保留。独立尝试审计允许追加，不据此要求整个 book 字节不变。
+
+实际结果：直接 rustfmt 对上述 9 个文件的 `--check` 退出 0；`git diff --check` 退出 0；使用仓外已有 tree-sitter 解析 12 个相关 Rust 文件，无语法错误；13 个既有函数相对当前 HEAD 忽略空白逐字一致，覆盖原 feed/provider、账本推进迁移/不变量/统计、Broken 构造/身份和选中绑定构造。源码枚举共 17 项不重名 `i4_bridge_` 测试。上述静态结果不是 Rust 类型、借用或运行证据。
+
+**Rust 未验证，待 CI。** 本机未运行 cargo/rustc，Rust 测试实际执行数为 0。CI 旧日志在第一档 check 的 E0614 处失败，没有后续两档或 fmt 通过证据。宿主受管封包新 head 后，须绑定该精确 SHA，执行 CI 正式三档 `cargo check --all-targets`（默认 / `--features backtest_bin` / `--features s_session`，均 `RUSTFLAGS=-D warnings`）、`cargo fmt --all -- --check`、`cargo test --locked --lib i4_bridge_`（应非零，当前源码 17 项），及原 nest_lifecycle/channel_switch 回归。不能复用旧 head 的失败或静态解析当通过日志。本轮未执行 git add/commit/push，未修改 Git metadata、main 或票面。
+
+### 下游真实义务
+
+B 侧须把精确绑定、冻结政策、事实原件、已应用集合、实际清账凭证、迟到尝试审计及对应账本修订原子持久，并在新进程恢复这些记录。内存留档、Clone 和本组件局部测试不证明这件事。
+
+唯一 launcher 下 S 发布与 B 消费保持异步。消费方须逐项处理结果：NoTarget/NotReady 保存待匹配原件，绑定或新精确 B 就绪后重送；Applied 与去重集合和修订一起落盘；LatePendingRecovery 交既有恢复合同按原 known-at 重放，不得改为当前 bar，也不得倒写已终态或曾可证对象；FactConflict 保留首次原件并报告冲突；Preserved/PolicyDisallowed/AlreadyApplied 不产生第二次清账。PolicyFrozen 须显式记录新政策被忽略。不能以“先消费事实再推进 B”替代恢复合同或缩小合法异步输入域。
+
+这些持久与新进程恢复接线归 #1719 恢复链，launcher 的回放/paper 同核消费归 #1523/#1769。本组件未修改公开 event/checkpoint schema、正式 S kind、S producer、launcher 或 finance，未完成 SPEC:23 的正式主接缝消费验证，不宣称整票完成，不关票。`ready` 仅表示本轮源码与报告可交受管封包、CI 和新 head 增量独审。
