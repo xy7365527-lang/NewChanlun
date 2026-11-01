@@ -1,0 +1,220 @@
+{
+  "ticket": 1539,
+  "reviewId": "fu17-review41k",
+  "mode": "一轮有限差异独审",
+  "inputRoot": "/Volumes/AgentStorage/fu17-repair41f",
+  "baseline": {
+    "head": "9de18e606b2c0330162a83e2a030898b46c3690f",
+    "frozenTree": "/Volumes/AgentStorage/fu17-repair40r/frozen",
+    "spec": "/Volumes/AgentStorage/fu17-repair40r/gh/body1340.md"
+  },
+  "reviewer": {
+    "family": "GPT",
+    "agent": "/root/fu17_review41k",
+    "independent": true,
+    "modelRoute": "以父代理派发记录为准"
+  },
+  "klass": "P",
+  "verdict": "PASS",
+  "policyQuestionnaireReady": true,
+  "blockingFindings": [],
+  "oldBlocksResolved": [
+    {
+      "id": "B1",
+      "verdict": "PASS",
+      "resolved": true,
+      "locations": [
+        "draft.md:94-95",
+        "draft.md:154",
+        "draft.md:182-186",
+        "draft.md:224-225",
+        "archaeology.md:240-256",
+        "shadow-comment.md:5,13"
+      ],
+      "reason": "三模式固定完整输入六面H2保留；AT13/C07.6附加，不替代"
+    },
+    {
+      "id": "B2",
+      "verdict": "PASS",
+      "resolved": true,
+      "locations": [
+        "draft.md:81-87",
+        "draft.md:150",
+        "archaeology.md:187-205",
+        "shadow-comment.md:5,12"
+      ],
+      "reason": "C07.8两项合取与C06.2实际参与账回执保留，能力声明不得删前件"
+    },
+    {
+      "id": "B3",
+      "verdict": "PASS",
+      "resolved": true,
+      "locations": [
+        "draft.md:99-108",
+        "draft.md:141",
+        "draft.md:156-161",
+        "draft.md:230-231",
+        "archaeology.md:341-356",
+        "shadow-comment.md:16"
+      ],
+      "reason": "成交、command/period费用、账户查询分开；账户查询不推进F、不写B，归属仅E"
+    },
+    {
+      "id": "B4",
+      "verdict": "PASS",
+      "resolved": true,
+      "locations": [
+        "draft.md:119-130",
+        "draft.md:163",
+        "archaeology.md:304-312",
+        "shadow-comment.md:15"
+      ],
+      "reason": "禁第二权威写入口；允许只读可重算物化，实施范围与合法性分开"
+    }
+  ],
+  "items": [
+    {
+      "id": "R1",
+      "verdict": "PASS",
+      "reason": "新增关键引文回查原文，旧核验复用；N1为非阻断引用末行订正"
+    },
+    {
+      "id": "R2",
+      "verdict": "PASS",
+      "reason": "B1–B4闭合，正文、附件、考古、问表保持同义"
+    },
+    {
+      "id": "R3",
+      "verdict": "PASS",
+      "reason": "文书命令与后续测试分开，未宣告行为验收已执行"
+    },
+    {
+      "id": "R4",
+      "verdict": "PASS",
+      "reason": "完整目标与资金/权限/恢复门保留，FU16边界不变"
+    },
+    {
+      "id": "R5",
+      "verdict": "PASS",
+      "reason": "未新增失败后降档兜底；缺证保潜量，三模式同一H2"
+    },
+    {
+      "id": "R6",
+      "verdict": "PASS",
+      "reason": "补齐1411/1366和1400/1425消费范围，既有传递边可用，1425仍待新增"
+    },
+    {
+      "id": "R7",
+      "verdict": "PASS",
+      "reason": "live OPEN/needs-approval，保留用户P批准门"
+    },
+    {
+      "id": "R8",
+      "verdict": "PASS",
+      "reason": "关键反例已进入推理；复用40Y有效换词与计数证据，JSON/MD一致"
+    }
+  ],
+  "findings": [
+    {
+      "id": "N1",
+      "blocking": false,
+      "severity": "low",
+      "locations": [
+        "draft.md:40",
+        "draft.md:108",
+        "draft.md:280",
+        "archaeology.md:350-351"
+      ],
+      "evidence": "冻结 tb03c_per_leg.rs 的 unit_price 在31，不在28-30",
+      "minimalFix": "同时援引三个字段时将区间改为28-31",
+      "changesDecision": false
+    },
+    {
+      "id": "N2",
+      "blocking": false,
+      "severity": "low",
+      "locations": [
+        "REPORT.md:25",
+        "review-response.md:20"
+      ],
+      "evidence": "本轮live1539 blocking不含1425；draft.md:222和REPORT.md:43写待新增",
+      "minimalFix": "边已有改为沿用40R拟新增边，批准落地时接1539 blocks1425",
+      "changesDecision": false
+    },
+    {
+      "id": "N3",
+      "blocking": false,
+      "severity": "low",
+      "locations": [
+        "draft.md:108",
+        "archaeology.md:351"
+      ],
+      "evidence": "ADR0032:33保留command因果，不能推出所有command费用必无manifest；推荐值正确",
+      "minimalFix": "改为这些类别不都以单笔成交manifest为前件，不能一律套成交投影；保留command_id和period坐标",
+      "changesDecision": false
+    }
+  ],
+  "checksNotRun": [
+    "Rust tests",
+    "CI",
+    "真实恢复实验",
+    "本机探针"
+  ],
+  "authority": "仅写本目录 REPORT.md 与 review.json；未批准 P、未改正本或作者稿、未操作 GitHub 写入、未触碰 FU16 工位",
+  "liveState": {
+    "state": "OPEN",
+    "labels": [
+      "wayfinder:grilling",
+      "ready-for-agent",
+      "needs-approval"
+    ],
+    "blocking": [
+      1540,
+      1551,
+      1535,
+      1362,
+      1366,
+      1367,
+      1365,
+      1525
+    ],
+    "proposedBlockingAddition": 1425,
+    "proposedAdditionApplied": false,
+    "commandPrefix": "env -u GH_TOKEN -u GITHUB_TOKEN -u GH_DEBUG gh",
+    "exitCode": 0
+  },
+  "consistency": {
+    "changedArchaeologyPoints": [
+      "Q4",
+      "Q9",
+      "Q10",
+      "Q12",
+      "Q13"
+    ],
+    "addedHits": 18,
+    "addedQueries": 4,
+    "classes": {
+      "A": 8,
+      "B": 5,
+      "C": 2
+    },
+    "jsonProseFieldsMissingFromMarkdown": []
+  },
+  "preservedGates": [
+    "用户 /graph-approve",
+    "六 Destination",
+    "#1279 完整验收",
+    "资金隔离与恢复",
+    "下游恢复与行为测试"
+  ],
+  "nextAction": "作者作 N1–N3 同义文书订正；主控填写41K PASS并送同版P问表；批准后再落正本与1425边",
+  "evidenceFiles": [
+    "/Volumes/AgentStorage/fu17-review41k/REPORT.md",
+    "/Volumes/AgentStorage/fu17-review40y/REPORT.md",
+    "/Volumes/AgentStorage/fu17-review40y/review.json",
+    "/Volumes/AgentStorage/fu17-repair41f/draft.md",
+    "/Volumes/AgentStorage/fu17-repair41f/shadow-comment.md",
+    "/Volumes/AgentStorage/fu17-repair41f/archaeology.md",
+    "/Volumes/AgentStorage/fu17-repair41f/archaeology.json"
+  ]
+}
