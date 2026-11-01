@@ -621,6 +621,7 @@ def test_remote_cancel_during_setup_and_duplicate_claim(tmp_path, monkeypatch):
     process = supervise(boat_remote, path, time.time() + 300)
     try:
         wait_for(lambda: (root / 'claim/child.json').exists())
+        wait_for(lambda: launches(tmp_path) == ['npm'])
         assert boat_remote.observe(request, path)['state'] == 'running'
         boat_remote.cancel(request, path)
         process.communicate(timeout=15)

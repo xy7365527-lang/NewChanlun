@@ -165,3 +165,46 @@ test("创建容器结果不明时不能声明已关闭", async () => {
     assert.equal(receipt.container_closed, false);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
+
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  test(`容器 create 等待期间 ${signal} 不得启动模型`, async () => {
+    const f = fixture();
+    let resolveCreate!: (handle: BindMountSandboxHandle) => void;
+    let entered!: () => void;
+    const creating = new Promise<void>((resolve) => { entered = resolve; });
+    const created = new Promise<BindMountSandboxHandle>((resolve) => { resolveCreate = resolve; });
+    const commands: string[] = [];
+    let closed = false;
+    const handle: BindMountSandboxHandle = {
+      worktreePath: "/review",
+      async exec(command) {
+        commands.push(command);
+        if (command === "cat /etc/hostname") return { stdout: container.slice(0, 12), stderr: "", exitCode: 0 };
+        if (command.startsWith("node -e ")) return { stdout: JSON.stringify({ source_write: "EROFS", git_write: "EROFS", host_read: "ENOENT", state_write: "ENOENT" }), stderr: "", exitCode: 0 };
+        return { stdout: "", stderr: "", exitCode: 1 };
+      },
+      async copyFileIn() {}, async copyFileOut() {}, async close() { closed = true; },
+    };
+    const deps: WorkerDependencies = {
+      identity: () => ({ head: f.launch.controller_code_head, dirty: "" }), ready: () => image,
+      sandbox: () => ({ name: "cancel-create", env: {}, create: async () => { entered(); return created; } }),
+      inspect: () => ({ Id: container, Image: image, Mounts: reviewMounts([{ hostPath: f.checkout, sandboxPath: "/review" }], f.checkout)
+        .map((m) => ({ Source: m.hostPath, Destination: m.sandboxPath, RW: false })), Config: { Env: [] } }),
+      imageEnv: () => [], timeoutMs: 10000,
+    };
+    try {
+      const running = runExternalReview(f.folder, deps);
+      await creating;
+      process.emit(signal);
+      resolveCreate(handle);
+      await running;
+      assert.deepEqual(commands, [], "cancelled create must close before executing any container command");
+      assert(closed);
+      const receipt = JSON.parse(readFileSync(join(f.folder, "receipt.json"), "utf8"));
+      assert.equal(receipt.status, "cancelled");
+      assert.equal(receipt.container_closed, true);
+      assert.equal(receipt.phase, "container");
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+}

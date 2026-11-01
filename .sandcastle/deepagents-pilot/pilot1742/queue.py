@@ -5,17 +5,19 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .approval import SpecAuthorization
+from .boat_execution import ExecutionUnknown
 from .claims import ClaimStore
 from .cutover import CutoverError, CutoverStore
 from .delivery import RepoGateway
-from .domain import parse_sha
-from .run import PilotRun, TaskSpec
+from .domain import EffectUnknown, Running, parse_run_id, parse_sha
+from .run import PilotRun, TaskSpec, _ps_rows
 from .workunit import (
     RELEASE_LABEL,
     Queued,
@@ -139,12 +141,16 @@ class QueueIntake:
             path = unit_path(self.state_root, run_id)
             path.parent.mkdir(parents=True, exist_ok=True)
             data = {'work_unit': unit.to_json(), 'task': _task_json(task)}
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'w') as stream:
-                json.dump(data, stream, ensure_ascii=False, indent=2)
-                stream.write('\n')
-                stream.flush()
-                os.fsync(stream.fileno())
+            fd, temporary = tempfile.mkstemp(prefix=f'.{run_id}.', suffix='.tmp', dir=path.parent)
+            try:
+                with os.fdopen(fd, 'w') as stream:
+                    json.dump(data, stream, ensure_ascii=False, indent=2)
+                    stream.write('\n')
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.link(temporary, path)
+            finally:
+                os.unlink(temporary)
             return unit
 
     def once(self, run: Callable[[WorkUnit], int]) -> dict[int, dict[str, Any]]:
@@ -168,15 +174,33 @@ class QueueIntake:
             except BlockingIOError:
                 return {}
             tickets = {int(issue['number']) for issue in self.gateway.queue(RELEASE_LABEL)}
+            runs: dict[int, set[Path]] = {}
+            invalid: dict[int, str] = {}
             for path in (self.state_root / 'units').glob('t*-*.json'):
-                registered_unit = load_unit(self.state_root, path.stem)[0]
-                if isinstance(registered_unit.admission, Queued):
-                    tickets.add(registered_unit.ticket)
+                match = re.fullmatch(r't([1-9][0-9]*)-([1-9][0-9]*)', path.stem)
+                if match is None:
+                    raise ValueError(f'invalid unit filename: {path}')
+                ticket = int(match[1])
+                try:
+                    registered_unit = load_unit(self.state_root, path.stem)[0]
+                    if not isinstance(registered_unit.admission, Queued):
+                        continue
+                    if registered_unit.ticket != ticket or registered_unit.run_id != path.stem:
+                        raise ValueError('unit identity does not match filename')
+                except (OSError, ValueError, TypeError, KeyError) as error:
+                    invalid[ticket] = f'invalid unit {path}: {error}'
+                tickets.add(ticket)
+                runs.setdefault(ticket, set()).add(PilotRun.run_dir(self.state_root, parse_run_id(path.stem)))
             results: dict[int, dict[str, Any]] = {ticket: {'phase': 'queued'} for ticket in tickets}
+            for ticket, invalid_reason in invalid.items():
+                results[ticket] = {'phase': 'halted', 'reason': invalid_reason}
             for path in self.claims.root.glob('[0-9]*.json'):
                 holder = self.claims.read(int(path.stem))
-                if holder is None or holder.admission_kind != 'queued' or holder.state not in ('intent', 'mirrored', 'active'):
+                if holder is None or holder.admission_kind != 'queued':
                     continue
+                tickets.add(holder.ticket)
+                results.setdefault(holder.ticket, {'phase': 'queued'})
+                runs.setdefault(holder.ticket, set()).add(Path(holder.run_dir))
                 lock_path = Path(holder.run_dir) / 'owner.lock'
                 if not lock_path.exists():
                     continue
@@ -186,16 +210,30 @@ class QueueIntake:
                     except BlockingIOError:
                         results[holder.ticket] = {'phase': 'active', 'run_id': holder.run_id, 'reason': 'controller busy'}
                         return self._status(results)
-            def priority(ticket: int) -> tuple[bool, int]:
+            occupied = {ticket: reason for ticket, folders in runs.items()
+                        if (reason := self._worker_activity(folders)) is not None}
+            for ticket, reason in occupied.items():
+                results[ticket] = {'phase': 'active', 'reason': reason}
+
+            def priority(ticket: int) -> tuple[bool, bool, int]:
                 holder = self.claims.read(ticket)
-                return (holder is None or holder.state == 'released', ticket)
+                return (ticket not in occupied, holder is None or holder.state == 'released', ticket)
+
             for ticket in sorted(tickets, key=priority):
+                if occupied and ticket not in occupied:
+                    continue
                 try:
                     self.cutover.load()
                 except CutoverError:
                     break
                 try:
+                    if ticket in invalid:
+                        results[ticket] = {'phase': 'halted', 'reason': invalid[ticket]}
+                        continue
                     claim = self.claims.read(ticket)
+                    if claim and claim.state == 'released' and ticket in occupied:
+                        results[ticket] = {'phase': 'active', 'run_id': claim.run_id, 'reason': claim.reason}
+                        continue
                     unit = load_unit(self.state_root, claim.run_id)[0] if claim and claim.state != 'released' else None
                     if claim is not None and unit is not None and (not isinstance(unit.admission, Queued)
                             or claim.run_dir != str(PilotRun.run_dir(self.state_root, unit.run_id).resolve())):
@@ -204,6 +242,7 @@ class QueueIntake:
                             'awaiting_merge', 'merged', 'stale'):
                         unit = self.register(ticket)
                     run_dir = PilotRun.run_dir(self.state_root, unit.run_id)
+                    runs.setdefault(ticket, set()).add(run_dir)
                     state = delivery_status(run_dir)
                     claim = self.claims.read(ticket)
                     if claim and claim.state in ('halted', 'released'):
@@ -251,9 +290,35 @@ class QueueIntake:
                     results[ticket] = {'phase': 'awaiting_human', 'reason': str(error)}
                 except (AdmissionRefused, CutoverError) as error:
                     results[ticket] = {'phase': 'halted', 'reason': str(error)}
+                finally:
+                    activity = self._worker_activity(runs.get(ticket, set()))
+                    if activity is not None:
+                        occupied[ticket] = activity
+                        previous = results[ticket].get('reason')
+                        results[ticket].update(phase='active', reason=f'{previous}; {activity}' if previous else activity)
+                    else:
+                        occupied.pop(ticket, None)
             return self._status(results)
         finally:
             os.close(fd)
+
+    def _worker_activity(self, folders: set[Path]) -> str | None:
+        for folder in sorted(folders):
+            try:
+                if not (folder / 'run.json').exists():
+                    if any((folder / name).exists() for name in ('workers', 'intents', 'boat')):
+                        return f'{folder.name}: effect_unknown: missing run.json with worker state'
+                    continue
+                run = PilotRun.open(folder.parent.parent, parse_run_id(folder.name), source_repo=self.source_repo)
+                rows = [] if run.execution is not None else _ps_rows()
+                workers = {key: run._observe(key, rows, reconcile=False) for key in run._keys()}
+                pending = [f'{key.name}: {"running" if isinstance(fact, Running) else "effect_unknown: " + fact.reason}'
+                           for key, fact in workers.items() if isinstance(fact, (Running, EffectUnknown))]
+                if pending:
+                    return f'{folder.name}: worker slot retained: ' + '; '.join(pending)
+            except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError) as error:
+                return f'{folder.name}: effect_unknown: worker observation failed: {error}'
+        return None
 
     def _status(self, results: dict[int, dict[str, Any]]) -> dict[int, dict[str, Any]]:
         from .executor import _write_json

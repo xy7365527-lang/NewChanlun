@@ -193,3 +193,52 @@ def test_boat_design_prompt_uses_cloud_root_with_custom_source(env, monkeypatch)
     assert '/opt/newchanlun/pstack/installed/skills/architect/SKILL.md' in prompt
     assert '/Users/' not in prompt
     run.release()
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_package_publication_is_complete_and_recovers_partial_build(env, tmp_path, monkeypatch, legacy):
+    from test_boat import adapter
+
+    from pilot1742 import boat_execution as module
+
+    run, engine, key, binding = adapter(env)
+    context = tmp_path / 'context'
+    context.mkdir()
+    (context / 'context.json').write_text(json.dumps({'id': 'frozen-context'}))
+    monkeypatch.setattr(engine, 'controller_context', lambda: context)
+    builds = []
+
+    def build(_repo, _head, destination, *_args, **_kwargs):
+        builds.append(destination)
+        destination.mkdir(parents=True, exist_ok=True)
+        manifest = {'project_skill_id': 'frozen-context'}
+        (destination / 'package.json').write_text(json.dumps(manifest))
+        return manifest
+
+    monkeypatch.setattr(module, 'build_package', build)
+    prompt = run.dir / 'prompt.md'
+    prompt.write_text('frozen prompt')
+    (run.dir / 'intents').mkdir(exist_ok=True)
+    (run.dir / 'intents' / f'{key.name}.json').write_text(json.dumps({
+        'prompt_file': str(prompt), 'model': 'gpt-6.1-sol', 'mode': 'execute'}))
+    local = run.dir / 'boat/packages' / binding.package_id
+    if legacy:
+        local.mkdir(parents=True)
+        (local / 'package.json').write_text('{}')
+    else:
+        def crash(*_args):
+            raise OSError('injected runtime copy interruption')
+        monkeypatch.setattr(module, 'git', crash)
+        with pytest.raises(OSError, match='injected'):
+            engine._build(key, binding)
+        assert not local.exists(), 'partial package was published under final name'
+    monkeypatch.setattr(module, 'git', lambda *_args: b'frozen runtime')
+    try:
+        package = engine._build(key, binding)
+        assert json.loads((package / 'request.json').read_text())['identity'] == binding.identity
+        assert (package / 'controller/boat_remote.py').read_bytes() == b'frozen runtime'
+        assert (package / 'runtime/.sandcastle/main-model.mts').read_bytes() == b'frozen runtime'
+        count = len(builds)
+        assert engine._build(key, binding) == package and len(builds) == count
+    finally:
+        run.release()

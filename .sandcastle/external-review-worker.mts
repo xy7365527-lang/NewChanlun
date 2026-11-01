@@ -142,6 +142,7 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
     creationStarted = true;
     handle = await sandbox.create({ worktreePath: launch.checkout, hostRepoPath: launch.checkout,
       mounts, env: declaredContainerEnv(sandbox.env) });
+    if (cancelled) throw new Error("监督已取消");
     const hostname = await handle.exec("cat /etc/hostname");
     const id = hostname.stdout.trim();
     if (hostname.exitCode || !/^[a-f0-9]{12,64}$/.test(id)) throw new Error("无法确认真实容器身份");
@@ -160,6 +161,7 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
     const schema = join(folder, "output-schema.json");
     writeFileSync(schema, JSON.stringify(OUTPUT_SCHEMA), { mode: 0o600 });
     await handle.copyFileIn(schema, "/tmp/external-review-schema.json");
+    if (cancelled) throw new Error("监督已取消");
     const built = provider.buildPrintCommand({ prompt: launch.prompt, dangerouslySkipPermissions: false });
     if (built.stdin !== launch.prompt || !built.command.includes("--disable multi_agent")) throw new Error("Codex 命令协议已漂移");
     const command = built.command + " --skip-git-repo-check --output-schema /tmp/external-review-schema.json -c 'features.apps=false' -c 'features.plugins=false'"

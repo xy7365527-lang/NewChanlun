@@ -419,3 +419,129 @@ def test_delivery_read_failure_is_retryable_not_stale(delivered, fault):
     assert rows[TICKET]['phase'] == 'awaiting_merge'
     assert rows[TICKET]['head'] == head and rows[TICKET]['run_id'] == unit.run_id
     assert v2.writes() == before_writes
+
+
+
+def test_registration_never_publishes_partial_json(queued, monkeypatch):
+    from pilot1742 import queue as module
+
+    v2, _, intake, _ = queued
+    original = module.json.dump
+
+    def interrupted(data, stream, **kwargs):
+        stream.write('{')
+        stream.flush()
+        raise OSError('injected unit write interruption')
+
+    monkeypatch.setattr(module.json, 'dump', interrupted)
+    with pytest.raises(OSError, match='injected'):
+        intake.register(TICKET)
+    assert not list((v2.home / 'units').glob('t*-*.json'))
+    monkeypatch.setattr(module.json, 'dump', original)
+    assert intake.register(TICKET).run_id == f't{TICKET}-1'
+
+
+def test_bad_unit_is_isolated_without_stalling_unrelated_ticket(queued):
+    v2, _, intake, _ = queued
+    units = v2.home / 'units'
+    units.mkdir(parents=True)
+    bad = units / f't{TICKET}-1.json'
+    bad.write_text('{')
+    v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
+                        labels=('ready-for-agent', 'deepagents:queue'))
+    seen = []
+    rows = intake.once(lambda unit: seen.append(unit.ticket) or 0)
+    assert seen == [TICKET + 1]
+    assert rows[TICKET]['phase'] == 'halted' and str(bad) in rows[TICKET]['reason']
+    assert bad.read_text() == '{'
+    assert json.loads((v2.home / 'queue-status.json').read_text())[str(TICKET)]['reason']
+
+
+@pytest.mark.parametrize('code', [0, 2])
+@pytest.mark.parametrize('fact', ['running', 'effect_unknown'])
+def test_child_exit_cannot_release_unfinished_worker_slot(queued, monkeypatch, code, fact):
+    from conftest import FAKE, MODELS
+
+    from pilot1742 import run as module
+    from pilot1742.domain import WorkerKey
+    from pilot1742.executor import load_unit, open_v2_run
+
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit),
+                      MODELS, launcher=FAKE, source_repo=v2.source)
+    run.release()
+    key = WorkerKey(unit.run_id, 'author', v2.base)
+    output = run._key_dir(key)
+    if fact == 'running':
+        monkeypatch.setattr(module, 'supervisor_alive', lambda *_: True)
+    v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
+                        labels=('ready-for-agent', 'deepagents:queue'))
+    seen = []
+
+    def child(item):
+        seen.append(item.ticket)
+        output.mkdir(parents=True, exist_ok=True)
+        return code
+
+    rows = intake.once(child)
+    assert seen == [TICKET]
+    assert rows[TICKET]['phase'] == 'active'
+    assert rows[TICKET + 1]['phase'] == 'queued'
+    assert fact in rows[TICKET]['reason']
+    rows = intake.once(child)
+    assert seen == [TICKET, TICKET], 'same run must retain recovery ownership'
+    assert rows[TICKET]['phase'] == 'active'
+    (output / 'result.json').write_text(json.dumps({
+        'ticket': TICKET, 'status': 'failed', 'expected_head': v2.base,
+        'mode': 'execute', 'model': 'gpt-6.1-sol', 'result': {'summary': 'finished'}}))
+    intake.once(child)
+    assert seen == [TICKET, TICKET, TICKET, TICKET + 1]
+
+
+@pytest.mark.parametrize('state', ['invalid_unit', 'interrupted', 'halted', 'released', 'removed_queue'])
+def test_existing_boat_worker_keeps_slot_across_skip_paths(queued, monkeypatch, state):
+    from dataclasses import replace
+
+    from conftest import FAKE, MODELS
+    from test_boat import config
+
+    from pilot1742.boat_execution import BoatBinding, BoatConfig, BoatExecution, BoatRun
+    from pilot1742.claims import advance
+    from pilot1742.domain import WorkerKey
+    from pilot1742.executor import load_unit, open_v2_run
+
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit),
+                      MODELS, launcher=FAKE, source_repo=v2.source)
+    run.release()
+    run.spec = replace(run.spec, execution=BoatRun(BoatConfig.parse(config()), v2.base))
+    (run.dir / 'run.json').write_text(json.dumps(run.spec.to_json()))
+    run.execution = BoatExecution(run)
+    key = WorkerKey(unit.run_id, 'author', v2.base)
+    (run.dir / 'intents').mkdir(exist_ok=True)
+    (run.dir / 'intents' / f'{key.name}.json').write_text('{}')
+    binding = BoatBinding(run.execution._identity(key), 'vm-author', 'p1', '/home/user/fixture/p1',
+                          'submitted', sandbox_id='bx_fixture')
+    run.execution._store(key, binding)
+    monkeypatch.setattr(BoatExecution, '_fetch', lambda *_: pytest.fail('queue observation contacted Boat'))
+    monkeypatch.setattr(BoatExecution, '_reclaim', lambda *_: pytest.fail('queue observation reclaimed Boat'))
+    if state == 'invalid_unit':
+        (v2.home / 'units' / f'{unit.run_id}.json').write_text('{')
+    elif state == 'interrupted':
+        (run.dir / 'interrupt.request').write_text('{}')
+    elif state in ('halted', 'released'):
+        with intake.claims.locked(TICKET) as txn:
+            txn.write(advance(txn.record, 'halt' if state == 'halted' else 'release'))
+    else:
+        v2.github.issues[TICKET]['labels'].remove('deepagents:queue')
+    v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
+                        labels=('ready-for-agent', 'deepagents:queue'))
+    rows = intake.once(lambda _: pytest.fail('paused or unknown worker slot was reused'))
+    assert rows[TICKET]['phase'] == 'active' and 'running' in rows[TICKET]['reason']
+    assert rows[TICKET + 1]['phase'] == 'queued'
+    assert run.execution.load(key) == binding
+    assert sorted(p.stem for p in (v2.home / 'units').glob('*.json')) == [unit.run_id]

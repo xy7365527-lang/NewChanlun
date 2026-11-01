@@ -377,38 +377,46 @@ class BoatExecution(WorkerExecution):
 
     def _build(self, key: WorkerKey, binding: BoatBinding) -> Path:
         local = self.run.dir / "boat/packages" / binding.package_id
-        if (local / "package.json").exists():
+        if (local / ".complete.json").exists():
+            if json.loads((local / ".complete.json").read_text()) != binding.identity:
+                raise ExecutionUnknown("完整工蜂包身份不符")
             return local
         if local.exists():
             shutil.rmtree(local)
-        context = self.controller_context()
-        manifest = build_package(self.run.source_repo, key.target_head, local, self.run.dir / "boat/skill-bundle",
-                                 Path(self.config.pstack_source), Path(self.config.model_rules), project_context=context)
-        if manifest["project_skill_id"] != json.loads((context / "context.json").read_text())["id"]:
-            shutil.rmtree(local)
-            raise ExecutionUnknown("工蜂与主控的冻结项目技能身份不同")
-        runtime_head = self.run.spec.execution.runtime_head
+        staging = local.with_name(f".{local.name}.{uuid4()}.tmp")
+        try:
+            context = self.controller_context()
+            manifest = build_package(self.run.source_repo, key.target_head, staging, self.run.dir / "boat/skill-bundle",
+                                     Path(self.config.pstack_source), Path(self.config.model_rules), project_context=context)
+            if manifest["project_skill_id"] != json.loads((context / "context.json").read_text())["id"]:
+                raise ExecutionUnknown("工蜂与主控的冻结项目技能身份不同")
+            runtime_head = self.run.spec.execution.runtime_head
 
-        def show(path: str) -> bytes:
-            return git(self.run.source_repo, "show", runtime_head + ":" + path)
+            def show(path: str) -> bytes:
+                return git(self.run.source_repo, "show", runtime_head + ":" + path)
 
-        (local / "controller").mkdir()
-        (local / "controller/boat_remote.py").write_bytes(show(".sandcastle/deepagents-pilot/pilot1742/boat_remote.py"))
-        (local / "runtime/.sandcastle").mkdir(parents=True)
-        for name in ("package.json", "package-lock.json"):
-            (local / "runtime" / name).write_bytes(show(name))
-        for name in ("boat-worker.mts", "codex-child.ts", "docker-isolation.mts", "acceptance-dir.mts",
-                     "git-environment.ts", "main-model.mts"):
-            (local / "runtime/.sandcastle" / name).write_bytes(show(".sandcastle/" + name))
-        intent = json.loads((self.run.dir / "intents" / f"{key.name}.json").read_text())
-        prompt = Path(intent["prompt_file"]).read_text().replace(self.config.pstack_source, "/opt/newchanlun/pstack")
-        save(local / "request.json", {
-            "identity": binding.identity, "package_id": binding.package_id, "root": binding.remote_root,
-            "ticket": self.run.spec.ticket, "model": intent["model"], "mode": intent["mode"],
-            "endpoint": self.config.endpoint, "image": self.config.image,
-            "allowed_prefixes": list(self.run.spec.task.allowed_prefixes),
-            "prompt": prompt.replace(str(self.run.source_repo), "/workspace/repo")})
-        return local
+            (staging / "controller").mkdir()
+            (staging / "controller/boat_remote.py").write_bytes(show(".sandcastle/deepagents-pilot/pilot1742/boat_remote.py"))
+            (staging / "runtime/.sandcastle").mkdir(parents=True)
+            for name in ("package.json", "package-lock.json"):
+                (staging / "runtime" / name).write_bytes(show(name))
+            for name in ("boat-worker.mts", "codex-child.ts", "docker-isolation.mts", "acceptance-dir.mts",
+                         "git-environment.ts", "main-model.mts"):
+                (staging / "runtime/.sandcastle" / name).write_bytes(show(".sandcastle/" + name))
+            intent = json.loads((self.run.dir / "intents" / f"{key.name}.json").read_text())
+            prompt = Path(intent["prompt_file"]).read_text().replace(self.config.pstack_source, "/opt/newchanlun/pstack")
+            save(staging / "request.json", {
+                "identity": binding.identity, "package_id": binding.package_id, "root": binding.remote_root,
+                "ticket": self.run.spec.ticket, "model": intent["model"], "mode": intent["mode"],
+                "endpoint": self.config.endpoint, "image": self.config.image,
+                "allowed_prefixes": list(self.run.spec.task.allowed_prefixes),
+                "prompt": prompt.replace(str(self.run.source_repo), "/workspace/repo")})
+            save(staging / ".complete.json", binding.identity)
+            os.rename(staging, local)
+            return local
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging)
 
     def _upload(self, key: WorkerKey, binding: BoatBinding) -> None:
         local = self._build(key, binding)
