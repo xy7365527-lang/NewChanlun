@@ -334,3 +334,138 @@ owner 锁模块前缀为 `v3::audit_owner::construction_tests::`；provider 为 
 - `rust/src/bin/s_session_v3/source_contributions.rs`
 - `rust/src/bin/s_session_v3/state.rs`
 - `rust/src/bin/s_structure_session.rs`
+
+## S1D
+
+> 状态：ready，可交主控封包取 CI。精确基线为 `sandcastle/issue-1481` / `bda5958779569869b3624e7962a77666ee0f03bc`，已合并 H1 `822309387d` 与 E6 #1527 `784bc6d7`。本节为未提交返修的源码与静态检查收据；**Rust 未验证，待 CI**。不能据此宣布 10 项已实跑通过、44G 运行验收通过或整票完成。
+
+### 证据、授权与范围
+
+已全文读取 43K 实施简报、44G BLOCK 报告、S1/S1B/S1C 提示（含追加第 5–9 项）、S1D-MERGE-NOTES、本报告既有章节，以及 `/Volumes/AgentStorage/h1-recover45c/REPORT.md` 和**原始** `ci-41349093849-failed.log`。下表的日志位置均为该原始文件物理行，不是转述报告的行号。run `41349093849` 对应合并前精确 head `822309387d`；原日志 `:419` 为 61 passed / 10 failed / 0 ignored。因此这 10 项原始失败均先于 E6 合并存在；另行查出的 E6 共享核回归单列，不把它误记为原失败原因。
+
+本轮沿 #1481 已有实施授权工作；未新增票、未改政策或 ADR。未运行 cargo/rustc、重型窗口或资源 `/3`；未做 scrub、launcher/5、Python 服务控制，未操作 Git metadata、暂存、提交或推送。所有行号除原日志位置外，均指本轮最终工作区；Rust 路径在下文简称中相对 `rust/src/bin/`。
+
+### 授权假说：否定缺 scope，确认固定 SQL 与 SQLite 回调不匹配
+
+`not authorized` 不是历史读取缺少生产授权对象，也不是漏登记旁挂文件。真实调用链为：
+
+1. `s_session_v3/admission.rs:193` 的 `WriterScope::certify_cold` 借用原启动账，进入 `admission_private/mod.rs:618` 的私有认证，再调用 `:662` 的 `read_session`。
+2. `admission_private/mod.rs:694` 注册原 FD/WAL VFS；`fd_wal.rs:1171` 给真实连接安装固定 authorizer。不是夹具绕开生产授权构造。
+3. `audit_owner.rs:3346` 附近的 `CompleteCandidate::capture` 生成全表原件 SQL，交 `request_audit.rs:2653` 的 `ExactRows::read_optional_bounded_params_in_parent`；`:2661` 在 `tx.prepare(sql)` 首先失败，`:958` 的 `storage` 包装成“历史原件绑定读取失败”。
+4. 失败 SQL 是 `SELECT rowid,* FROM main."s_delivery_refs" ORDER BY rowid`。该表只有 `INTEGER PRIMARY KEY`。SQLite 3.53.4 在通常的列读取之外，补发 `(SQLITE_READ=20, a="s_delivery_refs", b="", db="main", origin=None)`。`fd_wal.rs:678` 的既有策略只允许白名单业务表 **db=None** 的空列读取，故正确拒绝此事件；不是整份授权没有安装。
+
+修法是 `audit_owner.rs:3352` 仅对这张表生成无 `main.` 的同义 SQL；`audit_owner/effects.rs:120` 同步其固定 SQL 身份。没有改动生产 `audit_sql_allowed`、空列白名单或授权范围。私有连接原来就禁止 TEMP/ATTACH；正式 owner 的 `audit_owner.rs:2914` `read_domain` 拒绝 TEMP 对象及附加库，因此不引入同名影子表解释空间。
+
+`fd_wal.rs:873` 的既有授权锁增加实际 SQLite 正负控（`:925` 起）：原 main 限定 SQL 仍拒、TEMP 同名仍拒、未知整数主键表仍拒；去掉 TEMP 后，新 SQL 必须完整返回 `[[1,1],[4,4]]`。没有把拒绝断言改成成功或跳过登记。独立 Python SQLite 3.53.4 原型从生产 SCHEMA 抽取表，扫描历史读取及候选捕获的 44 条 SQL：旧 SQL 是唯一拒绝，新 SQL 全部接受。该原型是机制证据，不能代替本仓 bundled SQLite/Rust 锁的 CI 运行。
+
+### 10 项失败逐项处理
+
+下表“共同 SQL 根因”均指上一节已证明的 prepare/authorizer 首错及两处 SQL 修复；“冷缓存修复”见下一节。保留所有关键断言，尤其不以删去交接命中断言使测试通过。
+
+| 项 / 测试后缀 | 原始日志位置与首个失败 | 证明的根因、修法及最终位置 | E6 合并关系 |
+|---|---|---|---|
+| 1 `control_lock_tests::h1_ledger_cache_substitutes_are_rejected` | `:79`–`:80`，`test_support.rs:87` unwrap，Identity/E0 | 原 `admission_provider.rs:639` 测试把源 DB 自身 hardlink 到缓存名，源 DB nlink=2；真实 loader 在 `admission_anchor.rs:1310` 正确拒绝，未到缓存测量。`:648` 改由独立 `cache-source` 建硬链接，显式核缓存 nlink=2、源 DB nlink=1，真实 `consumed` 先成功，再要求 measure 拒绝。Python 4 个缓存名×3 种替身共 12 例通过。 | 无；夹具在合并前已污染源库，未改生产身份门。 |
+| 2 `h1_admission_cold_handoff_foreign_sqlite_commit_rejects` | `:91`–`:95`，原测试 `:380`，实际命中数 0 | `audit_owner.rs:635` 之前的候选捕获被共同 SQL 首错挡住，尚未返回冷认证；`COLD_AFTER_CERTIFICATION` 的 thread-local 注册/取出和 `#[cfg(test)]` 均存在，非漏接或跨线程。修共同 SQL 后，继续由 `audit_owner.rs:668` 在认证结束、正式开库前调用原 hook。`admission_tests.rs:333` 原测试体与命中断言未改。 | 无；原日志来自合并前 head。 |
+| 3 `h1_admission_cold_prefixes_match_full_canonical` | `:112`–`:114`，原测试 `:151`，raw sequence 与 owner 前代 prefix 不一致 | 旧夹具 `f.open` 只构造组件 complete 状态，却跨 owner 复用旧 Runtime：旧生成器 raw 序列为 1，新 owner construction 前沿为 0；`generation.rs:550` 的一致性门正确拒绝。`admission_tests.rs:157` 改走正式 Driver，每轮 drop 后冷建配套 owner/Runtime，保留 canonical 字节、逐代 cuts、旧审计零调用断言；同时补齐正式冷续写所需缓存。 | 无；夹具与生产缓存缺口均在 H1 原实现中，未放宽 prefix 门。 |
+| 4 `h1_admission_cold_real_wire_short_budget_rejects_before_write` | `:131`–`:133`，原测试 `:727`，历史原件 not authorized | 共同 SQL 首错发生在校准所需的合法 Driver 冷开，尚未验证目标 wire 短预算门；只修 SQL（`audit_owner.rs:3352`、`effects.rs:120`）。`admission_tests.rs:723` 原校准、真实冷读、预算错误及源字节断言保持。 | 无；固定 authorizer 相对 `822309387d` 的合并差异为空。 |
+| 5 `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` | `:148`–`:150`，原测试 `:537`，历史原件 not authorized | 首次正式 Driver open 即被共同 SQL 拒绝；修 SQL，并在 `audit_owner.rs:635`、`prepared.rs:258`/`:308` 补配套冷生成器。`admission_tests.rs:537` 原锁不改，继续验证逐分区逐字节重建、下一次写与 recover。 | 无；原始首错在合并前。 |
+| 6 `h1_admission_mainonly_nonwal_prepolicy_preserves_domain` | `:182`–`:184`，原测试 `:1060`，合法 MainOnly/DELETE 旧库 not authorized | 共同 SQL 首错在合法库完成只读认证前，尚未到 WAL 转换和迁移。修 SQL；`admission_tests.rs:1021` 的合法介质/模式正控保留，生产转换次序不改。 | 无；未缩为只接受 WAL。 |
+| 7 `h1_admission_prepolicy_bad_history_rejected_before_migration` | `:228`–`:230`，原测试 `:855`，修复后的合法旧形状正控 not authorized | 坏历史的拒绝不构成此项失败，失败在同库修好后的成功正控；共同 SQL 首错使合法正控仍拒。修 SQL，保留 `admission_tests.rs:784` 坏历史写前拒与修好后迁移成功的全部断言。 | 无；不通过恒拒旧形状来避错。 |
+| 8 `h1_admission_formal_accept_begin_prepare_recover_never_full_audit` | `:165`–`:167`，原测试 `:412`，StartupScopeMissing | 原夹具直接 `owner.startup`，未进入 WriterScope；`admission.rs:603` 的 current_scope 门正确报错。`admission_tests.rs:400` 用正式 Driver（`driver.rs:554` enter、`:598` startup），recover 用 `:822` 的正式 scoped retention 入口；finish/drop scope 后新 Driver 验身份、summary、canonical、cuts 与旧审计零调用。只改夹具，未放宽 scope。 | 无；原夹具漏 scope，在合并前已失败。 |
+| 9 `h1_admission_nonwal_conversion_handoff_foreign_commit_rejects` | `:192`–`:193`，原测试 `:1191`，未命中转换交接窗口 | 同第 2 项，被共同 SQL 首错挡在转换之前。`audit_owner.rs:681` 的转换 hook 在原受控连接关闭后、正式写者开库前，注册、调用与 test cfg 均闭合。`admission_tests.rs:1140` 原测试体、命中要求及源字节拒绝断言完全保留。 | 无；不是 E6 导致 hook 门控失效。 |
+| 10 `h1_admission_normal_exit_same_database_new_process_restarts` | `:196`–`:210`，父 `:931`，write 子进程首次 open 在 `:901` not authorized | 原日志证明子进程尚未完成首次 open，不能据此推断正常关闭仍有缺陷。修共同 SQL及正式冷续写缓存；`audit_owner.rs:742` 成功交接后恢复正常关闭的代码保持，拒绝路径保持 NO_CKPT。`admission_tests.rs:883` 原真实双进程锁不改，仍核 WAL/SHM 清理与同库新进程重启。 | 无；原始首错在合并前，重启的实际通过待 CI。 |
+
+第 1、3、8 项夹具调整代表生产的理由分别是：保留真实 loader 并只污染被测缓存对象；采用真实 Driver 的成对 owner/Runtime 生涯；采用真实 Driver/scoped recover 的启动授权对象。没有另造宽松授权对象或测试专用准入捷径。
+
+### 正式冷续写缓存连续性
+
+修第 3 项不能只让夹具新建 Runtime。沿生产路径还发现：既有 `Runtime::adopt_cold_audit_runtime` 只移交 ledger，而新 Runtime 的 generator 从空开始；owner 已认证前沿为 F 时，首次续写仍会因 generator 前沿 0 与 F 不符而失败。
+
+- `audit_owner.rs:635` 在原私有只读认证、原 Job、原 deadline/work 内恢复必要进程缓存；输入是同核已核的 raw 与最后一代 generated_state。`construction_state.rs:262`/`:303` 仅导出 binding/F，不签发可发布 token。
+- `prepared.rs:258` 使用正式 `v2::protocol_identity`（`:272`）与既有 profile/rule/catalog 字段配方构造缓存绑定；没有把 session_generation 当成 meta key。`generation.rs:467` 恢复 DeltaLane、raw/effective SequenceMemo 和 producer；`:1609` 从已核序列根恢复 key/root。
+- `s_session_v2/s_fact_cache.rs:401` 只解析已发布 **F** 内的赢家、来源坐标与 bar，R>F 的原始尾部留给下一次在线 Δ；`:443` 要求冷 life=0、实际 owner 初始 binding、前沿相等且无 poisoned/未授权历史。`content_producer.rs:1633` 恢复 sources/prepared keys，`:1676` 校验旧冷域后重绑。
+- `audit_owner.rs:665` 保存冷 binding/F；两锁源连续性通过后，`:727`–`:737` 再核实际 owner binding/F 并 adopt。`prepared.rs:308` 拒绝覆盖运行中的 generator/binding/ledger；所有失败直接返回，无旧审计 fallback、无 reset 后重试、无 stale 门放宽。
+- 新 rows、SequenceMemo 与 HashReader overlay 沿原 Native work 分配；生成节点只写内存 overlay，不写源 SQLite。`s_fact_cache.rs:568` 仅对已经 Native 的 rows 传当前 work；`:598` 缺活 work 硬拒，`:700` 附近的 reserve 与 `:738` 的 push 使用原生接口。旧 Plain 车道继续原分配合同。
+
+内存边界照实：parser 的 IncrFactsState、producer 普通性能缓存沿既有 Plain 合同，本节不声称整个生成器堆都已纳入 Native 计量。上述恢复不是第二套认证判据，只消费同核已核的 F；没有因为严格判据失败切换到宽松路径。
+
+### E6 合并专属回归
+
+另行检查 S1D-MERGE-NOTES 提醒的 E6 N1 两条 S3 锁，发现共享 `audit_core` 把增量 `RejectionPrefix::None` 统一缩为 schema-only 后，N1 独立组件也失去了原完整 S3 审计及原 Job 的 nodes/records 计费。这是 **E6 合并交互产生的行为回归**，与上述合并前 10 项首错分开处理。
+
+`admission_private/mod.rs:379` 增加 `NativeComponentAudit`，唯一构造方为 `admission_anchor/native_n1.rs:1802` 的独立组件审计入口。共享核 `mod.rs:442` 让 OrdinaryStartup 和该组件各自保留原完整审计；`:484` 保持组件原来 None 的无 startup-prefix 合同。H1 None/NativeStartup/Recover 仍走原 schema-prefix 加 H1 冷认证，失败不转组件审计。没有简单把所有 None 改回全审，因为正式 writer preflight 也使用 None。E6 的事务边界、预算对象、迁移核及两条测试断言均不回退。
+
+### 44G 义务逐项状态
+
+本表“源码保留/修复”只表示当前候选接线；涉及 Rust 的运行验收统一待新精确 head CI。
+
+| 44G 项 | S1D 状态与证据 |
+|---|---|
+| 原 P1：冷认证真实 wire 入原准入账 | 源码保留：`admission.rs:193` → 私有 `certify_cold/read_session` 共用原 FD/VFS、SharedAccounting、首读 t0、Job 与收尾门；修 SQL 后不再提前止于 not authorized。原短 wire 锁仍要求冷读实际 >0、冷阶段超限、改写前拒绝。 |
+| 原 P1：完整认证先于迁移 | 源码保留：候选与本轮 seed 都在 `audit_owner.rs:539` 私有只读认证中；认证结束后才转换/开正式连接、首 IMMEDIATE 内核 stamp 后迁移，第二锁拒外写。坏历史与合法正控锁均保留。 |
+| P1-B：台账旁挂与重启 | S1c 精确登记的 `.audit-ledger.sqlite`、`-wal/-shm/-journal` 保留，仍钉身份、计物理字节及原 store/64 GiB 帽；锁内精确丢弃、释放旧缓存 pins 后重建，真正未知旁挂继续拒。S1D 只修 hardlink 夹具与首错，不扩集合。 |
+| P1-A：成功后正常关闭、新进程可重启 | 成功 adopt 后 `audit_owner.rs:742` 恢复 NO_CKPT=false 并核返回值；拒绝路径不 checkpoint。短连接夹具及两真实进程退出/重启锁完整保留；原失败是首次 open 先被 SQL 拒，实际重启运行收据待 CI。 |
+| P2：非 WAL 合法输入域、旧 open_db 合同 | 保留 S1c 的 MainOnly/非 WAL 先认证、锁内合法转换、严格转换 stamp 与首锁迁移，不采用 44G 中曾建议但用户已否决的 WAL-only 缩域。DELETE/TRUNCATE/PERSIST/OFF/MEMORY 正控不删。 |
+| P2：RollbackJournal 热介质写前拒绝 | 保留 MeasuredDomain medium 的原拒门，在可能热回滚的读写连接之前拒；真实热日志子进程锁及主库/journal 原字节断言保留。 |
+| P2：TestOnly Ordinary 先审后迁 | `admission_private/mod.rs:442` 独立 OrdinaryStartup 完整审计分支保持；三 feature 的正确 epoch 坏旧形状拒绝、修好后迁移正控保持。 |
+| P3：临时分支 push 触发 | `history36h.yml` 未改，返修取 CI 的 `sandcastle/issue-1481` 触发保留；合入前由主控移除，本工蜂不自行推送或移除触发。 |
+| P3：整读可执行文件仍受原首读期限 | 原 deadline 不重置，本轮 seed 也在同期限内。S2 cold_start_window 仍属后续阶段。 |
+| 运行收据与增量独审 | 已做两名非作者对最终 diff 的只读交叉复核，覆盖编译可见性/cfg/错误转换/借用、授权、预算、副作用、E6 分流及锁。无剩余确定阻断；本机禁 Rust，23+4 条逐名 PASS 与三档编译/产物仍须主控封包后 CI 提供，不能记成已验收。 |
+| 44G 明列 S2 与整票后续 | 资源 `/3`、scrub、launcher/5、Python 服务控制、ADR、#1641 签署值、g77、9011 双跑及默认切换均未做，未据 S1D 宣告结清。 |
+
+### cfg、错误与生产构建自检
+
+对最终 12 个 Rust 改动文件及调用点逐项源码阅读，覆盖闭包 `?` 的错误类型/From 转换、`RefCell` 与游标临时借用、ColdRawState 可见性/reexport、fresh 限制、绑定移交、Native 容器扩容及未使用项。没有加泛化 allow 来掩盖警告。
+
+| feature 组合 | 非 test 源码检查 | test 源码检查 |
+|---|---|---|
+| `s_session` | 新冷 seed/rebind 均在 `all(s_incremental, unix)` 内，无增量专用类型泄漏；共享核非增量完整审计保持 | 新冷夹具只在既有增量测试模块内；不引用不存在的冷方法 |
+| `s_session,s_incremental` | 冷调用、类型可见性、错误转换、借用及活 work 链闭合；生产只用 `advance_owner_bound_with_work`，无 hook 引用 | 旧包装 `advance_owner_bound` 仅 cfg(test)，授权新增实际 SQLite 正负控；两条交接 hook 在 test 门内 |
+| `s_session,s_incremental,s_capture_native_testonly` | Ordinary 与 H1/组件按语义 prefix 分流，三者不互相兜底 | 原 Ordinary 单独锁保持，新增 test_prepare 调用有显式外层 test cfg，R4 锁未改 |
+
+以上六格均为**源码检查**，不是编译收据；各格 `-D warnings` 的实际编译及 Rust 测试仍待 CI。新增 unix 门与调用点对应，未宣称基线二进制支持非 unix。
+
+本机实际执行：
+
+- `rustfmt --edition 2021 --check --config skip_children=true` 显式检查全部 12 个改动 Rust 文件，通过。
+- `git diff --check` 通过；ci/history36h 的 YAML 解析及 H1 shell 的 `bash -n` 通过。
+- 静态提取基线和候选的测试名/CI 逐名清单：原 23 条逐字保留、唯一、无 ignore；新增 4 个执行项的完整模块路径与源测试一致。两条交接测试及新进程重启测试的函数体与基线完全一致。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3 tests 通过，锁源文件未改。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py .`，1638 条；随后 `--check .` 一致。相对精确基线新增 1 条测试专用文字，已同步 `.github/prod-banned-literals.txt`。该 count 与历史 S1c 节不同，历史章节不追改。
+- 独立 Python 的 SQLite 44 SQL 原型及缓存替身 12 例通过；没有把原型文件入仓。
+
+没有运行 cargo/rustc，没有新 CI 或生产 release 产物无钩子扫描收据。后续须在主控提交后的精确 head 上取三档 test/非 test `-D warnings`、全部具名测试 `... ok`、history36h 与生产 release 无钩子/禁串产物证据。
+
+### ci.yml 锁清单差异
+
+原 11 条及 S1c 新增 12 条合计 **23 条 H1 锁完全保留**，名称、过滤、无 ignore 和逐名 grep 要求不变。新增的是 4 条已有测试的显式执行，不新增同义测试名：
+
+| 新增完整测试名 | CI 位置 / 日志 |
+|---|---|
+| `v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits` | `ci.yml:441` 独立 FD/WAL 步骤，`1481-fd-wal.log` |
+| `v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables` | 同上，内部增加本次真实 SQLite 回归断言 |
+| `v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate` | `ci.yml:487`，`1481-e6.log` |
+| `v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job` | 同上 |
+
+四条均以 `s_session,s_incremental`、`--exact`、实际 `cargo test` 加逐名 `test ... ok` 核验，不以编译或零测试替代。现在合计 **27 条**具名锁；原 `1481-admission.log`、`1481-ledger.log`、`1481-ordinary.log` 上传保留，并新增 FD/WAL 与 E6 两份日志。`history36h.yml` 无本轮差异。
+
+### 本轮实际改动文件
+
+相对精确基线 `bda5958779569869b3624e7962a77666ee0f03bc`：
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `.github/prod-banned-literals.txt`
+- `.github/workflows/ci.yml`
+- `rust/src/bin/s_session_v2/content_producer.rs`
+- `rust/src/bin/s_session_v2/s_fact_cache.rs`
+- `rust/src/bin/s_session_v3/admission_anchor/native_n1.rs`
+- `rust/src/bin/s_session_v3/admission_private/fd_wal.rs`
+- `rust/src/bin/s_session_v3/admission_private/mod.rs`
+- `rust/src/bin/s_session_v3/admission_provider.rs`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_session_v3/audit_owner/admission_tests.rs`
+- `rust/src/bin/s_session_v3/audit_owner/effects.rs`
+- `rust/src/bin/s_session_v3/construction_state.rs`
+- `rust/src/bin/s_session_v3/generation.rs`
+- `rust/src/bin/s_session_v3/prepared.rs`

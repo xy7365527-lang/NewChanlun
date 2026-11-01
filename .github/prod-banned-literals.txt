@@ -828,6 +828,7 @@ writer/recover闭合后无SHM
 完整整数预检先于任何节点写出
 完整核验的实际memo与栈仍计量
 完整正文 memo 保持真实 put 次数
+完整行与顺序不能被授权修复改变
 完整闭包应得到实际codec复用
 实测无同额来源物理许可
 实际 Vec/String capacity 加树/散列表保守槽位上界；非RSS

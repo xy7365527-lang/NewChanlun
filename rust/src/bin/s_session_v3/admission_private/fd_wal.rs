@@ -921,6 +921,68 @@ mod authorization_tests {
                 true
             ));
         }
+        // #1481：用实际 SQLite 事件锁住整表原件 SQL；不扩大上面的授权策略。
+        unsafe extern "C" fn fixed_authorizer(
+            _: *mut c_void,
+            action: c_int,
+            a: *const c_char,
+            b: *const c_char,
+            db: *const c_char,
+            origin: *const c_char,
+        ) -> c_int {
+            let (a, b, db, origin) = unsafe { (bytes(a), bytes(b), bytes(db), bytes(origin)) };
+            if audit_sql_allowed(action, a, b, db, origin, true) {
+                ffi::SQLITE_OK
+            } else {
+                ffi::SQLITE_DENY
+            }
+        }
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE s_delivery_refs(generation INTEGER PRIMARY KEY CHECK(generation>=1));
+             INSERT INTO s_delivery_refs VALUES(1),(4);
+             CREATE TABLE unknown_refs(generation INTEGER PRIMARY KEY);
+             CREATE TEMP TABLE s_delivery_refs(generation INTEGER PRIMARY KEY);",
+        )
+        .unwrap();
+        unsafe {
+            assert_eq!(
+                ffi::sqlite3_set_authorizer(conn.handle(), Some(fixed_authorizer), ptr::null_mut()),
+                ffi::SQLITE_OK
+            );
+        }
+        // main 限定触发的空列事件仍拒绝；TEMP 同名也不能借无库名 SQL 冒充主库。
+        assert!(conn
+            .prepare("SELECT rowid,* FROM main.\"s_delivery_refs\" ORDER BY rowid")
+            .is_err());
+        assert!(conn
+            .prepare("SELECT rowid,* FROM \"s_delivery_refs\" ORDER BY rowid")
+            .is_err());
+        assert!(conn
+            .prepare("SELECT rowid,* FROM \"unknown_refs\" ORDER BY rowid")
+            .is_err());
+        unsafe {
+            assert_eq!(
+                ffi::sqlite3_set_authorizer(conn.handle(), None, ptr::null_mut()),
+                ffi::SQLITE_OK
+            );
+        }
+        conn.execute_batch("DROP TABLE temp.s_delivery_refs")
+            .unwrap();
+        unsafe {
+            assert_eq!(
+                ffi::sqlite3_set_authorizer(conn.handle(), Some(fixed_authorizer), ptr::null_mut()),
+                ffi::SQLITE_OK
+            );
+        }
+        let actual: Vec<[i64; 2]> = conn
+            .prepare("SELECT rowid,* FROM \"s_delivery_refs\" ORDER BY rowid")
+            .unwrap()
+            .query_map([], |row| Ok([row.get(0)?, row.get(1)?]))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(actual, [[1, 1], [4, 4]], "完整行与顺序不能被授权修复改变");
     }
 }
 

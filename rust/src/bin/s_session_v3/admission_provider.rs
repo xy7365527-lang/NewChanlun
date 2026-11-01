@@ -643,11 +643,19 @@ mod control_lock_tests {
                 let path = sidecar(&f.db, suffix);
                 match kind {
                     "symlink" => std::os::unix::fs::symlink(&f.db, &path).unwrap(),
-                    "hardlink" => std::fs::hard_link(&f.db, &path).unwrap(),
+                    "hardlink" => {
+                        // #1481：替身只能污染缓存；源 DB 多链会先被真实 loader 的 E0 拒绝。
+                        let cache_source = f.root.join("cache-source");
+                        std::fs::write(&cache_source, b"cache substitute").unwrap();
+                        std::fs::hard_link(&cache_source, &path).unwrap();
+                        assert_eq!(std::fs::metadata(&path).unwrap().nlink(), 2);
+                    }
                     _ => std::fs::create_dir(&path).unwrap(),
                 }
+                assert_eq!(std::fs::metadata(&f.db).unwrap().nlink(), 1);
+                let consumed = f.consumed();
                 assert!(
-                    MeasuredDomain::measure(&f.consumed()).is_err(),
+                    MeasuredDomain::measure(&consumed).is_err(),
                     "{suffix}: {kind}"
                 );
             }

@@ -375,6 +375,8 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
 /// #1481：增量实际连接仍须完成 H1 同核冷认证，前缀结果不得替代准入资格。
 pub(super) enum RejectionPrefix<'a> {
     None,
+    // #1527：N1 独立组件的完整审计；不替代 #1481 写者的 H1 冷认证。
+    NativeComponentAudit,
     OrdinaryStartup {
         epoch: &'a str,
     },
@@ -430,13 +432,17 @@ pub(super) fn audit_core(
 ) -> Result<(), String> {
     match crate::meta_get_opt(tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
-            // #1481：这里只核拒绝前缀与迁移前 schema；成功不代表历史已认证。
-            // H1 冷折叠在实际持锁连接开门前完成，失败不得回落旧审计。
+            // #1481：H1 前缀只核迁移前 schema；成功不代表历史已认证。
+            // H1 冷折叠在实际持锁连接开门前完成，失败不得回落旧审计；
+            // Ordinary 与 #1527 N1 独立组件保留各自的完整审计合同。
             #[cfg(feature = "s_incremental")]
             {
-                if matches!(prefix, RejectionPrefix::OrdinaryStartup { .. }) {
+                if matches!(
+                    prefix,
+                    RejectionPrefix::OrdinaryStartup { .. } | RejectionPrefix::NativeComponentAudit
+                ) {
                     // #1481：Ordinary 诊断臂保持完整审计先于 open_db 迁移；
-                    // 只按前缀分流，Native 的 H1 准入不得借用此对照臂兜底。
+                    // #1527 N1 独立组件保持完整审计计费合同；H1 Native 前缀不借其兜底。
                     super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
                 } else {
                     let work = match prefix {
@@ -475,7 +481,7 @@ pub(super) fn audit_core(
                 }
             }
             match prefix {
-                RejectionPrefix::None => Ok(()),
+                RejectionPrefix::None | RejectionPrefix::NativeComponentAudit => Ok(()),
                 RejectionPrefix::LegacyServe {
                     db,
                     epoch,

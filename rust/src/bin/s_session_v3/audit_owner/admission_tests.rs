@@ -156,24 +156,26 @@ fn h1_admission_publish(
 #[test]
 fn h1_admission_cold_prefixes_match_full_canonical() {
     let f = H1AdmissionFixture::new();
-    let mut runtime = f.runtime();
-    let mut c = context();
-    let mut owner = f.open(&runtime, &mut c).unwrap();
+    // 每次冷开都由正式 Driver 一起构造 owner、Runtime 与启动账，不能把前一
+    // owner 的生成器序列记忆接到没有该 construction 资格的新 owner 上。
+    let mut driver = h1_admission_driver(&f, "1").unwrap();
     for n in 0..=3 {
         if n > 0 {
-            h1_admission_publish(&owner, &mut runtime, &mut c, n);
+            let before = state::full_audit_calls_for_test();
+            let receipt = driver.handle(b2_envelope(n)).unwrap();
+            assert_eq!(receipt["kind"], "Committed");
+            assert_eq!(state::full_audit_calls_for_test(), before);
         }
         let expected = f.full_canonical();
         assert_eq!(
-            h1_admission_canonical(&owner).as_bytes(),
+            h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
             expected.as_bytes(),
             "在线前缀 {n}"
         );
-        drop(owner);
-        c = context();
+        drop(driver);
         let before = state::full_audit_calls_for_test();
-        let (cold, events, _) = state::traced(false, || f.open(&runtime, &mut c));
-        owner = cold.unwrap();
+        let (cold, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
+        driver = cold.unwrap();
         assert_eq!(
             state::full_audit_calls_for_test(),
             before,
@@ -185,7 +187,7 @@ fn h1_admission_cold_prefixes_match_full_canonical() {
             "冷从 g1 起逐代用同一 Δ 步"
         );
         assert_eq!(
-            h1_admission_canonical(&owner).as_bytes(),
+            h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
             expected.as_bytes(),
             "冷前缀 {n}"
         );
@@ -393,45 +395,46 @@ fn h1_admission_cold_handoff_foreign_sqlite_commit_rejects() {
     });
 }
 
+#[cfg(test)]
 #[test]
 fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
     let f = H1AdmissionFixture::new();
-    let mut runtime = f.runtime();
-    let mut c = context();
     let before = state::full_audit_calls_for_test();
-    let owner = f.open(&runtime, &mut c).unwrap();
-    owner
-        .startup(
-            &f.profile,
-            "1",
-            &f.clock,
-            None,
-            &s_allocation::Mode::CapturedNative,
-            Some(&mut c),
-        )
-        .unwrap();
+    // Driver 在同一本实际启动账的 scope.enter 内执行 owner.startup/profile 实读。
+    let mut driver = h1_admission_driver(&f, "1").unwrap();
+    let mut c = context();
     for n in 1..=3 {
         // identity 与 summary 的只读事务交接后，下一代必须仍持 H1 资格。
+        let owner = driver.h1_owner_for_test();
         owner.identity("1", &f.clock, Some(&mut c)).unwrap();
         owner.summary("meta", "1", &f.clock).unwrap();
-        h1_admission_publish(&owner, &mut runtime, &mut c, n);
+        let receipt = driver.handle(b2_envelope(n)).unwrap();
+        assert_eq!(receipt["kind"], "Committed");
     }
-    drop(owner);
-    c = context();
-    // 监督恢复先创建新生涯并从 g1 冷认证，再进入已认证 owner 的 recover 固定写口。
-    // 完整 Driver 冷重建另有独立锁，不把此处复用 Runtime 当作跨进程重建证据。
+    drop(driver);
+    // 监督恢复走正式新生涯：同一启动账先从 g1 冷认证，再进入 recover 固定写口。
     let (recovered, events, _) = state::traced(false, || {
-        let owner = f.open(&runtime, &mut c)?;
-        let recovered = owner.recover("2", &f.clock, "recover-1")?;
-        Ok::<_, String>((owner, recovered))
+        driver::recover_scoped_with_retention(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            536_870_912,
+            super::super::admission_anchor::test_prepare(&f.db).into(),
+        )
     });
-    let (owner, recovered) = recovered.unwrap();
+    let (recovered, scope) = recovered.unwrap();
     assert_eq!(recovered["new_epoch"], "2");
+    scope.finish_startup().unwrap();
+    drop(scope);
     assert_eq!(
         h1_qualified_cuts(&events),
         vec![1, 2, 3],
         "recover 必须重新从 g1 认证"
     );
+    let driver = h1_admission_driver(&f, "2").unwrap();
+    let owner = driver.h1_owner_for_test();
+    let mut c = context();
     owner.identity("2", &f.clock, Some(&mut c)).unwrap();
     owner.summary("meta", "2", &f.clock).unwrap();
     assert_eq!(
@@ -441,7 +444,7 @@ fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
     );
     // oracle 只放在整个计数区间之后，防止测试 helper 自己污染无调用断言。
     assert_eq!(
-        h1_admission_canonical(&owner).as_bytes(),
+        h1_admission_canonical(owner).as_bytes(),
         f.full_canonical().as_bytes()
     );
 }

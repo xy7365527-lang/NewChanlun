@@ -1799,7 +1799,7 @@ impl NativeOwner {
             tx,
             &budget,
             deadline,
-            &mut super::super::admission_private::RejectionPrefix::None,
+            &mut super::super::admission_private::RejectionPrefix::NativeComponentAudit,
             |_, _, _, _, _| Err("NativeAcceptDoesNotServe".into()),
         );
         if let Some(error) = self.first_error() {

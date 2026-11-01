@@ -117,7 +117,8 @@ impl Table {
                 "SELECT rowid,* FROM main.\"s_content_observations\" ORDER BY rowid"
             }
             Self::Catalog => "SELECT rowid,* FROM main.\"catalog\" ORDER BY rowid",
-            Self::Delivery => "SELECT rowid,* FROM main.\"s_delivery_refs\" ORDER BY rowid",
+            // #1481：与 CompleteCandidate 冷捕获的固定只读授权 SQL 保持一致。
+            Self::Delivery => "SELECT rowid,* FROM \"s_delivery_refs\" ORDER BY rowid",
             Self::Policy => "SELECT rowid,* FROM main.\"s_delivery_policy\" ORDER BY rowid",
             Self::Node => "SELECT rowid,* FROM main.\"s_content_nodes\" ORDER BY rowid",
         }

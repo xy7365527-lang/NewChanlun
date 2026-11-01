@@ -255,12 +255,78 @@ impl Runtime {
         Self::with_config(self.mode.clone(), self.theta_config.clone())
     }
     #[cfg(all(feature = "s_incremental", unix))]
-    pub(super) fn adopt_cold_audit_runtime(&mut self, mut cold: Self) -> Result<(), String> {
+    pub(super) fn seed_cold_generation(
+        &mut self,
+        tx: &Transaction<'_>,
+        db: &Path,
+        store: &mut history::HashReader<'_>,
+        raw: business_json::RawEventsView<'_>,
+        cold: &super::audit_owner::ColdRawState,
+        root: Option<sc::RefView<'_>>,
+        deadline: Option<std::time::Instant>,
+        budget: &dyn super::audit_budget::Budget,
+    ) -> Result<(), String> {
+        if self.generator.is_some() || self.binding.is_some() {
+            return Err("GenError：冷生成只能初始化fresh Runtime".into());
+        }
+        let (session_id, session_generation, _) = v2::protocol_identity(tx)?;
+        let mut binding = vec![
+            db.to_string_lossy().into_owned(),
+            session_id,
+            session_generation,
+        ];
+        for name in [
+            "profile_id",
+            "profile_hash",
+            "rule_revision",
+            "catalog_revision",
+        ] {
+            history::check_deadline(deadline)?;
+            budget.precheck().map_err(err)?;
+            binding.push(meta_get_opt(tx, name)?.ok_or_else(|| err(format!("冷生成缺{name}")))?);
+        }
+        let lane_key = s_fact_cache::lane_key(
+            db,
+            &binding[1],
+            &binding[2],
+            &binding[5],
+            &binding[3],
+            &binding[6],
+        );
+        let mut generator = GenerationRuntime::with_config(
+            lane_key,
+            &binding[3],
+            &binding[5],
+            self.theta_config.clone(),
+        );
+        generator.seed_cold(store, raw, cold, root, deadline, budget)?;
+        self.binding = Some(binding);
+        self.generator = Some(generator);
+        Ok(())
+    }
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn adopt_cold_audit_runtime(
+        &mut self,
+        mut cold: Self,
+        old: super::audit_owner::RawAdvanceBinding,
+        current: super::audit_owner::RawAdvanceBinding,
+        prefix: usize,
+    ) -> Result<(), String> {
+        if self.generator.is_some() || self.binding.is_some() || self.audit_ledger.is_some() {
+            return Err("GenError：冷缓存不能覆盖运行中Runtime".into());
+        }
+        cold.generator
+            .as_mut()
+            .ok_or("GenError：冷Runtime缺生成缓存")?
+            .rebind_cold_owner(old, current, prefix)?;
         self.install_audit_ledger(
             cold.audit_ledger
                 .take()
                 .ok_or("AuditLedgerStale：冷认证缺台账")?,
-        )
+        )?;
+        self.binding = cold.binding.take();
+        self.generator = cold.generator.take();
+        Ok(())
     }
 
     /// #1481：冷认证完成后安装本进程 fresh 完整台账；同生涯不得换账。

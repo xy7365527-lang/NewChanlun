@@ -438,6 +438,14 @@ jobs:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
         run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
+      - name: H1 私有 FD/WAL 授权边界锁（#1481 S1D）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
+          grep -Fx "test v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
+          grep -Fx "test v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
+
       - name: H1 正式准入三层对拍与调用路径锁（#1481 S1）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
@@ -476,6 +484,9 @@ jobs:
           cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs 4 h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
+          grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
+          grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job ... ok" "$RUNNER_TEMP/1481-e6.log"
 
       - name: 上传 H1 正式准入逐名日志（#1481 S1）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
@@ -486,6 +497,8 @@ jobs:
             ${{ runner.temp }}/1481-admission.log
             ${{ runner.temp }}/1481-ledger.log
             ${{ runner.temp }}/1481-ordinary.log
+            ${{ runner.temp }}/1481-fd-wal.log
+            ${{ runner.temp }}/1481-e6.log
           if-no-files-found: error
           overwrite: true
 

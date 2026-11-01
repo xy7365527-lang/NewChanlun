@@ -256,9 +256,12 @@ pub(super) struct CommittedRawState {
 }
 /// #1481：私有冷认证完成的无 owner 载荷；只允许一次移入实际 owner，不可发布 raw token。
 #[cfg(all(feature = "s_incremental", unix))]
-pub(super) struct ColdRawState(CommittedRawState);
+pub(crate) struct ColdRawState(CommittedRawState);
 #[cfg(all(feature = "s_incremental", unix))]
 impl ColdRawState {
+    pub(crate) fn generation_binding(&self) -> (RawAdvanceBinding, usize) {
+        (self.0.binding, self.0.facts.prefix_len())
+    }
     pub(super) fn into_owner(
         mut self,
         seal: SnapshotSeal,
@@ -296,6 +299,10 @@ impl ColdRawState {
     }
 }
 impl CommittedRawState {
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn generation_binding(&self) -> (RawAdvanceBinding, usize) {
+        (self.binding, self.facts.prefix_len())
+    }
     /// #1481：冷折叠完成后只继承最后已发布 F，raw 的 R>F 尾部留给下一次在线 Δ。
     #[cfg(all(feature = "s_incremental", unix))]
     pub(super) fn cold_seed(

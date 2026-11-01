@@ -130,6 +130,8 @@ mod construction_state;
     allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
 )]
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
+#[cfg(all(feature = "s_incremental", unix))]
+pub(crate) use construction_state::ColdRawState;
 #[cfg(test)]
 pub(crate) use construction_state::RawAdvanceFixture;
 #[allow(unused_imports, reason = "#1488：8组合探针 RawDomain 无使用方")]
@@ -630,6 +632,20 @@ impl AuditConnection {
                         &parent,
                         epoch,
                     )?;
+                    cold_runtime.seed_cold_generation(
+                        tx,
+                        &canonical,
+                        &mut store,
+                        candidate.audited.raw.view(),
+                        &construction,
+                        candidate
+                            .audited
+                            .cuts
+                            .last()
+                            .map(|c| c.roots.generated_state.view()),
+                        deadline,
+                        budget,
+                    )?;
                     drop(store);
                     Ok((candidate, construction))
                 })
@@ -646,6 +662,7 @@ impl AuditConnection {
                 return Err(error);
             }
         };
+        let (cold_generation_binding, cold_generation_prefix) = construction.generation_binding();
         // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
         #[cfg(test)]
         if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
@@ -703,7 +720,21 @@ impl AuditConnection {
             drop(context.take());
         }
         owner.history_result(result)?;
-        runtime.adopt_cold_audit_runtime(cold_runtime)?;
+        let (actual_binding, actual_prefix) = owner
+            .construction
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| invalid("冷交接后缺实际construction"))?
+            .generation_binding();
+        if actual_prefix != cold_generation_prefix {
+            return Err(invalid("冷生成缓存与实际owner前沿不符"));
+        }
+        runtime.adopt_cold_audit_runtime(
+            cold_runtime,
+            cold_generation_binding,
+            actual_binding,
+            actual_prefix,
+        )?;
         // #1481：仅交接拒绝路径禁止关闭检查点；成功写者恢复 SQLite 的正常退出清理。
         if owner
             .connection
@@ -3315,10 +3346,17 @@ impl CompleteCandidate {
                 return Err(invalid("表名原件类型不符"));
             };
             let name = std::str::from_utf8(bytes).map_err(invalid)?;
-            const PREFIX: &str = "SELECT rowid,* FROM main.\"";
+            // #1481：只有 INTEGER PRIMARY KEY 的 s_delivery_refs 会补发空列整表读。
+            // 固定授权表仅接受该表无库名的读事件，不能为原件捕获放宽授权。
+            // 私有连接禁止 TEMP/ATTACH；正式 owner 的 seal 域也拒绝 TEMP/附加库。
+            let prefix = if name == "s_delivery_refs" {
+                "SELECT rowid,* FROM \""
+            } else {
+                "SELECT rowid,* FROM main.\""
+            };
             const SUFFIX: &str = "\" ORDER BY rowid";
             let requested = sum([
-                PREFIX.len(),
+                prefix.len(),
                 name.len(),
                 name.bytes().filter(|b| *b == b'"').count(),
                 SUFFIX.len(),
@@ -3340,7 +3378,7 @@ impl CompleteCandidate {
             if sql.try_reserve_exact(requested).is_err() {
                 return Ok(Err(slot));
             }
-            sql.push_str(PREFIX);
+            sql.push_str(prefix);
             for c in name.chars() {
                 if c == '"' {
                     sql.push('"');
