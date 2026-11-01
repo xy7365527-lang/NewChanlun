@@ -39,7 +39,8 @@ MODELS = ("feature, refactoring: gpt-6.1-sol\njudgment and prose: claude-opus-5-
 TASK = TaskSpec("Boat夹具闭环", "夹具修改 demo/ 下的中文路径文件。", ("demo/",), False)
 RUNTIME = ["package.json", "package-lock.json", ".sandcastle/boat-worker.mts", ".sandcastle/codex-child.ts",
            ".sandcastle/docker-isolation.mts", ".sandcastle/acceptance-dir.mts", ".sandcastle/git-environment.ts",
-           ".sandcastle/main-model.mts", ".sandcastle/deepagents-pilot/pilot1742/boat_remote.py"]
+           ".sandcastle/main-model.mts", ".sandcastle/scheduler-config.mts", ".sandcastle/scheduler-config.json",
+           ".sandcastle/deepagents-pilot/pilot1742/boat_remote.py"]
 
 
 class LoggedCLI(BoatCLI):
