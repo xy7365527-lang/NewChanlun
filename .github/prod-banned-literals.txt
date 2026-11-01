@@ -336,6 +336,7 @@ ingest-3 须与全程 16M 对照组同路
 init 不应写内容节点
 injected write failure
 intern命中不重复签共享块费，临时复制已释放
+issue1527 31Q TestOnly：故意使登记锁中毒
 json_text 向量渲染逐字节一致
 json_text内部占位不得被共享上下文放行
 k = 严格小于 4 的最大 2 的幂 = 2
