@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import pytest
 from conftest import FAKE, MODELS, git
-from test_boat import FakeBoat, config
+from test_boat import FakeBoat, config, payload
 from test_queue import SPEC, authorize, executor
 from test_queue import queued as queued
 from v2env import TICKET, V2Env
@@ -35,27 +35,27 @@ def stopped_worker(run, monkeypatch):
     return run.execution, key, binding, cli
 
 
-def failure_receipt(binding, kind='worker'):
+def failure_receipt(binding, exit_code, kind='worker'):
     receipt = {'identity': dict(binding.identity), 'package_id': binding.package_id,
-               'state': 'terminal', 'exit_code': 2,
-               'record': {'status': 'failed', 'process_exit': {'code': 2, 'signal': None}},
+               'state': 'terminal', 'exit_code': exit_code,
+               'record': {'status': 'failed', 'process_exit': {'code': exit_code, 'signal': None}},
                'files': [{'path': 'demo/forbidden', 'mode': '100644', 'content': 'bm8='}]}
     if kind == 'supervisor':
         receipt.pop('record')
-        receipt.update(state='unknown', exit_code=143, reason='管理者取消；未产生成功业务回执')
+        receipt.update(state='unknown', reason='管理者取消；未产生成功业务回执')
     return receipt
 
 
 CASES = [
     'worker', 'cancelled', 'supervisor', 'missing_stop', 'missing_receipt', 'identity', 'package',
-    'missing_exit', 'zero_exit', 'bool_exit', 'process_exit_null', 'process_exit_missing',
-    'process_exit_mismatch', 'completed', 'running', 'unknown', 'bad_binding',
+    'missing_exit', 'exit_mismatch', 'bool_exit', 'process_exit_null', 'process_exit_missing',
+    'process_exit_mismatch', 'process_exit_bool', 'completed', 'running', 'unknown', 'bad_binding',
 ]
 DRAINED = {'worker', 'cancelled', 'supervisor'}
 
 
-def stage_evidence(engine, key, binding, case):
-    receipt = failure_receipt(binding, 'supervisor' if case == 'supervisor' else 'worker')
+def stage_evidence(engine, key, binding, case, exit_code):
+    receipt = failure_receipt(binding, exit_code, 'supervisor' if case == 'supervisor' else 'worker')
     if case == 'missing_stop':
         engine._store(key, replace(binding, stop_id=None))
     elif case == 'identity':
@@ -64,16 +64,18 @@ def stage_evidence(engine, key, binding, case):
         receipt['package_id'] = 'other'
     elif case == 'missing_exit':
         receipt.pop('exit_code')
-    elif case == 'zero_exit':
-        receipt['exit_code'] = 0
+    elif case == 'exit_mismatch':
+        receipt['exit_code'] = 2 if exit_code == 0 else 0
     elif case == 'bool_exit':
-        receipt['exit_code'] = True
+        receipt['exit_code'] = bool(exit_code)
     elif case == 'process_exit_null':
         receipt['record']['process_exit'] = None
     elif case == 'process_exit_missing':
         receipt['record'].pop('process_exit')
     elif case == 'process_exit_mismatch':
         receipt['record']['process_exit']['code'] = 3
+    elif case == 'process_exit_bool':
+        receipt['record']['process_exit']['code'] = bool(exit_code)
     elif case in ('cancelled', 'completed'):
         receipt['record']['status'] = case
     elif case in ('running', 'unknown'):
@@ -93,16 +95,17 @@ def assert_no_collection(run, key, cli):
 
 
 @pytest.mark.parametrize('case', CASES)
-def test_manual_generation_uses_only_stopped_failure_evidence(tmp_path, monkeypatch, case):
+@pytest.mark.parametrize('exit_code', [0, 2])
+def test_manual_generation_uses_only_stopped_failure_evidence(tmp_path, monkeypatch, case, exit_code):
     v2 = V2Env(tmp_path)
     unit = v2.register()
     run = v2.run(unit)
     engine, key, binding, cli = stopped_worker(run, monkeypatch)
-    receipt = stage_evidence(engine, key, binding, case)
+    receipt = stage_evidence(engine, key, binding, case, exit_code)
     release_claim(ClaimStore(v2.claims_root), TICKET, unit.run_id, 'controller released')
     second_unit = v2.register(f't{TICKET}-2')
     before = v2.writes()
-    if case in DRAINED:
+    if case in DRAINED and not (case == 'supervisor' and exit_code == 0):
         with pytest.raises(ExecutionUnknown):
             engine.collect(key, receipt)
         assert isinstance(engine.observe(key, reconcile=False), EffectUnknown)
@@ -118,15 +121,16 @@ def test_manual_generation_uses_only_stopped_failure_evidence(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize('case', CASES)
+@pytest.mark.parametrize('exit_code', [0, 2])
 @pytest.mark.parametrize('has_intent', [True, False])
-def test_queue_slot_uses_same_stopped_failure_evidence(queued, monkeypatch, case, has_intent):
+def test_queue_slot_uses_same_stopped_failure_evidence(queued, monkeypatch, case, exit_code, has_intent):
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
     authorize(v2, cutover, unit, signer)
     run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit),
                       MODELS, launcher=FAKE, source_repo=v2.source)
     engine, key, binding, cli = stopped_worker(run, monkeypatch)
-    stage_evidence(engine, key, binding, case)
+    stage_evidence(engine, key, binding, case, exit_code)
     if has_intent:
         (run.dir / 'intents').mkdir(exist_ok=True)
         (run.dir / 'intents' / f'{key.name}.json').write_text('{}')
@@ -137,7 +141,7 @@ def test_queue_slot_uses_same_stopped_failure_evidence(queued, monkeypatch, case
     seen = []
     before = v2.writes()
     rows = intake.once(lambda item: seen.append(item.ticket) or 0)
-    if case in DRAINED:
+    if case in DRAINED and not (case == 'supervisor' and exit_code == 0):
         assert seen == [TICKET + 1]
     else:
         assert seen == []
@@ -161,3 +165,22 @@ def test_actual_prelaunch_cancel_receipt_is_drained_but_never_collectible(env, t
     assert engine.is_drained(key)
     assert_no_collection(run, key, cli)
 
+
+@pytest.mark.parametrize('status', ['failed', 'cancelled'])
+def test_failed_with_zero_exit_drains_without_collecting_incomplete_files(env, monkeypatch, status):
+    run = env.create()
+    engine, key, binding, cli = stopped_worker(run, monkeypatch)
+    files = [{'path': 'demo/not-imported', 'mode': '100644', 'content': 'bm8='}]
+    receipt = payload(run, engine, key, files, status='?? demo/not-imported\n?? outside-scope.txt')
+    receipt['state'] = 'terminal'
+    receipt['record'].update(status=status, process_exit={'code': 0, 'signal': None})
+    engine._path(key, '.remote.json').write_text(json.dumps(receipt))
+    before = engine._path(key, '.remote.json').read_bytes()
+
+    with pytest.raises(ExecutionUnknown, match='业务回执与产物清单不同'):
+        engine.collect(key, receipt)
+    assert engine.is_drained(key)
+    assert isinstance(engine.observe(key, reconcile=False), EffectUnknown)
+    assert engine._path(key, '.remote.json').read_bytes() == before
+    assert engine.load(key) == binding
+    assert_no_collection(run, key, cli)

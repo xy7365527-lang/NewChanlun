@@ -81,14 +81,14 @@ v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ...
 
 ### 取消后释放队列槽或换代
 
-手工换代与队列共享只读排空判定。原绑定已记录 `stop_id`，缓存回执的 run、角色、head、generation 和 package 全部匹配，且退出码为明确的非零整数时，再按回执来源检查：
+手工换代与队列共享只读排空判定。原绑定已记录 `stop_id`，缓存回执的 run、角色、head、generation 和 package 全部匹配，且退出码为明确整数时，再按回执来源检查：
 
-- 工蜂回执必须是 `terminal`，业务状态为 `failed` 或 `cancelled`，`record.process_exit.code` 与退出码相同。
+- 工蜂回执必须是 `terminal`，业务状态为 `failed` 或 `cancelled`，`record.process_exit.code` 也是明确整数且与退出码相同；允许两者为 0。进程正常退出后，写集检查等业务校验仍可能判为失败。
 - 监督器取消或非零退出的回执不含 `record`，沿用监督器的 `state=unknown` 格式；明确非零退出码与停止记录共同证明它已排空。只有 `unknown`、没有明确退出码仍不能排空。
 
 符合这些条件后，队列可用该槽处理其他票；已释放的原票可登记新 run，并在原票级锁内取得下一代次。没有 `stop_id`、缺回执、身份不符、`process_exit=null`、运行中或退出不明时继续占槽。成功回执仍由原控制入口收集，不走失败排空路径。
 
-排空检查只读本地记录，不访问 Boat，不改原回执，不导入产物。`collect` 仍拒收非零退出；排空不会把原 run 判为成功，也不会授予新 run 的准入或发布资格。
+排空检查只读本地记录，不访问 Boat，不改原回执，不导入产物。`collect` 仍拒收非零退出或产物清单不完整的回执；排空不会把原 run 判为成功，也不会授予新 run 的准入或发布资格。
 
 ## 运行包和验收
 

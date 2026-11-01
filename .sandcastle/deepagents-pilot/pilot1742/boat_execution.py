@@ -502,11 +502,11 @@ class BoatExecution(WorkerExecution):
         if receipt.get("identity") != binding.identity or receipt.get("package_id") != binding.package_id:
             raise ExecutionUnknown("排空回执身份或 package 不符")
         code = receipt.get("exit_code")
-        if type(code) is not int or code == 0:
+        if type(code) is not int:
             return False
         if "record" not in receipt:
             # boat_remote 的监督失败/取消回执沿用 unknown，非零退出码才证明监督已终止。
-            return receipt.get("state") == "unknown"
+            return receipt.get("state") == "unknown" and code != 0
         record = receipt["record"]
         if (receipt.get("state") != "terminal" or not isinstance(record, dict)
                 or record.get("status") not in ("failed", "cancelled")):
