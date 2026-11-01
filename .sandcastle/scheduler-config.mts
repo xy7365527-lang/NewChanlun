@@ -3,19 +3,23 @@ import { fileURLToPath } from "node:url";
 // #1617 的 wayfinder 可在无 node_modules 环境导入，因此配置边界只用 Node 内建模块。
 const positive = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 const positiveFinite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+const MAX_TIMER_MS = 2 ** 31 - 1;
+const timerMs = (v: unknown): v is number => positive(v) && v <= MAX_TIMER_MS;
+const timerSeconds = (v: unknown): v is number => positiveFinite(v) && v * 1000 <= MAX_TIMER_MS;
 type Effort = "low" | "medium" | "high" | "xhigh";
 const effort = (v: unknown): v is Effort => typeof v === "string" && ["low", "medium", "high", "xhigh"].includes(v);
 const modelName = (v: unknown): v is string => typeof v === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(v);
 const fields = {
-  childKillGraceMs: positive,
-  childExitPollMs: positive,
+  childKillGraceMs: timerMs,
+  childExitPollMs: timerMs,
   childExitWaitMs: positive,
   healthProcessWaitMs: positive,
   healthProcessPollSeconds: positive,
-  healthHttpTimeoutMs: positive,
+  healthHttpTimeoutMs: timerMs,
   adrLockMaxWaits: positive,
-  adrLockPollMs: positive,
-  dockerModelHttpTimeoutMs: positive,
+  adrLockPollMs: timerMs,
+  dockerCliTimeoutMs: positive,
+  dockerModelHttpTimeoutMs: timerMs,
   dockerModelProcessTimeoutMs: positive,
   frontierQueryLimit: positive,
   backlogQueryLimit: positive,
@@ -25,22 +29,22 @@ const fields = {
   childEffort: effort,
   mainMaxIterations: positive,
   mainMaxTickets: positive,
-  implementerIdleSeconds: positive,
+  implementerIdleSeconds: (v: unknown): v is number => positive(v) && timerSeconds(v),
   worktreeMaxAttempts: positive,
-  worktreeRetryDelayMs: (v: unknown): v is number => positive(v) && v >= 5000,
+  worktreeRetryDelayMs: (v: unknown): v is number => timerMs(v) && v >= 5000,
   swarmMaxIterations: positive,
   swarmMaxParallel: positive,
   childIdleSeconds: (v: unknown): v is number => positive(v) && v <= 43200,
   childTimeoutSeconds: (v: unknown): v is number => positive(v) && v <= 43200,
   decisionMaps: (v: unknown): v is number[] => Array.isArray(v) && v.length > 0 && v.every(positive),
   decisionMaxConcurrent: positive,
-  decisionLoopMs: positive,
+  decisionLoopMs: timerMs,
   decisionMaxRounds: positive,
   decisionMaxAttempts: (v: unknown): v is number => positive(v) && v >= 5,
-  decisionTimeoutMs: positive,
-  decisionBackoffBaseMs: positive,
-  decisionBackoffCapMs: positive,
-  claimPollSeconds: positiveFinite,
+  decisionTimeoutMs: timerMs,
+  decisionBackoffBaseMs: timerMs,
+  decisionBackoffCapMs: timerMs,
+  claimPollSeconds: timerSeconds,
   claimRollbackMs: positive,
   wayfinderStaleMs: positive,
   claimStaleMs: positive,
