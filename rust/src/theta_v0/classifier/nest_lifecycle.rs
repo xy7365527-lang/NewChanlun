@@ -129,22 +129,25 @@ mod stats;
 mod window;
 
 pub use book::NestLifecycleBook;
-pub use center_break::{CenterBreakFact, HypothesisBridge};
+pub use center_break::{
+    CenterBreakAudit, CenterBreakFact, CompletionAnchor, CompletionPolicy, HypothesisBridge,
+};
 pub use entry::{
     ForceCheck, ForceEvidence, InvalidatedReason, LifecycleRevision, LifecycleRevisionKind,
     NestEventState, NestLifecycleEntry, NestPolicy, UnavailReason, VanishCause,
 };
 pub use feed::{
-    feed_replay_bar, provide_replay_live_windows, PanCompletionEvent, PanLiveRun, PanProviderPhase,
-    ReplayBarFeed, ReplayFeedStats,
+    apply_center_breaks, feed_replay_bar, feed_replay_bar_with_bridges, provide_replay_live_windows,
+    PanCompletionEvent, PanLiveRun, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
 pub use key::LifecycleKey;
 pub use observation::{
     active_window_right_edge, ForceMaterial, LifecycleObservation, PanLiveWindow,
 };
 pub use pan::{
-    active_segment_frontier, provide_active_pan_live_windows, provide_pan_live_windows,
-    ActiveSegmentFrontier, PanLiveOutcome,
+    active_segment_frontier, provide_active_pan_live_windows,
+    provide_active_pan_live_windows_with_policy, provide_pan_live_windows, ActiveSegmentFrontier,
+    PanLiveOutcome,
 };
 pub use stats::{
     CompletionForceUnavailableAudit, CompletionSignal, LifecycleSettlementStats,
@@ -4239,5 +4242,10 @@ mod tests {
             "终态前身仍逐位不动"
         );
         book.assert_invariants();
+    }
+
+    mod i4_bridge {
+        use super::*;
+        include!("nest_lifecycle/i4_bridge_tests.rs");
     }
 }

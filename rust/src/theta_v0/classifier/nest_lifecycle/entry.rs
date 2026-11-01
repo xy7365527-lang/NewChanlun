@@ -341,7 +341,9 @@ impl LedgerEntryCore<NestPolicy> for NestLifecycleEntry {
                 self.invalidated_reason = reason;
                 self.vanish_cause = match reason.expect("Invalidated 必有原因码") {
                     InvalidatedReason::IdentityVanished { cause } => Some(cause),
-                    InvalidatedReason::ForceOvertake | InvalidatedReason::NeverConstituted => None,
+                    InvalidatedReason::ForceOvertake
+                    | InvalidatedReason::NeverConstituted
+                    | InvalidatedReason::CenterBreak => None,
                 };
                 self.force_evidence = evidence;
             }

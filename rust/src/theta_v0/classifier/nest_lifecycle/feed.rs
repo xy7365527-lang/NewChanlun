@@ -252,75 +252,39 @@ pub fn feed_replay_bar(
     (delta, stats)
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// channel_switch：中枢破坏 ⟹ 假设生命账本清账（#1719 I4 端点集成）
-// ═══════════════════════════════════════════════════════════════════════════
+/// #1719 伴随绑定喂入。旧 channel_switch 函数及其两相执行顺序保持不变。
+/// bindings 必须来自本 bar 的 active provider；迁移由原 book 执行。
+/// 返回每份绑定的接纳结果，调用方不能把拒绝误报为已就绪。
+pub fn feed_replay_bar_with_bridges(
+    book: &mut NestLifecycleBook,
+    feed: &ReplayBarFeed<'_>,
+    material: &ForceMaterial,
+    bindings: &[HypothesisBridge],
+) -> (Vec<LifecycleRevision>, ReplayFeedStats, Vec<bool>) {
+    let (delta, stats) = feed_replay_bar(book, feed, material);
+    let accepted = bindings
+        .iter()
+        .map(|binding| {
+            // 不允许借本 bar 的入口迟绑旧观测、伪造其它对象或提前引用。
+            let supplied = binding.registered_at == feed.as_of
+                && feed.phases.iter().any(|phase| {
+                    matches!(phase, PanProviderPhase::Live(window)
+                        if LifecycleKey::from(window) == binding.binding_key)
+                });
+            supplied && book.register_center_bridge(binding.clone())
+        })
+        .collect();
+    (delta, stats, accepted)
+}
 
-/// 接收中枢破坏事实与当前 bar 的 centers 数组，执行三端点桥接：
-///
-/// 1. **端点 1（事实产生）**：从 `CenterEventMachine::Broken` 提取破坏事实。
-/// 2. **端点 2（对象匹配）**：遍历 `ReplayBarFeed` 的 Live 窗，找到引用相同 B 中枢的假设对象，
-///    用完整 `CenterId` 建立 `HypothesisBridge` 并注册到 Book。
-/// 3. **端点 3（第二层清账）**：对每个破坏事实，调用 `Book::apply_center_break` 清账匹配对象。
-///
-/// # 精确匹配原则
-///
-/// - **B 中枢匹配**：`window.b_center_start == center.start_index` + `window.level == center_level`
-///   + 完整 `CenterId` 匹配（zd/zg，不能仅靠 start_index）。
-/// - **幂等性**：`Book::applied_breaks` 去重集阻止重复清账；同一破坏事实多次喂入无副作用。
-/// - **政策版本绑定**：bridge 记录对象创建时的政策版本，旧对象不追溯新政策（严格同源）。
-///
-/// # 调用时机
-///
-/// 本函数应在 `feed_replay_bar` **之前或之后**调用（取决于清账时序需求）：
-/// - **之前调用**：破坏事实优先清账，`feed_replay_bar` 看到的是已清账状态（推荐）。
-/// - **之后调用**：当前 bar 先建仓/延展，然后清账（可能导致同 bar 建仓又清账）。
-///
-/// 当前实现：**独立接口**，未自动集成到 `feed_replay_bar`。外层调用者需显式调用。
-///
-/// # 返回值
-///
-/// 返回清账产生的 `LifecycleRevision` 集合（`Invalidated(CenterBreak)` 事件）。
+/// #1719 只消费已提取的 Broken，不遍历当前 centers，不猜 B、不代填政策。
 pub fn apply_center_breaks(
     book: &mut NestLifecycleBook,
-    centers: &[super::super::types::Center],
-    center_level: u32,
-    broken_facts: &[super::center_break::CenterBreakFact],
-    feed: &ReplayBarFeed<'_>,
+    broken_facts: &[CenterBreakFact],
+    as_of: usize,
 ) -> Vec<LifecycleRevision> {
-    use super::center_break::{CenterBreakFact, HypothesisBridge};
-    use super::super::center_lifecycle::CenterId;
-
-    // 端点 2：对象匹配 + bridge 注册（遍历 Live 窗，绑定完整 CenterId）。
-    for phase in feed.phases {
-        if let PanProviderPhase::Live(window) = phase {
-            // 只处理同级别窗口。
-            if window.level != center_level {
-                continue;
-            }
-            // 根据 b_center_start 查找完整 Center。
-            if let Some(center) = centers
-                .iter()
-                .find(|c| c.start_index == window.b_center_start)
-            {
-                let center_id = CenterId::of(center);
-                let bridge = HypothesisBridge {
-                    center_id,
-                    level: window.level,
-                    lifecycle_key: LifecycleKey::from(window), // PanLiveWindow → LifecycleKey
-                    policy_version: 0, // TODO：从 feed 或 book 获取当前政策版本
-                };
-                book.register_center_bridge(bridge);
-            }
-        }
-    }
-
-    // 端点 3：第二层清账（应用所有破坏事实）。
-    let mut all_revisions = Vec::new();
-    for fact in broken_facts {
-        let revisions = book.apply_center_break(fact, feed.as_of);
-        all_revisions.extend(revisions);
-    }
-
-    all_revisions
+    broken_facts
+        .iter()
+        .flat_map(|fact| book.apply_center_break(fact, as_of))
+        .collect()
 }
