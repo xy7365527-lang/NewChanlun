@@ -500,7 +500,9 @@
     return prefix + F(tag, unhex(await valueHash(v)));
   }
   class Reader {
-    constructor({ anchor, request, check, accept, store, limit }) {
+    #bounds = new WeakMap();
+    constructor({ anchor, request, check, accept, store, limit, chooseBytes }) {
+      this.chooseBytes = chooseBytes;
       this.anchor = anchor;
       this.request = request;
       this.check = check;
@@ -516,7 +518,9 @@
         : this.anchor.delta_ref;
     }
     value(ref, path = []) {
-      return new Value(undefined, this, content.validateRef(ref), path);
+      const value = new Value(undefined, this, content.validateRef(ref), path);
+      if (path.length === 0) this.#bounds.set(value, []);
+      return value;
     }
     async load(v) {
       this.check();
@@ -540,7 +544,10 @@
           : ["string", "number"].includes(ref.kind)
             ? "bytes"
             : "value";
-      const size = unit === "value" ? "1" : String(this.limit);
+      const plan = unit === "bytes" && this.chooseBytes
+        ? this.chooseBytes({anchor: this.anchor, path: v.path, target: ref, parents: this.#bounds.get(v)})
+        : null;
+      const size = plan ? plan.limit : unit === "value" ? "1" : String(this.limit);
       let request = {
           op: "content",
           anchor: this.anchor,
@@ -554,7 +561,7 @@
         graphs = [];
       do {
         this.check();
-        const reply = await this.request(request);
+        const reply = await (plan ? plan.request(request) : this.request(request));
         this.check();
         const proof = await content.verifyRange(request, reply, {
           previousToken: last === null ? undefined : last,
@@ -593,8 +600,22 @@
       this.check();
       return { items, graphs };
     }
+    child(v, ref, step, parent) {
+      const child = this.value(ref, [...v.path, step]), bounds = this.#bounds.get(v);
+      if (bounds && parent) this.#bounds.set(child, [...bounds, parent]);
+      return child;
+    }
     async *entries(v) {
       const loaded = await this.load(v);
+      let parent = null;
+      if (this.chooseBytes) {
+        parent = {kind: v.ref.kind, n: v.ref.extent, K: 0n};
+        if (v.ref.kind === "object")
+          for (const item of loaded.items) {
+            const length = BigInt(utf8(item.key).length);
+            if (length > parent.K) parent.K = length;
+          }
+      }
       this.check();
       let i = 0n,
         previous = null;
@@ -608,11 +629,11 @@
           previous = item.key;
           yield {
             key: item.key,
-            value: this.value(item.value_ref, [...v.path, { field: item.key }]),
+            value: this.child(v, item.value_ref, { field: item.key }, parent),
           };
         } else
           yield {
-            value: this.value(item, [...v.path, { index: (i++).toString() }]),
+            value: this.child(v, item, { index: (i++).toString() }, parent),
           };
       }
       need(
@@ -642,7 +663,7 @@
     async inner(v) {
       need(v.kind === "json_text", "json_text角色错误");
       const loaded = await this.load(v);
-      return this.value(loaded.items[0], [...v.path, { json_text: true }]);
+      return this.child(v, loaded.items[0], { json_text: true }, {kind: "json_text"});
     }
     async complete(v) {
       v = of(v);
