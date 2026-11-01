@@ -38,7 +38,7 @@ impl RawAdvanceBinding {
     pub(crate) fn domain(self) -> RawDomain {
         self.domain
     }
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(feature = "s_incremental", unix))]
     pub(crate) fn is_unbound_cold(self) -> bool {
         self.domain.life == 0 && self.step == 0
     }
@@ -255,9 +255,9 @@ pub(super) struct CommittedRawState {
     parent: Option<super::audit_owner::native::BudgetStamp>,
 }
 /// #1481：私有冷认证完成的无 owner 载荷；只允许一次移入实际 owner，不可发布 raw token。
-#[cfg(feature = "s_incremental")]
+#[cfg(all(feature = "s_incremental", unix))]
 pub(super) struct ColdRawState(CommittedRawState);
-#[cfg(feature = "s_incremental")]
+#[cfg(all(feature = "s_incremental", unix))]
 impl ColdRawState {
     pub(super) fn into_owner(
         mut self,
@@ -297,7 +297,7 @@ impl ColdRawState {
 }
 impl CommittedRawState {
     /// #1481：冷折叠完成后只继承最后已发布 F，raw 的 R>F 尾部留给下一次在线 Δ。
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(feature = "s_incremental", unix))]
     pub(super) fn cold_seed(
         raw: RawEventsView<'_>,
         prefix: usize,

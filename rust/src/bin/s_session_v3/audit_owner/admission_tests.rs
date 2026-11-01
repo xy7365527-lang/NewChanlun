@@ -4,7 +4,6 @@
 struct H1AdmissionFixture {
     _anchor: prepared::tests::Fixture,
     db: PathBuf,
-    conn: Connection,
     profile: PathBuf,
     clock: v2::ClockPlan,
 }
@@ -41,18 +40,22 @@ impl H1AdmissionFixture {
             6,
         )
         .unwrap();
-        let conn = open_db(&db).unwrap();
         Self {
             _anchor: anchor,
             db,
-            conn,
             profile,
             clock: v2::ClockPlan::parse(value).unwrap(),
         }
     }
+    // 夹具不常驻 WAL 连接：否则它自身持有 -shm，不能代表生产的正常退出与重启。
+    fn conn(&self) -> Connection {
+        Connection::open(&self.db).unwrap()
+    }
     fn runtime(&self) -> prepared::Runtime {
         let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
-        let rule = meta_get_opt(&self.conn, "rule_revision").unwrap().unwrap();
+        let rule = meta_get_opt(&self.conn(), "rule_revision")
+            .unwrap()
+            .unwrap();
         runtime
             .install_audit_ledger(audit_ledger::tests::ledger(
                 &self.db,
@@ -77,7 +80,8 @@ impl H1AdmissionFixture {
         .map(|(owner, _cold_elapsed)| owner)
     }
     fn full_canonical(&self) -> String {
-        let tx = self.conn.unchecked_transaction().unwrap();
+        let conn = self.conn();
+        let tx = conn.unchecked_transaction().unwrap();
         // Native 完整 oracle 保留 ImmutableHistoricalAudit 的全部可选 Native 事实。
         // Ordinary audit 的语义事实没有这些可选事实，不可拿 fingerprint 冒充全规范输出。
         let before = state::full_audit_calls_for_test();
@@ -230,13 +234,15 @@ fn h1_admission_cold_negative_classes_match_full_oracle() {
         h1_admission_publish(&owner, &mut runtime, &mut c, 1);
         assert_eq!(h1_admission_canonical(&owner), f.full_canonical());
         drop(owner);
-        h1_admission_damage(&f.conn, case);
-        let tx = f.conn.unchecked_transaction().unwrap();
+        h1_admission_damage(&f.conn(), case);
+        let conn = f.conn();
+        let tx = conn.unchecked_transaction().unwrap();
         let ordinary = state::audit(&tx).err().expect("旧完整审计必须拒绝负例");
         let native = state::audit_native_current(&tx)
             .err()
             .expect("Native 完整 oracle 必须拒绝负例");
         tx.rollback().unwrap();
+        drop(conn);
         c = context();
         let before = state::full_audit_calls_for_test();
         let cold = f
@@ -303,7 +309,7 @@ fn h1_admission_foreign_sqlite_changes_retire_writer() {
         let owner = f.open(&runtime, &mut c).unwrap();
         h1_admission_publish(&owner, &mut runtime, &mut c, 1);
         // conn 与 owner.connection 是不同 SQLite 连接，真实 COMMIT 必须打断 U-A 生涯。
-        h1_admission_damage(&f.conn, case);
+        h1_admission_damage(&f.conn(), case);
         let before = state::full_audit_calls_for_test();
         let error = owner
             .identity("1", &f.clock, Some(&mut c))
@@ -332,6 +338,12 @@ fn h1_admission_cold_handoff_foreign_sqlite_commit_rejects() {
     fn foreign_commit(db: &Path) -> Result<(), String> {
         // 真实独立连接的 COMMIT 落在私有认证完成、正式 owner 出生之间。
         let mut foreign = Connection::open(db).map_err(|error| error.to_string())?;
+        foreign
+            .set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                true,
+            )
+            .map_err(|error| error.to_string())?;
         let tx = foreign.transaction().map_err(|error| error.to_string())?;
         let changed = tx
             .execute(
@@ -341,9 +353,15 @@ fn h1_admission_cold_handoff_foreign_sqlite_commit_rejects() {
             .map_err(|error| error.to_string())?;
         assert_eq!(changed, 1);
         tx.commit().map_err(|error| error.to_string())?;
+        drop(foreign);
         HANDOFF_WRITES.with(|count| count.set(count.get() + 1));
+        let source_bytes = h1_admission_source_bytes(db);
+        assert!(
+            source_bytes.1.as_ref().is_some_and(|wal| wal.len() > 32),
+            "拒绝锁必须真正覆盖含提交帧的WAL，不能只比较主库"
+        );
         AFTER_FOREIGN_COMMIT.with(|bytes| {
-            *bytes.borrow_mut() = Some(h1_admission_source_bytes(db));
+            *bytes.borrow_mut() = Some(source_bytes);
         });
         Ok(())
     }
@@ -428,7 +446,9 @@ fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
     );
 }
 
+#[cfg(test)]
 fn h1_admission_driver(f: &H1AdmissionFixture, epoch: &str) -> Result<driver::Driver, String> {
+    h1_admission_assert_clean_close(&f.db);
     driver::Driver::open_with_request_and_mode_retention(
         &f.db,
         &f.profile,
@@ -509,6 +529,7 @@ fn h1_admission_driver_cold(
     cold
 }
 
+#[cfg(test)]
 #[test]
 fn h1_admission_driver_cold_recover_rebuilds_ledger_bitwise() {
     let f = H1AdmissionFixture::new();
@@ -555,13 +576,13 @@ fn h1_admission_driver_cold_recover_rebuilds_ledger_bitwise() {
     h1_admission_accept_begin(driver.h1_owner_for_test(), &pending, &mut context(), "1");
     assert_eq!(state::full_audit_calls_for_test(), before);
     assert_eq!(
-        f.conn
+        f.conn()
             .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
         6
     );
-    assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 5);
+    assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), 5);
     drop(driver);
     let before = state::full_audit_calls_for_test();
     let (recovered, events, _) = state::traced(false, || {
@@ -604,9 +625,9 @@ fn h1_admission_driver_cold_recover_rebuilds_ledger_bitwise() {
         "恢复后 pending 续写不得旧审计"
     );
     assert_eq!(h1_qualified_cuts(&events), vec![1, 2, 3, 4, 5, 6]);
-    assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 6);
+    assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), 6);
     assert_eq!(
-        meta_get_opt(&f.conn, "advance_state").unwrap().as_deref(),
+        meta_get_opt(&f.conn(), "advance_state").unwrap().as_deref(),
         Some("idle")
     );
     assert_eq!(
@@ -657,10 +678,10 @@ fn h1_admission_driver_cold_preserves_original_node_record_gates() {
             before,
             "{field} 超限不得回落旧审计"
         );
-        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 3);
+        assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), 3);
         for table in ["raw_events", "s_input_messages"] {
             let count: i64 = f
-                .conn
+                .conn()
                 .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
                     row.get(0)
                 })
@@ -668,7 +689,7 @@ fn h1_admission_driver_cold_preserves_original_node_record_gates() {
             assert_eq!(count, 3);
         }
         assert_eq!(
-            meta_get_opt(&f.conn, "advance_state").unwrap().as_deref(),
+            meta_get_opt(&f.conn(), "advance_state").unwrap().as_deref(),
             Some("idle"),
             "拒绝冷准入后不接受请求或 Begin"
         );
@@ -748,34 +769,35 @@ fn h1_admission_cold_real_wire_short_budget_rejects_before_write() {
     assert!(error.contains("max_total_wire_bytes"), "{error}");
     assert_eq!(state::full_audit_calls_for_test(), before_calls);
     assert_eq!(h1_admission_source_bytes(&f.db), before_bytes);
-    assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 3);
+    assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), 3);
     assert_eq!(
-        meta_get_opt(&f.conn, "advance_state").unwrap().as_deref(),
+        meta_get_opt(&f.conn(), "advance_state").unwrap().as_deref(),
         Some("idle")
     );
 }
 
+#[cfg(test)]
 #[test]
 fn h1_admission_prepolicy_bad_history_rejected_before_migration() {
     for case in ["node-bad", "manifest"] {
         let f = H1AdmissionFixture::new();
         h1_admission_seed_three(&f);
-        f.conn
+        f.conn()
             .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
             .unwrap();
         let (root, body, batch): (Vec<u8>, Vec<u8>, String) = f
-            .conn
+            .conn()
             .query_row(
                 "SELECT p.snapshot_root,n.body,p.batch_id FROM s_content_publications p JOIN s_content_nodes n ON n.digest=p.snapshot_root WHERE p.generation=1",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        h1_admission_damage(&f.conn, case);
-        assert!(crate::policy_records_missing(&f.conn).unwrap());
-        crate::verify_writer_epoch(&f.conn, "1").unwrap();
+        h1_admission_damage(&f.conn(), case);
+        assert!(crate::policy_records_missing(&f.conn()).unwrap());
+        crate::verify_writer_epoch(&f.conn(), "1").unwrap();
         let admission = super::super::admission_anchor::test_prepare(&f.db);
-        // f.conn 在整个拒绝区间持续打开，防止夹具末连接关闭所致 checkpoint 污染字节锁。
+        // 无常驻夹具连接；拒绝期间读写连接关闭本身也不得触发源 WAL 检查点。
         let before_bytes = h1_admission_source_bytes(&f.db);
         let before_calls = state::full_audit_calls_for_test();
         let (result, events, _) = state::traced(false, || {
@@ -807,19 +829,19 @@ fn h1_admission_prepolicy_bad_history_rejected_before_migration() {
             "{case}：源库/WAL 必须逐字节不变"
         );
         assert!(
-            crate::policy_records_missing(&f.conn).unwrap(),
+            crate::policy_records_missing(&f.conn()).unwrap(),
             "{case}：不得迁移"
         );
-        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 3);
+        assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), 3);
 
         // 同库只修复那项坏历史，PrePolicyRecords 形状保持不变；完整认证后才准许迁移。
         // 这项正控防止实现靠一律拒绝旧形状来通过上面的拒绝锁。
         let repaired = match case {
-            "node-bad" => f.conn.execute(
+            "node-bad" => f.conn().execute(
                 "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
                 params![body, root],
             ),
-            "manifest" => f.conn.execute(
+            "manifest" => f.conn().execute(
                 "UPDATE s_content_publications SET batch_id=?1 WHERE generation=1",
                 [batch],
             ),
@@ -827,17 +849,346 @@ fn h1_admission_prepolicy_bad_history_rejected_before_migration() {
         }
         .unwrap();
         assert_eq!(repaired, 1);
-        assert!(crate::policy_records_missing(&f.conn).unwrap());
+        assert!(crate::policy_records_missing(&f.conn()).unwrap());
         let before_calls = state::full_audit_calls_for_test();
         let (opened, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
         let opened = opened.unwrap_or_else(|error| panic!("{case}：合法旧形状不得缩域：{error}"));
         assert_eq!(h1_qualified_cuts(&events), vec![1, 2, 3]);
         assert_eq!(state::full_audit_calls_for_test(), before_calls);
-        assert!(!crate::policy_records_missing(&f.conn).unwrap());
+        assert!(!crate::policy_records_missing(&f.conn()).unwrap());
         assert_eq!(
             h1_admission_canonical(opened.h1_owner_for_test()).as_bytes(),
             f.full_canonical().as_bytes(),
             "{case}：认证后迁移的正式历史仍须与完整 oracle 逐字节相等"
         );
     }
+}
+
+fn h1_admission_assert_clean_close(db: &Path) {
+    for suffix in ["-shm", "-wal"] {
+        let mut name = db.as_os_str().to_os_string();
+        name.push(suffix);
+        assert!(
+            !Path::new(&name).exists(),
+            "正常最后连接退出须清理 {suffix}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn h1_admission_normal_exit_same_database_new_process_restarts() {
+    const CHILD: &str = "H1_ADMISSION_RESTART_CHILD";
+    if let Some(db) = std::env::var_os(CHILD) {
+        let db = PathBuf::from(db);
+        let profile = PathBuf::from(std::env::var_os("H1_ADMISSION_RESTART_PROFILE").unwrap());
+        let phase = std::env::var("H1_ADMISSION_RESTART_PHASE").unwrap();
+        let conn = Connection::open(&db).unwrap();
+        let clock = v2::stored_clock(&conn).unwrap();
+        drop(conn);
+        h1_admission_assert_clean_close(&db);
+        let mut driver = driver::Driver::open_with_request_and_mode_retention(
+            &db,
+            &profile,
+            "1",
+            clock,
+            None,
+            s_allocation::Mode::CapturedNative,
+            536_870_912,
+            true,
+            super::super::admission_anchor::test_prepare(&db).into(),
+        )
+        .unwrap();
+        if phase == "write" {
+            for (n, row) in [
+                (1, ("a", 0, 6, 12, 3, 7)),
+                (2, ("b", 1, 14, 20, 10, 15)),
+                (3, ("c", 2, 6, 12, 3, 7)),
+            ] {
+                h1_admission_driver_commit(&mut driver, n, row, 1, "1");
+            }
+        }
+        let conn = Connection::open(&db).unwrap();
+        assert_eq!(meta_i64(&conn, "generation").unwrap(), 3);
+        let tx = conn.unchecked_transaction().unwrap();
+        let expected = state::audit_native_current(&tx).unwrap().h1_canonical();
+        tx.rollback().unwrap();
+        assert_eq!(h1_admission_canonical(driver.h1_owner_for_test()), expected);
+        drop(conn);
+        drop(driver);
+        h1_admission_assert_clean_close(&db);
+        return;
+    }
+    let f = H1AdmissionFixture::new();
+    h1_admission_assert_clean_close(&f.db);
+    for phase in ["write", "restart"] {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "v3::audit_owner::construction_tests::h1_admission_normal_exit_same_database_new_process_restarts", "--nocapture"])
+            .env(CHILD, &f.db)
+            .env("H1_ADMISSION_RESTART_PROFILE", &f.profile)
+            .env("H1_ADMISSION_RESTART_PHASE", phase)
+            .output().unwrap();
+        assert!(
+            output.status.success(),
+            "{phase}: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("running 1 test"),
+            "子进程必须实际执行指定锁：{stdout}"
+        );
+        assert!(
+            stdout.contains("test result: ok. 1 passed"),
+            "子锁须有实际通过收据：{stdout}"
+        );
+        h1_admission_assert_clean_close(&f.db);
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration() {
+    let f = H1AdmissionFixture::new();
+    h1_admission_seed_three(&f);
+    f.conn()
+        .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+        .unwrap();
+    let batch: String = f
+        .conn()
+        .query_row(
+            "SELECT batch_id FROM s_content_publications WHERE generation=1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    h1_admission_damage(&f.conn(), "manifest");
+    crate::verify_writer_epoch(&f.conn(), "1").unwrap();
+    let before_bytes = h1_admission_source_bytes(&f.db);
+    let before_calls = state::full_audit_calls_for_test();
+    let rejected = driver::Driver::open_with_request_and_mode(
+        &f.db,
+        &f.profile,
+        "1",
+        f.clock.clone(),
+        None,
+        s_allocation::Mode::Ordinary,
+        super::super::admission_anchor::test_prepare(&f.db).into(),
+    );
+    let error = rejected
+        .err()
+        .expect("Ordinary坏历史必须在open_db迁移之前拒绝");
+    assert!(
+        !error.contains("StaleWriter"),
+        "不能靠错误epoch拒绝：{error}"
+    );
+    assert!(
+        state::full_audit_calls_for_test() > before_calls,
+        "Ordinary诊断臂必须真实执行旧审计"
+    );
+    assert_eq!(h1_admission_source_bytes(&f.db), before_bytes);
+    assert!(crate::policy_records_missing(&f.conn()).unwrap());
+    let changed = f
+        .conn()
+        .execute(
+            "UPDATE s_content_publications SET batch_id=?1 WHERE generation=1",
+            [batch],
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    let opened = driver::Driver::open_with_request_and_mode(
+        &f.db,
+        &f.profile,
+        "1",
+        f.clock.clone(),
+        None,
+        s_allocation::Mode::Ordinary,
+        super::super::admission_anchor::test_prepare(&f.db).into(),
+    )
+    .unwrap();
+    assert!(!crate::policy_records_missing(&f.conn()).unwrap());
+    assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), 3);
+    drop(opened);
+    h1_admission_assert_clean_close(&f.db);
+}
+
+#[cfg(test)]
+#[test]
+fn h1_admission_mainonly_nonwal_prepolicy_preserves_domain() {
+    let f = H1AdmissionFixture::new();
+    h1_admission_seed_three(&f);
+    f.conn()
+        .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+        .unwrap();
+    let mode: String = f
+        .conn()
+        .query_row("PRAGMA journal_mode=DELETE", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode.to_ascii_lowercase(), "delete");
+    h1_admission_assert_clean_close(&f.db);
+    let batch: String = f
+        .conn()
+        .query_row(
+            "SELECT batch_id FROM s_content_publications WHERE generation=1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    h1_admission_damage(&f.conn(), "manifest");
+    let before_bytes = h1_admission_source_bytes(&f.db);
+    let calls = state::full_audit_calls_for_test();
+    let error = h1_admission_driver(&f, "1")
+        .err()
+        .expect("DELETE旧形状坏历史须写前拒绝");
+    assert!(!error.is_empty());
+    assert_eq!(state::full_audit_calls_for_test(), calls);
+    assert_eq!(h1_admission_source_bytes(&f.db), before_bytes);
+    assert!(crate::policy_records_missing(&f.conn()).unwrap());
+    let mode: String = f
+        .conn()
+        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode.to_ascii_lowercase(), "delete", "拒绝不能提前切WAL");
+    f.conn()
+        .execute(
+            "UPDATE s_content_publications SET batch_id=?1 WHERE generation=1",
+            [batch],
+        )
+        .unwrap();
+    let (opened, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
+    let opened = opened.expect("完整认证后的合法MainOnly/DELETE旧库须按旧合同转换WAL并迁移");
+    assert_eq!(h1_qualified_cuts(&events), vec![1, 2, 3]);
+    assert_eq!(state::full_audit_calls_for_test(), calls);
+    assert!(!crate::policy_records_missing(&f.conn()).unwrap());
+    let mode: String = f
+        .conn()
+        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode.to_ascii_lowercase(), "wal");
+    assert_eq!(
+        h1_admission_canonical(opened.h1_owner_for_test()),
+        f.full_canonical()
+    );
+    drop(opened);
+    h1_admission_assert_clean_close(&f.db);
+}
+
+#[cfg(test)]
+#[test]
+fn h1_admission_hot_rollback_journal_rejects_before_rw_open() {
+    const CHILD: &str = "H1_ADMISSION_HOT_JOURNAL_CHILD";
+    if let Some(db) = std::env::var_os(CHILD) {
+        let conn = Connection::open(PathBuf::from(db)).unwrap();
+        conn.execute_batch("PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA cache_size=1; PRAGMA cache_spill=ON; BEGIN IMMEDIATE; UPDATE s_content_nodes SET body=zeroblob(length(body)+4096);").unwrap();
+        // 真进程终止，不运行Connection/Transaction析构，不把热日志清理成普通静态旁挂。
+        std::process::exit(0);
+    }
+    let f = H1AdmissionFixture::new();
+    h1_admission_seed_three(&f);
+    f.conn()
+        .execute_batch("PRAGMA journal_mode=DELETE")
+        .unwrap();
+    let admission = super::super::admission_anchor::test_prepare(&f.db);
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "v3::audit_owner::construction_tests::h1_admission_hot_rollback_journal_rejects_before_rw_open", "--nocapture"])
+        .env(CHILD, &f.db).output().unwrap();
+    assert!(
+        output.status.success(),
+        "hot-journal子进程失败：{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let mut journal = f.db.as_os_str().to_os_string();
+    journal.push("-journal");
+    let journal = PathBuf::from(journal);
+    let before_main = std::fs::read(&f.db).unwrap();
+    let before_journal = std::fs::read(&journal).unwrap();
+    assert!(before_journal.len() > 512);
+    assert_eq!(
+        &before_journal[..8],
+        &[0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7],
+        "必须是真热日志头"
+    );
+    let calls = state::full_audit_calls_for_test();
+    let error = driver::Driver::open_with_request_and_mode_retention(
+        &f.db,
+        &f.profile,
+        "1",
+        f.clock.clone(),
+        None,
+        s_allocation::Mode::CapturedNative,
+        536_870_912,
+        true,
+        admission.into(),
+    )
+    .err()
+    .expect("RollbackJournal须在任何RW开门/隐式回滚之前拒绝");
+    assert!(
+        error.contains("D2ProductionCapacityMissing"),
+        "须由既有介质门拒绝：{error}"
+    );
+    assert_eq!(state::full_audit_calls_for_test(), calls);
+    assert_eq!(std::fs::read(&f.db).unwrap(), before_main);
+    assert_eq!(std::fs::read(&journal).unwrap(), before_journal);
+}
+
+#[cfg(test)]
+#[test]
+fn h1_admission_nonwal_conversion_handoff_foreign_commit_rejects() {
+    use std::cell::RefCell;
+    thread_local! {
+        static AFTER_CONVERSION_WRITE: RefCell<Option<(Vec<u8>, Option<Vec<u8>>)>> = const { RefCell::new(None) };
+    }
+    fn foreign_commit(db: &Path) -> Result<(), String> {
+        let mut foreign = Connection::open(db).map_err(|error| error.to_string())?;
+        let mode: String = foreign
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        assert_eq!(mode.to_ascii_lowercase(), "wal", "负控须命中完成转换之后");
+        foreign
+            .set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                true,
+            )
+            .map_err(|error| error.to_string())?;
+        let tx = foreign.transaction().map_err(|error| error.to_string())?;
+        let changed = tx
+            .execute(
+                "UPDATE structure_deltas SET input_frontier=999 WHERE generation=1",
+                [],
+            )
+            .map_err(|error| error.to_string())?;
+        assert_eq!(changed, 1);
+        tx.commit().map_err(|error| error.to_string())?;
+        drop(foreign);
+        let bytes = h1_admission_source_bytes(db);
+        assert!(bytes.1.as_ref().is_some_and(|wal| wal.len() > 32));
+        AFTER_CONVERSION_WRITE.with(|slot| *slot.borrow_mut() = Some(bytes));
+        Ok(())
+    }
+    let f = H1AdmissionFixture::new();
+    h1_admission_seed_three(&f);
+    f.conn()
+        .execute_batch("PRAGMA journal_mode=DELETE")
+        .unwrap();
+    AFTER_CONVERSION_WRITE.with(|slot| *slot.borrow_mut() = None);
+    AuditConnection::inject_cold_after_wal_handoff_for_test(foreign_commit);
+    let calls = state::full_audit_calls_for_test();
+    let (opened, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
+    let error = opened
+        .err()
+        .expect("转换连接关闭到正式owner首锁之间的外部提交须拒绝");
+    assert!(!error.is_empty());
+    assert_eq!(
+        h1_qualified_cuts(&events),
+        vec![1, 2, 3],
+        "不得用重新认证吞掉交接外写"
+    );
+    assert_eq!(state::full_audit_calls_for_test(), calls);
+    AFTER_CONVERSION_WRITE.with(|slot| {
+        assert_eq!(
+            h1_admission_source_bytes(&f.db),
+            *slot.borrow().as_ref().expect("必须实际命中转换交接窗口")
+        );
+    });
 }

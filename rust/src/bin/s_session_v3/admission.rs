@@ -174,6 +174,18 @@ impl WriterAdmission {
 /// #1481：所有冷 SQLite 读取必须处于原只读 FD/VFS 阶段，不能用普通连接借账冒充实读计量。
 #[cfg(feature = "s_incremental")]
 impl WriterScope {
+    pub(super) fn require_cold_ledger_cache(&self) -> Result<(), String> {
+        self.require_admitted()?;
+        self.inner.source.verify_cold_ledger_cache()
+    }
+    pub(super) fn release_cold_ledger_cache(&self) -> Result<(), String> {
+        self.require_admitted()?;
+        self.inner.source.release_cold_ledger_cache()
+    }
+    pub(super) fn capture_cold_conversion(&self) -> Result<provider::ColdConvertedContent, String> {
+        self.require_admitted()?;
+        self.inner.source.capture_cold_conversion()
+    }
     pub(super) fn require_cold_content(&self) -> Result<(), String> {
         self.require_admitted()?;
         self.inner.source.verify_cold_content()
@@ -411,10 +423,11 @@ impl WriterScope {
     pub(super) fn first_read_deadline(&self) -> Result<std::time::Instant, String> {
         let mut state = self.inner.accounting.borrow_mut();
         let account = state.as_mut().ok_or("StartupAccountingFinished")?;
-        account
+        let deadline = account
             .accounting()
             .first_read_deadline()
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string());
+        deadline
     }
     pub(crate) fn require_admitted(&self) -> Result<(), String> {
         self.inner.require(self.db_path())

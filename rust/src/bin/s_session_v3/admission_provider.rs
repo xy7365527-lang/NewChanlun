@@ -2,6 +2,7 @@
 //! st_blocks*512 是 OS 报告的文件/目录已分配量；不是共享 extent 独占性或 inode 隐藏开销证明。
 use super::admission_anchor::{ConsumedAdmission, Stage};
 use newchan_rust::s_content::job::Existing;
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fs::{File, Metadata, OpenOptions};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -99,6 +100,7 @@ pub(super) struct MeasuredDomain {
     db: PathBuf,
     state: PathBuf,
     files: Vec<Pinned>,
+    ledger_cache: RefCell<Vec<Pinned>>,
     members: BTreeSet<PathBuf>,
     main_index: usize,
     wal_index: Option<usize>,
@@ -112,6 +114,47 @@ pub(super) fn sidecar(db: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
+// #1481/#1644：精确登记可丢弃台账的四个名字；不是通配旁挂白名单。
+const AUDIT_LEDGER_SUFFIXES: [&str; 4] = [
+    ".audit-ledger.sqlite",
+    ".audit-ledger.sqlite-wal",
+    ".audit-ledger.sqlite-shm",
+    ".audit-ledger.sqlite-journal",
+];
+
+/// #1481：完整认证后的受控模式转换只交接物理连续性，不签发历史资格。
+#[cfg(feature = "s_incremental")]
+pub(super) struct ColdConvertedContent {
+    main: Pinned,
+    wal: Pinned,
+}
+#[cfg(feature = "s_incremental")]
+impl ColdConvertedContent {
+    /// 必须在正式 owner 第一把 IMMEDIATE 锁内核验，不能从此处重取新基线。
+    pub(super) fn verify(&self) -> Result<(), String> {
+        self.main.verify(true)?;
+        self.wal.verify(true)
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+fn verify_unframed_wal(db: &Path) -> Result<(), String> {
+    match std::fs::symlink_metadata(sidecar(db, "-wal")) {
+        Ok(wal) => {
+            if !wal.is_file()
+                || wal.nlink() != 1
+                || wal.uid() != unsafe { libc::geteuid() }
+                || wal.len() > 32
+            {
+                return Err("SourceWalChanged".into());
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err("SourceWalMetadataFailed".into()),
+    }
+    Ok(())
+}
+
 impl MeasuredDomain {
     pub(super) fn measure(consumed: &ConsumedAdmission) -> Result<Self, String> {
         consumed.check(Stage::E6).map_err(|e| e.to_string())?;
@@ -120,6 +163,7 @@ impl MeasuredDomain {
         // 完整枚举本 DB basename 家族；不忽略未知 super-journal、旧私有目录等残件。
         let members = Self::members(&db, &state, consumed)?;
         let mut files = Vec::new();
+        let mut ledger_cache = Vec::new();
         let mut identities = BTreeSet::new();
         let mut store = 0u64;
         let mut staged = 0u64;
@@ -134,6 +178,12 @@ impl MeasuredDomain {
             // #1527 H-01：监督器的既存控制锁只读固定、照实计量；不创建、不重新 flock。
             if path == &sidecar(&db, ".control.lock") && pinned.directory {
                 return Err(consumed.failure("ControlLockNotRegular"));
+            }
+            let is_ledger = AUDIT_LEDGER_SUFFIXES
+                .iter()
+                .any(|suffix| path == &sidecar(&db, suffix));
+            if pinned.directory && is_ledger {
+                return Err(consumed.failure("AuditLedgerCacheNotRegular"));
             }
             if !identities.insert((pinned.stamp.dev, pinned.stamp.ino)) {
                 return Err(consumed.failure("SourceAliasedMember"));
@@ -166,7 +216,11 @@ impl MeasuredDomain {
             }
             journal |= path == &sidecar(&db, "-journal");
             shm |= path == &sidecar(&db, "-shm");
-            files.push(pinned);
+            if is_ledger {
+                ledger_cache.push(pinned);
+            } else {
+                files.push(pinned);
+            }
         }
         if members
             .iter()
@@ -188,6 +242,7 @@ impl MeasuredDomain {
             db,
             state,
             files,
+            ledger_cache: RefCell::new(ledger_cache),
             members,
             main_index: main_index.ok_or_else(|| consumed.failure("MainMissing"))?,
             wal_index,
@@ -239,6 +294,7 @@ impl MeasuredDomain {
                         ".admission-private",
                     ]
                     .iter()
+                    .chain(AUDIT_LEDGER_SUFFIXES.iter())
                     .any(|suffix| path == sidecar(db, suffix))
                 {
                     return Err(consumed.failure("UnknownDatabaseSidecar"));
@@ -296,8 +352,62 @@ impl MeasuredDomain {
             })
             .transpose()
     }
+    /// #1481/#1644：只供持有 WriterScope 双锁的 H1 冷启动在删除旧缓存之前调用。
+    /// 固定身份及四个名字的在场情况，不读缓存内容、不以旧台账签发历史资格。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn verify_cold_ledger_cache(&self) -> Result<(), String> {
+        let cache = self.ledger_cache.borrow();
+        for suffix in AUDIT_LEDGER_SUFFIXES {
+            let path = sidecar(&self.db, suffix);
+            match cache.iter().find(|p| p.path == path) {
+                Some(pinned) => pinned.verify(false)?,
+                None => match std::fs::symlink_metadata(&path) {
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Ok(_) => return Err("AuditLedgerCacheMembershipChanged".into()),
+                    Err(_) => return Err("AuditLedgerCacheMetadataFailed".into()),
+                },
+            }
+        }
+        Ok(())
+    }
+    /// 仅在 H1 精确删除四名缓存后释放旧 inode 的 FD，避免新旧台账同时占盘。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn release_cold_ledger_cache(&self) -> Result<(), String> {
+        for suffix in AUDIT_LEDGER_SUFFIXES {
+            match std::fs::symlink_metadata(sidecar(&self.db, suffix)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Ok(_) => return Err("AuditLedgerCacheStillPresent".into()),
+                Err(_) => return Err("AuditLedgerCacheMetadataFailed".into()),
+            }
+        }
+        self.ledger_cache.borrow_mut().clear();
+        Ok(())
+    }
+    /// 调用者须仍持一次性转换连接的 SQLite EXCLUSIVE 锁；转换前已核原内容 stamp。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn capture_cold_conversion(&self) -> Result<ColdConvertedContent, String> {
+        if self.medium != Medium::MainOnly {
+            return Err("ColdConversionMediumUnsupported".into());
+        }
+        self.files[self.main_index].verify(false)?;
+        let main = Pinned::open(&self.db)?;
+        if !self.files[self.main_index].stamp.same_object(main.stamp) {
+            return Err("SourceIdentityChanged".into());
+        }
+        verify_unframed_wal(&self.db)?;
+        // 转换 helper 须在 EXCLUSIVE 内真正 BEGIN IMMEDIATE/读库，建立空 WAL 后才取戳。
+        // NO_CKPT_ON_CLOSE 保留该空 WAL；普通 owner 首次 IMMEDIATE 不得换 inode 或改 stamp。
+        let wal = Pinned::open(&sidecar(&self.db, "-wal"))?;
+        if wal.directory || wal.stamp.uid != unsafe { libc::geteuid() } || wal.stamp.len > 32 {
+            return Err("SourceWalChanged".into());
+        }
+        Ok(ColdConvertedContent { main, wal })
+    }
     pub(super) fn verify_before_open(&self) -> Result<(), String> {
         for p in &self.files {
+            p.verify(true)?;
+        }
+        for p in self.ledger_cache.borrow().iter() {
             p.verify(true)?;
         }
         // 新增 sidecar/状态成员也不得在私有核验之后悄悄进入源域。
@@ -351,20 +461,8 @@ impl MeasuredDomain {
         if let Some(index) = self.wal_index {
             self.files[index].verify(true)?;
         } else {
-            match std::fs::symlink_metadata(sidecar(&self.db, "-wal")) {
-                Ok(wal) => {
-                    // H1交接的首个RW/IMMEDIATE可自行建立无帧WAL；它不含任何已提交历史。
-                    if !wal.is_file()
-                        || wal.nlink() != 1
-                        || wal.uid() != unsafe { libc::geteuid() }
-                        || wal.len() > 32
-                    {
-                        return Err("SourceWalChanged".into());
-                    }
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(_) => return Err("SourceWalMetadataFailed".into()),
-            }
+            // H1交接的首个RW/IMMEDIATE可自行建立无帧WAL；不含任何已提交历史。
+            verify_unframed_wal(&self.db)?;
         }
         Ok(())
     }
@@ -486,6 +584,170 @@ mod control_lock_tests {
             .err()
             .unwrap()
             .contains("UnknownDatabaseSidecar"));
+    }
+    #[test]
+    fn h1_ledger_cache_sidecars_are_pinned_and_physically_counted() {
+        let f = Fixture::new();
+        let original: Vec<_> = AUDIT_LEDGER_SUFFIXES
+            .iter()
+            .map(|suffix| {
+                let path = sidecar(&f.db, suffix);
+                std::fs::write(&path, [0x71; 4096]).unwrap();
+                let stamp = Stamp::of(&std::fs::metadata(&path).unwrap());
+                assert!(stamp.blocks > 0);
+                (path, stamp)
+            })
+            .collect();
+        let source = MeasuredDomain::measure(&f.consumed()).unwrap();
+        let expected: u64 = source
+            .members
+            .iter()
+            .map(|p| std::fs::symlink_metadata(p).unwrap().blocks() * 512)
+            .sum();
+        assert_eq!(source.existing.store_bytes, expected);
+        assert_eq!(source.existing.staged_bytes, 0);
+        for (path, stamp) in original {
+            let cache = source.ledger_cache.borrow();
+            let pinned = cache.iter().find(|p| p.path == path).unwrap();
+            assert_eq!(pinned.stamp, stamp);
+            assert_eq!(Stamp::of(&pinned.file.metadata().unwrap()), stamp);
+        }
+        // 台账的 WAL/SHM/journal 不冒充内容库介质；缓存任意字节不参与内容解释。
+        assert_eq!(source.medium, Medium::MainOnly);
+        assert!(source.wal_fd().unwrap().is_none());
+        source.verify_before_open().unwrap();
+    }
+    #[test]
+    fn h1_ledger_cache_registration_still_rejects_unknown_sidecars() {
+        for suffix in [
+            ".audit-ledger.sqlite-extra",
+            ".audit-ledger.sqlite-wal-extra",
+            ".audit-ledger.sqlite-shm-extra",
+            ".audit-ledger.sqlite-journal-extra",
+        ] {
+            let f = Fixture::new();
+            std::fs::write(sidecar(&f.db, ".audit-ledger.sqlite"), b"cache").unwrap();
+            std::fs::write(sidecar(&f.db, suffix), b"unknown").unwrap();
+            assert!(MeasuredDomain::measure(&f.consumed())
+                .err()
+                .unwrap()
+                .contains("UnknownDatabaseSidecar"));
+            assert_eq!(std::fs::read(sidecar(&f.db, suffix)).unwrap(), b"unknown");
+        }
+    }
+    #[test]
+    fn h1_ledger_cache_substitutes_are_rejected() {
+        for suffix in AUDIT_LEDGER_SUFFIXES {
+            for kind in ["symlink", "hardlink", "directory"] {
+                let f = Fixture::new();
+                let path = sidecar(&f.db, suffix);
+                match kind {
+                    "symlink" => std::os::unix::fs::symlink(&f.db, &path).unwrap(),
+                    "hardlink" => std::fs::hard_link(&f.db, &path).unwrap(),
+                    _ => std::fs::create_dir(&path).unwrap(),
+                }
+                assert!(
+                    MeasuredDomain::measure(&f.consumed()).is_err(),
+                    "{suffix}: {kind}"
+                );
+            }
+        }
+    }
+    #[cfg(all(feature = "s_incremental", unix))]
+    #[test]
+    fn h1_ledger_cache_uses_original_store_cap_before_discard() {
+        let f = Fixture::new();
+        let consumed = super::super::admission_anchor::test_prepare_caps(
+            &f.db,
+            &[("max_store_bytes", 1024 * 1024)],
+        )
+        .consume()
+        .unwrap();
+        MeasuredDomain::measure(&consumed).unwrap();
+        std::fs::write(
+            sidecar(&f.db, ".audit-ledger.sqlite"),
+            vec![0x73; 2 * 1024 * 1024],
+        )
+        .unwrap();
+        assert!(MeasuredDomain::measure(&consumed)
+            .err()
+            .unwrap()
+            .contains("ExistingAllocationExceeded"));
+        assert!(sidecar(&f.db, ".audit-ledger.sqlite").exists());
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_ledger_cache_replacement_or_new_member_is_rejected_before_discard() {
+        for suffix in AUDIT_LEDGER_SUFFIXES {
+            let f = Fixture::new();
+            let path = sidecar(&f.db, suffix);
+            std::fs::write(&path, b"old cache").unwrap();
+            let source = MeasuredDomain::measure(&f.consumed()).unwrap();
+            source.verify_cold_ledger_cache().unwrap();
+            // 原地损坏是可丢弃缓存，内容不具有权威；身份替换仍必须拒绝。
+            std::fs::write(&path, b"damaged cache").unwrap();
+            source.verify_cold_ledger_cache().unwrap();
+            let replacement = f.root.join("replacement");
+            std::fs::write(&replacement, b"damaged cache").unwrap();
+            std::fs::rename(&replacement, &path).unwrap();
+            assert!(source.verify_cold_ledger_cache().is_err());
+
+            let f = Fixture::new();
+            let source = MeasuredDomain::measure(&f.consumed()).unwrap();
+            std::fs::write(sidecar(&f.db, suffix), b"new cache").unwrap();
+            assert!(source.verify_cold_ledger_cache().is_err());
+        }
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_ledger_cache_discard_releases_only_cache_pins_before_rebuild() {
+        let f = Fixture::new();
+        for suffix in AUDIT_LEDGER_SUFFIXES {
+            std::fs::write(sidecar(&f.db, suffix), [0x74; 4096]).unwrap();
+        }
+        let source = MeasuredDomain::measure(&f.consumed()).unwrap();
+        assert_eq!(source.ledger_cache.borrow().len(), 4);
+        assert!(source.release_cold_ledger_cache().is_err());
+        assert_eq!(source.ledger_cache.borrow().len(), 4);
+        source.verify_cold_ledger_cache().unwrap();
+        let content_pin_count = source.files.len();
+        for suffix in AUDIT_LEDGER_SUFFIXES {
+            std::fs::remove_file(sidecar(&f.db, suffix)).unwrap();
+        }
+        source.release_cold_ledger_cache().unwrap();
+        assert!(source.ledger_cache.borrow().is_empty());
+        assert_eq!(source.files.len(), content_pin_count);
+        source.main_fd().unwrap();
+        source.verify_runtime().unwrap();
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_ledger_cache_conversion_stamp_rejects_changed_main_or_wal_frames() {
+        for changed in ["main-bytes", "main-inode", "wal-frames", "wal-inode"] {
+            let f = Fixture::new();
+            let source = MeasuredDomain::measure(&f.consumed()).unwrap();
+            source.verify_cold_content().unwrap();
+            // 用文件改动代表独占转换连接已经完成的合法主库头转换。
+            std::fs::write(&f.db, b"authenticated controlled conversion").unwrap();
+            std::fs::write(sidecar(&f.db, "-wal"), b"").unwrap();
+            let handoff = source.capture_cold_conversion().unwrap();
+            handoff.verify().unwrap();
+            match changed {
+                "main-bytes" => std::fs::write(&f.db, b"foreign main commit").unwrap(),
+                "main-inode" => {
+                    let replacement = f.root.join("replacement");
+                    std::fs::write(&replacement, b"authenticated controlled conversion").unwrap();
+                    std::fs::rename(replacement, &f.db).unwrap();
+                }
+                "wal-frames" => std::fs::write(sidecar(&f.db, "-wal"), [0x75; 33]).unwrap(),
+                _ => {
+                    let replacement = f.root.join("replacement");
+                    std::fs::write(&replacement, b"").unwrap();
+                    std::fs::rename(replacement, sidecar(&f.db, "-wal")).unwrap();
+                }
+            }
+            assert!(handoff.verify().is_err(), "{changed}");
+        }
     }
     #[test]
     fn control_lock_substitutes_are_rejected() {

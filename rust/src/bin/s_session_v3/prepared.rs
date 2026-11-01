@@ -250,11 +250,11 @@ impl Runtime {
     }
 
     /// #1481：未通过私有只读收尾的台账只能留在这份临时 Runtime 内。
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(feature = "s_incremental", unix))]
     pub(super) fn cold_audit_runtime(&self) -> Self {
         Self::with_config(self.mode.clone(), self.theta_config.clone())
     }
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(feature = "s_incremental", unix))]
     pub(super) fn adopt_cold_audit_runtime(&mut self, mut cold: Self) -> Result<(), String> {
         self.install_audit_ledger(
             cold.audit_ledger

@@ -543,6 +543,7 @@ pub(crate) struct NativeSourceState {
     pub(crate) work: SourceWork,
 }
 impl NativeSourceState {
+    #[cfg(unix)]
     pub(crate) fn rebind_cold_owner(
         &mut self,
         old: RawAdvanceBinding,
@@ -555,6 +556,7 @@ impl NativeSourceState {
         Ok(())
     }
     /// #1481：私有冷认证只固定已核发布前缀；无owner域须经一次受控交接才取得本生涯租约。
+    #[cfg(unix)]
     pub(crate) fn bind_cold_owner(
         &mut self,
         binding: RawAdvanceBinding,

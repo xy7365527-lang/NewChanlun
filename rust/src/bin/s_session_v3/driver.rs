@@ -511,7 +511,7 @@ impl Driver {
         Ok(driver)
     }
 
-    #[cfg(all(test, feature = "s_incremental"))]
+    #[cfg(all(test, feature = "s_incremental", unix))]
     pub(super) fn h1_owner_for_test(&self) -> &super::audit_owner::AuditConnection {
         &self.conn
     }
@@ -554,28 +554,35 @@ impl Driver {
         let _open_guard = scope.enter()?;
         let db = scope.db_path();
         scope.require_admitted()?;
-        #[cfg(feature = "s_incremental")]
+        #[cfg(all(feature = "s_incremental", unix))]
         let mut runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
-        #[cfg(not(feature = "s_incremental"))]
+        #[cfg(not(all(feature = "s_incremental", unix)))]
         let runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
         #[cfg(feature = "s_incremental")]
         let conn = if startup_context
             .as_deref()
             .is_some_and(|c| c.source_cache_enabled())
         {
-            super::audit_owner::AuditConnection::open_rebuilt_history(
-                db,
-                startup_context
-                    .as_deref()
-                    .unwrap()
-                    .complete_workspace_limit(),
-                Some(scope.first_read_deadline()?),
-                startup_context.as_deref_mut().unwrap(),
-                &mut runtime,
-                scope.max_store_bytes(),
-                &scope,
-            )?
-            .0
+            #[cfg(unix)]
+            {
+                super::audit_owner::AuditConnection::open_rebuilt_history(
+                    db,
+                    startup_context
+                        .as_deref()
+                        .unwrap()
+                        .complete_workspace_limit(),
+                    Some(scope.first_read_deadline()?),
+                    startup_context.as_deref_mut().unwrap(),
+                    &mut runtime,
+                    scope.max_store_bytes(),
+                    &scope,
+                )?
+                .0
+            }
+            #[cfg(not(unix))]
+            {
+                return Err("H1准入需要Unix文件身份与只读FD/VFS".into());
+            }
         } else {
             super::audit_owner::AuditConnection::open(db)?
         };
@@ -820,32 +827,40 @@ pub(super) fn recover_scoped_with_retention(
     retention: usize,
     admission: super::admission::WriterAdmission,
 ) -> Result<(Value, super::admission::WriterScope), String> {
-    parse_writer_epoch(new_epoch, "new writer_epoch")?;
-    let scope = admission.admit_prefix(
-        db,
-        super::admission_private::RejectionPrefix::UnboundRecover,
-    )?;
-    let _guard = scope.enter()?;
-    scope.require_admitted()?;
-    let mut context = Driver::cold_context(retention)?;
-    let mut runtime = prepared::Runtime::with_config(
-        s_allocation::Mode::CapturedNative,
-        newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
-            .map_err(|e| e.to_string())?,
-    );
-    let conn = super::audit_owner::AuditConnection::open_rebuilt_history(
-        scope.db_path(),
-        retention,
-        Some(scope.first_read_deadline()?),
-        &mut context,
-        &mut runtime,
-        scope.max_store_bytes(),
-        &scope,
-    )?
-    .0;
-    let result = conn.recover(new_epoch, clock, clock_event)?;
-    drop(conn);
-    Ok((result, scope))
+    #[cfg(not(unix))]
+    {
+        let _ = (db, new_epoch, clock, clock_event, retention, admission);
+        Err("H1恢复需要Unix文件身份与只读FD/VFS".into())
+    }
+    #[cfg(unix)]
+    {
+        parse_writer_epoch(new_epoch, "new writer_epoch")?;
+        let scope = admission.admit_prefix(
+            db,
+            super::admission_private::RejectionPrefix::UnboundRecover,
+        )?;
+        let _guard = scope.enter()?;
+        scope.require_admitted()?;
+        let mut context = Driver::cold_context(retention)?;
+        let mut runtime = prepared::Runtime::with_config(
+            s_allocation::Mode::CapturedNative,
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+                .map_err(|e| e.to_string())?,
+        );
+        let conn = super::audit_owner::AuditConnection::open_rebuilt_history(
+            scope.db_path(),
+            retention,
+            Some(scope.first_read_deadline()?),
+            &mut context,
+            &mut runtime,
+            scope.max_store_bytes(),
+            &scope,
+        )?
+        .0;
+        let result = conn.recover(new_epoch, clock, clock_event)?;
+        drop(conn);
+        Ok((result, scope))
+    }
 }
 
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。

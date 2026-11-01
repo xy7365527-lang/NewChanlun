@@ -1763,6 +1763,7 @@ impl HistoricalCertificate {
         Self::cold_for_request_inner(tx, deadline, work, context, qualified, None, None, None)
     }
 
+    #[cfg(unix)]
     pub(super) fn cold_for_request_rebuilding(
         tx: &Transaction<'_>,
         deadline: Option<std::time::Instant>,

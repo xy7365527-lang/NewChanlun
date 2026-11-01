@@ -430,16 +430,22 @@ fn audit_business(
             // H1 冷折叠在实际持锁连接开门前完成，失败不得回落旧审计。
             #[cfg(feature = "s_incremental")]
             {
-                let work = match prefix {
-                    RejectionPrefix::NativeStartup { work, .. } => *work,
-                    _ => None,
-                };
-                super::control_audit::verify_s3_schema_admitted(
-                    &tx,
-                    None,
-                    work,
-                    Some(account.delta),
-                )?;
+                if matches!(prefix, RejectionPrefix::OrdinaryStartup { .. }) {
+                    // #1481：Ordinary 诊断臂保持完整审计先于 open_db 迁移；
+                    // 只按前缀分流，Native 的 H1 准入不得借用此对照臂兜底。
+                    super::state::audit_with_budget(&tx, Some(_deadline), None, Some(account))?;
+                } else {
+                    let work = match prefix {
+                        RejectionPrefix::NativeStartup { work, .. } => *work,
+                        _ => None,
+                    };
+                    super::control_audit::verify_s3_schema_admitted(
+                        &tx,
+                        None,
+                        work,
+                        Some(account.delta),
+                    )?;
+                }
             }
             #[cfg(not(feature = "s_incremental"))]
             match prefix {

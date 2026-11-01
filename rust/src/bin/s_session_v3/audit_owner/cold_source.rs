@@ -12,7 +12,7 @@ use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkScope
 pub(crate) struct ColdSource<'reader, 'source> {
     reader: &'reader mut HashReader<'source>,
     budget: &'reader native::Budget,
-    root: sc::Built,
+    root: construction_set::Declaration,
     set: construction_set::LazySet,
 }
 impl<'reader, 'source> ColdSource<'reader, 'source> {
@@ -28,7 +28,7 @@ impl<'reader, 'source> ColdSource<'reader, 'source> {
                 "冷来源要求真实 Native 工作账",
             ));
         }
-        let root = construction_set::Declaration::read(current)?.built();
+        let root = construction_set::Declaration::read(current)?;
         let set = construction_set::LazySet::cold(reader, previous_root, current, previous)?;
         Ok(Self {
             reader,
@@ -102,7 +102,7 @@ impl CodecStore for ColdSource<'_, '_> {
 }
 impl SourceInput for ColdSource<'_, '_> {
     fn root(&self) -> sc::Built {
-        self.root
+        self.root.built()
     }
     fn sequence_delta(
         &mut self,

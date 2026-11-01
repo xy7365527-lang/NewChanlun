@@ -218,7 +218,7 @@ pub(super) struct CommittedSet {
     knowledge: Option<Knowledge>,
 }
 impl CommittedSet {
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(feature = "s_incremental", unix))]
     pub(super) fn rebind_cold_owner(
         &mut self,
         old: RawAdvanceBinding,
@@ -231,6 +231,7 @@ impl CommittedSet {
         Ok(())
     }
     /// #1481：只有冷认证 owner 从末代已核根与同核贡献态建立前身，下一代不可重走bootstrap。
+    #[cfg(unix)]
     pub(super) fn cold(
         s: &mut (impl CodecRead + ?Sized),
         root: sc::RefView<'_>,

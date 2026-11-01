@@ -440,10 +440,28 @@ jobs:
             h1_admission_driver_cold_recover_rebuilds_ledger_bitwise \
             h1_admission_driver_cold_preserves_original_node_record_gates \
             h1_admission_cold_real_wire_short_budget_rejects_before_write \
-            h1_admission_prepolicy_bad_history_rejected_before_migration
+            h1_admission_prepolicy_bad_history_rejected_before_migration \
+            h1_admission_normal_exit_same_database_new_process_restarts \
+            h1_admission_mainonly_nonwal_prepolicy_preserves_domain \
+            h1_admission_hot_rollback_journal_rejects_before_rw_open \
+            h1_admission_nonwal_conversion_handoff_foreign_commit_rejects
           do
             grep -Fx "test v3::audit_owner::construction_tests::$test ... ok" "$RUNNER_TEMP/1481-admission.log"
           done
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ledger_cache_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ledger.log"
+          for test in \
+            h1_ledger_cache_sidecars_are_pinned_and_physically_counted \
+            h1_ledger_cache_registration_still_rejects_unknown_sidecars \
+            h1_ledger_cache_substitutes_are_rejected \
+            h1_ledger_cache_uses_original_store_cap_before_discard \
+            h1_ledger_cache_replacement_or_new_member_is_rejected_before_discard \
+            h1_ledger_cache_discard_releases_only_cache_pins_before_rebuild \
+            h1_ledger_cache_conversion_stamp_rejects_changed_main_or_wal_frames
+          do
+            grep -Fx "test v3::admission_provider::control_lock_tests::$test ... ok" "$RUNNER_TEMP/1481-ledger.log"
+          done
+          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs 4 h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
+          grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
 
       - name: 上传 H1 正式准入逐名日志（#1481 S1）
@@ -451,7 +469,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: h1-admission-S1
-          path: ${{ runner.temp }}/1481-admission.log
+          path: |
+            ${{ runner.temp }}/1481-admission.log
+            ${{ runner.temp }}/1481-ledger.log
+            ${{ runner.temp }}/1481-ordinary.log
           if-no-files-found: error
           overwrite: true
 

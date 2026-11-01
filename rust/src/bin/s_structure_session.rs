@@ -353,7 +353,7 @@ fn open_db(db: &Path) -> Result<Connection, String> {
 }
 
 /// #1481：已核冷原件交接专用。不开迁移，先让 owner 在 SQLite 写锁内核源连续性。
-#[cfg(feature = "s_incremental")]
+#[cfg(all(feature = "s_incremental", unix))]
 fn open_db_after_h1_certification(db: &Path) -> Result<Connection, String> {
     v3::admission::require_current(db)?;
     let conn = Connection::open_with_flags(
@@ -376,6 +376,57 @@ fn open_db_after_h1_certification(db: &Path) -> Result<Connection, String> {
     conn.execute_batch("PRAGMA fullfsync=ON;")
         .map_err(|e| e.to_string())?;
     Ok(conn)
+}
+
+/// #1481：保留旧 open_db 的合法非 WAL 输入域。调用前历史已由只读 H1 核完整认证；
+/// 转换前仍须在 SQLite 排他锁内核原件与迁移授权。空提交保留 EXCLUSIVE 锁，
+/// journal_mode 的合法转换在事务外执行。转成 WAL 后仍持排他锁采物理交接凭据；
+/// 调用方须关闭此一次性连接，再在普通连接的首把写锁内复核凭据，才可迁移与 seed。
+/// 不用 data_version 抵消“自身转换 +1”：首次 WAL 快照可能把外部提交合并成同一次变化。
+#[cfg(all(feature = "s_incremental", unix))]
+fn prepare_h1_wal_handoff<T>(
+    conn: &Connection,
+    authenticate: impl FnOnce() -> Result<(), String>,
+    snapshot: impl FnOnce() -> Result<T, String>,
+) -> Result<Option<T>, String> {
+    let mode: String = conn
+        .query_row("PRAGMA main.journal_mode", [], |row| row.get(0))
+        .map_err(|error| format!("读取 H1 交接日志模式失败：{error}"))?;
+    if mode.eq_ignore_ascii_case("wal") {
+        return Ok(None);
+    }
+    let locking: String = conn
+        .query_row("PRAGMA main.locking_mode=EXCLUSIVE", [], |row| row.get(0))
+        .map_err(|error| format!("固定 H1 转换排他模式失败：{error}"))?;
+    if !locking.eq_ignore_ascii_case("exclusive") {
+        return Err("H1转换未取得排他模式".into());
+    }
+    let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Exclusive)
+        .map_err(|error| format!("锁定 H1 转换原件失败：{error}"))?;
+    // 此处尚未改写主库：坏历史、原件变化或未经准入授权的补列均先拒绝。
+    authenticate()?;
+    if policy_records_missing(&tx)? {
+        v3::admission::require_policy_records_migration()?;
+    }
+    tx.commit()
+        .map_err(|error| format!("结束 H1 转换只读核验失败：{error}"))?;
+    let mode: String = conn
+        .query_row("PRAGMA main.journal_mode=WAL", [], |row| row.get(0))
+        .map_err(|error| format!("转换已认证 H1 库到 WAL 失败：{error}"))?;
+    if !mode.eq_ignore_ascii_case("wal") {
+        return Err("H1已认证库未能转换为WAL".into());
+    }
+    // 在排他连接上先打开空 WAL，确保凭据也固定转换所建的 WAL 身份。
+    // EXCLUSIVE WAL 的索引在 heap，不会留下生产准入禁止的常驻 -shm。
+    let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Immediate)
+        .map_err(|error| format!("锁定 H1 转换后原件失败：{error}"))?;
+    let _: i64 = tx
+        .query_row("SELECT COUNT(*) FROM main.meta", [], |row| row.get(0))
+        .map_err(|error| format!("读取 H1 转换后原件失败：{error}"))?;
+    let token = snapshot()?;
+    tx.rollback()
+        .map_err(|error| format!("结束 H1 转换后只读核验失败：{error}"))?;
+    Ok(Some(token))
 }
 
 /// #1602 之前的 structure_deltas 建表语句（`SCHEMA` 逐字去掉 `policy_records` 列）。

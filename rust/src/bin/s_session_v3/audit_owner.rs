@@ -28,7 +28,7 @@ pub(super) fn log_pager_handle(
     sqlite_pager_probe::log_handle(before.0, after.0, id, ok);
 }
 
-#[cfg(all(feature = "s_incremental", unix))]
+#[cfg(feature = "s_incremental")]
 pub(crate) mod cold_source;
 #[cfg(feature = "s_incremental")]
 pub(super) mod effects;
@@ -55,6 +55,7 @@ fn cold_failure(error: native::Failure) -> String {
 #[cfg(all(test, feature = "s_incremental", unix))]
 thread_local! {
     static COLD_AFTER_CERTIFICATION: Cell<Option<fn(&Path) -> Result<(), String>>> = const { Cell::new(None) };
+    static COLD_AFTER_WAL_HANDOFF: Cell<Option<fn(&Path) -> Result<(), String>>> = const { Cell::new(None) };
 }
 
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
@@ -462,6 +463,13 @@ impl AuditConnection {
         });
     }
 
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    pub(super) fn inject_cold_after_wal_handoff_for_test(hook: fn(&Path) -> Result<(), String>) {
+        COLD_AFTER_WAL_HANDOFF.with(|slot| {
+            assert!(slot.replace(Some(hook)).is_none());
+        });
+    }
+
     /// #1481：新进程在锁内抛弃旧台账，从 g1 用在线同一来源 Δ 重建，再消费完整资格。
     /// deadline/返回耗时是 S2 冷窗口唯一接入点，本阶段不增加资源档默认值。
     #[cfg(all(feature = "s_incremental", unix))]
@@ -505,6 +513,7 @@ impl AuditConnection {
         let mut path = canonical.as_os_str().to_os_string();
         path.push(".audit-ledger.sqlite");
         let path = std::path::PathBuf::from(path);
+        admission.require_cold_ledger_cache()?;
         // 台账不是持久权威；只在 WriterScope 的单写者锁内删除本库固定缓存，不读其旧资格。
         for suffix in ["", "-journal", "-wal", "-shm"] {
             let mut file = path.as_os_str().to_os_string();
@@ -518,6 +527,8 @@ impl AuditConnection {
                 Err(e) => return Err(invalid(e)),
             }
         }
+        // 精确缓存删除完成后释放旧inode的FD，避免旧块与fresh台账同时占用同一store额度。
+        admission.release_cold_ledger_cache()?;
         let parent = context
             .request_parent_budget()
             .ok_or_else(|| invalid("冷准入缺父账"))?;
@@ -622,7 +633,11 @@ impl AuditConnection {
                     drop(store);
                     Ok((candidate, construction))
                 })
-                .map_err(|error| cold_failure(native::Failure::from(error)))
+                .map_err(
+                    |error: newchan_rust::s_content::capture_allocation::scratch::WorkError<
+                        String,
+                    >| { cold_failure(native::Failure::from(error)) },
+                )
         });
         let (candidate, construction) = match cold {
             Ok(cold) => cold,
@@ -636,10 +651,31 @@ impl AuditConnection {
         if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
             hook(&canonical)?;
         }
-        let mut owner = Self::new(crate::open_db_after_h1_certification(&canonical)?)?;
+        let connection = crate::open_db_after_h1_certification(&canonical)?;
+        let converted = crate::prepare_h1_wal_handoff(
+            &connection,
+            || admission.require_cold_content(),
+            || admission.capture_cold_conversion(),
+        )?;
+        let connection = if converted.is_some() {
+            // #1481：一次性交接连接保留排他锁至关闭；普通写者不继承整生涯排他锁。
+            drop(connection);
+            #[cfg(test)]
+            if let Some(hook) = COLD_AFTER_WAL_HANDOFF.with(Cell::take) {
+                hook(&canonical)?;
+            }
+            crate::open_db_after_h1_certification(&canonical)?
+        } else {
+            connection
+        };
+        let mut owner = Self::new(connection)?;
         // 第一把 SQLite 写锁内核源连续性，再执行唯一受控迁移；尚未建立任何新夹持基线。
         let migration = owner.begin(TransactionBehavior::Immediate)?;
-        admission.require_cold_content()?;
+        if let Some(converted) = converted.as_ref() {
+            converted.verify()?;
+        } else {
+            admission.require_cold_content()?;
+        }
         crate::migrate_policy_records_in_transaction(migration.tx())?;
         let inherited_data_version = migration.data_version;
         owner.continue_with(migration.commit()?)?;
@@ -668,6 +704,17 @@ impl AuditConnection {
         }
         owner.history_result(result)?;
         runtime.adopt_cold_audit_runtime(cold_runtime)?;
+        // #1481：仅交接拒绝路径禁止关闭检查点；成功写者恢复 SQLite 的正常退出清理。
+        if owner
+            .connection
+            .set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                false,
+            )
+            .map_err(invalid)?
+        {
+            return Err(invalid("H1正式写者未恢复关闭检查点"));
+        }
         owner.require_historical_certificate = true;
         Ok((owner, started.elapsed()))
     }
