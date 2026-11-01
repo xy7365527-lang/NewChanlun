@@ -28,6 +28,8 @@ pub(super) fn log_pager_handle(
     sqlite_pager_probe::log_handle(before.0, after.0, id, ok);
 }
 
+#[cfg(all(feature = "s_incremental", unix))]
+pub(crate) mod cold_source;
 #[cfg(feature = "s_incremental")]
 pub(super) mod effects;
 #[cfg(all(feature = "s_incremental", unix))]
@@ -41,6 +43,19 @@ type ColdRoot = native::Budget;
 type ColdRoot = std::convert::Infallible;
 #[cfg(feature = "s_incremental")]
 mod q;
+
+#[cfg(all(feature = "s_incremental", unix))]
+fn cold_failure(error: native::Failure) -> String {
+    match error {
+        native::Failure::BudgetExceeded => invalid("冷认证父预算不足"),
+        native::Failure::Invalid(error) => error,
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental", unix))]
+thread_local! {
+    static COLD_AFTER_CERTIFICATION: Cell<Option<fn(&Path) -> Result<(), String>>> = const { Cell::new(None) };
+}
 
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
 #[cfg(all(test, feature = "s_incremental"))]
@@ -348,9 +363,8 @@ impl AuditConnection {
         })
     }
 
-    /// #1481 显式组件入口；正式CLI/launcher不调用，不改变Ordinary前置。
-    #[cfg(all(feature = "s_incremental", unix))]
-    #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
+    /// #1481：只供夹持测试的非资格组件入口。
+    #[cfg(all(test, feature = "s_incremental", unix))]
     pub(super) fn open_history_component(db: &Path, control_limit: usize) -> Result<Self, String> {
         let owner = Self::open(db)?;
         *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(
@@ -363,16 +377,32 @@ impl AuditConnection {
         Ok(owner)
     }
 
-    /// `qualified`（39P）：传入时冷起步从空前沿消费 P6 完整资格，此后每次发布在内容与台账
-    /// 均已提交后从上一代前沿推进；资格缺失或不符即 stale。不传则为 36T 来源收据认证组件。
-    #[cfg(all(feature = "s_incremental", unix))]
-    #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
+    /// 39P 组件兼容入口：测试直接提供台账资格；正式生涯调用同一 seeded 核并在其中重建台账。
+    #[cfg(all(test, feature = "s_incremental", unix))]
     pub(super) fn open_certified_history_component(
         db: &Path,
         control_limit: usize,
         deadline: Option<std::time::Instant>,
         context: &mut request_audit::RequestAuditContext,
         qualified: Option<state::QualifiedSource<'_>>,
+    ) -> Result<Self, String> {
+        Self::open_certified_history_component_seeded(
+            db,
+            control_limit,
+            deadline,
+            context,
+            |active, context| active.seed_historical_certificate(deadline, context, qualified),
+        )
+    }
+
+    /// #1481：36T/39P测试组件的 owner/夹持封口核；正式入口先在私有FD中同核认证，再安全交接。
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    fn open_certified_history_component_seeded(
+        db: &Path,
+        control_limit: usize,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        seed: impl FnOnce(&AuditTxn<'_>, &mut request_audit::RequestAuditContext) -> Result<(), String>,
     ) -> Result<Self, String> {
         history::check_deadline(deadline)?;
         if !context.source_cache_enabled() {
@@ -391,11 +421,10 @@ impl AuditConnection {
         )?);
         let result = (|| {
             let active = owner.begin(TransactionBehavior::Deferred)?;
-            active.seed_historical_certificate(deadline, context, qualified)?;
+            seed(&active, context)?;
             let ended = active.read_end()?;
             history::check_deadline(deadline)?;
-            owner.continue_with(ended)?;
-            Ok(())
+            owner.continue_with(ended)
         })();
         if result.is_err() {
             drop(context.take());
@@ -403,6 +432,264 @@ impl AuditConnection {
         owner.history_result(result)?;
         owner.require_historical_certificate = true;
         Ok(owner)
+    }
+
+    /// #1481：正式写者只接受完整 P6 资格，不允许以 36T 无资格组件替代。
+    /// 冷折叠窗口的唯一接入点：调用方显式传 deadline；返回实际折叠耗时供 S2 资源档消费。
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    pub(super) fn open_admitted_history(
+        db: &Path,
+        control_limit: usize,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        source: state::QualifiedSource<'_>,
+    ) -> Result<(Self, std::time::Duration), String> {
+        let started = std::time::Instant::now();
+        let owner = Self::open_certified_history_component(
+            db,
+            control_limit,
+            deadline,
+            context,
+            Some(source),
+        )?;
+        Ok((owner, started.elapsed()))
+    }
+
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    pub(super) fn inject_cold_after_certification_for_test(hook: fn(&Path) -> Result<(), String>) {
+        COLD_AFTER_CERTIFICATION.with(|slot| {
+            assert!(slot.replace(Some(hook)).is_none());
+        });
+    }
+
+    /// #1481：新进程在锁内抛弃旧台账，从 g1 用在线同一来源 Δ 重建，再消费完整资格。
+    /// deadline/返回耗时是 S2 冷窗口唯一接入点，本阶段不增加资源档默认值。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn open_rebuilt_history(
+        db: &Path,
+        control_limit: usize,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        runtime: &mut prepared::Runtime,
+        max_store_bytes: u64,
+        admission: &super::admission::WriterScope,
+    ) -> Result<(Self, std::time::Duration), String> {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+        use std::os::unix::fs::MetadataExt;
+        let started = std::time::Instant::now();
+        history::check_deadline(deadline)?;
+        if !context.source_cache_enabled() {
+            return Err(invalid("正式冷准入缺冻结Native请求域"));
+        }
+        if context.request_parent_budget().is_none() {
+            context.prepare_parent(None)?;
+        }
+        let canonical = db.canonicalize().map_err(invalid)?;
+        let meta = std::fs::metadata(&canonical).map_err(invalid)?;
+        let content_identity = format!("{}:{}:{}", canonical.display(), meta.dev(), meta.ino());
+        let mut executable =
+            std::fs::File::open(std::env::current_exe().map_err(invalid)?).map_err(invalid)?;
+        let mut hash = Sha256::new();
+        let mut block = [0_u8; 16384];
+        loop {
+            history::check_deadline(deadline)?;
+            super::audit_budget::Budget::precheck(admission).map_err(invalid)?;
+            let n = executable.read(&mut block).map_err(invalid)?;
+            if n == 0 {
+                break;
+            }
+            hash.update(&block[..n]);
+        }
+        let binary_commit = format!("sha256:{:x}", hash.finalize());
+        let mut path = canonical.as_os_str().to_os_string();
+        path.push(".audit-ledger.sqlite");
+        let path = std::path::PathBuf::from(path);
+        // 台账不是持久权威；只在 WriterScope 的单写者锁内删除本库固定缓存，不读其旧资格。
+        for suffix in ["", "-journal", "-wal", "-shm"] {
+            let mut file = path.as_os_str().to_os_string();
+            file.push(suffix);
+            match std::fs::symlink_metadata(&file) {
+                Ok(m) if m.file_type().is_file() && m.nlink() == 1 && m.uid() == meta.uid() => {
+                    std::fs::remove_file(&file).map_err(invalid)?
+                }
+                Ok(_) => return Err(invalid("台账缓存不是同用户单链接普通文件")),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(invalid(e)),
+            }
+        }
+        let parent = context
+            .request_parent_budget()
+            .ok_or_else(|| invalid("冷准入缺父账"))?;
+        let mut cold_runtime = runtime.cold_audit_runtime();
+        // 私有连接完整折叠、捕获 SQL/Q；返回值在 rollback/close/撤销 VFS/结预留/期限全部通过后才可见。
+        let cold = admission.certify_cold(|tx, budget| {
+            let rule =
+                meta_get_opt(tx, "rule_revision")?.ok_or_else(|| invalid("缺rule_revision"))?;
+            let mut ledger = super::audit_ledger::Ledger::fresh(
+                &path,
+                &canonical,
+                super::audit_ledger::Identity {
+                    rule_revision: rule.clone(),
+                    content_identity: content_identity.clone(),
+                    binary_commit: binary_commit.clone(),
+                },
+                max_store_bytes.min(64 * 1024 * 1024 * 1024),
+            )?;
+            parent
+                .codec_work()
+                .map_err(cold_failure)?
+                .run(|work| {
+                    let (mut audited, source) =
+                        state::HistoricalCertificate::cold_for_request_rebuilding(
+                            tx,
+                            deadline,
+                            work,
+                            context,
+                            &mut ledger,
+                            &parent,
+                            budget,
+                        )?;
+                    cold_runtime.install_audit_ledger(ledger)?;
+                    audited.install_cold_qualification(
+                        state::QualifiedSource {
+                            runtime: &cold_runtime,
+                            content_identity,
+                            binary_commit,
+                        },
+                        &parent,
+                        &rule,
+                    )?;
+                    let slot = context
+                        .take()
+                        .ok_or_else(|| invalid("冷认证缺完整原件槽"))?;
+                    // 私有快照不冒充 writer seal；该候选只能由下面的受控交接换成实际 owner seal。
+                    let seal = SnapshotSeal {
+                        life: 0,
+                        transaction_id: 0,
+                        write_sequence: 0,
+                        data_version: 0,
+                        schema_version: 0,
+                        domain: [0; 6],
+                    };
+                    let mut candidate = CompleteCandidate::capture(
+                        tx,
+                        seal,
+                        slot,
+                        audited,
+                        context.complete_workspace_limit(),
+                        context.complete_entry_reserved_bytes(),
+                        Some(&parent),
+                    )?
+                    .map_err(|_| invalid("冷认证完整候选超过请求预算"))?;
+                    candidate.detach_slot()?;
+                    let epoch = meta_get_opt(tx, "writer_epoch")?
+                        .map(|v| v.parse::<i64>().map_err(invalid))
+                        .transpose()?;
+                    let prepolicy = budget
+                        .before_write()
+                        .is_some_and(|shape| shape.get() == crate::DeltaShape::PrePolicyRecords);
+                    if prepolicy {
+                        candidate.prepare_cold_policy_migration(work)?;
+                    }
+                    let prefix = candidate
+                        .audited
+                        .cuts
+                        .last()
+                        .map_or(0, |c| (c.metadata.input_frontier + 1) as usize);
+                    let capture = candidate
+                        .capture
+                        .as_ref()
+                        .ok_or_else(|| invalid("冷认证缺capture"))?;
+                    let mut store = history::HashReader::captured_for_audit(capture, None)
+                        .map_err(invalid)?
+                        .with_audit_gate(Some(budget), deadline)
+                        .with_native_scope(Some(work))
+                        .map_err(invalid)?;
+                    let construction = construction_state::CommittedRawState::cold_seed(
+                        candidate.audited.raw.view(),
+                        prefix,
+                        source,
+                        &mut store,
+                        candidate
+                            .audited
+                            .cuts
+                            .last()
+                            .map(|c| c.roots.generated_state.view()),
+                        &parent,
+                        epoch,
+                    )?;
+                    drop(store);
+                    Ok((candidate, construction))
+                })
+                .map_err(|error| cold_failure(native::Failure::from(error)))
+        });
+        let (candidate, construction) = match cold {
+            Ok(cold) => cold,
+            Err(error) => {
+                drop(context.take());
+                return Err(error);
+            }
+        };
+        // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
+        #[cfg(test)]
+        if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
+            hook(&canonical)?;
+        }
+        let mut owner = Self::new(crate::open_db_after_h1_certification(&canonical)?)?;
+        // 第一把 SQLite 写锁内核源连续性，再执行唯一受控迁移；尚未建立任何新夹持基线。
+        let migration = owner.begin(TransactionBehavior::Immediate)?;
+        admission.require_cold_content()?;
+        crate::migrate_policy_records_in_transaction(migration.tx())?;
+        let inherited_data_version = migration.data_version;
+        owner.continue_with(migration.commit()?)?;
+        // physical::initial_progress 的 wal_checkpoint(NOOP)必须在事务外；尚未签发baseline。
+        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open_in_parent(
+            &owner.connection,
+            &canonical,
+            control_limit,
+            Some(parent.clone()),
+        )?);
+        let result = (|| {
+            // 自身COMMIT不改变同连接data_version；两把锁之间的任何外部COMMIT均拒绝。
+            // begin内部在本把SQLite写锁下采夹持baseline；它不授权下方data_version不符的候选。
+            let active = owner.begin(TransactionBehavior::Immediate)?;
+            if active.data_version != inherited_data_version {
+                return Err(history_clamp::stale("私有认证交接期间发生外部SQLite提交"));
+            }
+            active.check_history()?;
+            active.seed_rebuilt_history(deadline, context, candidate, construction)?;
+            let ended = active.read_end()?;
+            history::check_deadline(deadline)?;
+            owner.continue_with(ended)
+        })();
+        if result.is_err() {
+            drop(context.take());
+        }
+        owner.history_result(result)?;
+        runtime.adopt_cold_audit_runtime(cold_runtime)?;
+        owner.require_historical_certificate = true;
+        Ok((owner, started.elapsed()))
+    }
+
+    /// #1481：对照臂，不参与准入；退场条件：三层对拍锁在 CI 实际执行且
+    /// 9011 双跑通过后，只留离线入口。认证生涯缺候选即 stale，绝不重跑旧审计。
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn bind_admitted_history(
+        &self,
+        active: &AuditTxn<'_>,
+        context: Option<&request_audit::RequestAuditContext>,
+    ) -> Result<bool, String> {
+        if !self.require_historical_certificate {
+            return Ok(false);
+        }
+        self.history_result(active.bind_existing(context).and_then(|bound| {
+            if bound {
+                Ok(true)
+            } else {
+                Err(history_clamp::stale("正式准入缺历史资格"))
+            }
+        }))
     }
 
     #[cfg(all(feature = "s_incremental", unix))]
@@ -560,13 +847,19 @@ impl AuditConnection {
     ) -> Result<(String, Option<String>), String> {
         let active = self.begin_in_request(TransactionBehavior::Deferred, context.as_deref())?;
         let tx = active.tx();
-        if let Some(context) = context {
-            if !matches!(mode, s_allocation::Mode::CapturedNative) {
-                return Err(invalid("Native bootstrap只接受显式CapturedNative模式"));
+        #[cfg(all(feature = "s_incremental", unix))]
+        let admitted = self.bind_admitted_history(&active, context.as_deref())?;
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let admitted = false;
+        if !admitted {
+            if let Some(context) = context {
+                if !matches!(mode, s_allocation::Mode::CapturedNative) {
+                    return Err(invalid("Native bootstrap只接受显式CapturedNative模式"));
+                }
+                state::audit_native_in_request(tx, context)?;
+            } else {
+                s_allocation::audit_startup(tx, mode)?;
             }
-            state::audit_native_in_request(tx, context)?;
-        } else {
-            s_allocation::audit_startup(tx, mode)?;
         }
         verify_writer_epoch(tx, epoch)?;
         super::require_current_writer_rule(
@@ -592,6 +885,9 @@ impl AuditConnection {
             driver::check_request_before_resume(tx, &control, request, &profile_id)?;
         }
         drop(control);
+        #[cfg(feature = "s_incremental")]
+        self.continue_with(active.read_end()?)?;
+        #[cfg(not(feature = "s_incremental"))]
         active.read_end()?;
         Ok((profile_id, volume_unit))
     }
@@ -604,12 +900,18 @@ impl AuditConnection {
     ) -> Result<(String, String, String), String> {
         let active = self.begin_in_request(TransactionBehavior::Deferred, context.as_deref())?;
         let tx = active.tx();
-        match context {
-            Some(context) => {
-                state::audit_native_in_request(tx, context)?;
-            }
-            None => {
-                state::audit(tx)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        let admitted = self.bind_admitted_history(&active, context.as_deref())?;
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let admitted = false;
+        if !admitted {
+            match context {
+                Some(context) => {
+                    state::audit_native_in_request(tx, context)?;
+                }
+                None => {
+                    state::audit(tx)?;
+                }
             }
         }
         verify_writer_epoch(tx, epoch)?;
@@ -617,6 +919,9 @@ impl AuditConnection {
         let (session, generation, epoch) = control.identity();
         let result = (session.into(), generation.into(), epoch.into());
         drop(control);
+        #[cfg(feature = "s_incremental")]
+        self.continue_with(active.read_end()?)?;
+        #[cfg(not(feature = "s_incremental"))]
         active.read_end()?;
         Ok(result)
     }
@@ -629,7 +934,13 @@ impl AuditConnection {
     ) -> Result<Value, String> {
         let active = self.begin(TransactionBehavior::Deferred)?;
         let tx = active.tx();
-        state::audit(tx)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        let admitted = self.bind_admitted_history(&active, None)?;
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let admitted = false;
+        if !admitted {
+            state::audit(tx)?;
+        }
         verify_writer_epoch(tx, epoch)?;
         let control = control::S3Control::attach(tx, clock)?;
         let (session, incarnation, epoch) = control.identity();
@@ -645,6 +956,9 @@ impl AuditConnection {
             "generation":meta_get_opt(tx,"generation")?,"structure_cut":meta_get_opt(tx,"structure_cut")?,
             "index_frontier":meta_get_opt(tx,"index_frontier")?,"accepted_pending":pending.to_string()});
         drop(control);
+        #[cfg(feature = "s_incremental")]
+        self.continue_with(active.read_end()?)?;
+        #[cfg(not(feature = "s_incremental"))]
         active.read_end()?;
         Ok(result)
     }
@@ -834,6 +1148,11 @@ impl AuditConnection {
             runtime.commit_audit_ledger()?;
             #[cfg(feature = "s_incremental")]
             let mut published = published;
+            #[cfg(all(feature = "s_incremental", unix))]
+            if self.require_historical_certificate && published.1.complete.is_none() {
+                qualified_failed = true;
+                return Err(history_clamp::stale("认证发布未回交完整历史候选"));
+            }
             #[cfg(feature = "s_incremental")]
             if let Some(candidate) = published.1.complete.as_mut() {
                 if let Err(error) = candidate.advance_qualified(runtime) {
@@ -894,6 +1213,12 @@ impl AuditConnection {
         let published = match first {
             Some(published) => self.renew_after_cold_root_rerun(runtime, context, published),
             None => {
+                #[cfg(unix)]
+                if self.require_historical_certificate {
+                    return self.history_result(Err(history_clamp::stale(
+                        "认证发布资源不足；禁止无候选重试或完整审计兜底",
+                    )));
+                }
                 runtime.discard();
                 #[cfg(test)]
                 runtime.mark_abandon_birth_for_test();
@@ -1108,6 +1433,11 @@ impl AuditConnection {
                 k.reject_completed();
             }
         }
+        #[cfg(unix)]
+        if self.require_historical_certificate && complete.is_none() {
+            self.retired.set(true);
+            self.clear_candidates();
+        }
         *self.complete.get_mut() = complete;
         self.mark_quiescent();
     }
@@ -1133,6 +1463,8 @@ impl AuditConnection {
 
     pub(super) fn pending_originals(&self) -> Result<Vec<String>, String> {
         let active = self.begin(TransactionBehavior::Deferred)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        self.bind_admitted_history(&active, None)?;
         let originals = {
             let mut stmt = active.tx().prepare("SELECT canonical_envelope FROM s_input_messages WHERE status='AcceptedPending' ORDER BY accepted_seq,message_id").map_err(invalid)?;
             let mut rows = stmt.query([]).map_err(invalid)?;
@@ -1144,6 +1476,9 @@ impl AuditConnection {
             stmt.finalize().map_err(invalid)?;
             originals
         };
+        #[cfg(feature = "s_incremental")]
+        self.continue_with(active.read_end()?)?;
+        #[cfg(not(feature = "s_incremental"))]
         active.read_end()?;
         Ok(originals)
     }
@@ -1157,7 +1492,12 @@ impl AuditConnection {
         let next = parse_writer_epoch(new_epoch, "new writer_epoch")?;
         let active = self.begin(TransactionBehavior::Immediate)?;
         let tx = active.tx();
-        if !active.bind_existing(None)? {
+        #[cfg(all(feature = "s_incremental", unix))]
+        let certified = self.bind_admitted_history(&active, None)?;
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let certified = false;
+        if !certified && !active.bind_existing(None)? {
+            // #1481：对照臂，不参与正式准入；退场条件见 bind_admitted_history。
             state::audit(tx)?;
         }
         super::require_current_writer_rule(
@@ -1232,7 +1572,7 @@ impl AuditConnection {
 }
 
 impl AuditTxn<'_> {
-    #[cfg(all(feature = "s_incremental", unix))]
+    #[cfg(all(test, feature = "s_incremental", unix))]
     fn seed_historical_certificate(
         &self,
         deadline: Option<std::time::Instant>,
@@ -1286,6 +1626,39 @@ impl AuditTxn<'_> {
             })
             .map_err(|error| failure(native::Failure::from(error)))?;
         candidate.resources = context.bind_complete_budget(&candidate.resources)?;
+        self.owner.bind_history_parent(context)?;
+        history::check_deadline(deadline)?;
+        self.check_history()?;
+        *self.complete.borrow_mut() = Some(candidate);
+        Ok(())
+    }
+
+    /// 只把已核原件/来源贡献态/F/CommittedSet绑定到实际连接；不重读历史、不重新收费。
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn seed_rebuilt_history(
+        &self,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        mut candidate: CompleteCandidate,
+        construction: construction_state::ColdRawState,
+    ) -> Result<(), String> {
+        let parent = context
+            .request_parent_budget()
+            .ok_or_else(|| invalid("冷准入缺父账"))?;
+        let seal = self.construction_seal()?;
+        parent
+            .codec_work()
+            .map_err(cold_failure)?
+            .run(|work| candidate.rebind_cold_connection(self.tx(), seal, work))
+            .map_err(|e| cold_failure(native::Failure::from(e)))?;
+        let resources = context.bind_complete_budget(&candidate.resources)?;
+        *self.owner.construction.borrow_mut() = Some(construction.into_owner(
+            seal,
+            &self.owner.construction_lease,
+            &candidate.resources,
+            &resources,
+        )?);
+        candidate.resources = resources;
         self.owner.bind_history_parent(context)?;
         history::check_deadline(deadline)?;
         self.check_history()?;
@@ -2605,6 +2978,86 @@ struct CompleteCandidate {
 }
 #[cfg(feature = "s_incremental")]
 impl CompleteCandidate {
+    /// #1602：确定的补列及固定值先在私有冷阶段计入原资源账，迁移后不再线性分配历史行。
+    #[cfg(unix)]
+    fn prepare_cold_policy_migration(
+        &mut self,
+        work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+    ) -> Result<(), String> {
+        use super::audit_retention::Retained;
+        let previous = self.originals.heap_bytes();
+        let original = self
+            .originals
+            .iter_mut()
+            .find(|original| {
+                original.sql.as_str()
+                    == "SELECT rowid,* FROM main.\"structure_deltas\" ORDER BY rowid"
+            })
+            .ok_or_else(|| invalid("冷迁移缺structure_deltas原件"))?;
+        let column =
+            super::business_json::TextValue::from_str_admitted("policy_records", None, Some(work))?;
+        request_audit::push_cell(&mut original.columns, column, Some(work))?;
+        for row in original.rows.iter_mut() {
+            let mut bytes = newchan_rust::s_content::CodecVec::default();
+            bytes
+                .try_extend_bytes_native(crate::LEGACY_POLICY_RECORDS_UNKNOWN.as_bytes(), work)
+                .map_err(invalid)?;
+            request_audit::push_cell(row, request_audit::SqlCell::Text(bytes), Some(work))?;
+        }
+        self.refresh_cold_sql_charge(previous)
+    }
+
+    #[cfg(unix)]
+    fn refresh_cold_sql_charge(&mut self, previous: usize) -> Result<(), String> {
+        use super::audit_retention::Retained;
+        let current = self.originals.heap_bytes();
+        self.charge.current_sql_capacity = current;
+        self.charge.total = self
+            .charge
+            .total
+            .checked_sub(previous)
+            .and_then(|n| n.checked_add(current))
+            .ok_or_else(|| invalid("冷认证连接交接原件账溢出"))?;
+        self.charge.handoff_peak = self.charge.handoff_peak.max(
+            self.charge
+                .entry_reserved_bytes
+                .saturating_add(self.resources.peak()),
+        );
+        if self.charge.total >= self.limit {
+            return Err(invalid("冷认证连接交接超过请求预算"));
+        }
+        Ok(())
+    }
+
+    /// #1481：实际连接只采样schema/固定配置；历史行沿已核原件移交，不重新扫描。
+    #[cfg(unix)]
+    fn rebind_cold_connection(
+        &mut self,
+        tx: &Transaction<'_>,
+        seal: SnapshotSeal,
+        work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+    ) -> Result<(), String> {
+        use super::audit_retention::Retained;
+        let previous = self.originals.heap_bytes();
+        for original in self.originals.iter_mut() {
+            let sql = match original.sql.as_str() {
+                "SELECT rowid,* FROM main.sqlite_schema ORDER BY rowid" => {
+                    Some(c"SELECT rowid,* FROM main.sqlite_schema ORDER BY rowid")
+                }
+                "PRAGMA function_list" => Some(c"PRAGMA function_list"),
+                "PRAGMA collation_list" => Some(c"PRAGMA collation_list"),
+                "PRAGMA database_list" => Some(c"PRAGMA database_list"),
+                _ => None,
+            };
+            if let Some(sql) = sql {
+                *original = request_audit::ExactRows::read_admitted(tx, sql, &[], &[], Some(work))?;
+            }
+        }
+        self.refresh_cold_sql_charge(previous)?;
+        self.seal = seal;
+        Ok(())
+    }
+
     /// 内容与台账均已提交后消费资格交接许可：新资格入账、旧资格与许可余量释放，
     /// 总账按 `validate_effects` 同一公式重算；任一失败即候选作废。
     fn advance_qualified(&mut self, runtime: &prepared::Runtime) -> Result<(), String> {
@@ -4930,6 +5383,8 @@ pub(super) mod construction_tests {
     include!("audit_owner/b2_source_fault_tests.rs");
     #[cfg(unix)]
     include!("audit_owner/history_clamp_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/admission_tests.rs");
 
     #[derive(Clone, Debug)]
     struct RawObservation {

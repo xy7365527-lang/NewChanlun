@@ -343,6 +343,31 @@ impl MeasuredDomain {
         }
         Ok(())
     }
+    /// #1481：私有认证 → owner 写锁内交接，源主库/WAL须保持原完整stamp。
+    /// 只检查内容域；本次合法创建的派生审计台账不冒充源成员。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn verify_cold_content(&self) -> Result<(), String> {
+        self.files[self.main_index].verify(true)?;
+        if let Some(index) = self.wal_index {
+            self.files[index].verify(true)?;
+        } else {
+            match std::fs::symlink_metadata(sidecar(&self.db, "-wal")) {
+                Ok(wal) => {
+                    // H1交接的首个RW/IMMEDIATE可自行建立无帧WAL；它不含任何已提交历史。
+                    if !wal.is_file()
+                        || wal.nlink() != 1
+                        || wal.uid() != unsafe { libc::geteuid() }
+                        || wal.len() > 32
+                    {
+                        return Err("SourceWalChanged".into());
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err("SourceWalMetadataFailed".into()),
+            }
+        }
+        Ok(())
+    }
     /// 原件合法写入后主库/目录只核身份；监督器控制锁仍核固定完整 stamp。
     /// 此门不证明 sidecar 的跨开库连续性（I-3）。
     pub(super) fn verify_runtime(&self) -> Result<(), String> {

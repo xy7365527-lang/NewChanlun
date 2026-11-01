@@ -37,7 +37,9 @@ mod source_delta;
 #[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use source_contributions::SourceWork;
 #[cfg(feature = "s_incremental")]
-pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
+pub(crate) use source_contributions::{
+    audit_native_bound, audit_source_step, NativeSourceState, SourceInput, SourceRaw,
+};
 #[path = "ordinary_source.rs"]
 mod ordinary_source;
 pub(super) use ordinary_source::OrdinaryProofs;

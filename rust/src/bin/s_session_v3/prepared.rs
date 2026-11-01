@@ -249,8 +249,22 @@ impl Runtime {
         self.last_stage_report.as_ref()
     }
 
-    /// #1647 组件接口。完整折叠与 Δ 生产者由后续接线提供；不默认启用台账准入。
-    #[allow(dead_code)]
+    /// #1481：未通过私有只读收尾的台账只能留在这份临时 Runtime 内。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn cold_audit_runtime(&self) -> Self {
+        Self::with_config(self.mode.clone(), self.theta_config.clone())
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn adopt_cold_audit_runtime(&mut self, mut cold: Self) -> Result<(), String> {
+        self.install_audit_ledger(
+            cold.audit_ledger
+                .take()
+                .ok_or("AuditLedgerStale：冷认证缺台账")?,
+        )
+    }
+
+    /// #1481：冷认证完成后安装本进程 fresh 完整台账；同生涯不得换账。
+    #[cfg_attr(not(feature = "s_incremental"), allow(dead_code))]
     pub(super) fn install_audit_ledger(
         &mut self,
         ledger: audit_ledger::Ledger,
@@ -730,7 +744,18 @@ impl Runtime {
         let workspace_budget = context
             .as_deref()
             .and_then(request_audit::RequestAuditContext::manifest_workspace_budget);
-        // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
+        // #1481：正式完整台账生涯只接受 owner 已绑 H1 结果，缺资格立即停写。
+        #[cfg(feature = "s_incremental")]
+        if self
+            .audit_ledger
+            .as_ref()
+            .is_some_and(|ledger| !ledger.is_partial())
+            && bound_audit.is_none()
+        {
+            self.invalidate_audit_ledger();
+            return Err("StaleWriter：正式Prepare缺H1绑定，禁止旧审计重判".into());
+        }
+        // #1481：下列完整审计只供未安装正式台账的对照臂；不参与正式准入。
         #[cfg(not(feature = "s_incremental"))]
         let bound_audit: Option<&state::AuditedState> = None;
         let fresh;

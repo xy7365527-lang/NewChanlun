@@ -158,6 +158,56 @@ pub(crate) fn export(
     auxiliary: &super::super::super::aux_index::Plan,
     observation_sources: &[(NodeDigest, NodeDigest)],
 ) -> Result<BusinessRows, String> {
+    export_parts(
+        s,
+        objects.births.iter(),
+        &objects.withdrawals,
+        &objects.replaces,
+        auxiliary.births.witnesses.iter(),
+        auxiliary.births.observations.iter(),
+        observation_sources,
+    )
+}
+
+/// #1481：冷折叠只投影已由历史核验过的独立索引，出生与撤回字段导出复用在线同核。
+#[cfg(feature = "s_incremental")]
+pub(crate) fn export_history(
+    s: &mut (impl CodecStore + ?Sized),
+    objects: &[super::super::super::object_index::Entry],
+    auxiliary: &super::super::super::aux_index::Index,
+    generation: i64,
+    observation_sources: &[(NodeDigest, NodeDigest)],
+) -> Result<BusinessRows, String> {
+    let (withdrawals, replaces) =
+        super::super::super::object_index::changes_at_admitted(s, objects, generation, None)?;
+    export_parts(
+        s,
+        objects
+            .iter()
+            .filter(|row| row.life.published_generation == generation),
+        &withdrawals,
+        &replaces,
+        auxiliary
+            .witnesses
+            .iter()
+            .filter(|row| row.first == generation),
+        auxiliary
+            .observations
+            .iter()
+            .filter(|row| row.first == generation),
+        observation_sources,
+    )
+}
+
+fn export_parts<'a>(
+    s: &mut (impl CodecStore + ?Sized),
+    objects: impl Iterator<Item = &'a super::super::super::object_index::Entry>,
+    withdrawals: &bj::JsonOwner,
+    replaces: &bj::JsonOwner,
+    witnesses: impl Iterator<Item = &'a super::super::super::aux_index::Witness>,
+    observations: impl Iterator<Item = &'a super::super::super::aux_index::Observation>,
+    observation_sources: &[(NodeDigest, NodeDigest)],
+) -> Result<BusinessRows, String> {
     let mut rows = BusinessRows {
         objects: sc::CodecVec::default(),
         withdrawals: sc::CodecVec::default(),
@@ -166,7 +216,7 @@ pub(crate) fn export(
     };
     #[cfg(all(test, feature = "s_incremental"))]
     let mut _test_budget_reservation = None;
-    for entry in &objects.births {
+    for entry in objects {
         let reference = s.native_built_ref(&entry.generated).map_err(err)?;
         let root = reference.view();
         let record = object_record(s, root)?;
@@ -193,7 +243,7 @@ pub(crate) fn export(
             _test_budget_reservation = fee_probe::block_after_object();
         }
     }
-    for withdrawal in bj::RawEventsView::from(&objects.withdrawals) {
+    for withdrawal in bj::RawEventsView::from(withdrawals) {
         let id = bj::field(withdrawal, "object_id")
             .as_str()
             .ok_or_else(|| err("P6撤回缺身份"))?;
@@ -206,7 +256,7 @@ pub(crate) fn export(
         .sort_unstable_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
     rows.withdrawals
         .sort_unstable_by(|a, b| a.as_str().cmp(b.as_str()));
-    for replacement in bj::RawEventsView::from(&objects.replaces) {
+    for replacement in bj::RawEventsView::from(replaces) {
         let old = bj::field(replacement, "old_object_id")
             .as_str()
             .ok_or_else(|| err("P6替换缺旧身份"))?;
@@ -225,7 +275,7 @@ pub(crate) fn export(
             return Err(err("P6替换未对应本代撤回与出生"));
         }
     }
-    for entry in &auxiliary.births.witnesses {
+    for entry in witnesses {
         let bars = field(s, entry.generated.view(), "raw_bars")?;
         let mut coordinates = sc::CodecVec::default();
         for bar in elements(s, &bars)? {
@@ -248,7 +298,7 @@ pub(crate) fn export(
             })
             .map_err(err)?;
     }
-    for entry in &auxiliary.births.observations {
+    for entry in observations {
         let record = digest(entry.generated.view())?;
         let index = observation_sources
             .binary_search_by_key(&record, |row| row.0)

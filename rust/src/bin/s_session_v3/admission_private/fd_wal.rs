@@ -702,6 +702,10 @@ pub(super) fn audit_sql_allowed(
             (Some(b"query_only"), Some(b"ON" | b"1")) => true,
             (Some(b"temp_store"), Some(value)) => value.eq_ignore_ascii_case(b"memory"),
             (Some(b"quick_check"), None) => true,
+            // #1481：H1冷候选完整SQL/Q捕获所需的固定只读配置；Ordinary授权表不变。
+            (Some(b"function_list" | b"collation_list" | b"database_list"), None) => {
+                cfg!(feature = "s_incremental")
+            }
             // table_info 的参数是表名，始终只读；pragma_table_info(?1) 原 schema 审计使用。
             (Some(b"table_info"), Some(_)) => true,
             _ => false,

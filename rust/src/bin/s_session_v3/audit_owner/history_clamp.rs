@@ -92,6 +92,7 @@ pub(super) struct Clamp {
     progress: physical::Progress,
 }
 impl Clamp {
+    #[cfg(test)]
     pub(super) fn open(
         connection: &Connection,
         path: &Path,

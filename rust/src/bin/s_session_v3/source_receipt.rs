@@ -121,7 +121,7 @@ fn audit_receipt(
 }
 
 fn export_raw_receipt(
-    s: &mut super::super::audit_store::StoreView<'_, '_>,
+    s: &mut (impl super::super::audit_store::CodecStore + ?Sized),
     token: &str,
     generation: i64,
     generated: sc::RefView<'_>,
@@ -222,6 +222,36 @@ pub(crate) fn receipt_from_native(
     Ok(result)
 }
 
+/// #1481：仅由同核冷来源贡献步的结果驱动；冷驱动先核历史 cut 与独立 raw，再签本代收据。
+#[cfg(feature = "s_incremental")]
+pub(in crate::v3) fn receipt_from_cold_step(
+    store: &mut (impl super::super::audit_store::CodecStore + ?Sized),
+    token: &str,
+    metadata: crate::content_manifest::MetadataView<'_>,
+    generated: sc::RefView<'_>,
+    raw: RawEventsView<'_>,
+    raw_from: usize,
+    counts: Counts,
+    exports: source_facts::SourceExports,
+    deadline: Option<std::time::Instant>,
+) -> Result<RawReceipt, String> {
+    let mut result = export_raw_receipt(
+        store,
+        token,
+        metadata.generation,
+        generated,
+        raw,
+        raw_from,
+        metadata.profile_id,
+        metadata.rule_revision,
+        deadline,
+        None,
+        counts,
+    )?;
+    result.exports = exports;
+    Ok(result)
+}
+
 impl RawReceipt {
     pub(in crate::v3) fn export_business(
         &mut self,
@@ -266,6 +296,27 @@ impl RawReceipt {
         self.business = Some(exported?);
         Ok(())
     }
+    /// #1481：已核冷历史的业务分区与在线来源收据采用同一字段导出核。
+    #[cfg(feature = "s_incremental")]
+    pub(in crate::v3) fn export_history_business(
+        &mut self,
+        store: &mut (impl super::super::audit_store::CodecStore + ?Sized),
+        objects: &[super::super::object_index::Entry],
+        auxiliary: &super::super::aux_index::Index,
+    ) -> Result<(), String> {
+        if self.business.is_some() {
+            return Err(err("P6冷业务分区重复导出"));
+        }
+        self.business = Some(source_facts::export_history(
+            store,
+            objects,
+            auxiliary,
+            self.generation,
+            &self.exports.observation_sources,
+        )?);
+        Ok(())
+    }
+
     pub(crate) fn business_rows(&self) -> Result<&source_facts::BusinessRows, String> {
         self.business
             .as_ref()

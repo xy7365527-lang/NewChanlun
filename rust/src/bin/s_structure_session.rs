@@ -352,6 +352,32 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
+/// #1481：已核冷原件交接专用。不开迁移，先让 owner 在 SQLite 写锁内核源连续性。
+#[cfg(feature = "s_incremental")]
+fn open_db_after_h1_certification(db: &Path) -> Result<Connection, String> {
+    v3::admission::require_current(db)?;
+    let conn = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    if !conn
+        .set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            true,
+        )
+        .map_err(|e| e.to_string())?
+    {
+        return Err("H1交接连接未禁用关闭检查点".into());
+    }
+    conn.execute_batch("PRAGMA synchronous=FULL;")
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    conn.execute_batch("PRAGMA fullfsync=ON;")
+        .map_err(|e| e.to_string())?;
+    Ok(conn)
+}
+
 /// #1602 之前的 structure_deltas 建表语句（`SCHEMA` 逐字去掉 `policy_records` 列）。
 /// 写前准入只用它精确识别尚未迁移的源库；开库迁移后的严格审计仍只认 `SCHEMA`。
 const PRE_POLICY_RECORDS_DELTAS: &str = r#"
@@ -398,18 +424,19 @@ fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 policy_records 迁移事务失败：{e}"))?;
-    if policy_records_missing(&tx)? {
-        v3::admission::require_policy_records_migration()?;
-        tx.execute(
-            &format!(
-                "ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"
-            ),
-            [],
-        )
-        .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
-    }
+    migrate_policy_records_in_transaction(&tx)?;
     tx.commit()
         .map_err(|e| format!("提交 policy_records 迁移失败：{e}"))?;
+    Ok(())
+}
+
+/// #1602 / #1481：调用方已经持 SQLite IMMEDIATE 锁；只允许准入核过的单次补列。
+fn migrate_policy_records_in_transaction(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
+    if policy_records_missing(tx)? {
+        v3::admission::require_policy_records_migration()?;
+        tx.execute(&format!("ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"), [])
+            .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
+    }
     Ok(())
 }
 

@@ -425,6 +425,36 @@ jobs:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
         run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
+      - name: H1 正式准入三层对拍与调用路径锁（#1481 S1）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_admission_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
+          for test in \
+            h1_admission_cold_prefixes_match_full_canonical \
+            h1_admission_cold_negative_classes_match_full_oracle \
+            h1_admission_online_own_commits_match_full_canonical \
+            h1_admission_foreign_sqlite_changes_retire_writer \
+            h1_admission_cold_handoff_foreign_sqlite_commit_rejects \
+            h1_admission_formal_accept_begin_prepare_recover_never_full_audit \
+            h1_admission_driver_cold_recover_rebuilds_ledger_bitwise \
+            h1_admission_driver_cold_preserves_original_node_record_gates \
+            h1_admission_cold_real_wire_short_budget_rejects_before_write \
+            h1_admission_prepolicy_bad_history_rejected_before_migration
+          do
+            grep -Fx "test v3::audit_owner::construction_tests::$test ... ok" "$RUNNER_TEMP/1481-admission.log"
+          done
+          grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
+
+      - name: 上传 H1 正式准入逐名日志（#1481 S1）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: h1-admission-S1
+          path: ${{ runner.temp }}/1481-admission.log
+          if-no-files-found: error
+          overwrite: true
+
       # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
       - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
