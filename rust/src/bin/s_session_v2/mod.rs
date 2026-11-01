@@ -2433,8 +2433,9 @@ struct AcceptReading {
     id: TextValue,
     ns: i64,
     generation: i64,
-    /// 进入原件 writer_epoch 的换代在 `writer_epoch_history` 中的位置；初始 epoch 为 None。
-    entered: Option<usize>,
+    epoch: i64,
+    /// 已发布 raw 的新身份接纳：接纳即 Committed，没有 attempt。
+    alias: bool,
 }
 /// accept/recover 记录发生时已发布的代，begin 记录目标代；三者都落在该窗口两端 commit 之间。
 fn generation_window(begin: bool, generation: i64) -> i64 {
@@ -2550,7 +2551,7 @@ fn validate_system_phase_order(
     let mut accepts: CodecVec<AcceptReading> = control_json::new_work(owner);
     let mut stmt = CheckedStatement::prepare(
         conn,
-        c"SELECT e.clock_event_id,e.semantic_ns,e.generation,m.canonical_envelope FROM s_clock_events e JOIN s_input_messages m ON m.clock_event_id=e.clock_event_id WHERE e.phase='accept' ORDER BY e.generation",
+        c"SELECT e.clock_event_id,e.semantic_ns,e.generation,m.canonical_envelope,m.status,m.attempt_count FROM s_clock_events e JOIN s_input_messages m ON m.clock_event_id=e.clock_event_id WHERE e.phase='accept' ORDER BY e.generation",
     )
     .map_err(err)?;
     while let Some(mut r) = stmt.next().map_err(err)? {
@@ -2558,6 +2559,8 @@ fn validate_system_phase_order(
         let ns = system_ns(&mut r, 1)?;
         let generation = r.integer(2).map_err(err)?;
         let raw = TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?;
+        let committed = r.text(4).map_err(err)? == "Committed";
+        let alias = committed && r.integer(5).map_err(err)? == 0;
         let envelope = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
         let epoch = parse_writer_epoch(
             control_json::field(
@@ -2569,19 +2572,12 @@ fn validate_system_phase_order(
             "payload.writer_epoch",
         )
         .map_err(err)?;
-        let entered = epochs.iter().position(|s| s.to == epoch);
-        if entered.is_none() && epoch != initial {
-            return Err(err("原件writer_epoch不在换代链上"));
-        }
-        let left = epochs.iter().find(|s| s.from == epoch).map(|s| s.at);
-        if entered.is_some_and(|i| ns < epochs[i].at) || left.is_some_and(|at| ns > at) {
-            return Err(err("system clock接纳读数越出原件writer_epoch区间"));
-        }
         let accept = AcceptReading {
             id,
             ns,
             generation,
-            entered,
+            epoch,
+            alias,
         };
         control_push(&mut accepts, accept, work).map_err(err)?;
     }
@@ -2610,106 +2606,115 @@ fn validate_system_phase_order(
     stmt.finalize().map_err(err)?;
     let in_flight = control_meta_text_admitted(conn, "advance_state", owner, work)?
         .is_some_and(|state| state.as_str() != "idle");
-    validate_system_interleaving(&accepts, &begins, &epochs, in_flight)
+
+    let (mut a, mut b, mut e) = (0, 0, 0);
+    loop {
+        let window = [
+            accepts.get(a).map(|x| x.generation),
+            begins.get(b).map(|x| x.generation - 1),
+            epochs.get(e).map(|x| x.generation),
+        ]
+        .into_iter()
+        .flatten()
+        .min();
+        let Some(window) = window else { break };
+        let a_end = a + accepts[a..]
+            .iter()
+            .take_while(|x| x.generation == window)
+            .count();
+        let b_end = b + begins[b..]
+            .iter()
+            .take_while(|x| x.generation - 1 == window)
+            .count();
+        let e_end = e + epochs[e..]
+            .iter()
+            .take_while(|x| x.generation == window)
+            .count();
+        let epoch_at_start = if e == 0 { initial } else { epochs[e - 1].to };
+        validate_system_window(
+            &accepts[a..a_end],
+            &begins[b..b_end],
+            &epochs[e..e_end],
+            epoch_at_start,
+            in_flight && b_end == begins.len(),
+        )?;
+        (a, b, e) = (a_end, b_end, e_end);
+    }
+    Ok(())
 }
 
-/// 单写者在 Begin 后处于 begun：其间拒绝接纳与再 Begin，只有本 attempt 的 Commit 或一次 recover
-/// 能结束它。故每个代际窗口的历史只能是
-/// `(换代|接纳)* (未提交Begin 换代 (换代)*)* [已提交Begin Commit | 在途Begin]`，
-/// 被推进消息之外的接纳在该消息接纳之前，进入各接纳所属 epoch 的换代在该接纳之前。
-/// 按 ordinal 合并 Begin 与换代，核存在一条满足此文法且读数不倒退的交错。
-fn validate_system_interleaving(
+/// 单写者的一个代际窗口只能是
+/// `(换代|别名接纳)* 推进消息接纳 (换代)* (未提交Begin 换代 (换代)*)* [已提交Begin Commit | 在途Begin]`：
+/// 有 pending 时拒绝一切接纳，begun 时只有本 attempt 的 Commit 或一次换代能结束它；
+/// 每次接纳都发生在其原件 writer_epoch 为当前 epoch 时。换代按 ordinal 排列，每个接纳因此
+/// 有唯一槽位（本窗口内其前的换代数）。核存在一条满足此文法且读数不倒退的交错。
+fn validate_system_window(
     accepts: &[AcceptReading],
     begins: &[BeginReading],
-    epochs: &[EpochStep],
-    in_flight: bool,
+    recovers: &[EpochStep],
+    epoch_at_start: i64,
+    last_in_flight: bool,
 ) -> Result<(), String> {
-    let (mut next_epoch, mut next_accept, mut first) = (0, 0, 0);
-    while first < begins.len() {
-        let window = begins[first].generation - 1;
-        let message = begins[first].id.as_str();
-        let end = first
-            + begins[first..]
+    let slot_of = |accept: &AcceptReading| -> Result<usize, String> {
+        let slot = if accept.epoch == epoch_at_start {
+            0
+        } else {
+            recovers
                 .iter()
-                .take_while(|b| b.generation == begins[first].generation)
-                .count();
-        while accepts
-            .get(next_accept)
-            .is_some_and(|a| a.generation < window)
+                .position(|s| s.to == accept.epoch)
+                .ok_or_else(|| err("原件writer_epoch不在本代际窗口的换代链上"))?
+                + 1
+        };
+        if slot > 0 && accept.ns < recovers[slot - 1].at
+            || recovers.get(slot).is_some_and(|s| accept.ns > s.at)
         {
-            next_accept += 1;
+            return Err(err("system clock接纳读数越出原件writer_epoch区间"));
         }
-        let in_window = accepts[next_accept..]
-            .iter()
-            .take_while(|a| a.generation == window);
-        let advanced = in_window
-            .clone()
-            .find(|a| a.id.as_str() == message)
-            .ok_or_else(|| err("Begin消息的接纳不在本代际窗口"))?
-            .ns;
-        if in_window
-            .clone()
-            .any(|a| a.ns > begins[first].ns || (a.id.as_str() != message && a.ns > advanced))
-        {
-            return Err(err("system clock接纳读数晚于本代际窗口的推进"));
+        Ok(slot)
+    };
+    let mut advanced: Option<(&str, usize, i64)> = None;
+    for accept in accepts.iter().filter(|x| !x.alias) {
+        if advanced.is_some() {
+            return Err(err("代际窗口内推进消息不唯一"));
         }
-        while epochs
-            .get(next_epoch)
-            .is_some_and(|s| s.generation < window)
-        {
-            next_epoch += 1;
+        advanced = Some((accept.id.as_str(), slot_of(accept)?, accept.ns));
+    }
+    for alias in accepts.iter().filter(|x| x.alias) {
+        let slot = slot_of(alias)?;
+        if advanced.is_some_and(|(_, m, ns)| slot > m || (slot == m && alias.ns > ns)) {
+            return Err(err("别名接纳不得晚于推进消息的接纳"));
         }
-        let mut placed = -1;
-        // 进入本窗口接纳所属 epoch 的换代先于该接纳，因而先于首次 Begin，不能再结束本窗口的 attempt。
-        if let Some(last) = in_window.clone().filter_map(|a| a.entered).max() {
-            while next_epoch <= last {
-                let entered = epochs
-                    .get(next_epoch)
-                    .filter(|s| s.generation == window)
-                    .ok_or_else(|| err("system clock接纳所属epoch的换代不在本代际窗口之前"))?;
-                placed = entered.at;
-                next_epoch += 1;
-            }
+    }
+    if begins.is_empty() {
+        return Ok(());
+    }
+    let (message, mut next, mut placed) =
+        advanced.ok_or_else(|| err("Begin消息的接纳不在本代际窗口"))?;
+    for (k, begin) in begins.iter().enumerate() {
+        if begin.id.as_str() != message {
+            return Err(err("同一代际窗口内Begin属于不同消息"));
         }
-        for (k, begin) in begins.iter().enumerate().take(end).skip(first) {
-            if begin.id.as_str() != message {
-                return Err(err("同一代际窗口内Begin属于不同消息"));
-            }
-            if begin.ns < placed {
-                return Err(err("system clock换代读数晚于下一次Begin"));
-            }
-            while let Some(idle) = epochs
-                .get(next_epoch)
-                .filter(|s| s.generation == window && s.at < begin.ns)
-            {
-                placed = idle.at;
-                next_epoch += 1;
-            }
-            if begin.committed || (in_flight && k + 1 == begins.len()) {
-                while let Some(same) = epochs
-                    .get(next_epoch)
-                    .filter(|s| s.generation == window && s.at == begin.ns)
-                {
-                    placed = same.at;
-                    next_epoch += 1;
-                }
-                if k + 1 != end
-                    || epochs
-                        .get(next_epoch)
-                        .is_some_and(|s| s.generation == window)
-                {
-                    return Err(err("system clock换代读数落在未结束attempt的Begin之后"));
-                }
-            } else {
-                let cleared = epochs
-                    .get(next_epoch)
-                    .filter(|s| s.generation == window)
-                    .ok_or_else(|| err("未提交attempt缺结束它的换代"))?;
-                placed = cleared.at;
-                next_epoch += 1;
-            }
+        if begin.ns < placed {
+            return Err(err("system clock换代读数晚于下一次Begin"));
         }
-        first = end;
+        while let Some(idle) = recovers.get(next).filter(|s| s.at < begin.ns) {
+            placed = idle.at;
+            next += 1;
+        }
+        if begin.committed || (last_in_flight && k + 1 == begins.len()) {
+            while recovers.get(next).is_some_and(|s| s.at == begin.ns) {
+                next += 1;
+            }
+            if k + 1 != begins.len() || next != recovers.len() {
+                return Err(err("system clock换代读数落在未结束attempt的Begin之后"));
+            }
+        } else {
+            let cleared = recovers
+                .get(next)
+                .ok_or_else(|| err("未提交attempt缺结束它的换代"))?;
+            placed = cleared.at;
+            next += 1;
+        }
     }
     Ok(())
 }

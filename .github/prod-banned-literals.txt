@@ -314,6 +314,7 @@ each candidate仍完整fresh Public核验
 edits buffer 仍存活
 effects闭合仍非COMMIT
 empty节点body错误
+epoch 2 别名接纳不能先于 epoch 1 推进消息的接纳
 epoch 2 原件不得早于进入 epoch 2 的换代接纳
 events触帽须溢出
 exact generated一次绑定
@@ -1366,6 +1367,7 @@ writer/recover闭合后无SHM
 离域只读不能隐式免费深复制
 离域后真实keys容量仍持费
 离域结果仍持原许可
+离开 epoch 1 之后不能再接纳 epoch 1 原件
 离开 scope 不得释放已移动载荷许可
 离开 scope，非空身份缓存仍持原许可
 离开scope仍由事实账持有原桶许可

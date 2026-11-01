@@ -2439,6 +2439,99 @@ mod tests {
         assert_eq!(fake::samples(), 6, "冷审计不取样");
     }
 
+    fn epoch_input(n: i64, epoch: &str, raw_of: Option<i64>) -> Value {
+        let mut input = Fixture::ingest(n);
+        if let Some(source) = raw_of {
+            input["payload"]["raw_input"] = Fixture::ingest(source)["payload"]["raw_input"].clone();
+        }
+        input["payload"]["writer_epoch"] = json!(epoch);
+        input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));
+        input
+    }
+    fn recover_to(f: &Fixture, epoch: &str, event: &str) {
+        recover(
+            &f.db,
+            epoch,
+            &f.clock,
+            event,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+    }
+    fn tampered_audit_error(db: &Path, sql: &str) -> Option<String> {
+        Connection::open(db).unwrap().execute_batch(sql).unwrap();
+        let mut conn = open_db(db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let error = state::audit(&tx).err();
+        tx.rollback().unwrap();
+        error
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_rejects_new_epoch_alias_before_old_epoch_advance() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[50, 60, 100, 200, 200, 200, 200, 200]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        assert_eq!(d.handle(Fixture::ingest(2)).unwrap()["kind"], "Committed");
+        drop(d);
+        recover_to(&f, "2", "recover-1");
+        let mut after = f.open("2").unwrap();
+        assert_eq!(
+            after.handle(epoch_input(3, "2", Some(1))).unwrap()["kind"],
+            "Committed"
+        );
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["100".to_string(), "200".to_string()]
+        );
+        assert_eq!(fake::samples(), 8);
+        let error = tampered_audit_error(
+            &f.db,
+            "UPDATE s_clock_events SET generation=1 WHERE phase='recover' AND clock_event_id='recover-1';
+             UPDATE writer_epoch_history SET generation_at_transition='1' WHERE from_epoch='1' AND to_epoch='2';
+             UPDATE s_clock_events SET generation=1 WHERE phase='accept' AND clock_event_id='input-3';",
+        )
+        .expect("epoch 2 别名接纳不能先于 epoch 1 推进消息的接纳");
+        assert!(error.contains("别名接纳不得晚于推进消息的接纳"), "{error}");
+        assert_eq!(fake::samples(), 8, "冷审计不取样");
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_rejects_old_epoch_alias_after_leaving_epoch() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[50, 60, 100, 200, 200, 200, 200, 200]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        assert_eq!(
+            d.handle(epoch_input(3, "1", Some(1))).unwrap()["kind"],
+            "Committed"
+        );
+        drop(d);
+        recover_to(&f, "2", "recover-1");
+        let mut after = f.open("2").unwrap();
+        assert_eq!(
+            after.handle(epoch_input(2, "2", None)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["100".to_string(), "200".to_string()]
+        );
+        assert_eq!(fake::samples(), 8);
+        let error = tampered_audit_error(
+            &f.db,
+            "UPDATE s_clock_events SET generation=2 WHERE phase='accept' AND clock_event_id='input-3';",
+        )
+        .expect("离开 epoch 1 之后不能再接纳 epoch 1 原件");
+        assert!(error.contains("不在本代际窗口的换代链上"), "{error}");
+        assert_eq!(fake::samples(), 8, "冷审计不取样");
+    }
+
     #[test]
     fn s_system_clock_cold_audit_rejects_out_of_order_accept_and_recover() {
         use v2::system_clock_test as fake;
