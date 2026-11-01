@@ -72,6 +72,8 @@ mod financial_session;
 pub(crate) mod fixed_radix;
 mod generation;
 mod history;
+#[cfg(all(feature = "s_incremental", unix))]
+pub(crate) use history::check_deadline;
 pub(crate) mod layout;
 pub(crate) mod native_shared;
 pub(super) mod object_index;

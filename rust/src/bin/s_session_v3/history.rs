@@ -3721,7 +3721,7 @@ impl HashReader<'_> {
         self.audit_full_arrays = true;
     }
 }
-pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
+pub(crate) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
     crate::check_read_deadline(deadline)
 }
 

@@ -469,3 +469,107 @@ owner 锁模块前缀为 `v3::audit_owner::construction_tests::`；provider 为 
 - `rust/src/bin/s_session_v3/construction_state.rs`
 - `rust/src/bin/s_session_v3/generation.rs`
 - `rust/src/bin/s_session_v3/prepared.rs`
+
+## S1E
+
+> 状态：ready，可交主控封包取 CI。基线为 `sandcastle/issue-1481` / `a0d85e33a105f40965e3a1438eb6a34959c967fa`，开工时工作区干净。本节只交付 6 个编译错误的最小可见性修复及静态核查；**Rust 未验证，待 CI**，不能据此宣布 H1 测试或三档 `-D warnings` 已通过。
+
+### 原始日志与逐项修复
+
+已读取 S1D 提示、所引 S1/S1B/S1C 的范围与禁止项、本报告 S1D，以及原始日志 `/Volumes/AgentStorage/h1-recover45c/ci-41355496782-s1d-failed.log` 全文。该日志属于 GitHub run `41355496782`、精确 head `a0d85e33`；物理行 `:1` 的命令是 `cargo test --release --locked --features s_session,s_incremental --bin s_structure_session h1_ --jobs 4 -- --test-threads 1 --nocapture`，`:147` 明报 6 个编译错误。测试尚未执行。下表日志行号均指这份原件；源码路径相对 `rust/src/bin/`，行号指本轮最终工作区。
+
+| 错误 | 原日志物理行与原文 | 原调用点 | 修法与最终位置 |
+|---|---|---|---|
+| E0603，类型不可见 | `:69` ``error[E0603]: struct `RawPrefixIndex` is private``；`:70` 指向调用，`:76` 指向定义 | `s_session_v2/s_fact_cache.rs:412` | `s_session_v3/business_json.rs:429` 的 `RawPrefixIndex` 从 `pub(super)` 改为 `pub(crate)`。 |
+| E0603，模块私有 | `:81` ``error[E0603]: module `history` is private``；`:82` 指向调用，`:85` 明报 `check_deadline` 未再导出，`:91` 指向模块定义 | `s_session_v2/s_fact_cache.rs:423` | `s_session_v3/history.rs:3724` 的既有函数改为 `pub(crate)`；`s_session_v3/mod.rs:75`–`:76` 按冷调用的相同 cfg 单独再导出；调用改用 `crate::v3::check_deadline`。`mod history` 仍为私有。 |
+| E0624，构造函数不可见 | `:95` ``error[E0624]: associated function `new` is private``；`:96` 指向调用，`:101` 指向定义 | `s_session_v2/s_fact_cache.rs:412` | `s_session_v3/business_json.rs:520` 的 `new` 改为 `pub(crate)`。 |
+| E0624，推进方法不可见 | `:106` ``error[E0624]: method `advance_measured` is private``；`:107` 指向调用，`:112` 指向定义 | `s_session_v2/s_fact_cache.rs:413` | `s_session_v3/business_json.rs:624` 的 `advance_measured` 改为 `pub(crate)`。 |
+| E0624，第一次有序遍历不可见 | `:123` ``error[E0624]: method `ordered` is private``；`:124` 指向调用，`:129` 指向定义 | `s_session_v2/s_fact_cache.rs:417` | `s_session_v3/business_json.rs:589` 的 `ordered` 改为 `pub(crate)`，保留迭代器类型与函数体。 |
+| E0624，第二次有序遍历不可见 | `:134` ``error[E0624]: method `ordered` is private``；`:135` 指向调用，`:140` 指向同一定义 | `s_session_v2/s_fact_cache.rs:422` | 复用上一项的同一修复，没有新增另一套遍历接口。 |
+
+原日志中的 `pub(super)` 只把这些项开放给 v3 及其后代。`s_fact_cache` 虽然物理路径在 `s_session_v2/`，实际由 `s_structure_session.rs:72`–`:73` 挂在 crate 根，与 v3 是兄弟模块，因此不可访问。上述项原本都存在于失败 cfg 中；根因是可见范围，不是缺少 test 定义。
+
+同时处理两处接口连带风险，未等 CI 再暴露下一轮错误：
+
+- `business_json.rs:461` 的 `impl Deref for RawPrefixIndex` 以 `RawPrefixFacts` 为关联 `Target`。`:435` 同步将该类型改为 `pub(crate)`，避免更可见的索引泄漏更私有的关联类型。内部字段和方法可见性不变。
+- `advance_measured` 返回 `RawPrefixChanges`，`:482` 同步将返回类型改为 `pub(crate)`，避免 `private_interfaces` 及调用端私有返回类型问题。其字段类型为公开 `CodecVec`、基础类型或原已 `pub(crate)` 的 `RawWinnerEdit` / `RawWinner`，没有下一层更私有类型。入参 `RawEventsView`、`CodecRead`、`Budget` 分别已在 `business_json.rs:182`、`audit_store.rs:163`、`audit_budget.rs:18` 声明 `pub(crate)`。
+
+没有新增裸 `pub`、泛化 `allow`、宽松接口或实现副本。`pub(crate)` 不宣称 crate 外可达，不新增 `unreachable_pub` 风险。`RawPrefixFixture` 仍仅 `cfg(test)`；其既有 #1488 注释描述测试 wrapper 自身的局部边界，本轮生产索引的 crate 内提升以上表为准。
+
+### cfg 与告警核对
+
+以下是源码可达性核查，不是编译证明。`s_session` 通过 Cargo 的 required feature 进入 `s_structure_session`；`RawPrefixIndex`、关联类型和三个方法原先均无 test/feature cfg，提升可见性不改变其是否编入。
+
+| feature 组合 | 非 test | test |
+|---|---|---|
+| `s_session` | 新冷调用 `s_fact_cache.rs:400` 的 `all(s_incremental, unix)` 为假，根再导出 `mod.rs:75` 同时消失，无未使用导入。索引方法仍有既有历史审计生产调用。 | 同左；既有 `RawPrefixFixture` 仍只在测试中编入，不依赖新增冷方法。 |
+| `s_session,s_incremental` | Unix 下冷调用与单项再导出同时存在；所有目标及签名类型可达。生产调用不依赖 test wrapper，不需 dead-code allow。 | 同左，测试仅补原有 fixture/钩子，不改变修复项的定义可见性。 |
+| `s_session,s_incremental,s_capture_native_testonly` | 新修复无 `s_capture_native_testonly` 分叉，与上一格同路；未改变 Ordinary 诊断分流。 | 同左；原测试 cfg 和显式 test 属性均保留。 |
+
+非 Unix 时，冷方法及根再导出均被同一个 `all(s_incremental, unix)` 排除，没有新路径悬空；这只是门控配对，不声称基线整体已支持非 Unix。实施方另对三档 × test/非 test × Unix/非 Unix 共 12 个组合做源码门控配对。
+
+索引方法的既有生产引用不靠测试保活：`history.rs:1085` 调 `RawPrefixIndex::new`，`:1562` 调 `advance_admitted`，后者在 `business_json.rs:622` 调 `advance_measured`；`history.rs:1602` 调 `ordered`。`check_deadline` 也有 `history.rs:925`、`:1217` 等既有无 cfg 调用。因此单档 `s_session` 不会因新增冷方法被排除而新增 unused/dead_code 项。六格实际 `-D warnings` 编译仍待 CI。
+
+### 本轮实际验证与边界
+
+- `rustfmt --edition 2021 --check rust/src/bin/s_session_v2/s_fact_cache.rs rust/src/bin/s_session_v3/business_json.rs rust/src/bin/s_session_v3/history.rs rust/src/bin/s_session_v3/mod.rs` 通过。
+- Python 精确比对 HEAD 原件与工作区 4 个 Rust 文件，只允许表列的 7 处 `pub(super)` → `pub(crate)`、两行 cfg 再导出及一处调用路径替换，全部相等。函数体、字段、判据与资源合同没有改动。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3 tests 通过。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，禁串清单与源码一致，未改清单。
+- `git diff --check` 通过。未运行 cargo/rustc、Rust 测试、远端重型窗口或新 CI；未 git add/commit/push，未写 Git metadata。资源 `/3`、scrub、launcher/5、Python 服务控制与 ADR 均未改。
+
+### S1D 新增／修改跨模块调用穷举（独立只读核查）
+
+核查输入为完整 `git diff bda5958779 a0d85e33 -- rust/`，12 个 Rust 文件、全部新增行和被改写调用的上下文；已全文读 S1D 提示、其引用的 S1/S1B/S1C 范围、本报告 S1D 节与 run `41355496782` 原始日志。本清单记录源码可达性，不等于 Rust 编译收据。下文路径相对 `rust/src/`；调用行号为精确 head `a0d85e33`，S1E 没有插入这些调用文件中的新行，因此仍适用于修补后的调用点。定义行号以当前 S1E 候选为准。
+
+**模块树先核实。** `bin/s_structure_session.rs:30–37` 挂 `v2/v3`，`:60–77` 挂 `content_producer/s_fact_cache`；后两者虽然物理放在 `s_session_v2/`，实际是 crate 根的子模块。故其 `pub(super)` 表示 crate 内可达，而 `v3/business_json.rs` 的 `pub(super)` 只覆盖 `v3` 子树，不能供根同级模块使用。`v3/mod.rs:59` 的 `pub(super) mod business_json` 可由 crate 内路径到达；`:74` 的 `mod history` 只覆盖 v3 子树，S1E 保持该模块私有。
+
+**公共依赖与 receiver 核查。** 各条中包括通过既有 import、父模块 `use super::*`、trait 方法或字段 receiver 发生的调用，没有仅按 `::` grep。`sc` 指 `newchan_rust::s_content`（公开模块）；`NodeStore` 是其 `sequence.rs:110` 的公开 trait，经 `s_content.rs:66–71` 重导出；`codec_work` 来自公开 `NodeSource`（`s_content.rs:471,487`），`WorkScope::check_current` 在 `s_content/capture_allocation/scratch.rs:461` 为公开方法。`CodecVec` 经 `s_content.rs:44` 公开重导出，其 `try_reserve_native/try_reserve_exact/is_native_bound/try_push_native/try_push` 均为公开方法（`capture_allocation/work.rs:203,381,486,497,547`）。这些库接口不需要本轮提升可见性。
+
+| S1D 文件与调用位置 | 全部跨模块路径／receiver 与定义、可达性 | cfg 核查 |
+|---|---|---|
+| `bin/s_session_v2/content_producer.rs:1635–1638` | 参数 `NodeStore` 为上述公开库 trait；`crate::v3::business_json::RawEventsView` 在 `business_json.rs:182` 为 `pub(crate)`；`super::s_fact_cache::DeltaRawRow` 在 `s_fact_cache.rs:245` 为 `pub(super)`（真实父为 crate），字段 `ordinal/bar` 为 public；`crate::v3::audit_owner::RawAdvanceBinding` 经 `audit_owner.rs:139` `pub(crate) use`，原类型在 `construction_state.rs:22` 为 `pub(crate)`。 | `seed_cold_delta` 整项 `all(s_incremental,unix)`（`:1632`），类型与方法在该 cfg 下存在；`RawEventsView`、行类型、binding 类型本身无 test 限定。 |
+| 同文件 `:1640,1649–1653,1681–1683` | binding `is_unbound_cold`、`is_initial` 在 `construction_state.rs:42,45` 为 `pub(crate)`；前者仅 `all(s_incremental,unix)`，与调用一致。`store.codec_work`、`work.check_current` 为上述公开库方法；`raw.get` 在 `business_json.rs:208` 为 public。 | 两个冷 seed/rebind 函数同为 `all(s_incremental,unix)`（`:1632,:1675`），test 与生产均可达。 |
+| 同文件 `:1647–1666` | `Vec::with_capacity/push` 等是标准库公开接口；`RawRefSpec::from_event`、`fractal_unit_key`、`self.bind_source` 都在本文件定义，不是新增跨模块可见性边。`row.bar.source_index` 是公开 `Bar` 字段。 | 无新 import、无仅 test 的生产依赖。 |
+| `bin/s_session_v2/s_fact_cache.rs:402,404–407,409,445–451` | `bj::RawEventsView` 同上；`RawAdvanceBinding` 及两方法同上；`crate::v3::audit_store::CodecRead` 在 `audit_store.rs:163` 为 `pub(crate)`，模块在 `v3/mod.rs:57` 为 `pub(crate)`；`crate::v3::audit_budget::Budget` 在 `audit_budget.rs:18` 为 `pub(crate)`，模块在 `v3/mod.rs:51` 为 `pub(crate)`；`Instant` 是既有 `std::time::Instant` import（文件 `:24`）。`raw.len/budget` 在 `business_json.rs:195,230` 为 public。 | `cold_seed/rebind_cold_owner` 整项 `all(s_incremental,unix)`（`:400,:442`）；引用的 `is_unbound_cold` 同门。 |
+| 同文件 `:412–413,417,422` | `bj::RawPrefixIndex::new`、`advance_measured`、`ordered` 的 5 个失败点（类型、新建、推进、有序读取两次）全部原属 `pub(super)`，S1E 改为 `pub(crate)`（`business_json.rs:429,520,624,589`）。该 struct 的 `Deref::Target=RawPrefixFacts`（`:461–464`）及 `advance_measured -> RawPrefixChanges` 返回值（`:630`）也同步为 `pub(crate)`（`:435,:482`），消除伴生接口泄漏／private_interfaces 风险；字段继续原可见性。 | 类型、上述三方法不受 cfg(test) 门控，三 feature 组合均有定义；冷调用只在增量 unix 存在。旧 v3 生产 `RawPrefixIndex::new/ordered/advance_measured` 使用仍在，不新增 dead_code。 |
+| 同文件 `:415–417,430–435` | `admission.codec_work` 沿 `CodecRead: NodeSource` 到公开 `NodeSource::codec_work`；rows `try_reserve_native/try_push_native` 为上述公开 `CodecVec` 方法。 | 调用与 cold_seed 同门。 |
+| 同文件 `:423–427` | 原 `crate::v3::history::check_deadline` 穿过私有模块，是第 6 个错误；S1E 改 `crate::v3::check_deadline`。原实现 `history.rs:3724` 改 `pub(crate)`，`v3/mod.rs:75–76` 仅在 `all(s_incremental,unix)` 做 `pub(crate) use`；不复制实现、不公开整个模块。`budget.precheck` 属 `Budget` trait；`raw.get` 同上；`lane.state.append_with_changes` 和 `change.shared_available` 在 `theta_v0/parser/inclusion.rs:1040,1020` 为 public。`bar_of` 是本文件函数。 | 重导出门与唯一新增根路径调用完全相同，非增量不产生 unused_imports。原 v3 内部 `history::check_deadline` 路径保持存在，不受重导出门限制。 |
+| 同文件 `:530–531,572,594` | 参数 `crate::v3::audit_owner::BoundRawAdvance` 在 `construction_state.rs:117` 为 `pub(crate)`，经 `audit_owner.rs:139` 重导出；`newchan_rust::s_content::capture_allocation::scratch::WorkScope` 为公开库类型。 | 新带 work 的正式推进方法无 cfg(test)，保留普通构建；旧无 work 包装 `advance_owner_bound` 新加 `#[cfg(test)]`（`:520`）。实际生产调用 `generation.rs:554` 已换到带 work 方法。 |
+| 同文件 `:544–545,576,597,714–715,743–744` | `raw.get` 同上；rows `is_native_bound/try_reserve_native/try_reserve_exact/try_push_native/try_push` 均为公开库方法。其余新增 `advance_bound_checked/advance_bound_inner` 是同一 impl 内私有调用，`bound.ensure_current/invalidate_after_consumer_failure/raw` 等既有调用定义均 `pub(crate)`（`construction_state.rs:182,208,211`）。 | 所有新增 work 参数在普通／增量构建均有公开库类型；没有把某个 cfg(test) 接口带入生产。 |
+| `bin/s_session_v3/admission_anchor/native_n1.rs:1802` | `super::super::admission_private::RejectionPrefix::NativeComponentAudit`：模块为 v3 私有子模块，调用方是 v3 后代；enum `admission_private/mod.rs:376` 为 `pub(super)`（v3 范围），变体 `:379` 随 enum 可见。`native_n1` 自身由 `admission_anchor.rs:24` `pub(crate) mod` 挂载。 | 变体没有 feature/test 限定，三档 test/非 test 均可解析；没有只在增量定义而普通调用的问题。 |
+| `bin/s_session_v3/admission_private/mod.rs:442,484`（相关执行 `:446`） | `RejectionPrefix::{OrdinaryStartup,NativeComponentAudit,None}` 均为本模块 enum/变体，不是穿过另一个模块。S1D 改分派后执行的 `super::state::audit_with_budget` 在 `state.rs` 为既有 `pub(super)`，仍在 v3 后代内可达；本轮没有新增私有外穿路径。 | `matches` 的完整审计选择块限定 `s_incremental`（`:438`）；末尾 match 无该限制，变体在所有组合均存在。非增量既有完整审计路径与无 test 钩子特征不变。 |
+| `bin/s_session_v3/admission_private/fd_wal.rs:925–984` | 通过既有父模块 imports `std::ffi::{c_void,c_int,c_char}`（`:11`）、`rusqlite::{ffi,Connection}`（`:8`）、`std::ptr`（`:16`）；新增 `ffi::{SQLITE_OK,SQLITE_DENY,sqlite3_set_authorizer}` 与 `ptr::null_mut` 全为依赖公开接口。`Connection::open_in_memory/execute_batch/handle/prepare`，`Statement::query_map`、`Row::get`、`rusqlite::Result`、iterator `collect` 同为公开依赖／标准库接口。`fixed_authorizer`、`bytes` 与 `audit_sql_allowed` 都在当前模块或其后代可见的父作用域，不新设模块穿透。 | 整个 `authorization_tests` 在 `#[cfg(test)]`（`:760`），生产完全不含新增回调和连接。测试模块沿 `use super::*` 复用 imports；未新增仅 test 使用的模块级 import，不引入生产 unused_imports。 |
+| `bin/s_session_v3/admission_provider.rs:648–658` | `f.root.join` 用公开 `PathBuf/Path` 方法；`std::fs::{write,hard_link,metadata}` 全为标准库公开函数；metadata `.nlink` 沿文件 `:8` 的既有 `std::os::unix::fs::MetadataExt` 公开 trait。`f.consumed` 在同一测试模块 `:512`，`MeasuredDomain::measure` 在父模块 `:159` 为 `pub(super)`，后代测试可达。 | 整个 `control_lock_tests` 在 `#[cfg(test)]`（`:485`）；文件已有 unix 文件域依赖，本次未增加非 unix 构建承诺。三档测试均可达；生产不含新夹具。 |
+| `bin/s_session_v3/audit_owner.rs:133–134` | 新 `pub(crate) use construction_state::ColdRawState`：私有 construction_state 模块里类型在 `construction_state.rs:259` 改为 `pub(crate)`；重导出的可见性与源类型相等。 | 源类型、源 impl、重导出均 `all(s_incremental,unix)`；非增量与非 unix 不产生空重导出或导入警告。 |
+| 同文件 `:635–648,665,728,732–737` | `cold_runtime.seed_cold_generation` 与 `runtime.adopt_cold_audit_runtime` 在 `prepared.rs:258,308` 为 `pub(super)`（v3 范围）；`construction.generation_binding` 对冷态在 `construction_state.rs:262` 为 `pub(crate)`，实际 committed 态在 `:303` 为 `pub(super)`（audit_owner 范围），调用就在 audit_owner。`candidate.audited.raw.view` 通过 `state::AuditedState` 的 public raw 字段（`state.rs:46,48`）与 `business_json::RawEvents::view`（`:79`）；`cuts.last` 是公开 CodecVec/Deref，cut 的 roots 字段在 `history.rs:208–210` 公开，generated_state 的 `.view` 经 `audit_store::RefValue::view`（`:1159`）公开。`construction.borrow` 是标准库 RefCell 接口。 | 整体位于 `AuditConnection::open_rebuilt_history` 的 `all(s_incremental,unix)`，与被调两个 Runtime 方法、ColdRawState、binding 导出一致；非 test 真实调用存在。 |
+| 同文件 `:3352–3381` | S1D 仅改固定 SQL prefix 的字符串选择与 `String::push_str` 标准库调用；没有新增业务模块路径。SQL 中 `main` 是 SQLite schema 名，不是 Rust 模块。 | 不新增 cfg 相关名字。 |
+| `bin/s_session_v3/audit_owner/admission_tests.rs:164–190,408–447` | 新／改 receiver `driver.handle` 在 `driver.rs:636` 为 `pub(super)`（v3），`driver.h1_owner_for_test` 在 `driver.rs:515` 为 `pub(super)`；`state::full_audit_calls_for_test/traced` 在 `state.rs:154,2166` 为 `pub(super)`；`driver::recover_scoped_with_retention` 在 `driver.rs:822` 为 `pub(super)`；`super::super::admission_anchor::test_prepare` 在 `admission_anchor.rs:1641` 为 `pub(crate)`；`scope.finish_startup` 在 `admission.rs:449` 为 `pub(crate)`。owner identity/summary、fixture/full_canonical/context/h1_admission_driver/h1_admission_canonical 属既有生产方法或同 include 模块 helper；`Result::unwrap`、JSON 索引、`drop` 为依赖／标准库公开接口。 | include 的父 `construction_tests` 是 `all(test,s_incremental)`（`audit_owner.rs:5464`），include 自身另 `#[cfg(unix)]`（`:5471–5472`）；H1 owner helper 同为 `all(test,s_incremental,unix)`，full_audit counter 是 `all(test,s_incremental)`，traced/test_prepare 是 cfg(test)。第 2 个测试另有显式 `#[cfg(test)]`（`:398`）。普通 s_session 不载入；增量与 testonly 的测试均可达；所有生产格均不含新测试调用。 |
+| `bin/s_session_v3/audit_owner/effects.rs:120–121` | 仅 `Self::Delivery` 固定 SQL 文本改动，没有新增 Rust 跨模块路径。 | 无新增 cfg 名字。 |
+| `bin/s_session_v3/construction_state.rs:259–264,302–304` | `ColdRawState` 提升、其 `generation_binding` 返回 `RawAdvanceBinding`（同文件 `:22`，pub(crate)）与 usize，无更窄返回类型；`.facts.prefix_len` 定义 `business_json.rs:456` 为 `pub(super)`（v3 范围），此模块是 v3 后代，能到达。CommittedRawState 的同名方法仍限 audit_owner 范围，调用在父 audit_owner。 | 类型／冷态 impl／新 committed 方法均 `all(s_incremental,unix)`，prefix_len 本体不删，只通过既有 cfg_attr 抑制非测试未用告警；生产调用并未被 cfg 掉。 |
+| `bin/s_session_v3/generation.rs:469–476,482–500` | 参数 `super::history::HashReader` 在 `history.rs:3181` 为 `pub(crate)`，该私有模块在 v3 内可见；`RawEventsView` 同上；`super::audit_owner::ColdRawState` 同重导出；`sc::RefView` 经 `s_content.rs:50` 公开重导出，`std::time::Instant` 公开，`Budget` 同上。冷 binding 方法同上；`s_fact_cache::DeltaLane::cold_seed/rows` 分别 `s_fact_cache.rs:401,490` 为 `pub(super)`（crate 范围）。`store.lookup_field_ref` 来自 `audit_store::CodecRead`（trait `:163`、方法 `:475`，HashReader 实现 `history.rs:3997`），经本文件既有 trait import 可达；返回 `RefValue::view` 为 public（`audit_store.rs:1159`）。`self.producer.seed_cold_delta` 为 `content_producer.rs:1633` 的 crate 可达方法。 | 新 seed 整项 `all(s_incremental,unix)`（`:466`），全部冷类型和被调方法同门。lookup trait/method 与 rows 不限 test。 |
+| 同文件 `:508–519,554` | `RawAdvanceBinding` 同上；lane `.rebind_cold_owner` 在 `s_fact_cache.rs:443` 为 crate 可达；producer `.rebind_cold_delta` 在 `content_producer.rs:1676` 为 crate 可达。生产 `.advance_owner_bound_with_work` 在 `s_fact_cache.rs:528` 为 crate 可达，`store.codec_work` 为库 NodeSource 方法。`keys.as_slice` 在本文件 SequenceKeys 实现，不是跨模块边。 | rebind 冷方法整项 `all(s_incremental,unix)`；`:554` 普通推进方法无新增门，其所调带 work 方法与公开 WorkScope 类型也不限 feature/test。 |
+| 同文件 `:1611–1628` | `HashReader`、`sc::RefView` 同上；`Kind::Array` 为公开 enum/变体（`s_content.rs:185`）；root `.kind/.extent/.digest` 在公开 RefView impl（`s_content/ref_owner.rs:226,232,238`）；`sc::path::array_sequence_refview` 在公开 path 模块 `path.rs:1166` 为 public；store `.array_cursor/.next_array_member` 来自 crate 可达 `CodecRead` trait（`audit_store.rs:408,418`）；reference `.view` 同上。`keys.reserve_admitted/splice_reserved/as_slice` 和 `codec_error` 为本文件实现／函数。 | `SequenceMemo::seed_cold` 整项 `all(s_incremental,unix)`（`:1608`），库方法与 trait 方法不受 test 限定。 |
+| `bin/s_session_v3/prepared.rs:260–267,272–302` | `rusqlite::Transaction` 通过既有 import（文件 `:13`）为公开类型；`Path` 由父 import 为 std 公开类型；`history::HashReader`、business_json::RawEventsView、audit_owner::ColdRawState、sc::RefView、Instant、Budget 同上。`v2::protocol_identity` 在 `s_session_v2/mod.rs:2805` 为 `pub(super)`（crate 范围），从 v3 可达；`history::check_deadline` 在 v3 子树内本来可达，S1E 仅把函数提升为 crate；`budget.precheck` 为 Budget 方法；`meta_get_opt` 在 crate 根 `s_structure_session.rs:569` 为私有项，可供全部 crate 后代使用；`s_fact_cache::lane_key` 在 `s_fact_cache.rs:1246` 为 crate 可达；`GenerationRuntime::with_config/seed_cold` 在 `generation.rs:413,467` 为 v3 可达；`db.to_string_lossy/into_owned`、theta config Clone 是标准库／公开库接口。 | 新 Runtime seed 整项 `all(s_incremental,unix)`（`:257`），其所有冷项同门。v2 identity、lane_key 与 Runtime::with_config 无 test 门，不影响普通构建。 |
+| 同文件 `:311–321` | 返回／参数 RawAdvanceBinding 同上；`cold.generator…rebind_cold_owner` 在 `generation.rs:506` 为 `pub(super)`（v3）；`install_audit_ledger` 是本 impl 方法，无新模块穿透。 | adopt 冷方法整项 `all(s_incremental,unix)`（`:307`），与调用侧 `audit_owner::open_rebuilt_history`、被调 generation rebind 同门。 |
+
+标准库 `Option/Result/Vec/String`、迭代器的 `map/map_err/ok_or/unwrap/count/collect`、切片／索引／比较／Clone 等常规 receiver 在上表相关行一并按公开 trait／类型接口检查；它们不经过仓内私有模块。没有新增 `use` 漏列：S1D Rust diff 中唯一新增重导出是 `audit_owner.rs:134` 的 ColdRawState，上表已单列。
+
+**六格源码结论。** `rust/Cargo.toml:84,87–88,108–111` 声明增量依赖 s_session、native_testonly 依赖增量，且此 bin 要求 s_session。在既有 Unix 平台前提下：
+
+| feature | 非 test | test |
+|---|---|---|
+| `s_session` | 所有新冷 seed/rebind／ColdRawState／根 check_deadline 重导出都被同一增量 unix 门剔除；RawPrefixIndex 三方法及其返回／关联类型仍有旧 v3 使用；带 work 推进与其公开参数类型均存在。 | H1 admission_tests 被父增量门剔除；旧 advance_owner_bound 包装只在 test 编译且仍由既有测试使用。FD/WAL 与缓存替身新增测试是 cfg(test)，其依赖全为现有公开 API。 |
+| `s_session,s_incremental` | 冷调用链从 open_rebuilt_history → prepared → generation → 根 s_fact_cache/content_producer 的每条可见性和 cfg 均配对；根 check_deadline 重导出有真实生产调用；无只在 test 定义的依赖。 | 六个原日志错误点经最小 crate 可见性／单函数重导出可达；H1 test helpers 的 test+增量+unix 门闭合。 |
+| `s_session,s_incremental,s_capture_native_testonly` | native_testonly 不额外限制本轮暴露的类型／方法；等同上一格可达性，不新增诊断臂准入接口。 | H1 与 Ordinary 的测试定义保持各自原门；上述新增测试调用仍在 test 门内，test_prepare 显式外层 cfg 保留。 |
+
+**告警风险复核。** S1E 当前 diff 仅使用 pub(crate)，没有新增裸 pub 接口，因此没有新 unreachable_pub 风险；RawPrefixIndex 的 Deref 关联 Target 与 advance_measured 返回类型同步为 pub(crate)，参数 RawEventsView/CodecRead/Budget 原本已是 pub(crate)，返回类型内的 CodecVec/RawWinnerEdit 均足够公开，字段保留原样。重导出 check_deadline 精确门控，不会在 s_session 单档生成 unused_imports；三方法原有 v3 使用持续存在，不因扩可见性制造 dead_code。没有新增 allow 规避告警。此结论是源码复核，`-D warnings`、E0446/private_interfaces 的实际编译裁定和 Rust 测试均待精确候选 CI；本核查没有调用 cargo/rustc，也没有改 Git metadata。
+
+### S1E 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v2/s_fact_cache.rs`
+- `rust/src/bin/s_session_v3/business_json.rs`
+- `rust/src/bin/s_session_v3/history.rs`
+- `rust/src/bin/s_session_v3/mod.rs`

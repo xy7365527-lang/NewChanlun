@@ -420,7 +420,7 @@ impl DeltaLane {
             return Err("GenError：冷车道缺原生工作域".into());
         }
         for (_, ordinal) in winners.ordered() {
-            crate::v3::history::check_deadline(deadline)?;
+            crate::v3::check_deadline(deadline)?;
             budget.precheck().map_err(|e| e.to_string())?;
             let bar = bar_of(raw.get(ordinal).ok_or("GenError：冷winner原行缺失")?)?;
             let change = lane.state.append_with_changes(bar);
