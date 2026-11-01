@@ -2516,6 +2516,22 @@ fn accept_body_in(
     }))
 }
 
+/// #1527 N1：原业务核的测试事务入口，保留对拍、回滚与错误次序 oracle。
+/// 生产接纳走 NativeOwner；此入口的事务提交或回滚由测试调用者负责。
+#[cfg(test)]
+fn accept_in(
+    tx: &rusqlite::Transaction<'_>,
+    text: &str,
+    profile_path: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+    let prepared = prepare_accept(text, profile_path)?;
+    check_accept_connection(tx, &prepared)?;
+    accept_body_in(tx, text, prepared, configured_epoch, context)
+}
+
 fn accept_core(
     db: &Path,
     text: &str,
