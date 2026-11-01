@@ -423,6 +423,56 @@ pub fn canonical_hash_view_typed(
     Ok(FixedHash::from_digest(&hash.finalize()))
 }
 
+/// #1769 FU-16：S 的真实系统语义时钟描述。描述只含固定三键，hash 不随运行变化；
+/// 每个生命周期相位的实际读数在取样时写入 `s_clock_events.semantic_ns`，此后只读持久值。
+pub const S_CLOCK_SYSTEM: &str = "s-clock-system/1";
+
+/// clock 描述的来源：`s-clock-plan/1` 预先声明的计划，或 `s-clock-system/1` 的运行时取样。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ClockSource {
+    Plan,
+    System,
+}
+
+/// 按 `schema_revision` 判来源；不做完整性校验（完整校验只在 [`ClockView::parse`]）。
+pub fn clock_source_view(value: JsonView<'_>) -> ClockSource {
+    if child(value, "schema_revision").as_str() == Some(S_CLOCK_SYSTEM) {
+        ClockSource::System
+    } else {
+        ClockSource::Plan
+    }
+}
+
+/// Plan 下核计划里确有该相位；System 没有可预检的未来读数，直接通过。
+pub fn clock_require_planned(
+    value: JsonView<'_>,
+    id: &str,
+    phase: &str,
+    attempt: i64,
+) -> Result<(), String> {
+    match clock_source_view(value) {
+        ClockSource::Plan => clock_phase_view(value, id, phase, attempt).map(|_| ()),
+        ClockSource::System => Ok(()),
+    }
+}
+
+/// 冷审计：Plan 下持久读数必须等于计划值；System 下持久读数即唯一来源，不重新取样。
+pub fn clock_persisted_matches(
+    value: JsonView<'_>,
+    id: &str,
+    phase: &str,
+    attempt: i64,
+    persisted: &str,
+) -> Result<bool, String> {
+    match clock_source_view(value) {
+        ClockSource::Plan => Ok(clock_phase_view(value, id, phase, attempt)? == persisted),
+        ClockSource::System => {
+            nonnegative(persisted, "semantic_ns")?;
+            Ok(true)
+        }
+    }
+}
+
 /// ClockPlan的借用规则核；bin保留原DTO或持自己的JsonOwner，不把库依赖反向指向bin。
 #[derive(Clone, Copy)]
 pub struct ClockView<'a> {
@@ -430,7 +480,12 @@ pub struct ClockView<'a> {
 }
 impl<'a> ClockView<'a> {
     /// 本口接已经解码的值，不负责重复键策略；文件/SQL入口继续独立使用原strict解码器。
+    /// 按 `schema_revision` 分派：`s-clock-system/1` 走固定三键描述，其余仍走原
+    /// `s-clock-plan/1` 精确五键解析（旧库与旧夹具合同不变）。
     pub fn parse(value: JsonView<'a>) -> Result<Self, String> {
+        if clock_source_view(value) == ClockSource::System {
+            return Self::parse_system(value);
+        }
         let keys = [
             "schema_revision",
             "clock_plan_id",
@@ -491,6 +546,26 @@ impl<'a> ClockView<'a> {
         }
         Ok(Self { value })
     }
+    fn parse_system(value: JsonView<'a>) -> Result<Self, String> {
+        let keys = ["schema_revision", "clock_id", "unit"];
+        if value.as_object().map(|m| m.len()) != Some(keys.len())
+            || value
+                .as_object()
+                .unwrap()
+                .keys()
+                .any(|k| !keys.contains(&k))
+        {
+            return Err("SchemaUnsupported：system clock描述字段不完整/多余".into());
+        }
+        if required_view(value, "unit")? != "ns" {
+            return Err("SchemaUnsupported：需要 s-clock-system/1 与 ns 单位".into());
+        }
+        required_view(value, "clock_id")?;
+        Ok(Self { value })
+    }
+    pub fn source(self) -> ClockSource {
+        clock_source_view(self.value)
+    }
     pub fn view(self) -> JsonView<'a> {
         self.value
     }
@@ -511,6 +586,11 @@ pub fn clock_phase_view<'a>(
     phase: &str,
     attempt: i64,
 ) -> Result<&'a str, String> {
+    if clock_source_view(value) == ClockSource::System {
+        return Err(format!(
+            "SchemaUnsupported：{S_CLOCK_SYSTEM} 没有计划读数，clock {id}/{phase}/{attempt} 须读持久 s_clock_events"
+        ));
+    }
     let event = child(value, "events")
         .get(id)
         .ok_or_else(|| format!("MissingDependency：clock事件 {id}"))?;
@@ -566,6 +646,43 @@ pub fn reply_envelope(
 mod tests {
     use super::*;
 
+    #[test]
+    fn system_clock_descriptor_dispatches_and_refuses_plan_reads() {
+        let system = json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ns"});
+        let view = ClockView::parse((&system).into()).unwrap();
+        assert_eq!(view.source(), ClockSource::System);
+        let again = json!({"unit":"ns","clock_id":"s-prod","schema_revision":S_CLOCK_SYSTEM});
+        assert_eq!(
+            view.hash_fixed().unwrap().as_str(),
+            ClockView::parse((&again).into())
+                .unwrap()
+                .hash_fixed()
+                .unwrap()
+                .as_str(),
+            "描述 hash 只由固定三键决定"
+        );
+        let error = view.phase("input-1", "commit", 0).unwrap_err();
+        assert!(error.contains("须读持久"), "{error}");
+        clock_require_planned((&system).into(), "input-1", "commit", 0).unwrap();
+        assert!(clock_persisted_matches((&system).into(), "input-1", "accept", -1, "7").unwrap());
+        assert!(clock_persisted_matches((&system).into(), "input-1", "accept", -1, "07").is_err());
+        for bad in [
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod"}),
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ms"}),
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"","unit":"ns"}),
+            json!({"schema_revision":S_CLOCK_SYSTEM,"clock_id":"s-prod","unit":"ns","events":{}}),
+        ] {
+            assert!(ClockView::parse((&bad).into()).is_err(), "{bad}");
+        }
+        let plan = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"c1","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{"input":{"accept_ns":"0","attempts":[{"begin_ns":"1","commit_ns":"2"}]}}});
+        let view = ClockView::parse((&plan).into()).unwrap();
+        assert_eq!(view.source(), ClockSource::Plan);
+        assert!(clock_require_planned((&plan).into(), "input", "commit", 0).is_ok());
+        assert!(clock_require_planned((&plan).into(), "missing", "commit", 0).is_err());
+        let planned = view.phase("input", "commit", 0).unwrap();
+        assert!(clock_persisted_matches((&plan).into(), "input", "commit", 0, planned).unwrap());
+        assert!(!clock_persisted_matches((&plan).into(), "input", "commit", 0, "999").unwrap());
+    }
     #[test]
     fn exact_integer_contract_does_not_round_or_normalize_input() {
         for value in ["", "-0", "+1", "01", "-01", " 1", "1.0", "1e3"] {

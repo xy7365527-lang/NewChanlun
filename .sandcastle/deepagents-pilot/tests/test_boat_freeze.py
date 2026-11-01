@@ -104,6 +104,7 @@ def test_controller_and_worker_read_same_frozen_skills_after_source_and_checkout
     for name in ('package.json', 'package-lock.json', '.sandcastle/boat-worker.mts', '.sandcastle/codex-child.ts',
                  '.sandcastle/docker-isolation.mts', '.sandcastle/acceptance-dir.mts',
                  '.sandcastle/git-environment.ts', '.sandcastle/main-model.mts',
+                 '.sandcastle/scheduler-config.mts', '.sandcastle/scheduler-config.json',
                  '.sandcastle/deepagents-pilot/pilot1742/boat_remote.py'):
         target = env.source / name
         target.parent.mkdir(parents=True, exist_ok=True)

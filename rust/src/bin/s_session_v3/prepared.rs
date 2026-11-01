@@ -283,41 +283,43 @@ impl Runtime {
             .stage(token, delta)
     }
 
+    /// H1 点查资格：只在完整台账已提交至少一代且无进行中一代时签发（36M）。
+    /// 39P/40B：生产消费走 `audit_qualification_bounded`（先持票再读）；本无界读取只供测试。
     #[cfg(feature = "s_incremental")]
     #[cfg_attr(
         not(test),
         expect(
             dead_code,
-            reason = "#1647: retained production handoff for the pending complete facts producer; remove when wired"
+            reason = "#1481 39P：H1 生产路径改走 audit_qualification_bounded，无界读取只供测试"
         )
     )]
-    pub(super) fn queue_audit_ledger(
-        &mut self,
-        token: String,
-        facts: audit_ledger::QueuedFacts,
-    ) -> Result<(), String> {
-        let result = (|| {
-            if token.is_empty()
-                || self.queued_audit_facts.is_some()
-                || !matches!(self.mode, s_allocation::Mode::CapturedNative)
-            {
-                return Err("AuditLedgerStale：待准备事实请求或模式无效".into());
-            }
-            let through = self
-                .audit_ledger
-                .as_ref()
-                .ok_or("AuditLedgerStale：未安装台账")?
-                .committed_through()?;
-            if through.checked_add(1) != Some(facts.generation) {
-                return Err("AuditLedgerStale：待准备事实代号不连续".into());
-            }
-            self.queued_audit_facts = Some((token, facts));
-            Ok(())
-        })();
-        if result.is_err() {
-            self.invalidate_audit_ledger();
-        }
-        result
+    pub(super) fn audit_qualification(&self) -> Result<audit_ledger::Qualification, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .qualification()
+    }
+    /// 39P B2：调用方已为 `cap` 字节持票；台账行超过上界在分配前拒绝。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn audit_qualification_bounded(
+        &self,
+        cap: usize,
+    ) -> Result<audit_ledger::Qualification, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .qualification_bounded(cap)
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn contains_qualified_unit(
+        &self,
+        qualification: &audit_ledger::Qualification,
+        unit: &audit_ledger::Unit,
+    ) -> Result<bool, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .contains_qualified_unit(qualification, unit)
     }
 
     pub(super) fn commit_audit_ledger(&mut self) -> Result<(), String> {
@@ -531,28 +533,25 @@ impl Runtime {
         work: Option<&WorkScope>,
         #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<commit::CommitReceipt, String> {
-        let queued = {
-            #[cfg(feature = "s_incremental")]
-            {
-                self.queued_audit_facts.is_some()
-            }
-            #[cfg(not(feature = "s_incremental"))]
-            {
-                false
-            }
-        };
+        #[cfg(feature = "s_incremental")]
+        if self.queued_audit_facts.is_some() {
+            self.invalidate_audit_ledger();
+            return Err("AuditLedgerStale：上次prepare的排队事实未消费".into());
+        }
         if let Some(ledger) = &self.audit_ledger {
+            // #1647：分区台账在同次来源核验后 stage；完整台账（36M）由本次 prepare 的收据生产事实。
+            // 两者进入 prepare 前须仍是 Ready；组件路径预先 stage 的台账须已 Pending。
             #[cfg(feature = "s_incremental")]
-            let raw_ready = if ledger.is_partial() {
-                // #1647：具名raw分区在同次来源核验后stage，进入prepare前须仍是Ready。
+            let produced_in_prepare = if ledger.is_partial() {
                 ledger.partial_through()?;
                 true
             } else {
-                false
+                ledger.accepts_production()
+                    && matches!(self.mode, s_allocation::Mode::CapturedNative)
             };
             #[cfg(not(feature = "s_incremental"))]
-            let raw_ready = false;
-            if !queued && !raw_ready {
+            let produced_in_prepare = false;
+            if !produced_in_prepare {
                 ledger.require_pending()?;
             }
         }
@@ -617,10 +616,12 @@ impl Runtime {
                     .ok_or("AuditLedgerStale：缺同次来源清单证明")?
                     .take_verified_units(&prepared.metadata, &prepared.roots, &prepared.manifest)?;
                 let delta = facts.bind(&prepared.metadata, &prepared.roots)?;
+                // 40B B1：H1 上一代资格在 stage 同一台账事务内先核，再改写折叠链。
+                let prior = bound_audit.and_then(state::AuditedState::prior_qualification);
                 self.audit_ledger
                     .as_mut()
                     .ok_or("AuditLedgerStale：未安装台账")?
-                    .stage_verified(token, &delta, &verified, work)?;
+                    .stage_verified(token, &delta, &verified, work, prior)?;
             }
             if let Some(ledger) = &mut self.audit_ledger {
                 ledger.bind(token, &prepared.metadata, &prepared.roots)?;
@@ -972,7 +973,7 @@ impl Runtime {
                     let audit_source = if self
                         .audit_ledger
                         .as_ref()
-                        .is_some_and(|ledger| ledger.is_source_partitions())
+                        .is_some_and(|ledger| ledger.wants_business_facts())
                     {
                         super::audit_owner::audit_native_source_partitions_cut
                     } else {
@@ -1379,7 +1380,7 @@ impl Runtime {
             let audit = if self
                 .audit_ledger
                 .as_ref()
-                .is_some_and(|ledger| ledger.is_source_partitions())
+                .is_some_and(|ledger| ledger.wants_business_facts())
             {
                 source_audit::source_receipt::audit_source_partitions_receipt
             } else {
@@ -1507,6 +1508,23 @@ impl Runtime {
             publication_template: snapshot,
             delta_template: delta,
         };
+        #[cfg(feature = "s_incremental")]
+        if let Some(ledger) = self
+            .audit_ledger
+            .as_mut()
+            .filter(|ledger| ledger.accepts_production())
+        {
+            // 36M：完整事实只从同次严格来源收据生产，经 publish_impl 与已核闭包单位一起 stage_verified。
+            let receipt = source_receipt
+                .as_mut()
+                .ok_or_else(|| err("完整台账缺同次严格来源收据"))?;
+            receipt.export_business(store, &objects, &auxiliary)?;
+            let facts = audit_ledger::QueuedFacts::from_receipt(receipt, metadata)?;
+            if ledger.committed_through()?.checked_add(1) != Some(facts.generation) {
+                return Err(err("AuditLedgerStale：待准备事实代号不连续"));
+            }
+            self.queued_audit_facts = Some((receipt.request_token().to_owned(), facts));
+        }
         #[cfg(feature = "s_incremental")]
         if let Some(ledger) = self
             .audit_ledger
@@ -2212,7 +2230,7 @@ pub(crate) mod tests {
                 .unwrap()
                 .query_row("SELECT format FROM meta", [], |r| r.get::<_, String>(0))
                 .unwrap(),
-            "s-audit-ledger/source-partitions/1"
+            "s-audit-ledger/source-partitions/2"
         );
         assert!(
             Connection::open(&path)
@@ -2481,7 +2499,7 @@ pub(crate) mod tests {
             saved
                 .query_row("SELECT format FROM meta", [], |r| r.get::<_, String>(0))
                 .unwrap(),
-            "s-audit-ledger/raw-partition/1"
+            "s-audit-ledger/raw-partition/2"
         );
     }
 
@@ -2592,9 +2610,6 @@ pub(crate) mod tests {
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime.install_audit_ledger(ledger).unwrap();
         let invented = [1u8; 32];
-        runtime
-            .queue_audit_ledger(token.clone(), audit_ledger::tests::queued_facts(1, &rule))
-            .unwrap();
         content_manifest::take_assemble_call_reads_for_test();
         let (receipt, ended) = owner
             .publish(
@@ -2649,48 +2664,305 @@ pub(crate) mod tests {
             baseline_calls,
             "queued单位不增加同形真实owner无台账路径的组装次数"
         );
+        // 36M：完整事实来自同次收据；单根 cut 的 cover 是 coord 0 → seq 0，挂唯一 CC005 对象。
+        assert_cover_matches_content(&f.conn, &saved, 1);
+        assert_eq!(
+            saved
+                .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        let qualification = runtime.audit_qualification().unwrap();
+        assert_eq!(qualification.through, 1);
+        assert_eq!(qualification.rule_revision, rule);
+        assert_eq!(
+            qualification.verifier_revision,
+            sc::closure_delta::VERIFIER_REVISION
+        );
+        let digest: Vec<u8> = saved
+            .query_row(
+                "SELECT digest FROM node WHERE flavor='value' AND mode='public' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let unit = audit_ledger::Unit {
+            digest: digest.try_into().unwrap(),
+            flavor: audit_ledger::Flavor::Value,
+            mode: audit_ledger::Mode::Public,
+        };
+        assert!(runtime
+            .contains_qualified_unit(&qualification, &unit)
+            .unwrap());
+        assert!(!runtime
+            .contains_qualified_unit(
+                &qualification,
+                &audit_ledger::Unit {
+                    digest: invented,
+                    ..unit.clone()
+                },
+            )
+            .unwrap());
+        let mut stale = qualification.clone();
+        stale.through = 2;
+        assert!(runtime.contains_qualified_unit(&stale, &unit).is_err());
         owner.continue_with(ended).unwrap();
     }
 
+    /// cover 对拍：每个生效原件坐标恰有一行，seq 是该坐标赢家的真实 seq，组身份是本代存活
+    /// CC005 对象且坐标属于其 members；pending 行无组身份，并且 group/pending 互斥。
+    #[cfg(feature = "s_incremental")]
+    fn assert_cover_matches_content(conn: &Connection, saved: &Connection, g: i64) -> usize {
+        let raw = read_raw_events(conn).unwrap();
+        let effective = read_effective_events(&raw).unwrap();
+        let mut winners = std::collections::BTreeMap::new();
+        for event in effective.iter() {
+            let coord = business_json::coord(event.into()).unwrap();
+            let seq = event["seq"].as_i64().unwrap();
+            assert!(winners.insert(coord, seq).is_none());
+        }
+        let tx = conn.unchecked_transaction().unwrap();
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        let objects = object_index::load(&tx, &mut store, g).unwrap();
+        let mut members = std::collections::BTreeMap::new();
+        for entry in &objects {
+            if entry.kind.as_str() != "CC-005.inclusion_group"
+                || entry.life.first_known_generation > g
+                || entry
+                    .life
+                    .withdrawn_generation
+                    .is_some_and(|dead| dead <= g)
+            {
+                continue;
+            }
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut store, &entry.generated.content_ref(), &mut bytes).unwrap();
+            let original: Value = serde_json::from_slice(&bytes).unwrap();
+            let payload: Value =
+                serde_json::from_str(original["payload_json"].as_str().unwrap()).unwrap();
+            for coord in payload["members"].as_array().unwrap() {
+                let coord = coord
+                    .as_i64()
+                    .unwrap_or_else(|| coord.as_str().unwrap().parse::<i64>().unwrap());
+                assert!(
+                    members
+                        .insert(coord, entry.id.as_str().to_owned())
+                        .is_none(),
+                    "同代组成员重叠"
+                );
+            }
+        }
+        drop(store);
+        drop(tx);
+        let mut rows = saved
+            .prepare("SELECT source_coord, seq, owner, object_id FROM cover ORDER BY source_coord")
+            .unwrap();
+        let rows: Vec<(i64, i64, String, Option<String>)> = rows
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            rows.iter().map(|r| r.0).collect::<Vec<_>>(),
+            winners.keys().copied().collect::<Vec<_>>(),
+            "cover 键集必须恰为生效坐标全集"
+        );
+        let mut pending = 0;
+        for (coord, seq, owner, object_id) in &rows {
+            assert_eq!(*seq, winners[coord], "coord {coord} 的赢家 seq");
+            match members.get(coord) {
+                Some(id) => {
+                    assert_eq!(owner, "group");
+                    assert_eq!(object_id.as_deref(), Some(id.as_str()));
+                }
+                None => {
+                    assert_eq!(owner, "pending", "coord {coord} 既不在任何组也不是 pending");
+                    assert!(object_id.is_none());
+                    pending += 1;
+                }
+            }
+        }
+        pending
+    }
+
+    /// 36M 完整台账的真实 owner 多代对拍：修订赢家 seq≠coord、替换/撤回、cover 分区与
+    /// 内容库逐代一致，Complete 水位逐代推进；丢弃重建后 raw/cover 与首轮逐行相同。
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn p6_queued_facts_identity_mismatch_never_commits() {
-        for change_token in [true, false] {
-            let mut f = Fixture::new();
-            let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+    fn p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild() {
+        let events = [
+            ("a", 0, 6, 12, 3, 7, 1),
+            ("b", 1, 14, 20, 10, 15, 1),
+            ("c", 2, 6, 12, 3, 7, 1),
+            ("b", 1, 14, 21, 10, 15, 2),
+            ("c", 2, 26, 30, 22, 27, 2),
+        ];
+        let mut dumps = Vec::new();
+        for round in 0..2 {
+            let mut f = Fixture::build(5, 5, None);
             let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
             let db = f.db_path();
-            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let name = format!("complete-{round}.sqlite");
+            let path = db.with_file_name(&name);
             let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
             runtime
-                .install_audit_ledger(audit_ledger::tests::ledger(
-                    &db,
-                    "queue-identity.sqlite",
-                    &rule,
-                ))
+                .install_audit_ledger(audit_ledger::tests::ledger(&db, &name, &rule))
                 .unwrap();
-            let mut facts = audit_ledger::tests::queued_facts(1, &rule);
-            let queued_token = if change_token {
-                format!("{token}-changed")
-            } else {
-                facts.rule_revision.push_str("-changed");
-                token.clone()
-            };
-            runtime.queue_audit_ledger(queued_token, facts).unwrap();
-            assert!(owner
+            assert!(runtime.audit_qualification().is_err());
+            let mut covers = Vec::new();
+            for (i, &(key, at, open, high, low, close, revision)) in events.iter().enumerate() {
+                let g = i as i64 + 1;
+                let (envelope, token) =
+                    f.accept_begin(g, (key, at, open, high, low, close), revision);
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let (_, ended) = owner
+                    .publish(
+                        &mut runtime,
+                        &token,
+                        &envelope,
+                        &mut request_audit::RequestAuditContext::default(),
+                    )
+                    .unwrap();
+                owner.continue_with(ended).unwrap();
+                let ledger = runtime.audit_ledger.as_ref().unwrap();
+                assert_eq!(ledger.committed_through().unwrap(), g);
+                assert!(ledger.partial_through().is_err());
+                assert!(runtime.queued_audit_facts.is_none());
+                let saved = Connection::open(&path).unwrap();
+                assert_cover_matches_content(&f.conn, &saved, g);
+                assert_eq!(
+                    saved
+                        .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                        .unwrap(),
+                    g
+                );
+                assert_eq!(
+                    saved
+                        .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                        .unwrap(),
+                    g
+                );
+                assert_eq!(runtime.audit_qualification().unwrap().through, g);
+                let mut rows = saved
+                    .prepare("SELECT source_coord, seq FROM cover ORDER BY source_coord")
+                    .unwrap();
+                covers.push(
+                    rows.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))
+                        .unwrap()
+                        .collect::<rusqlite::Result<Vec<_>>>()
+                        .unwrap(),
+                );
+            }
+            // 修订赢家：coord 1/2 的 seq 推进到 3/4，coord 0 不动；seq 与 coord 刻意不同。
+            assert_eq!(covers[4], vec![(0, 0), (1, 3), (2, 4)]);
+            assert_eq!(covers[2], vec![(0, 0), (1, 1), (2, 2)]);
+            let saved = Connection::open(&path).unwrap();
+            assert!(
+                saved
+                    .query_row("SELECT COUNT(*) FROM object WHERE withdrawn=1", [], |r| r
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap()
+                    > 0,
+                "修订必须产生撤回"
+            );
+            drop(runtime);
+            let dump = audit_ledger::tests::dump(&path)
+                .into_iter()
+                .filter(|row| row.starts_with("cover:"))
+                .collect::<Vec<_>>();
+            assert_eq!(dump.len(), 3);
+            dumps.push(dump);
+        }
+        assert_eq!(dumps[0], dumps[1], "丢弃重建后的 cover 逐行相同");
+    }
+
+    /// 36M pending：首根包含第二根且方向未定时，第二根只能是已发布未定原件，不得伪造组身份。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_real_owner_records_pending_without_group() {
+        let mut f = Fixture::new();
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let path = db.with_file_name("complete-pending.sqlite");
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(audit_ledger::tests::ledger(
+                &db,
+                "complete-pending.sqlite",
+                &rule,
+            ))
+            .unwrap();
+        let mut pending_seen = 0;
+        for (i, &(key, at, open, high, low, close)) in [
+            ("p0", 0, 0, 10, 0, 10),
+            ("p1", 1, 1, 9, 1, 9),
+            ("p2", 2, 20, 30, 20, 30),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let g = i as i64 + 1;
+            let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), 1);
+            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let (_, ended) = owner
                 .publish(
                     &mut runtime,
                     &token,
                     &envelope,
-                    &mut request_audit::RequestAuditContext::default()
+                    &mut request_audit::RequestAuditContext::default(),
                 )
-                .is_err());
-            assert!(runtime.queued_audit_facts.is_none());
-            assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
-            let saved = Connection::open(db.with_file_name("queue-identity.sqlite")).unwrap();
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            let saved = Connection::open(&path).unwrap();
+            pending_seen += assert_cover_matches_content(&f.conn, &saved, g);
+            assert_eq!(
+                runtime
+                    .audit_ledger
+                    .as_ref()
+                    .unwrap()
+                    .committed_through()
+                    .unwrap(),
+                g
+            );
+        }
+        assert!(pending_seen > 0, "三根包含夹具必须出现真实 pending 行");
+    }
+
+    /// 36M：source-partitions 台账与完整台账来自同一份收据导出；分区台账不写 cover/node/cert。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit() {
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let db = f.db_path();
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(audit_ledger::tests::ledger(
+                &db,
+                "wrong-rule.sqlite",
+                "TestOnly-other-rule",
+            ))
+            .unwrap();
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &envelope,
+                &mut request_audit::RequestAuditContext::default()
+            )
+            .is_err());
+        assert!(runtime.queued_audit_facts.is_none());
+        assert!(runtime.audit_qualification().is_err());
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
+        let saved = Connection::open(db.with_file_name("wrong-rule.sqlite")).unwrap();
+        for table in ["raw", "cover", "cert", "node"] {
             assert_eq!(
                 saved
-                    .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                        .get::<_, i64>(0))
                     .unwrap(),
                 0
             );
@@ -2708,9 +2980,6 @@ pub(crate) mod tests {
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime
             .install_audit_ledger(audit_ledger::tests::ledger(&db, "queue-fail.sqlite", &rule))
-            .unwrap();
-        runtime
-            .queue_audit_ledger(token.clone(), audit_ledger::tests::queued_facts(1, &rule))
             .unwrap();
         let mut invalid = envelope;
         invalid["payload"] = serde_json::json!({});
@@ -2736,8 +3005,13 @@ pub(crate) mod tests {
                 .unwrap(),
             0
         );
-        assert!(runtime
-            .queue_audit_ledger(token, audit_ledger::tests::queued_facts(1, &rule))
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &invalid,
+                &mut request_audit::RequestAuditContext::default()
+            )
             .is_err());
     }
 
@@ -2760,9 +3034,6 @@ pub(crate) mod tests {
         let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime.install_audit_ledger(ledger).unwrap();
-        runtime
-            .queue_audit_ledger(token.clone(), audit_ledger::tests::queued_facts(1, &rule))
-            .unwrap();
         let mut context = request_audit::RequestAuditContext::default();
         let error = owner
             .publish(&mut runtime, &token, &envelope, &mut context)

@@ -1,6 +1,7 @@
 //! #1647：旁挂审计事实存储与提交生命周期。这里不签发来源或闭包核验资格。
 //! 调用者只能送入已核验的单代变化；#1481 的冷折叠与在线生产者共用 stage。
-//! 本组件尚不接准入读取，未实现的来源/闭包 Δ 不得借此跳过现有核验。
+//! 完整台账的事实由同次 prepare 的来源收据生产（36M cover 勘误），H1 只经 `Qualification` 点查，
+//! 不持裸 Ledger 引用；准入切换仍受 #1645/#1491 门约束。
 #![allow(dead_code)]
 
 use super::*;
@@ -12,9 +13,11 @@ use rusqlite::{params, OpenFlags};
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::OpenOptionsExt;
 
-const FORMAT: &str = "s-audit-ledger/1";
-const RAW_PARTITION_FORMAT: &str = "s-audit-ledger/raw-partition/1";
-const SOURCE_PARTITIONS_FORMAT: &str = "s-audit-ledger/source-partitions/1";
+/// 36M：cover 改以 source_coord 为键并记 Group(object_id)/Pending，schema 整体升为 /2。
+/// 旧 /1 文件不迁移、不读取；`fresh` 只建新文件。
+pub(super) const FORMAT: &str = "s-audit-ledger/2";
+const RAW_PARTITION_FORMAT: &str = "s-audit-ledger/raw-partition/2";
+const SOURCE_PARTITIONS_FORMAT: &str = "s-audit-ledger/source-partitions/2";
 const SCHEMA: &str = "
 CREATE TABLE meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1), format TEXT NOT NULL,
  rule_revision TEXT NOT NULL, content_identity TEXT NOT NULL, binary_commit TEXT NOT NULL,
@@ -28,7 +31,9 @@ CREATE TABLE witness(id TEXT PRIMARY KEY, record_digest BLOB NOT NULL,
  source_digest BLOB NOT NULL, certified_generation INTEGER NOT NULL);
 CREATE TABLE observation(id TEXT PRIMARY KEY, record_digest BLOB NOT NULL,
  source_digest BLOB NOT NULL, certified_generation INTEGER NOT NULL);
-CREATE TABLE cover(seq INTEGER PRIMARY KEY REFERENCES raw(seq), group_id TEXT NOT NULL);
+CREATE TABLE cover(source_coord INTEGER PRIMARY KEY, seq INTEGER NOT NULL REFERENCES raw(seq),
+ owner TEXT NOT NULL CHECK(owner IN ('group','pending')), object_id TEXT,
+ certified_generation INTEGER NOT NULL, CHECK((owner='group')=(object_id IS NOT NULL)));
 CREATE TABLE node(digest BLOB NOT NULL, flavor TEXT NOT NULL CHECK(flavor IN ('value','json-inner')),
  mode TEXT NOT NULL CHECK(mode IN ('public','template')), first_generation INTEGER NOT NULL,
  PRIMARY KEY(digest,flavor,mode));
@@ -55,6 +60,13 @@ pub(super) struct ObjectFact {
 pub(super) struct RelatedFact {
     pub record_digest: [u8; 32],
     pub source_digest: [u8; 32],
+}
+/// cover 单坐标变化：Group/Pending 覆盖该 source_coord 当前行，Removed 删除已失效坐标。
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub(super) enum CoverChange {
+    Group { seq: i64, object_id: String },
+    Pending { seq: i64 },
+    Removed,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 pub(super) enum Flavor {
@@ -98,7 +110,11 @@ pub(super) struct GenerationDelta {
     pub objects: BTreeMap<String, ObjectFact>,
     pub witnesses: BTreeMap<String, RelatedFact>,
     pub observations: BTreeMap<String, RelatedFact>,
-    pub cover: BTreeMap<i64, String>,
+    /// 本代撤回的既有对象身份；行必须已存在且未撤回。
+    pub withdrawals: BTreeSet<String>,
+    pub cover: BTreeMap<i64, CoverChange>,
+    /// 本 cut 生效坐标总数；提交后 cover 行数必须恰等于它。
+    pub effective: i64,
     pub new_units: BTreeSet<Unit>,
 }
 
@@ -109,9 +125,94 @@ pub(super) struct QueuedFacts {
     pub objects: BTreeMap<String, ObjectFact>,
     pub witnesses: BTreeMap<String, RelatedFact>,
     pub observations: BTreeMap<String, RelatedFact>,
-    pub cover: BTreeMap<i64, String>,
+    pub withdrawals: BTreeSet<String>,
+    pub cover: BTreeMap<i64, CoverChange>,
+    pub effective: i64,
 }
 impl QueuedFacts {
+    /// 唯一生产入口：从同次严格来源核的收据取 raw/业务/cover 事实，不接受调用方拼装。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn from_receipt(
+        receipt: &super::source_audit::source_receipt::RawReceipt,
+        metadata: &content_manifest::ManifestMetadata,
+    ) -> Result<Self, String> {
+        let business = receipt.business_rows()?;
+        let exports = receipt.cover();
+        let mut raw = BTreeMap::new();
+        for row in receipt.rows() {
+            if raw
+                .insert(
+                    row.seq,
+                    RawFact {
+                        event_digest: row.event_digest,
+                        bar_digest: row.bar_digest,
+                    },
+                )
+                .is_some()
+            {
+                return Err(error("来源收据 raw seq 重复"));
+            }
+        }
+        let mut objects = BTreeMap::new();
+        for row in business.objects.iter() {
+            objects.insert(
+                row.id.as_str().to_owned(),
+                ObjectFact {
+                    record_digest: row.record,
+                    first_generation: row.first_generation,
+                    first_cut: row.first_cut.as_str().to_owned(),
+                    published_generation: row.published_generation,
+                    source_digest: row.sources,
+                    withdrawn: false,
+                },
+            );
+        }
+        let related =
+            |rows: &sc::CodecVec<super::source_audit::source_receipt::source_facts::RelatedRow>| {
+                rows.iter()
+                    .map(|row| {
+                        (
+                            row.id.as_str().to_owned(),
+                            RelatedFact {
+                                record_digest: row.record,
+                                source_digest: row.sources,
+                            },
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            };
+        let mut cover = BTreeMap::new();
+        for coord in exports.removed.iter() {
+            cover.insert(*coord, CoverChange::Removed);
+        }
+        for row in exports.cover.iter() {
+            let change = match &row.owner {
+                Some(id) => CoverChange::Group {
+                    seq: row.seq,
+                    object_id: id.as_str().to_owned(),
+                },
+                None => CoverChange::Pending { seq: row.seq },
+            };
+            if cover.insert(row.coord, change).is_some() {
+                return Err(error("来源收据 cover 坐标重复"));
+            }
+        }
+        Ok(Self {
+            generation: metadata.generation,
+            rule_revision: metadata.rule_revision.clone(),
+            raw,
+            objects,
+            witnesses: related(&business.witnesses),
+            observations: related(&business.observations),
+            withdrawals: business
+                .withdrawals
+                .iter()
+                .map(|id| id.as_str().to_owned())
+                .collect(),
+            cover,
+            effective: i64::try_from(exports.effective).map_err(error)?,
+        })
+    }
     pub(super) fn bind(
         self,
         metadata: &content_manifest::ManifestMetadata,
@@ -140,7 +241,9 @@ impl QueuedFacts {
             objects: self.objects,
             witnesses: self.witnesses,
             observations: self.observations,
+            withdrawals: self.withdrawals,
             cover: self.cover,
+            effective: self.effective,
             new_units: BTreeSet::new(),
         })
     }
@@ -150,6 +253,119 @@ pub(super) struct Identity {
     pub rule_revision: String,
     pub content_identity: String,
     pub binary_commit: String,
+}
+/// H1 可点查资格（#1481 消费接口）。字段只读，由 `Ledger::qualification` 签发。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Qualification {
+    pub through: i64,
+    pub roots: String,
+    pub fold_digest: String,
+    pub verifier_revision: String,
+    pub rule_revision: String,
+    pub content_identity: String,
+    pub binary_commit: String,
+}
+impl Qualification {
+    /// cert.roots 规范 JSON 的字节上界：四个 `{"extent","format","kind","root"}` 对象。
+    pub(super) const ROOTS_BOUND: usize = {
+        const EXTENT: usize = 22;
+        const ROOT: usize = newchan_rust::s_content::ROOT_PREFIX.len() + 64;
+        const KIND: usize = "template_batch".len();
+        const SYNTAX: usize = 43;
+        5 + 4 * (SYNTAX + EXTENT + newchan_rust::s_content::CONTENT_FORMAT.len() + KIND + ROOT)
+    };
+    /// 一份资格全部字符串字段的字节上界；调用方据此在读取前预留，超过即拒绝。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn retained_bound(
+        rule_revision: usize,
+        content_identity: usize,
+        binary_commit: usize,
+    ) -> usize {
+        [
+            Self::ROOTS_BOUND,
+            64,
+            sc::closure_delta::VERIFIER_REVISION.len(),
+            rule_revision,
+            content_identity,
+            binary_commit,
+        ]
+        .into_iter()
+        .fold(0usize, usize::saturating_add)
+    }
+    /// 同一行上的借用视图，不分配；`stage` 前核旧资格与 H1 点查都走这里。
+    fn matches(&self, v: &QualificationView<'_>) -> bool {
+        self.through == v.through
+            && self.roots == v.roots
+            && self.fold_digest == v.fold_digest
+            && self.verifier_revision == v.verifier_revision
+            && self.rule_revision == v.rule_revision
+            && self.content_identity == v.content_identity
+            && self.binary_commit == v.binary_commit
+    }
+}
+struct QualificationView<'a> {
+    through: i64,
+    roots: &'a str,
+    fold_digest: &'a str,
+    verifier_revision: &'a str,
+    rule_revision: &'a str,
+    content_identity: &'a str,
+    binary_commit: &'a str,
+}
+impl QualificationView<'_> {
+    fn string_bytes(&self) -> usize {
+        [
+            self.roots,
+            self.fold_digest,
+            self.verifier_revision,
+            self.rule_revision,
+            self.content_identity,
+            self.binary_commit,
+        ]
+        .into_iter()
+        .map(str::len)
+        .fold(0usize, usize::saturating_add)
+    }
+    fn owned(&self) -> Qualification {
+        fn exact(s: &str) -> String {
+            let mut owned = String::with_capacity(s.len());
+            owned.push_str(s);
+            owned
+        }
+        Qualification {
+            through: self.through,
+            roots: exact(self.roots),
+            fold_digest: exact(self.fold_digest),
+            verifier_revision: exact(self.verifier_revision),
+            rule_revision: exact(self.rule_revision),
+            content_identity: exact(self.content_identity),
+            binary_commit: exact(self.binary_commit),
+        }
+    }
+}
+/// 与 `stage_inner` 写入 cert.roots 的 `canonical_json(roots_value)` 逐字节相同；写入预留好的缓冲。
+pub(super) fn roots_json_into(out: &mut String, roots: [RefView<'_>; 4]) -> Result<(), String> {
+    use std::fmt::Write as _;
+    out.push('[');
+    for (i, r) in roots.into_iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let extent = match r.extent() {
+            Some(n) => serde_json::to_string(&n.to_string()).map_err(error)?,
+            None => "null".to_owned(),
+        };
+        write!(
+            out,
+            "{{\"extent\":{extent},\"format\":{},\"kind\":{},\"root\":{}}}",
+            serde_json::to_string(r.format()).map_err(error)?,
+            serde_json::to_string(r.kind().name()).map_err(error)?,
+            serde_json::to_string(r.root()).map_err(error)?,
+        )
+        .map_err(error)?;
+    }
+    out.push(']');
+    Ok(())
 }
 
 struct Pending {
@@ -277,7 +493,7 @@ impl Ledger {
                 identity.rule_revision,
                 identity.content_identity,
                 identity.binary_commit,
-                sha256_hex(b"s-audit-ledger/1")
+                sha256_hex(FORMAT.as_bytes())
             ],
         )
         .map_err(error)?;
@@ -352,6 +568,82 @@ impl Ledger {
     pub(super) fn is_raw_partition(&self) -> bool {
         matches!(self.coverage, Coverage::RawPartition { .. })
     }
+    /// 完整台账且无进行中的一代：本次 prepare 须由来源收据生产完整事实（36M）。
+    /// 组件路径预先 stage 的 Pending 台账不再生产，Partial 台账走各自分区入口。
+    pub(super) fn accepts_production(&self) -> bool {
+        matches!(self.phase, Phase::Ready) && matches!(self.coverage, Coverage::Complete)
+    }
+    /// 本次 prepare 是否需要收据导出业务/cover 事实。
+    pub(super) fn wants_business_facts(&self) -> bool {
+        self.is_source_partitions() || self.accepts_production()
+    }
+    /// 当前已提交资格的借用视图：末代 cert 与 meta 同一语句取出，不分配；在 `stage_inner`
+    /// 的 BEGIN IMMEDIATE 内调用时读到的就是本事务改写前的已提交状态。
+    /// 规则取持久 `meta.rule_revision` 并与安装规则同事务核（40H B1），不以内存副本替代。
+    fn with_committed_qualification<R>(
+        &self,
+        f: impl FnOnce(&QualificationView<'_>) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let through = self.committed_through()?;
+        if through < 1 {
+            return Err(error("完整台账尚无已提交的一代"));
+        }
+        let conn = self.connection.as_ref().unwrap();
+        conn.query_row(
+            "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, \
+             m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1",
+            [through],
+            |r| {
+                let text = |i: usize| r.get_ref(i)?.as_str().map_err(rusqlite::Error::from);
+                let fold_digest = text(1)?;
+                if text(3)? != fold_digest {
+                    return Ok(Err(error("完整水位与末代 cert 折叠摘要不一致")));
+                }
+                let rule_revision = text(6)?;
+                if rule_revision != self.rule_revision {
+                    return Ok(Err(error("台账持久规则与安装规则不一致")));
+                }
+                Ok(f(&QualificationView {
+                    through,
+                    roots: text(0)?,
+                    fold_digest,
+                    verifier_revision: text(2)?,
+                    rule_revision,
+                    content_identity: text(4)?,
+                    binary_commit: text(5)?,
+                }))
+            },
+        )
+        .map_err(error)?
+    }
+    /// H1 的私有点查资格：绑定已提交完整水位、四根、规则、verifier 与内容库身份。
+    /// 不含连接、不可跨进程；任何字段不符即不能用它点查。
+    pub(super) fn qualification(&self) -> Result<Qualification, String> {
+        self.with_committed_qualification(|v| Ok(v.owned()))
+    }
+    /// 39P：字符串总字节先对调用方已预留的上界核过，再按精确容量分配（B2）。
+    pub(super) fn qualification_bounded(&self, cap: usize) -> Result<Qualification, String> {
+        self.with_committed_qualification(|v| {
+            if v.string_bytes() > cap {
+                return Err(error("完整资格超过调用方保留上界"));
+            }
+            Ok(v.owned())
+        })
+    }
+    fn matches_committed(&self, q: &Qualification) -> Result<bool, String> {
+        self.with_committed_qualification(|v| Ok(q.matches(v)))
+    }
+    /// 只接受本台账当前签发且水位未变的资格；台账 Pending/Bound/Stale 或已推进一代即拒绝。
+    pub(super) fn contains_qualified_unit(
+        &self,
+        q: &Qualification,
+        unit: &Unit,
+    ) -> Result<bool, String> {
+        if !self.matches_committed(q)? {
+            return Err(error("点查资格与当前已提交台账不符"));
+        }
+        self.contains_committed_unit(unit)
+    }
     #[cfg(feature = "s_incremental")]
     pub(super) fn raw_partition_through(&self) -> Result<i64, String> {
         match (&self.phase, &self.coverage) {
@@ -404,12 +696,15 @@ impl Ledger {
             delta,
             delta.new_units.iter(),
             &delta.verifier_revision,
+            None,
         );
         if result.is_err() {
             self.invalidate();
         }
         result
     }
+    /// `prior`（39P B1）：H1 持有的上一代资格；stage 在同一台账事务内先核它与当前已提交
+    /// 状态逐字段相同，再改写折叠链。外写 meta/cert 不能被新一代 stage 吸收为自洽。
     #[cfg(feature = "s_incremental")]
     pub(super) fn stage_verified(
         &mut self,
@@ -417,6 +712,7 @@ impl Ledger {
         delta: &GenerationDelta,
         verified: &sc::closure_delta::VerifiedUnits,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
+        prior: Option<&Qualification>,
     ) -> Result<(), String> {
         let result = (|| {
             self.committed_through()?;
@@ -456,6 +752,7 @@ impl Ledger {
                 delta,
                 units.iter(),
                 sc::closure_delta::VERIFIER_REVISION,
+                prior,
             )
         })();
         if result.is_err() {
@@ -469,6 +766,7 @@ impl Ledger {
         d: &GenerationDelta,
         new_units: impl Iterator<Item = &'u Unit> + Clone,
         verifier_revision: &str,
+        prior: Option<&Qualification>,
     ) -> Result<(), String> {
         if !matches!(self.phase, Phase::Ready) || !matches!(self.coverage, Coverage::Complete) {
             return Err(error("台账不在完整事实可准备状态"));
@@ -485,6 +783,18 @@ impl Ledger {
         self.check_storage()?;
         let conn = self.connection.as_ref().unwrap();
         conn.execute_batch("BEGIN IMMEDIATE").map_err(error)?;
+        if let Some(prior) = prior {
+            let detail = match self.matches_committed(prior) {
+                Ok(true) => None,
+                Ok(false) => Some("字段不同".to_owned()),
+                Err(e) => Some(e),
+            };
+            if let Some(detail) = detail {
+                return Err(error(format!(
+                    "上一代资格与台账当前已提交状态不符，不续写折叠链：{detail}"
+                )));
+            }
+        }
         let previous: String = conn
             .query_row("SELECT fold_digest FROM meta WHERE singleton=1", [], |r| {
                 r.get(0)
@@ -532,9 +842,59 @@ impl Ledger {
                     params![id,r.record_digest.as_slice(),r.source_digest.as_slice(),d.generation]).map_err(error)?;
             }
         }
-        for (seq, group) in &d.cover {
-            conn.execute("INSERT INTO cover VALUES(?1,?2) ON CONFLICT(seq) DO UPDATE SET group_id=excluded.group_id",
-                params![seq,group]).map_err(error)?;
+        for id in &d.withdrawals {
+            let changed = conn
+                .execute(
+                    "UPDATE object SET withdrawn=1,certified_generation=?1 WHERE id=?2 AND withdrawn=0",
+                    params![d.generation, id],
+                )
+                .map_err(error)?;
+            if changed != 1 {
+                return Err(error("撤回身份缺失或已撤回"));
+            }
+        }
+        for (coord, change) in &d.cover {
+            match change {
+                CoverChange::Removed => {
+                    if conn
+                        .execute("DELETE FROM cover WHERE source_coord=?1", [coord])
+                        .map_err(error)?
+                        != 1
+                    {
+                        return Err(error("cover 失效坐标不在当前分区"));
+                    }
+                }
+                // 行只在 (seq, owner, object_id) 变化时推进 certified_generation：Native 增量只列
+                // 触及坐标、完整原件导出列整份分区，同一内容在两条路径上必须落出同一行。
+                CoverChange::Group { seq, object_id } => {
+                    conn.execute(
+                        "INSERT INTO cover VALUES(?1,?2,'group',?3,?4) ON CONFLICT(source_coord) DO UPDATE SET
+                         seq=excluded.seq, owner=excluded.owner, object_id=excluded.object_id,
+                         certified_generation=excluded.certified_generation
+                         WHERE seq IS NOT excluded.seq OR owner IS NOT excluded.owner
+                         OR object_id IS NOT excluded.object_id",
+                        params![coord, seq, object_id, d.generation],
+                    )
+                    .map_err(error)?;
+                }
+                CoverChange::Pending { seq } => {
+                    conn.execute(
+                        "INSERT INTO cover VALUES(?1,?2,'pending',NULL,?3) ON CONFLICT(source_coord) DO UPDATE SET
+                         seq=excluded.seq, owner=excluded.owner, object_id=excluded.object_id,
+                         certified_generation=excluded.certified_generation
+                         WHERE seq IS NOT excluded.seq OR owner IS NOT excluded.owner
+                         OR object_id IS NOT excluded.object_id",
+                        params![coord, seq, d.generation],
+                    )
+                    .map_err(error)?;
+                }
+            }
+        }
+        let covered: i64 = conn
+            .query_row("SELECT COUNT(*) FROM cover", [], |r| r.get(0))
+            .map_err(error)?;
+        if covered != d.effective {
+            return Err(error("cover 行数不等于本 cut 生效坐标总数"));
         }
         for unit in new_units.clone() {
             // new_units 必须真是本代新增集合，重复认证单位拒绝而非静默忽略。
@@ -560,7 +920,7 @@ impl Ledger {
         let units = canonical_json(&unit_values);
         let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":verifier_revision,
             "raw":d.raw,"objects":d.objects,"witnesses":d.witnesses,"observations":d.observations,
-            "cover":d.cover,"new_units":unit_values});
+            "withdrawals":d.withdrawals,"cover":d.cover,"effective":d.effective,"new_units":unit_values});
         let fold = sha256_hex(canonical_json(&json!([previous, delta])).as_bytes());
         conn.execute(
             "INSERT INTO cert VALUES(?1,?2,?3,?4,?5,?6)",
@@ -873,7 +1233,15 @@ pub(super) mod tests {
                     source_digest: [8; 32],
                 },
             )]),
-            cover: BTreeMap::from([(g - 1, "group-a".into())]),
+            withdrawals: BTreeSet::new(),
+            cover: BTreeMap::from([(
+                g - 1,
+                CoverChange::Group {
+                    seq: g - 1,
+                    object_id: "object-a".into(),
+                },
+            )]),
+            effective: g,
             new_units: BTreeSet::from([
                 Unit {
                     digest: [g as u8; 32],
@@ -891,24 +1259,6 @@ pub(super) mod tests {
                     mode: Mode::Public,
                 },
             ]),
-        }
-    }
-    #[cfg(feature = "s_incremental")]
-    pub(crate) fn queued_facts(generation: i64, rule: &str) -> QueuedFacts {
-        QueuedFacts {
-            generation,
-            rule_revision: rule.into(),
-            raw: BTreeMap::from([(
-                generation - 1,
-                RawFact {
-                    event_digest: [1; 32],
-                    bar_digest: [2; 32],
-                },
-            )]),
-            objects: BTreeMap::new(),
-            witnesses: BTreeMap::new(),
-            observations: BTreeMap::new(),
-            cover: BTreeMap::new(),
         }
     }
     pub(crate) fn ledger(db: &Path, name: &str, rule: &str) -> Ledger {
@@ -1054,7 +1404,7 @@ pub(super) mod tests {
             metadata.generation = generation;
             let facts = delta(&metadata, &roots);
             ledger
-                .stage_verified(&token, &facts, &verified, None)
+                .stage_verified(&token, &facts, &verified, None, None)
                 .unwrap();
             ledger.bind(&token, &metadata, &roots).unwrap();
             ledger.content_committed().unwrap();

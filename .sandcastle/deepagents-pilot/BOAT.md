@@ -94,6 +94,8 @@ v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ...
 
 工蜂包先在同目录的临时目录内构建，源码、controller、runtime 和 request 全部写完后才记录 `.complete.json` 并原子发布到 `boat/packages/<package_id>`。重启只复用已发布且身份相同的完整包；旧版本仅有 `package.json` 的半成品会重建，未发布的临时包不参与上传。
 
+runtime 文件从 run 的冻结 `runtime_head` 读取。该版本依赖 `scheduler-config.mts` 时，包内同时带上同一提交的模块和 `scheduler-config.json`，缺一即构建失败。不读取实时工作树的配置；不依赖该模块的历史运行时仍按原文件集合封包。
+
 源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack 与模型规则在每个 run 首次派工时冻结为一份技能包，包身份含其内容摘要，同一 run 的作者与独审使用同一份。主控在首次构建时也读取这份技能包和规则。主控项目技能与纪律从 run 的冻结 base 导出，不从实时源仓库或可变作者 checkout 读取。所有工蜂的执行项目技能也来自该 base 的主控快照，候选源码仍从各自 target head 导出。项目技能经同一个转换器生成内容身份，记录在主控 `boat/controller-context/context.json` 和工蜂 `package.json` 中。`.agents` 和 `.codex` 继续受原只读保护。`allowed_prefixes` 的路径形状检查不会授予这些目录写权。三者以只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
 
 `tests/boat_live.py` 用无模型夹具工蜂在真实 Boat 上跑提交、监督、观察、收集、断连、停止恢复与取消。夹具回执带 `fixture: true`，不能替代真实模型验收。完整接入验收仍需真实模型轨迹、异家族独审、原发布链和精确 head 批准。首轮资源预算上限为 5 美元，每台 VM 上限为 1800 秒。

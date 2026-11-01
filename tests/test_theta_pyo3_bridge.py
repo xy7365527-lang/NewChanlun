@@ -111,11 +111,15 @@ def test_sep_legs_shape_and_snapshot():
     assert isinstance(p_star, float)
 
 
+SYNTHETIC_PROFILE = "production_synthetic_ohlc_integer_tb02a_v1"
+
+
 def test_production_profile_awaits_policy_and_fixture_is_labelled():
-    # #1602 负控：没有场所 profile / P0 未签 ⟹ ValueError(AwaitingPolicy)，不回退旧常数。
+    # #1602 负控：没有场所 profile ⟹ 两槽；P0（replay）tick 已签、三项成本未签 ⟹ 只剩 cost_inputs
+    # （#1774 AC5）。都是 ValueError(AwaitingPolicy)，不回退旧常数。
     with pytest.raises(ValueError, match=r"AwaitingPolicy\{venue_profile, cost_inputs\}"):
         newchan_rust.ThetaStream()
-    with pytest.raises(ValueError, match=r"AwaitingPolicy\{venue_profile, cost_inputs\}"):
+    with pytest.raises(ValueError, match=r"AwaitingPolicy\{cost_inputs\}"):
         newchan_rust.ThetaStream(venue_profile="P0", funding_profile="P0")
     with pytest.raises(ValueError):
         newchan_rust.ThetaStream(preset="nope")
@@ -123,6 +127,15 @@ def test_production_profile_awaits_policy_and_fixture_is_labelled():
     assert s.admissible() is False
     assert "venue-profile-diagnostic-fixture/1" in s.records()
     assert "theta-risk/1" in s.records() and "data-profile/1" in s.records()
+
+
+def test_synthetic_profile_is_refused_by_general_entry():
+    """#1774 AC4（B2）：显式给 synthetic id 的通用 Python 入口报 InvalidPolicy{venue_profile}，原因为
+    usage 不符；funding_profile 给有效 P0，使缺资金不能代为触发异常。"""
+    with pytest.raises(ValueError, match=r"InvalidPolicy\{venue_profile\}.*usage 不符") as info:
+        newchan_rust.ThetaStream(venue_profile=SYNTHETIC_PROFILE, funding_profile="P0")
+    assert "funding_record" not in str(info.value)
+    assert "AwaitingPolicy" not in str(info.value)
 
 
 def test_missing_or_evidence_only_funding_record_refuses():

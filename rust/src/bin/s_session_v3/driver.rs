@@ -274,7 +274,7 @@ impl Driver {
             return Err("增量服务bootstrap只接受CapturedNative模式".into());
         }
         let theta_config = if production {
-            newchan_rust::theta_v0::config::ThetaConfig::for_production_profile("P0")
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
                 .map_err(|error| error.to_string())?
         } else {
             newchan_rust::theta_v0::config::ThetaConfig::default()
@@ -410,7 +410,7 @@ impl Driver {
         )
     }
 
-    /// 正式写入口：先构造当前生效生产配置，再打开库或恢复任何 pending。
+    /// 正式写入口：先构造当前生效生产配置（S 专用绑定 synthetic，#1774 B2），再打开库或恢复任何 pending。
     pub(super) fn open_production_with_request_and_mode(
         db: &Path,
         profile: &Path,
@@ -420,9 +420,34 @@ impl Driver {
         mode: s_allocation::Mode,
         admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        let theta_config =
-            newchan_rust::theta_v0::config::ThetaConfig::for_production_profile("P0")
-                .map_err(|error| error.to_string())?;
+        Self::open_production_bound(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            admission,
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer(),
+        )
+    }
+
+    /// 正式写入口的绑定步：配置构造失败 ⟹ 在任何库写或 pending 恢复之前返回。
+    #[allow(clippy::too_many_arguments)]
+    fn open_production_bound(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+        theta_config: Result<
+            newchan_rust::theta_v0::config::ThetaConfig,
+            newchan_rust::theta_v0::run_records::RunPolicyError,
+        >,
+    ) -> Result<Self, String> {
+        let theta_config = theta_config.map_err(|error| error.to_string())?;
         Self::open_with_request_and_mode_context(
             db,
             profile,
@@ -818,6 +843,12 @@ mod tests {
                 preserve: false,
             }
         }
+        /// #1769：真实 System 时钟描述（固定三键）；读数由 `v2::system_clock_test` 注入。
+        fn system() -> Self {
+            Self::with_clock(
+                json!({"schema_revision":"s-clock-system/1","clock_id":"s3-driver-system","unit":"ns"}),
+            )
+        }
         fn open(&self, epoch: &str) -> Result<Driver, String> {
             Driver::open(
                 &self.db,
@@ -897,9 +928,16 @@ mod tests {
         assert_eq!(count(&open_db(&admitted.db).unwrap(), "raw_events"), 1);
     }
 
-    /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
+    /// #1774 AC7：synthetic v1 夹具（tick 已签、三项成本未签）经正式绑定步 open 失败并报 cost_inputs，
+    /// 在任何 pending begin 之前；#1405 的「配置拒绝不消费 pending」语义随之保留。
     #[test]
     fn production_open_rejects_unsigned_profile_before_pending_begin() {
+        use newchan_rust::theta_v0::run_records::{
+            production_venue_from_records, VenueUsage, ACTIVE_DATA_PROFILE_JSON,
+            ACTIVE_THETA_RISK_JSON, SYNTHETIC_TB02A_PROFILE_ID, VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        };
+        const SYNTHETIC_UNSIGNED_V1: &str =
+            include_str!("../../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
         let f = Fixture::new();
         let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
         let mode = s_allocation::Mode::Ordinary;
@@ -920,7 +958,16 @@ mod tests {
             super::super::audit_owner::Admission::Advance { .. }
         ));
         drop(conn);
-        let error = match Driver::open_production_with_request_and_mode(
+        let unsigned = newchan_rust::theta_v0::config::ThetaConfig::from_records(
+            production_venue_from_records(
+                &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+                VenueUsage::SStructureWriter,
+                |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+            ),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        );
+        let error = match Driver::open_production_bound(
             &f.db,
             &f.profile,
             "1",
@@ -928,13 +975,17 @@ mod tests {
             None,
             mode,
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            unsigned,
         ) {
-            Ok(_) => panic!("未签生产 profile 不得打开 Driver"),
+            Ok(_) => panic!("未签 synthetic profile 不得打开 Driver"),
             Err(error) => error,
         };
-        assert!(error.contains("AwaitingPolicy"), "{error}");
-        assert!(error.contains("venue_profile"), "{error}");
-        assert!(error.contains("cost_inputs"), "{error}");
+        assert!(error.starts_with("AwaitingPolicy{cost_inputs}"), "{error}");
+        assert!(!error.contains("venue_profile"), "{error}");
+        assert!(
+            error.contains("venue-profile-synthetic-tb02a.slippage_bps"),
+            "{error}"
+        );
         let conn = Connection::open(&f.db).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state")
@@ -954,6 +1005,34 @@ mod tests {
             )
             .unwrap();
         assert_eq!(pending, 1, "配置拒绝不得消费或提交 pending 原件");
+    }
+
+    /// #1774 AC2：正式写入口绑定已签 synthetic v2，open 成功、配置 admissible、摘要 policy_records
+    /// 带 synthetic 签署版本而非诊断夹具或 P0。
+    #[test]
+    fn production_open_binds_signed_synthetic_profile() {
+        let f = Fixture::declared("testonly.ohlc");
+        let driver = Driver::open_production_with_request_and_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::Ordinary,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .expect("synthetic v2 已签，正式写入口可开");
+        assert!(driver.require_admissible);
+        assert!(driver.theta_config.admissible());
+        let labels = driver.theta_config.record_labels();
+        assert!(
+            labels.contains("venue-profile-synthetic-tb02a/2"),
+            "{labels}"
+        );
+        assert!(!labels.contains("venue-profile-P0"), "{labels}");
+        assert!(!labels.contains("diagnostic-fixture"), "{labels}");
+        let summary = driver.state_summary("test").unwrap();
+        assert_eq!(summary["policy_records"], json!(labels));
     }
 
     /// #1640 1a（policy1640-diagnostic）：诊断场所入口以夹具开门、Ready 可达且自报 admissible:false，
@@ -2009,6 +2088,596 @@ mod tests {
             "2"
         );
         assert!(after.conn.is_autocommit());
+    }
+
+    fn system_clock_rows(db: &Path) -> Vec<String> {
+        let conn = Connection::open(db).unwrap();
+        let mut stmt = conn
+            .prepare("SELECT clock_event_id||'|'||phase||'|'||attempt_index||'|'||semantic_ns FROM s_clock_events ORDER BY CAST(semantic_ns AS INTEGER)")
+            .unwrap();
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+        rows.collect::<Result<Vec<_>, _>>().unwrap()
+    }
+    fn cold_audit_commit_ns(db: &Path) -> Vec<String> {
+        let mut conn = open_db(db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let mut out = Vec::new();
+        for cut in &audited.cuts {
+            out.push(cut.metadata.semantic_commit_ns.as_str().to_owned());
+        }
+        drop(audited);
+        tx.rollback().unwrap();
+        out
+    }
+
+    /// #1769：System 每个生命周期相位只取样一次；重投、回执、重开、冷审计都读持久值。
+    #[test]
+    fn s_system_clock_samples_once_per_phase_through_driver() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut d = f.open("1").unwrap();
+        let receipt = d.handle(input.clone()).unwrap();
+        assert_eq!(receipt["kind"], "Committed");
+        assert_eq!(fake::samples(), 3, "accept/begin/commit 各取样一次");
+        assert_eq!(d.handle(input.clone()).unwrap(), receipt);
+        assert_eq!(d.handle(receipt_request(&input)).unwrap(), receipt);
+        drop(d);
+        let mut reopened = f.open("1").unwrap();
+        assert_eq!(reopened.handle(receipt_request(&input)).unwrap(), receipt);
+        drop(reopened);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["300".to_string()]);
+        assert_eq!(fake::samples(), 3, "重投、回执、重开和冷审计都不取样");
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "input-1|commit|0|300"
+            ]
+        );
+
+        fake::push(&[400]);
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        assert_eq!(fake::samples(), 4, "recover 取样一次");
+        let mut after = f.open("2").unwrap();
+        // 跨 epoch：旧 epoch 原件不再落账，已提交回执原样复用。
+        let stale = after.handle(input.clone());
+        assert!(
+            stale.as_ref().is_err_and(|e| e.contains("StaleWriter"))
+                || stale.as_ref() == Ok(&receipt),
+            "{stale:?}"
+        );
+        assert_eq!(after.handle(receipt_request(&input)).unwrap(), receipt);
+        assert_eq!(fake::samples(), 4);
+        fake::push(&[500, 600, 700]);
+        let mut second = Fixture::ingest(2);
+        second["payload"]["writer_epoch"] = json!("2");
+        second["payload_hash"] = json!(sha256_hex(canonical_json(&second["payload"]).as_bytes()));
+        assert_eq!(after.handle(second).unwrap()["kind"], "Committed");
+        assert_eq!(fake::samples(), 7);
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["300".to_string(), "700".to_string()]
+        );
+        assert_eq!(fake::samples(), 7);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "input-1|commit|0|300",
+                "recover-1|recover|-1|400",
+                "input-2|accept|-1|500",
+                "input-2|begin|0|600",
+                "input-2|commit|0|700",
+            ]
+        );
+    }
+
+    /// #1769：Begin 后中断、换代恢复再续推：已持久相位可审计，未提交 attempt 不冒充已提交。
+    #[test]
+    fn s_system_clock_recover_audits_persisted_phases() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut before = f.open("1").unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        assert_eq!(fake::samples(), 2);
+        fake::push(&[300]);
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        assert_eq!(fake::samples(), 3);
+        fake::push(&[400, 500]);
+        let mut resumed = f.open("2").unwrap();
+        assert_eq!(fake::samples(), 5, "续推只为新 attempt 取 begin/commit");
+        assert_eq!(
+            resumed.handle(receipt_request(&input)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(resumed);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["500".to_string()]);
+        assert_eq!(fake::samples(), 5);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "recover-1|recover|-1|300",
+                "input-1|begin|1|400",
+                "input-1|commit|1|500",
+            ]
+        );
+        let conn = Connection::open(&f.db).unwrap();
+        let attempts: i64 = conn
+            .query_row("SELECT attempt_count FROM s_input_messages", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(attempts, 2);
+        let commits: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_clock_events WHERE phase='commit' AND attempt_index=0",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(commits, 0, "中断的 attempt 0 没有 commit 读数");
+        drop(conn);
+        let audit_error = |sql: &str| {
+            Connection::open(&f.db).unwrap().execute_batch(sql).unwrap();
+            let mut conn = open_db(&f.db).unwrap();
+            let tx = conn.transaction().unwrap();
+            let error = state::audit(&tx).err();
+            tx.rollback().unwrap();
+            error
+        };
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='450' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='450'",
+        )
+        .expect("结束 attempt 0 的换代不得晚于 attempt 1 的 Begin");
+        assert!(error.contains("晚于下一次Begin"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='300' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='300'",
+        )
+        .is_none());
+        assert_eq!(fake::samples(), 5, "冷审计不取样");
+    }
+
+    /// #1769：Commit 取样早于持久 Begin 时拒绝，不落 commit、不发布；冷审计拒绝被改倒退的持久值。
+    #[test]
+    fn s_system_clock_regression_rejected_through_driver() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 150]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        let error = d.handle(Fixture::ingest(1)).unwrap_err();
+        assert!(error.contains("实际语义clock倒退"), "{error}");
+        drop(d);
+        let conn = Connection::open(&f.db).unwrap();
+        assert_eq!(count(&conn, "structure_deltas"), 0);
+        let commits: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_clock_events WHERE phase='commit'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(commits, 0);
+        drop(conn);
+
+        fake::install(Some(&[100, 200, 300]));
+        let ok = Fixture::system();
+        assert_eq!(
+            ok.open("1").unwrap().handle(Fixture::ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        Connection::open(&ok.db)
+            .unwrap()
+            .execute(
+                "UPDATE s_clock_events SET semantic_ns='250' WHERE phase='accept'",
+                [],
+            )
+            .unwrap();
+        let mut conn = open_db(&ok.db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let error = state::audit(&tx)
+            .err()
+            .expect("持久读数倒退必须被冷审计拒绝");
+        assert!(error.contains("system clock消息相位读数倒退"), "{error}");
+        tx.rollback().unwrap();
+        assert_eq!(fake::samples(), 3, "冷审计不取样");
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_orders_idle_recover_before_successful_begin() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut before = f.open("1").unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        assert!(
+            cold_audit_commit_ns(&f.db).is_empty(),
+            "在途 attempt 的冷审计通过"
+        );
+        for (epoch, event, ns) in [("2", "recover-1", 300), ("3", "recover-2", 350)] {
+            fake::push(&[ns]);
+            recover(
+                &f.db,
+                epoch,
+                &f.clock,
+                event,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+        }
+        fake::push(&[400, 500]);
+        let mut resumed = f.open("3").unwrap();
+        assert_eq!(
+            resumed.handle(receipt_request(&input)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(resumed);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["500".to_string()]);
+        assert_eq!(fake::samples(), 6);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "recover-1|recover|-1|300",
+                "recover-2|recover|-1|350",
+                "input-1|begin|1|400",
+                "input-1|commit|1|500",
+            ]
+        );
+        let audit_error = |sql: &str| {
+            Connection::open(&f.db).unwrap().execute_batch(sql).unwrap();
+            let mut conn = open_db(&f.db).unwrap();
+            let tx = conn.transaction().unwrap();
+            let error = state::audit(&tx).err();
+            tx.rollback().unwrap();
+            error
+        };
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='450' WHERE clock_event_id='recover-2' AND phase='recover'; UPDATE writer_epoch_history SET transitioned_at='450' WHERE from_epoch='2' AND to_epoch='3'",
+        )
+        .expect("闲置换代不得落在成功 attempt 的 Begin 与 Commit 之间");
+        assert!(error.contains("system clock换代读数"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='350' WHERE clock_event_id='recover-2' AND phase='recover'; UPDATE writer_epoch_history SET transitioned_at='350' WHERE from_epoch='2' AND to_epoch='3'",
+        )
+        .is_none());
+        assert_eq!(fake::samples(), 6, "冷审计不取样");
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_keeps_epoch_entry_before_its_accept() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[200]));
+        let f = Fixture::system();
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        let mut input = Fixture::ingest(1);
+        input["payload"]["writer_epoch"] = json!("2");
+        input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));
+        fake::push(&[200, 200]);
+        let mut before = f.open("2").unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        fake::push(&[200]);
+        recover(
+            &f.db,
+            "3",
+            &f.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        fake::push(&[400, 500]);
+        let mut resumed = f.open("3").unwrap();
+        assert_eq!(
+            resumed.handle(receipt_request(&input)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(resumed);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["500".to_string()]);
+        assert_eq!(fake::samples(), 6);
+        Connection::open(&f.db)
+            .unwrap()
+            .execute_batch(
+                "DELETE FROM s_clock_events WHERE clock_event_id='recover-2' AND phase='recover';
+                 DELETE FROM writer_epoch_history WHERE from_epoch='2' AND to_epoch='3';
+                 UPDATE meta SET value='2' WHERE key='writer_epoch';",
+            )
+            .unwrap();
+        let mut conn = open_db(&f.db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let error = state::audit(&tx)
+            .err()
+            .expect("进入 epoch 2 的唯一换代不能同时结束该 epoch 原件的 Begin0");
+        assert!(error.contains("未提交attempt缺结束它的换代"), "{error}");
+        tx.rollback().unwrap();
+        assert_eq!(fake::samples(), 6, "冷审计不取样");
+    }
+
+    fn epoch_input(n: i64, epoch: &str, raw_of: Option<i64>) -> Value {
+        let mut input = Fixture::ingest(n);
+        if let Some(source) = raw_of {
+            input["payload"]["raw_input"] = Fixture::ingest(source)["payload"]["raw_input"].clone();
+        }
+        input["payload"]["writer_epoch"] = json!(epoch);
+        input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));
+        input
+    }
+    fn recover_to(f: &Fixture, epoch: &str, event: &str) {
+        recover(
+            &f.db,
+            epoch,
+            &f.clock,
+            event,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+    }
+    fn tampered_audit_error(db: &Path, sql: &str) -> Option<String> {
+        Connection::open(db).unwrap().execute_batch(sql).unwrap();
+        let mut conn = open_db(db).unwrap();
+        let tx = conn.transaction().unwrap();
+        let error = state::audit(&tx).err();
+        tx.rollback().unwrap();
+        error
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_rejects_new_epoch_alias_before_old_epoch_advance() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[50, 60, 100, 200, 200, 200, 200, 200]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        assert_eq!(d.handle(Fixture::ingest(2)).unwrap()["kind"], "Committed");
+        drop(d);
+        recover_to(&f, "2", "recover-1");
+        let mut after = f.open("2").unwrap();
+        assert_eq!(
+            after.handle(epoch_input(3, "2", Some(1))).unwrap()["kind"],
+            "Committed"
+        );
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["100".to_string(), "200".to_string()]
+        );
+        assert_eq!(fake::samples(), 8);
+        let error = tampered_audit_error(
+            &f.db,
+            "UPDATE s_clock_events SET generation=1 WHERE phase='recover' AND clock_event_id='recover-1';
+             UPDATE writer_epoch_history SET generation_at_transition='1' WHERE from_epoch='1' AND to_epoch='2';
+             UPDATE s_clock_events SET generation=1 WHERE phase='accept' AND clock_event_id='input-3';",
+        )
+        .expect("epoch 2 别名接纳不能先于 epoch 1 推进消息的接纳");
+        assert!(error.contains("别名接纳不得晚于推进消息的接纳"), "{error}");
+        assert_eq!(fake::samples(), 8, "冷审计不取样");
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_rejects_alias_before_its_raw_publication() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 100, 100, 100]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        assert_eq!(
+            d.handle(epoch_input(3, "1", Some(1))).unwrap()["kind"],
+            "Committed"
+        );
+        drop(d);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["100".to_string()]);
+        assert_eq!(fake::samples(), 4);
+        let error = tampered_audit_error(
+            &f.db,
+            "UPDATE s_clock_events SET generation=0 WHERE phase='accept' AND clock_event_id='input-3';",
+        )
+        .expect("raw 未发布前不能有零 attempt 的已提交接纳");
+        assert!(error.contains("raw首次发布不一致"), "{error}");
+        assert_eq!(fake::samples(), 4, "冷审计不取样");
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_rejects_old_epoch_alias_after_leaving_epoch() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[50, 60, 100, 200, 200, 200, 200, 200]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        assert_eq!(
+            d.handle(epoch_input(3, "1", Some(1))).unwrap()["kind"],
+            "Committed"
+        );
+        drop(d);
+        recover_to(&f, "2", "recover-1");
+        let mut after = f.open("2").unwrap();
+        assert_eq!(
+            after.handle(epoch_input(2, "2", None)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["100".to_string(), "200".to_string()]
+        );
+        assert_eq!(fake::samples(), 8);
+        let error = tampered_audit_error(
+            &f.db,
+            "UPDATE s_clock_events SET generation=2 WHERE phase='accept' AND clock_event_id='input-3';",
+        )
+        .expect("离开 epoch 1 之后不能再接纳 epoch 1 原件");
+        assert!(error.contains("不在本代际窗口的换代链上"), "{error}");
+        assert_eq!(fake::samples(), 8, "冷审计不取样");
+    }
+
+    #[test]
+    fn s_system_clock_cold_audit_rejects_out_of_order_accept_and_recover() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(input).unwrap()["kind"], "Committed");
+        drop(d);
+        fake::push(&[400]);
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        fake::push(&[500, 600, 700]);
+        let mut after = f.open("2").unwrap();
+        let mut second = Fixture::ingest(2);
+        second["payload"]["writer_epoch"] = json!("2");
+        second["payload_hash"] = json!(sha256_hex(canonical_json(&second["payload"]).as_bytes()));
+        assert_eq!(after.handle(second).unwrap()["kind"], "Committed");
+        drop(after);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["300".to_string(), "700".to_string()]
+        );
+        let audit_error = |sql: &str| {
+            let conn = Connection::open(&f.db).unwrap();
+            conn.execute_batch(sql).unwrap();
+            drop(conn);
+            let mut conn = open_db(&f.db).unwrap();
+            let tx = conn.transaction().unwrap();
+            let error = state::audit(&tx).err();
+            tx.rollback().unwrap();
+            error
+        };
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='50' WHERE clock_event_id='input-2' AND phase='accept'",
+        )
+        .expect("accept 越出代际窗口必须拒绝");
+        assert!(error.contains("代际窗口"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='500' WHERE clock_event_id='input-2' AND phase='accept'",
+        )
+        .is_none());
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='50' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='50'",
+        )
+        .expect("recover 越出代际窗口必须拒绝");
+        assert!(error.contains("代际窗口"), "{error}");
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='650' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='650'",
+        )
+        .expect("epoch 2 原件不得早于进入 epoch 2 的换代接纳");
+        assert!(error.contains("writer_epoch区间"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='400' WHERE phase='recover'; UPDATE writer_epoch_history SET transitioned_at='400'",
+        )
+        .is_none());
+        assert_eq!(fake::samples(), 7, "冷审计不取样");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn s_system_clock_budget_degrade_reuses_first_commit_reading() {
+        use super::super::audit_owner::PUBLICATION_CANDIDATE_BUDGET_FAILURE;
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300, 400, 500, 600]));
+        let f = Fixture::system();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        assert_eq!(
+            warm.handle(Fixture::ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        assert_eq!(fake::samples(), 3);
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "第 2 代入口须带完整候选"
+        );
+        PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.set(true));
+        let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(2)));
+        assert!(
+            !PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.get()),
+            "故障必须实际到达候选尾检"
+        );
+        assert_eq!(reply.unwrap()["kind"], "Committed");
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["phase"] == "publication_candidate_abandoned")
+                .count(),
+            1
+        );
+        assert_eq!(fake::samples(), 6, "降级重做发布复用首次 Commit 读数");
+        drop(warm);
+        assert_eq!(
+            cold_audit_commit_ns(&f.db),
+            vec!["300".to_string(), "600".to_string()]
+        );
+        assert_eq!(fake::samples(), 6);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "input-1|commit|0|300",
+                "input-2|accept|-1|400",
+                "input-2|begin|0|500",
+                "input-2|commit|0|600",
+            ]
+        );
     }
 
     // 仅调用正常 Driver，覆盖“新消息携带既有 raw”而控制账继续变化的情况。
@@ -7810,5 +8479,203 @@ mod tests {
             .collect();
         let rows = s4_run(&steps, std::env::var("S4_COLD").as_deref() == Ok("1"));
         s4_write_rows(&rows);
+    }
+
+    /// 36M 完整台账双路径锁（#1647 cover39k）：同一真实 owner 序列（三根 + `b` 同坐标修订）分别
+    /// 经 warm Driver 增量臂（steady delta，D2 出生轨迹为空）与独立完整审计模式臂（每代新开
+    /// owner、无来源缓存，full_lease 完整原件导出）生产；两臂 cover/raw 行逐行相同，修订赢家
+    /// seq 推进而旧 seq 保留。增量臂末步投一次改坐标修订：`raw_input` 以 IdentityConflict 拒收
+    /// （同一业务身份不得换源位置），代号、raw、台账水位与 cover 均不动——生效坐标集随前缀
+    /// 单调不减，full-lease 导出无需表达 Removed。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths() {
+        use super::super::audit_ledger;
+        let step = |id: &str, seq: i64, bar: [i64; 4], revision: &'static str| S4Step {
+            kind: "owner",
+            rows: vec![(id.into(), seq, bar[0], bar[1], bar[2], bar[3])],
+            revision,
+        };
+        let steps = [
+            step("a", 0, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 20, 10, 15], "1"),
+            step("c", 2, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 21, 10, 15], "2"),
+        ];
+        let moved = step("b", 3, [14, 22, 10, 15], "3");
+        let full_births = |events: &[Value]| {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "generate_full_birth")
+                .map(|e| e["entry"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        let lane_of = |events: &[Value]| state::stage_rows(events)["paths"].clone();
+        let cover_rows = |path: &Path| {
+            let saved = Connection::open(path).unwrap();
+            let mut rows = saved
+                .prepare("SELECT source_coord, seq FROM cover ORDER BY source_coord")
+                .unwrap();
+            rows.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        };
+        let ledger_rows = |path: &Path| {
+            audit_ledger::tests::dump(path)
+                .into_iter()
+                .filter(|row| row.starts_with("cover:") || row.starts_with("raw:"))
+                .collect::<Vec<_>>()
+        };
+        let check_covers = |covers: &[Vec<(i64, i64)>]| {
+            assert_eq!(covers[2], vec![(0, 0), (1, 1), (2, 2)]);
+            assert_eq!(
+                covers[3],
+                vec![(0, 0), (1, 3), (2, 2)],
+                "修订赢家 seq 推进到 3"
+            );
+        };
+
+        // 增量臂：warm Driver，同一 owner 跨代持候选，稳态代不得进入完整分支。
+        let delta_rows = {
+            let f = Fixture::with_clock(s4_clock(steps.len() + 1));
+            let mut native = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                536_870_912,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            native.incremental_retention_bytes = Some(536_870_912);
+            let rule = meta_get_opt(&native.conn, "rule_revision")
+                .unwrap()
+                .unwrap();
+            let path = f.db.with_file_name("cover-delta.sqlite");
+            native
+                .runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(
+                    &f.db,
+                    "cover-delta.sqlite",
+                    &rule,
+                ))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let message = s4_message(k, step);
+                let (reply, events, _) = state::traced(false, || native.handle(message));
+                reply.unwrap();
+                let births = full_births(&events);
+                if k == 1 {
+                    // 首代是否带候选由启动准入决定，不是本锁对象；修订代（k=4）必须是 delta。
+                    assert!(births.is_empty() || births == ["startup"], "{births:?}");
+                } else {
+                    assert!(births.is_empty(), "第{k}代增量臂调用了完整分支：{births:?}");
+                }
+                let lane = if births.is_empty() {
+                    "delta"
+                } else {
+                    "full_lease"
+                };
+                let paths = lane_of(&events);
+                assert!(
+                    paths.as_array().unwrap().contains(&json!(lane)),
+                    "第{k}代车道须为 {lane}：{paths}"
+                );
+                assert_eq!(meta_i64(&native.conn, "generation").unwrap(), k as i64);
+                assert_eq!(
+                    native.runtime.audit_qualification().unwrap().through,
+                    k as i64
+                );
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            check_covers(&covers);
+            let before = ledger_rows(&path);
+            let outcome = native.handle(s4_message(steps.len() + 1, &moved));
+            let text = match &outcome {
+                Ok(reply) => reply.to_string(),
+                Err(error) => error.clone(),
+            };
+            assert!(
+                text.contains("IdentityConflict") && text.contains("不得换源位置"),
+                "改坐标修订必须在接纳入口拒绝：{text}"
+            );
+            assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
+            assert_eq!(count(&native.conn, "raw_events"), 4);
+            assert_eq!(native.runtime.audit_qualification().unwrap().through, 4);
+            assert_eq!(ledger_rows(&path), before, "拒收后台账 cover/raw 不动");
+            drop(native);
+            before
+        };
+
+        // 完整原件臂：每代新开 owner、默认请求上下文（无来源缓存）＝独立完整审计模式，
+        // 与 prepared 完整台账锁同一生产入口；每代恰一次完整分支、车道 full_lease。
+        let full_rows = {
+            let mut f = prepared::tests::Fixture::new();
+            let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+            let db = f.db_path();
+            let path = db.with_file_name("cover-full-lease.sqlite");
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(
+                    &db,
+                    "cover-full-lease.sqlite",
+                    &rule,
+                ))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let (id, seq, open, high, low, close) = &step.rows[0];
+                let (envelope, token) = f.accept_begin(
+                    k as i64,
+                    (id.as_str(), *seq, *open, *high, *low, *close),
+                    step.revision.parse().unwrap(),
+                );
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let (published, events, _) = state::traced(false, || {
+                    owner.publish(
+                        &mut runtime,
+                        &token,
+                        &envelope,
+                        &mut request_audit::RequestAuditContext::default(),
+                    )
+                });
+                let (_, ended) = published.unwrap();
+                owner.continue_with(ended).unwrap();
+                let births = full_births(&events);
+                assert_eq!(births.len(), 1, "第{k}代完整臂须恰一次完整分支：{births:?}");
+                let paths = lane_of(&events);
+                assert!(
+                    paths.as_array().unwrap().contains(&json!("full_lease")),
+                    "第{k}代车道须为 full_lease：{paths}"
+                );
+                assert_eq!(runtime.audit_qualification().unwrap().through, k as i64);
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            check_covers(&covers);
+            drop(runtime);
+            ledger_rows(&path)
+        };
+        assert_eq!(
+            delta_rows
+                .iter()
+                .filter(|r| r.starts_with("cover:"))
+                .count(),
+            3
+        );
+        assert_eq!(
+            delta_rows.iter().filter(|r| r.starts_with("raw:")).count(),
+            4
+        );
+        assert_eq!(
+            delta_rows, full_rows,
+            "增量臂与完整原件臂的 cover/raw 逐行相同"
+        );
     }
 }

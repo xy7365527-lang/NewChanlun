@@ -1,4 +1,5 @@
 // #1456：原生 Codex 子代理管理一个外部 Sandcastle/Codex 工蜂；一次运行，不取票、不合入。
+import { useScheduler } from "./scheduler-config.mts";
 import type { AgentProvider, NoSandboxHandle } from "@ai-hero/sandcastle";
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
@@ -12,12 +13,14 @@ import { StringDecoder } from "node:string_decoder";
 import { gitEnvironment } from "./git-environment.ts";
 import { MAIN_MODEL } from "./main-model.mts";
 
+const scheduler = useScheduler("codex-child", ["childEffort", "opusModel", "childIdleSeconds", "childTimeoutSeconds", "childKillGraceMs", "childExitPollMs", "childExitWaitMs"]);
+
 /** 与主控同型，经本机 CLIProxyLocal 的 OAuth 订阅路由；不带中转前缀（#1617）。缺省调用者使用它。 */
 export const MODEL = MAIN_MODEL;
 /** #1742：调用者可显式选的模型；缺省仍是 MODEL。GPT 作者配 Opus 独审需要两个家族同走本入口。 */
-export const ALLOWED_MODELS = [MODEL, "claude-opus-5-5"] as const;
-export type ChildModel = typeof ALLOWED_MODELS[number];
-export const EFFORT = "xhigh";
+export const ALLOWED_MODELS: readonly string[] = [MODEL, scheduler.opusModel];
+export type ChildModel = string;
+export const EFFORT = scheduler.childEffort;
 /** 命令带 --ignore-user-config，不读用户 config.toml；provider 由下方具名定义经 -c 显式给出。 */
 export const MODEL_PROVIDER = "cliproxy-local";
 /** CLIProxy 客户端密钥所在的环境变量名。只传变量名；值不进命令、提示、日志或运行记录。 */
@@ -170,7 +173,7 @@ export function validateOptions(options: ChildOptions): void {
   for (const [name, path] of [["checkout", options.checkout], ["prompt-file", options.promptFile], ["output-dir", options.outputDir]]) {
     if (!path || !isAbsolute(path)) throw new Error(`${name} 必须是绝对路径`);
   }
-  for (const seconds of [options.idleTimeoutSeconds ?? 600, options.timeoutSeconds ?? 3600]) {
+  for (const seconds of [options.idleTimeoutSeconds ?? scheduler.childIdleSeconds, options.timeoutSeconds ?? scheduler.childTimeoutSeconds]) {
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 43200) throw new Error("超时必须在 0 到 43200 秒之间");
   }
 }
@@ -406,7 +409,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
           }
           killTimer = setTimeout(() => { // DevSkim: ignore DS172411 回调为函数字面量而非字符串
             try { process.kill(-child.pid!, "SIGKILL"); } catch { /* 进程组已退出；仍等待 close。 */ }
-          }, 1000);
+          }, scheduler.childKillGraceMs);
         };
         const guarded = (label: string, action: () => void) => {
           try { action(); } catch (error) {
@@ -459,7 +462,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
               if ((error as NodeJS.ErrnoException).code !== "ESRCH") issue ??= "工蜂进程组清理失败";
             }
             // 等待本次独立进程组真正消失。无法证明退出则失败，不能提前宣称完成。
-            const deadline = Date.now() + 3000;
+            const deadline = Date.now() + scheduler.childExitWaitMs;
             for (;;) {
               try { process.kill(-child.pid, 0); } catch (error) {
                 if ((error as NodeJS.ErrnoException).code === "ESRCH") break;
@@ -467,7 +470,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
                 break;
               }
               if (Date.now() >= deadline) { issue ??= "工蜂进程组退出未确认"; break; }
-              await new Promise((done) => setTimeout(done, 25));
+              await new Promise((done) => setTimeout(done, scheduler.childExitPollMs));
             }
           }
           clearTimeout(killTimer);
@@ -519,6 +522,8 @@ export async function runCodexChild(
   } = {},
 ): Promise<ChildRecord> {
   validateOptions(options);
+  if (options.idleTimeoutSeconds !== undefined) console.error(`[配置 #1606] codex-child.childIdleSeconds=${options.idleTimeoutSeconds} source=explicit:idleTimeoutSeconds`);
+  if (options.timeoutSeconds !== undefined) console.error(`[配置 #1606] codex-child.childTimeoutSeconds=${options.timeoutSeconds} source=explicit:timeoutSeconds`);
   const outputDir = join(realpathSync(dirname(options.outputDir)), basename(options.outputDir));
   const checkout = realpathSync(options.checkout);
   if (inside(outputDir, checkout)) throw new Error("output-dir 必须在工蜂 checkout 之外");
@@ -602,7 +607,7 @@ export async function runCodexChild(
     handle = await supervisedNoSandbox(checkout, {
       signal: control.signal, env, stdoutFile: record.stdout_log, stderrFile: record.stderr_log,
       writeLog: control.writeLog,
-      idleTimeoutSeconds: options.idleTimeoutSeconds ?? 600, timeoutSeconds: options.timeoutSeconds ?? 3600,
+      idleTimeoutSeconds: options.idleTimeoutSeconds ?? scheduler.childIdleSeconds, timeoutSeconds: options.timeoutSeconds ?? scheduler.childTimeoutSeconds,
       onSpawn(pid) { record.process_pid = pid; publish(); },
       onExit(code, signal) { record.process_exit = { code, signal }; },
     });

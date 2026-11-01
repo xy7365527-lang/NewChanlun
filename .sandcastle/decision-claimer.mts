@@ -17,6 +17,7 @@
  * 模型通道：claude -p 经本机统一路由 127.0.0.1:8318；令牌运行时从 CLIProxyLocal config
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
+import { useScheduler } from "./scheduler-config.mts";
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -28,18 +29,20 @@ import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } fro
 import { randomUUID } from "node:crypto";
 import { loadMainSession, openMainSession, type MainSession, type SessionRef } from "./main-session.mts";
 
+const scheduler = useScheduler("decision-claimer", ["opusModel", "decisionMaps", "decisionMaxConcurrent", "decisionLoopMs", "decisionMaxRounds", "decisionMaxAttempts", "decisionTimeoutMs", "decisionBackoffBaseMs", "decisionBackoffCapMs", "adrLockMaxWaits", "adrLockPollMs"]);
+
 // ───────────────────────── 常量 ─────────────────────────
 
 export const MODEL_MAIN = MAIN_MODEL;
-export const MODEL_OPUS = "claude-opus-5-5";
+export const MODEL_OPUS = scheduler.opusModel;
 export const MODEL_DRAFTER = MODEL_OPUS;
 export const MODEL_REVIEW = MODEL_MAIN;
 export const PROXY_BASE_URL = CLIPROXY_BASE_URL;
 export { CLIPROXY_CONFIG, CLIPROXY_CONFIG as PROXY_CONFIG, extractFirstApiKey };
 export const DEFAULT_OUT_ROOT = "/Volumes/AgentStorage/decisions";
-export const DEFAULT_MAPS = [1323, 1340];
-export const MAX_CONCURRENT = 3;
-export const LOOP_INTERVAL_MS = 10 * 60 * 1000;
+export const DEFAULT_MAPS = scheduler.decisionMaps;
+export const MAX_CONCURRENT = scheduler.decisionMaxConcurrent;
+export const LOOP_INTERVAL_MS = scheduler.decisionLoopMs;
 export const AUTH_LINE = "本条依 #1323 Notes N-1 预授权判定";
 export const RULES = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"] as const;
 export type Rule = (typeof RULES)[number];
@@ -302,8 +305,8 @@ export async function allocateAdr(
   mkdirSync(o.stateDir, { recursive: true });
   for (let i = 0; ; i++) {
     try { writeFileSync(lock, String(process.pid), { flag: "wx" }); break; } catch {
-      if (i >= 600) throw new Error(`ADR 编号锁 ${lock} 被占用超时`);
-      await sleep(100);
+      if (i >= scheduler.adrLockMaxWaits) throw new Error(`ADR 编号锁 ${lock} 被占用超时`);
+      await sleep(scheduler.adrLockPollMs);
     }
   }
   try {
@@ -331,7 +334,7 @@ export function renumberDraft(draft: string, from: string, a: AdrAllocation): st
 
 export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error" | "skipped";
 /** 起草/审查总轮次上限（含升档重做与只改引用的修订轮）。 */
-export const MAX_ROUNDS = 3;
+export const MAX_ROUNDS = scheduler.decisionMaxRounds;
 /** 起草方式：首稿、升档重做、只改引用的修订。 */
 export type DraftMode = "initial" | "redo" | "revise";
 export interface RunState {
@@ -509,7 +512,7 @@ export function isRetryable(output: string): boolean {
   return RETRYABLE.test(output);
 }
 
-export function backoffMs(attempt: number, baseMs = 20_000, capMs = 300_000): number {
+export function backoffMs(attempt: number, baseMs = scheduler.decisionBackoffBaseMs, capMs = scheduler.decisionBackoffCapMs): number {
   return Math.min(capMs, baseMs * 2 ** (attempt - 1));
 }
 
@@ -571,8 +574,8 @@ export function makeClaudeRunner(opts: {
   maxAttempts?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void>;
   once?: ClaudeOnce; token?: () => string;
 } = {}): ModelRunner {
-  const maxAttempts = Math.max(MIN_MODEL_ATTEMPTS, opts.maxAttempts ?? 6);
-  const timeoutMs = opts.timeoutMs ?? 30 * 60 * 1000;
+  const maxAttempts = Math.max(MIN_MODEL_ATTEMPTS, opts.maxAttempts ?? scheduler.decisionMaxAttempts);
+  const timeoutMs = opts.timeoutMs ?? scheduler.decisionTimeoutMs;
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const once = opts.once ?? claudeOnce;
   return async (c) => {
@@ -1841,6 +1844,8 @@ async function round(a: Args, d: Deps) {
 
 async function main() {
   const a = parseArgs(process.argv.slice(2));
+  if (process.argv.includes("--maps")) console.error(`[配置 #1606] decision-claimer.decisionMaps=${JSON.stringify(a.maps)} source=cli:--maps`);
+  if (process.argv.includes("--concurrency")) console.error(`[配置 #1606] decision-claimer.decisionMaxConcurrent=${a.concurrency} source=cli:--concurrency (记录上限约束)`);
   const git: Deps["git"] = (cwd, args) => {
     if (a.mode === "dry-run" && isGitWrite(args)) throw new DryRunWriteError(`dry-run 拒绝 git ${args[0]}`);
     return execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });

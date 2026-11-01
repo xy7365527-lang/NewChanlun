@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { readSchedulerConfig } from "./scheduler-config.mts";
 import { codexWorker } from "./codex-route.mts";
 
 test("实装和独审默认 Codex/Astra，独立 home，同阶段 resume 保留", () => {
@@ -31,7 +33,8 @@ test("Docker Codex 使用容器可达网关，main 保留一票两阶段", () =>
   const main = readFileSync(new URL("./main.mts", import.meta.url), "utf8");
   assert.equal(main.match(/codexWorker\(\{ effort: EFFORT \}\)/g)?.length, 2);
   assert.doesNotMatch(main, /claudeWorker\(/);
-  assert.match(main, /MAX_TICKETS_PER_RUN = 1/);
+  assert.equal(readSchedulerConfig(undefined, {}).values.mainMaxTickets, 1);
+  assert.match(main, /MAX_TICKETS_PER_RUN = scheduler\.mainMaxTickets/);
 });
 
 test("main 受管提交使用专属模板，不改变既有 swarm 模板合同", () => {
@@ -46,4 +49,32 @@ test("main 受管提交使用专属模板，不改变既有 swarm 模板合同",
     const original = readFileSync(new URL(`./${phase}-prompt.md`, import.meta.url), "utf8");
     assert.doesNotMatch(original, /sandcastle-result/);
   }
+});
+
+test("显式模型与调度 effort 独立生效，显式 effort 优先且非法模型拒绝", () => {
+  const code = `
+    import assert from "node:assert/strict";
+    import {codexWorker} from "./.sandcastle/codex-route.mts";
+    const options = {prompt: "fixture", dangerouslySkipPermissions: true};
+    const model = "claude-opus-5-5";
+    const configured = codexWorker({docker: true, model}).buildPrintCommand(options);
+    const explicit = codexWorker({docker: true, model, effort: "low"}).buildPrintCommand(options);
+    assert.throws(() => codexWorker({docker: true, model: "unapproved-model"}), /模型只能是/);
+    console.log(JSON.stringify({configured, explicit}));
+  `;
+  const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", code], {
+    cwd: new URL("../", import.meta.url),
+    encoding: "utf8",
+    env: {...process.env, SANDCASTLE_WORKER_EFFORT: "high", SANDCASTLE_OPUS_MODEL: "claude-opus-5-5"},
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const {configured, explicit} = JSON.parse(result.stdout);
+  for (const built of [configured, explicit]) {
+    assert.match(built.command, /-m 'claude-opus-5-5'/);
+    assert.match(built.command, /model_provider="cliproxy-local"/);
+    assert.match(built.command, /codex -a never -s danger-full-access exec/);
+    assert.equal(built.stdin, "fixture");
+  }
+  assert.match(configured.command, /model_reasoning_effort="high"/);
+  assert.match(explicit.command, /model_reasoning_effort="low"/);
 });

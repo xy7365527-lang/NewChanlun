@@ -473,6 +473,8 @@ pub(crate) struct NativeSourceState {
     overlaps: Tree<(i64, usize)>,
     pending_overlap: Tree<i64>,
     coverage: Tree<i64>,
+    /// 36M cover 增量：本代 raw/成员/pending 任一变化触及的坐标，cover_phase 导出后清空。
+    cover_dirty: Tree<i64>,
     requests: Map<Handle, Request>,
     request_order: Order,
     request_sequence: Option<sc::SequenceRef>,
@@ -533,6 +535,7 @@ impl NativeSourceState {
             overlaps: Tree::default(),
             pending_overlap: Tree::default(),
             coverage: Tree::default(),
+            cover_dirty: Tree::default(),
             requests: Map::default(),
             request_order: Order::default(),
             request_sequence: None,
@@ -576,6 +579,7 @@ impl NativeSourceState {
             self.overlaps.heap_bytes(),
             self.pending_overlap.heap_bytes(),
             self.coverage.heap_bytes(),
+            self.cover_dirty.heap_bytes(),
             self.requests.heap_bytes(),
             self.request_order.retained_bytes(),
             self.request_keys.heap_bytes(),
@@ -604,7 +608,7 @@ pub(crate) struct NativeSourceVerdict {
     binding: SourceCutBinding,
     counts: Counts,
     state: NativeSourceState,
-    observation_sources: sc::CodecVec<(NodeDigest, NodeDigest)>,
+    exports: source_receipt::source_facts::SourceExports,
 }
 impl NativeSourceVerdict {
     pub(crate) fn into_parts(
@@ -613,14 +617,9 @@ impl NativeSourceVerdict {
         SourceCutBinding,
         Counts,
         NativeSourceState,
-        sc::CodecVec<(NodeDigest, NodeDigest)>,
+        source_receipt::source_facts::SourceExports,
     ) {
-        (
-            self.binding,
-            self.counts,
-            self.state,
-            self.observation_sources,
-        )
+        (self.binding, self.counts, self.state, self.exports)
     }
 }
 #[derive(Clone, Copy)]
@@ -732,6 +731,7 @@ fn apply_order(
 }
 impl NativeSourceState {
     fn coverage_at(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<(), String> {
+        self.cover_dirty.insert(s, coord)?;
         let group = self.members.get(&coord).is_some_and(|m| !m.is_empty());
         let pending = self.pending.contains(&coord);
         if group && pending {
@@ -971,6 +971,7 @@ impl ObjectSlots for ObjectKeys<'_> {
     fn insert_group(
         &mut self,
         s: &(impl CodecRead + ?Sized),
+        _id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, String> {
@@ -1501,6 +1502,39 @@ impl RequestSlots for RequestKeys<'_> {
     }
 }
 impl NativeSourceState {
+    /// 分区核通过后导出本代 cover 增量；每个触及坐标要么仍生效（组 object_id 或 Pending），要么已失效。
+    fn cover_phase(
+        &mut self,
+        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        exports: &mut source_receipt::source_facts::SourceExports,
+    ) -> Result<(), String> {
+        let dirty = std::mem::take(&mut self.cover_dirty);
+        for coord in dirty.iter().copied() {
+            let Some(ordinal) = self.raw_ordinals.get(&coord).copied() else {
+                exports.push_removed(s, coord)?;
+                continue;
+            };
+            let seq = i64::try_from(ordinal).map_err(|_| err("cover 赢家 seq 溢出"))?;
+            let owner = match self.members.get(&coord).and_then(|m| m.first()) {
+                Some((index, _)) => {
+                    let handle = self
+                        .group_ids
+                        .get(index)
+                        .ok_or_else(|| err("cover 组序号缺对象"))?;
+                    let entry = self
+                        .objects
+                        .get(handle)
+                        .ok_or_else(|| err("cover 组对象贡献悬空"))?;
+                    Some(entry.value.id.as_str())
+                }
+                None if self.pending.contains(&coord) => None,
+                None => return Err(err("cover 生效坐标既无组也非已证 pending")),
+            };
+            exports.push_cover(s, coord, seq, owner)?;
+        }
+        exports.effective = self.raw.len();
+        Ok(())
+    }
     fn partition_phase(&self) -> Result<(), String> {
         let gap = self.gaps.first().copied();
         let overlap = self.overlaps.first().copied();
@@ -1693,9 +1727,8 @@ impl NativeSourceState {
     fn observation_phase(
         &mut self,
         s: &mut SourceMaterial<'_, '_, '_, '_>,
-        export_sources: bool,
-    ) -> Result<sc::CodecVec<(NodeDigest, NodeDigest)>, String> {
-        let mut exported = sc::CodecVec::default();
+        mut exports: Option<&mut source_receipt::source_facts::SourceExports>,
+    ) -> Result<(), String> {
         let stream = Stream::Array(SourceArray::Observations);
         let d = delta(s, stream)?;
         if d.old != self.observation_sequence {
@@ -1743,13 +1776,17 @@ impl NativeSourceState {
             if digest(&record)? != digest_want {
                 return Err(err("观察原件与材料差分不同"));
             }
-            if export_sources {
+            if let Some(exported) = exports.as_deref_mut() {
                 let source_digest = super::source_receipt::source_facts::observation_sources(
                     s,
                     &record,
                     |index| self.groups.get(&index).map(|g| &g.sources[..]),
                 )?;
-                vec_push(s, &mut exported, (digest_want, source_digest))?;
+                vec_push(
+                    s,
+                    &mut exported.observation_sources,
+                    (digest_want, source_digest),
+                )?;
             }
             let kind = text(s, &record, "kind")?;
             let insufficient = kind == "insufficient_knowledge";
@@ -1781,8 +1818,7 @@ impl NativeSourceState {
             }
         }
         self.observation_sequence = current;
-        exported.sort_unstable_by_key(|row| row.0);
-        Ok(exported)
+        Ok(())
     }
 }
 struct WitnessKeys<'a> {
@@ -1877,6 +1913,12 @@ pub(crate) fn audit_native_bound(
         )?;
         state.pending_phase(material, &pending_changed, membership, &dirty_groups)?;
         state.partition_phase()?;
+        let mut exports = source_receipt::source_facts::SourceExports::default();
+        if export_sources {
+            state.cover_phase(material, &mut exports)?;
+        } else {
+            drop(std::mem::take(&mut state.cover_dirty));
+        }
         #[cfg(test)]
         super::super::state::trace_event("source_shapes", None);
         state.shape_phase(
@@ -1892,7 +1934,8 @@ pub(crate) fn audit_native_bound(
         state.witness_phase(material, dirty_witness)?;
         #[cfg(test)]
         super::super::state::trace_event("source_observations", None);
-        let observation_sources = state.observation_phase(material, export_sources)?;
+        state.observation_phase(material, export_sources.then_some(&mut exports))?;
+        exports.finish();
         raw.ensure_current()?;
         state.work.order_path_visits = state.object_order.visits.get()
             + state.witness_order.visits.get()
@@ -1917,7 +1960,7 @@ pub(crate) fn audit_native_bound(
             binding: material.binding(),
             counts: state.counts(),
             state,
-            observation_sources,
+            exports,
         })
     })();
     if result.is_err() {

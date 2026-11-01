@@ -7,6 +7,7 @@
 //     **不合 main、不关 issue**（人工闸，#1003 裁 3 有意偏离）。
 // 跑法：npx tsx .sandcastle/main-swarm.mts
 
+import { useScheduler } from "./scheduler-config.mts";
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
@@ -26,12 +27,14 @@ import {
   resolveReviewBase,
   ReviewPromptTooLargeError,
 } from "./review-context.mts";
+
+const scheduler = useScheduler("main-swarm", ["swarmMaxIterations", "swarmMaxParallel"]);
 // 单票作者/评审只编辑文件；宿主封包后由宿主 nc-remote 验精确 SHA。
 // 多票归并只消费主控已验收固定 SHA 清单；默认运行仅产候选，不自动替代单票验收。
 
 // ── 顶部常量（并发与资源面；模型唯一来源是 main-model.mts） ───────────────
-const MAX_ITERATIONS = 3;
-const MAX_PARALLEL = 4; // #1007 裁 2（官方上游自用值；资源不足按实测降额登记）
+const MAX_ITERATIONS = scheduler.swarmMaxIterations;
+const MAX_PARALLEL = scheduler.swarmMaxParallel; // #1007 裁 2（官方上游自用值；资源不足按实测降额登记）
 const IMAGE = "sandcastle:newchanlun";
 
 const GH_CLEAN_ENV = {

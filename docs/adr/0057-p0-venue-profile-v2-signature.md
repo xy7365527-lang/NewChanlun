@@ -125,3 +125,55 @@ venue profile 的 `slippage_bps`（回放撮合执行假设）与 ADR 0035／004
 - 裁定一、三的拆分、五：`[新缠论:选择]`（用户 2026-10-28 批）。
 - 裁定二：`[新缠论:选择]`，依据 R29A §3 的代码与正本事实。
 - 裁定三 R1 的 0.01：场所事实，射程限快照日；R3 的 1：本仓输入约定，非场所事实。
+
+## 追加修订：synthetic profile 三项成本签值与使用域（#1774，2026-10-31，用户批 P 类）
+
+> 本节只追加，不改写上文。上文「后果照实」所述「三项仍 `AwaitingPolicy`」自本节起只对 `replay_binance_spot_1m` 成立；synthetic profile 按本节另签。
+
+**裁定依据**：用户 2026-10-31 批复「都批准」（[#1774 评论 6542854318](https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6542854318)），采用草稿 `/Volumes/AgentStorage/issue1774-synthetic-policy-29m/draft.md` 与增量独审 `/Volumes/AgentStorage/review1774-synthetic29n/review.md`（PASS）的推荐组合。走上文「后果照实」的「用户按 `[新缠论:选择]` 另签」路径，只针对 synthetic profile。
+
+### 七、synthetic profile 版本 +1：三项成本签为具名模型假设
+
+`production_synthetic_ohlc_integer_tb02a_v1`（记录 `venue-profile-synthetic-tb02a`，version 2）：
+
+| 字段 | 值 | 标签 | 代价 |
+|---|---|---|---|
+| `tick_size` | 1 | 已签（裁定三 R3） | 不变 |
+| `commission_bps` | 10 | 继承（裁定一：维持 ADR 0044 P0 已签值，本记录由 P0 v1 拆出） | 本次未另签；若要为 synthetic 单独签值，须新裁定 |
+| `entry_delay_bars` | 0 根 | `[新缠论:选择]` 模型假设 | 最乐观：从信号 bar 起找首根可交易 bar（`strategy/exec.rs` `fill_bar_index`）；不得读作真实延迟；可改签任一非负整数即新版本 |
+| `slippage_bps` | 0 bp/side | `[新缠论:选择]` 模型假设 | 最乐观：不模拟盘口摩擦；不使成本门 slippage 升 Known（裁定二）；可改签任一 ≥0 有限值即新版本 |
+| `tax_bps` | 0 bp/side | `[新缠论:选择]` 模型假设 | 「本模型不计税」，不是税务事实（synthetic 输入无账户主体与辖区）；可改签任一 ≥0 有限值即新版本 |
+
+三项数值不进入 S 结构计算（S 写者只把 `exec` 装入 runtime，结构计算不读）；签署改变的是准入、policy record 元数据与 `venue_same` 逐字段核对。零值不以「让测试变绿」为理由。一次运行只绑一个已签版本，就地改值照 `research-override` 机制失去准入。
+
+### 八、使用域 B1+B2：边界放在选择层
+
+synthetic 记录头 `symbol: null`、`usage: "s_structure_writer"`、继承 `not_product_default`：
+
+- **B1**：symbol 路（`production_venue_for_symbol`；`theta_backtest`／`theta_replay`／`theta_accept`）只匹配非空 symbol，选不到 synthetic。
+- **B2**：通用 profile 路（`production_venue_for_profile`；`ThetaConfig::for_production_profile`、Python `ThetaStream(venue_profile=…)`）遇 `usage: s_structure_writer` 返回 `InvalidPolicy{venue_profile}`，原因文本写明 usage 不符，不产配置。新增 S 专用选择器 `production_venue_for_s_writer` 与构造 `ThetaConfig::for_s_structure_writer`，只供 S 生产入口（`s_session_v3/driver.rs`、`s_structure_session.rs` `advance_core`）。对称地，S 专用入口不接 `usage` 缺省的记录（不得绑 replay）。
+- **P0 别名归 replay**：`venue-profile-P0`（version 2，`tick_size = 0.01` 按裁定三 R1 签）即 `replay_binance_spot_1m`，`profile_id` 保持 `P0`。`for_symbol("BTC")`、`for_profile("P0")`、Python `venue_profile="P0"` 的调用方式与所选身份不变，仍因三项 `AwaitingPolicy` 拒启；缺口由 `venue_profile, cost_inputs` 收敛为 `cost_inputs`（tick 已签）。无 profile、未知 profile、生产表无记录的品种仍报两槽。
+- **无 `usage` 头的旧已签记录**经同一选择函数按 symbol 或 profile 都可选中、原值读回、admissible；`usage` 不是旧记录的新前提。
+
+**不覆盖面**：直接手写 `ExecConfig`、诊断夹具、测试代码或直接读 `PRODUCTION_VENUE_PROFILES` 文本表再自行解析，都不经此合同；不为此追加全库封装。
+
+### 不变项（本节不改）
+
+`require_admissible` 不放宽；replay 三项保持 `AwaitingPolicy`；未签拒启语义保留（synthetic v1 夹具 `rust/tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json` 经正式绑定步仍报 `cost_inputs`）；诊断开关负控保留；原八项生产验收（#1769）不因本节折算完成；真实资金、隔离放宽、launcher 绕过、合入与关票均不在本节授权内。
+
+### 受影响代码清单（本节；行号按实施 PR head）
+
+| 位置 | 要求 |
+|---|---|
+| `rust/src/theta_v0/policy_records/venue-profile-P0.json` | version 2：`tick_size = 0.01`（R1 sha256 与时刻写入 source）、三项成本 `AwaitingPolicy`、scope 标明 `replay_binance_spot_1m` 与 P0 别名 |
+| `rust/src/theta_v0/policy_records/venue-profile-synthetic-tb02a.json`（新） | version 2：`symbol: null`、`usage`、tick 1（R3）、commission 10（继承）、三项 0 与 `[新缠论:选择]` source |
+| `rust/src/theta_v0/run_records.rs` | `VenueUsage` 记录头枚举（缺省 General）；`PRODUCTION_VENUE_PROFILES` 含两份；`production_venue_from_records` 按入口 usage 核对；新增 `production_venue_for_s_writer` |
+| `rust/src/theta_v0/config.rs` | 新增 `ThetaConfig::for_s_structure_writer`；`admissible()`／`venue_same` 不放宽 |
+| `rust/src/bin/s_session_v3/driver.rs`、`rust/src/bin/s_structure_session.rs` | 生产入口由 `for_production_profile("P0")` 改为 `for_s_structure_writer()`；`require_admissible` 不变 |
+| `rust/src/theta_v0/ffi.rs` | 构造不改；经 B2 拒 synthetic（测试更新） |
+| `rust/tests/production_session_entry.rs`、`tests/test_theta_pyo3_bridge.py` | BTC/P0 断言收敛为 `cost_inputs`；B2 负控；正式路径以已签 synthetic 开门的替换锁。五项 TestOnly cfg 的去除归 #1769 owner |
+
+### 溯源标签
+
+- 裁定七三项零值：`[新缠论:选择]`（用户 2026-10-31 批）；`commission_bps` 继承：裁定一既有口径，非新签。
+- 裁定八 B1+B2 与 P0 别名归属：`[新缠论:选择]`（用户 2026-10-31 批）。

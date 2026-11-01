@@ -91,6 +91,8 @@ test("无 node_modules：Node 原生类型剥离可 import engine 与主控模�
       ["scripts/wayfinder_engine.mts", "scripts/wayfinder_engine.mts"],
       [".sandcastle/cliproxy-env.mts", ".sandcastle/cliproxy-env.mts"],
       [".sandcastle/main-model.mts", ".sandcastle/main-model.mts"],
+      [".sandcastle/scheduler-config.mts", ".sandcastle/scheduler-config.mts"],
+      [".sandcastle/scheduler-config.json", ".sandcastle/scheduler-config.json"],
       // #1742 冻结准入门同样零依赖：engine 的 import 闭包含 drain-control，运行时由它拉起同目录的 .py 助手。
       [".sandcastle/drain-control.mts", ".sandcastle/drain-control.mts"],
       [".sandcastle/drain-control.py", ".sandcastle/drain-control.py"],

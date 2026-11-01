@@ -400,9 +400,14 @@ class BoatExecution(WorkerExecution):
             (staging / "runtime/.sandcastle").mkdir(parents=True)
             for name in ("package.json", "package-lock.json"):
                 (staging / "runtime" / name).write_bytes(show(name))
-            for name in ("boat-worker.mts", "codex-child.ts", "docker-isolation.mts", "acceptance-dir.mts",
-                         "git-environment.ts", "main-model.mts"):
-                (staging / "runtime/.sandcastle" / name).write_bytes(show(".sandcastle/" + name))
+            runtime_sources = {name: show(".sandcastle/" + name) for name in (
+                "boat-worker.mts", "codex-child.ts", "docker-isolation.mts", "acceptance-dir.mts",
+                "git-environment.ts", "main-model.mts")}
+            if any(b"./scheduler-config.mts" in source for source in runtime_sources.values()):
+                for name in ("scheduler-config.mts", "scheduler-config.json"):
+                    runtime_sources[name] = show(".sandcastle/" + name)
+            for name, source in runtime_sources.items():
+                (staging / "runtime/.sandcastle" / name).write_bytes(source)
             intent = json.loads((self.run.dir / "intents" / f"{key.name}.json").read_text())
             prompt = Path(intent["prompt_file"]).read_text().replace(self.config.pstack_source, "/opt/newchanlun/pstack")
             save(staging / "request.json", {

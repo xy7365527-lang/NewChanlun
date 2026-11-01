@@ -92,6 +92,11 @@ private key / secret / password / token / credential / api key（不以 `_env` �
 
 ## 已知卡点（#1769）
 
+> #1774 追加（2026-10-31，ADR 0057 追加修订段）：S 写者生产入口改经 `ThetaConfig::for_s_structure_writer()`
+> 绑定已签的 synthetic profile（`venue-profile-synthetic-tb02a/2`），本卡点的 S 拒启原因已解除；
+> 下文记录的是解除前的实测状态。replay `P0` 三项成本仍 `AwaitingPolicy{cost_inputs}`，
+> 原八项生产验收与五项 TestOnly cfg 的去除仍归 #1769。
+
 非 test 构建下 S 写者（v3 `serve`/`advance`、v1 `advance`）启动即因
 `ThetaConfig::for_production_profile("P0")` 返回 `AwaitingPolicy{venue_profile, cost_inputs}` 退出，
 launcher 因此会在 S 退出后回收全部进程、退出码 1。实测报错：

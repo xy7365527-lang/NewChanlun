@@ -466,7 +466,7 @@ fn preflight_input(
         }
         let event = newchan_rust::session_protocol::required(payload, "clock_event_id")?;
         for (phase, attempt) in [("accept", -1), ("begin", 0), ("commit", 0)] {
-            clock.phase(event, phase, attempt)?;
+            clock.require_planned(event, phase, attempt)?;
         }
     }
     driver::check_request_before_resume(&tx, &control, input, &profile_id)?;

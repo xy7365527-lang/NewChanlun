@@ -12,16 +12,19 @@
 // 部署（受管常驻，launchd KeepAlive；宿主侧安装由编排者执行 install 脚本）：
 //   bash .sandcastle/install-sandcastle-claimer.sh install
 
+import { useScheduler } from "./scheduler-config.mts";
 import { drainRequested, withLegacyAdmission } from "./drain-control.mts";
 import { execSync, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 
+const scheduler = useScheduler("claim-loop", ["claimPollSeconds", "claimRollbackMs", "frontierQueryLimit"]);
+
 // ── 顶部常量（周期默认 60s；env CLAIM_LOOP_POLL_SECONDS / --poll-seconds 覆盖） ──
-const DEFAULT_POLL_SECONDS = 60;
+const DEFAULT_POLL_SECONDS = scheduler.claimPollSeconds;
 
 // #1259 看门狗：claim 事件后无任何后续事件且无 running main.mts 的票，超此时长才回滚
 // （覆盖「claim-loop 与 main.mts 同时失联」盲区；每轮附带检查，不新增进程）。
-const CLAIM_ROLLBACK_WATCHDOG_MS = 15 * 60 * 1000;
+const CLAIM_ROLLBACK_WATCHDOG_MS = scheduler.claimRollbackMs;
 
 // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉（main.mts 同款）。
 const GH_CLEAN_ENV: NodeJS.ProcessEnv = {
@@ -125,7 +128,7 @@ function hasOpenBlocker(issue: number): boolean {
 /** sandcastle 队列（open + sandcastle 标签）+ 逐票 blocker 查询，归并为 frontier 候选。 */
 function fetchFrontier(): FrontierCandidate[] {
   const out = execSync(
-    `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
+    `gh issue list --label sandcastle --state open --limit ${scheduler.frontierQueryLimit} --json number,assignees`,
     { encoding: "utf8", env: GH_CLEAN_ENV },
   );
   const issues = JSON.parse(out) as Array<{ number: number; assignees: unknown[] }>;
@@ -292,8 +295,7 @@ async function runOnce(cfg: { dryRun: boolean }): Promise<void> {
 function parseArgs(argv: string[]): { dryRun: boolean; once: boolean; pollSeconds: number } {
   let dryRun = true; // 安全默认：真实 spawn 须显式 --live（wayfinder_engine 同款口径）
   let once = false;
-  const envPoll = Number(process.env.CLAIM_LOOP_POLL_SECONDS ?? DEFAULT_POLL_SECONDS);
-  let pollSeconds = Number.isFinite(envPoll) && envPoll > 0 ? envPoll : DEFAULT_POLL_SECONDS;
+  let pollSeconds = DEFAULT_POLL_SECONDS;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--live") dryRun = false;
@@ -303,6 +305,7 @@ function parseArgs(argv: string[]): { dryRun: boolean; once: boolean; pollSecond
       const n = Number(argv[i + 1]);
       if (Number.isFinite(n) && n > 0) {
         pollSeconds = n;
+        console.error(`[配置 #1606] claim-loop.claimPollSeconds=${n} source=cli:--poll-seconds`);
         i++;
       }
     }

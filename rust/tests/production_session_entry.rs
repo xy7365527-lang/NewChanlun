@@ -4,8 +4,8 @@
 //! 哨兵；不连接任何真实场所（端点指向测试内本地监听器）。S 的 admission 锚用与
 //! `s_session/tests/issue1527_recovery/test_support.rs` 同口径的 TestOnly 造锚（生产签发归 #1657）。
 //!
-//! 两种构建都跑本文件：`production_session_testonly` 跑全部；纯 `production_session`（生产构建）只跑
-//! 不需要 S 开门的拒绝类测试，并真实执行生产 launcher 与生产 S 遇 TestOnly 开关即拒的接线。
+//! 两种构建都跑本文件，原八项在两种构建下都只走 S 正式配置路径（已签 synthetic profile，#1774）；
+//! 纯 `production_session`（生产构建）另真实执行生产 launcher 与生产 S 遇 TestOnly 开关即拒的接线。
 #![cfg(target_os = "linux")]
 #![cfg_attr(
     not(feature = "production_session_testonly"),
@@ -99,6 +99,7 @@ fn run(cmd: &mut Command) -> Output {
 
 /// 期望「拒绝启动」的命令：限时等待退出。门失效时 S/launcher 会进入服务循环不退出，
 /// 此处超时即杀掉 launcher 及其域子进程并判红，不吃满 job 超时。
+#[cfg_attr(feature = "production_session_testonly", allow(dead_code))]
 fn run_refusal(cmd: &mut Command) -> Output {
     let mut child = cmd
         .stdin(Stdio::null())
@@ -286,8 +287,7 @@ fn s_resources(space: &Space) -> PathBuf {
 }
 
 /// S 写者以诊断夹具 theta 配置开门的 TestOnly 开关（仅 `production_session_testonly` 构建认）。
-/// P0 场所/成本记录未签（#1774）期间正式配置必拒；本文件除 `unsigned_p0_refuses_s_serve_*` 外
-/// 测的是 launcher 接线、进程隔离与来源门，显式走此 TestOnly 臂，不签、不伪造 P0。
+/// 本文件只在拒启负控里设置它；成功助手一律 `env_remove`，走已签 synthetic 正式配置（#1769）。
 const THETA_DIAGNOSTIC: (&str, &str) = ("S_THETA_DIAGNOSTIC_TESTONLY", "1");
 
 /// S 正式写者（`serve --protocol-revision s-session/3`）命令；不含 TestOnly 开关。
@@ -318,13 +318,10 @@ fn s_serve_command(space: &Space, db: &Path, limits: &Path) -> Command {
     command
 }
 
-/// 以 TestOnly 诊断 theta 臂拉起 S 写者，等 socket 就绪。
+/// 以正式配置（已签 synthetic profile）拉起 S 写者，等 socket 就绪。
 fn s_serve(space: &Space, db: &Path, limits: &Path) -> Child {
     let socket = space.path("s.sock");
-    let mut child = s_serve_command(space, db, limits)
-        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
-        .spawn()
-        .unwrap();
+    let mut child = s_serve_command(space, db, limits).spawn().unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
     while !socket.exists() {
         if let Some(status) = child.try_wait().unwrap() {
@@ -370,7 +367,7 @@ fn spawn_launcher(manifest: &Path) -> Child {
         .arg("--manifest")
         .arg(manifest)
         .env_remove(CREDENTIAL_KEY)
-        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
+        .env_remove(THETA_DIAGNOSTIC.0)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -491,7 +488,6 @@ fn simulation(space: &Space, profile: &str, credential: bool) -> (PathBuf, PathB
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn simulation_profile_spawns_isolated_domain_processes() {
     let space = Space::new();
     let (manifest, s_db) = simulation(&space, "simulation", false);
@@ -537,7 +533,6 @@ fn simulation_profile_spawns_isolated_domain_processes() {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn credential_sentinel_only_in_x_process_environment() {
     let space = Space::new();
     // 凭据文件须存在，launcher 才按 credential_scope 读取并只注入 X。
@@ -560,7 +555,6 @@ fn credential_sentinel_only_in_x_process_environment() {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn missing_credential_refuses_x_send_surface() {
     let space = Space::new();
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
@@ -658,7 +652,6 @@ fn manifest_rejects_execution_feed_as_structure_source() {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn s_rejects_same_shape_bars_from_undeclared_source() {
     let space = Space::new();
     let s_db = s_init_v3(&space, Some(&declaration("TestOnlyStructure", DECLARED_NS)));
@@ -730,7 +723,6 @@ fn s_ingest(socket: &Path, ns: &str, n: u32) -> Value {
 }
 
 #[test]
-#[cfg(feature = "production_session_testonly")]
 fn s_keeps_committing_while_x_is_stopped() {
     let space = Space::new();
     let (manifest, s_db) = simulation(&space, "simulation", false);
@@ -775,39 +767,69 @@ fn s_keeps_committing_while_x_is_stopped() {
     assert_eq!(stop(&mut launcher).code(), Some(0));
 }
 
-/// 生产 P0 场所/成本记录未签（#1774）时，不带 TestOnly 开关的 S 正式写者拒绝启动：
-/// 以 AwaitingPolicy 退出、不开 socket、不改库；同一构建里 TestOnly 臂不影响正式路径。
+/// S 子进程的环境不得含 TestOnly 开关键（无论 launcher 自身环境有没有）。
+fn assert_s_environ_lacks_theta_diagnostic(kids: &[(String, u32)]) {
+    let (_, s_pid) = kids
+        .iter()
+        .find(|(name, _)| name == "s_structure_session")
+        .expect("S 在 launcher 名下");
+    let environ = environ(*s_pid);
+    assert!(
+        !environ.contains(&format!("{}=", THETA_DIAGNOSTIC.0)),
+        "launcher 不得向 S 转交 {}",
+        THETA_DIAGNOSTIC.0
+    );
+}
+
+/// #1774 用户批后（synthetic 三项成本已签）正式路径的替换锁：不带 TestOnly 开关的 S 正式写者以
+/// 已签 synthetic profile 开门（开 socket），不再以 AwaitingPolicy 拒启；未签拒启负控迁到
+/// `driver.rs` 的 synthetic v1 夹具测试（`production_open_rejects_unsigned_profile_before_pending_begin`）。
 #[test]
-fn unsigned_p0_refuses_s_serve_without_testonly_opt_in() {
+fn signed_synthetic_s_serve_starts_without_testonly_opt_in() {
     let space = Space::new();
     let s_db = s_init_v3(&space, Some(&declaration("TestOnlyStructure", DECLARED_NS)));
     let limits = anchor(&s_db);
-    let before = raw_rows_offline(&s_db);
-    let out = run_refusal(&mut s_serve_command(&space, &s_db, &limits));
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(!out.status.success(), "{stderr}");
-    assert!(stderr.contains("AwaitingPolicy"), "{stderr}");
-    assert!(stderr.contains("venue_profile"), "{stderr}");
-    assert!(stderr.contains("cost_inputs"), "{stderr}");
-    assert!(!space.path("s.sock").exists(), "未签 P0 不得开 socket");
-    assert_eq!(raw_rows_offline(&s_db), before);
+    let socket = space.path("s.sock");
+    let mut s = s_serve_command(&space, &s_db, &limits).spawn().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !socket.exists() {
+        if let Some(status) = s.try_wait().unwrap() {
+            panic!(
+                "正式路径 S serve 提前退出 {status}：{}",
+                launcher_stderr(&mut s)
+            );
+        }
+        assert!(Instant::now() < deadline, "S socket 未就绪");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(
+        !environ(s.id()).contains(&format!("{}=", THETA_DIAGNOSTIC.0)),
+        "正式路径不带 TestOnly 开关"
+    );
+    s.kill().unwrap();
+    s.wait().unwrap();
 }
 
-/// launcher 本身不替 S 打开 TestOnly 臂：不设开关时经 launcher 拉起的 S 同样拒绝，launcher 失败退出。
+/// launcher 本身不替 S 打开 TestOnly 臂：不设开关时经 launcher 拉起的 S 走正式路径（已签 synthetic）
+/// 开门，其环境不含开关键。
 #[test]
-fn unsigned_p0_refuses_s_serve_via_launcher_without_testonly_opt_in() {
+fn signed_synthetic_launcher_starts_s_without_testonly_opt_in() {
     let space = Space::new();
     let (manifest, _) = simulation(&space, "simulation", false);
-    let out = run_refusal(
-        Command::new(launcher_bin())
-            .arg("--manifest")
-            .arg(&manifest)
-            .env_remove(CREDENTIAL_KEY)
-            .env_remove(THETA_DIAGNOSTIC.0),
-    );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(!out.status.success(), "{stderr}");
-    assert!(stderr.contains("AwaitingPolicy"), "{stderr}");
+    let mut launcher = Command::new(launcher_bin())
+        .arg("--manifest")
+        .arg(&manifest)
+        .env_remove(CREDENTIAL_KEY)
+        .env_remove(THETA_DIAGNOSTIC.0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let kids = wait_domains(&mut launcher);
+    eventually("S socket", || space.path("s.sock").exists());
+    assert_s_environ_lacks_theta_diagnostic(&kids);
+    assert_eq!(stop(&mut launcher).code(), Some(0));
 }
 
 /// 生产构建（不含 production_session_testonly）的 S 正式写者遇 TestOnly 开关即拒启：
@@ -834,24 +856,25 @@ fn production_build_s_serve_refuses_theta_diagnostic_switch() {
 }
 
 /// 生产 launcher 的 `S_PASS` 不转交 TestOnly 开关：即使 launcher 自身环境带开关，S 也只按正式路径
-/// 以 AwaitingPolicy 拒启（若被转交，S 会改报 ThetaDiagnosticTestOnlyInvalid）。
+/// 以已签 synthetic 开门，环境不含开关键（若被转交，生产构建的 S 会以 ThetaDiagnosticTestOnlyInvalid
+/// 拒启、launcher 提前退出，`wait_domains` 据此带 stderr 失败）。
 #[test]
 #[cfg(not(feature = "production_session_testonly"))]
 fn production_launcher_does_not_forward_theta_diagnostic_switch() {
     let space = Space::new();
     let (manifest, _) = simulation(&space, "simulation", false);
-    let out = run_refusal(
-        Command::new(launcher_bin())
-            .arg("--manifest")
-            .arg(&manifest)
-            .env_remove(CREDENTIAL_KEY)
-            .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1),
-    );
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(!out.status.success(), "{stderr}");
-    assert!(stderr.contains("AwaitingPolicy"), "{stderr}");
-    assert!(
-        !stderr.contains("ThetaDiagnosticTestOnlyInvalid"),
-        "{stderr}"
-    );
+    let mut launcher = Command::new(launcher_bin())
+        .arg("--manifest")
+        .arg(&manifest)
+        .env_remove(CREDENTIAL_KEY)
+        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let kids = wait_domains(&mut launcher);
+    eventually("S socket", || space.path("s.sock").exists());
+    assert_s_environ_lacks_theta_diagnostic(&kids);
+    assert_eq!(stop(&mut launcher).code(), Some(0));
 }
