@@ -4,7 +4,7 @@
 > 最后裁定：#1818（2026-11-01，T 类，依 #1323 Notes N-1 预授权判定）
 > 受影响代码清单：`rust/src/bin/production_session.rs:125`（`load_manifest`，拒绝检查落点）；`rust/tests/production_session_entry.rs`（验收测试）；`docs/runbook_production_session.md:35`、`:40`、`:53`、`:59`（runbook 订正）。实施归 #1781。
 
-**状态**：T 类裁定，已通过独立审查。本 ADR 只定规则与判据；实现与运行证据归 #1781，不以本 ADR 声称实现完成。
+**状态**：T 类裁定。原裁定经两轮独立审查通过；发布审查（PR #1826）发现并发写域库文件的符号链接漏判，Q2、Q8 与裁定第 1、3、4、8 条及验收 9–11 已据此订正，订正部分待独立审查。本 ADR 只定规则与判据；实现与运行证据归 #1781，不以本 ADR 声称实现完成。
 
 ## 问题
 
@@ -26,6 +26,7 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
 4. 候选稿说「残留 socket 由 walk 报 `SourceTypeUnsupported`」，#1823 正文也这么写。实际代码顺序是：`ServeOptions::parse` 在 `writer_cli.rs:393` 调用 `socket_path`，路径已存在就报 `TransportUnavailable：socket路径已占用`（`:357-359`）。这一步早于 driver open（`:725`）。所以残留 socket 会先被这条确定性拒绝挡下，轮不到 admission walk。
 5. 候选稿验收 7 把原八项夹具说成「各自独立目录」。实际夹具是 P=`<tmp>/s`、A=`<tmp>/s/s-state`（A 在 P 之下）、E/B/X 库在 `<tmp>`（`production_session_entry.rs:74-80`、`:192-195`、`:348-357`）。本稿把这一条拆成两条正控。
 6. 候选稿写「#1781 实施排在 FU-16 合入之后」。#1538（FU-16）已关票，正本 ADR 0056 已在 main，这句话已过期。真实顺序约束是既有边 #1769 → #1781。
+7. 原稿把并发写足迹记为 `parent(d)` 内的建删，只取 `canon(parent(d))` 作判定目录，漏了库文件本身的符号链接。现役写者先解析整个库路径再建锁（`rust/src/session_transport.rs:43-62`），所以安全目录内指向 P 内库的文件链接会把 `.writer.lock` 建进 P（PR #1826 发布独审 F1，`/Volumes/AgentStorage/layout-review41i/REPORT.md`）。本稿订正 Q2、Q8 和裁定第 1、3、4、8 条，补验收 9–11。
 
 ## 权威依据
 
@@ -44,7 +45,7 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
 - **C 启动排序**（等 S 打开后再拉 E/B/X）：不采用，留档记录。它只能消除本 launcher 进程内的竞态，覆盖不了单独重启 S 的情形；还会把 E/B/X 的启动绑到 S 就绪上。它不违反已裁，只是收益窄。
 - **D 部署前显式生成布局的工具**：保留为未来候选，本票不纳入，也不因本裁定被排除。
 
-**Q2 冲突判定集合**：默认值为「并发写域库目录 Q 落入 {P} ∪ A 子树 ∪ S 族条目子树即冲突」，P 的祖先、兄弟目录、非族且非 A 的子目录都不算（出处：`admission_provider.rs:206-255`、`:299-345`），确认或否决。推理链：在某目录里建文件只改该目录自身的 mtime，不改其父目录的 mtime。所以只有 Q 本身是 M 的成员目录时，才会触发 stamp 或集合变化。
+**Q2 冲突判定集合**：默认值为「并发写域的任一判定目录 Q 落入 {P} ∪ A 子树 ∪ S 族条目子树即冲突；判定目录取库 d 的目录项所在目录和 d 解析后实际库文件所在目录」，P 的祖先、兄弟目录、非族且非 A 的子目录都不算（出处：`admission_provider.rs:206-255`、`:299-345`；`rust/src/session_transport.rs:43-62`），确认或否决。推理链：在某目录里建文件只改该目录自身的 mtime，不改其父目录的 mtime。所以只有 Q 本身是 M 的成员目录时，才会触发 stamp 或集合变化。写者在哪个目录建删，由实际库文件路径决定，不由 manifest 字面路径决定。`process_lock` 对已存在的 d 先 `canonicalize(d)`，连同最终文件链接一起解析，再在结果旁建 `.writer.lock`；d 不存在时取 `canon(parent(d))` 接文件名（`session_transport.rs:43-62`）。X 在 `x_execution_session.rs:176`、E/B 在 `rust/src/economic_session/service.rs:1569` 调用它，launcher 原样传入 manifest 路径（`production_session.rs:462-463`、`:471`、`:483`）。所以只看 `canon(parent(d))` 会放过「安全目录内的 `alias.db` 链接到 P 内已存在的库」：锁文件落进 P，正是本票要消除的竞态。d 是悬空链接时，锁落在 d 的目录项所在目录，`Connection::open(d)` 则按 `open(O_CREAT)` 跟随链接的语义在目标目录建库文件，两处都要判。
 
 **Q3 两个 state_dir**：默认值为「launcher manifest `state_dir` 不进拒绝规则；A 取 `s.admission_job_limits` 的上两级目录」（出处：`production_session.rs:320-323`、`admission_anchor.rs:1336-1342`），确认或否决。推理链：launcher `state_dir` 只在 S 库不存在时、S init 之前写一次 `structure-source.json`，之后再也不碰，不与 S 打开窗口并发。
 
@@ -56,7 +57,7 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
 
 **Q7 分级**：A 类，沿用 graph-engineering.md:23 和 #1323 N-1。
 
-**Q8 路径比较语义**：默认值为「canon = 解析符号链接后的绝对路径；路径不存在时取最近存在祖先的 canon，再接上剩余段」（出处：S 侧 `admission_anchor.rs:1293-1294` 对 db 做 canonicalize；夹具 `production_session_entry.rs:71-72` 已 canonicalize），确认或否决。推理链：冲突的物理判据是写入落在同一个真实目录。不解析符号链接的话，`/alias→P` 就能绕过检查。launcher 用 canon 比较，S 侧不跟随链接，两者语义不同，但 launcher 一侧是超集，方向同样是只多拒不多放。
+**Q8 路径比较语义**：默认值为「canon = 解析符号链接后的绝对路径，包括路径最终条目的文件链接；路径不存在时取最近存在祖先的 canon，再接上剩余段；最终条目是悬空链接时先取链接目标再求 canon」（出处：S 侧 `admission_anchor.rs:1292-1294` 对 db 做 canonicalize，注释称与 `process_lock` 同语义；`session_transport.rs:43-56`；夹具 `production_session_entry.rs:71-72` 已 canonicalize），确认或否决。推理链：冲突的物理判据是写入落在同一个真实目录。不解析符号链接的话，`/alias→P` 就能绕过检查；只解析父目录、不解析库文件本身，`/abs/x/alias.db → P/x.db` 同样能绕过。launcher 用 canon 比较，S 侧不跟随链接，两者语义不同，但 launcher 一侧是超集，方向同样是只多拒不多放。
 
 **Q9 验收落点**：默认值为 `rust/tests/production_session_entry.rs` 和 CI job `rust-test-production-session`（`ci.yml:500`、`:517`、`:523`）。正控拆成两条：原夹具布局一条，五者全独立一条。确认或否决。
 
@@ -72,15 +73,15 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
 
 正本落点：docs/adr/0059-production-session-layout-contract.md
 
-1. **canon 定义**：解析符号链接后的绝对路径。路径尚不存在时，取最近存在祖先的 canon，再按原样接上剩余路径段。
+1. **canon 定义**：解析符号链接后的绝对路径，路径最终条目是符号链接时也解析。路径尚不存在时，取最近存在祖先的 canon，再按原样接上剩余路径段。路径最终条目是悬空符号链接时，先取链接目标（相对目标按链接所在目录解析，多级链接逐级取），再对目标按本条求 canon。
 2. **S 测量边界**：
    - `P = parent(canon(s.db))`，`b = basename(canon(s.db))`；
    - `A = canon(parent(parent(s.admission_job_limits)))`；
    - S 族条目：P 中名字等于 `b`，或以 `b.`、`b-` 开头的条目。
 
    A 的推导不核验后缀，后缀合法性由 S 的 E1 核验（Q12 推荐答案）。
-3. **并发写域的库**：`economic.e.db`、每个 `economic.b[i].db`、`x.db`。对每个这样的库 `d`，记 `Q = canon(parent(d))`。
-4. **拒绝条件**：任一 `d` 满足下列任一条，即 `InvalidDomain`：
+3. **并发写域的库与判定目录**：库为 `economic.e.db`、每个 `economic.b[i].db`、`x.db`。对每个这样的库 `d` 取两个判定目录：`Q₁ = canon(parent(d))`，即 d 的目录项所在目录；`Q₂ = parent(canon(d))`，即 d 解析后实际库文件所在目录。d 不是符号链接时两者相等；d 是文件符号链接时，`Q₂` 是链接目标所在目录。`Q₂` 与现役写者锁目标同源：`process_lock` 对已存在的 d 取 `canonicalize(d)` 再拼 `.writer.lock`（`rust/src/session_transport.rs:43-62`）。
+4. **拒绝条件**：任一 `d` 的 `Q₁` 或 `Q₂`（下记 `Q`）满足下列任一条，即 `InvalidDomain`：
    - `Q == P`；
    - `Q == A`，或 `Q` 位于 `A` 之下；
    - `Q` 等于某个 S 族条目的路径，或位于其下。
@@ -89,7 +90,7 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
 5. **不比较 launcher manifest `state_dir`**。理由是它只在 S init 之前写一次（`production_session.rs:320-323`），不与 S 打开窗口并发。
 6. **不比较 `s.socket`**。残留 socket 在 S 参数期就以 `TransportUnavailable` 确定性拒绝（`writer_cli.rs:357-359`）。重启时谁来清理，归 #1823 调查，不在本裁定范围内。
 7. **不扩大范围**：P 的祖先目录、兄弟目录，以及 P 内既非族条目、也不在 A 内的子目录，都不在 M 内，一律放行。
-8. **错误信息**：stderr 必须含 `InvalidDomain`，并点名冲突的两条 manifest 字段及两侧 canon 路径。被冲突的字段按情形取：与 P 或族条目冲突时是 `s.db`，与 A 冲突时是 `s.admission_job_limits`。并发写域的字段名为 `economic.e.db`、`economic.b[<i>].db` 或 `x.db`。
+8. **错误信息**：stderr 必须含 `InvalidDomain`，并点名冲突的两条 manifest 字段及两侧 canon 路径。被冲突的字段按情形取：与 P 或族条目冲突时是 `s.db`，与 A 冲突时是 `s.admission_job_limits`。并发写域的字段名为 `economic.e.db`、`economic.b[<i>].db` 或 `x.db`，该侧路径给出命中的判定目录。
 9. owner 落点：`load_manifest`（`rust/src/bin/production_session.rs:125`）。检查位于其返回 `Ok` 之前，因而早于 `check_existing_s`（`:300-302`）、任何 init、写 launcher `state_dir` 以及任何拉起。命中时不建任何域文件。
 10. **不设可调字段，不设放行开关**。依据是 ADR 0041:13 的判别句和 #799。launcher 判定和 S admission 核验判的是两件事：前者是静态布局，后者是打开窗口内的 stamp。两者不在同一个 if-else 上，也不互相兜底。
 11. **L-2 记录**：immutable 预检最多误拒、不会误放；改由 S 自核需要改 S v3 writer CLI，另行开票。本裁定不改实现。
@@ -108,13 +109,16 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
 6. `layout_rejects_e_db_under_s_family_entry`：E 库目录是 P 内的一个 S 族目录（如 `s.db.admission-private`）或其子目录。拒绝。
 7. `layout_rejects_symlink_alias_of_s_parent`：E 库目录是指向 P 的符号链接。拒绝。
 8. `layout_resolves_not_yet_existing_db_dirs`：E 库父目录 `L/new` 尚不存在，L 是指向 A 的符号链接。拒绝。
-9. `layout_accepts_db_in_non_family_subdir_of_s_parent`：A 与 P 分离，E 库在 P 下一个已存在、非族的子目录里。launcher 正常拉起 S 和 E。
-10. `layout_accepts_original_fixture_layout`：沿用原八项夹具，即 A 在 P 之下、E/B/X 在 P 的父目录。放行。
-11. `layout_accepts_separate_directories`：S、A、E、B、X 各自独立目录。放行。
-12. `layout_allows_launcher_state_dir_equal_s_parent`：launcher `state_dir == P`，其余分离。放行。
-13. 现有测试（`simulation_profile_spawns_isolated_domain_processes` 等）在 :517 step 逐行 `ok`。
-14. 正本文件存在：`ls docs/adr/ | grep -c -- '-production-session-layout-contract.md$'` 输出 `1`。编号在合入时按 main 顺序确定，等于当时 main 上最大编号加一（现最大为 0057）。
-15. 正本锚句：以下每条在该 ADR 中的 `rg -c` 命中数都 ≥1。
+9. `layout_rejects_x_db_file_symlink_into_s_parent`：A 与 P 分离；`x.db` 取安全目录内的 `alias.db`，它是已存在文件 `P/x.db` 的符号链接，`P/x.db.writer.lock` 不存在。launcher 非零退出，stderr 含 `InvalidDomain`、`x.db`、`s.db`。断言 P 的目录项集合与拉起前相同（`P/x.db.writer.lock` 不存在），S 库及其侧件、launcher `state_dir/structure-source.json` 都不存在。
+10. `layout_rejects_e_db_dangling_symlink_into_admission_state`：A 与 P 分离；`economic.e.db` 取安全目录内的悬空链接 `alias.db`，目标为不存在的 `A/e.db`。拒绝，stderr 含 `InvalidDomain`、`economic.e.db`、`s.admission_job_limits`；`A/e.db` 不存在，不产生任何域文件。
+11. `layout_accepts_db_file_symlink_between_safe_dirs`：`x.db` 取 `<x>/alias.db`，链接到已存在的 `<x-real>/x.db`，两目录都不在 M 内。放行，launcher 正常拉起 S 和 X。
+12. `layout_accepts_db_in_non_family_subdir_of_s_parent`：A 与 P 分离，E 库在 P 下一个已存在、非族的子目录里。launcher 正常拉起 S 和 E。
+13. `layout_accepts_original_fixture_layout`：沿用原八项夹具，即 A 在 P 之下、E/B/X 在 P 的父目录。放行。
+14. `layout_accepts_separate_directories`：S、A、E、B、X 各自独立目录。放行。
+15. `layout_allows_launcher_state_dir_equal_s_parent`：launcher `state_dir == P`，其余分离。放行。
+16. 现有测试（`simulation_profile_spawns_isolated_domain_processes` 等）在 :517 step 逐行 `ok`。
+17. 正本文件存在：`ls docs/adr/ | grep -c -- '-production-session-layout-contract.md$'` 输出 `1`。编号在合入时按 main 顺序确定，等于当时 main 上最大编号加一（现最大为 0057）。
+18. 正本锚句：以下每条在该 ADR 中的 `rg -c` 命中数都 ≥1。
     - `rg -c '最近存在祖先'`
     - `rg -c 'InvalidDomain'`
     - `rg -c '不比较 launcher manifest `state_dir`'`
@@ -123,13 +127,14 @@ S 写者打开库之前，要严格核验 admission 测量域 M（下文定义�
     - `rg -c '不设可调字段'`
     - `rg -c 'L-2 记录'`
     - `rg -c '启动排序'`
-16. runbook 检查：
+    - `rg -c '实际库文件所在目录'`
+19. runbook 检查：
     - `rg -c '<state>/s-admission' docs/runbook_production_session.md`：无命中（退出码 1）；
     - `rg -c 'admission state 目录' docs/runbook_production_session.md` ≥1；
     - `rg -c '测量域' docs/runbook_production_session.md` ≥1；
     - `rg -c '/abs/e/' docs/runbook_production_session.md` ≥1。
-17. 票状态：resolution 落地后 `gh api repos/xy7365527-lang/NewChanlun/issues/1818 --jq .state` 输出 `closed`；`gh api repos/xy7365527-lang/NewChanlun/issues/1781/dependencies/blocked_by --jq '.[].number'` 仍含 `1769`。
-18. resolution 首行等于「本条依 #1323 Notes N-1 预授权判定」。
+20. 票状态：resolution 落地后 `gh api repos/xy7365527-lang/NewChanlun/issues/1818 --jq .state` 输出 `closed`；`gh api repos/xy7365527-lang/NewChanlun/issues/1781/dependencies/blocked_by --jq '.[].number'` 仍含 `1769`。
+21. resolution 首行等于「本条依 #1323 Notes N-1 预授权判定」。
 
 ## 受影响票与 blocking 边变化
 
