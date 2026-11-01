@@ -92,3 +92,31 @@ NC_REPO=/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/worktr
 4. 当前 WIP 的 Rust 编译、非零测试、最终精确 head 的非作者独审和 CI 结果。按本轮安排由宿主封包后补齐，源码交棒不等于上述验收已通过。
 
 本轮没有发现需要额外授权才能继续完成源码组件的卡点。`ready` 仅表示本轮限定组件源码可交宿主封包验证，整票 #1719 仍未完成且不得关票。
+
+## 返修 1
+
+2026-11-01，基于分支 `sandcastle/issue-1719`、HEAD `8e51ce9f54cd25a174dfd472311527db422ed269` 修复 CI 编译错误。已回查 GitHub Actions run `41268966878` 的原始日志 `/Volumes/AgentStorage/i4-managed-resume42z/ci-8e51ce9f/job-124737588633.log`，日志第 549–554 行报：
+
+```text
+error[E0614]: type `nest_lifecycle::key::LifecycleKey` cannot be dereferenced
+   --> src/theta_v0/classifier/nest_lifecycle/book.rs:719:54
+719 | audit.settled_key == *key && audit.fact.known_at() == invalidated
+```
+
+修改 `rust/src/theta_v0/classifier/nest_lifecycle/book.rs:719`，将 `audit.settled_key == *key` 改为 `audit.settled_key == key`。该循环遍历 `self.ledger.values()`，随后以 `let key = entry.key` 取得实现了 `Copy` 的 `LifecycleKey` 值。两侧现在直接比较同类型值，仍要求审计结算键与当前条目键相等，且事实 known-at 等于失效时点，断言语义不变。
+
+人工逐行复核范围为 `git diff 7b5cde50 HEAD -- rust/` 的全部新增或修改代码，共 7 个文件；同时核对本次单行修复及相关被调用类型和 API。生产代码与测试源码另经只读子代理分别交叉复核：
+
+| 文件 | 复核内容与发现 |
+|---|---|
+| `rust/src/theta_v0/classifier/nest_lifecycle.rs` | 重导出、嵌套测试模块与 include 路径、父模块导入及私有项可见性，未发现其他确定编译问题。 |
+| `rust/src/theta_v0/classifier/nest_lifecycle/book.rs` | 绑定注册、事实留档、目标收集、清账、迁移、不变量及内嵌缺账测试。修正上述值的误解引用；其余未发现确定编译问题。目标先收集为拥有键和桥副本的 Vec，再修改账本；注册时 ledger 与 bridges 的借用分属字段。 |
+| `rust/src/theta_v0/classifier/nest_lifecycle/center_break.rs` | 事件匹配、值复制、排序键、derive 与字段可见性。核对 CenterLifecycleEvent 的 Copy/PartialEq/Eq、CenterId 和 LifecycleKey 的 Ord，以及各载荷的 Debug/Clone/PartialEq；未发现缺失 trait。新增容器使用 BTreeMap/BTreeSet，不要求键实现 Hash。 |
+| `rust/src/theta_v0/classifier/nest_lifecycle/entry.rs` | 新增原因码分支、枚举匹配及 invalidate 调用签名，未发现确定编译问题。 |
+| `rust/src/theta_v0/classifier/nest_lifecycle/feed.rs` | Live 匹配所得引用、From 转换、闭包对 book 的可变借用、迭代器返回值及集合推断，未发现确定编译问题。 |
+| `rust/src/theta_v0/classifier/nest_lifecycle/pan.rs` | provider 包装、FnMut 捕获与借用结束、PanLiveWindow/Segment 的 Copy、选中窗口传递后再使用，未发现确定编译问题。 |
+| `rust/src/theta_v0/classifier/nest_lifecycle/i4_bridge_tests.rs` | 全部 440 行，含 13 个测试与辅助函数。逐项核对方法、字段、父模块夹具、嵌套可见性、值与引用比较、部分移动后的字段访问、不可变借用末次使用后再修改 book、断言所需 trait，未发现确定编译问题。另一个新增测试位于 book.rs，合计仍为 14 个。 |
+
+同时检索 `rust/src`、`rust/tests` 中被更换接口的调用与结构体构造，未发现遗留旧签名调用；核查导入使用及相关 lint 声明，未发现新增的确定未使用导入问题。除已定位的 E0614 外，本轮人工复核没有发现其他确定编译问题，因此未扩大代码修改范围。
+
+返修验证：`git diff --check` 退出 0。本机未运行 cargo/rustc/rustfmt，Rust 测试实际执行数为 0，类型检查、借用检查、测试编译及执行仍待宿主封包后由 CI 验证。人工复核不能替代编译通过证据。本轮未执行 git add/commit/push，未修改 Git 元数据。

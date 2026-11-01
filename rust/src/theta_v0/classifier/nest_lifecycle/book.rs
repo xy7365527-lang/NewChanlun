@@ -716,7 +716,7 @@ impl NestLifecycleBook {
                             // #1719 第二层只清从未可证者，不伪造结构完成。
                             assert!(entry.first_provable_at.is_none());
                             assert!(self.center_break_audits.iter().any(|audit| {
-                                audit.settled_key == *key && audit.fact.known_at() == invalidated
+                                audit.settled_key == key && audit.fact.known_at() == invalidated
                             }));
                             assert!(
                                 invalidated <= entry.last_as_of,
