@@ -2551,7 +2551,7 @@ fn validate_system_phase_order(
     let mut accepts: CodecVec<AcceptReading> = control_json::new_work(owner);
     let mut stmt = CheckedStatement::prepare(
         conn,
-        c"SELECT e.clock_event_id,e.semantic_ns,e.generation,m.canonical_envelope,m.status,m.attempt_count FROM s_clock_events e JOIN s_input_messages m ON m.clock_event_id=e.clock_event_id WHERE e.phase='accept' ORDER BY e.generation",
+        c"SELECT e.clock_event_id,e.semantic_ns,e.generation,m.canonical_envelope,m.status,m.attempt_count,m.first_published_generation FROM s_clock_events e JOIN s_input_messages m ON m.clock_event_id=e.clock_event_id WHERE e.phase='accept' ORDER BY e.generation",
     )
     .map_err(err)?;
     while let Some(mut r) = stmt.next().map_err(err)? {
@@ -2561,6 +2561,13 @@ fn validate_system_phase_order(
         let raw = TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?;
         let committed = r.text(4).map_err(err)? == "Committed";
         let alias = committed && r.integer(5).map_err(err)? == 0;
+        // 接纳时 raw 已发布才记为零 attempt 的 Committed；推进消息则在接纳后的下一代首次发布。
+        let published = r.optional_integer(6).map_err(err)?;
+        if alias && published.is_none_or(|p| p > generation)
+            || !alias && published.is_some_and(|p| p != generation + 1)
+        {
+            return Err(err("system clock接纳代际与其raw首次发布不一致"));
+        }
         let envelope = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
         let epoch = parse_writer_epoch(
             control_json::field(

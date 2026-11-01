@@ -2500,6 +2500,29 @@ mod tests {
     }
 
     #[test]
+    fn s_system_clock_cold_audit_rejects_alias_before_its_raw_publication() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 100, 100, 100]));
+        let f = Fixture::system();
+        let mut d = f.open("1").unwrap();
+        assert_eq!(d.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        assert_eq!(
+            d.handle(epoch_input(3, "1", Some(1))).unwrap()["kind"],
+            "Committed"
+        );
+        drop(d);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["100".to_string()]);
+        assert_eq!(fake::samples(), 4);
+        let error = tampered_audit_error(
+            &f.db,
+            "UPDATE s_clock_events SET generation=0 WHERE phase='accept' AND clock_event_id='input-3';",
+        )
+        .expect("raw 未发布前不能有零 attempt 的已提交接纳");
+        assert!(error.contains("raw首次发布不一致"), "{error}");
+        assert_eq!(fake::samples(), 4, "冷审计不取样");
+    }
+
+    #[test]
     fn s_system_clock_cold_audit_rejects_old_epoch_alias_after_leaving_epoch() {
         use v2::system_clock_test as fake;
         fake::install(Some(&[50, 60, 100, 200, 200, 200, 200, 200]));

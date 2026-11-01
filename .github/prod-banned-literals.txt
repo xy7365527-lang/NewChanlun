@@ -405,6 +405,7 @@ queued单位不增加同形真实owner无台账路径的组装次数
 r3完整Some F次数
 r3完整Some读取轨迹
 raw 前缀链可用
+raw 未发布前不能有零 attempt 的已提交接纳
 raw_bars 修订投影
 raw_bars 其它整数不投影
 raw_bars 投影后重复
