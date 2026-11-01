@@ -356,7 +356,20 @@ jobs:
           path: ${{ runner.temp }}/s-session-shards
 
       - name: Verify shard union == full test set (#1588)
-        run: python3 .github/scripts/test-shard.py verify --count "$S_SESSION_SHARDS" "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
+        # #1527 42S B1：动态全集随 cfg/#[ignore] 同步收缩，集合等式拦不住整组具名锁消失；
+        #   这里按原 issue-1527-n1-31q 专用门钉住 N1 下限与 D1 准入八组非空，组内不得 ignored。
+        run: >-
+          python3 .github/scripts/test-shard.py verify --count "$S_SESSION_SHARDS"
+          --require 36:native_n1_
+          --require 1:admission_anchor::tests::
+          --require 1:admission_prepare_
+          --require 1:admission_private::tests::
+          --require 1:admission::tests::
+          --require 1:tests::accept_rejects_stale_epoch
+          --require 1:tests::source_coord_invalid_input_rolls_back_whole_accept_batch
+          --require 1:tests::pre_policy_records_deltas_
+          --require 1:tests::historical_pre_policy_records_store_
+          "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
 
   # #1722：extras 串行累计触顶 60 分钟；按独立输入拆组，各组仍有 60 分钟截止。
   #   max-parallel=1 保持原 extras 同时最多一个 runner；失败不取消后续组。
