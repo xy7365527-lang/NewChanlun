@@ -2516,21 +2516,6 @@ fn accept_body_in(
     }))
 }
 
-/// #1527 N1：保持 parse/profile/init/writable/revision/session 的原次序，
-/// 只复用 owner 已持有的事务；提交或回滚仍归连接生命周期的拥有者。
-fn accept_in(
-    tx: &rusqlite::Transaction<'_>,
-    text: &str,
-    profile_path: &Path,
-    configured_epoch: &str,
-    context: Option<&v2::InputContext>,
-) -> Result<Value, String> {
-    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
-    let prepared = prepare_accept(text, profile_path)?;
-    check_accept_connection(tx, &prepared)?;
-    accept_body_in(tx, text, prepared, configured_epoch, context)
-}
-
 fn accept_core(
     db: &Path,
     text: &str,
