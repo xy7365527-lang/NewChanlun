@@ -2424,9 +2424,15 @@ struct EpochStep {
     at: i64,
 }
 struct BeginReading {
+    id: TextValue,
     ns: i64,
     generation: i64,
     committed: bool,
+}
+struct AcceptReading {
+    id: TextValue,
+    ns: i64,
+    generation: i64,
 }
 /// accept/recover 记录发生时已发布的代，begin 记录目标代；三者都落在该窗口两端 commit 之间。
 fn generation_window(begin: bool, generation: i64) -> i64 {
@@ -2570,50 +2576,134 @@ fn validate_system_phase_order(
     }
     stmt.finalize().map_err(err)?;
 
+    let mut accepts: CodecVec<AcceptReading> = control_json::new_work(owner);
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT clock_event_id,semantic_ns,generation FROM s_clock_events WHERE phase='accept' ORDER BY generation",
+    )
+    .map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let accept = AcceptReading {
+            id: TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?,
+            ns: system_ns(&mut r, 1)?,
+            generation: r.integer(2).map_err(err)?,
+        };
+        control_push(&mut accepts, accept, work).map_err(err)?;
+    }
+    stmt.finalize().map_err(err)?;
+
     let mut begins: CodecVec<BeginReading> = control_json::new_work(owner);
     let mut stmt = CheckedStatement::prepare(
         conn,
-        c"SELECT b.semantic_ns,b.generation,c.attempt_index FROM s_clock_events b LEFT JOIN s_clock_events c ON c.clock_event_id=b.clock_event_id AND c.phase='commit' AND c.attempt_index=b.attempt_index WHERE b.phase='begin' ORDER BY b.attempt_ordinal",
+        c"SELECT b.clock_event_id,b.semantic_ns,b.generation,c.attempt_index FROM s_clock_events b LEFT JOIN s_clock_events c ON c.clock_event_id=b.clock_event_id AND c.phase='commit' AND c.attempt_index=b.attempt_index WHERE b.phase='begin' ORDER BY b.attempt_ordinal",
     )
     .map_err(err)?;
     while let Some(mut r) = stmt.next().map_err(err)? {
         let begin = BeginReading {
-            ns: system_ns(&mut r, 0)?,
-            generation: r.integer(1).map_err(err)?,
-            committed: r.optional_integer(2).map_err(err)?.is_some(),
+            id: TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?,
+            ns: system_ns(&mut r, 1)?,
+            generation: r.integer(2).map_err(err)?,
+            committed: r.optional_integer(3).map_err(err)?.is_some(),
         };
-        if begins
-            .last()
-            .is_some_and(|last: &BeginReading| begin.ns < last.ns)
-        {
+        if begins.last().is_some_and(|last: &BeginReading| {
+            begin.ns < last.ns || begin.generation < last.generation
+        }) {
             return Err(err("system clock全局相位读数倒退"));
         }
         control_push(&mut begins, begin, work).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
-
-    // 未提交的 attempt 只能由同一代际窗口内、下一次 Begin 之前的一次换代结束；在途的最后一个除外。
     let in_flight = control_meta_text_admitted(conn, "advance_state", owner, work)?
         .is_some_and(|state| state.as_str() != "idle");
-    let mut next_epoch = 0;
-    for (i, begin) in begins.iter().enumerate() {
-        if begin.committed || (in_flight && i + 1 == begins.len()) {
-            continue;
+    validate_system_interleaving(&accepts, &begins, &epochs, in_flight)
+}
+
+/// 单写者在 Begin 后处于 begun：其间拒绝接纳与再 Begin，只有本 attempt 的 Commit 或一次 recover
+/// 能结束它。故每个代际窗口的历史只能是
+/// `接纳… (换代)* (未提交Begin 换代 (换代)*)* [已提交Begin Commit | 在途Begin]`，
+/// 其中被推进的消息之外的接纳都在该消息接纳之前。按 ordinal 合并 Begin 与换代，核存在一条
+/// 满足此文法且读数不倒退的交错。
+fn validate_system_interleaving(
+    accepts: &[AcceptReading],
+    begins: &[BeginReading],
+    epochs: &[EpochStep],
+    in_flight: bool,
+) -> Result<(), String> {
+    let (mut next_epoch, mut next_accept, mut first) = (0, 0, 0);
+    while first < begins.len() {
+        let window = begins[first].generation - 1;
+        let message = begins[first].id.as_str();
+        let end = first
+            + begins[first..]
+                .iter()
+                .take_while(|b| b.generation == begins[first].generation)
+                .count();
+        while accepts
+            .get(next_accept)
+            .is_some_and(|a| a.generation < window)
+        {
+            next_accept += 1;
         }
-        let window = begin.generation - 1;
-        while epochs.get(next_epoch).is_some_and(|s: &EpochStep| {
-            s.generation < window || (s.generation == window && s.at < begin.ns)
-        }) {
+        let in_window = accepts[next_accept..]
+            .iter()
+            .take_while(|a| a.generation == window);
+        let advanced = in_window
+            .clone()
+            .find(|a| a.id.as_str() == message)
+            .ok_or_else(|| err("Begin消息的接纳不在本代际窗口"))?
+            .ns;
+        if in_window
+            .clone()
+            .any(|a| a.ns > begins[first].ns || (a.id.as_str() != message && a.ns > advanced))
+        {
+            return Err(err("system clock接纳读数晚于本代际窗口的推进"));
+        }
+        while epochs
+            .get(next_epoch)
+            .is_some_and(|s| s.generation < window)
+        {
             next_epoch += 1;
         }
-        let cleared = epochs
-            .get(next_epoch)
-            .filter(|s| s.generation == window)
-            .ok_or_else(|| err("未提交attempt缺结束它的换代"))?;
-        if begins.get(i + 1).is_some_and(|next| cleared.at > next.ns) {
-            return Err(err("system clock换代读数晚于下一次Begin"));
+        let mut placed = -1;
+        for (k, begin) in begins.iter().enumerate().take(end).skip(first) {
+            if begin.id.as_str() != message {
+                return Err(err("同一代际窗口内Begin属于不同消息"));
+            }
+            if begin.ns < placed {
+                return Err(err("system clock换代读数晚于下一次Begin"));
+            }
+            while let Some(idle) = epochs
+                .get(next_epoch)
+                .filter(|s| s.generation == window && s.at < begin.ns)
+            {
+                placed = idle.at;
+                next_epoch += 1;
+            }
+            if begin.committed || (in_flight && k + 1 == begins.len()) {
+                while let Some(same) = epochs
+                    .get(next_epoch)
+                    .filter(|s| s.generation == window && s.at == begin.ns)
+                {
+                    placed = same.at;
+                    next_epoch += 1;
+                }
+                if k + 1 != end
+                    || epochs
+                        .get(next_epoch)
+                        .is_some_and(|s| s.generation == window)
+                {
+                    return Err(err("system clock换代读数落在未结束attempt的Begin之后"));
+                }
+            } else {
+                let cleared = epochs
+                    .get(next_epoch)
+                    .filter(|s| s.generation == window)
+                    .ok_or_else(|| err("未提交attempt缺结束它的换代"))?;
+                placed = cleared.at;
+                next_epoch += 1;
+            }
         }
-        next_epoch += 1;
+        first = end;
     }
     Ok(())
 }

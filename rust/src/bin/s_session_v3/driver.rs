@@ -2312,6 +2312,74 @@ mod tests {
     }
 
     #[test]
+    fn s_system_clock_cold_audit_orders_idle_recover_before_successful_begin() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200]));
+        let f = Fixture::system();
+        let input = Fixture::ingest(1);
+        let mut before = f.open("1").unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        assert!(
+            cold_audit_commit_ns(&f.db).is_empty(),
+            "在途 attempt 的冷审计通过"
+        );
+        for (epoch, event, ns) in [("2", "recover-1", 300), ("3", "recover-2", 350)] {
+            fake::push(&[ns]);
+            recover(
+                &f.db,
+                epoch,
+                &f.clock,
+                event,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+        }
+        fake::push(&[400, 500]);
+        let mut resumed = f.open("3").unwrap();
+        assert_eq!(
+            resumed.handle(receipt_request(&input)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(resumed);
+        assert_eq!(cold_audit_commit_ns(&f.db), vec!["500".to_string()]);
+        assert_eq!(fake::samples(), 6);
+        assert_eq!(
+            system_clock_rows(&f.db),
+            vec![
+                "input-1|accept|-1|100",
+                "input-1|begin|0|200",
+                "recover-1|recover|-1|300",
+                "recover-2|recover|-1|350",
+                "input-1|begin|1|400",
+                "input-1|commit|1|500",
+            ]
+        );
+        let audit_error = |sql: &str| {
+            Connection::open(&f.db).unwrap().execute_batch(sql).unwrap();
+            let mut conn = open_db(&f.db).unwrap();
+            let tx = conn.transaction().unwrap();
+            let error = state::audit(&tx).err();
+            tx.rollback().unwrap();
+            error
+        };
+        let error = audit_error(
+            "UPDATE s_clock_events SET semantic_ns='450' WHERE clock_event_id='recover-2' AND phase='recover'; UPDATE writer_epoch_history SET transitioned_at='450' WHERE from_epoch='2' AND to_epoch='3'",
+        )
+        .expect("闲置换代不得落在成功 attempt 的 Begin 与 Commit 之间");
+        assert!(error.contains("system clock换代读数"), "{error}");
+        assert!(audit_error(
+            "UPDATE s_clock_events SET semantic_ns='350' WHERE clock_event_id='recover-2' AND phase='recover'; UPDATE writer_epoch_history SET transitioned_at='350' WHERE from_epoch='2' AND to_epoch='3'",
+        )
+        .is_none());
+        assert_eq!(fake::samples(), 6, "冷审计不取样");
+    }
+
+    #[test]
     fn s_system_clock_cold_audit_rejects_out_of_order_accept_and_recover() {
         use v2::system_clock_test as fake;
         fake::install(Some(&[100, 200, 300]));

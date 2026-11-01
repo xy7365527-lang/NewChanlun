@@ -745,6 +745,7 @@ writer/recover闭合后无SHM
 回退重走仍复用同一原件
 固定写父账重复附接
 固定输出复用相同exact判据
+在途 attempt 的冷审计通过
 坏 JSON 必须在建库前拒绝
 坏 clock 必须在建库前拒绝
 坏 profile 必须在建库前拒绝
@@ -1588,6 +1589,7 @@ writer/recover闭合后无SHM
 闭包 Ok 的纯预算不足
 闭包块会话与冷 CLI 逐字节相同
 闭包缺子节点必须拒绝
+闲置换代不得落在成功 attempt 的 Begin 与 Commit 之间
 降级注入代入口须带候选
 降级重做发布复用首次 Commit 读数
 降级重试的完整分支须标 abandon
