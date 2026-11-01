@@ -321,7 +321,11 @@ impl Driver {
     /// #1845：显式声明在 S 自身写锁下核对；未传参数的 standalone serve 保持原合同。
     pub(super) fn check_structure_source(&self, path: Option<&Path>) -> Result<(), String> {
         if let Some(path) = path {
-            let expected = newchan_rust::structure_source::Declaration::load(path)?;
+            let bytes = super::admission::read_startup(&self._scope, path, None)
+                .map_err(|e| format!("InvalidDomain：读结构源声明 {} 失败：{e}", path.display()))?;
+            let value = serde_json::from_slice(&bytes)
+                .map_err(|e| format!("InvalidDomain：结构源声明 JSON 解析失败：{e}"))?;
+            let expected = newchan_rust::structure_source::Declaration::parse(&value)?;
             self.conn.check_structure_source(&expected)?;
         }
         Ok(())

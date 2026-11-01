@@ -169,6 +169,10 @@ fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
 
 /// TestOnly 造锚：owner 绑定 + state/s-admission/{limits,binding}.json；返回 limits 路径。
 fn anchor(db: &Path) -> PathBuf {
+    anchor_with_wire_limit(db, 1_073_741_824)
+}
+
+fn anchor_with_wire_limit(db: &Path, max_total_wire_bytes: u64) -> PathBuf {
     let db = db.canonicalize().unwrap();
     let state = db.parent().unwrap().join("s-state");
     let published = state.join("s-admission");
@@ -177,7 +181,7 @@ fn anchor(db: &Path) -> PathBuf {
     let limits = published.join("limits.json");
     let binding_path = published.join("binding.json");
     let raw = serde_json::to_vec(&json!({
-        "max_total_wire_bytes":"1073741824", "max_total_node_bytes":"1073741824", "max_total_nodes":"10000000",
+        "max_total_wire_bytes":max_total_wire_bytes.to_string(), "max_total_node_bytes":"1073741824", "max_total_nodes":"10000000",
         "max_total_records":"10000000", "max_total_requests":"1000000", "max_elapsed_ms":"600000",
         "max_staged_bytes":"67108864", "max_store_bytes":"1073741824"
     }))
@@ -721,6 +725,28 @@ fn s_serve_explicit_source_rejects_corrupt_file() {
 #[test]
 fn s_serve_explicit_source_rejects_missing_file() {
     assert_source_refusal("file_missing", "读结构源声明");
+}
+
+#[test]
+fn s_serve_explicit_source_charges_declaration_bytes_to_startup_limit() {
+    let space = Space::new();
+    let (db, _, file) = structure_source_fixture(&space, "match");
+    let wire_limit = 8 * 1024 * 1024;
+    let limits = anchor_with_wire_limit(&db, wire_limit);
+    // 声明语义仍匹配，仅在合法 JSON 后追加超过整本启动账字节帽的空白。
+    let mut bytes = std::fs::read(&file).unwrap();
+    bytes.resize(bytes.len() + wire_limit as usize + 1, b' ');
+    std::fs::write(&file, bytes).unwrap();
+    let out = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("读结构源声明"), "{stderr}");
+    assert!(stderr.contains("max_total_wire_bytes"), "{stderr}");
+    assert!(!space.path("s.sock").exists());
 }
 
 #[test]
