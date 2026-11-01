@@ -30,6 +30,35 @@ npx tsx .sandcastle/main.mts
 
 跑之前确保有可领的票：open + 带 `sandcastle` label + 未 assign。镜像变更后用 sandcastle 的 build-image 重建 `sandcastle:newchanlun`。
 
+## 调度参数记录（#1606）
+
+模型、effort、并发、续跑轮数、worker 超时、轮询、陈旧阈值和重试参数统一读取
+[`scheduler-config.json`](scheduler-config.json)。记录包含 schemaVersion、revision、变更 ticket、
+完整 values 与逐项 sources；`main-model.mts` 继续作为所有角色的同型模型入口。
+`opusModel` 是 decision-claimer 起草与 codex-child 异家族独审共用的第二家族模型，记录要求 `claude-` 前缀。
+
+改默认值时，在同一提交中递增 revision、填写授权票号、更新受影响参数的来源及等值测试。
+版本历史由 Git 保存。参数提取不批准部署或改生产资源帽：生效仍须遵守原有批准门。
+
+覆盖优先级：现有显式函数/CLI 参数 > 环境覆盖 > 版本记录。
+`CLAIM_LOOP_POLL_SECONDS`、`HEALTH_DISK_MIN_GIB` 保留；其它字段采用
+`SANDCASTLE_` 加 camelCase 转大写下划线名（如 `SANDCASTLE_SWARM_MAX_PARALLEL`）。
+`SANDCASTLE_DECISION_MAPS` 使用 JSON 数组。
+`SANDCASTLE_CONFIG_FILE` 可指定另一份完整记录，不支持局部记录或静默默认。
+各进程首次读取后固定本轮配置，并在启动 stderr 打印记录版本、所用字段的有效值和来源；
+环境无关字段及凭据不打印。改文件需由原服务 owner 在获批部署时重启才生效。
+
+缺记录、缺字段、缺来源或非法值立即失败；记录本身非法时，环境覆盖也不能补洞。
+已有重试下限（模型至少5次、worktree重试间隔至少5秒）和子工蜂12小时超时上限保留。
+一次调用的 `maxIterations: 1` 是外层 resume 协议，不是可调轮数。
+
+验证（Node + tsx；真实 dry-run 对照另外需要 Bun 和该堆叠基线的 Git 对象）：
+
+```bash
+npm run typecheck
+node --import tsx --test .sandcastle/scheduler-config.test.mts
+```
+
 ## wayfinder_engine 控制面（#1084）
 
 `scripts/wayfinder_engine.mts` 是图清自动汇入主干的常驻控制面（tracker 即账本，stateless）：
@@ -81,7 +110,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 
 | 文件 | 作用 |
 |---|---|
-| `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型统一读 `main-model.mts`，实装与独审同型、不同 invocation；迭代数与资源面常量仍在文件顶部。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。#1259 追加：claim 成功后、implementer started 之前的失败自动回滚认领（WorktreeTimeoutError 先重试一次，间隔 ≥5s）。 |
+| `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型统一读 `main-model.mts`，实装与独审同型、不同 invocation；调度参数读取 `scheduler-config.json`。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。#1259 追加：claim 成功后、implementer started 之前的失败自动回滚认领（WorktreeTimeoutError 先重试一次，间隔 ≥5s）。 |
 | `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用；仓库根按脚本位置推导（`SANDCASTLE_HOST_REPO` 可覆盖，#1588）。 |
 | `install-wayfinder-engine.sh` | 控制面 launchd 任务的安装/卸载/查状态（#1084 追加）。 |
 | `launchd/com.newchanlun.wayfinder-engine.plist` | 控制面 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1084 追加）。 |
@@ -93,7 +122,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `harvest.test.sh` | harvest.sh 离线回归（#1660）：临时裸 origin + 假 gh，用真 jq 执行脚本里的 `--jq` 过滤、有状态地记住已开 PR，覆盖关闭关键词正反例、开 PR/登记、已有 PR 不重复、二次真跑幂等、评审未完成、票已关、open blocker 计数、远端分叉/领先、已合入 PR 不复活分支、标题关键词、token 轮换标记、dry run，并断言从不关票/合入/推 main/跑 cargo。经 `harvest.test.mts` 包装，由 CI `sandcastle-ts` job 运行。 |
 | `install-sandcastle-harvest.sh` | 收割 launchd 定时任务的安装/卸载/查状态（#1660，对齐 install-sandcastle-claimer.sh）。 |
 | `launchd/com.newchanlun.sandcastle-harvest.plist` | 收割 launchd 任务定义：StartInterval 900 + RunAtLoad，指向宿主克隆（#1660）。 |
-| `main-model.mts` / `cliproxy-env.mts` | 当前主控同型的唯一模型配置与无第三方依赖 CLIProxy 接线；后者可供 wayfinder 在无 node_modules 环境导入。 |
+| `main-model.mts` / `cliproxy-env.mts` | 当前主控同型的唯一模型配置与 CLIProxy 接线；完整导入链（含 scheduler-config 的记录校验）仅用 Node 内建模块，可供 wayfinder 在无 node_modules 环境导入。 |
 | `swarm-route.mts` | main-swarm 的主控同型 provider 与 Docker 宿主网关；保留 Docker 隔离，密钥仅运行时 env；领票前做真实模型请求与 namespace 预检；失败不认领、不换模型；已验收清单走独立受管归并入口。 |
 | `prime-agent-provider.ts` | 显式 legacy 通道的自定义 AgentProvider；不再供本机默认 main/main-swarm 使用。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
