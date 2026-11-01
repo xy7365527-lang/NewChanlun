@@ -487,6 +487,34 @@ class BoatExecution(WorkerExecution):
             return EffectUnknown(str(error))
         return self._terminal(key)
 
+    def is_drained(self, key: WorkerKey) -> bool:
+        """只读排空证据；失败回执不成为业务 Terminal，也不进入 collect。"""
+        binding = self.load(key)
+        if (binding is None or binding.submission not in ("submitting", "submitted")
+                or not isinstance(binding.stop_id, str) or not binding.stop_id):
+            return False
+        cache = self._path(key, ".remote.json")
+        if not cache.exists():
+            return False
+        receipt = json.loads(cache.read_text())
+        if not isinstance(receipt, dict):
+            return False
+        if receipt.get("identity") != binding.identity or receipt.get("package_id") != binding.package_id:
+            raise ExecutionUnknown("排空回执身份或 package 不符")
+        code = receipt.get("exit_code")
+        if type(code) is not int or code == 0:
+            return False
+        if "record" not in receipt:
+            # boat_remote 的监督失败/取消回执沿用 unknown，非零退出码才证明监督已终止。
+            return receipt.get("state") == "unknown"
+        record = receipt["record"]
+        if (receipt.get("state") != "terminal" or not isinstance(record, dict)
+                or record.get("status") not in ("failed", "cancelled")):
+            return False
+        process_exit = record.get("process_exit")
+        return (isinstance(process_exit, dict) and type(process_exit.get("code")) is int
+                and process_exit["code"] == code)
+
     def _terminal(self, key: WorkerKey) -> Terminal:
         from .run import parse_result
         out = self.run._key_dir(key)

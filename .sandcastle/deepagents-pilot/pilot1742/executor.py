@@ -272,7 +272,7 @@ class TicketExecutor:
                         if "." not in p.stem)
             for key in keys:
                 fact = run.execution.observe(key, reconcile=False)
-                if isinstance(fact, (Running, EffectUnknown)):
+                if isinstance(fact, (Running, EffectUnknown)) and not run.execution.is_drained(key):
                     raise ExecutionUnknown(f"{key.name}: {fact}")
         except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError) as error:
             raise ClaimRefused(f"上一代次 run {previous.run_id} 的 Boat 工蜂尚未排空：{error}") from None
