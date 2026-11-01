@@ -57,7 +57,8 @@ const GATE_FIELDS_TEXT: &str =
 /// 旧启动器对 Unix socket 路径的 100 字节上限（`s_service_control.py`），本入口沿用。
 const SOCKET_PATH_BYTES: usize = 100;
 
-const SERVE_FLAGS: [&str; 8] = [
+const SERVE_FLAGS: [&str; 9] = [
+    "--structure-source",
     "--admission-job-limits",
     "--protocol-revision",
     "--db",
@@ -200,6 +201,7 @@ struct ServeOptions {
     clock: PathBuf,
     socket: PathBuf,
     resources: PathBuf,
+    structure_source: Option<PathBuf>,
 }
 struct AdvanceOptions {
     db: PathBuf,
@@ -383,6 +385,7 @@ impl ServeOptions {
         let values = parse_flags("serve", args, &SERVE_FLAGS)?;
         selector(&values, "serve")?;
         Ok(Self {
+            structure_source: values.get("--structure-source").map(PathBuf::from),
             db: existing_file(required(&values, "serve", "--db")?, "--db")?,
             profile: existing_file(required(&values, "serve", "--profile")?, "--profile")?,
             epoch: epoch(
@@ -667,6 +670,7 @@ fn serve_diagnostic_fixture(
         let _ = writeln!(std::io::stderr().lock(), "{line}");
     }
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+    driver.check_structure_source(options.structure_source.as_deref())?;
     driver.finish_startup()?;
     let bounds = resources.transport_bounds();
     serve_unix(
@@ -797,6 +801,7 @@ fn serve_with_policy(
     #[cfg(not(feature = "s_incremental"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+    driver.check_structure_source(options.structure_source.as_deref())?;
     driver.finish_startup()?;
     let bounds = resources.transport_bounds();
     serve_unix(

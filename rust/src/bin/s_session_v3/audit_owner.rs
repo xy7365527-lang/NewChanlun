@@ -320,6 +320,23 @@ impl AuditConnection {
         Self::new(open_db(db)?)
     }
 
+    /// #1845：只借用 S 已持锁的连接，不向 CLI 暴露裸连接。
+    pub(super) fn check_structure_source(
+        &self,
+        expected: &newchan_rust::structure_source::Declaration,
+    ) -> Result<(), String> {
+        let stored = newchan_rust::structure_source::stored(&self.connection)?
+            .ok_or("InvalidDomain：S 库不带结构源声明，显式声明模式拒绝监听")?;
+        if stored.canonical() != expected.canonical() {
+            return Err(format!(
+                "InvalidDomain：S 库结构源声明 {} 与 --structure-source 声明 {} 不一致",
+                stored.canonical(),
+                expected.canonical()
+            ));
+        }
+        Ok(())
+    }
+
     fn new(connection: Connection) -> Result<Self, String> {
         let life = NEXT_LIFE
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))

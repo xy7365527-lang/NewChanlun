@@ -318,6 +318,15 @@ impl Driver {
         drop(conn);
         super::admission::CommandOutput::new(out, _scope)
     }
+    /// #1845：显式声明在 S 自身写锁下核对；未传参数的 standalone serve 保持原合同。
+    pub(super) fn check_structure_source(&self, path: Option<&Path>) -> Result<(), String> {
+        if let Some(path) = path {
+            let expected = newchan_rust::structure_source::Declaration::load(path)?;
+            self.conn.check_structure_source(&expected)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn finish_startup(&self) -> Result<(), String> {
         self._scope.finish_startup()
     }

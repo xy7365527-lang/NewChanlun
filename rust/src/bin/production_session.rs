@@ -2,10 +2,10 @@
 //!
 //! 职责只有编排：校验 manifest（含结构源声明）→ 必要时 init 各域库 → 以独立进程拉起
 //! S、E、每个 Bᵢ、X → 监督 → 收到 SIGTERM/SIGINT 时回收全部子进程。各域进程自持库、
-//! `<db>.writer.lock` 与 `writer_epoch`；launcher 不打开任何域的写连接，不放宽其锁/epoch/隔离。
+//! `<db>.writer.lock` 与 `writer_epoch`；launcher 不打开任何域库，不放宽其锁/epoch/隔离。
 //!
 //! - 结构源违规（类别不在封闭集合、namespace 与执行能力 manifest 相交）在拉起 S 之前以
-//!   `InvalidDomain` 退出，S 库文件不创建；既有 S 库不带声明或声明不一致同样 `InvalidDomain`。
+//!   `InvalidDomain` 退出，S 库文件不创建；既有 S 库由 S 持锁自核声明，失败按 critical exit 回收会话。
 //! - 凭据按 X 执行 profile 的 `credential_scope` 读文件，只注入 X 子进程环境；S/E/B 子进程
 //!   以清空的环境启动，launcher 自身环境不写入凭据。
 //! - X 退出只记录，不停 S/E/B；S/E/B 任一退出视为会话失败，回收其余进程后非 0 退出。
@@ -14,7 +14,6 @@
 //!
 //! 用法：production_session --manifest FILE
 use newchan_rust::structure_source::Declaration;
-use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -201,45 +200,6 @@ fn load_manifest(path: &Path) -> Result<Manifest, String> {
     })
 }
 
-/// 既有 S 库必须带与 manifest 一致的结构源声明。以 `immutable=1` 只读打开：不取锁、不建
-/// `-shm`/`-wal`——普通只读连接会留下 `-shm`，S 写者 admission 随即以
-/// `UnsupportedWalShmJournalCombination` 拒绝启动。声明只在 init 事务写入、此后不变，故只读主库
-/// 至多漏读尚在 WAL 的声明 ⟹ 判「不带声明」拒绝，不会放行错误声明。
-fn check_existing_s(db: &Path, source: &Declaration) -> Result<(), String> {
-    let conn = Connection::open_with_flags(
-        immutable_uri(db),
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
-    )
-    .map_err(|e| format!("StorageUnavailable：只读打开 S 库失败：{e}"))?;
-    match newchan_rust::structure_source::stored(&conn)? {
-        None => Err(format!(
-            "InvalidDomain：S 库 {} 不带结构源声明，生产路径拒绝打开",
-            db.display()
-        )),
-        Some(stored) if stored != *source => Err(format!(
-            "InvalidDomain：S 库结构源声明 {} 与 manifest {} 不一致",
-            stored.canonical(),
-            source.canonical()
-        )),
-        Some(_) => Ok(()),
-    }
-}
-
-/// SQLite URI 文件名：除 unreserved 与 `/` 外逐字节百分号编码（路径可含 `?`、`#`、`%`、空格）。
-fn immutable_uri(db: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
-    let mut uri = String::from("file:");
-    for &b in db.as_os_str().as_bytes() {
-        if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
-            uri.push(b as char);
-        } else {
-            uri.push_str(&format!("%{b:02X}"));
-        }
-    }
-    uri.push_str("?mode=ro&immutable=1");
-    uri
-}
-
 fn sibling(name: &str) -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("MissingDependency：{e}"))?;
     let path = exe
@@ -297,9 +257,6 @@ fn run() -> Result<i32, String> {
     let m = load_manifest(&manifest_path)?;
     let raw = &m.raw;
     let s_db = PathBuf::from(text(raw, "s.db")?);
-    if s_db.exists() {
-        check_existing_s(&s_db, &m.source)?;
-    }
     let (s_bin, e_bin, b_bin, x_bin) = (
         sibling("s_structure_session")?,
         sibling("e_economic_session")?,
@@ -317,11 +274,11 @@ fn run() -> Result<i32, String> {
     }
 
     // ── init：只对尚不存在的库；S 一律带声明 init ──
+    std::fs::create_dir_all(&m.state_dir).map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let decl = m.state_dir.join("structure-source.json");
+    std::fs::write(&decl, m.source.canonical())
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
     if !s_db.exists() {
-        std::fs::create_dir_all(&m.state_dir).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let decl = m.state_dir.join("structure-source.json");
-        std::fs::write(&decl, m.source.canonical())
-            .map_err(|e| format!("StorageUnavailable：{e}"))?;
         let mut c = clean(Command::new(&s_bin), &S_PASS);
         c.args(["init", "--protocol-revision", "s-session/3", "--db"])
             .arg(&s_db)
@@ -451,7 +408,9 @@ fn spawn_domains(
         .args(["--writer-epoch", text(raw, "s.writer_epoch")?])
         .args(["--clock-plan", text(raw, "s.clock_plan")?])
         .args(["--socket", text(raw, "s.socket")?])
-        .args(["--resource-config", text(raw, "s.resource_config")?]);
+        .args(["--resource-config", text(raw, "s.resource_config")?])
+        .arg("--structure-source")
+        .arg(m.state_dir.join("structure-source.json"));
     spawn("S".into(), s, true)?;
     let e_epoch = text(raw, "economic.e.epoch")?;
     let mut e = clean(Command::new(e_bin), &[]);
