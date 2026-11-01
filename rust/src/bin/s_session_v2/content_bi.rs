@@ -1127,6 +1127,80 @@ impl ContentBi {
         }
     }
 
+    /// #1481：冷认证中按在线同一叶/序列配方恢复已发布赢家的坐标缓存。
+    /// 这里只建立 life=0 缓存；实际 owner 资格仍须在两锁交接后重绑。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn seed_cold_delta(
+        &mut self,
+        store: &mut dyn NodeStore,
+        producer: &mut Cc004Producer,
+        rows: &[super::s_fact_cache::DeltaRawRow],
+        binding: crate::v3::audit_owner::RawAdvanceBinding,
+    ) -> Result<(), BiError> {
+        if !binding.is_unbound_cold()
+            || self.coords.delta_binding.is_some()
+            || !self.coords.coords.is_empty()
+            || !self.coords.refs_leaves.is_empty()
+            || self.coords.text != SequenceRef::empty()
+            || self.coords.refs != SequenceRef::empty()
+        {
+            return Err(BiError::Facts {
+                detail: "冷RawCoords必须来自fresh缓存与未绑定冷域".into(),
+            });
+        }
+        let mut coords = Vec::with_capacity(rows.len());
+        let mut leaves = Vec::with_capacity(rows.len());
+        let mut refs_leaves = Vec::with_capacity(rows.len());
+        for row in rows {
+            if let Some(work) = store.codec_work() {
+                work.check_current()?;
+            }
+            let coord = coord_i64(row.bar.source_index)?;
+            if coords.last().is_some_and(|previous| *previous >= coord) {
+                return Err(BiError::Facts {
+                    detail: "冷RawCoords赢家坐标非严格升序".into(),
+                });
+            }
+            leaves.push(producer.coord_text_leaf(store, coord)?);
+            refs_leaves.push(
+                producer
+                    .source_root(coord)
+                    .ok_or(ProducerError::MissingSource(coord))?,
+            );
+            coords.push(coord);
+        }
+        let text = sc::sequence_rebuild_suffix(store, &SequenceRef::empty(), 0, &leaves)?;
+        let refs = sc::sequence_rebuild_suffix(store, &SequenceRef::empty(), 0, &refs_leaves)?;
+        self.coords = RawCoords {
+            coords,
+            refs_leaves,
+            text,
+            refs,
+            delta_binding: Some(binding),
+        };
+        Ok(())
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn rebind_cold_delta(
+        &mut self,
+        old: crate::v3::audit_owner::RawAdvanceBinding,
+        current: crate::v3::audit_owner::RawAdvanceBinding,
+    ) -> Result<(), String> {
+        if !old.is_unbound_cold()
+            || current.is_unbound_cold()
+            || !current.is_initial()
+            || self.coords.delta_binding != Some(old)
+            || self.coords.refs_leaves.len() != self.coords.coords.len()
+            || self.coords.text.count() != self.coords.coords.len() as u64
+            || self.coords.refs.count() != self.coords.coords.len() as u64
+        {
+            return Err("GenError：冷RawCoords交接域或计数不符".into());
+        }
+        self.coords.delta_binding = Some(current);
+        Ok(())
+    }
+
     /// 整条车道的运行态丢弃：坐标序列与 `Cc004Producer` 的源注册表 + memo **一起**清。
     ///
     /// 事务 rollback / 换库 / 换来源域后**必须**调用（作用域与

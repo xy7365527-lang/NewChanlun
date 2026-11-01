@@ -402,12 +402,11 @@ fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
     let before = state::full_audit_calls_for_test();
     // Driver 在同一本实际启动账的 scope.enter 内执行 owner.startup/profile 实读。
     let mut driver = h1_admission_driver(&f, "1").unwrap();
-    let mut c = context();
     for n in 1..=3 {
-        // identity 与 summary 的只读事务交接后，下一代必须仍持 H1 资格。
-        let owner = driver.h1_owner_for_test();
-        owner.identity("1", &f.clock, Some(&mut c)).unwrap();
-        owner.summary("meta", "1", &f.clock).unwrap();
+        // #1481：走正式只读入口，沿用启动父域；不能另冻 old_pool=0 的冷合同
+        // 接管已驻留的父账。下一次 handle 自行按生产逐项分区冻结新请求。
+        driver.identity().unwrap();
+        driver.state_summary("meta").unwrap();
         let receipt = driver.handle(b2_envelope(n)).unwrap();
         assert_eq!(receipt["kind"], "Committed");
     }
@@ -433,10 +432,8 @@ fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
         "recover 必须重新从 g1 认证"
     );
     let driver = h1_admission_driver(&f, "2").unwrap();
-    let owner = driver.h1_owner_for_test();
-    let mut c = context();
-    owner.identity("2", &f.clock, Some(&mut c)).unwrap();
-    owner.summary("meta", "2", &f.clock).unwrap();
+    driver.identity().unwrap();
+    driver.state_summary("meta").unwrap();
     assert_eq!(
         state::full_audit_calls_for_test(),
         before,
@@ -444,7 +441,7 @@ fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
     );
     // oracle 只放在整个计数区间之后，防止测试 helper 自己污染无调用断言。
     assert_eq!(
-        h1_admission_canonical(owner).as_bytes(),
+        h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
         f.full_canonical().as_bytes()
     );
 }
@@ -576,7 +573,26 @@ fn h1_admission_driver_cold_recover_rebuilds_ledger_bitwise() {
     // R>F：真实接纳并 Begin 第六条，但尚未发布；恢复不得把这个尾部错算成已发布资格。
     let pending = h1_admission_revision_envelope(6, ("d", 3, 14, 20, 10, 15), 1, "1");
     let before = state::full_audit_calls_for_test();
-    h1_admission_accept_begin(driver.h1_owner_for_test(), &pending, &mut context(), "1");
+    {
+        // #1481：与 Driver::handle 同一生产分区入口，冻结原父账已有的全部旧费；
+        // 只停在真实 Begin 后，不以 old_pool=0 的独立冷合同接管暖父账。
+        let owner = driver.h1_owner_for_test();
+        let retention = 536_870_912;
+        let legacy = crate::cache::retained_bytes();
+        let total = legacy.checked_add(retention).unwrap();
+        let mut previous = owner.source_keeper.borrow_mut().take();
+        let partition = owner
+            .entry_old_pool_partition(&mut previous, retention)
+            .unwrap();
+        let mut c = request_audit::RequestAuditContext::default();
+        c.freeze_manifest_workspace_partition(total, legacy, partition)
+            .unwrap();
+        let mut keeper =
+            previous.unwrap_or_else(|| cross_request_source_cache::Keeper::new(retention));
+        keeper.set_retention_cap(retention);
+        c.attach_source_keeper(keeper);
+        h1_admission_accept_begin(owner, &pending, &mut c, "1");
+    }
     assert_eq!(state::full_audit_calls_for_test(), before);
     assert_eq!(
         f.conn()

@@ -498,6 +498,9 @@ impl GenerationRuntime {
         self.producer
             .seed_cold_delta(store, raw, lane.rows(), binding)
             .map_err(producer_error)?;
+        self.bi
+            .seed_cold_delta(store, &mut self.producer, lane.rows(), binding)
+            .map_err(|error| format!("GenError：TB-02-B冷缓存构造失败：{error}"))?;
         self.delta_lane = Some(lane);
         Ok(())
     }
@@ -516,7 +519,8 @@ impl GenerationRuntime {
             .as_mut()
             .ok_or("GenError：冷生成器缺车道")?
             .rebind_cold_owner(old, current, prefix)?;
-        self.producer.rebind_cold_delta(old, current)
+        self.producer.rebind_cold_delta(old, current)?;
+        self.bi.rebind_cold_delta(old, current)
     }
 
     /// #1488 原账片：消费 owner 当前资格，只构造新 raw 尾与生效账受影响后缀。

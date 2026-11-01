@@ -573,3 +573,72 @@ owner 锁模块前缀为 `v3::audit_owner::construction_tests::`；provider 为 
 - `rust/src/bin/s_session_v3/business_json.rs`
 - `rust/src/bin/s_session_v3/history.rs`
 - `rust/src/bin/s_session_v3/mod.rs`
+
+## S1F
+
+> 状态：ready，候选可交主控封包取 CI。基线为 `sandcastle/issue-1481` / `7332d8014a3c859f80ad0f58eaa285206b33288d`，开工工作区干净。以下是根因证明、源码修复及静态检查收据；**Rust 未验证，待 CI**。不把候选 ready 记作三项 Rust 测试已经转绿。
+
+### 原日志与三项首错
+
+已读取 S1D/S1E 提示及引用的范围与禁止项、本报告两节、43K 简报、44G BLOCK 和指定原始日志 `/Volumes/AgentStorage/h1-recover45c/ci-41356487293-s1e-failed.log`。下述日志位置均是该原件物理行。run `41356487293` 的命令在 `:1`，`:69` 编译完成，`:72` 开始 71 项；`:405` 是 `68 passed; 3 failed; 0 ignored`。原日志不含 RawCoords 内部字段 dump，下面的字段值由失败现场输入与构造/调用链推导，未冒充新增运行读数。
+
+| 测试后缀 | 原日志与前后输出 | 证明的根因 | S1E / E6 关系 |
+|---|---|---|---|
+| `h1_admission_cold_prefixes_match_full_canonical` | `:103–106`，原测试 `:165` 的 handle 报 RawCoords 错。紧前 `:100` 是 `g=1 nodes=1848 object_effects=4 aux_effects=[0,0,2]`，`:101` 的 work 为 `live_peak_meta=(0,790048,96,192)`、`native_upper_live_peak=(3605204,4575603)`、`total_peak=5111707`；失败后 `:107–108` 已是下一测试的 g1/work。 | 第一代发布并冷开后，第二代首次续写需要 1 个旧赢家，RawCoords 却仍为空；严格门正确拒绝。 | S1D 新冷恢复漏 ContentBi。S1E 只处理可见性；E6 未改此缓存链。 |
+| `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` | `:162–164`，原测试 `:496` 的 commit helper 报同错。紧前 `:155–160` 是该锁 g1/g2/g3，g3 为 `nodes=5564 object_effects=11 aux_effects=[3,7,3]`，work 为 `live_peak_meta=(0,2428576,96,192)`、`native_upper_live_peak=(7822547,12032480)`、`total_peak=13275044`；`:165–166` 已是下一锁输出。 | 三代后冷开成功，首次修订 n4 需要 3 个旧赢家，RawCoords 仍为空。另穷举发现同一失败锁后面的 R>F 夹具也另造零旧池合同，本轮同时修正，见预算节。 | 缓存缺项属 S1D；后续裸 context 夹具问题与第 3 项同族。均非 S1E/E6 引入。 |
+| `h1_admission_formal_accept_begin_prepare_recover_never_full_audit` | `:179–181`，原测试 `:409` 的第一次 identity 报预算交接拒绝。`:165–176` 的 suffix/work 属前一外写锁，`:177` 已明确它通过；本失败锁尚未产生自己的首代 suffix。 | 正式 Driver 已有活父账，夹具却创建 `old_pool=0` 的独立新冻结域，预算门正确拒绝换域。 | S1D 将正式 Driver 与原裸 context 混用；S1E/E6 未改该合同及拒门。 |
+
+### RawCoords 逐字段证明与修复
+
+确切拒门为 `rust/src/bin/s_session_v2/content_bi.rs:430–436`，其中 `:430` 检查 `self.coords.len() != view.previous_len()`，`:436` 产生原错误。绑定分支在 `:420–423`。S1D 的 `generation.rs:467` 原 seed 只恢复 DeltaLane、raw/effective 两个 SequenceMemo 和 producer；`ContentBi::new` 在 `content_bi.rs:1126` 仍创建 `RawCoords::new`，没有任何冷恢复赋值。
+
+| 字段 | S1D 冷恢复实际值 | 在线首次续写要求与 S1F 恢复值 |
+|---|---|---|
+| `coords` | `[]` | prefixes 的 F=1、N=1，为 `[10]`；driver 锁的 F=3、N=3，为 `[0,1,2]`。坐标分别来自 `audit_owner.rs:5796–5804` 的 b2 输入和本锁前三次独立源输入。 |
+| `refs_leaves` | `[]` | 按同一赢家顺序取得 producer 已恢复的 `source_root(coord)`，长度 N，内容就是在线同源引用叶摘要。 |
+| `text` | `SequenceRef::empty()`，count=0 | 在线同一个 `coord_text_leaf` 逐坐标生成叶，再以同一个规范 M 序列核构造，count=N，根为同一有序叶序列的规范根。 |
+| `refs` | `SequenceRef::empty()`，count=0 | 将上述 `source_root` 有序叶交同一个规范 M 序列核，count=N，根与在线相同。 |
+| `delta_binding` | `None` | 先存同核 life=0 冷 binding，再与 lane/producer 一起严格重绑为新实际 owner 的初始 binding；下一 bound 的 previous_binding 即该值。 |
+
+实际触发首错的是 **`0 != N` 的 coords 长度**，不是门中每个子条件都失败。旧 `None + initial + 空 coords` 分支本来合法，另外三个长度比较相对空 coords 都是 `0==0`；不能把错误文字中的 binding/计数/根统称为三个独立实测失配。
+
+修法位于 `content_bi.rs:1133` 的 `seed_cold_delta`：仅接受 fresh 缓存和未绑定冷域，消费已核 F 的赢家行，严格核升序，用在线相同的 `coord_text_leaf`、`source_root`、`sequence_rebuild_suffix` 恢复全部字段。`:1185` 的 `rebind_cold_delta` 核旧冷域、新实际 owner 初始域、原绑定及全部长度，再只替换 binding。`generation.rs:501–503` 将它接在 producer seed 后；`:523` 在 lane/producer 原严格交接后交接 bi。没有放宽原 sync_delta 门，没有 reset 后重试，也没有旧审计兜底。
+
+冷 HashReader 的 overlay 仍可在 `audit_owner.rs:648` 原位置丢弃，不能仅凭根相同来断言节点可读，节点闭包证据如下：`content_bi.rs:1275` 每代无条件建立 `whole`，`:1690–1700` 无条件发布带 `&whole` 的 CC-056.version；`:1724–1730` 进入 build_object，`object_records.rs:797–798` 写入 input_refs/source_coords 内容边；`generation.rs:1243–1252`、`:1287–1298` 把该对象纳入 generated_state。`content_producer.rs:3199–3216` 的数组帧引用完整 M 根，因此末代已发布版本对象的闭包已含两棵完整序列树。`s_content/sequence.rs:1–8` 的唯一规范分解保证冷重建全部 M 节点也相同。空 F 的 count=0 根在 `sequence.rs:137–149` 不要求读取节点。
+
+ContentBi 唯一跨代字段就是 coords，已全部恢复。其他生成缓存也已穷举：objects/witnesses/relations/observations 的序列按本代完整键 sync，可从 fresh 建立；event_nodes 是可重算 memo；fractal_histories 从真实 bars 建立；空 development_ranges 使本代 ranges 全脏并重建 batches。R>F 仍只 seed 已发布 F 的赢家，未发布尾部交下一在线 Δ；修订后 F 与 N 不同不改变此规则。pending 分支 `generation.rs:1127` 不提前返回，仍走 ContentBi 和版本对象闭包。原失败锁保留修订后再冷、R>F、epoch2 pending 续写再冷的全部对拍。
+
+### 预算交接判据、生命周期与夹具修复
+
+错误文本位于 `request_audit.rs:2578/2581`。真实链为 `audit_owner.rs:979 identity` → `:853 begin_in_request` → `:794 bind_history_parent` → `request_audit.rs:2571 bind_frozen_mapped` → `audit_owner/native.rs:603–650`。确切失败门在 `native.rs:637`，换域要求 `live <= old_pool`，并同时要求序号与活动 scope 合法；本轮不修改这些条件。
+
+`driver.rs:466–470` 的正式 cold_context 冻结 `T=536870912, legacy=0, old_pool=0`，以 D₁ 的唯一 BootstrapGrant 出生并绑定实际父账 P。启动后的 Clamp/候选驻留 P。旧测试另调用 `audit_owner.rs:6685–6691 context()`，冻结独立 D₂，仍声明 `old_pool=0`、uncovered=0；P 的 live 至少有 `native.rs:538–556` 的 metadata_bytes，严格大于零。因此 D₂ 接管 P 时必触发 `live > 0`，不是生产交接拒门缺陷，也不是 recover scope 丢失。
+
+`admission_tests.rs:405–409`、`:434–435` 改用无测试特权的生产 `Driver::identity()` / `state_summary()`。`driver.rs:325–337` 的前者沿当前父域调用真实 identity，后者执行真实 summary 并给结果补 policy_records。后续 `handle` 仍在 `driver.rs:675–678` 调生产 entry_old_pool_partition 并冻结逐项旧费，未绕过请求预算。正式 scoped recover、scope.finish_startup/drop、Committed、cuts、旧审计零调用及最终 canonical 断言均保留。
+
+同一第 2 项失败锁在 R>F 构造处原来也将裸 `context()` 传给已冷建 Driver 的 owner，修首错后会遇到同类换域失败。本轮 `admission_tests.rs:576–595` 复用生产 `entry_old_pool_partition`（`:584`）、`freeze_manifest_workspace_partition`（`:588`）和原 keeper，再调用真实 `owner.admit/Begin`（`:594`），故仍在第六条真实原件已接纳、Begin 完成而未发布的状态停止。保留 raw_count=6、generation=5、recover 只认证 g1..g5、台账逐字节一致、epoch2 自动发布 g6 的所有断言。Driver 的 stop_after 字段私有且生产 open 无该参数；本轮未扩大测试字段可见性，也未添加新钩子。
+
+### S1E / E6 与保持项
+
+只读差异核查：`a0d85e33..7332d801` 对本轮三个 Rust 文件无差异；`822309387d..bda5958779` 对 native.rs、request_audit.rs、content_bi.rs 无差异；S1D 对 native.rs/request_audit.rs/driver.rs 也无差异。故三项不是 S1E 可见性或 E6 共享审计/迁移改动造成。S1D 漏了一份冷缓存，又让已有夹具的冷合同接管正式暖父账。
+
+原严格 RawCoords 函数、全部生产预算拒门保持。已通过 68 项的断言不改；正常退出同库新进程重启、未知旁挂拒绝、MainOnly/非 WAL、坏旧史迁移前拒绝、热日志不改源、Ordinary 先审后迁及 E6 锁均未修改。ci.yml/history36h 的原逐名清单与触发不变，无新增或 ignore 测试。仍不做资源 `/3`、scrub、launcher/5、Python 服务控制、ADR、默认切换、重型窗口或整票关闭。
+
+### cfg、告警与实际自检
+
+| feature 组合 | 非 test | test |
+|---|---|---|
+| `s_session` | 两个新 ContentBi 方法与 generation 调用均由相同 `all(s_incremental,unix)` 排除，无新增 import 或类型泄漏。 | H1 admission_tests 由父增量 cfg 排除。 |
+| `s_session,s_incremental` | Unix 下 seed/rebind 都有真实生产调用，NodeStore、DeltaRawRow、RawAdvanceBinding 等签名类型可达；无测试钩子依赖。 | H1 夹具经既有 test+增量+unix include 编入，调用原生产 Driver/owner/分区接口。 |
+| `s_session,s_incremental,s_capture_native_testonly` | 新代码无 testonly 分叉，与上一格相同；Ordinary 诊断臂次序不改。 | 同上，原 test_prepare 外层 test 属性保留。 |
+
+非 Unix 时两个方法及两处调用一并排除。不新增导入、公开类型、allow 或环境开关；两个新方法是根模块的 pub(super)，可供 v3 调用；SequenceRef 已 derive PartialEq/Eq；BiError 已有 From<CodecError> 和 From<ProducerError>；dyn NodeStore 可顺序重借用，生成器错误转换返回 String。六格 `-D warnings`、借用与错误类型仅作源码核查，实际编译待 CI。
+
+已实际执行 R4 Python 锁 3 项通过、生产无测试钩子扫描 `violations=0`、禁串 `--check` 与源码一致、三个改动 Rust 文件 rustfmt check 和 `git diff --check`。严格 RawCoords 的整个 sync_delta 函数另与 HEAD 原件逐字比较，未变。非作者独审核对字段连续性、节点持久闭包、预算生命周期、cfg 和下游 pending/recover 路径。未运行 cargo/rustc、Rust 测试或新 CI；未 git add/commit/push，未写 Git metadata。
+
+### S1F 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v2/content_bi.rs`
+- `rust/src/bin/s_session_v3/audit_owner/admission_tests.rs`
+- `rust/src/bin/s_session_v3/generation.rs`
