@@ -22,10 +22,14 @@ test("组合验证真实 diff-check 绑定精确 SHA，文本票不触发本机 
 
 test("真实宿主归并入口读取 accepted 清单、保留功能 worktree，可原命令重入（不代替 Docker）", async t => {
   const { runAcceptedSwarmMerge } = await import("./swarm-merge.mts");
+  const { withLegacyAdmission } = await import("./drain-control.mts");
   const cwd = mkdtempSync(join(tmpdir(), "nc-merge-entry-"));
+  // #1742 旧来源新归并须取冻结准入；测试用临时根，不触碰本机生产冻结根。
+  const drainRoot = mkdtempSync(join(tmpdir(), "nc-merge-entry-drain-"));
+  const admission = <T,>(action: () => T | Promise<T>) => withLegacyAdmission(action, drainRoot);
   const outer = mkdtempSync(join(tmpdir(), "nc-merge-manifest-"));
   const original = process.cwd();
-  t.after(() => { process.chdir(original); rmSync(cwd, { recursive: true, force: true }); rmSync(outer, { recursive: true, force: true }); });
+  t.after(() => { process.chdir(original); for (const d of [cwd, outer, drainRoot]) rmSync(d, { recursive: true, force: true }); });
   const git = (...args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
   git("init", "-b", "main"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.invalid");
   git("commit", "--allow-empty", "-m", "base"); const base = git("rev-parse", "HEAD");
@@ -35,9 +39,9 @@ test("真实宿主归并入口读取 accepted 清单、保留功能 worktree，�
   const path = join(outer, "accepted.json"); writeFileSync(path, JSON.stringify(manifest));
   process.chdir(cwd);
   const events: Record<string, unknown>[] = [];
-  const first = await runAcceptedSwarmMerge(path, "unused-no-conflict", e => events.push(e));
+  const first = await runAcceptedSwarmMerge(path, "unused-no-conflict", e => events.push(e), { admission });
   assert.equal(first.phase, "done"); assert.equal(git("rev-parse", "main"), base);
-  const second = await runAcceptedSwarmMerge(path, "unused-no-conflict", e => events.push(e));
+  const second = await runAcceptedSwarmMerge(path, "unused-no-conflict", e => events.push(e), { admission });
   assert.equal(second.snapshot.head, first.snapshot.head); assert.equal(second.checks.length, 1);
   assert.ok(git("worktree", "list", "--porcelain").includes("refs/heads/sandcastle/merge-entry"));
   assert.equal(events.filter(e => e.status === "done").length, 1);

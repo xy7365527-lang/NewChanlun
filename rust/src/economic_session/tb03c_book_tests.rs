@@ -396,9 +396,9 @@ fn book_revision_dispatch_is_explicit_and_closed() {
         book::rules(&json!({"book_revision":"tb03c-book/1"})).unwrap(),
         book::Rules::Tb03cV1
     );
-    // #1406 C8：`tb03c-book/2` 已定义（见 tb03c_funding_tests），闭集外样本改用 `/3`。
+    // #1406 C8：`tb03c-book/2` 已定义（见 tb03c_funding_tests）；#1715 `/3` 已定义，闭集外样本改用 `/4`。
     for bad in [
-        json!("tb03c-book/3"),
+        json!("tb03c-book/4"),
         json!("tb03a-book/1"),
         json!(1),
         json!({}),
@@ -471,14 +471,154 @@ fn eligibility_implies_latch_and_latch_never_regresses() {
     }
     for b in fixture_books() {
         if b["phase"]["growth_eligible"]["status"] == "Eligible" {
-            let want = if b["side"] == "long" {
-                "EarningShares"
+            if b["side"] == "long" {
+                assert_eq!(b["phase"]["latch"], "EarningShares");
             } else {
-                "CapitalRecovered"
-            };
-            assert_eq!(b["phase"]["latch"], want);
+                // ADR 0043 裁定三（#1590）订正：空头 growth_eligible ⇒ latch.rank ≥ CapitalRecovered。
+                assert!(rank(&b["phase"]["latch"]) >= 1, "{b}");
+            }
+        }
+        if b["side"] == "short" {
+            assert_ne!(b["phase"]["latch"], "EarningShares", "{b}");
         }
     }
+}
+
+/// #1669（sanjieduan §2 OQ-2a 义务，ADR 0043 裁定三订正）：空头侧的资格蕴含由本 Rust 性质锁承担。
+/// 空头 `growth_eligible ⇒ latch.rank ≥ CapitalRecovered`；空头事件从不把 latch 推进到 `EarningShares`；
+/// latch 不回退、阶段事件史只增；资格恰等于唯一谓词对同一存储数值的输出（#804）。
+/// 蕴含非双向：须实际出现「资格失效而 latch 保留」的书账，防止退化成等价式。
+#[test]
+fn short_eligibility_implies_capital_recovered_and_never_earning_shares() {
+    let rank = |s: &Value| {
+        ["CostReduction", "CapitalRecovered", "EarningShares"]
+            .iter()
+            .position(|x| s == x)
+            .unwrap()
+    };
+    let (mut eligible, mut lost_after_latch) = (0, 0);
+    let (mut eligible_seeds, mut lost_seeds) = (0, 0);
+    for seed in 1..=12u64 {
+        let (e0, l0) = (eligible, lost_after_latch);
+        let books = random_short_books(seed);
+        assert_eq!(books.len(), 61, "seed={seed}");
+        let (mut prev_rank, mut prev_events) = (0, 0);
+        for b in &books {
+            assert_eq!(b["side"], "short");
+            let r = rank(&b["phase"]["latch"]);
+            assert!(r >= prev_rank, "latch 回退 seed={seed}");
+            assert!(
+                r <= 1,
+                "空头事件把 latch 推进到 EarningShares seed={seed}: {b}"
+            );
+            let events = b["phase"]["events"].as_array().unwrap().len();
+            assert!(events >= prev_events, "阶段事件史被改写 seed={seed}");
+            let status = &b["phase"]["growth_eligible"]["status"];
+            assert_eq!(*status, book::growth_eligible_of(b).unwrap(), "{b}");
+            if status == "Eligible" {
+                eligible += 1;
+                assert!(
+                    r >= 1,
+                    "空头 Eligible 而 latch 未到 CapitalRecovered seed={seed}"
+                );
+                assert_eq!(b["phase"]["gate"]["kind"], "SimulatedGateReached");
+                assert_eq!(b["phase"]["growth_enabled"]["status"], "AwaitingPolicy");
+            } else if r >= 1 {
+                assert_eq!(*status, "NotEligible");
+                lost_after_latch += 1;
+            }
+            (prev_rank, prev_events) = (r, events);
+        }
+        eligible_seeds += usize::from(eligible > e0);
+        lost_seeds += usize::from(lost_after_latch > l0);
+    }
+    assert!(
+        eligible > 0,
+        "空头随机序列未触发 Eligible，锁为真空（命中种子 {eligible_seeds}/12）"
+    );
+    assert!(
+        lost_after_latch > 0,
+        "未出现资格失效而 latch 保留的书账（命中种子 {lost_seeds}/12）"
+    );
+}
+
+/// 确定性伪随机空头序列：保证金批 M0 开局后 60 步加空、回补（带具名已实现盈亏，可正可负）、
+/// 借券期间费用与追加保证金批。原件形状与 fixtures/tb03c 的 chong-S1 同类（只用 SHORT_KINDS）。
+fn random_short_books(seed: u64) -> Vec<Value> {
+    let mut s = seed.wrapping_mul(0xD1B5_4A32_D192_ED03) | 1;
+    let mut next = |m: u64| {
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        s % m
+    };
+    let mut d = TestDoc::new("chong-RS", "fam-RS", 10, "short");
+    d.opening(
+        10,
+        &[
+            ("commission", 5, json!({})),
+            (
+                "principal_contribution",
+                600,
+                json!({"batch_id":"m0","authorization_ref":"unit"}),
+            ),
+        ],
+    );
+    let (mut q, mut batch) = (10i64, 0u64);
+    for _ in 0..60 {
+        match next(5) {
+            0 => {
+                let n = 1 + next(5) as i64;
+                d.step(n, &[("commission", 1 + next(8) as i64, json!({}))]);
+                q += n;
+            }
+            1 | 2 if q > 0 => {
+                let n = 1 + next(q.min(5) as u64) as i64;
+                let fee = 1 + next(10) as i64;
+                let mut gross = next(500) as i64 - 120;
+                // Pi = gross − fee 为 0 时 book.rs 另要求「无其他利润变化」见证，realized_step 不带它；避开该点。
+                if gross == fee {
+                    gross += 1;
+                }
+                d.realized_step(-n, gross, fee);
+                q -= n;
+            }
+            3 => d.step(
+                0,
+                &[(
+                    "fee_only",
+                    1 + next(30) as i64,
+                    json!({"fee_type":"borrow","cause":"period"}),
+                )],
+            ),
+            _ => {
+                batch += 1;
+                d.step(
+                    0,
+                    &[(
+                        "principal_contribution",
+                        50 + next(150) as i64,
+                        json!({"batch_id":format!("m{batch}"),"authorization_ref":"unit"}),
+                    )],
+                );
+            }
+        }
+    }
+    let raw = canonical_json(&d.document());
+    let mut image = book::empty_image();
+    let mut out = vec![];
+    for i in 0..d.events.len() {
+        let (next, unmatched) = v1(
+            &image,
+            &record_for_raw(&raw, &format!("/events/{i}")),
+            i as i64 + 1,
+        )
+        .unwrap_or_else(|e| panic!("seed={seed} #{i}: {e}"));
+        assert!(!unmatched);
+        image = next;
+        out.push(image["book"].clone());
+    }
+    out
 }
 
 /// 确定性伪随机多头序列：开局后 60 步买/卖/费用/退本金，覆盖跨闸往返与费用回正。
@@ -641,6 +781,30 @@ impl TestDoc {
         e["chong_id"] = json!(self.chong);
         e["deltas"] = json!({"units":du.to_string(),"Pi":"0","A":"0","W":"0"});
         e["component_witnesses"] = json!(ws);
+        self.events.push(e);
+    }
+    /// 带具名已实现盈亏的数量变化（回补）：佣金即该笔实现的全部对应费用，Pi = gross − fees。
+    pub fn realized_step(&mut self, du: i64, gross: i64, fees: i64) {
+        let (i, p, mut e) = self.base(&[("commission", fees, json!({}))]);
+        let ext = format!("{}-{i}", self.chong);
+        let mut ws = vec![
+            json!({"kind":if du > 0 {"settled_quantity_increase"} else {"settled_quantity_reduction"},"value":du.to_string()}),
+            json!({"kind":"settled_realized_gross_profit","value":gross.to_string()}),
+            json!({"kind":"all_fees_for_this_named_realization","value":fees.to_string()}),
+        ];
+        for (k, w) in ws.iter_mut().enumerate() {
+            w["source_ref"] = json!(self.reference(
+                format!("{ext}:w{k}"),
+                format!("{p}/component_witnesses/{k}")
+            ));
+        }
+        let rp = self.reference(format!("{ext}:rp"), format!("{p}/declared_realized_profit"));
+        e["chong_id"] = json!(self.chong);
+        e["deltas"] =
+            json!({"units":du.to_string(),"Pi":(gross - fees).to_string(),"A":"0","W":"0"});
+        e["component_witnesses"] = json!(ws);
+        e["declared_realized_profit"] = json!({"gross":gross.to_string(),"listed_corresponding_fees":fees.to_string(),
+            "net":(gross - fees).to_string(),"fee_scope_complete_for_this_realization":true,"source_ref":rp});
         self.events.push(e);
     }
     pub fn document(&self) -> Value {

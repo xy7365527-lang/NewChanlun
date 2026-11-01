@@ -1,0 +1,6 @@
+{
+  "verdict": "PASS",
+  "reviewer_model": "gpt-6.1-sol",
+  "findings": [],
+  "summary": "r2 已修复 R8：archaeology.json parsed=true、8 points、schema 与 decisions/1786 一致，archaeology.md 已补齐；从 JSON command 字段直接抽查并复跑 Q1 group_sources_coords=12、Q3 object_index=7、Q4 ADR 先例=9（预留号命令=3），均与 hits 相等。原 R1 技术引用缺口也已修复：E3 叶编码/bind_source，E5a-e seed/establish/new_group/merge、有效域、unsettled、未封口边界与 bounded 无 subsequent_development 均由 a485194947 代码支撑；CONTEXT.md:176 影响项准确。ADR 追加修订段符合仓内先例。"
+}

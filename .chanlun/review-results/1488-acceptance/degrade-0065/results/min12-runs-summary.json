@@ -1,0 +1,5975 @@
+{
+ "min12d-nat2": {
+  "binary": "/home/hanju/nc-remote/1488-accept/d65/bin/testonly-1660d9d32d",
+  "binary_sha256": "06abcef0d4739ccb42807ec601ba5e32afe287ac4d3cf89be9c099d919a29c94",
+  "env_testonly": {
+   "S_CAPTURE_NATIVE_TESTONLY": "1",
+   "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "1"
+  },
+  "ingest_complete": true,
+  "head_generation": 52,
+  "ok": true,
+  "serve_returncode": null,
+  "query_returncode": 0,
+  "oracle_compare": {
+   "generations": 52,
+   "oracle_generations": 52,
+   "digest_comparable": false,
+   "counts_equal": 0,
+   "per_generation": [
+    {
+     "generation": 1,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "6",
+       "4"
+      ],
+      "total": [
+       "9",
+       "7"
+      ]
+     }
+    },
+    {
+     "generation": 2,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "8",
+       "6"
+      ],
+      "relations": [
+       "4",
+       "3"
+      ],
+      "total": [
+       "22",
+       "18"
+      ],
+      "withdrawn_objects": [
+       "4",
+       "3"
+      ]
+     }
+    },
+    {
+     "generation": 3,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "13",
+       "11"
+      ],
+      "relations": [
+       "12",
+       "10"
+      ],
+      "total": [
+       "46",
+       "40"
+      ],
+      "withdrawn_objects": [
+       "8",
+       "6"
+      ]
+     }
+    },
+    {
+     "generation": 4,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "16",
+       "14"
+      ],
+      "relations": [
+       "27",
+       "24"
+      ],
+      "total": [
+       "80",
+       "72"
+      ],
+      "withdrawn_objects": [
+       "15",
+       "12"
+      ]
+     }
+    },
+    {
+     "generation": 5,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "19",
+       "17"
+      ],
+      "relations": [
+       "41",
+       "37"
+      ],
+      "total": [
+       "112",
+       "102"
+      ],
+      "withdrawn_objects": [
+       "21",
+       "17"
+      ]
+     }
+    },
+    {
+     "generation": 6,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "22",
+       "20"
+      ],
+      "relations": [
+       "55",
+       "50"
+      ],
+      "total": [
+       "144",
+       "132"
+      ],
+      "withdrawn_objects": [
+       "27",
+       "22"
+      ]
+     }
+    },
+    {
+     "generation": 7,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "37",
+       "35"
+      ],
+      "relations": [
+       "76",
+       "70"
+      ],
+      "total": [
+       "197",
+       "182"
+      ],
+      "withdrawn_objects": [
+       "34",
+       "27"
+      ]
+     }
+    },
+    {
+     "generation": 8,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "40",
+       "38"
+      ],
+      "relations": [
+       "102",
+       "94"
+      ],
+      "total": [
+       "254",
+       "235"
+      ],
+      "withdrawn_objects": [
+       "53",
+       "44"
+      ]
+     }
+    },
+    {
+     "generation": 9,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "42",
+       "40"
+      ],
+      "relations": [
+       "117",
+       "108"
+      ],
+      "total": [
+       "288",
+       "267"
+      ],
+      "withdrawn_objects": [
+       "61",
+       "51"
+      ]
+     }
+    },
+    {
+     "generation": 10,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "45",
+       "43"
+      ],
+      "relations": [
+       "132",
+       "122"
+      ],
+      "total": [
+       "322",
+       "299"
+      ],
+      "withdrawn_objects": [
+       "68",
+       "57"
+      ]
+     }
+    },
+    {
+     "generation": 11,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "60",
+       "58"
+      ],
+      "relations": [
+       "155",
+       "143"
+      ],
+      "total": [
+       "378",
+       "351"
+      ],
+      "withdrawn_objects": [
+       "76",
+       "63"
+      ]
+     }
+    },
+    {
+     "generation": 12,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "65",
+       "63"
+      ],
+      "relations": [
+       "191",
+       "177"
+      ],
+      "total": [
+       "456",
+       "425"
+      ],
+      "withdrawn_objects": [
+       "104",
+       "89"
+      ]
+     }
+    },
+    {
+     "generation": 13,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "66",
+       "64"
+      ],
+      "relations": [
+       "207",
+       "192"
+      ],
+      "total": [
+       "492",
+       "459"
+      ],
+      "withdrawn_objects": [
+       "114",
+       "98"
+      ]
+     }
+    },
+    {
+     "generation": 14,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "69",
+       "67"
+      ],
+      "relations": [
+       "223",
+       "207"
+      ],
+      "total": [
+       "528",
+       "493"
+      ],
+      "withdrawn_objects": [
+       "122",
+       "105"
+      ]
+     }
+    },
+    {
+     "generation": 15,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "89",
+       "82"
+      ],
+      "relations": [
+       "248",
+       "229"
+      ],
+      "total": [
+       "592",
+       "547"
+      ],
+      "withdrawn_objects": [
+       "131",
+       "112"
+      ]
+     }
+    },
+    {
+     "generation": 16,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "94",
+       "87"
+      ],
+      "relations": [
+       "289",
+       "264"
+      ],
+      "total": [
+       "681",
+       "623"
+      ],
+      "withdrawn_objects": [
+       "165",
+       "139"
+      ]
+     }
+    },
+    {
+     "generation": 17,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "94",
+       "88"
+      ],
+      "relations": [
+       "306",
+       "280"
+      ],
+      "total": [
+       "719",
+       "659"
+      ],
+      "withdrawn_objects": [
+       "177",
+       "149"
+      ]
+     }
+    },
+    {
+     "generation": 18,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "97",
+       "91"
+      ],
+      "relations": [
+       "323",
+       "296"
+      ],
+      "total": [
+       "757",
+       "695"
+      ],
+      "withdrawn_objects": [
+       "186",
+       "157"
+      ]
+     }
+    },
+    {
+     "generation": 19,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "114",
+       "106"
+      ],
+      "relations": [
+       "352",
+       "319"
+      ],
+      "total": [
+       "826",
+       "751"
+      ],
+      "withdrawn_objects": [
+       "199",
+       "165"
+      ]
+     }
+    },
+    {
+     "generation": 20,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "119",
+       "111"
+      ],
+      "relations": [
+       "394",
+       "355"
+      ],
+      "total": [
+       "917",
+       "829"
+      ],
+      "withdrawn_objects": [
+       "234",
+       "193"
+      ]
+     }
+    },
+    {
+     "generation": 21,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "119",
+       "112"
+      ],
+      "relations": [
+       "412",
+       "372"
+      ],
+      "total": [
+       "957",
+       "867"
+      ],
+      "withdrawn_objects": [
+       "247",
+       "204"
+      ]
+     }
+    },
+    {
+     "generation": 22,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "122",
+       "115"
+      ],
+      "relations": [
+       "430",
+       "389"
+      ],
+      "total": [
+       "997",
+       "905"
+      ],
+      "withdrawn_objects": [
+       "257",
+       "213"
+      ]
+     }
+    },
+    {
+     "generation": 23,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "138",
+       "130"
+      ],
+      "relations": [
+       "460",
+       "413"
+      ],
+      "total": [
+       "1068",
+       "963"
+      ],
+      "withdrawn_objects": [
+       "272",
+       "222"
+      ]
+     }
+    },
+    {
+     "generation": 24,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "143",
+       "135"
+      ],
+      "relations": [
+       "503",
+       "450"
+      ],
+      "total": [
+       "1161",
+       "1043"
+      ],
+      "withdrawn_objects": [
+       "308",
+       "251"
+      ]
+     }
+    },
+    {
+     "generation": 25,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "143",
+       "136"
+      ],
+      "relations": [
+       "522",
+       "468"
+      ],
+      "total": [
+       "1203",
+       "1083"
+      ],
+      "withdrawn_objects": [
+       "322",
+       "263"
+      ]
+     }
+    },
+    {
+     "generation": 26,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "146",
+       "139"
+      ],
+      "relations": [
+       "541",
+       "486"
+      ],
+      "total": [
+       "1245",
+       "1123"
+      ],
+      "withdrawn_objects": [
+       "333",
+       "273"
+      ]
+     }
+    },
+    {
+     "generation": 27,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "169",
+       "154"
+      ],
+      "relations": [
+       "575",
+       "511"
+      ],
+      "total": [
+       "1328",
+       "1183"
+      ],
+      "withdrawn_objects": [
+       "349",
+       "283"
+      ]
+     }
+    },
+    {
+     "generation": 28,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "174",
+       "159"
+      ],
+      "relations": [
+       "625",
+       "549"
+      ],
+      "total": [
+       "1436",
+       "1265"
+      ],
+      "withdrawn_objects": [
+       "393",
+       "313"
+      ]
+     }
+    },
+    {
+     "generation": 29,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "173",
+       "160"
+      ],
+      "relations": [
+       "645",
+       "568"
+      ],
+      "total": [
+       "1480",
+       "1307"
+      ],
+      "withdrawn_objects": [
+       "409",
+       "326"
+      ]
+     }
+    },
+    {
+     "generation": 30,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "176",
+       "163"
+      ],
+      "relations": [
+       "665",
+       "587"
+      ],
+      "total": [
+       "1524",
+       "1349"
+      ],
+      "withdrawn_objects": [
+       "421",
+       "337"
+      ]
+     }
+    },
+    {
+     "generation": 31,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "193",
+       "178"
+      ],
+      "relations": [
+       "697",
+       "613"
+      ],
+      "total": [
+       "1599",
+       "1411"
+      ],
+      "withdrawn_objects": [
+       "437",
+       "348"
+      ]
+     }
+    },
+    {
+     "generation": 32,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "198",
+       "183"
+      ],
+      "relations": [
+       "742",
+       "652"
+      ],
+      "total": [
+       "1696",
+       "1495"
+      ],
+      "withdrawn_objects": [
+       "475",
+       "379"
+      ]
+     }
+    },
+    {
+     "generation": 33,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "198",
+       "184"
+      ],
+      "relations": [
+       "763",
+       "672"
+      ],
+      "total": [
+       "1742",
+       "1539"
+      ],
+      "withdrawn_objects": [
+       "491",
+       "393"
+      ]
+     }
+    },
+    {
+     "generation": 34,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "201",
+       "187"
+      ],
+      "relations": [
+       "784",
+       "692"
+      ],
+      "total": [
+       "1788",
+       "1583"
+      ],
+      "withdrawn_objects": [
+       "504",
+       "405"
+      ]
+     }
+    },
+    {
+     "generation": 35,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "217",
+       "202"
+      ],
+      "relations": [
+       "817",
+       "719"
+      ],
+      "total": [
+       "1865",
+       "1647"
+      ],
+      "withdrawn_objects": [
+       "522",
+       "417"
+      ]
+     }
+    },
+    {
+     "generation": 36,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "222",
+       "207"
+      ],
+      "relations": [
+       "863",
+       "759"
+      ],
+      "total": [
+       "1964",
+       "1733"
+      ],
+      "withdrawn_objects": [
+       "561",
+       "449"
+      ]
+     }
+    },
+    {
+     "generation": 37,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "222",
+       "208"
+      ],
+      "relations": [
+       "885",
+       "780"
+      ],
+      "total": [
+       "2012",
+       "1779"
+      ],
+      "withdrawn_objects": [
+       "578",
+       "464"
+      ]
+     }
+    },
+    {
+     "generation": 38,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "225",
+       "211"
+      ],
+      "relations": [
+       "907",
+       "801"
+      ],
+      "total": [
+       "2060",
+       "1825"
+      ],
+      "withdrawn_objects": [
+       "592",
+       "477"
+      ]
+     }
+    },
+    {
+     "generation": 39,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "248",
+       "226"
+      ],
+      "relations": [
+       "944",
+       "829"
+      ],
+      "total": [
+       "2149",
+       "1891"
+      ],
+      "withdrawn_objects": [
+       "611",
+       "490"
+      ]
+     }
+    },
+    {
+     "generation": 40,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "253",
+       "231"
+      ],
+      "relations": [
+       "997",
+       "870"
+      ],
+      "total": [
+       "2263",
+       "1979"
+      ],
+      "withdrawn_objects": [
+       "658",
+       "523"
+      ]
+     }
+    },
+    {
+     "generation": 41,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "252",
+       "232"
+      ],
+      "relations": [
+       "1020",
+       "892"
+      ],
+      "total": [
+       "2313",
+       "2027"
+      ],
+      "withdrawn_objects": [
+       "677",
+       "539"
+      ]
+     }
+    },
+    {
+     "generation": 42,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "255",
+       "235"
+      ],
+      "relations": [
+       "1043",
+       "914"
+      ],
+      "total": [
+       "2363",
+       "2075"
+      ],
+      "withdrawn_objects": [
+       "692",
+       "553"
+      ]
+     }
+    },
+    {
+     "generation": 43,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "272",
+       "250"
+      ],
+      "relations": [
+       "1078",
+       "943"
+      ],
+      "total": [
+       "2444",
+       "2143"
+      ],
+      "withdrawn_objects": [
+       "711",
+       "567"
+      ]
+     }
+    },
+    {
+     "generation": 44,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "277",
+       "255"
+      ],
+      "relations": [
+       "1126",
+       "985"
+      ],
+      "total": [
+       "2547",
+       "2233"
+      ],
+      "withdrawn_objects": [
+       "752",
+       "601"
+      ]
+     }
+    },
+    {
+     "generation": 45,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "277",
+       "256"
+      ],
+      "relations": [
+       "1150",
+       "1008"
+      ],
+      "total": [
+       "2599",
+       "2283"
+      ],
+      "withdrawn_objects": [
+       "771",
+       "618"
+      ]
+     }
+    },
+    {
+     "generation": 46,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "280",
+       "259"
+      ],
+      "relations": [
+       "1174",
+       "1031"
+      ],
+      "total": [
+       "2651",
+       "2333"
+      ],
+      "withdrawn_objects": [
+       "787",
+       "633"
+      ]
+     }
+    },
+    {
+     "generation": 47,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "296",
+       "274"
+      ],
+      "relations": [
+       "1210",
+       "1061"
+      ],
+      "total": [
+       "2734",
+       "2403"
+      ],
+      "withdrawn_objects": [
+       "808",
+       "648"
+      ]
+     }
+    },
+    {
+     "generation": 48,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "301",
+       "279"
+      ],
+      "relations": [
+       "1259",
+       "1104"
+      ],
+      "total": [
+       "2839",
+       "2495"
+      ],
+      "withdrawn_objects": [
+       "850",
+       "683"
+      ]
+     }
+    },
+    {
+     "generation": 49,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "301",
+       "280"
+      ],
+      "relations": [
+       "1284",
+       "1128"
+      ],
+      "total": [
+       "2893",
+       "2547"
+      ],
+      "withdrawn_objects": [
+       "870",
+       "701"
+      ]
+     }
+    },
+    {
+     "generation": 50,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "304",
+       "283"
+      ],
+      "relations": [
+       "1309",
+       "1152"
+      ],
+      "total": [
+       "2947",
+       "2599"
+      ],
+      "withdrawn_objects": [
+       "887",
+       "717"
+      ]
+     }
+    },
+    {
+     "generation": 51,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "327",
+       "298"
+      ],
+      "relations": [
+       "1349",
+       "1183"
+      ],
+      "total": [
+       "3042",
+       "2671"
+      ],
+      "withdrawn_objects": [
+       "909",
+       "733"
+      ]
+     }
+    },
+    {
+     "generation": 52,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "332",
+       "303"
+      ],
+      "relations": [
+       "1405",
+       "1227"
+      ],
+      "total": [
+       "3162",
+       "2765"
+      ],
+      "withdrawn_objects": [
+       "959",
+       "769"
+      ]
+     }
+    }
+   ]
+  },
+  "per_generation_q3": [
+   {
+    "generation": 1,
+    "digest": "qcut3-e0c4286cfd20eda63b2f5e8c2988931554db3349f1d177c9f26c072be2676e8c",
+    "counts": {
+     "objects": "4",
+     "observations": "2",
+     "raw_history": "1",
+     "relations": "0",
+     "total": "7",
+     "withdrawn_objects": "0",
+     "witnesses": "0"
+    },
+    "structure_cut": "cut-1",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "da55f837efb648a657ae65b7f77ecd280c5a03343fad4bb207cb9ae10cbe2433"
+   },
+   {
+    "generation": 2,
+    "digest": "qcut3-0889fee6c8ef67c0ce91d4061dddd4be3885f9e993f38b9b1ef47dcfbba3b06e",
+    "counts": {
+     "objects": "6",
+     "observations": "4",
+     "raw_history": "2",
+     "relations": "3",
+     "total": "18",
+     "withdrawn_objects": "3",
+     "witnesses": "0"
+    },
+    "structure_cut": "cut-2",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "d83877e846ea8adea69c82438b5db6c80206431c325e90ebd947fcd65ada4e8a"
+   },
+   {
+    "generation": 3,
+    "digest": "qcut3-3ba8ea79cb54ae32a50d2dcaef7fd4678e7e227f7bff2eb3075fe319cb919265",
+    "counts": {
+     "objects": "11",
+     "observations": "7",
+     "raw_history": "3",
+     "relations": "10",
+     "total": "40",
+     "withdrawn_objects": "6",
+     "witnesses": "3"
+    },
+    "structure_cut": "cut-3",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "b354cbc850c057064b4e4f7f71f66cf58f8accbf9536152887322ec4161125a9"
+   },
+   {
+    "generation": 4,
+    "digest": "qcut3-811c531aab165fdfc7ec04570deced8d9d9c598f06cb64dc2b8e9a2add4f5d15",
+    "counts": {
+     "objects": "14",
+     "observations": "9",
+     "raw_history": "4",
+     "relations": "24",
+     "total": "72",
+     "withdrawn_objects": "12",
+     "witnesses": "9"
+    },
+    "structure_cut": "cut-4",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9557be9172c70c6c8e0ac15909bff1e7722065b505d427e92f0b0969f02f89e1"
+   },
+   {
+    "generation": 5,
+    "digest": "qcut3-acf46d8e7d3ec6ff754d1798a84934840ce908b9a74a2a78ef97021442da0b50",
+    "counts": {
+     "objects": "17",
+     "observations": "11",
+     "raw_history": "5",
+     "relations": "37",
+     "total": "102",
+     "withdrawn_objects": "17",
+     "witnesses": "15"
+    },
+    "structure_cut": "cut-5",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "97505797843d591dbb39d2d62ffec8acc0a0206ebb81675259c350190b633eea"
+   },
+   {
+    "generation": 6,
+    "digest": "qcut3-c1008f8a6f350523be61f4febdb7701d66b4c42074eb0ed6619f178914daff6c",
+    "counts": {
+     "objects": "20",
+     "observations": "13",
+     "raw_history": "6",
+     "relations": "50",
+     "total": "132",
+     "withdrawn_objects": "22",
+     "witnesses": "21"
+    },
+    "structure_cut": "cut-6",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "6f85ad973063e3ca2967a5607d680b523ec32ca58b2d4ec294d0089bb99d5181"
+   },
+   {
+    "generation": 7,
+    "digest": "qcut3-ba3fc33a8e57e74f7768e587cfcd7f8402beff00acb53d8386b1b4152f7f3e24",
+    "counts": {
+     "objects": "35",
+     "observations": "16",
+     "raw_history": "7",
+     "relations": "70",
+     "total": "182",
+     "withdrawn_objects": "27",
+     "witnesses": "27"
+    },
+    "structure_cut": "cut-7",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c2e204ebc0cca454f6a21805248f58e9c96874603ccadab387c9559e43caa064"
+   },
+   {
+    "generation": 8,
+    "digest": "qcut3-398bd62358fa1ba4c4ad5246da602562db8e8a324c390d014739f66d47751115",
+    "counts": {
+     "objects": "38",
+     "observations": "18",
+     "raw_history": "8",
+     "relations": "94",
+     "total": "235",
+     "withdrawn_objects": "44",
+     "witnesses": "33"
+    },
+    "structure_cut": "cut-8",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "5a0fa2e816167b9c95d157dd697ba79dd5d7e74bb1108cfa003dad9e165e16d6"
+   },
+   {
+    "generation": 9,
+    "digest": "qcut3-8ad97ed10cad39de052ee0029d739d33452151864b169fdf3c4cdffa921c08d6",
+    "counts": {
+     "objects": "40",
+     "observations": "20",
+     "raw_history": "9",
+     "relations": "108",
+     "total": "267",
+     "withdrawn_objects": "51",
+     "witnesses": "39"
+    },
+    "structure_cut": "cut-9",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f392c1cdb4b28e0f95ee1f155601e72d21c569349c08c79ade8d43d9aef5ccad"
+   },
+   {
+    "generation": 10,
+    "digest": "qcut3-3954fb59e17dd10358d29db7fee5f1c5e9c5eff218fbb34e01d8b382dfc4ddf7",
+    "counts": {
+     "objects": "43",
+     "observations": "22",
+     "raw_history": "10",
+     "relations": "122",
+     "total": "299",
+     "withdrawn_objects": "57",
+     "witnesses": "45"
+    },
+    "structure_cut": "cut-10",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "71fb1adb000236a33d02fa21364abd68d429b21bebca1018622feecb5efbf977"
+   },
+   {
+    "generation": 11,
+    "digest": "qcut3-7301fab81df3a6a74a313c467b97dd918b03ee7e42930942a9b4f395ef729b79",
+    "counts": {
+     "objects": "58",
+     "observations": "25",
+     "raw_history": "11",
+     "relations": "143",
+     "total": "351",
+     "withdrawn_objects": "63",
+     "witnesses": "51"
+    },
+    "structure_cut": "cut-11",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "a99f232fa4c133cd7feccc486ce3b815fd17f5f159f3c0aff3786af10983c4f6"
+   },
+   {
+    "generation": 12,
+    "digest": "qcut3-f4e4b565b364784badf340c76ffec098e1be26edcc0568a3f81b4b794e56199f",
+    "counts": {
+     "objects": "63",
+     "observations": "27",
+     "raw_history": "12",
+     "relations": "177",
+     "total": "425",
+     "withdrawn_objects": "89",
+     "witnesses": "57"
+    },
+    "structure_cut": "cut-12",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "86765e84e9437300e71af21e482be44518f4a30b04a89d470fb7fd4c0a1b3aab"
+   },
+   {
+    "generation": 13,
+    "digest": "qcut3-3245a5ec117002c2638b592a96cb9b930bf67765e098a822098c937a1e1e3256",
+    "counts": {
+     "objects": "64",
+     "observations": "29",
+     "raw_history": "13",
+     "relations": "192",
+     "total": "459",
+     "withdrawn_objects": "98",
+     "witnesses": "63"
+    },
+    "structure_cut": "cut-13",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "319732ae93af48646877cf41f52451fb03e8abfa2a66ed455012066a17ab103b"
+   },
+   {
+    "generation": 14,
+    "digest": "qcut3-1c8fd5a0735c6688e2f03e8e2b78908deac21d8dc79bcf1b97a189dc4a2e8ce2",
+    "counts": {
+     "objects": "67",
+     "observations": "31",
+     "raw_history": "14",
+     "relations": "207",
+     "total": "493",
+     "withdrawn_objects": "105",
+     "witnesses": "69"
+    },
+    "structure_cut": "cut-14",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8275a0d40211ea0dba5b6a10c30867449f46772404609f73ffc893895b57ec8f"
+   },
+   {
+    "generation": 15,
+    "digest": "qcut3-bde8f113a872528362708d22a4ebf8941bc71668ab32335e46372fcfc842945e",
+    "counts": {
+     "objects": "82",
+     "observations": "34",
+     "raw_history": "15",
+     "relations": "229",
+     "total": "547",
+     "withdrawn_objects": "112",
+     "witnesses": "75"
+    },
+    "structure_cut": "cut-15",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "80ab4c992ea4a08ce688ac12f9ac4bd4a481023cbf127a2389f1b6281fc65631"
+   },
+   {
+    "generation": 16,
+    "digest": "qcut3-c4bb693de2f9757b3142acd253ac6293e6d5955d8473d739cb844e192fcd328d",
+    "counts": {
+     "objects": "87",
+     "observations": "36",
+     "raw_history": "16",
+     "relations": "264",
+     "total": "623",
+     "withdrawn_objects": "139",
+     "witnesses": "81"
+    },
+    "structure_cut": "cut-16",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e1340a98a9a77c8f56dd1298f9b6129810583c49d4af0ed29c61234f51ad48b6"
+   },
+   {
+    "generation": 17,
+    "digest": "qcut3-be720b62ff1be588e8450ef89f83a1b988ad8beb29b79d49309a16379be29145",
+    "counts": {
+     "objects": "88",
+     "observations": "38",
+     "raw_history": "17",
+     "relations": "280",
+     "total": "659",
+     "withdrawn_objects": "149",
+     "witnesses": "87"
+    },
+    "structure_cut": "cut-17",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c51509997bcf770066897806e767c555a1cfb2011ea7048701a6096ad4103a1f"
+   },
+   {
+    "generation": 18,
+    "digest": "qcut3-fd962261715e3e36e5c527e37f639849ae3b5d1b79cdbb4ef5a67bc19edd523d",
+    "counts": {
+     "objects": "91",
+     "observations": "40",
+     "raw_history": "18",
+     "relations": "296",
+     "total": "695",
+     "withdrawn_objects": "157",
+     "witnesses": "93"
+    },
+    "structure_cut": "cut-18",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "0412141011c1d6abdaafaccbfa85e6688ecd4b5774ab4ac412b19597c9c4333e"
+   },
+   {
+    "generation": 19,
+    "digest": "qcut3-e0f4af8db1e1e067fcaa62430351b05447ed305f89e70485d4eb6a9c393dfa82",
+    "counts": {
+     "objects": "106",
+     "observations": "43",
+     "raw_history": "19",
+     "relations": "319",
+     "total": "751",
+     "withdrawn_objects": "165",
+     "witnesses": "99"
+    },
+    "structure_cut": "cut-19",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "1fc50c233bb9e2940bd2fdbb888451ab0537a8d67f045555ec2b10ae979113dc"
+   },
+   {
+    "generation": 20,
+    "digest": "qcut3-d55b7f7415ca4dd3b7a3d3e810c5d8e2327036dc8fb258995e4f6a14ffca4519",
+    "counts": {
+     "objects": "111",
+     "observations": "45",
+     "raw_history": "20",
+     "relations": "355",
+     "total": "829",
+     "withdrawn_objects": "193",
+     "witnesses": "105"
+    },
+    "structure_cut": "cut-20",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8abc00799f282da074317639021c07beb9cdd4b7127a2dde4217296be80dca65"
+   },
+   {
+    "generation": 21,
+    "digest": "qcut3-eb69ad3efc4a3250170805290c619bb23bc950bf7d1e9b68afb5d80f97b2f072",
+    "counts": {
+     "objects": "112",
+     "observations": "47",
+     "raw_history": "21",
+     "relations": "372",
+     "total": "867",
+     "withdrawn_objects": "204",
+     "witnesses": "111"
+    },
+    "structure_cut": "cut-21",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "902dc60e97a452c3af5fb2895fe0c6b610de0df046a12e90183c2aa514c79a0e"
+   },
+   {
+    "generation": 22,
+    "digest": "qcut3-04257ce128ce5373334d7ab1efe880ab2d609ac52a34360be9955131251e2a87",
+    "counts": {
+     "objects": "115",
+     "observations": "49",
+     "raw_history": "22",
+     "relations": "389",
+     "total": "905",
+     "withdrawn_objects": "213",
+     "witnesses": "117"
+    },
+    "structure_cut": "cut-22",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "353ac1fd2b8b48ce6e1fb2d460c244eff977a81e4d35ac937fecc388e8152a2a"
+   },
+   {
+    "generation": 23,
+    "digest": "qcut3-2b710c88d607d82213a542864033fa12f2c9637f7093a4566642d963b2b03710",
+    "counts": {
+     "objects": "130",
+     "observations": "52",
+     "raw_history": "23",
+     "relations": "413",
+     "total": "963",
+     "withdrawn_objects": "222",
+     "witnesses": "123"
+    },
+    "structure_cut": "cut-23",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "a32c395e2dd52ab32672824c1a289e1e489ff37ef2802d87bd2ac67281066f7b"
+   },
+   {
+    "generation": 24,
+    "digest": "qcut3-7ad74bfd86c4a376db7c2a213b78ee89521c3e54169cb059e284ceccc63a419d",
+    "counts": {
+     "objects": "135",
+     "observations": "54",
+     "raw_history": "24",
+     "relations": "450",
+     "total": "1043",
+     "withdrawn_objects": "251",
+     "witnesses": "129"
+    },
+    "structure_cut": "cut-24",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "13bbc323f46aab0824de782cfcf74ea8330f007aae32a54b02034fef232a6376"
+   },
+   {
+    "generation": 25,
+    "digest": "qcut3-fc8c64ae015d50d7c569025526fd1e2167f6fcec3c765488dfe86ac799cbd876",
+    "counts": {
+     "objects": "136",
+     "observations": "56",
+     "raw_history": "25",
+     "relations": "468",
+     "total": "1083",
+     "withdrawn_objects": "263",
+     "witnesses": "135"
+    },
+    "structure_cut": "cut-25",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "370fd793ab0c236fda61a9020d9fc960e3950535ebbe5567ec0b81728a148144"
+   },
+   {
+    "generation": 26,
+    "digest": "qcut3-492bf16ef0034c9789fc0b892dfb503d2bb1ccf00393f68689cfcc23ad60a774",
+    "counts": {
+     "objects": "139",
+     "observations": "58",
+     "raw_history": "26",
+     "relations": "486",
+     "total": "1123",
+     "withdrawn_objects": "273",
+     "witnesses": "141"
+    },
+    "structure_cut": "cut-26",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "2204ce492c316185a357ad4230b215c176679ce9c97b63c2d449b1c287a248db"
+   },
+   {
+    "generation": 27,
+    "digest": "qcut3-bdc40f0ce4c5062c767ef9c424c1e13f85963f3ae8e5d6eba842c528bd29e929",
+    "counts": {
+     "objects": "154",
+     "observations": "61",
+     "raw_history": "27",
+     "relations": "511",
+     "total": "1183",
+     "withdrawn_objects": "283",
+     "witnesses": "147"
+    },
+    "structure_cut": "cut-27",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "149f7740ea6de17824a93c20ce30c750fbb6019e513204549e267c28fbc05c39"
+   },
+   {
+    "generation": 28,
+    "digest": "qcut3-55665088996240f96fa6acec0fc2dec4b3f73adf18a170d9a349700ccb36379c",
+    "counts": {
+     "objects": "159",
+     "observations": "63",
+     "raw_history": "28",
+     "relations": "549",
+     "total": "1265",
+     "withdrawn_objects": "313",
+     "witnesses": "153"
+    },
+    "structure_cut": "cut-28",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "98df88e72bfc77e40b0b4196b69b1facb313aef4cee611d1e235d53dee32174a"
+   },
+   {
+    "generation": 29,
+    "digest": "qcut3-535a66bb834fc74a85b5e878cd17dd23b55af2fcd06e78ffff8b2b630157b323",
+    "counts": {
+     "objects": "160",
+     "observations": "65",
+     "raw_history": "29",
+     "relations": "568",
+     "total": "1307",
+     "withdrawn_objects": "326",
+     "witnesses": "159"
+    },
+    "structure_cut": "cut-29",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "38cdf63952a3814ff3939bde7b45f87d378eb022bc382182f9058b118149a60e"
+   },
+   {
+    "generation": 30,
+    "digest": "qcut3-0c8c598a2a09e14cbf1c8a93d49071d026750f2aa1beea5bbb4862cc2adfd4b4",
+    "counts": {
+     "objects": "163",
+     "observations": "67",
+     "raw_history": "30",
+     "relations": "587",
+     "total": "1349",
+     "withdrawn_objects": "337",
+     "witnesses": "165"
+    },
+    "structure_cut": "cut-30",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "efda002343df4f286ac9faee7e72e6f0fa1da557c49d726e871708c7d5413f2d"
+   },
+   {
+    "generation": 31,
+    "digest": "qcut3-6b5846630edcba7ab77ecfda5d254eeb07a9598594735a9cf76ef462ff787aa0",
+    "counts": {
+     "objects": "178",
+     "observations": "70",
+     "raw_history": "31",
+     "relations": "613",
+     "total": "1411",
+     "withdrawn_objects": "348",
+     "witnesses": "171"
+    },
+    "structure_cut": "cut-31",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "68c7e28ce534ece8bf7138744e1eb027650a9e7ab8fe04978f61d290ccc85828"
+   },
+   {
+    "generation": 32,
+    "digest": "qcut3-8392e396b8bc8bf13c515b9c7318286e7bb16de5b22ecf3b8528d053265f1c0d",
+    "counts": {
+     "objects": "183",
+     "observations": "72",
+     "raw_history": "32",
+     "relations": "652",
+     "total": "1495",
+     "withdrawn_objects": "379",
+     "witnesses": "177"
+    },
+    "structure_cut": "cut-32",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e2b525bd21ce1de27f80b1e75ae3f6ac442ae771e60b859f7ca0fba87ddab0d2"
+   },
+   {
+    "generation": 33,
+    "digest": "qcut3-4e902b89da97aa3b118b3d8e9d861cfe435e21e73ce44349fdf899838371d16b",
+    "counts": {
+     "objects": "184",
+     "observations": "74",
+     "raw_history": "33",
+     "relations": "672",
+     "total": "1539",
+     "withdrawn_objects": "393",
+     "witnesses": "183"
+    },
+    "structure_cut": "cut-33",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "3bf4e34a371b3e68ea9ee1ea3a9ce9bb346942011cb18297acf48fefc9faa006"
+   },
+   {
+    "generation": 34,
+    "digest": "qcut3-e54971ed78a23853c8c92b308a473290c242e0c0316026dfd387967d96d913cc",
+    "counts": {
+     "objects": "187",
+     "observations": "76",
+     "raw_history": "34",
+     "relations": "692",
+     "total": "1583",
+     "withdrawn_objects": "405",
+     "witnesses": "189"
+    },
+    "structure_cut": "cut-34",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8e9a056d121ea465a086c5fc5f0abaec3b3d3f63614abff9eebbe527b2c1d8dd"
+   },
+   {
+    "generation": 35,
+    "digest": "qcut3-6f25b268f42bf3790ae9b3306f31590895f52370d584cb611eda596612d837cf",
+    "counts": {
+     "objects": "202",
+     "observations": "79",
+     "raw_history": "35",
+     "relations": "719",
+     "total": "1647",
+     "withdrawn_objects": "417",
+     "witnesses": "195"
+    },
+    "structure_cut": "cut-35",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "10aa84a4a5129a9e9c1772200e24312856d3f95937f8bda769594ef494153521"
+   },
+   {
+    "generation": 36,
+    "digest": "qcut3-4aa83d47ec92eb09e43bc61141205136f5efb6fbe5bbdb3b5343d80a24879d83",
+    "counts": {
+     "objects": "207",
+     "observations": "81",
+     "raw_history": "36",
+     "relations": "759",
+     "total": "1733",
+     "withdrawn_objects": "449",
+     "witnesses": "201"
+    },
+    "structure_cut": "cut-36",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c37aedaf18ab859de407e54928f3d7851176981b8ffc3ab14e5b9923abffc707"
+   },
+   {
+    "generation": 37,
+    "digest": "qcut3-a1faeb8f67fa2077d4e925d70219372bff45508cd800724054e6b4b51888067b",
+    "counts": {
+     "objects": "208",
+     "observations": "83",
+     "raw_history": "37",
+     "relations": "780",
+     "total": "1779",
+     "withdrawn_objects": "464",
+     "witnesses": "207"
+    },
+    "structure_cut": "cut-37",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "50b12aecae1afdd4da961b70a59ac056019446b1bf49df25b5f17a45805e115e"
+   },
+   {
+    "generation": 38,
+    "digest": "qcut3-b99f3005aca3c2e347c11ac85e7e97283c3d6d25170e72a66d858b34355418d5",
+    "counts": {
+     "objects": "211",
+     "observations": "85",
+     "raw_history": "38",
+     "relations": "801",
+     "total": "1825",
+     "withdrawn_objects": "477",
+     "witnesses": "213"
+    },
+    "structure_cut": "cut-38",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9eebbb45c0d98aa02cbc4c957b022d7a87a362a2f38ad56527dd4987c5a34456"
+   },
+   {
+    "generation": 39,
+    "digest": "qcut3-0c95f0fc04d2766f51846e52de8cd27fbbb79515b9f31b327b026eda9d22d001",
+    "counts": {
+     "objects": "226",
+     "observations": "88",
+     "raw_history": "39",
+     "relations": "829",
+     "total": "1891",
+     "withdrawn_objects": "490",
+     "witnesses": "219"
+    },
+    "structure_cut": "cut-39",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f8ff8468018aa72cd200e5581b5fe9ceb589961193418ef66d2acb53b0d19f47"
+   },
+   {
+    "generation": 40,
+    "digest": "qcut3-e89696b9aa1b3bb50275824155ae750ec927c49204063e42ca93ff452d898a00",
+    "counts": {
+     "objects": "231",
+     "observations": "90",
+     "raw_history": "40",
+     "relations": "870",
+     "total": "1979",
+     "withdrawn_objects": "523",
+     "witnesses": "225"
+    },
+    "structure_cut": "cut-40",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f1c4a238bcc44eb88d3e9366cde41acdf2b7bcaeb084c9f948106cb74f40801d"
+   },
+   {
+    "generation": 41,
+    "digest": "qcut3-e559336c132b358eb11c6a5dd97108c5490f8a28a6612b32aaf217b4eb657656",
+    "counts": {
+     "objects": "232",
+     "observations": "92",
+     "raw_history": "41",
+     "relations": "892",
+     "total": "2027",
+     "withdrawn_objects": "539",
+     "witnesses": "231"
+    },
+    "structure_cut": "cut-41",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "106d72ff5c83839020afbfb50f127bf8131b60b9884f9e9546f016760270d44e"
+   },
+   {
+    "generation": 42,
+    "digest": "qcut3-22421fa5b71a47081db49575968adca0f4023834049e3df625d3c114697fdbd2",
+    "counts": {
+     "objects": "235",
+     "observations": "94",
+     "raw_history": "42",
+     "relations": "914",
+     "total": "2075",
+     "withdrawn_objects": "553",
+     "witnesses": "237"
+    },
+    "structure_cut": "cut-42",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f70601a0cc8c3a4583d58adecadf8d5811a9087f2fe2e547988097f8ecb7c61f"
+   },
+   {
+    "generation": 43,
+    "digest": "qcut3-f581956e7c6521f7fedf2601a520407c45c00171ccb356e7e759b7d3c53c4020",
+    "counts": {
+     "objects": "250",
+     "observations": "97",
+     "raw_history": "43",
+     "relations": "943",
+     "total": "2143",
+     "withdrawn_objects": "567",
+     "witnesses": "243"
+    },
+    "structure_cut": "cut-43",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "443501f733076e26ffdd898335356526705922464da33f5bc802b473ad8064c1"
+   },
+   {
+    "generation": 44,
+    "digest": "qcut3-b5a2234f72f2e07fd7a995ccec25398d7f248fbf259f00f34e457c864c6f786f",
+    "counts": {
+     "objects": "255",
+     "observations": "99",
+     "raw_history": "44",
+     "relations": "985",
+     "total": "2233",
+     "withdrawn_objects": "601",
+     "witnesses": "249"
+    },
+    "structure_cut": "cut-44",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "5e51657e1bc1a1127912b1b32f8d0024eaca52dc5d0ebeec45fc39a32f77429f"
+   },
+   {
+    "generation": 45,
+    "digest": "qcut3-e7f5c73c7314f311a44c294d9ae37e599e0a0e9b783b35cb8bd3a2a55aa70057",
+    "counts": {
+     "objects": "256",
+     "observations": "101",
+     "raw_history": "45",
+     "relations": "1008",
+     "total": "2283",
+     "withdrawn_objects": "618",
+     "witnesses": "255"
+    },
+    "structure_cut": "cut-45",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e8ee346ad27aaaf8c426e90d3003783675fde3001f94a5d0126aa3412ca3ab49"
+   },
+   {
+    "generation": 46,
+    "digest": "qcut3-8f3b73f491faa02d6b6037289158d47925bfaa5975809ca679d648ff02add79b",
+    "counts": {
+     "objects": "259",
+     "observations": "103",
+     "raw_history": "46",
+     "relations": "1031",
+     "total": "2333",
+     "withdrawn_objects": "633",
+     "witnesses": "261"
+    },
+    "structure_cut": "cut-46",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "455d5e01f550c6eabee124bf891e4ba251455a9819d09299e802b1ba80a94a6f"
+   },
+   {
+    "generation": 47,
+    "digest": "qcut3-c1beb3e4abaac370d709c8119f448bdb145481ba0aa2ef01f59a7adae92108b8",
+    "counts": {
+     "objects": "274",
+     "observations": "106",
+     "raw_history": "47",
+     "relations": "1061",
+     "total": "2403",
+     "withdrawn_objects": "648",
+     "witnesses": "267"
+    },
+    "structure_cut": "cut-47",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "17aaef5a9fa813857de0f851c0f698d912eb09b9ecbc06c5243f7ddec1ad101d"
+   },
+   {
+    "generation": 48,
+    "digest": "qcut3-9990c592695ab0fe3d6fa1a19738d5c2e48d02ae7861c9255add4efb5ead008a",
+    "counts": {
+     "objects": "279",
+     "observations": "108",
+     "raw_history": "48",
+     "relations": "1104",
+     "total": "2495",
+     "withdrawn_objects": "683",
+     "witnesses": "273"
+    },
+    "structure_cut": "cut-48",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "36471349f45bbf93fe35fb2e55f8b87be32f67e09d3636eeab2177484766c090"
+   },
+   {
+    "generation": 49,
+    "digest": "qcut3-5b06033a6e9d8fc378f106a8cdaee85eca50eb09a0efe4d13268ad70e7acf618",
+    "counts": {
+     "objects": "280",
+     "observations": "110",
+     "raw_history": "49",
+     "relations": "1128",
+     "total": "2547",
+     "withdrawn_objects": "701",
+     "witnesses": "279"
+    },
+    "structure_cut": "cut-49",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "ae9cd72febe7e4c8ad1feb4def2c2aa801de46ddd05565d002aa633c03b87551"
+   },
+   {
+    "generation": 50,
+    "digest": "qcut3-16f5e2ca82866dc93f47eed6b20b9dedbb80261f0e338d7acae8d5ded4873278",
+    "counts": {
+     "objects": "283",
+     "observations": "112",
+     "raw_history": "50",
+     "relations": "1152",
+     "total": "2599",
+     "withdrawn_objects": "717",
+     "witnesses": "285"
+    },
+    "structure_cut": "cut-50",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "25ea56f8412a5af678044aa83853b71e7779bff86c8284b10429a54d39d3cf3e"
+   },
+   {
+    "generation": 51,
+    "digest": "qcut3-21a4e0d5e5477011ceae4508367ec87a65bfa438ad1203f82ab1c054abb94936",
+    "counts": {
+     "objects": "298",
+     "observations": "115",
+     "raw_history": "51",
+     "relations": "1183",
+     "total": "2671",
+     "withdrawn_objects": "733",
+     "witnesses": "291"
+    },
+    "structure_cut": "cut-51",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "ef0d3737730aead48b595af28f5ada6b268d5782531ef73cd3d9c93695ab8b4d"
+   },
+   {
+    "generation": 52,
+    "digest": "qcut3-93911ed1d9574ebe96887662aaea935241c47f67dc02ec80f001d96134ba4f32",
+    "counts": {
+     "objects": "303",
+     "observations": "117",
+     "raw_history": "52",
+     "relations": "1227",
+     "total": "2765",
+     "withdrawn_objects": "769",
+     "witnesses": "297"
+    },
+    "structure_cut": "cut-52",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9062b6328795d5eb22a13e099934b73547b63dac417b46ae57119c85ece1b8d7"
+   }
+  ]
+ },
+ "min12d-ord2": {
+  "binary": "/home/hanju/nc-remote/1488-accept/d65/bin/testonly-1660d9d32d",
+  "binary_sha256": "06abcef0d4739ccb42807ec601ba5e32afe287ac4d3cf89be9c099d919a29c94",
+  "env_testonly": {
+   "S_CAPTURE_NATIVE_TESTONLY": null,
+   "S_MANIFEST_WORKSPACE_DIAGNOSTICS": null
+  },
+  "ingest_complete": true,
+  "head_generation": 52,
+  "ok": true,
+  "serve_returncode": -15,
+  "query_returncode": 0,
+  "oracle_compare": {
+   "generations": 52,
+   "oracle_generations": 52,
+   "digest_comparable": false,
+   "counts_equal": 0,
+   "per_generation": [
+    {
+     "generation": 1,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "6",
+       "4"
+      ],
+      "total": [
+       "9",
+       "7"
+      ]
+     }
+    },
+    {
+     "generation": 2,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "8",
+       "6"
+      ],
+      "relations": [
+       "4",
+       "3"
+      ],
+      "total": [
+       "22",
+       "18"
+      ],
+      "withdrawn_objects": [
+       "4",
+       "3"
+      ]
+     }
+    },
+    {
+     "generation": 3,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "13",
+       "11"
+      ],
+      "relations": [
+       "12",
+       "10"
+      ],
+      "total": [
+       "46",
+       "40"
+      ],
+      "withdrawn_objects": [
+       "8",
+       "6"
+      ]
+     }
+    },
+    {
+     "generation": 4,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "16",
+       "14"
+      ],
+      "relations": [
+       "27",
+       "24"
+      ],
+      "total": [
+       "80",
+       "72"
+      ],
+      "withdrawn_objects": [
+       "15",
+       "12"
+      ]
+     }
+    },
+    {
+     "generation": 5,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "19",
+       "17"
+      ],
+      "relations": [
+       "41",
+       "37"
+      ],
+      "total": [
+       "112",
+       "102"
+      ],
+      "withdrawn_objects": [
+       "21",
+       "17"
+      ]
+     }
+    },
+    {
+     "generation": 6,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "22",
+       "20"
+      ],
+      "relations": [
+       "55",
+       "50"
+      ],
+      "total": [
+       "144",
+       "132"
+      ],
+      "withdrawn_objects": [
+       "27",
+       "22"
+      ]
+     }
+    },
+    {
+     "generation": 7,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "37",
+       "35"
+      ],
+      "relations": [
+       "76",
+       "70"
+      ],
+      "total": [
+       "197",
+       "182"
+      ],
+      "withdrawn_objects": [
+       "34",
+       "27"
+      ]
+     }
+    },
+    {
+     "generation": 8,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "40",
+       "38"
+      ],
+      "relations": [
+       "102",
+       "94"
+      ],
+      "total": [
+       "254",
+       "235"
+      ],
+      "withdrawn_objects": [
+       "53",
+       "44"
+      ]
+     }
+    },
+    {
+     "generation": 9,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "42",
+       "40"
+      ],
+      "relations": [
+       "117",
+       "108"
+      ],
+      "total": [
+       "288",
+       "267"
+      ],
+      "withdrawn_objects": [
+       "61",
+       "51"
+      ]
+     }
+    },
+    {
+     "generation": 10,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "45",
+       "43"
+      ],
+      "relations": [
+       "132",
+       "122"
+      ],
+      "total": [
+       "322",
+       "299"
+      ],
+      "withdrawn_objects": [
+       "68",
+       "57"
+      ]
+     }
+    },
+    {
+     "generation": 11,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "60",
+       "58"
+      ],
+      "relations": [
+       "155",
+       "143"
+      ],
+      "total": [
+       "378",
+       "351"
+      ],
+      "withdrawn_objects": [
+       "76",
+       "63"
+      ]
+     }
+    },
+    {
+     "generation": 12,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "65",
+       "63"
+      ],
+      "relations": [
+       "191",
+       "177"
+      ],
+      "total": [
+       "456",
+       "425"
+      ],
+      "withdrawn_objects": [
+       "104",
+       "89"
+      ]
+     }
+    },
+    {
+     "generation": 13,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "66",
+       "64"
+      ],
+      "relations": [
+       "207",
+       "192"
+      ],
+      "total": [
+       "492",
+       "459"
+      ],
+      "withdrawn_objects": [
+       "114",
+       "98"
+      ]
+     }
+    },
+    {
+     "generation": 14,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "69",
+       "67"
+      ],
+      "relations": [
+       "223",
+       "207"
+      ],
+      "total": [
+       "528",
+       "493"
+      ],
+      "withdrawn_objects": [
+       "122",
+       "105"
+      ]
+     }
+    },
+    {
+     "generation": 15,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "89",
+       "82"
+      ],
+      "relations": [
+       "248",
+       "229"
+      ],
+      "total": [
+       "592",
+       "547"
+      ],
+      "withdrawn_objects": [
+       "131",
+       "112"
+      ]
+     }
+    },
+    {
+     "generation": 16,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "94",
+       "87"
+      ],
+      "relations": [
+       "289",
+       "264"
+      ],
+      "total": [
+       "681",
+       "623"
+      ],
+      "withdrawn_objects": [
+       "165",
+       "139"
+      ]
+     }
+    },
+    {
+     "generation": 17,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "94",
+       "88"
+      ],
+      "relations": [
+       "306",
+       "280"
+      ],
+      "total": [
+       "719",
+       "659"
+      ],
+      "withdrawn_objects": [
+       "177",
+       "149"
+      ]
+     }
+    },
+    {
+     "generation": 18,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "97",
+       "91"
+      ],
+      "relations": [
+       "323",
+       "296"
+      ],
+      "total": [
+       "757",
+       "695"
+      ],
+      "withdrawn_objects": [
+       "186",
+       "157"
+      ]
+     }
+    },
+    {
+     "generation": 19,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "114",
+       "106"
+      ],
+      "relations": [
+       "352",
+       "319"
+      ],
+      "total": [
+       "826",
+       "751"
+      ],
+      "withdrawn_objects": [
+       "199",
+       "165"
+      ]
+     }
+    },
+    {
+     "generation": 20,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "119",
+       "111"
+      ],
+      "relations": [
+       "394",
+       "355"
+      ],
+      "total": [
+       "917",
+       "829"
+      ],
+      "withdrawn_objects": [
+       "234",
+       "193"
+      ]
+     }
+    },
+    {
+     "generation": 21,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "119",
+       "112"
+      ],
+      "relations": [
+       "412",
+       "372"
+      ],
+      "total": [
+       "957",
+       "867"
+      ],
+      "withdrawn_objects": [
+       "247",
+       "204"
+      ]
+     }
+    },
+    {
+     "generation": 22,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "122",
+       "115"
+      ],
+      "relations": [
+       "430",
+       "389"
+      ],
+      "total": [
+       "997",
+       "905"
+      ],
+      "withdrawn_objects": [
+       "257",
+       "213"
+      ]
+     }
+    },
+    {
+     "generation": 23,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "138",
+       "130"
+      ],
+      "relations": [
+       "460",
+       "413"
+      ],
+      "total": [
+       "1068",
+       "963"
+      ],
+      "withdrawn_objects": [
+       "272",
+       "222"
+      ]
+     }
+    },
+    {
+     "generation": 24,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "143",
+       "135"
+      ],
+      "relations": [
+       "503",
+       "450"
+      ],
+      "total": [
+       "1161",
+       "1043"
+      ],
+      "withdrawn_objects": [
+       "308",
+       "251"
+      ]
+     }
+    },
+    {
+     "generation": 25,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "143",
+       "136"
+      ],
+      "relations": [
+       "522",
+       "468"
+      ],
+      "total": [
+       "1203",
+       "1083"
+      ],
+      "withdrawn_objects": [
+       "322",
+       "263"
+      ]
+     }
+    },
+    {
+     "generation": 26,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "146",
+       "139"
+      ],
+      "relations": [
+       "541",
+       "486"
+      ],
+      "total": [
+       "1245",
+       "1123"
+      ],
+      "withdrawn_objects": [
+       "333",
+       "273"
+      ]
+     }
+    },
+    {
+     "generation": 27,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "169",
+       "154"
+      ],
+      "relations": [
+       "575",
+       "511"
+      ],
+      "total": [
+       "1328",
+       "1183"
+      ],
+      "withdrawn_objects": [
+       "349",
+       "283"
+      ]
+     }
+    },
+    {
+     "generation": 28,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "174",
+       "159"
+      ],
+      "relations": [
+       "625",
+       "549"
+      ],
+      "total": [
+       "1436",
+       "1265"
+      ],
+      "withdrawn_objects": [
+       "393",
+       "313"
+      ]
+     }
+    },
+    {
+     "generation": 29,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "173",
+       "160"
+      ],
+      "relations": [
+       "645",
+       "568"
+      ],
+      "total": [
+       "1480",
+       "1307"
+      ],
+      "withdrawn_objects": [
+       "409",
+       "326"
+      ]
+     }
+    },
+    {
+     "generation": 30,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "176",
+       "163"
+      ],
+      "relations": [
+       "665",
+       "587"
+      ],
+      "total": [
+       "1524",
+       "1349"
+      ],
+      "withdrawn_objects": [
+       "421",
+       "337"
+      ]
+     }
+    },
+    {
+     "generation": 31,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "193",
+       "178"
+      ],
+      "relations": [
+       "697",
+       "613"
+      ],
+      "total": [
+       "1599",
+       "1411"
+      ],
+      "withdrawn_objects": [
+       "437",
+       "348"
+      ]
+     }
+    },
+    {
+     "generation": 32,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "198",
+       "183"
+      ],
+      "relations": [
+       "742",
+       "652"
+      ],
+      "total": [
+       "1696",
+       "1495"
+      ],
+      "withdrawn_objects": [
+       "475",
+       "379"
+      ]
+     }
+    },
+    {
+     "generation": 33,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "198",
+       "184"
+      ],
+      "relations": [
+       "763",
+       "672"
+      ],
+      "total": [
+       "1742",
+       "1539"
+      ],
+      "withdrawn_objects": [
+       "491",
+       "393"
+      ]
+     }
+    },
+    {
+     "generation": 34,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "201",
+       "187"
+      ],
+      "relations": [
+       "784",
+       "692"
+      ],
+      "total": [
+       "1788",
+       "1583"
+      ],
+      "withdrawn_objects": [
+       "504",
+       "405"
+      ]
+     }
+    },
+    {
+     "generation": 35,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "217",
+       "202"
+      ],
+      "relations": [
+       "817",
+       "719"
+      ],
+      "total": [
+       "1865",
+       "1647"
+      ],
+      "withdrawn_objects": [
+       "522",
+       "417"
+      ]
+     }
+    },
+    {
+     "generation": 36,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "222",
+       "207"
+      ],
+      "relations": [
+       "863",
+       "759"
+      ],
+      "total": [
+       "1964",
+       "1733"
+      ],
+      "withdrawn_objects": [
+       "561",
+       "449"
+      ]
+     }
+    },
+    {
+     "generation": 37,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "222",
+       "208"
+      ],
+      "relations": [
+       "885",
+       "780"
+      ],
+      "total": [
+       "2012",
+       "1779"
+      ],
+      "withdrawn_objects": [
+       "578",
+       "464"
+      ]
+     }
+    },
+    {
+     "generation": 38,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "225",
+       "211"
+      ],
+      "relations": [
+       "907",
+       "801"
+      ],
+      "total": [
+       "2060",
+       "1825"
+      ],
+      "withdrawn_objects": [
+       "592",
+       "477"
+      ]
+     }
+    },
+    {
+     "generation": 39,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "248",
+       "226"
+      ],
+      "relations": [
+       "944",
+       "829"
+      ],
+      "total": [
+       "2149",
+       "1891"
+      ],
+      "withdrawn_objects": [
+       "611",
+       "490"
+      ]
+     }
+    },
+    {
+     "generation": 40,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "253",
+       "231"
+      ],
+      "relations": [
+       "997",
+       "870"
+      ],
+      "total": [
+       "2263",
+       "1979"
+      ],
+      "withdrawn_objects": [
+       "658",
+       "523"
+      ]
+     }
+    },
+    {
+     "generation": 41,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "252",
+       "232"
+      ],
+      "relations": [
+       "1020",
+       "892"
+      ],
+      "total": [
+       "2313",
+       "2027"
+      ],
+      "withdrawn_objects": [
+       "677",
+       "539"
+      ]
+     }
+    },
+    {
+     "generation": 42,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "255",
+       "235"
+      ],
+      "relations": [
+       "1043",
+       "914"
+      ],
+      "total": [
+       "2363",
+       "2075"
+      ],
+      "withdrawn_objects": [
+       "692",
+       "553"
+      ]
+     }
+    },
+    {
+     "generation": 43,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "272",
+       "250"
+      ],
+      "relations": [
+       "1078",
+       "943"
+      ],
+      "total": [
+       "2444",
+       "2143"
+      ],
+      "withdrawn_objects": [
+       "711",
+       "567"
+      ]
+     }
+    },
+    {
+     "generation": 44,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "277",
+       "255"
+      ],
+      "relations": [
+       "1126",
+       "985"
+      ],
+      "total": [
+       "2547",
+       "2233"
+      ],
+      "withdrawn_objects": [
+       "752",
+       "601"
+      ]
+     }
+    },
+    {
+     "generation": 45,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "277",
+       "256"
+      ],
+      "relations": [
+       "1150",
+       "1008"
+      ],
+      "total": [
+       "2599",
+       "2283"
+      ],
+      "withdrawn_objects": [
+       "771",
+       "618"
+      ]
+     }
+    },
+    {
+     "generation": 46,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "280",
+       "259"
+      ],
+      "relations": [
+       "1174",
+       "1031"
+      ],
+      "total": [
+       "2651",
+       "2333"
+      ],
+      "withdrawn_objects": [
+       "787",
+       "633"
+      ]
+     }
+    },
+    {
+     "generation": 47,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "296",
+       "274"
+      ],
+      "relations": [
+       "1210",
+       "1061"
+      ],
+      "total": [
+       "2734",
+       "2403"
+      ],
+      "withdrawn_objects": [
+       "808",
+       "648"
+      ]
+     }
+    },
+    {
+     "generation": 48,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "301",
+       "279"
+      ],
+      "relations": [
+       "1259",
+       "1104"
+      ],
+      "total": [
+       "2839",
+       "2495"
+      ],
+      "withdrawn_objects": [
+       "850",
+       "683"
+      ]
+     }
+    },
+    {
+     "generation": 49,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "301",
+       "280"
+      ],
+      "relations": [
+       "1284",
+       "1128"
+      ],
+      "total": [
+       "2893",
+       "2547"
+      ],
+      "withdrawn_objects": [
+       "870",
+       "701"
+      ]
+     }
+    },
+    {
+     "generation": 50,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "304",
+       "283"
+      ],
+      "relations": [
+       "1309",
+       "1152"
+      ],
+      "total": [
+       "2947",
+       "2599"
+      ],
+      "withdrawn_objects": [
+       "887",
+       "717"
+      ]
+     }
+    },
+    {
+     "generation": 51,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "327",
+       "298"
+      ],
+      "relations": [
+       "1349",
+       "1183"
+      ],
+      "total": [
+       "3042",
+       "2671"
+      ],
+      "withdrawn_objects": [
+       "909",
+       "733"
+      ]
+     }
+    },
+    {
+     "generation": 52,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "332",
+       "303"
+      ],
+      "relations": [
+       "1405",
+       "1227"
+      ],
+      "total": [
+       "3162",
+       "2765"
+      ],
+      "withdrawn_objects": [
+       "959",
+       "769"
+      ]
+     }
+    }
+   ]
+  },
+  "per_generation_q3": [
+   {
+    "generation": 1,
+    "digest": "qcut3-e0c4286cfd20eda63b2f5e8c2988931554db3349f1d177c9f26c072be2676e8c",
+    "counts": {
+     "objects": "4",
+     "observations": "2",
+     "raw_history": "1",
+     "relations": "0",
+     "total": "7",
+     "withdrawn_objects": "0",
+     "witnesses": "0"
+    },
+    "structure_cut": "cut-1",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "da55f837efb648a657ae65b7f77ecd280c5a03343fad4bb207cb9ae10cbe2433"
+   },
+   {
+    "generation": 2,
+    "digest": "qcut3-0889fee6c8ef67c0ce91d4061dddd4be3885f9e993f38b9b1ef47dcfbba3b06e",
+    "counts": {
+     "objects": "6",
+     "observations": "4",
+     "raw_history": "2",
+     "relations": "3",
+     "total": "18",
+     "withdrawn_objects": "3",
+     "witnesses": "0"
+    },
+    "structure_cut": "cut-2",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "d83877e846ea8adea69c82438b5db6c80206431c325e90ebd947fcd65ada4e8a"
+   },
+   {
+    "generation": 3,
+    "digest": "qcut3-3ba8ea79cb54ae32a50d2dcaef7fd4678e7e227f7bff2eb3075fe319cb919265",
+    "counts": {
+     "objects": "11",
+     "observations": "7",
+     "raw_history": "3",
+     "relations": "10",
+     "total": "40",
+     "withdrawn_objects": "6",
+     "witnesses": "3"
+    },
+    "structure_cut": "cut-3",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "b354cbc850c057064b4e4f7f71f66cf58f8accbf9536152887322ec4161125a9"
+   },
+   {
+    "generation": 4,
+    "digest": "qcut3-811c531aab165fdfc7ec04570deced8d9d9c598f06cb64dc2b8e9a2add4f5d15",
+    "counts": {
+     "objects": "14",
+     "observations": "9",
+     "raw_history": "4",
+     "relations": "24",
+     "total": "72",
+     "withdrawn_objects": "12",
+     "witnesses": "9"
+    },
+    "structure_cut": "cut-4",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9557be9172c70c6c8e0ac15909bff1e7722065b505d427e92f0b0969f02f89e1"
+   },
+   {
+    "generation": 5,
+    "digest": "qcut3-acf46d8e7d3ec6ff754d1798a84934840ce908b9a74a2a78ef97021442da0b50",
+    "counts": {
+     "objects": "17",
+     "observations": "11",
+     "raw_history": "5",
+     "relations": "37",
+     "total": "102",
+     "withdrawn_objects": "17",
+     "witnesses": "15"
+    },
+    "structure_cut": "cut-5",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "97505797843d591dbb39d2d62ffec8acc0a0206ebb81675259c350190b633eea"
+   },
+   {
+    "generation": 6,
+    "digest": "qcut3-c1008f8a6f350523be61f4febdb7701d66b4c42074eb0ed6619f178914daff6c",
+    "counts": {
+     "objects": "20",
+     "observations": "13",
+     "raw_history": "6",
+     "relations": "50",
+     "total": "132",
+     "withdrawn_objects": "22",
+     "witnesses": "21"
+    },
+    "structure_cut": "cut-6",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "6f85ad973063e3ca2967a5607d680b523ec32ca58b2d4ec294d0089bb99d5181"
+   },
+   {
+    "generation": 7,
+    "digest": "qcut3-ba3fc33a8e57e74f7768e587cfcd7f8402beff00acb53d8386b1b4152f7f3e24",
+    "counts": {
+     "objects": "35",
+     "observations": "16",
+     "raw_history": "7",
+     "relations": "70",
+     "total": "182",
+     "withdrawn_objects": "27",
+     "witnesses": "27"
+    },
+    "structure_cut": "cut-7",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c2e204ebc0cca454f6a21805248f58e9c96874603ccadab387c9559e43caa064"
+   },
+   {
+    "generation": 8,
+    "digest": "qcut3-398bd62358fa1ba4c4ad5246da602562db8e8a324c390d014739f66d47751115",
+    "counts": {
+     "objects": "38",
+     "observations": "18",
+     "raw_history": "8",
+     "relations": "94",
+     "total": "235",
+     "withdrawn_objects": "44",
+     "witnesses": "33"
+    },
+    "structure_cut": "cut-8",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "5a0fa2e816167b9c95d157dd697ba79dd5d7e74bb1108cfa003dad9e165e16d6"
+   },
+   {
+    "generation": 9,
+    "digest": "qcut3-8ad97ed10cad39de052ee0029d739d33452151864b169fdf3c4cdffa921c08d6",
+    "counts": {
+     "objects": "40",
+     "observations": "20",
+     "raw_history": "9",
+     "relations": "108",
+     "total": "267",
+     "withdrawn_objects": "51",
+     "witnesses": "39"
+    },
+    "structure_cut": "cut-9",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f392c1cdb4b28e0f95ee1f155601e72d21c569349c08c79ade8d43d9aef5ccad"
+   },
+   {
+    "generation": 10,
+    "digest": "qcut3-3954fb59e17dd10358d29db7fee5f1c5e9c5eff218fbb34e01d8b382dfc4ddf7",
+    "counts": {
+     "objects": "43",
+     "observations": "22",
+     "raw_history": "10",
+     "relations": "122",
+     "total": "299",
+     "withdrawn_objects": "57",
+     "witnesses": "45"
+    },
+    "structure_cut": "cut-10",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "71fb1adb000236a33d02fa21364abd68d429b21bebca1018622feecb5efbf977"
+   },
+   {
+    "generation": 11,
+    "digest": "qcut3-7301fab81df3a6a74a313c467b97dd918b03ee7e42930942a9b4f395ef729b79",
+    "counts": {
+     "objects": "58",
+     "observations": "25",
+     "raw_history": "11",
+     "relations": "143",
+     "total": "351",
+     "withdrawn_objects": "63",
+     "witnesses": "51"
+    },
+    "structure_cut": "cut-11",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "a99f232fa4c133cd7feccc486ce3b815fd17f5f159f3c0aff3786af10983c4f6"
+   },
+   {
+    "generation": 12,
+    "digest": "qcut3-f4e4b565b364784badf340c76ffec098e1be26edcc0568a3f81b4b794e56199f",
+    "counts": {
+     "objects": "63",
+     "observations": "27",
+     "raw_history": "12",
+     "relations": "177",
+     "total": "425",
+     "withdrawn_objects": "89",
+     "witnesses": "57"
+    },
+    "structure_cut": "cut-12",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "86765e84e9437300e71af21e482be44518f4a30b04a89d470fb7fd4c0a1b3aab"
+   },
+   {
+    "generation": 13,
+    "digest": "qcut3-3245a5ec117002c2638b592a96cb9b930bf67765e098a822098c937a1e1e3256",
+    "counts": {
+     "objects": "64",
+     "observations": "29",
+     "raw_history": "13",
+     "relations": "192",
+     "total": "459",
+     "withdrawn_objects": "98",
+     "witnesses": "63"
+    },
+    "structure_cut": "cut-13",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "319732ae93af48646877cf41f52451fb03e8abfa2a66ed455012066a17ab103b"
+   },
+   {
+    "generation": 14,
+    "digest": "qcut3-1c8fd5a0735c6688e2f03e8e2b78908deac21d8dc79bcf1b97a189dc4a2e8ce2",
+    "counts": {
+     "objects": "67",
+     "observations": "31",
+     "raw_history": "14",
+     "relations": "207",
+     "total": "493",
+     "withdrawn_objects": "105",
+     "witnesses": "69"
+    },
+    "structure_cut": "cut-14",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8275a0d40211ea0dba5b6a10c30867449f46772404609f73ffc893895b57ec8f"
+   },
+   {
+    "generation": 15,
+    "digest": "qcut3-bde8f113a872528362708d22a4ebf8941bc71668ab32335e46372fcfc842945e",
+    "counts": {
+     "objects": "82",
+     "observations": "34",
+     "raw_history": "15",
+     "relations": "229",
+     "total": "547",
+     "withdrawn_objects": "112",
+     "witnesses": "75"
+    },
+    "structure_cut": "cut-15",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "80ab4c992ea4a08ce688ac12f9ac4bd4a481023cbf127a2389f1b6281fc65631"
+   },
+   {
+    "generation": 16,
+    "digest": "qcut3-c4bb693de2f9757b3142acd253ac6293e6d5955d8473d739cb844e192fcd328d",
+    "counts": {
+     "objects": "87",
+     "observations": "36",
+     "raw_history": "16",
+     "relations": "264",
+     "total": "623",
+     "withdrawn_objects": "139",
+     "witnesses": "81"
+    },
+    "structure_cut": "cut-16",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e1340a98a9a77c8f56dd1298f9b6129810583c49d4af0ed29c61234f51ad48b6"
+   },
+   {
+    "generation": 17,
+    "digest": "qcut3-be720b62ff1be588e8450ef89f83a1b988ad8beb29b79d49309a16379be29145",
+    "counts": {
+     "objects": "88",
+     "observations": "38",
+     "raw_history": "17",
+     "relations": "280",
+     "total": "659",
+     "withdrawn_objects": "149",
+     "witnesses": "87"
+    },
+    "structure_cut": "cut-17",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c51509997bcf770066897806e767c555a1cfb2011ea7048701a6096ad4103a1f"
+   },
+   {
+    "generation": 18,
+    "digest": "qcut3-fd962261715e3e36e5c527e37f639849ae3b5d1b79cdbb4ef5a67bc19edd523d",
+    "counts": {
+     "objects": "91",
+     "observations": "40",
+     "raw_history": "18",
+     "relations": "296",
+     "total": "695",
+     "withdrawn_objects": "157",
+     "witnesses": "93"
+    },
+    "structure_cut": "cut-18",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "0412141011c1d6abdaafaccbfa85e6688ecd4b5774ab4ac412b19597c9c4333e"
+   },
+   {
+    "generation": 19,
+    "digest": "qcut3-e0f4af8db1e1e067fcaa62430351b05447ed305f89e70485d4eb6a9c393dfa82",
+    "counts": {
+     "objects": "106",
+     "observations": "43",
+     "raw_history": "19",
+     "relations": "319",
+     "total": "751",
+     "withdrawn_objects": "165",
+     "witnesses": "99"
+    },
+    "structure_cut": "cut-19",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "1fc50c233bb9e2940bd2fdbb888451ab0537a8d67f045555ec2b10ae979113dc"
+   },
+   {
+    "generation": 20,
+    "digest": "qcut3-d55b7f7415ca4dd3b7a3d3e810c5d8e2327036dc8fb258995e4f6a14ffca4519",
+    "counts": {
+     "objects": "111",
+     "observations": "45",
+     "raw_history": "20",
+     "relations": "355",
+     "total": "829",
+     "withdrawn_objects": "193",
+     "witnesses": "105"
+    },
+    "structure_cut": "cut-20",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8abc00799f282da074317639021c07beb9cdd4b7127a2dde4217296be80dca65"
+   },
+   {
+    "generation": 21,
+    "digest": "qcut3-eb69ad3efc4a3250170805290c619bb23bc950bf7d1e9b68afb5d80f97b2f072",
+    "counts": {
+     "objects": "112",
+     "observations": "47",
+     "raw_history": "21",
+     "relations": "372",
+     "total": "867",
+     "withdrawn_objects": "204",
+     "witnesses": "111"
+    },
+    "structure_cut": "cut-21",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "902dc60e97a452c3af5fb2895fe0c6b610de0df046a12e90183c2aa514c79a0e"
+   },
+   {
+    "generation": 22,
+    "digest": "qcut3-04257ce128ce5373334d7ab1efe880ab2d609ac52a34360be9955131251e2a87",
+    "counts": {
+     "objects": "115",
+     "observations": "49",
+     "raw_history": "22",
+     "relations": "389",
+     "total": "905",
+     "withdrawn_objects": "213",
+     "witnesses": "117"
+    },
+    "structure_cut": "cut-22",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "353ac1fd2b8b48ce6e1fb2d460c244eff977a81e4d35ac937fecc388e8152a2a"
+   },
+   {
+    "generation": 23,
+    "digest": "qcut3-2b710c88d607d82213a542864033fa12f2c9637f7093a4566642d963b2b03710",
+    "counts": {
+     "objects": "130",
+     "observations": "52",
+     "raw_history": "23",
+     "relations": "413",
+     "total": "963",
+     "withdrawn_objects": "222",
+     "witnesses": "123"
+    },
+    "structure_cut": "cut-23",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "a32c395e2dd52ab32672824c1a289e1e489ff37ef2802d87bd2ac67281066f7b"
+   },
+   {
+    "generation": 24,
+    "digest": "qcut3-7ad74bfd86c4a376db7c2a213b78ee89521c3e54169cb059e284ceccc63a419d",
+    "counts": {
+     "objects": "135",
+     "observations": "54",
+     "raw_history": "24",
+     "relations": "450",
+     "total": "1043",
+     "withdrawn_objects": "251",
+     "witnesses": "129"
+    },
+    "structure_cut": "cut-24",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "13bbc323f46aab0824de782cfcf74ea8330f007aae32a54b02034fef232a6376"
+   },
+   {
+    "generation": 25,
+    "digest": "qcut3-fc8c64ae015d50d7c569025526fd1e2167f6fcec3c765488dfe86ac799cbd876",
+    "counts": {
+     "objects": "136",
+     "observations": "56",
+     "raw_history": "25",
+     "relations": "468",
+     "total": "1083",
+     "withdrawn_objects": "263",
+     "witnesses": "135"
+    },
+    "structure_cut": "cut-25",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "370fd793ab0c236fda61a9020d9fc960e3950535ebbe5567ec0b81728a148144"
+   },
+   {
+    "generation": 26,
+    "digest": "qcut3-492bf16ef0034c9789fc0b892dfb503d2bb1ccf00393f68689cfcc23ad60a774",
+    "counts": {
+     "objects": "139",
+     "observations": "58",
+     "raw_history": "26",
+     "relations": "486",
+     "total": "1123",
+     "withdrawn_objects": "273",
+     "witnesses": "141"
+    },
+    "structure_cut": "cut-26",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "2204ce492c316185a357ad4230b215c176679ce9c97b63c2d449b1c287a248db"
+   },
+   {
+    "generation": 27,
+    "digest": "qcut3-bdc40f0ce4c5062c767ef9c424c1e13f85963f3ae8e5d6eba842c528bd29e929",
+    "counts": {
+     "objects": "154",
+     "observations": "61",
+     "raw_history": "27",
+     "relations": "511",
+     "total": "1183",
+     "withdrawn_objects": "283",
+     "witnesses": "147"
+    },
+    "structure_cut": "cut-27",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "149f7740ea6de17824a93c20ce30c750fbb6019e513204549e267c28fbc05c39"
+   },
+   {
+    "generation": 28,
+    "digest": "qcut3-55665088996240f96fa6acec0fc2dec4b3f73adf18a170d9a349700ccb36379c",
+    "counts": {
+     "objects": "159",
+     "observations": "63",
+     "raw_history": "28",
+     "relations": "549",
+     "total": "1265",
+     "withdrawn_objects": "313",
+     "witnesses": "153"
+    },
+    "structure_cut": "cut-28",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "98df88e72bfc77e40b0b4196b69b1facb313aef4cee611d1e235d53dee32174a"
+   },
+   {
+    "generation": 29,
+    "digest": "qcut3-535a66bb834fc74a85b5e878cd17dd23b55af2fcd06e78ffff8b2b630157b323",
+    "counts": {
+     "objects": "160",
+     "observations": "65",
+     "raw_history": "29",
+     "relations": "568",
+     "total": "1307",
+     "withdrawn_objects": "326",
+     "witnesses": "159"
+    },
+    "structure_cut": "cut-29",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "38cdf63952a3814ff3939bde7b45f87d378eb022bc382182f9058b118149a60e"
+   },
+   {
+    "generation": 30,
+    "digest": "qcut3-0c8c598a2a09e14cbf1c8a93d49071d026750f2aa1beea5bbb4862cc2adfd4b4",
+    "counts": {
+     "objects": "163",
+     "observations": "67",
+     "raw_history": "30",
+     "relations": "587",
+     "total": "1349",
+     "withdrawn_objects": "337",
+     "witnesses": "165"
+    },
+    "structure_cut": "cut-30",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "efda002343df4f286ac9faee7e72e6f0fa1da557c49d726e871708c7d5413f2d"
+   },
+   {
+    "generation": 31,
+    "digest": "qcut3-6b5846630edcba7ab77ecfda5d254eeb07a9598594735a9cf76ef462ff787aa0",
+    "counts": {
+     "objects": "178",
+     "observations": "70",
+     "raw_history": "31",
+     "relations": "613",
+     "total": "1411",
+     "withdrawn_objects": "348",
+     "witnesses": "171"
+    },
+    "structure_cut": "cut-31",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "68c7e28ce534ece8bf7138744e1eb027650a9e7ab8fe04978f61d290ccc85828"
+   },
+   {
+    "generation": 32,
+    "digest": "qcut3-8392e396b8bc8bf13c515b9c7318286e7bb16de5b22ecf3b8528d053265f1c0d",
+    "counts": {
+     "objects": "183",
+     "observations": "72",
+     "raw_history": "32",
+     "relations": "652",
+     "total": "1495",
+     "withdrawn_objects": "379",
+     "witnesses": "177"
+    },
+    "structure_cut": "cut-32",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e2b525bd21ce1de27f80b1e75ae3f6ac442ae771e60b859f7ca0fba87ddab0d2"
+   },
+   {
+    "generation": 33,
+    "digest": "qcut3-4e902b89da97aa3b118b3d8e9d861cfe435e21e73ce44349fdf899838371d16b",
+    "counts": {
+     "objects": "184",
+     "observations": "74",
+     "raw_history": "33",
+     "relations": "672",
+     "total": "1539",
+     "withdrawn_objects": "393",
+     "witnesses": "183"
+    },
+    "structure_cut": "cut-33",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "3bf4e34a371b3e68ea9ee1ea3a9ce9bb346942011cb18297acf48fefc9faa006"
+   },
+   {
+    "generation": 34,
+    "digest": "qcut3-e54971ed78a23853c8c92b308a473290c242e0c0316026dfd387967d96d913cc",
+    "counts": {
+     "objects": "187",
+     "observations": "76",
+     "raw_history": "34",
+     "relations": "692",
+     "total": "1583",
+     "withdrawn_objects": "405",
+     "witnesses": "189"
+    },
+    "structure_cut": "cut-34",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8e9a056d121ea465a086c5fc5f0abaec3b3d3f63614abff9eebbe527b2c1d8dd"
+   },
+   {
+    "generation": 35,
+    "digest": "qcut3-6f25b268f42bf3790ae9b3306f31590895f52370d584cb611eda596612d837cf",
+    "counts": {
+     "objects": "202",
+     "observations": "79",
+     "raw_history": "35",
+     "relations": "719",
+     "total": "1647",
+     "withdrawn_objects": "417",
+     "witnesses": "195"
+    },
+    "structure_cut": "cut-35",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "10aa84a4a5129a9e9c1772200e24312856d3f95937f8bda769594ef494153521"
+   },
+   {
+    "generation": 36,
+    "digest": "qcut3-4aa83d47ec92eb09e43bc61141205136f5efb6fbe5bbdb3b5343d80a24879d83",
+    "counts": {
+     "objects": "207",
+     "observations": "81",
+     "raw_history": "36",
+     "relations": "759",
+     "total": "1733",
+     "withdrawn_objects": "449",
+     "witnesses": "201"
+    },
+    "structure_cut": "cut-36",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c37aedaf18ab859de407e54928f3d7851176981b8ffc3ab14e5b9923abffc707"
+   },
+   {
+    "generation": 37,
+    "digest": "qcut3-a1faeb8f67fa2077d4e925d70219372bff45508cd800724054e6b4b51888067b",
+    "counts": {
+     "objects": "208",
+     "observations": "83",
+     "raw_history": "37",
+     "relations": "780",
+     "total": "1779",
+     "withdrawn_objects": "464",
+     "witnesses": "207"
+    },
+    "structure_cut": "cut-37",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "50b12aecae1afdd4da961b70a59ac056019446b1bf49df25b5f17a45805e115e"
+   },
+   {
+    "generation": 38,
+    "digest": "qcut3-b99f3005aca3c2e347c11ac85e7e97283c3d6d25170e72a66d858b34355418d5",
+    "counts": {
+     "objects": "211",
+     "observations": "85",
+     "raw_history": "38",
+     "relations": "801",
+     "total": "1825",
+     "withdrawn_objects": "477",
+     "witnesses": "213"
+    },
+    "structure_cut": "cut-38",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9eebbb45c0d98aa02cbc4c957b022d7a87a362a2f38ad56527dd4987c5a34456"
+   },
+   {
+    "generation": 39,
+    "digest": "qcut3-0c95f0fc04d2766f51846e52de8cd27fbbb79515b9f31b327b026eda9d22d001",
+    "counts": {
+     "objects": "226",
+     "observations": "88",
+     "raw_history": "39",
+     "relations": "829",
+     "total": "1891",
+     "withdrawn_objects": "490",
+     "witnesses": "219"
+    },
+    "structure_cut": "cut-39",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f8ff8468018aa72cd200e5581b5fe9ceb589961193418ef66d2acb53b0d19f47"
+   },
+   {
+    "generation": 40,
+    "digest": "qcut3-e89696b9aa1b3bb50275824155ae750ec927c49204063e42ca93ff452d898a00",
+    "counts": {
+     "objects": "231",
+     "observations": "90",
+     "raw_history": "40",
+     "relations": "870",
+     "total": "1979",
+     "withdrawn_objects": "523",
+     "witnesses": "225"
+    },
+    "structure_cut": "cut-40",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f1c4a238bcc44eb88d3e9366cde41acdf2b7bcaeb084c9f948106cb74f40801d"
+   },
+   {
+    "generation": 41,
+    "digest": "qcut3-e559336c132b358eb11c6a5dd97108c5490f8a28a6612b32aaf217b4eb657656",
+    "counts": {
+     "objects": "232",
+     "observations": "92",
+     "raw_history": "41",
+     "relations": "892",
+     "total": "2027",
+     "withdrawn_objects": "539",
+     "witnesses": "231"
+    },
+    "structure_cut": "cut-41",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "106d72ff5c83839020afbfb50f127bf8131b60b9884f9e9546f016760270d44e"
+   },
+   {
+    "generation": 42,
+    "digest": "qcut3-22421fa5b71a47081db49575968adca0f4023834049e3df625d3c114697fdbd2",
+    "counts": {
+     "objects": "235",
+     "observations": "94",
+     "raw_history": "42",
+     "relations": "914",
+     "total": "2075",
+     "withdrawn_objects": "553",
+     "witnesses": "237"
+    },
+    "structure_cut": "cut-42",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f70601a0cc8c3a4583d58adecadf8d5811a9087f2fe2e547988097f8ecb7c61f"
+   },
+   {
+    "generation": 43,
+    "digest": "qcut3-f581956e7c6521f7fedf2601a520407c45c00171ccb356e7e759b7d3c53c4020",
+    "counts": {
+     "objects": "250",
+     "observations": "97",
+     "raw_history": "43",
+     "relations": "943",
+     "total": "2143",
+     "withdrawn_objects": "567",
+     "witnesses": "243"
+    },
+    "structure_cut": "cut-43",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "443501f733076e26ffdd898335356526705922464da33f5bc802b473ad8064c1"
+   },
+   {
+    "generation": 44,
+    "digest": "qcut3-b5a2234f72f2e07fd7a995ccec25398d7f248fbf259f00f34e457c864c6f786f",
+    "counts": {
+     "objects": "255",
+     "observations": "99",
+     "raw_history": "44",
+     "relations": "985",
+     "total": "2233",
+     "withdrawn_objects": "601",
+     "witnesses": "249"
+    },
+    "structure_cut": "cut-44",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "5e51657e1bc1a1127912b1b32f8d0024eaca52dc5d0ebeec45fc39a32f77429f"
+   },
+   {
+    "generation": 45,
+    "digest": "qcut3-e7f5c73c7314f311a44c294d9ae37e599e0a0e9b783b35cb8bd3a2a55aa70057",
+    "counts": {
+     "objects": "256",
+     "observations": "101",
+     "raw_history": "45",
+     "relations": "1008",
+     "total": "2283",
+     "withdrawn_objects": "618",
+     "witnesses": "255"
+    },
+    "structure_cut": "cut-45",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e8ee346ad27aaaf8c426e90d3003783675fde3001f94a5d0126aa3412ca3ab49"
+   },
+   {
+    "generation": 46,
+    "digest": "qcut3-8f3b73f491faa02d6b6037289158d47925bfaa5975809ca679d648ff02add79b",
+    "counts": {
+     "objects": "259",
+     "observations": "103",
+     "raw_history": "46",
+     "relations": "1031",
+     "total": "2333",
+     "withdrawn_objects": "633",
+     "witnesses": "261"
+    },
+    "structure_cut": "cut-46",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "455d5e01f550c6eabee124bf891e4ba251455a9819d09299e802b1ba80a94a6f"
+   },
+   {
+    "generation": 47,
+    "digest": "qcut3-c1beb3e4abaac370d709c8119f448bdb145481ba0aa2ef01f59a7adae92108b8",
+    "counts": {
+     "objects": "274",
+     "observations": "106",
+     "raw_history": "47",
+     "relations": "1061",
+     "total": "2403",
+     "withdrawn_objects": "648",
+     "witnesses": "267"
+    },
+    "structure_cut": "cut-47",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "17aaef5a9fa813857de0f851c0f698d912eb09b9ecbc06c5243f7ddec1ad101d"
+   },
+   {
+    "generation": 48,
+    "digest": "qcut3-9990c592695ab0fe3d6fa1a19738d5c2e48d02ae7861c9255add4efb5ead008a",
+    "counts": {
+     "objects": "279",
+     "observations": "108",
+     "raw_history": "48",
+     "relations": "1104",
+     "total": "2495",
+     "withdrawn_objects": "683",
+     "witnesses": "273"
+    },
+    "structure_cut": "cut-48",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "36471349f45bbf93fe35fb2e55f8b87be32f67e09d3636eeab2177484766c090"
+   },
+   {
+    "generation": 49,
+    "digest": "qcut3-5b06033a6e9d8fc378f106a8cdaee85eca50eb09a0efe4d13268ad70e7acf618",
+    "counts": {
+     "objects": "280",
+     "observations": "110",
+     "raw_history": "49",
+     "relations": "1128",
+     "total": "2547",
+     "withdrawn_objects": "701",
+     "witnesses": "279"
+    },
+    "structure_cut": "cut-49",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "ae9cd72febe7e4c8ad1feb4def2c2aa801de46ddd05565d002aa633c03b87551"
+   },
+   {
+    "generation": 50,
+    "digest": "qcut3-16f5e2ca82866dc93f47eed6b20b9dedbb80261f0e338d7acae8d5ded4873278",
+    "counts": {
+     "objects": "283",
+     "observations": "112",
+     "raw_history": "50",
+     "relations": "1152",
+     "total": "2599",
+     "withdrawn_objects": "717",
+     "witnesses": "285"
+    },
+    "structure_cut": "cut-50",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "25ea56f8412a5af678044aa83853b71e7779bff86c8284b10429a54d39d3cf3e"
+   },
+   {
+    "generation": 51,
+    "digest": "qcut3-21a4e0d5e5477011ceae4508367ec87a65bfa438ad1203f82ab1c054abb94936",
+    "counts": {
+     "objects": "298",
+     "observations": "115",
+     "raw_history": "51",
+     "relations": "1183",
+     "total": "2671",
+     "withdrawn_objects": "733",
+     "witnesses": "291"
+    },
+    "structure_cut": "cut-51",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "ef0d3737730aead48b595af28f5ada6b268d5782531ef73cd3d9c93695ab8b4d"
+   },
+   {
+    "generation": 52,
+    "digest": "qcut3-93911ed1d9574ebe96887662aaea935241c47f67dc02ec80f001d96134ba4f32",
+    "counts": {
+     "objects": "303",
+     "observations": "117",
+     "raw_history": "52",
+     "relations": "1227",
+     "total": "2765",
+     "withdrawn_objects": "769",
+     "witnesses": "297"
+    },
+    "structure_cut": "cut-52",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9062b6328795d5eb22a13e099934b73547b63dac417b46ae57119c85ece1b8d7"
+   }
+  ]
+ },
+ "min12d-main1": {
+  "binary": "/mnt/g/AgentStorage/1488-accept/s1/bin/s_structure_session-6badaa6049",
+  "binary_sha256": "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040",
+  "env_testonly": {
+   "S_CAPTURE_NATIVE_TESTONLY": null,
+   "S_MANIFEST_WORKSPACE_DIAGNOSTICS": null
+  },
+  "ingest_complete": true,
+  "head_generation": 52,
+  "ok": true,
+  "serve_returncode": -15,
+  "query_returncode": 0,
+  "oracle_compare": {
+   "generations": 52,
+   "oracle_generations": 52,
+   "digest_comparable": false,
+   "counts_equal": 0,
+   "per_generation": [
+    {
+     "generation": 1,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "6",
+       "4"
+      ],
+      "total": [
+       "9",
+       "7"
+      ]
+     }
+    },
+    {
+     "generation": 2,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "8",
+       "6"
+      ],
+      "relations": [
+       "4",
+       "3"
+      ],
+      "total": [
+       "22",
+       "18"
+      ],
+      "withdrawn_objects": [
+       "4",
+       "3"
+      ]
+     }
+    },
+    {
+     "generation": 3,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "13",
+       "11"
+      ],
+      "relations": [
+       "12",
+       "10"
+      ],
+      "total": [
+       "46",
+       "40"
+      ],
+      "withdrawn_objects": [
+       "8",
+       "6"
+      ]
+     }
+    },
+    {
+     "generation": 4,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "16",
+       "14"
+      ],
+      "relations": [
+       "27",
+       "24"
+      ],
+      "total": [
+       "80",
+       "72"
+      ],
+      "withdrawn_objects": [
+       "15",
+       "12"
+      ]
+     }
+    },
+    {
+     "generation": 5,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "19",
+       "17"
+      ],
+      "relations": [
+       "41",
+       "37"
+      ],
+      "total": [
+       "112",
+       "102"
+      ],
+      "withdrawn_objects": [
+       "21",
+       "17"
+      ]
+     }
+    },
+    {
+     "generation": 6,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "22",
+       "20"
+      ],
+      "relations": [
+       "55",
+       "50"
+      ],
+      "total": [
+       "144",
+       "132"
+      ],
+      "withdrawn_objects": [
+       "27",
+       "22"
+      ]
+     }
+    },
+    {
+     "generation": 7,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "37",
+       "35"
+      ],
+      "relations": [
+       "76",
+       "70"
+      ],
+      "total": [
+       "197",
+       "182"
+      ],
+      "withdrawn_objects": [
+       "34",
+       "27"
+      ]
+     }
+    },
+    {
+     "generation": 8,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "40",
+       "38"
+      ],
+      "relations": [
+       "102",
+       "94"
+      ],
+      "total": [
+       "254",
+       "235"
+      ],
+      "withdrawn_objects": [
+       "53",
+       "44"
+      ]
+     }
+    },
+    {
+     "generation": 9,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "42",
+       "40"
+      ],
+      "relations": [
+       "117",
+       "108"
+      ],
+      "total": [
+       "288",
+       "267"
+      ],
+      "withdrawn_objects": [
+       "61",
+       "51"
+      ]
+     }
+    },
+    {
+     "generation": 10,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "45",
+       "43"
+      ],
+      "relations": [
+       "132",
+       "122"
+      ],
+      "total": [
+       "322",
+       "299"
+      ],
+      "withdrawn_objects": [
+       "68",
+       "57"
+      ]
+     }
+    },
+    {
+     "generation": 11,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "60",
+       "58"
+      ],
+      "relations": [
+       "155",
+       "143"
+      ],
+      "total": [
+       "378",
+       "351"
+      ],
+      "withdrawn_objects": [
+       "76",
+       "63"
+      ]
+     }
+    },
+    {
+     "generation": 12,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "65",
+       "63"
+      ],
+      "relations": [
+       "191",
+       "177"
+      ],
+      "total": [
+       "456",
+       "425"
+      ],
+      "withdrawn_objects": [
+       "104",
+       "89"
+      ]
+     }
+    },
+    {
+     "generation": 13,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "66",
+       "64"
+      ],
+      "relations": [
+       "207",
+       "192"
+      ],
+      "total": [
+       "492",
+       "459"
+      ],
+      "withdrawn_objects": [
+       "114",
+       "98"
+      ]
+     }
+    },
+    {
+     "generation": 14,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "69",
+       "67"
+      ],
+      "relations": [
+       "223",
+       "207"
+      ],
+      "total": [
+       "528",
+       "493"
+      ],
+      "withdrawn_objects": [
+       "122",
+       "105"
+      ]
+     }
+    },
+    {
+     "generation": 15,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "89",
+       "82"
+      ],
+      "relations": [
+       "248",
+       "229"
+      ],
+      "total": [
+       "592",
+       "547"
+      ],
+      "withdrawn_objects": [
+       "131",
+       "112"
+      ]
+     }
+    },
+    {
+     "generation": 16,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "94",
+       "87"
+      ],
+      "relations": [
+       "289",
+       "264"
+      ],
+      "total": [
+       "681",
+       "623"
+      ],
+      "withdrawn_objects": [
+       "165",
+       "139"
+      ]
+     }
+    },
+    {
+     "generation": 17,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "94",
+       "88"
+      ],
+      "relations": [
+       "306",
+       "280"
+      ],
+      "total": [
+       "719",
+       "659"
+      ],
+      "withdrawn_objects": [
+       "177",
+       "149"
+      ]
+     }
+    },
+    {
+     "generation": 18,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "97",
+       "91"
+      ],
+      "relations": [
+       "323",
+       "296"
+      ],
+      "total": [
+       "757",
+       "695"
+      ],
+      "withdrawn_objects": [
+       "186",
+       "157"
+      ]
+     }
+    },
+    {
+     "generation": 19,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "114",
+       "106"
+      ],
+      "relations": [
+       "352",
+       "319"
+      ],
+      "total": [
+       "826",
+       "751"
+      ],
+      "withdrawn_objects": [
+       "199",
+       "165"
+      ]
+     }
+    },
+    {
+     "generation": 20,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "119",
+       "111"
+      ],
+      "relations": [
+       "394",
+       "355"
+      ],
+      "total": [
+       "917",
+       "829"
+      ],
+      "withdrawn_objects": [
+       "234",
+       "193"
+      ]
+     }
+    },
+    {
+     "generation": 21,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "119",
+       "112"
+      ],
+      "relations": [
+       "412",
+       "372"
+      ],
+      "total": [
+       "957",
+       "867"
+      ],
+      "withdrawn_objects": [
+       "247",
+       "204"
+      ]
+     }
+    },
+    {
+     "generation": 22,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "122",
+       "115"
+      ],
+      "relations": [
+       "430",
+       "389"
+      ],
+      "total": [
+       "997",
+       "905"
+      ],
+      "withdrawn_objects": [
+       "257",
+       "213"
+      ]
+     }
+    },
+    {
+     "generation": 23,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "138",
+       "130"
+      ],
+      "relations": [
+       "460",
+       "413"
+      ],
+      "total": [
+       "1068",
+       "963"
+      ],
+      "withdrawn_objects": [
+       "272",
+       "222"
+      ]
+     }
+    },
+    {
+     "generation": 24,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "143",
+       "135"
+      ],
+      "relations": [
+       "503",
+       "450"
+      ],
+      "total": [
+       "1161",
+       "1043"
+      ],
+      "withdrawn_objects": [
+       "308",
+       "251"
+      ]
+     }
+    },
+    {
+     "generation": 25,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "143",
+       "136"
+      ],
+      "relations": [
+       "522",
+       "468"
+      ],
+      "total": [
+       "1203",
+       "1083"
+      ],
+      "withdrawn_objects": [
+       "322",
+       "263"
+      ]
+     }
+    },
+    {
+     "generation": 26,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "146",
+       "139"
+      ],
+      "relations": [
+       "541",
+       "486"
+      ],
+      "total": [
+       "1245",
+       "1123"
+      ],
+      "withdrawn_objects": [
+       "333",
+       "273"
+      ]
+     }
+    },
+    {
+     "generation": 27,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "169",
+       "154"
+      ],
+      "relations": [
+       "575",
+       "511"
+      ],
+      "total": [
+       "1328",
+       "1183"
+      ],
+      "withdrawn_objects": [
+       "349",
+       "283"
+      ]
+     }
+    },
+    {
+     "generation": 28,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "174",
+       "159"
+      ],
+      "relations": [
+       "625",
+       "549"
+      ],
+      "total": [
+       "1436",
+       "1265"
+      ],
+      "withdrawn_objects": [
+       "393",
+       "313"
+      ]
+     }
+    },
+    {
+     "generation": 29,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "173",
+       "160"
+      ],
+      "relations": [
+       "645",
+       "568"
+      ],
+      "total": [
+       "1480",
+       "1307"
+      ],
+      "withdrawn_objects": [
+       "409",
+       "326"
+      ]
+     }
+    },
+    {
+     "generation": 30,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "176",
+       "163"
+      ],
+      "relations": [
+       "665",
+       "587"
+      ],
+      "total": [
+       "1524",
+       "1349"
+      ],
+      "withdrawn_objects": [
+       "421",
+       "337"
+      ]
+     }
+    },
+    {
+     "generation": 31,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "193",
+       "178"
+      ],
+      "relations": [
+       "697",
+       "613"
+      ],
+      "total": [
+       "1599",
+       "1411"
+      ],
+      "withdrawn_objects": [
+       "437",
+       "348"
+      ]
+     }
+    },
+    {
+     "generation": 32,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "198",
+       "183"
+      ],
+      "relations": [
+       "742",
+       "652"
+      ],
+      "total": [
+       "1696",
+       "1495"
+      ],
+      "withdrawn_objects": [
+       "475",
+       "379"
+      ]
+     }
+    },
+    {
+     "generation": 33,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "198",
+       "184"
+      ],
+      "relations": [
+       "763",
+       "672"
+      ],
+      "total": [
+       "1742",
+       "1539"
+      ],
+      "withdrawn_objects": [
+       "491",
+       "393"
+      ]
+     }
+    },
+    {
+     "generation": 34,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "201",
+       "187"
+      ],
+      "relations": [
+       "784",
+       "692"
+      ],
+      "total": [
+       "1788",
+       "1583"
+      ],
+      "withdrawn_objects": [
+       "504",
+       "405"
+      ]
+     }
+    },
+    {
+     "generation": 35,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "217",
+       "202"
+      ],
+      "relations": [
+       "817",
+       "719"
+      ],
+      "total": [
+       "1865",
+       "1647"
+      ],
+      "withdrawn_objects": [
+       "522",
+       "417"
+      ]
+     }
+    },
+    {
+     "generation": 36,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "222",
+       "207"
+      ],
+      "relations": [
+       "863",
+       "759"
+      ],
+      "total": [
+       "1964",
+       "1733"
+      ],
+      "withdrawn_objects": [
+       "561",
+       "449"
+      ]
+     }
+    },
+    {
+     "generation": 37,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "222",
+       "208"
+      ],
+      "relations": [
+       "885",
+       "780"
+      ],
+      "total": [
+       "2012",
+       "1779"
+      ],
+      "withdrawn_objects": [
+       "578",
+       "464"
+      ]
+     }
+    },
+    {
+     "generation": 38,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "225",
+       "211"
+      ],
+      "relations": [
+       "907",
+       "801"
+      ],
+      "total": [
+       "2060",
+       "1825"
+      ],
+      "withdrawn_objects": [
+       "592",
+       "477"
+      ]
+     }
+    },
+    {
+     "generation": 39,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "248",
+       "226"
+      ],
+      "relations": [
+       "944",
+       "829"
+      ],
+      "total": [
+       "2149",
+       "1891"
+      ],
+      "withdrawn_objects": [
+       "611",
+       "490"
+      ]
+     }
+    },
+    {
+     "generation": 40,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "253",
+       "231"
+      ],
+      "relations": [
+       "997",
+       "870"
+      ],
+      "total": [
+       "2263",
+       "1979"
+      ],
+      "withdrawn_objects": [
+       "658",
+       "523"
+      ]
+     }
+    },
+    {
+     "generation": 41,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "252",
+       "232"
+      ],
+      "relations": [
+       "1020",
+       "892"
+      ],
+      "total": [
+       "2313",
+       "2027"
+      ],
+      "withdrawn_objects": [
+       "677",
+       "539"
+      ]
+     }
+    },
+    {
+     "generation": 42,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "255",
+       "235"
+      ],
+      "relations": [
+       "1043",
+       "914"
+      ],
+      "total": [
+       "2363",
+       "2075"
+      ],
+      "withdrawn_objects": [
+       "692",
+       "553"
+      ]
+     }
+    },
+    {
+     "generation": 43,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "272",
+       "250"
+      ],
+      "relations": [
+       "1078",
+       "943"
+      ],
+      "total": [
+       "2444",
+       "2143"
+      ],
+      "withdrawn_objects": [
+       "711",
+       "567"
+      ]
+     }
+    },
+    {
+     "generation": 44,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "277",
+       "255"
+      ],
+      "relations": [
+       "1126",
+       "985"
+      ],
+      "total": [
+       "2547",
+       "2233"
+      ],
+      "withdrawn_objects": [
+       "752",
+       "601"
+      ]
+     }
+    },
+    {
+     "generation": 45,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "277",
+       "256"
+      ],
+      "relations": [
+       "1150",
+       "1008"
+      ],
+      "total": [
+       "2599",
+       "2283"
+      ],
+      "withdrawn_objects": [
+       "771",
+       "618"
+      ]
+     }
+    },
+    {
+     "generation": 46,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "280",
+       "259"
+      ],
+      "relations": [
+       "1174",
+       "1031"
+      ],
+      "total": [
+       "2651",
+       "2333"
+      ],
+      "withdrawn_objects": [
+       "787",
+       "633"
+      ]
+     }
+    },
+    {
+     "generation": 47,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "296",
+       "274"
+      ],
+      "relations": [
+       "1210",
+       "1061"
+      ],
+      "total": [
+       "2734",
+       "2403"
+      ],
+      "withdrawn_objects": [
+       "808",
+       "648"
+      ]
+     }
+    },
+    {
+     "generation": 48,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "301",
+       "279"
+      ],
+      "relations": [
+       "1259",
+       "1104"
+      ],
+      "total": [
+       "2839",
+       "2495"
+      ],
+      "withdrawn_objects": [
+       "850",
+       "683"
+      ]
+     }
+    },
+    {
+     "generation": 49,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "301",
+       "280"
+      ],
+      "relations": [
+       "1284",
+       "1128"
+      ],
+      "total": [
+       "2893",
+       "2547"
+      ],
+      "withdrawn_objects": [
+       "870",
+       "701"
+      ]
+     }
+    },
+    {
+     "generation": 50,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "304",
+       "283"
+      ],
+      "relations": [
+       "1309",
+       "1152"
+      ],
+      "total": [
+       "2947",
+       "2599"
+      ],
+      "withdrawn_objects": [
+       "887",
+       "717"
+      ]
+     }
+    },
+    {
+     "generation": 51,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "327",
+       "298"
+      ],
+      "relations": [
+       "1349",
+       "1183"
+      ],
+      "total": [
+       "3042",
+       "2671"
+      ],
+      "withdrawn_objects": [
+       "909",
+       "733"
+      ]
+     }
+    },
+    {
+     "generation": 52,
+     "counts_equal": false,
+     "counts_delta_oracle_v3": {
+      "objects": [
+       "332",
+       "303"
+      ],
+      "relations": [
+       "1405",
+       "1227"
+      ],
+      "total": [
+       "3162",
+       "2765"
+      ],
+      "withdrawn_objects": [
+       "959",
+       "769"
+      ]
+     }
+    }
+   ]
+  },
+  "per_generation_q3": [
+   {
+    "generation": 1,
+    "digest": "qcut3-e0c4286cfd20eda63b2f5e8c2988931554db3349f1d177c9f26c072be2676e8c",
+    "counts": {
+     "objects": "4",
+     "observations": "2",
+     "raw_history": "1",
+     "relations": "0",
+     "total": "7",
+     "withdrawn_objects": "0",
+     "witnesses": "0"
+    },
+    "structure_cut": "cut-1",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "da55f837efb648a657ae65b7f77ecd280c5a03343fad4bb207cb9ae10cbe2433"
+   },
+   {
+    "generation": 2,
+    "digest": "qcut3-0889fee6c8ef67c0ce91d4061dddd4be3885f9e993f38b9b1ef47dcfbba3b06e",
+    "counts": {
+     "objects": "6",
+     "observations": "4",
+     "raw_history": "2",
+     "relations": "3",
+     "total": "18",
+     "withdrawn_objects": "3",
+     "witnesses": "0"
+    },
+    "structure_cut": "cut-2",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "d83877e846ea8adea69c82438b5db6c80206431c325e90ebd947fcd65ada4e8a"
+   },
+   {
+    "generation": 3,
+    "digest": "qcut3-3ba8ea79cb54ae32a50d2dcaef7fd4678e7e227f7bff2eb3075fe319cb919265",
+    "counts": {
+     "objects": "11",
+     "observations": "7",
+     "raw_history": "3",
+     "relations": "10",
+     "total": "40",
+     "withdrawn_objects": "6",
+     "witnesses": "3"
+    },
+    "structure_cut": "cut-3",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "b354cbc850c057064b4e4f7f71f66cf58f8accbf9536152887322ec4161125a9"
+   },
+   {
+    "generation": 4,
+    "digest": "qcut3-811c531aab165fdfc7ec04570deced8d9d9c598f06cb64dc2b8e9a2add4f5d15",
+    "counts": {
+     "objects": "14",
+     "observations": "9",
+     "raw_history": "4",
+     "relations": "24",
+     "total": "72",
+     "withdrawn_objects": "12",
+     "witnesses": "9"
+    },
+    "structure_cut": "cut-4",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9557be9172c70c6c8e0ac15909bff1e7722065b505d427e92f0b0969f02f89e1"
+   },
+   {
+    "generation": 5,
+    "digest": "qcut3-acf46d8e7d3ec6ff754d1798a84934840ce908b9a74a2a78ef97021442da0b50",
+    "counts": {
+     "objects": "17",
+     "observations": "11",
+     "raw_history": "5",
+     "relations": "37",
+     "total": "102",
+     "withdrawn_objects": "17",
+     "witnesses": "15"
+    },
+    "structure_cut": "cut-5",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "97505797843d591dbb39d2d62ffec8acc0a0206ebb81675259c350190b633eea"
+   },
+   {
+    "generation": 6,
+    "digest": "qcut3-c1008f8a6f350523be61f4febdb7701d66b4c42074eb0ed6619f178914daff6c",
+    "counts": {
+     "objects": "20",
+     "observations": "13",
+     "raw_history": "6",
+     "relations": "50",
+     "total": "132",
+     "withdrawn_objects": "22",
+     "witnesses": "21"
+    },
+    "structure_cut": "cut-6",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "6f85ad973063e3ca2967a5607d680b523ec32ca58b2d4ec294d0089bb99d5181"
+   },
+   {
+    "generation": 7,
+    "digest": "qcut3-ba3fc33a8e57e74f7768e587cfcd7f8402beff00acb53d8386b1b4152f7f3e24",
+    "counts": {
+     "objects": "35",
+     "observations": "16",
+     "raw_history": "7",
+     "relations": "70",
+     "total": "182",
+     "withdrawn_objects": "27",
+     "witnesses": "27"
+    },
+    "structure_cut": "cut-7",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c2e204ebc0cca454f6a21805248f58e9c96874603ccadab387c9559e43caa064"
+   },
+   {
+    "generation": 8,
+    "digest": "qcut3-398bd62358fa1ba4c4ad5246da602562db8e8a324c390d014739f66d47751115",
+    "counts": {
+     "objects": "38",
+     "observations": "18",
+     "raw_history": "8",
+     "relations": "94",
+     "total": "235",
+     "withdrawn_objects": "44",
+     "witnesses": "33"
+    },
+    "structure_cut": "cut-8",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "5a0fa2e816167b9c95d157dd697ba79dd5d7e74bb1108cfa003dad9e165e16d6"
+   },
+   {
+    "generation": 9,
+    "digest": "qcut3-8ad97ed10cad39de052ee0029d739d33452151864b169fdf3c4cdffa921c08d6",
+    "counts": {
+     "objects": "40",
+     "observations": "20",
+     "raw_history": "9",
+     "relations": "108",
+     "total": "267",
+     "withdrawn_objects": "51",
+     "witnesses": "39"
+    },
+    "structure_cut": "cut-9",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f392c1cdb4b28e0f95ee1f155601e72d21c569349c08c79ade8d43d9aef5ccad"
+   },
+   {
+    "generation": 10,
+    "digest": "qcut3-3954fb59e17dd10358d29db7fee5f1c5e9c5eff218fbb34e01d8b382dfc4ddf7",
+    "counts": {
+     "objects": "43",
+     "observations": "22",
+     "raw_history": "10",
+     "relations": "122",
+     "total": "299",
+     "withdrawn_objects": "57",
+     "witnesses": "45"
+    },
+    "structure_cut": "cut-10",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "71fb1adb000236a33d02fa21364abd68d429b21bebca1018622feecb5efbf977"
+   },
+   {
+    "generation": 11,
+    "digest": "qcut3-7301fab81df3a6a74a313c467b97dd918b03ee7e42930942a9b4f395ef729b79",
+    "counts": {
+     "objects": "58",
+     "observations": "25",
+     "raw_history": "11",
+     "relations": "143",
+     "total": "351",
+     "withdrawn_objects": "63",
+     "witnesses": "51"
+    },
+    "structure_cut": "cut-11",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "a99f232fa4c133cd7feccc486ce3b815fd17f5f159f3c0aff3786af10983c4f6"
+   },
+   {
+    "generation": 12,
+    "digest": "qcut3-f4e4b565b364784badf340c76ffec098e1be26edcc0568a3f81b4b794e56199f",
+    "counts": {
+     "objects": "63",
+     "observations": "27",
+     "raw_history": "12",
+     "relations": "177",
+     "total": "425",
+     "withdrawn_objects": "89",
+     "witnesses": "57"
+    },
+    "structure_cut": "cut-12",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "86765e84e9437300e71af21e482be44518f4a30b04a89d470fb7fd4c0a1b3aab"
+   },
+   {
+    "generation": 13,
+    "digest": "qcut3-3245a5ec117002c2638b592a96cb9b930bf67765e098a822098c937a1e1e3256",
+    "counts": {
+     "objects": "64",
+     "observations": "29",
+     "raw_history": "13",
+     "relations": "192",
+     "total": "459",
+     "withdrawn_objects": "98",
+     "witnesses": "63"
+    },
+    "structure_cut": "cut-13",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "319732ae93af48646877cf41f52451fb03e8abfa2a66ed455012066a17ab103b"
+   },
+   {
+    "generation": 14,
+    "digest": "qcut3-1c8fd5a0735c6688e2f03e8e2b78908deac21d8dc79bcf1b97a189dc4a2e8ce2",
+    "counts": {
+     "objects": "67",
+     "observations": "31",
+     "raw_history": "14",
+     "relations": "207",
+     "total": "493",
+     "withdrawn_objects": "105",
+     "witnesses": "69"
+    },
+    "structure_cut": "cut-14",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8275a0d40211ea0dba5b6a10c30867449f46772404609f73ffc893895b57ec8f"
+   },
+   {
+    "generation": 15,
+    "digest": "qcut3-bde8f113a872528362708d22a4ebf8941bc71668ab32335e46372fcfc842945e",
+    "counts": {
+     "objects": "82",
+     "observations": "34",
+     "raw_history": "15",
+     "relations": "229",
+     "total": "547",
+     "withdrawn_objects": "112",
+     "witnesses": "75"
+    },
+    "structure_cut": "cut-15",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "80ab4c992ea4a08ce688ac12f9ac4bd4a481023cbf127a2389f1b6281fc65631"
+   },
+   {
+    "generation": 16,
+    "digest": "qcut3-c4bb693de2f9757b3142acd253ac6293e6d5955d8473d739cb844e192fcd328d",
+    "counts": {
+     "objects": "87",
+     "observations": "36",
+     "raw_history": "16",
+     "relations": "264",
+     "total": "623",
+     "withdrawn_objects": "139",
+     "witnesses": "81"
+    },
+    "structure_cut": "cut-16",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e1340a98a9a77c8f56dd1298f9b6129810583c49d4af0ed29c61234f51ad48b6"
+   },
+   {
+    "generation": 17,
+    "digest": "qcut3-be720b62ff1be588e8450ef89f83a1b988ad8beb29b79d49309a16379be29145",
+    "counts": {
+     "objects": "88",
+     "observations": "38",
+     "raw_history": "17",
+     "relations": "280",
+     "total": "659",
+     "withdrawn_objects": "149",
+     "witnesses": "87"
+    },
+    "structure_cut": "cut-17",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c51509997bcf770066897806e767c555a1cfb2011ea7048701a6096ad4103a1f"
+   },
+   {
+    "generation": 18,
+    "digest": "qcut3-fd962261715e3e36e5c527e37f639849ae3b5d1b79cdbb4ef5a67bc19edd523d",
+    "counts": {
+     "objects": "91",
+     "observations": "40",
+     "raw_history": "18",
+     "relations": "296",
+     "total": "695",
+     "withdrawn_objects": "157",
+     "witnesses": "93"
+    },
+    "structure_cut": "cut-18",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "0412141011c1d6abdaafaccbfa85e6688ecd4b5774ab4ac412b19597c9c4333e"
+   },
+   {
+    "generation": 19,
+    "digest": "qcut3-e0f4af8db1e1e067fcaa62430351b05447ed305f89e70485d4eb6a9c393dfa82",
+    "counts": {
+     "objects": "106",
+     "observations": "43",
+     "raw_history": "19",
+     "relations": "319",
+     "total": "751",
+     "withdrawn_objects": "165",
+     "witnesses": "99"
+    },
+    "structure_cut": "cut-19",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "1fc50c233bb9e2940bd2fdbb888451ab0537a8d67f045555ec2b10ae979113dc"
+   },
+   {
+    "generation": 20,
+    "digest": "qcut3-d55b7f7415ca4dd3b7a3d3e810c5d8e2327036dc8fb258995e4f6a14ffca4519",
+    "counts": {
+     "objects": "111",
+     "observations": "45",
+     "raw_history": "20",
+     "relations": "355",
+     "total": "829",
+     "withdrawn_objects": "193",
+     "witnesses": "105"
+    },
+    "structure_cut": "cut-20",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8abc00799f282da074317639021c07beb9cdd4b7127a2dde4217296be80dca65"
+   },
+   {
+    "generation": 21,
+    "digest": "qcut3-eb69ad3efc4a3250170805290c619bb23bc950bf7d1e9b68afb5d80f97b2f072",
+    "counts": {
+     "objects": "112",
+     "observations": "47",
+     "raw_history": "21",
+     "relations": "372",
+     "total": "867",
+     "withdrawn_objects": "204",
+     "witnesses": "111"
+    },
+    "structure_cut": "cut-21",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "902dc60e97a452c3af5fb2895fe0c6b610de0df046a12e90183c2aa514c79a0e"
+   },
+   {
+    "generation": 22,
+    "digest": "qcut3-04257ce128ce5373334d7ab1efe880ab2d609ac52a34360be9955131251e2a87",
+    "counts": {
+     "objects": "115",
+     "observations": "49",
+     "raw_history": "22",
+     "relations": "389",
+     "total": "905",
+     "withdrawn_objects": "213",
+     "witnesses": "117"
+    },
+    "structure_cut": "cut-22",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "353ac1fd2b8b48ce6e1fb2d460c244eff977a81e4d35ac937fecc388e8152a2a"
+   },
+   {
+    "generation": 23,
+    "digest": "qcut3-2b710c88d607d82213a542864033fa12f2c9637f7093a4566642d963b2b03710",
+    "counts": {
+     "objects": "130",
+     "observations": "52",
+     "raw_history": "23",
+     "relations": "413",
+     "total": "963",
+     "withdrawn_objects": "222",
+     "witnesses": "123"
+    },
+    "structure_cut": "cut-23",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "a32c395e2dd52ab32672824c1a289e1e489ff37ef2802d87bd2ac67281066f7b"
+   },
+   {
+    "generation": 24,
+    "digest": "qcut3-7ad74bfd86c4a376db7c2a213b78ee89521c3e54169cb059e284ceccc63a419d",
+    "counts": {
+     "objects": "135",
+     "observations": "54",
+     "raw_history": "24",
+     "relations": "450",
+     "total": "1043",
+     "withdrawn_objects": "251",
+     "witnesses": "129"
+    },
+    "structure_cut": "cut-24",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "13bbc323f46aab0824de782cfcf74ea8330f007aae32a54b02034fef232a6376"
+   },
+   {
+    "generation": 25,
+    "digest": "qcut3-fc8c64ae015d50d7c569025526fd1e2167f6fcec3c765488dfe86ac799cbd876",
+    "counts": {
+     "objects": "136",
+     "observations": "56",
+     "raw_history": "25",
+     "relations": "468",
+     "total": "1083",
+     "withdrawn_objects": "263",
+     "witnesses": "135"
+    },
+    "structure_cut": "cut-25",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "370fd793ab0c236fda61a9020d9fc960e3950535ebbe5567ec0b81728a148144"
+   },
+   {
+    "generation": 26,
+    "digest": "qcut3-492bf16ef0034c9789fc0b892dfb503d2bb1ccf00393f68689cfcc23ad60a774",
+    "counts": {
+     "objects": "139",
+     "observations": "58",
+     "raw_history": "26",
+     "relations": "486",
+     "total": "1123",
+     "withdrawn_objects": "273",
+     "witnesses": "141"
+    },
+    "structure_cut": "cut-26",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "2204ce492c316185a357ad4230b215c176679ce9c97b63c2d449b1c287a248db"
+   },
+   {
+    "generation": 27,
+    "digest": "qcut3-bdc40f0ce4c5062c767ef9c424c1e13f85963f3ae8e5d6eba842c528bd29e929",
+    "counts": {
+     "objects": "154",
+     "observations": "61",
+     "raw_history": "27",
+     "relations": "511",
+     "total": "1183",
+     "withdrawn_objects": "283",
+     "witnesses": "147"
+    },
+    "structure_cut": "cut-27",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "149f7740ea6de17824a93c20ce30c750fbb6019e513204549e267c28fbc05c39"
+   },
+   {
+    "generation": 28,
+    "digest": "qcut3-55665088996240f96fa6acec0fc2dec4b3f73adf18a170d9a349700ccb36379c",
+    "counts": {
+     "objects": "159",
+     "observations": "63",
+     "raw_history": "28",
+     "relations": "549",
+     "total": "1265",
+     "withdrawn_objects": "313",
+     "witnesses": "153"
+    },
+    "structure_cut": "cut-28",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "98df88e72bfc77e40b0b4196b69b1facb313aef4cee611d1e235d53dee32174a"
+   },
+   {
+    "generation": 29,
+    "digest": "qcut3-535a66bb834fc74a85b5e878cd17dd23b55af2fcd06e78ffff8b2b630157b323",
+    "counts": {
+     "objects": "160",
+     "observations": "65",
+     "raw_history": "29",
+     "relations": "568",
+     "total": "1307",
+     "withdrawn_objects": "326",
+     "witnesses": "159"
+    },
+    "structure_cut": "cut-29",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "38cdf63952a3814ff3939bde7b45f87d378eb022bc382182f9058b118149a60e"
+   },
+   {
+    "generation": 30,
+    "digest": "qcut3-0c8c598a2a09e14cbf1c8a93d49071d026750f2aa1beea5bbb4862cc2adfd4b4",
+    "counts": {
+     "objects": "163",
+     "observations": "67",
+     "raw_history": "30",
+     "relations": "587",
+     "total": "1349",
+     "withdrawn_objects": "337",
+     "witnesses": "165"
+    },
+    "structure_cut": "cut-30",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "efda002343df4f286ac9faee7e72e6f0fa1da557c49d726e871708c7d5413f2d"
+   },
+   {
+    "generation": 31,
+    "digest": "qcut3-6b5846630edcba7ab77ecfda5d254eeb07a9598594735a9cf76ef462ff787aa0",
+    "counts": {
+     "objects": "178",
+     "observations": "70",
+     "raw_history": "31",
+     "relations": "613",
+     "total": "1411",
+     "withdrawn_objects": "348",
+     "witnesses": "171"
+    },
+    "structure_cut": "cut-31",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "68c7e28ce534ece8bf7138744e1eb027650a9e7ab8fe04978f61d290ccc85828"
+   },
+   {
+    "generation": 32,
+    "digest": "qcut3-8392e396b8bc8bf13c515b9c7318286e7bb16de5b22ecf3b8528d053265f1c0d",
+    "counts": {
+     "objects": "183",
+     "observations": "72",
+     "raw_history": "32",
+     "relations": "652",
+     "total": "1495",
+     "withdrawn_objects": "379",
+     "witnesses": "177"
+    },
+    "structure_cut": "cut-32",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e2b525bd21ce1de27f80b1e75ae3f6ac442ae771e60b859f7ca0fba87ddab0d2"
+   },
+   {
+    "generation": 33,
+    "digest": "qcut3-4e902b89da97aa3b118b3d8e9d861cfe435e21e73ce44349fdf899838371d16b",
+    "counts": {
+     "objects": "184",
+     "observations": "74",
+     "raw_history": "33",
+     "relations": "672",
+     "total": "1539",
+     "withdrawn_objects": "393",
+     "witnesses": "183"
+    },
+    "structure_cut": "cut-33",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "3bf4e34a371b3e68ea9ee1ea3a9ce9bb346942011cb18297acf48fefc9faa006"
+   },
+   {
+    "generation": 34,
+    "digest": "qcut3-e54971ed78a23853c8c92b308a473290c242e0c0316026dfd387967d96d913cc",
+    "counts": {
+     "objects": "187",
+     "observations": "76",
+     "raw_history": "34",
+     "relations": "692",
+     "total": "1583",
+     "withdrawn_objects": "405",
+     "witnesses": "189"
+    },
+    "structure_cut": "cut-34",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "8e9a056d121ea465a086c5fc5f0abaec3b3d3f63614abff9eebbe527b2c1d8dd"
+   },
+   {
+    "generation": 35,
+    "digest": "qcut3-6f25b268f42bf3790ae9b3306f31590895f52370d584cb611eda596612d837cf",
+    "counts": {
+     "objects": "202",
+     "observations": "79",
+     "raw_history": "35",
+     "relations": "719",
+     "total": "1647",
+     "withdrawn_objects": "417",
+     "witnesses": "195"
+    },
+    "structure_cut": "cut-35",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "10aa84a4a5129a9e9c1772200e24312856d3f95937f8bda769594ef494153521"
+   },
+   {
+    "generation": 36,
+    "digest": "qcut3-4aa83d47ec92eb09e43bc61141205136f5efb6fbe5bbdb3b5343d80a24879d83",
+    "counts": {
+     "objects": "207",
+     "observations": "81",
+     "raw_history": "36",
+     "relations": "759",
+     "total": "1733",
+     "withdrawn_objects": "449",
+     "witnesses": "201"
+    },
+    "structure_cut": "cut-36",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "c37aedaf18ab859de407e54928f3d7851176981b8ffc3ab14e5b9923abffc707"
+   },
+   {
+    "generation": 37,
+    "digest": "qcut3-a1faeb8f67fa2077d4e925d70219372bff45508cd800724054e6b4b51888067b",
+    "counts": {
+     "objects": "208",
+     "observations": "83",
+     "raw_history": "37",
+     "relations": "780",
+     "total": "1779",
+     "withdrawn_objects": "464",
+     "witnesses": "207"
+    },
+    "structure_cut": "cut-37",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "50b12aecae1afdd4da961b70a59ac056019446b1bf49df25b5f17a45805e115e"
+   },
+   {
+    "generation": 38,
+    "digest": "qcut3-b99f3005aca3c2e347c11ac85e7e97283c3d6d25170e72a66d858b34355418d5",
+    "counts": {
+     "objects": "211",
+     "observations": "85",
+     "raw_history": "38",
+     "relations": "801",
+     "total": "1825",
+     "withdrawn_objects": "477",
+     "witnesses": "213"
+    },
+    "structure_cut": "cut-38",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9eebbb45c0d98aa02cbc4c957b022d7a87a362a2f38ad56527dd4987c5a34456"
+   },
+   {
+    "generation": 39,
+    "digest": "qcut3-0c95f0fc04d2766f51846e52de8cd27fbbb79515b9f31b327b026eda9d22d001",
+    "counts": {
+     "objects": "226",
+     "observations": "88",
+     "raw_history": "39",
+     "relations": "829",
+     "total": "1891",
+     "withdrawn_objects": "490",
+     "witnesses": "219"
+    },
+    "structure_cut": "cut-39",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f8ff8468018aa72cd200e5581b5fe9ceb589961193418ef66d2acb53b0d19f47"
+   },
+   {
+    "generation": 40,
+    "digest": "qcut3-e89696b9aa1b3bb50275824155ae750ec927c49204063e42ca93ff452d898a00",
+    "counts": {
+     "objects": "231",
+     "observations": "90",
+     "raw_history": "40",
+     "relations": "870",
+     "total": "1979",
+     "withdrawn_objects": "523",
+     "witnesses": "225"
+    },
+    "structure_cut": "cut-40",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f1c4a238bcc44eb88d3e9366cde41acdf2b7bcaeb084c9f948106cb74f40801d"
+   },
+   {
+    "generation": 41,
+    "digest": "qcut3-e559336c132b358eb11c6a5dd97108c5490f8a28a6612b32aaf217b4eb657656",
+    "counts": {
+     "objects": "232",
+     "observations": "92",
+     "raw_history": "41",
+     "relations": "892",
+     "total": "2027",
+     "withdrawn_objects": "539",
+     "witnesses": "231"
+    },
+    "structure_cut": "cut-41",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "106d72ff5c83839020afbfb50f127bf8131b60b9884f9e9546f016760270d44e"
+   },
+   {
+    "generation": 42,
+    "digest": "qcut3-22421fa5b71a47081db49575968adca0f4023834049e3df625d3c114697fdbd2",
+    "counts": {
+     "objects": "235",
+     "observations": "94",
+     "raw_history": "42",
+     "relations": "914",
+     "total": "2075",
+     "withdrawn_objects": "553",
+     "witnesses": "237"
+    },
+    "structure_cut": "cut-42",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "f70601a0cc8c3a4583d58adecadf8d5811a9087f2fe2e547988097f8ecb7c61f"
+   },
+   {
+    "generation": 43,
+    "digest": "qcut3-f581956e7c6521f7fedf2601a520407c45c00171ccb356e7e759b7d3c53c4020",
+    "counts": {
+     "objects": "250",
+     "observations": "97",
+     "raw_history": "43",
+     "relations": "943",
+     "total": "2143",
+     "withdrawn_objects": "567",
+     "witnesses": "243"
+    },
+    "structure_cut": "cut-43",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "443501f733076e26ffdd898335356526705922464da33f5bc802b473ad8064c1"
+   },
+   {
+    "generation": 44,
+    "digest": "qcut3-b5a2234f72f2e07fd7a995ccec25398d7f248fbf259f00f34e457c864c6f786f",
+    "counts": {
+     "objects": "255",
+     "observations": "99",
+     "raw_history": "44",
+     "relations": "985",
+     "total": "2233",
+     "withdrawn_objects": "601",
+     "witnesses": "249"
+    },
+    "structure_cut": "cut-44",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "5e51657e1bc1a1127912b1b32f8d0024eaca52dc5d0ebeec45fc39a32f77429f"
+   },
+   {
+    "generation": 45,
+    "digest": "qcut3-e7f5c73c7314f311a44c294d9ae37e599e0a0e9b783b35cb8bd3a2a55aa70057",
+    "counts": {
+     "objects": "256",
+     "observations": "101",
+     "raw_history": "45",
+     "relations": "1008",
+     "total": "2283",
+     "withdrawn_objects": "618",
+     "witnesses": "255"
+    },
+    "structure_cut": "cut-45",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "e8ee346ad27aaaf8c426e90d3003783675fde3001f94a5d0126aa3412ca3ab49"
+   },
+   {
+    "generation": 46,
+    "digest": "qcut3-8f3b73f491faa02d6b6037289158d47925bfaa5975809ca679d648ff02add79b",
+    "counts": {
+     "objects": "259",
+     "observations": "103",
+     "raw_history": "46",
+     "relations": "1031",
+     "total": "2333",
+     "withdrawn_objects": "633",
+     "witnesses": "261"
+    },
+    "structure_cut": "cut-46",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "455d5e01f550c6eabee124bf891e4ba251455a9819d09299e802b1ba80a94a6f"
+   },
+   {
+    "generation": 47,
+    "digest": "qcut3-c1beb3e4abaac370d709c8119f448bdb145481ba0aa2ef01f59a7adae92108b8",
+    "counts": {
+     "objects": "274",
+     "observations": "106",
+     "raw_history": "47",
+     "relations": "1061",
+     "total": "2403",
+     "withdrawn_objects": "648",
+     "witnesses": "267"
+    },
+    "structure_cut": "cut-47",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "17aaef5a9fa813857de0f851c0f698d912eb09b9ecbc06c5243f7ddec1ad101d"
+   },
+   {
+    "generation": 48,
+    "digest": "qcut3-9990c592695ab0fe3d6fa1a19738d5c2e48d02ae7861c9255add4efb5ead008a",
+    "counts": {
+     "objects": "279",
+     "observations": "108",
+     "raw_history": "48",
+     "relations": "1104",
+     "total": "2495",
+     "withdrawn_objects": "683",
+     "witnesses": "273"
+    },
+    "structure_cut": "cut-48",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "36471349f45bbf93fe35fb2e55f8b87be32f67e09d3636eeab2177484766c090"
+   },
+   {
+    "generation": 49,
+    "digest": "qcut3-5b06033a6e9d8fc378f106a8cdaee85eca50eb09a0efe4d13268ad70e7acf618",
+    "counts": {
+     "objects": "280",
+     "observations": "110",
+     "raw_history": "49",
+     "relations": "1128",
+     "total": "2547",
+     "withdrawn_objects": "701",
+     "witnesses": "279"
+    },
+    "structure_cut": "cut-49",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "ae9cd72febe7e4c8ad1feb4def2c2aa801de46ddd05565d002aa633c03b87551"
+   },
+   {
+    "generation": 50,
+    "digest": "qcut3-16f5e2ca82866dc93f47eed6b20b9dedbb80261f0e338d7acae8d5ded4873278",
+    "counts": {
+     "objects": "283",
+     "observations": "112",
+     "raw_history": "50",
+     "relations": "1152",
+     "total": "2599",
+     "withdrawn_objects": "717",
+     "witnesses": "285"
+    },
+    "structure_cut": "cut-50",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "25ea56f8412a5af678044aa83853b71e7779bff86c8284b10429a54d39d3cf3e"
+   },
+   {
+    "generation": 51,
+    "digest": "qcut3-21a4e0d5e5477011ceae4508367ec87a65bfa438ad1203f82ab1c054abb94936",
+    "counts": {
+     "objects": "298",
+     "observations": "115",
+     "raw_history": "51",
+     "relations": "1183",
+     "total": "2671",
+     "withdrawn_objects": "733",
+     "witnesses": "291"
+    },
+    "structure_cut": "cut-51",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "ef0d3737730aead48b595af28f5ada6b268d5782531ef73cd3d9c93695ab8b4d"
+   },
+   {
+    "generation": 52,
+    "digest": "qcut3-93911ed1d9574ebe96887662aaea935241c47f67dc02ec80f001d96134ba4f32",
+    "counts": {
+     "objects": "303",
+     "observations": "117",
+     "raw_history": "52",
+     "relations": "1227",
+     "total": "2765",
+     "withdrawn_objects": "769",
+     "witnesses": "297"
+    },
+    "structure_cut": "cut-52",
+    "rule_revision": "s2-axis-quantifiers+new-bi/2",
+    "rows_sha256": "9062b6328795d5eb22a13e099934b73547b63dac417b46ae57119c85ece1b8d7"
+   }
+  ]
+ }
+}

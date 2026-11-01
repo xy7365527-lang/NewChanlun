@@ -66,9 +66,7 @@ use super::positional::{
 };
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -146,7 +144,7 @@ pub(super) fn rec_sub_evidence(
     devrows: &[Vec<DivEvent>; MAX_LADDER],
     flip_edge: &[Option<Direction>; MAX_LADDER],
 ) -> Option<usize> {
-    let lo = FIRST_BSP_LADDER - 1; // a0 下界（77-78课笔）
+    let lo = FIRST_BSP_LADDER - 1; // 阶梯下限 = bi 层（笔层不开一类点，只读翻转沿；77-78课）
     (lo..=start)
         .rev()
         .find(|&j| sub_evidence(j, side, &evrows[j], &devrows[j], flip_edge[j]))
@@ -527,6 +525,7 @@ pub(crate) fn run_nested_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
     clearance: ClearanceMode,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -559,7 +558,7 @@ pub(crate) fn run_nested_fugue(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut chain: Vec<Voice> = Vec::with_capacity(MAX_LADDER);
-    let mut free = INITIAL_CAPITAL;
+    let mut free = q_total;
     let mut n_base = 0.0f64;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
@@ -912,7 +911,7 @@ pub(crate) fn run_nested_fugue(
 
         // ── E. spawn（降成本释放）：尾的 nest 定位反向点@own-level ∨
         //    根尾（层 < top）的 confirmed 卖 ⇒ 释放 θ 配额 m 给子 voice。
-        //    终止 = floor（77-78课笔=a0）∨ 35课成本门 ──
+        //    终止 = floor（阶梯下限：笔层不开一类点，77-78课）∨ 35课成本门 ──
         if !acted {
             if let Some(tail) = chain.last().copied() {
                 // 根尾的 confirmed 卖：C 未消费（非背驰 ∨ 未定位）的一切
@@ -1079,10 +1078,11 @@ pub(crate) fn run_nested_fugue(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, ClearanceMode, PolarityMode, RegimeGate};
+    use super::super::positional::{run_positional_fx, ClearanceMode, PolarityMode, RegimeGate};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     const V4: PolarityMode = PolarityMode::NestedRecursive {
         clearance: ClearanceMode::V4,
@@ -1197,7 +1197,7 @@ mod tests {
             trend_flips: None,
             ..Default::default()
         };
-        run_positional(&t, 2, PolarityMode::parse("nrf").unwrap()).unwrap()
+        run_positional_fx(&t, 2, PolarityMode::parse("nrf").unwrap()).unwrap()
     }
 
     /// 构成性贯通（nrf_ct 走势类型门）：磁带带 trend_flips 行；
@@ -1209,7 +1209,7 @@ mod tests {
             trend_flips: Some(trend_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, CT).unwrap()
+        run_positional_fx(&t, 2, CT).unwrap()
     }
 
     /// 构成性贯通（nrf_ct_anc anc 镜像门）：带 trend_flips + dir_flips 行
@@ -1225,7 +1225,7 @@ mod tests {
             trend_flips: Some(trend_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, CT_ANC).unwrap()
+        run_positional_fx(&t, 2, CT_ANC).unwrap()
     }
 
     #[test]
@@ -1242,7 +1242,9 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, V4).unwrap_err().contains("背驰磁带"));
+        assert!(run_positional_fx(&t, 2, V4)
+            .unwrap_err()
+            .contains("背驰磁带"));
         let t2 = SignalTape {
             bars: vec![with_empty_div(with_ev(
                 bar(100.0),
@@ -1252,7 +1254,7 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, V4)
+        assert!(run_positional_fx(&t2, 2, V4)
             .unwrap_err()
             .contains("dir_flips"));
         // nrf_ct 能力守卫：缺 trend_flips 行 ⇒ R6′ regime 门判据残缺 ⇒ Err
@@ -1267,7 +1269,7 @@ mod tests {
             trend_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t3, 2, CT)
+        assert!(run_positional_fx(&t3, 2, CT)
             .unwrap_err()
             .contains("trend_flips"));
     }
@@ -1283,7 +1285,7 @@ mod tests {
         let t = &r.trades[0];
         assert_eq!((t.ladder, t.polarity), (4, Polarity::Long));
         assert!(
-            (t.shares - INITIAL_CAPITAL / 100.0).abs() < 1e-9,
+            (t.shares - FIXTURE_Q_TOTAL / 100.0).abs() < 1e-9,
             "满仓：units = 全部资金/价"
         );
         assert!((r.final_nav - 101_000.0).abs() < 1e-6);
@@ -1926,7 +1928,8 @@ mod tests {
             flips.retain(|(b, _, _)| (*b as usize) < N);
         }
 
-        let res = run_nested_fugue(&tape, 2, ClearanceMode::V4).expect("nested_fugue V4 运行失败");
+        let res = run_nested_fugue(&tape, 2, ClearanceMode::V4, FIXTURE_Q_TOTAL)
+            .expect("nested_fugue V4 运行失败");
 
         let file = std::fs::File::create(&out_path)
             .unwrap_or_else(|e| panic!("dump 创建失败 {out_path}：{e}"));

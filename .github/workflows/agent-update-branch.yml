@@ -6,7 +6,7 @@ name: Agent Update Branch
 on:
   # #1617：hosted 无标签 Claude 默认已退役，并在任何 fetch/merge/push 前 fail-loud；
   # 显式 agent:model:deepseek-v4-pro 保留 legacy opt-in。
-  # 本机受管工蜂改走 gpt-6-astra + CLIProxyLocal；不在 ubuntu-latest 错用 Claude OAuth。
+  # 本机受管工蜂改走 gpt-6.1-sol + CLIProxyLocal；不在 ubuntu-latest 错用 Claude OAuth。
   #
   # pull_request_target rather than pull_request: the standard pull_request
   # trigger depends on a generated merge commit, which GitHub fails to
@@ -18,7 +18,7 @@ on:
 
 jobs:
   update-branch:
-    if: github.event.label.name == 'agent:update-branch'
+    if: vars.SANDCASTLE_LEGACY_FREEZE != '1' && github.event.label.name == 'agent:update-branch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:

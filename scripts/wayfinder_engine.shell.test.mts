@@ -14,6 +14,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MAIN_MODEL } from "../.sandcastle/main-model.mts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -92,15 +93,18 @@ test("无 node_modules：Node 原生类型剥离可 import engine 与主控模�
       [".sandcastle/main-model.mts", ".sandcastle/main-model.mts"],
       [".sandcastle/scheduler-config.mts", ".sandcastle/scheduler-config.mts"],
       [".sandcastle/scheduler-config.json", ".sandcastle/scheduler-config.json"],
+      // #1742 冻结准入门同样零依赖：engine 的 import 闭包含 drain-control，运行时由它拉起同目录的 .py 助手。
+      [".sandcastle/drain-control.mts", ".sandcastle/drain-control.mts"],
+      [".sandcastle/drain-control.py", ".sandcastle/drain-control.py"],
     ]) copyFileSync(join(repoRoot, source), join(dir, target));
     const result = spawnSync(process.execPath, [
       "--experimental-strip-types", "--input-type=module", "--eval",
       "const m = await import('./scripts/wayfinder_engine.mts'); " +
-      "if (m.DEFAULT_SPEC_MODEL !== 'gpt-6-astra') throw new Error('wrong model'); " +
+      `if (m.DEFAULT_SPEC_MODEL !== '${MAIN_MODEL}') throw new Error('wrong model'); ` +
       "console.log(m.DEFAULT_SPEC_MODEL);",
     ], { cwd: dir, encoding: "utf8", timeout: 30_000 });
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.equal(result.stdout.trim(), "gpt-6-astra");
+    assert.equal(result.stdout.trim(), MAIN_MODEL);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,0 +1,233 @@
+{
+  "schema": "1488-a5s6-run/1",
+  "binary": "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049",
+  "binary_sha256": "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040",
+  "messages_sha256": "d61371c95036eaaaacc94c9780955555271be41a49ad4d5f242424a1c447c6cd",
+  "clock_sha256": "779dcb8539bc9278933bde14d852e9d34493d956cb2c2647cb1db3ead9dfb36f",
+  "repo_head": "2a576099bfd86604189c838b46bc6f1e0512f499",
+  "repo_status_porcelain": "",
+  "reply_timeout_ms": 1800000,
+  "q_resources_sha256": "62a59ecbb65c1391871de6f557c2156ffa3017054805db48cb7be472c2e22794",
+  "q_functional_sha256": "b2a4f72acffbb70f3032f705a757a7c107085a103ffbc6c5ff574169c96902ee",
+  "nproc": 8,
+  "host_before": {
+    "loadavg": [
+      3.64,
+      5.3,
+      6.55
+    ],
+    "top": [
+      {
+        "pid": 862,
+        "pcpu": 91.5,
+        "etimes": 2825,
+        "cmd": "/home/hanju/nc-remote/issue1629/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995"
+      },
+      {
+        "pid": 27088,
+        "pcpu": 89.2,
+        "etimes": 11516,
+        "cmd": "/home/hanju/nc-remote/issue1597post/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995"
+      },
+      {
+        "pid": 17604,
+        "pcpu": 89.2,
+        "etimes": 3844,
+        "cmd": "/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-prod-3ee05a2713 serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/s5/p1/s."
+      },
+      {
+        "pid": 26950,
+        "pcpu": 3.9,
+        "etimes": 0,
+        "cmd": "python3.12 /home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5s6_run.py --repo /home/hanju/nc-remote/wt/20"
+      },
+      {
+        "pid": 17602,
+        "pcpu": 0.1,
+        "etimes": 3844,
+        "cmd": "python3.12 /home/hanju/nc-remote/wt/20261021-094439-87d09a50ce/.chanlun/review-results/1488-acceptance/s5/run_s5.py --bin /mnt/g/AgentStorage/1488-accept/s5/bin"
+      },
+      {
+        "pid": 1,
+        "pcpu": 0.0,
+        "etimes": 55248,
+        "cmd": "/init"
+      }
+    ]
+  },
+  "started_utc": "2026-10-21T02:48:52Z",
+  "start_exit": 0,
+  "start_stdout": "{\n  \"ok\": true,\n  \"result\": [\n    {\n      \"service\": \"s\",\n      \"state\": \"ready\",\n      \"reply\": {\n        \"causal_refs\": [\n          {\n            \"message_id\": \"launcher-ready-1\",\n            \"payload_hash\": \"91d6ef0c4ad15a0f5a84670f4ab7d73913145192bb307d7db275516f53237652\",\n            \"source_epoch\": \"1\",\n            \"source_namespace\": \"testonly.ohlc.tb1419-s0b-min12-per-bar\"\n          }\n        ],\n        \"message_id\": \"reply-d2f9b2f232eab3b6f13813745b1b0b55fc76bc004f9e212998103a87e9ba0d90\",\n        \"payload\": {\n          \"advance_state\": \"idle\",\n          \"clock_plan_hash\": \"c22c8992095c52f4c4f8abd43d7effb2c6fb35b97d1cf2e44e9f26c24b6f23b2\",\n          \"control_instance_id\": \"b6ee3bee-0b50-4201-b4aa-fec00797fd08\",\n          \"delivery_frontier\": {\n            \"first_available_generation\": \"1\",\n            \"head_generation\": \"0\",\n            \"min_valid_after_generation\": \"0\",\n            \"retain_generations\": \"4\"\n          },\n          \"generation\": \"0\",\n          \"index_frontier\": \"\",\n          \"kind\": \"Ready\",\n          \"ok\": true,\n          \"profile_hash\": \"1c11d398cd9ac43a161bc6494b196771f131fba74c42c0bf1ccb6474a8fc4d57\",\n          \"profile_id\": \"ohlc_integer_tb02a_v1\",\n          \"schema_revision\": \"s-session/3\",\n          \"session_generation\": \"1\",\n          \"session_id\": \"tb1419-s0b-min12-per-bar\",\n          \"structure_cut\": \"cut-0\",\n          \"writer_epoch\": \"1\"\n        },\n        \"payload_hash\": \"627b23bc1278d98babfdb6c2f7ee88ccf529921d6c37466691e5293579c58d41\",\n        \"producer_epoch\": \"1\",\n        \"producer_id\": \"S:tb1419-s0b-min12-per-bar\",\n        \"schema_revision\": \"s-session/3\",\n        \"session_generation\": \"1\",\n        \"session_id\": \"tb1419-s0b-min12-per-bar\",\n        \"source_epoch\": \"1\",\n        \"source_namespace\": \"s-session/replies\"\n      },\n      \"initialization\": {\n        \"catalog_hash\": \"874c7b8d27158741d467da59731c73f8ff60070a76d908b6362818d4be5a098c\",\n        \"catalog_items\": 116,\n        \"catalog_revision\": \"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)\",\n        \"clock_plan_hash\": \"c22c8992095c52f4c4f8abd43d7effb2c6fb35b97d1cf2e44e9f26c24b6f23b2\",\n        \"content_format\": \"s-content/1\",\n        \"delivery_retain_generations\": 4,\n        \"generation\": \"0\",\n        \"index_frontier\": \"\",\n        \"journal_mode\": \"wal\",\n        \"last_advance_frontier\": \"-1\",\n        \"ok\": true,\n        \"platform\": \"linux\",\n        \"profile_hash\": \"1c11d398cd9ac43a161bc6494b196771f131fba74c42c0bf1ccb6474a8fc4d57\",\n        \"profile_id\": \"ohlc_integer_tb02a_v1\",\n        \"protocol_revision\": \"s-session/3\",\n        \"session_generation\": \"1\",\n        \"session_id\": \"tb1419-s0b-min12-per-bar\",\n        \"sqlite_version\": \"3.53.2\",\n        \"structure_cut\": \"cut-0\",\n        \"synchronous\": 2,\n        \"writer_epoch\": \"1\"\n      },\n      \"socket_cleanup\": null\n    },\n    {\n      \"service\": \"q\",\n      \"state\": \"ready\",\n      \"reply\": {\n        \"control_instance_id\": \"2d07e728-c897-4ba2-8771-f2f6a1a9357f\",\n        \"cut\": {\n          \"catalog_revision\": \"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)\",\n          \"generation\": \"0\",\n          \"index_frontier\": \"\",\n          \"session_generation\": \"1\",\n          \"session_id\": \"tb1419-s0b-min12-per-bar\",\n          \"structure_cut\": \"cut-0\"\n        },\n        \"ok\": true,\n        \"producer_epoch\": \"1\"\n      }\n    }\n  ]\n}\n",
+  "start_stderr": "",
+  "s_pid": 26980,
+  "q_pid": 26991,
+  "a5_formal_prefix": {
+    "2": {
+      "cmd": [
+        "node",
+        "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+        "--repo",
+        "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf",
+        "--base-url",
+        "http://127.0.0.1:18877",
+        "--gens",
+        "1,2",
+        "--out",
+        "/home/hanju/nc-remote/1488-accept/a5s6/main1/A5-formal-prefix-g2.jsonl",
+        "--limits",
+        "fixture",
+        "--oracle",
+        "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json",
+        "--current"
+      ],
+      "rc": 0,
+      "seconds": 160.1
+    },
+    "4": {
+      "cmd": [
+        "node",
+        "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+        "--repo",
+        "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf",
+        "--base-url",
+        "http://127.0.0.1:18877",
+        "--gens",
+        "1,4",
+        "--out",
+        "/home/hanju/nc-remote/1488-accept/a5s6/main1/A5-formal-prefix-g4.jsonl",
+        "--limits",
+        "fixture",
+        "--oracle",
+        "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json",
+        "--current"
+      ],
+      "rc": 1,
+      "seconds": 165.8
+    },
+    "8": {
+      "cmd": [
+        "node",
+        "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+        "--repo",
+        "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf",
+        "--base-url",
+        "http://127.0.0.1:18877",
+        "--gens",
+        "1,8",
+        "--out",
+        "/home/hanju/nc-remote/1488-accept/a5s6/main1/A5-formal-prefix-g8.jsonl",
+        "--limits",
+        "fixture",
+        "--oracle",
+        "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json",
+        "--current"
+      ],
+      "rc": 1,
+      "seconds": 170.3
+    }
+  },
+  "ingest_complete": true,
+  "head_generation": 52,
+  "host_after_ingest": {
+    "loadavg": [
+      10.01,
+      10.78,
+      10.89
+    ],
+    "top": [
+      {
+        "pid": 26435,
+        "pcpu": 331.0,
+        "etimes": 1196,
+        "cmd": "/home/hanju/nc-remote/issue1608/debug/deps/s_structure_session-6334780ee30570c4 --skip v3::financial_session"
+      },
+      {
+        "pid": 29610,
+        "pcpu": 269.0,
+        "etimes": 212,
+        "cmd": "/home/hanju/nc-remote/target-p79/debug/deps/s_structure_session-054cbefe7ff1de7c v3:: content_manifest content_store --test-threads 4"
+      },
+      {
+        "pid": 862,
+        "pcpu": 88.9,
+        "etimes": 5392,
+        "cmd": "/home/hanju/nc-remote/issue1629/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995"
+      },
+      {
+        "pid": 27088,
+        "pcpu": 88.5,
+        "etimes": 14083,
+        "cmd": "/home/hanju/nc-remote/issue1597post/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995"
+      },
+      {
+        "pid": 27582,
+        "pcpu": 79.0,
+        "etimes": 781,
+        "cmd": "/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-prod-3ee05a2713 serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/s5/p2/s."
+      },
+      {
+        "pid": 26980,
+        "pcpu": 59.8,
+        "etimes": 2566,
+        "cmd": "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 serve --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --socket /tmp/a76-m"
+      }
+    ]
+  },
+  "a5_formal": {
+    "cmd": [
+      "node",
+      "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+      "--repo",
+      "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf",
+      "--base-url",
+      "http://127.0.0.1:18877",
+      "--gens",
+      "1,16,32,46,47,52",
+      "--out",
+      "/home/hanju/nc-remote/1488-accept/a5s6/main1/A5-formal.jsonl",
+      "--limits",
+      "fixture",
+      "--oracle",
+      "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json",
+      "--current"
+    ],
+    "rc": 1,
+    "seconds": 37.7
+  },
+  "tb03a_economic_ready_http": "404",
+  "stop_attempts": [
+    {
+      "exit": 0,
+      "seconds": 0.3,
+      "stdout": "{\n  \"ok\": true,\n  \"result\": [\n    {\n      \"service\": \"q\",\n      \"state\": \"stopped\",\n      \"pid\": 26991,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": [\n        \"\\u670d\\u52a1\\u5b8c\\u6574\\u53c2\\u6570\\u4e0e\\u672c\\u6b21\\u542f\\u52a8\\u547d\\u4ee4\\u4e0d\\u7b26\"\n      ]\n    },\n    {\n      \"service\": \"s\",\n      \"state\": \"stopped\",\n      \"pid\": 26980,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": []\n    }\n  ]\n}\n",
+      "stderr": ""
+    }
+  ],
+  "stop_exit": 0,
+  "stop_stdout": "{\n  \"ok\": true,\n  \"result\": [\n    {\n      \"service\": \"q\",\n      \"state\": \"stopped\",\n      \"pid\": 26991,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": [\n        \"\\u670d\\u52a1\\u5b8c\\u6574\\u53c2\\u6570\\u4e0e\\u672c\\u6b21\\u542f\\u52a8\\u547d\\u4ee4\\u4e0d\\u7b26\"\n      ]\n    },\n    {\n      \"service\": \"s\",\n      \"state\": \"stopped\",\n      \"pid\": 26980,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": []\n    }\n  ]\n}\n",
+  "stop_stderr": "",
+  "a5_functional": {
+    "cmd": [
+      "node",
+      "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+      "--repo",
+      "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf",
+      "--base-url",
+      "http://127.0.0.1:18877",
+      "--gens",
+      "1,8,16",
+      "--out",
+      "/home/hanju/nc-remote/1488-accept/a5s6/main1/A5-functional.jsonl",
+      "--limits",
+      "relaxed",
+      "--oracle",
+      "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json"
+    ],
+    "rc": 0,
+    "seconds": 2532.6
+  },
+  "functional_q_returncode": 0,
+  "finished_utc": "2026-10-21T04:15:53Z",
+  "db_sha256": "5c893f3f96fb1500bcd34611ba46e8d79157639bb9f164bf6e1b0189f176c628",
+  "ok": true
+}

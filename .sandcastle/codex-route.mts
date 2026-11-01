@@ -6,13 +6,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installCargoGuard } from "./cargo-guard.mts";
 import { MAIN_MODEL } from "./main-model.mts";
-import { providerOverrides, providerEnvironment } from "./codex-child.ts";
+import { providerOverrides, providerEnvironment, type KeyLookup } from "./codex-child.ts";
+import { DOCKER_INNER_SANDBOX } from "./docker-isolation.mts";
 
 const scheduler = useScheduler("codex-route", ["workerEffort"]);
 
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-export function codexRouteEnv(): Record<string, string> {
-  const env = providerEnvironment(process.env.CLIPROXY_LOCAL_KEY ? { CLIPROXY_LOCAL_KEY: process.env.CLIPROXY_LOCAL_KEY } : {});
+export function codexRouteEnv(lookup?: KeyLookup): Record<string, string> {
+  const env = providerEnvironment(process.env.CLIPROXY_LOCAL_KEY ? { CLIPROXY_LOCAL_KEY: process.env.CLIPROXY_LOCAL_KEY } : {}, lookup);
   return { CLIPROXY_LOCAL_KEY: env.CLIPROXY_LOCAL_KEY };
 }
 
@@ -40,11 +41,13 @@ export function codexWorker(options: { docker?: boolean; effort?: "low" | "mediu
       if (!built.command.startsWith("codex exec") || built.command.split(bypass).length !== 2 || built.stdin !== options.prompt) {
         throw new Error("Sandcastle Codex 命令契约已变，拒绝猜测权限替换");
       }
+      // Docker：容器与只读挂载承担文件隔离（#1742 方案B），内层不再起 bwrap；宿主路径保持 workspace-write。
+      const innerSandbox = docker ? DOCKER_INNER_SANDBOX : "workspace-write";
       const command = built.command.replace(bypass, "")
-        .replace("codex exec", "codex -a never -s workspace-write exec --ignore-user-config")
+        .replace("codex exec", `codex -a never -s ${innerSandbox} exec --ignore-user-config`)
         + overrides.map((value) => ` -c ${quote(value)}`).join("")
         + (docker ? "" : ` -c ${quote(`shell_environment_policy.set.ZDOTDIR=${JSON.stringify(home)}`)}`)
-        + ` -c 'sandbox_workspace_write.network_access=true' --disable multi_agent`;
+        + (docker ? "" : ` -c 'sandbox_workspace_write.network_access=true'`) + " --disable multi_agent";
       // CODEX_HOME 只含隔离路径；密钥由 sandbox env 注入，不进命令和会话记录。
       return { command: `mkdir -p ${quote(workerHome)} && env CODEX_HOME=${quote(workerHome)} ${command}`, stdin: built.stdin };
     },

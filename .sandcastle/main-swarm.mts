@@ -8,9 +8,11 @@
 // 跑法：npx tsx .sandcastle/main-swarm.mts
 
 import { useScheduler } from "./scheduler-config.mts";
+import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
-import { execSync } from "node:child_process";
+import { claimIssue, fetchQueue, hostGh, queueToJson, renderPlanPrompt, runImplementer, validatePlan } from "./swarm-prompts.mts";
+import { assertControlledBase, controlledSwarmTicket, swarmBases, swarmBinding } from "./swarm-controlled.mts";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
 import { resolve } from "node:path";
@@ -64,56 +66,87 @@ function logWorker(e: Record<string, unknown>) {
   appendFileSync(".sandcastle/logs/workers.jsonl", JSON.stringify({ ts: new Date().toISOString(), ...e }) + "\n");
 }
 
-// 认领（#1007 裁 3 + #1013 教训：摘专属 label + assign，host 侧先行，避免工蜂侧竞态）
+// 认领：宿主 gh 参数数组直传，不经 shell（claimIssue 校验票号）
 function claim(issue: string) {
-  execSync(`gh issue edit ${issue} --remove-label sandcastle --add-assignee @me`,
-    { env: GH_CLEAN_ENV, stdio: "ignore" });
+  claimIssue(hostGh(GH_CLEAN_ENV), issue);
 }
 
 const acceptedManifest = process.env.SANDCASTLE_SWARM_MERGE_MANIFEST;
 if (acceptedManifest) {
-  await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
+  try {
+    await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
+  } catch (error) {
+    if (!(error instanceof DrainFrozenError)) throw error;
+    console.error(error.message);
+    process.exitCode = 75;
+  }
 } else {
 // 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
-assertSwarmExecutionReady(IMAGE);
-assertDockerCliProxyReachable(IMAGE);
+// 受控验收（SANDCASTLE_DOCKER_ACCEPTANCE_ROW=13）只处理 receipt 绑定的专用验收票：不读线上 sandcastle 队列、不认领任何票。
+const controlledTicket = controlledSwarmTicket();
+// 受控第 13 行以 receipt.head 为工蜂基线（不是会漂移的本地 main），核对发生在占用验收行、认领和启动工蜂之前。
+let baseRef = "main";
+const IMAGE_ID_ADMITTED = assertSwarmExecutionReady(IMAGE, {
+  rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined,
+  verify: controlledTicket ? (admission) => { baseRef = assertControlledBase(admission, controlledTicket); } : undefined,
+  modelProbe: (id) => assertDockerCliProxyReachable(id), // 占用 used-13 之前
+});
 
-for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-  console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
-
-  // Phase 1: Plan
+/** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
+async function planAndClaim(): Promise<Array<{ id: string; title: string; branch: string }> | null> {
   // 用 createSandbox 而非顶层 run()：顶层 run（merge-to-head）在本仓 clone/多远端
   // 环境下实测 agent 进程 ~11s 被 SIGKILL（exit 137，在案未决怪癖，见 #1009）；
   // createSandbox 路径两段式全程验证过。planner 无产出，分支随关随弃。
+  const queue = fetchQueue(hostGh(GH_CLEAN_ENV)); // 宿主本轮实际取到的队列：planner 输出只能是它的子集
   const planSandbox = await sandcastle.createSandbox({
     branch: `sandcastle/plan-${Date.now()}`,
     baseBranch: "main",
-    sandbox: swarmSandbox(IMAGE),
+    sandbox: swarmSandbox(IMAGE_ID_ADMITTED),
   });
-  let issues: Array<{ id: string; title: string; branch: string }>;
+  let planned: Array<{ id: string; title: string; branch: string }>;
   try {
     // 注：sandbox.run 不支持 Output.object（顶层 run 才支持），手动从 stdout 解析 <plan>。
     const plan = await planSandbox.run({
       name: "planner",
       maxIterations: 1,
       agent: swarmAgent(),
-      promptFile: "./.sandcastle/plan-prompt.md",
+      // 容器内没有 GitHub 凭据：队列由宿主列出后 inline 注入（过滤语义同 plan-prompt.md）。
+      prompt: renderPlanPrompt(queueToJson(queue)),
     });
     const m = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
     if (!m) throw new Error("planner 未输出 <plan> 标签");
-    issues = planSchema.parse(JSON.parse(m[1])).issues;
+    planned = planSchema.parse(JSON.parse(m[1])).issues;
   } finally {
     await planSandbox.close();
   }
-  if (issues.length === 0) {
+  validatePlan(planned, queue); // planner 输出不可信：在任何认领之前校验 id/队列/branch
+  if (planned.length === 0) {
     console.log("无可并行 issue，停。");
-    break;
+    return null;
   }
-  console.log(`planner 放行 ${issues.length} 张：`);
-  for (const i of issues) console.log(`  #${i.id}: ${i.title} → ${i.branch}`);
+  console.log(`planner 放行 ${planned.length} 张：`);
+  for (const i of planned) console.log(`  #${i.id}: ${i.title} → ${i.branch}`);
 
   // host 侧认领（扇出前一次性完成）
-  for (const i of issues) claim(i.id);
+  try {
+    await withLegacyAdmission(() => { for (const i of planned) claim(i.id); });
+  } catch (error) {
+    if (!(error instanceof DrainFrozenError)) throw error;
+    console.log(error.message);
+    return null;
+  }
+  return planned;
+}
+
+for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); iteration++) {
+  if (drainRequested()) break;
+  console.log(`\n=== Iteration ${iteration}/${controlledTicket ? 1 : MAX_ITERATIONS} ===\n`);
+
+  // Phase 1: Plan（受控验收：输入就是 receipt 绑定的专用验收票，其余票一律不碰；工蜂基线=receipt.head，不写回 main）
+  const issues = controlledTicket
+    ? [{ id: String(controlledTicket), title: `#1742 Docker 受控验收票 #${controlledTicket}`, branch: `sandcastle/issue-${controlledTicket}` }]
+    : await planAndClaim();
+  if (!issues) break;
 
   // Phase 2: Execute + Review（信号量限流扇出）
   const withLimit = semaphore(MAX_PARALLEL);
@@ -122,8 +155,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       withLimit(async () => {
         const sandbox = await sandcastle.createSandbox({
           branch: issue.branch,
-          baseBranch: "main", // 与检出分支解耦（#1003）
-          sandbox: swarmSandbox(IMAGE),
+          baseBranch: baseRef, // 普通 swarm=main（与检出分支解耦，#1003）；受控第 13 行=receipt.head
+          sandbox: swarmSandbox(IMAGE_ID_ADMITTED),
         });
         try {
           const git = hostGit(sandbox.worktreePath);
@@ -133,11 +166,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           let reviewSession: string | undefined;
           return await runManagedSwarmTicket({
             cwd: sandbox.worktreePath, branch: issue.branch, issue: Number(issue.id),
-            implement: async () => (await sandbox.run({
-              name: "implementer", maxIterations: 1, agent: implementer,
-              promptFile: "./.sandcastle/codex-implement-prompt.md",
-              promptArgs: { ISSUE_NUMBER: issue.id },
-            })).stdout,
+            implement: () => runImplementer(issue.id, {
+              gh: hostGh(GH_CLEAN_ENV), agent: implementer, notify: ghIssueNotifier(GH_CLEAN_ENV),
+              run: (o) => sandbox.run(o as Parameters<typeof sandbox.run>[0]),
+            }),
             review: async (prompt) => {
               const result = await sandbox.run({
                 name: "reviewer", maxIterations: 1, agent: reviewer, prompt,
@@ -148,7 +180,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             },
             reviewOptions: {
               template: readReviewTemplate("./.sandcastle/codex-review-prompt.md"),
-              target: "main", resolveBase: () => resolveReviewBase(git), git,
+              target: baseRef, resolveBase: () => swarmBases({ controlled: !!controlledTicket, baseRef, reviewBase: () => resolveReviewBase(git), mainSha: () => "" }).reviewBase(), git,
               fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
             },
             channels: { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
@@ -179,7 +211,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const runId = String(Date.now());
   const draftPath = `.sandcastle/logs/merge-candidates-${runId}.json`;
   const draft = {
-    runId, branch: `sandcastle/merge-${runId}`, base: hostGit()(["rev-parse", "main"]).trim(),
+    runId, branch: `sandcastle/merge-${runId}`, base: swarmBases({ controlled: !!controlledTicket, baseRef, reviewBase: () => "", mainSha: () => hostGit()(["rev-parse", "main"]).trim() }).candidateBase(),
     inputs: completed.map(i => ({ issue: Number(i.id), branch: i.branch, sha: i.result.verification!.head,
       acceptance: { head: i.result.verification!.head, status: "pending",
         reviewEvidence: resolve(".sandcastle/logs/workers.jsonl"),

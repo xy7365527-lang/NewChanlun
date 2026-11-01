@@ -30,6 +30,7 @@ use nautilus_model::{
 };
 use rust_decimal_macros::dec;
 
+use crate::funding_record::FundingRecord;
 use crate::theta_v0::backtest::data::Dataset;
 use crate::theta_v0::config::ThetaConfig;
 
@@ -138,18 +139,37 @@ pub fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
 /// 精度全错），非本轮范围内可安全推广。`dataset.symbol` 非 BTC 时 fail-fast（见
 /// [`require_btc_symbol`]），不静默借用 BTC instrument 跑一遍产出误导性输出
 /// （价格值域正确但持仓/订单归属的品种是假的）。
+///
+/// ★资金（#1601 C-02）：`funding` 为 ADR 0040 funding-record；venue 起始余额与策略 sizing 基数
+/// 都读其 `Q_total`。缺记录 ⟹ `AwaitingPolicy{funding_record}` 报错、引擎不建、不下单；
+/// `evidence_only` 记录同样拒收。起始余额按 BTCUSDT 报价币 USDT 记账（记录币种 USDC，
+/// 1:1 名义近似，属本回测的有效域边界）。
+///
+/// #1718：冻结影子NT组件只接受既有Cross(1)，不代表正式结果准入。
 pub fn run_theta_backtest(
     dataset: &Dataset,
     theta: &ThetaConfig,
+    funding: Option<FundingRecord>,
 ) -> anyhow::Result<BacktestResult> {
     require_btc_symbol(&dataset.symbol)?;
+    theta
+        .exec
+        .require_shadow_fill_rule()
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let instrument = btc_instrument();
     let instrument_id = instrument.id();
     let (step, aggregation) = aggregation_for(dataset.bar_seconds);
     let bar_type = btc_bar_type(instrument_id, step, aggregation);
 
-    // 起始余额：与 in-crate CLI 的 initial_nav 量级一致（USDT 计价）。
+    // ThetaStrategy（StrategyConfig 默认 + S_Θ theta + bar_type + size_precision=6 + 签署资金）。
+    // 先于引擎构造：缺记录在此报错，不建引擎、不下单。
+    let funding = FundingRecord::admit_production(funding)?;
+    let starting_balance = Money::new(funding.q_total_f64(), Currency::from("USDT"));
+    let strat_config = nautilus_trading::strategy::StrategyConfig::default();
+    let strategy = ThetaStrategy::new(strat_config, theta.clone(), bar_type, 6, Some(funding))?;
+
+    // 起始余额：funding-record 的 Q_total（USDT 计价）。
     let mut engine = BacktestEngine::new(BacktestEngineConfig::default())?;
     engine.add_venue(
         SimulatedVenueConfig::builder()
@@ -157,16 +177,13 @@ pub fn run_theta_backtest(
             .oms_type(OmsType::Netting)
             .account_type(AccountType::Cash)
             .book_type(BookType::L1_MBP)
-            .starting_balances(vec![Money::from("1_000_000 USDT")])
+            .starting_balances(vec![starting_balance])
             .build()?,
     )?;
 
     // ★顺序硬约束：先 add_instrument（add_data validate 校验 instrument 已存在）。
     engine.add_instrument(&instrument)?;
 
-    // ThetaStrategy（StrategyConfig 默认 + S_Θ theta + bar_type + size_precision=6）。
-    let strat_config = nautilus_trading::strategy::StrategyConfig::default();
-    let strategy = ThetaStrategy::new(strat_config, theta.clone(), bar_type, 6);
     engine.add_strategy(strategy)?;
 
     // dataset bar → Data::Bar（dequantize）。
@@ -204,6 +221,28 @@ mod tests {
         );
     }
 
+    /// #1601：缺 funding-record ⟹ AwaitingPolicy{funding_record} 报错，引擎不建、不下单；
+    /// evidence_only（P0-acceptance-5m）同样拒收。
+    #[test]
+    fn missing_funding_record_refuses_before_engine() {
+        let dataset = Dataset {
+            symbol: "BTC".into(),
+            bars: Vec::new(),
+            dates: Vec::new(),
+            bar_seconds: 60,
+        };
+        let err =
+            run_theta_backtest(&dataset, &ThetaConfig::default(), None).expect_err("缺记录须报错");
+        assert!(
+            err.to_string().contains("AwaitingPolicy{funding_record"),
+            "{err}"
+        );
+        let acceptance = FundingRecord::active("P0-acceptance-5m").unwrap();
+        let err = run_theta_backtest(&dataset, &ThetaConfig::default(), Some(acceptance))
+            .expect_err("evidence_only 须拒收");
+        assert!(err.to_string().contains("evidence_only"), "{err}");
+    }
+
     #[test]
     fn btc_symbol_case_insensitive_passes_gate() {
         require_btc_symbol("BTC").expect("BTC 须通过门控");
@@ -236,5 +275,31 @@ mod tests {
             err.to_string().contains("`FOO`"),
             "错误须通过 {{symbol}} 插值点名，非静态列举，实际: {err}"
         );
+    }
+
+    #[test]
+    fn shadow_backtest_rejects_unsupported_fill_rules() {
+        use crate::theta_v0::config::FillRule;
+        let dataset = Dataset {
+            symbol: "BTC".into(),
+            bars: Vec::new(),
+            dates: Vec::new(),
+            bar_seconds: 60,
+        };
+        let funding = FundingRecord::active("P0").unwrap();
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.fill_rule = FillRule::Touch;
+        let err =
+            run_theta_backtest(&dataset, &cfg, Some(funding)).expect_err("fill_rule=Touch 须拒收");
+        assert!(
+            err.to_string().contains("Touch") && err.to_string().contains("诊断"),
+            "错误须说明 Touch 仅诊断，实际: {err}"
+        );
+        cfg.exec.fill_rule = FillRule::Cross(0);
+        let err = run_theta_backtest(&dataset, &cfg, None).expect_err("Cross(0)拒绝");
+        assert!(err.to_string().contains("1 tick"));
+        cfg.exec.fill_rule = FillRule::Cross(1);
+        let err = run_theta_backtest(&dataset, &cfg, None).expect_err("跨过规则门后仍须资金签署");
+        assert!(err.to_string().contains("AwaitingPolicy{funding_record"));
     }
 }

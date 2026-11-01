@@ -4,23 +4,32 @@ import type { AgentProvider, SandboxProvider } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
+import type { KeyLookup } from "./codex-child.ts";
+import { assertContainerIsolationContract, hardenProvider, type IsolationObservation } from "./docker-isolation.mts";
+import { IMAGE_ID, checkAdmission, type Admission, type AcceptanceRow, type AdmissionContext } from "./docker-acceptance.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
 
-const scheduler = useScheduler("swarm-route", ["dockerModelHttpTimeoutMs", "dockerModelProcessTimeoutMs", "dockerNamespaceTimeoutMs"]);
+const scheduler = useScheduler("swarm-route", ["dockerModelHttpTimeoutMs", "dockerModelProcessTimeoutMs"]);
 
 export const DOCKER_CLIPROXY_BASE_URL = "http://host.docker.internal:8318";
 
 /** 容器不能访问宿主回环；密钥只经运行时 env 进入，不挂配置或 OAuth 文件。 */
-export function dockerCliProxyEnv(): Record<string, string> {
-  return { ...codexRouteEnv(), CLIPROXY_BASE_URL: DOCKER_CLIPROXY_BASE_URL };
+export function dockerCliProxyEnv(lookup?: KeyLookup): Record<string, string> {
+  return { ...codexRouteEnv(lookup), CLIPROXY_BASE_URL: DOCKER_CLIPROXY_BASE_URL };
 }
 
 export function swarmSandbox(
-  imageName: string,
-  env: Record<string, string> = dockerCliProxyEnv(),
+  imageId: string,
+  env?: Record<string, string>,
+  /** 仅测试：注入 launchctl 查找（CI 上没有 launchctl 里的 key）。 */
+  lookup?: KeyLookup,
 ): SandboxProvider {
-  return docker({ imageName, env });
+  // 容器必须以准入核对过的 sha256 Id 启动（assertSwarmExecutionReady 的返回值），不接受 tag：准入与启动之间 tag 可被重指。
+  if (!IMAGE_ID.test(imageId)) throw new Error(`[FAIL-loud #1742] Docker 容器必须以准入核对过的 sha256 镜像 Id 启动，收到 ${JSON.stringify(imageId).slice(0, 80)}`);
+  // #1742 方案B：git 挂载与受保护子路径只读；其余启动参数仍是 Sandcastle 的 docker()，不加 security-opt/cap。
+  // env 只在 Id 校验通过后才求值：拿 tag 调用时，无论环境里有没有 CLIPROXY_LOCAL_KEY 都先报 Id 错误。
+  return hardenProvider(docker({ imageName: imageId, env: env ?? dockerCliProxyEnv(lookup) }));
 }
 
 /** planner/implementer/reviewer/merger 各自调用，保留独立 session。 */
@@ -88,10 +97,30 @@ export function assertDockerCliProxyReachable(
   }
 }
 
-/** #1617：先证实默认容器允许工具所需 namespace，再碰 planner/认领。 */
-export function assertSwarmExecutionReady(imageName: string, probe = (image: string) => {
-  execFileSync("docker", ["run", "--rm", "--network", "none", "--entrypoint", "unshare", image, "-Ur", "true"], { stdio: "pipe", timeout: scheduler.dockerNamespaceTimeoutMs });
-}): void {
-  try { probe(imageName); }
-  catch { throw new Error("[FAIL-loud #1617] 默认 Docker namespace 不可用；不认领、不扩大容器权限。Docker 提交合同另待验收。"); }
+export interface ReadyOptions {
+  probe?: (image: string) => IsolationObservation;
+  admit?: (image: string, ctx: AdmissionContext) => Admission;
+  /** 受控验收的运行绑定：13=验收票，14/15=归并 run+检查点。已登记验收后的普通放行不需要。 */
+  binding?: string;
+  /** 此入口允许的验收行（普通 swarm 只接受 13，归并冲突只接受 14/15）。 */
+  rows?: readonly AcceptanceRow[];
+  /** 准入通过后、探针与占用之前的入口自检（失败即拒绝，不烧验收行）。 */
+  verify?: (admission: Admission) => void;
+  /** 容器内模型预检（对准入 Id）：在隔离探针之后、占用验收行（consume）之前调用；失败（含上游 overloaded/quota/5xx 瞬时故障）即 FAIL-loud，不消耗受控行、不写 used。 */
+  modelProbe?: (imageId: string) => void;
+  /** 仅供进程内调用方（单元测试）注入验收目录/代码身份/验收行；生产入口不传，走宿主固定目录。 */
+  acceptance?: Pick<AdmissionContext, "dir" | "env" | "identity" | "now" | "roots" | "imageIdOf">;
+}
+
+/** #1617/#1742：领票前先验精确 acceptance 事实（缺失/漂移/重复/越权即 FAIL-loud），再逐项观测容器隔离合同；
+ * 观测成立只是必要条件，不代替验收。受控入口在观测通过后才占用（或恢复）对应验收行。 */
+export function assertSwarmExecutionReady(imageName: string, options: ReadyOptions = {}): string {
+  const admit = options.admit ?? ((image: string, ctx: AdmissionContext) => checkAdmission(image, ctx));
+  const admission = admit(imageName, { ...options.acceptance, binding: options.binding, rows: options.rows });
+  options.verify?.(admission);
+  // 观测与后续启动都用准入核对过的 Id，三条入口（受控行、已登记放行、冲突工蜂）一致。
+  assertContainerIsolationContract(admission.imageId, options.probe);
+  options.modelProbe?.(admission.imageId); // 先预检、后占用：预检失败不烧受控行；占用之后的真实工蜂失败仍按一次性处理
+  admission.consume();
+  return admission.imageId;
 }

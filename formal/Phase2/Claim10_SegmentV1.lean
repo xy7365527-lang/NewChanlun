@@ -1,3 +1,5 @@
+import Origin.Tangency
+
 /-
   线段划分 v1 特征序列法·真完全分类（Phase 2, claim10 / task #37）
   工位：claim10-segment-v1（与 claim5/6/9 并发，integrator=formalization-lead）
@@ -95,15 +97,24 @@ structure Interval where
   valid : lo ≤ hi
 deriving Repr
 
-/-- 两区间有公共重叠（交集非空）。缺口 = 无重叠（第67课:18）。 -/
-def Interval.overlaps (a b : Interval) : Prop := a.lo ≤ b.hi ∧ b.lo ≤ a.hi
+/-- 两区间有公共重叠（交集非空）。缺口 = 无重叠（第67课:18）。
+
+  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
+  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
+-/
+def Interval.overlaps (t : NewChanlun.Origin.Tangency) (a b : Interval) : Prop :=
+  match t with
+  | .closed => a.lo ≤ b.hi ∧ b.lo ≤ a.hi
+  | .open => a.lo < b.hi ∧ b.lo < a.hi
 
 /-- 缺口：两相邻特征序列元素 **没有** 重合区间（第67课:18 缺口定义）。 -/
-def Interval.gap (a b : Interval) : Prop := ¬ a.overlaps b
+def Interval.gap (t : NewChanlun.Origin.Tangency) (a b : Interval) : Prop := ¬ Interval.overlaps t a b
 
 /-- 缺口判定（Decidable 镜像，用于完全性枚举）。 -/
-def Interval.hasGap (a b : Interval) : Bool :=
-  decide (a.hi < b.lo ∨ b.hi < a.lo)
+def Interval.hasGap (t : NewChanlun.Origin.Tangency) (a b : Interval) : Bool :=
+  match t with
+  | .closed => decide (a.hi < b.lo ∨ b.hi < a.lo)
+  | .open => decide (a.hi ≤ b.lo ∨ b.hi ≤ a.lo)
 
 /-! ## 笔（构成线段的原子）—— v1 输入
 
@@ -234,20 +245,20 @@ theorem termination_case_dichotomy (c : TerminationCase) :
     "进入有缺口分支、待第二特征序列分型确认"。
   这是 `TerminationCase` **分支** 的忠实判定（缺口 ⟺ 进入 secondKind 分支）。
 -/
-def classifyTermination (e1 e2 : Interval) : TerminationCase :=
-  if e1.hasGap e2 then TerminationCase.secondKind else TerminationCase.firstKind
+def classifyTermination (t : NewChanlun.Origin.Tangency) (e1 e2 : Interval) : TerminationCase :=
+  if Interval.hasGap t e1 e2 then TerminationCase.secondKind else TerminationCase.firstKind
 
 /-- 判定忠实：第一种情况 ⟺ 第一、二元素无缺口（第67课:28）。 -/
-theorem firstKind_iff_no_gap (e1 e2 : Interval) :
-    classifyTermination e1 e2 = TerminationCase.firstKind ↔ ¬ (e1.hasGap e2 = true) := by
+theorem firstKind_iff_no_gap (t : NewChanlun.Origin.Tangency) (e1 e2 : Interval) :
+    classifyTermination t e1 e2 = TerminationCase.firstKind ↔ ¬ (Interval.hasGap t e1 e2 = true) := by
   unfold classifyTermination
-  cases h : e1.hasGap e2 <;> simp_all
+  cases h : Interval.hasGap t e1 e2 <;> simp_all
 
 /-- 判定忠实：第二种情况 ⟺ 第一、二元素有缺口（第67课:38）。 -/
-theorem secondKind_iff_gap (e1 e2 : Interval) :
-    classifyTermination e1 e2 = TerminationCase.secondKind ↔ e1.hasGap e2 = true := by
+theorem secondKind_iff_gap (t : NewChanlun.Origin.Tangency) (e1 e2 : Interval) :
+    classifyTermination t e1 e2 = TerminationCase.secondKind ↔ Interval.hasGap t e1 e2 = true := by
   unfold classifyTermination
-  cases h : e1.hasGap e2 <;> simp_all
+  cases h : Interval.hasGap t e1 e2 <;> simp_all
 
 /-! ## 第78课:52：第二种候选的语义终点三态（#1344 裁定，#1420）
 

@@ -1,0 +1,6 @@
+test theta_v0::backtest::incremental::tests::a3_oracle_minparts_reentry ... ok
+
+test result: ok. 2914 passed; 0 failed; 153 ignored; 0 measured; 0 filtered out; finished in 224.97s
+
+EXIT=0 SECONDS=360
+log: /tmp/nc-remote/20261025-061931-0be91d6af3.log

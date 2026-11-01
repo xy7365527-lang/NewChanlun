@@ -14,20 +14,27 @@ fn invalid(e: impl std::fmt::Display) -> Failure {
 use newchan_rust::sqlite_checked::CheckedStatement;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+#[derive(Default)]
+struct RawCharges {
+    manual: usize,
+    native: usize,
+}
 pub(super) struct Facts {
-    clock: v2::ClockPlan,
-    sid: String,
-    inc: String,
-    raw_tails: HashMap<String, (i64, i64)>,
-    coordinates: HashMap<i64, String>,
-    pending: BTreeMap<String, (i64, i64)>, // event -> (rowid, attempt_count)
-    frontiers: Vec<(i64, i64)>,
+    clock: native::Reserved<v2::ClockPlan>,
+    sid: native::Reserved<String>,
+    inc: native::Reserved<String>,
+    raw_tails: native::Reserved<HashMap<native::Reserved<String>, (i64, i64)>>,
+    coordinates: native::Reserved<HashMap<i64, native::Reserved<String>>>,
+    pending: native::Tree<(i64, i64)>, // event -> (rowid, attempt_count)
+    frontiers: native::Reserved<Vec<(i64, i64)>>,
     next: i64,
     max_ns: i64,
     epoch_count: i64,
     epoch_to: Option<i64>,
     epoch_generation: i64,
     retained: usize,
+    raw_capacity: Option<native::Permit>,
+    raw_fees: native::Reserved<Vec<native::Permit>>,
 }
 impl Retained for Facts {
     fn heap_bytes(&self) -> usize {
@@ -40,10 +47,15 @@ impl Retained for Facts {
             self.coordinates.heap_bytes(),
             self.pending.heap_bytes(),
             self.frontiers.heap_bytes(),
+            vec_bytes::<native::Permit>(self.raw_fees.capacity()),
         ])
     }
 }
 impl Facts {
+    /// #1488 受控 Recover 迁移：已核 writer_epoch_history 最后一次换代的 to（只读）。
+    pub(super) fn last_epoch_to(&self) -> Option<i64> {
+        self.epoch_to
+    }
     pub(super) fn cold(
         tx: &Transaction<'_>,
         originals: &[ExactRows],
@@ -61,7 +73,9 @@ impl Facts {
             64,
         ]))?;
         let clock = v2::stored_clock(tx)?;
-        clock_permit.commit(0, sum([clock.value.heap_bytes(), clock.hash.heap_bytes()]));
+        let clock = clock_permit
+            .finish(sum([clock.value.heap_bytes(), clock.hash.heap_bytes()]))
+            .hold(clock);
         let meta = effects::table(originals, Table::Meta)?;
         let sid = meta
             .rows
@@ -72,16 +86,18 @@ impl Facts {
             clock,
             sid: budget.string(text(&sid[2])?)?,
             inc: budget.string(text(&protocol[3])?)?,
-            raw_tails: Default::default(),
-            coordinates: Default::default(),
-            pending: Default::default(),
-            frontiers: Vec::new(),
+            raw_tails: budget.empty()?,
+            coordinates: budget.empty()?,
+            pending: native::Tree::new(budget)?,
+            frontiers: budget.empty()?,
             next: integer(&protocol[6])?,
             max_ns: parse_canonical_i64(text(&protocol[7])?, "phase frontier")?,
             epoch_count: 0,
             epoch_to: None,
             epoch_generation: 0,
             retained: 0,
+            raw_capacity: None,
+            raw_fees: budget.empty()?,
         };
         budget.vec_grow(&mut facts.frontiers, state.cuts.len())?;
         facts.frontiers.extend(
@@ -134,9 +150,10 @@ impl Facts {
             .checked_add(budget.live())
             .ok_or(native::BudgetExceeded)?
             .checked_sub(before)
-            .and_then(|n| n.checked_sub(raw_added))
+            .and_then(|n| n.checked_sub(raw_added.manual))
+            .and_then(|n| n.checked_sub(raw_added.native))
             .ok_or_else(|| invalid("Q增量归属账不闭合"))?;
-        Ok(raw_added)
+        Ok(raw_added.manual)
     }
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained
@@ -147,7 +164,7 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<usize, Failure> {
+    ) -> Result<RawCharges, Failure> {
         let old_g = audited.cuts.last().map_or(0, |c| c.metadata.generation);
         let root_g = meta_number(tx, "generation")?;
         let publish = effects.operation == Operation::Publish;
@@ -219,7 +236,7 @@ impl Facts {
         }
         // 包含没有被 UPDATE 命中的旧 pending attempt；根前移同样改变其 Begin 目标。
         if publish {
-            for (event, (rowid, count)) in &self.pending {
+            for (event, (rowid, count)) in self.pending.iter() {
                 if *count > 0 {
                     affected.insert((event.as_str(), *rowid));
                 }
@@ -229,7 +246,9 @@ impl Facts {
         let _covered_permit = budget.reserve(tree_slots::<i64, ()>(raw_insertions))?;
         let mut covered_new = BTreeSet::new();
         let _updates_permit =
-            budget.reserve(vec_bytes::<(String, i64, i64, bool)>(affected.len()))?;
+            budget.reserve(vec_bytes::<(native::Reserved<String>, i64, i64, bool)>(
+                affected.len(),
+            ))?;
         let mut updates = Vec::new();
         updates
             .try_reserve_exact(affected.len())
@@ -377,9 +396,7 @@ impl Facts {
                 budget.tree_insert(&mut self.pending, event, (rowid, count))?;
             } else {
                 remove_pending(&mut self.pending, &event, budget);
-                let bytes = event.capacity();
                 drop(event);
-                budget.release(bytes);
             }
         }
         self.next = next;
@@ -391,18 +408,16 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<usize, Failure> {
+    ) -> Result<RawCharges, Failure> {
         let pairs = effects.rows(Table::Ohlc).count();
         let _paired_permit = budget.reserve(tree_slots::<i64, ()>(pairs))?;
         let mut paired = BTreeSet::new();
+        let raw = &mut audited.raw;
         #[cfg(feature = "s_allocation_json_testonly")]
-        let bj::RawEvents::Plain(raw) = &mut audited.raw
-        else {
+        if matches!(raw, bj::RawEvents::Owned(_)) {
             return Err(invalid("增量 Q 不接受 Owned 原始账"));
-        };
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        let bj::RawEvents::Plain(raw) = &mut audited.raw;
-        let mut raw_added = 0usize;
+        }
+        let mut raw_added = RawCharges::default();
         for change in effects.rows(Table::Raw) {
             let r = new(change)?;
             let seq = integer(&r[6])?;
@@ -416,6 +431,50 @@ impl Facts {
             if !paired.insert(pair.rowid) {
                 return Err(invalid("raw/OHLC 配对重复"));
             }
+            if matches!(raw, bj::RawEvents::Native(_)) {
+                let added = budget
+                    .codec_work()?
+                    .run(|work| -> Result<usize, Failure> {
+                        let value = read_raw_event_at_admitted(tx, seq, Some(work))?;
+                        let view = value.view();
+                        let id = bj::text(view, "identity_key")?;
+                        let coord = bj::coord(view)?;
+                        let previous = self.raw_tails.get(id);
+                        bj::validate_raw_coordinate(
+                            id,
+                            coord,
+                            self.coordinates.get(&coord).map(|value| value.as_str()),
+                            previous.map(|(c, _)| *c),
+                        )?;
+                        bj::validate_raw_row_admitted(
+                            view,
+                            raw.len(),
+                            previous.map(|(_, r)| *r),
+                            Some(work),
+                        )?;
+                        self.put_raw(
+                            id,
+                            coord,
+                            bj::field(view, "revision").as_i64().unwrap(),
+                            budget,
+                        )?;
+                        let before = budget.live();
+                        raw.push_native(view, work)?;
+                        budget
+                            .live()
+                            .checked_sub(before)
+                            .ok_or_else(|| invalid("Native原始账追加费用倒退"))
+                    })
+                    .map_err(Failure::from)?;
+                raw_added.native = raw_added
+                    .native
+                    .checked_add(added)
+                    .ok_or(native::BudgetExceeded)?;
+                continue;
+            }
+            let bj::RawEvents::Plain(raw) = raw else {
+                return Err(invalid("原始账存储类型不支持增量追加"));
+            };
             // decode_raw_row 17字段 + enrich_raw_row 5字段；SQL逐列复制一次，JSON键各复制一次。
             let paired_row = new(pair)?;
             let cell_text = |v: &SqlCell| match v {
@@ -460,8 +519,10 @@ impl Facts {
                 tree_slots::<String, Value>(KEYS.len()),
             ]))?;
             let value = read_raw_event_at(tx, seq)?;
-            raw_added = raw_added.saturating_add(value.heap_bytes());
-            raw_permit.commit(0, value.heap_bytes());
+            raw_added.manual = raw_added.manual.saturating_add(value.heap_bytes());
+            let raw_fee = raw_permit.finish(value.heap_bytes());
+            budget.vec_grow(&mut self.raw_fees, 1)?;
+            self.raw_fees.push(raw_fee);
             let view = (&value).into();
             let id = bj::text(view, "identity_key")?;
             let coord = bj::coord(view)?;
@@ -469,7 +530,7 @@ impl Facts {
             bj::validate_raw_coordinate(
                 id,
                 coord,
-                self.coordinates.get(&coord).map(String::as_str),
+                self.coordinates.get(&coord).map(|value| value.as_str()),
                 previous.map(|(c, _)| *c),
             )?;
             {
@@ -485,8 +546,15 @@ impl Facts {
                 budget,
             )?;
             let old = vec_bytes::<Value>(raw.capacity());
-            budget.vec_grow(raw, 1)?;
-            raw_added = raw_added.saturating_add(vec_bytes::<Value>(raw.capacity()) - old);
+            // #1488 U2：不追认冷构造遗留的 Plain raw 容量。首次增量 Q 先从本父取同容量新块许可、
+            // 再分配，载荷移入后旧块析构；许可随 raw_capacity 持久，后续 grow_vec 直接使用。
+            if self.raw_capacity.is_none() {
+                self.raw_capacity = Some(budget.rebirth_vec(raw)?);
+            }
+            budget.grow_vec(raw, self.raw_capacity.as_mut().unwrap(), 1)?;
+            raw_added.manual = raw_added
+                .manual
+                .saturating_add(vec_bytes::<Value>(raw.capacity()) - old);
             raw.push(value);
         }
         if paired.len() != pairs {
@@ -845,34 +913,29 @@ impl Facts {
 }
 
 fn new(c: &Change) -> Result<&[SqlCell], Failure> {
-    c.new.as_deref().ok_or_else(|| invalid("缺实际新行"))
+    c.new
+        .as_ref()
+        .map(|row| row.as_ref())
+        .ok_or_else(|| invalid("缺实际新行"))
 }
 fn old(c: &Change) -> Result<&[SqlCell], Failure> {
-    c.old.as_deref().ok_or_else(|| invalid("缺绑定旧行"))
+    c.old
+        .as_ref()
+        .map(|row| row.as_ref())
+        .ok_or_else(|| invalid("缺绑定旧行"))
 }
 
 /// #1394 最后一项删除后 std BTreeMap 仍可能持有空叶根；归还树槽费前真正释放它。
-fn remove_pending(pending: &mut BTreeMap<String, (i64, i64)>, event: &str, budget: &Budget) {
-    if let Some((key, value)) = pending.remove_entry(event) {
-        let released = sum([
-            key.heap_bytes(),
-            value.heap_bytes(),
-            tree_slots::<String, (i64, i64)>(1),
-        ]);
-        if pending.is_empty() {
-            pending.clear();
-        }
-        drop((key, value));
-        budget.release(released);
-    }
+fn remove_pending(pending: &mut native::Tree<(i64, i64)>, event: &str, _budget: &Budget) {
+    pending.remove(event);
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn pending_normal_last_remove_releases_root_before_charge() {
     let budget = Budget::new(1_048_576, 0).unwrap();
     let initial_charge = budget.live();
-    let mut pending = BTreeMap::new();
+    let mut pending = native::Tree::new(&budget).unwrap();
     let window = super::allocation_probe::Window::start();
     for index in 0..24 {
         let event = format!("pending-{index:02}");
@@ -891,4 +954,88 @@ fn pending_normal_last_remove_releases_root_before_charge() {
         "归还全部树槽费时，正常插入再移除的树根和载荷必须已真实释放"
     );
     assert_eq!(observed["allocated_bytes"], observed["released_bytes"]);
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+#[test]
+fn actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_charge() {
+    let mut fixture = prepared::tests::Fixture::new();
+    let (event, token) = fixture.accept_begin(1, ("q-native-first", 0, 6, 12, 3, 7), 1);
+    fixture.publish(&event, &token).unwrap();
+    let owner = AuditConnection::open(&fixture.db_path()).unwrap();
+    let mut context = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(536_870_912),
+    );
+    context
+        .freeze_manifest_workspace_budget(536_870_912, 0, 0)
+        .unwrap();
+    let cold = owner.begin(TransactionBehavior::Deferred).unwrap();
+    cold.audit_admission(
+        &json!({"payload":{"op":"ready"}}),
+        &s_allocation::Mode::CapturedNative,
+        &mut context,
+    )
+    .unwrap();
+    let ended = cold.read_end().unwrap();
+    owner.continue_with(ended).unwrap();
+    let (old_raw, old_historical) = {
+        let complete = owner.complete.borrow();
+        let c = complete.as_ref().unwrap();
+        assert!(matches!(&c.audited.raw, bj::RawEvents::Native(_)));
+        assert_eq!(c.audited.raw.len(), 1);
+        // #1488 wide16-0058：冷候选仍持slot双份历史费；任何固定操作入口先detach_slot（#1394 c45d39be52起）
+        // 真实释放slot份。基线取detach后的唯一归属份，只观察Accept本身不给Native raw记手工费。
+        // r60fix-0061（review-0060 F2）：基线取独立oracle audited自身heap，不经charge字段推导，
+        // 避免与detach_slot被测减法同式（slot_result_capacity记错时两边同错）。
+        (
+            serde_json::to_value(&c.audited.raw).unwrap(),
+            c.audited.heap_bytes(),
+        )
+    };
+    let raw = crate::tests::located_ohlc_input(&[("q-native-next", 10, 8, 16, 6, 12)]);
+    let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001",
+        "target_session_generation":"1","writer_epoch":"1","clock_event_id":"input-2","raw_input":raw});
+    let envelope = json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001",
+        "session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1",
+        "message_id":"message-2","producer_id":"real-content-test","producer_epoch":"1",
+        "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
+    let clock = v2::stored_clock(&owner.connection).unwrap();
+    let (admission, ended) = owner
+        .admit(
+            envelope,
+            "1",
+            &clock,
+            tb02a::PROFILE,
+            Some("1"),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+    assert!(matches!(
+        admission,
+        Admission::Advance { accepted: true, .. }
+    ));
+    owner.continue_with(ended).unwrap();
+    owner.assert_complete_matches_cold();
+    let complete = owner.complete.borrow();
+    let c = complete.as_ref().unwrap();
+    let bj::RawEvents::Native(raw_owner) = &c.audited.raw else {
+        panic!("真实Accept不得降为无scope原始账");
+    };
+    let actual = serde_json::to_value(&c.audited.raw).unwrap();
+    assert_eq!(actual.as_array().unwrap().len(), 2);
+    assert_eq!(actual[0], old_raw[0], "旧版本完整内容逐字保留");
+    assert_eq!(actual[1]["seq"], 1);
+    assert_eq!(actual[1]["revision"], 1);
+    assert_eq!(actual[1]["schema_revision"], tb02a::RAW_SCHEMA);
+    assert_eq!(
+        actual[1],
+        read_raw_event_at(&owner.connection, 1).unwrap(),
+        "身份、版本、raw_text与OHLC完整字段由同核SQL原件比对"
+    );
+    assert_eq!(c.audited.raw.heap_bytes(), 0, "Native不再进入旧手工退款账");
+    assert_eq!(c.charge.historical_and_raw_capacity, old_historical);
+    assert!(raw_owner.retained_heap_bytes() > 0);
+    assert!(c.resources.live() >= raw_owner.retained_heap_bytes());
+    assert_eq!(c.charge.q_capacity, c.q.retained_bytes());
 }

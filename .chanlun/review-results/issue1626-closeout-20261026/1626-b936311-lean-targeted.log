@@ -1,0 +1,17 @@
+--- git diff tail ---
+--- lake env lean Origin/VersionedTangencyTests.lean ---
+TANGENCY_POLICY_IO_OK
+TANGENCY_OPEN_MUTATION_OK
+TANGENCY_MISSING_REJECT_OK
+TANGENCY_NULL_REJECT_OK
+TANGENCY_AWAITING_REJECT_OK
+TANGENCY_INVALID_REJECT_OK
+--- lake build Origin.VersionedTangencyTests ---
+ℹ [10/10] Replayed Origin.VersionedTangencyTests
+info: Origin/VersionedTangencyTests.lean:97:0: TANGENCY_POLICY_IO_OK
+info: Origin/VersionedTangencyTests.lean:108:0: TANGENCY_OPEN_MUTATION_OK
+info: Origin/VersionedTangencyTests.lean:120:0: TANGENCY_MISSING_REJECT_OK
+info: Origin/VersionedTangencyTests.lean:121:0: TANGENCY_NULL_REJECT_OK
+info: Origin/VersionedTangencyTests.lean:125:0: TANGENCY_AWAITING_REJECT_OK
+info: Origin/VersionedTangencyTests.lean:129:0: TANGENCY_INVALID_REJECT_OK
+Build completed successfully (10 jobs).

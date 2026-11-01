@@ -13,6 +13,7 @@
  * 跑法：npx tsx .sandcastle/health-monitor.mts [--heal] [--report <path>]
  */
 import { useScheduler } from "./scheduler-config.mts";
+import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -411,12 +412,21 @@ async function main(): Promise<void> {
   const checks = [wayfinder, claimLoop, stale.result, disk, cliproxy];
 
   const actions: string[] = [];
-  if (heal) {
-    if (wayfinder.status === "red") actions.push(healLaunchd(LABEL_WAYFINDER, PROC_WAYFINDER));
-    if (claimLoop.state === "stopped") actions.push(healLaunchd(LABEL_CLAIMER, PROC_CLAIMER));
-    if (claimLoop.state === "fail_closed") actions.push("claim_loop：宿主脏树不自动清理，留人工/PR");
-    for (const s of stale.actionable) actions.push(rollbackClaim(s));
-    if (disk.status === "red") actions.push("disk_space：只报告，不删除外盘文件");
+  if (heal && drainRequested()) {
+    actions.push("legacy drain：只报告，不重启服务、不回滚认领");
+  } else if (heal) {
+    try {
+      await withLegacyAdmission(() => {
+        if (wayfinder.status === "red") actions.push(healLaunchd(LABEL_WAYFINDER, PROC_WAYFINDER));
+        if (claimLoop.state === "stopped") actions.push(healLaunchd(LABEL_CLAIMER, PROC_CLAIMER));
+        if (claimLoop.state === "fail_closed") actions.push("claim_loop：宿主脏树不自动清理，留人工/PR");
+        for (const s of stale.actionable) actions.push(rollbackClaim(s));
+        if (disk.status === "red") actions.push("disk_space：只报告，不删除外盘文件");
+      });
+    } catch (error) {
+      if (!(error instanceof DrainFrozenError)) throw error;
+      actions.push("legacy drain：冻结已生效，未执行heal");
+    }
   }
 
   const report = {

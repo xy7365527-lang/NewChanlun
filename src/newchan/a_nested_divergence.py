@@ -30,12 +30,18 @@ from newchan.a_divergence_v1 import (
 )
 from newchan.a_move_v1 import Move
 from newchan.a_zhongshu_level import LevelZhongshu
+from newchan.tower_policy import TowerBasePolicy, active_tower_base
 
 if TYPE_CHECKING:
     from newchan.core.recursion.recursive_level_state import RecursiveLevelSnapshot
     from newchan.orchestrator.recursive import RecursiveOrchestratorSnapshot
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_tower_policy(policy: TowerBasePolicy | None) -> TowerBasePolicy:
+    """显式注入优先；未注入时读取当前生效记录，不把缺记录换成默认基底。"""
+    return active_tower_base() if policy is None else policy
 
 
 # ── 结果类型 ──────────────────────────────────
@@ -372,6 +378,7 @@ def _drill_down_mid_levels(
     snap: RecursiveOrchestratorSnapshot,
     current_range: tuple[int, int],
     direction: str,
+    tower_policy: TowerBasePolicy | None = None,
 ) -> tuple[list[tuple[int, Divergence | None]], tuple[int, int]]:
     """逐级向下搜索中间级别，返回 (chain_entries, narrowed_range)。
 
@@ -381,7 +388,9 @@ def _drill_down_mid_levels(
     B2/修复A 解锁次级背驰后成为必要。
     """
     chain: list[tuple[int, Divergence | None]] = []
-    for mid_level in range(top_level - 1, 1, -1):
+    tower_policy = _resolve_tower_policy(tower_policy)
+    base_level = tower_policy.base_level
+    for mid_level in range(top_level - 1, base_level, -1):
         mid_idx = mid_level - 2
         if mid_idx >= len(snap.recursive_snapshots):
             break
@@ -411,24 +420,27 @@ def _finalize_with_level1(
     direction: str,
     df_macd: pd.DataFrame | None,
     merged_to_raw: list[tuple[int, int]] | None,
+    tower_policy: TowerBasePolicy | None = None,
 ) -> tuple[tuple[int, Divergence] | None, tuple[int, int]]:
     """level=1 最终检测（完整 MACD 支持），返回 (chain_entry, final_range)。
 
     `direction` 过滤同 `_drill_down_mid_levels`（区间套同向链定理）。
     """
+    tower_policy = _resolve_tower_policy(tower_policy)
+    base_level = tower_policy.base_level
     l1_divs = divergences_in_bar_range(
         snap.seg_snapshot.segments,
         snap.zs_snapshot.zhongshus,
         snap.move_snapshot.moves,
-        level_id=1,
+        level_id=base_level,
         bar_range=current_range,
         df_macd=df_macd,
         merged_to_raw=merged_to_raw,
     )
     l1_divs = [d for d in l1_divs if d.direction == direction]
     if l1_divs:
-        final_range = _div_to_bar_range(l1_divs[-1], 1, snap)
-        return (1, l1_divs[-1]), final_range
+        final_range = _div_to_bar_range(l1_divs[-1], base_level, snap)
+        return (base_level, l1_divs[-1]), final_range
     return None, current_range
 
 
@@ -439,6 +451,7 @@ def _build_nested_chain(
     snap: RecursiveOrchestratorSnapshot,
     df_macd: pd.DataFrame | None,
     merged_to_raw: list[tuple[int, int]] | None,
+    tower_policy: TowerBasePolicy | None = None,
 ) -> NestedDivergence | None:
     """从单个高级别背驰出发，向下构建完整嵌套链。"""
     bar_range = _initial_bar_range(top_div, components, top_level, snap)
@@ -447,12 +460,12 @@ def _build_nested_chain(
 
     chain: list[tuple[int, Divergence | None]] = [(top_level, top_div)]
     mid_chain, current_range = _drill_down_mid_levels(
-        top_level, snap, bar_range, top_div.direction,
+        top_level, snap, bar_range, top_div.direction, tower_policy,
     )
     chain.extend(mid_chain)
 
     l1_entry, final_range = _finalize_with_level1(
-        snap, current_range, top_div.direction, df_macd, merged_to_raw,
+        snap, current_range, top_div.direction, df_macd, merged_to_raw, tower_policy,
     )
     if l1_entry is not None:
         chain.append(l1_entry)
@@ -473,10 +486,13 @@ def nested_divergence_search(
     """区间套跨级别背驰搜索。
 
     从最高递归级别开始，逐级向下检测背驰并收缩 bar 范围，
-    直到 level=1。级别由递归构造决定，不接受时间周期参数。
+    直到当前 `tower-base` 对应的基底（segment 时为 level=1）。级别由递归构造决定，
+    不接受时间周期参数；非 segment 基底在入口显式拒绝。
 
     概念溯源: [新缠论:选择] 第27课 区间套（精确大转折点寻找程序定理；坐标轴原文留白）
     """
+    tower_policy = _resolve_tower_policy(None)
+    _ = tower_policy.base_level
     if not snap.recursive_snapshots:
         return []
 
@@ -487,7 +503,7 @@ def nested_divergence_search(
         top_divs, components = _top_level_divs_with_components(top_level, snap)
         for top_div in top_divs:
             nested = _build_nested_chain(
-                top_level, top_div, components, snap, df_macd, merged_to_raw,
+                top_level, top_div, components, snap, df_macd, merged_to_raw, tower_policy,
             )
             if nested is not None:
                 results.append(nested)

@@ -27,7 +27,9 @@
 
 #![allow(dead_code)] // S3 侧接线落在下游切片；本模块 API 现由 root adapter 与本文件测试使用。
 
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json as bj;
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 use std::borrow::Borrow;
 use std::hash::Hash;
@@ -136,6 +138,18 @@ pub(crate) struct BudgetedChangeSet {
     pub replaces: CodecVec<Replace>,
 }
 
+fn check_admission_domains(
+    allocation: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    if allocation.is_some() && work.is_some() {
+        return Err(
+            "prototype_audit_allocation_incomplete：对象diff不能同时使用Owned与Native父账".into(),
+        );
+    }
+    Ok(())
+}
+
 fn identity<Id: Borrow<str>>(id: &Id) -> &str {
     id.borrow()
 }
@@ -153,23 +167,52 @@ where
     NewId: Borrow<str>,
     Slot: Eq + Hash,
 {
+    plan_admitted(new, old, allocation, None)
+}
+
+/// #1488：同一判定核，实际容器在当前工作域先准入再增长；返回值携原许可。
+pub(crate) fn plan_admitted<Old, New, OldId, NewId, Slot>(
+    new: &[Key<New, NewId, Slot>],
+    old: &[Existing<Old, OldId, Slot>],
+    allocation: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<BudgetedChangeSet, String>
+where
+    Old: Content,
+    New: Content<Value = Old::Value>,
+    OldId: Borrow<str>,
+    NewId: Borrow<str>,
+    Slot: Eq + Hash,
+{
+    check_admission_domains(allocation, work)?;
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned对象diff入口未启用".into());
     }
+    let admission = NativeAdmission(work);
     let mut old_by_id = bj::new_map::<&str, usize>(allocation);
     let mut active_by_id = bj::new_map::<&str, usize>(allocation);
     for (index, entry) in old.iter().enumerate() {
+        if !old_by_id.contains_key(identity(&entry.key.object_id)) {
+            admission
+                .native_map_room(&mut old_by_id)
+                .map_err(|e| e.to_string())?;
+        }
         old_by_id
             .insert(identity(&entry.key.object_id), index)
             .map_err(|e| e.to_string())?;
         if entry.active {
+            if !active_by_id.contains_key(identity(&entry.key.object_id)) {
+                admission
+                    .native_map_room(&mut active_by_id)
+                    .map_err(|e| e.to_string())?;
+            }
             active_by_id
                 .insert(identity(&entry.key.object_id), index)
                 .map_err(|e| e.to_string())?;
         }
     }
-    plan_indexed_budgeted(
+    plan_indexed_admitted(
         new,
         |i| &old[i],
         old.iter()
@@ -179,6 +222,7 @@ where
         |id| old_by_id.get(id).copied(),
         |id| active_by_id.get(id).copied(),
         allocation,
+        work,
     )
 }
 
@@ -200,9 +244,37 @@ where
     Slot: Eq + Hash,
     E: Borrow<Existing<Old, OldId, Slot>>,
 {
+    plan_indexed_admitted(new, old, active, known, active_known, allocation, None)
+}
+
+/// #1488：索引适配的受准入入口；业务扫描与按需读取次序只有这一份。
+pub(crate) fn plan_indexed_admitted<Old, New, OldId, NewId, Slot, E>(
+    new: &[Key<New, NewId, Slot>],
+    old: impl Fn(usize) -> E,
+    active: impl IntoIterator<Item = usize>,
+    known: impl Fn(&str) -> Option<usize>,
+    active_known: impl Fn(&str) -> Option<usize>,
+    allocation: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<BudgetedChangeSet, String>
+where
+    Old: Content,
+    New: Content<Value = Old::Value>,
+    OldId: Borrow<str>,
+    NewId: Borrow<str>,
+    Slot: Eq + Hash,
+    E: Borrow<Existing<Old, OldId, Slot>>,
+{
+    check_admission_domains(allocation, work)?;
+    let admission = NativeAdmission(work);
     // 同槽位候选取**末位**：与旧实现 `new_objects.iter().collect::<BTreeMap<_,_>>()` 同语义。
     let mut new_by_slot = bj::new_map::<&Slot, usize>(allocation);
     for (index, key) in new.iter().enumerate() {
+        if !new_by_slot.contains_key(&key.slot) {
+            admission
+                .native_map_room(&mut new_by_slot)
+                .map_err(|e| e.to_string())?;
+        }
         new_by_slot
             .insert(&key.slot, index)
             .map_err(|e| e.to_string())?;
@@ -219,17 +291,25 @@ where
         let owner = old(old_index);
         let entry = owner.borrow();
         match new_by_slot.get(&entry.key.slot).copied() {
-            None => changes
-                .withdrawals
-                .try_push(Withdrawal {
-                    old_index,
-                    removal: Removal::Removed,
-                    new_index: None,
-                })
-                .map_err(|e| e.to_string())?,
+            None => {
+                admission
+                    .native_codec_room(&mut changes.withdrawals, 1)
+                    .map_err(|e| e.to_string())?;
+                changes
+                    .withdrawals
+                    .try_push(Withdrawal {
+                        old_index,
+                        removal: Removal::Removed,
+                        new_index: None,
+                    })
+                    .map_err(|e| e.to_string())?;
+            }
             Some(new_index)
                 if identity(&new[new_index].object_id) != identity(&entry.key.object_id) =>
             {
+                admission
+                    .native_codec_room(&mut changes.withdrawals, 1)
+                    .map_err(|e| e.to_string())?;
                 changes
                     .withdrawals
                     .try_push(Withdrawal {
@@ -237,6 +317,9 @@ where
                         removal: Removal::Superseded,
                         new_index: Some(new_index),
                     })
+                    .map_err(|e| e.to_string())?;
+                admission
+                    .native_codec_room(&mut changes.replaces, 1)
                     .map_err(|e| e.to_string())?;
                 changes
                     .replaces
@@ -281,6 +364,9 @@ where
                         identity(&key.object_id)
                     ));
                 }
+                admission
+                    .native_codec_room(&mut changes.births, 1)
+                    .map_err(|e| e.to_string())?;
                 changes
                     .births
                     .try_push(new_index)
@@ -735,5 +821,239 @@ mod tests {
         assert!(tiny.allocation_request_probe().refused_bytes > 1);
         assert_eq!((prior_reads.get(), candidate_reads.get()), (1, 0));
         assert_eq!(tiny.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn admitted_slice_and_indexed_share_order_and_failure_semantics() {
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        for mask in 0..16usize {
+            let old = (0..4)
+                .map(|i| {
+                    stored(
+                        &format!("id{i}"),
+                        if i % 2 == 0 { "s0" } else { "s1" },
+                        "v",
+                        mask & (1 << i) != 0,
+                    )
+                })
+                .collect::<Vec<_>>();
+            for ids in [vec![], vec![0], vec![1, 0], vec![0, 1, 4], vec![2, 4]] {
+                let new = ids
+                    .iter()
+                    .map(|i| {
+                        ready_key(&format!("id{i}"), if i % 2 == 0 { "s0" } else { "s1" }, "v")
+                    })
+                    .collect::<Vec<_>>();
+                let plain = plan(&new, &old);
+                budget
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let slice = plan_admitted(&new, &old, None, Some(work));
+                        let indexed = plan_indexed_admitted(
+                            &new,
+                            |i| &old[i],
+                            (0..old.len()).filter(|i| old[*i].active),
+                            |id| old.iter().rposition(|e| e.key.object_id == id),
+                            |id| old.iter().rposition(|e| e.active && e.key.object_id == id),
+                            None,
+                            Some(work),
+                        );
+                        match (&plain, slice, indexed) {
+                            (Ok(p), Ok(a), Ok(b)) => {
+                                assert_eq!(p.births.as_slice(), &*a.births);
+                                assert_eq!(p.withdrawals.as_slice(), &*a.withdrawals);
+                                assert_eq!(p.replaces.as_slice(), &*a.replaces);
+                                assert_eq!(&*a.births, &*b.births);
+                                assert_eq!(&*a.withdrawals, &*b.withdrawals);
+                                assert_eq!(&*a.replaces, &*b.replaces);
+                            }
+                            (Err(p), Err(a), Err(b)) => {
+                                assert_eq!(p, &a);
+                                assert_eq!(p, &b);
+                            }
+                            _ => panic!("Native适配改变了对象身份语义"),
+                        }
+                        Ok::<_, String>(())
+                    })
+                    .unwrap();
+                assert_eq!(budget.live(), baseline);
+            }
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn admitted_changes_keep_permits_past_scope_and_release_on_drop() {
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let old = vec![
+            stored("removed", "gone", "v", true),
+            stored("prior", "slot", "v", true),
+        ];
+        let new = vec![ready_key("fresh", "slot", "v")];
+        for _ in 0..3 {
+            let changes = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| plan_admitted(&new, &old, None, Some(work)))
+                .unwrap();
+            assert_eq!(&*changes.births, &[0]);
+            assert_eq!(
+                changes
+                    .withdrawals
+                    .iter()
+                    .map(|w| w.old_index)
+                    .collect::<Vec<_>>(),
+                [0, 1]
+            );
+            assert_eq!(changes.replaces[0].new_index, 0);
+            let held = budget.live();
+            assert!(held > baseline, "输出缓冲离域后仍持原许可");
+            drop(changes.births);
+            assert!(budget.live() < held);
+            assert!(budget.live() > baseline);
+            drop(changes.withdrawals);
+            drop(changes.replaces);
+            assert_eq!(budget.live(), baseline, "临时映射与输出缓冲各自只退原许可");
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn admitted_diff_preserves_lazy_read_order_and_budget_failure_atomicity() {
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let (birth, birth_reads) = View::unreadable();
+        let new_birth = vec![key("fresh", "slot", birth)];
+        let changes = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                plan_admitted::<View, View, String, String, String>(
+                    &new_birth,
+                    &[],
+                    None,
+                    Some(work),
+                )
+            })
+            .unwrap();
+        assert_eq!(&*changes.births, &[0]);
+        assert_eq!(birth_reads.get(), 0);
+        drop(changes);
+        assert_eq!(budget.live(), baseline);
+        let (prior, prior_reads) = View::unreadable();
+        let (candidate, candidate_reads) = View::unreadable();
+        let old = vec![Existing {
+            key: key("same", "slot", prior),
+            active: true,
+        }];
+        let new = vec![key("same", "slot", candidate)];
+        let failure = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| plan_admitted(&new, &old, None, Some(work)))
+            .unwrap_err();
+        match failure {
+            newchan_rust::s_content::capture_allocation::scratch::WorkError::Operation(e) => {
+                assert!(e.contains("缺不可变字段 kind"))
+            }
+            _ => panic!("语义读取失败被错误改类"),
+        }
+        assert_eq!((prior_reads.get(), candidate_reads.get()), (1, 0));
+        assert_eq!(budget.live(), baseline);
+        let failure = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                // 持有父账剩余额度，令首张映射分配在读取内容前失败。
+                let _held = budget.reserve(1024 * 1024 - budget.live() - 1).unwrap();
+                plan_admitted(&new, &old, None, Some(work))
+            })
+            .unwrap_err();
+        assert!(matches!(
+            failure,
+            newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(_)
+        ));
+        assert_eq!((prior_reads.get(), candidate_reads.get()), (1, 0));
+        assert_eq!(old[0].key.object_id, "same");
+        assert_eq!(new[0].object_id, "same");
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn admitted_diff_rejects_two_allocation_domains_before_growth() {
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let owned = OwnedBudget::new(1024 * 1024);
+        let baseline = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let before = budget.live();
+                let error = plan_admitted::<Ready<String>, Ready<String>, String, String, String>(
+                    &[],
+                    &[],
+                    Some(&owned),
+                    Some(work),
+                )
+                .unwrap_err();
+                assert!(error.contains("不能同时使用Owned与Native父账"));
+                assert_eq!(budget.live(), before);
+                assert_eq!(owned.snapshot().allocation_attempts, 0);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn admitted_diff_partial_output_growth_failure_releases_all_buffers() {
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let old = (0..9)
+            .map(|i| stored(&format!("old{i}"), "slot", "v", true))
+            .collect::<Vec<_>>();
+        let empty: &[Key<Ready<String>>] = &[];
+        let visited = Cell::new(0);
+        let failure = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                // 首个4槽缓冲可入，扩成8槽时新旧共存额度不足；前四次撤回已实际生成。
+                let first_buffer = 4 * std::mem::size_of::<Withdrawal>();
+                let _held = budget
+                    .reserve(1024 * 1024 - budget.live() - first_buffer)
+                    .unwrap();
+                plan_indexed_admitted(
+                    empty,
+                    |i| {
+                        visited.set(visited.get() + 1);
+                        &old[i]
+                    },
+                    0..old.len(),
+                    |_| None,
+                    |_| None,
+                    None,
+                    Some(work),
+                )
+            })
+            .unwrap_err();
+        assert!(matches!(
+            failure,
+            newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(_)
+        ));
+        assert_eq!(visited.get(), 5, "必须到达第五次push的真实扩容拒绝");
+        assert_eq!(old.len(), 9);
+        assert!(old.iter().all(|entry| entry.active));
+        assert_eq!(
+            budget.live(),
+            baseline,
+            "部分输出被丢弃，缓冲与scope全部退费"
+        );
     }
 }

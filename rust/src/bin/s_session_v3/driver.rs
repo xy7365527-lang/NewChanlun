@@ -4,7 +4,6 @@
 
 use super::*;
 use newchan_rust::session_protocol::{required, validate_envelope};
-use std::fs::File;
 
 /// CLI 预检与运行中 handler 共用的唯一 typed 请求判据。
 pub(super) fn validate_request(envelope: Value) -> Result<Value, String> {
@@ -74,6 +73,14 @@ pub(super) fn check_request_before_resume(
     Ok(())
 }
 
+/// #1640 1a：诊断场所入口的自报读数：场所 profile `id/版本`、是否可参与准入、本 Driver 是否仍要求准入。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct VenueProfileTag {
+    pub(super) venue_profile: String,
+    pub(super) admissible: bool,
+    pub(super) require_admissible: bool,
+}
+
 pub(super) struct Driver {
     conn: super::audit_owner::AuditConnection,
     /// 启动前冻结的互斥私有模式；Owned 与 Runtime 同账，不保留 capture/审计结果。
@@ -81,14 +88,22 @@ pub(super) struct Driver {
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
+    /// 本 Driver 的唯一生成配置；生产与诊断由构造入口显式决定。
+    theta_config: newchan_rust::theta_v0::config::ThetaConfig,
+    /// 只有正式生产入口要求可准入；既有 TestOnly 夹具继续只作诊断。
+    require_admissible: bool,
     profile_id: String,
     volume_unit: Option<String>,
     /// 启动时冻结的唯一审计源保留预算；完整候选须由owner在每次handle绑定当前快照。
     audit_cache_source_bytes: Option<usize>,
+    /// #1640（ADR 0042 D4）：`/2` 第八门；Some 时第七门只计 legacy，跨请求候选帽取本值。
+    /// None 只出现在直接构造 Driver 的测试夹具里，沿用旧的「第七门减 legacy」切分。
+    #[cfg(feature = "s_incremental")]
+    incremental_retention_bytes: Option<usize>,
     /// #1394：Native私有诊断开关在首次事务前冻结。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     sqlite_pager_probe: bool,
-    _lock: File,
+    _scope: super::admission::WriterScope,
     #[cfg(test)]
     stop_after: Option<&'static str>,
 }
@@ -101,6 +116,7 @@ impl Driver {
         epoch: &str,
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         Self::open_for_serve_with_allocation(
             db,
@@ -109,6 +125,7 @@ impl Driver {
             clock,
             audit_cache_source_bytes,
             None,
+            admission,
         )
     }
 
@@ -120,6 +137,7 @@ impl Driver {
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
         allocation: Option<q_allocation::Profile>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         Self::open_for_serve_with_mode(
             db,
@@ -128,9 +146,11 @@ impl Driver {
             clock,
             audit_cache_source_bytes,
             allocation.into(),
+            admission,
         )
     }
 
+    #[cfg(test)]
     pub(super) fn open_for_serve_with_mode(
         db: &Path,
         profile: &Path,
@@ -138,26 +158,127 @@ impl Driver {
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
         mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
-        let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
+        let mut driver =
+            Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode, admission)?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
-    /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
-    #[cfg(feature = "s_capture_native_testonly")]
-    pub(super) fn open_for_serve_with_identity(
+
+    /// 正式服务入口：生产 profile 在开门与 pending 恢复前构造，诊断夹具无权进入。
+    pub(super) fn open_for_serve_with_mode_production(
         db: &Path,
         profile: &Path,
         epoch: &str,
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
         mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver = Self::open_production_with_request_and_mode(
+            db, profile, epoch, clock, None, mode, admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+    /// #1769 TestOnly：仅 `production_session_testonly` 构建、且显式 `S_THETA_DIAGNOSTIC_TESTONLY=1`
+    /// 时可达；以诊断夹具配置开门（不参与准入），与生产入口不是同一构造。
+    #[cfg(feature = "production_session_testonly")]
+    pub(super) fn open_for_serve_theta_diagnostic_testonly(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            None,
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+    /// #1640 1a（gates `policy1640-diagnostic`）：仅 `s_capture_native_testonly` 构建、且 serve 显式带
+    /// `S_DIAGNOSTIC_FIXTURE_TESTONLY` 时可达。以诊断夹具场所 profile（`admissible:false`）开门，
+    /// `require_admissible` 照旧为真：Ready 可达（launcher/4 据 build_profile 拒绝），任何 advance 仍被
+    /// `InvalidPolicy{venue_profile}` 拒绝。与 #1769 的 theta 诊断臂不同，本入口不关准入。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn open_for_serve_diagnostic_fixture_testonly(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let theta_config = newchan_rust::theta_v0::config::ThetaConfig::diagnostic_fixture()
+            .map_err(|error| error.to_string())?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            None,
+            theta_config,
+            true,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+    /// #1640 1a：本 Driver 的场所 profile 自报（Ready payload 与启动诊断行共用同一份读数）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn venue_profile_tag(&self) -> VenueProfileTag {
+        VenueProfileTag {
+            venue_profile: self.theta_config.records.venue.record.label(),
+            admissible: self.theta_config.admissible(),
+            require_admissible: self.require_admissible,
+        }
+    }
+    /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
+    /// #1640：增量构建的正式服务入口；`production` 时先构造生产配置并要求可准入（同
+    /// `open_production_with_request_and_mode`），第八门在 pending 恢复后、首个请求前冻结。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn open_for_serve_with_identity(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        incremental_retention_bytes: usize,
+        mode: s_allocation::Mode,
+        production: bool,
+        admission: super::admission::WriterAdmission,
     ) -> Result<(Self, (String, String, String)), String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
+        state::check_audit_source_retention(incremental_retention_bytes)?;
         if !matches!(mode, s_allocation::Mode::CapturedNative) {
-            return Err("TestOnly Native bootstrap只接受显式CapturedNative模式".into());
+            return Err("增量服务bootstrap只接受CapturedNative模式".into());
         }
+        let theta_config = if production {
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+                .map_err(|error| error.to_string())?
+        } else {
+            newchan_rust::theta_v0::config::ThetaConfig::default()
+        };
         let mut context = request_audit::RequestAuditContext::default();
         let mut driver = Self::open_with_request_and_mode_context(
             db,
@@ -167,19 +288,23 @@ impl Driver {
             None,
             mode,
             Some(&mut context),
+            theta_config,
+            production,
+            admission,
         )?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        driver.incremental_retention_bytes = Some(incremental_retention_bytes);
         let identity = driver.identity_in_bootstrap(&mut context)?;
         drop(context);
         Ok((driver, identity))
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn identity_in_bootstrap(
         &self,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(String, String, String), String> {
         if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
-            return Err("TestOnly Native bootstrap只接受显式CapturedNative模式".into());
+            return Err("增量服务bootstrap只接受CapturedNative模式".into());
         }
         let result = self.conn.identity(&self.epoch, &self.clock, Some(context));
         if result.is_err() {
@@ -188,12 +313,29 @@ impl Driver {
         result
     }
 
+    pub(super) fn into_output(self, out: Value) -> super::admission::CommandOutput {
+        let Self { conn, _scope, .. } = self;
+        drop(conn);
+        super::admission::CommandOutput::new(out, _scope)
+    }
+    pub(super) fn finish_startup(&self) -> Result<(), String> {
+        self._scope.finish_startup()
+    }
+
     pub(super) fn identity(&self) -> Result<(String, String, String), String> {
         self.conn.identity(&self.epoch, &self.clock, None)
     }
 
     pub(super) fn state_summary(&self, command: &str) -> Result<Value, String> {
-        self.conn.summary(command, &self.epoch, &self.clock)
+        let mut summary = self.conn.summary(command, &self.epoch, &self.clock)?;
+        let fields = summary
+            .as_object_mut()
+            .ok_or("StorageUnavailable：S 摘要不是对象")?;
+        fields.insert(
+            "policy_records".into(),
+            Value::String(self.theta_config.record_labels()),
+        );
+        Ok(summary)
     }
 
     #[cfg(test)]
@@ -202,8 +344,9 @@ impl Driver {
         profile: &Path,
         epoch: &str,
         clock: v2::ClockPlan,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request(db, profile, epoch, clock, None)
+        Self::open_with_request(db, profile, epoch, clock, None, admission)
     }
 
     /// 输入请求在同一写者进程锁内、任何 pending 自动恢复之前再核一次。
@@ -214,8 +357,9 @@ impl Driver {
         epoch: &str,
         clock: v2::ClockPlan,
         request: Option<&Value>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None)
+        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None, admission)
     }
 
     /// 在恢复 pending 之前冻结私有 TestOnly 档；启动身份审计仍走原入口。
@@ -227,12 +371,22 @@ impl Driver {
         clock: v2::ClockPlan,
         request: Option<&Value>,
         allocation: Option<q_allocation::Profile>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_mode(db, profile, epoch, clock, request, allocation.into())
+        Self::open_with_request_and_mode(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            allocation.into(),
+            admission,
+        )
     }
 
     /// startup仅显式CapturedNative做同核全捕获；其它模式保持普通。在pending恢复前审计并冻结模式。
     /// 多错坏库的首报顺序可能随先捕获改变；拒绝义务不变，不保留startup结果。
+    #[cfg(test)]
     pub(super) fn open_with_request_and_mode(
         db: &Path,
         profile: &Path,
@@ -240,9 +394,74 @@ impl Driver {
         clock: v2::ClockPlan,
         request: Option<&Value>,
         mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None)
+        Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            None,
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            admission,
+        )
     }
+
+    /// 正式写入口：先构造当前生效生产配置（S 专用绑定 synthetic，#1774 B2），再打开库或恢复任何 pending。
+    pub(super) fn open_production_with_request_and_mode(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        Self::open_production_bound(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            admission,
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer(),
+        )
+    }
+
+    /// 正式写入口的绑定步：配置构造失败 ⟹ 在任何库写或 pending 恢复之前返回。
+    #[allow(clippy::too_many_arguments)]
+    fn open_production_bound(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+        theta_config: Result<
+            newchan_rust::theta_v0::config::ThetaConfig,
+            newchan_rust::theta_v0::run_records::RunPolicyError,
+        >,
+    ) -> Result<Self, String> {
+        let theta_config = theta_config.map_err(|error| error.to_string())?;
+        Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            None,
+            theta_config,
+            true,
+            admission,
+        )
+    }
+
     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
     fn open_with_request_and_mode_context(
         db: &Path,
@@ -252,18 +471,40 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
         mut startup_context: Option<&mut request_audit::RequestAuditContext>,
+        theta_config: newchan_rust::theta_v0::config::ThetaConfig,
+        require_admissible: bool,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         mode.validate()?;
         parse_writer_epoch(epoch, "configured writer_epoch")?;
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
         }
-        let lock = session_transport::process_lock(db, "S")?;
+        let scope = if matches!(mode, s_allocation::Mode::CapturedNative) {
+            admission.admit_prefix(
+                db,
+                super::admission_private::RejectionPrefix::NativeStartup {
+                    epoch,
+                    context: startup_context.as_deref_mut(),
+                    work: None,
+                },
+            )?
+        } else if startup_context.is_none() {
+            admission.admit_prefix(
+                db,
+                super::admission_private::RejectionPrefix::OrdinaryStartup { epoch },
+            )?
+        } else {
+            admission.admit(db)?
+        };
+        let _open_guard = scope.enter()?;
+        let db = scope.db_path();
+        scope.require_admitted()?;
         let conn = super::audit_owner::AuditConnection::open(db)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
             && super::audit_owner::pager_enabled();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if sqlite_pager_probe {
             conn.configure_pager_probe()?;
         }
@@ -277,16 +518,20 @@ impl Driver {
         )?;
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::with_mode(mode.clone()),
+            runtime: prepared::Runtime::with_config(mode.clone(), theta_config.clone()),
             mode,
             clock,
             epoch: epoch.into(),
+            theta_config,
+            require_admissible,
             profile_id,
             volume_unit,
             audit_cache_source_bytes: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
+            incremental_retention_bytes: None,
+            #[cfg(feature = "s_incremental")]
             sqlite_pager_probe,
-            _lock: lock,
+            _scope: scope,
             #[cfg(test)]
             stop_after: None,
         };
@@ -295,7 +540,7 @@ impl Driver {
     }
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let pager_before = self.sqlite_pager_probe.then(|| {
             (
                 self.conn.pager_snapshot(),
@@ -303,7 +548,7 @@ impl Driver {
             )
         });
         let result = self.handle_with_request_audit(envelope);
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some((before, message_id)) = pager_before {
             let after = self.conn.pager_snapshot();
             super::audit_owner::log_pager_handle(before, after, message_id, result.is_ok());
@@ -312,33 +557,31 @@ impl Driver {
     }
 
     fn handle_with_request_audit(&mut self, envelope: Value) -> Result<Value, String> {
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let mut request_audit = request_audit::RequestAuditContext::default();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let mut request_audit = {
             let mut previous = self.conn.take_source_keeper();
             let mut context = request_audit::RequestAuditContext::default();
             if matches!(self.mode, s_allocation::Mode::CapturedNative) {
-                if let Some(total) = self.audit_cache_source_bytes {
+                if let Some(seventh) = self.audit_cache_source_bytes {
                     let legacy = crate::cache::retained_bytes();
+                    // #1640 D4：`/2` 第七门只计 legacy；共同上限＝legacy＋第八门，keeper_cap 恰为第八门。
+                    let total = match self.incremental_retention_bytes {
+                        Some(eighth) if legacy <= seventh => legacy
+                            .checked_add(eighth)
+                            .ok_or("S3WriterResourcesInvalid：legacy与第八门之和溢出")?,
+                        Some(_) => Err("S3WriterResourcesInvalid：legacy来源费用超过S7")?,
+                        None => seventh,
+                    };
                     let keeper_cap = total
                         .checked_sub(legacy)
                         .ok_or("S3WriterResourcesInvalid：legacy来源费用超过S7")?;
-                    let held = previous
-                        .as_ref()
-                        .map_or(0, |k| k.retained_source_bytes())
-                        .saturating_add(self.conn.complete_retained_bytes());
-                    if held > keeper_cap {
-                        self.conn.discard_after_error();
-                        if let Some(k) = &mut previous {
-                            k.set_retention_cap(keeper_cap);
-                        }
-                    }
-                    let old_pool = previous
-                        .as_ref()
-                        .map_or(0, |k| k.retained_source_bytes())
-                        .saturating_add(self.conn.complete_retained_bytes());
-                    context.freeze_manifest_workspace_budget(total, legacy, old_pool)?;
+                    // #1488 P1-1/P1-2/P1-α：逐项分区；不成立即丢候选重映射，再不成立只丢可选池。
+                    let partition = self
+                        .conn
+                        .entry_old_pool_partition(&mut previous, keeper_cap)?;
+                    context.freeze_manifest_workspace_partition(total, legacy, partition)?;
                     if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
                         let mut keeper = previous.unwrap_or_else(|| {
                             super::cross_request_source_cache::Keeper::new(keeper_cap)
@@ -350,7 +593,7 @@ impl Driver {
                         == Some(std::ffi::OsStr::new("1"))
                     {
                         use std::io::Write as _;
-                        let line = json!({"diagnostic":"NativeTestOnlyManifestWorkspace",
+                        let line = json!({"diagnostic":"WriterRetentionWorkspace",
                             "stage":"request-budget-entry", "message_id":envelope.get("message_id"),
                             "budget":context.manifest_workspace_budget(),
                             "keeper_cap":keeper_cap});
@@ -362,11 +605,11 @@ impl Driver {
         };
         match self.handle_in_request(envelope, &mut request_audit) {
             Ok((reply, ended)) => {
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 {
                     self.conn.finish_source_keeper(request_audit, ended);
                 }
-                #[cfg(not(feature = "s_capture_native_testonly"))]
+                #[cfg(not(feature = "s_incremental"))]
                 let _ = ended;
                 Ok(reply)
             }
@@ -383,7 +626,13 @@ impl Driver {
         request_audit: &mut request_audit::RequestAuditContext,
     ) -> Result<(Value, super::audit_owner::Ended), String> {
         let envelope = validate_request(envelope)?;
-        if let Some(cap) = self.audit_cache_source_bytes {
+        #[cfg(feature = "s_incremental")]
+        let retention_cap = self
+            .incremental_retention_bytes
+            .or(self.audit_cache_source_bytes);
+        #[cfg(not(feature = "s_incremental"))]
+        let retention_cap = self.audit_cache_source_bytes;
+        if let Some(cap) = retention_cap {
             state::check_audit_source_retention_bytes(cap, request_audit.retained_source_bytes())?;
         }
         let (admission, ended) = self.conn.admit(
@@ -415,6 +664,12 @@ impl Driver {
         envelope: &Value,
         request_audit: &mut request_audit::RequestAuditContext,
     ) -> Result<(Value, super::audit_owner::Ended), String> {
+        if self.require_admissible && !self.theta_config.admissible() {
+            return Err(format!(
+                "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
+                self.theta_config.record_labels()
+            ));
+        }
         let begun = self.conn.begin_advance(
             envelope,
             &self.epoch,
@@ -458,24 +713,48 @@ impl Driver {
 
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。
 /// 尚未接CLI；换代事务提交后，由新Driver开门继续持久pending原件。
+pub(super) fn recover_scoped(
+    db: &Path,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+    admission: super::admission::WriterAdmission,
+) -> Result<(Value, super::admission::WriterScope), String> {
+    parse_writer_epoch(new_epoch, "new writer_epoch")?;
+    if !db.is_file() {
+        return Err("StorageUnavailable：恢复需要已初始化库".into());
+    }
+    // 此入口新建连接，尚无既绑候选；已绑定恢复仍走 AuditConnection 原路径。
+    let scope = admission.admit_prefix(
+        db,
+        super::admission_private::RejectionPrefix::UnboundRecover,
+    )?;
+    let _open_guard = scope.enter()?;
+    let db = scope.db_path();
+    scope.require_admitted()?;
+    let conn = super::audit_owner::AuditConnection::open(db)?;
+    let result = conn.recover(new_epoch, clock, clock_event)?;
+    drop(conn);
+    Ok((result, scope))
+}
+#[cfg(test)]
 pub(super) fn recover(
     db: &Path,
     new_epoch: &str,
     clock: &v2::ClockPlan,
     clock_event: &str,
+    admission: super::admission::WriterAdmission,
 ) -> Result<Value, String> {
-    parse_writer_epoch(new_epoch, "new writer_epoch")?;
-    if !db.is_file() {
-        return Err("StorageUnavailable：恢复需要已初始化库".into());
-    }
-    let _lock = session_transport::process_lock(db, "S")?;
-    let conn = super::audit_owner::AuditConnection::open(db)?;
-    conn.recover(new_epoch, clock, clock_event)
+    let (value, scope) = recover_scoped(db, new_epoch, clock, clock_event, admission)?;
+    scope.finish_startup()?;
+    Ok(value)
 }
+
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
+
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3DriverInvalid：{e}")
 }
@@ -511,6 +790,25 @@ mod tests {
             )
         }
         fn with_clock(clock_value: Value) -> Self {
+            Self::with_clock_declared(clock_value, None)
+        }
+        /// #1769：带结构源声明建库（默认三输入时钟）。
+        fn declared(namespace: &str) -> Self {
+            let source = newchan_rust::structure_source::Declaration::parse(
+                &json!({"category":"TestOnlyStructure","namespaces":[namespace]}),
+            )
+            .unwrap();
+            Self::with_clock_declared(
+                json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+                "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+                "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]}}}),
+                Some(&source),
+            )
+        }
+        fn with_clock_declared(
+            clock_value: Value,
+            source: Option<&newchan_rust::structure_source::Declaration>,
+        ) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-driver-{}-{}-{}",
                 std::process::id(),
@@ -526,7 +824,7 @@ mod tests {
                 .join("s_session");
             let profile = base.join("profiles/ohlc_integer_tb02a_v1.json");
             let db = path.join("s.sqlite");
-            init_v3(
+            super::super::init_v3_declared(
                 &db,
                 "s-session-testonly-001",
                 &base.join("catalog/signed-catalog.json"),
@@ -534,6 +832,7 @@ mod tests {
                 "1",
                 &cp,
                 4,
+                source,
             )
             .unwrap();
             Self {
@@ -545,7 +844,31 @@ mod tests {
             }
         }
         fn open(&self, epoch: &str) -> Result<Driver, String> {
-            Driver::open(&self.db, &self.profile, epoch, self.clock.clone())
+            Driver::open(
+                &self.db,
+                &self.profile,
+                epoch,
+                self.clock.clone(),
+                crate::v3::admission_anchor::test_prepare(&self.db).into(),
+            )
+        }
+        fn open_with_config(
+            &self,
+            epoch: &str,
+            theta_config: ThetaConfig,
+        ) -> Result<Driver, String> {
+            Driver::open_with_request_and_mode_context(
+                &self.db,
+                &self.profile,
+                epoch,
+                self.clock.clone(),
+                None,
+                s_allocation::Mode::Ordinary,
+                None,
+                theta_config,
+                false,
+                crate::v3::admission_anchor::test_prepare(&self.db).into(),
+            )
         }
         fn ingest(n: i64) -> Value {
             let row = match n {
@@ -575,7 +898,205 @@ mod tests {
             .unwrap()
     }
 
-    /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
+    /// #1769：带声明的库经正式写入口（handle → accept_events）只接纳声明内 namespace；
+    /// 声明外的同形 bar 以 InvalidDomain 拒收且不落行。
+    #[test]
+    fn declared_structure_source_gates_accept_input() {
+        let rejected = Fixture::declared("hl.perp.BTC");
+        let outcome = rejected.open("1").unwrap().handle(Fixture::ingest(1));
+        let text = match &outcome {
+            Ok(reply) => reply.to_string(),
+            Err(error) => error.clone(),
+        };
+        assert!(text.contains("InvalidDomain"), "{text}");
+        assert!(text.contains("source_namespace"), "{text}");
+        assert_eq!(count(&open_db(&rejected.db).unwrap(), "raw_events"), 0);
+
+        let admitted = Fixture::declared("testonly.ohlc");
+        let reply = admitted
+            .open("1")
+            .unwrap()
+            .handle(Fixture::ingest(1))
+            .unwrap();
+        assert!(!reply.to_string().contains("InvalidDomain"), "{reply}");
+        assert_eq!(count(&open_db(&admitted.db).unwrap(), "raw_events"), 1);
+    }
+
+    /// #1774 AC7：synthetic v1 夹具（tick 已签、三项成本未签）经正式绑定步 open 失败并报 cost_inputs，
+    /// 在任何 pending begin 之前；#1405 的「配置拒绝不消费 pending」语义随之保留。
+    #[test]
+    fn production_open_rejects_unsigned_profile_before_pending_begin() {
+        use newchan_rust::theta_v0::run_records::{
+            production_venue_from_records, VenueUsage, ACTIVE_DATA_PROFILE_JSON,
+            ACTIVE_THETA_RISK_JSON, SYNTHETIC_TB02A_PROFILE_ID, VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        };
+        const SYNTHETIC_UNSIGNED_V1: &str =
+            include_str!("../../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
+        let f = Fixture::new();
+        let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+        let mode = s_allocation::Mode::Ordinary;
+        let mut context = request_audit::RequestAuditContext::default();
+        let (admission, _) = conn
+            .admit(
+                Fixture::ingest(1),
+                "1",
+                &f.clock,
+                tb02a::PROFILE,
+                None,
+                &mode,
+                &mut context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admission,
+            super::super::audit_owner::Admission::Advance { .. }
+        ));
+        drop(conn);
+        let unsigned = newchan_rust::theta_v0::config::ThetaConfig::from_records(
+            production_venue_from_records(
+                &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+                VenueUsage::SStructureWriter,
+                |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+            ),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        );
+        let error = match Driver::open_production_bound(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            mode,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            unsigned,
+        ) {
+            Ok(_) => panic!("未签 synthetic profile 不得打开 Driver"),
+            Err(error) => error,
+        };
+        assert!(error.starts_with("AwaitingPolicy{cost_inputs}"), "{error}");
+        assert!(!error.contains("venue_profile"), "{error}");
+        assert!(
+            error.contains("venue-profile-synthetic-tb02a.slippage_bps"),
+            "{error}"
+        );
+        let conn = Connection::open(&f.db).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
+        let pending: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, 1, "配置拒绝不得消费或提交 pending 原件");
+    }
+
+    /// #1774 AC2：正式写入口绑定已签 synthetic v2，open 成功、配置 admissible、摘要 policy_records
+    /// 带 synthetic 签署版本而非诊断夹具或 P0。
+    #[test]
+    fn production_open_binds_signed_synthetic_profile() {
+        let f = Fixture::declared("testonly.ohlc");
+        let driver = Driver::open_production_with_request_and_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::Ordinary,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .expect("synthetic v2 已签，正式写入口可开");
+        assert!(driver.require_admissible);
+        assert!(driver.theta_config.admissible());
+        let labels = driver.theta_config.record_labels();
+        assert!(
+            labels.contains("venue-profile-synthetic-tb02a/2"),
+            "{labels}"
+        );
+        assert!(!labels.contains("venue-profile-P0"), "{labels}");
+        assert!(!labels.contains("diagnostic-fixture"), "{labels}");
+        let summary = driver.state_summary("test").unwrap();
+        assert_eq!(summary["policy_records"], json!(labels));
+    }
+
+    /// #1640 1a（policy1640-diagnostic）：诊断场所入口以夹具开门、Ready 可达且自报 admissible:false，
+    /// 但 require_admissible 照旧为真：ingest 经既有接纳落为 AcceptedPending 原件后，在 advance 入口被
+    /// InvalidPolicy{venue_profile} 拒绝——不进 Begin、不发布、generation 不动（与生产路径先接纳再
+    /// 准入检查的既有次序一致，见 production_open_rejects_unsigned_profile_before_pending_begin）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_serve_entry_reaches_ready_but_refuses_every_advance() {
+        let f = Fixture::new();
+        let mut driver = Driver::open_for_serve_diagnostic_fixture_testonly(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1_048_576,
+            s_allocation::Mode::Ordinary,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        let tag = driver.venue_profile_tag();
+        assert_eq!(tag.venue_profile, "venue-profile-diagnostic-fixture/1");
+        assert!(!tag.admissible);
+        assert!(tag.require_admissible);
+        let ready = driver
+            .handle(envelope("fixture-ready", json!({"op":"ready"})))
+            .unwrap();
+        assert_eq!(ready["kind"], "Ready");
+        let generation = ready["generation"].clone();
+        let error = driver.handle(Fixture::ingest(1)).unwrap_err();
+        assert!(error.contains("InvalidPolicy"), "{error}");
+        assert!(error.contains("venue_profile"), "{error}");
+        assert!(
+            error.contains("venue-profile-diagnostic-fixture/1"),
+            "{error}"
+        );
+        drop(driver);
+        let conn = Connection::open(&f.db).unwrap();
+        let pending: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, 1, "接纳原件保留为 pending，等待可准入配置");
+        assert_eq!(count(&conn, "raw_events"), 1);
+        assert_eq!(
+            count(&conn, "structure_deltas"),
+            0,
+            "拒绝的 advance 不得发布"
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "generation")
+                .unwrap()
+                .unwrap_or_default(),
+            generation.as_str().unwrap_or_default()
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
+    }
+
     #[test]
     fn historical_bi_rule_is_readable_but_writer_and_recover_leave_it_unchanged() {
         let f = Fixture::new();
@@ -586,14 +1107,480 @@ mod tests {
             let tx = c.transaction().unwrap();
             state::audit(&tx).expect("历史规则只读审计");
         }
-        assert!(f.open("1").err().unwrap().contains("VersionUnsupported"));
-        assert!(recover(&f.db, "2", &f.clock, "recover-1")
-            .err()
-            .unwrap()
-            .contains("VersionUnsupported"));
+        // 写者准入时不得仍有测试连接持有 WAL/SHM；先关闭造库连接。
+        drop(c);
+        // 测试签锚会创建控制原件；它属于前置夹具，不是拒绝路径副作用。
+        let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&f.db);
+        let bytes_before = std::fs::read(&f.db).unwrap();
+        let files = || {
+            let mut names = std::fs::read_dir(&f.path)
+                .unwrap()
+                .map(|e| e.unwrap().file_name())
+                .filter(|n| {
+                    !n.to_string_lossy().ends_with(".writer.lock")
+                        && !n.to_string_lossy().ends_with(".maintenance.lock")
+                })
+                .collect::<Vec<_>>();
+            names.sort();
+            names
+        };
+        let files_before = files();
+        let open_error = f.open("1").err().unwrap();
+        assert!(open_error.contains("VersionUnsupported"), "{open_error}");
+        let recover_error = recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            recover_error.contains("VersionUnsupported"),
+            "{recover_error}"
+        );
+        assert_eq!(
+            open_error.split("；原准入账=").next(),
+            recover_error.split("；原准入账=").next()
+        );
+        assert_eq!(std::fs::read(&f.db).unwrap(), bytes_before);
+        assert_eq!(files(), files_before);
+        let c = open_db(&f.db).unwrap();
         assert_eq!(db_meta(&c).unwrap(), before);
         assert_eq!(count(&c, "raw_events"), 0);
         assert_eq!(count(&c, "s_input_messages"), 0);
+    }
+
+    #[test]
+    fn historical_bi_rule_startup_epoch_precedes_rule_but_recover_checks_rule_first() {
+        let f = Fixture::new();
+        let c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        drop(c);
+        let e = f.open("2").err().unwrap();
+        assert!(e.starts_with("StaleWriter："), "{e}");
+        let scope = super::super::admission::WriterScope::admit(
+            &f.db,
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap();
+        let e = recover_scoped(&f.db, "2", &f.clock, "recover-1", scope.into())
+            .err()
+            .unwrap();
+        assert!(e.starts_with("VersionUnsupported"), "{e}");
+    }
+
+    #[test]
+    fn historical_bi_rule_bad_audit_precedes_epoch_and_rule() {
+        let f = Fixture::new();
+        let mut c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        c.execute("UPDATE catalog SET run_status='run'", [])
+            .unwrap();
+        let expected = {
+            let tx = c.transaction().unwrap();
+            state::audit(&tx).err().expect("坏库必须被原审计拒绝")
+        };
+        drop(c);
+        let e = f.open("2").err().unwrap();
+        assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
+        let e = recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn historical_bi_rule_owned_rejects_without_sidecar_then_current_rule_opens() {
+        let f = Fixture::new();
+        let c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        drop(c);
+        let e = Driver::open_with_request_and_allocation(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            Some(allocation_profile()),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(e.starts_with("VersionUnsupported"), "{e}");
+        assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+        let current = Fixture::new();
+        let driver = allocation_driver(&current, allocation_profile());
+        assert!(driver.identity().is_ok());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_prefix_preserves_business_epoch_rule_order_and_clears_context() {
+        for bad_business in [false, true] {
+            for epoch in ["1", "2"] {
+                let f = Fixture::new();
+                let mut c = open_db(&f.db).unwrap();
+                meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+                if bad_business {
+                    c.execute("UPDATE catalog SET run_status='run'", [])
+                        .unwrap();
+                }
+                let expected = {
+                    let tx = c.transaction().unwrap();
+                    state::audit_native_current(&tx)
+                        .and_then(|_| crate::verify_writer_epoch(&tx, epoch))
+                        .and_then(|_| {
+                            super::super::require_current_writer_rule(
+                                &crate::meta_get_opt(&tx, "rule_revision")?.unwrap(),
+                            )
+                        })
+                        .err()
+                        .unwrap()
+                };
+                drop(c);
+                let _fixture_anchor = crate::v3::admission_anchor::test_prepare(&f.db);
+                let bytes = std::fs::read(&f.db).unwrap();
+                for with_context in [false, true] {
+                    let mut context = request_audit::RequestAuditContext::default();
+                    let error = Driver::open_with_request_and_mode_context(
+                        &f.db,
+                        &f.profile,
+                        epoch,
+                        f.clock.clone(),
+                        None,
+                        s_allocation::Mode::CapturedNative,
+                        with_context.then_some(&mut context),
+                        newchan_rust::theta_v0::config::ThetaConfig::default(),
+                        false,
+                        crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                    )
+                    .err()
+                    .unwrap();
+                    assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
+                    assert!(context.take().is_none(), "最终拒绝不得留下历史 slot");
+                    assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+                    assert_eq!(std::fs::read(&f.db).unwrap(), bytes);
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_prefix_populated_capture_type_error_precedes_frame_and_epoch() {
+        let f = Fixture::new();
+        let mut initial = f.open("1").unwrap();
+        initial.handle(Fixture::ingest(1)).unwrap();
+        drop(initial);
+        let mut c = open_db(&f.db).unwrap();
+        c.execute_batch("ALTER TABLE s_content_nodes RENAME TO old_nodes; CREATE TABLE s_content_nodes(digest,tag,body); INSERT INTO s_content_nodes SELECT digest,tag,body FROM old_nodes; DROP TABLE old_nodes; UPDATE s_content_nodes SET body=x'ff' WHERE rowid=(SELECT min(rowid) FROM s_content_nodes); UPDATE s_content_nodes SET body='text' WHERE rowid=(SELECT max(rowid) FROM s_content_nodes);").unwrap();
+        let expected = {
+            let tx = c.transaction().unwrap();
+            state::audit_native_current(&tx).err().unwrap()
+        };
+        drop(c);
+        for with_context in [false, true] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let error = Driver::open_with_request_and_mode_context(
+                &f.db,
+                &f.profile,
+                "2",
+                f.clock.clone(),
+                None,
+                s_allocation::Mode::CapturedNative,
+                with_context.then_some(&mut context),
+                newchan_rust::theta_v0::config::ThetaConfig::default(),
+                false,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .err()
+            .unwrap();
+            assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
+            assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+            assert!(context.take().is_none());
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_prefix_context_rechecks_real_connection_current_material() {
+        for change in ["same", "append", "bad_node", "epoch", "identity", "version"] {
+            let f = Fixture::new();
+            let mut initial = f.open("1").unwrap();
+            initial.handle(Fixture::ingest(1)).unwrap();
+            drop(initial);
+            let mut context = request_audit::RequestAuditContext::default();
+            let scope = super::super::admission::WriterAdmission::from(
+                crate::v3::admission_anchor::test_prepare(&f.db),
+            )
+            .admit_prefix(
+                &f.db,
+                super::super::admission_private::RejectionPrefix::NativeStartup {
+                    epoch: "1",
+                    context: Some(&mut context),
+                    work: None,
+                },
+            )
+            .unwrap();
+            assert!(context.has_slot());
+            assert_eq!((context.cold, context.hits), (1, 0));
+            let _guard = scope.enter().unwrap();
+            scope.require_admitted().unwrap();
+            let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+            // 真实连接已创建，但startup尚未开始事务；改变下一事务实际看到的材料。
+            let mut mutation = open_db(&f.db).unwrap();
+            match change {
+                "same" => {}
+                "append" => {
+                    let tx = mutation.transaction().unwrap();
+                    newchan_rust::s_content::write_value(
+                        &mut super::super::content_store::TxStore::new(&tx).unwrap(),
+                        &newchan_rust::s_content::Value::String("prefix-to-real-append".into()),
+                    )
+                    .unwrap();
+                    tx.commit().unwrap();
+                }
+                "bad_node" => {
+                    mutation
+                        .execute("UPDATE s_content_nodes SET body=x'ff'", [])
+                        .unwrap();
+                }
+                "epoch" => {
+                    meta_set(&mutation, "writer_epoch", "2").unwrap();
+                }
+                "identity" => {
+                    meta_set(&mutation, "session_generation", "0").unwrap();
+                }
+                "version" => {
+                    meta_set(&mutation, "protocol_revision", "s-session/999").unwrap();
+                }
+                _ => unreachable!(),
+            }
+            let expected = {
+                let tx = mutation.transaction().unwrap();
+                state::audit_native_current(&tx)
+                    .map(|_| ())
+                    .and_then(|_| crate::verify_writer_epoch(&tx, "1"))
+            };
+            drop(mutation);
+            let actual = conn.startup(
+                &f.profile,
+                "1",
+                &f.clock,
+                None,
+                &s_allocation::Mode::CapturedNative,
+                Some(&mut context),
+            );
+            match expected {
+                Ok(()) => {
+                    actual.unwrap();
+                    if change == "same" {
+                        assert_eq!((context.cold, context.hits), (1, 1));
+                    }
+                    if change == "append" {
+                        assert_eq!((context.cold, context.hits), (2, 0));
+                    }
+                }
+                Err(expected) => assert_eq!(actual.err().unwrap(), expected, "{change}"),
+            }
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool() {
+        let f = Fixture::new();
+        let mut initial = f.open("1").unwrap();
+        initial.handle(Fixture::ingest(1)).unwrap();
+        drop(initial);
+        let mut c = open_db(&f.db).unwrap();
+        let mut keeper = super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
+        {
+            let tx = c.transaction().unwrap();
+            state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
+        }
+        assert!(keeper.retained_source_bytes() > 0);
+        drop(c);
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
+        context.arm_source_pool_return(true);
+        let error = Driver::open_with_request_and_mode_context(
+            &f.db,
+            &f.profile,
+            "2",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(error.starts_with("StaleWriter："), "{error}");
+        assert_eq!(context.cold, 1, "内层已完整成功并retain后，epoch才拒绝");
+        assert!(context.take().is_none());
+        assert!(
+            context.take_source_pool().is_none(),
+            "内层已消费的旧池不得复活"
+        );
+        assert!(error.contains("原准入账="));
+        assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+        for epoch in ["1", "2"] {
+            if epoch == "2" {
+                recover(
+                    &f.db,
+                    "2",
+                    &f.clock,
+                    "recover-1",
+                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                )
+                .unwrap();
+            }
+            let mut writer = Driver::open_with_request_and_mode(
+                &f.db,
+                &f.profile,
+                epoch,
+                f.clock.clone(),
+                None,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            writer
+                .handle(envelope(
+                    "ready-after-prefix-rejection",
+                    json!({"op":"ready"}),
+                ))
+                .unwrap();
+            drop(writer);
+            assert!(
+                !PathBuf::from(format!("{}-shm", f.db.display())).exists(),
+                "writer/recover闭合后无SHM"
+            );
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_prefix_final_deadline_preserves_business_and_clears_retained_context() {
+        use std::{
+            cell::Cell,
+            rc::Rc,
+            time::{Duration, Instant},
+        };
+        for epoch in ["1", "2"] {
+            let f = Fixture::new();
+            let mut initial = f.open("1").unwrap();
+            initial.handle(Fixture::ingest(1)).unwrap();
+            drop(initial);
+            // 首轮观察同路径实际clock次数；次轮只令最后收尾期限观察过期。
+            let run = |expire_at: usize| {
+                let calls = Rc::new(Cell::new(0usize));
+                let observed = calls.clone();
+                let first = Instant::now();
+                let clock = Box::new(move || {
+                    let n = observed.get() + 1;
+                    observed.set(n);
+                    if n >= expire_at {
+                        first + Duration::from_secs(601)
+                    } else {
+                        first
+                    }
+                });
+                let mut context = request_audit::RequestAuditContext::default();
+                let (result, snapshot, final_calls) =
+                    super::super::admission_anchor::test_with_clock_account(
+                        &f.db,
+                        first,
+                        clock,
+                        |source, account| {
+                            let result = super::super::admission_private::validate_prefix(
+                                source,
+                                account,
+                                super::super::admission_private::RejectionPrefix::NativeStartup {
+                                    epoch,
+                                    context: Some(&mut context),
+                                    work: None,
+                                },
+                            );
+                            let final_calls = calls.get();
+                            (result, account.snapshot(), final_calls)
+                        },
+                    );
+                (result, snapshot, context, final_calls)
+            };
+            let (original, before, original_context, calls) = run(usize::MAX);
+            if epoch == "1" {
+                assert!(original.is_ok());
+                assert!(original_context.has_slot());
+            } else {
+                assert!(original.as_ref().unwrap_err().starts_with("StaleWriter："));
+            }
+            let (late, after, context, actual_calls) = run(calls);
+            assert_eq!(actual_calls, calls, "仅最后期限门发生变化");
+            assert_eq!(context.cold, 1, "期限门之前业务核已完成retain");
+            assert!(!context.has_slot());
+            let late = late.unwrap_err();
+            assert!(late.contains("deadline"), "{late}");
+            if let Err(original) = original {
+                assert!(late.starts_with(&original));
+                assert!(late.contains("收尾期限"));
+            }
+            assert_eq!(after.records, before.records);
+            assert_eq!(after.nodes, before.nodes);
+            assert_eq!(after.wire_bytes, before.wire_bytes);
+            assert!(after.records > 0 && after.wire_bytes > 0);
+            assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_prefix_success_keeps_actual_startup_validation() {
+        let f = Fixture::new();
+        for with_context in [false, true] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let driver = Driver::open_with_request_and_mode_context(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                None,
+                s_allocation::Mode::CapturedNative,
+                with_context.then_some(&mut context),
+                newchan_rust::theta_v0::config::ThetaConfig::default(),
+                false,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            assert!(driver.identity().is_ok());
+            drop(driver);
+            let error = Driver::open_with_request_and_mode_context(
+                &f.db,
+                &f.path.join("missing-profile.json"),
+                "1",
+                f.clock.clone(),
+                None,
+                s_allocation::Mode::CapturedNative,
+                with_context.then_some(&mut context),
+                newchan_rust::theta_v0::config::ThetaConfig::default(),
+                false,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .err()
+            .unwrap();
+            assert!(!error.is_empty(), "前缀成功不代替实际 profile 重核");
+        }
     }
 
     #[test]
@@ -636,6 +1623,434 @@ mod tests {
         ended(&reopened);
     }
 
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_delta_explicit_policy_sql_receipt_and_failed_commit_retry() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut config = ThetaConfig::default();
+        config.parse.research_override_tail_window(17);
+        config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert_ne!(config, ThetaConfig::default());
+        let labels = config.record_labels();
+        let mut native = Driver::open_with_request_and_mode_context(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            None,
+            config.clone(),
+            false,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        native.audit_cache_source_bytes = Some(536_870_912);
+        let mut ordinary = o.open_with_config("1", config.clone()).unwrap();
+        for n in 1..=2 {
+            let input = Fixture::ingest(n);
+            if n == 2 {
+                native
+                    .runtime
+                    .set_after_prepare_for_request_test(Some(|tx| {
+                        tx.commit_hook(Some(|| true)).map_err(err)?;
+                        Ok(())
+                    }));
+                let (failed, events, _) = state::traced(true, || native.handle(input.clone()));
+                assert!(failed.is_err());
+                assert!(events
+                    .iter()
+                    .any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+                assert_eq!(count(&native.conn, "structure_deltas"), 1);
+                assert_eq!(count(&native.conn, "s_content_publications"), 1);
+                // 提交失败会退役连接；按真实恢复合同换连接、升级 epoch 后重试 pending。
+                ordinary.stop_after = Some("begin");
+                assert!(ordinary
+                    .handle(input.clone())
+                    .unwrap_err()
+                    .contains("stop_after_begin"));
+                drop(native);
+                drop(ordinary);
+                recover(
+                    &f.db,
+                    "2",
+                    &f.clock,
+                    "recover-2",
+                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                )
+                .unwrap();
+                recover(
+                    &o.db,
+                    "2",
+                    &o.clock,
+                    "recover-2",
+                    crate::v3::admission_anchor::test_prepare(&o.db).into(),
+                )
+                .unwrap();
+                native = Driver::open_with_request_and_mode_context(
+                    &f.db,
+                    &f.profile,
+                    "2",
+                    f.clock.clone(),
+                    None,
+                    s_allocation::Mode::CapturedNative,
+                    None,
+                    config.clone(),
+                    false,
+                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                )
+                .unwrap();
+                native.audit_cache_source_bytes = Some(536_870_912);
+                ordinary = o.open_with_config("2", config.clone()).unwrap();
+            }
+            let request = if n == 2 {
+                receipt_request(&input)
+            } else {
+                input.clone()
+            };
+            let (actual, events, _) = state::traced(true, || native.handle(request.clone()));
+            let actual = actual.unwrap();
+            assert_eq!(actual, ordinary.handle(request).unwrap());
+            assert_eq!(actual["policy_records"], labels);
+            assert_eq!(native.runtime.parser_config_for_test(), Some(&config));
+            if n == 1 {
+                assert!(events
+                    .iter()
+                    .any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+            }
+            let persisted: String = native
+                .conn
+                .query_row(
+                    "SELECT policy_records FROM structure_deltas WHERE generation=?1",
+                    [n],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(persisted, labels);
+            assert_eq!(native.handle(receipt_request(&input)).unwrap(), actual);
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                prepared::tests::runtime_root_tables(&ordinary.conn, true),
+            );
+        }
+    }
+
+    #[test]
+    fn driver_external_receipts_keep_historical_policy_records_across_config_versions() {
+        let fixture = Fixture::new();
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert!(!v1.admissible());
+
+        let first_input = Fixture::ingest(1);
+        let mut first_driver = fixture.open_with_config("1", v1.clone()).unwrap();
+        let first = first_driver.handle(first_input.clone()).unwrap();
+        assert_eq!(first["kind"], "Committed");
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/1"));
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+        drop(first_driver);
+
+        let mut second_driver = fixture.open_with_config("1", v2.clone()).unwrap();
+        assert_eq!(second_driver.handle(first_input.clone()).unwrap(), first);
+        assert_eq!(
+            second_driver.handle(receipt_request(&first_input)).unwrap(),
+            first
+        );
+        let second_input = Fixture::ingest(2);
+        let second = second_driver.handle(second_input.clone()).unwrap();
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_ne!(second["policy_records"], first["policy_records"]);
+        drop(second_driver);
+
+        let mut reopened = fixture.open_with_config("1", v1).unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&second_input)).unwrap(),
+            second,
+            "恢复后不得用当前配置覆盖历史生成结果"
+        );
+        assert_eq!(
+            reopened.handle(receipt_request(&first_input)).unwrap(),
+            first
+        );
+    }
+
+    #[test]
+    fn resumed_driver_receipt_uses_records_from_actual_recovery_generation() {
+        let fixture = Fixture::new();
+        let input = Fixture::ingest(1);
+        let mut before = fixture
+            .open_with_config("1", ThetaConfig::default())
+            .unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        recover(
+            &fixture.db,
+            "2",
+            &fixture.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
+        )
+        .unwrap();
+
+        let mut resumed_config = ThetaConfig::default();
+        resumed_config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        let mut resumed = fixture.open_with_config("2", resumed_config).unwrap();
+        let receipt = resumed.handle(receipt_request(&input)).unwrap();
+        assert_eq!(receipt["kind"], "Committed");
+        assert!(receipt["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert!(receipt["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+    }
+
+    fn source_bytes(db: &Path) -> (Vec<u8>, Option<Vec<u8>>) {
+        let wal = std::fs::read(format!("{}-wal", db.display()))
+            .ok()
+            .filter(|bytes| !bytes.is_empty());
+        (std::fs::read(db).unwrap(), wal)
+    }
+    fn alter_source(db: &Path, sql: &str) {
+        Connection::open(db).unwrap().execute_batch(sql).unwrap();
+    }
+    fn policy_records_missing_at(db: &Path) -> bool {
+        crate::policy_records_missing(&Connection::open(db).unwrap()).unwrap()
+    }
+    const DROP_POLICY_RECORDS: &str = "ALTER TABLE structure_deltas DROP COLUMN policy_records";
+
+    /// #1527×#1602：写前准入只读审到迁移前精确源；迁移发生在 require_admitted 之后的 scope 内。
+    #[test]
+    fn pre_policy_records_source_is_admitted_unchanged_and_migrated_in_scope() {
+        let f = Fixture::new();
+        alter_source(&f.db, DROP_POLICY_RECORDS);
+        let before = source_bytes(&f.db);
+        let scope = super::super::admission::WriterScope::admit(
+            &f.db,
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap();
+        assert_eq!(source_bytes(&f.db), before, "准入不得写源库");
+        assert!(policy_records_missing_at(&f.db), "准入不得迁移");
+        {
+            let _guard = scope.enter().unwrap();
+            scope.require_admitted().unwrap();
+            let mut conn = crate::open_db(scope.db_path()).unwrap();
+            assert!(!crate::policy_records_missing(&conn).unwrap());
+            let tx = conn.transaction().unwrap();
+            state::audit(&tx).unwrap();
+        }
+        scope.finish_startup().unwrap();
+    }
+
+    #[test]
+    fn rejected_pre_policy_records_admission_leaves_source_unmigrated() {
+        let f = Fixture::new();
+        alter_source(&f.db, DROP_POLICY_RECORDS);
+        let before = source_bytes(&f.db);
+        let error = f
+            .open_with_config("2", ThetaConfig::default())
+            .err()
+            .unwrap();
+        assert!(error.starts_with("StaleWriter："), "{error}");
+        assert_eq!(source_bytes(&f.db), before);
+        assert!(policy_records_missing_at(&f.db));
+    }
+
+    #[test]
+    fn pre_policy_records_admission_rejects_every_other_shape_deviation() {
+        for (sql, table) in [
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE catalog ADD COLUMN extra TEXT",
+                "catalog",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN extra TEXT",
+                "structure_deltas",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas DROP COLUMN delta_json",
+                "structure_deltas",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT 'x'",
+                "structure_deltas",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT",
+                "structure_deltas",
+            ),
+        ] {
+            let f = Fixture::new();
+            alter_source(&f.db, sql);
+            let missing = policy_records_missing_at(&f.db);
+            let before = source_bytes(&f.db);
+            let error = super::super::admission::WriterScope::admit(
+                &f.db,
+                crate::v3::admission_anchor::test_prepare(&f.db),
+            )
+            .err()
+            .unwrap();
+            assert!(
+                error.contains(&format!("模式/约束不匹配 table/{table}")),
+                "{sql}: {error}"
+            );
+            assert_eq!(source_bytes(&f.db), before, "{sql}");
+            assert_eq!(policy_records_missing_at(&f.db), missing, "{sql}");
+        }
+    }
+
+    #[test]
+    fn scope_admitted_on_current_source_refuses_an_unaudited_migration() {
+        let f = Fixture::new();
+        let scope = super::super::admission::WriterScope::admit(
+            &f.db,
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap();
+        let guard = scope.enter().unwrap();
+        alter_source(&f.db, DROP_POLICY_RECORDS);
+        let error = crate::open_db(&f.db).err().unwrap();
+        assert!(
+            error.starts_with("PolicyRecordsMigrationNotAdmitted："),
+            "{error}"
+        );
+        assert!(policy_records_missing_at(&f.db));
+        drop(guard);
+        drop(scope);
+    }
+
+    #[test]
+    fn legacy_policy_records_migration_recovers_pending_with_current_records() {
+        let fixture = Fixture::new();
+        let v1 = ThetaConfig::default();
+        let first_input = Fixture::ingest(1);
+        let second_input = Fixture::ingest(2);
+        let mut before_driver = fixture.open_with_config("1", v1.clone()).unwrap();
+        let first = before_driver.handle(first_input.clone()).unwrap();
+        assert_eq!(first["publication"]["generation"], "1");
+        before_driver.stop_after = Some("begin");
+        assert!(before_driver
+            .handle(second_input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before_driver);
+
+        let original = |conn: &Connection| {
+            conn.query_row(
+                "SELECT delta_json,catalog_evidence_json,index_frontier FROM structure_deltas WHERE generation=1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .unwrap()
+        };
+        let messages = |conn: &Connection| {
+            let mut stmt = conn
+                .prepare("SELECT message_id,canonical_envelope,receipt_id FROM s_input_messages ORDER BY accepted_seq")
+                .unwrap();
+            stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+        };
+        let conn = Connection::open(&fixture.db).unwrap();
+        let old_delta = original(&conn);
+        let old_messages = messages(&conn);
+        conn.execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+            .unwrap();
+        assert!(conn
+            .prepare("SELECT policy_records FROM structure_deltas")
+            .is_err());
+        assert_eq!(original(&conn), old_delta);
+        assert_eq!(messages(&conn), old_messages);
+        drop(conn);
+
+        // recover 自身就是旧库首次开门者：先迁移，再按原监督器合同清 Begin、提升 epoch。
+        recover(
+            &fixture.db,
+            "2",
+            &fixture.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
+        )
+        .unwrap();
+        let mut resumed_config = v1.clone();
+        resumed_config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        let mut resumed = fixture
+            .open_with_config("2", resumed_config.clone())
+            .unwrap();
+        let mut legacy_first = first.clone();
+        legacy_first["policy_records"] = json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN);
+        assert_eq!(
+            resumed.handle(receipt_request(&first_input)).unwrap(),
+            legacy_first
+        );
+        let second = resumed.handle(receipt_request(&second_input)).unwrap();
+        assert_eq!(second["kind"], "Committed");
+        assert_eq!(second["publication"]["generation"], "2");
+        assert_eq!(
+            second["policy_records"],
+            json!(resumed_config.record_labels())
+        );
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_eq!(original(&resumed.conn), old_delta);
+        assert_eq!(messages(&resumed.conn), old_messages);
+        {
+            let tx = resumed.conn.transaction().unwrap();
+            state::audit(&tx).unwrap();
+            tx.rollback().unwrap();
+        }
+        drop(resumed);
+
+        let mut reopened = fixture.open_with_config("2", v1).unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&first_input)).unwrap(),
+            legacy_first,
+            "重开不得用当前 v1 反填旧 generation"
+        );
+        assert_eq!(
+            reopened.handle(receipt_request(&second_input)).unwrap(),
+            second,
+            "重开仍须读取恢复发布实际写入的 v2 记录戳"
+        );
+    }
+
     #[test]
     fn audit_owner_normal_idle_recover_and_reopen_preserve_old_receipt() {
         let fixture = Fixture::new();
@@ -644,7 +2059,14 @@ mod tests {
         let receipt = before.handle(input.clone()).unwrap();
         let first_summary = before.state_summary("before-recover").unwrap();
         drop(before);
-        let recovered = recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
+        let recovered = recover(
+            &fixture.db,
+            "2",
+            &fixture.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
+        )
+        .unwrap();
         assert_eq!(
             recovered["reachable_root"]["structure_cut"],
             first_summary["structure_cut"]
@@ -663,7 +2085,7 @@ mod tests {
     }
 
     // 仅调用正常 Driver，覆盖“新消息携带既有 raw”而控制账继续变化的情况。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_new_message_raw_replay_matches_ordinary_complete_tables() {
         let native_fixture = Fixture::new();
@@ -675,6 +2097,7 @@ mod tests {
             native_fixture.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&native_fixture.db).into(),
         )
         .unwrap();
         let mut ordinary = ordinary_fixture.open("1").unwrap();
@@ -748,7 +2171,7 @@ mod tests {
 
     /// #1394 完整 owner 的验收锁：只有实际省去旧 C_g 才能通过。
     /// 不能将此断言改成接受 cold 重扫，也不能把事务入口收拢当作复用已完成。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_native_no_write_must_not_repeat_all_old_cut_semantics() {
         let fixture = Fixture::new();
@@ -759,6 +2182,7 @@ mod tests {
             fixture.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
         )
         .unwrap();
         for n in 1..=3 {
@@ -803,7 +2227,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn complete_driver(f: &Fixture) -> Driver {
         Driver::open_for_serve_with_mode(
             &f.db,
@@ -812,11 +2236,12 @@ mod tests {
             f.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap()
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_complete_ready_receipt_repost_keep_owned_state_and_match_ordinary() {
         let f = Fixture::new();
@@ -887,9 +2312,48 @@ mod tests {
         native.conn.assert_complete_matches_cold();
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification() {
+        fn context(d: &mut Driver) -> request_audit::RequestAuditContext {
+            let mut context = request_audit::RequestAuditContext::default();
+            if matches!(d.mode, s_allocation::Mode::CapturedNative) {
+                let total = d.audit_cache_source_bytes.unwrap();
+                let legacy = crate::cache::retained_bytes();
+                let keeper_cap = total.checked_sub(legacy).unwrap();
+                let mut keeper = d.conn.take_source_keeper().expect("成功链保留原来源池");
+                // #1488 P1-1：入口旧费走生产同一逐项分区（O+uncovered），断言不变。
+                let partition = d.conn.old_pool_partition(Some(&keeper)).unwrap();
+                let old_pool = partition.carried();
+                assert!(old_pool <= keeper_cap);
+                context
+                    .freeze_manifest_workspace_partition(total, legacy, partition)
+                    .unwrap();
+                keeper.set_retention_cap(keeper_cap);
+                context.attach_source_keeper(keeper);
+            }
+            context
+        }
+        fn same(n: &Driver, o: &Driver, prior: &Value, raw: u64, published: u64) -> Value {
+            let current = n.conn.complete_report();
+            assert!(n.conn.complete_retained_bytes() > 0);
+            assert_eq!(current["life"], prior["life"]);
+            assert!(
+                current["transaction"].as_u64().unwrap() > prior["transaction"].as_u64().unwrap()
+            );
+            assert!(
+                current["write_sequence"].as_u64().unwrap()
+                    > prior["write_sequence"].as_u64().unwrap()
+            );
+            assert_eq!(current["raw_checked"], raw);
+            assert_eq!(current["published_prefix"], published);
+            n.conn.assert_complete_matches_cold();
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&n.conn, true),
+                prepared::tests::runtime_root_tables(&o.conn, true)
+            );
+            current
+        }
         let f = Fixture::new();
         let o = Fixture::new();
         let mut native = complete_driver(&f);
@@ -902,10 +2366,11 @@ mod tests {
         let ready = envelope("ready-effects", json!({"op":"ready"}));
         native.handle(ready.clone()).unwrap();
         assert!(native.conn.complete_retained_bytes() > 0);
+        let mut prior = native.conn.complete_report();
         let second = Fixture::ingest(2);
         // 首 Commit12 → Accept20 → Begin21 → Recover23 → Begin24 → Commit25。
         for d in [&mut native, &mut ordinary] {
-            let mut context = request_audit::RequestAuditContext::default();
+            let mut context = context(d);
             let (admitted, ended) = d
                 .conn
                 .admit(
@@ -923,29 +2388,42 @@ mod tests {
                 super::super::audit_owner::Admission::Advance { accepted: true, .. }
             ));
             d.conn.finish_source_keeper(context, ended);
-            assert_eq!(d.conn.complete_retained_bytes(), 0);
         }
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready.clone()).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
-        assert_eq!(native.conn.complete_report()["raw_checked"], 2);
-        assert_eq!(native.conn.complete_report()["published_prefix"], 1);
+        prior = same(&native, &ordinary, &prior, 2, 1);
+        let mut ready_after_begin = Vec::new();
         for d in [&mut native, &mut ordinary] {
-            let mut context = request_audit::RequestAuditContext::default();
+            let mut context = context(d);
             let begun = d
                 .conn
                 .begin_advance(&second, &d.epoch, &d.clock, &d.mode, &mut context)
                 .unwrap();
             drop(begun);
-            assert_eq!(d.conn.complete_retained_bytes(), 0);
+            // Begin 已由 owner 正常提交；复用本请求预算和来源池完成真实 ready，
+            // 以该无写事务的 Ended 归还 keeper，不手造结果或丢池后重新授信。
+            let (reply, ended) = d
+                .conn
+                .admit(
+                    ready.clone(),
+                    &d.epoch,
+                    &d.clock,
+                    &d.profile_id,
+                    d.volume_unit.as_deref(),
+                    &d.mode,
+                    &mut context,
+                )
+                .unwrap();
+            let super::super::audit_owner::Admission::Reply(reply) = reply else {
+                panic!("ready必须返回原回执")
+            };
+            ready_after_begin.push(reply);
+            d.conn.finish_source_keeper(context, ended);
         }
-        assert_eq!(
-            native.handle(ready.clone()).unwrap(),
-            ordinary.handle(ready.clone()).unwrap()
-        );
-        native.conn.assert_complete_matches_cold();
+        assert_eq!(ready_after_begin[0], ready_after_begin[1]);
+        prior = same(&native, &ordinary, &prior, 2, 1);
         let nr = native
             .conn
             .recover("2", &native.clock, "recover-2")
@@ -962,23 +2440,21 @@ mod tests {
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready.clone()).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
+        prior = same(&native, &ordinary, &prior, 2, 1);
+        let mut committed = Vec::new();
         for d in [&mut native, &mut ordinary] {
-            let mut context = request_audit::RequestAuditContext::default();
+            let mut context = context(d);
             let (reply, ended) = d.advance(&second, &mut context).unwrap();
             assert_eq!(reply["kind"], "Committed");
+            committed.push(reply);
             d.conn.finish_source_keeper(context, ended);
-            assert_eq!(
-                d.conn.complete_retained_bytes(),
-                0,
-                "写前结果不能借提交结束贴为写后资格"
-            );
         }
+        assert_eq!(committed[0], committed[1]);
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready.clone()).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
+        prior = same(&native, &ordinary, &prior, 2, 2);
         let mut revision = Fixture::ingest(3);
         let raw = &mut revision["payload"]["raw_input"];
         *raw = second["payload"]["raw_input"].clone();
@@ -996,18 +2472,974 @@ mod tests {
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
-        assert_eq!(
-            prepared::tests::runtime_root_tables(&native.conn, true),
-            prepared::tests::runtime_root_tables(&ordinary.conn, true)
-        );
+        same(&native, &ordinary, &prior, 3, 3);
         eprintln!(
             "{}",
             json!({"scenario":"owner-normal-accept-begin-recover-retry-revision","complete":native.conn.complete_report()})
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    // ---- #1488 受控同owner Recover迁移锁（0031）----
+    #[cfg(feature = "s_incremental")]
+    fn recover_lock_context(d: &mut Driver) -> request_audit::RequestAuditContext {
+        let mut context = request_audit::RequestAuditContext::default();
+        let total = d.audit_cache_source_bytes.unwrap();
+        let legacy = crate::cache::retained_bytes();
+        let keeper_cap = total.checked_sub(legacy).unwrap();
+        let mut keeper = d.conn.take_source_keeper().expect("成功链保留原来源池");
+        let partition = d.conn.old_pool_partition(Some(&keeper)).unwrap();
+        context
+            .freeze_manifest_workspace_partition(total, legacy, partition)
+            .unwrap();
+        keeper.set_retention_cap(keeper_cap);
+        context.attach_source_keeper(keeper);
+        context
+    }
+    /// 同 test 01 前段：Commit12 → Accept20 → ready → Begin21 → ready；停在 Recover 之前。
+    /// owner 此时持有已提交构造资格与同快照完整原件，持久 writer_epoch=1、begin_token 非空。
+    #[cfg(feature = "s_incremental")]
+    fn recover_lock_driver(f: &Fixture) -> (Driver, Value, Value) {
+        let mut native = complete_driver(f);
+        native.handle(Fixture::ingest(1)).unwrap();
+        let ready = envelope("ready-recover-lock", json!({"op":"ready"}));
+        native.handle(ready.clone()).unwrap();
+        let second = Fixture::ingest(2);
+        let mut context = recover_lock_context(&mut native);
+        let (admitted, ended) = native
+            .conn
+            .admit(
+                second.clone(),
+                &native.epoch,
+                &native.clock,
+                &native.profile_id,
+                native.volume_unit.as_deref(),
+                &native.mode,
+                &mut context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admitted,
+            super::super::audit_owner::Admission::Advance { accepted: true, .. }
+        ));
+        native.conn.finish_source_keeper(context, ended);
+        native.handle(ready.clone()).unwrap();
+        let mut context = recover_lock_context(&mut native);
+        drop(
+            native
+                .conn
+                .begin_advance(
+                    &second,
+                    &native.epoch,
+                    &native.clock,
+                    &native.mode,
+                    &mut context,
+                )
+                .unwrap(),
+        );
+        let (_, ended) = native
+            .conn
+            .admit(
+                ready.clone(),
+                &native.epoch,
+                &native.clock,
+                &native.profile_id,
+                native.volume_unit.as_deref(),
+                &native.mode,
+                &mut context,
+            )
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        let probe = native.conn.recover_probe_for_test();
+        assert!(!probe.stale && !probe.retired);
+        let q = probe
+            .qualification
+            .expect("Recover前owner持有已提交构造资格");
+        assert!(q.writer_epoch.is_none());
+        assert!(native.conn.complete_retained_bytes() > 0);
+        assert_eq!(recover_lock_meta(f, "writer_epoch").as_deref(), Some("1"));
+        assert_ne!(recover_lock_meta(f, "begin_token").as_deref(), Some(""));
+        (native, second, ready)
+    }
+    #[cfg(feature = "s_incremental")]
+    fn recover_lock_meta(f: &Fixture, key: &str) -> Option<String> {
+        use rusqlite::OptionalExtension;
+        Connection::open(&f.db)
+            .unwrap()
+            .query_row("SELECT value FROM meta WHERE key=?1", [key], |r| r.get(0))
+            .optional()
+            .unwrap()
+    }
+    /// 第二连接两次真实提交、终态内容不变：只有版本能看出外写（同值 UPDATE 不落盘，不算外写）。
+    #[cfg(feature = "s_incremental")]
+    fn recover_lock_external_write(f: &Fixture) {
+        let c = Connection::open(&f.db).unwrap();
+        c.execute(
+            "UPDATE meta SET value=value||'~' WHERE key='generation'",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "UPDATE meta SET value=substr(value,1,length(value)-1) WHERE key='generation'",
+            [],
+        )
+        .unwrap();
+    }
+    /// 失败的 Recover 不得晋升：租约撤销、资格不在 owner、持久 epoch 不动。
+    #[cfg(feature = "s_incremental")]
+    fn assert_recover_revoked(native: &Driver, f: &Fixture, serial_before: u64, epoch: &str) {
+        let probe = native.conn.recover_probe_for_test();
+        assert!(probe.stale, "失败后租约必须撤销：{probe:?}");
+        assert!(
+            probe.serial > serial_before,
+            "撤销须推进租约序号：{probe:?}"
+        );
+        assert!(probe.qualification.is_none(), "失败后不得留资格：{probe:?}");
+        assert_eq!(recover_lock_meta(f, "writer_epoch").as_deref(), Some(epoch));
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease() {
+        let f = Fixture::with_clock(
+            json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+            "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+            "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
+            "input-3":{"accept_ns":"30","attempts":[{"begin_ns":"31","commit_ns":"32"},{"begin_ns":"34","commit_ns":"35"}]},
+            "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"},"recover-3":{"recover_ns":"26"}}}),
+        );
+        let (mut native, second, ready) = recover_lock_driver(&f);
+        let before = native.conn.recover_probe_for_test();
+        let old = before.qualification.unwrap();
+        let reply = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        assert!(!reply["recovered_begin"].is_null());
+        let after = native.conn.recover_probe_for_test();
+        assert!(!after.stale && !after.retired, "{after:?}");
+        // 旧租约：真实 COMMIT 后 close 推进序号，旧 raw token 绑定的 serial 不再匹配。
+        assert!(after.serial > before.serial, "{before:?} → {after:?}");
+        let promoted = after.qualification.expect("Recover成功后晋升新资格");
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert_eq!(promoted.binding, old.binding);
+        assert_eq!(promoted.has_fee, old.has_fee);
+        // 旧 Begin token 随持久换代清空。
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+        assert_eq!(recover_lock_meta(&f, "begin_token").as_deref(), Some(""));
+        assert_eq!(
+            recover_lock_meta(&f, "advance_state").as_deref(),
+            Some("idle")
+        );
+        // 资格戳=持久 epoch，下一次 Recover 从该戳出发仍可迁移。
+        native
+            .conn
+            .recover("3", &native.clock, "recover-3")
+            .unwrap();
+        let chained = native.conn.recover_probe_for_test();
+        assert!(chained.serial > after.serial);
+        assert_eq!(chained.qualification.unwrap().writer_epoch, Some(3));
+        // 现 epoch 的无写请求保留资格并归还来源池；随后旧 epoch 请求被拒，且不保留任何资格。
+        native.epoch = "3".into();
+        native.handle(ready).unwrap();
+        let chained = native.conn.recover_probe_for_test();
+        assert!(!chained.stale, "{chained:?}");
+        assert_eq!(chained.qualification.unwrap().writer_epoch, Some(3));
+        native.epoch = "2".into();
+        let mut context = recover_lock_context(&mut native);
+        let error = native
+            .advance(&second, &mut context)
+            .err()
+            .expect("旧epoch推进必须被拒");
+        assert!(error.contains("StaleWriter"), "{error}");
+        drop(context);
+        assert_recover_revoked(&native, &f, chained.serial, "3");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_non_increasing_epoch() {
+        use super::super::audit_owner::AuditConnection;
+        assert!(!AuditConnection::recover_handoff_accepts_for_test(2, 2));
+        assert!(!AuditConnection::recover_handoff_accepts_for_test(2, 1));
+        assert!(AuditConnection::recover_handoff_accepts_for_test(1, 2));
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let error = native
+            .conn
+            .recover("1", &native.clock, "recover-2")
+            .unwrap_err();
+        assert!(error.contains("StaleWriter"), "{error}");
+        // 0034 P3-3：生产 owner.recover 门即 RecoverHandoff 构造门，具体原因逐字锁定。
+        assert_eq!(error, "StaleWriter：recover换代必须严格上升");
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 严格下降（晋升到 2 后回退到 1）同样在同一门被拒。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let serial = native.conn.recover_probe_for_test().serial;
+        let error = native
+            .conn
+            .recover("1", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, "StaleWriter：recover换代必须严格上升");
+        assert_recover_revoked(&native, &f, serial, "2");
+        // 资格戳门：严格上升的证明若与资格戳不符，迁移门拒绝（见 recover_lock_rejects_stale_qualification_stamp）。
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_unclosed_recover_effects() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        // Recover 不声明 s_input_messages 写；精确 effects 必须拒绝而非晋升。
+        native.conn.set_recover_after_write_for_test(|tx| {
+            tx.execute(
+                "UPDATE s_input_messages SET status=status WHERE rowid=(SELECT min(rowid) FROM s_input_messages)",
+                [],
+            )
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+        });
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-unclosed-effects","error":error})
+        );
+        // 0034 P3-4：拒绝原因逐字锁定为精确 effects 门，而非任意失败。
+        assert_eq!(error, "S3DriverInvalid：固定 operation 出现未声明实际效果");
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_commit_failure_and_rollback_never_promote() {
+        // 写后回滚：Recover 写已落事务、effects 闭合前出错。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native
+            .conn
+            .set_recover_after_write_for_test(|_| Err("测试注入Recover写后回滚".into()));
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert!(error.contains("测试注入Recover写后回滚"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 真实 SQLite COMMIT 失败：effects 已闭合、epoch 已确认，仍不得晋升。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.commit_hook(Some(|| true)).unwrap();
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        native.conn.commit_hook(None::<fn() -> bool>).unwrap();
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_external_write_and_read_domain_change_still_revoke() {
+        // Recover 前外写：不得以旧资格迁移。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let version = |c: &Connection| -> i64 {
+            c.query_row("PRAGMA main.data_version", [], |r| r.get(0))
+                .unwrap()
+        };
+        let before = version(&native.conn);
+        recover_lock_external_write(&f);
+        assert_ne!(version(&native.conn), before, "外写必须真实提交");
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        assert_recover_revoked(&native, &f, serial, "1");
+        // Recover 前读域变化（连接级 PRAGMA）：同样撤销。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let recursive: i64 = native
+            .conn
+            .query_row("PRAGMA recursive_triggers", [], |r| r.get(0))
+            .unwrap();
+        native
+            .conn
+            .execute_batch(&format!("PRAGMA recursive_triggers={}", 1 - recursive))
+            .unwrap();
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 迁移成功后的外写：新资格同样被撤销，不因 Recover 晋升而豁免。
+        let f = Fixture::new();
+        let (mut native, _, ready) = recover_lock_driver(&f);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let promoted = native.conn.recover_probe_for_test();
+        assert_eq!(promoted.qualification.unwrap().writer_epoch, Some(2));
+        recover_lock_external_write(&f);
+        native.epoch = "2".into();
+        let _ = native.handle(ready);
+        let probe = native.conn.recover_probe_for_test();
+        assert!(probe.stale && probe.serial > promoted.serial, "{probe:?}");
+        assert!(probe.qualification.is_none(), "{probe:?}");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_handoff_failure_revokes() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_handoff_failure_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert!(error.contains("测试注入Recover交接失败"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_budget_live_and_peak_continue_across_recover() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let old = native.conn.recover_probe_for_test().qualification.unwrap();
+        let (mark, live, peak) = native.conn.complete_ledger_for_test().unwrap();
+        assert!(live > 0 && peak >= live);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        // 同一父账（不换空账），live 不被抹零、peak 不回落，状态块许可随资格 move。
+        assert!(
+            native.conn.complete_on_ledger_for_test(&mark),
+            "Recover后换了父账"
+        );
+        let (_, live_after, peak_after) = native.conn.complete_ledger_for_test().unwrap();
+        assert!(live_after >= live, "live被抹：{live} → {live_after}");
+        assert!(peak_after >= peak, "peak被抹：{peak} → {peak_after}");
+        assert_eq!(mark.current(), Some(live_after));
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.has_fee, old.has_fee);
+        assert_eq!(promoted.retained, old.retained);
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-budget-continuity","live":[live,live_after],"peak":[peak,peak_after],"retained":promoted.retained})
+        );
+    }
+
+    // ---- #1488 0034 返修锁（按独审 0032）----
+    /// P2-1(a)：资格持有 fee=Some 状态块许可时 Recover 迁移，许可原样随迁移、仍挂同父账。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_fee_permit_moves_on_same_parent_ledger() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut context = recover_lock_context(&mut native);
+        let (_token, ended) = native
+            .conn
+            .issue_raw_qualification_for_test(&mut context)
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        let old = native.conn.recover_probe_for_test();
+        let old_q = old.qualification.expect("签发后owner持有资格");
+        assert!(old_q.has_fee, "须持有状态块许可：{old:?}");
+        let (mark, live, peak) = native.conn.complete_ledger_for_test().unwrap();
+        let fee = native
+            .conn
+            .qualification_fee_on_ledger_for_test(&mark)
+            .expect("许可挂候选父账");
+        assert!(fee > 0);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let after = native.conn.recover_probe_for_test();
+        assert!(!after.stale && after.serial > old.serial, "{after:?}");
+        let promoted = after.qualification.expect("Recover成功后晋升新资格");
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_fee, "许可被丢弃：{promoted:?}");
+        assert_eq!(promoted.retained, old_q.retained);
+        assert_eq!(promoted.binding, old_q.binding);
+        assert!(
+            native.conn.complete_on_ledger_for_test(&mark),
+            "Recover后换了父账"
+        );
+        assert_eq!(
+            native.conn.qualification_fee_on_ledger_for_test(&mark),
+            Some(fee),
+            "许可换账或改字节"
+        );
+        let (_, live_after, peak_after) = native.conn.complete_ledger_for_test().unwrap();
+        assert!(live_after >= live, "live被抹：{live} → {live_after}");
+        assert!(peak_after >= peak, "peak被抹：{peak} → {peak_after}");
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-fee-permit","fee":fee,"live":[live,live_after],"peak":[peak,peak_after]})
+        );
+    }
+
+    /// P2-1(b)：无候选 / 无当前父账时的 Recover 被拒，原因逐字锁定。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_missing_candidate_or_parent_ledger() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.drop_complete_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.expire_complete_parent_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移缺父账交接摘要"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P2-1(c)：Recover 晋升后，旧 serial 的 raw token 与旧 Begin token 实际发起调用均被拒。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_old_raw_token_and_begin_token_rejected_after_promotion() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut context = recover_lock_context(&mut native);
+        let (token, ended) = native
+            .conn
+            .issue_raw_qualification_for_test(&mut context)
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        // 正控：改记为 Recover 前当期序号后可实际绑定。
+        let token = native.conn.restamp_raw_token_for_test(token);
+        let token = native
+            .conn
+            .bind_raw_token_for_test(token)
+            .expect("Recover前当期token可绑定");
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        assert!(!native.conn.recover_probe_for_test().stale);
+        let error = native
+            .conn
+            .bind_raw_token_for_test(token)
+            .err()
+            .expect("旧serial raw token必须被拒");
+        assert!(error.contains("raw token 已结束、回滚或撤销"), "{error}");
+        // 旧 Begin token：生产形态（不经测试选择器签发）晋升后，现 epoch 无写请求归还来源池，
+        // 再以真实来源上下文实际发起发布。
+        let f = Fixture::new();
+        let (mut native, second, _) = recover_lock_driver(&f);
+        let old_begin = recover_lock_meta(&f, "begin_token").unwrap();
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        native.epoch = "2".into();
+        native
+            .handle(envelope("ready-recover-old-begin", json!({"op":"ready"})))
+            .unwrap();
+        assert!(!native.conn.recover_probe_for_test().stale);
+        let mut context = recover_lock_context(&mut native);
+        let error = native
+            .conn
+            .publish(&mut native.runtime, &old_begin, &second, &mut context)
+            .err()
+            .expect("旧Begin token必须被拒");
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-old-begin-token","error":error})
+        );
+        assert_eq!(error, "PublicationInvalid：当前 begin_token 不符");
+        assert_eq!(recover_lock_meta(&f, "begin_token").as_deref(), Some(""));
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    /// P2-1(d)：schema 域变化与材料域（raw_events）外写后，Recover 迁移撤销。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_schema_and_material_change_revoke() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let schema = |c: &Connection| -> i64 {
+            c.query_row("PRAGMA main.schema_version", [], |r| r.get(0))
+                .unwrap()
+        };
+        let before = schema(&native.conn);
+        native
+            .conn
+            .execute_batch("CREATE TABLE main.recover_lock_schema_probe(x)")
+            .unwrap();
+        assert_ne!(schema(&native.conn), before, "schema域必须真实变化");
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-schema-change","error":error})
+        );
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let c = Connection::open(&f.db).unwrap();
+        let rows = c
+            .execute(
+                "UPDATE raw_events SET raw_text=raw_text||' ' WHERE rowid=(SELECT max(rowid) FROM raw_events)",
+                [],
+            )
+            .unwrap();
+        assert_eq!(rows, 1, "材料域外写必须真实命中");
+        c.execute(
+            "UPDATE raw_events SET raw_text=substr(raw_text,1,length(raw_text)-1) WHERE rowid=(SELECT max(rowid) FROM raw_events)",
+            [],
+        )
+        .unwrap();
+        drop(c);
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-material-change","error":error})
+        );
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P3-6：资格戳 ≠ 本事务持久 from 时迁移被拒。时钟含 recover-3，去掉资格戳门即迁移成功。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_stale_qualification_stamp() {
+        let f = Fixture::with_clock(
+            json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+            "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+            "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
+            "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"},"recover-3":{"recover_ns":"26"}}}),
+        );
+        let (native, _, _) = recover_lock_driver(&f);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.set_qualification_epoch_for_test(Some(99));
+        let error = native
+            .conn
+            .recover("3", &native.clock, "recover-3")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移旧资格不属于当前持久epoch"
+        );
+        assert_recover_revoked(&native, &f, serial, "2");
+    }
+
+    /// P3-6：交给 confirm_recover 的持久 epoch 与换代证明不符时不得晋升。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_confirm_epoch_mismatch() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_confirm_skew_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移effects未闭合或持久epoch与换代证明不符"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P3-1（主控裁定）：换代证明绑定父账身份与冻结域摘要；他账或同账他域交接一律拒绝。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_foreign_ledger_budget_handoff() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let foreign = super::super::audit_owner::native::Budget::fresh(1 << 20).unwrap();
+        native
+            .conn
+            .inject_recover_parent_for_test(Some(foreign.clone()));
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移父账或冻结域与交接摘要不符"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        drop(foreign);
+        // 同父账、下一冻结域的摘要同样拒绝。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_parent_for_test(None);
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移父账或冻结域与交接摘要不符"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 正控：不注入时同一驱动形态迁移成功。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        assert_eq!(
+            native
+                .conn
+                .recover_probe_for_test()
+                .qualification
+                .unwrap()
+                .writer_epoch,
+            Some(2)
+        );
+    }
+
+    // ---- #1488 0037 返修锁（按独审 0036 P2-1）----
+    /// P2-1：资格提交时独立记下父账身份与冻结域；比对前候选改挂他账（交接摘要随候选，自指比对恒真）
+    /// 或绕过 audit_admission 重绑点经同父账真实 handoff 进入下一冻结域，fee=None 的资格也一律拒绝；
+    /// 经合法重绑点（新请求只读 admission）换域则记录随之前进、迁移成功（0041，主控裁定 (a)）。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_qualification_recorded_on_other_parent_or_domain() {
+        let expected =
+            "StaleWriter：construction资格失效：Recover迁移资格所记父账或冻结域与事务父账不符";
+        // 他账：资格与候选分属不同 Ledger。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let probe = native.conn.recover_probe_for_test();
+        let q = probe
+            .qualification
+            .expect("Recover前owner持有已提交构造资格");
+        assert!(!q.has_fee, "本段须覆盖 fee=None：{q:?}");
+        assert!(q.has_parent, "资格提交时须记父账：{q:?}");
+        let foreign = super::super::audit_owner::native::Budget::fresh(1 << 30).unwrap();
+        let own = native.conn.swap_complete_parent_for_test(foreign.clone());
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, expected);
+        assert_recover_revoked(&native, &f, probe.serial, "1");
+        drop((own, foreign));
+        // 0041（主控裁定 (a)）同父账、下一冻结域：经合法重绑点（新请求只读 ready，audit_admission
+        // bind_complete_budget）换域 → 资格记录随之前进，迁移成功。
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let before = native.conn.complete_parent_stamp_for_test();
+        native
+            .handle(envelope("ready-rebind", json!({"op":"ready"})))
+            .unwrap();
+        assert!(
+            !native.conn.complete_parent_matches_for_test(&before),
+            "须真实换域"
+        );
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        assert_eq!(
+            native
+                .conn
+                .recover_probe_for_test()
+                .qualification
+                .unwrap()
+                .writer_epoch,
+            Some(2)
+        );
+        // 绕过重绑点直接改域（正额度真实 handoff）：资格所记域已不是事务实际域 → 拒绝。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.advance_complete_domain_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, expected);
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 正控：不注入时迁移成功，晋升资格记本事务父账。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+    }
+
+    // ---- #1488 0041 返修锁（按独审 0040 P2-1 与主控裁定 (a)）----
+    /// 正控：Begin（请求 B）后同 owner 新请求 C 只读 ready——候选经 audit_admission 合法重绑点
+    /// 换到 C 的冻结域，资格所记冻结域随之前进；随后同 owner Recover 成功晋升。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_promotes_after_new_request_readonly_rebind() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        assert!(native.conn.qualification_parent_matches_complete_for_test());
+        let before = native.conn.complete_parent_stamp_for_test();
+        native
+            .handle(envelope("ready-after-begin", json!({"op":"ready"})))
+            .unwrap();
+        assert!(
+            !native.conn.complete_parent_matches_for_test(&before),
+            "新请求须经重绑点换到本请求冻结域"
+        );
+        assert!(
+            native.conn.qualification_parent_matches_complete_for_test(),
+            "资格所记冻结域须随合法重绑前进"
+        );
+        let probe = native.conn.recover_probe_for_test();
+        assert!(!probe.stale && probe.qualification.is_some(), "{probe:?}");
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    /// P3-3：资格缺父账记录与记录不符分开报；缺记录同样拒绝并撤销。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_qualification_without_parent_record() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.clear_qualification_parent_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移资格缺父账记录"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    // ---- #1488 0044 返修锁（按复审 0043 P3-1/P3-2）----
+    /// P3-1：资格记录先改指他账或同账旧域，再经合法 ready 重绑——`BudgetStamp::advance` 的身份链核
+    /// 不认 from，记录不前进；Recover 按记录拒绝并撤销。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record() {
+        let expected =
+            "StaleWriter：construction资格失效：Recover迁移资格所记父账或冻结域与事务父账不符";
+        for case in ["foreign", "stale-domain"] {
+            let f = Fixture::new();
+            let (mut native, _, _) = recover_lock_driver(&f);
+            let before = native.conn.complete_parent_stamp_for_test();
+            let foreign = super::super::audit_owner::native::Budget::fresh(1 << 30).unwrap();
+            let stamp = match case {
+                "foreign" => foreign.handoff_stamp().unwrap(),
+                _ => before.clone().rewind_domain_for_test(),
+            };
+            native.conn.set_qualification_parent_for_test(stamp);
+            assert!(
+                !native.conn.qualification_parent_matches_complete_for_test(),
+                "{case}"
+            );
+            native
+                .handle(envelope("ready-rebind", json!({"op":"ready"})))
+                .unwrap();
+            assert!(
+                !native.conn.complete_parent_matches_for_test(&before),
+                "{case}：须经合法重绑点真实换域"
+            );
+            assert!(
+                !native.conn.qualification_parent_matches_complete_for_test(),
+                "{case}：记录不得随重绑前进"
+            );
+            let serial = native.conn.recover_probe_for_test().serial;
+            let error = native
+                .conn
+                .recover("2", &native.clock, "recover-2")
+                .unwrap_err();
+            assert_eq!(error, expected, "{case}");
+            assert_recover_revoked(&native, &f, serial, "1");
+            drop(foreign);
+        }
+    }
+
+    /// P3-2：receipt 轮询与 ready 同走 audit_admission 合法重绑点；Begin → receipt → Recover 成功晋升。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_promotes_after_new_request_receipt_rebind() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let before = native.conn.complete_parent_stamp_for_test();
+        native.handle(receipt_request(&Fixture::ingest(1))).unwrap();
+        assert!(
+            !native.conn.complete_parent_matches_for_test(&before),
+            "receipt 须经重绑点换到本请求冻结域"
+        );
+        assert!(
+            native.conn.qualification_parent_matches_complete_for_test(),
+            "资格所记冻结域须随合法重绑前进"
+        );
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    // ---- #1488 0077 P3 本票修（P3-REGISTER P08/P12）----
+    /// P12（0043 P3-2 余项）：Begin 后同 owner 已提交重复 ingest，再连续两个新只读请求 C、D——
+    /// 每一步都经 audit_admission 重绑点换到本请求冻结域（stamp 逐步互异），资格所记冻结域逐步
+    /// 跟随；链尾 Recover 成功晋升。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_promotes_after_duplicate_ingest_and_chained_rebinds() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut seen = vec![native.conn.complete_parent_stamp_for_test()];
+        let steps = [
+            ("duplicate-ingest", Fixture::ingest(1)),
+            ("ready-c", envelope("ready-chain-c", json!({"op":"ready"}))),
+            ("ready-d", envelope("ready-chain-d", json!({"op":"ready"}))),
+        ];
+        for (step, request) in steps {
+            native.handle(request).unwrap();
+            for earlier in &seen {
+                assert!(
+                    !native.conn.complete_parent_matches_for_test(earlier),
+                    "{step}：须经重绑点换到本请求冻结域，且不回到链上任一旧域"
+                );
+            }
+            assert!(
+                native.conn.qualification_parent_matches_complete_for_test(),
+                "{step}：资格所记冻结域须随合法重绑前进"
+            );
+            let probe = native.conn.recover_probe_for_test();
+            assert!(
+                !probe.stale && probe.qualification.is_some(),
+                "{step}：{probe:?}"
+            );
+            seen.push(native.conn.complete_parent_stamp_for_test());
+        }
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    /// P08（0036 P3-3）：迁移时 complete 候选不属本事务快照（seal 不等）——生产不可达分支以注入
+    /// 锁定：精确拒绝、不迁移、资格撤销、持久 epoch 不动。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_rejects_missing_same_snapshot_complete() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_snapshot_miss_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移缺同快照完整原件"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P2-1：holds 门独立负控——资格所记父账与候选一致，唯状态块许可挂他账，迁移前即拒绝。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut context = recover_lock_context(&mut native);
+        let (_token, ended) = native
+            .conn
+            .issue_raw_qualification_for_test(&mut context)
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        let probe = native.conn.recover_probe_for_test();
+        let q = probe.qualification.expect("签发后owner持有资格");
+        assert!(q.has_fee && q.has_parent, "{q:?}");
+        let foreign = super::super::audit_owner::native::Budget::fresh(1 << 20).unwrap();
+        native
+            .conn
+            .replace_qualification_fee_for_test(foreign.reserve(64).unwrap());
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移状态块许可不挂事务父账"
+        );
+        assert_recover_revoked(&native, &f, probe.serial, "1");
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_complete_optional_budget_releases_without_changing_reply() {
         let f = Fixture::new();
@@ -1046,6 +3478,7 @@ mod tests {
             f.clock.clone(),
             1024,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         for request in [ready.clone(), ready, input] {
@@ -1074,7 +3507,410 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    /// #1488 P1-1：生产暖路径入口的old_pool逐项分区——O恰为逐项合同额之和，同父L0只计一次
+    /// （parent_paid+uncovered=L0，parent_paid+external=O），项键(role,item,origin)不重；回复不变。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p1_1_driver_warm_old_pool_partition_counts_l0_once() {
+        let warm_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = complete_driver(&warm_fixture);
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        let mut seen = Vec::new();
+        for n in 1..=3 {
+            let partition = {
+                let keeper = warm.conn.source_keeper_for_test();
+                warm.conn.old_pool_partition(keeper.as_ref()).unwrap()
+            };
+            let items = partition.items();
+            let sum = items.iter().map(|i| i.contract).sum::<usize>();
+            assert_eq!(partition.old_pool(), sum, "O=逐项合同额，不含L补差");
+            assert_eq!(
+                partition.parent_paid() + partition.uncovered(),
+                partition.l0()
+            );
+            assert_eq!(
+                partition.parent_paid() + partition.external(),
+                partition.old_pool()
+            );
+            assert!(partition.carried() >= partition.l0(), "carried覆盖同父L0");
+            let mut keys = items
+                .iter()
+                .map(|i| (i.role, i.item, i.origin))
+                .collect::<Vec<_>>();
+            keys.sort();
+            keys.dedup();
+            assert_eq!(keys.len(), items.len(), "同一合同项不得重复入O");
+            if n > 1 {
+                assert!(
+                    partition.l0() > 0 && partition.old_pool() > 0,
+                    "暖入口有同父旧候选"
+                );
+            }
+            seen.push(serde_json::to_value(&partition).unwrap());
+            assert_eq!(
+                warm.handle(Fixture::ingest(n)).unwrap(),
+                ordinary.handle(Fixture::ingest(n)).unwrap()
+            );
+        }
+        eprintln!(
+            "{}",
+            json!({"scenario":"p1-1-warm-partition","partitions":seen})
+        );
+    }
+
+    /// #1488 P3-1：冷根审计失败（1024 不足）且 legacy cache 保留开启时，根析构前根上不得残留许可；
+    /// 回复与基线一致。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root() {
+        let f = Fixture::new();
+        let mut build = f.open("1").unwrap();
+        build.handle(Fixture::ingest(1)).unwrap();
+        let ready = envelope("ready-cold-root", json!({"op":"ready"}));
+        let expected = build.handle(ready.clone()).unwrap();
+        drop(build);
+        let probe = |cap: usize, inject: bool| {
+            let mut d = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                cap,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            // v3 driver 不配置 legacy memo；显式开启保留，使首跑真实经 NativeAdmission 保留证书。
+            crate::cache::configure(268_435_456);
+            assert!(crate::cache::retention_enabled());
+            crate::v3::audit_owner::cold_root_probe::take();
+            if inject {
+                crate::v3::audit_owner::cold_root_probe::fail_next_cold_root_audit();
+            }
+            let reply = d.handle(ready.clone());
+            let legacy = crate::cache::retained_bytes();
+            crate::cache::configure(0);
+            assert_eq!(reply.unwrap(), expected);
+            let notes = crate::v3::audit_owner::cold_root_probe::take();
+            assert_eq!(notes.len(), 1, "须恰经一次冷根审计失败分支：{notes:?}");
+            assert_eq!(notes[0].1, 0, "根析构前仍有残留许可：{notes:?}");
+            (notes[0], legacy)
+        };
+        // 自然失败：1024 不足，首跑在根上额度耗尽。
+        let natural = probe(1024, false);
+        // 真实首跑全部副作用发生后注入失败（最坏时点）：根上不得残留任何许可。
+        let injected = probe(16 * 1024 * 1024, true);
+        assert_eq!(injected.0, (0, 0), "{injected:?}");
+        eprintln!(
+            "{}",
+            json!({"scenario":"p3-1-cold-root-failure","natural":natural,"injected":injected})
+        );
+    }
+
+    /// #1488 P3-d（复审 0026）：冷根失败分支 clear_handles 后复核根残留；注入一张 legacy cache 之外、
+    /// clear_handles 清不掉的根许可，须报错而非析构根后无票重跑；对照组（不注入）回复与基线一致。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p3_d_cold_root_residue_after_clear_handles_is_rejected() {
+        let f = Fixture::new();
+        let mut build = f.open("1").unwrap();
+        build.handle(Fixture::ingest(1)).unwrap();
+        let ready = envelope("ready-cold-root-residue", json!({"op":"ready"}));
+        let expected = build.handle(ready.clone()).unwrap();
+        drop(build);
+        for leak in [0usize, 4096] {
+            let mut d = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                16 * 1024 * 1024,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            crate::cache::configure(268_435_456);
+            crate::v3::audit_owner::cold_root_probe::take();
+            crate::v3::audit_owner::cold_root_probe::fail_next_cold_root_audit();
+            crate::v3::audit_owner::cold_root_probe::leak_next_cold_root_permit(leak);
+            let reply = d.handle(ready.clone());
+            crate::cache::configure(0);
+            let notes = crate::v3::audit_owner::cold_root_probe::take();
+            let leaked = crate::v3::audit_owner::cold_root_probe::take_leaked();
+            let reruns = crate::v3::audit_owner::cold_root_probe::take_reruns();
+            assert_eq!(notes.len(), 1, "须恰经一次冷根审计失败分支：{notes:?}");
+            if leak == 0 {
+                assert!(leaked.is_empty());
+                assert_eq!(notes[0].1, 0, "{notes:?}");
+                assert_eq!(reruns, 1, "残留归零才析构根后无票重跑一次");
+                assert_eq!(reply.unwrap(), expected);
+            } else {
+                assert_eq!(leaked.len(), 1);
+                assert_eq!(notes[0].1, leak, "clear_handles清不掉注入许可：{notes:?}");
+                // #1488 P3-δ（主控裁定）：残留分支不得自动重试，错误须带运维处置说明。
+                assert_eq!(reruns, 0, "残留非零分支不得无票重跑");
+                let error = reply.expect_err("根残留未归零必须报错");
+                assert!(
+                    error.contains("冷根审计失败清除保留后根上仍残留4096B许可"),
+                    "{error}"
+                );
+                assert!(
+                    error.contains("不自动重试") && error.contains("重启writer进程"),
+                    "{error}"
+                );
+                // #1488 0079（0078 optional_lock）：残留分支只拒触发它的请求，不退役 writer；
+                // 同一 driver 再发 ready 必须成功且与基线一致。
+                crate::cache::configure(268_435_456);
+                let again = d.handle(ready.clone());
+                crate::cache::configure(0);
+                crate::v3::audit_owner::cold_root_probe::take();
+                crate::v3::audit_owner::cold_root_probe::take_reruns();
+                assert_eq!(
+                    again.expect("残留分支报错后同一 writer 须继续服务"),
+                    expected
+                );
+            }
+        }
+    }
+
+    /// #1488 0079（P24-adj，0078 探针 H 形态）：同一 writer 内冷根自然失败（1M）后无票重跑提交，
+    /// 之后 allowance 变大（改 16M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
+    /// 负控：去掉 `renew_after_cold_root_rerun` 的续租 → ingest-2 报“Carry租约已撤销”。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits() {
+        use crate::v3::audit_owner::cold_root_probe as probe;
+        // 返回（首个 ingest 的冷根 notes, 重跑次数, 首个 ingest 后租约, 各 ingest 的
+        // (命中完整候选, 提交后持资格, 降级放弃, 租约撤销), 与 ordinary 逐步比对结果, 末态根表是否一致）。
+        let run = |first_cap: usize| {
+            let f = Fixture::new();
+            let o = Fixture::new();
+            let mut ordinary = o.open("1").unwrap();
+            let mut d = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                first_cap,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            crate::cache::configure(268_435_456);
+            probe::take();
+            probe::take_reruns();
+            drop(probe::take_leaked());
+            let mut mismatched = Vec::new();
+            let mut check = |id: &str, actual: Result<Value, String>, oracle: Value| {
+                if actual.as_ref() != Ok(&oracle) {
+                    mismatched.push(json!({"id":id,"actual":format!("{actual:?}")}));
+                }
+            };
+            let first = d.handle(Fixture::ingest(1));
+            let notes = probe::take();
+            let reruns = probe::take_reruns();
+            let renewed = d.conn.recover_probe_for_test();
+            check(
+                "ingest-1",
+                first,
+                ordinary.handle(Fixture::ingest(1)).unwrap(),
+            );
+            d.audit_cache_source_bytes = Some(16 << 20);
+            let steps = [
+                ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
+                ("ingest-2", Fixture::ingest(2)),
+                ("ready-b", envelope("p24adj-ready-b", json!({"op":"ready"}))),
+                ("ingest-3", Fixture::ingest(3)),
+                ("ready-c", envelope("p24adj-ready-c", json!({"op":"ready"}))),
+            ];
+            let mut carried = Vec::new();
+            for (id, request) in steps {
+                let (actual, events, _) = state::traced(true, || d.handle(request.clone()));
+                let after = d.conn.recover_probe_for_test();
+                if id.starts_with("ingest") {
+                    let phase = |p: &str| events.iter().any(|e| e["phase"] == p);
+                    carried.push((
+                        id,
+                        phase("owner_complete_hit"),
+                        after.qualification.is_some(),
+                        phase("publication_candidate_abandoned"),
+                        after.stale,
+                    ));
+                }
+                check(id, actual, ordinary.handle(request).unwrap());
+            }
+            crate::cache::configure(0);
+            let later_notes = probe::take();
+            let tables = prepared::tests::runtime_root_tables(&d.conn, true)
+                == prepared::tests::runtime_root_tables(&ordinary.conn, true);
+            (
+                notes,
+                reruns,
+                renewed,
+                later_notes,
+                carried,
+                mismatched,
+                tables,
+            )
+        };
+        let cold = run(1 << 20);
+        let control = run(16 << 20);
+        eprintln!(
+            "{}",
+            json!({"scenario":"p24adj-cold-root-then-larger-cap",
+                "cold":{"notes":cold.0,"reruns":cold.1,"carried":format!("{:?}", cold.4)},
+                "control":{"notes":control.0,"carried":format!("{:?}", control.4)}})
+        );
+        assert_eq!(
+            cold.0,
+            [(0, 0)],
+            "1M 下首个 ingest 须恰经一次冷根自然失败且残留归零"
+        );
+        assert_eq!(cold.1, 1, "残留归零后无票重跑一次");
+        assert!(
+            !cold.2.stale && !cold.2.retired && cold.2.qualification.is_none(),
+            "冷根失败无票重跑提交后须续租：{:?}",
+            cold.2
+        );
+        assert!(
+            cold.3.is_empty() && control.0.is_empty(),
+            "16M 下冷根不应失败"
+        );
+        assert!(
+            cold.5.is_empty(),
+            "逐步回复须与 ordinary 一致：{:?}",
+            cold.5
+        );
+        assert!(
+            control.5.is_empty(),
+            "对照组逐步回复须与 ordinary 一致：{:?}",
+            control.5
+        );
+        assert!(cold.6 && control.6, "末态根表须与 ordinary 一致");
+        assert_eq!(
+            cold.4[0],
+            ("ingest-2", true, true, false, false),
+            "候选重新出生后 ingest-2 须命中完整候选、经 Carry 提交资格且租约有效"
+        );
+        assert_eq!(cold.4[1], control.4[1], "ingest-3 须与全程 16M 对照组同路");
+        assert!(cold.4.iter().all(|c| !c.4), "租约不得撤销：{:?}", cold.4);
+    }
+
+    /// #1488 0079（P24-adj 负控锁）：冷根失败续租不清除真实撤销。
+    /// (a) 续租并经 Carry 建立资格后发生真实外写：下一 ingest 仍被拒、租约撤销、资格离开 owner；
+    /// (b) 前序请求回滚（IdentityConflict 准入事务析构）已撤销租约：其后的冷根失败无票重跑提交不续租，
+    ///     allowance 变大、候选重新出生后 ingest 照旧报“Carry租约已撤销”。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p24adj_cold_root_renewal_keeps_real_revocations() {
+        use crate::v3::audit_owner::cold_root_probe as probe;
+        let open = |f: &Fixture| {
+            Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                1 << 20,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap()
+        };
+        let ready = |id: &str| envelope(id, json!({"op":"ready"}));
+        crate::cache::configure(268_435_456);
+        probe::take();
+        probe::take_reruns();
+        // (a) 外写。
+        let f = Fixture::new();
+        let mut d = open(&f);
+        let a1 = d.handle(Fixture::ingest(1)).map(|_| ());
+        let a_notes = probe::take();
+        d.audit_cache_source_bytes = Some(16 << 20);
+        let a2 = d.handle(ready("p24adj-neg-ready-a")).map(|_| ());
+        let a3 = d.handle(Fixture::ingest(2)).map(|_| ());
+        let carried = d.conn.recover_probe_for_test();
+        let a4 = d.handle(ready("p24adj-neg-ready-b")).map(|_| ());
+        recover_lock_external_write(&f);
+        let a5 = d.handle(Fixture::ingest(3));
+        let revoked = d.conn.recover_probe_for_test();
+        // (b) 前序回滚。
+        let g = Fixture::new();
+        let mut e = open(&g);
+        let mut foreign = ready("p24adj-neg-foreign");
+        foreign["session_generation"] = json!("2");
+        let b1 = e.handle(foreign);
+        let pre_stale = e.conn.recover_probe_for_test();
+        probe::take();
+        let b2 = e.handle(Fixture::ingest(1)).map(|_| ());
+        let b_notes = probe::take();
+        let not_renewed = e.conn.recover_probe_for_test();
+        e.audit_cache_source_bytes = Some(16 << 20);
+        let b3 = e.handle(ready("p24adj-neg-ready-c")).map(|_| ());
+        let b4 = e.handle(Fixture::ingest(2));
+        crate::cache::configure(0);
+        probe::take();
+        probe::take_reruns();
+        assert_eq!((a1, a2, a3, a4), (Ok(()), Ok(()), Ok(()), Ok(())));
+        assert_eq!(a_notes, [(0, 0)], "(a) 须经冷根自然失败");
+        assert!(
+            !carried.stale && carried.qualification.is_some(),
+            "(a) 续租后 Carry 须建立资格：{carried:?}"
+        );
+        assert!(a5.is_err(), "(a) 外写后 ingest 必须被拒：{a5:?}");
+        assert!(
+            revoked.stale && revoked.serial > carried.serial && revoked.qualification.is_none(),
+            "(a) 外写后租约须撤销、资格离开 owner：{revoked:?}"
+        );
+        assert!(
+            b1.as_ref().is_err_and(|e| e.contains("IdentityConflict")),
+            "{b1:?}"
+        );
+        assert_eq!(b2, Ok(()));
+        assert!(pre_stale.stale, "(b) 回滚须先撤销租约：{pre_stale:?}");
+        assert_eq!(b_notes, [(0, 0)], "(b) ingest 须经冷根自然失败并无票重跑");
+        assert!(
+            not_renewed.stale,
+            "(b) 前序回滚撤销不得被续租清除：{not_renewed:?}"
+        );
+        assert_eq!(b3, Ok(()));
+        assert!(
+            b4.as_ref().is_err_and(|e| e.contains("Carry租约已撤销")),
+            "(b) 前序真实撤销后照旧 fail-closed：{b4:?}"
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    // NOT_RUN：本轮只静态检查。
+    fn cross_request_ready_first_write_and_two_requests_preserve_parent() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        let ready = envelope("handoff-ready", json!({"op":"ready"}));
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready).unwrap()
+        );
+        let original = native.conn.complete_budget_for_test();
+        let mut peak = original.peak();
+        for n in 1..=2 {
+            assert_eq!(
+                native.handle(Fixture::ingest(n)).unwrap(),
+                ordinary.handle(Fixture::ingest(n)).unwrap()
+            );
+            let current = native.conn.complete_budget_for_test();
+            assert!(current.same_parent(&original));
+            assert!(current.live() > 0);
+            assert!(current.peak() >= peak);
+            peak = current.peak();
+            native.conn.assert_complete_matches_cold();
+        }
+        assert!(original.reserve(1).is_err(), "旧请求句柄不能获得新分配资格");
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_normal_append_keeps_candidate_below_old_multiplier_gate() {
         let f = Fixture::new();
@@ -1134,9 +3970,24 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    /// #1488 本票第四处裁改断言（主控裁定 (i)：
+    /// https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6281614540）。
+    /// 原锁 `audit_owner_write_budget_releases_candidate_after_successful_normal_append` 断言
+    /// 第二次正常写成功后 `complete_retained_bytes() == 0`，该断言在现设计不可达，旧绿为假绿
+    /// （冷路径降级或写失败归零），故与 0039 正控锁合并为本锁，不再保留 ==0。
+    /// 不可达依据（workers/wbfix-0039/REPORT.md §2 读数）：同一 S7 额度余量 M 同时供写期工作额度
+    /// （≈M）与保留帽（held+M）；规则释放需 M < charge + raw − held = 3,281,186 + 320,877 − 2,873,735
+    /// = 728,328B，而实测写成功下限在 6–7MiB（门槛机理未定位，不是 handoff_peak，见复审 0043 §9），
+    /// 两区间不相交；16/9/8/7MiB 写成功且保留 3,602,191B，6MiB 及以下写本身 StaleWriter；
+    /// 且即使强制释放候选，construction raw 320,877B 仍计入 retained，==0 仍不成立。
+    /// 现语义：夹具不变（legacy + held + 8MiB），effects 路径写成功，完整候选按生产保留裁决点读数
+    /// `charge.total ≤ complete_retention_cap − raw` 保留，本请求域峰 handoff_peak − entry ≤ 候选
+    /// 工作额度 limit（生产实比之值，0044 按复审 0043 P2-1/P3-3 订正，不在测试里复述公式）。
+    /// 开放风险：本锁只证明 8MiB 夹具下的上述关系，并未证明“8MiB 足够”
+    /// （RUNTIME-INDEPENDENT-REVIEW【05】），随整票验收的资源读数一并报告。
+    #[cfg(feature = "s_incremental")]
     #[test]
-    fn audit_owner_write_budget_releases_candidate_after_successful_normal_append() {
+    fn audit_owner_write_budget_retains_candidate_within_retention_cap_and_parent_limit() {
         use super::super::audit_owner::allocation_probe::Window;
         let f = Fixture::new();
         let o = Fixture::new();
@@ -1148,32 +3999,78 @@ mod tests {
         );
         let held = native.conn.complete_retained_bytes();
         assert!(held > 0);
+        let legacy = crate::cache::retained_bytes();
+        let total = legacy + held + 8 * 1024 * 1024;
         // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
-        native.audit_cache_source_bytes =
-            Some(crate::cache::retained_bytes() + held + 8 * 1024 * 1024);
+        native.audit_cache_source_bytes = Some(total);
         let memory = Window::start();
         let (actual, events, work) = state::traced(true, || native.handle(Fixture::ingest(2)));
         let memory = memory.finish();
-        let expected = ordinary.handle(Fixture::ingest(2)).unwrap();
-        assert_eq!(actual.unwrap(), expected);
-        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert_eq!(
+            actual.unwrap(),
+            ordinary.handle(Fixture::ingest(2)).unwrap()
+        );
+        // 同一路径：写期走 effects 增量与后缀完整核，不是冷路径降级。
         assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert!(events.iter().any(|e| e["phase"] == "owner_effects"));
+        assert!(events.iter().any(|e| e["phase"] == "owner_suffix_complete"));
+        let retained = native.conn.complete_retained_bytes();
+        assert!(retained > 0);
+        // retained 含 construction raw；须核完整候选本身仍在。
+        let report = native.conn.complete_report();
+        assert!(
+            !report.is_null(),
+            "完整候选未保留，retained={retained} 仅为 raw"
+        );
+        let charge = report["charge"]["total"].as_u64().unwrap() as usize;
+        let entry = report["charge"]["entry_reserved_bytes"].as_u64().unwrap() as usize;
+        let peak = report["charge"]["handoff_peak"].as_u64().unwrap() as usize;
+        // 0044 P2-1：handoff_peak = entry + 本请求域峰（audit_owner.rs `recording_peak`/effects 收尾），
+        // 生产只对后者设门：effects 路径 `peak > self.limit` 即放弃增量，Ledger 预留从同一 allowance
+        // checked_sub。故读候选实际 limit，与生产同一口径比较本请求域峰；entry 不再计两次。
+        let parent_limit = native.conn.complete_limit_for_test();
+        let request_peak = peak.checked_sub(entry).unwrap();
+        assert!(
+            request_peak <= parent_limit,
+            "{peak} − {entry} > {parent_limit}"
+        );
+        // 0044 P3-3：读收尾保留裁决点的生产读数（complete_retention_cap 与 construction 实际 retained）。
+        let [decision] = events
+            .iter()
+            .filter(|e| e["phase"] == "owner_retention")
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("保留裁决点须恰执行一次：{events:?}")
+        };
+        let cap = decision["cap"].as_u64().unwrap() as usize;
+        let raw = decision["raw"].as_u64().unwrap() as usize;
+        assert_eq!(
+            retained,
+            charge + super::super::audit_owner::native::Budget::metadata_bytes() + raw
+        );
+        assert!(charge <= cap - raw, "{charge} > {cap} - {raw}");
+        native.conn.assert_complete_matches_cold();
         assert_eq!(
             prepared::tests::runtime_root_tables(&native.conn, true),
             prepared::tests::runtime_root_tables(&ordinary.conn, true)
         );
         eprintln!(
             "{}",
-            json!({"scenario":"r4-write-budget-release","old_charge":held,"allocation":memory,"events":events,"work":work,"retained":native.conn.complete_retained_bytes()})
+            json!({"scenario":"r4-write-budget-retain","old_charge":held,"charge":charge,"cap":cap,"raw":raw,"handoff_peak":peak,"parent_limit":parent_limit,"allocation":memory,"events":events,"work":work,"retained":retained})
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_complete_normal_second_connection_and_new_life_are_cold() {
         let f = Fixture::new();
+        let o = Fixture::new();
         let mut native = complete_driver(&f);
-        native.handle(Fixture::ingest(1)).unwrap();
+        let mut ordinary = o.open("1").unwrap();
+        assert_eq!(
+            native.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
         let ready = envelope("ready-external", json!({"op":"ready"}));
         native.handle(ready.clone()).unwrap();
         let old_life = native.conn.complete_report()["life"].clone();
@@ -1201,25 +4098,43 @@ mod tests {
             .begin_advance(&next, "1", &f.clock, &mode, &mut context)
             .unwrap();
         let mut runtime = prepared::Runtime::with_mode(mode);
-        external
+        let (receipt, _) = external
             .publish(&mut runtime, &begun.token, &next, &mut context)
             .unwrap();
+        assert_eq!(receipt.message_receipt, ordinary.handle(next).unwrap());
         drop(begun);
         drop(external);
-        let (_, events, _) = state::traced(true, || native.handle(ready.clone()).unwrap());
-        assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        let before = prepared::tests::runtime_root_tables(&native.conn, true);
+        let writes_before = native.conn.total_changes();
+        let (rejected, events, _) = state::traced(true, || native.handle(ready.clone()));
         assert_eq!(
-            events
-                .iter()
-                .filter(|e| e["phase"] == "history_template_closure")
-                .count(),
-            2
+            rejected.unwrap_err(),
+            "StaleWriter：construction资格失效：已有增量游标的材料域改变；禁止冷重签"
         );
-        native.conn.assert_complete_matches_cold();
+        assert_eq!(native.conn.total_changes(), writes_before);
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&native.conn, true),
+            before
+        );
+        assert_eq!(
+            before,
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert_eq!(native.conn.complete_report(), Value::Null);
+        assert!(native.conn.source_keeper_for_test().is_none());
+        assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"] == "history_template_closure"));
+        // 旧 owner 的来源资格已撤销；连同旧 Runtime 一起丢弃，不能在旧 life 冷重签。
         drop(native);
         let mut reopened = complete_driver(&f);
         assert_eq!(reopened.conn.complete_retained_bytes(), 0);
-        let (_, events, _) = state::traced(true, || reopened.handle(ready).unwrap());
+        assert!(reopened.runtime.visit_runtime_roots().unwrap().is_empty());
+        let expected = ordinary.handle(ready.clone()).unwrap();
+        let (actual, events, _) = state::traced(true, || reopened.handle(ready));
+        assert_eq!(actual.unwrap(), expected);
         assert_eq!(
             events
                 .iter()
@@ -1229,9 +4144,13 @@ mod tests {
         );
         assert_ne!(reopened.conn.complete_report()["life"], old_life);
         reopened.conn.assert_complete_matches_cold();
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&reopened.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged(
     ) {
@@ -1247,7 +4166,10 @@ mod tests {
                 "1",
                 f.clock.clone(),
                 1,
+                1,
                 s_allocation::Mode::CapturedNative,
+                false,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
         });
         let (mut driver, identity) = result.unwrap();
@@ -1255,7 +4177,8 @@ mod tests {
         let phase_count =
             |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
         assert_eq!(phase_count(&events, "request_history_cold"), 1);
-        assert_eq!(phase_count(&events, "request_history_hit"), 1);
+        // #1527 FixedFD前缀cold并保留纯内容slot；真实startup与identity各命中一次。
+        assert_eq!(phase_count(&events, "request_history_hit"), 2);
         assert_eq!(phase_count(&events, "request_history_context_released"), 1);
         assert_eq!(
             events.last().unwrap()["phase"],
@@ -1279,6 +4202,7 @@ mod tests {
                 f.clock.clone(),
                 1,
                 s_allocation::Mode::Ordinary,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )?;
             let identity = driver.identity()?;
             Ok::<_, String>((driver, identity))
@@ -1300,25 +4224,36 @@ mod tests {
             "1",
             f.clock.clone(),
             1,
+            1,
             owned.clone(),
+            false,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .err()
         .unwrap();
-        assert!(error.contains("只接受显式CapturedNative"));
+        assert!(error.contains("只接受CapturedNative"));
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
             let (result, events, _) = state::traced(false, || {
-                Driver::open_for_serve_with_mode(&f.db, &f.profile, "1", f.clock.clone(), 1, owned)
+                Driver::open_for_serve_with_mode(
+                    &f.db,
+                    &f.profile,
+                    "1",
+                    f.clock.clone(),
+                    1,
+                    owned,
+                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                )
             });
             assert!(result.err().unwrap().contains("此构建不支持实际分配原型"));
             assert!(!events
                 .iter()
                 .any(|e| e["phase"].as_str().unwrap().starts_with("request_history_")));
         }
-        println!("Native idle bootstrap cold=1 hit=1 released_before_return=1; Ready cold=1 hit=0 released=1; retained_source=0");
+        println!("Native idle bootstrap cold=1 hit=2 released_before_return=1; Ready cold=1 hit=0 released=1; retained_source=0");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_bootstrap_pending_drops_startup_slot_before_resume_then_identity_cold_matches_current_frontier(
     ) {
@@ -1344,9 +4279,13 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
-        assert_eq!((context.cold, context.hits), (1, 0));
+        // #1527 前缀cold保留slot，真实startup命中；恢复pending前仍须丢弃。
+        assert_eq!((context.cold, context.hits), (1, 1));
         assert!(!context.has_slot(), "startup原件不能跨着恢复请求保留");
         assert_eq!(count(&driver.conn, "s_content_publications"), 2);
         assert_eq!(count(&driver.conn, "s_clock_events"), 6);
@@ -1370,7 +4309,7 @@ mod tests {
             driver.identity_in_bootstrap(&mut context).unwrap(),
             baseline.identity().unwrap()
         );
-        assert_eq!((context.cold, context.hits), (2, 0));
+        assert_eq!((context.cold, context.hits), (2, 1));
         assert!(context.has_slot());
         drop(context);
         assert_eq!(driver.handle(Fixture::ingest(2)).unwrap(), expected);
@@ -1382,10 +4321,10 @@ mod tests {
                 .handle(envelope("after-resume-ready", json!({"op":"ready"})))
                 .unwrap()
         );
-        println!("Native pending bootstrap cold=2 hit=0 startup_slot_dropped_before_advance=1; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
+        println!("Native pending bootstrap cold=2 hit=1 startup_slot_dropped_before_advance=1; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_bootstrap_two_transactions_reject_current_damage_or_sql_error_without_old_proof() {
         for sql in [
@@ -1403,12 +4342,16 @@ mod tests {
             initial.handle(Fixture::ingest(1)).unwrap();drop(initial);
             let mut context=request_audit::RequestAuditContext::default();
             let driver=Driver::open_with_request_and_mode_context(&f.db,&f.profile,"1",f.clock.clone(),None,
-                s_allocation::Mode::CapturedNative,Some(&mut context)).unwrap();
+                s_allocation::Mode::CapturedNative,Some(&mut context),
+                newchan_rust::theta_v0::config::ThetaConfig::default(),false,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),).unwrap();
             assert!(context.has_slot());
+            // #1527 前缀cold保留slot，真实startup命中；损坏后的identity不得再命中旧证明。
+            assert_eq!((context.cold,context.hits),(1,1));
             driver.conn.execute_batch(sql).unwrap();
             let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
             assert!(driver.identity_in_bootstrap(&mut context).is_err(),"{sql}");
-            assert!(!context.has_slot(),"{sql}");assert_eq!(context.hits,0);
+            assert!(!context.has_slot(),"{sql}");assert_eq!(context.hits,1,"{sql}");
             assert_eq!((count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications")),before);
         }
         // 实际SQL step中断也不能cold重试吞错。
@@ -1422,6 +4365,9 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -1438,12 +4384,12 @@ mod tests {
             .progress_handler(0, None::<fn() -> bool>)
             .unwrap();
         assert!(!context.has_slot());
-        assert_eq!((context.cold, context.hits), (1, 0));
+        assert_eq!((context.cold, context.hits), (1, 1));
         driver.identity_in_bootstrap(&mut context).unwrap();
-        assert_eq!((context.cold, context.hits), (2, 0));
+        assert_eq!((context.cold, context.hits), (2, 1));
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_bootstrap_epoch_profile_idle_and_illegal_request_reject_before_pending_resume_and_release(
     ) {
@@ -1495,6 +4441,9 @@ mod tests {
                         Some(&request),
                         s_allocation::Mode::CapturedNative,
                         Some(&mut context),
+                        newchan_rust::theta_v0::config::ThetaConfig::default(),
+                        false,
+                        crate::v3::admission_anchor::test_prepare(&f.db).into(),
                     )
                     .map(|_| ())
                 } else {
@@ -1504,7 +4453,10 @@ mod tests {
                         if fault == "epoch" { "2" } else { "1" },
                         f.clock.clone(),
                         1,
+                        1,
                         s_allocation::Mode::CapturedNative,
+                        false,
+                        crate::v3::admission_anchor::test_prepare(&f.db).into(),
                     )
                     .map(|_| ())
                 }
@@ -1531,7 +4483,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_startup_full_audit_and_pending_resume_before_write_guards() {
         let fixture = Fixture::new();
@@ -1575,7 +4527,7 @@ mod tests {
             "Committed"
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_startup_rejects_each_current_damage_before_pending_resume() {
         let faults=["UPDATE meta SET value='foreign' WHERE key='profile_hash'","UPDATE s_clock_events SET semantic_ns='999' WHERE phase='commit'","UPDATE raw_events SET raw_text='corrupt' WHERE seq=0","UPDATE s_content_objects SET immutable_root=generated_root WHERE rowid=(SELECT min(rowid) FROM s_content_objects)","UPDATE s_content_nodes SET body=x'00' WHERE digest=(SELECT snapshot_root FROM s_content_publications LIMIT 1)","UPDATE meta SET value='unknown' WHERE key='protocol_revision'","CREATE TABLE unknown_startup_domain(x)"];
@@ -1609,6 +4561,7 @@ mod tests {
                 fixture.clock.clone(),
                 None,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
             );
             assert!(result.is_err(), "{sql}");
             let c = Connection::open(&fixture.db).unwrap();
@@ -1628,7 +4581,7 @@ mod tests {
             assert_eq!(before, after, "{sql}");
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_startup_sql_errors_propagate_without_ordinary_fallback() {
         let fixture = Fixture::new();
@@ -1652,7 +4605,7 @@ mod tests {
         assert!(error.contains("no such table"), "{error}");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     #[ignore]
     fn staged_next106_cold_driver_observation() {
@@ -1742,6 +4695,7 @@ mod tests {
             clock,
             Some(&envelope),
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&db).into(),
         );
         let open_ns = started.elapsed().as_nanos();
         let mut driver = match opened {
@@ -1776,7 +4730,7 @@ mod tests {
         assert!(reply.is_ok(), "{}", reply.unwrap_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_driver(f: &Fixture) -> Driver {
         Driver::open_with_request_and_mode(
             &f.db,
@@ -1785,11 +4739,12 @@ mod tests {
             f.clock.clone(),
             None,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap()
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn measured_source_cap(driver: &mut Driver) -> usize {
         let mut probe = super::super::cross_request_source_cache::Keeper::new(usize::MAX);
         let tx = driver.conn.transaction().unwrap();
@@ -1805,7 +4760,7 @@ mod tests {
     /// ordinary；legacy＋旧池（来源池＋完整候选，与 Driver 冻结 workspace 预算同口径）＋workspace
     /// 共享 S7；每次正常写由完整候选增量承载且来源池为空；repost 只复用完整 owner 结果、不调来源核；
     /// 重启后首个 repost 全 cold，其无写候选在 slot 内保留来源 Counts 候选。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn counts_subset_driver_normal_rows_append_repost_restart_and_shared_s7() {
         use super::super::prepared::tests::{
@@ -1824,6 +4779,7 @@ mod tests {
             warm_fixture.clock.clone(),
             S7,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         // 原冷核不启用source Keeper，仍使用相同的Native完整capture。
@@ -1925,6 +4881,7 @@ mod tests {
             warm_fixture.clock.clone(),
             S7,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         assert!(restarted.conn.source_keeper_for_test().is_none());
@@ -1965,7 +4922,7 @@ mod tests {
         runtime_root_compare_reachable_bytes(&restarted.conn, &cold.conn);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn source_keeper_driver_append_repost_restart_preserves_results_and_request_reuse() {
         let reference = Fixture::new();
@@ -1982,6 +4939,7 @@ mod tests {
             fixture.clock.clone(),
             cap,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
         )
         .unwrap();
         assert!(
@@ -2058,6 +5016,7 @@ mod tests {
             fixture.clock.clone(),
             cap,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
         )
         .unwrap();
         assert!(restarted.conn.source_keeper_for_test().is_none());
@@ -2071,7 +5030,7 @@ mod tests {
     /// #1394：原断言「仅第3次入口拥有前次写前审核留下的非空来源池」按 a96cb02e01 前的承载者写成；
     /// 19cae1dc09 起正常写由完整候选承载、写前来源候选随 slot 在固定写前释放，故第2、3次入口的
     /// 非空旧池是完整候选，来源池恒空。All actual rows and reachable originals must match cold Native and ordinary.
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn source_keeper_driver_workspace_shares_s7_with_nonempty_old_pool_and_exact_rows() {
         use super::super::prepared::tests::{
@@ -2088,6 +5047,7 @@ mod tests {
             warm_fixture.clock.clone(),
             total,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         let mut cold = Driver::open_for_serve_with_mode(
@@ -2097,6 +5057,7 @@ mod tests {
             cold_fixture.clock.clone(),
             total,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&cold_fixture.db).into(),
         )
         .unwrap();
         cold.runtime.disable_manifest_workspace_for_test();
@@ -2173,7 +5134,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn source_keeper_driver_measured_cap_only_changes_retention() {
         let fixture = Fixture::new();
@@ -2189,6 +5150,7 @@ mod tests {
                 fixture.clock.clone(),
                 budget,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
             )
             .unwrap();
             assert_eq!(
@@ -2220,7 +5182,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn request_history_real_driver_three_stages_reuse_and_repost_starts_cold() {
         let fixture = Fixture::new();
@@ -2276,7 +5238,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn request_history_handler_sql_and_commit_failures_release_context() {
         use s_allocation::{probe, Phase};
@@ -2329,7 +5291,7 @@ mod tests {
         assert_eq!(count(&driver.conn, "raw_events"), 1);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_capture_three_commits_and_restart_match_ordinary_current_state() {
         use s_allocation::{probe, Phase};
@@ -2384,7 +5346,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_mode_is_frozen_before_pending_resume_captures_advance_and_prepare() {
         use s_allocation::probe;
@@ -2408,7 +5370,7 @@ mod tests {
         assert_eq!(count(&d.conn, "s_clock_events"), 3);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_capture_real_sql_failures_preserve_each_persistent_phase_boundary() {
         use s_allocation::{probe, Phase};
@@ -2451,7 +5413,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_capture_readonly_current_source_rejects_fresh_damage_without_writes() {
         let f = Fixture::new();
@@ -2528,6 +5490,7 @@ mod tests {
             f.clock.clone(),
             None,
             Some(profile),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap()
     }
@@ -2704,10 +5667,7 @@ mod tests {
         }
     }
 
-    #[cfg(any(
-        feature = "s_allocation_json_testonly",
-        feature = "s_capture_native_testonly"
-    ))]
+    #[cfg(any(feature = "s_allocation_json_testonly", feature = "s_incremental"))]
     fn assert_allocation_boundary(conn: &Connection, completed_phases: usize) {
         assert_eq!(meta_i64(conn, "generation").unwrap(), 0);
         assert_eq!(count(conn, "raw_events"), i64::from(completed_phases > 0));
@@ -2802,6 +5762,7 @@ mod tests {
             f.clock.clone(),
             None,
             Some(profile),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .err()
         .unwrap();
@@ -2817,6 +5778,57 @@ mod tests {
     }
 
     #[test]
+    fn history_public_coverage_cold_open_rejects_current_node_damage() {
+        use super::super::admission_private::s4_read_trace;
+        let f = Fixture::new();
+        let mut writer = f.open("1").unwrap();
+        assert_eq!(
+            writer.handle(Fixture::ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(writer);
+
+        s4_read_trace::enable();
+        let opened = f.open("1");
+        let coverage = s4_read_trace::finish();
+        drop(opened.unwrap());
+        assert!(coverage[0] > 0, "普通cold-open须消费已验证history");
+        assert_eq!(coverage[1], coverage[0] * 3);
+
+        let conn = open_db(&f.db).unwrap();
+        let (digest, body): (Vec<u8>, Vec<u8>) = conn.query_row(
+            "SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 1",
+            [], |r| Ok((r.get(0)?, r.get(1)?)),
+        ).unwrap();
+        let mut damaged = body.clone();
+        damaged[0] ^= 1;
+        conn.execute(
+            "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+            params![damaged, &digest],
+        )
+        .unwrap();
+        drop(conn);
+        let error = f.open("1").err().expect("损坏节点必须阻止普通cold-open");
+        assert!(
+            error.contains(newchan_rust::s_content::code::NODE_DIGEST),
+            "{error}"
+        );
+
+        let conn = open_db(&f.db).unwrap();
+        conn.execute(
+            "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+            params![body, &digest],
+        )
+        .unwrap();
+        drop(conn);
+        s4_read_trace::enable();
+        let restored = f.open("1");
+        let restored_coverage = s4_read_trace::finish();
+        drop(restored.unwrap());
+        assert_eq!(restored_coverage, coverage);
+    }
+
+    #[test]
     fn cold_audit_live_driver_requests_re_read_and_reject_current_node_damage() {
         use super::super::state::cold_audit_probe as probe;
         let f = Fixture::new();
@@ -2824,7 +5836,15 @@ mod tests {
         let second = Fixture::ingest(2);
         let inputs = json!([first, second]);
         let cap = probe::begin(&inputs);
-        let mut d = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        let mut d = Driver::open_for_serve(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         assert_eq!(d.audit_cache_source_bytes, Some(1));
         assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
         let mut phases = Vec::new();
@@ -2896,7 +5916,14 @@ mod tests {
         phases.push(phase);
         drop(d);
         let (result, mut phase) = probe::observe("driver_reopen_current_history", || {
-            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1)
+            Driver::open_for_serve(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                1,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
         });
         assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
         phase["storage_after"] = probe::storage(&result.as_ref().unwrap().conn, &f.db);
@@ -2918,6 +5945,11 @@ mod tests {
     }
 
     fn cli(f: &Fixture, command: &str, epoch_flag: &str, epoch: &str) -> Vec<String> {
+        drop(crate::v3::admission_anchor::test_prepare(&f.db));
+        let owner: Value = serde_json::from_slice(
+            &std::fs::read(format!("{}.control-owner.json", f.db.display())).unwrap(),
+        )
+        .unwrap();
         [
             "s_structure_session".into(),
             command.into(),
@@ -2929,6 +5961,8 @@ mod tests {
             epoch.into(),
             "--clock-plan".into(),
             f.path.join("clock.json").to_string_lossy().into_owned(),
+            "--admission-job-limits".into(),
+            owner["admission"]["path"].as_str().unwrap().to_owned(),
         ]
         .to_vec()
     }
@@ -2946,7 +5980,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        super::super::writer_cli::run(&args)
+        super::super::writer_cli::run_fixture(&args).map(|out| out.map(|o| o.into_test_value()))
     }
 
     fn pending_state(f: &Fixture) -> (i64, i64, i64, String) {
@@ -3018,7 +6052,14 @@ mod tests {
             "Committed"
         );
         drop(first);
-        recover(&f.db, "2", &f.clock, "recover-1").unwrap();
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         let mut invalid = Fixture::ingest(2);
         invalid["payload"]["writer_epoch"] = json!("2");
         invalid["payload"]["raw_input"]["events"][0]["volume"] = json!("2");
@@ -3081,7 +6122,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        assert!(super::super::dispatch(&args).unwrap());
+        assert!(super::super::dispatch_fixture(&args).unwrap());
         let receipt = receipt_request(&original);
         let receipt_file = f.path.join("receipt.json");
         let receipt_bytes = canonical_json(&receipt);
@@ -3095,9 +6136,10 @@ mod tests {
             "--max-input-bytes".into(),
             receipt_bytes.len().to_string(),
         ]);
-        let received = super::super::writer_cli::run(&receipt_args)
+        let received = super::super::writer_cli::run_fixture(&receipt_args)
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .into_test_value();
         assert_eq!(received["kind"], "Committed");
         assert_eq!(received["original_message_id"], original["message_id"]);
         let reopened = f.open("1").unwrap();
@@ -3152,7 +6194,7 @@ mod tests {
                 "--max-input-bytes".into(),
                 bytes.len().to_string(),
             ]);
-            assert!(super::super::dispatch(&args).is_err());
+            assert!(super::super::dispatch_fixture(&args).is_err());
         }
         let valid_bytes = canonical_json(&Fixture::ingest(2));
         std::fs::write(&input, &valid_bytes).unwrap();
@@ -3165,9 +6207,9 @@ mod tests {
             "--max-input-bytes".into(),
             (valid_bytes.len() - 1).to_string(),
         ]);
-        assert!(super::super::dispatch(&too_small)
+        assert!(super::super::dispatch_fixture(&too_small)
             .unwrap_err()
-            .contains("输入字节超过"));
+            .contains("TooLarge"));
         let conn = open_db(&f.db).unwrap();
         assert_eq!(meta_i64(&conn, "generation").unwrap(), 0);
         assert_eq!(count(&conn, "s_input_messages"), 1);
@@ -3187,12 +6229,12 @@ mod tests {
         drop(d);
         let mut recover_args = cli(&f, "recover", "--new-epoch", "1");
         recover_args.extend(["--clock-event-id".into(), "recover-1".into()]);
-        assert!(super::super::dispatch(&recover_args).is_err());
+        assert!(super::super::dispatch_fixture(&recover_args).is_err());
         recover_args[7] = "2".into();
-        assert!(super::super::dispatch(&recover_args).unwrap());
+        assert!(super::super::dispatch_fixture(&recover_args).unwrap());
         let mut advance_args = cli(&f, "advance", "--writer-epoch", "2");
         advance_args.extend(["--profile".into(), f.profile.to_string_lossy().into_owned()]);
-        assert!(super::super::dispatch(&advance_args).unwrap());
+        assert!(super::super::dispatch_fixture(&advance_args).unwrap());
         let mut reopened = f.open("2").unwrap();
         assert_eq!(
             reopened.handle(receipt_request(&original)).unwrap()["kind"],
@@ -3220,7 +6262,7 @@ mod tests {
             "--writer-epoch".into(),
             "2".into(),
         ];
-        assert!(super::super::dispatch(&args).is_err());
+        assert!(super::super::dispatch_fixture(&args).is_err());
         assert!(!db.exists());
         assert!(!PathBuf::from(format!("{}.writer.lock", db.display())).exists());
         std::fs::remove_dir_all(dir).unwrap();
@@ -3237,7 +6279,7 @@ mod tests {
         std::fs::write(
             &resources,
             canonical_json(&json!({
-                "schema_revision": "s-structure-resources/1",
+                "schema_revision": super::super::writer_cli::RESOURCES_REVISION,
                 "s_resources": limits,
             })),
         )
@@ -3253,7 +6295,7 @@ mod tests {
             "--resource-config".into(),
             resources.to_string_lossy().into_owned(),
         ]);
-        let error = super::super::dispatch(&args).unwrap_err();
+        let error = super::super::dispatch_fixture(&args).unwrap_err();
         assert!(
             error.contains("StaleWriter") && error.contains("独占进程锁不可得"),
             "{error}"
@@ -3277,7 +6319,7 @@ mod tests {
         for key in super::super::writer_cli::GATE_FIELDS {
             limits.insert(key.into(), json!("1"));
         }
-        let valid = json!({"schema_revision":"s-structure-resources/1","s_resources":limits});
+        let valid = json!({"schema_revision":super::super::writer_cli::RESOURCES_REVISION,"s_resources":limits});
         let mut missing = valid.clone();
         missing["s_resources"]
             .as_object_mut()
@@ -3290,7 +6332,31 @@ mod tests {
         let mut numeric = valid.clone();
         numeric["s_resources"]["queue_capacity"] = json!(1);
         let mut wrong_version = valid.clone();
-        wrong_version["schema_revision"] = json!("s-structure-resources/2");
+        #[cfg(not(feature = "s_incremental"))]
+        let other_revision = "s-structure-resources/2";
+        #[cfg(feature = "s_incremental")]
+        let other_revision = "s-structure-resources/1";
+        wrong_version["schema_revision"] = json!(other_revision);
+        #[cfg_attr(not(feature = "s_incremental"), allow(unused_mut))]
+        let mut invalid_set = vec![missing, extra, zero, numeric, wrong_version];
+        // #1640 D4：增量构建只接受 `/2`——旧 `/1` 七字段档（二进制与资源档错配）、缺第八门、第八门为 0 都拒绝。
+        #[cfg(feature = "s_incremental")]
+        {
+            let mut seven = valid.clone();
+            seven["schema_revision"] = json!("s-structure-resources/1");
+            seven["s_resources"]
+                .as_object_mut()
+                .unwrap()
+                .remove("incremental_retention_bytes");
+            let mut no_eighth = valid.clone();
+            no_eighth["s_resources"]
+                .as_object_mut()
+                .unwrap()
+                .remove("incremental_retention_bytes");
+            let mut zero_eighth = valid.clone();
+            zero_eighth["s_resources"]["incremental_retention_bytes"] = json!("0");
+            invalid_set.extend([seven, no_eighth, zero_eighth]);
+        }
         let mut args = cli(&f, "serve", "--writer-epoch", "1");
         args.extend([
             "--profile".into(),
@@ -3300,17 +6366,24 @@ mod tests {
             "--resource-config".into(),
             resources.to_string_lossy().into_owned(),
         ]);
-        for invalid in [missing, extra, zero, numeric, wrong_version] {
+        for invalid in invalid_set {
             std::fs::write(&resources, canonical_json(&invalid)).unwrap();
-            let error = super::super::dispatch(&args).unwrap_err();
+            let error = super::super::dispatch_fixture(&args).unwrap_err();
             assert!(error.contains("S3WriterResourcesInvalid"), "{error}");
             assert!(!lock.exists());
             assert!(!socket.exists());
             assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
         }
-        let error = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 0)
-            .err()
-            .unwrap();
+        let error = Driver::open_for_serve(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            0,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
         assert!(error.contains("audit_cache_source_bytes"), "{error}");
         assert!(!lock.exists());
         assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
@@ -3319,8 +6392,15 @@ mod tests {
     #[test]
     fn s3_serve_driver_rejects_unimplemented_condition_ops_before_admission() {
         let f = Fixture::new();
-        let mut driver =
-            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        let mut driver = Driver::open_for_serve(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         for op in ["condition", "execute_conditional", "recover"] {
             let error = driver.handle(envelope(op, json!({"op":op}))).unwrap_err();
             assert!(error.contains("未知S3 op"), "{error}");
@@ -3569,8 +6649,22 @@ mod tests {
             .unwrap();
         drop(d);
         assert!(f.open("1").err().unwrap().contains("未完成Begin"));
-        assert!(recover(&f.db, "1", &f.clock, "recover-2").is_err());
-        let recovered = recover(&f.db, "2", &f.clock, "recover-2").unwrap();
+        assert!(recover(
+            &f.db,
+            "1",
+            &f.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .is_err());
+        let recovered = recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         assert_eq!(recovered["recovered_begin"]["resolved_to"], "idle");
         let mut restarted = f.open("2").unwrap();
         assert_eq!(
@@ -3623,7 +6717,14 @@ mod tests {
             [],
         )
         .unwrap();
-        assert!(recover(&f.db, "2", &f.clock, "recover-1").is_err());
+        assert!(recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .is_err());
         assert_eq!(meta_get_opt(&c, "writer_epoch").unwrap().unwrap(), "1");
         assert!(meta_get_opt(&c, "advance_state")
             .unwrap()
@@ -3632,7 +6733,7 @@ mod tests {
         assert_eq!(count(&c, "writer_epoch_history"), 0);
         assert_eq!(count(&c, "s_clock_events"), 2);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_staged_normal_append_consumes_actual_nodes_and_suffix() {
         let f = Fixture::new();
@@ -3696,7 +6797,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn audit_owner_incremental_normal_writes_full_oracle_and_suffix() {
         use super::super::audit_owner::allocation_probe::Window;
@@ -3706,9 +6807,10 @@ mod tests {
                 .conn
                 .take_source_keeper()
                 .unwrap_or_else(|| super::super::cross_request_source_cache::Keeper::new(total));
-            let old = keeper.retained_source_bytes() + d.conn.complete_retained_bytes();
+            // #1488 P1-1：入口旧费走生产同一逐项分区（O+uncovered）。
+            let old = d.conn.old_pool_partition(Some(&keeper)).unwrap();
             let mut c = request_audit::RequestAuditContext::with_source_keeper(keeper);
-            c.freeze_manifest_workspace_budget(total, crate::cache::retained_bytes(), old)
+            c.freeze_manifest_workspace_partition(total, crate::cache::retained_bytes(), old)
                 .unwrap();
             c
         }
@@ -3719,6 +6821,19 @@ mod tests {
                     .any(|e| e["phase"] == "owner_retained_full_scan"),
                 "warm owner 不能全量重算历史保留费：{events:?}"
             );
+        }
+        fn source_hashes(events: &[Value], work: &Value, new_rows: usize) {
+            let batches = |phase| {
+                events
+                    .iter()
+                    .filter(|event| event["phase"] == phase)
+                    .count()
+            };
+            let historical = batches("historical_raw_source_hashes");
+            let prepared = batches("prepare_raw_source_hashes");
+            assert_eq!(historical, new_rows, "historical source suffix: {events:?}");
+            assert_eq!(prepared, new_rows, "prepare source suffix: {events:?}");
+            assert_eq!(work["raw_source_hashes"], 4 * historical + 4 * prepared);
         }
         fn same(n: &Driver, o: &Driver) {
             n.conn.assert_complete_matches_cold();
@@ -3759,13 +6874,8 @@ mod tests {
                 n.conn.complete_retained_bytes() > 0,
                 "正常包不得仅因可选保留被丢弃而绕过后缀锁"
             );
-            if new.is_some() {
-                assert_eq!(work["raw_payload_hashes"], 1);
-                assert_eq!(work["raw_source_hashes"], 4);
-            } else {
-                assert_eq!(work["raw_payload_hashes"], 0);
-                assert_eq!(work["raw_source_hashes"], 0);
-            }
+            assert_eq!(work["raw_payload_hashes"], usize::from(new.is_some()));
+            source_hashes(&events, &work, usize::from(new.is_some()));
             eprintln!(
                 "{}",
                 json!({"scenario":"r4-normal-owner-request","message":e["message_id"],"expected_new_cut":new,"allocation":memory,"events":events,"work":work,
@@ -3938,7 +7048,7 @@ mod tests {
             );
         }
         assert_eq!(work["raw_payload_hashes"], 0);
-        assert_eq!(work["raw_source_hashes"], 4);
+        source_hashes(&events, &work, 1);
         eprintln!(
             "{}",
             json!({"scenario":"r4-retry-original-envelope","allocation":memory,"protocol_sha256_calls":after.0-hashes.0,"protocol_sha256_bytes":after.1-hashes.1,"events":events,"work":work,"retention":native.conn.complete_report()})
@@ -3980,6 +7090,7 @@ mod tests {
             f.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         assert_eq!(reopened.conn.complete_retained_bytes(), 0);
@@ -3991,6 +7102,984 @@ mod tests {
         eprintln!(
             "{}",
             json!({"scenario":"r4-release-reopen","released_owner_charge":retained,"allocation":memory,"new_life":reopened.conn.complete_report()["life"]})
+        );
+    }
+
+    /// #1488 0065 P1 锁（v4 L13）：S7 serve 下第 2 代在 publication 尾检位置注入候选父工作域
+    /// Allocation 失败（与 j.cap 日志/索引扩容超帽同一 BudgetExceeded 分类）。须：同请求放弃候选、
+    /// 无候选发布成功，回复与运行根逐项等于 ordinary oracle，不保留候选；后续代照常接纳并与 oracle
+    /// 一致（不得卡在“已有未完成Begin”或“Carry租约已撤销”）。负控：同位置注入 Ledger（真正尾检失败）仍拒绝且不降级。
+    /// 0069：`flag` 选注入点；`rejects_with=Some(片段)` 表示须拒绝、不降级且错误含该片段。
+    #[cfg(feature = "s_incremental")]
+    fn publication_candidate_shortfall_case(
+        flag: &'static std::thread::LocalKey<std::cell::Cell<bool>>,
+        rejects_with: Option<&str>,
+    ) {
+        use super::super::prepared::tests::runtime_root_tables;
+        let phases =
+            |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
+        let warm_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
+        )
+        .unwrap();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        assert_eq!(
+            warm.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "第 2 代入口须带完整候选"
+        );
+        flag.with(|f| f.set(true));
+        let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(2)));
+        assert!(!flag.with(|f| f.get()), "故障必须实际到达候选尾检");
+        if let Some(expected) = rejects_with {
+            let error = reply.expect_err("真正尾检失败必须拒绝");
+            assert!(error.contains(expected), "{error}");
+            assert_eq!(phases(&events, "publication_candidate_abandoned"), 0);
+            assert_eq!(meta_i64(&warm.conn, "generation").unwrap(), 1);
+            return;
+        }
+        assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(2)).unwrap());
+        assert_eq!(phases(&events, "publication_candidate_abandoned"), 1);
+        assert_eq!(warm.conn.complete_retained_bytes(), 0, "放弃后不保留候选");
+        assert_eq!(meta_i64(&warm.conn, "generation").unwrap(), 2);
+        assert_eq!(
+            runtime_root_tables(&warm.conn, true),
+            runtime_root_tables(&ordinary.conn, true)
+        );
+        // 第 3 代新写 + 同输入 repost（夹具只有三条输入）。
+        for n in [3, 3] {
+            let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(n)));
+            assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(n)).unwrap());
+            assert_eq!(phases(&events, "publication_candidate_abandoned"), 0);
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+        }
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "后续代重建并保留候选"
+        );
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_candidate_budget_shortfall_degrades_and_keeps_admitting() {
+        use super::super::audit_owner::PUBLICATION_CANDIDATE_BUDGET_FAILURE;
+        publication_candidate_shortfall_case(&PUBLICATION_CANDIDATE_BUDGET_FAILURE, None);
+    }
+    /// #1640 D2 出生锁（ADR 0042「恢复与冷启动」过渡口径）：`s_incremental` 构建里完整分支
+    /// `generate_impl(None)` 只容许 startup / abandon / discard 三种入口——每代「调用 ⇔ 本代 owner
+    /// 入口无候选或本请求降级放弃」，稳态代（入口带候选且未放弃）调用数为 0，任何调用不得标 steady。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn incremental_build_full_branch_only_at_birth() {
+        use super::super::audit_owner::PUBLICATION_CANDIDATE_BUDGET_FAILURE;
+        let births = |events: &[Value]| -> Vec<String> {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "generate_full_birth")
+                .map(|e| e["entry"].as_str().unwrap().to_owned())
+                .collect()
+        };
+        let abandoned = |events: &[Value]| {
+            events
+                .iter()
+                .any(|e| e["phase"] == "publication_candidate_abandoned")
+        };
+        let warm_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
+        )
+        .unwrap();
+        warm.incremental_retention_bytes = Some(536_870_912);
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        let mut seen = std::collections::BTreeSet::new();
+        // 第 2 代注入候选父工作域 Allocation（0065 降级）；第 3 代新写后同输入 repost。
+        for (step, n) in [1, 2, 3, 3].into_iter().enumerate() {
+            let entry_candidate = warm.conn.complete_retained_bytes() > 0;
+            let inject = step == 1;
+            if inject {
+                assert!(entry_candidate, "降级注入代入口须带候选");
+                PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|f| f.set(true));
+            }
+            let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(n)));
+            assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(n)).unwrap());
+            let calls = births(&events);
+            assert!(
+                calls.iter().all(|entry| entry != "steady"),
+                "第{step}步完整分支出现在非出生位置：{calls:?}"
+            );
+            assert_eq!(abandoned(&events), inject, "第{step}步");
+            if inject {
+                assert_eq!(calls, ["abandon"], "降级重试的完整分支须标 abandon");
+            } else if entry_candidate {
+                assert!(
+                    calls.is_empty(),
+                    "第{step}步稳态代不得调完整分支：{calls:?}"
+                );
+            } else {
+                assert!(
+                    calls.len() <= 1,
+                    "第{step}步出生代至多一次完整分支：{calls:?}"
+                );
+            }
+            seen.extend(calls);
+        }
+        assert!(seen.contains("abandon"), "{seen:?}");
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "出生后续代重建并保留候选"
+        );
+        // 新 Runtime 的首个完整分支标 startup；出错丢弃后标 discard。
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let (_, events, _) = state::traced(false, || {
+            state::trace_birth(runtime.birth_entry_for_test(), 1);
+            runtime.discard();
+            state::trace_birth(runtime.birth_entry_for_test(), 2);
+        });
+        assert_eq!(births(&events), ["startup", "discard"]);
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_real_tail_failure_still_rejects_without_degrade() {
+        use super::super::audit_owner::PUBLICATION_TAIL_FAILURE;
+        publication_candidate_shortfall_case(&PUBLICATION_TAIL_FAILURE, Some("工作账损坏"));
+    }
+    /// #1488 0069 锁（独审 0068 F1 负控，原探针 refs/r68-red/e）：尾检位置先记 Allocation，
+    /// 闭包再返回与预算无关的真实错误。改前被降级成功（reply_ok=true abandoned=1）；须拒绝、
+    /// 不降级，且拒绝原因是闭包自身的真实错误。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_real_error_after_budget_failure_rejects_without_degrade() {
+        use super::super::audit_owner::PUBLICATION_REAL_ERROR_AFTER_BUDGET;
+        publication_candidate_shortfall_case(
+            &PUBLICATION_REAL_ERROR_AFTER_BUDGET,
+            Some("publication尾检身份不符（0069负控注入）"),
+        );
+    }
+    /// #1488 0069 锁：故障起点改到 audit_native_source 追加原件处（S86 message-20 / MIN12 op-0015
+    /// 的真实失败位置，b-0059 diag6），按 s_content 索引扩容超帽同一方式 reject(Allocation) 并经
+    /// `invalid` 沿真实调用链上抛。收紧后的判据须仍识别为预算不足并降级（补 0068 I3：原降级锁
+    /// 只覆盖尾检注入）。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_source_append_allocation_failure_degrades() {
+        use super::super::audit_owner::SOURCE_APPEND_ALLOCATION_FAILURE;
+        publication_candidate_shortfall_case(&SOURCE_APPEND_ALLOCATION_FAILURE, None);
+    }
+    /// #1488 0072 锁（独审 0070 R1）：故障起点改到 prepared 发布读取租约处，真实候选父工作域
+    /// Allocation 经 prepared 的 `err` 以 `S3PrepareInvalid：` 包装上抛（S86 message-34 的真实形态）。
+    /// 0069 文字白名单下此处被 fail-closed；类型化判据须降级成功，后续代照常。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_prepare_wrapped_allocation_failure_degrades() {
+        use super::super::audit_owner::PREPARE_ALLOCATION_FAILURE;
+        publication_candidate_shortfall_case(&PREPARE_ALLOCATION_FAILURE, None);
+    }
+    /// #1488 0072 锁（独审 0070 R2，探针 g refs/r70-red/g 取反）：尾检先记 Allocation，再返回另一
+    /// 作用域 Ledger 类 scratch 错误经 `invalid` 的渲染（与预算桥文字逐字相同）。须拒绝、不降级。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_ledger_after_budget_failure_rejects_without_degrade() {
+        use super::super::audit_owner::PUBLICATION_LEDGER_AFTER_BUDGET;
+        publication_candidate_shortfall_case(
+            &PUBLICATION_LEDGER_AFTER_BUDGET,
+            Some("S3DriverInvalid：prototype_capture_owned_payload_limit: codec 工作域分配失败"),
+        );
+    }
+    /// 0065：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时 serve 打开即配置 pager 探针。配置后带候选的
+    /// 后续代须照常 Carry 并与 ordinary oracle 一致（改前第 2 代报“Carry租约已撤销”）。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn pager_probe_configure_keeps_carry_lease_open() {
+        use super::super::prepared::tests::runtime_root_tables;
+        let native_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut native = Driver::open_for_serve_with_mode(
+            &native_fixture.db,
+            &native_fixture.profile,
+            "1",
+            native_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&native_fixture.db).into(),
+        )
+        .unwrap();
+        native.conn.configure_pager_probe().unwrap();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        for n in 1..=3 {
+            assert_eq!(
+                native.handle(Fixture::ingest(n)).unwrap(),
+                ordinary.handle(Fixture::ingest(n)).unwrap()
+            );
+            assert!(
+                native.conn.complete_retained_bytes() > 0,
+                "第 {n} 代后保留候选"
+            );
+            assert_eq!(
+                runtime_root_tables(&native.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+        }
+    }
+
+    // ── #1488 S4（主控 D4/D6，#799/#804）：整代六阶段读量/Δ_R 与 增量≡冷全量 对拍 ──
+
+    /// 全部持久根（与 prepared::tests::runtime_root_compare_reachable_bytes 同口径）的可达节点集。
+    #[cfg(feature = "s_incremental")]
+    fn s4_reachable(c: &Connection) -> std::collections::BTreeSet<Vec<u8>> {
+        let nodes = c
+            .prepare("SELECT digest,tag,body FROM s_content_nodes")
+            .unwrap()
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, Vec<u8>>(0)?,
+                    (r.get::<_, u8>(1)?, r.get::<_, Vec<u8>>(2)?),
+                ))
+            })
+            .unwrap()
+            .collect::<Result<std::collections::BTreeMap<_, _>, _>>()
+            .unwrap();
+        let mut todo = Vec::new();
+        for (table, columns) in [
+            (
+                "s_content_publications",
+                &["manifest_root", "snapshot_root", "delta_root"][..],
+            ),
+            (
+                "s_content_objects",
+                &[
+                    "generated_root",
+                    "internal_root",
+                    "immutable_root",
+                    "birth_wire_root",
+                ][..],
+            ),
+            ("s_content_witnesses", &["generated_root", "wire_root"][..]),
+            ("s_content_relations", &["generated_root"][..]),
+            (
+                "s_content_observations",
+                &["generated_root", "birth_wire_root"][..],
+            ),
+        ] {
+            for column in columns {
+                todo.extend(
+                    c.prepare(&format!("SELECT {column} FROM {table}"))
+                        .unwrap()
+                        .query_map([], |r| r.get::<_, Vec<u8>>(0))
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap(),
+                );
+            }
+        }
+        for (table, column) in [
+            ("structure_deltas", "delta_json"),
+            ("structure_deltas", "catalog_evidence_json"),
+            ("catalog", "evidence_json"),
+        ] {
+            for raw in c
+                .prepare(&format!("SELECT {column} FROM {table}"))
+                .unwrap()
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+            {
+                let value = strict_json(raw.as_bytes()).unwrap();
+                if value != json!({}) {
+                    let r = newchan_rust::s_content::TransportRef::from_json_view((&value).into())
+                        .unwrap();
+                    todo.push(r.digest().unwrap().to_vec());
+                }
+            }
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(root) = todo.pop() {
+            if !seen.insert(root.clone()) {
+                continue;
+            }
+            let (tag, body) = nodes.get(&root).expect("持久根可达节点缺失");
+            let offsets: &[usize] = match tag {
+                3 | 4 | 5 | 6 => &[8],
+                7 | 18 => &[0],
+                19 => &[8, 40],
+                20 => &[0, 32],
+                _ => &[],
+            };
+            for &offset in offsets {
+                todo.push(body[offset..offset + 32].to_vec());
+            }
+        }
+        seen
+    }
+
+    /// S4 输入一步：`rows` 为 (event_id, seq, open, high, low, close)，`revision` 覆盖全部事件修订号。
+    #[cfg(feature = "s_incremental")]
+    struct S4Step {
+        kind: &'static str,
+        rows: Vec<(String, i64, i64, i64, i64, i64)>,
+        revision: &'static str,
+    }
+    #[cfg(feature = "s_incremental")]
+    fn s4_message(k: usize, step: &S4Step) -> Value {
+        let rows: Vec<_> = step
+            .rows
+            .iter()
+            .map(|(id, seq, o, h, l, c)| (id.as_str(), *seq, *o, *h, *l, *c))
+            .collect();
+        let mut raw = located_ohlc_input(&rows);
+        for event in raw["events"].as_array_mut().unwrap() {
+            event["revision"] = json!(step.revision);
+        }
+        envelope(
+            &format!("s4-message-{k}"),
+            json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("s4-input-{k}"),"raw_input":raw}),
+        )
+    }
+    #[cfg(feature = "s_incremental")]
+    fn s4_clock(steps: usize) -> Value {
+        let mut plan = Fixture::new().clock.value.clone();
+        for k in 1..=steps {
+            let t = (k as i64) * 100;
+            plan["events"][format!("s4-input-{k}")] = json!({"accept_ns":t.to_string(),"attempts":[{"begin_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()}]});
+        }
+        plan
+    }
+    /// 三角波 + 抖动：足以产生分型/笔的合法 OHLC（low < open,close < high）。
+    #[cfg(feature = "s_incremental")]
+    fn s4_bar(n: i64, bump: i64) -> (String, i64, i64, i64, i64, i64) {
+        let phase = n % 10;
+        let high = 30 + 4 * phase.min(10 - phase) + (n % 3) + bump;
+        (format!("b{n}"), n * 10, high - 2, high, high - 5, high - 3)
+    }
+    #[cfg(feature = "s_incremental")]
+    fn s4_default_steps() -> Vec<S4Step> {
+        let one = |kind, bar| S4Step {
+            kind,
+            rows: vec![bar],
+            revision: "1",
+        };
+        let mut steps: Vec<S4Step> = (1..=20).map(|n| one("append", s4_bar(n, 0))).collect();
+        // 中段修订（同 event_id/seq，revision 2）：生效账从第 8 根起脏。
+        steps.push(S4Step {
+            kind: "revision_mid",
+            rows: vec![s4_bar(8, 7)],
+            revision: "2",
+        });
+        // 中段插入（seq 落在 120 与 130 之间）。
+        steps.push(one("insert_mid", ("i1".into(), 125, 40, 43, 37, 41)));
+        // ingest 协议一事件一包（多根包被 InvalidDomain 拒绝），故中段扰动后接连续单根追加。
+        steps.extend((21..=23).map(|n| one("append", s4_bar(n, 0))));
+        // 末根修订。
+        steps.push(S4Step {
+            kind: "revision_tail",
+            rows: vec![s4_bar(23, -6)],
+            revision: "2",
+        });
+        steps.extend((24..=25).map(|n| one("append", s4_bar(n, 0))));
+        steps
+    }
+    /// 冷全量臂：每代新开普通 Driver（新 Runtime/GenerationRuntime），清线程车道并强制 oracle。
+    #[cfg(feature = "s_incremental")]
+    fn s4_cold_handle(o: &Fixture, e: &Value) -> (Driver, Value, Vec<Value>) {
+        s_fact_cache::warm_lane_reset();
+        s_fact_cache::set_oracle(true);
+        super::admission_private::s4_read_trace::enable();
+        let opened = o.open("1");
+        let coverage = super::admission_private::s4_read_trace::finish();
+        let mut cold = opened.unwrap();
+        assert_eq!(
+            coverage[1],
+            coverage[0] * 3,
+            "完整cold须消费每代source/catalog的三个Public根"
+        );
+        let probe = cold.conn.sql_read_probe();
+        let (reply, events, _) = state::traced(true, || cold.handle(e.clone()));
+        drop(probe);
+        s_fact_cache::set_oracle(false);
+        s_fact_cache::warm_lane_reset();
+        (cold, reply.unwrap(), events)
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_multicut_complete_outputs_match_frozen_oracle() {
+        let steps = vec![
+            S4Step {
+                kind: "append",
+                rows: vec![s4_bar(1, 0)],
+                revision: "1",
+            },
+            S4Step {
+                kind: "append",
+                rows: vec![s4_bar(2, 0)],
+                revision: "1",
+            },
+            S4Step {
+                kind: "append",
+                rows: vec![s4_bar(3, 0)],
+                revision: "1",
+            },
+            S4Step {
+                kind: "revision_mid",
+                rows: vec![s4_bar(2, 7)],
+                revision: "2",
+            },
+            S4Step {
+                kind: "insert_mid",
+                rows: vec![("insert".into(), 25, 40, 43, 37, 41)],
+                revision: "1",
+            },
+            S4Step {
+                kind: "append",
+                rows: vec![s4_bar(4, 0)],
+                revision: "1",
+            },
+            S4Step {
+                kind: "revision_tail",
+                rows: vec![s4_bar(4, -6)],
+                revision: "2",
+            },
+        ];
+        let plan = s4_clock(steps.len());
+        let new = Fixture::with_clock(plan.clone());
+        let old = Fixture::with_clock(plan);
+        for (index, step) in steps.iter().enumerate() {
+            let message = s4_message(index + 1, step);
+            super::super::source_audit::reset_ordinary_proof_stats();
+            let (mut expected, reply, _) =
+                super::super::history::without_ordinary_proofs_for_test(|| {
+                    s4_cold_handle(&old, &message)
+                });
+            let oracle_stats = super::super::source_audit::ordinary_proof_stats();
+            assert_eq!((oracle_stats.hits, oracle_stats.executions), (0, 0));
+            super::admission_private::s4_read_trace::enable();
+            super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            let sql_before = content_store::sql_reads_on_thread();
+            let mut actual = new.open("1").unwrap();
+            let actual_sql_reads = content_store::sql_reads_on_thread() - sql_before;
+            let material = super::super::ordinary_materials::LAST_REPORT
+                .with(|r| r.get())
+                .expect("new ordinary entry owns originals");
+            assert!(material.retained_capacity_highwater <= super::super::ordinary_materials::CAP);
+            if index > 0 {
+                assert!(material.material_hits > 0);
+            }
+            eprintln!(
+                "ORDINARY_MATERIAL_MULTICUT cut={index} sql_reads={actual_sql_reads} {material:?}"
+            );
+            assert_eq!(
+                super::super::layout::Layout::of_library(&actual.conn).unwrap(),
+                super::super::layout::Layout::Sorted
+            );
+            let coverage = super::admission_private::s4_read_trace::finish();
+            assert_eq!(coverage, [index as u64, index as u64 * 3], "{}", step.kind);
+            assert_eq!(actual.handle(message).unwrap(), reply, "{}", step.kind);
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&actual.conn, false),
+                prepared::tests::runtime_root_tables(&expected.conn, false),
+                "{}",
+                step.kind
+            );
+            prepared::tests::runtime_root_compare_reachable_bytes(&actual.conn, &expected.conn);
+            let new_roots = super::super::history::tests::layout_published_arrays(&mut actual.conn);
+            let old_roots =
+                super::super::history::tests::layout_published_arrays(&mut expected.conn);
+            assert_eq!(new_roots, old_roots, "{}", step.kind);
+        }
+        super::super::source_audit::reset_ordinary_proof_stats();
+        super::admission_private::s4_read_trace::enable();
+        let _reopened = new.open("1").unwrap();
+        let coverage = super::admission_private::s4_read_trace::finish();
+        assert_eq!(coverage, [steps.len() as u64, steps.len() as u64 * 3]);
+        let stats = super::super::source_audit::ordinary_proof_stats();
+        assert!(stats.hits > 0 && stats.executions > 0);
+        eprintln!(
+            "ORDINARY_PROOF_MULTICUT cuts={} hits={} executions={} coverage={coverage:?}",
+            steps.len(),
+            stats.hits,
+            stats.executions
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts() {
+        if std::env::var("S_ORDINARY_WIRE_CHILD").as_deref() != Ok("1") {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "v3::driver::tests::ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env("S_ORDINARY_WIRE_CHILD", "1")
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            print!("{stdout}");
+            eprint!("{stderr}");
+            assert!(output.status.success(), "独立进程原wire锁失败");
+            assert!(stdout.contains("test result: ok. 1 passed;"));
+            return;
+        }
+        let mut steps: Vec<S4Step> = (1..=12)
+            .map(|n| S4Step {
+                kind: "append",
+                rows: vec![s4_bar(n, 0)],
+                revision: "1",
+            })
+            .collect();
+        steps.push(S4Step {
+            kind: "revision_mid",
+            rows: vec![s4_bar(8, 7)],
+            revision: "2",
+        });
+        steps.push(S4Step {
+            kind: "insert_mid",
+            rows: vec![("insert".into(), 65, 40, 43, 37, 41)],
+            revision: "1",
+        });
+        let fixture = Fixture::with_clock(s4_clock(steps.len()));
+        let mut producer = complete_driver(&fixture);
+        for (index, step) in steps.iter().enumerate() {
+            producer.handle(s4_message(index + 1, step)).unwrap();
+        }
+        drop(producer);
+        let sample = || {
+            super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            super::admission_private::s4_read_trace::enable();
+            let reads = content_store::sql_reads_on_thread();
+            let mut opened = fixture.open("1").unwrap();
+            let reads = content_store::sql_reads_on_thread() - reads;
+            let bytes = super::admission_private::s4_read_trace::measured_bytes();
+            let coverage = super::admission_private::s4_read_trace::finish();
+            let material = super::super::ordinary_materials::LAST_REPORT.with(|r| r.get());
+            let roots = super::super::history::tests::layout_published_arrays(&mut opened.conn);
+            (reads, bytes, coverage, material, roots)
+        };
+        let old = super::super::history::without_ordinary_materials_for_test(sample);
+        let new = sample();
+        assert!(old.3.is_none(), "对照只禁原件复用，保留611cc1d来源证明");
+        let material = new.3.expect("候选普通原件池");
+        assert_eq!(old.2, [14, 42]);
+        assert_eq!(new.2, old.2);
+        assert_eq!(
+            new.4, old.4,
+            "同一冻结库的持久发布输入未变；行为等价由七代独立库锁验证"
+        );
+        assert!(new.0 < old.0, "必须实际减少SQL读取");
+        assert!(new.1[2] < old.1[2], "必须实际减少同一FD VFS的audit wire");
+        assert!(material.retained_capacity_highwater <= super::super::ordinary_materials::CAP);
+        eprintln!("ORDINARY_MATERIAL_WIRE cuts=14 baseline_sql={} candidate_sql={} baseline_bytes={:?} candidate_bytes={:?} coverage={:?} {material:?}", old.0, new.0, old.1, new.1, new.2);
+    }
+
+    /// 跑 S4 序列；`cold` 为 false 时只跑增量臂（S5 大样本测量）。返回每代 JSON 行。
+    #[cfg(feature = "s_incremental")]
+    fn s4_run(steps: &[S4Step], cold: bool) -> Vec<Value> {
+        let plan = s4_clock(steps.len());
+        let f = Fixture::with_clock(plan.clone());
+        let o = Fixture::with_clock(plan);
+        // complete_driver 的 512 MiB 源保留预算在本序列第 25 代（约 11.2 万节点）报
+        // 「publication父工作域尾检失败」(BudgetExceeded)；S4 只测对拍与读量，预算放宽为
+        // S4_CACHE_BYTES（缺省 4 GiB），预算随 N 增长本身记入 REPORT 交 S5/#1491。
+        let cache_bytes = std::env::var("S4_CACHE_BYTES")
+            .map_or(4usize << 30, |v| v.parse().expect("S4_CACHE_BYTES"));
+        let mut native = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            cache_bytes,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
+        // #1640 D4：增量臂按 `/2` 切帽（第八门＝同一预算，第七门只计 legacy）。
+        native.incremental_retention_bytes = Some(cache_bytes);
+        let full_births = |events: &[Value]| {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "generate_full_birth")
+                .map(|e| e["entry"].clone())
+                .collect::<Vec<_>>()
+        };
+        let ready = envelope("establish-q", json!({"op":"ready"}));
+        let ready_reply = native.handle(ready.clone()).unwrap();
+        if cold {
+            let mut ordinary = o.open("1").unwrap();
+            assert_eq!(ordinary.handle(ready).unwrap(), ready_reply);
+        }
+        let mut prior = s4_reachable(&native.conn);
+        let mut rows = Vec::new();
+        for (index, step) in steps.iter().enumerate() {
+            let k = index + 1;
+            let e = s4_message(k, step);
+            let nodes_before = count(&native.conn, "s_content_nodes");
+            let probe = native.conn.sql_read_probe();
+            let (actual, events, work) = state::traced(true, || native.handle(e.clone()));
+            drop(probe);
+            let actual = actual.unwrap();
+            let generation = meta_i64(&native.conn, "generation").unwrap();
+            assert_eq!(generation, k as i64, "每步须恰好新发布一代：{actual}");
+            let delta = state::stage_rows(&events);
+            assert_eq!(
+                delta["paths"],
+                json!(["-", "delta"]),
+                "warm owner 第{k}代必须走 delta 增量车道：{delta}"
+            );
+            // #1640 路径断言：s_incremental 构建的增量臂稳态代不得进入完整分支（出生锁 D2）。
+            assert!(
+                full_births(&events).is_empty(),
+                "第{k}代增量臂调用了完整分支：{:?}",
+                full_births(&events)
+            );
+            for name in state::S4_STAGES {
+                assert_eq!(
+                    delta["stages"][name]["segments"], 1,
+                    "第{k}代阶段{name}缺标记：{delta}"
+                );
+            }
+            let reachable = s4_reachable(&native.conn);
+            let delta_r = reachable.difference(&prior).count();
+            let new_nodes = count(&native.conn, "s_content_nodes") - nodes_before;
+            let workspace = events.iter().any(|e| e["phase"] == "s4_manifest_workspace");
+            let mut row = json!({"generation":generation,"kind":step.kind,"bars_in_message":step.rows.len(),
+                "manifest_workspace":workspace,
+                "raw_events":count(&native.conn, "raw_events"),"delta_r":delta_r,"reachable":reachable.len(),
+                "new_stored_nodes":new_nodes,"delta":delta,"work":work});
+            if cold {
+                let (mut reader, expected, cold_events) = s4_cold_handle(&o, &e);
+                // 回复、回执、全表（含全部节点）逐位相同；owner complete 与冷审计一致。
+                assert_eq!(actual, expected, "第{k}代回复分叉");
+                let full = state::stage_rows(&cold_events);
+                assert_eq!(full["paths"], json!(["-", "full"]), "冷臂须走完整路径");
+                // 冷臂每代新 Runtime：恰一次完整分支，入口为 startup。
+                assert_eq!(
+                    full_births(&cold_events),
+                    [json!("startup")],
+                    "第{k}代冷臂完整分支入口"
+                );
+                native.conn.assert_complete_matches_cold();
+                // 来源审计跨代增量状态不进入产物，单独与独立全量来源审计 Counts 六字段对拍。
+                let counts = super::super::audit_owner::construction_tests::b2_assert_counts_match_independent_full_source(
+                    &native.conn,
+                );
+                assert_eq!(
+                    native.handle(receipt_request(&e)).unwrap(),
+                    reader.handle(receipt_request(&e)).unwrap(),
+                    "第{k}代回执分叉"
+                );
+                // 非节点表逐表逐位；节点表按公共根可达闭包逐位（存储了但不可达的节点
+                // 不是产物，只记差集计数供诊断）。
+                let tables = prepared::tests::runtime_root_tables(&reader.conn, false);
+                for (left, right) in prepared::tests::runtime_root_tables(&native.conn, false)
+                    .iter()
+                    .zip(&tables)
+                {
+                    assert_eq!(left.0, right.0, "第{k}代表集分叉");
+                    assert!(
+                        left == right,
+                        "第{k}代({})表{}增量≠冷全量",
+                        step.kind,
+                        left.0
+                    );
+                }
+                prepared::tests::runtime_root_compare_reachable_bytes(&native.conn, &reader.conn);
+                let stored = |c: &Connection| {
+                    c.prepare("SELECT digest FROM s_content_nodes")
+                        .unwrap()
+                        .query_map([], |r| r.get::<_, Vec<u8>>(0))
+                        .unwrap()
+                        .collect::<Result<std::collections::BTreeSet<_>, _>>()
+                        .unwrap()
+                };
+                let (delta_nodes, cold_nodes) = (stored(&native.conn), stored(&reader.conn));
+                let cold_reachable = s4_reachable(&reader.conn);
+                assert_eq!(reachable, cold_reachable, "第{k}代可达节点集分叉");
+                row["stored_only_delta"] = json!(delta_nodes.difference(&cold_nodes).count());
+                row["stored_only_cold"] = json!(cold_nodes.difference(&delta_nodes).count());
+                row["source_counts"] = json!(format!("{counts:?}"));
+                drop(reader);
+                row["full"] = full;
+            }
+            prior = reachable;
+            eprintln!("S4_STAGE_ROW {row}");
+            rows.push(row);
+        }
+        rows
+    }
+    #[cfg(feature = "s_incremental")]
+    fn s4_write_rows(rows: &[Value]) {
+        if let Ok(path) = std::env::var("S4_STAGE_JSON") {
+            std::fs::write(&path, serde_json::to_string_pretty(&rows).unwrap()).unwrap();
+            eprintln!("S4_STAGE_JSON written {path}");
+        }
+    }
+
+    /// S4 锁：同输入 28 代（追加/中段修订/中段插入/末根修订），每代 warm owner delta 产物（回复、回执、非节点表、根可达节点闭包）
+    /// 与「新 Runtime + 清车道 + oracle」冷全量重算逐位相同；六阶段标记逐代齐全。
+    ///
+    /// release-only（fix-0089 负责人裁定）：debug 下 O(N²) 超 50 分钟，release 约 1000–1200 s；
+    /// 不缩代数、不削弱比较，由 issue-1488-uo-iter.yml 的 Native 组 release 步与
+    /// `.github/1488-uo-release-locks.txt` 以 `--release --ignored --exact` 执行。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    #[ignore = "release-only: run via cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages"]
+    fn s4_generation_incremental_matches_cold_full_six_stages() {
+        let rows = s4_run(&s4_default_steps(), true);
+        assert_eq!(rows.len(), 28);
+        // Δ_R 为本代全根可达集新增；新写节点只可能多于（未被根引用的不计）而非少于它。
+        for row in &rows {
+            assert!(row["delta_r"].as_u64().unwrap() > 0, "{row}");
+            assert!(
+                row["new_stored_nodes"].as_i64().unwrap() >= row["delta_r"].as_i64().unwrap(),
+                "{row}"
+            );
+        }
+        s4_write_rows(&rows);
+    }
+
+    /// S5 测量面（ignored）：`S4_BARS` 指向 [[open,high,low,close],…] JSON，`S4_GENERATIONS`
+    /// 取前 n 根（默认全部），每根一代只跑增量臂；`S4_COLD=1` 时逐代同跑冷全量对拍。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    #[ignore]
+    fn s4_stage_measurement_from_bars() {
+        let path = std::env::var("S4_BARS").expect("S4_BARS");
+        let bars: Vec<[i64; 4]> = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let n = std::env::var("S4_GENERATIONS")
+            .ok()
+            .map(|v| v.parse::<usize>().unwrap())
+            .unwrap_or(bars.len())
+            .min(bars.len());
+        let steps: Vec<S4Step> = bars[..n]
+            .iter()
+            .enumerate()
+            .map(|(i, [o, h, l, c])| S4Step {
+                kind: "append",
+                rows: vec![(format!("m{i}"), (i as i64 + 1) * 10, *o, *h, *l, *c)],
+                revision: "1",
+            })
+            .collect();
+        let rows = s4_run(&steps, std::env::var("S4_COLD").as_deref() == Ok("1"));
+        s4_write_rows(&rows);
+    }
+
+    /// 36M 完整台账双路径锁（#1647 cover39k）：同一真实 owner 序列（三根 + `b` 同坐标修订）分别
+    /// 经 warm Driver 增量臂（steady delta，D2 出生轨迹为空）与独立完整审计模式臂（每代新开
+    /// owner、无来源缓存，full_lease 完整原件导出）生产；两臂 cover/raw 行逐行相同，修订赢家
+    /// seq 推进而旧 seq 保留。增量臂末步投一次改坐标修订：`raw_input` 以 IdentityConflict 拒收
+    /// （同一业务身份不得换源位置），代号、raw、台账水位与 cover 均不动——生效坐标集随前缀
+    /// 单调不减，full-lease 导出无需表达 Removed。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths() {
+        use super::super::audit_ledger;
+        let step = |id: &str, seq: i64, bar: [i64; 4], revision: &'static str| S4Step {
+            kind: "owner",
+            rows: vec![(id.into(), seq, bar[0], bar[1], bar[2], bar[3])],
+            revision,
+        };
+        let steps = [
+            step("a", 0, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 20, 10, 15], "1"),
+            step("c", 2, [6, 12, 3, 7], "1"),
+            step("b", 1, [14, 21, 10, 15], "2"),
+        ];
+        let moved = step("b", 3, [14, 22, 10, 15], "3");
+        let full_births = |events: &[Value]| {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "generate_full_birth")
+                .map(|e| e["entry"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        let lane_of = |events: &[Value]| state::stage_rows(events)["paths"].clone();
+        let cover_rows = |path: &Path| {
+            let saved = Connection::open(path).unwrap();
+            let mut rows = saved
+                .prepare("SELECT source_coord, seq FROM cover ORDER BY source_coord")
+                .unwrap();
+            rows.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        };
+        let ledger_rows = |path: &Path| {
+            audit_ledger::tests::dump(path)
+                .into_iter()
+                .filter(|row| row.starts_with("cover:") || row.starts_with("raw:"))
+                .collect::<Vec<_>>()
+        };
+        let check_covers = |covers: &[Vec<(i64, i64)>]| {
+            assert_eq!(covers[2], vec![(0, 0), (1, 1), (2, 2)]);
+            assert_eq!(
+                covers[3],
+                vec![(0, 0), (1, 3), (2, 2)],
+                "修订赢家 seq 推进到 3"
+            );
+        };
+
+        // 增量臂：warm Driver，同一 owner 跨代持候选，稳态代不得进入完整分支。
+        let delta_rows = {
+            let f = Fixture::with_clock(s4_clock(steps.len() + 1));
+            let mut native = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                536_870_912,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            native.incremental_retention_bytes = Some(536_870_912);
+            let rule = meta_get_opt(&native.conn, "rule_revision")
+                .unwrap()
+                .unwrap();
+            let path = f.db.with_file_name("cover-delta.sqlite");
+            native
+                .runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(
+                    &f.db,
+                    "cover-delta.sqlite",
+                    &rule,
+                ))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let message = s4_message(k, step);
+                let (reply, events, _) = state::traced(false, || native.handle(message));
+                reply.unwrap();
+                let births = full_births(&events);
+                if k == 1 {
+                    // 首代是否带候选由启动准入决定，不是本锁对象；修订代（k=4）必须是 delta。
+                    assert!(births.is_empty() || births == ["startup"], "{births:?}");
+                } else {
+                    assert!(births.is_empty(), "第{k}代增量臂调用了完整分支：{births:?}");
+                }
+                let lane = if births.is_empty() {
+                    "delta"
+                } else {
+                    "full_lease"
+                };
+                let paths = lane_of(&events);
+                assert!(
+                    paths.as_array().unwrap().contains(&json!(lane)),
+                    "第{k}代车道须为 {lane}：{paths}"
+                );
+                assert_eq!(meta_i64(&native.conn, "generation").unwrap(), k as i64);
+                assert_eq!(
+                    native.runtime.audit_qualification().unwrap().through,
+                    k as i64
+                );
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            check_covers(&covers);
+            let before = ledger_rows(&path);
+            let outcome = native.handle(s4_message(steps.len() + 1, &moved));
+            let text = match &outcome {
+                Ok(reply) => reply.to_string(),
+                Err(error) => error.clone(),
+            };
+            assert!(
+                text.contains("IdentityConflict") && text.contains("不得换源位置"),
+                "改坐标修订必须在接纳入口拒绝：{text}"
+            );
+            assert_eq!(meta_i64(&native.conn, "generation").unwrap(), 4);
+            assert_eq!(count(&native.conn, "raw_events"), 4);
+            assert_eq!(native.runtime.audit_qualification().unwrap().through, 4);
+            assert_eq!(ledger_rows(&path), before, "拒收后台账 cover/raw 不动");
+            drop(native);
+            before
+        };
+
+        // 完整原件臂：每代新开 owner、默认请求上下文（无来源缓存）＝独立完整审计模式，
+        // 与 prepared 完整台账锁同一生产入口；每代恰一次完整分支、车道 full_lease。
+        let full_rows = {
+            let mut f = prepared::tests::Fixture::new();
+            let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+            let db = f.db_path();
+            let path = db.with_file_name("cover-full-lease.sqlite");
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(
+                    &db,
+                    "cover-full-lease.sqlite",
+                    &rule,
+                ))
+                .unwrap();
+            let mut covers = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let (id, seq, open, high, low, close) = &step.rows[0];
+                let (envelope, token) = f.accept_begin(
+                    k as i64,
+                    (id.as_str(), *seq, *open, *high, *low, *close),
+                    step.revision.parse().unwrap(),
+                );
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let (published, events, _) = state::traced(false, || {
+                    owner.publish(
+                        &mut runtime,
+                        &token,
+                        &envelope,
+                        &mut request_audit::RequestAuditContext::default(),
+                    )
+                });
+                let (_, ended) = published.unwrap();
+                owner.continue_with(ended).unwrap();
+                let births = full_births(&events);
+                assert_eq!(births.len(), 1, "第{k}代完整臂须恰一次完整分支：{births:?}");
+                let paths = lane_of(&events);
+                assert!(
+                    paths.as_array().unwrap().contains(&json!("full_lease")),
+                    "第{k}代车道须为 full_lease：{paths}"
+                );
+                assert_eq!(runtime.audit_qualification().unwrap().through, k as i64);
+                assert_eq!(count(&Connection::open(&path).unwrap(), "raw"), k as i64);
+                covers.push(cover_rows(&path));
+            }
+            check_covers(&covers);
+            drop(runtime);
+            ledger_rows(&path)
+        };
+        assert_eq!(
+            delta_rows
+                .iter()
+                .filter(|r| r.starts_with("cover:"))
+                .count(),
+            3
+        );
+        assert_eq!(
+            delta_rows.iter().filter(|r| r.starts_with("raw:")).count(),
+            4
+        );
+        assert_eq!(
+            delta_rows, full_rows,
+            "增量臂与完整原件臂的 cover/raw 逐行相同"
         );
     }
 }

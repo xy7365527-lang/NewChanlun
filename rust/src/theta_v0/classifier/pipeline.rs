@@ -512,6 +512,8 @@ impl TowerTermination {
 pub struct TowerPolicyStamp {
     /// `tower-level-budget` 记录版本。
     pub level_budget: crate::theta_v0::policy_records::PolicyRef,
+    /// `tower-base` 记录版本。
+    pub tower_base: crate::theta_v0::policy_records::PolicyRef,
     /// `macd-force` 记录版本。
     pub macd: crate::theta_v0::policy_records::PolicyRef,
     /// #1604：段层尾窗 / 第二序列窗口所出自的 `second-seq-scan-budget` 记录版本。
@@ -524,6 +526,7 @@ impl TowerPolicyStamp {
     pub fn of(config: &ThetaConfig) -> Self {
         TowerPolicyStamp {
             level_budget: config.level.budget,
+            tower_base: config.level.tower_base_policy,
             macd: config.macd.record,
             scan_budget: config.parse.scan_budget,
             construction_rule: config.parse.construction_rule,
@@ -533,8 +536,9 @@ impl TowerPolicyStamp {
 
 /// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
 ///
-/// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
-/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势）。
+/// 递归构造 L0..Lmax：L0 按 `tower-base` 记录取构件（当前 segment=parser 线段账本）；
+/// 每级由下级已完成走势单元构造中枢 + 裁决走势，走势成为上级输入单元。
+/// 自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势）。
 /// 达 `l_max` 上界时若下一级仍可升级，记为资源截断（#1603，[`TowerTermination::ResourceBound`]，
 /// 标 `INCOMPLETE_RESOURCE_BOUND`），不作自然终止。
 ///
@@ -626,6 +630,11 @@ pub fn classify_incremental(
     cache: &mut TowerCache,
     operating_levels: &[u32],
 ) -> ClassifyOutput {
+    assert!(
+        config.level.tower_base == crate::theta_v0::config::TowerBase::Segment,
+        "tower_base={:?} 尚无真实构件与数据 profile，拒绝在任何 L0 构造前停止",
+        config.level.tower_base
+    );
     // #1581（xianduan §15 X-37，§7.1 第 6 条「下游不得在其上构造」，#1493 裁定 4b）：段端门
     // fail-closed 后 L0 段账本自失败段起点起无效。入口拒读：不构造任何级别的中枢/走势/买卖点，
     // 清空可重导塔缓存（下个无标记的 bar 全量重建）；不可回填的候选事件簿只读不写，本 bar 不产新事件。
@@ -1274,6 +1283,7 @@ fn classify_incremental_inner(
                     prefix_count,
                     // #897：前缀中枢（pop 后保留段，与 prefix_count 1:1）供 tail run 计算。
                     &lc.centers,
+                    config.level.tower_base,
                 )
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。

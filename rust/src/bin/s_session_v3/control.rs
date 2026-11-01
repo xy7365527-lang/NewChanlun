@@ -464,8 +464,8 @@ mod tests {
     fn insert_delta(conn: &Connection, generation: i64) {
         conn.execute(
             "INSERT INTO structure_deltas(generation,session_id,catalog_revision,base_cut,next_cut,
-                 seq_range_json,index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json)
-             VALUES(?1,?2,?3,'cut-0','cut-1','[0,0]','batch-test',0,'not_run','{}','{}')",
+                 seq_range_json,index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json,policy_records)
+             VALUES(?1,?2,?3,'cut-0','cut-1','[0,0]','batch-test',0,'not_run','{}','{}','control-fixture/1')",
             params![
                 generation,
                 SESSION,

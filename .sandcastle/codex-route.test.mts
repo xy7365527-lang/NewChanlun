@@ -12,7 +12,7 @@ test("实装和独审默认 Codex/Astra，独立 home，同阶段 resume 保留"
   const other = review.buildPrintCommand(options);
   assert.equal(author.name, "codex");
   assert.match(first.command, /codex -a never -s workspace-write exec --ignore-user-config/);
-  assert.match(first.command, /gpt-6-astra/);
+  assert.match(first.command, /gpt-6.1-sol/);
   assert.match(first.command, /model_provider="cliproxy-local"/);
   assert.doesNotMatch(first.command, /dangerously|claude|kimi/);
   assert.notEqual(first.command, other.command);
@@ -26,6 +26,9 @@ test("Docker Codex 使用容器可达网关，main 保留一票两阶段", () =>
   const command = codexWorker({ docker: true }).buildPrintCommand({ prompt: "hi", dangerouslySkipPermissions: true }).command;
   assert.match(command, /host.docker.internal:8318\/v1/);
   assert.doesNotMatch(command, /127.0.0.1:8318/);
+  // #1742 方案B：Docker 内由容器和只读挂载隔离，不起内层 bwrap；宿主路径仍是 workspace-write。
+  assert.match(command, /codex -a never -s danger-full-access exec/);
+  assert.doesNotMatch(command, /workspace-write/);
   const main = readFileSync(new URL("./main.mts", import.meta.url), "utf8");
   assert.equal(main.match(/codexWorker\(\{ effort: EFFORT \}\)/g)?.length, 2);
   assert.doesNotMatch(main, /claudeWorker\(/);

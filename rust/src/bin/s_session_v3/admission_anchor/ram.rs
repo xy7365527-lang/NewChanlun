@@ -1,0 +1,2802 @@
+//! #1527 B/H1：单个准入 operation 的同锁双帽，不借用磁盘或请求额度。
+use super::resources::NativeRamLimits;
+use newchan_rust::s_content::capture_allocation::scratch::{
+    CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
+};
+use std::{
+    alloc::Layout,
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
+};
+
+static NEXT_ORIGIN: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RamSnapshot {
+    pub fixed_metadata: usize,
+    pub job_live: usize,
+    pub job_peak: usize,
+    pub operation_live: usize,
+    pub operation_peak: usize,
+    pub parts: [usize; 3],
+    pub active: bool,
+    pub failed: Option<ScratchFailure>,
+}
+/// 只读观察同一个父账；不创建额度、不提供reserve或复活能力。
+#[derive(Clone)]
+pub(super) struct RamObservation(Arc<Mutex<LedgerState>>);
+impl RamObservation {
+    pub(super) fn snapshot(&self) -> Result<RamSnapshot, ScratchFailure> {
+        self.0
+            .lock()
+            .map(|state| state.snapshot)
+            .map_err(|_| ScratchFailure::Ledger)
+    }
+}
+struct LedgerState {
+    snapshot: RamSnapshot,
+    max_live: usize,
+    max_operation: usize,
+    origin: u64,
+}
+struct OperationParent {
+    ledger: Arc<Mutex<LedgerState>>,
+}
+/// 唯一operation owner；许可只持facade，不反持owner。析构禁新分配但保留真实载荷账。
+pub(super) struct AdmissionRamLedger {
+    parent: Arc<OperationParent>,
+    origin: u64,
+}
+fn arc_layout<T>() -> Result<Layout, ScratchFailure> {
+    Layout::new::<[AtomicUsize; 2]>()
+        .extend(Layout::new::<T>())
+        .map(|(layout, _)| layout.pad_to_align())
+        .map_err(|_| ScratchFailure::Ledger)
+}
+impl AdmissionRamLedger {
+    pub(super) fn metadata_bytes() -> Result<usize, ScratchFailure> {
+        arc_layout::<Mutex<LedgerState>>()?
+            .size()
+            .checked_add(arc_layout::<OperationParent>()?.size())
+            .ok_or(ScratchFailure::Ledger)
+    }
+    #[cfg(test)]
+    pub(super) fn new(limits: NativeRamLimits) -> Result<Self, ScratchFailure> {
+        Self::new_with_fixed(limits, 0)
+    }
+    pub(super) fn new_with_fixed(
+        limits: NativeRamLimits,
+        other_fixed: usize,
+    ) -> Result<Self, ScratchFailure> {
+        let max_live =
+            usize::try_from(limits.max_live_bytes).map_err(|_| ScratchFailure::Budget)?;
+        let max_operation =
+            usize::try_from(limits.max_operation_bytes).map_err(|_| ScratchFailure::Budget)?;
+        if max_operation > max_live {
+            return Err(ScratchFailure::Ledger);
+        }
+        // 在任何Arc/Mutex分配前检查合并固定Layout。固定元数据随最后parent自然释放。
+        let fixed = Self::metadata_bytes()?
+            .checked_add(other_fixed)
+            .ok_or(ScratchFailure::Ledger)?;
+        if fixed > max_live || fixed > max_operation {
+            return Err(ScratchFailure::Budget);
+        }
+        let origin = NEXT_ORIGIN
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                value.checked_add(1)
+            })
+            .map_err(|_| ScratchFailure::Ledger)?;
+        let ledger = Arc::new(Mutex::new(LedgerState {
+            snapshot: RamSnapshot {
+                fixed_metadata: fixed,
+                job_live: fixed,
+                job_peak: fixed,
+                operation_live: fixed,
+                operation_peak: fixed,
+                parts: [fixed, 0, 0],
+                active: true,
+                failed: None,
+            },
+            max_live,
+            max_operation,
+            origin,
+        }));
+        Ok(Self {
+            parent: Arc::new(OperationParent { ledger }),
+            origin,
+        })
+    }
+    pub(super) fn observation(&self) -> RamObservation {
+        RamObservation(self.parent.ledger.clone())
+    }
+    #[cfg(test)]
+    pub(super) fn snapshot(&self) -> Result<RamSnapshot, ScratchFailure> {
+        self.parent
+            .ledger
+            .lock()
+            .map(|s| s.snapshot)
+            .map_err(|_| ScratchFailure::Ledger)
+    }
+    pub(super) fn codec_work(&self) -> Result<CodecWork, ScratchFailure> {
+        let limit = self
+            .parent
+            .ledger
+            .lock()
+            .map_err(|_| ScratchFailure::Ledger)?
+            .max_operation;
+        // 内部scratch limit只是额外保护；所有类型均由OperationParent同锁执法两帽。
+        CodecWork::new_in_origin(self.parent.clone(), limit, self.origin)
+    }
+    pub(super) fn close(&self) -> Result<RamSnapshot, ScratchFailure> {
+        let mut state = self
+            .parent
+            .ledger
+            .lock()
+            .map_err(|_| ScratchFailure::Ledger)?;
+        state.snapshot.active = false;
+        if let Some(error) = state.snapshot.failed {
+            return Err(error);
+        }
+        Ok(state.snapshot)
+    }
+}
+impl Drop for AdmissionRamLedger {
+    fn drop(&mut self) {
+        let _ = self.close();
+    }
+}
+fn index(kind: ScratchCharge) -> usize {
+    match kind {
+        ScratchCharge::Metadata => 0,
+        ScratchCharge::Layout => 1,
+        ScratchCharge::Native => 2,
+    }
+}
+impl OperationParent {
+    fn reserve_locked(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        expected: u64,
+    ) -> Result<u64, ScratchFailure> {
+        let mut s = self.ledger.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if let Some(failure) = s.snapshot.failed {
+            return Err(failure);
+        }
+        if s.origin != expected || !s.snapshot.active {
+            return Err(ScratchFailure::Ledger);
+        }
+        let next = (|| {
+            let job = s
+                .snapshot
+                .job_live
+                .checked_add(bytes)
+                .ok_or(ScratchFailure::Budget)?;
+            let operation = s
+                .snapshot
+                .operation_live
+                .checked_add(bytes)
+                .ok_or(ScratchFailure::Budget)?;
+            let part = s.snapshot.parts[index(kind)]
+                .checked_add(bytes)
+                .ok_or(ScratchFailure::Ledger)?;
+            if job > s.max_live || operation > s.max_operation {
+                return Err(ScratchFailure::Budget);
+            }
+            Ok((job, operation, part))
+        })();
+        match next {
+            Ok((job, operation, part)) => {
+                s.snapshot.job_live = job;
+                s.snapshot.operation_live = operation;
+                s.snapshot.parts[index(kind)] = part;
+                s.snapshot.job_peak = s.snapshot.job_peak.max(job);
+                s.snapshot.operation_peak = s.snapshot.operation_peak.max(operation);
+                Ok(s.origin)
+            }
+            Err(error) => {
+                s.snapshot.failed = Some(error);
+                Err(error)
+            }
+        }
+    }
+}
+impl ScratchParent for OperationParent {
+    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
+        self.reserve_locked(bytes, kind, self.origin())
+    }
+    fn reserve_in_origin(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        expected: u64,
+    ) -> Result<u64, ScratchFailure> {
+        self.reserve_locked(bytes, kind, expected)
+    }
+    fn release(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        origin: u64,
+    ) -> Result<(), ScratchFailure> {
+        let mut s = self.ledger.lock().map_err(|_| ScratchFailure::Ledger)?;
+        let next = (|| {
+            if s.origin != origin {
+                return Err(ScratchFailure::Ledger);
+            }
+            Ok((
+                s.snapshot
+                    .job_live
+                    .checked_sub(bytes)
+                    .ok_or(ScratchFailure::Ledger)?,
+                s.snapshot
+                    .operation_live
+                    .checked_sub(bytes)
+                    .ok_or(ScratchFailure::Ledger)?,
+                s.snapshot.parts[index(kind)]
+                    .checked_sub(bytes)
+                    .ok_or(ScratchFailure::Ledger)?,
+            ))
+        })();
+        match next {
+            Ok((job, operation, part)) => {
+                s.snapshot.job_live = job;
+                s.snapshot.operation_live = operation;
+                s.snapshot.parts[index(kind)] = part;
+                Ok(())
+            }
+            Err(error) => {
+                s.snapshot.failed.get_or_insert(error);
+                Err(error)
+            }
+        }
+    }
+    fn origin(&self) -> u64 {
+        self.ledger.lock().map(|s| s.origin).unwrap_or(0)
+    }
+    fn health(&self) -> Result<(), ScratchFailure> {
+        let s = self.ledger.lock().map_err(|_| ScratchFailure::Ledger)?;
+        s.snapshot.failed.map_or(Ok(()), Err)
+    }
+    fn invalidate(&self) {
+        if let Ok(mut s) = self.ledger.lock() {
+            s.snapshot.failed.get_or_insert(ScratchFailure::Ledger);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn limits(extra: usize) -> NativeRamLimits {
+        let total = (AdmissionRamLedger::metadata_bytes().unwrap() + extra) as u64;
+        NativeRamLimits {
+            max_live_bytes: total,
+            max_operation_bytes: total,
+        }
+    }
+    #[test]
+    fn mixed_ram_all_charge_kinds_share_atomic_caps() {
+        for kind in [
+            ScratchCharge::Metadata,
+            ScratchCharge::Layout,
+            ScratchCharge::Native,
+        ] {
+            for operation_tight in [false, true] {
+                let mut caps = limits(100);
+                if operation_tight {
+                    caps.max_live_bytes += 100;
+                }
+                let owner = AdmissionRamLedger::new(caps).unwrap();
+                let origin = owner.parent.reserve(100, kind).unwrap();
+                let before = owner.snapshot().unwrap();
+                assert_eq!(owner.parent.reserve(1, kind), Err(ScratchFailure::Budget));
+                let after = owner.snapshot().unwrap();
+                assert_eq!(before.job_live, after.job_live);
+                assert_eq!(before.operation_live, after.operation_live);
+                assert_eq!(before.parts, after.parts);
+                owner.parent.release(100, kind, origin).unwrap();
+                assert_eq!(
+                    owner.snapshot().unwrap().job_live,
+                    AdmissionRamLedger::metadata_bytes().unwrap()
+                );
+            }
+        }
+    }
+    #[test]
+    fn mixed_ram_mixed_charge_origin_and_closed_retained_release() {
+        let owner = AdmissionRamLedger::new(limits(4096)).unwrap();
+        let baseline = owner.snapshot().unwrap().job_live;
+        let retained = owner
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let layout = work.bytes();
+                let permit = work.reserve_native(17)?;
+                drop(layout);
+                Ok::<_, newchan_rust::s_content::CodecError>(permit.hold(String::from("retained")))
+            })
+            .unwrap();
+        assert!(owner.snapshot().unwrap().job_live > baseline);
+        owner.close().unwrap();
+        assert!(owner.parent.health().is_ok(), "正常closed原件仍可读");
+        assert_eq!(
+            owner.parent.reserve(1, ScratchCharge::Native),
+            Err(ScratchFailure::Ledger)
+        );
+        drop(retained);
+        assert_eq!(owner.snapshot().unwrap().job_live, baseline);
+        assert_eq!(
+            owner
+                .parent
+                .reserve_in_origin(0, ScratchCharge::Native, owner.origin + 1),
+            Err(ScratchFailure::Ledger)
+        );
+        assert!(owner.snapshot().unwrap().job_peak > baseline);
+    }
+    #[test]
+    fn mixed_ram_fixed_metadata_must_fit_before_parent_exists() {
+        let n = AdmissionRamLedger::metadata_bytes().unwrap() as u64;
+        assert!(matches!(
+            AdmissionRamLedger::new(NativeRamLimits {
+                max_live_bytes: n,
+                max_operation_bytes: n - 1
+            }),
+            Err(ScratchFailure::Budget)
+        ));
+    }
+    fn job_limits() -> newchan_rust::s_content::job::JobLimits {
+        newchan_rust::s_content::job::JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"1000000", "max_total_node_bytes":"1000000", "max_total_nodes":"2",
+            "max_total_records":"100", "max_total_requests":"100", "max_elapsed_ms":"60000",
+            "max_staged_bytes":"1000000", "max_store_bytes":"1000000"
+        })).unwrap()
+    }
+    #[test]
+    fn mixed_ram_two_domain_job_acceptance_and_full_cap_duplicates() {
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{CheckedNodeUsage, Existing, Job, NodeAcceptance},
+        };
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut job = Job::new_started_mixed(
+                    job_limits(),
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(std::time::Instant::now),
+                    std::time::Instant::now(),
+                    work,
+                )?;
+                let bytes = b"content";
+                let content = CheckedNodeUsage::checked(
+                    &sc::frame(sc::tag::BYTES_CHUNK, bytes),
+                    sc::tag::BYTES_CHUNK,
+                    bytes,
+                )?;
+                let legacy = sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                    &sc::legacy_evidence::node_id(0, bytes),
+                    0,
+                    bytes,
+                    bytes.len() as i64,
+                )
+                .unwrap();
+                assert_eq!(
+                    job.accept_checked_usage_mixed(&content, work)?,
+                    NodeAcceptance::FirstAccept
+                );
+                assert_eq!(
+                    job.accept_legacy_evidence(&legacy, work)?,
+                    NodeAcceptance::FirstAccept
+                );
+                let before = job.snapshot();
+                assert_eq!(before.nodes, 2);
+                assert_eq!(
+                    job.accept_checked_usage_mixed(&content, work)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                assert_eq!(
+                    job.accept_legacy_evidence(&legacy, work)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                assert_eq!(job.snapshot().nodes, before.nodes);
+                assert_eq!(job.snapshot().node_bytes, before.node_bytes);
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(
+            owner.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
+    }
+    #[test]
+    fn mixed_ram_dedup_rejection_preserves_node_counts_and_wire() {
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{CheckedNodeUsage, Existing, Job},
+        };
+        for legacy in [false, true] {
+            let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+            let mut observed = None;
+            let result = owner.codec_work().unwrap().run(|work| {
+                let mut job = Job::new_started_mixed(
+                    job_limits(),
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(std::time::Instant::now),
+                    std::time::Instant::now(),
+                    work,
+                )?;
+                job.charge_wire_bytes(23)?;
+                let bytes = b"x";
+                let accepted = if legacy {
+                    let row = sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                        &sc::legacy_evidence::node_id(0, bytes),
+                        0,
+                        bytes,
+                        1,
+                    )
+                    .unwrap();
+                    job.accept_legacy_evidence(&row, work)
+                } else {
+                    let usage = CheckedNodeUsage::checked(
+                        &sc::frame(sc::tag::BYTES_CHUNK, bytes),
+                        sc::tag::BYTES_CHUNK,
+                        bytes,
+                    )?;
+                    job.accept_checked_usage_mixed(&usage, work)
+                };
+                assert!(accepted.is_err());
+                observed = Some(job.snapshot());
+                accepted.map(|_| ())
+            });
+            assert!(result.is_err());
+            let observed = observed.unwrap();
+            assert_eq!(
+                (observed.nodes, observed.node_bytes, observed.wire_bytes),
+                (0, 0, 23)
+            );
+        }
+    }
+    #[test]
+    fn mixed_ram_parsers_run_without_native_feature_and_keep_original_grammar() {
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let duplicate = br#"{"key":1,"key":2}"#;
+                assert!(
+                    crate::v3::business_json::mixed_strict_json_owner(duplicate, work).is_err()
+                );
+                let legacy = crate::v3::business_json::mixed_legacy_json_owner(duplicate, work)?;
+                assert_eq!(legacy.get("key").unwrap(), &serde_json::json!(2));
+                let strict =
+                    crate::v3::business_json::mixed_strict_json_owner(br#"{"ok":[1,2]}"#, work)?;
+                assert_eq!(strict.get("ok").unwrap(), &serde_json::json!([1, 2]));
+                Ok::<_, crate::v3::business_json::MixedJsonError>(())
+            })
+            .unwrap();
+        assert_eq!(
+            owner.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
+    }
+
+    #[test]
+    fn mixed_ram_parse_refusal_precedes_owned_json_and_shape_kernel_stays_original() {
+        let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+        let result = owner.codec_work().unwrap().run(|work| {
+            crate::v3::business_json::mixed_legacy_json_owner(
+                br#"{"many":[1,2,3],"broken":}"#,
+                work,
+            )
+        });
+        assert!(matches!(
+            result,
+            Err(
+                newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(
+                    ScratchFailure::Budget
+                )
+            )
+        ));
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                for text in ["not json", "[]", r#"{"key":1,"key":2}"#] {
+                    let original =
+                        crate::json_shape_with_owner(text, crate::JsonShape::Object, None);
+                    let mixed = crate::json_shape_mixed(text, crate::JsonShape::Object, work);
+                    match (original, mixed) {
+                        (Ok(crate::v3::business_json::JsonOwner::Plain(original)), Ok(mixed)) => {
+                            assert_eq!(&*original, &*mixed)
+                        }
+                        (
+                            Err(original),
+                            Err(crate::v3::business_json::MixedJsonError::Business(mixed)),
+                        ) => assert_eq!(original, mixed),
+                        _ => panic!("mixed改变原legacy形状核"),
+                    }
+                }
+                Ok::<_, crate::v3::business_json::MixedJsonError>(())
+            })
+            .unwrap();
+    }
+    #[test]
+    fn mixed_ram_grant_tree_is_metered_and_failed_growth_keeps_disk_accounting() {
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        for enough in [false, true] {
+            let extra = if enough {
+                1 << 20
+            } else {
+                CodecWork::metadata_bytes() + 1
+            };
+            let owner = AdmissionRamLedger::new(limits(extra)).unwrap();
+            let baseline = owner.snapshot().unwrap().job_live;
+            let result = owner.codec_work().unwrap().run(|work| {
+                let mut job = Job::new_started_mixed(
+                    job_limits(),
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(std::time::Instant::now),
+                    std::time::Instant::now(),
+                    work,
+                )?;
+                job.charge_wire_bytes(19)?;
+                assert!(
+                    job.reserve_staged(10).is_err(),
+                    "普通入口不能使mixed预留免账"
+                );
+                assert_eq!(job.snapshot().open_reservations, 0);
+                let before = job.snapshot();
+                let grant = job.reserve_staged_mixed(10, work);
+                if enough {
+                    let grant = grant?;
+                    assert_eq!(job.snapshot().staged.pending, 10);
+                    let stored = job.reserve_store_mixed(7, work)?;
+                    assert_eq!(job.snapshot().store.pending, 7);
+                    assert_eq!(job.snapshot().open_reservations, 2);
+                    job.reconcile(&grant, 6)?;
+                    job.release(&stored)?;
+                    assert_eq!(job.snapshot().open_reservations, 0);
+                    assert_eq!(job.snapshot().staged.pending, 0);
+                    assert_eq!(job.snapshot().store.pending, 0);
+                    job.finish_check()?;
+                } else {
+                    assert!(grant.is_err());
+                    let after = job.snapshot();
+                    assert_eq!(after.staged, before.staged);
+                    assert_eq!(after.store, before.store);
+                    assert_eq!(after.open_reservations, 0);
+                    assert_eq!(after.wire_bytes, 19);
+                }
+                Ok::<_, sc::CodecError>(())
+            });
+            assert_eq!(result.is_ok(), enough);
+            assert_eq!(owner.snapshot().unwrap().job_live, baseline);
+        }
+    }
+    #[test]
+    fn mixed_ram_rejected_parse_does_not_invoke_parser() {
+        use crate::v3::business_json::{mixed_parse_admitted, MixedJsonError};
+        let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+        let mut entered = false;
+        let result = owner.codec_work().unwrap().run(|work| {
+            let result = mixed_parse_admitted(br#"{"large":["value"]}"#, work, || {
+                entered = true;
+                Err(MixedJsonError::Business("parser invoked".into()))
+            });
+            match &result {
+                Err(MixedJsonError::Resource(error)) => {
+                    assert_eq!(error.scratch_failure(), Some(ScratchFailure::Budget))
+                }
+                _ => panic!("拒绝未保留结构化资源错误"),
+            }
+            result
+        });
+        assert!(!entered);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn mixed_ram_parser_refusal_allocates_no_error_string() {
+        use crate::v3::{
+            audit_owner::allocation_probe::Window,
+            business_json::{mixed_legacy_json_owner, mixed_strict_json_owner, MixedJsonError},
+        };
+        const TEXT: &str = r#"{"key":["a string that must allocate","another allocated string"]}"#;
+        for route in 0..3 {
+            for enough in [false, true] {
+                let extra = if enough {
+                    1 << 20
+                } else {
+                    CodecWork::metadata_bytes() + 1
+                };
+                let owner = AdmissionRamLedger::new(limits(extra)).unwrap();
+                let result = owner.codec_work().unwrap().run(|work| {
+                    let window = Window::start();
+                    let parsed = match route {
+                        0 => mixed_strict_json_owner(TEXT.as_bytes(), work),
+                        1 => mixed_legacy_json_owner(TEXT.as_bytes(), work),
+                        _ => crate::json_shape_mixed(TEXT, crate::JsonShape::Object, work),
+                    };
+                    let observed = window.finish();
+                    let bytes = observed["allocated_bytes"].as_u64().unwrap();
+                    if enough {
+                        assert!(parsed.is_ok());
+                        assert!(bytes > 0, "同一路径的成功正控确实经过实际分配器");
+                    } else {
+                        assert!(matches!(&parsed, Err(MixedJsonError::Resource(error))
+                            if error.scratch_failure() == Some(ScratchFailure::Budget)));
+                        assert_eq!(bytes, 0, "资源拒绝到跨层返回之间不得分配错误String或JSON");
+                    }
+                    parsed.map(|_| ())
+                });
+                assert_eq!(result.is_ok(), enough);
+            }
+        }
+    }
+    #[test]
+    fn mixed_ram_sql_raw_projection_preserves_values_and_type_error_order() {
+        use crate::v3::business_json::scoped_legacy::{project_raw_history_row, MixedSqlError};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        for head in ["'id'", "42", "CAST(X'ff' AS TEXT)"] {
+            for optional in ["NULL", "-9223372036854775808"] {
+                let sql = format!("SELECT {head}, 9223372036854775807, 'input', 'hash', 'receipt', 7, 'ns', 'epoch', 'btc', 'event', 'time', 'raw', '12.3', '123', '0.2', 'coord', {optional}");
+                let mut stmt = conn.prepare(&sql).unwrap();
+                let mut rows = stmt.query([]).unwrap();
+                let row = rows.next().unwrap().unwrap();
+                let original = crate::project_raw_history_row(row);
+                let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        match (original, project_raw_history_row(row, work)) {
+                            (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
+                            (Err(original), Err(MixedSqlError::Sql(mixed))) => {
+                                assert_eq!(original, mixed)
+                            }
+                            other => panic!("SQL投影结果不一致: {other:?}"),
+                        }
+                        Ok::<_, newchan_rust::s_content::CodecError>(())
+                    })
+                    .unwrap();
+                assert_eq!(
+                    owner.snapshot().unwrap().job_live,
+                    AdmissionRamLedger::metadata_bytes().unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_ram_projection_replacement_keeps_old_owner_until_new_permitted() {
+        use crate::v3::business_json::scoped_legacy::{Field, ProjectionKind, ScopedLegacyRecord};
+        use crate::v3::business_json::MixedJsonError;
+        let source = serde_json::json!({"lifecycle":"active","unknown":{"preserved":[1,2,3]}});
+        let next = serde_json::json!("withdrawn");
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut record = ScopedLegacyRecord::clone_projection(
+                    ProjectionKind::AtPreviousLifecycle,
+                    &source,
+                    work,
+                )?;
+                record.replace_known_field(Field::Lifecycle, &next)?;
+                let result = record.finish();
+                assert_eq!(result["lifecycle"], next);
+                assert_eq!(result["unknown"], source["unknown"]);
+                assert_eq!(source["lifecycle"], "active");
+                Ok::<_, MixedJsonError>(())
+            })
+            .unwrap();
+        assert_eq!(
+            owner.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
+    }
+
+    #[test]
+    fn mixed_ram_sql_object_projection_keeps_lifecycle_before_json_and_optional_reads() {
+        use crate::v3::business_json::scoped_legacy::{project_object_row, MixedSqlError};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let good = r#"[{"merged_index":1,"raw_refs":[{"seq":2,"revision":3,"extra":true}],"untouched":"yes"}]"#;
+        for (wg, comparisons, refs, as_of) in [
+            (Some(1), "{bad", "[]", None),
+            (Some(3), "[]", good, Some(2)),
+            (Some(3), "[]", good, None),
+            (None, "[]", good, None),
+            (None, "{bad", "[]", None),
+            (None, "[]", "{}", None),
+            (
+                None,
+                "[]",
+                r#"[{"merged_index":"bad","raw_refs":[]}]"#,
+                None,
+            ),
+        ] {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT 'id',2,'k','b','up','up','down',1,2,3,?2,?3,'[]',1,'cut',2,?1,99,88",
+                )
+                .unwrap();
+            let mut rows = stmt
+                .query(rusqlite::params![wg, comparisons, refs])
+                .unwrap();
+            let row = rows.next().unwrap().unwrap();
+            let original = crate::project_object_row(row, as_of);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    match (original, project_object_row(row, as_of, work)) {
+                        (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
+                        (Err(original), Err(MixedSqlError::Sql(mixed))) => {
+                            assert_eq!(
+                                std::mem::discriminant(&original),
+                                std::mem::discriminant(&mixed)
+                            );
+                            assert_eq!(original.to_string(), mixed.to_string());
+                        }
+                        other => panic!("对象投影或首错漂移：{other:?}"),
+                    }
+                    Ok::<_, newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+            assert_eq!(
+                owner.snapshot().unwrap().job_live,
+                AdmissionRamLedger::metadata_bytes().unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_ram_fact_collect_defers_json_and_project_preserves_first_error() {
+        use crate::v3::business_json::scoped_legacy::{collect_fact_row, project_fact};
+        use crate::v3::business_json::MixedJsonError;
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        for (kind, payload, refs, death) in [
+            ("CC-004.inclusion_step", "{}", "[]", None),
+            ("CC-004.inclusion_step", "{}", "[]", Some(3_i64)),
+            ("unknown", "bad", "bad", None),
+            ("CC-004.inclusion_step", "", "", None),
+            ("CC-004.inclusion_step", "bad", "[]", None),
+            ("CC-004.inclusion_step", "{}", "{}", None),
+        ] {
+            let mut stmt = conn
+                .prepare("SELECT 'id',1,?1,'batch','key',?2,?3,'[]',1,'cut',2,?4,NULL,NULL")
+                .unwrap();
+            let mut rows = stmt
+                .query(rusqlite::params![kind, payload, refs, death])
+                .unwrap();
+            let row = rows.next().unwrap().unwrap();
+            let original = crate::tb02a::collect_fact_row(row).unwrap();
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let collected = collect_fact_row(row, work).unwrap();
+                    assert_eq!(*collected, original); // graph empty placeholders and bad JSON remain raw text
+                    let expected = crate::tb02a::project(&original);
+                    match (expected, project_fact(&collected, work)) {
+                        (Ok(a), Ok(b)) => assert_eq!(a, *b),
+                        (Err(a), Err(MixedJsonError::Business(b))) => assert_eq!(a, b),
+                        other => panic!("fact projection mismatch {other:?}"),
+                    }
+                    Ok::<_, newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+            assert_eq!(
+                owner.snapshot().unwrap().job_live,
+                AdmissionRamLedger::metadata_bytes().unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn mixed_ram_fact_asof_filter_never_parses_excluded_json() {
+        use crate::v3::business_json::scoped_legacy::{filter_fact_lifecycle, project_fact};
+        use crate::v3::business_json::{MixedJsonError, PlainJson};
+        for (first, death, asof, skip, clear, error) in [
+            (3, None, Some(2), true, false, false),
+            (1, Some(4), Some(2), false, true, false),
+            (3, Some(2), Some(1), false, false, true),
+        ] {
+            let source = serde_json::json!({"first_known_generation":first,"withdrawn_generation":death,
+                "withdrawal_reason":"old","superseded_by":"next","payload_json":"bad"});
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner.codec_work().unwrap().run(|work| {
+                let row = PlainJson::try_clone_from(&source,Some(work))?;
+                let filtered = filter_fact_lifecycle(row,asof,work);
+                if error {
+                    assert!(matches!(filtered,Err(MixedJsonError::Business(ref s)) if s == "StorageUnavailable：结构事实生命周期非法"));
+                } else if skip { assert!(filtered.unwrap().is_none()); }
+                else {
+                    let kept = filtered.unwrap().unwrap();
+                    assert_eq!(kept["payload_json"],"bad");
+                    if clear {
+                        for key in ["withdrawn_generation","withdrawal_reason","superseded_by"] { assert!(kept[key].is_null()); }
+                    }
+                    assert!(matches!(project_fact(&kept,work),Err(MixedJsonError::Business(ref s)) if s == "StorageUnavailable：事实kind缺失"));
+                }
+                Ok::<_,newchan_rust::s_content::CodecError>(())
+            }).unwrap();
+            assert_eq!(
+                owner.snapshot().unwrap().job_live,
+                AdmissionRamLedger::metadata_bytes().unwrap()
+            );
+        }
+    }
+    #[test]
+    fn mixed_ram_cache_same_parent_shares_closed_parent_copies_failed_parent_rejects() {
+        use crate::v3::native_shared::NativeArc;
+        use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+        let old = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        let cached = old
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let text = NativeValue::try_from_str("cached pure content", Some(work))?;
+                let cached = NativeArc::try_new_shallow(text, Some(work))?;
+                let shared =
+                    cached.share_or_copy_mixed(work, |_, _| panic!("same parent must not copy"))?;
+                assert!(NativeArc::ptr_eq(&cached, &shared));
+                Ok::<_, newchan_rust::s_content::CodecError>(cached)
+            })
+            .unwrap();
+        old.close().unwrap();
+        let current = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        let copy = current
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                cached.share_or_copy_mixed(work, |text, scope| text.try_clone_admitted(scope))
+            })
+            .unwrap();
+        assert!(!NativeArc::ptr_eq(&cached, &copy));
+        assert_eq!(cached.as_ref(), copy.as_ref());
+        assert!(old.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap());
+        assert!(
+            current.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap()
+        );
+        drop(copy);
+        assert_eq!(
+            current.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
+        drop(cached);
+        assert_eq!(
+            old.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
+
+        let failed = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        let retained = failed
+            .codec_work()
+            .unwrap()
+            .run(|work| NativeArc::try_new_shallow(17_u64, Some(work)))
+            .unwrap();
+        failed.parent.invalidate();
+        let target = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        target
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let before = target.snapshot().unwrap().job_live;
+                assert!(retained
+                    .share_or_copy_mixed(work, |_, _| panic!("failed parent must not copy"))
+                    .is_err());
+                assert_eq!(target.snapshot().unwrap().job_live, before);
+                Ok::<_, newchan_rust::s_content::CodecError>(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn mixed_family_sql_projection_and_raw_bars_preserve_originals() {
+        use crate::v3::business_json::scoped_legacy::{project_family_row, project_raw_bars};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            for bars in [
+                serde_json::json!([{"seq":1,"revision":2,"supersedes_revision":null}]),
+                serde_json::json!([{"seq":1,"schema_revision":"s-ohlc/1","price":"2","open":"1"}]),
+                serde_json::json!([{"seq":1,"supersedes_revision":"bad"}]),
+                serde_json::json!([{"seq":null}]),
+            ] {
+                match (crate::project_raw_bars(&bars), project_raw_bars(&bars,work)) {
+                    (Ok(a),Ok(b))=>assert_eq!(a,*b),
+                    (Err(a),Err(crate::v3::business_json::MixedJsonError::Business(b)))=>assert_eq!(a,b),
+                    other=>panic!("raw bars mismatch {other:?}"),
+                }
+            }
+            for original in [
+                serde_json::json!({"detail":{"i":-1,"u":18446744073709551615u64,"f":1.25,"nest":[3,null]},"other":7}),
+                serde_json::json!({"raw_bars":[{"seq":2,"supersedes_revision":3,"detail":{"i":5}},7,null],"detail":4}),
+                serde_json::json!({"raw_bars":{"x":2},"nested":[{"detail":9,"raw_bars":[{"supersedes_revision":{"k":8}}]}]}),
+            ] {
+                let projected=crate::v3::business_json::scoped_legacy::legacy_payload(&original,work).unwrap();
+                assert_eq!(*projected,crate::legacy_payload_projection(&original));
+                let text=newchan_rust::s_content::capture_allocation::native_owned::NativeValue::try_format(format_args!("{}",projected.as_ref()),Some(work))?;
+                assert_eq!(text.as_ref(),&crate::canonical_json(&projected));
+            }
+            let wire_cases: [(fn(&serde_json::Value)->Result<serde_json::Value,String>,
+                fn(&serde_json::Value,&newchan_rust::s_content::capture_allocation::scratch::WorkScope)->Result<crate::v3::business_json::PlainJson,crate::v3::business_json::MixedJsonError>,serde_json::Value);4]=[
+                (crate::project_object_wire,crate::v3::business_json::scoped_legacy::project_object_wire,serde_json::json!({"object_id":"o","object_revision":1,"window_start":0,"window_mid":1,"window_end":2,"first_known_generation":1,"published_generation":1})),
+                (crate::project_witness_wire,crate::v3::business_json::scoped_legacy::project_witness_wire,serde_json::json!({"slot":1,"merged_source_index":2,"raw_bars":[{"seq":3,"revision":1}]})),
+                (crate::project_observation_wire,crate::v3::business_json::scoped_legacy::project_observation_wire,serde_json::json!({"window_start":1,"window_mid":null,"window_end":3})),
+                (crate::project_raw_event_wire,crate::v3::business_json::scoped_legacy::project_raw_event_wire,serde_json::json!({"revision":1,"seq":0,"schema_revision":"s-ohlc/1","price":"2","open":"1"})),
+            ];
+            for (ordinary,mixed,value) in wire_cases {
+                assert_eq!(ordinary(&value).unwrap(),*mixed(&value,work).unwrap());
+            }
+            for (name,sql,expected) in [
+                ("witnesses", "SELECT 'w',3,'o',4,5,'h','l','o','c','[]'",serde_json::json!({"witness_id":"w","object_id":"o","slot":"4","merged_source_index":"5","merged_high":"h","merged_low":"l","merged_open":"o","merged_close":"c","raw_bars":[]})),
+                ("observations","SELECT 'ob',3,'b','k',NULL,4,5,'why','{}'",serde_json::json!({"observation_id":"ob","batch_id":"b","kind":"k","window_start":null,"window_mid":4,"window_end":5,"reason":"why","detail":{}})),
+                ("relations","SELECT 's','r','o',3",serde_json::json!({"subject":"s","relation_type":"r","object":"o"})),
+            ] {
+                let mut stmt=conn.prepare(sql).unwrap();
+                let mut rows=stmt.query([]).unwrap();
+                let (id,g,record)=project_family_row(rows.next().unwrap().unwrap(),name,work).unwrap();
+                assert_eq!(g,3);
+                assert_eq!(*record,expected);
+                if name=="relations" {assert_eq!(id.as_ref(),&crate::canonical_json(&expected));}
+            }
+            Ok::<_,newchan_rust::s_content::CodecError>(())
+        }).unwrap();
+    }
+
+    #[test]
+    fn mixed_reachability_preserves_collect_before_decode() {
+        use crate::v3::business_json::MixedJsonError;
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_evidence_nodes(node_id); INSERT INTO s_evidence_nodes VALUES(X'00'),('wrong-type');").unwrap();
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let error = crate::evidence_store::ensure_all_nodes_reachable_mixed(&conn,0,work).unwrap_err();
+            assert!(matches!(error, MixedJsonError::Business(ref s) if s.contains("私有节点行损坏") && !s.contains("非 32 字节")));
+            conn.execute("DELETE FROM s_evidence_nodes WHERE typeof(node_id)='text'",[]).unwrap();
+            let error = crate::evidence_store::ensure_all_nodes_reachable_mixed(&conn,0,work).unwrap_err();
+            assert!(matches!(error, MixedJsonError::Business(ref s) if s.contains("非 32 字节")));
+            // COUNT 相等仍按原合同直接成功，不能提前扫描诊断表。
+            crate::evidence_store::ensure_all_nodes_reachable_mixed(&conn,1,work).unwrap();
+            Ok::<_,newchan_rust::s_content::CodecError>(())
+        }).unwrap();
+    }
+
+    #[test]
+    fn mixed_audit_walk_verify_matches_original_three_way_and_failures() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::SCHEMA).unwrap();
+        conn.execute_batch("INSERT INTO objects VALUES('o',1,'k','b','branch','up','down',0,1,2,'[]','[]','[]',1,'cut',1,NULL,NULL,NULL)").unwrap();
+        let record = serde_json::json!({
+            "object_id":"o","object_revision":1,"kind":"k","batch_id":"b","branch":"branch",
+            "dir_ab":"up","dir_bc":"down","window_start":0,"window_mid":1,"window_end":2,
+            "comparisons_json":"[]","input_refs_json":"[]","source_coords_json":"[]",
+            "first_known_generation":1,"first_known_cut":"cut","published_generation":1
+        });
+        let scope = serde_json::json!({"structure":"CompleteCut","economic":"not_started"});
+        let batch = serde_json::json!({"scope":scope,"profile_id":"legacy","profile_hash":"h","rule_revision":"r",
+            "objects":[record],"witnesses":[],"relations":[],"observations":[],"raw_events":[]});
+        let upsert = crate::project_object_wire(&batch["objects"][0]).unwrap();
+        let delta = serde_json::json!({
+            "upserts":[upsert],"withdrawals":[],"replaces":[],"witnesses":[],"relations":[],
+            "observations":[],"raw_history_added":[],"index_frontier":"b","next_cut":"cut",
+            "input_frontier":"-1","seq_range":{"from":"0"},"catalog_run_status":"run",
+            "catalog_evidence":{"scope":scope,"profile_id":"legacy","profile_hash":"h","rule_revision":"r",
+                "batch_id":"b","structure_cut":"cut","classified_objects":1,"windows_total":0,
+                "merged_bars":0,"effective_source_positions":0,"withdrawals":0,"replaces":0,
+                "insufficient_knowledge":0,"domain_not_satisfied":0}
+        });
+        for mode in [
+            crate::delta_storage::Mode::ChangesOnly,
+            crate::delta_storage::Mode::LegacyFull,
+        ] {
+            for case in 0..5 {
+                let mut candidate = delta.clone();
+                match case {
+                    1 => candidate["upserts"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(upsert.clone()),
+                    2 => candidate["index_frontier"] = serde_json::json!("wrong"),
+                    3 => candidate["upserts"] = serde_json::json!([]),
+                    _ => {}
+                }
+                let mut original = crate::audit::AuditWalk::capture(&conn, &[]).unwrap();
+                let expected = original.verify(&candidate, 1, &batch, mode);
+                let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let job = Job::new_started_mixed(
+                            job_limits(),
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let mut walk = crate::audit::mixed::AuditWalk::capture(
+                            &conn,
+                            std::iter::empty(),
+                            work,
+                            &observer,
+                        )
+                        .unwrap();
+                        if case == 4 {
+                            let used = observer.job.borrow().snapshot().records;
+                            observer
+                                .job
+                                .borrow_mut()
+                                .charge_records(100 - used)
+                                .unwrap();
+                            assert!(matches!(
+                                walk.verify(&candidate, 1, &batch, mode, work, &observer),
+                                Err(crate::v3::business_json::MixedJsonError::Resource(_))
+                            ));
+                            return Ok::<(), sc::CodecError>(());
+                        }
+                        let actual = walk.verify(&candidate, 1, &batch, mode, work, &observer);
+                        match (&expected, &actual) {
+                            (Ok(()), Ok(())) => {
+                                original.finish().unwrap();
+                                walk.finish().unwrap();
+                            }
+                            (
+                                Err(expected),
+                                Err(crate::v3::business_json::MixedJsonError::Business(actual)),
+                            ) => assert_eq!(actual, expected),
+                            _ => panic!(
+                                "case {case}, mode {mode:?}: old={expected:?}, mixed={actual:?}"
+                            ),
+                        }
+                        assert_eq!(actual.is_ok(), case == 0);
+                        Ok::<(), sc::CodecError>(())
+                    })
+                    .unwrap();
+            }
+        }
+
+        crate::cache::configure(1 << 20);
+        let make_rows = |work: &sc::capture_allocation::scratch::WorkScope| {
+            let mut rows = sc::CodecVec::default();
+            rows.try_reserve_native(work, 1).unwrap();
+            rows.try_push(crate::cache::mixed::DeltaRow {
+                generation: 1,
+                input_frontier: -1,
+                text: ["s", "c", "base", "cut", "{}", "b", "run", "{}", "{}", ""].map(|s| {
+                    sc::capture_allocation::native_owned::NativeValue::try_from_str(s, Some(work))
+                        .unwrap()
+                }),
+            })
+            .unwrap();
+            rows
+        };
+        let make_identity = |work: &sc::capture_allocation::scratch::WorkScope| {
+            ["s", "c", "p", "h", "changes-only/1", "legacy-blob/0"].map(|s| {
+                sc::capture_allocation::native_owned::NativeValue::try_from_str(s, Some(work))
+                    .unwrap()
+            })
+        };
+        let first = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        first
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let job = Job::new_started_mixed(
+                    job_limits(),
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(std::time::Instant::now),
+                    std::time::Instant::now(),
+                    work,
+                )?;
+                let observer = Observer {
+                    job: RefCell::new(job),
+                    work,
+                };
+                let transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                let mut walk = crate::audit::mixed::AuditWalk::capture(
+                    &conn,
+                    std::iter::empty(),
+                    work,
+                    &observer,
+                )
+                .unwrap();
+                walk.verify(
+                    &delta,
+                    1,
+                    &batch,
+                    crate::delta_storage::Mode::ChangesOnly,
+                    work,
+                    &observer,
+                )
+                .unwrap();
+                crate::cache::mixed::store_root(
+                    make_rows(work),
+                    make_identity(work),
+                    walk,
+                    &Default::default(),
+                    work,
+                    &observer,
+                )
+                .unwrap();
+                transaction.commit();
+                Ok::<(), sc::CodecError>(())
+            })
+            .unwrap();
+        first.close().unwrap();
+        let second = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        second
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let job = Job::new_started_mixed(
+                    job_limits(),
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(std::time::Instant::now),
+                    std::time::Instant::now(),
+                    work,
+                )?;
+                let observer = Observer {
+                    job: RefCell::new(job),
+                    work,
+                };
+                let transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                let mut walk = crate::audit::mixed::AuditWalk::capture(
+                    &conn,
+                    std::iter::empty(),
+                    work,
+                    &observer,
+                )
+                .unwrap();
+                assert_eq!(
+                    crate::cache::mixed::resume(
+                        &make_rows(work),
+                        &make_identity(work),
+                        &mut walk,
+                        &Default::default(),
+                        work,
+                        &observer
+                    )
+                    .unwrap(),
+                    1
+                );
+                walk.finish().unwrap();
+                let mut other = make_identity(work);
+                other[0] = sc::capture_allocation::native_owned::NativeValue::try_from_str(
+                    "other",
+                    Some(work),
+                )?;
+                crate::cache::mixed::store_root(
+                    make_rows(work),
+                    other,
+                    walk,
+                    &Default::default(),
+                    work,
+                    &observer,
+                )
+                .unwrap();
+                drop(transaction);
+                let mut restored = crate::audit::mixed::AuditWalk::capture(
+                    &conn,
+                    std::iter::empty(),
+                    work,
+                    &observer,
+                )
+                .unwrap();
+                assert_eq!(
+                    crate::cache::mixed::resume(
+                        &make_rows(work),
+                        &make_identity(work),
+                        &mut restored,
+                        &Default::default(),
+                        work,
+                        &observer
+                    )
+                    .unwrap(),
+                    1
+                );
+                Ok::<(), sc::CodecError>(())
+            })
+            .unwrap();
+        crate::cache::configure(0);
+    }
+
+    #[test]
+    fn mixed_raw_collect_enrich_validate_matches_original() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use serde_json::json;
+        for ohlc in [false, true] {
+            for corrupt in [false, true] {
+                let conn = rusqlite::Connection::open_in_memory().unwrap();
+                conn.execute_batch(crate::SCHEMA).unwrap();
+                conn.execute_batch(crate::tb02a::SCHEMA).unwrap();
+                let mut payload = json!({"event_id":"e","revision":"1","seq":"0","received_at":"1","raw_text":"x","timestamp":"1","volume":"1"});
+                if ohlc {
+                    for key in ["open", "high", "low", "close"] {
+                        payload[key] = json!("2");
+                    }
+                } else {
+                    payload["price"] = json!("2");
+                }
+                let hash = crate::sha256_hex(crate::canonical_json(&payload).as_bytes());
+                let receipt_hash = crate::sha256_hex(format!("n|ep|i|e|{hash}").as_bytes());
+                let receipt = format!("rcpt-{}", &receipt_hash[..16]);
+                conn.execute("INSERT INTO raw_events VALUES(?1,1,'1',?2,?3,0,'n','ep','i','e','1','x','2','1','1','0',NULL)",
+                    rusqlite::params!["n|ep|i|e",if corrupt {"bad"}else{&hash},receipt]).unwrap();
+                if ohlc {
+                    conn.execute(
+                        "INSERT INTO meta VALUES('profile_id',?1)",
+                        [crate::tb02a::PROFILE],
+                    )
+                    .unwrap();
+                    conn.execute(
+                        "INSERT INTO raw_ohlc VALUES('n|ep|i|e',1,?1,'2','2','2','2')",
+                        [crate::tb02a::RAW_SCHEMA],
+                    )
+                    .unwrap();
+                }
+                let original = crate::read_raw_events(&conn);
+                let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let job = Job::new_started_mixed(
+                            job_limits(),
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let result = crate::audit::mixed::read_raw(&conn, work, &observer);
+                        match (&original, &result) {
+                            (Ok(expected), Ok(actual)) => {
+                                assert_eq!(expected.len(), actual.len());
+                                for (expected, actual) in expected.iter().zip(actual.iter()) {
+                                    assert_eq!(expected, actual.as_ref());
+                                }
+                            }
+                            (
+                                Err(expected),
+                                Err(crate::v3::business_json::MixedJsonError::Business(actual)),
+                            ) => assert_eq!(expected, actual),
+                            _ => panic!(
+                                "ohlc={ohlc}, corrupt={corrupt}: old={original:?}, mixed_ok={}",
+                                result.is_ok()
+                            ),
+                        }
+                        assert_eq!(result.is_ok(), !corrupt);
+                        assert_eq!(
+                            observer.job.borrow().snapshot().records,
+                            if ohlc { 3 } else { 2 }
+                        );
+                        Ok::<(), sc::CodecError>(())
+                    })
+                    .unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_real_root_capture_matches_original_and_meta_errors() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            crate::cache::configure(1 << 22);
+            for mutation in [
+                "",
+                "UPDATE s_evidence_roots SET expanded_length=expanded_length+1",
+                "UPDATE s_evidence_roots SET content_sha256='bad'",
+            ] {
+                conn.execute_batch("SAVEPOINT root_case").unwrap();
+                if !mutation.is_empty() {
+                    conn.execute_batch(mutation).unwrap();
+                }
+                let expected = crate::capture_reachable_batches(conn)
+                    .map(|r| (r.batches.len(), r.roots.len(), r.originals.len()));
+                let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let mut caps = job_limits();
+                        caps.max_total_nodes = 100000;
+                        caps.max_total_records = 100000;
+                        caps.max_total_node_bytes = 10000000;
+                        let job = Job::new_started_mixed(
+                            caps,
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                        let actual = crate::v2::mixed_root::test_capture(conn, work, &observer)
+                            .map_err(|e| match e {
+                                MixedJsonError::Business(s) => s,
+                                MixedJsonError::Resource(e) => panic!("unexpected resource {e:?}"),
+                            });
+                        assert_eq!(actual, expected, "mutation={mutation}");
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+                conn.execute_batch("ROLLBACK TO root_case; RELEASE root_case")
+                    .unwrap();
+            }
+            for mutation in [
+                "",
+                "DELETE FROM meta WHERE key='session_id'",
+                "UPDATE meta SET value='' WHERE key='session_id'",
+                "UPDATE meta SET value='bad' WHERE key='writer_epoch'",
+                "UPDATE meta SET value='-1' WHERE key='generation'",
+                "UPDATE meta SET value='cut-99' WHERE key='structure_cut'",
+                "UPDATE meta SET value='' WHERE key='catalog_revision'",
+                "UPDATE meta SET value='' WHERE key='index_frontier'",
+                "UPDATE meta SET value='-2' WHERE key='last_advance_frontier'",
+                "UPDATE meta SET value='999' WHERE key='last_advance_frontier'",
+                "DELETE FROM meta WHERE key='scope'",
+                "UPDATE meta SET value='[]' WHERE key='scope'",
+            ] {
+                conn.execute_batch("SAVEPOINT meta_case").unwrap();
+                if !mutation.is_empty() {
+                    conn.execute_batch(mutation).unwrap();
+                }
+                let expected = crate::verify_required_meta(conn);
+                let owner = AdmissionRamLedger::new(limits(1 << 22)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let actual =
+                            crate::v2::mixed_root::required_meta(conn, work).map_err(|e| match e {
+                                MixedJsonError::Business(s) => s,
+                                MixedJsonError::Resource(e) => panic!("unexpected resource {e:?}"),
+                            });
+                        assert_eq!(actual, expected, "mutation={mutation}");
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+                conn.execute_batch("ROLLBACK TO meta_case; RELEASE meta_case")
+                    .unwrap();
+            }
+            crate::cache::configure(0);
+        });
+    }
+
+    #[test]
+    fn mixed_complete_root_matches_original_real_history() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            crate::cache::configure(1 << 22);
+            for mutation in [
+                "",
+                "UPDATE structure_deltas SET seq_range_json='{}' WHERE generation=1",
+                "UPDATE structure_deltas SET delta_json='{}' WHERE generation=1",
+                "UPDATE catalog SET run_status='bad' WHERE catalog_id='CC-006'",
+                "UPDATE meta SET value='wrong' WHERE key='profile_hash'",
+                "UPDATE s_input_messages SET receipt_id='wrong' WHERE accepted_seq=0",
+            ] {
+                conn.execute_batch("SAVEPOINT whole_case").unwrap();
+                if !mutation.is_empty() {
+                    conn.execute_batch(mutation).unwrap();
+                }
+                let expected = crate::verified_root_raw_events(conn);
+                let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let mut caps = job_limits();
+                        caps.max_total_nodes = 100000;
+                        caps.max_total_records = 100000;
+                        caps.max_total_node_bytes = 10000000;
+                        let job = Job::new_started_mixed(
+                            caps,
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                        for pass in 0..2 {
+                            let actual =
+                                crate::v3::admission_private::test_progressive_mixed_sql_policy(
+                                    conn,
+                                    &observer,
+                                    |observer| crate::v2::mixed_root::startup(conn, work, observer),
+                                );
+                            match (&expected, actual) {
+                                (Ok(want), Ok(got)) => {
+                                    assert_eq!(want.len(), got.len());
+                                    for (a, b) in want.iter().zip(got.iter()) {
+                                        assert_eq!(a, b.as_ref());
+                                    }
+                                }
+                                (Err(want), Err(MixedJsonError::Business(got))) => {
+                                    assert_eq!(want, &got, "mutation={mutation}, pass={pass}")
+                                }
+                                (_, Err(MixedJsonError::Resource(e))) => {
+                                    panic!("unexpected resource {e:?}; mutation={mutation}")
+                                }
+                                _ => panic!("verdict differs, mutation={mutation}, pass={pass}"),
+                            }
+                        }
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+                conn.execute_batch("ROLLBACK TO whole_case; RELEASE whole_case")
+                    .unwrap();
+            }
+            crate::cache::configure(0);
+        });
+    }
+
+    #[test]
+    fn mixed_complete_root_cross_parent_retains_prefix_and_typed_failure() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            crate::cache::configure(1 << 22);
+            let expected = crate::verified_root_raw_events(conn).unwrap();
+            for pass in 0..2 {
+                let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let mut caps = job_limits();
+                        caps.max_total_nodes = 100000;
+                        caps.max_total_records = 100000;
+                        caps.max_total_node_bytes = 10000000;
+                        let job = Job::new_started_mixed(
+                            caps,
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                        let actual =
+                            crate::v3::admission_private::test_progressive_mixed_sql_policy(
+                                conn,
+                                &observer,
+                                |observer| crate::v2::mixed_root::startup(conn, work, observer),
+                            )
+                            .unwrap();
+                        assert_eq!(actual.len(), expected.len());
+                        for (a, b) in actual.iter().zip(expected.iter()) {
+                            assert_eq!(a.as_ref(), b);
+                        }
+                        if pass == 1 {
+                            assert_eq!(crate::cache::last_resumed(), 2);
+                        }
+                        transaction.commit();
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+            }
+            let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let mut caps = job_limits();
+                    caps.max_total_nodes = 100000;
+                    caps.max_total_records = 1;
+                    caps.max_total_node_bytes = 10000000;
+                    let job = Job::new_started_mixed(
+                        caps,
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                        std::time::Instant::now(),
+                        work,
+                    )?;
+                    let observer = Observer {
+                        job: RefCell::new(job),
+                        work,
+                    };
+                    let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                    let result = crate::v3::admission_private::test_progressive_mixed_sql_policy(
+                        conn,
+                        &observer,
+                        |observer| crate::v2::mixed_root::startup(conn, work, observer),
+                    );
+                    assert!(
+                        matches!(result, Err(MixedJsonError::Resource(_))),
+                        "record cap retains typed resource cause"
+                    );
+                    Ok::<_, sc::CodecError>(())
+                })
+                .unwrap();
+            crate::cache::configure(0);
+        });
+    }
+    #[test]
+    fn mixed_control_history_matches_real_committed_messages() {
+        use crate::v2::mixed_control::{self, history};
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            for case in 0..3 {
+                conn.execute_batch("SAVEPOINT negative").unwrap();
+                match case {
+                    1 => conn
+                        .execute_batch(
+                            "UPDATE s_input_messages SET receipt_id='wrong' WHERE accepted_seq=0",
+                        )
+                        .unwrap(),
+                    2 => conn
+                        .execute_batch("UPDATE s_protocol_meta SET logical_phase_frontier='9999'")
+                        .unwrap(),
+                    _ => {}
+                }
+                let expected = crate::v2::validate_control_history(
+                    conn,
+                    "s-session/2",
+                    crate::v2::verify_epoch_history(conn, true).unwrap(),
+                )
+                .map(|h| {
+                    (
+                        h.session_generation().to_string(),
+                        h.clock_plan_hash().to_string(),
+                        h.pending_count(),
+                    )
+                });
+                let owner = AdmissionRamLedger::new(limits(1 << 22)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let facts = mixed_control::epoch_history(conn, true, work).unwrap();
+                        let actual = history::validate(conn, "s-session/2", facts, work)
+                            .map(|h| {
+                                (
+                                    h.session_generation().to_string(),
+                                    h.clock_plan_hash().to_string(),
+                                    h.pending_count(),
+                                )
+                            })
+                            .map_err(|e| match e {
+                                MixedJsonError::Business(s) => s,
+                                MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                            });
+                        assert_eq!(expected, actual, "case={case}");
+                        if case == 0 {
+                            assert_eq!(actual.unwrap().2, 2);
+                        }
+                        Ok::<(), newchan_rust::s_content::CodecError>(())
+                    })
+                    .unwrap();
+                if case == 0 {
+                    let small =
+                        AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+                    let result = small.codec_work().unwrap().run(|work| {
+                        history::validate(conn, "s-session/2", Default::default(), work)
+                    });
+                    assert!(matches!(result,Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(ScratchFailure::Budget))),"resource failures retain typed cause");
+                }
+                conn.execute_batch("ROLLBACK TO negative; RELEASE negative")
+                    .unwrap();
+            }
+        });
+    }
+
+    #[test]
+    fn mixed_control_history_matches_original_first_errors() {
+        use crate::v2::mixed_control::history;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..9 {
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch(crate::SCHEMA).unwrap();
+            conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();
+            let clock = serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
+            let ch = newchan_rust::session_protocol::ClockView::parse((&clock).into())
+                .unwrap()
+                .hash_fixed_with_owner(None)
+                .unwrap();
+            let cat = serde_json::json!({"catalog_revision":"r1","items":[]});
+            let ca =
+                newchan_rust::session_protocol::canonical_hash_view_with_owner((&cat).into(), None)
+                    .unwrap();
+            for (key, v) in [
+                ("profile_id", "fixed"),
+                ("profile_hash", "hash"),
+                ("profile_definition", "{}"),
+                ("input_profile", "fixed"),
+                ("writer_epoch", "1"),
+                ("generation", "0"),
+                ("session_id", "s"),
+                ("catalog_definition", &crate::canonical_json(&cat)),
+                ("catalog_hash", ca.as_str()),
+                ("catalog_revision", "r1"),
+            ] {
+                conn.execute("INSERT INTO meta VALUES(?1,?2)", rusqlite::params![key, v])
+                    .unwrap();
+            }
+            conn.execute(
+                "INSERT INTO s_protocol_meta VALUES(1,'s-session/2','1',?1,?2,1,'-1')",
+                rusqlite::params![ch.as_str(), crate::canonical_json(&clock)],
+            )
+            .unwrap();
+            conn.execute_batch(
+                "INSERT INTO s_delivery_policy VALUES(1,'s','1','generation-window/1',4,1,0)",
+            )
+            .unwrap();
+            match case {
+                1=>conn.execute_batch("DELETE FROM meta WHERE key='profile_id'").unwrap(),
+                2=>conn.execute_batch("UPDATE s_protocol_meta SET protocol_revision='s-session/3'").unwrap(),
+                3=>conn.execute_batch("UPDATE s_delivery_policy SET session_id='wrong'").unwrap(),
+                4=>conn.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO s_delivery_refs VALUES(1)").unwrap(),
+                5=>conn.execute_batch("UPDATE s_protocol_meta SET logical_phase_frontier='0'").unwrap(),
+                6=>conn.execute_batch("UPDATE s_protocol_meta SET next_attempt_ordinal=2").unwrap(),
+                7=>conn.execute_batch("INSERT INTO s_input_messages VALUES('n','e','m','h','{','receipt',0,'AcceptedPending',NULL,'x',0)").unwrap(),
+                _=>{}
+            }
+            let protocol = if case == 8 { "bad" } else { "s-session/2" };
+            let expected = crate::v2::validate_control_history(&conn, protocol, vec![]).map(|h| {
+                (
+                    h.session_generation().to_string(),
+                    h.clock_plan_hash().to_string(),
+                    h.pending_count(),
+                )
+            });
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let actual = history::validate(&conn, protocol, Default::default(), work)
+                        .map(|h| {
+                            (
+                                h.session_generation().to_string(),
+                                h.clock_plan_hash().to_string(),
+                                h.pending_count(),
+                            )
+                        })
+                        .map_err(|e| match e {
+                            MixedJsonError::Business(s) => s,
+                            MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                        });
+                    assert_eq!(expected, actual, "case={case}");
+                    assert_eq!(actual.is_ok(), case == 0);
+                    Ok::<(), newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn mixed_control_catalog_matches_original() {
+        use crate::v2::mixed_control as control;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..7 {
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE catalog(catalog_id TEXT,kind TEXT,title TEXT,domain TEXT,branches_json TEXT)").unwrap();
+            let value = serde_json::json!({"catalog_revision":"r1","items":[{"id":"x","kind":"k","title":"t","domain":"d","branches":[]}]});
+            let raw = if case == 1 {
+                "{".to_string()
+            } else {
+                crate::canonical_json(&value)
+            };
+            let hash = newchan_rust::session_protocol::canonical_hash_view_with_owner(
+                (&value).into(),
+                None,
+            )
+            .unwrap();
+            for (key, v) in [
+                ("catalog_definition", raw.as_str()),
+                (
+                    "catalog_hash",
+                    if case == 2 { "wrong" } else { hash.as_str() },
+                ),
+                ("catalog_revision", if case == 3 { "r2" } else { "r1" }),
+            ] {
+                conn.execute("INSERT INTO meta VALUES(?1,?2)", rusqlite::params![key, v])
+                    .unwrap();
+            }
+            if case != 4 {
+                conn.execute(
+                    "INSERT INTO catalog VALUES('x','k',?1,'d',?2)",
+                    rusqlite::params![
+                        if case == 5 { "wrong" } else { "t" },
+                        if case == 6 { "{" } else { "[]" }
+                    ],
+                )
+                .unwrap();
+            }
+            let expected = control::original_catalog(&conn);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let actual = control::catalog(&conn, work).map_err(|e| match e {
+                        MixedJsonError::Business(s) => s,
+                        MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                    });
+                    assert_eq!(expected, actual, "case={case}");
+                    Ok::<(), newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn mixed_control_clock_matches_original_strict_parser() {
+        use crate::v2::mixed_control as control;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..4 {
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER,clock_plan_json TEXT,clock_plan_hash TEXT)").unwrap();
+            let value = serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
+            let hash = newchan_rust::session_protocol::ClockView::parse((&value).into())
+                .unwrap()
+                .hash_fixed_with_owner(None)
+                .unwrap();
+            let raw = match case {
+                1 => "{".to_string(),
+                2 => r#"{"events":{},"events":{}}"#.to_string(),
+                _ => crate::canonical_json(&value),
+            };
+            conn.execute(
+                "INSERT INTO s_protocol_meta VALUES(1,?1,?2)",
+                rusqlite::params![raw, if case == 3 { "wrong" } else { hash.as_str() }],
+            )
+            .unwrap();
+            let expected = control::original_clock(&conn);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let actual = control::clock(&conn, work)
+                        .map(|c| c.hash.as_str().to_string())
+                        .map_err(|e| match e {
+                            MixedJsonError::Business(s) => s,
+                            MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                        });
+                    assert_eq!(expected, actual, "case={case}");
+                    Ok::<(), newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn mixed_control_schema_epoch_matches_original() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v2::mixed_control as control;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..12 {
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch(crate::SCHEMA).unwrap();
+            conn.execute_batch("INSERT INTO meta VALUES('generation','0'); INSERT INTO meta VALUES('writer_epoch','1');").unwrap();
+            match case {
+                1=>conn.execute_batch("CREATE TABLE extra(x TEXT)").unwrap(),
+                2=>conn.execute_batch("INSERT INTO meta VALUES('corrupt',x'ff')").unwrap(),
+                3=>conn.execute_batch("DELETE FROM meta WHERE key='generation'").unwrap(),
+                4=>conn.execute_batch("INSERT INTO writer_epoch_history VALUES(2,'1','2','0','idle','1')").unwrap(),
+                5=>conn.execute_batch("INSERT INTO writer_epoch_history VALUES(1,'1','2','0','idle','1'); UPDATE meta SET value='2' WHERE key='writer_epoch'").unwrap(),
+                6=>{conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();conn.execute_batch("INSERT INTO meta VALUES('protocol_revision','s-session/2')").unwrap();},
+                7=>crate::delta_storage::declare_new(&conn).unwrap(),
+                8=>conn.execute_batch("INSERT INTO meta VALUES('protocol_revision','bad')").unwrap(),
+                9=>conn.execute_batch(crate::delta_storage::DDL).unwrap(),
+                10=>{crate::delta_storage::declare_new(&conn).unwrap();conn.execute_batch("UPDATE s_storage_format SET storage_format='wrong'").unwrap();},
+                11=>{crate::delta_storage::declare_new(&conn).unwrap();conn.execute_batch("UPDATE s_storage_format SET storage_format=x'ff'").unwrap();},
+                _=>{}
+            }
+            let enabled = case == 6;
+            let schema = control::original_schema(&conn, enabled);
+            let active = control::original_active(&conn);
+            let epoch = crate::v2::verify_epoch_history(&conn, enabled);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let job = Job::new_started_mixed(
+                        job_limits(),
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                        std::time::Instant::now(),
+                        work,
+                    )?;
+                    let observer = Observer {
+                        job: RefCell::new(job),
+                        work,
+                    };
+                    let actual_schema =
+                        control::verify_schema(&conn, enabled, work, &observer).map(|_| ());
+                    let actual_active = control::active(&conn, work);
+                    let actual_epoch = control::epoch_history(&conn, enabled, work).map(|facts| {
+                        facts
+                            .iter()
+                            .map(|(s, n)| (s.as_str().to_string(), *n))
+                            .collect::<Vec<_>>()
+                    });
+                    let business = |e: MixedJsonError| match e {
+                        MixedJsonError::Business(s) => s,
+                        MixedJsonError::Resource(e) => panic!("unexpected resource: {e:?}"),
+                    };
+                    assert_eq!(
+                        schema,
+                        actual_schema.map_err(business),
+                        "schema case={case}"
+                    );
+                    assert_eq!(
+                        active,
+                        actual_active.map_err(business),
+                        "active case={case}"
+                    );
+                    assert_eq!(epoch, actual_epoch.map_err(business), "epoch case={case}");
+                    assert_eq!(observer.job.borrow().snapshot().records, 0);
+                    Ok::<(), sc::CodecError>(())
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn mixed_profile_binding_preserves_sources_and_first_errors() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use serde_json::json;
+        for case in 0..6 {
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch("CREATE TABLE batches(batch_id TEXT PRIMARY KEY,canonical_bytes BLOB NOT NULL,byte_len INTEGER NOT NULL); CREATE TABLE structure_deltas(generation INTEGER,index_frontier TEXT); CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE raw_events(seq INTEGER)").unwrap();
+            let declared: serde_json::Value = serde_json::from_str(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../s_session/profiles/testonly_tick_1_1_ohlc.json"
+            )))
+            .unwrap();
+            let profile = if case == 4 {
+                declared
+            } else {
+                json!({"profile_id":"fixed","x":1})
+            };
+            let id = profile["profile_id"].as_str().unwrap();
+            let hash = newchan_rust::session_protocol::canonical_hash_view_with_owner(
+                (&profile).into(),
+                None,
+            )
+            .unwrap();
+            if case > 0 {
+                for (key, value) in [
+                    ("profile_id", id),
+                    ("input_profile", id),
+                    ("profile_hash", hash.as_str()),
+                ] {
+                    conn.execute(
+                        "INSERT INTO meta VALUES(?1,?2)",
+                        rusqlite::params![key, value],
+                    )
+                    .unwrap();
+                }
+                if case == 1 || case == 2 {
+                    conn.execute(
+                        "INSERT INTO meta VALUES('profile_definition',?1)",
+                        [if case == 2 {
+                            "{".to_string()
+                        } else {
+                            crate::canonical_json(&profile)
+                        }],
+                    )
+                    .unwrap();
+                }
+                if case == 3 || case == 5 {
+                    for (g,batch) in [json!({"profile_id":"","profile_hash":""}),json!({"profile_id":if case==5 {"wrong"}else{id},"profile_hash":hash.as_str()}),json!({"profile_id":id,"profile_hash":hash.as_str()})].into_iter().enumerate() {
+                        let bytes=crate::canonical_json(&batch).into_bytes();
+                        let batch_id=format!("batch-{}",crate::sha256_hex(&bytes));
+                        conn.execute("INSERT OR IGNORE INTO batches VALUES(?1,?2,?3)",rusqlite::params![batch_id,bytes,bytes.len() as i64]).unwrap();
+                        conn.execute("INSERT INTO structure_deltas VALUES(?1,?2)",rusqlite::params![g as i64+1,batch_id]).unwrap();
+                    }
+                }
+            }
+            crate::cache::configure(1 << 20);
+            let expected = crate::verify_profile_binding(&conn);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let job = Job::new_started_mixed(
+                        job_limits(),
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                        std::time::Instant::now(),
+                        work,
+                    )?;
+                    let observer = Observer {
+                        job: RefCell::new(job),
+                        work,
+                    };
+                    let transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                    let actual =
+                        crate::audit::mixed_profile::verify_profile(&conn, work, &observer);
+                    match (&expected, &actual) {
+                        (Ok((ei, eh)), Ok((ai, ah))) => {
+                            assert_eq!(ei, ai.as_ref());
+                            assert_eq!(eh, ah.as_ref());
+                        }
+                        (Err(e), Err(crate::v3::business_json::MixedJsonError::Business(a))) => {
+                            assert_eq!(e, a)
+                        }
+                        _ => panic!("case={case}: old={expected:?}, mixed={actual:?}"),
+                    }
+                    assert_eq!(actual.is_ok(), case != 2 && case != 5);
+                    assert_eq!(
+                        observer.job.borrow().snapshot().records,
+                        0,
+                        "profile/control headers are not semantic records"
+                    );
+                    drop(transaction);
+                    Ok::<(), sc::CodecError>(())
+                })
+                .unwrap();
+            crate::cache::configure(0);
+        }
+    }
+
+    #[test]
+    fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::evidence_store::DDL).unwrap();
+        use sha2::Digest;
+        let payload = br#"{"x":1}"#;
+        let id = sc::legacy_evidence::node_id(0, payload);
+        conn.execute(
+            "INSERT INTO s_evidence_nodes VALUES(?1,0,?2,?3)",
+            rusqlite::params![&id[..], &payload[..], payload.len() as i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO s_evidence_roots VALUES('root',?1,?2,?3,?4)",
+            rusqlite::params![
+                &id[..],
+                &b""[..],
+                payload.len() as i64,
+                format!("{:x}", sha2::Sha256::digest(payload))
+            ],
+        )
+        .unwrap();
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
+                Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+            let observer = Observer {job:RefCell::new(job),work};
+            {
+                use crate::v3::business_json::scoped_legacy::{normalize_records,compare_normalized};
+                let original=serde_json::json!({"detail":{"n":2}});
+                let before=observer.job.borrow().snapshot().records;
+                let actual=normalize_records([&original],"test","objects",work,&observer).unwrap();
+                let expected=normalize_records([&original],"test","objects",work,&observer).unwrap();
+                compare_normalized(&actual,&expected,"test","objects",&observer).unwrap();
+                assert_eq!(observer.job.borrow().snapshot().records-before,4);
+                let before=observer.job.borrow().snapshot().records;
+                assert!(compare_normalized(&actual,&[],"test","objects",&observer).is_err());
+                assert_eq!(observer.job.borrow().snapshot().records,before,"length mismatch reads no members");
+            }
+            {
+                conn.execute_batch("CREATE TABLE relations(subject TEXT,relation_type TEXT,object TEXT,published_generation INTEGER); INSERT INTO relations VALUES('s','r','o',1)").unwrap();
+                let before=observer.job.borrow().snapshot().records;
+                let mut family=crate::audit::mixed::Family::capture(&conn,"relations",work,&observer).unwrap();
+                assert_eq!(family.len(),1);
+                let record=serde_json::json!({"subject":"s","relation_type":"r","object":"o"});
+                let delta=serde_json::json!({"relations":[record.clone()]});
+                family.verify(&delta,1,crate::delta_storage::Mode::ChangesOnly,[&record],work,&observer).unwrap();
+                family.finish().unwrap();
+                assert_eq!(observer.job.borrow().snapshot().records-before,5);
+                let bad=serde_json::json!({"relations":[record.clone(),record.clone()]});
+                let error=family.verify(&bad,1,crate::delta_storage::Mode::ChangesOnly,[&record],work,&observer).unwrap_err();
+                assert!(matches!(error,crate::v3::business_json::MixedJsonError::Business(ref s) if s.contains("Delta 重复身份")));
+            }
+            {
+                let facts=rusqlite::Connection::open_in_memory().unwrap();
+                facts.execute_batch("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); INSERT INTO meta VALUES('profile_id','ohlc_integer_tb02a_v1');").unwrap();
+                facts.execute_batch(crate::tb02a::SCHEMA).unwrap();
+                facts.execute_batch("INSERT INTO structure_facts VALUES('o',1,'CC-004.inclusion_step','b','f','bad-json','[]','[]',2,'cut',2,NULL,NULL,NULL)").unwrap();
+                let before=observer.job.borrow().snapshot().records;
+                let (active,dead)=crate::audit::mixed::read_facts(&facts,Some(1),work,&observer).unwrap();
+                assert!(active.is_empty() && dead.is_empty());
+                assert_eq!(observer.job.borrow().snapshot().records-before,1);
+                let (active,dead)=crate::audit::mixed::read_facts(&facts,None,work,&observer).unwrap();
+                assert_eq!(active.len(),1);
+                assert!(dead.is_empty());
+                assert_eq!(active[0]["payload_json"],"bad-json");
+                facts.execute("UPDATE structure_facts SET withdrawn_generation=2",[]).unwrap();
+                assert!(matches!(crate::audit::mixed::read_facts(&facts,Some(1),work,&observer),
+                    Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("生命周期非法")));
+            }
+            {
+                let objects=rusqlite::Connection::open_in_memory().unwrap();
+                objects.execute_batch(crate::SCHEMA).unwrap();
+                objects.execute_batch("INSERT INTO objects VALUES('o',1,'k','b','branch','up','down',0,1,2,'[]','[]','[]',1,'cut',1,NULL,NULL,NULL)").unwrap();
+                let ordinary=crate::read_objects_view(&objects,None).unwrap();
+                let (active,dead)=crate::audit::mixed::read_objects(&objects,None,work,&observer).unwrap();
+                assert_eq!(active.len(),ordinary.0.len());
+                assert_eq!(*active[0],ordinary.0[0]);
+                assert!(dead.is_empty());
+                let before=observer.job.borrow().snapshot().records;
+                let walk=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
+                assert_eq!(observer.job.borrow().snapshot().records-before,2);
+                let before=observer.job.borrow().snapshot().records;
+                assert_eq!(walk.source_bytes(work,&observer).unwrap(),crate::canonical_json(&ordinary.0[0]).len());
+                assert_eq!(observer.job.borrow().snapshot().records-before,1);
+                assert!(matches!(walk.finish(),Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("生灭代不可达")));
+                objects.execute("UPDATE objects SET withdrawn_generation=2,withdrawal_reason='later'",[]).unwrap();
+                let mut next=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
+                let before=observer.job.borrow().snapshot().records;
+                assert!(next.resume_from(&walk,1,work,&observer).unwrap());
+                assert_eq!(observer.job.borrow().snapshot().records-before,2);
+                objects.execute("UPDATE objects SET kind='changed'",[]).unwrap();
+                let mut changed=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
+                assert!(!changed.resume_from(&walk,1,work,&observer).unwrap());
+
+            }
+            let first = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
+            assert_eq!(first.payload(),payload);
+            assert_eq!(first.checked().id(),&id);
+            assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            let repeated = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
+            assert_eq!(repeated.payload(),payload);
+            assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            crate::cache::configure(1 << 20);
+            let capture = crate::cache::begin_capture_admitted(1 << 20,Some(work)).unwrap();
+            let (cert,owned,matched) = first.certificate(work).unwrap();
+            assert!(!matched);
+            assert!(owned);
+            crate::cache::node_put_admitted(7,cert.clone(),true,Some(work)).unwrap();
+            crate::cache::cert_commit_admitted(7,&std::collections::BTreeSet::from([id]),Some(work)).unwrap();
+            drop(capture);
+            let next_owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            next_owner.codec_work().unwrap().run(|next_work| {
+                let next_job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
+                    Box::new(std::time::Instant::now),std::time::Instant::now(),next_work)?;
+                let next_observer = Observer {job:RefCell::new(next_job),work:next_work};
+                let fresh = crate::evidence_store::read_node_mixed(&conn,&id,next_work,&next_observer).unwrap();
+                let (copy,owned,matched) = fresh.certificate(next_work).unwrap();
+                assert!(matched);
+                assert!(owned);
+                assert!(!crate::v3::native_shared::NativeArc::ptr_eq(&cert,&copy));
+                assert!(copy.belongs_to_parent(next_work));
+                assert_eq!(copy.payload.as_ref(),payload);
+                assert_eq!(next_observer.job.borrow().snapshot().nodes,1);
+                {
+                    let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,next_work,&next_observer).unwrap();
+                    let root=reader.read_root_typed("root",true).unwrap();
+                    assert_eq!(&*root.bytes,payload);
+                    assert_eq!(root.value.as_ref().unwrap().as_ref().as_ref(),&serde_json::json!({"x":1}));
+                    assert_eq!(next_observer.job.borrow().snapshot().nodes,1);
+                }
+                Ok::<_,sc::CodecError>(())
+            }).unwrap();
+            {
+                let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,work,&observer).unwrap();
+                let first=reader.load_mixed(&id).unwrap();
+                let again=reader.load_mixed(&id).unwrap();
+                assert!(crate::v3::native_shared::NativeArc::ptr_eq(&first,&again));
+                assert_eq!(observer.job.borrow().snapshot().nodes,1);
+                let expanded=reader.mixed_expansion_for_test("root").unwrap();
+                assert_eq!(&*expanded,payload);
+                let proof=reader.prove_root_typed("root").unwrap().expect("fresh originals retain proof");
+                assert!(crate::cache::handle_get_certified("root",&proof.root_cert,&proof.closure,&mut None).is_some(),
+                    "copied proof keeps the original certificate identity");
+                let root=reader.read_root_typed("root",true).unwrap();
+                assert!(root.reused,"cross-Job pure content copy must not rerun expansion");
+                assert_eq!(&*root.bytes,payload);
+                assert_eq!(root.value.as_ref().unwrap().as_ref().as_ref(),&serde_json::json!({"x":1}));
+                assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            }
+            conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();
+            assert!(matches!(crate::evidence_store::read_node_mixed(&conn,&id,work,&observer),
+                Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("同 ID 异内容")));
+            assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            Ok::<_,sc::CodecError>(())
+        }).unwrap();
+    }
+    #[test]
+    fn mixed_private_real_parent_ram_refusal_releases_and_preserves_cache() {
+        use crate::v3::admission_anchor::{test_prepare_mixed, CommandAccounting};
+        use crate::v3::admission_private::{
+            test_with_mixed_entry, validate_mixed_prefix, RejectionPrefix,
+        };
+        use crate::v3::admission_provider::MeasuredDomain;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            let original: String = conn
+                .query_row("PRAGMA database_list", [], |r| r.get(2))
+                .unwrap();
+            let path = std::path::Path::new(&original).with_file_name("mixed-ram-recovery.sqlite");
+            conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()])
+                .unwrap();
+            crate::cache::configure(1 << 20);
+            for pass in 0..3 {
+                let command = CommandAccounting::begin();
+                let consumed = test_prepare_mixed(&path, 1 << 26, 1 << 26)
+                    .consume()
+                    .unwrap();
+                let source = MeasuredDomain::measure(&consumed).unwrap();
+                let mut started = consumed.into_job(source.existing).unwrap();
+                let ledger = started.ram.as_ref().unwrap().parent.ledger.clone();
+                let result = started.with_accounting(|account| {
+                    let hold = if pass == 1 {
+                        let remaining = {
+                            let l = ledger.lock().unwrap();
+                            l.max_operation - l.snapshot.operation_live
+                        };
+                        Some(
+                            account
+                                .mixed_scope()
+                                .unwrap()
+                                .reserve_native(remaining)
+                                .unwrap(),
+                        )
+                    } else {
+                        None
+                    };
+                    let result = test_with_mixed_entry(|| {
+                        validate_mixed_prefix(&source, account, &RejectionPrefix::None)
+                    });
+                    drop(hold);
+                    result
+                });
+                if pass == 1 {
+                    assert!(result.is_err());
+                    assert!(ledger.lock().unwrap().snapshot.failed.is_some());
+                    drop(result);
+                    drop(started);
+                    let after = ledger.lock().unwrap().snapshot;
+                    assert_eq!(after.parts[1], 0);
+                    assert_eq!(after.parts[2], 0);
+                    assert!(!after.active);
+                    let mut output = Vec::new();
+                    let receipt = command.report("", &mut output);
+                    let final_ram = receipt.ram_final.unwrap();
+                    assert!(!final_ram.active);
+                    assert_eq!(final_ram.parts[1], 0);
+                    assert_eq!(final_ram.parts[2], 0);
+                    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+                    let written = &value["admission_accounting"]["ram_before_stderr"];
+                    assert_eq!(written["operation_closed"], true);
+                    assert_eq!(written["final_live"], after.job_live);
+                    assert_eq!(written["retained_live"], 0);
+                    assert_eq!(written["fixed_metadata_bytes"], after.fixed_metadata);
+                    assert_eq!(
+                        written["parts"],
+                        serde_json::json!({
+                            "metadata_bytes": after.parts[0],
+                            "layout_bytes": after.parts[1],
+                            "native_bytes": after.parts[2]
+                        })
+                    );
+                    assert!(written["retention_error"].is_null());
+                } else {
+                    assert!(result.is_ok());
+                    if pass == 2 {
+                        assert_eq!(crate::cache::last_resumed(), 2);
+                    }
+                    let _finished = started.seal().unwrap();
+                }
+                source.verify_before_open().unwrap();
+                drop(command);
+            }
+            crate::cache::configure(0);
+        });
+    }
+    #[test]
+    fn mixed_terminal_written_ram_matches_real_cache_permits_and_eviction() {
+        use crate::v3::admission_anchor::{test_prepare_mixed, CommandAccounting};
+        use crate::v3::admission_private::{
+            test_with_mixed_entry, validate_mixed_prefix, RejectionPrefix,
+        };
+        use crate::v3::admission_provider::MeasuredDomain;
+        use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            let original: String = conn
+                .query_row("PRAGMA database_list", [], |r| r.get(2))
+                .unwrap();
+            for mode in 0..3 {
+                crate::cache::configure(0);
+                if mode != 0 {
+                    crate::cache::configure(1 << 20);
+                }
+                let path = std::path::Path::new(&original)
+                    .with_file_name(format!("mixed-terminal-retention-{mode}.sqlite"));
+                conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()])
+                    .unwrap();
+                let command = CommandAccounting::begin();
+                let consumed = test_prepare_mixed(&path, 1 << 26, 1 << 26)
+                    .consume()
+                    .unwrap();
+                let source = MeasuredDomain::measure(&consumed).unwrap();
+                let mut started = consumed.into_job(source.existing).unwrap();
+                let ledger = started.ram.as_ref().unwrap().parent.ledger.clone();
+                let result = started.with_accounting(|account| {
+                    test_with_mixed_entry(|| {
+                        validate_mixed_prefix(&source, account, &RejectionPrefix::None)
+                    })
+                });
+                let proof = match result {
+                    Ok(proof) => proof,
+                    Err(WorkError::Operation(error)) => panic!("{} {}", error.code, error.detail()),
+                    Err(WorkError::Resource(error)) => panic!("{error:?}"),
+                };
+                started.set_mixed_prefix(proof);
+                let finished = started.seal().unwrap();
+                drop(finished);
+                if mode == 2 {
+                    crate::cache::configure(0);
+                }
+                let before = ledger.lock().unwrap().snapshot;
+                assert!(!before.active);
+                assert_eq!(before.job_live, before.parts.into_iter().sum::<usize>());
+                let mut output = Vec::new();
+                let receipt = command.report("terminal RAM observation", &mut output);
+                assert!(receipt.accounting_error.is_none());
+                let after_job = ledger.lock().unwrap().snapshot;
+                crate::cache::configure(0);
+                let after_cache = ledger.lock().unwrap().snapshot;
+                assert_eq!(after_cache.job_live, before.fixed_metadata);
+                let retained = after_job
+                    .job_live
+                    .checked_sub(after_cache.job_live)
+                    .unwrap();
+                let job_native = before.job_live.checked_sub(after_job.job_live).unwrap();
+                assert_eq!(retained > 0, mode == 1);
+                let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+                assert_eq!(
+                    value["admission_accounting"]["ram_before_stderr"],
+                    serde_json::json!({
+                        "final_live": before.job_live,
+                        "retained_live": retained,
+                        "fixed_metadata_bytes": before.fixed_metadata,
+                        "terminal_job_native_bytes": job_native,
+                        "retention_error": null,
+                        "parts": {
+                            "metadata_bytes": before.parts[0],
+                            "layout_bytes": before.parts[1],
+                            "native_bytes": before.parts[2]
+                        },
+                        "job_peak": before.job_peak,
+                        "operation_live": before.operation_live,
+                        "operation_peak": before.operation_peak,
+                        "operation_closed": true,
+                        "failed": false
+                    })
+                );
+                assert_eq!(receipt.ram_before_stderr.unwrap(), before);
+                assert_eq!(receipt.ram_final.unwrap(), after_job);
+                source.verify_before_open().unwrap();
+            }
+        });
+    }
+
+    #[test]
+    fn mixed_prepared_two_real_domains_share_caps_and_refusal_atomicity() {
+        use crate::v3::admission_anchor::test_prepare_mixed_caps;
+        use crate::v3::admission_provider::MeasuredDomain;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{CheckedNodeUsage, NodeAcceptance},
+        };
+        for mode in ["nodes", "bytes", "layout"] {
+            let dir = std::env::temp_dir().join(format!(
+                "s1527-real-two-domains-{}-{}-{}",
+                std::process::id(),
+                mode,
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir(&dir).unwrap();
+            let db = dir.join("db");
+            std::fs::write(&db, b"test-only measured source").unwrap();
+            let bytes = b"real content";
+            let content = CheckedNodeUsage::checked(
+                &sc::frame(sc::tag::BYTES_CHUNK, bytes),
+                sc::tag::BYTES_CHUNK,
+                bytes,
+            )
+            .unwrap();
+            let old = b"real legacy";
+            let legacy = sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                &sc::legacy_evidence::node_id(0, old),
+                0,
+                old,
+                old.len() as i64,
+            )
+            .unwrap();
+            let total = (sc::DOMAIN_SEPARATOR.len() + 9 + bytes.len() + 1 + old.len()) as u64;
+            let fields = match mode {
+                "nodes" => vec![("max_total_nodes", 2)],
+                "bytes" => vec![("max_total_node_bytes", total)],
+                _ => vec![],
+            };
+            let consumed = test_prepare_mixed_caps(&db, 1 << 20, 1 << 20, &fields)
+                .consume()
+                .unwrap();
+            let source = MeasuredDomain::measure(&consumed).unwrap();
+            let mut started = consumed.into_job(source.existing).unwrap();
+            let ledger = started.ram.as_ref().unwrap().parent.ledger.clone();
+            let result = started.with_accounting(|account| {
+                account.charge_wire_bytes(17)?;
+                assert_eq!(
+                    account.accept_checked_usage(&content)?,
+                    NodeAcceptance::FirstAccept
+                );
+                assert_eq!(
+                    account.accept_legacy_evidence(&legacy)?,
+                    NodeAcceptance::FirstAccept
+                );
+                let before = account.snapshot();
+                assert_eq!((before.nodes, before.node_bytes), (2, total));
+                assert_eq!(
+                    account.accept_checked_usage(&content)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                assert_eq!(
+                    account.accept_legacy_evidence(&legacy)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                let hold = if mode == "layout" {
+                    let remaining = {
+                        let l = ledger.lock().unwrap();
+                        l.max_operation - l.snapshot.operation_live
+                    };
+                    Some(account.mixed_scope().unwrap().reserve_native(remaining)?)
+                } else {
+                    None
+                };
+                let ram_before = ledger.lock().unwrap().snapshot;
+                let next = b"next valid content";
+                let next = CheckedNodeUsage::checked(
+                    &sc::frame(sc::tag::BYTES_CHUNK, next),
+                    sc::tag::BYTES_CHUNK,
+                    next,
+                )
+                .unwrap();
+                let rejected = account.accept_checked_usage(&next);
+                assert!(rejected.is_err());
+                let after = account.snapshot();
+                assert_eq!(
+                    (after.nodes, after.node_bytes, after.wire_bytes),
+                    (before.nodes, before.node_bytes, before.wire_bytes)
+                );
+                let ram_after = ledger.lock().unwrap().snapshot;
+                assert_eq!(
+                    (ram_after.job_live, ram_after.operation_live),
+                    (ram_before.job_live, ram_before.operation_live)
+                );
+                drop(hold);
+                if mode == "layout" {
+                    return rejected.map(|_| ());
+                }
+                Ok::<_, sc::CodecError>(())
+            });
+            assert_eq!(result.is_err(), mode == "layout");
+            drop(started);
+            drop(source);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}

@@ -127,8 +127,10 @@ def scanBottomFractal : List FeatureElem → Option FractalScanResult
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- 布尔版 HasGap：两区间无重合 ⟺ a.high < b.low ∨ b.high < a.low。 -/
-def hasGapB (a b : FeatureElem) : Bool :=
-  a.high < b.low || b.high < a.low
+def hasGapB (t : Tangency) (a b : FeatureElem) : Bool :=
+  match t with
+  | .closed => a.high < b.low || b.high < a.low
+  | .open => a.high ≤ b.low || b.high ≤ a.low
 
 /-- 布尔版 FractalInSeq（结构递归）：有限列表扫描。 -/
 def fractalInSeqB (wantTop : Bool) : List FeatureElem → Bool
@@ -139,12 +141,12 @@ def fractalInSeqB (wantTop : Bool) : List FeatureElem → Bool
   | _ => false
 
 /-- 布尔版 SegmentEndUp（两情况）。 -/
-def segmentEndUpB (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Bool :=
-  if hasGapB e1 e2 then fractalInSeqB false revSeq else true
+def segmentEndUpB (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Bool :=
+  if hasGapB t e1 e2 then fractalInSeqB false revSeq else true
 
 /-- 布尔版 SegmentEndDown（对偶）。 -/
-def segmentEndDownB (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Bool :=
-  if hasGapB e1 e2 then fractalInSeqB true revSeq else true
+def segmentEndDownB (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Bool :=
+  if hasGapB t e1 e2 then fractalInSeqB true revSeq else true
 
 /-- 布尔版 TopAboveBottom（顶高于底）。 -/
 def topAboveBottomB (dir : Direction) (startPrice endPrice : Tick) : Bool :=
@@ -156,13 +158,13 @@ def topAboveBottomB (dir : Direction) (startPrice endPrice : Tick) : Bool :=
   SegEndComplete 的布尔计算版（分型 ∧ 两情况 ∧ 顶高于底，三支合取）：
   返回 true ⟺ 候选段尾满足完整判据。
 -/
-def segEndCompleteB (d : SegEndData) : Bool :=
+def segEndCompleteB (t : Tangency) (d : SegEndData) : Bool :=
   (match d.dir with
    | Direction.up   => d.e1.high < d.e2.high && d.e3.high < d.e2.high
    | Direction.down => d.e2.low < d.e1.low && d.e2.low < d.e3.low)
   && (match d.dir with
-      | Direction.up   => segmentEndUpB d.e1 d.e2 d.revSeq
-      | Direction.down => segmentEndDownB d.e1 d.e2 d.revSeq)
+      | Direction.up   => segmentEndUpB t d.e1 d.e2 d.revSeq
+      | Direction.down => segmentEndDownB t d.e1 d.e2 d.revSeq)
   && topAboveBottomB d.dir d.startPrice d.endPrice
 
 /-! ═══════════════════════════════════════════════════════════════════════
@@ -196,14 +198,14 @@ def extractSegEndData (segDir : Direction) (startPrice endPrice : Tick)
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  `scanCompleteSegEndAux segDir startP strokes n k`：
+  `scanCompleteSegEndAux t segDir startP strokes n k`：
   从位置 k 起扫描笔列 `strokes`（长度 n），找第一个满足完整判据的消费位置。
   若找到（k' ≥ k），返回 k'；若全部扫完（k > n），返回 n（fallback）。
 
   ★提升为 top-level def（非 let-rec）以便将来归纳证明 scanCompleteSegEnd_satisfies_complete。
   termination_by n + 1 - k（k 从 1 到 n 递增，n 固定）。
 -/
-def scanCompleteSegEndAux (segDir : Direction) (startP : Tick) (strokes : List Stroke)
+def scanCompleteSegEndAux (t : Tangency) (segDir : Direction) (startP : Tick) (strokes : List Stroke)
     (n : Nat) : Nat → Nat
   | k =>
       if k > n then n
@@ -214,53 +216,53 @@ def scanCompleteSegEndAux (segDir : Direction) (startP : Tick) (strokes : List S
           | none => startP
           | some s => s.endPrice
         match extractSegEndData segDir startP endP consumed with
-        | none => scanCompleteSegEndAux segDir startP strokes n (k + 1)
+        | none => scanCompleteSegEndAux t segDir startP strokes n (k + 1)
         | some d =>
-            if segEndCompleteB d then k
-            else scanCompleteSegEndAux segDir startP strokes n (k + 1)
+            if segEndCompleteB t d then k
+            else scanCompleteSegEndAux t segDir startP strokes n (k + 1)
   termination_by k => n + 1 - k
 
 /--
   完整判据驱动的段尾消费位置：对非空笔列返回 ∈ [1, strokes.length] 的切分位置。
   fallback（全部扫完未找到判据确认点）返回 strokes.length（消费全部，保证 k ≥ 1）。
 -/
-def scanCompleteSegEnd (segDir : Direction) (startP : Tick) (strokes : List Stroke) : Nat :=
+def scanCompleteSegEnd (t : Tangency) (segDir : Direction) (startP : Tick) (strokes : List Stroke) : Nat :=
   if strokes.length = 0 then 0
-  else scanCompleteSegEndAux segDir startP strokes strokes.length 1
+  else scanCompleteSegEndAux t segDir startP strokes strokes.length 1
 
 /-- 辅助：aux(n, n+1) = n（k = n+1 > n 直接走 if_pos 分支）。 -/
-private theorem scanCompleteSegEndAux_succ_n (segDir : Direction) (startP : Tick)
+private theorem scanCompleteSegEndAux_succ_n (t : Tangency) (segDir : Direction) (startP : Tick)
     (strokes : List Stroke) (n : Nat) :
-    scanCompleteSegEndAux segDir startP strokes n (n + 1) = n := by
+    scanCompleteSegEndAux t segDir startP strokes n (n + 1) = n := by
   unfold scanCompleteSegEndAux
   simp only [Nat.lt_succ_self, if_true]
 
 /-- 辅助：aux(n, n) = n（k = n 非 > n，展开后递归 k+1 = n+1 返回 n）。 -/
-private theorem scanCompleteSegEndAux_at_n (segDir : Direction) (startP : Tick)
+private theorem scanCompleteSegEndAux_at_n (t : Tangency) (segDir : Direction) (startP : Tick)
     (strokes : List Stroke) (n : Nat) :
-    scanCompleteSegEndAux segDir startP strokes n n = n := by
+    scanCompleteSegEndAux t segDir startP strokes n n = n := by
   unfold scanCompleteSegEndAux
   simp only [Nat.lt_irrefl, if_false]
   split
-  · exact scanCompleteSegEndAux_succ_n segDir startP strokes n
+  · exact scanCompleteSegEndAux_succ_n t segDir startP strokes n
   · rename_i _ _ _
     split
     · rfl
-    · exact scanCompleteSegEndAux_succ_n segDir startP strokes n
+    · exact scanCompleteSegEndAux_succ_n t segDir startP strokes n
 
 /--
   aux 的同步 bound 引理（固定 n）：k ≤ n → k ≤ aux(k) ∧ aux(k) ≤ n。
   策略：suffices + 对 d = n - j 的直接 induction（n 固定在 closure 里，不被通用化）。
 -/
-theorem scanCompleteSegEndAux_bounds (segDir : Direction) (startP : Tick) (strokes : List Stroke)
+theorem scanCompleteSegEndAux_bounds (t : Tangency) (segDir : Direction) (startP : Tick) (strokes : List Stroke)
     (n k : Nat) (hkn : k ≤ n) :
-    k ≤ scanCompleteSegEndAux segDir startP strokes n k ∧
-    scanCompleteSegEndAux segDir startP strokes n k ≤ n := by
+    k ≤ scanCompleteSegEndAux t segDir startP strokes n k ∧
+    scanCompleteSegEndAux t segDir startP strokes n k ≤ n := by
   -- suffices 引入 d（n - j 的显式量度），对 d 做 induction；
   -- n 在 suffices 闭包里固定为定理参数，不被 induction 通用化。
   suffices h : ∀ d (j : Nat), n - j = d → j ≤ n →
-      j ≤ scanCompleteSegEndAux segDir startP strokes n j ∧
-      scanCompleteSegEndAux segDir startP strokes n j ≤ n from
+      j ≤ scanCompleteSegEndAux t segDir startP strokes n j ∧
+      scanCompleteSegEndAux t segDir startP strokes n j ≤ n from
     h (n - k) k rfl hkn
   intro d
   induction d with
@@ -269,8 +271,8 @@ theorem scanCompleteSegEndAux_bounds (segDir : Direction) (startP : Tick) (strok
       -- n - j = 0 ∧ j ≤ n  ⟹  j = n
       have hjeq : j = n := Nat.le_antisymm hjn (by omega)
       rw [hjeq]
-      exact ⟨(scanCompleteSegEndAux_at_n segDir startP strokes n).symm ▸ Nat.le_refl n,
-             (scanCompleteSegEndAux_at_n segDir startP strokes n).symm ▸ Nat.le_refl n⟩
+      exact ⟨(scanCompleteSegEndAux_at_n t segDir startP strokes n).symm ▸ Nat.le_refl n,
+             (scanCompleteSegEndAux_at_n t segDir startP strokes n).symm ▸ Nat.le_refl n⟩
   | succ d' ih =>
       intro j hd hjn
       have hjlt : j < n := by omega
@@ -287,22 +289,22 @@ theorem scanCompleteSegEndAux_bounds (segDir : Direction) (startP : Tick) (strok
         · exact ⟨Nat.le_trans (Nat.le_succ j) ih1.1, ih1.2⟩
 
 /-- ★段消费下界（L0）：非空笔列时 scanCompleteSegEnd 返回 ≥ 1。 -/
-theorem scanCompleteSegEnd_pos (segDir : Direction) (startP : Tick) (strokes : List Stroke)
-    (h : strokes ≠ []) : 1 ≤ scanCompleteSegEnd segDir startP strokes := by
+theorem scanCompleteSegEnd_pos (t : Tangency) (segDir : Direction) (startP : Tick) (strokes : List Stroke)
+    (h : strokes ≠ []) : 1 ≤ scanCompleteSegEnd t segDir startP strokes := by
   unfold scanCompleteSegEnd
   have hn : strokes.length ≠ 0 := fun heq => h (List.eq_nil_iff_length_eq_zero.mpr heq)
   simp only [hn, ↓reduceIte]
-  exact (scanCompleteSegEndAux_bounds segDir startP strokes strokes.length 1
+  exact (scanCompleteSegEndAux_bounds t segDir startP strokes strokes.length 1
     (Nat.pos_of_ne_zero hn)).1
 
 /-- ★段消费上界（L0）：scanCompleteSegEnd 结果 ≤ strokes.length。 -/
-theorem scanCompleteSegEnd_le (segDir : Direction) (startP : Tick) (strokes : List Stroke) :
-    scanCompleteSegEnd segDir startP strokes ≤ strokes.length := by
+theorem scanCompleteSegEnd_le (t : Tangency) (segDir : Direction) (startP : Tick) (strokes : List Stroke) :
+    scanCompleteSegEnd t segDir startP strokes ≤ strokes.length := by
   unfold scanCompleteSegEnd
   split
   · omega
   · have hn : strokes.length ≠ 0 := by simp_all
-    exact (scanCompleteSegEndAux_bounds segDir startP strokes strokes.length 1
+    exact (scanCompleteSegEndAux_bounds t segDir startP strokes strokes.length 1
       (Nat.pos_of_ne_zero hn)).2
 
 /-! ═══════════════════════════════════════════════════════════════════════
@@ -322,21 +324,21 @@ theorem scanCompleteSegEnd_le (segDir : Direction) (startP : Tick) (strokes : Li
   ★完整判据接入（A″）：scanCompleteSegEnd 内部调用 extractSegEndData + segEndCompleteB，
   切分点 = 第一个满足完整判据的位置（非朴素反向扫描），消解 still-MISSING-A″。
 -/
-def segmentsOfComplete (strokes : List Stroke) : List Segment :=
+def segmentsOfComplete (t : Tangency) (strokes : List Stroke) : List Segment :=
   match strokes with
   | [] => []
   | s :: rest =>
-      let k := scanCompleteSegEnd s.direction s.startPrice (s :: rest)
+      let k := scanCompleteSegEnd t s.direction s.startPrice (s :: rest)
       let consumed := (s :: rest).take k
       let seg := segmentOfStrokes consumed
-      seg :: segmentsOfComplete ((s :: rest).drop k)
+      seg :: segmentsOfComplete t ((s :: rest).drop k)
   termination_by strokes.length
   decreasing_by
     have hne : s :: rest ≠ [] := List.cons_ne_nil s rest
-    have hpos : 1 ≤ scanCompleteSegEnd s.direction s.startPrice (s :: rest) :=
-      scanCompleteSegEnd_pos s.direction s.startPrice (s :: rest) hne
-    have hub : scanCompleteSegEnd s.direction s.startPrice (s :: rest) ≤ (s :: rest).length :=
-      scanCompleteSegEnd_le s.direction s.startPrice (s :: rest)
+    have hpos : 1 ≤ scanCompleteSegEnd t s.direction s.startPrice (s :: rest) :=
+      scanCompleteSegEnd_pos t s.direction s.startPrice (s :: rest) hne
+    have hub : scanCompleteSegEnd t s.direction s.startPrice (s :: rest) ≤ (s :: rest).length :=
+      scanCompleteSegEnd_le t s.direction s.startPrice (s :: rest)
     rw [List.length_drop]
     have hl : (s :: rest).length = rest.length + 1 := List.length_cons
     omega
@@ -346,19 +348,19 @@ def segmentsOfComplete (strokes : List Stroke) : List Segment :=
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- ★ segmentsOfComplete 输出唯一性（L0）：纯全函数 ⟹ 输出唯一。 -/
-theorem segmentsOfComplete_total_unique :
-    TotalUnique (fun strokes out => segmentsOfComplete strokes = out) :=
-  total_unique_of_fun segmentsOfComplete
+theorem segmentsOfComplete_total_unique (t : Tangency) :
+    TotalUnique (fun strokes out => segmentsOfComplete t strokes = out) :=
+  total_unique_of_fun (segmentsOfComplete t)
 
 /-- ★全性（L0）：对任意笔列 segmentsOfComplete 终止返回。 -/
-theorem segmentsOfComplete_total :
-    Total (fun strokes out => segmentsOfComplete strokes = out) := by
-  intro strokes; exact ⟨segmentsOfComplete strokes, rfl⟩
+theorem segmentsOfComplete_total (t : Tangency) :
+    Total (fun strokes out => segmentsOfComplete t strokes = out) := by
+  intro strokes; exact ⟨segmentsOfComplete t strokes, rfl⟩
 
 /-- ★单值性（确定性，L0）：同一笔列恒得同一线段序列。 -/
-theorem segmentsOfComplete_single_valued :
-    SingleValued (fun strokes out => segmentsOfComplete strokes = out) :=
-  (total_and_single_of_total_unique segmentsOfComplete_total_unique).2
+theorem segmentsOfComplete_single_valued (t : Tangency) :
+    SingleValued (fun strokes out => segmentsOfComplete t strokes = out) :=
+  (total_and_single_of_total_unique (segmentsOfComplete_total_unique t)).2
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 8. 良构性定理：顶高于底不变量继承
@@ -369,16 +371,16 @@ theorem segmentsOfComplete_single_valued :
   segmentsOfComplete 在判据确认路径（非 fallback）上继承此不变量——完整判据的第三支
   `TopAboveBottom` 是判据确认的必要条件。
 -/
-theorem segmentsOfComplete_inherits_topAboveBottom (d : SegEndData) (h : SegEndComplete d) :
+theorem segmentsOfComplete_inherits_topAboveBottom (t : Tangency) (d : SegEndData) (h : SegEndComplete t d) :
     TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice } :=
-  segEndComplete_implies_topAboveBottom d h
+  segEndComplete_implies_topAboveBottom t d h
 
 /--
   ★完整判据蕴含顶高于底（结构定理，L0）：
-  segEndCompleteB d = true ⟹ TopAboveBottom 对应的端点满足约束。
+  segEndCompleteB t d = true ⟹ TopAboveBottom 对应的端点满足约束。
   这是 segmentsOfComplete 在判据确认路径上的良构性证明入口。
 -/
-theorem segEndCompleteB_implies_topAboveBottom (d : SegEndData) (h : segEndCompleteB d = true) :
+theorem segEndCompleteB_implies_topAboveBottom (t : Tangency) (d : SegEndData) (h : segEndCompleteB t d = true) :
     topAboveBottomB d.dir d.startPrice d.endPrice = true := by
   unfold segEndCompleteB at h
   simp only [Bool.and_eq_true] at h
@@ -391,16 +393,16 @@ theorem segEndCompleteB_implies_topAboveBottom (d : SegEndData) (h : segEndCompl
 /--
   反退化见证：空笔列 ⟹ 空线段序列（边界）。
 -/
-theorem witness_segmentsOfComplete_empty :
-    segmentsOfComplete [] = [] := by
+theorem witness_segmentsOfComplete_empty (t : Tangency) :
+    segmentsOfComplete t [] = [] := by
   rw [segmentsOfComplete.eq_def]
 
 /--
   反退化见证：非空笔列 ⟹ segmentsOfComplete 终止并产出非空结果。
   三根笔（向上线段起始）上 segmentsOfComplete 产出非空结果。
 -/
-theorem witness_segmentsOfComplete_nonempty :
-    segmentsOfComplete
+theorem witness_segmentsOfComplete_nonempty (t : Tangency) :
+    segmentsOfComplete t
       [ { direction := Direction.up,   startIndex := 0, endIndex := 1, startPrice := 5,  endPrice := 20 },
         { direction := Direction.down, startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 10 },
         { direction := Direction.up,   startIndex := 2, endIndex := 3, startPrice := 10, endPrice := 25 } ]
@@ -436,7 +438,7 @@ theorem witness_segmentsOfComplete_nonempty :
 
   开口3：scanCompleteSegEnd_satisfies_complete 未机器证
     "scan 在 k 处返回 ⟹ segEndCompleteB = true"需对 scanCompleteSegEndAux 做归纳。
-    定理本身成立（由 aux 定义的 `if segEndCompleteB d then k else ...` 分支可见），
+    定理本身成立（由 aux 定义的 `if segEndCompleteB t d then k else ...` 分支可见），
     但当前文件未给出机器证（须归纳 scanCompleteSegEndAux 的递归分支）。可补充，但须单独
     验证，不在本文件当前版本中——诚实留为 still-MISSING-A‴ 开口3。
 

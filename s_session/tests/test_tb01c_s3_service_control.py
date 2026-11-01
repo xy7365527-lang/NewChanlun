@@ -14,15 +14,19 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
+from r4_anchor_fixture import anchored_controller
 from s_socket_client import reply_envelope
 
 
 class S3LifecycleTests(unittest.TestCase):
     @staticmethod
-    def config(directory, revision="s-launcher/3"):
+    def config(directory, revision="s-launcher/3", startup_timeout_ms="25"):
+        # 25ms 只适用于注入假钟的用例；真钟下驱动 R4 闸的用例须给真实启动期限。
         root = Path(directory)
         resources = {key: str(index + 1) for index, key in enumerate(sorted(control.S_RESOURCE_FIELDS))}
         resources["max_frame_bytes"] = "8192"
+        if revision == "s-launcher/4":
+            resources["incremental_retention_bytes"] = "268435456"
         return {"schema_revision": revision, "db": str(root / "owned.sqlite"),
                 "socket": str(root / "s.sock"), "binary": "/owned/s_structure_session",
                 "python": sys.executable, "catalog": str(root / "catalog.json"),
@@ -31,11 +35,11 @@ class S3LifecycleTests(unittest.TestCase):
                 "session_id": "owned-session", "session_generation": "1",
                 "source_namespace": "owned.test", "source_epoch": "1", "producer_id": "owned-launcher",
                 "producer_epoch": "1", "writer_epoch": "1", "query_epoch": "1", "port": "12345",
-                "delivery_retain_generations": "1", "startup_timeout_ms": "25", "s_resources": resources}
+                "delivery_retain_generations": "1", "startup_timeout_ms": startup_timeout_ms, "s_resources": resources}
 
     @staticmethod
-    def response(request, nonce="current"):
-        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce},
+    def response(request, nonce="current", **extra):
+        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce, **extra},
                               session_id=request["session_id"], session_generation=request["session_generation"],
                               namespace="s-session/replies", producer_id="S:" + request["session_id"],
                               producer_epoch="1")
@@ -43,11 +47,11 @@ class S3LifecycleTests(unittest.TestCase):
     def test_named_configuration_selects_exact_version_and_resources(self):
         with tempfile.TemporaryDirectory(prefix="s3-cfg-") as directory:
             path = Path(directory) / "launcher.json"
-            for revision in ("s-launcher/2", "s-launcher/3"):
+            for revision in ("s-launcher/2", "s-launcher/3", "s-launcher/4"):
                 config = self.config(directory, revision)
                 path.write_text(json.dumps(config))
                 self.assertEqual(control.read_config(path)["schema_revision"], revision)
-            for revision in (None, "s-launcher/4", "s-launcher/03"):
+            for revision in (None, "s-launcher/5", "s-launcher/03"):
                 config = self.config(directory, revision)
                 path.write_text(json.dumps(config))
                 with self.assertRaises(ValueError):
@@ -61,31 +65,30 @@ class S3LifecycleTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     control.read_config(path)
 
-    def test_start_s3_init_serve_and_ready_use_one_deadline_and_unchanged_seven_values(self):
+    def test_start_s3_serve_and_ready_use_one_deadline_without_init_and_unchanged_seven_values(self):
+        # #1527 R4：S 只消费既存锚与既存库，start_s 不再在库缺失时 init 建库（建库/首签归 #1567）。
         with tempfile.TemporaryDirectory(prefix="s3-select-") as directory:
             config = self.config(directory)
             original = control.canonical(config["s_resources"])
-            controller = control.Controller(config, Path(directory) / "state")
             clock = [0.0]
+            controller = anchored_controller(config, Path(directory) / "state", clock=lambda: clock[0])
             def environment(deadline):
                 self.assertEqual(deadline, 0.025)
                 clock[0] = 0.010
                 return {"owned": "environment"}
-            def initialize(command, **kwargs):
-                self.assertEqual(command[-2:], ["--protocol-revision", "s-session/3"])
-                self.assertAlmostEqual(kwargs["timeout"], 0.015)
-                clock[0] = 0.020
-                return control.subprocess.CompletedProcess(command, 0, b'{"initialized":true}', b"")
             try:
                 with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
                      patch.object(controller, "runtime_environment", side_effect=environment), \
                      patch.object(controller, "prepare_socket", return_value=None), \
-                     patch.object(control.subprocess, "run", side_effect=initialize), \
+                     patch.object(control.subprocess, "run") as run, \
                      patch.object(controller, "start_process") as start, \
                      patch.object(controller, "wait_ready", return_value={"state": "ready"}) as ready:
                     result = controller.start_s("1")
+                run.assert_not_called()
                 command = start.call_args.args[1]
+                self.assertEqual(command[1], "serve")
                 self.assertEqual(command[command.index("--protocol-revision") + 1], "s-session/3")
+                self.assertEqual(command[command.index("--admission-job-limits") + 1], controller.admission.limits_path)
                 self.assertNotIn("--audit-cache-source-bytes", command)
                 identity = start.call_args.kwargs["resource_identity"]
                 self.assertEqual(command[command.index("--resource-config") + 1], identity["path"])
@@ -96,7 +99,7 @@ class S3LifecycleTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(frozen).hexdigest(), identity["sha256"])
                 self.assertEqual(stat.S_IMODE(Path(identity["path"]).stat().st_mode), 0o600)
                 ready.assert_called_once_with("s", "1", deadline=0.025)
-                self.assertEqual(result["initialization"], {"initialized": True})
+                self.assertIsNone(result["initialization"])
                 self.assertEqual(control.canonical(config["s_resources"]), original)
                 request = controller.ready_request("1")
                 self.assertEqual(request["schema_revision"], "s-session/3")
@@ -105,37 +108,88 @@ class S3LifecycleTests(unittest.TestCase):
             finally:
                 controller.close()
 
-    def test_expired_environment_or_init_never_resets_budget_or_spawns(self):
-        for stage in ("environment", "init"):
+    def test_launcher4_requires_exact_eighth_gate_and_launcher3_refuses_it(self):
+        # #1640（ADR 0042 D4）：/4 只配 s_incremental 写者，exact 八字段；/3 仍 exact 原七字段，不静默接受第八门。
+        with tempfile.TemporaryDirectory(prefix="s3-cfg4-") as directory:
+            path = Path(directory) / "launcher.json"
+            eight = self.config(directory, "s-launcher/4")["s_resources"]
+            seven = self.config(directory, "s-launcher/3")["s_resources"]
+            for revision, invalid in (("s-launcher/4", seven),
+                                      ("s-launcher/4", {**eight, "incremental_retention_bytes": "0"}),
+                                      ("s-launcher/4", {**eight, "incremental_retention_bytes": 1}),
+                                      ("s-launcher/4", {**eight, "extra": "1"}),
+                                      ("s-launcher/3", eight)):
+                with self.subTest(revision=revision, fields=sorted(invalid)):
+                    config = self.config(directory, revision)
+                    config["s_resources"] = invalid
+                    path.write_text(json.dumps(config))
+                    with self.assertRaises(ValueError):
+                        control.read_config(path)
+
+    def test_start_launcher4_freezes_structure_resources_2_with_eight_values(self):
+        with tempfile.TemporaryDirectory(prefix="s3-select4-") as directory:
+            config = self.config(directory, "s-launcher/4")
+            clock = [0.0]
+            controller = anchored_controller(config, Path(directory) / "state", clock=lambda: clock[0])
+            try:
+                with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
+                     patch.object(controller, "runtime_environment", return_value={}), \
+                     patch.object(controller, "prepare_socket", return_value=None), \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "wait_ready", return_value={"state": "ready"}):
+                    controller.start_s("1")
+                command = start.call_args.args[1]
+                self.assertEqual(command[command.index("--protocol-revision") + 1], "s-session/3")
+                identity = start.call_args.kwargs["resource_identity"]
+                frozen = Path(identity["path"]).read_bytes()
+                self.assertEqual(json.loads(frozen), {"schema_revision": "s-structure-resources/2",
+                                                     "s_resources": config["s_resources"]})
+                controller.validate_resource_identity(identity, command, require_current=True)
+                self.assertEqual(controller.ready_request("1")["schema_revision"], "s-session/3")
+                # 同一冻结件不得冒充 /3 启动配置的当前预算。
+                controller.config = {**config, "schema_revision": "s-launcher/3",
+                                     "s_resources": self.config(directory)["s_resources"]}
+                with self.assertRaises(ValueError):
+                    controller.validate_resource_identity(identity, command, require_current=True)
+            finally:
+                controller.close()
+
+    def test_expired_environment_or_socket_never_resets_budget_or_spawns(self):
+        # #1527 R4：原 init 阶段已删除；改以 socket 准备阶段耗尽期限验证同一不变式（不续钟、不 spawn、不 init）。
+        for stage in ("environment", "socket"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory(prefix="s3-budget-") as directory:
-                controller = control.Controller(self.config(directory), Path(directory) / "state")
                 clock = [0.0]
+                controller = anchored_controller(self.config(directory), Path(directory) / "state",
+                                                 clock=lambda: clock[0])
                 def environment(deadline):
                     if stage == "environment":
                         clock[0] = deadline
                     return {}
-                def initialize(*args, **kwargs):
+                def socket(deadline):
                     clock[0] = 0.025
-                    return control.subprocess.CompletedProcess([], 0, b'{"initialized":true}', b"")
                 try:
                     with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
                          patch.object(controller, "runtime_environment", side_effect=environment), \
-                         patch.object(controller, "prepare_socket", return_value=None), \
-                         patch.object(control.subprocess, "run", side_effect=initialize) as init, \
+                         patch.object(controller, "prepare_socket", side_effect=socket) as prepared, \
+                         patch.object(control.subprocess, "run") as run, \
                          patch.object(controller, "start_process") as start, \
                          patch.object(controller, "wait_ready") as ready:
-                        with self.assertRaises(TimeoutError):
+                        # 期限在环境探测内耗尽时由 R4 闸先以 Deadline 拒绝；socket 阶段耗尽由控制器 remaining() 拒绝。
+                        with self.assertRaises((TimeoutError, control.AdmissionError)) as refused:
                             controller.start_s("1")
+                    if isinstance(refused.exception, control.AdmissionError):
+                        self.assertEqual(refused.exception.code, "Deadline")
                     start.assert_not_called()
                     ready.assert_not_called()
+                    run.assert_not_called()
                     if stage == "environment":
-                        init.assert_not_called()
+                        prepared.assert_not_called()
                 finally:
                     controller.close()
 
     def test_frozen_resource_file_cannot_be_adopted_changed_or_unbound(self):
         with tempfile.TemporaryDirectory(prefix="s3-freeze-") as directory:
-            controller = control.Controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory), Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
                 identity = controller.freeze_s_resources(deadline)
@@ -173,8 +227,8 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_resource_identity_is_saved_with_pid_nonce_and_exact_argv(self):
         with tempfile.TemporaryDirectory(prefix="s3-record-") as directory:
-            config = self.config(directory)
-            controller = control.Controller(config, Path(directory) / "state")
+            config = self.config(directory, startup_timeout_ms="2000")
+            controller = anchored_controller(config, Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
                 identity = controller.freeze_s_resources(deadline)
@@ -197,7 +251,7 @@ class S3LifecycleTests(unittest.TestCase):
     def test_s3_ready_validates_payload_nonce_complete_reply_and_live_process(self):
         with tempfile.TemporaryDirectory(prefix="s3-ready-") as directory:
             config = self.config(directory)
-            controller = control.Controller(config, Path(directory) / "state")
+            controller = anchored_controller(config, Path(directory) / "state")
             request = controller.ready_request("1")
             record = {"state": "running", "service": "s", "pid": 123456,
                       "process_identity": "exact current", "control_instance_id": "current"}
@@ -231,6 +285,119 @@ class S3LifecycleTests(unittest.TestCase):
             finally:
                 controller.close()
 
+    def test_ready_build_profile_rejects_testonly_before_record_and_admits_production(self):
+        # #1640 C4：假写者经 Ready 自报构建身份；testonly 在核活进程与登记 Ready 之前即拒绝。
+        cases = (("s-launcher/4", {"build_profile": "testonly"}, "TestOnlyBuild"),
+                 ("s-launcher/3", {"build_profile": "testonly"}, "TestOnlyBuild"),
+                 ("s-launcher/4", {}, "build_profile=production"),
+                 ("s-launcher/4", {"build_profile": "Production"}, "build_profile=production"))
+        record = {"state": "running", "service": "s", "pid": 123456,
+                  "process_identity": "exact current", "control_instance_id": "current"}
+        for revision, extra, message in cases:
+            with self.subTest(revision=revision, extra=extra), \
+                 tempfile.TemporaryDirectory(prefix="s3-profile-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                try:
+                    response = self.response(controller.ready_request("1"), **extra)
+                    with patch.object(controller, "status", return_value=record), \
+                         patch.object(control, "exchange",
+                                      return_value={"transport": "Received", "response": response}), \
+                         patch.object(controller, "confirm_ready_process") as confirm, \
+                         patch.object(controller, "discard_rejected_start") as discard:
+                        with self.assertRaisesRegex(ValueError, message):
+                            controller.wait_ready("s", "1")
+                    confirm.assert_not_called()
+                    discard.assert_called_once_with("s")
+                    self.assertFalse(controller.record_path("s").exists())
+                finally:
+                    controller.close()
+        with self.assertRaises(control.TestOnlyBuildError):
+            control.check_build_profile(self.config("/owned", "s-launcher/4"), {"build_profile": "testonly"})
+        # 正控：s-launcher/4 的 production 自报照常就绪并登记；s-launcher/3 无此字段的旧回复原样放行。
+        for revision, extra in (("s-launcher/4", {"build_profile": "production"}), ("s-launcher/3", {})):
+            with self.subTest(revision=revision, extra=extra), \
+                 tempfile.TemporaryDirectory(prefix="s3-profile-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                identity = {"path": config["socket"], "device": 1, "inode": 2, "uid": os.getuid()}
+                try:
+                    response = self.response(controller.ready_request("1"), **extra)
+                    with patch.object(controller, "status", return_value=record), \
+                         patch.object(control, "exchange",
+                                      return_value={"transport": "Received", "response": response}), \
+                         patch.object(controller, "socket_identity", return_value=identity), \
+                         patch.object(controller, "discard_rejected_start") as discard:
+                        result = controller.wait_ready("s", "1")
+                    discard.assert_not_called()
+                    self.assertEqual(result["state"], "ready")
+                    self.assertEqual(result["reply"]["payload"].get("build_profile"), extra.get("build_profile"))
+                    self.assertEqual(json.loads(controller.record_path("s").read_text())["socket_identity"],
+                                     identity)
+                finally:
+                    controller.close()
+
+    def test_ready_build_profile_testonly_rejection_stops_real_child_and_clears_registration(self):
+        # #1640 C4：真实子进程按 S3 协议在配置 socket 上回 Ready 并自报 testonly；拒绝后该进程须已退出、
+        # 本次 record 已删、socket 路径不再接受连接，原错误照抛。
+        writer = """
+import os, socket, sys
+sys.path.insert(0, sys.argv[1])
+from s_socket_client import canonical, decode_frame, reply_envelope
+path = sys.argv[sys.argv.index("--socket") + 1]
+nonce = os.environ["S_CONTROL_INSTANCE_ID"]
+sys.stdin.buffer.read(1)
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(path)
+server.listen(8)
+while True:
+    connection, _ = server.accept()
+    with connection:
+        raw = b""
+        while True:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            raw += chunk
+        request = decode_frame(raw.rstrip(b"\\n"))
+        payload = {"kind": "Ready", "control_instance_id": nonce, "build_profile": "testonly"}
+        response = reply_envelope(request, payload, session_id=request["session_id"],
+                                  session_generation=request["session_generation"],
+                                  namespace="s-session/replies",
+                                  producer_id="S:" + request["session_id"], producer_epoch="1")
+        connection.sendall(canonical(response) + b"\\n")
+"""
+        with tempfile.TemporaryDirectory(prefix="s3-reject-") as directory:
+            config = self.config(directory, "s-launcher/3", startup_timeout_ms="10000")
+            controller = anchored_controller(config, Path(directory) / "state")
+            script = Path(directory) / "testonly_writer.py"
+            script.write_text(writer)
+            process = None
+            try:
+                deadline = time.monotonic() + 10
+                identity = controller.freeze_s_resources(deadline)
+                command = [sys.executable, str(script), str(Path(control.__file__).resolve().parent),
+                           "serve", "--protocol-revision", "s-session/3",
+                           "--resource-config", identity["path"], "--socket", config["socket"]]
+                process = controller.start_process("s", command, deadline=deadline,
+                                                   resource_identity=identity)
+                with self.assertRaisesRegex(control.TestOnlyBuildError, "TestOnlyBuild"):
+                    controller.wait_ready("s", "1", deadline=deadline)
+                self.assertIsNotNone(process.poll())
+                self.assertIsNone(control.process_identity(process.pid))
+                self.assertFalse(controller.record_path("s").exists())
+                self.assertEqual(controller.status("s")["state"], "not_started")
+                self.assertFalse(os.path.lexists(config["socket"]))
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                    probe.settimeout(1)
+                    with self.assertRaises(OSError):
+                        probe.connect(config["socket"])
+            finally:
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                controller.close()
+
     def test_nonpython_argv_is_exact_and_process_probe_uses_remaining_deadline(self):
         command = ["/owned/s_structure_session", "serve", "--protocol-revision", "s-session/3"]
         for suffix in ("", " --other argument"):
@@ -248,7 +415,8 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_s3_recover_selects_new_domain_and_never_falls_back(self):
         with tempfile.TemporaryDirectory(prefix="s3-recover-") as directory:
-            controller = control.Controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory, startup_timeout_ms="2000"),
+                                             Path(directory) / "state")
             try:
                 with patch.object(controller, "status", return_value={"state": "stopped"}), \
                      patch.object(controller, "runtime_environment", return_value={}), \
@@ -268,7 +436,7 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_s3_q_rejects_old_resource_version_before_spawn(self):
         with tempfile.TemporaryDirectory(prefix="s3-q-mismatch-") as directory:
-            controller = control.Controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory), Path(directory) / "state")
             try:
                 with patch.object(controller, "query_resource_revision", return_value="legacy/2"), \
                      patch.object(controller, "runtime_environment") as environment, \
@@ -283,11 +451,10 @@ class S3LifecycleTests(unittest.TestCase):
     def test_stopped_s3_record_allows_new_explicit_budget_but_live_or_tampered_owner_refuses(self):
         for case in ("stopped", "live", "tampered"):
             with self.subTest(case=case), tempfile.TemporaryDirectory(prefix="s3-restart-") as directory:
-                config = self.config(directory)
-                config["startup_timeout_ms"] = "2000"
+                config = self.config(directory, startup_timeout_ms="2000")
                 Path(config["db"]).touch()
                 state_dir = Path(directory) / "state"
-                controller = control.Controller(config, state_dir)
+                controller = anchored_controller(config, state_dir)
                 old = controller.freeze_s_resources(time.monotonic() + 2)
                 command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
                            "--resource-config", old["path"]]
@@ -301,7 +468,7 @@ class S3LifecycleTests(unittest.TestCase):
                 controller.save_record("s", record)
                 controller.close()
                 updated = {**config, "s_resources": {**config["s_resources"], "max_frame_bytes": "16384"}}
-                controller = control.Controller(updated, state_dir)
+                controller = anchored_controller(updated, state_dir)
                 if case == "tampered":
                     Path(old["path"]).write_bytes(b"{}")
                 def observation(pid, command=None, *, deadline=None):
@@ -309,7 +476,7 @@ class S3LifecycleTests(unittest.TestCase):
                         return "old identity" if case == "live" else None
                     self.assertEqual(pid, 234567)
                     return "new identity"
-                child = Mock(pid=234567, **{"poll.return_value": None})
+                child = Mock(pid=234567, **{"poll.return_value": None, "stdin.write.return_value": 1})
                 try:
                     with patch.object(control, "process_identity", side_effect=observation), \
                          patch.object(controller, "runtime_environment", return_value={}), \
@@ -336,8 +503,8 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_new_child_cannot_reuse_old_frozen_budget_after_configuration_change(self):
         with tempfile.TemporaryDirectory(prefix="s3-budget-binding-") as directory:
-            config = self.config(directory)
-            controller = control.Controller(config, Path(directory) / "state")
+            config = self.config(directory, startup_timeout_ms="2000")
+            controller = anchored_controller(config, Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
                 old = controller.freeze_s_resources(deadline)
@@ -360,15 +527,15 @@ class S3LifecycleTests(unittest.TestCase):
     def test_private_resource_digest_comes_only_from_verified_s3_identity_and_never_old_launcher(self):
         for revision in ("s-launcher/3", "s-launcher/2"):
             with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="s3-child-digest-") as directory:
-                config = self.config(directory, revision)
-                controller = control.Controller(config, Path(directory) / "state")
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
                 deadline = time.monotonic() + 2
                 environment = {"S_CONTROL_RESOURCE_SHA256": "f" * 64, "PRESERVE": "owned"}
                 identity = controller.freeze_s_resources(deadline) if revision == "s-launcher/3" else None
                 command = [config["binary"], "serve"]
                 if identity is not None:
                     command += ["--protocol-revision", "s-session/3", "--resource-config", identity["path"]]
-                child = Mock(pid=234567, **{"poll.return_value": None})
+                child = Mock(pid=234567, **{"poll.return_value": None, "stdin.write.return_value": 1})
                 try:
                     with patch.object(control, "process_identity", return_value="owned argv"), \
                          patch.object(control.subprocess, "Popen", return_value=child) as spawn:

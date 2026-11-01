@@ -17,10 +17,10 @@ const fields = {
   adrLockPollMs: positive,
   dockerModelHttpTimeoutMs: positive,
   dockerModelProcessTimeoutMs: positive,
-  dockerNamespaceTimeoutMs: positive,
   frontierQueryLimit: positive,
   backlogQueryLimit: positive,
   mainModel: modelName,
+  opusModel: (v: unknown): v is string => modelName(v) && v.startsWith("claude-"),
   workerEffort: effort,
   childEffort: effort,
   mainMaxIterations: positive,
@@ -100,7 +100,7 @@ export function readSchedulerConfig(path = configPath, env: NodeJS.ProcessEnv = 
     const value = env[name];
     origins[key] = `record:${record.revision} ${record.sources[key]}`;
     if (value === undefined) continue;
-    if (key === "mainModel" || key === "workerEffort" || key === "childEffort") effective[key] = value;
+    if (key === "mainModel" || key === "opusModel" || key === "workerEffort" || key === "childEffort") effective[key] = value;
     else if (key === "decisionMaps") {
       try { effective[key] = JSON.parse(value); }
       catch { throw new Error(`[配置 #1606] 环境字段 ${name} 不是JSON数组`); }

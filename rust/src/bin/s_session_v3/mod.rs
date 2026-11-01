@@ -39,10 +39,19 @@ use std::collections::BTreeSet;
 mod atomic_init;
 #[cfg(test)]
 mod atomic_init_tests;
-mod audit_budget;
+// #1527 提案：admission 由根协调恢复/资源 provider，当前基线无此模块。
+// M-01：WriterScope::admit 独占 StartedAdmission，provider 仅收
+// &mut AdmissionAccounting<'_>；禁止导出 &mut Job 或用新 Job 替代原账。
+// 原账 finish 成功且源身份后置核验完成，才保存 lease 并设置 admitted。
+pub(crate) mod admission;
+pub(crate) mod admission_anchor;
+mod admission_private;
+mod admission_provider;
+pub(crate) mod audit_budget;
 mod audit_header;
+mod audit_ledger;
 pub(super) mod audit_owner;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) mod audit_retention;
 pub(crate) mod audit_store;
 pub(super) mod aux_index;
@@ -53,15 +62,18 @@ mod catalog_evidence;
 mod commit;
 mod control;
 mod control_audit;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod cross_request_source_cache;
 mod driver;
 mod financial_reader;
 // #1394 DESIGN-R6 c2 候选：长驻只读财务会话（待 §5.7 多请求一致性修订裁定）。
 #[cfg(unix)]
 mod financial_session;
+pub(crate) mod fixed_radix;
 mod generation;
 mod history;
+pub(crate) mod layout;
+pub(crate) mod native_shared;
 pub(super) mod object_index;
 mod object_records;
 mod prepared;
@@ -86,22 +98,36 @@ mod q_watch;
 mod q_wire;
 mod reader;
 mod request_audit;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;
 mod source_audit;
 mod state;
+#[cfg(test)]
+pub(crate) use state::trace_event as diagnostic_trace_event;
 mod writer_cli;
+#[cfg(test)]
+pub(crate) use admission_private::s4_read_trace as diagnostic_s4_read_trace;
+#[cfg(test)]
+pub(crate) use admission_private::test_with_mixed_entry;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
+/// #1640 C4：增量写者二进制的构建身份，随 Ready 回复自报，launcher 据此在发布 Ready 前拒绝
+/// testonly 构建；默认 `s_session` 构建不发此字段，旧 Ready 回复与 launcher/3 用法不变。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) const BUILD_PROFILE: &str = "testonly";
+#[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
+pub(super) const BUILD_PROFILE: &str = "production";
 /// 旧 v2 合同版本号；显式给出时仍由既有 v2 初始化入口执行。
 pub(super) const PREVIOUS_REVISION: &str = "s-session/2";
 const SELECTOR: &str = "--protocol-revision";
 const DELIVERY_POLICY_REVISION: &str = "generation-window/1";
 /// v3 init 允许出现的全部 flag（含 selector）；其余一律拒绝，不假装可用。
-const V3_INIT_FLAGS: [&str; 8] = [
+const V3_INIT_FLAGS: [&str; 9] = [
     SELECTOR,
+    // #1769：可选结构源声明文件；给出即作为库固定属性落 meta.structure_source。
+    "--structure-source",
     "--db",
     "--session",
     "--catalog",
@@ -121,8 +147,45 @@ const V2_INIT_FLAGS: [&str; 7] = [
     "--delivery-retain-generations",
 ];
 
+#[cfg(test)]
+thread_local! {
+    /// #1491 ADR 0037（仅测试）：本线程的写者规则注入。未注入时 init 与写者门同现行为；注入后
+    /// init 写该串、写者门只放行该串，不同时接受 `V3_RULE_REVISION`（#799/#804 不设两档）。
+    static TEST_WRITER_RULE: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// #1491（仅测试）：在 `f` 内注入写者规则（`None` 即不注入）；返回或展开时恢复原值。
+#[cfg(test)]
+fn with_test_writer_rule<T>(rule: Option<&str>, f: impl FnOnce() -> T) -> T {
+    struct Restore(Option<String>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let previous = self.0.take();
+            TEST_WRITER_RULE.with(|r| *r.borrow_mut() = previous);
+        }
+    }
+    let injected = rule.map(str::to_owned);
+    let _restore = Restore(TEST_WRITER_RULE.with(|r| r.replace(injected)));
+    f()
+}
+
+#[cfg(test)]
+pub(crate) fn test_writer_rule() -> Option<String> {
+    TEST_WRITER_RULE.with(|r| r.borrow().clone())
+}
+
 /// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
 fn require_current_writer_rule(rule: &str) -> Result<(), String> {
+    #[cfg(test)]
+    if let Some(injected) = test_writer_rule() {
+        if rule != injected {
+            return Err(format!(
+                "VersionUnsupported：测试注入写者规则 {injected}，库中 {rule}"
+            ));
+        }
+        return Ok(());
+    }
     if rule != V3_RULE_REVISION {
         return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
     }
@@ -131,6 +194,15 @@ fn require_current_writer_rule(rule: &str) -> Result<(), String> {
 
 /// 版本选择器分派：`Ok(true)` 表示本次调用已处理，调用方直接结束；无选择器时 `Ok(false)`。
 pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, false)
+}
+
+fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     let mut positions = Vec::new();
     for (index, arg) in args.iter().enumerate() {
@@ -173,8 +245,18 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         return Err("VersionUnsupported：Q3监听入口当前需要Unix平台".into());
     }
     if matches!(cmd, "serve" | "advance" | "recover") && value == PROTOCOL_REVISION {
-        if let Some(out) = writer_cli::run(args)? {
-            println!("{out}");
+        let out = if production {
+            writer_cli::run(args)?
+        } else {
+            #[cfg(test)]
+            {
+                writer_cli::run_fixture(args)?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        if let Some(out) = out {
+            out.emit()?;
         }
         return Ok(true);
     }
@@ -282,7 +364,11 @@ fn init_from_args(args: &[String]) -> Result<Value, String> {
         &required("--delivery-retain-generations")?,
         "--delivery-retain-generations",
     )?;
-    init_v3(
+    let source = values
+        .get("--structure-source")
+        .map(|path| newchan_rust::structure_source::Declaration::load(Path::new(path)))
+        .transpose()?;
+    init_v3_declared(
         &db,
         &session,
         &catalog,
@@ -290,6 +376,7 @@ fn init_from_args(args: &[String]) -> Result<Value, String> {
         &session_generation,
         &clock,
         delivery_retain,
+        source.as_ref(),
     )
 }
 
@@ -360,10 +447,12 @@ fn load_catalog_strict(path: &Path) -> Result<(Value, String, usize), String> {
     Ok((definition, revision, item_count))
 }
 
-/// 拒绝覆盖已有路径（独评 F2）：不提供重置建议，也不自动清理；换新路径是唯一去处。
+/// 拒绝覆盖已有路径（独评 F2）：不提供重置，也不清理既有文件。#1568 原子发布后，中断的 init 不会在
+/// 目标路径留下任何东西（原路径可直接重试），所以走到这里时目标必是已发布的完整库或他人文件（#1666 L5）。
 fn existing_db_error(db: &Path) -> String {
     format!(
-        "库已存在（{}）：{PROTOCOL_REVISION} init 拒绝覆盖（无热迁移，也不提供重置；请换新路径）",
+        "库已存在（{}）：{PROTOCOL_REVISION} init 拒绝覆盖，既有文件原样保留（无热迁移，也不提供重置）；\
+         中断的 init 不会留下目标文件，此处的文件是已发布的库或他人文件，新建库请另选路径",
         db.display()
     )
 }
@@ -391,6 +480,13 @@ fn expect_meta(
 }
 
 /// 在全新库上建 `s-session/3` 域；返回从已提交库回读的真实初始化元数据。
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1769：CLI 入口改经 init_v3_declared；无声明旧签名保留给既有测试"
+    )
+)]
 pub(super) fn init_v3(
     db: &Path,
     session: &str,
@@ -399,6 +495,30 @@ pub(super) fn init_v3(
     session_generation: &str,
     clock_path: &Path,
     delivery_retain: i64,
+) -> Result<Value, String> {
+    init_v3_declared(
+        db,
+        session,
+        catalog_path,
+        profile_path,
+        session_generation,
+        clock_path,
+        delivery_retain,
+        None,
+    )
+}
+
+/// #1769：同 `init_v3`，可带结构源声明；声明与其余 meta 同一事务落库、同样回读核对。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn init_v3_declared(
+    db: &Path,
+    session: &str,
+    catalog_path: &Path,
+    profile_path: &Path,
+    session_generation: &str,
+    clock_path: &Path,
+    delivery_retain: i64,
+    source: Option<&newchan_rust::structure_source::Declaration>,
 ) -> Result<Value, String> {
     // ── 第一步：全部输入先验证；此阶段一个字节都不落盘 ──
     positive(session_generation, "session-generation")?;
@@ -423,7 +543,7 @@ pub(super) fn init_v3(
     atomic_init::refuse_foreign_sides(db)?;
     atomic_init::sweep_stale(db)?;
     let staging = atomic_init::Staging::new(db)?;
-    let out = build_domain(
+    let mut out = build_domain(
         staging.path(),
         session,
         &clock,
@@ -436,8 +556,13 @@ pub(super) fn init_v3(
         ),
         session_generation,
         delivery_retain,
+        source,
     )?;
-    staging.publish()?;
+    // #1666 L2：目标名出现后的收尾失败不改判 init 成败，作为告警附在回执上；无告警不加字段。
+    let warnings = staging.publish()?;
+    if !warnings.is_empty() {
+        out["publish_warnings"] = json!(warnings);
+    }
     Ok(out)
 }
 
@@ -450,6 +575,7 @@ fn build_domain(
     catalog: (&Value, &str, usize, &str),
     session_generation: &str,
     delivery_retain: i64,
+    source: Option<&newchan_rust::structure_source::Declaration>,
 ) -> Result<Value, String> {
     let (profile_def, profile_id, profile_hash) = profile;
     let (profile_id, profile_hash) = (profile_id.to_string(), profile_hash.to_string());
@@ -491,6 +617,10 @@ fn build_domain(
     meta_set(&tx, "advance_state", "idle")?;
     // #1394 整合 W-2：v3 只发布 TB-02-A/B，写自己的规则修订（见 `V3_RULE_REVISION`）。
     meta_set(&tx, "rule_revision", V3_RULE_REVISION)?;
+    #[cfg(test)]
+    if let Some(rule) = test_writer_rule() {
+        meta_set(&tx, "rule_revision", &rule)?;
+    }
     meta_set(
         &tx,
         "scope",
@@ -505,6 +635,13 @@ fn build_domain(
     meta_set(&tx, "catalog_revision", &catalog_revision)?;
     meta_set(&tx, "catalog_definition", &canonical_json(catalog_def))?;
     meta_set(&tx, "catalog_hash", &catalog_hash)?;
+    if let Some(source) = source {
+        meta_set(
+            &tx,
+            newchan_rust::structure_source::META_KEY,
+            &source.canonical(),
+        )?;
+    }
     tx.execute(
         "INSERT INTO s_protocol_meta(singleton, protocol_revision, session_generation, clock_plan_hash,
              clock_plan_json, next_attempt_ordinal, logical_phase_frontier)
@@ -640,6 +777,13 @@ fn build_domain(
     let profile_hash = expect_meta(&meta, "profile_hash", &profile_hash)?;
     let catalog_revision = expect_meta(&meta, "catalog_revision", &catalog_revision)?;
     let catalog_hash = expect_meta(&meta, "catalog_hash", &catalog_hash)?;
+    if let Some(source) = source {
+        expect_meta(
+            &meta,
+            newchan_rust::structure_source::META_KEY,
+            &source.canonical(),
+        )?;
+    }
     let sqlite_version = expect_meta(&meta, "sqlite_version", &sqlite_version)?;
     let journal_mode = expect_meta(&meta, "journal_mode", &journal_mode)?;
     let synchronous = expect_meta(&meta, "synchronous", &synchronous.to_string())?
@@ -1174,7 +1318,7 @@ mod tests {
 
         // 既有 v2 旧库同样拒绝（无热迁移）。
         let old = temp.path("v2.sqlite");
-        assert!(v2::dispatch(&init_args(&old, &clock)).unwrap());
+        assert!(v2::dispatch_fixture(&init_args(&old, &clock)).unwrap());
         let old_before = std::fs::read(&old).unwrap();
         assert!(init_v3(
             &old,
@@ -1313,7 +1457,7 @@ mod tests {
         // v2 旧域：reset 仍沿旧行为（先删后建 v1），不因本次加固改变。
         let v2_db = temp.path("v2-old.sqlite");
         let clock = write_clock(&temp, "ns");
-        assert!(v2::dispatch(&init_args(&v2_db, &clock)).unwrap());
+        assert!(v2::dispatch_fixture(&init_args(&v2_db, &clock)).unwrap());
         cmd_reset(&v2_db, "v2-reset", &catalog).unwrap();
         let conn = open_db(&v2_db).unwrap();
         assert!(meta_get_opt(&conn, "protocol_revision").unwrap().is_none());
@@ -1436,7 +1580,7 @@ mod tests {
         let plain_db = temp.path("plain.sqlite");
         let plain = init_args(&plain_db, &clock);
         assert!(!dispatch(&plain).unwrap());
-        assert!(v2::dispatch(&plain).unwrap());
+        assert!(v2::dispatch_fixture(&plain).unwrap());
         let conn = open_db(&plain_db).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "protocol_revision").unwrap().as_deref(),
@@ -1582,11 +1726,11 @@ mod tests {
         let temp = Temp::new();
         let db = init_domain(&temp);
         let clock = write_clock(&temp, "ns");
-        assert!(cmd_advance(&db, DEFAULT_WRITER_EPOCH).is_err());
+        assert!(cmd_advance_fixture(&db, DEFAULT_WRITER_EPOCH).is_err());
         assert!(cmd_snapshot(&db, None).is_err());
         assert!(cmd_catalog(&db, None).is_err());
         assert!(cmd_query(&db, "testonly.ohlc|1|TEST.OHLC|event-1").is_err());
-        assert!(v2::dispatch(&init_args(&db, &clock)).is_err());
+        assert!(v2::dispatch_fixture(&init_args(&db, &clock)).is_err());
         let before = std::fs::read(&db).unwrap();
         assert!(init_v3(
             &db,
@@ -1678,5 +1822,28 @@ mod transaction_view_multiple_bad_fixture {
             Err(e) => e,
         };
         println!("AB_TWO_BAD {}", error);
+    }
+}
+
+#[cfg(test)]
+mod layout_writer_rule_injection {
+    use super::*;
+
+    /// #1491：测试写者规则注入只放行所注入的一个串；未注入时写者门与现行为相同。
+    #[test]
+    fn layout_writer_rule_injection_admits_only_the_injected_rule() {
+        let bounded = format!("{V3_RULE_REVISION}+bounded-layout/1");
+        assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+        assert!(require_current_writer_rule(&bounded).is_err());
+        with_test_writer_rule(Some(&bounded), || {
+            assert!(require_current_writer_rule(&bounded).is_ok());
+            assert!(require_current_writer_rule(V3_RULE_REVISION).is_err());
+        });
+        with_test_writer_rule(None, || {
+            assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+            assert!(require_current_writer_rule(&bounded).is_err());
+        });
+        assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+        assert!(require_current_writer_rule(&bounded).is_err());
     }
 }

@@ -54,6 +54,10 @@ action_map: ADR 0030:31-36 default
 
 SR-2 的 `freeze_new` 附带通知用户（ADR 0030:23「冻结 + 通知」）。
 
+## 扩量门的新版本边界（#1599）
+
+用户 2026-10-26 批准可选扩量门，默认 disabled。启用与阈值仍 AwaitingPolicy；另签具名新 SR 记录且明确 `supersedes: v1`，上面的 SR-1～4 签署原件不修改。未签不生成动作；只许非选择性冻结新承担或对声明范围全部重同一退出，不引入仲裁人。
+
 ## 被否方案
 
 - **把 API 不可达、断连列为 SR-1**：ADR 0030:44 判为失败态。
@@ -72,3 +76,7 @@ SR-2 的 `freeze_new` 附带通知用户（ADR 0030:23「冻结 + 通知」）�
 ## 溯源标签
 
 SR-1 动作取冻结为 `[新缠论:选择]`；SR-1 可观察字段、SR-2 映射 `accountValue`、SR-3 在 P1 恒不触发为 `[新缠论:推论]`；SR-4 依 `026:26` `[旧缠论]`；其余为已裁沿用（ADR 0030、ADR 0040）。
+
+## #1599 批复与受影响清单
+
+[用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。

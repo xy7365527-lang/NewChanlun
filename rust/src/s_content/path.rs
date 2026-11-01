@@ -57,12 +57,18 @@ fn native_reference<R: RefOutput>(
     digest: NodeDigest,
     extent: Option<u64>,
 ) -> Result<R, CodecError> {
-    let permit = source.reserve_native(R::NATIVE_HEAP)?;
-    let reference = R::from_checked(kind, digest, extent);
-    if let Some(permit) = permit {
-        permit.retain();
+    let permit = if R::NATIVE_HEAP == 0 {
+        None
+    } else {
+        source.reserve_native(R::NATIVE_HEAP)?
+    };
+    if permit.is_some() && !R::RETAINS_NATIVE {
+        return Err(CodecError::scratch(
+            super::capture_allocation::scratch::ScratchFailure::Ledger,
+        ));
     }
-    Ok(reference)
+    let reference = R::from_checked(kind, digest, extent);
+    reference.with_native_permit(permit)
 }
 
 /// 本模块的稳定拒绝码（与 §5.1–5.3 的 content codec 码互不冲突）。
@@ -317,7 +323,11 @@ fn lookup_array_output_inner<R: RefOutput>(
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                source.plain_vec_room(&mut result, 1)?;
+                if R::RETAINS_NATIVE {
+                    source.native_vec_room(&mut result, 1)?;
+                } else {
+                    source.plain_vec_room(&mut result, 1)?;
+                }
                 result.push(native_reference(source, kind, value, extent)?)?;
             }
         }
@@ -355,10 +365,143 @@ pub(super) fn lookup_object_fields_owned_ctx<'names>(
 ) -> Result<OwnedRefFields<'names>, CodecError> {
     object_fields_output(&mut CodecContext::Closed(source), reference, names, exact)
 }
+/// 固定业务 schema 的调用局部结果；字段名借用，引用为无堆 RefOwner。
+/// 仅改变结果表示，不携带闭包/事务资格，不得作为跨代成功缓存。
+#[doc(hidden)]
+pub struct FixedFields<'names> {
+    entries: [Option<(&'names str, RefOwner)>; 15],
+    len: usize,
+}
+impl FixedFields<'_> {
+    pub fn get(&self, name: &str) -> Option<&RefOwner> {
+        self.entries[..self.len].iter().find_map(|entry| {
+            entry
+                .as_ref()
+                .filter(|(key, _)| *key == name)
+                .map(|(_, r)| r)
+        })
+    }
+    pub fn get_required(&self, name: &str) -> Result<&RefOwner, CodecError> {
+        self.get(name).ok_or_else(|| field_missing_error(name))
+    }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+impl<'names> FieldOutput<'names> for FixedFields<'names> {
+    type Reference = RefOwner;
+    fn new(_: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(Self {
+            entries: [None; 15],
+            len: 0,
+        })
+    }
+    fn append(&mut self, name: &'names str, reference: RefOwner) -> Result<(), CodecError> {
+        if self.len == self.entries.len() {
+            return Err(sequence_shape_error("固定字段结果超过15字段"));
+        }
+        if self.len > 0 && self.entries[self.len - 1].as_ref().unwrap().0 >= name {
+            return Err(CodecError::static_detail(
+                code::OBJECT_KEY_ORDER,
+                "codec字段结果追加必须严格既有canonical序",
+            ));
+        }
+        self.entries[self.len] = Some((name, reference));
+        self.len += 1;
+        Ok(())
+    }
+}
+/// 复用同一个 exact 字段判据，只把结果保存于最多15个栈槽。
+/// 上界在任何来源读取前检查；既有 keys/DFS 瞬态工作集未更换或冒称 Owned。
+#[doc(hidden)]
+pub fn lookup_object_fields_fixed<'names>(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&'names str],
+) -> Result<FixedFields<'names>, CodecError> {
+    if names.len() > 15 {
+        return Err(sequence_shape_error("固定字段结果超过15字段"));
+    }
+    object_fields_output(&mut CodecContext::Source(source), reference, names, true)
+}
+
+/// 仅用于按调用方原有顺序读取metadata：缺字段不在扫描顺序提前报错。
+/// 不授予exact schema资格；调用方仍须在原晚核验点另跑exact入口。
+struct MetadataFixedFields<'names>(FixedFields<'names>);
+impl<'names> FieldOutput<'names> for MetadataFixedFields<'names> {
+    const DEFER_MISSING: bool = true;
+    type Reference = RefOwner;
+    fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        FixedFields::new(budget).map(Self)
+    }
+    fn append(&mut self, name: &'names str, reference: RefOwner) -> Result<(), CodecError> {
+        self.0.append(name, reference)
+    }
+}
+/// 单次收集最多15个metadata字段，缺失项由get_required按消费顺序拒绝。
+/// 只改变查找结果表示；不代替fresh闭包、exact schema或wire后重新读取。
+#[doc(hidden)]
+pub fn lookup_object_metadata_fixed<'names>(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&'names str],
+) -> Result<FixedFields<'names>, CodecError> {
+    if names.len() > 15 {
+        return Err(sequence_shape_error("固定字段结果超过15字段"));
+    }
+    object_fields_output::<MetadataFixedFields<'names>>(
+        &mut CodecContext::Source(source),
+        reference,
+        names,
+        false,
+    )
+    .map(|fields| fields.0)
+}
+
 pub(super) trait FieldOutput<'names>: Sized {
+    const DEFER_MISSING: bool = false;
+    const NATIVE_VECTOR_FIELDS: bool = false;
     type Reference: RefOutput;
     fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError>;
     fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError>;
+    fn append_reserved(
+        &mut self,
+        name: &'names str,
+        reference: Self::Reference,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+        _work: Option<&super::WorkBudget>,
+    ) -> Result<(), CodecError> {
+        if permit.is_some() {
+            return Err(CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
+        }
+        self.append(name, reference)
+    }
+}
+impl<'names> FieldOutput<'names> for super::capture_allocation::native_owned::NativeRefFields {
+    const NATIVE_VECTOR_FIELDS: bool = true;
+    type Reference = super::capture_allocation::native_owned::NativeValue<ContentRef>;
+    fn new(_budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(Self::default())
+    }
+    fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError> {
+        self.append_reserved(name, reference, None, None)
+    }
+    fn append_reserved(
+        &mut self,
+        name: &'names str,
+        reference: Self::Reference,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+        work: Option<&super::WorkBudget>,
+    ) -> Result<(), CodecError> {
+        super::capture_allocation::native_owned::NativeRefFields::append_reserved(
+            self, name, reference, permit, work,
+        )
+    }
 }
 impl<'names> FieldOutput<'names> for CodecFields {
     type Reference = ContentRef;
@@ -470,13 +613,22 @@ fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
                 previous_key = Some(key);
                 previous_bytes = current_bytes;
                 if !exact {
-                    let Some(expected) = keys.get(at) else {
+                    // Metadata输出仅延迟缺失诊断；原Subset仍在相同第一处失败。
+                    // 不复制字段/键判据，也不在任何失败后走另一条查找路径。
+                    let mut matched = false;
+                    while let Some(expected) = keys.get(at) {
+                        match cmp_field_key(source, &key, previous_bytes.as_deref(), expected)? {
+                            Ordering::Less => break,
+                            Ordering::Greater if O::DEFER_MISSING => at += 1,
+                            Ordering::Greater => return Err(field_missing_error(expected)),
+                            Ordering::Equal => {
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !matched {
                         continue;
-                    };
-                    match cmp_field_key(source, &key, previous_bytes.as_deref(), expected)? {
-                        Ordering::Less => continue,
-                        Ordering::Greater => return Err(field_missing_error(expected)),
-                        Ordering::Equal => {}
                     }
                 }
                 let expected = keys
@@ -507,16 +659,22 @@ fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
                             },
                         )
                     })?;
-                let permit = source.reserve_native(field_bytes)?;
-                result.append(expected, reference)?;
-                if let Some(permit) = permit {
-                    permit.retain();
-                }
+                let permit = source.reserve_native(if O::NATIVE_VECTOR_FIELDS {
+                    expected.len()
+                } else {
+                    field_bytes
+                })?;
+                result.append_reserved(
+                    expected,
+                    reference,
+                    permit,
+                    source.work_budget().as_ref(),
+                )?;
                 at += 1;
             }
         }
     }
-    if at != keys.len() {
+    if at != keys.len() && !O::DEFER_MISSING {
         return Err(sequence_shape_error("字段序列长度与清单不符"));
     }
     Ok(result)
@@ -991,6 +1149,65 @@ enum SeqNode {
     },
 }
 
+/// 只读结构片段；它不是完整闭包或跨快照资格。形状、摘要及资源门复用路径核。
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SequenceFragment {
+    Empty,
+    Leaf(NodeDigest),
+    Branch {
+        left: super::SequenceRef,
+        right: super::SequenceRef,
+    },
+}
+
+/// 获取真实数组头中的规范序列声明，不枚举成员。
+#[doc(hidden)]
+pub fn array_sequence_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<super::SequenceRef, CodecError> {
+    let mut source = CodecContext::Source(source);
+    let work = source.work_budget();
+    let result = (|| {
+        let node = navigate_view(&mut source, reference, &[], false)?;
+        if node.tag != tag::ARRAY {
+            return Err(step_kind_error("数组片段", "0x05 数组", node.tag));
+        }
+        Ok(super::SequenceRef::from_parts_unchecked(
+            digest_at(&node.body, 8),
+            framed_len(&node.body, "数组")?,
+        ))
+    })();
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
+}
+
+/// 只读一个 M 节点；调用方必须另有同材料完整闭包资格才能跳过未访问子树。
+#[doc(hidden)]
+pub fn sequence_fragment(
+    source: &mut dyn NodeSource,
+    reference: super::SequenceRef,
+) -> Result<SequenceFragment, CodecError> {
+    let mut source = CodecContext::Source(source);
+    let work = source.work_budget();
+    let result =
+        read_seq_node(&mut source, &reference.root(), reference.count()).map(|node| match node {
+            SeqNode::Empty => SequenceFragment::Empty,
+            SeqNode::Leaf(value) => SequenceFragment::Leaf(value),
+            SeqNode::Branch { k, left, right } => SequenceFragment::Branch {
+                left: super::SequenceRef::from_parts_unchecked(left, k),
+                right: super::SequenceRef::from_parts_unchecked(right, reference.count() - k),
+            },
+        });
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
+}
+
 /// 单节点核验：摘要↔(tag, body) 重算、tag/长度与期望叶数、分支声明 n 等于期望叶数。
 /// 只核这一个节点（同 `sequence.rs` 的触碰边界口径；更深子树不在本层核）。
 fn read_seq_node(
@@ -1096,11 +1313,11 @@ fn descend_seq(
     }
     let budget = source.work_budget();
     let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
-    let mut digest = *root;
+    let mut node = read_seq_node(source, root, count)?;
     let mut at = index;
     let mut n = count;
     loop {
-        match read_seq_node(source, &digest, n)? {
+        match node {
             SeqNode::Empty => return Err(index_range_error(index, count)),
             SeqNode::Leaf(leaf) => {
                 // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
@@ -1113,7 +1330,9 @@ fn descend_seq(
                 return Ok((branches, leaf));
             }
             SeqNode::Branch { k, left, right } => {
-                check_branch_children(source, &left, &right, n, k)?;
+                // #1757：两侧仍依原顺序实际读取并核验；所选节点直接交给下一轮。
+                let left_node = read_seq_node(source, &left, k)?;
+                let right_node = read_seq_node(source, &right, n - k)?;
                 if at < k {
                     branches.push(BranchFrame {
                         n,
@@ -1121,7 +1340,11 @@ fn descend_seq(
                         right,
                         went_left: true,
                     })?;
-                    digest = left;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &left, k)?
+                    } else {
+                        left_node
+                    };
                     n = k;
                 } else {
                     branches.push(BranchFrame {
@@ -1130,7 +1353,11 @@ fn descend_seq(
                         right,
                         went_left: false,
                     })?;
-                    digest = right;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &right, n - k)?
+                    } else {
+                        right_node
+                    };
                     at -= k;
                     n -= k;
                 }
@@ -1146,10 +1373,10 @@ fn boundary_leaf(
     count: u64,
     right: bool,
 ) -> Result<NodeDigest, CodecError> {
-    let mut digest = *root;
+    let mut node = read_seq_node(source, root, count)?;
     let mut n = count;
     loop {
-        match read_seq_node(source, &digest, n)? {
+        match node {
             SeqNode::Empty => {
                 return Err(sequence_shape_error(
                     "边界下行遇到空序列（期望叶数 ≥ 1）".to_string(),
@@ -1161,12 +1388,21 @@ fn boundary_leaf(
                 left,
                 right: right_digest,
             } => {
-                check_branch_children(source, &left, &right_digest, n, k)?;
+                let left_node = read_seq_node(source, &left, k)?;
+                let right_node = read_seq_node(source, &right_digest, n - k)?;
                 if right {
-                    digest = right_digest;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &right_digest, n - k)?
+                    } else {
+                        right_node
+                    };
                     n -= k;
                 } else {
-                    digest = left;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &left, k)?
+                    } else {
+                        left_node
+                    };
                     n = k;
                 }
             }
@@ -1646,4 +1882,523 @@ pub fn lookup_array_items_refview(
     reference: RefView<'_>,
 ) -> Result<Vec<ContentRef>, CodecError> {
     lookup_array_output(&mut CodecContext::Source(source), reference)?.into_plain()
+}
+
+#[cfg(test)]
+mod fixed_fields_tests {
+    use super::*;
+    use crate::s_content::{write_value, MemoryNodes, Value};
+
+    #[test]
+    fn fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound() {
+        struct Reads {
+            nodes: MemoryNodes,
+            reads: usize,
+        }
+        impl NodeSource for Reads {
+            fn read(&mut self, d: &NodeDigest) -> Result<super::super::NodeRead, CodecError> {
+                self.reads += 1;
+                self.nodes.read(d)
+            }
+        }
+        let mut source = Reads {
+            nodes: MemoryNodes::new(),
+            reads: 0,
+        };
+        let root = write_value(
+            &mut source.nodes,
+            &Value::Object(vec![
+                (
+                    "a".into(),
+                    Value::Number(super::super::NumberToken::parse("7").unwrap()),
+                ),
+                ("b".into(), Value::Null),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let old = lookup_object_fields(&mut source, &root, &["b", "a"]).unwrap();
+        let new = lookup_object_fields_fixed(&mut source, (&root).into(), &["b", "a"]).unwrap();
+        assert_eq!(new.len(), 2);
+        for key in ["a", "b"] {
+            let current = new.get(key).unwrap();
+            assert_eq!(current.digest(), old[key].digest().unwrap());
+            assert_eq!(current.kind(), old[key].kind);
+            assert_eq!(current.extent(), old[key].extent);
+            assert_eq!(current.format(), old[key].format);
+            assert_eq!(current.root(), old[key].root);
+        }
+        let reads = source.reads;
+        assert!(lookup_object_fields_fixed(&mut source, (&root).into(), &["a"; 16]).is_err());
+        assert_eq!(source.reads, reads, "上界先于来源读取");
+        for names in [&["a"][..], &["a", "b", "c"][..], &["a", "a"][..]] {
+            let old = lookup_object_fields(&mut source, &root, names)
+                .err()
+                .unwrap();
+            let new = lookup_object_fields_fixed(&mut source, (&root).into(), names)
+                .err()
+                .unwrap();
+            assert_eq!(new, old, "固定输出复用相同exact判据");
+        }
+    }
+
+    #[test]
+    fn fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(
+            &mut nodes,
+            &Value::Object(vec![("middle".into(), Value::Null)]),
+        )
+        .unwrap()
+        .content_ref();
+        let fields = lookup_object_metadata_fixed(
+            &mut nodes,
+            (&root).into(),
+            &["after", "middle", "before"],
+        )
+        .unwrap();
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields.get_required("middle").unwrap().kind(), Kind::Null);
+        for key in ["before", "after"] {
+            assert_eq!(
+                fields.get_required(key).unwrap_err(),
+                field_missing_error(key)
+            );
+        }
+        assert!(lookup_object_fields_fixed(
+            &mut nodes,
+            (&root).into(),
+            &["after", "middle", "before"]
+        )
+        .is_err());
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_fields_owner_full_capacity_has_zero_global_allocations_and_zero_ledger_delta() {
+        use crate::s_content::capture_allocation::{audit_json::tests::observed, OwnedBudget};
+        let original = OwnedBudget::new(0);
+        let foreign = OwnedBudget::new(0);
+        assert!(!original.same_ledger(&foreign));
+        let names = [
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
+        ];
+        let before = original.snapshot();
+        let ((), calls) = observed(|| {
+            let mut fields = FixedFields::new(Some(&original)).unwrap();
+            for (i, name) in names.iter().enumerate() {
+                fields
+                    .append(name, RefOwner::new(Kind::Null, [i as u8; 32], None))
+                    .unwrap();
+            }
+            for (i, name) in names.iter().enumerate() {
+                assert_eq!(fields.get(name).unwrap().digest(), [i as u8; 32]);
+            }
+            let moved = fields;
+            assert_eq!(moved.len(), 15);
+            drop(moved);
+        });
+        assert_eq!(calls, 0, "结果owner构造/满容量/读取/移动/释放均无堆分配");
+        let after = original.snapshot();
+        assert_eq!(after.allocation_attempts, before.allocation_attempts);
+        assert_eq!(
+            after.live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        assert_eq!(
+            after.peak_requested_layout_bytes,
+            before.peak_requested_layout_bytes
+        );
+        assert_eq!(foreign.snapshot().allocation_attempts, 0);
+        eprintln!("fixed_fields owner actual_global_allocations={calls} ledger_before={before:?} ledger_after={after:?}");
+    }
+}
+
+/// #1488 与旧 path/refview 共核；原 reserve token 直接随 Plain 引用返回。
+pub fn lookup_path_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &[PathStep],
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    lookup_path_output(&mut CodecContext::Source(source), reference, path)
+}
+pub fn lookup_path_view_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false)
+}
+pub fn lookup_optional_field_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    name: &str,
+) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+    lookup_optional_field_output(&mut CodecContext::Source(source), reference, name)
+}
+pub fn lookup_array_items_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<
+    super::CodecVec<super::capture_allocation::native_owned::NativeValue<ContentRef>>,
+    CodecError,
+> {
+    lookup_array_output(&mut CodecContext::Source(source), reference)
+}
+pub fn replace_batch_placeholder_native(
+    store: &mut dyn NodeStore,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch: &str,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    replace_output(&mut CodecContext::Store(store), reference, path, batch)
+}
+
+pub fn lookup_fields_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&str],
+    subset: bool,
+) -> Result<super::capture_allocation::native_owned::NativeRefFields, CodecError> {
+    object_fields_output(&mut CodecContext::Source(source), reference, names, !subset)
+}
+
+/// #1488 原 content_ref_ctx 共核；不经过擦除许可的旧 ContentRef 返回口。
+pub fn content_ref_of_native(
+    source: &mut dyn NodeSource,
+    root: &str,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    let (reference, permit) = super::content_ref_reserved(&mut CodecContext::Source(source), root)?;
+    Ok(super::capture_allocation::native_owned::NativeValue::from_reserved(reference, permit))
+}
+
+/// 每次只交出一个成员；调用者完成业务检查后再借用同一来源推进。
+/// 已读序列节点只活在深度有界的遍历栈内，不保存成员或节点正文。
+pub struct NativeArrayCursor {
+    stack: WorkVec<(SeqNode, u64)>,
+    root: Option<(NodeDigest, u64)>,
+    index: u64,
+    count: u64,
+}
+
+impl NativeArrayCursor {
+    pub fn new(source: &mut dyn NodeSource, reference: RefView<'_>) -> Result<Self, CodecError> {
+        let mut source = CodecContext::Source(source);
+        let work = source.work_budget();
+        let result = (|| {
+            let node = navigate_view(&mut source, reference, &[], false)?;
+            if node.tag != tag::ARRAY {
+                return Err(step_kind_error("index", "0x05 数组", node.tag));
+            }
+            let count = framed_len(&node.body, "数组")?;
+            let root = digest_at(&node.body, 8);
+            Ok(Self {
+                stack: WorkVec::new_work(work.as_ref()),
+                root: Some((root, count)),
+                index: 0,
+                count,
+            })
+        })();
+        if let Some(work) = work {
+            work.observe(&result);
+        }
+        result
+    }
+
+    pub fn next(
+        &mut self,
+        source: &mut dyn NodeSource,
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        self.next_with_prefix(source, &[])
+    }
+
+    pub fn next_with_prefix(
+        &mut self,
+        source: &mut dyn NodeSource,
+        prefix: &[PathStep],
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        let mut source = CodecContext::Source(source);
+        let work = source.work_budget();
+        let result = self.next_inner(&mut source, prefix);
+        if let Some(work) = work {
+            work.observe(&result);
+        }
+        result
+    }
+
+    fn next_inner(
+        &mut self,
+        source: &mut CodecContext<'_, '_>,
+        prefix: &[PathStep],
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        if self.index == self.count {
+            return Ok(None);
+        }
+        // 与 Index 相同，在读取当前元素的序列路径之前执行停止门。
+        source.before_path_index(prefix, self.index)?;
+        if let Some((root, count)) = self.root.take() {
+            self.stack
+                .push((read_seq_node(source, &root, count)?, count))?;
+        }
+        while let Some((node, count)) = self.stack.pop() {
+            match node {
+                SeqNode::Empty => return Err(index_range_error(self.index, self.count)),
+                SeqNode::Branch { k, left, right } => {
+                    // 保留 descend_seq 先核左右直接子节点的拒绝顺序，但不重复读祖先。
+                    let left = read_seq_node(source, &left, k)?;
+                    let right = read_seq_node(source, &right, count - k)?;
+                    self.stack.push((right, count - k))?;
+                    self.stack.push((left, k))?;
+                }
+                SeqNode::Leaf(value) => {
+                    let (t, body) = source.read(&value)?;
+                    if is_sequence_tag(t) {
+                        return Err(sequence_shape_error(format!(
+                            "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                        )));
+                    }
+                    let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+                    let extent = header_extent(t, &body)?;
+                    let member = native_reference(source, kind, value, extent)?;
+                    self.index += 1;
+                    return Ok(Some(member));
+                }
+            }
+        }
+        Err(index_range_error(self.index, self.count))
+    }
+}
+
+#[cfg(test)]
+mod s4_local_descent_tests {
+    use super::super::{write_value, MemoryNodes, NodeRead, NodeSink, Value};
+    use super::*;
+
+    struct Observed {
+        nodes: MemoryNodes,
+        trace: Vec<NodeDigest>,
+        faults: Vec<(NodeDigest, u8)>,
+    }
+    impl NodeSource for Observed {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.trace.push(*digest);
+            match self
+                .faults
+                .iter()
+                .find(|(d, _)| d == digest)
+                .map(|(_, f)| *f)
+            {
+                Some(0) => Ok(NodeRead::Missing),
+                Some(1) => Ok(NodeRead::Found {
+                    tag: tag::NULL,
+                    body: vec![1],
+                }),
+                Some(_) => Err(CodecError::new("descent_source_error", root_string(digest))),
+                None => self.nodes.read(digest),
+            }
+        }
+    }
+    fn source(nodes: &MemoryNodes, faults: &[(NodeDigest, u8)]) -> Observed {
+        Observed {
+            nodes: nodes.clone(),
+            trace: Vec::new(),
+            faults: faults.to_vec(),
+        }
+    }
+    type Outcome = Result<(Vec<(u64, NodeDigest, NodeDigest, bool)>, NodeDigest), CodecError>;
+    fn descent(s: &mut Observed, root: &NodeDigest, n: u64, index: u64, legacy: bool) -> Outcome {
+        let ctx = &mut CodecContext::Source(s);
+        let result = if legacy {
+            legacy_descend_seq(ctx, root, n, index)
+        } else {
+            descend_seq(ctx, root, n, index)
+        };
+        result.map(|(frames, leaf)| {
+            (
+                frames
+                    .iter()
+                    .map(|f| (f.n, f.left, f.right, f.went_left))
+                    .collect(),
+                leaf,
+            )
+        })
+    }
+    fn compare(nodes: &MemoryNodes, root: &NodeDigest, n: u64, faults: &[(NodeDigest, u8)]) {
+        for index in 0..=n {
+            let mut old = source(nodes, faults);
+            let mut new = source(nodes, faults);
+            let expected = descent(&mut old, root, n, index, true);
+            let actual = descent(&mut new, root, n, index, false);
+            assert_eq!(actual, expected, "n={n} index={index} faults={faults:?}");
+            if let Ok((frames, _)) = actual {
+                assert_eq!(old.trace.len() - new.trace.len(), frames.len());
+                if faults.is_empty() && index == 0 {
+                    eprintln!(
+                        "DESCENT_READS n={n} index={index} before={} after={}",
+                        old.trace.len(),
+                        new.trace.len()
+                    );
+                }
+            }
+        }
+        for right in [false, true] {
+            let mut old = source(nodes, faults);
+            let mut new = source(nodes, faults);
+            let expected =
+                legacy_boundary_leaf(&mut CodecContext::Source(&mut old), root, n, right);
+            let actual = boundary_leaf(&mut CodecContext::Source(&mut new), root, n, right);
+            assert_eq!(actual, expected, "n={n} right={right} faults={faults:?}");
+            if n > 1 && actual.is_ok() {
+                assert!(new.trace.len() < old.trace.len());
+            }
+        }
+    }
+    #[test]
+    fn s4_local_descent_matches_legacy_missing_corrupt_source_and_boundaries() {
+        for n in [0u64, 1, 2, 3, 31, 32, 33, 65] {
+            let mut nodes = MemoryNodes::new();
+            let values = (0..n)
+                .map(|i| {
+                    if i % 3 == 0 {
+                        Value::Null
+                    } else {
+                        Value::string(format!("item-{i}"))
+                    }
+                })
+                .collect();
+            let built = write_value(&mut nodes, &Value::Array(values)).unwrap();
+            let (_, body) = nodes.get(&built.digest).unwrap();
+            let root = digest_at(body, 8);
+            compare(&nodes, &root, n, &[]);
+            for (digest, _, _) in nodes.iter() {
+                for fault in 0..3 {
+                    compare(&nodes, &root, n, &[(*digest, fault)]);
+                }
+            }
+            if n > 1 {
+                let (_, body) = nodes.get(&root).unwrap();
+                let left = digest_at(body, 8);
+                let right = digest_at(body, 40);
+                // 两侧同时坏：即使目标在右边，也必须保留左侧的第一错误。
+                for (a, b) in [(0, 1), (1, 0), (2, 0)] {
+                    compare(&nodes, &root, n, &[(left, a), (right, b)]);
+                }
+            }
+        }
+    }
+    fn put(nodes: &mut MemoryNodes, tag: u8, body: &[u8]) -> NodeDigest {
+        let digest = frame(tag, body);
+        nodes.put(digest, tag, body).unwrap();
+        digest
+    }
+    #[test]
+    fn s4_local_descent_preserves_valid_digest_shape_and_role_rejections() {
+        let mut nodes = MemoryNodes::new();
+        let empty = put(&mut nodes, tag::SEQ_EMPTY, &[]);
+        let value = put(&mut nodes, tag::NULL, &[]);
+        let leaf = put(&mut nodes, tag::SEQ_LEAF, &value);
+        let sequence_leaf = put(&mut nodes, tag::SEQ_LEAF, &empty);
+        let short = put(&mut nodes, tag::SEQ_LEAF, &[0; 31]);
+        for child in [empty, value, sequence_leaf, short] {
+            let body = [2u64.to_be_bytes().as_slice(), &child, &leaf].concat();
+            let root = put(&mut nodes, tag::SEQ_BRANCH, &body);
+            compare(&nodes, &root, 2, &[]);
+        }
+        let body = [3u64.to_be_bytes().as_slice(), &leaf, &leaf].concat();
+        let wrong_count = put(&mut nodes, tag::SEQ_BRANCH, &body);
+        compare(&nodes, &wrong_count, 2, &[]);
+        compare(&nodes, &wrong_count, 3, &[]);
+    }
+
+    fn legacy_descend_seq(
+        source: &mut CodecContext<'_, '_>,
+        root: &NodeDigest,
+        count: u64,
+        index: u64,
+    ) -> Result<(WorkVec<BranchFrame>, NodeDigest), CodecError> {
+        if index >= count {
+            return Err(index_range_error(index, count));
+        }
+        let budget = source.work_budget();
+        let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
+        let mut digest = *root;
+        let mut at = index;
+        let mut n = count;
+        loop {
+            match read_seq_node(source, &digest, n)? {
+                SeqNode::Empty => return Err(index_range_error(index, count)),
+                SeqNode::Leaf(leaf) => {
+                    // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
+                    let (t, _body) = source.read(&leaf)?;
+                    if is_sequence_tag(t) {
+                        return Err(sequence_shape_error(format!(
+                            "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                        )));
+                    }
+                    return Ok((branches, leaf));
+                }
+                SeqNode::Branch { k, left, right } => {
+                    check_branch_children(source, &left, &right, n, k)?;
+                    if at < k {
+                        branches.push(BranchFrame {
+                            n,
+                            left,
+                            right,
+                            went_left: true,
+                        })?;
+                        digest = left;
+                        n = k;
+                    } else {
+                        branches.push(BranchFrame {
+                            n,
+                            left,
+                            right,
+                            went_left: false,
+                        })?;
+                        digest = right;
+                        at -= k;
+                        n -= k;
+                    }
+                }
+            }
+        }
+    }
+
+    /// 沿 k 规则下行到最左（`right=false`）／最右（`right=true`）叶。
+    fn legacy_boundary_leaf(
+        source: &mut CodecContext<'_, '_>,
+        root: &NodeDigest,
+        count: u64,
+        right: bool,
+    ) -> Result<NodeDigest, CodecError> {
+        let mut digest = *root;
+        let mut n = count;
+        loop {
+            match read_seq_node(source, &digest, n)? {
+                SeqNode::Empty => {
+                    return Err(sequence_shape_error(
+                        "边界下行遇到空序列（期望叶数 ≥ 1）".to_string(),
+                    ))
+                }
+                SeqNode::Leaf(leaf) => return Ok(leaf),
+                SeqNode::Branch {
+                    k,
+                    left,
+                    right: right_digest,
+                } => {
+                    check_branch_children(source, &left, &right_digest, n, k)?;
+                    if right {
+                        digest = right_digest;
+                        n -= k;
+                    } else {
+                        digest = left;
+                        n = k;
+                    }
+                }
+            }
+        }
+    }
 }

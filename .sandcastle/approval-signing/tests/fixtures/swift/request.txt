@@ -1,0 +1,9 @@
+newchanlun-approval-request/v1
+repository_id=1150335160
+ticket=1742
+run_id=t1742-run.1
+claim_generation=3
+scope=candidate_head
+target=commit:120421fe338a9fcf8467b63aa7d6a28e3f871b8b
+request_nonce=0123456789abcdef0123456789abcdef
+expires_at=2099-01-01T00:00:00Z

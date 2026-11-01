@@ -29,17 +29,84 @@ pub enum ScratchCharge {
 pub struct NativeReservation {
     parent: Arc<dyn ScratchParent>,
     bytes: usize,
+    origin: u64,
 }
 impl NativeReservation {
-    pub fn retain(mut self) {
-        self.bytes = 0;
+    /// #1488：只消费父账已有的未分配原件费；不签发新额度。
+    /// #1488 P3-a：生产父账（trait默认）恒拒且无生产调用方，只随测试/Native测试臂编译。
+    #[cfg(any(test, feature = "s_incremental"))]
+    #[doc(hidden)]
+    pub fn adopt(
+        parent: Arc<dyn ScratchParent>,
+        bytes: usize,
+        expected: u64,
+    ) -> Result<Self, ScratchFailure> {
+        let origin = parent.adopt_native(bytes, expected)?;
+        Ok(Self {
+            parent,
+            bytes,
+            origin,
+        })
+    }
+    pub fn bytes(&self) -> usize {
+        self.bytes
+    }
+
+    /// 只核父账身份；有效操作域仍由本次reserve_native检查。
+    #[doc(hidden)]
+    pub fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+        self.belongs_to_parent_arc(&work.handle.core().parent)
+    }
+    pub(super) fn belongs_to_parent_arc(&self, parent: &Arc<dyn ScratchParent>) -> bool {
+        Arc::ptr_eq(&self.parent, parent)
+    }
+    /// #1527：正常closed父的保留载荷仍可读；失败父或来源失效不得复制洗白。
+    pub fn check_retained_source(&self) -> Result<(), CodecError> {
+        self.parent.health().map_err(CodecError::scratch)?;
+        if self.parent.origin() != self.origin {
+            return Err(CodecError::scratch(ScratchFailure::Ledger));
+        }
+        Ok(())
+    }
+    /// 同级所有权容器只比较父身份，不授予当前操作域写资格。
+    #[doc(hidden)]
+    pub(super) fn same_parent(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.parent, &other.parent)
+    }
+    /// #1488：分拆只移动既有费用，不能复制许可或跨来源合并。
+    pub fn split(&mut self, bytes: usize) -> Result<Self, ScratchFailure> {
+        let remaining = self
+            .bytes
+            .checked_sub(bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        self.bytes = remaining;
+        Ok(Self {
+            parent: self.parent.clone(),
+            bytes,
+            origin: self.origin,
+        })
+    }
+    pub fn merge(&mut self, other: &mut Self) -> Result<(), ScratchFailure> {
+        if !self.same_parent(other) || self.origin != other.origin {
+            return Err(ScratchFailure::Ledger);
+        }
+        let bytes = self
+            .bytes
+            .checked_add(other.bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        self.bytes = bytes;
+        other.bytes = 0;
+        Ok(())
+    }
+    pub fn hold<T>(self, value: T) -> super::native_owned::NativeValue<T> {
+        super::native_owned::NativeValue::from_reserved(value, Some(self))
     }
 }
 impl Drop for NativeReservation {
     fn drop(&mut self) {
         if self
             .parent
-            .release(self.bytes, ScratchCharge::Native)
+            .release(self.bytes, ScratchCharge::Native, self.origin)
             .is_err()
         {
             self.parent.invalidate();
@@ -49,8 +116,36 @@ impl Drop for NativeReservation {
 
 /// 实现方必须先原子预留总额，再更新观测分项；不得分别检查分项后相加。
 pub trait ScratchParent: Send + Sync {
-    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure>;
-    fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure>;
+    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure>;
+    fn reserve_in_origin(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        expected: u64,
+    ) -> Result<u64, ScratchFailure> {
+        if self.origin() != expected {
+            return Err(ScratchFailure::Ledger);
+        }
+        let origin = self.reserve(bytes, kind)?;
+        if origin != expected {
+            self.release(bytes, kind, origin)?;
+            return Err(ScratchFailure::Ledger);
+        }
+        Ok(origin)
+    }
+    fn release(&self, bytes: usize, kind: ScratchCharge, origin: u64)
+        -> Result<(), ScratchFailure>;
+    /// 单域测试父账使用0；生产父账返回当前冻结域。
+    fn origin(&self) -> u64 {
+        0
+    }
+    #[cfg(any(test, feature = "s_incremental"))]
+    fn adopt_native(&self, _bytes: usize, _expected: u64) -> Result<u64, ScratchFailure> {
+        Err(ScratchFailure::Ledger)
+    }
+    fn close_scope(&self, _origin: u64) -> Result<(), ScratchFailure> {
+        Ok(())
+    }
     fn health(&self) -> Result<(), ScratchFailure>;
     fn invalidate(&self);
 }
@@ -62,6 +157,7 @@ struct ScratchCore {
     parent: Arc<dyn ScratchParent>,
     limit: usize,
     metadata_charge: usize,
+    origin: u64,
     live: AtomicUsize,
     peak: AtomicUsize,
     failure: AtomicUsize,
@@ -83,27 +179,43 @@ impl Drop for ScratchHandle {
         if let Some(core) = Arc::into_inner(self.0.take().expect("scratch handle")) {
             let parent = core.parent.clone();
             let charge = core.metadata_charge;
+            let origin = core.origin;
             if core.live.load(Ordering::Acquire) != 0 {
                 parent.invalidate();
             }
             drop(core);
-            if parent.release(charge, ScratchCharge::Metadata).is_err() {
+            if parent
+                .release(charge, ScratchCharge::Metadata, origin)
+                .is_err()
+            {
                 parent.invalidate();
             }
         }
     }
 }
 impl ScratchHandle {
+    fn close(&self) {
+        if self.core().active.swap(false, Ordering::AcqRel) {
+            if let Err(error) = self.core().parent.close_scope(self.core().origin) {
+                self.fail(error);
+                self.core().parent.invalidate();
+            }
+        }
+    }
     pub(crate) fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.check_write()?;
         let parent = self.core().parent.clone();
-        parent
-            .reserve(bytes, ScratchCharge::Native)
+        let origin = parent
+            .reserve_in_origin(bytes, ScratchCharge::Native, self.core().origin)
             .map_err(|failure| {
                 self.fail(failure);
                 CodecError::scratch(failure)
             })?;
-        Ok(NativeReservation { parent, bytes })
+        Ok(NativeReservation {
+            parent,
+            bytes,
+            origin,
+        })
     }
     fn core(&self) -> &ScratchCore {
         self.0.as_ref().expect("scratch handle")
@@ -118,7 +230,7 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn fail(&self, failure: ScratchFailure) {
-        if failure == ScratchFailure::Ledger {
+        if traced(failure) == ScratchFailure::Ledger {
             let _ = self
                 .core()
                 .failure
@@ -135,7 +247,7 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn observe(&self, error: &CodecError) {
-        if error.scratch_failure().is_none() {
+        if traced_semantic(error.scratch_failure().is_none()) {
             let _ = self.core().failure.compare_exchange(
                 0,
                 SEMANTIC_FAILURE,
@@ -146,7 +258,9 @@ impl ScratchHandle {
     }
     /// 写操作即使复用已有容量，也必须仍处于健康的活动域。
     fn check_write(&self) -> Result<(), CodecError> {
-        if !self.core().active.load(Ordering::Acquire) {
+        if !self.core().active.load(Ordering::Acquire)
+            || self.core().origin != self.core().parent.origin()
+        {
             return Err(CodecError::scratch(ScratchFailure::Ledger));
         }
         if let Some(failure) = self.failure() {
@@ -179,9 +293,17 @@ impl ScratchHandle {
             return Ok(());
         }
         // 父先、子后；回调在任何子锁之外（本核心没有锁）。
-        if let Err(e) = c.parent.reserve(bytes, ScratchCharge::Layout) {
-            self.fail(e);
-            return Err(e);
+        let origin = c
+            .parent
+            .reserve_in_origin(bytes, ScratchCharge::Layout, c.origin)
+            .map_err(|e| {
+                self.fail(e);
+                e
+            })?;
+        if origin != c.origin {
+            let _ = c.parent.release(bytes, ScratchCharge::Layout, origin);
+            self.fail(ScratchFailure::Ledger);
+            return Err(ScratchFailure::Ledger);
         }
         if c.live
             .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
@@ -190,7 +312,7 @@ impl ScratchHandle {
             .is_err()
         {
             self.fail(ScratchFailure::Budget);
-            if let Err(e) = c.parent.release(bytes, ScratchCharge::Layout) {
+            if let Err(e) = c.parent.release(bytes, ScratchCharge::Layout, c.origin) {
                 self.fail(e);
             }
             return Err(self.failure().unwrap());
@@ -221,7 +343,10 @@ impl ScratchHandle {
             self.fail(ScratchFailure::Ledger);
             return;
         }
-        if let Err(e) = c.parent.release(layout.size(), ScratchCharge::Layout) {
+        if let Err(e) = c
+            .parent
+            .release(layout.size(), ScratchCharge::Layout, c.origin)
+        {
             self.fail(e);
         }
     }
@@ -272,13 +397,23 @@ impl CodecWork {
             .size()
     }
     pub fn new(parent: Arc<dyn ScratchParent>, limit: usize) -> Result<Self, ScratchFailure> {
+        let origin = parent.origin();
+        Self::new_in_origin(parent, limit, origin)
+    }
+    #[doc(hidden)]
+    pub fn new_in_origin(
+        parent: Arc<dyn ScratchParent>,
+        limit: usize,
+        origin: u64,
+    ) -> Result<Self, ScratchFailure> {
         let metadata_charge = Self::metadata_bytes();
-        parent.reserve(metadata_charge, ScratchCharge::Metadata)?;
+        let origin = parent.reserve_in_origin(metadata_charge, ScratchCharge::Metadata, origin)?;
         Ok(Self {
             handle: ScratchHandle(Some(Arc::new(ScratchCore {
                 parent,
                 limit,
                 metadata_charge,
+                origin,
                 live: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
                 failure: AtomicUsize::new(0),
@@ -296,7 +431,7 @@ impl CodecWork {
             _exclusive: PhantomData,
         };
         let result = f(&scope);
-        scope.handle.core().active.store(false, Ordering::Release);
+        scope.handle.close();
         let failure = scope.handle.failure();
         let semantic_first =
             scope.handle.core().failure.load(Ordering::Acquire) == SEMANTIC_FAILURE;
@@ -316,7 +451,26 @@ impl CodecWork {
         }
     }
 }
+impl Drop for CodecWork {
+    fn drop(&mut self) {
+        self.handle.close();
+    }
+}
 impl WorkScope {
+    /// #1488：无增长/替换也先核当前域；不预留零字节、不改变账本观察值。
+    pub fn check_current(&self) -> Result<(), CodecError> {
+        self.handle.check_write()
+    }
+    #[cfg(any(test, feature = "s_incremental"))]
+    pub(crate) fn adopt_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
+        self.check_current()?;
+        NativeReservation::adopt(
+            self.handle.core().parent.clone(),
+            bytes,
+            self.handle.core().origin,
+        )
+        .map_err(|e| self.reject(e))
+    }
     /// 实际 Plain 分配之前预留；溢出/容量不足沿当前独占操作域分类。
     pub fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.handle.reserve_native(bytes)
@@ -382,5 +536,145 @@ impl<T> std::ops::Deref for ScratchVec<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
         &self.bytes
+    }
+}
+
+// #1488 0072：类型化失败旁路挂点。挂点替换原表达式且行号中性；生产构建下均为恒等函数，
+// 不记录、不改变行为。记录只在 `failure_trace::capture` 活动期间、且仅 testonly 构建发生。
+#[inline(always)]
+pub(crate) fn traced(failure: ScratchFailure) -> ScratchFailure {
+    #[cfg(feature = "s_incremental")]
+    failure_trace::record(failure);
+    failure
+}
+#[inline(always)]
+pub(crate) fn traced_semantic(semantic: bool) -> bool {
+    #[cfg(feature = "s_incremental")]
+    if semantic {
+        failure_trace::record_semantic();
+    }
+    semantic
+}
+/// `CodecError` 的 Display 挂点：scratch 错误渲染进 String 即为“过桥”。
+#[inline(always)]
+pub(crate) fn shown(error: &CodecError) -> &std::borrow::Cow<'static, str> {
+    #[cfg(feature = "s_incremental")]
+    failure_trace::record_bridge(error);
+    &error.detail
+}
+
+/// #1488 0072（独审 0070 R1/R2）：候选 publication 闭包期间全部失败的类别多重集。
+/// 降级判据只读本记录与作用域分类，不按错误文字判断资源种类：
+/// - `record`：每次 `ScratchHandle::fail` 与每次 `CodecError::scratch` 构造（含不记入任何作用域的
+///   Ledger 构造点：SourceClaim 字节不符、check_write 域已关闭等）；
+/// - `record_semantic`：工作域观察到的非 scratch codec 错误；
+/// - `record_bridge`：scratch 错误被渲染为 String（经 `invalid`/`err`/`stale` 等任意前缀包装上抛的起点）。
+///
+/// 记录是线程局部的 Copy 计数，访问不分配；`WorkScope` 不可 Send，同一闭包的 codec 工作都在本线程。
+#[cfg(feature = "s_incremental")]
+pub mod failure_trace {
+    use super::ScratchFailure;
+    use crate::s_content::CodecError;
+    use std::borrow::Cow;
+    use std::cell::Cell;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct FailureTrace {
+        pub budget: usize,
+        pub allocation: usize,
+        pub ledger: usize,
+        pub semantic: usize,
+        /// Budget/Allocation 种类的 scratch 错误渲染进 String 的次数。
+        pub bridged: usize,
+        /// 最近一次过桥错误的 (code, detail)，用于核对闭包错误的来源。
+        rendered: Option<(&'static str, &'static str)>,
+    }
+    impl FailureTrace {
+        /// 期间至少一次 Budget/Allocation，且没有任何 Ledger 或语义失败。
+        pub fn only_resource(&self) -> bool {
+            self.ledger == 0 && self.semantic == 0 && self.budget + self.allocation > 0
+        }
+        /// 闭包错误确由过桥的 Budget/Allocation scratch 错误上抛而来：期间确有过桥，且闭包错误
+        /// 携带该次过桥的原样渲染（任意前缀包装均可）。只收紧不放宽：种类判断不读文字。
+        pub fn bridges(&self, error: &str) -> bool {
+            self.rendered.is_some_and(|(code, detail)| {
+                self.bridged > 0
+                    && error.contains(&CodecError::static_detail(code, detail).to_string())
+            })
+        }
+        fn absorb(&mut self, other: FailureTrace) {
+            self.budget = self.budget.saturating_add(other.budget);
+            self.allocation = self.allocation.saturating_add(other.allocation);
+            self.ledger = self.ledger.saturating_add(other.ledger);
+            self.semantic = self.semantic.saturating_add(other.semantic);
+            self.bridged = self.bridged.saturating_add(other.bridged);
+            self.rendered = other.rendered.or(self.rendered);
+        }
+    }
+
+    thread_local! {
+        static ACTIVE: Cell<Option<FailureTrace>> = const { Cell::new(None) };
+    }
+    fn update(f: impl FnOnce(&mut FailureTrace)) {
+        let _ = ACTIVE.try_with(|active| {
+            if let Some(mut trace) = active.get() {
+                f(&mut trace);
+                active.set(Some(trace));
+            }
+        });
+    }
+    pub(super) fn record(failure: ScratchFailure) {
+        update(|t| match failure {
+            ScratchFailure::Budget => t.budget = t.budget.saturating_add(1),
+            ScratchFailure::Allocation => t.allocation = t.allocation.saturating_add(1),
+            ScratchFailure::Ledger => t.ledger = t.ledger.saturating_add(1),
+        });
+    }
+    pub(super) fn record_semantic() {
+        update(|t| t.semantic = t.semantic.saturating_add(1));
+    }
+    pub(super) fn record_bridge(error: &CodecError) {
+        match error.scratch_failure {
+            Some(ScratchFailure::Budget | ScratchFailure::Allocation) => update(|t| {
+                t.bridged = t.bridged.saturating_add(1);
+                // scratch 错误恒为静态文字；若将来改为 Owned，则不登记渲染，过桥核对 fail-closed。
+                if let Cow::Borrowed(detail) = error.detail {
+                    t.rendered = Some((error.code, detail));
+                }
+            }),
+            Some(ScratchFailure::Ledger) => record(ScratchFailure::Ledger),
+            None => {}
+        }
+    }
+
+    /// 在新记录下执行 `f` 并返回其全部失败；嵌套时内层记录并入外层。panic 时也恢复外层。
+    pub fn capture<T>(f: impl FnOnce() -> T) -> (T, FailureTrace) {
+        struct Restore(Option<Option<FailureTrace>>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                if let Some(outer) = self.0.take() {
+                    let _ = ACTIVE.try_with(|active| active.set(outer));
+                }
+            }
+        }
+        let outer = ACTIVE.with(|active| active.replace(Some(FailureTrace::default())));
+        let mut restore = Restore(Some(outer));
+        let value = f();
+        let trace = ACTIVE
+            .with(|active| active.replace(restore.0.take().unwrap()))
+            .unwrap_or_default();
+        drop(restore);
+        update(|t| t.absorb(trace));
+        (value, trace)
+    }
+}
+
+/// #1488 0077 P55：测试面——以真实 `observe` 挂点（`traced_semantic`）登记一次非 scratch codec
+/// 错误，供 bin 侧降级判据真值表构造“语义失败”行。生产构建无此方法；置于文件末尾，生产行号不动。
+#[cfg(all(feature = "s_incremental", feature = "s_capture_native_testonly"))]
+impl WorkScope {
+    #[doc(hidden)]
+    pub fn observe_for_test(&self, error: &CodecError) {
+        self.handle.observe(error);
     }
 }

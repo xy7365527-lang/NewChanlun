@@ -671,10 +671,26 @@ mod tests {
             // 这是 parser 事实的只读描述，不查询 `BspPoint`/买卖位，不能改调 BSP 绑定 API。
             // #1394 整合行号漂移：FIN `cabb255633`（#1394 2C）把原 237/247/273 三处同一组锚查询
             // 收成一处（窗口三组一次取出交 `cc007_add`，三种用途不变），不新增豁免。
+            // #1405 整合（main 271b8e8cc6）：tb02a_facts.rs 上方行变动 ⟹ 564 → 556，同条目重登记。
             "bin/s_session_v2/tb02a_facts.rs:556",
+            // #1488 A2：raw_bar_at 在 RawBars 的原始 Bar 账中二分定位后核对精确坐标，
+            // 供 CC-007 descriptive_labels.raw_ohlc 读取三组成员的原始 OHLC；不查询
+            // BspPoint/买卖位，不能改调 BSP 绑定 API。只豁免此点，扫描与 stale 检查不变。
+            // （merge-0047：冻结源锚 2999 已随冻结源自身改动漂至 3087，合并 main 及其解法改动后 ⟹ 3090；
+            // 重核内容不变，同条目重登记。
+            // premerge-0086：S3 测试/计数改动在上方增行（e94be462c2 +8、05a6cd003b +9、
+            // 0461dbf630 +2）⟹ 3090 → 3109；合 main 02b5b571eb 后重核仍为 raw_bar_at 的
+            // `.filter(|bar| bar.source_index == coord)`，内容不变，同条目重登记。
+            // close-0085 P58：squash 面全量 cargo fmt 在上方改排版 ⟹ 3109 → 3114；重核仍为
+            // raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。
+            // #1491 段 B：上方增 CC-007 单元读数类型、批记录构造口与续接逐前缀根 ⟹ 3114 → 3338；
+            // 重核仍为 raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。
+            // #1780 独审返修：上方增失效水位字段与穷举分派 ⟹ 3338 → 3349，同一行，同条目重登记。）
+            "bin/s_session_v2/content_producer.rs:3349",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
-            // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
-            "theta_v0/backtest/l3_pi_probe.rs:603",
+            // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。
+            // #1605：上方探针记录读取与输出追溯共增 15 行 ⟹ 603→618，内容不变。）
+            "theta_v0/backtest/l3_pi_probe.rs:618",
             // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
             "theta_v0/classifier/nest.rs:725",
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`
@@ -760,7 +776,9 @@ mod tests {
             // 2026-08-29 #1285：集成探针 quasi_second_probe_runs_on_production_tower
             // （+94 行）⟹ 夹具点随迁 1626 → 1720，重核内容不变（source_index 过滤），
             // 同条目重登记。
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1720",
+            // 2026-10-25 #1626：compose_level 调用增加 TowerBase 参数并多行化（+15 行）⟹
+            // 夹具点同内容随迁 1720 → 1735，重核仍为 source_index 过滤，同条目重登记。
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1735",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。

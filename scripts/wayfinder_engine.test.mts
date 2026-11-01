@@ -576,17 +576,17 @@ test("releaseTicket：写前复核读到负责人 / blocker 不发 --add-label�
 
 // ── #1617：spec 起草子代理与主控同型（经 CLIProxyLocal） ─────────────────
 
-test("起草子代理默认：claude-cliproxy / gpt-6-astra", () => {
+test("起草子代理默认：claude-cliproxy / gpt-6.1-sol", () => {
   assert.equal(DEFAULT_SPEC_PROVIDER, "claude-cliproxy");
-  assert.equal(DEFAULT_SPEC_MODEL, "gpt-6-astra");
-  assert.deepEqual(resolveSpecDrafter({}), { specProvider: "claude-cliproxy", specModel: "gpt-6-astra" });
-  assert.deepEqual([...SUPPORTED_SPEC_MODELS], ["gpt-6-astra"]);
+  assert.equal(DEFAULT_SPEC_MODEL, DEFAULT_SPEC_MODEL);
+  assert.deepEqual(resolveSpecDrafter({}), { specProvider: "claude-cliproxy", specModel: DEFAULT_SPEC_MODEL });
+  assert.deepEqual([...SUPPORTED_SPEC_MODELS], [DEFAULT_SPEC_MODEL]);
 });
 
 test("起草子代理显式配置主控同型仍可用", () => {
-  assert.deepEqual(resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: "gpt-6-astra" }), {
+  assert.deepEqual(resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: DEFAULT_SPEC_MODEL }), {
     specProvider: "claude-cliproxy",
-    specModel: "gpt-6-astra",
+    specModel: DEFAULT_SPEC_MODEL,
   });
 });
 
@@ -599,7 +599,7 @@ test("起草子代理配非主控模型 → fail-loud，不回退默认", () => 
 test("起草子代理配非 claude-cliproxy provider → fail-loud（旧 deepseek / prime-agent 路由不复活）", () => {
   for (const p of ["deepseek", "cliproxy-local", "anthropic"]) {
     assert.throws(
-      () => resolveSpecDrafter({ WAYFINDER_SPEC_PROVIDER: p, WAYFINDER_SPEC_MODEL: "gpt-6-astra" }),
+      () => resolveSpecDrafter({ WAYFINDER_SPEC_PROVIDER: p, WAYFINDER_SPEC_MODEL: DEFAULT_SPEC_MODEL }),
       /不受支持/,
       `provider=${p}`,
     );
@@ -607,9 +607,9 @@ test("起草子代理配非 claude-cliproxy provider → fail-loud（旧 deepsee
 });
 
 test("起草子代理调用：Claude Code CLI 无头 -p、禁用全部工具、不落会话，模型显式传入", () => {
-  const { file, args } = specDrafterCommand("gpt-6-astra");
+  const { file, args } = specDrafterCommand(DEFAULT_SPEC_MODEL);
   assert.equal(file, "claude");
-  assert.deepEqual(args, ["-p", "--bare", "--model", "gpt-6-astra", "--output-format", "text", "--tools", "", "--no-session-persistence"]);
+  assert.deepEqual(args, ["-p", "--bare", "--model", DEFAULT_SPEC_MODEL, "--output-format", "text", "--tools", "", "--no-session-persistence"]);
   assert.ok(!args.includes("prime-agent") && !args.some((a) => /deepseek/.test(a)));
 });
 

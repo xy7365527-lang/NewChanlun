@@ -6,11 +6,11 @@ import {
 /**
  * hosted 模型 registry（#1617 现行合同）：
  * - 无 `agent:model:*` 标签的 Claude 默认已退役；ubuntu-latest 没有获批的
- *   Astra 凭据或可达 CLIProxy 端点，不能把 Claude OAuth 错用于 gpt-6-astra。
+ *   Astra 凭据或可达 CLIProxy 端点，不能把 Claude OAuth 错用于 gpt-6.1-sol。
  * - `agent:model:deepseek-v4-pro` 只作为 implement / implement-pr / review 的
  *   显式 legacy opt-in；缺 key、未知标签或冲突标签均在模型调用前失败。
  * - 本机受管默认不经过此 hosted registry，统一由 main-model.mts 指定
- *   `gpt-6-astra`，经 CLIProxyLocal 自动路由。
+ *   `gpt-6.1-sol`，经 CLIProxyLocal 自动路由。
  * - label → provider → model → Secret 仍全部来自代码 allowlist；旧默认不得
  *   成为任何失败的 fallback。
  *
@@ -278,7 +278,7 @@ export type SelectableRole = "implement" | "implement-pr" | "review" | "update-b
 
 export const HOSTED_DEFAULT_RETIRED =
   "Hosted agent default is retired (#1617): this runner has no approved Kimi credential or reachable CLIProxy endpoint. " +
-  "Use the local gpt-6-astra Sandcastle queue, or explicitly opt into agent:model:deepseek-v4-pro where supported.";
+  "Use the local gpt-6.1-sol Sandcastle queue, or explicitly opt into agent:model:deepseek-v4-pro where supported.";
 
 /** 旧 explore 入口保留函数名，但不再启动 Claude；update-branch 由 selectedAgent 显式选路。 */
 export const claudeAgent = (

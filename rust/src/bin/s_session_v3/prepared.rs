@@ -3,13 +3,64 @@
 //! 写前那段完整旧状态核验不在此处：它在 `state::audit`（只读入口与提交口共用同一份判据）。
 //! 目前是内部接线，尚未接 CLI/服务、资源 job 或 Q/E/B，不代表完整 S3 验收。
 
+use super::audit_store::{CodecRead, CodecStore};
 use super::*;
-use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit, UnpublishedManifest};
+use content_manifest::{ManifestMetadata, SourceCommit, UnpublishedManifest};
 use generation::{GenerationInput, GenerationRuntime};
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
+use newchan_rust::theta_v0::config::ThetaConfig;
 use rusqlite::Transaction;
 use sc::capture_allocation::scratch::WorkScope;
+
+#[cfg(feature = "s_incremental")]
+fn publication_read_lease<'a, 'db>(
+    tx: &'a mut Transaction<'db>,
+    work: Option<&'a WorkScope>,
+    #[cfg(test)] stage: Option<&'a staged_nodes::StageOwner<'a>>,
+) -> Result<content_store::NativeReadLease<'a, 'db>, sc::CodecError> {
+    #[cfg(test)]
+    if let Some(stage) = super::audit_owner::prepare_fault(work)?.and(stage) {
+        let work =
+            work.ok_or_else(|| sc::CodecError::new(sc::code::SOURCE, "staged租约缺父工作域"))?;
+        return content_store::NativeReadLease::new_admitted_staged(tx, work, stage);
+    }
+    content_store::NativeReadLease::new_admitted(tx, work)
+}
+#[cfg(feature = "s_incremental")]
+fn publication_material<T>(
+    tx: &Transaction<'_>,
+    work: Option<&WorkScope>,
+    parent: Option<&super::audit_owner::PublicationScope<'_>>,
+    #[cfg(test)] stage: Option<&staged_nodes::StageOwner<'_>>,
+    f: impl FnOnce(Option<&super::audit_owner::MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
+) -> Result<T, String> {
+    match parent {
+        Some(parent) => super::audit_owner::with_construction_material_in_publication(
+            tx,
+            parent,
+            #[cfg(test)]
+            stage,
+            f,
+        ),
+        None => super::audit_owner::with_construction_material(tx, work, f),
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+enum PublicationRuntimeRoots {
+    Plain(Vec<sc::NodeDigest>),
+    Admitted(sc::capture_allocation::scratch::ScratchVec<sc::NodeDigest>),
+}
+#[cfg(all(test, feature = "s_incremental"))]
+impl PublicationRuntimeRoots {
+    fn as_slice(&self) -> &[sc::NodeDigest] {
+        match self {
+            Self::Plain(v) => v,
+            Self::Admitted(v) => v,
+        }
+    }
+}
 
 /// 私有构造字段：只有本模块成功获得 NativeReadLease 的分支可发此代生成资格。
 /// 不授予节点存在、checked frame、旧账或发布闭包证明。
@@ -69,19 +120,31 @@ impl<T: NodeStore> audit_store::CodecStore for BusinessTxStore<T> {
 pub(super) struct Runtime {
     /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
     mode: s_allocation::Mode,
+    audit_ledger: Option<audit_ledger::Ledger>,
+    #[cfg(feature = "s_incremental")]
+    queued_audit_facts: Option<(String, audit_ledger::QueuedFacts)>,
+    /// 生成链配置；生产与诊断由 Driver 显式区分。
+    theta_config: ThetaConfig,
     binding: Option<Vec<String>>,
     generator: Option<GenerationRuntime>,
     auxiliary: aux_index::Runtime,
     #[cfg(test)]
     after_prepare: Option<fn(&Transaction<'_>) -> Result<(), String>>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
+    before_native_source: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
+    #[cfg(all(test, feature = "s_incremental"))]
     stage_new_nodes: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    /// #1640 D6：增量路径的读取租约资格常驻；生产恒真，只有测试可关闭以验证拒绝。
+    #[cfg(feature = "s_incremental")]
     native_read_lease: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     manifest_workspace: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     last_stage_report: Option<Value>,
+    /// #1640 D2 出生锁：下一次完整分支（`generate_impl(None)`）的入口标签。
+    /// startup＝新 Runtime；discard＝出错丢弃后；abandon＝降级放弃后；任一代生成后置 steady。
+    #[cfg(all(test, feature = "s_incremental"))]
+    birth_entry: &'static str,
 }
 
 impl Runtime {
@@ -95,32 +158,42 @@ impl Runtime {
         Self::with_mode(allocation.into())
     }
 
+    #[cfg(test)]
     pub(super) fn with_mode(mode: s_allocation::Mode) -> Self {
+        Self::with_config(mode, ThetaConfig::default())
+    }
+
+    pub(super) fn with_config(mode: s_allocation::Mode, theta_config: ThetaConfig) -> Self {
         Self {
             mode,
+            audit_ledger: None,
+            #[cfg(feature = "s_incremental")]
+            queued_audit_facts: None,
+            theta_config,
             binding: None,
             generator: None,
             auxiliary: Default::default(),
             #[cfg(test)]
             after_prepare: None,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
+            before_native_source: None,
+            #[cfg(all(test, feature = "s_incremental"))]
             stage_new_nodes: false,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(feature = "s_incremental")]
             native_read_lease: true,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             manifest_workspace: true,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             last_stage_report: None,
+            #[cfg(all(test, feature = "s_incremental"))]
+            birth_entry: "startup",
         }
     }
 
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
@@ -129,11 +202,28 @@ impl Runtime {
         self.after_prepare = hook;
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    /// 只测试：在真实producer/object-plan/axes完成后，用实际TxStore写入坏件。
+    /// 不提供raw token、capture或成功标记，返回根仍必须通过正式材料与来源核。
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(super) fn set_before_native_source_for_test(
+        &mut self,
+        hook: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
+    ) {
+        self.before_native_source = hook;
+    }
+
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(super) fn parser_config_for_test(&self) -> Option<&ThetaConfig> {
+        self.generator
+            .as_ref()
+            .map(GenerationRuntime::parser_config_for_test)
+    }
+
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn disable_manifest_workspace_for_test(&mut self) {
         self.manifest_workspace = false;
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(
         &self,
     ) -> Result<Vec<(&'static str, sc::NodeDigest)>, String> {
@@ -146,7 +236,7 @@ impl Runtime {
         Ok(roots)
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn enable_staging_for_native_test(&mut self) -> Result<(), String> {
         if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
             return Err("TestOnly staging只允许Native".into());
@@ -154,16 +244,127 @@ impl Runtime {
         self.stage_new_nodes = true;
         Ok(())
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn staging_report_for_native_test(&self) -> Option<&Value> {
         self.last_stage_report.as_ref()
     }
 
+    /// #1647 组件接口。完整折叠与 Δ 生产者由后续接线提供；不默认启用台账准入。
+    #[allow(dead_code)]
+    pub(super) fn install_audit_ledger(
+        &mut self,
+        ledger: audit_ledger::Ledger,
+    ) -> Result<(), String> {
+        if self.audit_ledger.is_some() {
+            return Err("AuditLedgerStale：同一 Runtime 不允许更换台账，须新建进程生命周期".into());
+        }
+        #[cfg(feature = "s_incremental")]
+        if ledger.is_partial() && !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+            return Err("AuditLedgerStale：raw分区只能接Native来源收据".into());
+        }
+        self.audit_ledger = Some(ledger);
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn stage_audit_ledger(
+        &mut self,
+        token: &str,
+        delta: &audit_ledger::GenerationDelta,
+    ) -> Result<(), String> {
+        #[cfg(feature = "s_incremental")]
+        if self.queued_audit_facts.is_some() {
+            self.invalidate_audit_ledger();
+            return Err("AuditLedgerStale：已排队事实不能改走预写组件入口".into());
+        }
+        self.audit_ledger
+            .as_mut()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .stage(token, delta)
+    }
+
+    /// H1 点查资格：只在完整台账已提交至少一代且无进行中一代时签发（36M）。
+    /// 39P/40B：生产消费走 `audit_qualification_bounded`（先持票再读）；本无界读取只供测试。
+    #[cfg(feature = "s_incremental")]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "#1481 39P：H1 生产路径改走 audit_qualification_bounded，无界读取只供测试"
+        )
+    )]
+    pub(super) fn audit_qualification(&self) -> Result<audit_ledger::Qualification, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .qualification()
+    }
+    /// 39P B2：调用方已为 `cap` 字节持票；台账行超过上界在分配前拒绝。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn audit_qualification_bounded(
+        &self,
+        cap: usize,
+    ) -> Result<audit_ledger::Qualification, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .qualification_bounded(cap)
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn contains_qualified_unit(
+        &self,
+        qualification: &audit_ledger::Qualification,
+        unit: &audit_ledger::Unit,
+    ) -> Result<bool, String> {
+        self.audit_ledger
+            .as_ref()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .contains_qualified_unit(qualification, unit)
+    }
+
+    pub(super) fn commit_audit_ledger(&mut self) -> Result<(), String> {
+        match &mut self.audit_ledger {
+            Some(ledger) => ledger.content_committed(),
+            None => Ok(()),
+        }
+    }
+
+    pub(super) fn invalidate_audit_ledger(&mut self) -> bool {
+        #[cfg(feature = "s_incremental")]
+        {
+            self.queued_audit_facts = None;
+        }
+        if let Some(ledger) = &mut self.audit_ledger {
+            ledger.invalidate();
+            true
+        } else {
+            false
+        }
+    }
+
     pub(super) fn discard(&mut self) {
+        #[cfg(feature = "s_incremental")]
+        if self.queued_audit_facts.is_some() {
+            self.invalidate_audit_ledger();
+        }
         if let Some(generator) = &mut self.generator {
             generator.discard_runtime_state();
         }
         self.auxiliary.discard();
+        #[cfg(all(test, feature = "s_incremental"))]
+        {
+            self.birth_entry = "discard";
+        }
+    }
+
+    /// #1640 D2：0065 降级放弃后丢弃运行态，下一次完整分支记为 abandon 入口。
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(super) fn mark_abandon_birth_for_test(&mut self) {
+        self.birth_entry = "abandon";
+    }
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(super) fn birth_entry_for_test(&self) -> &'static str {
+        self.birth_entry
     }
 
     /// 按值接管事务；包括准备阶段节点、独立索引和目录在内，同成同败。
@@ -180,25 +381,24 @@ impl Runtime {
                 token,
                 envelope,
                 None,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 None,
             )?;
             tx.commit()
                 .map_err(|e| format!("PublicationInvalid：{e}"))?;
+            self.commit_audit_ledger()?;
             Ok(receipt)
         })();
         if result.is_err() {
             self.discard();
+            self.invalidate_audit_ledger();
         }
         result
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn commit_in_request(
         &mut self,
@@ -213,15 +413,17 @@ impl Runtime {
                 token,
                 envelope,
                 Some(context),
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 None,
             )?;
             tx.commit()
                 .map_err(|e| format!("PublicationInvalid：{e}"))?;
+            self.commit_audit_ledger()?;
             Ok(receipt)
         })();
         if result.is_err() {
             self.discard();
+            self.invalidate_audit_ledger();
         }
         result
     }
@@ -234,52 +436,150 @@ impl Runtime {
     ) -> Result<commit::CommitReceipt, String> {
         phase.publish(self, token, envelope, context)
     }
+    #[cfg_attr(
+        all(not(test), feature = "s_incremental"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn publish_impl(
         &mut self,
         tx: &mut Transaction<'_>,
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
     ) -> Result<commit::CommitReceipt, String> {
         self.publish_impl_admitted(
             tx,
             token,
             envelope,
             context,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             bound_audit,
             None,
         )
     }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn publish_impl_bound(
+        &mut self,
+        tx: &mut Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
+        bound_audit: Option<&state::AuditedState>,
+        bound_raw: Option<&super::audit_owner::BoundRawAdvance<'_>>,
+        bound_capture: Option<&mut sc::AuditCapture>,
+        bound_source: Option<&mut Option<source_audit::NativeSourceState>>,
+        parent: Option<&super::audit_owner::PublicationScope<'_>>,
+    ) -> Result<commit::CommitReceipt, String> {
+        self.publish_impl_admitted_bound(
+            tx,
+            token,
+            envelope,
+            context,
+            bound_audit,
+            bound_raw,
+            bound_capture,
+            bound_source,
+            parent.map(|p| p.work()),
+            parent,
+        )
+    }
     /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
+    #[cfg_attr(
+        all(not(test), feature = "s_incremental"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn publish_impl_admitted(
         &mut self,
         tx: &mut Transaction<'_>,
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
         work: Option<&WorkScope>,
     ) -> Result<commit::CommitReceipt, String> {
+        self.publish_impl_admitted_bound(
+            tx,
+            token,
+            envelope,
+            context,
+            #[cfg(feature = "s_incremental")]
+            bound_audit,
+            #[cfg(feature = "s_incremental")]
+            None,
+            #[cfg(feature = "s_incremental")]
+            None,
+            #[cfg(feature = "s_incremental")]
+            None,
+            work,
+            #[cfg(feature = "s_incremental")]
+            None,
+        )
+    }
+    fn publish_impl_admitted_bound(
+        &mut self,
+        tx: &mut Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_raw: Option<
+            &super::audit_owner::BoundRawAdvance<'_>,
+        >,
+        #[cfg(feature = "s_incremental")] bound_capture: Option<&mut sc::AuditCapture>,
+        #[cfg(feature = "s_incremental")] bound_source: Option<
+            &mut Option<source_audit::NativeSourceState>,
+        >,
+        work: Option<&WorkScope>,
+        #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
+    ) -> Result<commit::CommitReceipt, String> {
+        #[cfg(feature = "s_incremental")]
+        if self.queued_audit_facts.is_some() {
+            self.invalidate_audit_ledger();
+            return Err("AuditLedgerStale：上次prepare的排队事实未消费".into());
+        }
+        if let Some(ledger) = &self.audit_ledger {
+            // #1647：分区台账在同次来源核验后 stage；完整台账（36M）由本次 prepare 的收据生产事实。
+            // 两者进入 prepare 前须仍是 Ready；组件路径预先 stage 的台账须已 Pending。
+            #[cfg(feature = "s_incremental")]
+            let produced_in_prepare = if ledger.is_partial() {
+                ledger.partial_through()?;
+                true
+            } else {
+                ledger.accepts_production()
+                    && matches!(self.mode, s_allocation::Mode::CapturedNative)
+            };
+            #[cfg(not(feature = "s_incremental"))]
+            let produced_in_prepare = false;
+            if !produced_in_prepare {
+                ledger.require_pending()?;
+            }
+        }
+        #[cfg(feature = "s_incremental")]
+        if let Some(parent) = parent {
+            parent.check_transaction(tx)?;
+        }
         if work.is_some() {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
                 return Err("PublicationInvalid：Native工作域不能覆盖Owned或普通模式".into());
             }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             return Err("PublicationInvalid：Native工作域需要相应feature".into());
         }
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if work.is_some() && self.stage_new_nodes {
+        #[cfg(all(test, feature = "s_incremental"))]
+        if work.is_some() && self.stage_new_nodes && parent.is_none() {
             return Err("PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope".into());
         }
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         let stage = if self.stage_new_nodes {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
                 return Err("TestOnly staging只允许Native".into());
             }
-            Some(staged_nodes::StageOwner::new(&tx))
+            Some(match parent {
+                Some(parent) => staged_nodes::StageOwner::new_admitted(tx, parent)?,
+                None => staged_nodes::StageOwner::new(tx),
+            })
         } else {
             None
         };
@@ -289,58 +589,121 @@ impl Runtime {
                 token,
                 envelope,
                 context,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 bound_audit,
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(feature = "s_incremental")]
+                bound_raw,
+                #[cfg(feature = "s_incremental")]
+                bound_capture,
+                #[cfg(feature = "s_incremental")]
+                bound_source,
+                #[cfg(all(test, feature = "s_incremental"))]
                 stage.as_ref(),
                 work,
+                #[cfg(feature = "s_incremental")]
+                parent,
             )?;
+            #[cfg(feature = "s_incremental")]
+            let mut prepared = prepared;
+            #[cfg(feature = "s_incremental")]
+            if let Some((queued_token, facts)) = self.queued_audit_facts.take() {
+                if queued_token != token {
+                    return Err("AuditLedgerStale：待准备事实token不匹配".into());
+                }
+                let verified = prepared
+                    .source_manifest
+                    .as_mut()
+                    .ok_or("AuditLedgerStale：缺同次来源清单证明")?
+                    .take_verified_units(&prepared.metadata, &prepared.roots, &prepared.manifest)?;
+                let delta = facts.bind(&prepared.metadata, &prepared.roots)?;
+                // 40B B1：H1 上一代资格在 stage 同一台账事务内先核，再改写折叠链。
+                let prior = bound_audit.and_then(state::AuditedState::prior_qualification);
+                self.audit_ledger
+                    .as_mut()
+                    .ok_or("AuditLedgerStale：未安装台账")?
+                    .stage_verified(token, &delta, &verified, work, prior)?;
+            }
+            if let Some(ledger) = &mut self.audit_ledger {
+                ledger.bind(token, &prepared.metadata, &prepared.roots)?;
+            }
+            #[cfg(test)]
+            state::trace_stage("publish_borrowed", "-", prepared.metadata.generation);
             #[cfg(test)]
             if let Some(inject) = self.after_prepare {
                 inject(&tx)?;
             }
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = &stage {
-                let roots = self
-                    .visit_runtime_roots()?
-                    .into_iter()
-                    .map(|(_, d)| d)
-                    .collect::<Vec<_>>();
+                let mut roots = match work {
+                    Some(work) => PublicationRuntimeRoots::Admitted(work.vector()),
+                    None => PublicationRuntimeRoots::Plain(Vec::new()),
+                };
+                let mut failed = None;
+                let mut visit = |_, digest| {
+                    if failed.is_some() {
+                        return;
+                    }
+                    match &mut roots {
+                        PublicationRuntimeRoots::Plain(v) => v.push(digest),
+                        PublicationRuntimeRoots::Admitted(v) => {
+                            if let Err(e) = v.try_push(digest) {
+                                failed = Some(e);
+                            }
+                        }
+                    }
+                };
+                if let Some(generator) = &self.generator {
+                    generator.visit_runtime_roots(&mut visit);
+                }
+                self.auxiliary.visit_runtime_roots(&mut visit)?;
+                if let Some(error) = failed {
+                    return Err(err(error));
+                }
                 return commit::publish_borrowed_staged(
                     tx,
                     token,
                     &prepared.metadata,
                     &prepared.roots,
                     &prepared.manifest,
+                    &prepared.policy_records,
                     stage,
-                    &roots,
+                    roots.as_slice(),
+                    prepared.workspace,
+                    work,
+                    prepared.source_manifest,
                 );
             }
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             return commit::publish_borrowed_with_workspace_admitted(
                 tx,
                 token,
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
                 prepared.workspace,
                 work,
+                prepared.source_manifest,
             );
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             commit::publish_borrowed(
                 tx,
                 token,
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
             )
         })();
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(test)]
+        state::trace_stage("publish_end", "-", -1);
+        #[cfg(all(test, feature = "s_incremental"))]
         {
             self.last_stage_report = stage.as_ref().map(|owner| owner.report());
         }
         if result.is_err() {
             self.discard();
+            self.invalidate_audit_ledger();
         }
         result
     }
@@ -351,18 +714,24 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
-            &staged_nodes::StageOwner,
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_raw: Option<
+            &super::audit_owner::BoundRawAdvance<'_>,
         >,
+        #[cfg(feature = "s_incremental")] bound_capture: Option<&mut sc::AuditCapture>,
+        #[cfg(feature = "s_incremental")] bound_source: Option<
+            &mut Option<source_audit::NativeSourceState>,
+        >,
+        #[cfg(all(test, feature = "s_incremental"))] stage: Option<&staged_nodes::StageOwner>,
         work: Option<&WorkScope>,
+        #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<Prepared, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let workspace_budget = context
             .as_deref()
             .and_then(request_audit::RequestAuditContext::manifest_workspace_budget);
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let bound_audit: Option<&state::AuditedState> = None;
         let fresh;
         let audited = if let Some(bound) = bound_audit {
@@ -481,12 +850,225 @@ impl Runtime {
                 return Err(err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例"));
             }
         } else {
-            self.generator = Some(GenerationRuntime::new(
+            self.generator = Some(GenerationRuntime::with_config(
                 lane_key,
                 &metadata.profile_id,
                 &metadata.rule_revision,
+                self.theta_config.clone(),
             ));
             self.binding = Some(binding);
+        }
+        #[cfg(feature = "s_incremental")]
+        if let Some(raw) = bound_raw {
+            if !matches!(self.mode, s_allocation::Mode::CapturedNative) || audited.budget.is_some()
+            {
+                return Err(err("owner增量路径只接受Native原件"));
+            }
+            // #1640 D6：租约资格检查常驻生产；staged 夹具的父域缺失只在测试构建可达。
+            #[cfg(test)]
+            let staged_without_parent = stage.is_some() && parent.is_none();
+            #[cfg(not(test))]
+            let staged_without_parent = false;
+            if !self.native_read_lease || staged_without_parent {
+                return Err(err("owner增量路径必须使用真实Native读取租约"));
+            }
+            let capture = bound_capture.ok_or_else(|| err("owner增量缺同pending原件capture"))?;
+            let source_slot = bound_source.ok_or_else(|| err("owner增量缺唯一来源状态槽"))?;
+            let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
+            drop(control);
+            // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
+            #[cfg_attr(not(test), allow(unused_mut))]
+            let (mut generated, objects, axes) = {
+                let mut store = BusinessTxStore {
+                    inner: publication_read_lease(
+                        tx,
+                        work,
+                        #[cfg(test)]
+                        stage,
+                    )
+                    .map_err(err)?,
+                    budget: None,
+                };
+                sc::write_value(&mut store, &scope_value).map_err(err)?;
+                let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+                #[cfg(test)]
+                state::trace_stage("generate", "delta", generation);
+                #[cfg(all(test, feature = "s_incremental"))]
+                {
+                    self.birth_entry = "steady";
+                }
+                let mut generated = generator.generate_bound(
+                    &mut store,
+                    raw,
+                    generation::BoundGenerationInput {
+                        generation,
+                        structure_cut: &metadata.structure_cut,
+                        input_frontier: frontier,
+                        profile_id: &metadata.profile_id,
+                        profile_hash: &metadata.profile_hash,
+                        rule_revision: &metadata.rule_revision,
+                        catalog_revision: &metadata.catalog_revision,
+                        scope: &scope,
+                        semantic_commit_ns: Some(&metadata.semantic_commit_ns),
+                        prior: content_bi::PriorState {
+                            bi_records: prior_bi.iter().collect(),
+                            version_record: prior_version.as_ref(),
+                        },
+                    },
+                )?;
+                #[cfg(test)]
+                state::trace_stage("object_plan", "delta", generation);
+                let objects = object_index::plan_native_union(
+                    &mut store,
+                    super::layout::Layout::of_rule(&metadata.rule_revision)?,
+                    &generated.objects,
+                    &audited.objects,
+                    generation,
+                )?;
+                generated.finish_axes(
+                    &mut store,
+                    previous,
+                    &objects.withdrawals,
+                    &objects.replaces,
+                )?;
+                let axes = store
+                    .native_plain_ref(
+                        generated
+                            .catalog_axes
+                            .as_ref()
+                            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?
+                            .into(),
+                    )
+                    .map_err(err)?;
+                (generated, objects, axes)
+            };
+            #[cfg(test)]
+            if let Some(inject) = self.before_native_source {
+                // 测试注入返回旧 transport 值；重新在当前 work 准入后才替换生产 owner。
+                let injected = inject(tx, &generated.generated_state)?;
+                generated.generated_state = sc::capture_allocation::native_owned::NativeValue::<
+                    sc::ContentRef,
+                >::try_from_view(
+                    (&injected).into(), work
+                )
+                .map_err(err)?;
+            }
+            #[cfg(test)]
+            if let Some(stage) = stage {
+                stage.flush_cut(
+                    tx,
+                    staged_nodes::FlushCut::Source((&generated.generated_state).into()),
+                )?;
+            }
+            let products = publication_material(
+                tx,
+                work,
+                parent,
+                #[cfg(test)]
+                stage,
+                |material| {
+                    let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
+                    #[cfg(test)]
+                    state::trace_stage("prepare_source_audit", "delta", generation);
+                    let audit_source = if self
+                        .audit_ledger
+                        .as_ref()
+                        .is_some_and(|ledger| ledger.wants_business_facts())
+                    {
+                        super::audit_owner::audit_native_source_partitions_cut
+                    } else {
+                        super::audit_owner::audit_native_source_cut
+                    };
+                    let (qualified, source) = audit_source(
+                        material,
+                        capture,
+                        source_slot.take(),
+                        (&generated.generated_state).into(),
+                        raw,
+                        &metadata.profile_id,
+                        &metadata.rule_revision,
+                    )?;
+                    let mut store = BusinessTxStore {
+                        #[cfg(test)]
+                        inner: content_store::TxStore::new_with_stage(tx, stage)
+                            .map_err(err)?
+                            .with_work(Some(material.work())),
+                        #[cfg(not(test))]
+                        inner: content_store::TxStore::new(tx)
+                            .map_err(err)?
+                            .with_work(Some(material.work())),
+                        budget: None,
+                    };
+                    let source_receipt = source_audit::source_receipt::receipt_from_native(
+                        qualified,
+                        material,
+                        &mut store,
+                        token,
+                        &metadata,
+                        (&generated.generated_state).into(),
+                        raw,
+                        usize::try_from(previous.checked_add(1).ok_or_else(|| err("raw前缀溢出"))?)
+                            .map_err(err)?,
+                    )?;
+                    let counts = source_receipt.counts().clone();
+                    let products = self.finish_node_products(
+                        &mut store,
+                        true,
+                        workspace_budget,
+                        generated,
+                        objects,
+                        axes,
+                        counts,
+                        Some(source_receipt),
+                        audited,
+                        &metadata,
+                        previous,
+                        frontier,
+                        generation,
+                    )?;
+                    #[cfg(test)]
+                    state::trace_stage("stage_indexes", "delta", generation);
+                    object_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &products.objects,
+                        &products.manifest.batch_id,
+                        Some(material),
+                    )?;
+                    aux_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &products.auxiliary,
+                        &products.manifest.batch_id,
+                        Some(material),
+                    )?;
+                    catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
+                    *source_slot = Some(source);
+                    Ok(products)
+                },
+            )?;
+            let NodeProducts {
+                generated,
+                objects: _objects,
+                axes: _axes,
+                counts: _counts,
+                auxiliary: _auxiliary,
+                run: _run,
+                evidence: _evidence,
+                roots,
+                manifest,
+                workspace,
+                source_manifest,
+            } = products;
+            let policy_records = generated.policy_records.clone();
+            return Ok(Prepared {
+                metadata,
+                roots,
+                manifest,
+                policy_records,
+                workspace,
+                source_manifest,
+            });
         }
         let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
@@ -507,20 +1089,20 @@ impl Runtime {
                 version_record: prior_version.as_ref(),
             },
         };
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let use_lease = matches!(self.mode, s_allocation::Mode::CapturedNative) && {
             #[cfg(test)]
             {
-                stage.is_none() && self.native_read_lease
+                (stage.is_none() || parent.is_some()) && self.native_read_lease
             }
             #[cfg(not(test))]
             {
-                true
+                self.native_read_lease
             }
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let use_lease = false;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if use_lease {
             if audited.budget.is_some() {
                 return Err(err("Native读取租约不允许Owned业务预算"));
@@ -529,13 +1111,20 @@ impl Runtime {
             drop(control);
             let products = {
                 let mut store = BusinessTxStore {
-                    inner: content_store::NativeReadLease::new_admitted(tx, work).map_err(err)?,
+                    inner: publication_read_lease(
+                        tx,
+                        work,
+                        #[cfg(test)]
+                        stage,
+                    )
+                    .map_err(err)?,
                     budget: None,
                 };
                 self.generate_node_products(
                     &mut store,
                     Some(&NativeGeneration { _lease_route: () }),
                     workspace_budget,
+                    token,
                     &input,
                     &audited,
                     &metadata,
@@ -545,8 +1134,10 @@ impl Runtime {
                     frontier,
                 )?
             }; // The lease ends before raw SQL; the frozen workspace is inert until row rebinding.
+            #[cfg(test)]
+            state::trace_stage("stage_indexes", "full_lease", generation);
             let NodeProducts {
-                generated: _generated,
+                generated,
                 objects,
                 axes,
                 counts: _counts,
@@ -556,37 +1147,81 @@ impl Runtime {
                 roots,
                 manifest,
                 workspace,
+                source_manifest,
             } = products;
+            let policy_records = generated.policy_records.clone();
+            #[cfg(test)]
+            if let Some(stage) = stage {
+                stage.flush_cut(
+                    tx,
+                    staged_nodes::FlushCut::Source(roots.generated_state.view()),
+                )?;
+            }
             let mut store = BusinessTxStore {
+                #[cfg(test)]
+                inner: content_store::TxStore::new_with_stage(tx, stage)
+                    .map_err(err)?
+                    .with_work(work),
+                #[cfg(not(test))]
                 inner: content_store::TxStore::new(tx)
                     .map_err(err)?
                     .with_work(work),
                 budget: None,
             };
-            object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
-            aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+            // C2仅在generate_node_products的旧完整来源判据成功后记录材料cut。
+            publication_material(
+                tx,
+                work,
+                parent,
+                #[cfg(test)]
+                stage,
+                |material| {
+                    if let Some(material) = material {
+                        super::audit_owner::note_qualified_source_cut(
+                            material,
+                            roots.generated_state.view(),
+                        )?;
+                    }
+                    object_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &objects,
+                        &manifest.batch_id,
+                        material,
+                    )?;
+                    aux_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &auxiliary,
+                        &manifest.batch_id,
+                        material,
+                    )
+                },
+            )?;
             catalog_evidence::stage_current(tx, &mut store, &axes)?;
             return Ok(Prepared {
                 metadata,
                 roots,
                 manifest,
+                policy_records,
                 workspace,
+                source_manifest,
             });
         }
         let _ = use_lease;
         let mut store = BusinessTxStore {
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             inner: content_store::TxStore::new_with_stage(tx, stage)
                 .map_err(err)?
                 .with_work(work),
-            #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+            #[cfg(not(all(test, feature = "s_incremental")))]
             inner: content_store::TxStore::new(tx)
                 .map_err(err)?
                 .with_work(work),
             budget: audited.budget.clone(),
         };
         let NodeProducts {
-            generated: _generated,
+            generated,
             objects,
             axes,
             counts: _counts,
@@ -595,13 +1230,16 @@ impl Runtime {
             evidence: _evidence,
             roots,
             manifest,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace,
+            #[cfg(feature = "s_incremental")]
+            source_manifest,
         } = self.generate_node_products(
             &mut store,
             None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace_budget,
+            token,
             &input,
             &audited,
             &metadata,
@@ -610,24 +1248,64 @@ impl Runtime {
             generation,
             frontier,
         )?;
-        object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
-        aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+        let policy_records = generated.policy_records.clone();
+        #[cfg(test)]
+        state::trace_stage("stage_indexes", "full", generation);
+        #[cfg(feature = "s_incremental")]
+        publication_material(
+            tx,
+            work,
+            parent,
+            #[cfg(test)]
+            stage,
+            |material| {
+                if let Some(material) = material {
+                    super::audit_owner::note_qualified_source_cut(
+                        material,
+                        roots.generated_state.view(),
+                    )?;
+                }
+                object_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &objects,
+                    &manifest.batch_id,
+                    material,
+                )?;
+                aux_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &auxiliary,
+                    &manifest.batch_id,
+                    material,
+                )
+            },
+        )?;
+        #[cfg(not(feature = "s_incremental"))]
+        {
+            object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
+            aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+        }
         catalog_evidence::stage_current(tx, &mut store, &axes)?;
         Ok(Prepared {
             metadata,
             roots,
             manifest,
-            #[cfg(feature = "s_capture_native_testonly")]
+            policy_records,
+            #[cfg(feature = "s_incremental")]
             workspace,
+            #[cfg(feature = "s_incremental")]
+            source_manifest,
         })
     }
     fn generate_node_products<'raw, S: NodeStore>(
         &mut self,
         store: &mut BusinessTxStore<S>,
         native: Option<&NativeGeneration>,
-        #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
+        #[cfg(feature = "s_incremental")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
         >,
+        token: &str,
         input: &GenerationInput<'raw>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
@@ -638,37 +1316,164 @@ impl Runtime {
     ) -> Result<NodeProducts<'raw>, String> {
         sc::write_value(store, scope_value).map_err(err)?;
         let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+        #[cfg(test)]
+        let path = if native.is_some() {
+            "full_lease"
+        } else {
+            "full"
+        };
+        #[cfg(test)]
+        state::trace_stage("generate", path, generation);
+        // #1640 D2 出生锁：完整分支只容许 startup/abandon/discard 三种入口，steady 出现即违例。
+        #[cfg(all(test, feature = "s_incremental"))]
+        {
+            state::trace_birth(self.birth_entry, generation);
+            self.birth_entry = "steady";
+        }
         let mut generated = match native {
             Some(native) => generator.generate_native_lease(store, input, native)?,
             None => generator.generate_with_allocation(store, input, audited.budget.as_ref())?,
         };
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(test)]
+        state::trace_stage("object_plan", path, generation);
+        let layout = super::layout::Layout::of_rule(&metadata.rule_revision)?;
+        #[cfg(feature = "s_incremental")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
-            object_index::plan_native_union_for_testonly(
+            object_index::plan_native_union(
                 store,
+                layout,
                 &generated.objects,
                 &audited.objects,
                 generation,
             )?
         } else {
-            object_index::plan(store, &generated.objects, &audited.objects, generation)?
+            object_index::plan_for_layout(
+                store,
+                layout,
+                &generated.objects,
+                &audited.objects,
+                generation,
+            )?
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
-        let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
-        generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
-        let axes = generated
-            .catalog_axes
-            .clone()
-            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
-        let counts = source_audit::audit_generated(
+        #[cfg(not(feature = "s_incremental"))]
+        let objects = object_index::plan_for_layout(
             store,
-            &generated.generated_state,
-            &audited.raw,
-            &metadata.profile_id,
-            &metadata.rule_revision,
+            layout,
+            &generated.objects,
+            &audited.objects,
+            generation,
         )?;
+        generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
+        let axes = store
+            .native_plain_ref(
+                generated
+                    .catalog_axes
+                    .as_ref()
+                    .ok_or_else(|| err("目录轴完成后仍缺真实根"))?
+                    .into(),
+            )
+            .map_err(err)?;
+        #[cfg(test)]
+        state::trace_stage("prepare_source_audit", path, generation);
+        #[cfg(feature = "s_incremental")]
+        let source_receipt = if native.is_some() {
+            let audit = if self
+                .audit_ledger
+                .as_ref()
+                .is_some_and(|ledger| ledger.wants_business_facts())
+            {
+                source_audit::source_receipt::audit_source_partitions_receipt
+            } else {
+                source_audit::source_receipt::audit_raw_receipt
+            };
+            Some(audit(
+                store,
+                token,
+                generation,
+                (&generated.generated_state).into(),
+                audited.raw.view(),
+                usize::try_from(previous.checked_add(1).ok_or_else(|| err("raw前缀溢出"))?)
+                    .map_err(err)?,
+                &metadata.profile_id,
+                &metadata.rule_revision,
+                None,
+                None,
+            )?)
+        } else {
+            None
+        };
+        #[cfg(feature = "s_incremental")]
+        let counts = match &source_receipt {
+            Some(receipt) => receipt.counts().clone(),
+            None => source_audit::audit_generated(
+                store,
+                &generated.generated_state,
+                &audited.raw,
+                &metadata.profile_id,
+                &metadata.rule_revision,
+            )?,
+        };
+        #[cfg(not(feature = "s_incremental"))]
+        let counts = {
+            let _ = token;
+            source_audit::audit_generated(
+                store,
+                &generated.generated_state,
+                &audited.raw,
+                &metadata.profile_id,
+                &metadata.rule_revision,
+            )?
+        };
+        self.finish_node_products(
+            store,
+            native.is_some(),
+            #[cfg(feature = "s_incremental")]
+            workspace_budget,
+            generated,
+            objects,
+            axes,
+            counts,
+            #[cfg(feature = "s_incremental")]
+            source_receipt,
+            audited,
+            metadata,
+            previous,
+            frontier,
+            generation,
+        )
+    }
+    fn finish_node_products<'raw, S: NodeStore>(
+        &mut self,
+        store: &mut BusinessTxStore<S>,
+        #[cfg_attr(
+            not(feature = "s_incremental"),
+            allow(
+                unused_variables,
+                reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
+            )
+        )]
+        workspace_eligible: bool,
+        #[cfg(feature = "s_incremental")] workspace_budget: Option<
+            request_audit::ManifestWorkspaceBudget,
+        >,
+        generated: generation::Generated<'raw>,
+        objects: object_index::Plan,
+        axes: sc::capture_allocation::native_owned::NativeValue<sc::ContentRef>,
+        counts: source_audit::Counts,
+        #[cfg(feature = "s_incremental")] mut source_receipt: Option<
+            source_audit::source_receipt::RawReceipt,
+        >,
+        audited: &state::AuditedState,
+        metadata: &ManifestMetadata,
+        previous: i64,
+        frontier: i64,
+        generation: i64,
+    ) -> Result<NodeProducts<'raw>, String> {
+        #[cfg(test)]
+        state::trace_stage("assemble_manifest", "-", generation);
         let auxiliary = self.auxiliary.plan(
             store,
+            super::layout::Layout::of_rule(&metadata.rule_revision)?,
             &audited.auxiliary,
             &generated,
             &objects.replaces,
@@ -686,40 +1491,116 @@ impl Runtime {
             &objects.replaces,
         )?;
         let (snapshot, delta) = templates(
-            store, metadata, previous, &objects, &auxiliary, &run, &evidence,
+            store,
+            metadata,
+            previous,
+            &objects,
+            &auxiliary,
+            run.as_str(),
+            evidence.view(),
         )?;
-        let roots = ManifestRoots {
-            generated_state: generated.generated_state.clone(),
+        let roots = NativeManifestRoots {
+            generated_state: audit_store::RefValue::Plain(
+                store
+                    .native_plain_ref((&generated.generated_state).into())
+                    .map_err(err)?,
+            ),
             publication_template: snapshot,
             delta_template: delta,
         };
-        #[cfg(feature = "s_capture_native_testonly")]
-        let (manifest, workspace) = if native.is_some() && workspace_budget.is_some() && {
-            #[cfg(test)]
-            {
-                self.manifest_workspace
+        #[cfg(feature = "s_incremental")]
+        if let Some(ledger) = self
+            .audit_ledger
+            .as_mut()
+            .filter(|ledger| ledger.accepts_production())
+        {
+            // 36M：完整事实只从同次严格来源收据生产，经 publish_impl 与已核闭包单位一起 stage_verified。
+            let receipt = source_receipt
+                .as_mut()
+                .ok_or_else(|| err("完整台账缺同次严格来源收据"))?;
+            receipt.export_business(store, &objects, &auxiliary)?;
+            let facts = audit_ledger::QueuedFacts::from_receipt(receipt, metadata)?;
+            if ledger.committed_through()?.checked_add(1) != Some(facts.generation) {
+                return Err(err("AuditLedgerStale：待准备事实代号不连续"));
             }
-            #[cfg(not(test))]
-            {
-                true
+            self.queued_audit_facts = Some((receipt.request_token().to_owned(), facts));
+        }
+        #[cfg(feature = "s_incremental")]
+        if let Some(ledger) = self
+            .audit_ledger
+            .as_mut()
+            .filter(|ledger| ledger.is_partial())
+        {
+            let receipt = source_receipt
+                .as_mut()
+                .ok_or_else(|| err("来源分区缺同次严格来源收据"))?;
+            if ledger.is_source_partitions() {
+                receipt.export_business(store, &objects, &auxiliary)?;
+                ledger.stage_source_partitions(
+                    receipt.request_token(),
+                    metadata,
+                    &roots,
+                    receipt,
+                    sc::NodeSource::codec_work(store),
+                )?;
+            } else {
+                ledger.stage_raw_partition(
+                    receipt.request_token(),
+                    metadata,
+                    &roots,
+                    receipt,
+                    sc::NodeSource::codec_work(store),
+                )?;
             }
-        } {
-            content_manifest::assemble_unpublished_with_workspace(
-                store,
-                metadata,
-                &roots,
-                workspace_budget.expect("qualified entry budget"),
-            )
-            .map_err(err)?
-        } else {
-            (
-                content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?,
-                None,
-            )
+        }
+        #[cfg(feature = "s_incremental")]
+        let enabled_budget = workspace_budget.filter(|_| {
+            workspace_eligible && {
+                #[cfg(test)]
+                {
+                    self.manifest_workspace
+                }
+                #[cfg(not(test))]
+                {
+                    true
+                }
+            }
+        });
+        #[cfg(feature = "s_incremental")]
+        let (manifest, workspace, source_manifest) = match source_receipt {
+            Some(receipt) => {
+                let (manifest, workspace, proof) = content_manifest::assemble_with_source(
+                    store,
+                    metadata,
+                    &roots,
+                    receipt,
+                    enabled_budget,
+                    self.queued_audit_facts.is_some(),
+                )?;
+                (manifest, workspace, Some(proof))
+            }
+            None => {
+                let (manifest, workspace) = match enabled_budget {
+                    Some(budget) => content_manifest::assemble_unpublished_with_workspace(
+                        store, metadata, &roots, budget,
+                    )
+                    .map_err(err)?,
+                    None => (
+                        content_manifest::assemble_unpublished(store, metadata, &roots)
+                            .map_err(err)?,
+                        None,
+                    ),
+                };
+                (manifest, workspace, None)
+            }
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let manifest =
             content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
+        #[cfg(all(test, feature = "s_incremental"))]
+        if workspace.is_some() {
+            state::trace_event("s4_manifest_workspace", Some(generation));
+        }
         Ok(NodeProducts {
             generated,
             objects,
@@ -730,8 +1611,10 @@ impl Runtime {
             evidence,
             roots,
             manifest,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace,
+            #[cfg(feature = "s_incremental")]
+            source_manifest,
         })
     }
 }
@@ -741,23 +1624,44 @@ impl Runtime {
 struct NodeProducts<'raw> {
     generated: generation::Generated<'raw>,
     objects: object_index::Plan,
-    axes: sc::ContentRef,
+    axes: sc::capture_allocation::native_owned::NativeValue<sc::ContentRef>,
     counts: source_audit::Counts,
     auxiliary: aux_index::Plan,
-    run: String,
-    evidence: sc::ContentRef,
-    roots: ManifestRoots,
+    run: business_json::TextValue,
+    evidence: audit_store::RefValue,
+    roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    #[cfg(feature = "s_incremental")]
+    source_manifest: Option<content_manifest::ManifestSourceReceipt>,
+}
+
+// #1488/#1507：三个根的原许可随实际 payload 存活；发布层只借 RootsView。
+struct NativeManifestRoots {
+    generated_state: audit_store::RefValue,
+    publication_template: audit_store::RefValue,
+    delta_template: audit_store::RefValue,
+}
+impl content_manifest::ManifestRootSource for NativeManifestRoots {
+    fn view(&self) -> content_manifest::RootsView<'_> {
+        content_manifest::RootsView {
+            generated_state: self.generated_state.view(),
+            publication_template: self.publication_template.view(),
+            delta_template: self.delta_template.view(),
+        }
+    }
 }
 
 struct Prepared {
     metadata: ManifestMetadata,
-    roots: ManifestRoots,
+    roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
-    #[cfg(feature = "s_capture_native_testonly")]
+    policy_records: String,
+    #[cfg(feature = "s_incremental")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    #[cfg(feature = "s_incremental")]
+    source_manifest: Option<content_manifest::ManifestSourceReceipt>,
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3PrepareInvalid：{e}")
@@ -776,9 +1680,13 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
+#[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
 }
+/// 六数组（active/withdrawn 对象、witnesses、relations、observations）的元素次序不在此处
+/// 决定：`o`、`a` 已按库内 `rule_revision` 的布局组件（[`super::layout::Layout::rank`]，
+/// ADR 0037 §一）排好，本函数只按既有次序装配模板；raw_history 仍按 seq。
 fn templates(
     s: &mut dyn NodeStore,
     m: &ManifestMetadata,
@@ -786,63 +1694,78 @@ fn templates(
     o: &object_index::Plan,
     a: &aux_index::Plan,
     run: &str,
-    evidence: &ContentRef,
-) -> Result<(ContentRef, ContentRef), String> {
-    let text = |v: &str| V::String(v.into());
-    let range = cv(&json!({"from":(previous+1).to_string(),"to":m.input_frontier.to_string()}))?;
-    let common = vec![
-        ("session_id".into(), text(&m.session_id)),
-        ("generation".into(), text(&m.generation.to_string())),
-        ("catalog_revision".into(), text(&m.catalog_revision)),
-        ("index_frontier".into(), V::BatchSelf),
-        ("input_frontier".into(), text(&m.input_frontier.to_string())),
-        ("seq_range".into(), range),
-        ("catalog_run_status".into(), text(run)),
-        ("catalog_evidence".into(), edge(evidence)?),
+    evidence: sc::RefView<'_>,
+) -> Result<(audit_store::RefValue, audit_store::RefValue), String> {
+    // #1488/#1507：只借用元数据及已持有输出；固定字段与十进制缓冲都留在栈上。
+    // 模板根由 typed owner 保留许可，经 NativeManifestRoots 持有到发布返回。
+    use sc::ValueView::{BatchSelf, Edge, Json, Object, String as Text};
+    let generation = business_json::Decimal::new(m.generation);
+    let frontier = business_json::Decimal::new(m.input_frontier);
+    let start = business_json::Decimal::new(previous + 1);
+    let range = [("from", Text(start.text())), ("to", Text(frontier.text()))];
+    let common = [
+        ("session_id", Text(&m.session_id)),
+        ("generation", Text(generation.text())),
+        ("catalog_revision", Text(&m.catalog_revision)),
+        ("index_frontier", BatchSelf),
+        ("input_frontier", Text(frontier.text())),
+        ("seq_range", Object(&range)),
+        ("catalog_run_status", Text(run)),
+        ("catalog_evidence", Edge(evidence.digest().map_err(err)?)),
     ];
-    let mut snapshot = common.clone();
-    snapshot.extend([
-        ("structure_cut".into(), text(&m.structure_cut)),
-        ("scope".into(), edge(&m.scope)?),
-        ("profile_id".into(), text(&m.profile_id)),
-        ("profile_hash".into(), text(&m.profile_hash)),
-        ("history_mode".into(), text("RecomputedWithRevision")),
-        ("as_of_generation".into(), V::Null),
-        ("objects".into(), V::Edge(o.active.digest)),
-        ("withdrawn_objects".into(), V::Edge(o.withdrawn.digest)),
+    let mut snapshot = [("", BatchSelf); 20];
+    snapshot[..8].copy_from_slice(&common);
+    snapshot[8..].copy_from_slice(&[
+        ("structure_cut", Text(&m.structure_cut)),
+        ("scope", Edge(m.scope.digest().map_err(err)?)),
+        ("profile_id", Text(&m.profile_id)),
+        ("profile_hash", Text(&m.profile_hash)),
+        ("history_mode", Text("RecomputedWithRevision")),
+        (
+            "as_of_generation",
+            Json(sc::capture_allocation::audit_json::JsonView::Null),
+        ),
+        ("objects", Edge(o.active.digest)),
+        ("withdrawn_objects", Edge(o.withdrawn.digest)),
+        ("witnesses", Edge(a.snapshot_values.witnesses.digest)),
+        ("relations", Edge(a.snapshot_values.relations.digest)),
+        ("observations", Edge(a.snapshot_values.observations.digest)),
+        ("raw_history", Edge(a.snapshot_values.raw_history.digest)),
     ]);
-    let mut delta = common;
-    let withdrawals = o
-        .withdrawals
-        .iter()
-        .map(project_withdrawal_wire)
-        .collect::<Result<Vec<_>, _>>()?;
-    delta.extend([
-        ("base_cut".into(), text(&m.base_cut)),
-        ("next_cut".into(), text(&m.structure_cut)),
-        ("upserts".into(), V::Edge(o.upserts.digest)),
-        ("withdrawals".into(), cv(&json!(withdrawals))?),
-        ("replaces".into(), cv(&json!(o.replaces))?),
-    ]);
-    for (fields, values, raw_key) in [
-        (&mut snapshot, &a.snapshot_values, "raw_history"),
-        (&mut delta, &a.delta_values, "raw_history_added"),
-    ] {
-        fields.extend([
-            ("witnesses".into(), V::Edge(values.witnesses.digest)),
-            ("relations".into(), V::Edge(values.relations.digest)),
-            ("observations".into(), V::Edge(values.observations.digest)),
-            (raw_key.into(), V::Edge(values.raw_history.digest)),
-        ]);
+    let budget = s.allocation_budget();
+    let mut withdrawals = business_json::WithdrawalArray(business_json::new_work(budget.as_ref()));
+    s.native_codec_room(&mut withdrawals.0, o.withdrawals.array_len())
+        .map_err(err)?;
+    for withdrawal in business_json::RawEventsView::from(&o.withdrawals) {
+        withdrawals
+            .0
+            .try_push(business_json::WithdrawalWire::new(withdrawal)?)
+            .map_err(err)?;
     }
-    Ok((
-        sc::write_template(s, &V::Object(snapshot))
-            .map_err(err)?
-            .content_ref(),
-        sc::write_template(s, &V::Object(delta))
-            .map_err(err)?
-            .content_ref(),
-    ))
+    let replaces = business_json::RawEventsView::from(&o.replaces);
+    let mut delta = [("", BatchSelf); 17];
+    delta[..8].copy_from_slice(&common);
+    delta[8..].copy_from_slice(&[
+        ("base_cut", Text(&m.base_cut)),
+        ("next_cut", Text(&m.structure_cut)),
+        ("upserts", Edge(o.upserts.digest)),
+        ("withdrawals", Json(withdrawals.view())),
+        (
+            "replaces",
+            Json(sc::capture_allocation::audit_json::JsonView::BorrowedArray(
+                &replaces,
+            )),
+        ),
+        ("witnesses", Edge(a.delta_values.witnesses.digest)),
+        ("relations", Edge(a.delta_values.relations.digest)),
+        ("observations", Edge(a.delta_values.observations.digest)),
+        ("raw_history_added", Edge(a.delta_values.raw_history.digest)),
+    ]);
+    let snapshot = s.write_template_view(Object(&snapshot)).map_err(err)?;
+    let snapshot = s.native_built_ref(&snapshot).map_err(err)?;
+    let delta = s.write_template_view(Object(&delta)).map_err(err)?;
+    let delta = s.native_built_ref(&delta).map_err(err)?;
+    Ok((snapshot, delta))
 }
 
 #[cfg(test)]
@@ -850,6 +1773,62 @@ pub(crate) mod tests {
     use super::*;
     use crate::tests::located_ohlc_input;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_manifest_roots_keep_three_permits_after_scope_until_owner_drop() {
+        use super::super::audit_store::NativeAdmission;
+        use content_manifest::ManifestRootSource;
+
+        let source = sc::Built {
+            digest: [0x31; 32],
+            kind: sc::Kind::Object,
+            extent: Some(14),
+        }
+        .content_ref();
+        let snapshot = sc::Built {
+            digest: [0x32; 32],
+            kind: sc::Kind::Object,
+            extent: Some(20),
+        };
+        let delta = sc::Built {
+            digest: [0x33; 32],
+            kind: sc::Kind::Object,
+            extent: Some(17),
+        };
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let roots = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = NativeAdmission(Some(scope));
+                let generated_state =
+                    audit_store::RefValue::Plain(admission.native_plain_ref((&source).into())?);
+                let one_root_live = budget.live();
+                let publication_template = admission.native_built_ref(&snapshot)?;
+                assert!(budget.live() > one_root_live);
+                let two_roots_live = budget.live();
+                let delta_template = admission.native_built_ref(&delta)?;
+                assert!(budget.live() > two_roots_live);
+                Ok::<_, sc::CodecError>(NativeManifestRoots {
+                    generated_state,
+                    publication_template,
+                    delta_template,
+                })
+            })
+            .unwrap();
+        let view = roots.view();
+        assert_eq!(
+            view.generated_state.digest().unwrap(),
+            source.digest().unwrap()
+        );
+        assert_eq!(view.publication_template.digest().unwrap(), snapshot.digest);
+        assert_eq!(view.delta_template.digest().unwrap(), delta.digest);
+        assert!(budget.live() > baseline, "三个根跨域保留时仍持许可");
+        drop(roots);
+        assert_eq!(budget.live(), baseline);
+    }
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -862,6 +1841,7 @@ pub(crate) mod tests {
         path: PathBuf,
         pub(crate) conn: Connection,
         runtime: Runtime,
+        rule: Option<String>,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
@@ -873,6 +1853,14 @@ pub(crate) mod tests {
             Self::with_retain(4)
         }
         pub(crate) fn with_retain(retain: i64) -> Self {
+            Self::build(retain, 4, None)
+        }
+        /// #1491：在测试写者规则注入（`with_test_writer_rule`）下建库与发布，库 meta 与各代
+        /// manifest 天然同带 `rule`；时钟 6 个事件、保留 6 代，使修订与撤回落在不同代。
+        pub(crate) fn with_rule(rule: &str) -> Self {
+            Self::build(6, 6, Some(rule.to_owned()))
+        }
+        fn build(retain: i64, clock_events: i64, rule: Option<String>) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
@@ -881,7 +1869,7 @@ pub(crate) mod tests {
             ));
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
-            for n in 1..=4 {
+            for n in 1..=clock_events {
                 events.insert(format!("input-{n}"),json!({"accept_ns":(n*10).to_string(),"attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]}));
             }
             let clock = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"real-content-commit","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":events});
@@ -892,22 +1880,25 @@ pub(crate) mod tests {
                 .unwrap()
                 .join("s_session");
             let db = path.join("s.sqlite");
-            init_v3(
-                &db,
-                "s-session-testonly-001",
-                &base.join("catalog/signed-catalog.json"),
-                &base.join("profiles/ohlc_integer_tb02a_v1.json"),
-                "1",
-                &clock_path,
-                retain,
-            )
+            let conn = super::super::with_test_writer_rule(rule.as_deref(), || {
+                init_v3(
+                    &db,
+                    "s-session-testonly-001",
+                    &base.join("catalog/signed-catalog.json"),
+                    &base.join("profiles/ohlc_integer_tb02a_v1.json"),
+                    "1",
+                    &clock_path,
+                    retain,
+                )?;
+                open_db(&db)
+            })
             .unwrap();
-            let conn = open_db(&db).unwrap();
             let runtime = Runtime::new();
             Self {
                 path,
                 conn,
                 runtime,
+                rule,
             }
         }
         /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。
@@ -950,12 +1941,1389 @@ pub(crate) mod tests {
             envelope: &Value,
             token: &str,
         ) -> Result<commit::CommitReceipt, String> {
+            let rule = self.rule.clone();
             let tx = self.conn.transaction().map_err(err)?;
-            self.runtime.commit(tx, token, envelope)
+            super::super::with_test_writer_rule(rule.as_deref(), || {
+                self.runtime.commit(tx, token, envelope)
+            })
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    /// 首组件测试只借真实 prepare 的根，不把合成台账事实当作来源/闭包证明。
+    pub(crate) fn p6_candidate() -> (
+        Fixture,
+        Value,
+        String,
+        ManifestMetadata,
+        content_manifest::ManifestRoots,
+    ) {
+        use content_manifest::ManifestRootSource;
+        let mut f = Fixture::new();
+        let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let mut tx = f.conn.transaction().unwrap();
+        let prepared = f
+            .runtime
+            .prepare(
+                &mut tx,
+                &token,
+                &e,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+            )
+            .unwrap();
+        let copy = |v: sc::RefView<'_>| ContentRef {
+            format: v.format().to_owned(),
+            root: v.root().to_owned(),
+            kind: v.kind(),
+            extent: v.extent(),
+        };
+        let r = prepared.roots.view();
+        let roots = content_manifest::ManifestRoots {
+            generated_state: copy(r.generated_state),
+            publication_template: copy(r.publication_template),
+            delta_template: copy(r.delta_template),
+        };
+        let metadata = prepared.metadata.clone();
+        drop(prepared);
+        tx.rollback().unwrap();
+        f.runtime.discard();
+        (f, e, token, metadata, roots)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_source_partitions_real_owner_matches_originals_and_withdrawals() {
+        source_partitions_real_owner(false);
+        source_partitions_real_owner(true);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn source_partitions_real_owner(admitted: bool) {
+        let mut f = Fixture::build(5, 5, None);
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let path = db.with_file_name("source-partitions.sqlite");
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(
+                audit_ledger::Ledger::fresh_source_partitions(
+                    &path,
+                    &db,
+                    audit_ledger::Identity {
+                        rule_revision: rule,
+                        content_identity: "TestOnly-source".into(),
+                        binary_commit: "test-only".into(),
+                    },
+                    64 * 1024 * 1024,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let events = [
+            ("a", 0, 6, 12, 3, 7, 1),
+            ("b", 1, 14, 20, 10, 15, 1),
+            ("c", 2, 6, 12, 3, 7, 1),
+            ("b", 1, 14, 21, 10, 15, 2),
+            ("c", 2, 26, 30, 22, 27, 2),
+        ];
+        if admitted {
+            source_audit::source_receipt::fee_probe::start(-1);
+        }
+        let mut replaced = false;
+        let mut removed = false;
+        for (i, &(key, at, open, high, low, close, revision)) in events.iter().enumerate() {
+            let g = i as i64 + 1;
+            let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), revision);
+            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let mut context = if admitted {
+                owner.p6_source_context_for_test()
+            } else {
+                request_audit::RequestAuditContext::default()
+            };
+            let (_, ended) = owner
+                .publish(&mut runtime, &token, &envelope, &mut context)
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            if admitted {
+                runtime.discard();
+            }
+            let ledger = runtime.audit_ledger.as_ref().unwrap();
+            assert_eq!(ledger.partial_through().unwrap(), g);
+            assert!(ledger.committed_through().is_err());
+            assert!(ledger.raw_partition_through().is_err());
+            let saved = Connection::open(&path).unwrap();
+            let tx = f.conn.transaction().unwrap();
+            let mut store = content_store::TxStore::new(&tx).unwrap();
+            let objects = object_index::load(&tx, &mut store, g).unwrap();
+            let mut originals = Vec::new();
+            for entry in &objects {
+                let mut bytes = Vec::new();
+                sc::render_canonical(&mut store, &entry.generated.content_ref(), &mut bytes)
+                    .unwrap();
+                let original: Value = serde_json::from_slice(&bytes).unwrap();
+                let mut unstamped = original.clone();
+                for name in [
+                    "first_known_generation",
+                    "first_known_cut",
+                    "published_generation",
+                ] {
+                    unstamped.as_object_mut().unwrap().remove(name);
+                }
+                let sources: Value =
+                    serde_json::from_str(original["source_coords_json"].as_str().unwrap()).unwrap();
+                let row: (Vec<u8>,i64,String,i64,Vec<u8>,bool,i64) = saved.query_row(
+                    "SELECT record_digest,first_generation,first_cut,published_generation,source_digest,withdrawn,certified_generation FROM object WHERE id=?1",
+                    [entry.id.as_str()], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).unwrap();
+                assert_eq!(
+                    row.0,
+                    super::super::history::hash_json_metered(&unstamped, None, None).unwrap()
+                );
+                assert_eq!(row.1, entry.life.first_known_generation);
+                assert_eq!(row.2, entry.life.first_known_cut.as_str());
+                assert_eq!(row.3, entry.life.published_generation);
+                assert_eq!(
+                    row.4,
+                    super::super::history::hash_json_metered(&sources, None, None).unwrap()
+                );
+                assert_eq!(row.5, entry.life.withdrawn_generation.is_some());
+                assert_eq!(
+                    row.6,
+                    entry
+                        .life
+                        .withdrawn_generation
+                        .unwrap_or(entry.life.first_known_generation)
+                );
+                replaced |= entry.life.superseded_by.is_some();
+                removed |= entry
+                    .life
+                    .withdrawal_reason
+                    .as_ref()
+                    .is_some_and(|r| r.as_str() != "superseded_by_revision");
+                originals.push((entry, original));
+            }
+            let mut source = audit_store::StoreView::generic(&mut store);
+            let aux = aux_index::load(&tx, &mut source, g).unwrap();
+            for (table, entries) in [
+                (
+                    "witness",
+                    aux.witnesses
+                        .iter()
+                        .map(|e| (e.id.as_str(), e.generated.view(), e.first))
+                        .collect::<Vec<_>>(),
+                ),
+                (
+                    "observation",
+                    aux.observations
+                        .iter()
+                        .map(|e| (e.id.as_str(), e.generated.view(), e.first))
+                        .collect::<Vec<_>>(),
+                ),
+            ] {
+                assert_eq!(
+                    saved
+                        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                            .get::<_, i64>(0))
+                        .unwrap(),
+                    entries.len() as i64
+                );
+                for (id, root, first) in entries {
+                    let original = business_json::render_json(&mut source, root).unwrap();
+                    let mut bytes = Vec::new();
+                    source.render_ref(root, &mut bytes).unwrap();
+                    let value: Value = serde_json::from_slice(&bytes).unwrap();
+                    let mut coords = std::collections::BTreeSet::new();
+                    if table == "witness" {
+                        for bar in value["raw_bars"].as_array().unwrap() {
+                            coords.insert(business_json::coord(bar.into()).unwrap());
+                        }
+                    } else if let Some(values) = value["detail"].get("source_coords") {
+                        for value in values.as_array().unwrap() {
+                            coords.insert(value.as_str().unwrap().parse::<i64>().unwrap());
+                        }
+                    } else {
+                        for window in ["window_start", "window_mid", "window_end"] {
+                            if let Some(index) = value[window].as_i64() {
+                                let (_, group) = originals
+                                    .iter()
+                                    .find(|(e, v)| {
+                                        e.kind.as_str() == "CC-005.inclusion_group"
+                                            && e.life.first_known_generation <= first
+                                            && e.life
+                                                .withdrawn_generation
+                                                .is_none_or(|dead| dead > first)
+                                            && serde_json::from_str::<Value>(
+                                                v["payload_json"].as_str().unwrap(),
+                                            )
+                                            .unwrap()["group_index"]
+                                                == index.to_string()
+                                    })
+                                    .unwrap();
+                                for coord in serde_json::from_str::<Vec<String>>(
+                                    group["source_coords_json"].as_str().unwrap(),
+                                )
+                                .unwrap()
+                                {
+                                    coords.insert(coord.parse::<i64>().unwrap());
+                                }
+                            }
+                        }
+                    }
+                    let expected =
+                        json!(coords.iter().map(ToString::to_string).collect::<Vec<_>>());
+                    let row: (Vec<u8>,Vec<u8>,i64) = saved.query_row(&format!("SELECT record_digest,source_digest,certified_generation FROM {table} WHERE id=?1"), [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+                    assert_eq!(
+                        row.0,
+                        super::super::history::hash_json_metered(original.view(), None, None)
+                            .unwrap()
+                    );
+                    assert_eq!(
+                        row.1,
+                        super::super::history::hash_json_metered(&expected, None, None).unwrap()
+                    );
+                    assert_eq!(row.2, first);
+                }
+            }
+            assert_eq!(
+                saved
+                    .query_row("SELECT COUNT(*) FROM object", [], |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                objects.len() as i64
+            );
+            for table in ["cert", "cover", "node"] {
+                assert_eq!(
+                    saved
+                        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                            .get::<_, i64>(0))
+                        .unwrap(),
+                    0
+                );
+            }
+            assert_eq!(
+                saved
+                    .query_row("SELECT certified_through_generation FROM meta", [], |r| r
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap(),
+                0
+            );
+            if g >= 3 {
+                assert!(!aux.witnesses.is_empty());
+            }
+        }
+        assert!(replaced);
+        assert!(removed);
+        assert_eq!(
+            Connection::open(&path)
+                .unwrap()
+                .query_row("SELECT format FROM meta", [], |r| r.get::<_, String>(0))
+                .unwrap(),
+            "s-audit-ledger/source-partitions/2"
+        );
+        assert!(
+            Connection::open(&path)
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM observation", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap()
+                > 0
+        );
+        drop(runtime);
+        if admitted {
+            let fees = source_audit::source_receipt::fee_probe::finish();
+            assert_eq!(fees.len(), 5);
+            assert!(fees.iter().all(|f| f.held > 0
+                && f.business_released > 0
+                && f.raw_released > 0
+                && !f.refused));
+            assert!(
+                fees.iter().any(|f| f.projection_released > 0),
+                "必须实际持有并释放observation投影"
+            );
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_source_partitions_fees_release_after_refusal_commit_and_binding_failure() {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum Failure {
+            Budget,
+            Commit,
+            Token,
+            Root(usize),
+        }
+        for failure in [
+            Failure::Budget,
+            Failure::Commit,
+            Failure::Token,
+            Failure::Root(0),
+            Failure::Root(1),
+            Failure::Root(2),
+            Failure::Root(3),
+        ] {
+            let budget_refusal = failure == Failure::Budget;
+            let commit_failure = failure == Failure::Commit;
+            let fail_generation = if failure == Failure::Token { 1 } else { 3 };
+            let mut f = Fixture::new();
+            let db = f.db_path();
+            let path = db.with_file_name("source-fee-failure.sqlite");
+            let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+            let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            runtime
+                .install_audit_ledger(
+                    audit_ledger::Ledger::fresh_source_partitions(
+                        &path,
+                        &db,
+                        audit_ledger::Identity {
+                            rule_revision: rule,
+                            content_identity: "TestOnly-fee-failure".into(),
+                            binary_commit: "test-only".into(),
+                        },
+                        64 * 1024 * 1024,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            source_audit::source_receipt::fee_probe::start(if budget_refusal { 3 } else { -1 });
+            if failure == Failure::Token {
+                source_audit::source_receipt::fee_probe::reject_binding_at(1);
+            }
+            if let Failure::Root(root) = failure {
+                source_audit::source_receipt::fee_probe::reject_root_at(3, root);
+            }
+            for (i, row) in [
+                ("a", 0, 6, 12, 3, 7),
+                ("b", 1, 14, 20, 10, 15),
+                ("c", 2, 6, 12, 3, 7),
+            ]
+            .into_iter()
+            .take(fail_generation)
+            .enumerate()
+            {
+                let g = i as i64 + 1;
+                let (envelope, token) = f.accept_begin(g, row, 1);
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let reader = Connection::open(&path).unwrap();
+                if g == fail_generation as i64 && commit_failure {
+                    reader.execute_batch("BEGIN").unwrap();
+                    reader
+                        .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                        .unwrap();
+                }
+                let mut context = owner.p6_source_context_for_test();
+                let result = owner.publish(&mut runtime, &token, &envelope, &mut context);
+                if g < fail_generation as i64 {
+                    owner.continue_with(result.unwrap().1).unwrap();
+                    runtime.discard();
+                } else {
+                    let error = result.err().expect("实际来源载荷失败必须拒绝");
+                    match failure {
+                        Failure::Token => {
+                            assert!(error.contains("P6来源收据与发布请求不符"), "{error}")
+                        }
+                        Failure::Root(_) => {
+                            assert!(error.contains("P6组装证明与当前清单不同"), "{error}")
+                        }
+                        _ => {}
+                    }
+                    if commit_failure {
+                        reader.execute_batch("ROLLBACK").unwrap();
+                    }
+                    assert_eq!(
+                        meta_i64(&f.conn, "generation").unwrap(),
+                        g - i64::from(!commit_failure)
+                    );
+                    assert!(runtime
+                        .audit_ledger
+                        .as_ref()
+                        .unwrap()
+                        .partial_through()
+                        .is_err());
+                    assert_eq!(
+                        reader
+                            .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                            .unwrap(),
+                        g - 1
+                    );
+                }
+            }
+            drop(runtime);
+            let fees = source_audit::source_receipt::fee_probe::finish();
+            assert_eq!(fees.len(), fail_generation);
+            let failed = fees
+                .iter()
+                .find(|f| f.generation == fail_generation as i64)
+                .unwrap();
+            assert!(failed.raw_released > 0);
+            if budget_refusal {
+                assert!(failed.refused && failed.refusal_released > 0);
+                assert_eq!(failed.business_released, 0);
+            } else {
+                assert!(!failed.refused && failed.held > 0 && failed.business_released > 0);
+                if matches!(failure, Failure::Token | Failure::Root(_)) {
+                    assert!(failed.projection_released > 0);
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn raw_partition(db: &Path, name: &str, rule: &str) -> audit_ledger::Ledger {
+        audit_ledger::Ledger::fresh_raw_partition(
+            &db.with_file_name(name),
+            db,
+            audit_ledger::Identity {
+                rule_revision: rule.into(),
+                content_identity: "TestOnly-raw-partition".into(),
+                binary_commit: "test-only".into(),
+            },
+            64 * 1024 * 1024,
+        )
+        .unwrap()
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_raw_partition_real_owner_keeps_revisions_without_full_certificate() {
+        let mut f = Fixture::new();
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(raw_partition(&db, "raw-only.sqlite", &rule))
+            .unwrap();
+        for n in 1..=3 {
+            let (envelope, token) = f.accept_begin(n, ("p6", 0, 6 + n, 12 + n, 3, 7 + n), n);
+            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let (_, ended) = owner
+                .publish(
+                    &mut runtime,
+                    &token,
+                    &envelope,
+                    &mut request_audit::RequestAuditContext::default(),
+                )
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            assert_eq!(
+                runtime
+                    .audit_ledger
+                    .as_ref()
+                    .unwrap()
+                    .raw_partition_through()
+                    .unwrap(),
+                n
+            );
+            assert!(runtime
+                .audit_ledger
+                .as_ref()
+                .unwrap()
+                .committed_through()
+                .is_err());
+            let raw = read_raw_events(&f.conn).unwrap();
+            assert_eq!(raw.len(), n as usize);
+            assert_eq!(read_effective_events(&raw).unwrap().len(), 1);
+            let saved = Connection::open(db.with_file_name("raw-only.sqlite")).unwrap();
+            for (seq, event) in raw.iter().enumerate() {
+                let (digest, bar, first): (Vec<u8>, Vec<u8>, i64) = saved
+                    .query_row(
+                        "SELECT event_digest, bar_digest, first_generation FROM raw WHERE seq=?1",
+                        [seq as i64],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    digest,
+                    super::super::history::hash_json_metered(event, None, None).unwrap()
+                );
+                let original_bar = json!({"source_coord": event["source_coord"], "open": event["open"],
+                    "high": event["high"], "low": event["low"], "close": event["close"]});
+                assert_eq!(
+                    bar,
+                    super::super::history::hash_json_metered(&original_bar, None, None).unwrap()
+                );
+                assert_eq!(first, seq as i64 + 1);
+            }
+            for table in ["cert", "object", "witness", "observation", "cover", "node"] {
+                assert_eq!(
+                    saved
+                        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                            .get::<_, i64>(0))
+                        .unwrap(),
+                    0
+                );
+            }
+            assert_eq!(
+                saved
+                    .query_row("SELECT certified_through_generation FROM meta", [], |r| r
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap(),
+                0
+            );
+        }
+        drop(runtime);
+        let identity = audit_ledger::Identity {
+            rule_revision: rule,
+            content_identity: "TestOnly-raw-partition".into(),
+            binary_commit: "test-only".into(),
+        };
+        assert!(audit_ledger::Ledger::fresh_raw_partition(
+            &db.with_file_name("raw-only.sqlite"),
+            &db,
+            identity,
+            64 * 1024 * 1024
+        )
+        .is_err());
+        let saved = Connection::open(db.with_file_name("raw-only.sqlite")).unwrap();
+        assert_eq!(
+            saved
+                .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            saved
+                .query_row("SELECT format FROM meta", [], |r| r.get::<_, String>(0))
+                .unwrap(),
+            "s-audit-ledger/raw-partition/2"
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_raw_partition_sidecar_commit_failure_keeps_content_and_stales() {
+        partial_sidecar_failure(false);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_source_partitions_sidecar_commit_failure_keeps_content_and_stales() {
+        partial_sidecar_failure(true);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn partial_sidecar_failure(source_partitions: bool) {
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let ledger = if source_partitions {
+            audit_ledger::Ledger::fresh_source_partitions(
+                &db.with_file_name("raw-failure.sqlite"),
+                &db,
+                audit_ledger::Identity {
+                    rule_revision: rule,
+                    content_identity: "TestOnly-source-failure".into(),
+                    binary_commit: "test-only".into(),
+                },
+                64 * 1024 * 1024,
+            )
+            .unwrap()
+        } else {
+            raw_partition(&db, "raw-failure.sqlite", &rule)
+        };
+        runtime.install_audit_ledger(ledger).unwrap();
+        let reader = Connection::open(db.with_file_name("raw-failure.sqlite")).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        reader
+            .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+            .unwrap();
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &envelope,
+                &mut request_audit::RequestAuditContext::default()
+            )
+            .is_err());
+        reader.execute_batch("ROLLBACK").unwrap();
+        assert!(runtime
+            .audit_ledger
+            .as_ref()
+            .unwrap()
+            .partial_through()
+            .is_err());
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+        let saved = Connection::open(db.with_file_name("raw-failure.sqlite")).unwrap();
+        for table in ["raw", "object", "witness", "observation", "cert"] {
+            assert_eq!(
+                saved
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
+        }
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &envelope,
+                &mut request_audit::RequestAuditContext::default()
+            )
+            .is_err());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_queued_units_real_owner_commits_only_verified_complete_keys() {
+        let baseline_calls = {
+            let mut baseline = Fixture::new();
+            let (envelope, token) = baseline.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+            let owner =
+                super::super::audit_owner::AuditConnection::open(&baseline.db_path()).unwrap();
+            let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            content_manifest::take_assemble_call_reads_for_test();
+            let (_, ended) = owner
+                .publish(
+                    &mut runtime,
+                    &token,
+                    &envelope,
+                    &mut request_audit::RequestAuditContext::default(),
+                )
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            content_manifest::take_assemble_call_reads_for_test().len()
+        };
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "queued.sqlite", &rule);
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(ledger).unwrap();
+        let invented = [1u8; 32];
+        content_manifest::take_assemble_call_reads_for_test();
+        let (receipt, ended) = owner
+            .publish(
+                &mut runtime,
+                &token,
+                &envelope,
+                &mut request_audit::RequestAuditContext::default(),
+            )
+            .unwrap();
+        assert_eq!(receipt.generation, 1);
+        assert!(runtime.queued_audit_facts.is_none());
+        assert_eq!(
+            runtime
+                .audit_ledger
+                .as_ref()
+                .unwrap()
+                .committed_through()
+                .unwrap(),
+            1
+        );
+        let saved = Connection::open(db.with_file_name("queued.sqlite")).unwrap();
+        let count: i64 = saved
+            .query_row("SELECT COUNT(*) FROM node", [], |r| r.get(0))
+            .unwrap();
+        assert!(count > 4);
+        assert_eq!(
+            saved
+                .query_row("SELECT verifier_revision FROM cert", [], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            sc::closure_delta::VERIFIER_REVISION
+        );
+        assert_eq!(
+            saved
+                .query_row("SELECT new_units_count FROM cert", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            count
+        );
+        assert_eq!(
+            saved
+                .query_row(
+                    "SELECT COUNT(*) FROM node WHERE digest=?1",
+                    [invented.as_slice()],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            content_manifest::take_assemble_call_reads_for_test().len(),
+            baseline_calls,
+            "queued单位不增加同形真实owner无台账路径的组装次数"
+        );
+        // 36M：完整事实来自同次收据；单根 cut 的 cover 是 coord 0 → seq 0，挂唯一 CC005 对象。
+        assert_cover_matches_content(&f.conn, &saved, 1);
+        assert_eq!(
+            saved
+                .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        let qualification = runtime.audit_qualification().unwrap();
+        assert_eq!(qualification.through, 1);
+        assert_eq!(qualification.rule_revision, rule);
+        assert_eq!(
+            qualification.verifier_revision,
+            sc::closure_delta::VERIFIER_REVISION
+        );
+        let digest: Vec<u8> = saved
+            .query_row(
+                "SELECT digest FROM node WHERE flavor='value' AND mode='public' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let unit = audit_ledger::Unit {
+            digest: digest.try_into().unwrap(),
+            flavor: audit_ledger::Flavor::Value,
+            mode: audit_ledger::Mode::Public,
+        };
+        assert!(runtime
+            .contains_qualified_unit(&qualification, &unit)
+            .unwrap());
+        assert!(!runtime
+            .contains_qualified_unit(
+                &qualification,
+                &audit_ledger::Unit {
+                    digest: invented,
+                    ..unit.clone()
+                },
+            )
+            .unwrap());
+        let mut stale = qualification.clone();
+        stale.through = 2;
+        assert!(runtime.contains_qualified_unit(&stale, &unit).is_err());
+        owner.continue_with(ended).unwrap();
+    }
+
+    /// cover 对拍：每个生效原件坐标恰有一行，seq 是该坐标赢家的真实 seq，组身份是本代存活
+    /// CC005 对象且坐标属于其 members；pending 行无组身份，并且 group/pending 互斥。
+    #[cfg(feature = "s_incremental")]
+    fn assert_cover_matches_content(conn: &Connection, saved: &Connection, g: i64) -> usize {
+        let raw = read_raw_events(conn).unwrap();
+        let effective = read_effective_events(&raw).unwrap();
+        let mut winners = std::collections::BTreeMap::new();
+        for event in effective.iter() {
+            let coord = business_json::coord(event.into()).unwrap();
+            let seq = event["seq"].as_i64().unwrap();
+            assert!(winners.insert(coord, seq).is_none());
+        }
+        let tx = conn.unchecked_transaction().unwrap();
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        let objects = object_index::load(&tx, &mut store, g).unwrap();
+        let mut members = std::collections::BTreeMap::new();
+        for entry in &objects {
+            if entry.kind.as_str() != "CC-005.inclusion_group"
+                || entry.life.first_known_generation > g
+                || entry
+                    .life
+                    .withdrawn_generation
+                    .is_some_and(|dead| dead <= g)
+            {
+                continue;
+            }
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut store, &entry.generated.content_ref(), &mut bytes).unwrap();
+            let original: Value = serde_json::from_slice(&bytes).unwrap();
+            let payload: Value =
+                serde_json::from_str(original["payload_json"].as_str().unwrap()).unwrap();
+            for coord in payload["members"].as_array().unwrap() {
+                let coord = coord
+                    .as_i64()
+                    .unwrap_or_else(|| coord.as_str().unwrap().parse::<i64>().unwrap());
+                assert!(
+                    members
+                        .insert(coord, entry.id.as_str().to_owned())
+                        .is_none(),
+                    "同代组成员重叠"
+                );
+            }
+        }
+        drop(store);
+        drop(tx);
+        let mut rows = saved
+            .prepare("SELECT source_coord, seq, owner, object_id FROM cover ORDER BY source_coord")
+            .unwrap();
+        let rows: Vec<(i64, i64, String, Option<String>)> = rows
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            rows.iter().map(|r| r.0).collect::<Vec<_>>(),
+            winners.keys().copied().collect::<Vec<_>>(),
+            "cover 键集必须恰为生效坐标全集"
+        );
+        let mut pending = 0;
+        for (coord, seq, owner, object_id) in &rows {
+            assert_eq!(*seq, winners[coord], "coord {coord} 的赢家 seq");
+            match members.get(coord) {
+                Some(id) => {
+                    assert_eq!(owner, "group");
+                    assert_eq!(object_id.as_deref(), Some(id.as_str()));
+                }
+                None => {
+                    assert_eq!(owner, "pending", "coord {coord} 既不在任何组也不是 pending");
+                    assert!(object_id.is_none());
+                    pending += 1;
+                }
+            }
+        }
+        pending
+    }
+
+    /// 36M 完整台账的真实 owner 多代对拍：修订赢家 seq≠coord、替换/撤回、cover 分区与
+    /// 内容库逐代一致，Complete 水位逐代推进；丢弃重建后 raw/cover 与首轮逐行相同。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild() {
+        let events = [
+            ("a", 0, 6, 12, 3, 7, 1),
+            ("b", 1, 14, 20, 10, 15, 1),
+            ("c", 2, 6, 12, 3, 7, 1),
+            ("b", 1, 14, 21, 10, 15, 2),
+            ("c", 2, 26, 30, 22, 27, 2),
+        ];
+        let mut dumps = Vec::new();
+        for round in 0..2 {
+            let mut f = Fixture::build(5, 5, None);
+            let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+            let db = f.db_path();
+            let name = format!("complete-{round}.sqlite");
+            let path = db.with_file_name(&name);
+            let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            runtime
+                .install_audit_ledger(audit_ledger::tests::ledger(&db, &name, &rule))
+                .unwrap();
+            assert!(runtime.audit_qualification().is_err());
+            let mut covers = Vec::new();
+            for (i, &(key, at, open, high, low, close, revision)) in events.iter().enumerate() {
+                let g = i as i64 + 1;
+                let (envelope, token) =
+                    f.accept_begin(g, (key, at, open, high, low, close), revision);
+                let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let (_, ended) = owner
+                    .publish(
+                        &mut runtime,
+                        &token,
+                        &envelope,
+                        &mut request_audit::RequestAuditContext::default(),
+                    )
+                    .unwrap();
+                owner.continue_with(ended).unwrap();
+                let ledger = runtime.audit_ledger.as_ref().unwrap();
+                assert_eq!(ledger.committed_through().unwrap(), g);
+                assert!(ledger.partial_through().is_err());
+                assert!(runtime.queued_audit_facts.is_none());
+                let saved = Connection::open(&path).unwrap();
+                assert_cover_matches_content(&f.conn, &saved, g);
+                assert_eq!(
+                    saved
+                        .query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                        .unwrap(),
+                    g
+                );
+                assert_eq!(
+                    saved
+                        .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                        .unwrap(),
+                    g
+                );
+                assert_eq!(runtime.audit_qualification().unwrap().through, g);
+                let mut rows = saved
+                    .prepare("SELECT source_coord, seq FROM cover ORDER BY source_coord")
+                    .unwrap();
+                covers.push(
+                    rows.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))
+                        .unwrap()
+                        .collect::<rusqlite::Result<Vec<_>>>()
+                        .unwrap(),
+                );
+            }
+            // 修订赢家：coord 1/2 的 seq 推进到 3/4，coord 0 不动；seq 与 coord 刻意不同。
+            assert_eq!(covers[4], vec![(0, 0), (1, 3), (2, 4)]);
+            assert_eq!(covers[2], vec![(0, 0), (1, 1), (2, 2)]);
+            let saved = Connection::open(&path).unwrap();
+            assert!(
+                saved
+                    .query_row("SELECT COUNT(*) FROM object WHERE withdrawn=1", [], |r| r
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap()
+                    > 0,
+                "修订必须产生撤回"
+            );
+            drop(runtime);
+            let dump = audit_ledger::tests::dump(&path)
+                .into_iter()
+                .filter(|row| row.starts_with("cover:"))
+                .collect::<Vec<_>>();
+            assert_eq!(dump.len(), 3);
+            dumps.push(dump);
+        }
+        assert_eq!(dumps[0], dumps[1], "丢弃重建后的 cover 逐行相同");
+    }
+
+    /// 36M pending：首根包含第二根且方向未定时，第二根只能是已发布未定原件，不得伪造组身份。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_real_owner_records_pending_without_group() {
+        let mut f = Fixture::new();
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let path = db.with_file_name("complete-pending.sqlite");
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(audit_ledger::tests::ledger(
+                &db,
+                "complete-pending.sqlite",
+                &rule,
+            ))
+            .unwrap();
+        let mut pending_seen = 0;
+        for (i, &(key, at, open, high, low, close)) in [
+            ("p0", 0, 0, 10, 0, 10),
+            ("p1", 1, 1, 9, 1, 9),
+            ("p2", 2, 20, 30, 20, 30),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let g = i as i64 + 1;
+            let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), 1);
+            let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let (_, ended) = owner
+                .publish(
+                    &mut runtime,
+                    &token,
+                    &envelope,
+                    &mut request_audit::RequestAuditContext::default(),
+                )
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            let saved = Connection::open(&path).unwrap();
+            pending_seen += assert_cover_matches_content(&f.conn, &saved, g);
+            assert_eq!(
+                runtime
+                    .audit_ledger
+                    .as_ref()
+                    .unwrap()
+                    .committed_through()
+                    .unwrap(),
+                g
+            );
+        }
+        assert!(pending_seen > 0, "三根包含夹具必须出现真实 pending 行");
+    }
+
+    /// 36M：source-partitions 台账与完整台账来自同一份收据导出；分区台账不写 cover/node/cert。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit() {
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let db = f.db_path();
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(audit_ledger::tests::ledger(
+                &db,
+                "wrong-rule.sqlite",
+                "TestOnly-other-rule",
+            ))
+            .unwrap();
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &envelope,
+                &mut request_audit::RequestAuditContext::default()
+            )
+            .is_err());
+        assert!(runtime.queued_audit_facts.is_none());
+        assert!(runtime.audit_qualification().is_err());
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
+        let saved = Connection::open(db.with_file_name("wrong-rule.sqlite")).unwrap();
+        for table in ["raw", "cover", "cert", "node"] {
+            assert_eq!(
+                saved
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_queued_units_prepare_failure_discards_facts_and_stales() {
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime
+            .install_audit_ledger(audit_ledger::tests::ledger(&db, "queue-fail.sqlite", &rule))
+            .unwrap();
+        let mut invalid = envelope;
+        invalid["payload"] = serde_json::json!({});
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &invalid,
+                &mut request_audit::RequestAuditContext::default()
+            )
+            .is_err());
+        assert!(runtime.queued_audit_facts.is_none());
+        assert!(runtime
+            .audit_ledger
+            .as_ref()
+            .unwrap()
+            .committed_through()
+            .is_err());
+        let saved = Connection::open(db.with_file_name("queue-fail.sqlite")).unwrap();
+        assert_eq!(
+            saved
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert!(owner
+            .publish(
+                &mut runtime,
+                &token,
+                &invalid,
+                &mut request_audit::RequestAuditContext::default()
+            )
+            .is_err());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries() {
+        let mut f = Fixture::new();
+        let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "queue-busy.sqlite", &rule);
+        let reader = Connection::open(db.with_file_name("queue-busy.sqlite")).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        assert_eq!(
+            reader
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(ledger).unwrap();
+        let mut context = request_audit::RequestAuditContext::default();
+        let error = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .err()
+            .unwrap();
+        assert!(error.contains("AuditLedgerStale"), "{error}");
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+        assert!(runtime.queued_audit_facts.is_none());
+        assert!(runtime
+            .audit_ledger
+            .as_ref()
+            .unwrap()
+            .committed_through()
+            .is_err());
+        reader.execute_batch("ROLLBACK").unwrap();
+        assert!(owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .is_err());
+        assert_eq!(
+            reader
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_production_manifest_source_receipt_consumed_without_third_assembly() {
+        source_audit::source_receipt::take_publication_consumed_for_test();
+        // 同一既有四代workspace/cold/Ordinary逐字对拍，包含真实workspace重绑。
+        manifest_workspace_normal_commits(false);
+        let consumed = source_audit::source_receipt::take_publication_consumed_for_test();
+        assert_eq!(
+            consumed,
+            vec![1; 8],
+            "warm/cold Native每代各消费一次来源后缀，Ordinary不新增义务"
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_production_manifest_source_receipt_rejects_request_substitution() {
+        for changed in 0..11 {
+            let mut f = Fixture::new();
+            f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+            let mut tx = f.conn.transaction().unwrap();
+            let mut prepared = f
+                .runtime
+                .prepare(
+                    &mut tx, &token, &e, None, None, None, None, None, None, None, None,
+                )
+                .unwrap();
+            let proof = prepared
+                .source_manifest
+                .take()
+                .expect("Native真实prepare须签发来源组装证明");
+            let mut metadata = prepared.metadata.clone();
+            match changed {
+                0 => metadata.generation += 1,
+                1 => metadata.profile_id.push_str("-different"),
+                2 => metadata.rule_revision.push_str("-different"),
+                3 => metadata.source_commit.message_id.push_str("-different"),
+                4 => metadata.scope.extent = Some(u64::MAX),
+                _ => (),
+            }
+            use content_manifest::ManifestRootSource;
+            let copy = |v: sc::RefView<'_>| ContentRef {
+                format: v.format().to_owned(),
+                root: v.root().to_owned(),
+                kind: v.kind(),
+                extent: v.extent(),
+            };
+            let view = prepared.roots.view();
+            let mut roots = content_manifest::ManifestRoots {
+                generated_state: copy(view.generated_state),
+                publication_template: copy(view.publication_template),
+                delta_template: copy(view.delta_template),
+            };
+            match changed {
+                8 => roots.generated_state.root = sc::root_string(&[0xff; 32]),
+                9 => roots.publication_template.root = sc::root_string(&[0xff; 32]),
+                10 => roots.delta_template.root = sc::root_string(&[0xff; 32]),
+                _ => (),
+            }
+            let supplied_token = if changed == 5 {
+                "other-request"
+            } else {
+                &token
+            };
+            let from = if changed == 6 { 1 } else { 0 };
+            let to = if changed == 7 { 2 } else { 1 };
+            assert!(proof
+                .consume(
+                    supplied_token,
+                    &metadata,
+                    &roots,
+                    &prepared.manifest,
+                    from..to
+                )
+                .is_err());
+            drop(prepared);
+            tx.rollback().unwrap();
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_real_prepare_raw_receipt_keeps_old_revision_and_binds_request() {
+        use content_manifest::ManifestRootSource;
+        use source_audit::source_receipt::audit_raw_receipt;
+        let mut f = Fixture::new();
+        let (first, first_token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        assert_eq!(f.publish(&first, &first_token).unwrap().generation, 1);
+        let (envelope, token) = f.accept_begin(2, ("p6", 0, 8, 13, 4, 9), 2);
+        let mut tx = f.conn.transaction().unwrap();
+        let prepared = f
+            .runtime
+            .prepare(
+                &mut tx, &token, &envelope, None, None, None, None, None, None, None, None,
+            )
+            .unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        assert_eq!(raw.len(), 2);
+        assert_eq!(read_effective_events(&raw).unwrap().len(), 1);
+        let r = prepared.roots.view();
+        let refs = [
+            (&prepared.metadata.scope).into(),
+            r.generated_state,
+            r.publication_template,
+            r.delta_template,
+        ];
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        // 冷折叠从0开始也须保留已失效revision；不能拿赢家表充当raw账。
+        let full = audit_raw_receipt(
+            &mut store,
+            &token,
+            2,
+            r.generated_state,
+            (&raw).into(),
+            0,
+            &prepared.metadata.profile_id,
+            &prepared.metadata.rule_revision,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            full.rows().iter().map(|r| r.seq).collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        for (row, event) in full.rows().iter().zip(&raw) {
+            assert_eq!(
+                row.event_digest,
+                super::super::history::hash_json_metered(event, None, None).unwrap()
+            );
+        }
+        drop(full);
+        let source = audit_raw_receipt(
+            &mut store,
+            &token,
+            2,
+            r.generated_state,
+            (&raw).into(),
+            1,
+            &prepared.metadata.profile_id,
+            &prepared.metadata.rule_revision,
+            None,
+            None,
+        )
+        .unwrap();
+        let receipt = source.bind_four_roots(&mut store, refs).unwrap();
+        let mut units = 0;
+        receipt.for_each_unit(|_| units += 1);
+        assert!(units > 4);
+        let accepted = receipt
+            .consume(&token, 2, &prepared.metadata.rule_revision, 1..2, refs)
+            .unwrap();
+        assert_eq!(accepted.rows().len(), 1);
+        assert_eq!(accepted.rows()[0].seq, 1);
+        drop(accepted);
+        drop(store);
+        drop(prepared);
+        tx.rollback().unwrap();
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_real_prepare_closure_probe_stages_and_rolls_back_without_certification() {
+        use content_manifest::ManifestRootSource;
+        let mut f = Fixture::new();
+        let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let db = f.db_path();
+        let mut tx = f.conn.transaction().unwrap();
+        let prepared = f
+            .runtime
+            .prepare(
+                &mut tx,
+                &token,
+                &e,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+            )
+            .unwrap();
+        let copy = |v: sc::RefView<'_>| ContentRef {
+            format: v.format().to_owned(),
+            root: v.root().to_owned(),
+            kind: v.kind(),
+            extent: v.extent(),
+        };
+        let r = prepared.roots.view();
+        let roots = content_manifest::ManifestRoots {
+            generated_state: copy(r.generated_state),
+            publication_template: copy(r.publication_template),
+            delta_template: copy(r.delta_template),
+        };
+        let metadata = prepared.metadata.clone();
+        let refs = [
+            metadata.scope.clone(),
+            roots.generated_state.clone(),
+            roots.publication_template.clone(),
+            roots.delta_template.clone(),
+        ];
+        let mut reader = content_store::ReadStore::new(&tx).unwrap();
+        let probe = sc::closure_delta::probe_four_roots(
+            &mut reader,
+            refs.each_ref().map(Into::into),
+            &sc::closure_delta::EmptyFrontier,
+        )
+        .unwrap();
+        drop(reader);
+        let mut d = super::super::audit_ledger::tests::delta(&metadata, &roots);
+        d.new_units.clear();
+        probe.for_each_unit(|u| {
+            use super::super::audit_ledger::{Flavor, Mode, Unit};
+            use sc::closure_delta::{Context, VerificationMode};
+            d.new_units.insert(Unit {
+                digest: u.digest,
+                flavor: match u.context {
+                    Context::Value => Flavor::Value,
+                    Context::JsonInner => Flavor::JsonInner,
+                },
+                mode: match u.mode {
+                    VerificationMode::Public => Mode::Public,
+                    VerificationMode::Template => Mode::Template,
+                },
+            });
+        });
+        assert!(d.new_units.len() > 4);
+        let mut ledger = super::super::audit_ledger::tests::ledger(
+            &db,
+            "closure-probe.sqlite",
+            &metadata.rule_revision,
+        );
+        ledger.stage(&token, &d).unwrap();
+        assert!(ledger.committed_through().is_err());
+        ledger.bind(&token, &metadata, &roots).unwrap();
+        ledger.invalidate();
+        drop(prepared);
+        tx.rollback().unwrap();
+        let saved = Connection::open(db.with_file_name("closure-probe.sqlite")).unwrap();
+        assert_eq!(
+            saved
+                .query_row("SELECT COUNT(*) FROM node", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            saved
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     #[ignore]
     fn staged_new_nodes_complete_commit_observation() {
@@ -1053,7 +3421,7 @@ pub(crate) mod tests {
         }
         std::fs::write(out.join("STAGED-OBSERVATION.json"),serde_json::to_vec_pretty(&json!({"stages":stages,"Native_testonly":true,"shared_owner_all_three_stores":true,"old_material_audit_unchanged":true,"read_modes":"both Runtime Mode::CapturedNative, eager default stage=false vs explicit staged=true; no silent fallback","physical_INSERT_failure_timing_equivalent":false,"105_or_9011_qualification":false,"Job_max_store_or_strict_heap_qualification":false})).unwrap()).unwrap();
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn staged_node_material(c: &Connection) -> std::collections::BTreeMap<Vec<u8>, (u8, Vec<u8>)> {
         c.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
             .unwrap()
@@ -1067,7 +3435,7 @@ pub(crate) mod tests {
             .collect::<Result<_, _>>()
             .unwrap()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     #[ignore]
     fn runtime_roots_append_revision_error_observation() {
@@ -1143,7 +3511,6 @@ pub(crate) mod tests {
         std::fs::write(out.join("RUNTIME-ROOTS.json"),serde_json::to_vec_pretty(&json!({"testonly":true,"formal_driver_network_path":false,"large_frozen_105_runtime_reconstructed":false,"scope":"existing real S3 fixture accept/Begin/Runtime.commit; full audit and real generation/publication unchanged; ordinary exact comparison","stages":reports,"revision_withdrawals":withdrawn,"manual_cache_discard_or_GC":false,"root_exclusions":{"aux.raw_wires.key":"canonical JSON SHA memo fingerprint, not a content node root","bi.RawCoords.empty":"uninitialized empty sequence sentinel is omitted; after normal error cleanup visitor is empty","producer.fractal_histories.union_tail":"integer coordinate tree, no content digest","ArrayCache.tree":"Rc coordinate tree and address key, no content digest","producer.raw_tokens/prepared_raw_keys":"identity tokens and raw logical key strings, no content roots","aux.observation_ids.value":"observation identifier string, not a content pointer","generation.lane_key":"facts lane holds ordinary typed facts, no s-content roots"}})).unwrap()).unwrap();
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
     #[derive(Debug, PartialEq, Eq)]
     pub(crate) enum RuntimeRootCell {
         Null,
@@ -1152,7 +3519,6 @@ pub(crate) mod tests {
         Text(Vec<u8>),
         Blob(Vec<u8>),
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn runtime_root_tables(
         conn: &Connection,
         include_nodes: bool,
@@ -1199,7 +3565,7 @@ pub(crate) mod tests {
             })
             .collect()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn runtime_root_compare_reachable_bytes(left: &Connection, right: &Connection) {
         use std::collections::{BTreeMap, BTreeSet};
         let nodes = |c: &Connection| {
@@ -1295,7 +3661,7 @@ pub(crate) mod tests {
             }
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn runtime_roots_snapshot(
         f: &Fixture,
         out: &Path,
@@ -1350,10 +3716,17 @@ pub(crate) mod tests {
                 let audited = state::audit(&tx).unwrap();
                 assert_eq!(audited.raw.len(), n as usize);
                 assert_eq!(audited.cuts.len(), n as usize);
+                let snapshot = audited.cuts[0].snapshot.view();
+                let snapshot = (
+                    snapshot.format().to_owned(),
+                    snapshot.root().to_owned(),
+                    snapshot.kind(),
+                    snapshot.extent(),
+                );
                 if let Some(root) = &first_snapshot {
-                    assert_eq!(&audited.cuts[0].snapshot, root);
+                    assert_eq!(&snapshot, root);
                 } else {
-                    first_snapshot = Some(audited.cuts[0].snapshot.clone());
+                    first_snapshot = Some(snapshot);
                 }
                 assert!(!audited.objects.is_empty(), "真实提交后对象索引必须非空");
                 assert_eq!(
@@ -1380,6 +3753,142 @@ pub(crate) mod tests {
         assert!(withdrawn > 0, "真实修订必须发生撤回");
         assert_eq!(count(&f.conn, "s_clock_events"), 12);
     }
+
+    fn fixed_fields_four_real_commits(mode: s_allocation::Mode) {
+        let mut old = Fixture::new();
+        let mut new = Fixture::new();
+        old.runtime = Runtime::with_mode(mode.clone());
+        new.runtime = Runtime::with_mode(mode);
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (oe, ot) = old.accept_begin(n, row, revision);
+            let (ne, nt) = new.accept_begin(n, row, revision);
+            let expected =
+                object_index::with_legacy_candidate_fields_for_test(|| old.publish(&oe, &ot))
+                    .unwrap();
+            let before = object_index::candidate_field_reads_for_test();
+            let actual = new.publish(&ne, &nt).unwrap();
+            let after = object_index::candidate_field_reads_for_test();
+            assert_eq!(
+                canonical_json(&actual.message_receipt),
+                canonical_json(&expected.message_receipt)
+            );
+            assert_eq!(actual.snapshot, expected.snapshot);
+            assert_eq!(actual.delta, expected.delta);
+            assert_eq!(actual.batch_id, expected.batch_id);
+            assert_eq!(
+                runtime_root_tables(&new.conn, true),
+                runtime_root_tables(&old.conn, true),
+                "gen{n}全表/节点/四根逐字相同"
+            );
+            assert!(
+                after.0 < before.0,
+                "gen{n} actual candidate SQL {} vs {}",
+                after.0,
+                before.0
+            );
+            assert!(
+                after.1 < before.1,
+                "gen{n} actual candidate F {} vs {}",
+                after.1,
+                before.1
+            );
+            eprintln!(
+                "fixed_fields real gen={n} old_SQL={} new_SQL={} old_F={} new_F={}",
+                before.0, after.0, before.1, after.1
+            );
+        }
+        assert!(count(&new.conn, "s_content_objects") > 0);
+        assert!(
+            new.conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_objects WHERE kind='CC-006.local_shape'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                > 0
+        );
+        assert!(
+            new.conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_objects WHERE kind!='CC-006.local_shape'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                > 0
+        );
+        assert!(
+            new.conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_objects WHERE withdrawn_generation=4",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                > 0
+        );
+    }
+    #[test]
+    fn fixed_fields_plain_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots() {
+        fixed_fields_four_real_commits(s_allocation::Mode::Ordinary);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_fields_owned_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots() {
+        let budget = sc::capture_allocation::OwnedBudget::new(100 * 1024 * 1024);
+        fixed_fields_four_real_commits(s_allocation::Mode::Owned(q_allocation::Profile {
+            budget: budget.clone(),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        }));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(budget.snapshot().allocation_attempts > 0);
+        assert!(!budget.ledger_health().invariant_broken);
+        eprintln!("fixed_fields real Owned ledger={:?}", budget.snapshot());
+    }
+
+    fn fixed_fields_commit_rollback(mode: s_allocation::Mode) {
+        let mut f = Fixture::new();
+        f.runtime = Runtime::with_mode(mode);
+        let (e, t) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&e, &t).unwrap();
+        let (e, t) = f.accept_begin(2, ("b", 10, 8, 16, 6, 12), 1);
+        let before = runtime_root_tables(&f.conn, true);
+        f.runtime.after_prepare = Some(|tx| {
+            tx.execute_batch("PRAGMA defer_foreign_keys=ON; INSERT INTO s_delivery_refs(generation) VALUES(999);").map_err(err)
+        });
+        assert!(f.publish(&e, &t).unwrap_err().contains("FOREIGN KEY"));
+        assert_eq!(
+            before,
+            runtime_root_tables(&f.conn, true),
+            "失败后全表含接受/Begin/clock和全部节点精确保留"
+        );
+        f.runtime.after_prepare = None;
+        f.publish(&e, &t).unwrap();
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 2);
+    }
+    #[test]
+    fn fixed_fields_plain_real_second_commit_fk_failure_rolls_back_every_persistent_row() {
+        fixed_fields_commit_rollback(s_allocation::Mode::Ordinary);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_fields_owned_real_second_commit_fk_failure_rolls_back_every_persistent_row() {
+        let budget = sc::capture_allocation::OwnedBudget::new(50 * 1024 * 1024);
+        fixed_fields_commit_rollback(s_allocation::Mode::Owned(q_allocation::Profile {
+            budget: budget.clone(),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        }));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
         #[allow(
@@ -1399,7 +3908,7 @@ pub(crate) mod tests {
             std::mem::align_of::<Before<'static, 'static>>()
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision() {
         let mut native = Fixture::new();
@@ -1484,17 +3993,59 @@ pub(crate) mod tests {
     }
 
     /// Normal append/revision only. Does not call the older observation/fault entries.
-    #[cfg(feature = "s_capture_native_testonly")]
+    /// #1488 S3 assemble_manifest 读量锁：§5.4 三根（scope/生成态/两模板）全闭包核验之外的
+    /// 单次组装读量是与 g 无关的常数；全闭包核验本身随状态增长、请求审计逐 cut 重组随历史增长，
+    /// 按 D6 归段 B（报告实测）。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn assemble_manifest_reads_beyond_closure_verify_stay_constant() {
+        let mut f = Fixture::new();
+        let mut rest = Vec::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (e, t) = f.accept_begin(n, row, revision);
+            content_manifest::take_assemble_call_reads_for_test();
+            f.publish(&e, &t).unwrap();
+            let calls = content_manifest::take_assemble_call_reads_for_test();
+            eprintln!("S3_ASSEMBLE_READS g={n} calls(total,closure_verify)={calls:?}");
+            rest.push(
+                calls
+                    .iter()
+                    .map(|(total, verify)| total - verify)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        // 每次 publish：请求审计逐个重组已发布 cut（g-1 次）+ 本代组装与发布核对（2 次）。
+        // 单次调用的核验外读量只分两档（本代首读 / 历史 cut 复读），各自与 g 无关。
+        for (g, calls) in rest.iter().enumerate() {
+            assert_eq!(calls.len(), g + 2, "g={} 组装调用次数", g + 1);
+            let (history, current) = calls.split_at(g);
+            assert!(
+                current.iter().all(|r| *r == rest[0][0]),
+                "本代组装核验外读量须与 g 无关：{rest:?}"
+            );
+            assert!(
+                history.iter().all(|r| *r == rest[1][0]),
+                "历史 cut 组装核验外读量须与 g 无关：{rest:?}"
+            );
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows() {
         manifest_workspace_normal_commits(false);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r10_native_manifest_workspace_shared_scope_normal_commits_match_full_rows() {
         manifest_workspace_normal_commits(true);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn manifest_workspace_normal_commits(admitted: bool) {
         let mut warm = Fixture::new();
         warm.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
@@ -1506,6 +4057,11 @@ pub(crate) mod tests {
         let total = 536_870_912;
         let mut keeper = Some(super::super::cross_request_source_cache::Keeper::new(total));
         let mut shared_old_pool_seen = false;
+        // Explicit finite prototype heap cap, independent of the S7 source allowance.
+        // v4：同一生产路径只有一个真实分配父；warm runtime 跨请求的 Native memo 已绑定该父，
+        // 每代新建父即换父（wrong-parent 拒绝），故四代共用同一父账，live/peak 连续。
+        let shared_parent = admitted
+            .then(|| super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap());
         let before = content_manifest::manifest_workspace_stats();
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
@@ -1532,11 +4088,10 @@ pub(crate) mod tests {
                 Some(total)
             );
             let start = std::time::Instant::now();
+            content_manifest::take_assemble_call_reads_for_test();
             let mut tx = warm.conn.transaction().unwrap();
             let wr = if admitted {
-                // Explicit finite prototype heap cap, independent of the S7 source allowance.
-                let parent =
-                    super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+                let parent = shared_parent.as_ref().unwrap();
                 let baseline = parent.live();
                 let receipt = parent
                     .codec_work()
@@ -1567,6 +4122,13 @@ pub(crate) mod tests {
                     .commit_in_request(tx, &wt, &we, &mut context)
                     .unwrap()
             };
+            let warm_assemblies = content_manifest::take_assemble_call_reads_for_test();
+            let historical_cuts = (n - 1) as usize;
+            assert_eq!(
+                warm_assemblies.len(),
+                historical_cuts + 1,
+                "gen{n} workspace须仅重组已有历史和本次prepare，publish复用真实重绑原件"
+            );
             let workspace_cost =
                 content_manifest::manifest_workspace_stats().last_workspace_source_cost as usize;
             assert!(
@@ -1595,7 +4157,19 @@ pub(crate) mod tests {
                     <= total
             );
             let elapsed = start.elapsed();
+            content_manifest::take_assemble_call_reads_for_test();
             let cr = cold.publish(&ce, &ct).unwrap();
+            let cold_assemblies = content_manifest::take_assemble_call_reads_for_test();
+            assert_eq!(
+                cold_assemblies.len(),
+                historical_cuts + 2,
+                "gen{n} 无workspace须保留本次prepare和publish严格复核，不增加第三次组装"
+            );
+            eprintln!(
+                "P6_ASSEMBLY generation={n} history={historical_cuts} workspace={} cold={}",
+                warm_assemblies.len(),
+                cold_assemblies.len()
+            );
             let or = ordinary.publish(&oe, &ot).unwrap();
             for other in [&cr, &or] {
                 assert_eq!(wr.batch_id, other.batch_id);
@@ -1656,9 +4230,9 @@ pub(crate) mod tests {
         eprintln!("manifest workspace stats: before={before:?} after={after:?}");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
-    fn native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime() {
+    fn p6_native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime() {
         for fault in 0..3 {
             let mut f = Fixture::new();
             f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
@@ -1693,7 +4267,7 @@ pub(crate) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_local_material_memo_cannot_publish_trigger_damaged_deep_key() {
         for delete in [true, false] {
@@ -1853,7 +4427,7 @@ pub(crate) mod tests {
         assert!(!budget.ledger_health().invariant_broken);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_capture_sqlite_commit_failure_retries_with_new_current_capture() {
         s_allocation::probe::start(None);

@@ -37,6 +37,7 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
+import { drainRequested, withLegacyAdmission } from "../.sandcastle/drain-control.mts";
 import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1188,6 +1189,7 @@ function describeAction(a: Action): string {
 // ── 壳：轮询 + 每轮重算 ready 集 ───────────────────────────────────────────────
 
 async function runOnce(cfg: EngineConfig): Promise<void> {
+  if (drainRequested()) return;
   const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
   console.log(`\n[wayfinder_engine] ${stamp} 一轮开始（${cfg.dryRun ? "dry-run" : "live"}）`);
   let maps: MapState[];
@@ -1212,7 +1214,7 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
         console.log(`    [dry-run] 将执行：${describeAction(action)}`);
       } else {
         try {
-          executeAction(action, cfg);
+          await withLegacyAdmission(() => executeAction(action, cfg));
         } catch (e) {
           console.error(`    ✗ 执行失败（${action.kind}）：${e}`);
         }
@@ -1237,7 +1239,7 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
       console.log(`    [dry-run] 将释放（挂 sandcastle）：#${n}`);
     } else {
       try {
-        const why = releaseTicket(n);
+        const why = await withLegacyAdmission(() => releaseTicket(n));
         if (why) console.log(`    · 写前复核不放行 #${n}：${why}`);
         else console.log(`    ✓ 已释放（挂 sandcastle）：#${n}`);
       } catch (e) {
@@ -1293,6 +1295,7 @@ async function main(): Promise<void> {
     return;
   }
   for (;;) {
+    if (drainRequested()) { console.log("旧入口冻结，本轮不再领新工作"); return; }
     try {
       await runOnce(cfg);
     } catch (e) {

@@ -1,8 +1,8 @@
 //! #1394：当前 Native Capture 内的来源纯解析及有效前缀证书。
 //! 不取得 closure 资格；调用者每 cut 仍先核全部当前原件。
+use super::super::audit_store::NativeTree;
+use super::super::native_shared::NativeRc;
 use super::*;
-use std::collections::{BTreeMap, HashMap};
-use std::rc::Rc;
 
 #[cfg(test)]
 thread_local! {
@@ -20,10 +20,10 @@ pub(super) fn stats() -> Option<[u64; 4]> {
 #[derive(Debug)]
 pub(super) enum SourceCoords {
     Original(sc::CodecVec<i64>),
-    Shared(Rc<[i64]>),
+    Shared(NativeRc<[i64]>),
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod tests {
     use super::*;
     fn event(identity: &str, coord: &str, revision: i64, seq: i64) -> Value {
@@ -59,7 +59,7 @@ mod tests {
         map
     }
     fn build(nodes: &mut sc::MemoryNodes, value: &Value) -> RefValue {
-        RefValue::Plain(
+        RefValue::from(
             sc::write_value(nodes, &cv(value).unwrap())
                 .unwrap()
                 .content_ref(),
@@ -69,7 +69,7 @@ mod tests {
         super::super::super::history::HashReader::captured(capture, None)
     }
     #[test]
-    fn native_prefix_certificates_and_shared_coords_use_current_parent_scope() {
+    fn native_prefix_certificates_and_shared_coords_follow_actual_owners() {
         let raw = vec![
             event("a", "10", 1, 1),
             event("a", "10", 2, 2),
@@ -81,39 +81,88 @@ mod tests {
         assert!(!memo.intervals_ready && memo.intervals.is_none());
         let budget = super::super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let before = budget.live();
+        let shared = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = super::super::super::audit_store::NativeAdmission(Some(scope));
+                let scope_base = budget.live();
+                let intervals =
+                    NativeSourceMemo::winner_intervals_admitted(&admission, (&raw).into())?
+                        .unwrap();
+                assert_eq!(intervals.len(), expected.len());
+                for (key, runs) in intervals.iter() {
+                    assert_eq!(&**runs, &**expected.get(key).unwrap());
+                }
+                assert!(budget.live() > scope_base);
+                drop(intervals);
+                assert_eq!(
+                    budget.live(),
+                    scope_base,
+                    "证书及临时树的实际销毁归还原许可"
+                );
+                let shared = memo.share(&admission, copy_coords(&admission, &[10, 30])?)?;
+                let after_first = budget.live();
+                let again = memo.share(&admission, copy_coords(&admission, &[10, 30])?)?;
+                assert!(NativeRc::ptr_eq(&shared, &again));
+                assert_eq!(&*shared, &[10, 30]);
+                assert_eq!(
+                    budget.live(),
+                    after_first,
+                    "intern命中不重复签共享块费，临时复制已释放"
+                );
+                drop(again);
+                memo.clear();
+                assert_eq!(
+                    budget.live(),
+                    after_first,
+                    "clear保留桶容量，外部句柄仍持共享块"
+                );
+                drop(memo);
+                assert!(
+                    budget.live() > scope_base,
+                    "memo销毁后外部句柄仍持原共享许可"
+                );
+                assert!(budget.live() < after_first, "memo桶已真实销毁");
+                Ok::<_, String>(shared)
+            })
+            .unwrap();
+        assert!(budget.live() > before, "共享块可携原许可跨WorkScope存活");
+        let after_scope = budget.live();
+        let cloned = shared.clone();
+        assert_eq!(budget.live(), after_scope);
+        drop(shared);
+        assert_eq!(budget.live(), after_scope, "最后强句柄之前不退费");
+        drop(cloned);
+        assert_eq!(budget.live(), before);
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[test]
+    fn native_invalid_future_identity_drops_partial_certificate_owners() {
+        let raw = vec![event("a", "10", 1, 1), event("b", "10", 1, 2)];
+        let budget = super::super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let before = budget.live();
         budget
             .codec_work()
             .unwrap()
             .run(|scope| {
                 let admission = super::super::super::audit_store::NativeAdmission(Some(scope));
-                let intervals =
+                let scope_base = budget.live();
+                assert!(
                     NativeSourceMemo::winner_intervals_admitted(&admission, (&raw).into())?
-                        .unwrap();
-                assert_eq!(intervals, expected);
-                let shared = memo.share(&admission, copy_coords(&admission, &[10, 30])?)?;
-                let again = memo.share(&admission, copy_coords(&admission, &[10, 30])?)?;
-                assert!(Rc::ptr_eq(&shared, &again));
-                assert_eq!(&*shared, &[10, 30]);
-                assert!(
-                    budget.live()
-                        > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+                        .is_none()
                 );
-                drop(shared);
-                drop(again);
-                drop(intervals);
-                memo.clear();
-                assert!(
-                    budget.live()
-                        > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes(),
-                    "容器析构后保守许可仍归候选父Budget"
+                assert_eq!(
+                    budget.live(),
+                    scope_base,
+                    "未来身份冲突不会遗留已建临时树许可"
                 );
-                drop(memo);
                 Ok::<_, String>(())
             })
             .unwrap();
-        assert!(budget.live() > before, "WorkScope结束不归还Native保守持账");
-        assert_eq!(budget.scratch_observation().0, 0);
-        assert_eq!(budget.scratch_observation().2, 0);
+        assert_eq!(budget.live(), before);
     }
 
     #[test]
@@ -179,7 +228,7 @@ mod tests {
             let (SourceCoords::Shared(a), SourceCoords::Shared(b)) = (&values, &parsed) else {
                 panic!("not shared")
             };
-            assert!(Rc::ptr_eq(a, b));
+            assert!(NativeRc::ptr_eq(a, b));
         }
         assert_eq!(memo.stats[2], 3);
         assert!(memo
@@ -353,7 +402,7 @@ impl std::ops::Deref for SourceCoords {
 impl PartialEq for SourceCoords {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Shared(a), Self::Shared(b)) if Rc::ptr_eq(a, b) => true,
+            (Self::Shared(a), Self::Shared(b)) if NativeRc::ptr_eq(a, b) => true,
             _ => **self == **other,
         }
     }
@@ -368,8 +417,8 @@ impl<'a> IntoIterator for &'a SourceCoords {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum ParseDomain {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     Public,
     JsonInner,
@@ -410,7 +459,7 @@ impl Interval {
     }
 }
 struct Proof {
-    values: Rc<[i64]>,
+    values: NativeRc<[i64]>,
     interval: Interval,
 }
 pub(super) struct NativeSourceMemo<'capture> {
@@ -419,17 +468,17 @@ pub(super) struct NativeSourceMemo<'capture> {
     raw_len: usize,
     intervals_ready: bool,
     // None means no optimization qualification; original reference predicate still runs.
-    intervals: Option<HashMap<(i64, NodeDigest, bool), Vec<Interval>>>,
-    coords: HashMap<SequenceKey, Rc<[i64]>>,
-    references: HashMap<SequenceKey, Proof>,
-    intern: HashMap<Rc<[i64]>, Rc<[i64]>>,
+    intervals: Option<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>>,
+    coords: BusinessMap<SequenceKey, NativeRc<[i64]>>,
+    references: BusinessMap<SequenceKey, Proof>,
+    intern: BusinessMap<NativeRc<[i64]>, NativeRc<[i64]>>,
     #[cfg(test)]
     pub(super) stats: [u64; 4], // coords hit/miss, refs hit/miss
 }
 impl<'capture> NativeSourceMemo<'capture> {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn new(capture: &'capture sc::AuditCapture, raw: RawEventsView<'capture>) -> Self {
         #[cfg(test)]
@@ -441,58 +490,49 @@ impl<'capture> NativeSourceMemo<'capture> {
             // restore 先接父 scope，再在真实消费时建立证书，构造失败不降级放行。
             intervals_ready: false,
             intervals: None,
-            coords: HashMap::new(),
-            references: HashMap::new(),
-            intern: HashMap::new(),
+            coords: bj::new_map(None),
+            references: bj::new_map(None),
+            intern: bj::new_map(None),
             #[cfg(test)]
             stats: [0; 4],
         }
     }
     pub(super) fn clear(&mut self) {
-        self.coords.clear();
-        self.references.clear();
-        self.intern.clear();
+        self.coords.retain(|_, _| false);
+        self.references.retain(|_, _| false);
+        self.intern.retain(|_, _| false);
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     fn winner_intervals(
         raw: RawEventsView<'_>,
-    ) -> Result<HashMap<(i64, NodeDigest, bool), Vec<Interval>>, String> {
+    ) -> Result<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>, String> {
         Self::winner_intervals_admitted(&super::super::audit_store::NativeAdmission(None), raw)?
             .ok_or_else(|| err("来源证书身份坐标不可固定"))
     }
     fn winner_intervals_admitted(
         s: &(impl CodecRead + ?Sized),
         raw: RawEventsView<'_>,
-    ) -> Result<Option<HashMap<(i64, NodeDigest, bool), Vec<Interval>>>, String> {
+    ) -> Result<Option<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>>, String> {
         // Establish fixed identity coordinates and no cross-identity coordinate alias.
         // Future malformed input disables proof reuse without changing an earlier cut's errors.
-        let mut identity_coords = BTreeMap::new();
-        let mut coord_identities = BTreeMap::new();
+        let mut identity_coords = NativeTree::default();
+        let mut coord_identities = NativeTree::default();
         for event in raw.iter() {
             let identity = bj::field(event, "identity_key").as_str().unwrap_or("");
             let Ok(coord) = bj::coord(event) else {
                 return Ok(None);
             };
-            if !identity_coords.contains_key(identity) {
-                s.native_tree_room::<&str, i64>(identity_coords.len())
-                    .map_err(err)?;
-            }
-            if !coord_identities.contains_key(&coord) {
-                s.native_tree_room::<i64, &str>(coord_identities.len())
-                    .map_err(err)?;
-            }
             if identity_coords
-                .insert(identity, coord)
+                .insert_admitted(identity, coord, s)
+                .map_err(err)?
                 .is_some_and(|old| old != coord)
                 || coord_identities
-                    .insert(coord, identity)
+                    .insert_admitted(coord, identity, s)
+                    .map_err(err)?
                     .is_some_and(|old| old != identity)
             {
                 return Ok(None);
@@ -506,14 +546,17 @@ impl<'capture> NativeSourceMemo<'capture> {
             numeric: NodeDigest,
             first: usize,
         }
-        let mut winners: BTreeMap<&str, Winner> = BTreeMap::new();
-        let mut out: HashMap<(i64, NodeDigest, bool), Vec<Interval>> = HashMap::new();
+        let mut winners: NativeTree<&str, Winner> = NativeTree::default();
+        let mut out: BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>> =
+            bj::new_map(None);
         let mut close = |winner: Winner, last: usize| -> Result<(), String> {
             for (numeric, d) in [(false, winner.wire), (true, winner.numeric)] {
                 if !out.contains_key(&(winner.coord, d, numeric)) {
-                    s.native_std_map_room(&mut out).map_err(err)?;
+                    s.native_map_room(&mut out).map_err(err)?;
+                    out.insert((winner.coord, d, numeric), bj::new_work(None))
+                        .map_err(err)?;
                 }
-                let runs = out.entry((winner.coord, d, numeric)).or_default();
+                let runs = out.get_mut(&(winner.coord, d, numeric)).unwrap();
                 let interval = Interval {
                     first: winner.first,
                     last,
@@ -524,8 +567,8 @@ impl<'capture> NativeSourceMemo<'capture> {
                 {
                     prev.last = last;
                 } else {
-                    s.native_vec_room(runs, 1).map_err(err)?;
-                    runs.push(interval);
+                    s.native_codec_room(runs, 1).map_err(err)?;
+                    runs.try_push(interval).map_err(err)?;
                 }
             }
             Ok(())
@@ -552,15 +595,13 @@ impl<'capture> NativeSourceMemo<'capture> {
                 numeric: super::super::history::hash_json_in_store(s, numeric.view(), None, None)?,
                 first: ordinal + 1,
             };
-            if !winners.contains_key(identity) {
-                s.native_tree_room::<&str, Winner>(winners.len())
-                    .map_err(err)?;
-            }
-            if let Some(old) = winners.insert(identity, winner) {
+            if let Some(old) = winners.insert_admitted(identity, winner, s).map_err(err)? {
                 close(old, ordinal)?;
             }
         }
-        for (_, winner) in winners {
+        // 保留树节点高水位许可直到真实树销毁；只移动每个 Winner。
+        while let Some((&identity, _)) = winners.first_key_value() {
+            let winner = winners.remove(identity).unwrap();
             close(winner, raw.len())?;
         }
         Ok(Some(out))
@@ -569,22 +610,16 @@ impl<'capture> NativeSourceMemo<'capture> {
         &mut self,
         s: &(impl CodecRead + ?Sized),
         values: sc::CodecVec<i64>,
-    ) -> Result<Rc<[i64]>, String> {
+    ) -> Result<NativeRc<[i64]>, String> {
         if let Some(shared) = self.intern.get(&*values) {
             return Ok(shared.clone());
         }
-        // Rc<[i64]> = 两个引用计数 + 对齐后的 i64 数组；旧 CodecVec 仍在父账内。
-        let layout = std::alloc::Layout::array::<i64>(values.len())
-            .and_then(|array| {
-                std::alloc::Layout::new::<[usize; 2]>()
-                    .extend(array)
-                    .map(|v| v.0.pad_to_align())
-            })
-            .map_err(|_| err(s.native_overflow()))?;
-        s.native_admit(layout.size()).map_err(err)?;
-        s.native_std_map_room(&mut self.intern).map_err(err)?;
-        let shared: Rc<[i64]> = Rc::from(&*values);
-        self.intern.insert(shared.clone(), shared.clone());
+        // 新共享块先从原父准入；复制期间原 CodecVec 及其许可仍然存活。
+        let shared = NativeRc::<[i64]>::try_copy_slice(&values, s.codec_work()).map_err(err)?;
+        s.native_map_room(&mut self.intern).map_err(err)?;
+        self.intern
+            .insert(shared.clone(), shared.clone())
+            .map_err(err)?;
         Ok(shared)
     }
     pub(super) fn coords(
@@ -612,8 +647,8 @@ impl<'capture> NativeSourceMemo<'capture> {
         }
         let parsed = super::coords(s, r)?;
         let values = self.share(s, parsed)?;
-        s.native_std_map_room(&mut self.coords).map_err(err)?;
-        self.coords.insert(key, values.clone());
+        s.native_map_room(&mut self.coords).map_err(err)?;
+        self.coords.insert(key, values.clone()).map_err(err)?;
         Ok(SourceCoords::Shared(values))
     }
     pub(super) fn references(
@@ -673,14 +708,18 @@ impl<'capture> NativeSourceMemo<'capture> {
             interval = interval.intersect(*run);
         }
         let values = self.share(s, values)?;
-        s.native_std_map_room(&mut self.references).map_err(err)?;
-        self.references.insert(
-            key,
-            Proof {
-                values: values.clone(),
-                interval,
-            },
-        );
+        if !self.references.contains_key(&key) {
+            s.native_map_room(&mut self.references).map_err(err)?;
+        }
+        self.references
+            .insert(
+                key,
+                Proof {
+                    values: values.clone(),
+                    interval,
+                },
+            )
+            .map_err(err)?;
         Ok(SourceCoords::Shared(values))
     }
 }

@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个独立 worktree、一条确定性分支；`main-swarm` 使用 Docker 隔离，`main.mts` 当前使用 noSandbox），**Codex CLI** 经本机 CLIProxyLocal 调用 `.sandcastle/main-model.mts` 指定的 `gpt-6-astra`，与当前主控同型；Claude/prime-agent 只保留给显式 legacy 执行通道。每票实现与独审使用两个独立 Codex session/home，同一阶段续跑沿用其 session；不读取用户全局 config。
+本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个独立 worktree、一条确定性分支；`main-swarm` 使用 Docker 隔离，`main.mts` 当前使用 noSandbox），**Codex CLI** 经本机 CLIProxyLocal 调用 `.sandcastle/main-model.mts` 指定的 `gpt-6.1-sol`，与当前主控同型；Claude/prime-agent 只保留给显式 legacy 执行通道。每票实现与独审使用两个独立 Codex session/home，同一阶段续跑沿用其 session；不读取用户全局 config。
 
 形态是 sandcastle 官方的 **sequential-reviewer 两段式**（#1001 裁定）：
 
@@ -20,7 +20,7 @@
 前置：
 
 - **colima 在跑**——Docker 沙盒依赖本机 Docker daemon（macOS 上经 colima 提供）；
-- **CLIProxyLocal 可用**——本机默认模型为 `gpt-6-astra`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。执行面客户端密钥由进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 注入，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理。
+- **CLIProxyLocal 可用**——本机默认模型为 `gpt-6.1-sol`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。执行面客户端密钥由进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 注入，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理，但 Docker 路径（`swarmSandbox` → `hardenProvider`）对容器 env 做显式白名单（`CLIPROXY_BASE_URL`、`CLIPROXY_LOCAL_KEY`、`SANDCASTLE_MERGE_RUN`、`SANDCASTLE_MERGE_INSTANCE`，值只取 provider 声明），`.env` 里的其余键一律不进容器；白名单写入合同摘要，receipt 同时绑定镜像 Id（`sha256:…`），tag 重指或镜像重建即 FAIL-loud；准入核对过的 Id 由 `assertSwarmExecutionReady` 返回并原样用于探针、模型预检与容器启动（`swarmSandbox` 只接受 `sha256:` Id，拒绝 tag），三条 Docker 入口（受控行、已登记放行、冲突工蜂）一致，准入后 tag 被重指也不会换镜像（已准入镜像被回收则启动失败，不静默换镜像）。镜像自带的空占位 ENV 键（如 `KIMI_API_KEY=`）无法在 `docker run` 层移除，只允许保持为空；镜像出现非空凭据类 ENV 则拒绝签发/放行。验收前必须确认 `~/.docker/config.json` 没有配置 `proxies`：docker CLI 会把代理变量（`HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` 等，可能内嵌代理账号密码）注入每个容器，这些变量不经 Sandcastle，不受白名单约束。容器内模型预检在隔离探针之后、占用 used-13/14/15（及 resume/检查点记录）之前执行，预检或上游瞬时故障（overloaded/quota/5xx）失败只 FAIL-loud，不消耗受控行；占用后的真实工蜂失败仍按一次性处理。真实容器测试（build/起容器/rmi）默认 skip，需显式设 `SANDCASTLE_REAL_DOCKER_TESTS=1` 才运行。
 
 跑法（仓库根）：
 
@@ -35,6 +35,7 @@ npx tsx .sandcastle/main.mts
 模型、effort、并发、续跑轮数、worker 超时、轮询、陈旧阈值和重试参数统一读取
 [`scheduler-config.json`](scheduler-config.json)。记录包含 schemaVersion、revision、变更 ticket、
 完整 values 与逐项 sources；`main-model.mts` 继续作为所有角色的同型模型入口。
+`opusModel` 是 decision-claimer 起草与 codex-child 异家族独审共用的第二家族模型，记录要求 `claude-` 前缀。
 
 改默认值时，在同一提交中递增 revision、填写授权票号、更新受影响参数的来源及等值测试。
 版本历史由 Git 保存。参数提取不批准部署或改生产资源帽：生效仍须遵守原有批准门。
@@ -79,7 +80,7 @@ bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 
 **宿主仓 = sandcastle-host**（#1588）：plist 模板指 `/Users/silencehan/Projects/NewChanlun-sandcastle-host`（专用 main worktree，与 claimer 同宿主），不指交互主 worktree——后者检出的是用户自己的分支，launchd 跑那里的引擎等于跑旧代码（#1578 修复因此从未生效）。`run-wayfinder-engine.sh` / `watcher.sh` 按脚本自身位置推导仓库根，`SANDCASTLE_HOST_REPO` 可覆盖。
 
-**spec 起草子代理**（#1588 / #1617）：Claude Code CLI `--bare` 经 CLIProxyLocal（`http://127.0.0.1:8318`，无第三方依赖接线 `cliproxy-env.mts`），默认与唯一允许值均为 `gpt-6-astra`；其它 `WAYFINDER_SPEC_MODEL` 启动即 fail-loud。
+**spec 起草子代理**（#1588 / #1617）：Claude Code CLI `--bare` 经 CLIProxyLocal（`http://127.0.0.1:8318`，无第三方依赖接线 `cliproxy-env.mts`），默认与唯一允许值均为 `gpt-6.1-sol`；其它 `WAYFINDER_SPEC_MODEL` 启动即 fail-loud。
 
 手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
 
@@ -125,6 +126,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `swarm-route.mts` | main-swarm 的主控同型 provider 与 Docker 宿主网关；保留 Docker 隔离，密钥仅运行时 env；领票前做真实模型请求与 namespace 预检；失败不认领、不换模型；已验收清单走独立受管归并入口。 |
 | `prime-agent-provider.ts` | 显式 legacy 通道的自定义 AgentProvider；不再供本机默认 main/main-swarm 使用。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
+| `swarm-implement-prompt.md` / `swarm-plan-prompt.md` | Docker swarm 专用（#1742）：容器内无 GitHub 凭据，票面与队列由宿主用已认证的 gh 取出后渲染成 inline prompt（`swarm-prompts.mts`），不含 `!`…`` 块；卡点由工蜂写 `status":"blocked"`，宿主回写票面。宿主 `main.mts` 仍用 `codex-implement-prompt.md`。 |
 | `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。#1588 起不再用 `!`git diff`` 展开整段 diff，只放变更摘要（`--stat` / 提交列表 / 文件清单），评审工蜂按文件、按提交自取 diff；diff 基准 `{{BASE}}` = 渲染前现 fetch 的 origin/main 提交；原始 issue 放 `<issue>…</issue>` 块。 |
 | `review-context.mts` | #1588 评审提示宿主侧渲染与体积闸：`buildReviewPrompt` 渲染摘要版 review-prompt.md，估算超 `REVIEW_PROMPT_MAX_TOKENS` 抛 `ReviewPromptTooLargeError`（exit 4）；`prepareReviewPrompt` 超限时落 workers.jsonl（`phase=reviewer status=failed reason=prompt_too_large`）并在原票评论；`runGuardedReview` 把渲染与运行包进同一失败通道，渲染期 git / gh / 基准解析失败落 `reason=prepare_error`、运行期失败落 `reason=run_error`；`resolveReviewBase` fetch origin main 取其 SHA 作 diff 基准（宿主 main 落后时不混入别线提交，领先/分叉即 FAIL-loud）。 |
 | `cargo-guard.mts` | #1588 本机禁 cargo 垫片：在固定目录 `$TMPDIR/nc-cargo-guard`（每次运行原子重写，不累积）生成 `cargo`/`rustc`/`rustup`/`cargo-*` 等拦截脚本（打印 nc-remote / CI 指引，exit 87），`cargoGuardEnv` 把它前置到工蜂 PATH 并经 `CLAUDE_ENV_FILE` 在 Claude Code 每次 Bash 前重新前置（防 login shell 重排 PATH）。只挂在 main.mts 的 noSandbox 宿主路径。 |
@@ -164,6 +166,6 @@ SANDCASTLE_SWARM_MERGE_MANIFEST=/absolute/path/accepted-manifest.json npx tsx .s
 
 此入口跳过 planner/认领，只在 `sandcastle/merge-<run-id>` 功能分支逐条受管归并；不推送、不合 main、不关来源票。无冲突由宿主提交；冲突工蜂只能编辑冻结的冲突路径，不能改索引，宿主核完整清单后提交双父 commit。每步对精确组合 SHA 执行差异检查、累计 Rust 差异的远端 cargo check、涉及 TS 时的 typecheck；失败停止后续输入。
 
-同一命令、同一清单用于恢复；检查点在宿主 `.sandcastle/logs/merges/<run-id>/checkpoint.json`，工位保留在 `.sandcastle/worktrees/sandcastle-merge-<run-id>`。已提交但未验证只补验证；已通过不重复提交/检查。未知 WIP 或合同变化停交 owner，不 reset/clean/abort。进程硬退出遗留 `.lock` 时，owner 先核锁内 PID 确实结束、没有另一运行持锁，再移除这个锁文件并用原命令恢复；不得按超时强抢仍活着的工位。
+同一命令、同一清单用于恢复；检查点在宿主 `.sandcastle/logs/merges/<run-id>/checkpoint.json`，工位保留在 `.sandcastle/worktrees/sandcastle-merge-<run-id>`。已提交但未验证只补验证；已通过不重复提交/检查。未知 WIP 或合同变化停交 owner，不 reset/clean/abort。进程硬退出遗留 `checkpoint.json.lock` 时，用原命令重入即可：锁内记有 pid 与进程启动时间，同主机且持有者确认已死才会接管（旧锁以硬链接归档为 `*.lock.stale-*`，新锁原子替换，锁路径全程存在）；持有者存活、锁损坏、主机不同、`ps` 无法判定一律拒绝，不按超时强抢。接管在 `*.lock.takeover` 守卫内进行，守卫持有者在其中被杀留下的守卫，由 `*.lock.takeover.g2`（毫秒级，只读/rename/unlink）确认其已死后自动搬走为 `*.takeover.stale-*`。仅当 `*.takeover.g2` 残留时，重入才会报「长时间被占用」，人工步骤只针对 g2 这一个文件：读出 g2 里的 pid 和 start，执行 `TZ=UTC LC_ALL=C ps -p <pid> -o lstart=`（两个变量都必须带上，文件里的 start 就是按 UTC、C locale 记录的）；只有无输出，或输出与文件里的 start 逐字不同，才把 g2 rename 成 `*.takeover.g2.manual-<时间>`；输出逐字相同说明持有者仍在运行，等它结束后重入，什么文件都不要动。不要手动处理 `*.takeover`：g2 移走后重入，已死的守卫会被自动归档为 `*.takeover.stale-*`，仍存活的守卫则继续拒绝。然后用原命令恢复。持有守卫的重入还会顺手把「g2 内 rename 之后被杀」留下的死 g2 归档为 `*.takeover.g2.stale-*`，无需人工。重入结束后 `*.takeover` 与 `*.takeover.g2` 都不应残留（另有存活的回收者正持有 g2 的瞬间除外）。回收只能看到当前 docker context，重入须使用与上次相同的 `DOCKER_HOST`/`DOCKER_CONTEXT`。`*.lock.tmp-*` 是被杀时遗留的临时文件，可忽略。
 
 合并树不变但输入不在祖先链时仍记录双父拓扑；已在祖先链只记 already_integrated，不造空提交。重复 SHA 去重执行，原输入/票号追溯保留。完成报告与所有单票证据交主控最终验收；合 main 仍走用户原有批准闸。

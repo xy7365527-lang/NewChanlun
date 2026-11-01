@@ -149,6 +149,11 @@ fn cand_delta_tower_with_series(
     closes_tick: &[Tick],
     close_src: &[usize],
 ) -> Vec<Vec<CandDeltaEvent>> {
+    // #1585（X-39）：L0 带段端门 fail-closed 标记 ⟹ 与 classifier 入口（#1581）同口径整层拒读，
+    // 不产任何级别的事件；不依赖调用方传入的 classification 恰为拒读产物（错配输入同样拒读）。
+    if l0.segments_parse_invalid_from.is_some() {
+        return Vec::new();
+    }
     let mut out = Vec::with_capacity(classification.levels.len());
     for (lvl, ls) in classification.levels.iter().enumerate() {
         debug_assert!(

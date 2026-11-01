@@ -3,7 +3,8 @@
   "revision": 1,
   "ticket": 1606,
   "values": {
-    "mainModel": "gpt-6-astra",
+    "mainModel": "gpt-6.1-sol",
+    "opusModel": "claude-opus-5-5",
     "workerEffort": "medium",
     "childEffort": "xhigh",
     "mainMaxIterations": 3,
@@ -40,13 +41,13 @@
     "adrLockPollMs": 100,
     "dockerModelHttpTimeoutMs": 60000,
     "dockerModelProcessTimeoutMs": 75000,
-    "dockerNamespaceTimeoutMs": 30000,
     "frontierQueryLimit": 20,
     "backlogQueryLimit": 1000,
     "childExitWaitMs": 3000
   },
   "sources": {
-    "mainModel": "#1606 基线 PR1701@2bd876be44 #1617 main-model.mts/codex-route.mts/codex-child.ts",
+    "mainModel": "#1606 集成 main@3a01bed557 #1617 main-model.mts（eaa10fcf7 切 gpt-6.1-sol）/codex-route.mts/codex-child.ts",
+    "opusModel": "#1606 集成 main@3a01bed557 #1785 decision-claimer.mts MODEL_OPUS/#1742 codex-child.ts ALLOWED_MODELS",
     "workerEffort": "#1606 基线 PR1701@2bd876be44 #1617 main-model.mts/codex-route.mts/codex-child.ts",
     "childEffort": "#1606 基线 PR1701@2bd876be44 #1617 main-model.mts/codex-route.mts/codex-child.ts",
     "mainMaxIterations": "#1606 基线 PR1701@2bd876be44 #1066/#1259 main.mts",
@@ -80,7 +81,6 @@
     "adrLockPollMs": "#1606 基线 PR1701@2bd876be44 decision-claimer.mts",
     "dockerModelHttpTimeoutMs": "#1606 基线 PR1701@2bd876be44 swarm-route.mts",
     "dockerModelProcessTimeoutMs": "#1606 基线 PR1701@2bd876be44 swarm-route.mts",
-    "dockerNamespaceTimeoutMs": "#1606 基线 PR1701@2bd876be44 swarm-route.mts",
     "frontierQueryLimit": "#1606 基线 PR1701@2bd876be44 main.mts",
     "backlogQueryLimit": "#1606 基线 PR1701@2bd876be44 main.mts",
     "childExitWaitMs": "#1606 基线 PR1701@2bd876be44 codex-child.ts"

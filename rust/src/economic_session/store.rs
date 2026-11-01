@@ -25,6 +25,32 @@ pub(crate) const SCHEMA: &str = SCHEMA_V1;
 /// manifest 顶层的版本选择子：缺省 `/1`（旧 manifest 逐字仍可读），显式只认两个已知值。
 /// 外层 `economic-manifest/1` 不因此改变。
 const REVISION_FIELD: &str = "protocol_revision";
+/// `economic-session/1`、`/2` 的封闭已知 op 集合（两个域版本同一份，§5.8 逐字冻结）。
+/// 并列子合同的 op（`sr-expansion/1`、`domain-event-withdrawal/1`）只在该子合同被选择时另行算已知。
+pub(crate) const BASE_OPS: [&str; 22] = [
+    "CaptureExternal",
+    "ResolveEvidence",
+    "ApplyAllocation",
+    "ReadView",
+    "Watch",
+    "EconomicReadOpen",
+    "EconomicReadPage",
+    "EconomicReadClose",
+    "QueryFact",
+    "QueryAllocation",
+    "BindVoice",
+    "QueryVoice",
+    "ImportResponsibility",
+    "ChongAdvance",
+    "PrepareDecision",
+    "Reserve",
+    "CommitDecision",
+    "AbortDecision",
+    "CloseApplicants",
+    "ActivateCapPolicy",
+    "QueryDecision",
+    "QueryGrant",
+];
 const TABLES: [&str; 10] = [
     "meta",
     "epochs",
@@ -116,6 +142,10 @@ impl Config {
         {
             return Err("SchemaUnsupported：economic-session/2 必须冻结 tb03b-finance/2".into());
         }
+        // #1717：SR 扩量是并列子合同，与域版本一同先判；未选择它的 manifest 不认识其操作。
+        let sr_expansion = super::sr_expansion::validate_config(&manifest)?;
+        // #1778：持久撤回同为并列子合同 `domain-event-withdrawal/1`；未选择它的 manifest 不认识其写口。
+        let withdrawal = super::domain_event::withdrawal_selected(&manifest)?;
         super::evidence::validate_config(&manifest)?;
         super::finance::validate_config(&manifest)?;
         super::tb03c_allocation::validate_config(&manifest)?;
@@ -202,32 +232,11 @@ impl Config {
             let mut unique = std::collections::BTreeSet::new();
             for op in ops {
                 let op = op.as_str().ok_or("InvalidDomain：操作权限须文本")?;
-                if ![
-                    "CaptureExternal",
-                    "ResolveEvidence",
-                    "ApplyAllocation",
-                    "ReadView",
-                    "Watch",
-                    "EconomicReadOpen",
-                    "EconomicReadPage",
-                    "EconomicReadClose",
-                    "QueryFact",
-                    "QueryAllocation",
-                    "BindVoice",
-                    "QueryVoice",
-                    "ImportResponsibility",
-                    "ChongAdvance",
-                    "PrepareDecision",
-                    "Reserve",
-                    "CommitDecision",
-                    "AbortDecision",
-                    "CloseApplicants",
-                    "QueryDecision",
-                    "QueryGrant",
-                ]
-                .contains(&op)
-                    || !unique.insert(op)
-                {
+                let known = BASE_OPS.contains(&op)
+                    || (sr_expansion
+                        && [super::sr_expansion::OP, super::sr_expansion::QUERY].contains(&op))
+                    || (withdrawal && op == super::domain_event::WITHDRAW_OP);
+                if !known || !unique.insert(op) {
                     return Err("InvalidDomain：操作权限未知或重复".into());
                 }
             }
@@ -655,8 +664,18 @@ pub(crate) fn cut(config: &Config, seq: i64, root: &str) -> Value {
     json!({"domain_id":config.domain,"commit_seq":seq.to_string(),"root_hash":root})
 }
 pub(super) fn root(config: &Config, seq: i64, prev: &str, ns: &str, image: &Value) -> String {
+    root_with_image_hash(config, seq, prev, ns, &hash(image))
+}
+/// #1768：同一根式只按图像摘要计算；delta 续接据此逐链核根，不另抄公式。
+pub(super) fn root_with_image_hash(
+    config: &Config,
+    seq: i64,
+    prev: &str,
+    ns: &str,
+    image_hash: &str,
+) -> String {
     hash(
-        &json!({"domain_id":config.domain,"session_id":config.session,"session_generation":config.generation,"commit_seq":seq.to_string(),"previous_root":prev,"commit_ns":ns,"image_hash":hash(image)}),
+        &json!({"domain_id":config.domain,"session_id":config.session,"session_generation":config.generation,"commit_seq":seq.to_string(),"previous_root":prev,"commit_ns":ns,"image_hash":image_hash}),
     )
 }
 pub(crate) fn latest(c: &Connection) -> Result<(i64, String, String, Value), String> {
@@ -798,6 +817,13 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
     if let Some(revision) = config.book_rules()?.revision() {
         set_meta(&tx, "book_revision", revision)?;
     }
+    if let Some(revision) = super::sr_expansion::bound_revision(config)? {
+        set_meta(&tx, super::sr_expansion::META_KEY, revision)?;
+    }
+    // #1778：撤回子合同全会话选择，E 与每个 Bᵢ 各自在 init 绑定；旧域不补绑。
+    if let Some(revision) = super::domain_event::withdrawal_bound_revision(config)? {
+        set_meta(&tx, super::domain_event::WITHDRAWAL_META_KEY, revision)?;
+    }
     let ns = config.clock(None, "init_ns", 0)?;
     tx.execute("INSERT INTO epochs VALUES(1,'init',?)", [&ns])
         .map_err(err)?;
@@ -806,6 +832,20 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
     Ok(
         json!({"kind":"Initialized","domain_id":config.domain,"writer_epoch":"1","cut":cut,"runtime":runtime}),
     )
+}
+/// 表集合按域版本登记：`/1` 恰好 10 表，`/2` 另加内容三表（§5.8 旧域不混写）；子合同不加表。
+pub(crate) fn domain_tables(revision: &str) -> Vec<String> {
+    let mut want: Vec<String> = if revision == SCHEMA_V2 {
+        TABLES
+            .iter()
+            .chain(CONTENT_TABLES.iter())
+            .map(|s| s.to_string())
+            .collect()
+    } else {
+        TABLES.iter().map(|s| s.to_string()).collect()
+    };
+    want.sort();
+    want
 }
 fn sorted(mut a: Vec<Value>) -> Vec<String> {
     a.sort_by_key(canonical_json);
@@ -936,18 +976,7 @@ pub(super) fn audit_with_budget(
         return Err(format!("StorageUnavailable：域损坏：SQLite {integrity}"));
     }
     let names: Vec<String> = budget.all(c,"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name", [], |r| r.get(0))?;
-    // 表集合按域版本登记：`/1` 恰好 10 表，`/2` 另加内容三表（§5.8 旧域不混写）。
-    let mut want: Vec<String> = if revision == SCHEMA_V2 {
-        TABLES
-            .iter()
-            .chain(CONTENT_TABLES.iter())
-            .map(|s| s.to_string())
-            .collect()
-    } else {
-        TABLES.iter().map(|s| s.to_string()).collect()
-    };
-    want.sort();
-    if names != want {
+    if names != domain_tables(revision) {
         return Err("StorageUnavailable：域损坏：表集合变化".into());
     }
     let extra: i64 = budget.one(
@@ -995,6 +1024,30 @@ pub(super) fn audit_with_budget(
     if book_revision.as_deref() != config.book_rules()?.revision() {
         return Err("IdentityConflict：书账版本未由 init 显式绑定；不得在 recover 暗迁移".into());
     }
+    let sr_revision: Option<String> = budget.optional(
+        c,
+        "SELECT v FROM meta WHERE k=?",
+        [super::sr_expansion::META_KEY],
+        |r| r.get(0),
+    )?;
+    if sr_revision.as_deref() != super::sr_expansion::bound_revision(config)? {
+        return Err(
+            "IdentityConflict：SR 扩量合同版本未由 init 显式绑定；不得在 recover 暗迁移".into(),
+        );
+    }
+    let withdrawal_revision: Option<String> = budget.optional(
+        c,
+        "SELECT v FROM meta WHERE k=?",
+        [super::domain_event::WITHDRAWAL_META_KEY],
+        |r| r.get(0),
+    )?;
+    if withdrawal_revision.as_deref() != super::domain_event::withdrawal_bound_revision(config)? {
+        return Err(
+            "IdentityConflict：撤回子合同版本未由 init 显式绑定；不得在 recover 暗迁移".into(),
+        );
+    }
+    // 上面已核 meta 与选择相等：此后「已选择」即「本域已在 init 绑定」，四处撤回分支共用此前置。
+    let withdrawal = super::domain_event::withdrawal_bound(config)?;
     // 内容格式登记与 Voice 版本同一条纪律：只认 init 显式绑定，recover 不暗迁移。
     let content_format: Option<String> = if revision == SCHEMA_V2 {
         budget.optional(
@@ -1071,12 +1124,41 @@ pub(super) fn audit_with_budget(
         } else if image["history"]
             .as_array()
             .and_then(|a| a.last())
+            .is_some_and(|e| e["kind"] == super::domain_event::WITHDRAW_OP)
+        {
+            // #1768：撤回提交与写路径共用 withdrawal_image 判据；只追加 history，不动其余任何部分。
+            if !withdrawal {
+                return Err("StorageUnavailable：域损坏：未绑定撤回子合同的域含撤回条目".into());
+            }
+            let event = image["history"].as_array().unwrap().last().unwrap();
+            if event["commit_seq"] != seq.to_string() || event["commit_ns"] != ns {
+                return Err("StorageUnavailable：撤回条目序号/时间不属于该实际提交".into());
+            }
+            let expected = super::domain_event::withdrawal_image(config, &previous_image, event)
+                .map_err(|e| format!("StorageUnavailable：撤回重放失败：{e}"))?;
+            if image != expected {
+                return Err("StorageUnavailable：撤回重放不等于完整提交图像".into());
+            }
+        } else if image["history"]
+            .as_array()
+            .and_then(|a| a.last())
             .is_some_and(|e| e["kind"] == "ResolveEvidence")
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
             if image != super::tb03c_e::replay(c, config, &previous_image, event, seq, &ns, budget)?
             {
                 return Err("StorageUnavailable：Resolve 重放不等于完整提交图像".into());
+            }
+        } else if image["history"]
+            .as_array()
+            .and_then(|a| a.last())
+            .is_some_and(|e| e["kind"] == super::sr_expansion::OP)
+        {
+            let event = image["history"].as_array().unwrap().last().unwrap();
+            let expected =
+                super::sr_expansion::replay(c, config, &previous_image, event, seq, &ns, budget)?;
+            if image != expected {
+                return Err("StorageUnavailable：SR 评估重放不等于完整提交图像".into());
             }
         } else if image["history"]
             .as_array()
@@ -1139,6 +1221,7 @@ pub(super) fn audit_with_budget(
         previous_image = image;
         last_ns = n;
         seen += 1;
+        super::phase_trace::mark_seq("audit_commit", &config.domain, seq);
     }
     budget.before()?;
     if seen == 0 {
@@ -1169,8 +1252,39 @@ pub(super) fn audit_with_budget(
         return Err("StorageUnavailable：域损坏：永久回执数不等于业务提交数".into());
     }
     for r in receipt_rows {
+        if r["kind"] == super::domain_event::WITHDRAW_RECEIPT {
+            if !withdrawal {
+                return Err("StorageUnavailable：域损坏：未绑定撤回子合同的域含撤回回执".into());
+            }
+            let seq = positive(required(&r["cut"], "commit_seq")?, "撤回回执 commit_seq")?;
+            let (actual_root, raw): (String, String) = budget.one(
+                c,
+                "SELECT root,image FROM commits WHERE seq=?",
+                [seq],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            let image = strict_json(raw.as_bytes())?;
+            let entry = image["history"]
+                .as_array()
+                .and_then(|a| a.last())
+                .ok_or("StorageUnavailable：撤回回执的实际提交缺条目")?;
+            if entry["kind"] != super::domain_event::WITHDRAW_OP
+                || r != super::domain_event::withdrawal_receipt(
+                    config,
+                    entry,
+                    cut(config, seq, &actual_root),
+                )
+            {
+                return Err("StorageUnavailable：撤回回执不等于实际提交".into());
+            }
+            continue;
+        }
         if r["kind"] == "Resolved" {
             super::tb03c_e::audit_receipt(c, config, &previous_image, &r, budget)?;
+            continue;
+        }
+        if r["kind"] == super::sr_expansion::RECEIPT {
+            super::sr_expansion::audit_receipt(c, config, &r, budget)?;
             continue;
         }
         if r.get("receipt_key").is_some() {
@@ -1259,6 +1373,7 @@ pub(super) fn audit_with_budget(
             return Err("StorageUnavailable：域损坏：永久回执完整内容与实际提交不同".into());
         }
     }
+    super::phase_trace::mark("audit_receipts", &config.domain);
     for (table, field) in [
         ("facts", "fact_key"),
         ("pending", "fact_key"),
@@ -1281,8 +1396,17 @@ pub(super) fn audit_with_budget(
         while let Some(r) = budget.next(&mut rs)? {
             let (k, s): (String, String) = (r.get(0).map_err(err)?, r.get(1).map_err(err)?);
             let v = strict_json(s.as_bytes())?;
-            let expected_key = if table == "receipts" && v["kind"] == "Resolved" {
+            let expected_key = if table == "receipts"
+                && v["kind"] == super::domain_event::WITHDRAW_RECEIPT
+            {
+                if !withdrawal {
+                    return Err("StorageUnavailable：域损坏：未绑定撤回子合同的域含撤回回执".into());
+                }
+                super::domain_event::withdrawal_receipt_key(&v["target"])
+            } else if table == "receipts" && v["kind"] == "Resolved" {
                 super::tb03c_e::receipt_key(required(&v, "evidence_id")?)
+            } else if table == "receipts" && v["kind"] == super::sr_expansion::RECEIPT {
+                super::sr_expansion::receipt_key(required(&v, "evaluation_id")?)
             } else if table == "receipts" && v.get("receipt_key").is_some() {
                 required(&v, "receipt_key")?.to_owned()
             } else if table == "receipts" && v["kind"] == "VoiceBound" {
@@ -1333,7 +1457,22 @@ pub(super) fn audit_with_budget(
         let receipt = metered_row(c, "receipts", &rk, budget)?
             .ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
         let payload = &request["payload"];
-        if receipt["kind"] == "Resolved" {
+        if receipt["kind"] == super::domain_event::WITHDRAW_RECEIPT {
+            if !withdrawal
+                || payload["op"] != super::domain_event::WITHDRAW_OP
+                || rk != super::domain_event::withdrawal_receipt_key(&payload["target"])
+                || [
+                    "target",
+                    "withdrawn_generation",
+                    "withdrawal_reason",
+                    "superseded_by",
+                ]
+                .iter()
+                .any(|k| payload[*k] != receipt[*k])
+            {
+                return Err("StorageUnavailable：撤回消息与永久回执不一致".into());
+            }
+        } else if receipt["kind"] == "Resolved" {
             let event =
                 super::tb03c_e::event_for(&previous_image, required(&receipt, "evidence_id")?)?;
             if config.domain != "E"
@@ -1345,6 +1484,14 @@ pub(super) fn audit_with_budget(
             {
                 return Err("StorageUnavailable：Resolve 消息与原证据/来源不一致".into());
             }
+        } else if receipt["kind"] == super::sr_expansion::RECEIPT {
+            if config.domain != "E"
+                || payload["op"] != super::sr_expansion::OP
+                || rk != super::sr_expansion::receipt_key(required(payload, "evaluation_id")?)
+            {
+                return Err("StorageUnavailable：SR 消息与永久回执类型/身份不符".into());
+            }
+            super::sr_expansion::audit_message(c, config, &request, &receipt, budget)?;
         } else if receipt.get("receipt_key").is_some() {
             super::finance::audit_message(c, config, &request, &receipt, budget)?;
         } else if config.domain == "E" {

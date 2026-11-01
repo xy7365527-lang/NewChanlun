@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -42,6 +43,11 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "analysis"))
 
 import newchan_rust as nr  # noqa: E402
+
+# #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
+# AwaitingPolicy{funding_record}，不回退任何默认资金。
+FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
+
 from nautilus_trader.model.data import BarType  # noqa: E402
 
 from nested_recursive_fugue_final_backtest import FLOOR, analyze, bh_mdd  # noqa: E402
@@ -63,7 +69,7 @@ def analyze_spiral(res: dict, closes: list) -> dict:
     spiral 专属计数（cross_level_closures / liquidations / spawns）来自 spiral 键。
     """
     trades = res["trades"]
-    strat_pct = (res["final_nav"] / 100_000.0 - 1) * 100
+    strat_pct = (res["final_nav"] / res["q_total"] - 1) * 100  # 基准 = 记录 Q_total（#1601）
     equity = res["equity"]
     assert abs(equity[-1][1] - res["final_nav"]) < 1e-3, \
         f"equity 末值漂移：{equity[-1][1]} ≠ {res['final_nav']}"
@@ -144,8 +150,8 @@ def run(sym: str, max_bars: int | None) -> dict:
     # ── 单一 sig 流 → 同时喂 unn + spiral（apples-to-apples，共因隔离）──
     dir_flips: list = []
     reader = StreamingSignalReader(dir_flips=dir_flips, require_settled=True)
-    unn = nr.UnnStream(floor_ladder=FLOOR)
-    spiral = nr.SpiralStream(floor_ladder=FLOOR)
+    unn = nr.UnnStream(floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
+    spiral = nr.SpiralStream(floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
 
     n_bar_div = 0
     first_div = None
