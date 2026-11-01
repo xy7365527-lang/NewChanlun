@@ -16,6 +16,7 @@ const expected = {
   healthHttpTimeoutMs: 5000,
   adrLockMaxWaits: 600,
   adrLockPollMs: 100,
+  dockerCliTimeoutMs: 60000,
   dockerModelHttpTimeoutMs: 60000,
   dockerModelProcessTimeoutMs: 75000,
   frontierQueryLimit: 20,
@@ -102,6 +103,7 @@ test("全部环境覆盖可追溯；旧env名称保留；非法覆盖拒绝且�
 });
 test("各入口绑定集中记录；启动日志含值和来源但不含无关secret", () => {
   const files = {
+    "docker-isolation.mts": ["dockerCliTimeoutMs"],
     "swarm-route.mts": ["dockerModelHttpTimeoutMs", "dockerModelProcessTimeoutMs"],
 
     "main.mts": ["frontierQueryLimit", "backlogQueryLimit", "workerEffort", "mainMaxIterations", "mainMaxTickets", "implementerIdleSeconds", "worktreeMaxAttempts", "worktreeRetryDelayMs"],
@@ -145,3 +147,64 @@ test("真实 claim-loop dry-run 与集成基线 main@3a01bed557 同值等价，�
   };
   assert.deepEqual(run(fileURLToPath(new URL("./claim-loop.mts", import.meta.url))), run(before));
 }));
+
+test("Node timer 毫秒字段拒绝溢出；最大合法值保留真实 timer 延时", () => fixture(path => {
+  const max = 2 ** 31 - 1;
+  const keys: SchedulerKey[] = ["childKillGraceMs", "childExitPollMs", "adrLockPollMs",
+    "healthHttpTimeoutMs", "dockerModelHttpTimeoutMs", "worktreeRetryDelayMs",
+    "decisionLoopMs", "decisionTimeoutMs", "decisionBackoffBaseMs", "decisionBackoffCapMs"];
+  for (const key of keys) {
+    const record = structuredClone(original);
+    record.values[key] = max + 1;
+    writeFileSync(path, JSON.stringify(record));
+    assert.throws(() => readSchedulerConfig(path, {}), new RegExp("values\\." + key));
+    assert.throws(() => readSchedulerConfig(configPath, { [schedulerEnvName(key)]: String(max + 1) }), new RegExp("values\\." + key));
+    const config = readSchedulerConfig(configPath, {
+      [schedulerEnvName(key)]: String(max), SANDCASTLE_DECISION_BACKOFF_CAP_MS: String(max),
+    });
+    const timer = setTimeout(() => {}, config.values[key] as number);
+    try { assert.equal((timer as unknown as { _idleTimeout: number })._idleTimeout, max); }
+    finally { clearTimeout(timer); }
+  }
+}));
+test("秒换算 timer 范围有界，非 timer 参数不受 Node 上限影响", () => {
+  for (const [key, max] of [["implementerIdleSeconds", 2147483], ["claimPollSeconds", 2147483.647]] as const) {
+    assert.equal(readSchedulerConfig(configPath, { [schedulerEnvName(key)]: String(max) }).values[key], max);
+    assert.throws(() => readSchedulerConfig(configPath, { [schedulerEnvName(key)]: String(max + 1) }), new RegExp("values\\." + key));
+  }
+  for (const key of ["childExitWaitMs", "healthProcessWaitMs", "healthProcessPollSeconds", "claimRollbackMs", "claimStaleMs", "wayfinderStaleMs", "adrLockMaxWaits", "frontierQueryLimit", "diskMinGiB"] as const) {
+    assert.equal(readSchedulerConfig(configPath, { [schedulerEnvName(key)]: "2147483648" }).values[key], 2147483648);
+  }
+});
+
+test("Docker CLI 现役探针和失败回收读取同一超时，日志保留来源", () => {
+  const code = `
+    import cp from "node:child_process";
+    import {syncBuiltinESMExports} from "node:module";
+    const calls = [];
+    cp.execFileSync = (command, args, options) => {
+      calls.push({command, args, timeout: options.timeout, killSignal: options.killSignal});
+      if (args[0] === "run") throw Object.assign(new Error("probe timeout"), {signal:"SIGKILL"});
+      return "";
+    };
+    syncBuiltinESMExports();
+    const {probeDockerIsolation} = await import("./.sandcastle/docker-isolation.mts");
+    try { probeDockerIsolation("fixture-only"); } catch (e) {
+      if (e.message !== "probe timeout") throw e;
+    }
+    console.log(JSON.stringify(calls));
+  `;
+  const run = (timeout: string) => spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", code],
+    {encoding: "utf8", env: {...process.env, SANDCASTLE_DOCKER_CLI_TIMEOUT_MS: timeout}});
+  const result = run("1234");
+  assert.equal(result.status, 0, result.stderr);
+  const calls = JSON.parse(result.stdout);
+  assert.deepEqual(calls.map((c: any) => [c.command, c.args[0], c.timeout, c.killSignal]),
+    [["docker", "run", 1234, "SIGKILL"], ["docker", "rm", 1234, "SIGKILL"]]);
+  assert.equal(calls[0].args[calls[0].args.indexOf("--name") + 1], calls[1].args[2]);
+  assert.match(result.stderr, /docker-isolation.dockerCliTimeoutMs=1234 source=env:SANDCASTLE_DOCKER_CLI_TIMEOUT_MS/);
+  const bad = run("0");
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /values.dockerCliTimeoutMs/);
+  assert.equal(bad.stdout, "");
+});
