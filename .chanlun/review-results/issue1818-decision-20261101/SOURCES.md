@@ -1,10 +1,10 @@
 # #1818 裁定实体报告存档来源
 
-本目录存放 #1818（生产会话布局合同，正本 `docs/adr/0059-production-session-layout-contract.md`）的裁定与发布评审链。除 `closeout-acceptance45e.md` 外，各文件内容逐字复制，未改动；只按外置盘原件路径改了文件名。报告正文里的绝对路径保持原样，按下表换算到本目录。
+本目录存放 #1818（生产会话布局合同，正本 `docs/adr/0059-production-session-layout-contract.md`）的裁定与发布评审链。除本来源说明 `SOURCES.md` 为新写外，其余 22 份文件均逐字复制外置盘原件，未改动；只按原件路径改了文件名。报告正文里的绝对路径保持原样，按下表换算到本目录。
 
 ## 评审链与结论
 
-裁定阶段由 decision-claimer 起草，非作者独审两轮：第 1 轮 BLOCK，第 2 轮 R1–R8 PASS。原作者与审者均为 Opus，独立进程。
+裁定阶段由 decision-claimer 起草，非作者独审两轮：第 1 轮由 Fable（`claude-fable-5-1`）起草、Opus（`claude-opus-5-5`）审查，BLOCK；第 2 轮由 Opus 返修、非作者 Opus 独立进程审查，R1–R8 PASS。模型身份以 `decision-review-round1.json`、`decision-review-round2.json` 的 drafter/reviewer 字段为准；45E 原件中“原作者与审者均为 Opus”的简化说法按此订正，原件保留不改。
 
 发布阶段走 PR #1826。Opus 作者四轮返修，GPT 非作者独审五轮。前四轮各报一个 F1 并 BLOCK，依次是库文件符号链接、锁文件符号链接、E/B socket 创建目录、socket 最终悬空链接。第五轮 41W 在精确 head `8ce09b7b31aa64ec6a299e5a66e0f76c63a5b265` 上 PASS，无发现。PR #1826 于 2026-11-01T03:21:37Z squash 合入 `446f111227dc36f32c6b4d04b87587ec563a923a`，ADR 与 41W 所审版本逐字一致。
 
