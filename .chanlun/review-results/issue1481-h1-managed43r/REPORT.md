@@ -730,3 +730,133 @@ main/旧头通过该锁是任务给定的对照证据；本轮进一步以 git �
 
 - `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
 - `rust/src/bin/s_session_v3/state.rs`
+
+
+## S1H
+
+> 状态：ready，可交主控封包取 CI。开工分支 `sandcastle/issue-1481`，精确 HEAD `8ec1995667dee36bfb9ba8b0813e9b577ad93678`，工作区干净。本节记录 run `41357975939` 两处回归的返修与静态核查；**Rust 未验证，待 CI**，不代表编译、具名 Rust 锁或整票验收通过。
+
+### 原日志、根因与修法
+
+已读取 S1D 提示及其引用的范围、S1E/S1F/S1G 提示、本报告 S1D–S1G，以及 `/Volumes/AgentStorage/h1-recover45c/ci-41357975939/` 下五份原始日志。run 的精确 head 为 `5a2068a7`；S1G 只改 state.rs，没有触及本节两处事故代码。以下日志行号为原件物理行，源码行号为当前工作区。
+
+| 原日志 | 原文位置与结果 | 根因与修法 |
+|---|---|---|
+| `125002119534.log`，rust-check | `:764`/`:789` 为 `cargo check --all-targets --features s_session`；`:801` 为 ``error: function `migrate_policy_records_in_transaction` is never used``；`:802` 指向 `s_structure_session.rs:501:4`；`:807` 明报 `-D dead-code` 来自 `-D warnings`。 | S1D-M 保留了无 cfg 的兼容薄包装，但唯一调用者 `audit_owner.rs:696` 在 `:477` 的 `all(s_incremental, unix)` 内。按 Migrate Callers Then Delete，将该调用直接改为 `crate::migrate_in(migration.tx())?`，删除根文件原 `:499` 起六行包装和注释。 |
+| `125002119586.log`，rust-test-default | `:4195`–`:4196`：`no_stray_bsp_binding_rewrites_outside_registry` 在 bsp.rs:834 panic，命中 `bin/s_session_v2/content_producer.rs:3411`；`:4202` 为 2996 passed / 1 failed。 | `raw_bar_at` 是既有原始 Bar 精确坐标查询，不是新增 BSP 绑定规则。S1D 在它之前净增 62 行冷 seed/rebind，令 main 的 `:3349` 漂到 `:3411`，而 file:line 白名单仍为 3349。修法见下文。 |
+| `125002119568.log`，backtest-bin | `:4248`–`:4249` 同一锁、同一命中；`:4255` 为 3007 passed / 1 failed。 | 同一白名单漂移，无独立的 backtest 缺陷。 |
+| `125002119152.log`，#1488 Owned | `:5196`–`:5197` 同一锁、同一命中；`:5204` 为 0 passed / 1 failed / 3624 filtered。 | 同一源码扫描失败，不是 Owned 核行为失败。 |
+| `125002119491.log`，#1488 Plain | `:5069`–`:5070` 同一锁、同一命中；`:5077` 为 0 passed / 1 failed / 3594 filtered。 | 同一源码扫描失败，不是 Plain 核行为失败。 |
+
+迁移核 `rust/src/bin/s_structure_session.rs:485` 的 `migrate_in` 整个函数体与 HEAD 逐字相同，`:487` 的 `require_policy_records_migration()` 授权门完整保留。H1 仍先核源连续性，再在已持 IMMEDIATE 事务内调用共用核，随后原位 commit。旧入口 `s_structure_session.rs:478` 与 N1 `s_session_v3/admission_anchor/native_n1.rs:1842` 原已使用同一核。没有加 allow/expect、放宽授权、复制迁移判据或改变事务边界；旧包装 Rust 定义及调用已归零。
+
+BSP 返修位于 `rust/src/bin/s_session_v2/content_producer.rs:3404` 的 `raw_bar_at`：`:3408` 保留 `partition_point(|bar| bar.source_index < coord)`，`:3409` 改为 `match raw_bars.get(index)`，`:3410` 仅精确坐标相等才返回原引用，否则仍报 `MissingSource(coord as i64)`。它的调用者 `:1499` 和 `:2224` 消费原始 Bar/OHLC，没有访问 BspPoint、买卖位或绑定规则。保留二分复杂度、缺失错误、越界错误及重复坐标取第一条的行为，不改用语义不同的 BSP API。
+
+`rust/src/theta_v0/classifier/bsp.rs:675` 接缝仅移除已不再命中的旧 `content_producer.rs:3349` 白名单及其 13 行历史说明；没有新增或重锚豁免。`:787` 起的原 grep 表达式、自身排除、命中集与 `:821`/`:827` 的 stray/stale 两个断言与 HEAD 逐字相同，锁判据未改。仅改写查询却保留旧条目会触发 stale，因此必须同时删除消失项。精确原 grep 原型修前为 hits=24、whitelist=24、stray=3411/stale=3349；修后为 23/23，stray/stale 均空。
+
+已排除日志噪声：Owned 的四条 fixed_radix 测试在 `:864/:865/:867/:869`、Plain 在 `:863/:865/:867/:869` 均明确 `... ok`，panic 输出来自测试主动捕获的 panic 合同，不是失败。Owned `:355/:670/:674`、Plain `:384/:679/:683` 的 `::error::Missing ...` 都是 shell `echo` 源文本，不是实际缺失报告。
+
+### cfg 与 dead_code/unused 同类穷举
+
+输入为完整 `git diff 784bc6d7 HEAD -- rust/`，共 31 文件、4214 新增行，全部在 `rust/src/bin/`；逐项阅读新增声明、导入、字段、局部绑定及调用上下文。本轮另复核 bsp.rs 的白名单删除。该清单是源码可达性核对，不能替代编译。
+
+`.github/workflows/ci.yml:180`–`:235` 的 rust-check 实际为五档，均 `--all-targets`、`RUSTFLAGS=-D warnings`，覆盖 test 与非 test；不能只按注释里的“三档”理解。
+
+| CI feature 配置 | test / 非 test 静态核对 |
+|---|---|
+| 默认，无 feature | `Cargo.toml` 的 required-features 排除 S 会话 bin；31 个差异文件不编入默认目标。BSP 锁在默认库测试中仍读取磁盘上的 bin 源码，故默认测试也能因扫描而失败。 |
+| `backtest_bin` | 同样不启用 `s_session`，不编入这些 S bin 模块；库扫描锁仍覆盖它们。 |
+| `s_session` | H1 冷方法及调用整体由 incremental 门排除；原无门迁移包装成为死码，本轮删除。常驻迁移核、Ordinary 路径及非增量 RefCell 使用仍存在。 |
+| `s_session,s_incremental` | Unix 冷入口、类型、seed/rebind、再导出和调用同门；生产调用不依赖 test helper。测试钩子及夹具保留 test 门。 |
+| `s_session,s_capture_native_testonly` | Cargo feature 传递启用 `s_incremental`，等价于用户列出的三 feature 组合。Ordinary 诊断、H1、N1 仍按原 prefix 分流，新增调用不依赖额外测试接口。 |
+
+逐文件覆盖清单如下；路径均相对 `rust/src/bin/`，`inc` 指 `s_incremental`。
+
+| 差异文件 | 新增项与实际引用／门控核对 |
+|---|---|
+| `s_session_v2/cache.rs` | 仅文档，无新增声明。 |
+| `s_session_v2/content_bi.rs` | seed/rebind 为 `all(inc,unix)`，由 generation 调用。 |
+| `s_session_v2/content_producer.rs` | seed/rebind 同门且由 generation 消费；bar 查询保持原有两个调用。 |
+| `s_session_v2/s_fact_cache.rs` | cold_seed/rebind 同门；旧 advance_owner_bound 改 test-only；with_work 由 generation 生产调用，新 work/reserve/push 参数均使用。 |
+| `s_session_v3/admission.rs` | max_store_bytes 字段/构造/getter 同 inc；冷 require/release/capture/certify/first_deadline 供 owner/driver 使用，with_cold_account 由 Budget 实现调用。 |
+| `s_session_v3/admission_anchor.rs` | test_prepare_caps 为 `all(test,inc,unix)`，由 provider 预算锁使用。 |
+| `s_session_v3/admission_anchor/native_n1.rs` | 既有 NativeOwner 改用 NativeComponentAudit，无新增孤项。 |
+| `s_session_v3/admission_private/fd_wal.rs` | cfg! pragma 不增声明，新增 authorizer 夹具位于既有测试函数内。 |
+| `s_session_v3/admission_private/mod.rs` | read_session 由 validate_prefix 与 inc 的 certify_cold 共用；NativeComponentAudit 有 N1 使用；cold_start_wire 外层 test+内层 inc，trace 冷字段由 snapshot 消费。 |
+| `s_session_v3/admission_provider.rs` | RefCell、ledger_cache、AUDIT_LEDGER_SUFFIXES 被非增量也存在的 measure/members/verify_before_open 使用；冷转换类型/四方法为 inc，供 admission/owner 使用；七条新增锁均在 test，增量锁另加门。 |
+| `s_session_v3/audit_ledger.rs` | from_receipt_view 为 inc；两个 bind_view 被原包装及冷 fold 使用，原包装仍有调用。 |
+| `s_session_v3/audit_owner.rs` | cold_source 为 inc；cold_failure/open_rebuilt_history/bind_admitted_history/seed_rebuilt_history/Candidate 冷 helper 在 inc+unix 生产链；组件测试入口及两个 hook 在 test+inc+unix；新增 binding 全部使用；唯一迁移包装调用已转共用核。 |
+| `s_session_v3/audit_owner/admission_tests.rs` | construction_tests 父模块为 test+inc，include 另要求 unix；H1 helper 均用于具名锁，Ordinary 锁另有 testonly 门，无生产 import 泄漏。 |
+| `s_session_v3/audit_owner/cold_source.rs` | 父 inc；ColdSource 构造/字段及各 trait 转发均由冷 fold 实际使用。 |
+| `s_session_v3/audit_owner/effects.rs` | 固定 SQL 与注释变动，无新声明。 |
+| `s_session_v3/audit_owner/history_clamp.rs` | open 改 test-only，生产继续 open_in_parent。 |
+| `s_session_v3/business_json.rs` | 仅既有 RawPrefix 类型与方法提升至 crate 内可见，原历史审计调用仍存在。 |
+| `s_session_v3/construction_set.rs` | CommittedSet cold/rebind 在父 inc+unix，construction_state 使用；LazySet cold 在 inc，ColdSource 使用；previous/knowledge/bootstrap/Seed 在 delta/finish 消费。 |
+| `s_session_v3/construction_state.rs` | is_unbound_cold、ColdRawState、generation_binding、cold_seed/into_owner 均 inc+unix，owner/prepared/generation 调用配对。 |
+| `s_session_v3/driver.rs` | cold_context、retention open/recover 为 inc，有 serve/CLI 调用；h1_owner_for_test 为 test+inc+unix；runtime mut 按 inc+unix 配对，非 unix 显式拒绝分支消费参数。 |
+| `s_session_v3/generation.rs` | seed/rebind/SequenceMemo seed 在 inc+unix，prepared 调用；with_work 消费生产 work。 |
+| `s_session_v3/history.rs` | CutSourceVerifier 的 auxiliary 传实际 Index；check_deadline 只提升可见性，原调用仍存在。 |
+| `s_session_v3/mod.rs` | check_deadline 再导出与 s_fact_cache 调用同为 inc+unix。 |
+| `s_session_v3/prepared.rs` | 冷 Runtime seed/adopt 为 inc+unix，owner 调用；install_audit_ledger 增量生产可达，新增 bound 分支消费原字段。 |
+| `s_session_v3/source_audit.rs` | SourceInput/SourceRaw/audit_source_step 再导出在 inc，由 cold_source/state 使用。 |
+| `s_session_v3/source_contributions.rs` | 父 inc；SourceInput 由在线 SourceMaterial 和冷 ColdSource 实现；SourceRaw/accessor/step 两方使用，bind/rebind 为 unix；cold_knowledge_ordinal 有两个 cold 调用；stats 前后同 test 门。 |
+| `s_session_v3/source_facts.rs` | 父 receipt 为 inc；export_history 由 receipt 使用，export_parts 与原 export 共用。 |
+| `s_session_v3/source_receipt.rs` | 父 inc；receipt_from_cold_step/export_history_business 由冷 fold 调用。 |
+| `s_session_v3/state.rs` | full_audit_calls/thread_local 为 test；两个 fold/impl、共同方法及冷核为 inc，install_cold_qualification/rebuilding 有 owner 调用；对照入口改 test；在线未用参数显式为 _auxiliary。 |
+| `s_session_v3/writer_cli.rs` | flag、resources 定义/构造/解析/消费按 inc/not(inc) 互斥配对；新增资源锁为 test+inc，无闲置 binding。 |
+| `s_structure_session.rs` | 两个 H1 开库/交接 helper 同 inc+unix，owner 调用；删除无门薄包装，共用 migrate_in 常驻且仍有调用，授权门逐字保留。 |
+
+Unix 的五档 test/非 test 源码核查除本次包装外，未发现另一项确定 unused/dead_code 回归。非 Unix 另核新增项与调用门控、明确拒绝分支；原包装在非 Unix 的增量构建也无调用。基线 `admission_provider.rs:8` 已无条件依赖 `std::os::unix`，因此不宣称整个 bin 支持 Windows 或非 Unix 编译。所有实际 `-D warnings` 结论仍须 CI。
+
+### 源码扫描锁清单（独立只读复核）
+
+输入为完整 `git diff 784bc6d7 HEAD -- rust/`：31 个文件、4214 个新增行，全部属于 `rust/src/bin/`。逐一枚举 `rust/src`、`rust/tests` 的 `include_str!`、`include_bytes!`、`read_to_string`、`fs::read`、`read_dir`、`File::open`、`read_to_end` 和 grep 子进程读取点，结合测试体区分源码守卫、JSON/数据夹具、运行产物读取。`include_str!` 读 Rust 源码的来源只有 funding_record、env_registry、config、policy_records 四个来源族；源码递归读取另有 BSP、certificate-chain、nest。未发现遗漏的、扫描本分支新增代码的 Rust 源码扫描类测试锁。`state.rs:2495–2496` 的 `include_bytes!("state.rs"/"driver.rs")` 只把实际源码摘要写入测试证据 binding，没有固定摘要相等断言，故不属于会因本轮源码变化而报红的扫描锁。
+
+下表的结果来自仓外临时 Python 按原条件复现或原 grep 原样执行，**不是 Rust 测试 PASS；Rust 未验证，待 CI**。脚本未入仓，未运行 cargo/rustc。
+
+| 锁名与来源 | 原扫描域／条件 | 本分支及当前返修结果 |
+|---|---|---|
+| `theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry`，`rust/src/theta_v0/classifier/bsp.rs:655` | 递归 grep `rust/src/**/*.rs`，原正则 `\.(find\|any\|filter)\(\s*\|[a-zA-Z_]+\|[^)]*\.source_index\s*==`；排除 bsp.rs 自身；命中必须与 file:line WHITELIST 双向一致（stray/stale 都为空）。 | 原候选 hits=24/whitelist=24，仅 stray `bin/s_session_v2/content_producer.rs:3411` 与 stale `:3349`。当前返修改写后 hits=23/whitelist=23，stray/stale 均为空；判据逐字不变，仅删去消失的同一白名单条目及其说明。 |
+| `theta_v0::policy_records::tests::source_guard_no_constants_or_in_place_writes`，`rust/src/theta_v0/policy_records.rs:672` | config.rs 禁七种常量字面量；segment.rs 去 `//` 后禁 TAIL_WINDOW；递归 `rust/src/**/*.rs` 去 `//` 后查 `.level.l_max/.macd.fast/.macd.slow/.macd.signal/.tail_window/.second_seq_scan_window/.tangency` 后单 `=`，后三项的 `self` 内部写入除外。 | 新增面没有命中；全扫描违规 0。config/segment 不在差异面，固定字面量子锁亦为 0。 |
+| `theta_v0::policy_records::tests::source_guard_tangency_only_from_record`，同文件 `:812` | 递归 Rust 生产源码（按原 `#[cfg(test)]\nmod tests {` 截断），跳过 `*_tests.rs` 及 theta_v0/config.rs、policy_records.rs，去 `//` 后禁 `Tangency::Closed/Open`。 | 新增面没有命中；全扫描违规 0。 |
+| `candidate_and_strict_predicates_have_one_canonical_implementation`，`rust/tests/certificate_chain_single_source.rs:37` | formal/Origin 三个 Lean def 各一 canonical；递归 `rust/src` 恰一 `fn strict_chain_verdict(` 且位于 theta_v0/backtest/admission.rs；该文件委托调用与闭合条件文本各一次。 | Rust 全扫描仅 `rust/src/theta_v0/backtest/admission.rs:508` 一份，委托/闭合各 1；新增面没有同名实现。Lean/固定 admission 体与差异面无交集，未改。 |
+| `theta_v0::config::tests::source_guard_no_record_constants`，`rust/src/theta_v0/config.rs:1198` | config.rs 首个 cfg(test) 前禁 15 个记录常量；backtest/data.rs 同范围禁 `0.80`。 | 两个扫描源均与差异面无交集；按原条件核对违规 0。 |
+| `production_sources_hold_no_funding_constants`，`rust/src/funding_record.rs:725` | SOURCES 的 31 个固定 Rust 源文件，按原生产段截断、去 `//`，禁 INITIAL_CAPITAL/DEFAULT_OP_LADDER/SUB_EXPIRY/INITIAL_NAV_PLACEHOLDER/1_000_000/1.0e6/1e6，按字母数字下划线及点的边界判断。 | 31 个扫描源均与差异面无交集；复现全域违规 0。 |
+| `theta_v0::env_registry::tests::no_stray_env_literals_outside_registry`，`rust/src/theta_v0/env_registry.rs:699` | 原 grep 递归 src/theta_v0，禁 env::{var,var_os,set_var,remove_var}/env_flag 的大写裸字符串；排除 env_registry.rs。 | 与本分支 31 文件差异面无交集；原 grep 全域违规 0。 |
+| `theta_v0::env_registry::tests::const_declarations_match_registry`，同文件 `:663` | 只解析自身 `pub const ...: &str = "...";`，须与静态 REGISTRY 一致。 | 自身源码与差异面无交集；没有新增风险；仅源码/差异核对，不冒充重新执行 Rust 数组匹配。 |
+| `classifier_production_code_never_imports_nest_artifacts`，`rust/tests/nest_isolation_guard.rs:79` | classifier 目录直属 `.rs`；依据精确 GUARD-ROLE 自述豁免，首个 cfg(test) 前去行注释及 mod nest 挂载后禁八种 nest 类型/路径/产物文本；需扫描数大于 10。 | 本分支 HEAD 差异与该域无交集；S1H 只删 bsp.rs 既有白名单，不增加禁串。复现 scanned=32、违规 0。 |
+| R4 `AnchorLockTests::test_rust_test_prepare_exists_only_under_cfg_test`，`s_session/tests/test_tb01c_r4_anchor_lock.py:31` | admission_anchor.rs 只有一个 test_prepare 定义且邻接 cfg(test)；递归 Rust 调用点前文存在 test cfg；另两条锁 Python 生产引用与无锚 CLI 拒绝。 | 此锁确与本分支新增测试调用有交集；要求保留，父工蜂执行该现有三项测试。S1H 不新增或移动 test_prepare。 |
+| V2 Reader 源 SQL 顺序锁，`s_session/tests/test_tb01c_query_integrity_layout.py:41,57` | 从 s_structure_session.rs 提取四个 OBJECT_*_SQL 常量，核 active 为 window_start、dead 为 first_known_generation；与 Python 查询次序对拍。 | 四个 SQL 常量均不在差异面。独立实际执行 `python3 -B -m unittest s_session.tests.test_tb01c_query_integrity_layout -v`，5 tests 通过。 |
+| 生产无测试钩子／禁串清单，`.github/scripts/check-prod-no-test-hooks.py:232,290`、`gen-prod-banned-literals.py:273,291` | 生产可达模块树与 feature/cfg 推演、测试 API/环境变量检查及禁串提取；与本分支生产/测试代码均有交集。 | 要求保留，父工蜂实际执行原扫描与 `--check`；本复核未修改规则、源扫描脚本或禁串清单。 |
+
+BSP 的精确语义核对：`content_producer.rs:3404` 的 `raw_bar_at` 返回 `&Bar`，对 `RawBars` 升序表用 `partition_point(source_index < coord)` 定位，再要求精确坐标相等，缺失或插入点越界均报 `MissingSource(coord as i64)`；没有访问 BspPoint、bits 或买卖点规则。基线 `784bc6d7:3349` 和原 HEAD `:3411` 的 `.filter` 本体逐字相同，diff 的新增行映射证明它不是新增语句，而是 S1D 的两个冷缓存方法净增 62 行造成 file:line 白名单漂移。显式 match 的三个分支（精确命中、不等、None）与 Option::filter 的原三分支严格相同，继续二分取值，无近似回落。
+
+原日志已回看：`125002119534.log:801–808` 为 dead_code；BSP 四份失败原文分别为 `125002119586.log:4195–4196`、`125002119568.log:4248–4249`、`125002119152.log:5196–5197`、`125002119491.log:5069–5070`。这些行均点名同一 BSP 锁及 `content_producer.rs:3411`。
+
+
+### 实际自检、独审与边界
+
+主控对最终四个 Rust 文件完整 diff 验收，并实际执行：
+
+- `rustfmt --edition 2021 --check --config skip_children=true rust/src/bin/s_session_v2/content_producer.rs rust/src/bin/s_session_v3/audit_owner.rs rust/src/bin/s_structure_session.rs rust/src/theta_v0/classifier/bsp.rs`，通过。
+- `git diff --check`，通过。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3 tests 通过。
+- `python3 -B -m unittest s_session.tests.test_tb01c_query_integrity_layout -v`，5 tests 通过。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`；这是源码扫描，未生成生产产物。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，禁串清单与源码一致，清单未改。
+- `python3 -B /private/tmp/issue1481-s1h-bsp-scan.py`，原 grep 及双向集合复现为 23/23，stray/stale 均空。
+- `python3 -B /private/tmp/s1h-audit-source-locks.py`，输出 31 文件/4214 新增行；上表 policy/config/env/funding/nest 全域静态复现无违规，strict canonical/委托/闭合各 1。Rust 测试未运行，以上不冒充原具名 Rust 锁 PASS。
+- `python3 -B /private/tmp/issue1481-s1h-lookup-equivalence.py`，18,018 例空/稀疏/重复/缺失/大坐标的旧查询与显式 match 对拍通过。此为 Python 机制原型，不是 Rust 运行收据。
+- Python 与 HEAD 逐字比对：migrate_in 整函数不变；BSP 从 let src_dir 起的 grep、过滤、stray/stale 断言全不变；旧包装 Rust 定义及调用归零。
+
+非作者代理分别只读穷举 31 文件 cfg 与源码锁，并独立审阅最终四文件 diff，未发现剩余确定阻断。仓外临时原型未入仓。REPORT 原 S1D–S1G 保留为历史收据，仅追加本节。
+
+本轮未运行 cargo/rustc、Rust 测试、重型窗口或新 CI；未 git add/commit/push，未写 Git metadata。MainOnly/非 WAL 合法域、写前拒绝、成功后正常关闭/重启、台账四种精确旁挂登记与 64 GiB 帽、TestOnly Ordinary 先审后迁、既有全部锁/断言/逐名 CI 清单、E6 与 FU16 均保持。资源 `/3`、scrub、launcher/5、Python 服务控制、ADR、workflow 与测试源文件未改。后续须在主控封包的精确 head 取得 rust-check 五档与原 BSP 具名锁的 CI 收据。
+
+### S1H 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v2/content_producer.rs`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_structure_session.rs`
+- `rust/src/theta_v0/classifier/bsp.rs`

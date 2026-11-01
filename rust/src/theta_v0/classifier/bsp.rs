@@ -673,20 +673,6 @@ mod tests {
             // 收成一处（窗口三组一次取出交 `cc007_add`，三种用途不变），不新增豁免。
             // #1405 整合（main 271b8e8cc6）：tb02a_facts.rs 上方行变动 ⟹ 564 → 556，同条目重登记。
             "bin/s_session_v2/tb02a_facts.rs:556",
-            // #1488 A2：raw_bar_at 在 RawBars 的原始 Bar 账中二分定位后核对精确坐标，
-            // 供 CC-007 descriptive_labels.raw_ohlc 读取三组成员的原始 OHLC；不查询
-            // BspPoint/买卖位，不能改调 BSP 绑定 API。只豁免此点，扫描与 stale 检查不变。
-            // （merge-0047：冻结源锚 2999 已随冻结源自身改动漂至 3087，合并 main 及其解法改动后 ⟹ 3090；
-            // 重核内容不变，同条目重登记。
-            // premerge-0086：S3 测试/计数改动在上方增行（e94be462c2 +8、05a6cd003b +9、
-            // 0461dbf630 +2）⟹ 3090 → 3109；合 main 02b5b571eb 后重核仍为 raw_bar_at 的
-            // `.filter(|bar| bar.source_index == coord)`，内容不变，同条目重登记。
-            // close-0085 P58：squash 面全量 cargo fmt 在上方改排版 ⟹ 3109 → 3114；重核仍为
-            // raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。
-            // #1491 段 B：上方增 CC-007 单元读数类型、批记录构造口与续接逐前缀根 ⟹ 3114 → 3338；
-            // 重核仍为 raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。
-            // #1780 独审返修：上方增失效水位字段与穷举分派 ⟹ 3338 → 3349，同一行，同条目重登记。）
-            "bin/s_session_v2/content_producer.rs:3349",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。
             // #1605：上方探针记录读取与输出追溯共增 15 行 ⟹ 603→618，内容不变。）

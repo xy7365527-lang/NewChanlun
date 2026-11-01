@@ -693,7 +693,7 @@ impl AuditConnection {
         } else {
             admission.require_cold_content()?;
         }
-        crate::migrate_policy_records_in_transaction(migration.tx())?;
+        crate::migrate_in(migration.tx())?;
         let inherited_data_version = migration.data_version;
         owner.continue_with(migration.commit()?)?;
         // physical::initial_progress 的 wal_checkpoint(NOOP)必须在事务外；尚未签发baseline。

@@ -3406,10 +3406,10 @@ fn raw_bar_at<'a>(
     coord: usize,
 ) -> Result<&'a Bar, ProducerError> {
     let index = raw_bars.partition_point(|bar| bar.source_index < coord);
-    raw_bars
-        .get(index)
-        .filter(|bar| bar.source_index == coord)
-        .ok_or(ProducerError::MissingSource(coord as i64))
+    match raw_bars.get(index) {
+        Some(bar) if bar.source_index == coord => Ok(bar),
+        _ => Err(ProducerError::MissingSource(coord as i64)),
+    }
 }
 
 /// CC-007 比较单元的精确内容键（与全量配方 `unit_content_key` 同字段同型）。

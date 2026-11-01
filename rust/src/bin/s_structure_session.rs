@@ -496,12 +496,6 @@ fn migrate_in(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
     Ok(())
 }
 
-/// #1602 / #1481：调用方已经持 SQLite IMMEDIATE 锁；只允许准入核过的单次补列。
-/// 与 #1527 N1 共用迁移实现，保留 H1 调用入口及原迁移授权门。
-fn migrate_policy_records_in_transaction(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
-    migrate_in(tx)
-}
-
 /// #1405/#1420 持久边界：写连接首次读取会回滚残留的 `-journal` 热日志，末次关闭会检查点并
 /// 删除 `-wal`，两者都改写库文件字节。旧规则会话只读，因此必须在任何写连接之前判规则：
 /// - 已初始化且 `rule_revision` 不是本二进制的 `RULE_REVISION` ⟹ 返回只读连接（SQLite 层拒写，
