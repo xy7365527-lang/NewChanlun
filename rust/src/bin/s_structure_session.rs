@@ -2443,7 +2443,13 @@ fn prepare_accept(text: &str, profile_path: &Path) -> Result<PreparedAccept, Str
         .and_then(Value::as_str)
         .map(|s| s.to_string());
 
-    Ok(PreparedAccept { input, profile, profile_id, profile_hash, volume_unit })
+    Ok(PreparedAccept {
+        input,
+        profile,
+        profile_id,
+        profile_hash,
+        volume_unit,
+    })
 }
 
 fn check_accept_connection(conn: &Connection, prepared: &PreparedAccept) -> Result<(), String> {
@@ -2473,7 +2479,13 @@ fn accept_body_in(
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
-    let PreparedAccept { input, profile, profile_id, profile_hash, volume_unit } = prepared;
+    let PreparedAccept {
+        input,
+        profile,
+        profile_id,
+        profile_hash,
+        volume_unit,
+    } = prepared;
     let results;
     {
         verify_writer_epoch(tx, configured_epoch)?;
@@ -2547,7 +2559,8 @@ fn accept_core(
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 accept 事务失败：{e}"))?;
     let result = accept_body_in(&tx, text, prepared, configured_epoch, context)?;
-    tx.commit().map_err(|e| format!("accept commit 失败：{e}"))?;
+    tx.commit()
+        .map_err(|e| format!("accept commit 失败：{e}"))?;
     Ok(result)
 }
 

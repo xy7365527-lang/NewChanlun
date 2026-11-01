@@ -411,7 +411,13 @@ pub(super) fn audit_core(
     account: &dyn Budget,
     deadline: std::time::Instant,
     prefix: &mut RejectionPrefix<'_>,
-    mut legacy_serve: impl FnMut(&rusqlite::Connection, &std::path::Path, &str, &crate::v2::ClockPlan, &std::path::Path) -> Result<(), String>,
+    mut legacy_serve: impl FnMut(
+        &rusqlite::Connection,
+        &std::path::Path,
+        &str,
+        &crate::v2::ClockPlan,
+        &std::path::Path,
+    ) -> Result<(), String>,
 ) -> Result<(), String> {
     match crate::meta_get_opt(tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
@@ -488,9 +494,15 @@ fn audit_business(
         .map_err(|e| e.to_string())?;
     // rusqlite 的安全共享借用事务口；conn 的独占生命周期由 Session 保持。
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let result = audit_core(&tx, account, deadline, prefix, |conn, db, epoch, clock, profile| {
-        audit_legacy_serve_prefix(conn, account, db, epoch, clock, profile)
-    });
+    let result = audit_core(
+        &tx,
+        account,
+        deadline,
+        prefix,
+        |conn, db, epoch, clock, profile| {
+            audit_legacy_serve_prefix(conn, account, db, epoch, clock, profile)
+        },
+    );
     // #1527：先记录业务实际返回；此前回调观察到的首错仍居前。
     account
         .errors

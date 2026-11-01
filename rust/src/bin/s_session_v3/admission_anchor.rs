@@ -21,10 +21,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+pub(crate) mod native_n1;
 mod ram;
 mod resources;
 pub(crate) mod terminal;
-pub(crate) mod native_n1;
 use resources::AdmissionResources;
 
 const CONTROL_BYTES: usize = 65_536;
