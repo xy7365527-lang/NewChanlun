@@ -642,3 +642,91 @@ ContentBi 唯一跨代字段就是 coords，已全部恢复。其他生成缓存
 - `rust/src/bin/s_session_v2/content_bi.rs`
 - `rust/src/bin/s_session_v3/audit_owner/admission_tests.rs`
 - `rust/src/bin/s_session_v3/generation.rs`
+
+## S1G
+
+> 状态：ready，源码返修候选可交主控封包取 CI。基线为 `sandcastle/issue-1481` / `5a2068a76f82d936ed12da60dcd3c6b234149799`，开工工作区干净。以下区分原 CI 现场、源码调用链及尺寸估算；**Rust 未验证，待 CI**。未把静态检查或 release 已绿记作 debug 修复已通过。
+
+### 原日志与故障区间
+
+已读取 S1D/S1E/S1F 提示、所引 S1/S1B/S1C 范围与禁止项、本报告对应章节、43K 简报、44G BLOCK，以及 `/Volumes/AgentStorage/h1-recover45c/ci-41357971195-s1f-failed.log` 原件。日志属于 run `41357971195`，精确 head `5a2068a7`。以下日志行号为原件物理行，源码行号无特殊声明时为本轮最终工作区。
+
+- `:1–2`：`cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --test-threads 1 --nocapture v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_`。
+- `:69–72`：`Finished test profile [unoptimized + debuginfo]`，开始 4 tests。
+- `:73`：`owner actual suffix g=1 nodes=1845 object_effects=4 aux_effects=[0, 0, 2]`。
+- `:75–76`：`thread 'v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix' (5118) has overflowed its stack`；`fatal runtime error: stack overflow, aborting`。
+- `:77–82`：SIGABRT、exit 101；没有随后的 `NATIVE_CODEC_WORK`，没有测试成功收据。
+
+`audit_owner.rs:3770` 输出 suffix，`:3776–3798` 立即调用 `append_cut`，`:3801` 才打印 `NATIVE_CODEC_WORK`。因此不是后面的 `same()`/完整 oracle 或测试 reopen 发生溢出；故障落在两条日志之间的在线后缀调用内。此前 H1 release、SQLite COMMIT 锁已通过是主控提供的同一 run 状态，本节没有自行运行或重新签署它们。
+
+### 根因：共享在线验证器被塞入冷状态及冷分支 debug 栈槽
+
+对照 `git diff b0db7a8d HEAD -- rust/src/bin/s_session_v3/state.rs`，新增点在 S1 接线的 `HistoricalSourceFold` 与其 `verify`，不是 S1F 的 RawCoords 规则。精确旧 head 的 `state.rs:1251–1258` 为共同 fold 新增 `ledger`、`cold_source: Option<NativeSourceState>`、`cold_raw`、`cold_root`；`:1276–1336` 又把整个冷台账重建块放入共同 `verify`。在线 `append_owner_cut` 仍在旧 `:3732–3757` 构造该结构，虽然这四个字段给的是 None/空索引，类型尺寸和 debug 函数的临时槽并不因此消失。
+
+suffix 后的有界调用链（旧 head 行号）为：
+
+1. `audit_owner.rs:3776` 的 `append_cut` 闭包 → `state.rs:3688` `AuditedState::append_owner_cut`，按值接管已核历史，构造共同 `sources`。
+2. `state.rs:3758` → `history.rs:8491` `append_owner_cut` → `history.rs:1189` `audit_one_published_cut` → `history.rs:1863` 动态调用 `CutSourceVerifier::verify`。
+3. 旧 `state.rs:1263` `HistoricalSourceFold::verify`：在线的 `ledger=None`，不执行冷重建，但该函数体新增的 `source`、`Result<(Counts, NativeSourceState, SourceExports), String>`、`RawReceipt`、`GenerationDelta` 等按值局部/返回槽属于同一个 debug 帧。
+4. 旧 `state.rs:1337` → `audit_one_cut_sources`；在线通过 `OwnerSourceCheck` 取得 counts，继续既有 raw/目录核验。该链没有回到 cold seed、Driver open 或自身 append 的调用。
+
+尺寸证据来自实际类型定义：`source_contributions.rs:493–543` 的 `NativeSourceState` 内嵌 **23 个 Map、11 个 Tree、3 个 Order**；Map/Tree 包装 `NativeTree`/`NativeSet`，后者包含 BTreeMap、high_water 以及带 NativeReservation 的 CodecVec（`source_contributions.rs:132/239`、`capture_allocation/native_tree.rs:6/181`、`capture_allocation/work.rs:168`、`scratch.rs:30`）。这是容器外壳本身，不是把堆中的全部历史计成栈。
+
+本机 Python 按源码逐字段计数，并用明确的 64 位常见布局模型计算：CodecVec≈96 B，NativeTree≈128 B，Map/Tree≈136 B，Order≈160 B；连同 Built、binding、TextValue、4 个 Option<SequenceRef>、其余标量及 SourceWork，得到 **NativeSourceState≈5672 B**。仅 `Option<NativeSourceState>` 这个 None 槽也必须容纳完整载荷；旧 verify 里的 source/tuple Result 至少又各容纳一份同量级载荷，另有冷收据和 delta 等槽。具体 LLVM 是否合并某些移动槽、全部调用帧的机器字节数和撞 guard 的指令，本机禁 Rust，均未实测；5672 是布局估算，不冒充 `size_of` 或反汇编收据。
+
+这解释的是**有界调用链的固定 debug 帧膨胀**，不是 1845 个节点形成 1845 层递归。新增冷 `audit_source_step` 的 phases 顺序执行，SourceInput 转发显式调用 SourceMaterial 固有方法，未发现新增自调用或互调环。在线现场 `ledger=None` 更明确排除了实际执行冷来源步、冷 seed 递归重入的说法。S1D/S1F 的 seed 位于 `audit_owner.rs:635` 的私有冷入口，此时尚未重新进入它；不得把它写成此次动态执行的首错。原调用链的树/codec 遍历未改，其有界深度上叠加的冷壳与冷临时帧才是本分支新增的栈负担。
+
+main/旧头通过该锁是任务给定的对照证据；本轮进一步以 git 对象核对，当前在线 fold 的字段列表恢复到 `b0db7a8d` 的同一列表。没有证据支持“main 自己失败、与本分支无关”，不据此转 blocked。最终消除溢出的运行证据仍须新精确 head debug CI。
+
+### 修法与语义保持
+
+仅改 `rust/src/bin/s_session_v3/state.rs`：
+
+- `:1242` 的 `HistoricalSourceFold` 恢复只包含共同来源核所需字段，在线 `:3782–3800` 不再构造四项冷字段。
+- `:1256` 新增私有 `ColdHistoricalSourceFold<'borrow,'audit,'ledger>`，冷状态只在 `:1935` 冷入口构造。它**借用**共同 fold 与原 ledger/parent，不按值复制共同核，不新增堆分配或 Native 许可。借用避免把冷状态搬进在线局部量；没有引入未计量 Box。
+- `:1310` 的在线 trait 实现只调用 `require_next_cut` 与 `verify_sources`；冷大对象和冷台账块留在 `:1325` 的另一份适配器实现，在线不可能调用它。两实现共用 `:1269` 连续代号判据与 `:1276` 来源验证核，没有两档判据、失败改道或宽松重判。
+- `:1964–1973` 仍先导出 raw facts，再移交 cold source；显式 drop 冷适配器后结束共同 fold 的借用，保持冷生成器 seed/rebind 的原接续。冷台账核验 → 来源核验 → deadline → 更新 generation/previous 的次序不变。
+
+实际执行 Python 文本对拍：冷台账整个块在 `self.sources.raw/previous/deadline` 接收者归一化后，与 HEAD 原件逐字相同；共同来源调用、deadline、前沿更新块逐字相同。既有故障测试就是正确的生产调用栈回归锁，未新增浅层替代测试，未删断言。driver.rs、history_clamp_tests.rs、admission_tests.rs、ci.yml、history36h.yml 均与 HEAD 逐字相同。没有 workflow、栈大小、线程、profile、ignore 或跳过测试的改动。
+
+### H1 release 已绿路径的 debug 同类风险排查
+
+按实际调用者分组检查，release 结果不能证明 debug 栈足够。下表名字以源文件为准，均保留原锁，不修改 CI 配置。
+
+| 路径 / 文件 | 已检查的同类测试 | 结论 |
+|---|---|---|
+| 在线 `publish → append_owner_cut → verify`；`audit_owner/history_clamp_tests.rs:24/239/254/278/373/460/591/798` | `h1_real_own_accept_begin_publish_continues_same_life`、`h1_own_checkpoint_and_wal_reset_preserve_full_history`、`h1_partial_checkpoint_waits_for_reader_then_resets`、`h1_zero_autocheckpoint_keeps_main_and_wal_round`、`h1_certified_online_consumes_source_receipt_and_matches_cold`、`h1_certified_open_empty_and_reopen_from_originals`、`h1_control_parent_rebind_precedes_warm_request_observation`、`h1_qualified_online_consumes_real_ledger_and_cold_rebuild_matches` | 与故障 Native 锁共用同一在线冷壳/冷帧，受本轮修复覆盖；需要 debug 运行收据。 |
+| 先成功写、再做资格负例；同文件 `:899/991/1064/1128/1213` | `h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch`、`h1_qualified_ledger_commit_failure_and_external_identity_write_are_stale`、`h1_qualified_stage_rejects_externally_rewritten_fold_digest_or_rule_revision`、`h1_qualified_transition_short_budget_rejects_before_write_and_releases`、`h1_roots_json_matches_real_cert_roots` | 前置成功写同样承担原在线帧，修复覆盖；不能因后续测试目的是负例而漏查。 |
+| 正式冷后续写/修订/recover；`audit_owner/admission_tests.rs:157/274/299/400/534/899` | `h1_admission_cold_prefixes_match_full_canonical`、`h1_admission_online_own_commits_match_full_canonical`、`h1_admission_foreign_sqlite_changes_retire_writer`、`h1_admission_formal_accept_begin_prepare_recover_never_full_audit`、`h1_admission_driver_cold_recover_rebuilds_ledger_bitwise`、`h1_admission_normal_exit_same_database_new_process_restarts` | 成功在线写由同一修复覆盖；其中冷折叠实际执行冷来源步，见下一行，不能只复跑 Native 一条就声称所有 debug 安全。 |
+| 正式只读冷认证；上述 admission 锁及同文件 `:333/663/739/800/1037/1156` 的 handoff、node/record、wire、prepolicy、non-WAL 锁 | `h1_admission_cold_handoff_foreign_sqlite_commit_rejects`、`h1_admission_driver_cold_preserves_original_node_record_gates`、`h1_admission_cold_real_wire_short_budget_rejects_before_write`、`h1_admission_prepolicy_bad_history_rejected_before_migration`、`h1_admission_mainonly_nonwal_prepolicy_preserves_domain`、`h1_admission_nonwal_conversion_handoff_foreign_commit_rejects` | `cold_captured → fold_certified_history → ColdHistoricalSourceFold::verify → audit_source_step` 有界，冷 NativeSourceState 的按值返回仍有固定大槽，未改其语义/资源合同。它现在只在真实冷步骤存在，不再压到在线栈；这些锁仍须 debug `h1_` 验证，不宣称不存在剩余栈风险。 |
+| 低层冷组件；`state.rs:4138/4161/4184` 与 history_clamp_tests 的 certified/qualified open | 三条 `h1_cert_*`，缺/坏 qualification、identity/rule/root/unit、deadline/scratch 等组件锁 | ledger=None，不执行冷来源步；共用代号和来源判据保持。预算/身份/隔离等在 append 前拒绝的 H1 锁没有进入事故帧；原断言全部保留。 |
+
+另检查 `audit_owner.rs` 的 `h1_request_closure_real_owner_multicut_reuses_resolved_roots`：包装真实 multicut writer/rebuild，也消费相同后缀核，覆盖于本轮修复。原 Native 锁后面的 `p6_raw_receipt_expired_*` 不构造共同历史 fold，未发现本次引入的冷槽；原 run 因进程 abort 无法替它们签 PASS。
+
+建议主控在新精确 head 先原样执行现有 Native debug step，再以相同 features/debug、`h1_ -- --test-threads 1 --nocapture` 运行 H1 靶向集合，尤其包含冷恢复逐字节锁；这里仅列待 CI 动作，没有本机偷跑或改 workflow。
+
+### cfg、告警与实际自检
+
+| 组合 | 非 test 源码穷举 | test 源码穷举 |
+|---|---|---|
+| `s_session` | 两个 fold、两个 impl、共同方法与所有调用都在原 `s_incremental` 门内，整体排除；未引入 import、dead_code 或缺失类型引用。 | 原 Ordinary/测试核及断言未改；无新增 test 专用引用。 |
+| `s_session,s_incremental` | 冷 wrapper 由 cold_captured 构造且交 trait 对象；在线 wrapper 由 append 构造；两个共同方法均实际调用。三种生命周期分别绑定共同核借用、capture/raw、ledger，不要求互相延长。 | 同一生产实现，所有故障/H1 锁原样保留，无新钩子。 |
+| `s_session,s_incremental,s_capture_native_testonly` | 与上一格同核；Ordinary 诊断分流、先审后迁、Native 准入不变。 | 原 testonly 锁原样保留，无新的 feature 依赖。 |
+
+非 unix 构建保留原组件冷入口，wrapper 本身不引用 unix-only API；cfg 未额外收窄。`_auxiliary` 显式标记在线不用的 trait 参数，冷实现仍实际用 auxiliary；无新增 import、allow、错误转换或外部可见性。冷适配器析构后才能释放/消费共同核，Native 内容、许可与父账身份均未复制。六格 `-D warnings` 是源码核对，**不是已编译通过**。
+
+本机实际检查：
+
+- `rustfmt --edition 2021 --check --config skip_children=true rust/src/bin/s_session_v3/state.rs` 通过；`git diff --check` 通过。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`：3 tests 通过，锁文件未改。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`：`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`：禁串与源码一致，无需修改禁串表。
+- Python 源码对拍通过：冷块/共同块逐字一致、在线无冷字段/冷调用、上述测试与 workflow 未变；布局模型与字段数量输出见根因节。
+- 非作者独立代理只读审查最终 diff，核对借用、生命周期、cfg、判据顺序和同类 H1 调用者；按其意见恢复 raw facts 在 cold source 之前的提取次序。
+
+本机未运行 cargo/rustc、Rust 测试、重型窗口或生产产物扫描；未 git add/commit/push、未写 Git metadata。资源 `/3`、scrub、launcher/5、Python 服务控制、ADR、E6、FU16、输入域和写前拒绝门均未改。
+
+### S1G 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v3/state.rs`

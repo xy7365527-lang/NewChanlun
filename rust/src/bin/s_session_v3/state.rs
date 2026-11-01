@@ -1248,13 +1248,62 @@ struct HistoricalSourceFold<'a> {
     budget: Option<&'a dyn audit_budget::Budget>,
     owner_source: Option<&'a super::audit_owner::OwnerSourceCheck>,
     certified_online: bool,
+}
+
+// #1481：冷台账状态只在冷折叠入口出生，借用共同来源核；在线后缀不内嵌它，
+// 也不进入含冷收据/来源状态按值临时量的 debug 栈帧。
+#[cfg(feature = "s_incremental")]
+struct ColdHistoricalSourceFold<'borrow, 'audit, 'ledger> {
+    sources: &'borrow mut HistoricalSourceFold<'audit>,
     ledger: Option<(
-        &'a mut super::audit_ledger::Ledger,
-        &'a super::audit_owner::native::Budget,
+        &'ledger mut super::audit_ledger::Ledger,
+        &'ledger super::audit_owner::native::Budget,
     )>,
     cold_source: Option<source_audit::NativeSourceState>,
-    cold_raw: super::business_json::RawPrefixIndex<'a>,
+    cold_raw: super::business_json::RawPrefixIndex<'audit>,
     cold_root: Option<sc::Built>,
+}
+
+#[cfg(feature = "s_incremental")]
+impl HistoricalSourceFold<'_> {
+    fn require_next_cut(&self, cut: &history::PublishedCut) -> Result<(), String> {
+        if cut.metadata.generation != self.generation + 1 {
+            return Err(err("历史认证代号不连续"));
+        }
+        Ok(())
+    }
+
+    fn verify_sources(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        sweep: Option<&object_index::HistorySweep>,
+        cold_counts: Option<source_audit::Counts>,
+    ) -> Result<(), String> {
+        audit_one_cut_sources(
+            cut,
+            self.raw,
+            store,
+            objects,
+            sweep,
+            &mut self.source,
+            None,
+            self.previous,
+            self.deadline,
+            self.budget,
+            None,
+            self.owner_source,
+            self.certified_online,
+            cold_counts,
+        )?;
+        history::check_deadline(self.deadline)?;
+        self.generation = cut.metadata.generation;
+        self.previous = cut.metadata.input_frontier;
+        #[cfg(test)]
+        trace_event("h1_certified_cut", Some(self.generation));
+        Ok(())
+    }
 }
 
 #[cfg(feature = "s_incremental")]
@@ -1265,15 +1314,28 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
         store: &mut history::HashReader<'_>,
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
+        _auxiliary: &aux_index::Index,
+    ) -> Result<(), String> {
+        self.require_next_cut(cut)?;
+        self.verify_sources(cut, store, objects, sweep, None)
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl history::CutSourceVerifier for ColdHistoricalSourceFold<'_, '_, '_> {
+    fn verify(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        sweep: Option<&object_index::HistorySweep>,
         auxiliary: &aux_index::Index,
     ) -> Result<(), String> {
-        if cut.metadata.generation != self.generation + 1 {
-            return Err(err("历史认证代号不连续"));
-        }
+        self.sources.require_next_cut(cut)?;
         let mut cold_counts = None;
         if let Some((ledger, parent)) = self.ledger.as_mut() {
             let prefix = cut.metadata.input_frontier as usize + 1;
-            let raw = self.raw.prefix(prefix)?;
+            let raw = self.sources.raw.prefix(prefix)?;
             let edits = self.cold_raw.advance_admitted(prefix, store)?;
             let previous_ref = self.cold_root.as_ref().map(sc::Built::content_ref);
             let mut material = super::audit_owner::cold_source::ColdSource::new(
@@ -1285,7 +1347,7 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
             )?;
             let input = source_audit::SourceRaw {
                 raw,
-                previous_prefix: (self.previous + 1) as usize,
+                previous_prefix: (self.sources.previous + 1) as usize,
                 winner_edits: &edits.winner_edits,
             };
             let (counts, source, exports) = source_audit::audit_source_step(
@@ -1311,10 +1373,10 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
                 cut.metadata.view(),
                 cut.roots.generated_state.view(),
                 raw,
-                (self.previous + 1) as usize,
+                (self.sources.previous + 1) as usize,
                 counts,
                 exports,
-                self.deadline,
+                self.sources.deadline,
             )?;
             receipt.export_history_business(store, objects, auxiliary)?;
             let delta =
@@ -1334,28 +1396,8 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
             ledger.bind_view(token, cut.metadata.view(), cut.roots.view())?;
             ledger.content_committed()?;
         }
-        audit_one_cut_sources(
-            cut,
-            self.raw,
-            store,
-            objects,
-            sweep,
-            &mut self.source,
-            None,
-            self.previous,
-            self.deadline,
-            self.budget,
-            None,
-            self.owner_source,
-            self.certified_online,
-            cold_counts,
-        )?;
-        history::check_deadline(self.deadline)?;
-        self.generation = cut.metadata.generation;
-        self.previous = cut.metadata.input_frontier;
-        #[cfg(test)]
-        trace_event("h1_certified_cut", Some(self.generation));
-        Ok(())
+        self.sources
+            .verify_sources(cut, store, objects, sweep, cold_counts)
     }
 }
 
@@ -1889,6 +1931,9 @@ impl HistoricalCertificate {
             budget,
             owner_source: None,
             certified_online: false,
+        };
+        let mut cold_sources = ColdHistoricalSourceFold {
+            sources: &mut sources,
             ledger,
             cold_source: None,
             cold_raw: super::business_json::RawPrefixIndex::new(raw.view()),
@@ -1902,7 +1947,7 @@ impl HistoricalCertificate {
             work,
             deadline,
             budget,
-            &mut sources,
+            &mut cold_sources,
         )?;
         verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), None, work)?;
         let mut store = history::HashReader::captured_for_audit(&capture, None)
@@ -1916,13 +1961,15 @@ impl HistoricalCertificate {
             catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
         }
         history::check_deadline(deadline)?;
-        let raw_sources = sources
+        let raw_sources = cold_sources
+            .sources
             .source
             .take()
             .map(source_audit::NativeSourceAudit::into_raw_facts);
         if let Some(out) = source_out {
-            *out = sources.cold_source.take();
+            *out = cold_sources.cold_source.take();
         }
+        drop(cold_sources);
         drop(sources);
         let history::IndexedHistory {
             control_facts,
@@ -3750,10 +3797,6 @@ impl AuditedState {
             budget: None,
             owner_source: source_check,
             certified_online: certified,
-            ledger: None,
-            cold_source: None,
-            cold_raw: super::business_json::RawPrefixIndex::new(self.raw.view()),
-            cold_root: None,
         };
         let (updated, history_delta) = history::append_owner_cut(
             tx,
