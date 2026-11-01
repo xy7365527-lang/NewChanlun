@@ -23,6 +23,7 @@ from .approval import (
     decision_json,
     spec_body_target,
 )
+from .boat_execution import ExecutionUnknown
 from .claims import (
     ClaimRefused,
     ClaimStore,
@@ -50,7 +51,16 @@ from .delivery import (
     Unpublishable,
     marker,
 )
-from .domain import RunFacts, Sha, candidate_conflict, current_head, parse_sha
+from .domain import (
+    EffectUnknown,
+    RunFacts,
+    Running,
+    Sha,
+    candidate_conflict,
+    current_head,
+    parse_key_name,
+    parse_sha,
+)
 from .github_app import WRITE_PERMISSIONS, AppIdentity, GitHubAppClient, IdentityError
 from .run import (
     Busy,
@@ -243,6 +253,29 @@ class TicketExecutor:
         needle = f"--output-dir {run_dir}/workers/"
         if any(needle in cmd and not stat.startswith("Z") for _, _, stat, cmd in _ps_rows()):
             raise ClaimRefused(f"上一代次 run {previous.run_id} 仍有工蜂在运行")
+        # Boat 工蜂不在本机 PID 表；仅观察冻结绑定，不恢复、收集或补提交旧工蜂。
+        try:
+            if not (run_dir / "run.json").exists():
+                if (run_dir / "boat").exists():
+                    raise ExecutionUnknown("缺少旧 run 清单")
+                return
+            run = PilotRun.open(run_dir.parent.parent, previous.run_id)
+            if run.execution is None:
+                if (run_dir / "boat").exists():
+                    raise ExecutionUnknown("旧执行后端与 Boat 绑定不符")
+                return
+            if (run.spec.run_id != previous.run_id or run.dir.resolve() != run_dir.resolve()
+                    or run.spec.ticket != previous.ticket or run.generation != previous.generation):
+                raise ExecutionUnknown("旧 run 的票号或持有代次不符")
+            keys = set(run._keys())
+            keys.update(parse_key_name(previous.run_id, p.stem) for p in (run_dir / "boat").glob("*.json")
+                        if "." not in p.stem)
+            for key in keys:
+                fact = run.execution.observe(key, reconcile=False)
+                if isinstance(fact, (Running, EffectUnknown)):
+                    raise ExecutionUnknown(f"{key.name}: {fact}")
+        except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError) as error:
+            raise ClaimRefused(f"上一代次 run {previous.run_id} 的 Boat 工蜂尚未排空：{error}") from None
 
     def claim(self, run_dir: Path) -> TicketClaim:
         """SPEC 7.4：intent → 镜像 → post-check → active，全程在票级动作锁内；崩溃后同 run 从记录处续做。"""
@@ -363,6 +396,16 @@ class TicketExecutor:
                head: Sha | None = None) -> Iterator[Boundary]:
         """SPEC 6：取票级锁 → 锁内复核持有与实时票面 → 锁内执行并记账 → 释放。复核不符即 halted，不执行。
         派工、本地提交与每一次 GitHub 写都经这里。发布动作带 head，需要候选签批的票在锁内重读权威链。"""
+        if effect == "cancel":
+            # 取消是撤回既有能力，不要求仍可派工；票级锁仍防止与换代交错。
+            with self.claims.locked(self.unit.ticket) as txn:
+                claim = txn.record
+                if (claim is None or claim.repo != REPO or claim.ticket != self.unit.ticket
+                        or claim.run_id != self.unit.run_id or claim.run_dir != str(run_dir.resolve())
+                        or claim.generation != generation):
+                    raise Fenced("取消身份不符：须为原 run、状态目录与持有代次")
+                yield Boundary(txn, claim)
+            return
         with self.claims.locked(self.unit.ticket) as txn, self._cutover_lock():
             boundary = Boundary(txn, txn.require_holder(self.unit.run_id, run_dir, generation))
             problem = self._boundary_problem(pr_number, run_dir, generation)

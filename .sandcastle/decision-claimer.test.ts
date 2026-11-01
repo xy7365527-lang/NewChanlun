@@ -2102,3 +2102,81 @@ test("F4：CLI 参数——无会话不持久化，start 用新 id，resume 按 
   const plain = await runner(() => undefined)(base);
   assert.equal(plain.sessionId, undefined);
 });
+
+
+test("R2-3 live：起草中断且取消认领失败，只有已核本票 MAIN 会话的原持有者可恢复", async () => {
+  for (const foreign of ["none", "assignee", "session"]) {
+    const h = liveDeps([fence({ class: "T", reason: "接口" }), new Error("起草中断"), goodDraft, fence(pass())]);
+    h.fail((a) => a[3] === "--remove-assignee");
+    const first = await processTicket(1565, h.d);
+    assert.equal(first.phase, "error");
+    const dir = join(h.d.outRoot, "1565");
+    assert.ok(loadTriageDone(dir));
+    assert.equal(loadTriaged(dir), null);
+    const id = first.mainSession!.sessionId;
+    h.stopFail();
+    if (foreign === "assignee") h.assign(["someone-else"]);
+    if (foreign === "session") {
+      const path = join(dir, MAIN_SESSION_FILE);
+      const saved = JSON.parse(readFileSync(path, "utf8"));
+      writeFileSync(path, JSON.stringify({ ...saved, ticket: 9999 }));
+    }
+    h.modelCalls.length = 0;
+    h.ghCalls.length = 0;
+    const second = await processTicket(1565, h.d);
+    if (foreign !== "none") {
+      assert.equal(second.phase, "error");
+      assert.match(second.error ?? "", /票已被 (someone-else|me) 认领/);
+      assert.deepEqual(h.modelCalls, []);
+      assert.deepEqual(h.ghCalls.filter(isWrite), []);
+    } else {
+      assert.equal(second.phase, "land_t", second.error ?? "");
+      assert.equal(second.resumedFrom, "main_session");
+      assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review"]);
+      assert.deepEqual(h.modelCalls[0].session, { kind: "resume", id });
+      assert.ok(!h.ghCalls.some((a) => a[3] === "--add-assignee"));
+    }
+  }
+});
+
+test("R2-4：考古失败后取证提交改变，旧 MAIN 及其 T 分类一起退役", async () => {
+  const { d, modelCalls, archCalls } = fakeDeps("dry-run", [
+    fence({ class: "T", reason: "旧提交判接口" }),
+    fence({ class: "P", reason: "新提交含资金决策" }), goodDraft, fence(pass()),
+  ], ["无法解析", "仍无法解析", goodArch]);
+  const first = await processTicket(1531, d);
+  assert.equal(first.phase, "error");
+  const dir = join(d.outRoot, "1531");
+  assert.equal(loadTriaged(dir)?.klass, "T");
+  execFileSync("git", ["-C", d.srcDir, "commit", "--allow-empty", "-m", "main 前进"]);
+  modelCalls.length = 0;
+  archCalls.length = 0;
+  const second = await processTicket(1531, d);
+  assert.equal(second.klass, "P", second.error ?? "");
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.match(second.mainSession!.retired ?? "", /取证提交已从/);
+  assert.ok(!archCalls[0].prompt.includes(FIXED), "不得带旧 T 分类只补考古");
+  assert.deepEqual(modelCalls[0].session, { kind: "start" });
+});
+
+
+test("R2-4：会话退役后首次新调用中断，下一次仍重新分类而非复活旧 T", async () => {
+  const { d, archCalls } = fakeDeps("dry-run", [
+    fence({ class: "T", reason: "旧分类" }),
+    fence({ class: "P", reason: "新分类" }), goodDraft, fence(pass()),
+  ], ["无法解析", "无法解析", goodArch]);
+  assert.equal((await processTicket(1531, d)).phase, "error");
+  execFileSync("git", ["-C", d.srcDir, "commit", "--allow-empty", "-m", "main 前进"]);
+  const model = d.model;
+  d.model = async () => { throw new Error("新会话尚未返回即中断"); };
+  assert.equal((await processTicket(1531, d)).phase, "error");
+  const dir = join(d.outRoot, "1531");
+  assert.equal(loadTriaged(dir), null);
+  assert.ok(existsSync(join(dir, "classify.retired-1.json")));
+  d.model = model;
+  archCalls.length = 0;
+  const third = await processTicket(1531, d);
+  assert.equal(third.phase, "shadow_p", third.error ?? "");
+  assert.equal(third.klass, "P");
+  assert.ok(!archCalls[0].prompt.includes(FIXED));
+});

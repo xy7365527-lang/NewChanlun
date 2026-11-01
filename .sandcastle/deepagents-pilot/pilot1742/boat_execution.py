@@ -492,7 +492,7 @@ class BoatExecution(WorkerExecution):
         out = self.run._key_dir(key)
         return Terminal(parse_result(key, json.loads((out / "result.json").read_text()), out, self.run.spec.ticket))
 
-    def _fetch(self, key: WorkerKey, binding: BoatBinding) -> WorkerFact | None:
+    def _fetch(self, key: WorkerKey, binding: BoatBinding, *, allow_launch: bool = True) -> WorkerFact | None:
         if cast(str, self.cli.info(cast(str, binding.sandbox_id)).get("state")) in STOPPED_STATES:
             raise ExecutionUnknown("工蜂VM已停止；须显式恢复同一VM后对账，不自动续费或重派")
         remote = self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "observe"))
@@ -504,7 +504,7 @@ class BoatExecution(WorkerExecution):
                 self._adopt(key, binding, self._submit_records(binding))
             return Running()
         if state == "unclaimed":
-            return self._unclaimed(key, binding)
+            return self._unclaimed(key, binding, allow_launch=allow_launch)
         if state != "receipt":
             raise ExecutionUnknown(remote.get("reason", "Boat工蜂没有可证终态"))
         part = self._path(key, ".remote.part")
@@ -536,12 +536,12 @@ class BoatExecution(WorkerExecution):
             self._store(key, replace(binding, submission="submitted", command_id=running[0].get("commandId"),
                                      process_id=running[0].get("processId")))
 
-    def _unclaimed(self, key: WorkerKey, binding: BoatBinding) -> WorkerFact:
+    def _unclaimed(self, key: WorkerKey, binding: BoatBinding, *, allow_launch: bool = True) -> WorkerFact:
         mine = self._submit_records(binding)
         if any(row.get("status") == "running" for row in mine):
             self._adopt(key, binding, mine)
             return Running()
-        if binding.submission == "submitting" and not mine:
+        if allow_launch and binding.submission == "submitting" and not mine:
             with self.run._fence("dispatch"):
                 self._launch(key, binding)
             return Running()
@@ -637,10 +637,26 @@ class BoatExecution(WorkerExecution):
         binding = self.load(key)
         if binding is None or binding.submission in ("creating", "prepared"):
             return NotStarted()
-        if binding.submission != "collected" and not self._path(key, ".remote.json").exists():
-            with self.run._fence("dispatch"):
-                self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "cancel"))
-        return self.observe(key)
+        with self.run._fence("cancel"):
+            if binding.submission == "collected":
+                return self._terminal(key)
+            try:
+                if not self._path(key, ".remote.json").exists():
+                    remote = self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "observe"))
+                    if remote.get("identity") != binding.identity or remote.get("package_id") != binding.package_id:
+                        raise ExecutionUnknown("取消前 Boat 远端身份或 package 不符")
+                    self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "cancel"))
+                    fact = self._fetch(key, binding, allow_launch=False)
+                    if fact is not None:
+                        return fact
+                receipt = json.loads(self._path(key, ".remote.json").read_text())
+                if receipt.get("identity") != binding.identity or receipt.get("package_id") != binding.package_id:
+                    raise ExecutionUnknown("取消回收前 Boat 回执身份或 package 不符")
+                self._reclaim(key, cast(BoatBinding, self.load(key)))
+            except (ExecutionUnknown, ValueError, KeyError, TypeError, OSError) as error:
+                return EffectUnknown(str(error))
+            # 取消不准把已撤销准入的产物导入 checkout；回执保留给原控制入口对账。
+            return EffectUnknown("远端终态已取回并停止 VM，取消入口不收集业务产物")
 
 
 def _matches(path: Path, data: bytes | None, mode: str) -> bool:

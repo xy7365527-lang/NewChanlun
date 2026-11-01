@@ -77,7 +77,7 @@ python -m pilot1742.executor cancel-worker --run-id ORIGINAL_RUN \
   --role author --head FULL_TARGET_SHA --private-key /absolute/app.pem
 ```
 
-v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ... --head ...`。取消只作用于该绑定的远端监督进程。监督器认领前到达的取消直接占住认领并写下“模型任务未启动”的回执；启动下一阶段与取消共用一把锁，取消后不会再启动新阶段。打印的是取消后观察到的事实，看到终态才算退出。
+v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ... --head ...`。取消只作用于该绑定的远端监督进程。票已关闭、准入撤销或持有变为 `halted`/`released` 后仍可取消；票级锁内核原 run、状态目录与 generation，其他身份被拒。取消不要求继续派工资格，也不会补提交未认领的监督命令。监督器认领前到达的取消直接占住认领并写下“模型任务未启动”的回执；启动下一阶段与取消共用一把锁，取消后不会再启动新阶段。打印的是取消后观察到的事实，仍为 `Running` 时须继续观察。取回终态后删除 key 并停止该 VM，但取消入口不把业务产物导入 checkout；回执留在原绑定并返回 `EffectUnknown`，由主控按原身份处置，不能把取消当作成功业务终态或换代许可。
 
 ## 运行包和验收
 

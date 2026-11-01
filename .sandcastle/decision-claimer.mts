@@ -1339,10 +1339,26 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       if (JSON.stringify(record.canonicalPlan) !== JSON.stringify(resume.prev.canonicalPlan)) throw new Error("独审原件与断点编辑不一致，须重新独审");
     }
 
+    // 先核本票 MAIN 身份，起草中断也能证明原持有者的合法续做。
+    // 已获审的落地断点按原合同续做，不读取或退役其 MAIN 会话。
+    const head = () => d.git(d.srcDir, ["rev-parse", "HEAD"]).trim();
+    const sourceCommit = resume ? "" : head();
+    const loaded = resume ? { prior: null } : loadMainSession(dir, n, sourceCommit, (ms) => resumeStaleBecauseReopen(ms, t.comments));
+    if (loaded.retired) {
+      log(`#${n} 旧 MAIN 会话作废：${loaded.retired}`);
+      triaged = null;
+      // 不只清本次内存：若下一次模型调用中断，重入也不能把旧分类当 legacy 断点复用。
+      const cp = join(dir, "classify.json");
+      if (existsSync(cp)) {
+        const k = readdirSync(dir).filter((f) => f.startsWith("classify.retired-")).length + 1;
+        renameSync(cp, join(dir, `classify.retired-${k}.json`));
+      }
+    }
+
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
       await withLegacyAdmission(() => {
-        const mine = (resume || triaged) && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
+        const mine = (resume || triaged || loaded.prior) && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
         if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
         if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
         claimed = true;
@@ -1374,10 +1390,6 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     // 1. 分级+考古：一次联合调用（#1742 M1）。考古解析不出时两次后抛错，此前分级已落 classify.json；
     // 下一轮由 loadTriaged 沿用分级只补考古。分级评论按票面现状幂等补发。
     // MAIN 会话（F4）：绑定本票与取证提交；分级考古、起草、引用专修、重做都经它续接，独审不经它。
-    const head = () => d.git(d.srcDir, ["rev-parse", "HEAD"]).trim();
-    const sourceCommit = head();
-    const loaded = loadMainSession(dir, n, sourceCommit, (ms) => resumeStaleBecauseReopen(ms, t.comments));
-    if (loaded.retired) log(`#${n} 旧 MAIN 会话作废：${loaded.retired}`);
     const syncMain = (ms: MainSession | null) => {
       summary.mainSession = { sessionId: ms?.sessionId, sourceCommit, resumed: !!loaded.prior, turns: ms?.turns.length ?? 0, ...(loaded.retired ? { retired: loaded.retired } : {}) };
     };

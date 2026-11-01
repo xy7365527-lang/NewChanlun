@@ -43,13 +43,13 @@
 
 机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向、C 类 `decision` 缺推荐答案，都带问题重跑一次（升档重做时仍用主控模型重跑）；仍不过的问题交审查，草稿因此 BLOCK。
 
-分级与考古由主控模型一次联合调用完成（#1742 M1，角色 `triage`），输出同一 JSON 里的 `class`/`reason` 与 `points`，仍分别落 `classify.json` 与 `archaeology.json`；分级判据与「拿不准一律判 P」不变。考古重跑（机械校验不过、升档重做）沿用已得分级，不再分级。上次已分级而考古未完成（含旧两段式中断）时，下一轮读回 `classify.json` 只补考古，分级评论票上已有即不重发，认领在自己名下不重复认领。
+分级与考古由主控模型一次联合调用完成（#1742 M1，角色 `triage`），输出同一 JSON 里的 `class`/`reason` 与 `points`，仍分别落 `classify.json` 与 `archaeology.json`；分级判据与「拿不准一律判 P」不变。考古重跑（机械校验不过、升档重做）沿用已得分级，不再分级。上次已分级而考古未完成（含旧两段式中断）时，下一轮在 MAIN 会话仍有效时读回 `classify.json` 只补考古；没有 MAIN 记录的旧两段式断点保留原恢复方式。分级评论票上已有即不重发，认领在自己名下不重复认领。
 
 完成标准：`/Volumes/AgentStorage/decisions/<票号>/archaeology.md` 与 `archaeology.json` 落盘，每个待决点有查询词、命令、命中与归类。只验考古：`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket <号> --out <目录>`（不看票是否已关，不写 GitHub）。
 
 ### 3. 起草
 
-起草不另起上下文（#1742 F4）。分级考古所在的本票 MAIN 会话经宿主校验分级后，用 Claude CLI `--resume <id>` 续接起草，上文的工具调用与结果都留在历史里；首稿用该会话当前模型（默认 `gpt-6.1-sol`）。会话记在 `<票号>/main-session.json`，绑定票号、取证 `sourceCommit` 与开会话时的评论水印；取证提交变化、记录损坏或水印后出现退回时旧会话改名 `main-session.retired-<k>.json` 作废，另起新会话重跑分级考古，不在新检出上续接旧历史。起草中断后重入且会话有效时，沿用已落盘分级与考古，在同一会话继续起草。模型工具仍只读，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
+起草不另起上下文（#1742 F4）。分级考古所在的本票 MAIN 会话经宿主校验分级后，用 Claude CLI `--resume <id>` 续接起草，上文的工具调用与结果都留在历史里；首稿用该会话当前模型（默认 `gpt-6.1-sol`）。会话记在 `<票号>/main-session.json`，绑定票号、取证 `sourceCommit` 与开会话时的评论水印；取证提交变化、记录损坏或水印后出现退回时旧会话改名 `main-session.retired-<k>.json` 作废，对应 `classify.json` 同时改名 `classify.retired-<k>.json` 留档，另起新会话重新联合分级考古，不在新检出上续接旧历史。起草中断后重入且会话有效时，沿用已落盘分级与考古，在同一会话继续起草。live 认领前先校验本票 MAIN 会话；若上次取消认领失败，仅当前唯一 assignee 是本人且存在有效恢复记录时允许续做，不重加 assignee。其他人的认领或别票会话不能据此放行。模型工具仍只读，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
 
 权威依据逐条带可回查位置：`docs/chanlun/text/blog/<课>.md:<行>`、ADR 路径、票评论链接。引原文按 AGENTS.md 四步核行号、逐字、作者归属、行内注。验收清单每项必须是命令、测试名、文件存在或票状态之一。
 

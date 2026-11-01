@@ -567,7 +567,7 @@ def test_v2_cancel_runs_under_ticket_action_lock(tmp_path, monkeypatch):
         return {'identity': binding.identity, 'package_id': 'p1', 'state': 'running'}
     cli.handlers['exec'] = remote
     assert cancel_worker(bound, 'author', v2.base) == 0
-    assert len(cancelled) == 1 and actions == ['dispatch']
+    assert len(cancelled) == 1 and actions == ['cancel']
     unbound = PilotRun.open(v2.home, unit.run_id, source_repo=v2.source)
     calls = len(cli.calls)
     assert unbound.status()['workers'][key.name] == {'fact': 'running'}
@@ -677,3 +677,76 @@ def test_remote_deadline_writes_receipt_before_vm_stop(tmp_path, monkeypatch):
     assert time.monotonic() - started < 20
     assert launches(tmp_path) == ['npm', 'node']
     assert not (root.parent / 'private/model-key').exists()
+
+
+@pytest.mark.parametrize('revocation', ['closed', 'label_removed', 'halted', 'released'])
+def test_cancel_after_revocation_still_stops_original_boat(tmp_path, monkeypatch, revocation):
+    from v2env import TICKET, V2Env
+
+    from pilot1742 import boat_execution
+    from pilot1742.claims import ClaimStore, advance
+    from pilot1742.cli import cancel_worker
+    from pilot1742.run import PilotRun
+
+    v2 = V2Env(tmp_path)
+    unit = v2.register()
+    run = v2.run(unit)
+    run.release()
+    spec = json.loads((run.dir / 'run.json').read_text())
+    spec['execution'] = {'backend': 'boat', 'config': config(), 'runtime_head': v2.base}
+    (run.dir / 'run.json').write_text(json.dumps(spec))
+    cli = FakeBoat(info={'state': 'running'})
+    monkeypatch.setattr(boat_execution, 'BoatCLI', lambda: cli)
+    bound = PilotRun.open(v2.home, unit.run_id, executor=v2.executor(unit), source_repo=v2.source)
+    key = WorkerKey(unit.run_id, 'author', v2.base)
+    binding = BoatBinding(bound.execution._identity(key), 'vm', 'p1', '/home/user/x/p1',
+                          'submitted', sandbox_id='bx_abc')
+    bound.execution._store(key, binding)
+    cli.handlers['exec'] = {'identity': binding.identity, 'package_id': 'p1', 'state': 'running'}
+    if revocation == 'closed':
+        v2.github.issues[TICKET]['state'] = 'closed'
+    elif revocation == 'label_removed':
+        v2.github.issues[TICKET]['labels'].remove('deepagents')
+    else:
+        with ClaimStore(v2.claims_root).locked(TICKET) as txn:
+            txn.write(advance(txn.record, 'halt' if revocation == 'halted' else 'release'))
+    before = v2.writes()
+    assert cancel_worker(bound, 'author', v2.base) == 0
+    assert sum(c[0] == 'exec' and ' cancel ' in c[1] for c in cli.calls) == 1
+    assert v2.writes() == before
+    assert not (bound._key_dir(key) / 'result.json').exists()
+
+
+def test_cancel_never_relaunches_unclaimed_submission(env):
+    cli = FakeBoat(info={'state': 'running'}, history=[{'commands': []}])
+    run, engine, key, binding = adapter(env, cli, submission='submitting')
+    cli.handlers['exec'] = {'identity': binding.identity, 'package_id': 'p1', 'state': 'unclaimed'}
+    assert isinstance(engine.cancel(key), EffectUnknown)
+    assert not any(c[0] == 'detach' for c in cli.calls)
+    assert engine.load(key).submission == 'submitting'
+    run.release()
+
+
+def test_cancel_keeps_completed_receipt_without_importing_artifacts(env):
+    run, engine, key, binding = adapter(env)
+    engine._store(key, replace(binding, stop_id='already-stopped'))
+    save(engine._path(key, '.remote.json'), payload(run, engine, key,
+         [dict(path='demo/not-imported', mode='100644', content='YQ==')]))
+    assert isinstance(engine.cancel(key), EffectUnknown)
+    assert engine.cli.calls == []
+    assert not (Path(run.spec.author_checkout) / 'demo/not-imported').exists()
+    assert not (run._key_dir(key) / 'result.json').exists()
+    run.release()
+
+
+@pytest.mark.parametrize('cached', [False, True])
+def test_cancel_rejects_foreign_remote_before_any_stop(env, cached):
+    run, engine, key, binding = adapter(env)
+    foreign = {'identity': {**binding.identity, 'generation': 99}, 'package_id': 'p1', 'state': 'running'}
+    if cached:
+        save(engine._path(key, '.remote.json'), foreign)
+    else:
+        engine.cli.handlers['exec'] = foreign
+    assert isinstance(engine.cancel(key), EffectUnknown)
+    assert not any(c[0] == 'stop' or (c[0] == 'exec' and ' cancel ' in c[1]) for c in engine.cli.calls)
+    run.release()
