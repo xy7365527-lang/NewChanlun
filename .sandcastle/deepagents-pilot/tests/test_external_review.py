@@ -189,6 +189,26 @@ def test_terminal_receipt_requires_supervision_evidence(lane, mutation):
     assert validate_review(target, launch, receipt, folder).verdict == "FAILED"
 
 
+RECONNECT_CASES = json.loads((Path(__file__).parent / "fixtures" / "codex-reconnect.json").read_text())
+
+
+@pytest.mark.parametrize("scenario", RECONNECT_CASES["cases"], ids=lambda case: case["name"])
+def test_reconnect_protocol_matches_child_supervision(lane, scenario):
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    folder = lane.state_root / "runs" / target.key / MODELS[0]
+    launch = json.loads((folder / "launch.json").read_text())
+    receipt = json.loads((folder / "receipt.json").read_text())
+    session = RECONNECT_CASES["session_id"]
+    events = [{"type": "thread.started", "thread_id": session}, *scenario["events"]]
+    (folder / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n")
+    (folder / "session.jsonl").write_text(json.dumps({"type": "session_meta", "payload": {"id": session}}) + "\n")
+    receipt.update(session_id=session, result=scenario["result"], exit_code=scenario["exit_code"])
+    outcome = validate_review(target, launch, receipt, folder)
+    assert outcome.verdict == scenario["verdict"], outcome.reason
+    assert outcome.session_id == (None if scenario["verdict"] == "FAILED" else session)
+
+
 def test_symlink_session_cannot_prove_pass(lane, tmp_path):
     result = lane.review_pr(1810)
     target = ReviewTarget(**result["target"])

@@ -253,17 +253,30 @@ def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: P
         if not (folder / "events.jsonl").is_file() or (folder / "events.jsonl").is_symlink():
             return failed("缺少宿主 stdout 日志")
         events = [json.loads(line) for line in (folder / "events.jsonl").read_text().splitlines() if line.strip()]
-        if not any(e.get("type") == "turn.completed" for e in events):
-            return failed("stdout 缺少 turn.completed")
-        if any(e.get("type") in ("turn.failed", "turn.cancelled", "error") for e in events):
-            return failed("stdout 有失败终态")
+        turn_completed = False
+        final_text = None
+        for event in events:
+            kind = event.get("type")
+            if kind == "error":
+                reconnect = re.fullmatch(
+                    r"Reconnecting\.\.\. ([1-9]\d*)/([1-9]\d*) \(stream disconnected before completion(?:: [^\r\n]+)?\)",
+                    event.get("message", ""), re.ASCII)
+                if not reconnect or int(reconnect[1]) > int(reconnect[2]):
+                    return failed("stdout 有失败终态")
+                turn_completed, final_text = False, None
+            elif kind in ("turn.failed", "turn.cancelled"):
+                return failed("stdout 有失败终态")
+            elif kind == "turn.completed":
+                turn_completed = True
+            elif kind == "item.completed" and event.get("item", {}).get("type") == "agent_message":
+                final_text = event["item"].get("text")
+        if not turn_completed:
+            return failed("stdout 缺少重连后 turn.completed")
         sessions = {e.get("thread_id") for e in events if e.get("type") == "thread.started"}
         if sessions != {session}:
             return failed("stdout session 不符")
-        finals = [e.get("item", {}).get("text") for e in events if e.get("type") == "item.completed"
-                  and e.get("item", {}).get("type") == "agent_message"]
         output = receipt["result"]
-        if not finals or json.loads(finals[-1]) != output:
+        if final_text is None or json.loads(final_text) != output:
             return failed("结果与监督 stdout 不符")
         if (set(output) != {"status", "summary", "findings", "validation"}
                 or not isinstance(output["summary"], str)

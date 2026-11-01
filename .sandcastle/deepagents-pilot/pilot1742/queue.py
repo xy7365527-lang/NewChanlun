@@ -16,7 +16,14 @@ from .boat_execution import ExecutionUnknown
 from .claims import ClaimStore
 from .cutover import CutoverError, CutoverStore
 from .delivery import RepoGateway
-from .domain import EffectUnknown, Running, parse_key_name, parse_run_id, parse_sha
+from .domain import (
+    EffectUnknown,
+    NotStarted,
+    Running,
+    parse_key_name,
+    parse_run_id,
+    parse_sha,
+)
 from .run import PilotRun, TaskSpec, _ps_rows
 from .workunit import (
     RELEASE_LABEL,
@@ -316,9 +323,16 @@ class QueueIntake:
                     keys.update(parse_key_name(run.spec.run_id, p.stem) for p in (folder / 'boat').glob('*.json')
                                 if '.' not in p.stem)
                 workers = {key: run._observe(key, rows, reconcile=False) for key in keys}
-                pending = [f'{key.name}: {"running" if isinstance(fact, Running) else "effect_unknown: " + fact.reason}'
-                           for key, fact in workers.items() if isinstance(fact, (Running, EffectUnknown))
-                           and not (run.execution is not None and run.execution.is_drained(key))]
+                pending = []
+                for key, fact in workers.items():
+                    if isinstance(fact, NotStarted) and run.execution is None:
+                        continue
+                    if isinstance(fact, (NotStarted, Running, EffectUnknown)):
+                        if run.execution is not None and run.execution.is_drained(key):
+                            continue
+                        reason = ("effect_unknown: " + fact.reason if isinstance(fact, EffectUnknown)
+                                  else "preparing" if isinstance(fact, NotStarted) else "running")
+                        pending.append(f"{key.name}: {reason}")
                 if pending:
                     return f'{folder.name}: worker slot retained: ' + '; '.join(pending)
             except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError) as error:

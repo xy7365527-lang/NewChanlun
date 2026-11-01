@@ -53,7 +53,9 @@ fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使
 
 launchd 不继承交互终端的环境。部署 owner 须在执行器 plist 中填写 `__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__`，并用模板的 `PATH` 核对 `command -v boat` 能找到 CLI。切流命令预览的第 4、5 个参数分别接收这两个路径，详见 [切流部署步骤](../docs/migration-drain-1742.md#将引擎放行交给新执行器)。
 
-只读状态只读本地记录，不访问 Boat、不收集、不进入票级锁：
+只读状态只读本地记录，不访问 Boat、不收集、不进入票级锁。未取消的 `creating` / `prepared` 表示工蜂尚未启动，仍呈现原角色的待执行阶段；主控可从原绑定继续准备与派工。这不代表资源已排空：队列与换代检查另用 `is_drained` 核对 VM、fork intent 及清理证据，准备中的未知资源继续占槽。
+
+查询状态：
 
 ```sh
 python -m pilot1742.executor status --run-id ORIGINAL_RUN
@@ -77,11 +79,13 @@ python -m pilot1742.executor cancel-worker --run-id ORIGINAL_RUN \
   --role author --head FULL_TARGET_SHA --private-key /absolute/app.pem
 ```
 
-v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ... --head ...`。取消只作用于该绑定的远端监督进程。票已关闭、准入撤销或持有变为 `halted`/`released` 后仍可取消；票级锁内核原 run、状态目录与 generation，其他身份被拒。取消不要求继续派工资格，也不会补提交未认领的监督命令。监督器认领前到达的取消直接占住认领并写下“模型任务未启动”的回执；启动下一阶段与取消共用一把锁，取消后不会再启动新阶段。打印的是取消后观察到的事实，仍为 `Running` 时须继续观察。取回终态后删除 key 并停止该 VM。取消入口不把业务产物导入 checkout，回执留在原绑定，业务观察仍返回 `EffectUnknown`。
+v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ... --head ...`。取消只作用于该绑定的远端资源和监督进程。票已关闭、准入撤销或持有变为 `halted`/`released` 后仍可取消；票级锁内核原 run、状态目录与 generation，其他身份被拒。取消不要求继续派工资格，也不会补提交未认领的监督命令。监督器认领前到达的取消直接占住认领并写下“模型任务未启动”的回执；启动下一阶段与取消共用一把锁，取消后不会再启动新阶段。打印的是取消后观察到的事实，仍为 `Running` 时须继续观察。取回终态后删除 key 并停止该 VM。取消入口不把业务产物导入 checkout，回执留在原绑定，业务观察仍返回 `EffectUnknown`。
+
+`creating` / `prepared` 也可能已有 VM 和模型 key。取消先持久化 `cancel_requested` 禁止重派，再按原 VM 删除并确认 key 不存在，保存 `key_erased`，确认 VM 为 `stopped` / `archived` 后才记录 `stop_id` 并返回 `NotStarted`；`stopping` / `archiving` 仍占槽。fork 回包丢失时只按原名称或创建标签查找唯一 VM，不调用 fork。无法唯一定位、key 删除失败或仅收到停止请求受理时保留 `EffectUnknown` 和队列占位；再次取消沿同一绑定继续清理。VM 已停止但没有 key 删除证据时，须显式恢复同一 VM 后再取消，不自动续费。
 
 ### 取消后释放队列槽或换代
 
-手工换代与队列共享只读排空判定。原绑定已记录 `stop_id`，缓存回执的 run、角色、head、generation 和 package 全部匹配，且退出码为明确整数时，再按回执来源检查：
+尚未提交的工蜂在取消入口和只读排空检查中，按上述 key 删除与 VM 停止证据返回 `NotStarted`，不生成业务回执。恢复原工蜂时返回带取消原因的 `EffectUnknown`，驱动写入 `halted` 轨迹，不重新派工；已排空的槽仍可释放或换代。已提交工蜂的手工换代与队列共享只读排空判定。原绑定已记录 `stop_id`，缓存回执的 run、角色、head、generation 和 package 全部匹配，且退出码为明确整数时，再按回执来源检查：
 
 - 工蜂回执必须是 `terminal`，业务状态为 `failed` 或 `cancelled`，`record.process_exit.code` 也是明确整数且与退出码相同；允许两者为 0。进程正常退出后，写集检查等业务校验仍可能判为失败。
 - 监督器取消或非零退出的回执不含 `record`，沿用监督器的 `state=unknown` 格式；明确非零退出码与停止记录共同证明它已排空。只有 `unknown`、没有明确退出码仍不能排空。

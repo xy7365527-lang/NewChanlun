@@ -193,6 +193,8 @@ class BoatBinding:
     command_id: str | None = None
     process_id: int | None = None
     stop_id: str | None = None
+    key_erased: bool = False
+    cancel_requested: bool = False
     create_requested: bool = False
     fork_intent: ForkIntent | None = None
 
@@ -304,6 +306,8 @@ class BoatExecution(WorkerExecution):
         binding = self.load(key) or self._store(key, self._intent(key))
         if binding.submission in ("submitting", "submitted", "collected"):
             return
+        if binding.stop_id or binding.cancel_requested:
+            raise ExecutionUnknown("已取消的Boat绑定不得重新派工")
         if binding.sandbox_id is None:
             self._create_sandbox(key, binding)
             binding = cast(BoatBinding, self.load(key))
@@ -473,7 +477,13 @@ class BoatExecution(WorkerExecution):
 
     def observe(self, key: WorkerKey, *, reconcile: bool = True) -> WorkerFact:
         binding = self.load(key)
-        if binding is None or binding.submission in ("creating", "prepared"):
+        if binding is None:
+            return NotStarted()
+        if binding.submission in ("creating", "prepared"):
+            if reconcile and binding.cancel_requested:
+                return EffectUnknown("Boat工蜂已取消；不得恢复派工，待原绑定清理或换代")
+            if binding.cancel_requested and not self.is_drained(key):
+                return EffectUnknown("Boat准备阶段仍有远端资源或未确认的fork，尚未排空")
             return NotStarted()
         if binding.submission == "collected":
             return self._terminal(key)
@@ -495,7 +505,13 @@ class BoatExecution(WorkerExecution):
     def is_drained(self, key: WorkerKey) -> bool:
         """只读排空证据；失败回执不成为业务 Terminal，也不进入 collect。"""
         binding = self.load(key)
-        if (binding is None or binding.submission not in ("submitting", "submitted")
+        if binding is None:
+            return True
+        if binding.submission in ("creating", "prepared"):
+            return bool((binding.stop_id and binding.key_erased)
+                        or (binding.submission == "creating" and not binding.sandbox_id
+                            and not binding.create_requested and binding.fork_intent is None))
+        if (binding.submission not in ("submitting", "submitted")
                 or not isinstance(binding.stop_id, str) or not binding.stop_id):
             return False
         cache = self._path(key, ".remote.json")
@@ -580,16 +596,25 @@ class BoatExecution(WorkerExecution):
             return Running()
         raise ExecutionUnknown("监督命令已结束但远端没有认领；模型任务未启动，需主控处置")
 
-    def _reclaim(self, key: WorkerKey, binding: BoatBinding) -> None:
-        if binding.stop_id:
+    def _reclaim(self, key: WorkerKey, binding: BoatBinding, *, require_key_erasure: bool = False) -> None:
+        if binding.stop_id and (not require_key_erasure or binding.key_erased):
             return
         info = self.cli.info(cast(str, binding.sandbox_id))
         if info.get("state") in STOPPED_STATES:
+            if require_key_erasure and info["state"] not in ("stopped", "archived"):
+                raise ExecutionUnknown("Boat停止请求已受理但VM停止未确认，保留排空占位")
+            if require_key_erasure and not binding.key_erased:
+                raise ExecutionUnknown("Boat VM已停止但模型key删除未确认；须显式恢复同一VM后清理")
             stop = (info.get("stop") or {}).get("id") or info["state"]
         else:
             key_file = shlex.quote(binding.key_file)
-            self.cli.exec(cast(str, binding.sandbox_id), f"rm -f {key_file}; test ! -e {key_file}; printf '{{}}'")
+            self.cli.exec(cast(str, binding.sandbox_id), f"rm -f {key_file} && test ! -e {key_file} && printf '{{}}'")
+            if require_key_erasure:
+                binding = self._store(key, replace(binding, key_erased=True))
             stop = self.cli.call("stop", cast(str, binding.sandbox_id))[-1]["operation"]["id"]
+            if (require_key_erasure
+                    and self.cli.info(cast(str, binding.sandbox_id)).get("state") not in ("stopped", "archived")):
+                raise ExecutionUnknown("Boat停止请求已受理但VM停止未确认，保留排空占位")
         self._store(key, replace(binding, stop_id=stop))
 
     def collect(self, key: WorkerKey, receipt: dict) -> None:
@@ -666,14 +691,33 @@ class BoatExecution(WorkerExecution):
             artifact[path] = (None if entry["mode"] == "deleted" else data, entry["mode"])
         return artifact
 
+    def _cancel_prelaunch(self, key: WorkerKey, binding: BoatBinding) -> WorkerFact:
+        if not binding.cancel_requested:
+            binding = self._store(key, replace(binding, cancel_requested=True))
+        if binding.stop_id and binding.key_erased:
+            return NotStarted()
+        if binding.sandbox_id is None:
+            if binding.submission == "creating" and not binding.create_requested and binding.fork_intent is None:
+                return NotStarted()
+            matches = [row for row in self.cli.call("list", "--all")[-1].get("sandboxes", [])
+                       if row.get("name") == binding.sandbox_name
+                       or (row.get("labels") or {}).get("newchanlun.worker") == binding.sandbox_name]
+            if len(matches) != 1 or not re.fullmatch(r"bx_[a-z0-9]+", str(matches[0].get("id", ""))):
+                raise ExecutionUnknown("取消未能唯一确认原Boat VM，保留fork intent；不创建新资源")
+            binding = self._store(key, replace(binding, sandbox_id=matches[0]["id"]))
+        self._reclaim(key, binding, require_key_erasure=True)
+        return NotStarted()
+
     def cancel(self, key: WorkerKey) -> WorkerFact:
         binding = self.load(key)
-        if binding is None or binding.submission in ("creating", "prepared"):
+        if binding is None:
             return NotStarted()
         with self.run._fence("cancel"):
             if binding.submission == "collected":
                 return self._terminal(key)
             try:
+                if binding.submission in ("creating", "prepared"):
+                    return self._cancel_prelaunch(key, binding)
                 if not self._path(key, ".remote.json").exists():
                     remote = self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "observe"))
                     if remote.get("identity") != binding.identity or remote.get("package_id") != binding.package_id:
