@@ -35,7 +35,7 @@ use serde_json::{json, Value};
 #[allow(unused_imports, reason = "#1488：8组合探针 BTreeSet 无调用方")]
 use std::collections::BTreeSet;
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(unused_imports, reason = "#1488：HashSet 仅 native 测试使用")
 )]
 use std::collections::HashSet;
@@ -119,11 +119,11 @@ impl Fields {
             .ok_or_else(|| err(format!("原件缺字段{name}")))
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(super) fn text(
@@ -137,11 +137,11 @@ impl Fields {
             .ok_or_else(|| err(format!("{name}不是文本")))
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(super) fn integer(
@@ -164,11 +164,11 @@ impl Fields {
         Ok(())
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
@@ -347,7 +347,7 @@ fn immutable(
 }
 #[cfg(test)]
 #[cfg_attr(
-    all(test, not(feature = "s_capture_native_testonly")),
+    all(test, not(feature = "s_incremental")),
     allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
 )]
 fn raw_withdrawal(e: &Entry, reason: &str, sup: Option<&str>) -> Value {
@@ -740,7 +740,7 @@ pub(super) fn with_legacy_candidate_fields_for_test<T>(f: impl FnOnce() -> T) ->
 
 /// #1394：仅Native联合Public核验成功后，一次绑定当前generated字段。
 /// 首读kind/字段结构的错误可提前拒绝；本片保持Native实现与调用点不变。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn candidate_fields(
     s: &mut (impl CodecStore + ?Sized),
     o: &ProducedObject,
@@ -867,7 +867,7 @@ struct NativeProjection<'capture> {
     wires: sc::CodecVec<[Option<RefValue>; 2]>,
     // 只读事件表与 before-g 成员审计共享；through-g 游标与集合归本 owner。
     sweep: Option<ProjectionSweep>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
 }
 impl NativeProjection<'_> {
@@ -879,7 +879,7 @@ impl NativeProjection<'_> {
         wire: &RefValue,
     ) -> Result<(), String> {
         let saved = s.native_ref_clone(wire).map_err(err)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             if let Some(old) = &self.wires[ordinal][phase] {
                 self.retained.release(old);
@@ -917,8 +917,8 @@ impl NativeProjection<'_> {
 }
 impl HistoryObjects<'_> {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
         self.native_sweep_admitted(&super::audit_store::NativeAdmission(None))
@@ -946,14 +946,14 @@ impl HistoryObjects<'_> {
         self.layout
     }
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
-        allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+        feature = "s_incremental",
+        allow(dead_code, reason = "#1608：s_incremental 构建不触达此项")
     )]
     pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
         self.entries
     }
     /// 归属随连接移动；事件Arc只借给在途facade，返回后保持唯一可增长的事件所有者。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn into_entries_preserving(
         mut self,
         owner: &mut Option<HistorySweep>,
@@ -973,6 +973,22 @@ impl HistoryObjects<'_> {
             }
         }
         self.entries
+    }
+
+    pub(super) fn at_cut_bound_births(
+        &mut self,
+        tx: &Transaction<'_>,
+        s: &mut super::history::HashReader<'_>,
+        g: i64,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<(Built, Built, Built), String> {
+        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?
+            || !s.ordinary_bound_births_qualified()
+            || self.native.is_some()
+        {
+            return Err(err("出生根复用不属于普通只读完整索引上下文"));
+        }
+        at_cut_projected_bound(s, self.layout, &self.entries, g, budget, None, true)
     }
 
     pub(super) fn at_cut(
@@ -1130,11 +1146,8 @@ impl HistoryObjects<'_> {
     // #1394冻结旧扫描算法，只作合法生命周期对照，不接生产失败分支。
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     fn native_dual_at_cut_scan_for_test(
         &mut self,
@@ -1270,7 +1283,18 @@ fn at_cut_projected(
     index: &[Entry],
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
+    native: Option<&mut NativeProjection<'_>>,
+) -> Result<(Built, Built, Built), String> {
+    at_cut_projected_bound(s, layout, index, g, budget, native, false)
+}
+fn at_cut_projected_bound(
+    s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
+    index: &[Entry],
+    g: i64,
+    budget: Option<&dyn super::audit_budget::Budget>,
     mut native: Option<&mut NativeProjection<'_>>,
+    bound_births: bool,
 ) -> Result<(Built, Built, Built), String> {
     let allocation = s.allocation_budget();
     let mut active = bj::new_work(allocation.as_ref());
@@ -1311,6 +1335,17 @@ fn at_cut_projected(
             }
             let wire = match native.as_deref_mut() {
                 Some(native) => native.wire(s, e, ordinal, g)?,
+                None if bound_births => {
+                    let life = effective_life(e, g)?;
+                    object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
+                    if life.withdrawn_generation.is_none()
+                        && matches!(e.life.view().batch, BatchView::Existing(_))
+                    {
+                        s.native_ref_clone(&e.birth_wire).map_err(err)?
+                    } else {
+                        wire_at(s, e, g)?
+                    }
+                }
                 None => wire_at(s, e, g)?,
             };
             refs.try_push(wire).map_err(err)?;
@@ -1366,8 +1401,8 @@ pub(super) fn plan_for_layout(
 /// #1394：只由Runtime显式CapturedNative模式选择，预算存在时拒绝。
 /// 联合核验同事务生成完成的Public根，先于任何candidate wire/immutable写入。
 /// 多处坏状态或wire故障的首报次序可改变，不扩至默认/Owned/Job路径。
-#[cfg(feature = "s_capture_native_testonly")]
-pub(super) fn plan_native_union_for_testonly(
+#[cfg(feature = "s_incremental")]
+pub(super) fn plan_native_union(
     s: &mut (impl CodecStore + ?Sized),
     layout: Layout,
     objects: &[ProducedObject],
@@ -1854,8 +1889,8 @@ pub(super) fn load(
     )
 }
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
@@ -1898,7 +1933,7 @@ pub(super) fn load_for_history<'capture>(
             capture,
             wires,
             sweep: events.map(ProjectionSweep::from_events),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
         })
     } else {
@@ -2089,7 +2124,7 @@ fn validate_withdrawal_target(
     Ok(())
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn update_from_owner(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
@@ -2193,7 +2228,7 @@ pub(super) fn update_from_owner(
     }
     Ok(())
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn restore_for_owner<'a>(
     entries: sc::CodecVec<Entry>,
     layout: Layout,
@@ -2268,7 +2303,7 @@ pub(super) fn prior_records(index: &[Entry]) -> Result<(Vec<Built>, Option<Built
     Ok((bi, version))
 }
 #[cfg_attr(
-    all(not(test), feature = "s_capture_native_testonly"),
+    all(not(test), feature = "s_incremental"),
     allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
 )]
 pub(super) fn stage(
@@ -2282,7 +2317,7 @@ pub(super) fn stage(
         s,
         p,
         batch,
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         None,
     )
 }
@@ -2291,7 +2326,7 @@ pub(super) fn stage_in_material(
     s: &mut (impl CodecStore + ?Sized),
     p: &Plan,
     batch: &str,
-    #[cfg(feature = "s_capture_native_testonly")] material: Option<
+    #[cfg(feature = "s_incremental")] material: Option<
         &super::audit_owner::MaterialAccess<'_, '_, '_>,
     >,
 ) -> Result<(), String> {
@@ -2300,7 +2335,7 @@ pub(super) fn stage_in_material(
         {
             return Err(err("新生上下文不符"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
             tx,
             super::audit_owner::StageKind::ObjectBirth,
@@ -2315,11 +2350,11 @@ pub(super) fn stage_in_material(
             Slot::Typed { fact_key, .. } => (Some(fact_key.as_str()), None),
         };
         tx.execute("INSERT INTO s_content_objects VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?13,NULL,NULL,NULL)",params![e.id,e.revision,e.kind,fact,w.map(|v|v[0]),w.map(|v|v[1]),w.map(|v|v[2]),e.generated.digest.as_slice(),e.internal.digest.as_slice(),e.immutable.digest.as_slice(),wire.digest().map_err(err)?.as_slice(),batch,p.generation,format!("cut-{}",p.generation)]).map_err(err)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     for w in bj::RawEventsView::from(&p.withdrawals) {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
             tx,
             super::audit_owner::StageKind::ObjectWithdrawal,
@@ -2328,7 +2363,7 @@ pub(super) fn stage_in_material(
         if changed != 1 {
             return Err(err("撤回身份缺失或已撤回"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     Ok(())
@@ -2479,11 +2514,8 @@ struct HistoryEvents {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     (
@@ -2493,11 +2525,8 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())
@@ -2618,19 +2647,18 @@ fn insert_rank(
     rank: PublicRank,
     ordinal: usize,
     store: &(impl CodecRead + ?Sized),
-    #[cfg(feature = "s_capture_native_testonly")]
-    retained: &mut super::audit_retention::RetainedDelta,
+    #[cfg(feature = "s_incremental")] retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
     let key = (rank, ordinal);
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let (before, fresh) = (set.allocation_bytes(), !set.contains_key(&key));
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let bytes = {
         use super::audit_retention::Retained;
         key.heap_bytes()
     };
     set.insert_admitted(key, (), store).map_err(err)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     {
         if fresh {
             retained.add_bytes(bytes);
@@ -2643,11 +2671,10 @@ fn remove_rank(
     set: &mut RankSet,
     rank: PublicRank,
     ordinal: usize,
-    #[cfg(feature = "s_capture_native_testonly")]
-    retained: &mut super::audit_retention::RetainedDelta,
+    #[cfg(feature = "s_incremental")] retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
     let key = (rank, ordinal);
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let before = set.allocation_bytes();
     // #1491 独审 LOW-1：出集键由当场生命期取得；键缺失说明入集与出集取键不一致（如撤回代被
     // 改写），留下陈旧成员会静默改变公开数组，故 fail-closed。
@@ -2656,13 +2683,13 @@ fn remove_rank(
             "RankSet出集键不存在（序号 {ordinal}）：入集与出集取键不一致"
         )));
     };
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained.release(&old);
     drop(old);
     if set.is_empty() {
         set.clear();
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained.release_bytes(before.saturating_sub(set.allocation_bytes()));
     Ok(())
 }
@@ -2671,9 +2698,9 @@ pub(super) struct HistorySweep {
     events: NativeArc<HistoryEvents>,
     active: RankSet,
     previous: i64,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     projection: Option<OwnerProjection>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
     visits: SweepVisits,
@@ -2705,7 +2732,7 @@ impl HistorySweep {
                     diff_rank(&self.events.ranks[*i], store)?,
                     *i,
                     store,
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     &mut self.retained,
                 )?;
                 #[cfg(test)]
@@ -2720,7 +2747,7 @@ impl HistorySweep {
                     &mut self.active,
                     diff_rank(&self.events.ranks[*i], store)?,
                     *i,
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     &mut self.retained,
                 )?;
                 #[cfg(test)]
@@ -2732,7 +2759,7 @@ impl HistorySweep {
         self.previous = g;
         Ok(())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn take_retained_delta(&mut self) -> super::audit_retention::RetainedDelta {
         std::mem::take(&mut self.retained)
     }
@@ -2758,13 +2785,13 @@ impl HistorySweep {
             events,
             active: Default::default(),
             previous: 0,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             projection: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
         }
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn assert_owner_projection_oracle(&self, latest: i64) {
         if let Some(p) = &self.projection {
             assert_eq!(p.previous_cut, (latest > 0).then_some(latest));
@@ -2839,7 +2866,7 @@ impl HistorySweep {
         Ok((withdrawals.finish(), replaces.finish()))
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct OwnerProjection {
     wires: sc::CodecVec<[Option<RefValue>; 2]>,
     active: RankSet,
@@ -2854,7 +2881,7 @@ struct ProjectionSweep {
     active: RankSet,
     withdrawn: RankSet,
     previous_cut: Option<i64>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
     visits: ProjectionVisits,
@@ -2891,7 +2918,7 @@ impl ProjectionSweep {
                         native_rank(layout, &index[*i], false, store)?,
                         *i,
                         store,
-                        #[cfg(feature = "s_capture_native_testonly")]
+                        #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
                     #[cfg(test)]
@@ -2906,7 +2933,7 @@ impl ProjectionSweep {
                         &mut self.active,
                         native_rank(layout, &index[*i], false, store)?,
                         *i,
-                        #[cfg(feature = "s_capture_native_testonly")]
+                        #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
                     insert_rank(
@@ -2914,7 +2941,7 @@ impl ProjectionSweep {
                         native_rank(layout, &index[*i], true, store)?,
                         *i,
                         store,
-                        #[cfg(feature = "s_capture_native_testonly")]
+                        #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
                     #[cfg(test)]
@@ -2932,7 +2959,7 @@ impl ProjectionSweep {
                         &mut self.withdrawn,
                         native_rank(layout, &index[*i], true, store)?,
                         *i,
-                        #[cfg(feature = "s_capture_native_testonly")]
+                        #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
                     insert_rank(
@@ -2940,7 +2967,7 @@ impl ProjectionSweep {
                         native_rank(layout, &index[*i], false, store)?,
                         *i,
                         store,
-                        #[cfg(feature = "s_capture_native_testonly")]
+                        #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
                     #[cfg(test)]
@@ -2955,7 +2982,7 @@ impl ProjectionSweep {
                         &mut self.active,
                         native_rank(layout, &index[*i], false, store)?,
                         *i,
-                        #[cfg(feature = "s_capture_native_testonly")]
+                        #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
                     #[cfg(test)]
@@ -2970,7 +2997,7 @@ impl ProjectionSweep {
     }
     #[cfg(test)]
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     fn new(index: &[Entry]) -> Self {
@@ -2988,7 +3015,7 @@ impl ProjectionSweep {
             active: Default::default(),
             withdrawn: Default::default(),
             previous_cut: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
             #[cfg(test)]
             visits: ProjectionVisits::default(),
@@ -2996,7 +3023,7 @@ impl ProjectionSweep {
     }
     #[cfg(test)]
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     fn seek(&mut self, g: i64, layout: Layout, index: &[Entry]) {
@@ -3048,13 +3075,16 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
     }
     let mut seen = bj::new_map(allocation.as_ref());
     let mut new = bj::new_work(allocation.as_ref());
-    let items = if s.audit_full_array_scan() {
+    let mut cursor = s.array_cursor(objects.view()).map_err(err)?;
+    let items = if cursor.is_none() && s.audit_full_array_scan() {
         Some(s.lookup_array_ref(objects.view()).map_err(err)?)
     } else {
         None
     };
     for n in 0..objects.extent().ok_or_else(|| err("生成集缺长度"))? {
-        let object = if let Some(items) = &items {
+        let object = if let Some(cursor) = &mut cursor {
+            s.next_array_member(cursor).map_err(err)?
+        } else if let Some(items) = &items {
             s.native_ref_clone(&items[n as usize]).map_err(err)?
         } else {
             s.lookup_ref(objects.view(), &[PathStep::Index(n)])
@@ -3771,10 +3801,7 @@ mod tests {
             assert!(!budget.ledger_health().invariant_broken);
         }
     }
-    #[cfg(all(
-        feature = "s_allocation_json_testonly",
-        feature = "s_capture_native_testonly"
-    ))]
+    #[cfg(all(feature = "s_allocation_json_testonly", feature = "s_incremental"))]
     #[test]
     fn cold_object_by_id_owned_load_matches_normal_and_releases() {
         let mut fixture = super::super::prepared::tests::Fixture::new();
@@ -3836,13 +3863,13 @@ mod tests {
     thread_local! {
         pub(super) static SHAPE_LEAF_CHECKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn leaf_checks<T>(action: impl FnOnce() -> T) -> (T, usize) {
         SHAPE_LEAF_CHECKS.with(|checks| checks.set(0));
         let result = action();
         (result, SHAPE_LEAF_CHECKS.with(std::cell::Cell::get))
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn shape_leaf_fixture(tx: &Transaction<'_>) -> (sc::MemoryNodes, sc::CodecVec<Entry>) {
         let (mut nodes, objects) = native_candidate_fixture();
         let p = plan(&mut nodes, &objects, &[], 1).unwrap();
@@ -3850,7 +3877,7 @@ mod tests {
         let entries = load(tx, &mut nodes, 1).unwrap();
         (nodes, entries)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn shape_leaf_pairs(
         nodes: &mut sc::MemoryNodes,
         entries: &[Entry],
@@ -3887,7 +3914,7 @@ mod tests {
         }
         pairs
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_shape_leaf_real_load_reuses_across_distinct_births_and_excludes_gates() {
         let mut c = database();
@@ -3960,7 +3987,7 @@ mod tests {
             "Native shape leaf real load: checks ordinary={ordinary_checks} native={native_checks}; distinct birth entries share source leaves"
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_shape_leaf_real_load_rejects_changed_projection_and_shared_entry_damage() {
         let mut c = database();
@@ -4052,7 +4079,7 @@ mod tests {
             .unwrap()
             .contains(sc::code::NODE_DIGEST));
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_shape_leaf_complete_declarations_error_clear_and_capture_owned_closure() {
         let mut c = database();
@@ -4158,7 +4185,7 @@ mod tests {
             "withdrawals":p.withdrawals,"replaces":p.replaces,
             "active":RefValue::from(p.active.content_ref()),"withdrawn":RefValue::from(p.withdrawn.content_ref()),"upserts":RefValue::from(p.upserts.content_ref())})
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn candidate_union_old_fields_for_test(
         s: &mut (impl CodecStore + ?Sized),
         objects: &[ProducedObject],
@@ -4324,7 +4351,7 @@ mod tests {
     }
 
     // 组件级lookup注入：真实合法F的另一份generated视图；不声称完整S坏输入端到端。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     struct CandidateFieldsProbe {
         inner: CandidateProbe,
         generated_root: NodeDigest,
@@ -4333,7 +4360,7 @@ mod tests {
         read_digests: Vec<NodeDigest>,
         put_digests: Vec<NodeDigest>,
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl CandidateFieldsProbe {
         fn current(&self, r: &ContentRef) -> ContentRef {
             if r.digest().unwrap() == self.generated_root {
@@ -4343,21 +4370,21 @@ mod tests {
             }
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl NodeSource for CandidateFieldsProbe {
         fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
             self.read_digests.push(*d);
             self.inner.read(d)
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl NodeSink for CandidateFieldsProbe {
         fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
             self.put_digests.push(d);
             self.inner.put(d, t, b)
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl CodecRead for CandidateFieldsProbe {
         fn lookup_field_ref(
             &mut self,
@@ -4409,13 +4436,13 @@ mod tests {
             sc::path::lookup_object_fields(self, &current, names).map(sc::CodecFields::from_plain)
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl CodecStore for CandidateFieldsProbe {
         fn generic_store(&mut self) -> &mut dyn NodeStore {
             self
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn candidate_fields_probe_for_test(
         nodes: sc::MemoryNodes,
         root: NodeDigest,
@@ -4433,7 +4460,7 @@ mod tests {
             put_digests: Vec::new(),
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_candidate_fields_component_exact_metadata_slot_and_late_null_gates() {
         let (nodes, objects) = native_candidate_fixture();
@@ -4560,7 +4587,7 @@ mod tests {
             }
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_candidate_fields_internal_record_json_edge_gate_and_real_wire_sql_failure() {
         let (mut nodes, objects) = native_candidate_fixture();
@@ -4637,7 +4664,7 @@ mod tests {
         }
         let before = candidate_sql_material_for_test(&tx);
         tx.execute_batch("CREATE TEMP TRIGGER candidate_fields_wire_sql_fault BEFORE INSERT ON s_content_nodes WHEN NEW.tag=8 BEGIN SELECT RAISE(ABORT,'candidate_fields_wire_SQL_fault'); END;").unwrap();
-        let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, &objects, &[], 1)
+        let error = plan_native_union(&mut store, Layout::Sorted, &objects, &[], 1)
             .err()
             .unwrap();
         assert!(error.contains("candidate_fields_wire_SQL_fault"), "{error}");
@@ -4654,7 +4681,7 @@ mod tests {
             0
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_candidate_union_second_root_errors_have_no_put_or_future_wire_repair_and_budget_refuses(
     ) {
@@ -4713,7 +4740,7 @@ mod tests {
                 _ => unreachable!(),
             }
             sc::audit_verify_public(&mut store.nodes, &first).unwrap();
-            let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, objects, &[], 1)
+            let error = plan_native_union(&mut store, Layout::Sorted, objects, &[], 1)
                 .err()
                 .unwrap();
             assert!(error.contains(code), "{fault}: {error}");
@@ -4738,8 +4765,7 @@ mod tests {
             nodes: nodes.clone(),
             ..Default::default()
         };
-        let actual =
-            plan_native_union_for_testonly(&mut native, Layout::Sorted, objects, &[], 1).unwrap();
+        let actual = plan_native_union(&mut native, Layout::Sorted, objects, &[], 1).unwrap();
         assert_eq!(
             candidate_plan_signature(&actual),
             candidate_plan_signature(&expected)
@@ -4755,7 +4781,7 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            plan_native_union_for_testonly(&mut mixed, Layout::Sorted, objects, &[], 1)
+            plan_native_union(&mut mixed, Layout::Sorted, objects, &[], 1)
                 .err()
                 .unwrap()
                 .contains("拒绝allocation预算")
@@ -4765,7 +4791,7 @@ mod tests {
             (0, 0, 0, 0)
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_candidate_union_real_generations_match_plan_and_reduce_sql_reads() {
         real_generations(false, true, true);
@@ -5007,7 +5033,7 @@ mod tests {
         sc::render_refview(s, r, &mut b).unwrap();
         serde_json::from_slice(&b).unwrap()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn projection_reachable_material(
         source: &mut dyn NodeSource,
         root: &Built,
@@ -5106,7 +5132,7 @@ mod tests {
         (nodes, entries)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn plan_input_fixture(shape_replacement: bool) -> (sc::MemoryNodes, Vec<Entry>, Entry) {
         let (nodes, entries) = projection_fixture();
         let mut old = entries[..2]
@@ -5124,7 +5150,7 @@ mod tests {
         (nodes, old, fresh)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn admitted_plan_candidate(
         store: &(impl CodecRead + ?Sized),
         fresh: &Entry,
@@ -5136,7 +5162,7 @@ mod tests {
         Ok(new)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_plan_owners_outlive_scope_and_match_independent_change_rows() {
         for shape_replacement in [false, true] {
@@ -5232,7 +5258,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_plan_late_missing_wire_releases_partial_plan_without_mutating_input() {
         let (_, old, fresh) = plan_input_fixture(true);
@@ -5259,7 +5285,7 @@ mod tests {
         assert_eq!(budget.live(), baseline, "失败局部的所有许可必须回收");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_plan_capacity_refusal_preserves_input_and_budget() {
         let (_, old, _) = plan_input_fixture(false);
@@ -5285,7 +5311,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_changes_use_current_scope_and_return_owned_json_permits() {
         let (_, entries) = projection_fixture();
@@ -5315,7 +5341,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_event_owners_share_once_and_release_after_last_scope_owner() {
         let (_, entries) = projection_fixture();
@@ -5351,7 +5377,7 @@ mod tests {
         assert_eq!(budget.live(), baseline, "末个owner销毁才归还全部原许可");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_event_cursors_admitted_cuts_match_scan_and_drop_to_baseline() {
         use super::super::audit_retention::Retained;
@@ -5410,7 +5436,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_event_failed_consuming_candidate_drops_cursor_and_all_permits() {
         let (_, entries) = projection_fixture();
@@ -5436,7 +5462,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_event_failed_wire_replacement_preserves_saved_owner() {
         let (_, entries) = projection_fixture();
@@ -5611,7 +5637,7 @@ mod tests {
         assert!(error.contains("缺撤回代"), "{error}");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn cold_relation_index_sort_ties_keep_complete_projection_roots() {
         let (mut nodes, entries) = projection_fixture();
@@ -5647,7 +5673,7 @@ mod tests {
         assert_eq!(sweep.events.sort_passes, 2);
         assert_eq!(sweep.events.initial_entries, entries.len());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn projection_memo(capture: &sc::AuditCapture, count: usize) -> NativeProjection<'_> {
         NativeProjection {
             capture,
@@ -5656,13 +5682,13 @@ mod tests {
             retained: Default::default(),
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[derive(Default)]
     struct RecordMeter {
         records: std::cell::Cell<usize>,
         stop: bool,
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl super::super::audit_budget::Budget for RecordMeter {
         fn precheck(&self) -> Result<(), sc::CodecError> {
             Ok(())
@@ -5685,7 +5711,7 @@ mod tests {
             }
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_endpoints_sort_ties_records_and_overlay_lifetime() {
         let (mut nodes, entries) = projection_fixture();
@@ -5776,7 +5802,74 @@ mod tests {
             "记录门必须在命中前拒绝"
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn history_public_coverage_ordinary_bound_births_sorted_insert_withdraw_revision_matches_full_projection(
+    ) {
+        let (mut nodes, entries) = projection_fixture();
+        for g in [1, 2, 3, 4, 2] {
+            let expected = at_cut_metered(&mut nodes, Layout::Sorted, &entries, g, None).unwrap();
+            WIRE_PROJECTIONS.with(|v| v.set(0));
+            let actual =
+                at_cut_projected_bound(&mut nodes, Layout::Sorted, &entries, g, None, None, true)
+                    .unwrap();
+            assert_eq!(actual, expected, "cut={g}");
+            let deaths = entries
+                .iter()
+                .filter(|e| e.life.withdrawn_generation.is_some_and(|d| d <= g))
+                .count();
+            assert_eq!(WIRE_PROJECTIONS.with(|v| v.get()), deaths);
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn history_public_coverage_ordinary_bound_births_preserves_record_budget_before_reuse() {
+        let (mut nodes, entries) = projection_fixture();
+        let old_meter = RecordMeter::default();
+        let new_meter = RecordMeter::default();
+        let old =
+            at_cut_metered(&mut nodes, Layout::Sorted, &entries, 3, Some(&old_meter)).unwrap();
+        let new = at_cut_projected_bound(
+            &mut nodes,
+            Layout::Sorted,
+            &entries,
+            3,
+            Some(&new_meter),
+            None,
+            true,
+        )
+        .unwrap();
+        assert_eq!(new, old);
+        assert_eq!(new_meter.records.get(), old_meter.records.get());
+        let stop = RecordMeter {
+            records: std::cell::Cell::new(0),
+            stop: true,
+        };
+        assert!(at_cut_projected_bound(
+            &mut nodes,
+            Layout::Sorted,
+            &entries,
+            3,
+            Some(&stop),
+            None,
+            true,
+        )
+        .unwrap_err()
+        .contains("record_stop"));
+        assert_eq!(stop.records.get(), 1);
+    }
+
+    #[test]
+    fn history_public_coverage_ordinary_bound_births_keeps_life_first_error() {
+        let (mut nodes, mut entries) = projection_fixture();
+        entries[0].life.published_generation = 10;
+        let old = at_cut_metered(&mut nodes, Layout::Sorted, &entries, 1, None).unwrap_err();
+        let new = at_cut_projected_bound(&mut nodes, Layout::Sorted, &entries, 1, None, None, true)
+            .unwrap_err();
+        assert_eq!(new, old);
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_life_checked_on_hits_and_first_failure_not_cached() {
         let (nodes, mut entries) = projection_fixture();
@@ -5813,7 +5906,7 @@ mod tests {
             assert!(memo.wires[1].iter().all(Option::is_none));
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_missing_corrupt_or_overlay_only_closure_never_cached() {
         let (nodes, entries) = projection_fixture();
@@ -5868,21 +5961,60 @@ mod tests {
         v
     }
     #[test]
+    fn history_public_coverage_bound_births_entry_routes() {
+        let mut fixture = crate::v3::prepared::tests::Fixture::new();
+        let mut readonly = Connection::open_with_flags(
+            fixture.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let tx = readonly.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = crate::v3::history::HashReader::new(&mut source);
+        let mut loaded = load_for_history(&tx, &mut reader, 0).unwrap();
+        loaded
+            .at_cut_bound_births(&tx, &mut reader, 0, None)
+            .unwrap();
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let mut captured =
+            crate::v3::history::HashReader::captured_for_audit(&capture, None).unwrap();
+        assert!(loaded
+            .at_cut_bound_births(&tx, &mut captured, 0, None)
+            .is_err());
+        #[cfg(feature = "s_incremental")]
+        {
+            captured.enable_full_arrays_for_test();
+            let mut native = load_for_history(&tx, &mut captured, 0).unwrap();
+            assert!(native.native.is_some());
+            assert!(native
+                .at_cut_bound_births(&tx, &mut reader, 0, None)
+                .is_err());
+        }
+        let writable = fixture.conn.transaction().unwrap();
+        assert!(loaded
+            .at_cut_bound_births(&writable, &mut reader, 0, None)
+            .is_err());
+    }
+    #[test]
+    fn history_public_coverage_complete_load_real_generations() {
+        real_generations(false, false, true);
+    }
+    #[test]
     fn three_real_generations_match_shared_diff_and_preserve_historical_cut_and_prior() {
         real_generations(false, false, true);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_real_generations_reuse_exact_wire_after_overlay_clear() {
         real_generations(true, false, true);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_projection_sweep_positive_real_generations_complete_roots_and_material() {
         // 唯一false入口：真实输入正常追加/修订；不进入旧混合候选或负例分支。
         real_generations(true, false, false);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn projection_sweep_positive_event_counts(index: &[Entry]) {
         use crate::v3::audit_retention::Retained;
         // 调用方传入经过完整load的真实索引，绝不使用旧抽象death==birth夹具。
@@ -5989,7 +6121,7 @@ mod tests {
         native_union: bool,
         include_legacy_negative_cases: bool,
     ) {
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let _ = native_projection;
         let files = TestFiles::new();
         init_test_db(&files);
@@ -6119,7 +6251,7 @@ mod tests {
                 crate::delta_storage::Mode::ChangesOnly,
             )
             .unwrap();
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             if include_legacy_negative_cases && native_union && g == 1 {
                 let root = generated.objects[1].generated().digest;
                 let before_nodes: i64 = tx
@@ -6133,15 +6265,9 @@ mod tests {
                 )
                 .unwrap();
                 tx.execute_batch("CREATE TEMP TRIGGER candidate_union_insert_fault BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(ABORT,'unexpected_candidate_put_before_union_reject'); END;").unwrap();
-                let error = plan_native_union_for_testonly(
-                    &mut s,
-                    Layout::Sorted,
-                    &generated.objects,
-                    &old,
-                    g,
-                )
-                .err()
-                .unwrap();
+                let error = plan_native_union(&mut s, Layout::Sorted, &generated.objects, &old, g)
+                    .err()
+                    .unwrap();
                 assert!(
                     error.contains(sc::code::NODE_DIGEST),
                     "先拒坏完整Public root，未触candidate INSERT：{error}"
@@ -6160,7 +6286,7 @@ mod tests {
             let reads_before = content_store::sql_reads_on_thread();
             let p = plan(&mut s, &generated.objects, &old, g).unwrap();
             let ordinary_reads = content_store::sql_reads_on_thread() - reads_before;
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             let p = if native_union {
                 let reads_before = content_store::sql_reads_on_thread();
                 let old_union =
@@ -6168,14 +6294,8 @@ mod tests {
                 let old_union_reads = content_store::sql_reads_on_thread() - reads_before;
                 let old_union_material = candidate_sql_material_for_test(&tx);
                 let reads_before = content_store::sql_reads_on_thread();
-                let union = plan_native_union_for_testonly(
-                    &mut s,
-                    Layout::Sorted,
-                    &generated.objects,
-                    &old,
-                    g,
-                )
-                .unwrap();
+                let union =
+                    plan_native_union(&mut s, Layout::Sorted, &generated.objects, &old, g).unwrap();
                 let union_reads = content_store::sql_reads_on_thread() - reads_before;
                 assert_eq!(
                     candidate_plan_signature(&union),
@@ -6208,7 +6328,7 @@ mod tests {
             } else {
                 p
             };
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             let _ = (native_union, ordinary_reads);
             assert_eq!(
                 p.withdrawals.view(),
@@ -6231,6 +6351,11 @@ mod tests {
             let batch = format!("batch3-{}", g.to_string().repeat(64));
             stage(&tx, &mut s, &p, &batch).unwrap();
             let stored = load(&tx, &mut s, g).unwrap();
+            let old_arrays = at_cut_metered(&mut s, Layout::Sorted, &stored, g, None).unwrap();
+            let bound_arrays =
+                at_cut_projected_bound(&mut s, Layout::Sorted, &stored, g, None, None, true)
+                    .unwrap();
+            assert_eq!(bound_arrays, old_arrays, "complete load cut={g}");
             let member_state = sc::write_value(
                 &mut s,
                 &V::Object(vec![(
@@ -6321,7 +6446,7 @@ mod tests {
                     .contains("IdentityConflict"));
             }
             let _ = actual_dead;
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             if native_projection && g == 3 {
                 let capture = content_store::capture_for_prototype(&tx).unwrap();
                 let mut captured = super::super::history::HashReader::captured(&capture, None);
@@ -6477,6 +6602,21 @@ mod tests {
             assert!(load(&tx, &mut s, 3)
                 .unwrap_err()
                 .contains("不可变内容根不符"));
+            drop(s);
+            tx.rollback().unwrap();
+            let tx = conn.transaction().unwrap();
+            let mut s = content_store::TxStore::new(&tx).unwrap();
+            let stored = load(&tx, &mut s, 3).unwrap();
+            let mut wire = value_ref(&mut s, stored[0].birth_wire.view());
+            wire["batch_id"] = json!(format!("batch3-{}", "f".repeat(64)));
+            let bad = sc::write_json_view(&mut s, aj::JsonView::Plain(&wire)).unwrap();
+            tx.execute(
+                "UPDATE s_content_objects SET birth_wire_root=?1 WHERE rowid=(SELECT MIN(rowid) FROM s_content_objects)",
+                params![bad.digest.as_slice()],
+            ).unwrap();
+            assert!(load(&tx, &mut s, 3)
+                .unwrap_err()
+                .contains("出生公开元数据与独立记录不同"));
         }
     }
     #[test]
@@ -6676,7 +6816,7 @@ fn integer_ref(
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};
@@ -6774,5 +6914,90 @@ mod owner_retention {
                 withdrawn.heap_bytes(),
             ])
         }
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl Entry {
+    pub(super) fn h1_canonical(&self) -> Value {
+        fn built(b: &Built) -> Value {
+            json!({"digest":b.digest,"kind":b.kind.name(),"extent":b.extent})
+        }
+        let Self {
+            id,
+            revision,
+            kind,
+            slot,
+            generated,
+            internal,
+            immutable,
+            birth_wire,
+            life,
+        } = self;
+        let LifeOwner {
+            first_known_generation,
+            first_known_cut,
+            published_generation,
+            withdrawn_generation,
+            withdrawal_reason,
+            superseded_by,
+            batch,
+        } = life;
+        let slot = match slot {
+            Slot::Shape(w) => json!(["shape", w]),
+            Slot::Typed { kind, fact_key } => json!(["typed", kind, fact_key]),
+        };
+        let batch = match batch {
+            BatchOwner::CurrentBatch => json!(["current"]),
+            BatchOwner::Existing(s) => json!(["existing", s]),
+        };
+        json!({"id":id,"revision":revision,"kind":kind,"slot":slot,"generated":built(generated),"internal":built(internal),
+            "immutable":built(immutable),"birth_wire":birth_wire,"life":{"first_known_generation":first_known_generation,
+            "first_known_cut":first_known_cut,"published_generation":published_generation,"withdrawn_generation":withdrawn_generation,
+            "withdrawal_reason":withdrawal_reason,"superseded_by":superseded_by,"batch":batch}})
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+impl HistorySweep {
+    pub(super) fn h1_canonical(&self) -> Value {
+        fn rank(r: &NativeRank) -> Value {
+            match r {
+                OrderKey::Shape(n) => json!(["shape", n]),
+                OrderKey::Typed(k, f, i, r) => {
+                    json!(["typed", k.as_str(), f.as_str(), i.as_str(), r])
+                }
+            }
+        }
+        fn set(s: &RankSet) -> Value {
+            json!(s
+                .iter()
+                .map(|(((g, r), i), ())| json!([g, rank(r), i]))
+                .collect::<Vec<_>>())
+        }
+        let Self {
+            events,
+            active,
+            previous,
+            projection,
+            retained: _,
+            visits: _,
+        } = self;
+        let HistoryEvents {
+            by_id,
+            births,
+            deaths,
+            ranks,
+            initial_entries: _,
+            sort_passes: _,
+        } = &**events;
+        let mut by_id = by_id.iter().map(|(k, v)| json!([k, v])).collect::<Vec<_>>();
+        by_id.sort_by_key(crate::canonical_json);
+        let projection = projection.as_ref().map(|p| {
+            let OwnerProjection { wires, active, withdrawn, previous_cut, visits: _ } = p;
+            json!({"wires":wires.as_ref(),"active":set(active),"withdrawn":set(withdrawn),"previous_cut":previous_cut})
+        });
+        json!({"events":{"by_id":by_id,"births":births.iter().map(|(g,v)|json!([g,v.as_ref()])).collect::<Vec<_>>(),
+            "deaths":deaths.iter().map(|(g,v)|json!([g,v.as_ref()])).collect::<Vec<_>>(),"ranks":ranks.iter().map(rank).collect::<Vec<_>>()},
+            "active":set(active),"previous":previous,"projection":projection})
     }
 }

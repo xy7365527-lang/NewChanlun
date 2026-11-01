@@ -33,7 +33,7 @@ impl Layout {
     pub(crate) fn of_library(conn: &rusqlite::Connection) -> Result<Self, String> {
         let rule = crate::meta_get_opt(conn, "rule_revision")?
             .ok_or_else(|| "VersionUnsupported：库缺 meta.rule_revision".to_string())?;
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if let Some(forced) = FORCED_LIBRARY_LAYOUT.with(std::cell::Cell::get) {
             split(&rule)?;
             return Ok(forced);
@@ -85,7 +85,7 @@ pub(crate) fn with_forced_layout_for_test<T>(layout: Option<Layout>, f: impl FnO
     f()
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 thread_local! {
     /// #1491（仅测试，owner 恢复臂负控）：本线程只强制 [`Layout::of_library`]，即历史审计
     /// 与 owner 恢复（`append_owner_cut` → `restore_for_owner`）取库布局处；写者经
@@ -98,7 +98,7 @@ thread_local! {
 
 /// #1491（仅测试）：在 `f` 内令 [`Layout::of_library`] 恒返回 `layout`（库规则串仍先经
 /// [`split`] 校验；`None` 即不强制）；返回或展开时恢复原值。写者侧 [`Layout::of_rule`] 不受影响。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn with_forced_library_layout_for_test<T>(
     layout: Option<Layout>,
     f: impl FnOnce() -> T,

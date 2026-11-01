@@ -9,16 +9,16 @@ use rusqlite::Transaction;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[path = "sqlite_pager_probe.rs"]
 mod sqlite_pager_probe;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) struct PagerSnapshot(sqlite_pager_probe::Snapshot);
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn pager_enabled() -> bool {
     sqlite_pager_probe::enabled()
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn log_pager_handle(
     before: PagerSnapshot,
     after: PagerSnapshot,
@@ -28,23 +28,25 @@ pub(super) fn log_pager_handle(
     sqlite_pager_probe::log_handle(before.0, after.0, id, ok);
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) mod effects;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(feature = "s_incremental", unix))]
+mod history_clamp;
+#[cfg(feature = "s_incremental")]
 pub(crate) mod native;
 /// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 type ColdRoot = native::Budget;
-#[cfg(not(feature = "s_capture_native_testonly"))]
+#[cfg(not(feature = "s_incremental"))]
 type ColdRoot = std::convert::Infallible;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod q;
 
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
-pub(super) mod allocation_probe;
+#[cfg(all(test, feature = "s_incremental"))]
+pub(crate) mod allocation_probe;
 /// #1488 P3-1 TestOnly：冷根审计失败分支在根析构前记下（清除前根活许可, 清除后根活许可）。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) mod cold_root_probe {
     use std::cell::RefCell;
     thread_local!(static NOTES: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) });
@@ -92,15 +94,19 @@ pub(super) mod cold_root_probe {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[path = "construction_set.rs"]
 mod construction_set;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
+pub(crate) use super::source_audit::source_receipt::RawReceipt;
+#[cfg(feature = "s_incremental")]
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use effects::PublicationStageIdentity;
-#[cfg(feature = "s_capture_native_testonly")]
-pub(crate) use effects::{MaterialAccess, SourceCutBinding, SourceMaterial, StageKind};
+#[cfg(feature = "s_incremental")]
+pub(crate) use effects::{
+    MaterialAccess, QualifiedSourceCut, SourceCutBinding, SourceMaterial, StageKind,
+};
 #[path = "construction_state.rs"]
 mod construction_state;
 #[cfg_attr(
@@ -114,36 +120,36 @@ pub(crate) use construction_state::RawAdvanceFixture;
 pub(crate) use construction_state::RawDomain;
 pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding};
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 thread_local! {
     static PUBLICATION_SCOPE_TRACE: std::cell::RefCell<Vec<(&'static str, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
     pub(super) static PUBLICATION_TAIL_FAILURE: Cell<bool> = const { Cell::new(false) };
     // #1488 受控 Recover 迁移负控：交接失败注入点与 Recover 写后/effects 闭合前的事务回调。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     static RECOVER_HANDOFF_FAILURE: Cell<bool> = const { Cell::new(false) };
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     static RECOVER_AFTER_WRITE: Cell<Option<fn(&Transaction<'_>) -> Result<(), String>>> = const { Cell::new(None) };
     // #1488 0034 P3-6：确认门负控注入——交给 confirm_recover 的持久 epoch 读数偏移一位。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     static RECOVER_CONFIRM_SKEW: Cell<bool> = const { Cell::new(false) };
     // #1488 0034 P3-1：交接摘要负控注入——Some(他账)改指他账，None改指同账下一冻结域。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     static RECOVER_PARENT_SKEW: std::cell::RefCell<Option<Option<native::Budget>>> = const { std::cell::RefCell::new(None) };
 }
 /// #1488：唯一 publication 父资源。绝不持有 journal 强引用。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct PublicationResources {
     budget: native::Budget,
     parent_limit: usize,
     before: SnapshotSeal,
     connection: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) struct PublicationScope<'w> {
     resources: &'w PublicationResources,
     work: &'w newchan_rust::s_content::capture_allocation::scratch::WorkScope,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<'w> PublicationScope<'w> {
     pub(crate) fn work(
         &self,
@@ -179,7 +185,7 @@ impl<'w> PublicationScope<'w> {
         &self.resources.budget
     }
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     fn remaining(&self) -> usize {
@@ -188,7 +194,7 @@ impl<'w> PublicationScope<'w> {
             .min(self.resources.budget.remaining())
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct ConstructionRun<T> {
     value: T,
     before: SnapshotSeal,
@@ -196,8 +202,8 @@ struct ConstructionRun<T> {
 }
 
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(crate) struct BoundOriginals {
     _private: (),
@@ -207,40 +213,44 @@ static NEXT_LIFE: AtomicU64 = AtomicU64::new(1);
 
 pub(super) struct AuditConnection {
     connection: Connection,
+    #[cfg(all(feature = "s_incremental", unix))]
+    history_clamp: std::cell::RefCell<Option<history_clamp::Clamp>>,
+    #[cfg(all(feature = "s_incremental", unix))]
+    require_historical_certificate: bool,
     life: u64,
     retired: Cell<bool>,
     next_transaction: Cell<u64>,
     write_sequence: Cell<u64>,
     construction_lease: construction_state::Lease,
     construction: std::cell::RefCell<Option<construction_state::CommittedRawState>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     source_keeper: std::cell::RefCell<Option<cross_request_source_cache::Keeper>>,
     // #1488 P1-1/P1-2：请求收尾静止点各保留父账的live读数；下次冻结逐账对拍，不等即来源不明。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     quiescent: std::cell::RefCell<Vec<native::LedgerMark>>,
 }
 
 /// 此标记只证明 owner 已确认事务终结，不证明任何缓存依赖保持。
 pub(super) struct Ended {
     life: u64,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     complete: Option<CompleteCandidate>,
 }
 
 /// 下层只接受固定发布能力；没有 SQL、Connection 或 commit 的访问器。
 pub(super) struct PublishPhase<'a, 'db> {
     transaction: &'a mut Transaction<'db>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     audited: Option<&'a state::AuditedState>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     raw: Option<BoundRawAdvance<'a>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     capture: Option<&'a mut newchan_rust::s_content::AuditCapture>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     source: Option<&'a mut Option<source_audit::NativeSourceState>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     publication: Option<&'a PublicationScope<'a>>,
 }
 impl PublishPhase<'_, '_> {
@@ -251,7 +261,7 @@ impl PublishPhase<'_, '_> {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<commit::CommitReceipt, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         return runtime.publish_impl_bound(
             self.transaction,
             token,
@@ -263,7 +273,7 @@ impl PublishPhase<'_, '_> {
             self.source,
             self.publication,
         );
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         runtime.publish_impl(self.transaction, token, envelope, Some(context))
     }
 }
@@ -277,16 +287,18 @@ struct AuditTxn<'a> {
     transaction_id: u64,
     write_sequence: u64,
     dirty: Cell<bool>,
+    #[cfg(all(feature = "s_incremental", unix))]
+    history_write: std::cell::RefCell<Option<history_clamp::WriteCandidate>>,
     construction: std::cell::RefCell<Option<construction_state::PendingRawState>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pending: std::cell::RefCell<Option<CompleteCandidate>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     recording: std::cell::RefCell<Option<effects::Recording>>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     effect_limit: Cell<usize>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     publication_issued: Cell<bool>,
 }
 
@@ -317,19 +329,128 @@ impl AuditConnection {
         }
         Ok(Self {
             connection,
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_clamp: Default::default(),
+            #[cfg(all(feature = "s_incremental", unix))]
+            require_historical_certificate: false,
             life,
             retired: Cell::new(false),
             next_transaction: Cell::new(0),
             write_sequence: Cell::new(0),
             construction_lease: Default::default(),
             construction: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             complete: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             source_keeper: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             quiescent: Default::default(),
         })
+    }
+
+    /// #1481 显式组件入口；正式CLI/launcher不调用，不改变Ordinary前置。
+    #[cfg(all(feature = "s_incremental", unix))]
+    #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
+    pub(super) fn open_history_component(db: &Path, control_limit: usize) -> Result<Self, String> {
+        let owner = Self::open(db)?;
+        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(
+            &owner.connection,
+            db,
+            control_limit,
+        )?);
+        let active = owner.begin(TransactionBehavior::Deferred)?;
+        active.read_end()?;
+        Ok(owner)
+    }
+
+    /// `qualified`（39P）：传入时冷起步从空前沿消费 P6 完整资格，此后每次发布在内容与台账
+    /// 均已提交后从上一代前沿推进；资格缺失或不符即 stale。不传则为 36T 来源收据认证组件。
+    #[cfg(all(feature = "s_incremental", unix))]
+    #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
+    pub(super) fn open_certified_history_component(
+        db: &Path,
+        control_limit: usize,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        qualified: Option<state::QualifiedSource<'_>>,
+    ) -> Result<Self, String> {
+        history::check_deadline(deadline)?;
+        if !context.source_cache_enabled() {
+            return Err(invalid("历史认证组件要求已冻结的Native请求域"));
+        }
+        let parent = match context.request_parent_budget() {
+            Some(parent) => parent,
+            None => context.prepare_parent(None)?.allocation_parent().clone(),
+        };
+        let mut owner = Self::open(db)?;
+        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open_in_parent(
+            &owner.connection,
+            db,
+            control_limit,
+            Some(parent),
+        )?);
+        let result = (|| {
+            let active = owner.begin(TransactionBehavior::Deferred)?;
+            active.seed_historical_certificate(deadline, context, qualified)?;
+            let ended = active.read_end()?;
+            history::check_deadline(deadline)?;
+            owner.continue_with(ended)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            drop(context.take());
+        }
+        owner.history_result(result)?;
+        owner.require_historical_certificate = true;
+        Ok(owner)
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn history_result<T>(&self, result: Result<T, String>) -> Result<T, String> {
+        if result.is_err() {
+            self.retired.set(true);
+            self.clear_candidates();
+        }
+        result
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn bind_history_parent(
+        &self,
+        context: &request_audit::RequestAuditContext,
+    ) -> Result<(), String> {
+        let parent = self
+            .history_clamp
+            .borrow()
+            .as_ref()
+            .and_then(|c| c.parent())
+            .cloned();
+        if let Some(parent) = parent {
+            let result = context.bind_complete_budget(&parent).and_then(|bound| {
+                self.history_clamp
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .rebind_parent(&bound)
+            });
+            self.history_result(result)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn history_retained_bytes(&self) -> usize {
+        #[cfg(unix)]
+        {
+            self.history_clamp
+                .borrow()
+                .as_ref()
+                .map_or(0, |c| c.retained_bytes())
+        }
+        #[cfg(not(unix))]
+        {
+            0
+        }
     }
 
     fn invalidate_construction(&self) {
@@ -338,16 +459,37 @@ impl AuditConnection {
     }
 
     fn clear_candidates(&self) {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.retired.get() {
+            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() {
+                clamp.retire();
+            }
+        }
         self.invalidate_construction();
         self.clear_optional_candidates();
     }
 
     fn clear_optional_candidates(&self) {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             drop(self.source_keeper.borrow_mut().take());
             drop(self.complete.borrow_mut().take());
         }
+    }
+
+    // #1481：控制观测发生在 begin 内，必须先交接同父冻结域，不能等准入后的候选命中。
+    fn begin_in_request(
+        &self,
+        behavior: TransactionBehavior,
+        context: Option<&request_audit::RequestAuditContext>,
+    ) -> Result<AuditTxn<'_>, String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if let Some(context) = context {
+            self.bind_history_parent(context)?;
+        }
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let _ = context;
+        self.begin(behavior)
     }
 
     fn begin(&self, behavior: TransactionBehavior) -> Result<AuditTxn<'_>, String> {
@@ -375,16 +517,18 @@ impl AuditConnection {
             transaction_id,
             write_sequence: self.write_sequence.get(),
             dirty: Cell::new(false),
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_write: Default::default(),
             construction: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             complete: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             pending: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             recording: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             effect_limit: Cell::new(0),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             publication_issued: Cell::new(false),
         };
         // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
@@ -400,6 +544,8 @@ impl AuditConnection {
             .tx()
             .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
             .map_err(invalid)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        active.check_history()?;
         Ok(active)
     }
 
@@ -412,7 +558,7 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: Option<&mut request_audit::RequestAuditContext>,
     ) -> Result<(String, Option<String>), String> {
-        let active = self.begin(TransactionBehavior::Deferred)?;
+        let active = self.begin_in_request(TransactionBehavior::Deferred, context.as_deref())?;
         let tx = active.tx();
         if let Some(context) = context {
             if !matches!(mode, s_allocation::Mode::CapturedNative) {
@@ -456,7 +602,7 @@ impl AuditConnection {
         clock: &v2::ClockPlan,
         context: Option<&mut request_audit::RequestAuditContext>,
     ) -> Result<(String, String, String), String> {
-        let active = self.begin(TransactionBehavior::Deferred)?;
+        let active = self.begin_in_request(TransactionBehavior::Deferred, context.as_deref())?;
         let tx = active.tx();
         match context {
             Some(context) => {
@@ -513,7 +659,7 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(Admission, Ended), String> {
-        let active = self.begin(TransactionBehavior::Deferred)?;
+        let active = self.begin_in_request(TransactionBehavior::Deferred, Some(context))?;
         let tx = active.tx();
         active.audit_admission(&envelope, mode, context)?;
         verify_writer_epoch(tx, epoch)?;
@@ -558,7 +704,7 @@ impl AuditConnection {
                         clock.phase(event, "begin", 0)?;
                         clock.phase(event, "commit", 0)?;
                         // #1488：仅测试选择已审 owner 原型；所有正式准入与实际 Accept/COMMIT 原样执行。
-                        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                        #[cfg(all(test, feature = "s_incremental"))]
                         construction_tests::select_for_formal_accept(&active, context)?;
                         active.before_fixed_write(FixedOperation::Accept, Some(context))?;
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
@@ -611,7 +757,7 @@ impl AuditConnection {
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<Begun, String> {
-        let active = self.begin(TransactionBehavior::Immediate)?;
+        let active = self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
         let tx = active.tx();
         let reused = active.bind_existing(Some(context))?;
         let audited = if reused {
@@ -668,9 +814,9 @@ impl AuditConnection {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(commit::CommitReceipt, Ended), String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let result = self.publish_degradable(runtime, token, envelope, context);
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let result = (|| {
             let mut active = self.begin(TransactionBehavior::Immediate)?;
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
@@ -679,7 +825,32 @@ impl AuditConnection {
             let ended = active.commit_publication()?;
             Ok((receipt, ended))
         })();
+        // #1647：内容事务已由 publish_degradable/commit_publication 确认提交，
+        // 现在才提交旁挂事务。失败后不交出 Ended，不续租、不重试。
+        // 39P：两者都提交后 H1 才从上一代前沿消费本代资格；资格不符即 stale，不回落。
+        #[cfg(feature = "s_incremental")]
+        let mut qualified_failed = false;
+        let result = result.and_then(|published| {
+            runtime.commit_audit_ledger()?;
+            #[cfg(feature = "s_incremental")]
+            let mut published = published;
+            #[cfg(feature = "s_incremental")]
+            if let Some(candidate) = published.1.complete.as_mut() {
+                if let Err(error) = candidate.advance_qualified(runtime) {
+                    qualified_failed = true;
+                    return Err(error);
+                }
+            }
+            Ok(published)
+        });
         if result.is_err() {
+            let retire = runtime.invalidate_audit_ledger();
+            #[cfg(feature = "s_incremental")]
+            let retire = retire || qualified_failed;
+            if retire {
+                self.retired.set(true);
+                self.clear_candidates();
+            }
             runtime.discard();
             drop(context.take());
         }
@@ -703,12 +874,13 @@ impl AuditConnection {
     /// 工作账损坏”、尾检身份不符等真正尾检失败，先记过预算失败亦然，见 publication_degrade_verdict）；codec_work 签发报账损坏；
     /// 第二次（无候选）尝试的任何错误（它不签发父工作域，不会再返回 None，防御性按尾检失败拒绝）。
     /// 诊断：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时每次发布向 stderr 写一行
-    /// NativeTestOnlyPublication（入口有无候选、是否放弃、发布后是否保留），供保留率/命中率统计。
+    /// WriterRetentionPublication（入口有无候选、是否放弃、发布后是否保留），供保留率/命中率统计。
     /// 张力（交 #1612）：降级后同请求内走完整路径，ARCH ④.4 / #799 的“请求内不回退完整”口径
-    /// 在 testonly 下由 v4 L13 让位；生产构建不含此函数。
+    /// 由 v4 L13 让位；#1640（ADR 0042 D3）起以本形态进入 `s_incremental` 生产构建，
+    /// 重试的完整分支记为出生步的 abandon 入口（D2），切片 2 改为只丢保留。
     /// 行数纪律：publish 本段改写前后总行数相同，publish_attempt 与测试注入开关放在文件尾，
     /// 使生产构建中后续代码的 panic Location 行号不漂移（生产二进制逐字节对比可验）。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn publish_degradable(
         &self,
         runtime: &mut prepared::Runtime,
@@ -724,12 +896,16 @@ impl AuditConnection {
             None => {
                 runtime.discard();
                 #[cfg(test)]
+                runtime.mark_abandon_birth_for_test();
+                #[cfg(test)]
                 state::trace_event("publication_candidate_abandoned", None);
                 let published = self
                     .publish_attempt(runtime, token, envelope, context, false)?
                     .ok_or_else(|| construction_state::stale("publication父工作域尾检失败"))?;
                 self.renew_lease_after_abandon(&published.1);
                 runtime.discard();
+                #[cfg(test)]
+                runtime.mark_abandon_birth_for_test();
                 published
             }
         };
@@ -737,7 +913,7 @@ impl AuditConnection {
             == Some(std::ffi::OsStr::new("1"))
         {
             use std::io::Write as _;
-            let line = json!({"diagnostic":"NativeTestOnlyPublication",
+            let line = json!({"diagnostic":"WriterRetentionPublication",
                 "message_id":envelope.get("message_id"), "candidate_entry":entry,
                 "abandoned":abandoned, "candidate_after":published.1.complete.is_some()});
             let _ = writeln!(std::io::stderr().lock(), "{line}");
@@ -752,9 +928,9 @@ impl AuditConnection {
         token: &str,
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
-        #[cfg(feature = "s_capture_native_testonly")] parent: Option<&PublicationScope<'_>>,
+        #[cfg(feature = "s_incremental")] parent: Option<&PublicationScope<'_>>,
     ) -> Result<commit::CommitReceipt, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let issued = if active.complete.borrow().is_some() && context.source_cache_enabled() {
             Some(
                 active.with_bound_raw_advance_in_publication(context, parent, |token| {
@@ -765,36 +941,36 @@ impl AuditConnection {
             None
         };
         active.before_fixed_write(FixedOperation::Publish, Some(context))?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some(parent) = parent {
             effects::attach_recording_resources(active.tx(), parent)?;
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let has_raw = issued.is_some();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let mut source = active
             .construction
             .borrow_mut()
             .as_mut()
             .and_then(|s| s.take_source());
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let mut pending = active.pending.borrow_mut();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let (audited, capture) = match pending.as_mut() {
             Some(candidate) => (Some(&candidate.audited), candidate.capture.as_mut()),
             None => (None, None),
         };
         let phase = PublishPhase {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             publication: parent,
             transaction: active.transaction.as_mut().unwrap(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             audited,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             capture,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             source: if has_raw { Some(&mut source) } else { None },
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             raw: issued
                 .map(|issued| {
                     let audited = audited.ok_or_else(|| {
@@ -804,12 +980,12 @@ impl AuditConnection {
                 })
                 .transpose()?,
         };
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if let Some(parent) = parent {
             parent.trace("runtime");
         }
         let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if has_raw {
             let source =
                 source.ok_or_else(|| construction_state::stale("正式来源核未回交pending状态"))?;
@@ -827,7 +1003,7 @@ impl AuditConnection {
                     .ok_or_else(|| construction_state::stale("来源新增保留费超过工作帽"))?,
             );
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some(candidate) = pending.as_mut() {
             candidate.refresh_capture_charge()?;
             if candidate
@@ -839,34 +1015,34 @@ impl AuditConnection {
                 return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
             }
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         drop(pending);
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         active.finish_fixed_write_in_publication(parent)?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         active.finish_fixed_write()?;
         Ok(receipt)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn take_source_keeper(&mut self) -> Option<cross_request_source_cache::Keeper> {
         self.source_keeper.borrow_mut().take()
     }
 
     /// #1488 P1-2锁：把入口取走的keeper放回（模拟生产入口不丢池时的attach路径）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     #[allow(dead_code, reason = "#1488：native 测试辅助当前无调用方")]
     pub(super) fn put_source_keeper_for_test(&self, keeper: cross_request_source_cache::Keeper) {
         *self.source_keeper.borrow_mut() = Some(keeper);
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn source_keeper_for_test(
         &self,
     ) -> std::cell::Ref<'_, Option<cross_request_source_cache::Keeper>> {
         self.source_keeper.borrow()
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn finish_source_keeper(
         &mut self,
         context: request_audit::RequestAuditContext,
@@ -880,7 +1056,9 @@ impl AuditConnection {
             return;
         }
         // 完整候选由本 owner 的无写审计或固定 effects 核验签发；来源池独立移交。
-        let cap = context.complete_retention_cap();
+        let cap = context
+            .complete_retention_cap()
+            .saturating_sub(self.history_retained_bytes());
         let raw_retained = self
             .construction
             .get_mut()
@@ -936,7 +1114,7 @@ impl AuditConnection {
 
     /// #1488 P1-1/P1-2：请求局部持有者（context/slot/ended）均已析构后，对保留下来的
     /// 候选父账与keeper池父账各读一次live，作为下次冻结的来源证明；其后任何未经请求的增减都使映射失效。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn mark_quiescent(&self) {
         let mut marks = Vec::new();
         if let Some(c) = self.complete.borrow().as_ref() {
@@ -990,7 +1168,7 @@ impl AuditConnection {
         // 持久 epoch 严格上升门即换代证明构造门（原 next<=from 门并入，文案与顺序不变）。
         let handoff = construction_state::RecoverHandoff::new(from, next)?;
         // P3-1：证明另绑本事务候选父账身份与冻结域摘要；读不到则不绑，迁移时按缺摘要拒绝。
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         #[allow(unused_mut)]
         let mut handoff = match active
             .complete
@@ -1001,7 +1179,7 @@ impl AuditConnection {
             Some(stamp) => handoff.bind_parent(stamp),
             None => handoff,
         };
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if let Some(skew) = RECOVER_PARENT_SKEW.with(|s| s.borrow_mut().take()) {
             let parent = handoff.parent_for_test();
             *parent = match skew {
@@ -1031,7 +1209,7 @@ impl AuditConnection {
         let result = json!({"ok":true,"previous_epoch":current,"new_epoch":new_epoch,"epoch_transitioned":true,"recovered_begin":recovered,
             "reachable_root":{"generation":generation,"structure_cut":meta_get_opt(tx,"structure_cut")?,"index_frontier":meta_get_opt(tx,"index_frontier")?}});
         drop(control);
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if let Some(hook) = RECOVER_AFTER_WRITE.with(Cell::take) {
             hook(tx)?;
         }
@@ -1041,25 +1219,97 @@ impl AuditConnection {
         Ok(result)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn configure_pager_probe(&self) -> Result<(), String> {
         self.clear_candidates_for_pager_probe();
         sqlite_pager_probe::configure_and_log(&self.connection)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn pager_snapshot(&self) -> PagerSnapshot {
         PagerSnapshot(sqlite_pager_probe::snapshot(&self.connection))
     }
 }
 
 impl AuditTxn<'_> {
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn seed_historical_certificate(
+        &self,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        qualified: Option<state::QualifiedSource<'_>>,
+    ) -> Result<(), String> {
+        history::check_deadline(deadline)?;
+        let parent = match context.request_parent_budget() {
+            Some(parent) => parent,
+            None => context.prepare_parent(None)?.allocation_parent().clone(),
+        };
+        let seal = SnapshotSeal {
+            life: self.owner.life,
+            transaction_id: self.transaction_id,
+            write_sequence: self.write_sequence,
+            data_version: self.data_version,
+            schema_version: self.schema_version,
+            domain: self.read_domain()?,
+        };
+        let failure = |error: native::Failure| match error {
+            native::Failure::BudgetExceeded => invalid("冷认证父预算不足"),
+            native::Failure::Invalid(error) => error,
+        };
+        let mut candidate = parent
+            .codec_work()
+            .map_err(failure)?
+            .run(|work| {
+                let audited = state::HistoricalCertificate::cold_for_request(
+                    self.tx(),
+                    deadline,
+                    work,
+                    context,
+                    qualified.map(|source| state::QualifiedSeed {
+                        source,
+                        budget: &parent,
+                    }),
+                )?;
+                let slot = context
+                    .take()
+                    .ok_or_else(|| invalid("冷认证缺完整原件槽"))?;
+                CompleteCandidate::capture(
+                    self.tx(),
+                    seal,
+                    slot,
+                    audited,
+                    context.complete_workspace_limit(),
+                    context.complete_entry_reserved_bytes(),
+                    Some(&parent),
+                )?
+                .map_err(|_| invalid("冷认证完整候选超过请求预算"))
+            })
+            .map_err(|error| failure(native::Failure::from(error)))?;
+        candidate.resources = context.bind_complete_budget(&candidate.resources)?;
+        self.owner.bind_history_parent(context)?;
+        history::check_deadline(deadline)?;
+        self.check_history()?;
+        *self.complete.borrow_mut() = Some(candidate);
+        Ok(())
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn check_history(&self) -> Result<(), String> {
+        let result = match self.owner.history_clamp.borrow_mut().as_mut() {
+            Some(clamp) => clamp.check(self),
+            None => Ok(()),
+        };
+        self.owner.history_result(result)
+    }
+
     fn tx(&self) -> &Transaction<'_> {
         self.transaction.as_ref().unwrap()
     }
 
     fn read_end(mut self) -> Result<Ended, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(all(feature = "s_incremental", unix))]
+        self.check_history()?;
+        #[cfg(feature = "s_incremental")]
         if let Some(c) = self.complete.borrow().as_ref() {
             if c.seal.transaction_id != self.transaction_id
                 || c.seal.life != self.owner.life
@@ -1078,8 +1328,8 @@ impl AuditTxn<'_> {
         self.owner.connection.flush_prepared_statement_cache();
         let result = self.transaction.take().unwrap().rollback().map_err(invalid);
         if result.is_err() || !self.owner.connection.is_autocommit() {
-            self.owner.clear_candidates();
             self.owner.retired.set(true);
+            self.owner.clear_candidates();
         }
         result?;
         if self.owner.retired.get() {
@@ -1087,7 +1337,7 @@ impl AuditTxn<'_> {
         }
         Ok(Ended {
             life: self.owner.life,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             complete: if !self.dirty.get() {
                 self.complete.borrow_mut().take()
             } else {
@@ -1105,7 +1355,19 @@ impl AuditTxn<'_> {
     }
 
     fn commit_as(&mut self, publication: bool) -> Result<Ended, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.history_clamp.borrow().is_some() {
+            let checked = (|| {
+                let clamp = self.owner.history_clamp.borrow();
+                let candidate = self.history_write.borrow();
+                let candidate = candidate
+                    .as_ref()
+                    .ok_or_else(|| history_clamp::stale("提交缺已核自身effects"))?;
+                clamp.as_ref().unwrap().check_candidate(self, candidate)
+            })();
+            self.owner.history_result(checked)?;
+        }
+        #[cfg(feature = "s_incremental")]
         if let Some(c) = self.complete.borrow().as_ref() {
             if c.seal.life != self.owner.life
                 || c.seal.transaction_id != self.transaction_id
@@ -1138,6 +1400,17 @@ impl AuditTxn<'_> {
             self.data_version,
             self.schema_version,
         );
+        #[cfg(all(feature = "s_incremental", unix))]
+        let history_monitor = {
+            let armed = self
+                .owner
+                .history_clamp
+                .borrow()
+                .as_ref()
+                .map(history_clamp::Clamp::arm_commit)
+                .transpose();
+            self.owner.history_result(armed)?
+        };
         self.owner.connection.flush_prepared_statement_cache();
         let mut transaction = self.transaction.take().unwrap();
         // 提交失败后的终结由 owner 核实，不依赖 Transaction 析构器的隐式回滚。
@@ -1161,9 +1434,27 @@ impl AuditTxn<'_> {
                 self.owner.retired.set(true);
             }
         } else if !self.owner.connection.is_autocommit() {
-            self.owner.clear_candidates();
             self.owner.retired.set(true);
+            self.owner.clear_candidates();
             return Err(invalid("提交返回后事务仍活动"));
+        }
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.history_clamp.borrow().is_some() {
+            if result.is_err() {
+                self.owner.retired.set(true);
+                self.owner.clear_candidates();
+            }
+            if result.is_ok() {
+                let candidate = self.history_write.borrow_mut().take().unwrap();
+                let checked = self
+                    .owner
+                    .history_clamp
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .committed(candidate, history_monitor.as_ref().unwrap());
+                self.owner.history_result(checked)?;
+            }
         }
         result?;
         if let Some(pending) = self.construction.borrow_mut().take() {
@@ -1176,7 +1467,7 @@ impl AuditTxn<'_> {
         }
         Ok(Ended {
             life: self.owner.life,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             complete: self.complete.borrow_mut().take(),
         })
     }
@@ -1185,7 +1476,12 @@ impl AuditTxn<'_> {
 impl Drop for AuditTxn<'_> {
     fn drop(&mut self) {
         if let Some(tx) = self.transaction.take() {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(all(feature = "s_incremental", unix))]
+            if self.owner.history_clamp.borrow().is_some() {
+                // 自身写未走确认提交路径，夹持不恢复旧资格。
+                self.owner.retired.set(true);
+            }
+            #[cfg(feature = "s_incremental")]
             {
                 if tx
                     .update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
@@ -1209,7 +1505,7 @@ pub(super) fn invalid(error: impl std::fmt::Display) -> String {
     format!("S3DriverInvalid：{error}")
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn finish_fixture_source_keeper(
     connection: &Connection,
     context: request_audit::RequestAuditContext,
@@ -1287,13 +1583,13 @@ impl AuditConnection {
         reason = "#1608：完成态清理钩子，当前无调用方（等待接线）；保留不删"
     )]
     fn clear_complete(&self) {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         drop(self.complete.borrow_mut().take());
     }
     pub(super) fn discard_after_error(&self) {
         // #1488 P1-α：丢弃只析构，不新增分配；静止点读数只减去本次析构实际归还的字节，
         // 不重读live——否则静止点之后出现的来源不明许可会被洗进读数、在重试分区时吸收进U。
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let before: Vec<Option<usize>> = self
             .quiescent
             .borrow()
@@ -1301,7 +1597,7 @@ impl AuditConnection {
             .map(|mark| mark.current())
             .collect();
         self.clear_candidates();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             let mut before = before.into_iter();
             self.quiescent
@@ -1309,30 +1605,32 @@ impl AuditConnection {
                 .retain_mut(|mark| mark.settle_release(before.next().flatten()));
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn complete_retained_bytes(&self) -> usize {
-        self.complete
-            .borrow()
-            .as_ref()
-            .map_or(0, |c| {
-                c.charge
-                    .total
-                    .saturating_add(native::Budget::metadata_bytes())
-            })
-            .saturating_add(
-                self.construction
-                    .borrow()
-                    .as_ref()
-                    .map_or(0, |c| c.retained_bytes()),
-            )
+        self.history_retained_bytes().saturating_add(
+            self.complete
+                .borrow()
+                .as_ref()
+                .map_or(0, |c| {
+                    c.charge
+                        .total
+                        .saturating_add(native::Budget::metadata_bytes())
+                })
+                .saturating_add(
+                    self.construction
+                        .borrow()
+                        .as_ref()
+                        .map_or(0, |c| c.retained_bytes()),
+                ),
+        )
     }
     /// #1488 P1-1（v4「冻结old_pool费用分区」）：O逐项照合同额收，不以max(L)补差；
     /// 同父物理L0由分区只读一次，超出同父合同额的真实分配为uncovered并消耗A。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn old_pool_partition(
         &self,
         keeper: Option<&super::cross_request_source_cache::Keeper>,
@@ -1351,6 +1649,14 @@ impl AuditConnection {
                 "complete_parent.metadata_M",
                 P::ON_PARENT,
                 native::Budget::metadata_bytes(),
+            )?;
+        }
+        let history_bytes = self.history_retained_bytes();
+        if history_bytes != 0 {
+            partition.item(
+                "history_clamp.control_originals",
+                P::ON_PARENT,
+                history_bytes,
             )?;
         }
         if let Some(raw) = self.construction.borrow().as_ref() {
@@ -1390,7 +1696,7 @@ impl AuditConnection {
     /// #1488 P1-1/P1-α：请求入口的old_pool冻结序列（driver生产路径原样搬入，供锁直接驱动）：
     /// 旧费按逐项分区O+uncovered计；映射不成立即丢候选重映射，不补差；keeper池按其父账物理live
     /// 仍装不下或无从证明时只丢可选池，不把可丢弃缓存的失败变成业务失败。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn entry_old_pool_partition(
         &self,
         previous: &mut Option<cross_request_source_cache::Keeper>,
@@ -1416,7 +1722,7 @@ impl AuditConnection {
         partition
     }
     /// #1488 受控 Recover 迁移锁：owner 租约与已提交资格的只读观测。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn recover_probe_for_test(&self) -> RecoverProbe {
         RecoverProbe {
             stale: self.construction_lease.stale.get(),
@@ -1436,7 +1742,7 @@ impl AuditConnection {
         }
     }
     /// 完整候选所在父账的弱读数（不延长父账寿命）及其 live/peak。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn complete_ledger_for_test(&self) -> Option<(native::LedgerMark, usize, usize)> {
         self.complete.borrow().as_ref().map(|c| {
             (
@@ -1446,7 +1752,7 @@ impl AuditConnection {
             )
         })
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn complete_on_ledger_for_test(&self, mark: &native::LedgerMark) -> bool {
         self.complete
             .borrow()
@@ -1454,25 +1760,25 @@ impl AuditConnection {
             .is_some_and(|c| mark.live_for(&c.resources).is_some())
     }
     /// 换代证明构造门（只认持久 epoch 严格上升）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn recover_handoff_accepts_for_test(from: i64, to: i64) -> bool {
         construction_state::RecoverHandoff::new(from, to).is_ok()
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn inject_recover_handoff_failure_for_test(&self) {
         RECOVER_HANDOFF_FAILURE.with(|flag| flag.set(true));
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn inject_recover_confirm_skew_for_test(&self) {
         RECOVER_CONFIRM_SKEW.with(|flag| flag.set(true));
     }
     /// P3-1 负控：下一次 recover 的交接摘要改指 foreign（Some）或同账下一冻结域（None）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn inject_recover_parent_for_test(&self, foreign: Option<native::Budget>) {
         RECOVER_PARENT_SKEW.with(|s| *s.borrow_mut() = Some(foreign));
     }
     /// 状态块许可所挂父账：与 mark 同一 Ledger 时返回许可字节。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn qualification_fee_on_ledger_for_test(
         &self,
         mark: &native::LedgerMark,
@@ -1483,7 +1789,7 @@ impl AuditConnection {
             .and_then(|c| c.fee_on_ledger_for_test(mark))
     }
     /// 改写已提交资格的 epoch 戳（只为咬住“资格戳≠from”门）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn set_qualification_epoch_for_test(&self, epoch: Option<i64>) {
         self.construction
             .borrow_mut()
@@ -1493,14 +1799,14 @@ impl AuditConnection {
     }
     /// 0037 P2-1 负控注入（比对之前）：完整候选改挂他账，资格所记父账不动；返回原父账句柄。
     /// 此后 recover() 取的交接摘要与候选同为他账（自指比对恒真），只有资格记录值能拒。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn swap_complete_parent_for_test(&self, foreign: native::Budget) -> native::Budget {
         let mut complete = self.complete.borrow_mut();
         let candidate = complete.as_mut().expect("须持有完整候选");
         std::mem::replace(&mut candidate.resources, foreign)
     }
     /// 0037 P2-1 负控注入（比对之前）：资格状态块许可换成他账许可，资格所记父账与候选不动。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn replace_qualification_fee_for_test(&self, fee: native::Permit) {
         let old = self
             .construction
@@ -1512,7 +1818,7 @@ impl AuditConnection {
     }
     /// 0037 P2-1 负控注入（比对之前）：完整候选绕过 audit_admission 重绑点，经同父账真实 handoff
     /// 进入下一冻结域（0041 P3-1：沿用原额度的正额度换域），资格所记域不动。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn advance_complete_domain_for_test(&self) {
         let mut complete = self.complete.borrow_mut();
         let candidate = complete.as_mut().expect("须持有完整候选");
@@ -1526,7 +1832,7 @@ impl AuditConnection {
         candidate.resources = next;
     }
     /// 0041 P3-3 负控注入（比对之前）：抹掉已提交资格所记父账。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn clear_qualification_parent_for_test(&self) {
         self.construction
             .borrow_mut()
@@ -1535,7 +1841,7 @@ impl AuditConnection {
             .clear_parent_for_test();
     }
     /// 0041：已提交资格所记父账/冻结域是否恰为 owner 完整候选当前父账。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn qualification_parent_matches_complete_for_test(&self) -> bool {
         let complete = self.complete.borrow();
         let candidate = complete.as_ref().expect("须持有完整候选");
@@ -1546,7 +1852,7 @@ impl AuditConnection {
             .parent_matches_for_test(&candidate.resources)
     }
     /// 0041：owner 完整候选当前父账的交接摘要（弱引用，不延长父账寿命）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn complete_parent_stamp_for_test(&self) -> native::BudgetStamp {
         self.complete
             .borrow()
@@ -1556,7 +1862,7 @@ impl AuditConnection {
             .handoff_stamp()
             .expect("当前域")
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn complete_parent_matches_for_test(&self, stamp: &native::BudgetStamp) -> bool {
         self.complete
             .borrow()
@@ -1565,7 +1871,7 @@ impl AuditConnection {
     }
     /// 0044 P2-1：完整候选的工作额度 `limit`——effects 路径请求峰实比之值（`recording_peak`
     /// 处 `peak > self.limit` 即放弃增量），与冻结域 allowance 同源（重绑时取 complete_workspace_limit）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn complete_limit_for_test(&self) -> usize {
         self.complete
             .borrow()
@@ -1574,7 +1880,7 @@ impl AuditConnection {
             .limit
     }
     /// 0044 P3-1 负控注入（重绑之前）：资格所记父账/冻结域改指 stamp，候选不动。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn set_qualification_parent_for_test(&self, stamp: native::BudgetStamp) {
         self.construction
             .borrow_mut()
@@ -1583,7 +1889,7 @@ impl AuditConnection {
             .set_parent_for_test(stamp);
     }
     /// 拿走 owner 的完整候选（无候选）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn drop_complete_for_test(&self) {
         assert!(
             self.complete.borrow_mut().take().is_some(),
@@ -1591,7 +1897,7 @@ impl AuditConnection {
         );
     }
     /// 同父账开启新请求域，候选所持父账句柄随之不再是当前域（无当前父账）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn expire_complete_parent_for_test(&self) {
         let complete = self.complete.borrow();
         let candidate = complete.as_ref().expect("须持有完整候选");
@@ -1604,12 +1910,12 @@ impl AuditConnection {
     }
     /// 测试选择器（同 construction_tests::mint/close_fixed）：在本 owner 上以 raw 增量签发并提交
     /// 一份持有状态块许可（fee=Some）的资格；返回同事务签发的 raw token。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn issue_raw_qualification_for_test(
         &self,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(OldRawToken, Ended), String> {
-        let active = self.begin(TransactionBehavior::Immediate)?;
+        let active = self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
         active.audit_admission(
             &json!({"payload":{"op":"ready"}}),
             &s_allocation::Mode::CapturedNative,
@@ -1631,12 +1937,12 @@ impl AuditConnection {
         Ok((OldRawToken(issued), active.commit()?))
     }
     /// 旧 token 改记为当前租约序号（Recover 前当期）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn restamp_raw_token_for_test(&self, token: OldRawToken) -> OldRawToken {
         OldRawToken(token.0.restamp_for_test(&self.construction_lease))
     }
     /// 以 owner 当前候选原件与租约实际绑定旧 token；成功则交回同一 token 供再次调用。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn bind_raw_token_for_test(
         &self,
         token: OldRawToken,
@@ -1648,14 +1954,14 @@ impl AuditConnection {
             .bind(candidate.audited.raw.view(), &self.construction_lease)?;
         Ok(OldRawToken(bound.into_issued()))
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn set_recover_after_write_for_test(
         &self,
         hook: fn(&Transaction<'_>) -> Result<(), String>,
     ) {
         RECOVER_AFTER_WRITE.with(|slot| slot.set(Some(hook)));
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn complete_report(&self) -> Value {
         self.complete.borrow().as_ref().map_or(Value::Null, |c| json!({
             "charge":c.charge,"life":c.seal.life,"transaction":c.seal.transaction_id,
@@ -1687,7 +1993,7 @@ impl AuditTxn<'_> {
         })
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn issue_publication_resources(
         &self,
         context: &request_audit::RequestAuditContext,
@@ -1713,7 +2019,7 @@ impl AuditTxn<'_> {
             connection: unsafe { self.tx().handle() } as usize,
         })
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn check_publication_transition(
         &self,
         before: SnapshotSeal,
@@ -1734,7 +2040,7 @@ impl AuditTxn<'_> {
         }
         Ok(())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn check_publication_run(&self, checked: ConstructionRun<()>) -> Result<(), String> {
         let ConstructionRun {
             value: (),
@@ -1743,7 +2049,7 @@ impl AuditTxn<'_> {
         } = checked;
         self.check_publication_transition(before, after)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn with_bound_raw_advance_in_publication<R>(
         &self,
         context: &request_audit::RequestAuditContext,
@@ -1795,7 +2101,7 @@ impl AuditTxn<'_> {
 
     /// #1488：唯一生产构造点仍封闭在 owner；调用者不能传 raw、prefix 或成功布尔量。
     /// 这里只授 raw 变化资格；正式 Runtime 的集合/来源完整性仍须独立 seal。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn with_bound_raw_advance<R>(
         &self,
         context: &request_audit::RequestAuditContext,
@@ -1877,7 +2183,7 @@ impl AuditTxn<'_> {
     }
 
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(
             dead_code,
             reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
@@ -1888,6 +2194,15 @@ impl AuditTxn<'_> {
     }
 
     fn before_write_inner(&self, preserve_construction: bool) -> Result<(), String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.history_clamp.borrow().is_some() {
+            self.check_history()?;
+            if self.recording.borrow().is_none() {
+                return self
+                    .owner
+                    .history_result(Err(history_clamp::stale("写前缺声明effects记录")));
+            }
+        }
         // 必须发生在任何固定 operation（含 Noop）的第一条写 SQL 之前。
         if !preserve_construction {
             self.owner.invalidate_construction();
@@ -1896,7 +2211,7 @@ impl AuditTxn<'_> {
             }
         }
         self.owner.clear_optional_candidates();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         drop(self.complete.borrow_mut().take());
         let next = self
             .owner
@@ -1912,17 +2227,23 @@ impl AuditTxn<'_> {
     fn audit_admission(
         &self,
         #[cfg_attr(
-            not(feature = "s_capture_native_testonly"),
-            allow(
-                unused_variables,
-                reason = "#1608：仅 s_capture_native_testonly 分支读取"
-            )
+            not(feature = "s_incremental"),
+            allow(unused_variables, reason = "#1608：仅 s_incremental 分支读取")
         )]
         envelope: &Value,
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(), String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.require_historical_certificate
+            && (!matches!(mode, s_allocation::Mode::CapturedNative)
+                || !context.source_cache_enabled())
+        {
+            return self
+                .owner
+                .history_result(Err(history_clamp::stale("认证生涯不能切换到非认证准入")));
+        }
+        #[cfg(feature = "s_incremental")]
         if self.owner.construction.borrow().is_some()
             && (!matches!(mode, s_allocation::Mode::CapturedNative)
                 || !context.source_cache_enabled())
@@ -1932,7 +2253,7 @@ impl AuditTxn<'_> {
                 "已有增量游标不能切回独立完整审计模式",
             ));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if matches!(mode, s_allocation::Mode::CapturedNative) && context.source_cache_enabled() {
             // 只对固定操作绑定完整候选；未知操作在执行前撤资格。
             // 后续原 inspect_ingest/lookup 仍逐字执行全部请求判据，错误绝不重判。
@@ -1965,6 +2286,8 @@ impl AuditTxn<'_> {
                         state.advance_parent(&candidate.resources, &resources);
                     }
                     candidate.resources = resources;
+                    #[cfg(unix)]
+                    self.owner.bind_history_parent(context)?;
                     candidate.limit = context.complete_workspace_limit();
                     candidate.seal = seal;
                     candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
@@ -1981,8 +2304,20 @@ impl AuditTxn<'_> {
                         "已有增量游标的材料域改变；禁止冷重签",
                     ));
                 }
+                #[cfg(unix)]
+                if self.owner.history_clamp.borrow().is_some() {
+                    return self.owner.history_result(Err(history_clamp::stale(
+                        "已核候选失效，禁止完整审计兜底",
+                    )));
+                }
                 // 尚未建立增量游标的独立冷入口保持既有完整审计。
                 drop(candidate);
+            }
+            #[cfg(unix)]
+            if self.owner.require_historical_certificate {
+                return self.owner.history_result(Err(history_clamp::stale(
+                    "认证生涯丢失历史候选，禁止完整审计兜底",
+                )));
             }
             if self.owner.construction.borrow().is_some() {
                 self.owner.invalidate_construction();
@@ -2013,7 +2348,13 @@ impl AuditTxn<'_> {
                     let first = first.and_then(|a| cold_root_probe::inject_failure().map(|()| a));
                     match first {
                         Ok(audited) => (audited, Some(root)),
-                        Err(_) => {
+                        Err(error) => {
+                            #[cfg(unix)]
+                            if self.owner.history_clamp.borrow().is_some() {
+                                return self.owner.history_result(Err(error));
+                            }
+                            #[cfg(not(unix))]
+                            let _ = error;
                             drop(context.take());
                             // #1488 P3-1：失败首跑在根工作域内经 legacy cache 保留的 NativeArc 仍持根许可；
                             // 根析构前整体清除跨请求保留（缓存只影响复用，不改判据），不留挂在已析构根上的许可。
@@ -2089,9 +2430,9 @@ impl AuditTxn<'_> {
         context: &mut request_audit::RequestAuditContext,
         cold_root: Option<&ColdRoot>,
     ) -> Result<state::AuditedState, String> {
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let _ = cold_root;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some(parent) = context
             .request_parent_budget()
             .or_else(|| cold_root.cloned())
@@ -2181,9 +2522,9 @@ impl AuditTxn<'_> {
 }
 
 /// #1488 Recover 锁：同事务签发后离开事务的旧 raw token（不透明）。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) struct OldRawToken(construction_state::IssuedRawAdvance);
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct RecoverProbe {
     pub(super) stale: bool,
@@ -2191,7 +2532,7 @@ pub(super) struct RecoverProbe {
     pub(super) retired: bool,
     pub(super) qualification: Option<RecoverQualification>,
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct RecoverQualification {
     pub(super) writer_epoch: Option<i64>,
@@ -2212,11 +2553,8 @@ struct SnapshotSeal {
 }
 impl SnapshotSeal {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     fn same_snapshot(&self, next: &Self) -> bool {
         self.life != 0
@@ -2228,7 +2566,7 @@ impl SnapshotSeal {
             && self.domain == next.domain
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(serde::Serialize)]
 struct CompleteCharge {
     node_source_and_certificates: usize,
@@ -2246,13 +2584,15 @@ struct CompleteCharge {
     entry_reserved_bytes: usize,
     handoff_peak: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct CompleteCandidate {
     seal: SnapshotSeal,
     slot: Option<request_audit::VerifiedHistoricalSlot>,
     capture: Option<newchan_rust::s_content::AuditCapture>,
     node_count: usize,
     limit: usize,
+    // 40B B2：本次发布资格交接的许可，费用终检前持票并入账，提交后由交接消费。
+    qualification_reserve: Option<native::Permit>,
     // raw载荷必须先于Q持有的Plain raw许可析构。
     audited: state::AuditedState,
     q: q::Facts,
@@ -2263,8 +2603,35 @@ struct CompleteCandidate {
     // 最后析构：冷审计时的同一父账随所有真实载荷跨事务保留。
     resources: native::Budget,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl CompleteCandidate {
+    /// 内容与台账均已提交后消费资格交接许可：新资格入账、旧资格与许可余量释放，
+    /// 总账按 `validate_effects` 同一公式重算；任一失败即候选作废。
+    fn advance_qualified(&mut self, runtime: &prepared::Runtime) -> Result<(), String> {
+        use super::audit_retention::sum;
+        let permit = self.qualification_reserve.take();
+        let delta = self.audited.advance_qualified(runtime, permit)?;
+        self.charge.historical_and_raw_capacity = delta
+            .apply(self.charge.historical_and_raw_capacity)
+            .map_err(|failure| match failure {
+                native::Failure::BudgetExceeded => invalid("资格交接保留账溢出"),
+                native::Failure::Invalid(error) => error,
+            })?;
+        self.charge.total = sum([
+            self.charge.node_source_and_certificates,
+            self.charge.node_capacity,
+            self.charge.historical_and_raw_capacity,
+            self.charge.current_sql_capacity,
+            self.charge.q_capacity,
+            self.charge.inline,
+        ]);
+        // 40H B2：交接期间旧新资格与比较缓冲同时存活的实际峰值进入最终封包峰值。
+        self.charge.handoff_peak = self.charge.handoff_peak.max(sum([
+            self.charge.entry_reserved_bytes,
+            self.resources.peak(),
+        ]));
+        Ok(())
+    }
     fn refresh_capture_charge(&mut self) -> Result<(), String> {
         use super::audit_retention::sum;
         let capture = self
@@ -2272,7 +2639,7 @@ impl CompleteCandidate {
             .as_ref()
             .ok_or_else(|| invalid("缺Native owner原件"))?;
         let r = capture
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or_else(|| invalid("缺Native原件费用"))?;
         self.node_count = r.nodes;
         self.charge.node_source_and_certificates = sum([
@@ -2288,7 +2655,7 @@ impl CompleteCandidate {
             sum([r.public_capacity, r.template_capacity])
                 .saturating_mul(66)
                 .saturating_add(32),
-            capture.owner_codec_retained_bytes_for_testonly(),
+            capture.owner_codec_retained_bytes(),
         ]);
         self.charge.total = sum([
             self.charge.node_source_and_certificates,
@@ -2316,11 +2683,11 @@ impl CompleteCandidate {
         // 丢掉事务 memo，仅原件和纯 codec 成功证书移动到候选；不复制节点正文。
         slot.capture = slot
             .capture
-            .into_originals_and_codec_roots_for_testonly()
+            .into_originals_and_codec_roots()
             .map_err(invalid)?;
         let retained = slot
             .capture
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or_else(|| invalid("完整候选缺少 Native 原件"))?;
         let mut charge = CompleteCharge {
             node_source_and_certificates: sum([
@@ -2540,13 +2907,14 @@ impl CompleteCandidate {
             audited,
             originals,
             charge,
+            qualification_reserve: None,
             resources: budget,
             _inline_permit: inline_permit,
         }))
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
     pub(super) fn complete_pointers(&self) -> (usize, usize, usize) {
         let candidate = self.complete.borrow();
@@ -2609,7 +2977,7 @@ impl AuditConnection {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn audit_owner_ended_cannot_promote_earlier_context_or_fixture_life() {
     let mut f = prepared::tests::Fixture::new();
@@ -2653,7 +3021,7 @@ fn audit_owner_ended_cannot_promote_earlier_context_or_fixture_life() {
     assert_eq!(owner.complete_retained_bytes(), 0);
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl CompleteCandidate {
     fn detach_slot(&mut self) -> Result<(), String> {
         if let Some(slot) = self.slot.take() {
@@ -2743,7 +3111,7 @@ impl CompleteCandidate {
                 };
                 let existed = capture.contains(&digest);
                 if !capture
-                    .append_original_codec_for_owner_testonly(digest, tag, body, usize::MAX, scope)
+                    .append_original_codec_for_owner(digest, tag, body, usize::MAX, scope)
                     .map_err(invalid)?
                 {
                     return Err(invalid("Native 节点许可未被消费"));
@@ -2912,6 +3280,23 @@ impl CompleteCandidate {
                     Err(native::Failure::Invalid(error)) => return Err(error),
                 };
         }
+        // 40B B2：资格交接的持久上界在本代后缀入账后、费用终检前持票并计入历史账；提交后交接只消费它。
+        if effects.operation == effects::Operation::Publish {
+            if let Some(transition) = self.audited.qualified_transition_bound() {
+                let Ok(permit) = budget.reserve(transition) else {
+                    return Ok(None);
+                };
+                let Some(total) = self
+                    .charge
+                    .historical_and_raw_capacity
+                    .checked_add(transition)
+                else {
+                    return Ok(None);
+                };
+                self.charge.historical_and_raw_capacity = total;
+                self.qualification_reserve = Some(permit);
+            }
+        }
         #[cfg(test)]
         let effect_rows = effects.changes.len();
         let peak = match effects.apply(
@@ -2927,14 +3312,14 @@ impl CompleteCandidate {
             self.capture
                 .take()
                 .unwrap()
-                .finish_owner_step_for_testonly()
+                .finish_owner_step()
                 .map_err(invalid)?,
         );
         let retained = self
             .capture
             .as_ref()
             .unwrap()
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or_else(|| invalid("缺 Native 原件费用"))?;
         self.charge.node_source_and_certificates = sum([
             retained.body_len,
@@ -2995,7 +3380,7 @@ enum FixedOperation {
     Publish,
     // #1488：Recover 携带本事务读到的持久换代证明；只有它能触发受控同owner迁移。
     // 非 Native 构建无构造资格、不迁移，证明只经构造门（RecoverHandoff::new）生效、不被读出。
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code))]
+    #[cfg_attr(not(feature = "s_incremental"), allow(dead_code))]
     Recover(construction_state::RecoverHandoff),
 }
 impl AuditConnection {
@@ -3004,7 +3389,7 @@ impl AuditConnection {
         if ended.life != self.life || self.retired.get() || !self.connection.is_autocommit() {
             return Err(invalid("事务结果不属于当前连接生涯"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             *self.complete.borrow_mut() = ended.complete;
             // 交接点：候选移入owner；请求收尾的finish_source_keeper会在静止点重读覆盖。
@@ -3018,9 +3403,15 @@ impl AuditTxn<'_> {
         &self,
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<bool, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             let reject_warm = || {
+                #[cfg(unix)]
+                if self.owner.require_historical_certificate {
+                    return self
+                        .owner
+                        .history_result(Err(history_clamp::stale("认证生涯缺同快照历史候选")));
+                }
                 if self.owner.construction.borrow().is_some() {
                     self.owner.invalidate_construction();
                     Err(construction_state::stale(
@@ -3030,7 +3421,8 @@ impl AuditTxn<'_> {
                     Ok(false)
                 }
             };
-            let Some(mut candidate) = self.owner.complete.borrow_mut().take() else {
+            let prior = self.owner.complete.borrow_mut().take();
+            let Some(mut candidate) = prior else {
                 return reject_warm();
             };
             let seal = SnapshotSeal {
@@ -3056,6 +3448,8 @@ impl AuditTxn<'_> {
                     }
                 };
                 candidate.resources = resources;
+                #[cfg(unix)]
+                self.owner.bind_history_parent(context)?;
                 candidate.limit = context.complete_workspace_limit();
                 candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
             }
@@ -3065,14 +3459,14 @@ impl AuditTxn<'_> {
             *self.complete.borrow_mut() = Some(candidate);
             return Ok(true);
         }
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         {
             let _ = context;
             Ok(false)
         }
     }
     fn bound_raw_len(&self) -> Result<usize, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             return self
                 .complete
@@ -3081,7 +3475,7 @@ impl AuditTxn<'_> {
                 .map(|c| c.audited.raw.len())
                 .ok_or_else(|| invalid("缺当前绑定原始账"));
         }
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         Err(invalid("非 Native 无 owner 原始账"))
     }
     fn before_fixed_write(
@@ -3100,7 +3494,7 @@ impl AuditTxn<'_> {
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<(), String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if self.construction.borrow().is_none()
             && self.owner.construction.borrow().is_some()
             && self.complete.borrow().is_none()
@@ -3111,12 +3505,12 @@ impl AuditTxn<'_> {
         }
         // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
         // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let FixedOperation::Recover(handoff) = &operation {
             if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some() {
                 let complete = self.complete.borrow();
                 let seal = self.construction_seal()?;
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 let seal = p08_snapshot_miss(seal);
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
                     return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
@@ -3139,7 +3533,7 @@ impl AuditTxn<'_> {
                 *self.construction.borrow_mut() = Some(pending);
             }
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if matches!(operation, FixedOperation::Accept | FixedOperation::Begin)
             && self.construction.borrow().is_none()
             && context.is_some_and(|c| c.source_cache_enabled())
@@ -3173,7 +3567,7 @@ impl AuditTxn<'_> {
         if strict && self.owner.construction_lease.stale.get() {
             return Err(construction_state::stale("固定写前租约已撤销"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             let candidate = self.complete.borrow_mut().take();
             if let Some(mut candidate) = candidate {
@@ -3215,7 +3609,16 @@ impl AuditTxn<'_> {
                         self.tx(),
                         op,
                         (limit / 8).min(recording_cap),
-                        strict,
+                        strict || {
+                            #[cfg(unix)]
+                            {
+                                self.owner.history_clamp.borrow().is_some()
+                            }
+                            #[cfg(not(unix))]
+                            {
+                                false
+                            }
+                        },
                         &candidate.resources,
                         candidate.limit,
                     )? {
@@ -3251,7 +3654,7 @@ impl AuditTxn<'_> {
                 ));
             }
         }
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         {
             let _ = (operation, context);
             if strict {
@@ -3262,7 +3665,7 @@ impl AuditTxn<'_> {
     }
     fn finish_fixed_write(&self) -> Result<(), String> {
         let result = self.finish_fixed_write_inner(
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             None,
         );
         if result.is_err() && self.construction.borrow().is_some() {
@@ -3270,7 +3673,7 @@ impl AuditTxn<'_> {
         }
         result
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn finish_fixed_write_in_publication(
         &self,
         parent: Option<&PublicationScope<'_>>,
@@ -3283,13 +3686,17 @@ impl AuditTxn<'_> {
     }
     fn finish_fixed_write_inner(
         &self,
-        #[cfg(feature = "s_capture_native_testonly")] parent: Option<&PublicationScope<'_>>,
+        #[cfg(feature = "s_incremental")] parent: Option<&PublicationScope<'_>>,
     ) -> Result<(), String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             let strict = self.construction.borrow().is_some();
+            #[cfg(unix)]
+            let history_strict = self.owner.history_clamp.borrow().is_some();
+            #[cfg(not(unix))]
+            let history_strict = false;
             let missing = || {
-                if strict {
+                if strict || history_strict {
                     Err(construction_state::stale(
                         "effects未完整闭合；不得回落旧审计",
                     ))
@@ -3316,6 +3723,14 @@ impl AuditTxn<'_> {
             if strict && !effects.has_exact_coverage(closed_changes) {
                 return Err(construction_state::stale("actual effects覆盖收据缺失"));
             }
+            #[cfg(unix)]
+            let history_candidate = {
+                let clamp = self.owner.history_clamp.borrow();
+                clamp
+                    .as_ref()
+                    .map(|c| c.candidate(self, &effects))
+                    .transpose()?
+            };
             let set = effects.set.take();
             // 真实旧投影核仍负责 birth/revision/withdrawal/辅助合并的双向语义；
             // C2 不按新叶数制造一条新的SQL判据。
@@ -3368,12 +3783,16 @@ impl AuditTxn<'_> {
                 construction.confirm_recover(persisted)?;
             }
             *self.complete.borrow_mut() = Some(candidate);
+            #[cfg(unix)]
+            {
+                *self.history_write.borrow_mut() = history_candidate;
+            }
         }
         Ok(())
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn note_persisted_node(
     tx: &Transaction<'_>,
     digest: [u8; 32],
@@ -3384,14 +3803,14 @@ pub(crate) fn note_persisted_node(
 }
 
 /// C2材料切面：只在原完整来源审计成功后调用，生成器不能传旧根或变化集。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn note_qualified_source_cut(
     material: &MaterialAccess<'_, '_, '_>,
     root: newchan_rust::s_content::RefView<'_>,
 ) -> Result<(), String> {
     effects::note_source_cut(material, root)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn audit_native_source_cut(
     material: &MaterialAccess<'_, '_, '_>,
     capture: &mut newchan_rust::s_content::AuditCapture,
@@ -3400,10 +3819,22 @@ pub(crate) fn audit_native_source_cut(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
-) -> Result<(source_audit::Counts, source_audit::NativeSourceState), String> {
-    effects::audit_native_source(material, capture, previous, root, raw, profile, rule)
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule, false)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
+pub(crate) fn audit_native_source_partitions_cut(
+    material: &MaterialAccess<'_, '_, '_>,
+    capture: &mut newchan_rust::s_content::AuditCapture,
+    previous: Option<source_audit::NativeSourceState>,
+    root: newchan_rust::s_content::RefView<'_>,
+    raw: &BoundRawAdvance<'_>,
+    profile: &str,
+    rule: &str,
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule, true)
+}
+#[cfg(feature = "s_incremental")]
 pub(crate) fn with_construction_material<T>(
     tx: &Transaction<'_>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
@@ -3411,7 +3842,7 @@ pub(crate) fn with_construction_material<T>(
 ) -> Result<T, String> {
     effects::with_material_access(tx, work, f)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn with_construction_material_in_publication<T>(
     tx: &Transaction<'_>,
     parent: &PublicationScope<'_>,
@@ -3426,7 +3857,7 @@ pub(crate) fn with_construction_material_in_publication<T>(
         f,
     )
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn begin_construction_stage(
     tx: &Transaction<'_>,
     kind: StageKind,
@@ -3435,9 +3866,9 @@ pub(crate) fn begin_construction_stage(
 }
 
 /// 正常行为锁的实际 SQL 返回行/字节观察器；不计估算的底层 Btree/page I/O。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) struct SqlReadProbe(*mut rusqlite::ffi::sqlite3);
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 impl Drop for SqlReadProbe {
     fn drop(&mut self) {
         unsafe {
@@ -3445,7 +3876,7 @@ impl Drop for SqlReadProbe {
         }
     }
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
     pub(super) fn sql_read_probe(&self) -> SqlReadProbe {
         unsafe extern "C" fn observe(
@@ -3508,7 +3939,7 @@ impl AuditConnection {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn audit_owner_q_itemized_normal_cold_growth_and_typed_limit() {
     use super::audit_retention::Retained;
@@ -3610,7 +4041,7 @@ fn audit_owner_q_itemized_normal_cold_growth_and_typed_limit() {
     );
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn r13_cold_candidate_and_q_share_parent_and_preserve_complete_output() {
     use super::audit_retention::Retained;
@@ -3720,7 +4151,7 @@ fn r13_cold_candidate_and_q_share_parent_and_preserve_complete_output() {
     );
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn r13_optional_sql_rows_share_parent_without_changing_cells() {
     let mut conn = rusqlite::Connection::open_in_memory().unwrap();
@@ -3749,7 +4180,7 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 
 /// #1488 P2-4：封存池逐许可普查（独立于live差额）。`seal`=审计开始至封存后本父账全部
 /// 签发/归还事件；`released`=封存池析构期间事件，`inventory`=析构前按持有者逐张列出的池许可
-/// （`Pool::native_permit_inventory_for_testonly`，不含不属任何持有者的许可）。
+/// （`Pool::native_permit_inventory`，不含不属任何持有者的许可）。
 /// C1 残余+逐张存活许可之和=封存后live；C2 无未匹配归还；C3 存活许可均为Native；
 /// C4 池析构恰好归还封存存活多重集且不签发；C5（#1488 P2-A主控裁定后）来源合同项每节点一项、
 /// 和=正文+digest/tag/证书，且都指到已物理计费的正文块；析构逐张归还多重集=持有者清单多重集
@@ -3759,7 +4190,7 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 /// 共少127,974B（527,048→399,074）=111,334B（上述来源许可）+16,640B（NativeNode去掉
 /// Option<NativeReservation>后索引槽变窄的布局连带，=1040槽×(241−225)B；#1488 P2-β，r14逐项锁定）。
 /// 以上为#1405前合同串下的数值；#1488 0053起r14按tb02b合同串长推导①与527,048基准（#1405后+27/+54）。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 fn seal_census_check(
     seal: &[native::CensusEvent],
     residual: usize,
@@ -3869,7 +4300,7 @@ fn seal_census_check(
 /// #1488 P2-4负控：在真实封存路径（finish_source_keeper→retain_completed_admitted→
 /// build_bounded_counts_admitted 的同一工作域）注入重复许可；live差额恒等式对重复许可
 /// 自洽而照样通过，逐许可普查必须识别。无注入的对照组普查通过。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
     use cross_request_source_cache::{SealFault, SEAL_FAULT};
@@ -3927,10 +4358,10 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             let after_seal = parent.live();
             let pool = keeper.take().expect("封存池存活");
             let nodes = pool.nodes;
-            let claims = pool.originals.native_source_claims_for_testonly().unwrap();
-            let claim_amounts = pool.originals.native_source_claim_amounts_for_testonly();
+            let claims = pool.originals.native_source_claim_totals().unwrap();
+            let claim_amounts = pool.originals.native_source_claim_amounts();
             parent.census_arm();
-            let inventory = pool.native_permit_inventory_for_testonly().unwrap();
+            let inventory = pool.native_permit_inventory().unwrap();
             drop(pool);
             let released = parent.census_take();
             let sealed = after_seal
@@ -3993,7 +4424,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
 /// 大于池合同额）；请求n+1入口discard候选（生产 held>keeper_cap 分支）后重新分区——K须按其物理
 /// live只计一次（含M_K），不能只按合同额。冻结后T的物理占用 E+K物理live+A 不超过T；旧口径
 /// （O只含合同额）多放出的A=物理−合同，在此定量复现并锁住。随后请求n+1沿生产路径继续，keeper照常命中。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
     let mut f = prepared::tests::Fixture::new();
@@ -4099,7 +4530,7 @@ fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
 /// 请求n+1首次分区失败 → discard → 二次分区必须仍拒绝：discard不改K的live，静止点读数只能由
 /// 析构实际归还量下调，不得把x+s重读为新基准；s不得吸收进U、不得以该池冻结成功。
 /// 生产入口序列（`entry_old_pool_partition`，driver原样调用）最终只能丢可选池。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected() {
     let mut f = prepared::tests::Fixture::new();
@@ -4348,13 +4779,13 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 }
                 let pool = keeper.take().expect("封存池存活");
                 let nodes = pool.nodes;
-                let claims = pool.originals.native_source_claims_for_testonly().unwrap();
-                let claim_amounts = pool.originals.native_source_claim_amounts_for_testonly();
+                let claims = pool.originals.native_source_claim_totals().unwrap();
+                let claim_amounts = pool.originals.native_source_claim_amounts();
                 assert_eq!(claim_amounts.len(), nodes);
                 let (index_bytes, slot_now, slot_before_p2a) =
                     pool.originals.native_index_layout_for_testonly().unwrap();
                 parent.census_arm();
-                let inventory = pool.native_permit_inventory_for_testonly().unwrap();
+                let inventory = pool.native_permit_inventory().unwrap();
                 drop(pool);
                 let released = parent.census_take();
                 // P2-4：逐许可普查独立于下方live差额恒等式，核封存池无重复计费。
@@ -4492,11 +4923,13 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) mod construction_tests {
     use super::*;
 
     include!("audit_owner/b2_source_fault_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/history_clamp_tests.rs");
 
     #[derive(Clone, Debug)]
     struct RawObservation {
@@ -5187,6 +5620,27 @@ pub(super) mod construction_tests {
     /// `owner_suffix_complete`，且无 `publication_candidate_abandoned`（未降级为无候选重发）。
     /// 六代后 warm 库每个 cut 的五个累计数组：写者发布 ＝ 按库布局独立重建；按另一布局重建在
     /// 某个 cut 不等；两库发布值不同。
+    #[test]
+    fn p6_native_source_context_preserves_real_owner_multicut_contract() {
+        // 实际effects/source-set/append消费路径；不以手造Counts或token模拟资格。
+        construction_set::with_source_context_negatives_for_test(|| {
+            b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild();
+        });
+    }
+
+    #[test]
+    fn h1_request_closure_real_owner_multicut_reuses_resolved_roots() {
+        super::super::history::REQUEST_CLOSURE_REPEATS.with(|c| c.set((0, 0)));
+        b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild();
+        let (requests, reads) =
+            super::super::history::REQUEST_CLOSURE_REPEATS.with(std::cell::Cell::get);
+        assert!(requests >= 12, "两种布局的真实多代 append 必须消费请求证明");
+        assert_eq!(reads, requests * 2, "resolved 两根每次仅重核真实根头");
+        eprintln!(
+            "closure_request real_append_requests={requests} resolved_root_header_reads={reads}"
+        );
+    }
+
     #[test]
     fn b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild() {
         use super::super::history::tests::{
@@ -6193,7 +6647,7 @@ pub(super) mod construction_tests {
 }
 
 // #1488 仅测试私有构造点；NOT_RUN，本机禁止 cargo/rustc。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod raw_native_move_ownership_tests {
     use super::*;
 
@@ -6256,8 +6710,28 @@ mod raw_native_move_ownership_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
+    pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
+        let total = 64 * 1024 * 1024;
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(
+            super::cross_request_source_cache::Keeper::new(total),
+        );
+        context
+            .freeze_manifest_workspace_budget(total, 0, 0)
+            .unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let active = self.begin(rusqlite::TransactionBehavior::Deferred).unwrap();
+        active
+            .audit_admission(
+                &json!({"payload":{"op":"ready"}}),
+                &s_allocation::Mode::CapturedNative,
+                &mut context,
+            )
+            .unwrap();
+        self.continue_with(active.read_end().unwrap()).unwrap();
+        context
+    }
     pub(super) fn complete_budget_for_test(&self) -> native::Budget {
         self.complete
             .borrow()
@@ -6268,7 +6742,7 @@ impl AuditConnection {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl AuditConnection {
     /// 0065：降级发布提交确认后续租。只在 owner 与本次结束态都已无任何候选/资格、连接已终结时
     /// 推进序号（旧序号签发的令牌仍失配）并清除 stale；任一条件不满足则保持撤销（后续请求
@@ -6344,7 +6818,7 @@ impl AuditConnection {
     }
 
     /// 返回 Ok(None) 仅当候选父工作域报 BudgetExceeded；`candidate=false` 时不签发候选资源。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn publish_attempt(
         &self,
         runtime: &mut prepared::Runtime,
@@ -6353,7 +6827,7 @@ impl AuditConnection {
         context: &mut request_audit::RequestAuditContext,
         candidate: bool,
     ) -> Result<Option<(commit::CommitReceipt, Ended)>, String> {
-        let mut active = self.begin(TransactionBehavior::Immediate)?;
+        let mut active = self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
         // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
         active.bind_existing(Some(context))?;
         let resources =
@@ -6466,7 +6940,7 @@ impl AuditConnection {
 ///   包装均可：`S3DriverInvalid：`/`S3PrepareInvalid：`/`S3StateInvalid：`/`S3ContentReadInvalid：`/`StaleWriter：…`）。
 /// 其余一律拒绝：闭包有自身错误则原样返回（独审 0068 F1：资源失败被吞后的尾检身份不符等），
 /// 否则返回 Ledger 分类的工作账损坏。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn publication_degrade_verdict(
     error: newchan_rust::s_content::capture_allocation::scratch::WorkError<String>,
     operation_error: Option<String>,
@@ -6491,20 +6965,20 @@ fn publication_degrade_verdict(
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::scratch::failure_trace;
 
 /// 0072 R1 锁：prepared 发布读取租约处（`publication_read_lease` → `S3PrepareInvalid：` 包装，
 /// 独审 0070 S86 message-34 的真实包装）对候选父工作域注入 Allocation；未置位时恒等放行。
 #[cfg(test)]
 #[cfg_attr(
-    all(test, not(feature = "s_capture_native_testonly")),
+    all(test, not(feature = "s_incremental")),
     allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
 )]
 pub(super) fn prepare_fault(
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<Option<()>, newchan_rust::s_content::CodecError> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if let Some(work) = work.filter(|_| PREPARE_ALLOCATION_FAILURE.with(|f| f.replace(false))) {
         return Err(work.reject(
             newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation,
@@ -6514,7 +6988,7 @@ pub(super) fn prepare_fault(
     Ok(Some(()))
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 thread_local! {
     /// 0065 降级锁：在 publication 尾检位置注入候选父工作域 Allocation 失败（BudgetExceeded）。
     pub(super) static PUBLICATION_CANDIDATE_BUDGET_FAILURE: Cell<bool> = const { Cell::new(false) };
@@ -6529,10 +7003,11 @@ thread_local! {
     pub(super) static PUBLICATION_LEDGER_AFTER_BUDGET: Cell<bool> = const { Cell::new(false) };
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod publication_degrade_verdict_tests {
     use super::*;
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkScope};
+    #[cfg(feature = "s_capture_native_testonly")]
     use newchan_rust::s_content::CodecError;
 
     /// 真实 codec 工作域 + 真实类型化记录，与 publish_attempt 同构：返回判据结果。
@@ -6636,51 +7111,57 @@ mod publication_degrade_verdict_tests {
                 "R2：Ledger 类 scratch 错误与桥同字也须拒绝"
             );
             // R2：不记入任何作用域的直接 Ledger 构造（SourceClaim 字节不符、check_write 域关闭等）。
-            assert!(
-                verdict(|w| {
-                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-                    Err(invalid(w.reject(failure)))
-                })
-                .is_err(),
-                "R2：闭包期间任何 Ledger 构造都须拒绝"
-            );
-            assert!(
-                verdict(|w| {
-                    let _ = w.reject(failure);
-                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-                    Ok(())
-                })
-                .unwrap_err()
-                .contains("工作账损坏"),
-                "R2：闭包 Ok 但期间有 Ledger → 工作账损坏"
-            );
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                assert!(
+                    verdict(|w| {
+                        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                        Err(invalid(w.reject(failure)))
+                    })
+                    .is_err(),
+                    "R2：闭包期间任何 Ledger 构造都须拒绝"
+                );
+                assert!(
+                    verdict(|w| {
+                        let _ = w.reject(failure);
+                        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                        Ok(())
+                    })
+                    .unwrap_err()
+                    .contains("工作账损坏"),
+                    "R2：闭包 Ok 但期间有 Ledger → 工作账损坏"
+                );
+            }
         }
         // #1488 0077 P55（0073 G1）：语义失败一维——闭包期间工作域观察到非 scratch codec 错误，
         // 即使作用域分类为 Budget/Allocation 且错误确由过桥上抛，也一律拒绝（`semantic==0` 门）。
-        let semantic = || CodecError::new("S3P55Semantic", "测试语义失败");
-        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
-            assert!(
-                verdict(|w| {
-                    let _ = w.reject(failure);
-                    w.observe_for_test(&semantic());
-                    Ok(())
-                })
-                .unwrap_err()
-                .contains("工作账损坏"),
-                "P55：闭包 Ok 但期间有语义失败 → 工作账损坏"
-            );
-            let bridged = std::cell::RefCell::new(String::new());
-            assert_eq!(
-                verdict(|w| {
-                    // 先记资源失败使作用域分类为 Budget/Allocation，再观察语义失败（分类不变，记录 +1）。
-                    let e = invalid(w.reject(failure));
-                    w.observe_for_test(&semantic());
-                    *bridged.borrow_mut() = e.clone();
-                    Err(e)
-                }),
-                Err(bridged.borrow().clone()),
-                "P55：过桥的 {failure:?} 期间有语义失败也不得降级，原样拒绝"
-            );
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let semantic = || CodecError::new("S3P55Semantic", "测试语义失败");
+            for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+                assert!(
+                    verdict(|w| {
+                        let _ = w.reject(failure);
+                        w.observe_for_test(&semantic());
+                        Ok(())
+                    })
+                    .unwrap_err()
+                    .contains("工作账损坏"),
+                    "P55：闭包 Ok 但期间有语义失败 → 工作账损坏"
+                );
+                let bridged = std::cell::RefCell::new(String::new());
+                assert_eq!(
+                    verdict(|w| {
+                        // 先记资源失败使作用域分类为 Budget/Allocation，再观察语义失败（分类不变，记录 +1）。
+                        let e = invalid(w.reject(failure));
+                        w.observe_for_test(&semantic());
+                        *bridged.borrow_mut() = e.clone();
+                        Err(e)
+                    }),
+                    Err(bridged.borrow().clone()),
+                    "P55：过桥的 {failure:?} 期间有语义失败也不得降级，原样拒绝"
+                );
+            }
         }
         // 作用域分类 Ledger / Operation 照旧拒绝。
         assert!(verdict(|w| {
@@ -6696,32 +7177,35 @@ mod publication_degrade_verdict_tests {
             "无资源失败记录时闭包错误不降级"
         );
         // 记录只在 capture 内发生，嵌套时并入外层。
-        let (_, outer) = failure_trace::capture(|| {
-            let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Budget);
-            let (_, inner) = failure_trace::capture(|| {
-                let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let (_, outer) = failure_trace::capture(|| {
+                let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Budget);
+                let (_, inner) = failure_trace::capture(|| {
+                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                });
+                assert!(!inner.only_resource());
             });
-            assert!(!inner.only_resource());
-        });
-        assert!(!outer.only_resource(), "内层 Ledger 须并入外层");
-        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-        let (_, idle) = failure_trace::capture(|| ());
-        assert_eq!(
-            idle,
-            failure_trace::FailureTrace::default(),
-            "capture 外不记录"
-        );
+            assert!(!outer.only_resource(), "内层 Ledger 须并入外层");
+            let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+            let (_, idle) = failure_trace::capture(|| ());
+            assert_eq!(
+                idle,
+                failure_trace::FailureTrace::default(),
+                "capture 外不记录"
+            );
+        }
     }
 }
 
 // ---- #1488 0077 P08（独审 0036 P3-3）：Recover 迁移「同快照缺完整原件」分支的测试注入 ----
 // 该分支生产不可达（bind_existing 命中即改记本事务 seal，未命中先被 reject_warm 拦下），以错位事务
 // seal 查找来锁定其 fail-closed。全部置于文件末尾，生产代码行号（panic 位置）不动。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 thread_local! {
     static RECOVER_SNAPSHOT_MISS: Cell<bool> = const { Cell::new(false) };
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 fn p08_snapshot_miss(seal: SnapshotSeal) -> SnapshotSeal {
     if RECOVER_SNAPSHOT_MISS.with(|flag| flag.replace(false)) {
         SnapshotSeal {
@@ -6732,17 +7216,157 @@ fn p08_snapshot_miss(seal: SnapshotSeal) -> SnapshotSeal {
         seal
     }
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
     pub(super) fn inject_recover_snapshot_miss_for_test(&self) {
         RECOVER_SNAPSHOT_MISS.with(|flag| flag.set(true));
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 thread_local! {
     /// 0079（P24-adj）：本线程最近一次冷根失败无票重跑记下的（owner 生涯, 冻结域, 重跑前租约已撤销）；
     /// 本请求发布时取用即清。writer 单线程串行处理请求，冻结域每请求唯一。
     static COLD_ROOT_RERUN: std::cell::Cell<Option<(u64, u64, bool)>> =
         const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+mod p6_ledger_tests {
+    use super::super::audit_ledger;
+    use super::*;
+
+    fn generation(db: &Path) -> i64 {
+        Connection::open(db)
+            .unwrap()
+            .query_row(
+                "SELECT CAST(value AS INTEGER) FROM meta WHERE key='generation'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+    }
+    fn schema(db: &Path) -> Vec<(String, String)> {
+        let c = Connection::open(db).unwrap();
+        let mut s = c
+            .prepare("SELECT name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name")
+            .unwrap();
+        let rows = s
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        rows
+    }
+    #[test]
+    fn p6_owner_content_commit_precedes_sidecar_and_keeps_content_schema() {
+        let (f, envelope, token, m, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let before = schema(&db);
+        let ledger = audit_ledger::tests::ledger(&db, "owner-ledger.sqlite", &m.rule_revision);
+        let owner = AuditConnection::open(&db).unwrap();
+        let mut runtime = prepared::Runtime::new();
+        runtime.install_audit_ledger(ledger).unwrap();
+        runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .unwrap();
+        let mut context = request_audit::RequestAuditContext::default();
+        let (receipt, ended) = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .unwrap();
+        assert_eq!(receipt.generation, 1);
+        assert_eq!(generation(&db), 1);
+        let l = Connection::open(db.with_file_name("owner-ledger.sqlite")).unwrap();
+        assert_eq!(
+            l.query_row("SELECT certified_through_generation FROM meta", [], |r| r
+                .get::<_, i64>(
+                0
+            ))
+            .unwrap(),
+            1
+        );
+        assert_eq!(schema(&db), before);
+        owner.continue_with(ended).unwrap();
+        assert!(!owner.retired.get());
+    }
+    #[test]
+    fn p6_owner_sidecar_commit_failure_stales_after_content_commit_and_never_retries() {
+        let (f, envelope, token, m, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "busy-ledger.sqlite", &m.rule_revision);
+        let reader = Connection::open(db.with_file_name("busy-ledger.sqlite")).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        assert_eq!(
+            reader
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        let owner = AuditConnection::open(&db).unwrap();
+        let mut runtime = prepared::Runtime::new();
+        runtime.install_audit_ledger(ledger).unwrap();
+        runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .unwrap();
+        let mut context = request_audit::RequestAuditContext::default();
+        let failure = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .err()
+            .unwrap();
+        assert!(failure.contains("AuditLedgerStale"), "{failure}");
+        assert_eq!(generation(&db), 1, "内容 Commit 已完成，不能伪称回滚");
+        assert!(owner.retired.get());
+        assert!(owner.begin(TransactionBehavior::Immediate).is_err());
+        reader.execute_batch("ROLLBACK").unwrap();
+        assert!(
+            owner
+                .publish(&mut runtime, &token, &envelope, &mut context)
+                .is_err(),
+            "解除锁也不得自动重试"
+        );
+        assert!(runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .is_err());
+        assert_eq!(
+            reader
+                .query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(generation(&db), 1);
+    }
+    #[test]
+    fn p6_owner_content_failure_discards_pending_sidecar_without_publishing_generation() {
+        let (f, envelope, token, m, roots) = prepared::tests::p6_candidate();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "rollback-ledger.sqlite", &m.rule_revision);
+        let owner = AuditConnection::open(&db).unwrap();
+        let mut runtime = prepared::Runtime::new();
+        runtime.install_audit_ledger(ledger).unwrap();
+        runtime
+            .stage_audit_ledger(&token, &audit_ledger::tests::delta(&m, &roots))
+            .unwrap();
+        runtime.set_after_prepare_for_request_test(Some(|_| {
+            Err("p6 injected content failure".into())
+        }));
+        let mut context = request_audit::RequestAuditContext::default();
+        let failure = owner
+            .publish(&mut runtime, &token, &envelope, &mut context)
+            .err()
+            .unwrap();
+        assert!(failure.contains("p6 injected content failure"), "{failure}");
+        assert_eq!(generation(&db), 0);
+        assert!(owner.retired.get());
+        let l = Connection::open(db.with_file_name("rollback-ledger.sqlite")).unwrap();
+        assert_eq!(
+            l.query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            l.query_row("SELECT COUNT(*) FROM raw", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
 }

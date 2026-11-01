@@ -55,7 +55,7 @@ mod delta_storage;
 mod content_store;
 #[path = "s_session_v2/evidence_store.rs"]
 mod evidence_store;
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[path = "s_session_v2/staged_nodes.rs"]
 mod staged_nodes;
 // #1394 采纳 C §5.2/5.3：S 生产侧从同核共享证据直接构造 CC-004 内容对象（生产构造器，
@@ -2162,6 +2162,9 @@ fn parse_profile_text(text: &str) -> Result<(Value, String, String), String> {
 /// 具名 TestOnly 受控暂停点：暴露真实阶段供外部对精确 S PID 发 SIGKILL。只由
 /// `S_SESSION_PAUSE`（阶段名）+ `S_SESSION_PAUSE_MARKER`（标记文件路径）激活；生产时序不变，
 /// 不改提交路径。marker 写入自身 PID/阶段/DB/可执行文件，供外部核身份后 kill。
+/// #1640：只编入默认 `s_session` 构建（#1371 SIGKILL 试验所用）与 testonly 构建；
+/// `s_incremental` 生产构建不含此钩子及其调用点（§2.3 第 2/3 层）。
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 fn testonly_pause(stage: &str) {
     if std::env::var("S_SESSION_PAUSE").ok().as_deref() != Some(stage) {
         return;
@@ -2194,6 +2197,9 @@ fn testonly_pause(stage: &str) {
 /// TestOnly 诊断 sidecar：从当前传入的**真实 writer 连接**（非另开连接）回读平台前件 PRAGMA，
 /// 记录 PID/命令/DB/阶段/platform 与三项实际值。仅由 `S_SESSION_PRAGMA_SIDECAR=1` 显式启用；
 /// 不改变 stdout 回执/结构化 stderr/fence 合同。
+/// #1640：与 `testonly_pause` 同门，只编入默认 `s_session` 构建与 testonly 构建；
+/// `s_incremental` 生产构建不含此 sidecar、其环境变量名与调用点（§2.3 第 2/3 层）。
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 fn record_connection_pragmas(conn: &Connection, stage: &str) {
     if std::env::var("S_SESSION_PRAGMA_SIDECAR").ok().as_deref() != Some("1") {
         return;
@@ -2447,6 +2453,7 @@ fn check_accept_connection(conn: &Connection, prepared: &PreparedAccept) -> Resu
     if meta_get_opt(conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
     }
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     record_connection_pragmas(conn, "accept");
     let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
     if meta_session != input.session_id {
@@ -2732,7 +2739,7 @@ fn decode_raw_row_admitted(
 }
 
 /// Q固定追加与cold路径复用完全相同的列解码/OHLC借视图核。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn read_raw_event_at_admitted(
     conn: &Connection,
     seq: i64,
@@ -2781,7 +2788,7 @@ fn decode_raw_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
     }))
 }
 /// 固定 Accept 的实际 seq 回读；沿完整读取相同解码，不构造旧 raw 副本。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn read_raw_event_at(conn: &Connection, seq: i64) -> Result<Value, String> {
     let mut value = conn.query_row(
         "SELECT identity_key,revision,input_revision,payload_hash,receipt_id,seq,source_namespace,source_epoch,instrument,event_id,received_at,raw_text,price,ts,volume,source_coord,supersedes_revision FROM raw_events WHERE seq=?1", [seq], decode_raw_row).map_err(|e| format!("StorageUnavailable：{e}"))?;
@@ -3396,13 +3403,29 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     v3::admission::write_current_result(&out)
 }
 
-/// 正式生产入口：配置先于任何 Begin 或库写操作；缺 tick/成本即停，不用诊断夹具。
+/// 正式生产入口：配置先于任何 Begin 或库写操作；S 专用绑定 synthetic（#1774 B2），缺成本即停，
+/// 不用诊断夹具。
 fn advance_core(
     db: &Path,
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
-    let config = ThetaConfig::for_production_profile("P0").map_err(|error| error.to_string())?;
+    advance_core_production(
+        db,
+        configured_epoch,
+        context,
+        ThetaConfig::for_s_structure_writer(),
+    )
+}
+
+/// 正式生产入口的绑定步：配置构造失败或不可准入 ⟹ 在任何 Begin 之前返回。
+fn advance_core_production(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+    config: Result<ThetaConfig, newchan_rust::theta_v0::run_records::RunPolicyError>,
+) -> Result<Value, String> {
+    let config = config.map_err(|error| error.to_string())?;
     if !config.admissible() {
         return Err(format!(
             "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
@@ -3444,6 +3467,7 @@ fn advance_core_with_config(
             "VersionMismatch：历史规则会话只读；新笔规则须新建代际，不复用旧 Open 缓存".into(),
         );
     }
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     record_connection_pragmas(&conn, "advance");
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
     let (
@@ -3524,6 +3548,7 @@ fn advance_core_with_config(
     };
 
     // ★测试暂停点 1：Begin 已持久、解释尚未开始（供 SIGKILL）。
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     testonly_pause("after_begin");
 
     // ── 同次真实 Rust parser：按「有效源位置」在源坐标序上取每个身份的最新 revision ──
@@ -3937,6 +3962,7 @@ fn advance_core_with_config(
     let started_commit = s_fact_cache::phase::begin();
 
     // ★测试暂停点 2：完整不可变批次已独立持久、Commit 尚未发生（供 SIGKILL）。
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     testonly_pause("after_batch");
 
     // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务原子应用对象/边/端点 + 撤回/替代 + delta ──
@@ -4344,6 +4370,7 @@ fn advance_core_with_config(
     if frontier_moved {
         drop(tx);
     } else {
+        #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
         testonly_pause("before_commit");
         tx.commit()
             .map_err(|e| format!("advance commit 失败：{e}"))?;
@@ -4365,6 +4392,7 @@ fn advance_core_with_config(
     }
 
     // ★测试暂停点 3：Commit 已持久、回执尚未送达（供 SIGKILL）。
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     testonly_pause("after_commit");
 
     Ok(json!({
@@ -4642,7 +4670,7 @@ fn json_shape_with_owner_admitted(
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<v3::business_json::JsonOwner, String> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let permit = if let Some(work) = work {
         if owner.is_some() {
             return Err(work
@@ -4660,14 +4688,14 @@ fn json_shape_with_owner_admitted(
     } else {
         None
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     if let Some(work) = work {
         return Err(work
             .reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)
             .to_string());
     }
     let value = json_shape_with_owner(text, shape, owner)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let value = match value {
         v3::business_json::JsonOwner::Plain(value) => {
             v3::business_json::JsonOwner::Plain(value.with_reservation(permit))
@@ -5695,6 +5723,7 @@ fn recover_core(
         return Err("VersionMismatch：历史规则会话只读，禁止恢复写者或清除未决 Begin".into());
     }
     ensure_writable(&conn)?;
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     record_connection_pragmas(&conn, "recover");
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -6112,18 +6141,34 @@ mod tests {
         assert_eq!(rows, 0, "失败的声明 init 不得留下任何 meta");
     }
 
+    /// #1774 AC7：synthetic v1 夹具（三项成本未签）经正式入口的绑定步在任何 Begin 之前拒绝。
     #[test]
     fn production_advance_rejects_unsigned_profile_before_begin() {
+        use newchan_rust::theta_v0::run_records::{
+            production_venue_from_records, VenueUsage, ACTIVE_DATA_PROFILE_JSON,
+            ACTIVE_THETA_RISK_JSON, SYNTHETIC_TB02A_PROFILE_ID, VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        };
+        const SYNTHETIC_UNSIGNED_V1: &str =
+            include_str!("../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(
             &files,
             &located_ohlc_input(&[("policy-gate", 0, 6, 12, 3, 7)]),
         );
-        let error = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
-        assert!(error.contains("AwaitingPolicy"), "{error}");
-        assert!(error.contains("venue_profile"), "{error}");
-        assert!(error.contains("cost_inputs"), "{error}");
+        let unsigned = ThetaConfig::from_records(
+            production_venue_from_records(
+                &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+                VenueUsage::SStructureWriter,
+                |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+            ),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        );
+        let error =
+            advance_core_production(&files.db(), DEFAULT_WRITER_EPOCH, None, unsigned).unwrap_err();
+        assert!(error.starts_with("AwaitingPolicy{cost_inputs}"), "{error}");
+        assert!(!error.contains("venue_profile"), "{error}");
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state")
@@ -6135,6 +6180,27 @@ mod tests {
             .unwrap()
             .unwrap_or_default()
             .is_empty());
+    }
+
+    /// #1774 AC2：正式入口绑定已签 synthetic v2，advance 产出并在输出戳上写 synthetic 签署版本。
+    #[test]
+    fn production_advance_stamps_synthetic_record_versions() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[("policy-synthetic", 0, 6, 12, 3, 7)]),
+        );
+        let out = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap();
+        let labels = ThetaConfig::for_s_structure_writer()
+            .unwrap()
+            .record_labels();
+        assert_eq!(out["policy_records"], json!(labels));
+        assert!(
+            labels.contains("venue-profile-synthetic-tb02a/2"),
+            "{labels}"
+        );
+        assert!(!labels.contains("diagnostic-fixture"), "{labels}");
     }
 
     #[test]
@@ -8054,7 +8120,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_batch_header_shares_original_text_permits_until_last_drop() {
         let budget = v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let baseline = budget.live();
@@ -8081,7 +8147,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn assert_native_raw_matches_plain(conn: &Connection, expected_len: usize, ohlc: bool) {
         let expected = read_raw_events_until(conn, None).unwrap();
         assert_eq!(expected.len(), expected_len);
@@ -8134,7 +8200,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_cold_raw_sql_json_hash_receipt_revision_matches_plain() {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -8157,7 +8223,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_raw_column_errors_precede_ohlc_cardinality_and_earlier_row_faults() {
         // 两个真正双故障；用BLOB并核typeof，避免TEXT affinity把INTEGER自动转成文本。
         for cardinality_fault in [true, false] {
@@ -8244,7 +8310,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_cold_raw_ohlc_and_revision_matches_plain() {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -12328,7 +12394,7 @@ mod legacy_profile_owner_regressions {
         )
         .unwrap();
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r13_native_legacy_profile_blob_matches_none_on_parent_scope() {
         use v3::audit_store::{CodecRead, NativeAdmission};
@@ -12377,7 +12443,7 @@ mod legacy_profile_owner_regressions {
         cache::configure(0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r13_native_legacy_profile_graph_roots_match_none_and_keep_cache_gates() {
         use v3::audit_store::{CodecRead, NativeAdmission};

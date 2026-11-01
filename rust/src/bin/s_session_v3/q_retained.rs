@@ -887,7 +887,7 @@ mod owned_cache_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_boundary_tests {
     use super::super::super::{audit_owner::native::Budget, business_json as bj};
     use super::*;

@@ -2,9 +2,13 @@
 //!
 //! 四份记录随源码入库并编进二进制（`include_str!`），格式与 [`super::policy_records`]（#1603）相同：
 //!
-//! - `venue-profile-P0`：P0 确定性回放场所（ADR 0028 P0 槽位、ADR 0044 P0 签署记录）的 `tick_size`
-//!   与四项执行成本（`commission_bps`/`slippage_bps`/`tax_bps`/`entry_delay_bars`）。生产与验收回放
-//!   按品种从 [`PRODUCTION_VENUE_PROFILES`] 取；P2 未启用（ADR 0028「P2 处置」），表里没有 P2。
+//! - `venue-profile-P0`：ADR 0057 的 `replay_binance_spot_1m`（`P0` 为其 profile_id 别名）：P0 确定性回放
+//!   场所（ADR 0028 P0 槽位、ADR 0044 P0 签署记录）的 `tick_size` 与四项执行成本
+//!   （`commission_bps`/`slippage_bps`/`tax_bps`/`entry_delay_bars`）。生产与验收回放按品种或 profile id
+//!   从 [`PRODUCTION_VENUE_PROFILES`] 取；P2 未启用（ADR 0028「P2 处置」），表里没有 P2。
+//! - `venue-profile-synthetic-tb02a`：ADR 0057 的 `production_synthetic_ohlc_integer_tb02a_v1`，#1640 S 结构
+//!   写者的整数 tick 输入约定（`not_product_default`）。记录头 `symbol: null`、`usage: "s_structure_writer"`
+//!   （#1774 B1+B2）：symbol 路选不到；通用 profile 选择器拒绝；只有 [`production_venue_for_s_writer`] 绑定。
 //! - `venue-profile-diagnostic-fixture`：测试夹具与诊断运行用，数值等于改前 `impl Default` 常数，
 //!   `admissible: false`——用它跑出的输出不参与准入。
 //! - `theta-risk`：Θ_risk 与声部参数（rho/beta/gamma/kappa/default_lot/chi_z_alpha/两个 cap 开关、
@@ -23,8 +27,12 @@ use super::policy_records::{
     self as pr, PolicyError, PolicyRef, ACTIVE_MACD_FORCE_JSON, ACTIVE_TOWER_LEVEL_BUDGET_JSON,
 };
 
-/// P0 场所 profile 记录 id。
+/// P0 场所 profile 记录 id（ADR 0057 `replay_binance_spot_1m`，profile_id 别名 `P0`）。
 pub const VENUE_PROFILE_P0_ID: &str = "venue-profile-P0";
+/// S 结构写者 synthetic 场所 profile 记录 id（ADR 0057 `production_synthetic_ohlc_integer_tb02a_v1`）。
+pub const VENUE_PROFILE_SYNTHETIC_TB02A_ID: &str = "venue-profile-synthetic-tb02a";
+/// synthetic 记录头 `profile_id`；S 生产入口以此绑定（ADR 0057 受影响代码清单 driver.rs 行）。
+pub const SYNTHETIC_TB02A_PROFILE_ID: &str = "production_synthetic_ohlc_integer_tb02a_v1";
 /// 诊断夹具场所 profile 记录 id（不参与准入）。
 pub const VENUE_PROFILE_DIAGNOSTIC_FIXTURE_ID: &str = "venue-profile-diagnostic-fixture";
 /// 品种在生产表里找不到场所 profile 时报错所用的 id。
@@ -36,6 +44,9 @@ pub const DATA_PROFILE_ID: &str = "data-profile";
 
 /// P0 场所 profile（编进二进制）。
 pub const VENUE_PROFILE_P0_JSON: &str = include_str!("policy_records/venue-profile-P0.json");
+/// S 结构写者 synthetic 场所 profile（编进二进制）。
+pub const VENUE_PROFILE_SYNTHETIC_TB02A_JSON: &str =
+    include_str!("policy_records/venue-profile-synthetic-tb02a.json");
 /// 诊断夹具场所 profile（编进二进制）。
 pub const VENUE_PROFILE_DIAGNOSTIC_FIXTURE_JSON: &str =
     include_str!("policy_records/venue-profile-diagnostic-fixture.json");
@@ -44,9 +55,15 @@ pub const ACTIVE_THETA_RISK_JSON: &str = include_str!("policy_records/theta-risk
 /// 当前生效的数据 profile 记录（编进二进制）。
 pub const ACTIVE_DATA_PROFILE_JSON: &str = include_str!("policy_records/data-profile.json");
 
-/// 生产场所 profile 表：`(记录 id, 记录文本)`。按记录头 `symbol` / `profile_id` 匹配。
-pub const PRODUCTION_VENUE_PROFILES: &[(&str, &str)] =
-    &[(VENUE_PROFILE_P0_ID, VENUE_PROFILE_P0_JSON)];
+/// 生产场所 profile 表：`(记录 id, 记录文本)`。按记录头 `symbol` / `profile_id` 匹配，再按记录头
+/// `usage` 与入口核对（[`VenueUsage`]）；一次运行只绑定其中一份（ADR 0057 裁定三）。
+pub const PRODUCTION_VENUE_PROFILES: &[(&str, &str)] = &[
+    (VENUE_PROFILE_P0_ID, VENUE_PROFILE_P0_JSON),
+    (
+        VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        VENUE_PROFILE_SYNTHETIC_TB02A_JSON,
+    ),
+];
 
 /// 槽位名：场所 profile（`tick_size`、记录本身）。
 pub const SLOT_VENUE_PROFILE: &str = "venue_profile";
@@ -126,14 +143,42 @@ impl std::fmt::Display for RunPolicyError {
 
 impl std::error::Error for RunPolicyError {}
 
+/// 记录头 `usage`：场所 profile 允许的选择入口（#1774 B2）。缺省即 [`VenueUsage::General`]，
+/// `usage` 不是旧记录的新前提。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VenueUsage {
+    /// 回放 / 验收 / Python 的通用入口（按 symbol 或 profile id）。
+    General,
+    /// 只供 S 结构写者的专用入口 [`production_venue_for_s_writer`]。
+    SStructureWriter,
+}
+
+impl VenueUsage {
+    /// 记录头 `usage` 的写法；[`VenueUsage::General`] 对应缺省（不写）。
+    pub fn header_value(self) -> Option<&'static str> {
+        match self {
+            VenueUsage::General => None,
+            VenueUsage::SStructureWriter => Some("s_structure_writer"),
+        }
+    }
+}
+
+impl std::fmt::Display for VenueUsage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.header_value().unwrap_or("general"))
+    }
+}
+
 /// 场所 profile 的解析结果。
 #[derive(Debug, Clone, PartialEq)]
 pub struct VenueProfile {
     pub record: PolicyRef,
     /// 记录头 `profile_id`（如 `P0`、`diagnostic-fixture`）。
     pub profile_id: String,
-    /// 记录头 `symbol`；诊断夹具为 `None`。
+    /// 记录头 `symbol`；诊断夹具与 synthetic 为 `None`。
     pub symbol: Option<String>,
+    /// 记录头 `usage`；缺省 [`VenueUsage::General`]。
+    pub usage: VenueUsage,
     /// 记录头 `admissible`：`false` ⟹ 用它跑出的输出不参与准入。
     pub admissible: bool,
     pub tick_size: f64,
@@ -182,11 +227,17 @@ fn non_negative(id: &'static str, name: &str, v: f64) -> Result<f64, PolicyError
     require(id, name, v, v >= 0.0, "≥ 0")
 }
 
-/// 记录头里场所专有的三项：`profile_id`（必填字符串）、`symbol`（字符串或 null）、`admissible`（必填布尔）。
-fn venue_header(
-    id: &'static str,
-    text: &str,
-) -> Result<(String, Option<String>, bool), PolicyError> {
+/// 记录头里场所专有的四项。
+struct VenueHeader {
+    profile_id: String,
+    symbol: Option<String>,
+    usage: VenueUsage,
+    admissible: bool,
+}
+
+/// 记录头里场所专有的四项：`profile_id`（必填字符串）、`symbol`（字符串或 null）、`usage`（可选，
+/// 缺省 general）、`admissible`（必填布尔）。
+fn venue_header(id: &'static str, text: &str) -> Result<VenueHeader, PolicyError> {
     let root: Value = serde_json::from_str(text)
         .map_err(|e| pr::invalid(id, "<record>", format!("不是合法 JSON：{e}")))?;
     let profile_id = root
@@ -205,11 +256,27 @@ fn venue_header(
             ))
         }
     };
+    let usage = match root.get("usage") {
+        None | Some(Value::Null) => VenueUsage::General,
+        Some(Value::String(s)) if s == "s_structure_writer" => VenueUsage::SStructureWriter,
+        Some(v) => {
+            return Err(pr::invalid(
+                id,
+                "usage",
+                format!("须缺省或为 \"s_structure_writer\"，得 {v}"),
+            ))
+        }
+    };
     let admissible = root
         .get("admissible")
         .and_then(Value::as_bool)
         .ok_or_else(|| pr::invalid(id, "admissible", "缺 admissible 布尔值"))?;
-    Ok((profile_id, symbol, admissible))
+    Ok(VenueHeader {
+        profile_id,
+        symbol,
+        usage,
+        admissible,
+    })
 }
 
 /// 解析一份场所 profile。缺 `tick_size` 记在 `venue_profile` 槽，缺成本项记在 `cost_inputs` 槽，
@@ -256,7 +323,12 @@ pub fn parse_venue_profile(
         entry_delay_bars,
     ) {
         (
-            Some((profile_id, symbol, admissible)),
+            Some(VenueHeader {
+                profile_id,
+                symbol,
+                usage,
+                admissible,
+            }),
             Some(tick_size),
             Some(commission_bps),
             Some(slippage_bps),
@@ -266,6 +338,7 @@ pub fn parse_venue_profile(
             record,
             profile_id,
             symbol,
+            usage,
             admissible,
             tick_size,
             commission_bps,
@@ -341,22 +414,42 @@ pub fn diagnostic_fixture_venue() -> Result<VenueProfile, RunPolicyError> {
 
 /// 按记录头某字段在生产表里找场所 profile；找不到 ⟹ `venue_profile` 与 `cost_inputs` 两槽都报缺记录。
 fn production_venue_where(
+    usage: VenueUsage,
     matches: impl Fn(&str, Option<&str>) -> bool,
 ) -> Result<VenueProfile, RunPolicyError> {
-    production_venue_from_records(PRODUCTION_VENUE_PROFILES, matches)
+    production_venue_from_records(PRODUCTION_VENUE_PROFILES, usage, matches)
 }
 
 /// 从具名生产记录表选择场所。匹配表的记录头损坏是 `InvalidPolicy`，不得吞成“没有记录”。
-fn production_venue_from_records(
+/// 记录头 `usage` 与入口 `usage` 不符 ⟹ `InvalidPolicy{venue_profile}`，不产配置（#1774 B2）；
+/// 该核对在读取任何字段值之前，与签署状态无关。
+pub fn production_venue_from_records(
     records: &[(&'static str, &str)],
+    usage: VenueUsage,
     matches: impl Fn(&str, Option<&str>) -> bool,
 ) -> Result<VenueProfile, RunPolicyError> {
     for &(id, text) in records {
         match venue_header(id, text) {
-            Ok((profile_id, symbol, _)) => {
-                if matches(&profile_id, symbol.as_deref()) {
-                    return parse_venue_profile(id, Some(text));
+            Ok(header) => {
+                if !matches(&header.profile_id, header.symbol.as_deref()) {
+                    continue;
                 }
+                if header.usage != usage {
+                    let mut err = RunPolicyError::default();
+                    err.add(
+                        &[SLOT_VENUE_PROFILE],
+                        pr::invalid(
+                            id,
+                            "usage",
+                            format!(
+                                "usage 不符：记录 usage={}，本入口只接受 usage={usage}",
+                                header.usage
+                            ),
+                        ),
+                    );
+                    return Err(err);
+                }
+                return parse_venue_profile(id, Some(text));
             }
             Err(error) => {
                 let mut err = RunPolicyError::default();
@@ -380,14 +473,23 @@ pub fn no_venue_profile() -> RunPolicyError {
     err
 }
 
-/// 生产场所 profile：按品种（大小写不敏感）匹配记录头 `symbol`。
+/// 生产场所 profile（通用入口）：按品种（大小写不敏感）匹配记录头 `symbol`；只接受 `usage` 缺省的记录。
 pub fn production_venue_for_symbol(symbol: &str) -> Result<VenueProfile, RunPolicyError> {
-    production_venue_where(|_, s| s.is_some_and(|s| s.eq_ignore_ascii_case(symbol)))
+    production_venue_where(VenueUsage::General, |_, s| {
+        s.is_some_and(|s| s.eq_ignore_ascii_case(symbol))
+    })
 }
 
-/// 生产场所 profile：按记录头 `profile_id` 匹配（如 `P0`）。
+/// 生产场所 profile（通用入口）：按记录头 `profile_id` 匹配（如 `P0`）；只接受 `usage` 缺省的记录，
+/// `usage: s_structure_writer` 的记录在此报 `InvalidPolicy{venue_profile}`（#1774 B2）。
 pub fn production_venue_for_profile(profile_id: &str) -> Result<VenueProfile, RunPolicyError> {
-    production_venue_where(|p, _| p == profile_id)
+    production_venue_where(VenueUsage::General, |p, _| p == profile_id)
+}
+
+/// S 结构写者专用入口（#1774 B2）：按记录头 `profile_id` 匹配，只接受 `usage: s_structure_writer`
+/// 的记录；通用记录（如 replay `P0`）在此同样报 `InvalidPolicy{venue_profile}`。
+pub fn production_venue_for_s_writer(profile_id: &str) -> Result<VenueProfile, RunPolicyError> {
+    production_venue_where(VenueUsage::SStructureWriter, |p, _| p == profile_id)
 }
 
 /// 当前生效的 Θ_risk 记录。
@@ -511,42 +613,180 @@ mod tests {
         assert_eq!(d.bad_tick_max_dev.to_bits(), 0.80_f64.to_bits());
     }
 
-    /// 专项验收：P0 场所 profile 缺 tick_size 与成本项 ⟹ AwaitingPolicy{venue_profile, cost_inputs}。
-    #[test]
-    fn production_p0_awaits_venue_profile_and_cost_inputs() {
-        let e = production_venue_for_symbol("BTC").expect_err("P0 tick/成本未签，必须停");
-        assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS]);
-        assert!(e.is_awaiting_policy());
-        let fields: Vec<&str> = e
-            .causes
+    /// #1774 测试夹具：synthetic v1（ADR 0057 裁定三只签 tick，三项成本 AwaitingPolicy）；不在生产表。
+    const SYNTHETIC_UNSIGNED_V1: &str =
+        include_str!("../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
+
+    fn awaiting_fields(e: &RunPolicyError) -> Vec<(&'static str, &str)> {
+        e.causes
             .iter()
             .map(|c| match c {
-                PolicyError::AwaitingPolicy { field, .. } => field.as_str(),
+                PolicyError::AwaitingPolicy { id, field } => (*id, field.as_str()),
                 other => panic!("非 AwaitingPolicy：{other}"),
             })
-            .collect();
+            .collect()
+    }
+
+    /// #1774 AC3/AC5（B1 负控 + 旧用法兼容）：replay 记录 tick 已签（ADR 0057 R1），BTC 与 `P0` 两路
+    /// 都选中 replay 记录并因三项成本未签停在 AwaitingPolicy{cost_inputs}；缺字段恰为三项。
+    #[test]
+    fn production_p0_awaits_cost_inputs_only() {
+        let e = production_venue_for_symbol("BTC").expect_err("P0 三项成本未签，必须停");
+        assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
+        assert!(e.is_awaiting_policy());
         assert_eq!(
-            fields,
-            vec!["tick_size", "slippage_bps", "tax_bps", "entry_delay_bars"]
+            awaiting_fields(&e),
+            vec![
+                (VENUE_PROFILE_P0_ID, "slippage_bps"),
+                (VENUE_PROFILE_P0_ID, "tax_bps"),
+                (VENUE_PROFILE_P0_ID, "entry_delay_bars")
+            ]
         );
-        assert!(e
-            .to_string()
-            .starts_with("AwaitingPolicy{venue_profile, cost_inputs}"));
+        assert!(e.to_string().starts_with("AwaitingPolicy{cost_inputs}"));
+        let by_profile = production_venue_for_profile("P0").unwrap_err();
+        assert_eq!(by_profile.slots, e.slots);
+        assert_eq!(by_profile.causes, e.causes);
+    }
+
+    /// #1774 AC2 第一层：S 专用选择器返回签齐的 synthetic 记录（三值 0/0/0 为模型假设、tick 1）。
+    #[test]
+    fn s_writer_selector_returns_signed_synthetic_profile() {
+        let v =
+            production_venue_for_s_writer(SYNTHETIC_TB02A_PROFILE_ID).expect("synthetic v2 已签");
+        assert_eq!(v.record.label(), "venue-profile-synthetic-tb02a/2");
+        assert_eq!(v.profile_id, SYNTHETIC_TB02A_PROFILE_ID);
+        assert_eq!(v.symbol, None, "B1：symbol 路选不到");
+        assert_eq!(v.usage, VenueUsage::SStructureWriter);
+        assert!(v.admissible);
+        assert_eq!(v.tick_size.to_bits(), 1.0_f64.to_bits());
         assert_eq!(
-            production_venue_for_profile("P0").unwrap_err().slots,
-            e.slots
+            (v.slippage_bps, v.tax_bps, v.entry_delay_bars),
+            (0.0, 0.0, 0)
         );
+        assert_eq!(v.commission_bps, 10.0, "ADR 0057 裁定一继承");
+    }
+
+    /// #1774 AC3/AC4（B1+B2 负控）：symbol 路选不到 synthetic；通用 profile 路遇 usage 记录报
+    /// InvalidPolicy{venue_profile} 且原因为 usage 不符；S 专用入口同样不接 replay 记录。
+    #[test]
+    fn general_selectors_reject_s_writer_usage_and_vice_versa() {
+        for &(id, text) in PRODUCTION_VENUE_PROFILES {
+            let v = parse_venue_profile(id, Some(text)).ok();
+            let header_symbol = serde_json::from_str::<Value>(text).unwrap()["symbol"].clone();
+            if id == VENUE_PROFILE_SYNTHETIC_TB02A_ID {
+                assert!(header_symbol.is_null(), "synthetic 记录头 symbol 须为 null");
+                assert_eq!(v.unwrap().usage, VenueUsage::SStructureWriter);
+            } else {
+                assert!(header_symbol.is_string(), "{id}");
+            }
+        }
+        let e = production_venue_for_profile(SYNTHETIC_TB02A_PROFILE_ID).unwrap_err();
+        assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE]);
+        assert!(!e.is_awaiting_policy());
+        assert!(
+            e.to_string().starts_with("InvalidPolicy{venue_profile}"),
+            "{e}"
+        );
+        assert!(matches!(
+            &e.causes[..],
+            [PolicyError::Invalid { id: VENUE_PROFILE_SYNTHETIC_TB02A_ID, field, reason }]
+                if field == "usage" && reason.contains("usage 不符")
+        ));
+        let e = production_venue_for_s_writer("P0").unwrap_err();
+        assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE]);
+        assert!(matches!(
+            &e.causes[..],
+            [PolicyError::Invalid { id: VENUE_PROFILE_P0_ID, field, reason }]
+                if field == "usage" && reason.contains("usage 不符")
+        ));
+        assert_eq!(
+            production_venue_for_s_writer("nope").unwrap_err().slots,
+            vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS]
+        );
+    }
+
+    /// #1774 AC6（旧已签记录正控）：无 `usage` 头的完整已签记录经同一选择函数按 symbol 与 profile 各选
+    /// 一次都成功、原值读回，组装后 admissible；`usage` 不是旧记录的新前提。
+    #[test]
+    fn signed_record_without_usage_selects_by_symbol_and_profile() {
+        let venue = r#"{"id":"venue-profile-P0","version":3,"profile_id":"P0","symbol":"BTC","admissible":true,
+            "fields":{"tick_size":{"value":0.01},"commission_bps":{"value":10},"slippage_bps":{"value":4},
+            "tax_bps":{"value":0.5},"entry_delay_bars":{"value":2}}}"#;
+        let table: &[(&'static str, &str)] = &[(VENUE_PROFILE_P0_ID, venue)];
+        let by_symbol = production_venue_from_records(table, VenueUsage::General, |_, s| {
+            s.is_some_and(|s| s.eq_ignore_ascii_case("btc"))
+        })
+        .expect("按 symbol 选中");
+        let by_profile =
+            production_venue_from_records(table, VenueUsage::General, |p, _| p == "P0")
+                .expect("按 profile 选中");
+        assert_eq!(by_symbol, by_profile);
+        assert_eq!(by_symbol.usage, VenueUsage::General);
+        assert_eq!(
+            (
+                by_symbol.tick_size,
+                by_symbol.commission_bps,
+                by_symbol.slippage_bps,
+                by_symbol.tax_bps,
+                by_symbol.entry_delay_bars
+            ),
+            (0.01, 10.0, 4.0, 0.5, 2)
+        );
+        let c = super::super::config::ThetaConfig::from_records(
+            Ok(by_symbol),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        )
+        .unwrap();
+        assert!(c.admissible());
+        assert!(c.record_labels().contains("venue-profile-P0/3"));
+    }
+
+    /// #1774 AC7（未签负控）：synthetic v1 夹具经 S 专用入口的同一选择函数仍停在 AwaitingPolicy{cost_inputs}。
+    #[test]
+    fn unsigned_synthetic_fixture_awaits_cost_inputs() {
+        let e = production_venue_from_records(
+            &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+            VenueUsage::SStructureWriter,
+            |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+        )
+        .expect_err("三项成本未签，必须停");
+        assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
+        assert!(e.is_awaiting_policy());
+        assert_eq!(
+            awaiting_fields(&e),
+            vec![
+                (VENUE_PROFILE_SYNTHETIC_TB02A_ID, "slippage_bps"),
+                (VENUE_PROFILE_SYNTHETIC_TB02A_ID, "tax_bps"),
+                (VENUE_PROFILE_SYNTHETIC_TB02A_ID, "entry_delay_bars")
+            ]
+        );
+    }
+
+    /// 记录头 `usage` 取未知值 ⟹ InvalidPolicy{venue_profile}，不吞成 general。
+    #[test]
+    fn unknown_usage_header_is_invalid() {
+        let text = venue_text(FULL_FIELDS)
+            .replace(r#""symbol":"BTC","#, r#""symbol":"BTC","usage":"replay","#);
+        let e = parse_venue_profile(VENUE_PROFILE_P0_ID, Some(&text)).unwrap_err();
+        assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE]);
+        assert!(!e.is_awaiting_policy());
+        assert!(e.causes.iter().any(|c| matches!(
+            c,
+            PolicyError::Invalid { field, .. } if field == "usage"
+        )));
     }
 
     /// 生产表里没有 profile 的品种 ⟹ 缺记录，两槽都报。
     #[test]
     fn malformed_production_header_is_invalid_not_missing() {
         let malformed = venue_text(FULL_FIELDS).replace(r#""admissible":true,"#, "");
-        let error =
-            production_venue_from_records(&[(VENUE_PROFILE_P0_ID, malformed.as_str())], |_, _| {
-                true
-            })
-            .unwrap_err();
+        let error = production_venue_from_records(
+            &[(VENUE_PROFILE_P0_ID, malformed.as_str())],
+            VenueUsage::General,
+            |_, _| true,
+        )
+        .unwrap_err();
         assert!(!error.is_awaiting_policy());
         assert!(error
             .to_string()
@@ -671,12 +911,7 @@ mod tests {
         let e = collect_run_records(production_venue_for_symbol("BTC"), None, None).unwrap_err();
         assert_eq!(
             e.slots,
-            vec![
-                SLOT_VENUE_PROFILE,
-                SLOT_COST_INPUTS,
-                SLOT_THETA_RISK,
-                SLOT_DATA_PROFILE
-            ]
+            vec![SLOT_COST_INPUTS, SLOT_THETA_RISK, SLOT_DATA_PROFILE]
         );
         assert!(e.is_awaiting_policy());
         let ok = collect_run_records(

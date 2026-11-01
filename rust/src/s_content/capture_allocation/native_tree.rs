@@ -144,11 +144,8 @@ impl<K: Ord, V> NativeTree<K, V> {
     }
     /// 仅供保留结构统计：含尚未 clear 的节点上界与许可缓冲；不用于父账退款。
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub fn allocation_bytes(&self) -> usize {
         let node_bound = std::mem::size_of::<(K, V)>()
@@ -193,31 +190,22 @@ impl<K> Default for NativeSet<K> {
 }
 impl<K: Ord> NativeSet<K> {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub fn first(&self) -> Option<&K> {
         self.values.first_key_value().map(|(k, _)| k)
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub fn last(&self) -> Option<&K> {
         self.values.last_key_value().map(|(k, _)| k)
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub fn range<Q: Ord + ?Sized, R: std::ops::RangeBounds<Q>>(
         &self,
@@ -262,11 +250,8 @@ impl<K: Ord> NativeSet<K> {
         self.values.len()
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
@@ -275,11 +260,8 @@ impl<K: Ord> NativeSet<K> {
         self.values.keys()
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub fn allocation_bytes(&self) -> usize {
         self.values.allocation_bytes()

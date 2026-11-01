@@ -15,6 +15,18 @@ import sys
 import time
 
 FEATURES = {"Plain": "s_session", "Owned": "s_session,s_allocation_json_testonly", "Native": "s_session,s_capture_native_testonly"}
+FEATURE_CLOSURES = {
+    "Plain": frozenset({"default", "s_session"}),
+    "Owned": frozenset({"default", "s_session", "s_allocation_json_testonly"}),
+    "Native": frozenset({"default", "s_session", "s_incremental", "s_capture_native_testonly"}),
+}
+
+
+def check_feature_closure(mode: str, features) -> None:
+    if set(features) != FEATURE_CLOSURES[mode]:
+        raise ValueError(f"实际编译 features 不符：{features}")
+
+
 # 源码包：A 878bd13a6b / B a24ce62cae / C df9898b928；共38条独立锁。
 LOCKS = [
     {
@@ -1207,9 +1219,7 @@ def select_binary(log: str, rust: Path, target_dir: Path, target: str, mode: str
             or Path(meta.get("src_path", "")).resolve() != expected_source.resolve()
             or Path(artifact.get("manifest_path", "")).resolve() != (rust / "Cargo.toml").resolve()):
         raise ValueError("cargo executable 的 target/source/manifest 不属当前目标")
-    expected_features = set(FEATURES[mode].split(",")) | {"default"}
-    if set(artifact.get("features", [])) != expected_features:
-        raise ValueError(f"实际编译 features 不符：{artifact.get('features')}")
+    check_feature_closure(mode, artifact.get("features", []))
     binary = Path(artifact["executable"]).resolve()
     if not binary.is_relative_to(target_dir.resolve()) or not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError("测试 executable 不存在、不可执行或不属本 job target")

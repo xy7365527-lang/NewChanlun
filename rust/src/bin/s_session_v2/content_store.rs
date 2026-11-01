@@ -164,7 +164,7 @@ fn read_material_reserved(
     let tag = u8::try_from(row.0)
         .map_err(|_| CodecError::new(code::NODE_DIGEST, "节点 tag 超过一个字节"))?;
     let (_, body, permit) = row;
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     RUNTIME_READS.with(|reads| {
         if let Some(reads) = reads.borrow_mut().as_mut() {
             reads.insert(*digest);
@@ -197,12 +197,12 @@ pub(super) fn native_tree_storage<K, V>(
     let Some(work) = work else {
         return Ok(None);
     };
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     {
         work.reserve_native(crate::v3::audit_retention::tree_slots::<K, V>(len))
             .map(Some)
     }
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     {
         let _ = len;
         Err(work.reject(s_content::capture_allocation::scratch::ScratchFailure::Ledger))
@@ -231,16 +231,16 @@ pub(super) fn sql_reads_on_thread() -> u64 {
     SQL_READS.with(std::cell::Cell::get)
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 thread_local! { static RUNTIME_READS: std::cell::RefCell<Option<std::collections::BTreeSet<NodeDigest>>> = const { std::cell::RefCell::new(None) }; }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn begin_runtime_reads() {
     RUNTIME_READS.with(|reads| {
         assert!(reads.borrow().is_none());
         *reads.borrow_mut() = Some(Default::default());
     });
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn end_runtime_reads() -> Vec<NodeDigest> {
     RUNTIME_READS.with(|reads| reads.borrow_mut().take().unwrap().into_iter().collect())
 }
@@ -351,7 +351,7 @@ impl SameMaterial {
 
 /// 直接 PRAGMA 的 metadata 也属于证据：SQLITE_IGNORE 可成功返回零列，必须拒绝。
 /// 所有行严格取型并读到末尾；正常空列表仅在列名/列数已核实后才成立。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn native_pragma_rows<T>(
     conn: &Connection,
     sql: &str,
@@ -377,12 +377,12 @@ fn native_pragma_rows<T>(
 }
 
 /// #1488 owner effects 复用同一节点保持判据，不另造宽严两档。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn owner_node_insert_gate(tx: &Transaction<'_>) -> Result<bool, CodecError> {
     native_insert_can_preserve(tx)
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn native_insert_can_preserve(conn: &Connection) -> Result<bool, CodecError> {
     fn tables(
         conn: &Connection,
@@ -553,24 +553,24 @@ fn native_insert_can_preserve(conn: &Connection) -> Result<bool, CodecError> {
     Ok(columns_ok && foreign_keys.is_empty() && indexes_ok)
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn native_insert_only_target(before: u64, after: u64, direct: u64) -> bool {
     direct == 1 && after.checked_sub(before) == Some(1)
 }
 
 /// #1394 Native prepare only: exclusive, snapshot-bound node-read phase. No SQL/connection
 /// getter, Deref, savepoint, rollback or staged owner is exposed. Actual puts always stay cold.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) struct NativeReadLease<'lease, 'conn> {
     tx: &'lease mut Transaction<'conn>,
     work: Option<&'lease WorkScope>,
     material: SameMaterial,
     poisoned: bool,
     insert_can_preserve: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     stage: Option<&'lease super::staged_nodes::StageOwner<'lease>>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
     pub(super) fn new(tx: &'lease mut Transaction<'conn>) -> Result<Self, CodecError> {
         Self::new_admitted(tx, None)
@@ -599,11 +599,11 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
             material: Default::default(),
             poisoned: false,
             insert_can_preserve,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             stage: None,
         })
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn new_admitted_staged(
         tx: &'lease mut Transaction<'conn>,
         work: &'lease WorkScope,
@@ -646,14 +646,14 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
     ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
         self.check_live()?;
         let result = (|| {
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = self.stage {
                 stage.check_transaction(self.tx)?;
             }
             if let Some((frame, _)) = self.material.frames.get(digest) {
                 let (body, permit) = native_body_reserved(self.work, frame.body())?;
                 let frame = frame.checked_same_material(digest, frame.tag(), body)?;
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 if let Some(stage) = self.stage {
                     stage.check_original(digest, frame.tag(), frame.body())?;
                 }
@@ -669,14 +669,14 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
                         SAME_MATERIAL_ENTRIES,
                         self.work,
                     )?;
-                    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                    #[cfg(all(test, feature = "s_incremental"))]
                     if let Some(stage) = self.stage {
                         stage.check_original(digest, frame.tag(), frame.body())?;
                     }
                     Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
                 }
                 None => {
-                    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                    #[cfg(all(test, feature = "s_incremental"))]
                     if let Some(stage) = self.stage {
                         return stage.read_scoped(digest);
                     }
@@ -687,7 +687,7 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         if result.is_err() {
             self.clear();
             self.poisoned = true;
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = self.stage {
                 stage.reject_after_error();
             }
@@ -695,7 +695,7 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         result
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NodeSource for NativeReadLease<'_, '_> {
     fn read_scoped(
         &mut self,
@@ -730,14 +730,14 @@ impl NodeSource for NativeReadLease<'_, '_> {
         self.current_checked(digest)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NodeSink for NativeReadLease<'_, '_> {
     fn codec_sink_work(&self) -> Option<&WorkScope> {
         self.work
     }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.check_live()?;
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if let Some(stage) = self.stage {
             let result = (|| {
                 stage.check_transaction(self.tx)?;
@@ -761,7 +761,7 @@ impl NodeSink for NativeReadLease<'_, '_> {
         let result = TxStore {
             tx,
             work: self.work,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             stage: None,
         }
         .put_before_write(digest, tag, body, || {
@@ -793,12 +793,12 @@ impl NodeSink for NativeReadLease<'_, '_> {
 }
 
 // Fixed publication operations only. No connection/SQL getter is exposed to the caller.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn publication_insert_gate(tx: &mut Transaction<'_>) -> Result<bool, CodecError> {
     let lease = NativeReadLease::new(tx)?;
     Ok(lease.insert_can_preserve)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn publication_read_checked(
     tx: &Transaction<'_>,
     digest: &NodeDigest,
@@ -806,13 +806,13 @@ pub(super) fn publication_read_checked(
 ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
     read_checked_node_scoped(tx, digest, work)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) enum PublicationPutEffect {
     Noop,
     InsertPreservingBase,
     Unknown,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn publication_put(
     tx: &Transaction<'_>,
     insert_can_preserve: bool,
@@ -820,7 +820,7 @@ pub(super) fn publication_put(
     tag: u8,
     body: &[u8],
     work: Option<&WorkScope>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+    #[cfg(all(test, feature = "s_incremental"))] stage: Option<
         &super::staged_nodes::StageOwner<'_>,
     >,
 ) -> Result<PublicationPutEffect, CodecError> {
@@ -828,14 +828,14 @@ pub(super) fn publication_put(
     TxStore {
         tx,
         work,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         stage,
     }
     .put_before_write(digest, tag, body, || {
         before_write = Some(tx.total_changes())
     })?;
     // staged：SQL 缺该节点时 put 只进暂存、不碰 SQL，基底原件不变；可达闭包由 Commit 的 Final cut 落盘。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     if stage.is_some() && before_write.is_some() {
         return Ok(PublicationPutEffect::Noop);
     }
@@ -854,7 +854,7 @@ pub(super) fn publication_put(
 pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     work: Option<&'a WorkScope>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
 }
 
@@ -868,11 +868,11 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
         Ok(Self {
             tx,
             work: None,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             stage: None,
         })
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn new_with_stage(
         tx: &'a Transaction<'conn>,
         stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
@@ -900,12 +900,12 @@ impl NodeSource for TxStore<'_, '_> {
         d: &NodeDigest,
     ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
         let result = (|| {
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = self.stage {
                 stage.check_transaction(self.tx)?;
             }
             let current = read_checked_node_scoped(self.tx, d, self.work)?;
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = self.stage {
                 if let Some(frame) = &current {
                     stage.check_original(d, frame.tag(), frame.body())?;
@@ -915,7 +915,7 @@ impl NodeSource for TxStore<'_, '_> {
             }
             Ok(current)
         })();
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if result.is_err() {
             if let Some(stage) = self.stage {
                 stage.reject_after_error();
@@ -956,7 +956,7 @@ impl TxStore<'_, '_> {
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
         let result = self.put_before_write_inner(digest, tag, body, before_write);
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if result.is_err() {
             if let Some(stage) = self.stage {
                 stage.reject_after_error();
@@ -972,15 +972,15 @@ impl TxStore<'_, '_> {
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
         check_digest(&digest, tag, body)?;
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if let Some(stage) = self.stage {
             stage.check_transaction(self.tx)?;
             stage.check_original(&digest, tag, body)?;
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let before = self.tx.total_changes();
         let current = read_checked_node_scoped(self.tx, &digest, self.work)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let inserted = current.is_none();
         match current {
             Some(frame) => {
@@ -993,7 +993,7 @@ impl TxStore<'_, '_> {
             }
             None => {
                 before_write();
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 if let Some(stage) = self.stage {
                     return stage.put_new(digest, tag, body);
                 }
@@ -1006,7 +1006,7 @@ impl TxStore<'_, '_> {
                     .map_err(storage_error)?;
             }
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         crate::v3::audit_owner::note_persisted_node(self.tx, digest, before, inserted);
         Ok(())
     }
@@ -1430,7 +1430,7 @@ mod tests {
         conn
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_read_lease_sql_f_headers_and_cold_lifecycle() {
         let mut conn = database("s-session/3");
@@ -1506,7 +1506,7 @@ mod tests {
         fresh.checked_read(&digest).unwrap();
         assert_eq!(sql_reads_on_thread() - before, 1);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_preserves_only_prior_other_reads_and_keeps_put_cold() {
         let mut conn = database("s-session/3");
@@ -1546,7 +1546,7 @@ mod tests {
         assert_eq!(lease.material.retained_capacity, 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_effects_cover_main_temp_indirect_delete_replace_and_ignore() {
         // pure SELECT / AFTER IGNORE 不改其它 digest，可复用；真正附加写即全清。
@@ -1590,7 +1590,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_hidden_loaded_trigger_uses_actual_effects() {
         let mut conn = database("s-session/3");
@@ -1636,7 +1636,7 @@ mod tests {
         assert!(lease.poisoned);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_loaded_shape_and_temp_shadow_reject_preservation() {
         for schema in [
@@ -1664,7 +1664,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_unqualified_unique_replace_keeps_old_full_clear() {
         for schema in [
@@ -1690,7 +1690,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_trigger_replace_delete_ignore_still_counts_inner_insert() {
         let mut conn = database("s-session/3");
@@ -1717,7 +1717,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_actual_constraint_and_insert_deny_errors_poison_unchanged() {
         use rusqlite::hooks::{AuthAction, Authorization};
@@ -1772,7 +1772,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_ignored_pragma_metadata_is_error_including_temp_replace_shadow() {
         use rusqlite::hooks::{AuthAction, Authorization};
@@ -1822,7 +1822,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_pk_replace_misread_missing_removes_only_target_proof() {
         use rusqlite::hooks::{AuthAction, Authorization};
@@ -1878,7 +1878,7 @@ mod tests {
         assert_eq!(s_content::frame_calls_on_thread() - f, 1);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_insert_counter_witness_rejects_every_unproven_effect() {
         for (before, after, direct, expected) in [
@@ -1894,7 +1894,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_read_lease_put_trigger_errors_and_poison_do_not_repair() {
         let mut conn = database("s-session/3");
@@ -1973,7 +1973,7 @@ mod tests {
             "拒绝同摘要坏原件后旧节点原样保留"
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_read_lease_isolation_activity_and_actual_interrupt() {
         let mut conn = database("s-session/3");
@@ -2058,7 +2058,7 @@ mod tests {
             .to_string()
             .contains("活动事务"));
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_read_lease_wal_snapshot_and_upgrade_failure() {
         let path = std::env::temp_dir().join(format!(
@@ -2307,9 +2307,9 @@ pub(crate) fn capture_for_prototype(
 
 /// #1394 Native：digest只复制到栈上32字节；非BLOB仍调用原Vec解码取得原类型错误。
 /// 不提前读取tag/body，摘要长度仍先于标签域与正文错误。
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(any(test, feature = "s_incremental"))]
 fn request_capture_digest(row: &rusqlite::Row<'_>) -> Result<NodeDigest, CodecError> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     {
         match row.get_ref(0).map_err(storage_error)? {
             rusqlite::types::ValueRef::Blob(bytes) => {
@@ -2333,7 +2333,7 @@ fn request_capture_digest(row: &rusqlite::Row<'_>) -> Result<NodeDigest, CodecEr
             }
         }
     }
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     {
         #[cfg(test)]
         PROTOTYPE_CAPTURE_WORK.with(|work| {
@@ -2345,7 +2345,7 @@ fn request_capture_digest(row: &rusqlite::Row<'_>) -> Result<NodeDigest, CodecEr
 }
 
 /// 请求独占的去重容器；容量不是额度，也不是可跨请求复用的审计结论。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Default)]
 pub(crate) struct OriginalScanScratch {
     seen: std::collections::HashSet<NodeDigest>,
@@ -2353,7 +2353,7 @@ pub(crate) struct OriginalScanScratch {
     #[cfg(test)]
     capacity_growths: u64,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl OriginalScanScratch {
     #[cfg_attr(
         not(test),
@@ -2424,14 +2424,14 @@ impl OriginalScanScratch {
 }
 
 /// Native cold entry: checked borrowed SQL bodies are copied only after parent admission.
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn capture_for_request_prototype_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
     capture_for_request_prototype_admitted_measured(tx, work, None)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn capture_for_request_prototype_admitted_measured(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
@@ -2442,7 +2442,7 @@ pub(crate) fn capture_for_request_prototype_admitted_measured(
     }
     capture_originals_admitted(tx, None, work, observer).map(|(capture, count, _)| (capture, count))
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
@@ -2450,7 +2450,7 @@ pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     capture_with_original_subset_for_source_cache_admitted_measured(tx, prior, work, None)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn capture_with_original_subset_for_source_cache_admitted_measured(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
@@ -2462,7 +2462,7 @@ pub(crate) fn capture_with_original_subset_for_source_cache_admitted_measured(
     }
     capture_originals_admitted(tx, prior, work, observer)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn scan_request_nodes_checked(
     tx: &Transaction<'_>,
     observer: Option<&dyn s_content::CaptureReadObserver>,
@@ -2496,7 +2496,7 @@ fn scan_request_nodes_checked(
     }
     stmt.finalize().map_err(storage_error)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn capture_originals_admitted(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
@@ -2564,11 +2564,11 @@ fn capture_originals_admitted(
     })?;
     same &= prior.is_some_and(|(_, count)| matched == count);
     let count = nodes.len();
-    let capture = s_content::AuditCapture::new(nodes)
-        .with_original_fees_for_testonly(tree_permit, body_permits)?;
+    let capture =
+        s_content::AuditCapture::new(nodes).with_original_fees(tree_permit, body_permits)?;
     Ok((capture, count, same))
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
     tx: &Transaction<'_>,
@@ -2586,7 +2586,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
         None,
     )
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_admitted_measured(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2631,7 +2631,7 @@ pub(crate) fn capture_for_request_prototype(
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
     capture_for_request_prototype_measured(tx, None)
 }
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(any(test, feature = "s_incremental"))]
 pub(crate) fn capture_for_request_prototype_measured(
     tx: &Transaction<'_>,
     observer: Option<&dyn s_content::CaptureReadObserver>,
@@ -2669,7 +2669,7 @@ pub(crate) fn capture_for_request_prototype_measured(
 
 /// 原SQL全扫描、原解码次序、原始digest/tag/body逐字节绑定；不创建第二份body owner。
 /// 普通材料变化仍读到末尾，不能吞掉后行的SQL/type错误；只有完整扫描成功才能失去复用资格。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn current_originals_equal_for_request(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2680,7 +2680,7 @@ pub(crate) fn current_originals_equal_for_request(
     current_originals_equal_for_request_with_scratch(tx, capture, expected_nodes, &mut scratch)
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn current_originals_equal_for_request_with_scratch(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2695,7 +2695,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
         None,
     )
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2748,14 +2748,14 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
 
 /// #1394 隔离测试：本次完整捕获同时逐tuple绑定旧原件超集，允许正常新增节点。
 /// 不把旧memo移入新捕获；任何行的SQL/type错误均直接返回，包括已发现mismatch之后。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn capture_with_original_subset_for_source_cache(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     capture_with_original_subset_for_source_cache_measured(tx, prior, None)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn capture_with_original_subset_for_source_cache_measured(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
@@ -2830,7 +2830,7 @@ fn record_prototype_row(body_bytes: usize) {
         work.body_bytes += body_bytes as u64;
     });
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn prototype_capture_work_on_thread() -> PrototypeCaptureWork {
     PROTOTYPE_CAPTURE_WORK.with(|work| *work.borrow())
 }

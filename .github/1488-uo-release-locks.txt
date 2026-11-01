@@ -1,5 +1,5 @@
 # #1488 release-only 锁：debug 下不可在 CI 时限内完成的锁，测试本身 #[ignore = "release-only: …"]，
-# 只以 cargo test --release --locked --features s_session,s_capture_native_testonly --bin s_structure_session
+# 只以 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session（#1640 起为生产增量构建）
 #   -- --ignored --exact <名> 执行（issue-1488-uo-iter.yml Native 组 release 步；control/uo-remote.sh 同口径）。
 # 不缩代数、不削弱比较（fix-0089 负责人裁定，0086 uo-ci run 39559317863 debug 600s 超时）。
 # #1488 S4 整代 增量≡冷全量 六阶段对拍锁（主控 D4/D6，#799/#804）

@@ -861,7 +861,7 @@ pub(super) fn counters_snapshot() -> EvidenceCounters {
 /// #1394：丢掉**跨请求的持久持有**（句柄 + 控制头 + 原件证书 + root walk），保留配置与临时读集。
 /// 用于测量真正的冷展开成本，也用于「冷/暖结果必须一致」的对照。
 #[cfg_attr(
-    all(not(test), not(feature = "s_capture_native_testonly")),
+    all(not(test), not(feature = "s_incremental")),
     allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
 )]
 pub(super) fn clear_handles() {
@@ -894,7 +894,7 @@ pub(super) fn retention_enabled() -> bool {
 }
 
 /// 跨请求保留量的实际账；Native TestOnly只读共享来源预算，不修改legacy配置。
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(any(test, feature = "s_incremental"))]
 pub(super) fn retained_bytes() -> usize {
     MEMO.with(|m| m.borrow().retained_bytes())
 }
@@ -2667,7 +2667,7 @@ mod tests {
         configure(0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn mixed_cache_second_eviction_plan_failure_preserves_both_old_groups() {
         configure(1 << 20);
@@ -2709,7 +2709,7 @@ mod tests {
         configure(0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn mixed_cache_failed_publication_restores_prior_parent_tables() {
         const LIMIT: usize = 1 << 20;
@@ -2754,7 +2754,7 @@ mod tests {
 
     /// #1488 0087 ①-F-1：owned 树高水位插入因父账不足失败时，证书 payload 不得从
     /// certs_bytes 消账而落不进读集账；失败后单一预算仍须按真实持有量拒绝超限准入。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn remove_cert_owned_insert_failure_keeps_payload_accounted() {
         const LIMIT: usize = 1 << 20;
