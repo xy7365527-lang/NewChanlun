@@ -392,6 +392,14 @@ _Avoid_: 把原文语义称作「可选项」；把另一个合法取值写成�
 自由度在具名版本化记录里的落点：带默认值、出处与可选值集合，一次运行只读一个值，改值即新版本。已裁定签署前不得代填的字段（资金、量档、容量、成本门 θ、风险阈值等），默认值就是 `AwaitingPolicy`（不签不跑），数值推荐值只写进签署单待确认。
 _Avoid_: 「配置开关」「运行时切换」——运行中改值是 #799 所禁的失败兜底；同一判断的宽严两档本身不是自由度。
 
+**唯一真账（Single Authority Ledger）**（2026-11-02 [#1539](https://github.com/xy7365527-lang/NewChanlun/issues/1539) 裁定，[ADR 0060](docs/adr/0060-fill-position-single-authority-and-crosswalk.md)）:
+成交原件与逐重分配的唯一写者是 E；逐重 position（毛账、成本、阶段）的唯一写者是该重 Bᵢ；物理持仓是「E 已 Recorded 的场所原件」与「Σ各重 B applications」两列的派生对账读数，没有写者，只经 `Q.ReadEconomicView` 输出，差异只产 Pending 或封闸。
+_Avoid_: 把场所净仓或 book image 叫真账；从场所净仓覆写或重建 B 账。
+
+**crosswalk**（同上，ADR 0060 裁定七）:
+同一外效在五类身份记录之间持久、可逆的四跳逐跳映射：场所身份 ↔ X 观测记录 ↔ E 原件 ↔ 逐重分配 ↔ Bᵢ application。每跳由所在域的唯一写者持久化，不设第二权威写入口；物化汇总只能是可重算、不反写的只读投影；审计由 `Q.ReadEconomicView` 双向逐跳拼接，缺跳报缺项。
+_Avoid_: 与 `IMPLEMENTATION-CROSSWALK.json`（故事↔验收映射）、ADR 0037 crosswalk oracle（S 布局对拍锁）、旧→新迁移 crosswalk（归 #1535）混称。
+
 ### 出场判定
 
 **谓词（Predicate, P_j）**:

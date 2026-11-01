@@ -1,0 +1,57 @@
+{
+  "ticket": 1539,
+  "attempt": 2,
+  "mode": "redo",
+  "drafter": "claude-opus-5-5",
+  "reviewer": "claude-opus-5-5",
+  "klass": "T",
+  "verdict": "BLOCK",
+  "parseError": false,
+  "retried": false,
+  "items": [
+    {
+      "rule": "R1",
+      "verdict": "PASS",
+      "basis": "「引用自证」表在，而且和正文一一对应：ADR 0039:280/:282/:290/:300、ADR 0051:248/:310-311/:320、ADR 0056:40/:42/:46/:52/:59/:85/:88/:120/:125、#1340 各行、INTERFACE-CONTRACTS:35/:37/:38/:40、tb03c_* 各行、#1770/#1406/#1425 都有对应表项，没发现正文有而表里没有的引用。我亲自重跑了以下内容，结果都和表述一致：git log 得到 457902e3c3。ADR 0033:31「bar 收盘即其终态累计 F 完整」。ADR 0038:53/:56/:60 逐字一致。ADR 0039:282/:290/:300 一致。store.rs:75 是 `fact_key TEXT NOT NULL UNIQUE`，:657-659 是 check_epoch 报「StaleWriter：持久epoch不等于获准写者」。session_transport.rs:56 是 `.writer.lock`，:65 是「StaleWriter：{domain_name}独占进程锁不可得」。book.rs:106-107 只收 TestOnly，:117-124 是 allocation_id 必填、`if !netted {family_id; target}`。x_execution_session.rs:22 的 MODES 含 dry-run；ADR 0056 里 dry-run 0 命中；ADR 0056:59/:85/:88 一致。chong-traceability.md:35 一致。CONTEXT.md 里 crosswalk 计数为 0，:364 是「### 运行边界」。tb03c_allocation.rs:340-349/:365 和 tb03c_e.rs:60-63 一致。7 个测试函数都存在（domain_event_tests.rs:238/:278/:518/:600，tb03c_c4b_tests.rs:60/:124/:589）。#1340 :287/:295/:300/:310/:338/:348 一致。四条评论也都核过：6543394411（#1539 分级 T）、6466830839（#1538，含「the single ledger / crosswalk to #1539」）、6472079617（#1538「1538 四条全批」，第③条一致）、6452358366（#1400 账户级回读）作者都是 xy7365527-lang，内容相符；6261281111 在 #1323，是 notes-N-1，原话一致。#1539 的 blocking 为 [1540,1551,1535,1362,1366,1367,1365,1525]，blocked_by 为 1538、1534（closed）；#1425 的 blocked_by 为 [1375,1422,1406]，和表一致。"
+    },
+    {
+      "rule": "R2",
+      "verdict": "BLOCK",
+      "basis": "裁定五（Q10）把 ADR 0038:60「杀停等同未完成 bar 的全部外效未发生，S/B/E 回退到上一 checkpoint」限定为只适用于 simulation 会话。ADR 0038 是已裁正本，它的裁定二本身没有按 evidence_class 区分；而 ADR 0039:289 在正式 launcher（含 production）的启动序列里写了「启动时检测 checkpoint 并恢复（ADR 0038:60）」，ADR 0039:27 也引用了同一条。草稿只在新 ADR 里单方面收窄这条规定：既没写 ADR 0038 裁定二要加修订或指向新 ADR 的注记，也没处理 ADR 0039:289/:27 在 production 下怎么读。这样两份正本会对同一条恢复语义各说各的，和 docs/adr 冲突。要改的有三处：(1) 裁定里写明对 ADR 0038 裁定二加修订注记，把「回退到上一 checkpoint」限定为 simulation，并写明 experiment/production 的恢复依据；(2) 说明 ADR 0039:289 的「检测 checkpoint 并恢复」在 production 下指快照加重放、不回退已 Recorded 事实，必要时同步加注；(3) 权威依据补上已有的在案同向规定 ADR 0030:48「恢复后先只读对账在途订单（外部未知按最大保留，不伪造终态）」，以及 ADR 0039:26 引用的「不回退旧 writer」。其余部分没发现冲突：没有把可调候选写成常数；回报通道判为载体事实、不作可调字段，理由成立（ADR 0041:13）；Q9 去掉 C06.2 原文没有的合取条件，也符合原文。"
+    },
+    {
+      "rule": "R3",
+      "verdict": "PASS",
+      "basis": "共 15 条验收：文件存在用 ls，词条和行号用 rg 命中计数，7 条测试用 cargo test 看退出码，边用 gh api 加 grep -x 1425，票状态看 CLOSED 加 resolution 评论里有没有 docs/adr/ 路径。每条都能执行，结果都是二值。7 个测试名我已核实存在，tb03c_c4b_tests 被 include 进来，`--lib` 能找到。"
+    },
+    {
+      "rule": "R4",
+      "verdict": "PASS",
+      "basis": "正本只落在 docs/adr/NNNN-fill-position-single-authority-and-crosswalk.md 和 CONTEXT.md「运行边界」节，都在允许范围内。九条全是写者分工、恢复语义、事件字段义务、crosswalk 数据结构这类 T 类内容。没有资金、量档、cap、θ、费用参数；场所账户和权限明确交给 #1540。Q13 定的「原件级 allocation_id 等于 external_fact_id」属于字段的数据结构，不是 P 类取舍。"
+    },
+    {
+      "rule": "R5",
+      "verdict": "PASS",
+      "basis": "没有新增同一判断的宽严两档。累计完整性证据和恢复语义按 simulation 与 experiment/production 分开，依据是两种载体的事实不同（受控撮合没有真实外效），草稿也写了理由（AGENTS.md:46、ADR 0041:13）。缺证据时保原潜量、缺跳时报缺项，都是失败时的态，不是兜底的换判据。没有自动择一或补猜。"
+    },
+    {
+      "rule": "R6",
+      "verdict": "PASS",
+      "basis": "新增 #1539 blocks #1425 这条边：#1539 只被已关闭的 #1534、#1538 阻塞，#1425 的前置是 1375/1422/1406，不成环，我已核实。现有 8 条 blocking 边和 2 条 blocked_by 边全部列出，和 gh api 结果一致。#1535、#1540、#1770、#1769、#1400、#1330 的影响和不加边的理由都写了。（R2 要求的 ADR 0038/0039 注记属于正本修订，不需要加新边。）"
+    },
+    {
+      "rule": "R7",
+      "verdict": "PASS",
+      "basis": "分级器给的是 T 类，判断正确：本票裁的是 owner 落点（E/Bᵢ/X 写者分工）、事件协议、恢复语义和 crosswalk 数据结构，符合 graph-engineering.md:23 的 T 类判据。这些都有已裁正本可援引：ADR 0027 裁定三、ADR 0039 每域一库一 writer.lock/writer_epoch、#1340 C09/C10，以及 #1538 评论 6466830839 已明文把单一真账和 crosswalk 交给本票。票面的「费用」指费用事件怎么入账（ADR 0032 裁定五已有），不是费用参数，也不涉及 Destination。"
+    },
+    {
+      "rule": "R8",
+      "verdict": "BLOCK",
+      "basis": "一、我抽查复跑了考古命中，有好几处和表述对不上。Q1 说 ADR 0039:298-299 是「S/E/B/X 每个域一个库…」，实际在 :300。Q3 说 chong-traceability.md:33，实际在 :35；它说「毛账」查询命中 12，我复跑得 14；它说 store.rs:49 有 `applications.fact_key UNIQUE`，实际在 :75。Q15 说 SKILL.md:68-70，实际在 :70-72。Q7 说 C05.4 在 :286，实际在 :287。核对一致的有：Q4「物理持仓|场所净仓|账实」6 条命中，Q6「乱序」6 条，Q12 正本层 crosswalk 4 条，book.rs:106-107 TestOnly。二、换说法再搜 B 类点，搜出了考古没列的在案先例。Q10 用「回退|checkpoint」再搜，命中 ADR 0030:48「恢复后先只读对账在途订单（外部未知按最大保留，不伪造终态）」（ADR 0039:26 引作 ADR 0030:44「保留最大责任…不回退旧 writer」），这是同向的更早先例；还命中 ADR 0039:289「启动时检测 checkpoint 并恢复（ADR 0038:60）」把 ADR 0038:60 用到了 production launcher 上，这是相冲突的在案先例。两条考古都没列，Q10 的冲突栏也没提。Q9 用「终态累计」再搜，命中 ADR 0033:31 和 ADR 0052:35，考古漏了（草稿自己也承认漏列）。草稿在「考古对照」里修正了行号、补了 ADR 0033:31，但考古本身不成立，ADR 0030:48 和 ADR 0039:289 在考古和草稿里都没有出现。要改的是：重出 archaeology.md，修正上面所有行号和命中数；Q9 补 ADR 0033:31/0052:35；Q10 补 ADR 0030:48 和 ADR 0039:289/:27，并在冲突栏写明；然后草稿的考古对照和 Q10 出处跟着同步。"
+    }
+  ],
+  "problems": [],
+  "draftMissingSections": [],
+  "durationMs": 133620,
+  "raw": "I逐条回查了草稿的引用、测试名、评论 id 和依赖边。R1、R3–R7 通过，R2 和 R8 不通过。要改的主要是两处：草稿把 ADR 0038:60 限定为只适用于 simulation，却没写明怎么改 ADR 0038，也没处理 ADR 0039:289；考古表的行号不对、漏了先例。\n\n```json\n{\"R1\":{\"verdict\":\"PASS\",\"basis\":\"「引用自证」表在，而且和正文一一对应：ADR 0039:280/:282/:290/:300、ADR 0051:248/:310-311/:320、ADR 0056:40/:42/:46/:52/:59/:85/:88/:120/:125、#1340 各行、INTERFACE-CONTRACTS:35/:37/:38/:40、tb03c_* 各行、#1770/#1406/#1425 都有对应表项，没发现正文有而表里没有的引用。我亲自重跑了以下内容，结果都和表述一致：git log 得到 457902e3c3。ADR 0033:31「bar 收盘即其终态累计 F 完整」。ADR 0038:53/:56/:60 逐字一致。ADR 0039:282/:290/:300 一致。store.rs:75 是 `fact_key TEXT NOT NULL UNIQUE`，:657-659 是 check_epoch 报「StaleWriter：持久epoch不等于获准写者」。session_transport.rs:56 是 `.writer.lock`，:65 是「StaleWriter：{domain_name}独占进程锁不可得」。book.rs:106-107 只收 TestOnly，:117-124 是 allocation_id 必填、`if !netted {family_id; target}`。x_execution_session.rs:22 的 MODES 含 dry-run；ADR 0056 里 dry-run 0 命中；ADR 0056:59/:85/:88 一致。chong-traceability.md:35 一致。CONTEXT.md 里 crosswalk 计数为 0，:364 是「### 运行边界」。tb03c_allocation.rs:340-349/:365 和 tb03c_e.rs:60-63 一致。7 个测试函数都存在（domain_event_tests.rs:238/:278/:518/:600，tb03c_c4b_tests.rs:60/:124/:589）。#1340 :287/:295/:300/:310/:338/:348 一致。四条评论也都核过：6543394411（#1539 分级 T）、6466830839（#1538，含「the single ledger / crosswalk to #1539」）、6472079617（#1538「1538 四条全批」，第③条一致）、6452358366（#1400 账户级回读）作者都是 xy7365527-lang，内容相符；6261281111 在 #1323，是 notes-N-1，原话一致。#1539 的 blocking 为 [1540,1551,1535,1362,1366,1367,1365,1525]，blocked_by 为 1538、1534（closed）；#1425 的 blocked_by 为 [1375,1422,1406]，和表一致。\"},\n\"R2\":{\"verdict\":\"BLOCK\",\"basis\":\"裁定五（Q10）把 ADR 0038:60「杀停等同未完成 bar 的全部外效未发生，S/B/E 回退到上一 checkpoint」限定为只适用于 simulation 会话。ADR 0038 是已裁正本，它的裁定二本身没有按 evidence_class 区分；而 ADR 0039:289 在正式 launcher（含 production）的启动序列里写了「启动时检测 checkpoint 并恢复（ADR 0038:60）」，ADR 0039:27 也引用了同一条。草稿只在新 ADR 里单方面收窄这条规定：既没写 ADR 0038 裁定二要加修订或指向新 ADR 的注记，也没处理 ADR 0039:289/:27 在 production 下怎么读。这样两份正本会对同一条恢复语义各说各的，和 docs/adr 冲突。要改的有三处：(1) 裁定里写明对 ADR 0038 裁定二加修订注记，把「回退到上一 checkpoint」限定为 simulation，并写明 experiment/production 的恢复依据；(2) 说明 ADR 0039:289 的「检测 checkpoint 并恢复」在 production 下指快照加重放、不回退已 Recorded 事实，必要时同步加注；(3) 权威依据补上已有的在案同向规定 ADR 0030:48「恢复后先只读对账在途订单（外部未知按最大保留，不伪造终态）」，以及 ADR 0039:26 引用的「不回退旧 writer」。其余部分没发现冲突：没有把可调候选写成常数；回报通道判为载体事实、不作可调字段，理由成立（ADR 0041:13）；Q9 去掉 C06.2 原文没有的合取条件，也符合原文。\"},\n\"R3\":{\"verdict\":\"PASS\",\"basis\":\"共 15 条验收：文件存在用 ls，词条和行号用 rg 命中计数，7 条测试用 cargo test 看退出码，边用 gh api 加 grep -x 1425，票状态看 CLOSED 加 resolution 评论里有没有 docs/adr/ 路径。每条都能执行，结果都是二值。7 个测试名我已核实存在，tb03c_c4b_tests 被 include 进来，`--lib` 能找到。\"},\n\"R4\":{\"verdict\":\"PASS\",\"basis\":\"正本只落在 docs/adr/NNNN-fill-position-single-authority-and-crosswalk.md 和 CONTEXT.md「运行边界」节，都在允许范围内。九条全是写者分工、恢复语义、事件字段义务、crosswalk 数据结构这类 T 类内容。没有资金、量档、cap、θ、费用参数；场所账户和权限明确交给 #1540。Q13 定的「原件级 allocation_id 等于 external_fact_id」属于字段的数据结构，不是 P 类取舍。\"},\n\"R5\":{\"verdict\":\"PASS\",\"basis\":\"没有新增同一判断的宽严两档。累计完整性证据和恢复语义按 simulation 与 experiment/production 分开，依据是两种载体的事实不同（受控撮合没有真实外效），草稿也写了理由（AGENTS.md:46、ADR 0041:13）。缺证据时保原潜量、缺跳时报缺项，都是失败时的态，不是兜底的换判据。没有自动择一或补猜。\"},\n\"R6\":{\"verdict\":\"PASS\",\"basis\":\"新增 #1539 blocks #1425 这条边：#1539 只被已关闭的 #1534、#1538 阻塞，#1425 的前置是 1375/1422/1406，不成环，我已核实。现有 8 条 blocking 边和 2 条 blocked_by 边全部列出，和 gh api 结果一致。#1535、#1540、#1770、#1769、#1400、#1330 的影响和不加边的理由都写了。（R2 要求的 ADR 0038/0039 注记属于正本修订，不需要加新边。）\"},\n\"R7\":{\"verdict\":\"PASS\",\"basis\":\"分级器给的是 T 类，判断正确：本票裁的是 owner 落点（E/Bᵢ/X 写者分工）、事件协议、恢复语义和 crosswalk 数据结构，符合 graph-engineering.md:23 的 T 类判据。这些都有已裁正本可援引：ADR 0027 裁定三、ADR 0039 每域一库一 writer.lock/writer_epoch、#1340 C09/C10，以及 #1538 评论 6466830839 已明文把单一真账和 crosswalk 交给本票。票面的「费用」指费用事件怎么入账（ADR 0032 裁定五已有），不是费用参数，也不涉及 Destination。\"},\n\"R8\":{\"verdict\":\"BLOCK\",\"basis\":\"一、我抽查复跑了考古命中，有好几处和表述对不上。Q1 说 ADR 0039:298-299 是「S/E/B/X 每个域一个库…」，实际在 :300。Q3 说 chong-traceability.md:33，实际在 :35；它说「毛账」查询命中 12，我复跑得 14；它说 store.rs:49 有 `applications.fact_key UNIQUE`，实际在 :75。Q15 说 SKILL.md:68-70，实际在 :70-72。Q7 说 C05.4 在 :286，实际在 :287。核对一致的有：Q4「物理持仓|场所净仓|账实」6 条命中，Q6「乱序」6 条，Q12 正本层 crosswalk 4 条，book.rs:106-107 TestOnly。二、换说法再搜 B 类点，搜出了考古没列的在案先例。Q10 用「回退|checkpoint」再搜，命中 ADR 0030:48「恢复后先只读对账在途订单（外部未知按最大保留，不伪造终态）」（ADR 0039:26 引作 ADR 0030:44「保留最大责任…不回退旧 writer」），这是同向的更早先例；还命中 ADR 0039:289「启动时检测 checkpoint 并恢复（ADR 0038:60）」把 ADR 0038:60 用到了 production launcher 上，这是相冲突的在案先例。两条考古都没列，Q10 的冲突栏也没提。Q9 用「终态累计」再搜，命中 ADR 0033:31 和 ADR 0052:35，考古漏了（草稿自己也承认漏列）。草稿在「考古对照」里修正了行号、补了 ADR 0033:31，但考古本身不成立，ADR 0030:48 和 ADR 0039:289 在考古和草稿里都没有出现。要改的是：重出 archaeology.md，修正上面所有行号和命中数；Q9 补 ADR 0033:31/0052:35；Q10 补 ADR 0030:48 和 ADR 0039:289/:27，并在冲突栏写明；然后草稿的考古对照和 Q10 出处跟着同步。\"}}\n```"
+}
