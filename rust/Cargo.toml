@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 # extension-module 作为 optional feature：
 #   - maturin build 时启用（见 pyproject.toml [tool.maturin] features）
 #   - cargo test 时不启用（否则链接 libpython 失败）
-pyo3 = { version = "0.23" }
+pyo3 = { version = "0.29" }
 # strict_nest_check 与 backtest CLI 共用严格 JSON 解码；生产二进制必须可直接构建。
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
