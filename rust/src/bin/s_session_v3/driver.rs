@@ -865,6 +865,7 @@ pub(super) fn recover_scoped_with_retention(
 
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。
 /// 尚未接CLI；换代事务提交后，由新Driver开门继续持久pending原件。
+#[cfg(any(test, not(feature = "s_incremental")))]
 pub(super) fn recover_scoped(
     db: &Path,
     new_epoch: &str,

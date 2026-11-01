@@ -860,3 +860,93 @@ BSP 的精确语义核对：`content_producer.rs:3404` 的 `raw_bar_at` 返回 `
 - `rust/src/bin/s_session_v3/audit_owner.rs`
 - `rust/src/bin/s_structure_session.rs`
 - `rust/src/theta_v0/classifier/bsp.rs`
+
+## S1I
+
+> 状态：ready，可交主控封包取 CI。开工分支 `sandcastle/issue-1481`，精确 HEAD `fb06cf4d6a40460063ff3d28c7b600e52d949064`，工作区干净。本节记录 rust-check 死码返修及逐档源码核查；**Rust 未验证，待 CI**，不代表新候选已编译或整票完成。
+
+### 原日志与首错
+
+已读取 S1D–S1H 提示及引用的范围、禁止项、本报告对应章节和原始日志 `/Volumes/AgentStorage/h1-recover45c/ci-41360454221/125009585550.log`。以下日志位置为该原件物理行。run `41360454221` 的 rust-check job `125009585550` 对应 PR head `fb06cf4d`；`:172` 同时明确 checkout 的是合成 merge `62e8ff7`，即将该 head 合入 `784bc6d7` 的检查对象。
+
+- `:555`、`:724`、`:776` 分别记录 default、backtest_bin、s_session 三档 `Finished`。
+- `:786–787` 是第四档 `cargo check --all-targets --features s_session,s_incremental`，`:798` 的 `RUSTFLAGS` 为 `-D warnings`。
+- `:801` 原文为 ``error: function `recover_scoped` is never used``，`:802–804` 指向原 `src/bin/s_session_v3/driver.rs:868:15`，`:807` 明确 `-D dead-code` 来自 `-D warnings`；`:810–812` 为 bin 编译失败、退出 101。第五档没有执行，不记作已验证。
+- `:189–190` 的 shard 文本来自 `test_check_partition_rejects_missing_and_overlap`。源码 `.github/scripts/test_test_shard.py:85–89` 两次用 `assertRaises(SystemExit)` 验证缺项与重叠拒绝；日志 `:191` 为 `ok`，`:209–211` 为 16 tests / OK，故不是该 job 的失败原因。
+
+### 修法与逐档调用者表
+
+唯一代码改动是 `rust/src/bin/s_session_v3/driver.rs:868` 新增 `#[cfg(any(test, not(feature = "s_incremental")))]`，函数定义现为 `:869`。这是实际调用者门控的精确并集：唯一生产调用者 `writer_cli.rs:998` 受 `not(s_incremental)` 门控；测试包装 `driver.rs:894` 在 `:901` 调用，历史规则测试在 `:1327` 直接调用，两者均在 test 内。原包装声明 `:893` 的 `#[cfg(test)]` 保留。
+
+不能删除旧入口或把所有测试改走 H1：`driver.rs:1005` 的 Fixture::open 以及 `:1014` 的 open_with_config 构造 Ordinary 测试臂，后者显式使用 Ordinary/None context；recover 包装的既有调用覆盖旧规则首错、PrePolicyRecords、pending 和时钟合同。`recover_scoped_with_retention` 则在 `driver.rs:844–850` 强制冷 context、CapturedNative、正式 ThetaConfig 和 H1 重建，二者并非可互换的测试入口。非增量 CLI 也确实仍需要旧入口。因此采用请求允许的精确 cfg 保留方案，不迁移这些必要调用者。
+
+`.github/workflows/ci.yml:180–235` 五档均为 `--all-targets`、`RUSTFLAGS=-D warnings`。`rust/Cargo.toml:111` 要求 S bin 的 `s_session`；`:84` 的 inc 启用 session，`:87` 的 testonly 又启用 inc，所以第五档与显式三 feature 组合的 recover 门控相同。表中路径相对 `rust/src/bin/s_session_v3/`，行号为最终候选。
+
+| cargo check feature 档位 | 非 test 的定义与调用者 | test 的定义与调用者 |
+|---|---|---|
+| 默认，无 feature | S bin 不编入，三个 recover 入口都不存在 | 同左；库 BSP 锁仍可扫描磁盘上的 S 源码 |
+| `backtest_bin` | 未启用 session，S bin 不编入 | 同左 |
+| `s_session` | 旧 scoped `driver:869` ← CLI `writer_cli:998`；retention 入口及测试包装不编入 | 旧 scoped ← CLI、包装 `driver:901`、规则锁 `driver:1327`；包装 `:894` 供既有合同测试调用；retention 入口不编入 |
+| `s_session,s_incremental` | retention `driver:822` ← CLI `writer_cli:989`；旧 scoped 和测试包装均不编入，不再留下无调用旧函数 | retention ← CLI 及 `audit_owner/admission_tests:416,608`；旧 scoped ← 包装 `driver:901` 和规则锁 `:1327`；Ordinary 包装仍仅供测试 |
+| `s_session,s_capture_native_testonly` | 与上一格相同；既有诊断臂不改变 recover cfg | 与上一格相同；包括 testonly 隐含的 inc，即显式三 feature 组合 |
+
+以上为 Ubuntu/Unix 的源码调用者核对，不是编译证明。非 Unix 下新 cfg 同样移除增量非 test 的旧 scoped；retention 入口原有非 Unix 显式错误分支仍在 `driver.rs:830–834`。冷 helper 的 unix 门与调用方保持配对；基线已有无条件 Unix 模块依赖，不宣称整个 bin 支持非 Unix。
+
+### 被替换／包装的旧函数穷举
+
+核查输入为完整 `git diff 784bc6d7 HEAD -- rust/`，精确基线共 **32 文件、4212 新增行、280 删除行**。从全部差异提取旧调用改写、包装抽核及 cold 平行入口，再在实际模块树回查新旧调用者，不以名称出现次数代替 cfg 核查。下表 `F` 为仅 session，`I` 为两档增量配置，`T` 为 test；默认和 backtest 档不编入这些 S 模块。未标 test 的保留调用链覆盖该 feature 下 test/非 test 两格；标 `T` 的旧入口在非 test 排除。v3 路径省略 `rust/src/bin/s_session_v3/`，v2 及根路径另写。
+
+| 旧入口／抽核关系 | 实际调用者、逐档结论 |
+|---|---|
+| `recover_scoped` → `recover_scoped_with_retention` | 本次唯一确定失去生产调用的档为 I 非 T；按上表精确门控修复，F 与 T 的必要旧调用保留 |
+| `Driver::open_production_with_request_and_mode` → retention one-shot | 旧 `driver:414` 仍由生产 serve 包装 `:181` 调，CLI serve `writer_cli:781,813` 保留；F one-shot `:941` 用旧、I `:928` 用新。旧入口 F/I 均不可删 |
+| `Driver::open_with_request_and_mode` → retention 包装 | 旧 `driver:390` 已为 T；`:165,376` 和 F+T 的 CLI `writer_cli:953` 调用。非 T 排除，F/I T 仍有调用 |
+| `open_with_request_and_mode_context`、default context → `cold_context` | 共同核 `driver:520` 仍由 bound `:451`、serve `:283`、retention `:497` 调；default context 仍在共同路径，冷 context `:466` 仅 I，由 `:282,496,844` 消费 |
+| `AuditConnection::open` → `open_rebuilt_history` | 旧 `audit_owner:337` 仍被 `driver:587,590` 的对照/F 分支及组件调用；新 `audit_owner:478` 为 I+unix，由 `driver:568,850` 调，原入口未孤立 |
+| `open_history_component`、`Clamp::open` → `open_in_parent` | 旧 owner `:371`、Clamp `audit_owner/history_clamp:96` 已为 T+I+unix / T；组件测试和 owner `:373` 仍调。新 Clamp `:103` 由 owner `:419,700` 调，生产链存在 |
+| `open_certified_history_component` → seeded / 正式 rebuilt | 旧 owner `:385`、seeded `:403`、admitted `:443` 全为 T+I+unix；旧→seeded `:392`，admitted→旧 `:451`，history_clamp_tests 多处及 admission_tests 仍调用；生产改用 rebuilt，不遗留生产旧包装 |
+| `seed_historical_certificate` → `seed_rebuilt_history` | 旧 owner `:1654` 为 T+I+unix，由组件 `:397` 调；新 `:1716` 为 I+unix，由正式入口 `:714` 调 |
+| `HistoricalCertificate::cold/cold_for_request` → rebuilding / inner | 旧 state `:1788,1798` 已为 T，前者由组件锁、后者由 owner `:1681` 调；新 `state:1809` 为 I+unix，由 owner `:557` 调；inner `:1832`、captured `:1881` 继续承载生产冷链 |
+| `HistoricalCertificate::historical` 旧访问口 | state `:2028` 已为 T，调用 `:4107,4156,4203` 均在 I 测试中；I 非 T 不编入，没有靠旧访问口维持生产资格 |
+| `HistoricalSourceFold::verify` → 共同方法 + 冷适配器 | 在线 trait 实现 `state:1310` 仍由 append verifier 调；冷实现 `:1325` 仍由 cold fold 调；共同 `require_next_cut:1269/verify_sources:1276` 两侧均用，I T/非 T 都有实际调用 |
+| `state::audit/audit_native_in_request`、`s_allocation::audit_startup` → admitted bind | 旧入口仍有 Ordinary/对照调用，例如 owner `:937,939,988,991,1020,1579`；`audit_with_budget` 仍由 admission_private `:446,480` 和 state `:177,541` 调。F/I 保留各自调用，正式 H1 不以旧审计兜底 |
+| `validate_prefix_inner` → `read_session` | admission_private 旧 `:605` ← `:592`；旧在 `:610` 调新核 `:662`，新增 certify_cold 也在 `:628` 调新核。F/I 原前缀包装继续生产使用 |
+| 根 `open_db` → H1 专用开库／WAL handoff | 旧仍由 owner `:338` 及 v1/v2 调；新根 `s_structure_session:357,387` 为 I+unix，由 owner `:671,672,684` 调，未替掉旧合法输入域 |
+| `migrate_policy_records_in_transaction` → `migrate_in` | 旧包装已在 S1H 删除，当前 HEAD 定义与调用为零；共同核仍由根旧迁移入口、owner `:696`、native_n1 `:1842` 调，授权门保留 |
+| v2 `advance_owner_bound` → `advance_owner_bound_with_work` | s_fact_cache 旧 `:521` 已为 T，由 `:847,907,917,950,968,986` 测试调；新 `:528` ← generation `:558` 及旧包装 `:525`。F/I 非 T 不编旧，生产新链存在 |
+| v2 `advance_bound_checked/inner` 新增 work 参数 | 旧名未退役：checked `s_fact_cache:568` ← `:541,565`，inner `:590` ← `:581`；F/I 的 owner 生产链仍经它们 |
+| `QueuedFacts::from_receipt` → `from_receipt_view` | audit_ledger 旧 `:135` ← prepared `:1613`；旧→新 `:139`，冷 state `:1383` 也调新。两者均 I，T/非 T 均有调用；F 按原 cfg 排除 |
+| `QueuedFacts::bind` → `bind_view` | audit_ledger 旧 `:223` ← prepared `:698`；新 `:230` ← 旧 `:228` 及冷 state `:1384`。I 的在线旧链和冷新链均有调用；F 下该包装原本不供生产使用，audit_ledger.rs:5 的既有模块 allow 未动，不是此次失调用回归 |
+| `Ledger::bind` → `bind_view` | audit_ledger 旧 `:1114` ← prepared `:707` 及 fold_step `:1202`；新 `:1122` ← 旧 `:1120` 及 state `:1396`，各档无新失调用 |
+| `audit_native_bound` → `audit_source_step` | source_contributions 旧 `:1936` ← effects `:1523`；新 `:1975` ← 旧 `:1958` 及 state `:1353`。父模块为 I，在线与冷核都仍生产可达 |
+| `SourceMaterial` 固有读取方法 → `SourceInput` 转发 | effects 的 root/sequence_delta/request_delta/array_member/request_member `:1337,1343,1350,1358,1367` 仍被 contributions `:32,38,44,47,50` 显式转发；ColdSource 对应实现为 `:104,107,113,116,123`，I 两侧都用，未遗弃旧方法 |
+| `member` 与 NativeSourceState 阶段泛化 | contributions `member:729` 仍由 `:1115,1486,1770` 调，empty/raw/cover/object/request/shape/witness/observation 阶段继续由共同 step 顺序调。I T/非 T 同门，未另留一份旧实现 |
+| `receipt_from_native/export_raw_receipt` → cold receipt | source_receipt 旧 `:196` ← prepared `:1093`；共核 `:123` ← 旧 `:207`、新 `:238`；cold `:227` ← state `:1370`。父模块为 I，在线旧链和冷新链均在 |
+| `RawReceipt::export_business` → history business；facts export 抽核 | 旧 receipt `:256` ← prepared `:1612,1629`；旧 facts `:155` ← receipt `:273`；parts `:202` 由原 export 与 history export `:174` 共用，新 history business `:301` ← state `:1381`。全部为 I，T/非 T 都配对 |
+| `LazySet::new` / 在线 CommittedSet → cold 构造 | LazySet 旧 construction_set `:707` ← effects `:1517`，新 `:729` ← cold_source `:32`；CommittedSet cold `:235` ← construction_state `:338`，在线 finish 仍建原 set。父 I，cold CommittedSet 与唯一调用同为 unix |
+| CommittedRawState 在线构造 → cold_seed / into_owner | 原在线 PendingRawState::advance `construction_state:519` 仍由 owner `:2530,2607` 调用；其 committed `:859` 在 owner `:1917` 被消费并于 `:860` 构造 CommittedRawState；cold_seed `:308` ← owner `:622`，into_owner `:265` ← owner `:1733`，冷边均 I+unix |
+| v2 producer / ContentBi 的 new → 冷 seed/rebind | 旧 content_producer `:771`、content_bi `:1124` ← generation `:421,422`，F/I 都在；新 seed `:1633/:1133` ← generation `:499,502`，rebind `:1676/:1185` ← `:522,523`，均 I+unix 同门 |
+| v2 DeltaLane::new / SequenceMemo::default → cold seed | 旧 lane new `s_fact_cache:464` ← generation `:551` 及自身冷 seed；旧 SequenceMemo default 在 generation `:428–433`。新 lane cold_seed `:401` ← generation `:482`，memo seed `generation:1613` ← `:488,493`，新增均 I+unix，原在线构造未失调用 |
+| GenerationRuntime / Runtime::with_config → cold seed/adopt | 旧 generation `:413` ← prepared `:296,944`，Runtime 旧 `prepared:166` ← driver `:558,560,845`。新 gen seed/rebind `:467,509` ← prepared `:302,321`；冷 Runtime/seed/adopt `prepared:254,258,308` ← owner `:537,635,732`，均 I+unix；F/I 原构造继续使用 |
+| `Runtime::install_audit_ledger` 接入生产 | prepared `:334` ← owner `:566` 及 prepared `:322`，I+unix 有实际生产调用，原组件测试也保留。非 I 既有 cfg_attr 不在本轮修改范围，没有新加 allow |
+| RawPrefixIndex 的 new/ordered/advance_measured 提升可见性 | 旧 new `business_json:520` ← construction_state `:573` 等原链；ordered `:589` 原 history 生产调用仍在，advance_measured `:624` ← advance_admitted `:622`；新增 v2 cold 调用不替换这些旧入口，F/I 均有原引用 |
+| `raw_bar_at` 的 filter → match | v2 content_producer `:3404` 仍被 `:1499,2224` 调用；S1H 的既有修法不动，各档原行为保持 |
+
+其余差异包括 admission/provider 的新 cold 门面、预算 trait 委托、新冷载荷与 binding 方法、deadline 再导出、字段/签名可见性、固定 SQL、测试、注释及 BSP 白名单清理；没有另一个被新包装替代后遗弃的旧函数。新 cold 门面沿 owner 冷入口到原私有账，相关 unix/inc 门与调用保持配对。实施代理与非作者评审分别独立查阅差异与调用边，除本次 recover 门控外未发现第二项确定的 dead_code/unused 阻断；此结论限于静态阅读，五档实际 Rust 检查仍待 CI。
+
+### 实际自检与保持项
+
+- `rustfmt --edition 2021 --check rust/src/bin/s_session_v3/driver.rs` 通过。
+- `git diff --check` 通过。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3 tests 通过。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，清单与源码一致，清单未改。
+- `python3 -B /private/tmp/issue1481-s1h-bsp-scan.py`，读取当前 bsp.rs 的原正则及 WHITELIST，以原 grep 和双向集合复现，hits=23、whitelist=23、stray=[]、stale=[]；这是静态复现，不冒充 Rust 测试执行。
+- Python 将 HEAD 的 driver.rs 仅插入上述 cfg 后与工作区逐字比对，相等；所有函数体、调用点、测试断言和原 cfg 均未改。报告历史部分保留，仅追加本节。
+
+没有新增 allow/expect；recover 的错误顺序、retention 参数及资源解析、scope 的 enter/finish/drop 合同逐字保持。Ordinary/非 inc、H1 冷认证、输入域、写前拒绝、正常关闭/新进程重启、台账旁挂登记及 64 GiB 帽、TestOnly Ordinary 先审后迁、原锁和 CI 清单、E6、FU16 都不变。未运行 cargo/rustc、重型窗口、新 CI 或产物构建；未 git add/commit/push、未写 Git metadata。资源 `/3`、scrub、launcher/5、Python 服务控制、ADR 和 workflow 未改。
+
+### S1I 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v3/driver.rs`
