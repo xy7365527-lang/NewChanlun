@@ -4752,7 +4752,37 @@ mod tests {
                     "{}",
                     json!({"seq": seq, "digest": sc::root_string(d), "tag": node.map(|(t, _)| t),
                         "kind": kind, "meter_event_index": m,
-                        "bt": bt.as_ref().map(|b| b.to_string())})
+                        "bt": bt.as_ref().map(|b| {
+                            let text = b.to_string();
+                            let mut out = Vec::new();
+                            let mut name: Option<String> = None;
+                            for line in text.lines() {
+                                let t = line.trim_start();
+                                if let Some(rest) = t.strip_prefix("at ./src/bin/s_session_v3/") {
+                                    if let Some(n) = name.take() {
+                                        out.push(format!("{n}@{rest}"));
+                                    }
+                                } else if let Some(i) = t.find(": ") {
+                                    if t[..i].chars().all(|c| c.is_ascii_digit()) {
+                                        let mut depth = 0i32;
+                                        let mut plain = String::new();
+                                        for c in t[i + 2..].chars() {
+                                            match c {
+                                                '<' => depth += 1,
+                                                '>' => depth -= 1,
+                                                _ if depth == 0 => plain.push(c),
+                                                _ => {}
+                                            }
+                                        }
+                                        let plain = plain.trim_end_matches(':').to_string();
+                                        name = Some(plain.rsplit("::").next().unwrap_or("").to_string());
+                                    } else {
+                                        name = None;
+                                    }
+                                }
+                            }
+                            out.join("|")
+                        })})
                 )
                 .unwrap();
             }
