@@ -57,7 +57,8 @@ const GATE_FIELDS_TEXT: &str =
 /// 旧启动器对 Unix socket 路径的 100 字节上限（`s_service_control.py`），本入口沿用。
 const SOCKET_PATH_BYTES: usize = 100;
 
-const SERVE_FLAGS: [&str; 8] = [
+const SERVE_FLAGS: [&str; 9] = [
+    "--structure-source",
     "--admission-job-limits",
     "--protocol-revision",
     "--db",
@@ -67,6 +68,7 @@ const SERVE_FLAGS: [&str; 8] = [
     "--socket",
     "--resource-config",
 ];
+#[cfg(not(feature = "s_incremental"))]
 const ADVANCE_FLAGS: [&str; 8] = [
     "--admission-job-limits",
     "--protocol-revision",
@@ -77,6 +79,19 @@ const ADVANCE_FLAGS: [&str; 8] = [
     "--input",
     "--max-input-bytes",
 ];
+#[cfg(feature = "s_incremental")]
+const ADVANCE_FLAGS: [&str; 9] = [
+    "--admission-job-limits",
+    "--protocol-revision",
+    "--db",
+    "--profile",
+    "--writer-epoch",
+    "--clock-plan",
+    "--input",
+    "--max-input-bytes",
+    "--resource-config",
+];
+#[cfg(not(feature = "s_incremental"))]
 const RECOVER_FLAGS: [&str; 6] = [
     "--admission-job-limits",
     "--protocol-revision",
@@ -84,6 +99,17 @@ const RECOVER_FLAGS: [&str; 6] = [
     "--new-epoch",
     "--clock-plan",
     "--clock-event-id",
+];
+
+#[cfg(feature = "s_incremental")]
+const RECOVER_FLAGS: [&str; 7] = [
+    "--admission-job-limits",
+    "--protocol-revision",
+    "--db",
+    "--new-epoch",
+    "--clock-plan",
+    "--clock-event-id",
+    "--resource-config",
 ];
 
 /// 已核验并冻结的资源档：七个旧门字段全部显式、全部为正整数文本，规范字节与其 SHA256 一并保存。
@@ -200,6 +226,7 @@ struct ServeOptions {
     clock: PathBuf,
     socket: PathBuf,
     resources: PathBuf,
+    structure_source: Option<PathBuf>,
 }
 struct AdvanceOptions {
     db: PathBuf,
@@ -208,12 +235,16 @@ struct AdvanceOptions {
     clock: PathBuf,
     input: Option<PathBuf>,
     max_input_bytes: Option<usize>,
+    #[cfg(feature = "s_incremental")]
+    resources: PathBuf,
 }
 struct RecoverOptions {
     db: PathBuf,
     new_epoch: String,
     clock: PathBuf,
     clock_event: String,
+    #[cfg(feature = "s_incremental")]
+    resources: PathBuf,
 }
 
 /// 命令分派：`Ok(Some(value))` 为要打印的命令结果，`Ok(None)` 为无结果（服务正常退出）。
@@ -383,6 +414,7 @@ impl ServeOptions {
         let values = parse_flags("serve", args, &SERVE_FLAGS)?;
         selector(&values, "serve")?;
         Ok(Self {
+            structure_source: values.get("--structure-source").map(PathBuf::from),
             db: existing_file(required(&values, "serve", "--db")?, "--db")?,
             profile: existing_file(required(&values, "serve", "--profile")?, "--profile")?,
             epoch: epoch(
@@ -429,11 +461,17 @@ impl AdvanceOptions {
             )?,
             input,
             max_input_bytes,
+            #[cfg(feature = "s_incremental")]
+            resources: existing_file(
+                required(&values, "advance", "--resource-config")?,
+                "--resource-config",
+            )?,
         })
     }
 }
 
-/// 只读预检现有库身份；Driver 持排他锁后仍完整复核，竞态不会借此放行。
+/// 只读预检现有库身份；Driver 持排他锁后完成认证，竞态不会借此放行。
+/// #1481：增量路径只在此核身份/请求，H1 冷认证完成后 Driver 才允许推进 pending。
 /// 非法 input 在本步骤之前不会触发 Driver::open 的 pending 自动推进。
 fn preflight_input(
     options: &AdvanceOptions,
@@ -446,6 +484,7 @@ fn preflight_input(
     let conn = Connection::open_with_flags(scope.db_path(), OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(err)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
+    #[cfg(not(feature = "s_incremental"))]
     state::audit(&tx)?;
     verify_writer_epoch(&tx, &options.epoch)?;
     let control = control::S3Control::attach(&tx, clock)?;
@@ -466,7 +505,7 @@ fn preflight_input(
         }
         let event = newchan_rust::session_protocol::required(payload, "clock_event_id")?;
         for (phase, attempt) in [("accept", -1), ("begin", 0), ("commit", 0)] {
-            clock.phase(event, phase, attempt)?;
+            clock.require_planned(event, phase, attempt)?;
         }
     }
     driver::check_request_before_resume(&tx, &control, input, &profile_id)?;
@@ -488,6 +527,11 @@ impl RecoverOptions {
                 "--clock-plan",
             )?,
             clock_event: required(&values, "recover", "--clock-event-id")?.to_string(),
+            #[cfg(feature = "s_incremental")]
+            resources: existing_file(
+                required(&values, "recover", "--resource-config")?,
+                "--resource-config",
+            )?,
         })
     }
 }
@@ -588,6 +632,104 @@ fn open_theta_diagnostic(
     unreachable!("theta_diagnostic_testonly 在此构建只会返回 false 或拒绝")
 }
 
+/// #1640 1a（gates `policy1640-diagnostic`）：TestOnly 诊断场所入口的显式开关。只在
+/// `s_capture_native_testonly` 构建读取；值必须恰为诊断夹具记录 id，其它取值拒绝启动（不静默忽略）。
+/// 设置后 serve 以 `venue-profile-diagnostic-fixture`（`admissible:false`）开门、`require_admissible`
+/// 照旧为真：Ready 可达（launcher/4 据 `build_profile=testonly` 拒绝），任何 advance 仍被
+/// `InvalidPolicy{venue_profile}` 拒绝。launcher 以环境传入：`process_identity` 要求子进程 argv 与
+/// 启动命令逐字相同（`s_service_control.py`），新 flag 到不了真实 launcher 路径。生产构建不含本入口。
+#[cfg(feature = "s_capture_native_testonly")]
+const DIAGNOSTIC_FIXTURE_MARKER: &str = "S_DIAGNOSTIC_FIXTURE_TESTONLY";
+#[cfg(feature = "s_capture_native_testonly")]
+const DIAGNOSTIC_FIXTURE_VENUE: &str = "venue-profile-diagnostic-fixture";
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn diagnostic_fixture_testonly() -> Result<bool, String> {
+    let value = match std::env::var(DIAGNOSTIC_FIXTURE_MARKER) {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => Some(String::new()),
+    };
+    parse_diagnostic_fixture(value.as_deref())
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn parse_diagnostic_fixture(value: Option<&str>) -> Result<bool, String> {
+    match value {
+        None => Ok(false),
+        Some(DIAGNOSTIC_FIXTURE_VENUE) => Ok(true),
+        Some(_) => Err(format!(
+            "DiagnosticFixtureTestOnlyInvalid：{DIAGNOSTIC_FIXTURE_MARKER} 只接受 {DIAGNOSTIC_FIXTURE_VENUE}"
+        )),
+    }
+}
+
+/// Ready 回复带上场所自报；Receipt/错误回复不动。字段在 payload 内，随 `payload_hash` 一起被签。
+#[cfg(feature = "s_capture_native_testonly")]
+fn tag_ready(
+    result: Result<Value, String>,
+    tag: &super::driver::VenueProfileTag,
+) -> Result<Value, String> {
+    let mut payload = result?;
+    if payload["kind"] == "Ready" {
+        payload["venue_profile"] = json!(tag.venue_profile);
+        payload["admissible"] = json!(tag.admissible);
+    }
+    Ok(payload)
+}
+
+/// 诊断场所服务：只支持 Ordinary 对照臂；开门后先把自报写到 stderr（launcher 日志可见），再监听。
+#[cfg(feature = "s_capture_native_testonly")]
+fn serve_diagnostic_fixture(
+    options: &ServeOptions,
+    clock: v2::ClockPlan,
+    resources: &SResources,
+    mode: s_allocation::Mode,
+    admission: super::admission_anchor::PreparedAdmission,
+) -> Result<Option<super::admission::CommandOutput>, String> {
+    if !matches!(mode, s_allocation::Mode::Ordinary) {
+        return Err(format!(
+            "DiagnosticFixtureTestOnlyInvalid：{DIAGNOSTIC_FIXTURE_MARKER} 只支持 Ordinary 对照臂"
+        ));
+    }
+    let mut driver = Driver::open_for_serve_diagnostic_fixture_testonly(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        resources.limit("audit_cache_source_bytes"),
+        mode,
+        admission.into(),
+    )?;
+    let identity = driver.identity()?;
+    let tag = driver.venue_profile_tag();
+    {
+        use std::io::Write as _;
+        let line = json!({"diagnostic":"DiagnosticFixtureTestOnly","build_profile":BUILD_PROFILE,
+            "venue_profile":tag.venue_profile,"admissible":tag.admissible,
+            "require_admissible":tag.require_admissible});
+        let _ = writeln!(std::io::stderr().lock(), "{line}");
+    }
+    let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+    driver.check_structure_source(options.structure_source.as_deref())?;
+    driver.finish_startup()?;
+    let bounds = resources.transport_bounds();
+    serve_unix(
+        &options.socket,
+        bounds,
+        |value| validate_envelope(value, PROTOCOL_REVISION),
+        |envelope| {
+            reply(
+                envelope,
+                tag_ready(driver.handle(envelope.clone()), &tag),
+                &identity,
+                control_instance_id.as_deref(),
+            )
+        },
+    )?;
+    Ok(None)
+}
+
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
 fn serve_with_policy(
     options: ServeOptions,
@@ -596,6 +738,8 @@ fn serve_with_policy(
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_environment_mode()?;
     let theta_diagnostic = theta_diagnostic_testonly()?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let diagnostic_fixture = diagnostic_fixture_testonly()?;
     let resources =
         SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
             .map_err(|e| admission.diagnostic(e))?;
@@ -615,6 +759,10 @@ fn serve_with_policy(
     let _frozen_profile = checked_profile_bytes(&admission.read_file(&options.profile, None)?)
         .map_err(|e| admission.diagnostic(e))?;
     serve_authorization(&resources)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    if diagnostic_fixture {
+        return serve_diagnostic_fixture(&options, clock, &resources, mode, admission);
+    }
     #[cfg(feature = "s_incremental")]
     let native_bootstrap = matches!(mode, s_allocation::Mode::CapturedNative);
     #[cfg(feature = "s_incremental")]
@@ -694,6 +842,7 @@ fn serve_with_policy(
     #[cfg(not(feature = "s_incremental"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+    driver.check_structure_source(options.structure_source.as_deref())?;
     driver.finish_startup()?;
     let bounds = resources.transport_bounds();
     serve_unix(
@@ -753,6 +902,10 @@ fn advance_with_policy(
     production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_environment_mode()?;
+    #[cfg(feature = "s_incremental")]
+    let resources =
+        SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
+            .map_err(|e| admission.diagnostic(e))?;
     let clock = v2::ClockPlan::parse(
         strict_json(&admission.read_file(&options.clock, None)?)
             .map_err(|e| admission.diagnostic(e))?,
@@ -776,6 +929,19 @@ fn advance_with_policy(
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope, &scope, &frozen_profile)?;
     }
+    #[cfg(feature = "s_incremental")]
+    let mut driver = Driver::open_with_request_and_mode_retention(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        input.as_ref(),
+        mode,
+        resources.limit("incremental_retention_bytes"),
+        production,
+        scope.into(),
+    )?;
+    #[cfg(not(feature = "s_incremental"))]
     let mut driver = if production {
         Driver::open_production_with_request_and_mode(
             &options.db,
@@ -815,11 +981,25 @@ fn recover(
     options: RecoverOptions,
     mut admission: super::admission_anchor::PreparedAdmission,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
+    #[cfg(feature = "s_incremental")]
+    let resources =
+        SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
+            .map_err(|e| admission.diagnostic(e))?;
     let clock = v2::ClockPlan::parse(
         strict_json(&admission.read_file(&options.clock, None)?)
             .map_err(|e| admission.diagnostic(e))?,
     )
     .map_err(|e| admission.diagnostic(e))?;
+    #[cfg(feature = "s_incremental")]
+    let (out, scope) = driver::recover_scoped_with_retention(
+        &options.db,
+        &options.new_epoch,
+        &clock,
+        &options.clock_event,
+        resources.limit("incremental_retention_bytes"),
+        admission.into(),
+    )?;
+    #[cfg(not(feature = "s_incremental"))]
     let (out, scope) = driver::recover_scoped(
         &options.db,
         &options.new_epoch,
@@ -833,6 +1013,59 @@ fn recover(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1481：一次性入口与 serve 共用显式第八门，缺资源文件不得悄用默认预算。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_admission_one_shot_requires_explicit_retention_resource_file() {
+        let existing = std::env::current_exe().unwrap();
+        let path = existing.to_str().unwrap();
+        for (command, fields) in [
+            (
+                "advance",
+                vec![
+                    ("--db", path),
+                    ("--profile", path),
+                    ("--writer-epoch", "1"),
+                    ("--clock-plan", path),
+                ],
+            ),
+            (
+                "recover",
+                vec![
+                    ("--db", path),
+                    ("--new-epoch", "2"),
+                    ("--clock-plan", path),
+                    ("--clock-event-id", "recover-1"),
+                ],
+            ),
+        ] {
+            let mut args = vec![
+                "s_session".to_string(),
+                command.to_string(),
+                "--protocol-revision".to_string(),
+                PROTOCOL_REVISION.to_string(),
+            ];
+            for (key, value) in fields {
+                args.extend([key.to_string(), value.to_string()]);
+            }
+            let refused = match command {
+                "advance" => AdvanceOptions::parse(&args).err().unwrap(),
+                "recover" => RecoverOptions::parse(&args).err().unwrap(),
+                _ => unreachable!(),
+            };
+            assert!(
+                refused.contains("缺必填参数 --resource-config"),
+                "{refused}"
+            );
+            args.extend(["--resource-config".to_string(), path.to_string()]);
+            match command {
+                "advance" => assert_eq!(AdvanceOptions::parse(&args).unwrap().resources, existing),
+                "recover" => assert_eq!(RecoverOptions::parse(&args).unwrap().resources, existing),
+                _ => unreachable!(),
+            }
+        }
+    }
 
     /// #1769：生产构建（不含 production_session_testonly）遇 TestOnly 诊断 theta 开关即拒绝；
     /// 未设开关走正式路径；只认取值 1。
@@ -849,6 +1082,59 @@ mod tests {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// #1640 1a：诊断场所开关只认夹具记录 id；未设走正式路径，其它取值拒绝启动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_switch_accepts_only_the_fixture_record_id() {
+        assert_eq!(parse_diagnostic_fixture(None), Ok(false));
+        assert_eq!(
+            parse_diagnostic_fixture(Some("venue-profile-diagnostic-fixture")),
+            Ok(true)
+        );
+        for invalid in ["1", "", "venue-profile-diagnostic-fixture/1", "P0"] {
+            let refused = parse_diagnostic_fixture(Some(invalid)).unwrap_err();
+            assert!(
+                refused.contains("DiagnosticFixtureTestOnlyInvalid"),
+                "{refused}"
+            );
+            assert!(refused.contains("只接受"), "{refused}");
+        }
+    }
+
+    /// #1640 1a：场所自报只进 Ready 的摘要 payload（随 payload_hash 被签），Receipt 与错误回复不动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn diagnostic_fixture_tags_only_ready_inside_hashed_payload() {
+        let tag = super::super::driver::VenueProfileTag {
+            venue_profile: "venue-profile-diagnostic-fixture/1".into(),
+            admissible: false,
+            require_admissible: true,
+        };
+        let request = owned_ready_request();
+        let identity = ("owned".into(), "1".into(), "2".into());
+        let ready = reply(
+            &request,
+            tag_ready(Ok(json!({"kind":"Ready"})), &tag),
+            &identity,
+            Some("current"),
+        );
+        let fields = ready["payload"].as_object().unwrap();
+        assert_eq!(fields["build_profile"], "testonly");
+        assert_eq!(
+            fields["venue_profile"],
+            "venue-profile-diagnostic-fixture/1"
+        );
+        assert_eq!(fields["admissible"], false);
+        assert_eq!(fields.len(), 5);
+        assert_eq!(
+            ready["payload_hash"],
+            sha256_hex(canonical_json(&ready["payload"]).as_bytes())
+        );
+        let receipt = tag_ready(Ok(json!({"kind":"Receipt"})), &tag).unwrap();
+        assert_eq!(receipt, json!({"kind":"Receipt"}));
+        assert_eq!(tag_ready(Err("Busy".into()), &tag), Err("Busy".into()));
+    }
 
     #[test]
     fn private_control_digest_binds_loaded_canonical_resources_and_rejects_invalid_declarations() {

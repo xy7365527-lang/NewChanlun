@@ -434,6 +434,87 @@ while True:
             finally:
                 controller.close()
 
+    def test_h1_recover_preserves_versioned_resource_contract_after_config_change(self):
+        for revision in ("s-launcher/3", "s-launcher/4"):
+            with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="h1-recover-resource-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                try:
+                    def started(service, command, environment, **kwargs):
+                        controller.record(service, 123456, command, "started",
+                                          resource_identity=kwargs["resource_identity"])
+                    with patch.object(controller, "runtime_environment", return_value={}), \
+                         patch.object(controller, "prepare_socket", return_value=None), \
+                         patch.object(control, "process_identity", return_value="owned process"), \
+                         patch.object(controller, "start_process", side_effect=started) as start, \
+                         patch.object(controller, "wait_ready", return_value={"state": "ready"}):
+                        controller.start_s("1")
+                    start_command = start.call_args.args[1]
+                    identity = start.call_args.kwargs["resource_identity"]
+                    config["s_resources"]["max_frame_bytes"] = "16384"
+                    with patch.object(control, "process_identity", return_value=None), \
+                         patch.object(controller, "runtime_environment", return_value={}), \
+                         patch.object(controller, "freeze_s_resources") as freeze, \
+                         patch.object(control.subprocess, "run", return_value=control.subprocess.CompletedProcess(
+                             [], 0, b'{"recovered":true}', b"")) as recover:
+                        result = controller.recover("2", "recover-owned")
+                    freeze.assert_not_called()
+                    expected = [
+                        config["binary"], "recover", "--db", config["db"], "--new-epoch", "2",
+                        "--clock-plan", config["clock_plan"], "--clock-event-id", "recover-owned",
+                        "--admission-job-limits", controller.admission.limits_path,
+                        "--protocol-revision", "s-session/3"]
+                    if revision == "s-launcher/4":
+                        expected += ["--resource-config", identity["path"]]
+                    self.assertEqual(recover.call_args.args[0], expected)
+                    command = recover.call_args.args[0]
+                    self.assertEqual(command.count("--resource-config"), int(revision == "s-launcher/4"))
+                    if revision == "s-launcher/4":
+                        self.assertEqual(command[command.index("--resource-config") + 1],
+                                         start_command[start_command.index("--resource-config") + 1])
+                    self.assertEqual(result, {"service": "s", "state": "recovered", "new_epoch": "2",
+                                             "reply": {"recovered": True}, "next_action": "start-s --writer-epoch 2"})
+                finally:
+                    controller.close()
+
+    def test_h1_recover_refuses_changed_resource_identity_before_process(self):
+        for mismatch in ("inode", "content", "command", "handoff"):
+            with self.subTest(mismatch=mismatch), tempfile.TemporaryDirectory(prefix="h1-recover-identity-") as directory:
+                controller = anchored_controller(self.config(directory, "s-launcher/4", "2000"),
+                                                 Path(directory) / "state")
+                try:
+                    identity = controller.freeze_s_resources(controller.admission_deadline)
+                    command = [controller.config["binary"], "serve", "--protocol-revision", "s-session/3",
+                               "--resource-config", identity["path"]]
+                    with patch.object(control, "process_identity", return_value="owned process"):
+                        controller.record("s", 123456, command, "started", resource_identity=identity)
+                    path = Path(identity["path"])
+                    original = path.read_bytes()
+                    if mismatch == "inode":
+                        replacement = path.with_suffix(".replacement")
+                        replacement.write_bytes(original)
+                        replacement.chmod(0o600)
+                        replacement.replace(path)
+                    elif mismatch == "content":
+                        path.write_bytes(original + b" ")
+                    elif mismatch == "command":
+                        record = json.loads(controller.record_path("s").read_bytes())
+                        record["command"][-1] += ".other"
+                        controller.save_record("s", record)
+                    def runtime(deadline):
+                        if mismatch == "handoff":
+                            # status 核验后替换内容，recover 自身仍须再次核同一身份。
+                            path.write_bytes(original + b" ")
+                        return {}
+                    with patch.object(control, "process_identity", return_value=None), \
+                         patch.object(controller, "runtime_environment", side_effect=runtime), \
+                         patch.object(control.subprocess, "run") as recover:
+                        with self.assertRaisesRegex(ValueError, "资源冻结"):
+                            controller.recover("2", "recover-owned")
+                    recover.assert_not_called()
+                finally:
+                    controller.close()
+
     def test_s3_q_rejects_old_resource_version_before_spawn(self):
         with tempfile.TemporaryDirectory(prefix="s3-q-mismatch-") as directory:
             controller = anchored_controller(self.config(directory), Path(directory) / "state")

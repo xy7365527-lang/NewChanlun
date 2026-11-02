@@ -62,7 +62,7 @@ TStage latch 只投影 campaign 内已经发生的阶段事件史。`phase_event
 | #1534 | 用逐 bar 事件关联 cut、身份、epoch、policy/model 版本及前后状态；覆盖重与 Voice 分离、阶段史、筹码、毛账、撤回与续接。 |
 | #1536 | 完整输入与模型 profile 经 production_session 运行；保留结构、资金、订单、成交、持仓和故障，不用影子 CLI 代正式路径。 |
 | #1538 | 三模式保持同一结构与经营核心，只替换已裁 adapter；同输入核对本票的逐重语义结果。 |
-| #1550 | #1304 外壳调用正式 launcher，输出逐重状态与毛账、恢复和 AsKnown 证据，完整 AT-14 报告。 |
+| #1550 | #1304 外壳调用正式 launcher，输出逐重状态与毛账、恢复和 AsKnown 证据，完整 AT-14 报告。见 [ADR 0058](../../docs/adr/0058-replay-shell-mapping-and-legacy-replay-dispositions.md)。 |
 | #1360 / TB-02 | 正式逐 bar Classification、旁路与下钻关系及不回流证据。 |
 | #1361 / TB-03 | 持久 Chong、Voice、阶段事件史、筹码与毛账的逐重独立、换向连续和恢复证据。 |
 | #1362 / TB-04 | 正式 S/E/Bᵢ/X 调用、成交回报与账本链路证据。 |

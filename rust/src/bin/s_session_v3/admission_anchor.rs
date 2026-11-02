@@ -21,6 +21,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+pub(crate) mod native_n1;
 mod ram;
 mod resources;
 pub(crate) mod terminal;
@@ -1639,6 +1640,12 @@ mod test_support;
 #[cfg(test)]
 pub(crate) fn test_prepare(db: &Path) -> PreparedAdmission {
     test_support::prepare(db)
+}
+
+// #1481：只替换真实控制原件中的指定门；仍走既有签锚与 loader，不绕过原 Job。
+#[cfg(all(test, feature = "s_incremental", unix))]
+pub(crate) fn test_prepare_caps(db: &Path, fields: &[(&str, u64)]) -> PreparedAdmission {
+    test_support::prepare_with_fields(db, None, fields)
 }
 
 // TestOnly：真实签锚、实测源与原 Job，只替换 Job 已有时钟接口；无生产构造口。

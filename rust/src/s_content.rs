@@ -35,6 +35,9 @@ pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
 mod closed;
+#[cfg(feature = "s_incremental")]
+#[doc(hidden)]
+pub mod closure_delta;
 /// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
 pub mod json_writer;
 pub mod raw_materials;
@@ -2196,6 +2199,79 @@ impl AuditMemo {
         }
     }
 }
+/// #1481：一次历史请求内的闭包证明，只绑定这一份不可变捕获与工作域。
+/// Public/Template 各用原 Verifier 的 memo；根四字段每次重核，不签持久资格。
+#[cfg(feature = "s_incremental")]
+pub struct CapturedRequestVerifier<'a> {
+    capture: &'a AuditCapture,
+    work: &'a capture_allocation::scratch::WorkScope,
+    public: Option<AuditMemo>,
+    template: Option<AuditMemo>,
+    failed: bool,
+    _header: capture_allocation::scratch::NativeReservation,
+}
+
+#[cfg(feature = "s_incremental")]
+impl<'a> CapturedRequestVerifier<'a> {
+    pub fn new(
+        capture: &'a AuditCapture,
+        work: &'a capture_allocation::scratch::WorkScope,
+    ) -> Result<Self, CodecError> {
+        let header = work.reserve_native(std::mem::size_of::<Self>())?;
+        Ok(Self {
+            capture,
+            work,
+            public: None,
+            template: None,
+            failed: false,
+            _header: header,
+        })
+    }
+
+    pub fn invalidate(&mut self) {
+        self.public = None;
+        self.template = None;
+        self.failed = true;
+    }
+
+    pub fn check_current(&self) -> Result<(), CodecError> {
+        if self.failed {
+            return Err(CodecError::new(code::SOURCE, "本请求闭包证明已撤销"));
+        }
+        self.work.check_current()
+    }
+
+    pub fn verify_refview(&mut self, reference: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        if let Err(error) = self.check_current() {
+            self.invalidate();
+            return Err(error);
+        }
+        let slot = match mode {
+            Mode::Public => &mut self.public,
+            Mode::Template => &mut self.template,
+        };
+        let mut verifier = Verifier::with_context(
+            CodecContext::OwnerCapture {
+                capture: self.capture,
+                work: self.work,
+            },
+            mode,
+            slot.take().unwrap_or_default(),
+        );
+        match verifier.verify_refview(reference) {
+            Ok(_) => {
+                *slot = Some(verifier.into_memo());
+                Ok(())
+            }
+            Err(error) => {
+                drop(verifier);
+                self.invalidate();
+                Err(error)
+            }
+        }
+    }
+}
+
 /// #1394 算法原型：完整自有节点捕获，无 NodeSink、无可变原件入口。
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
 enum CaptureNodes {
@@ -5385,6 +5461,8 @@ struct Verifier<'a, 'capture> {
     source: CodecContext<'a, 'capture>,
     #[cfg(feature = "s_incremental")]
     owner_codec: Option<&'a NativeOwnerCodecMemo>,
+    #[cfg(feature = "s_incremental")]
+    closure_frontier: Option<&'a dyn closure_delta::Frontier>,
     mode: Mode,
     work: Option<WorkBudget>,
     /// 已核过的 (摘要, 上下文)。
@@ -5428,6 +5506,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             base_proofs: None,
             #[cfg(feature = "s_incremental")]
             owner_codec: None,
+            #[cfg(feature = "s_incremental")]
+            closure_frontier: None,
             mode,
             work: memo.budget,
             seen: memo.seen,
@@ -5469,6 +5549,17 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         Ok(got)
     }
 
+    fn remember_verified(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        #[cfg(feature = "s_incremental")]
+        if let Some(frontier) = self.closure_frontier {
+            if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
+                return Ok(());
+            }
+        }
+        self.seen.insert((digest, flavor))?;
+        Ok(())
+    }
+
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
         if self
             .base_proofs
@@ -5477,6 +5568,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             return Ok(());
         }
 
+        #[cfg(feature = "s_incremental")]
+        if let Some(frontier) = self.closure_frontier {
+            if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
+                return Ok(());
+            }
+        }
         #[cfg(feature = "s_incremental")]
         if self
             .owner_codec
@@ -5839,7 +5936,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let key = digest_at(&fbody, 0);
                             let value = digest_at(&fbody, 32);
                             self.validate_string_node(&key)?;
-                            self.seen.insert((key, Flavor::Value))?;
+                            self.remember_verified(key, Flavor::Value)?;
                             self.push_work(value, flavor)?;
                             let agg = FieldAgg {
                                 count: 1,
@@ -9436,6 +9533,143 @@ impl CodecError {
     #[doc(hidden)]
     pub fn scratch_unscoped_for_test(failure: capture_allocation::scratch::ScratchFailure) -> Self {
         Self::scratch(failure)
+    }
+}
+
+#[cfg(test)]
+mod verified_public_subroots_tests {
+    use super::*;
+    struct Counted {
+        nodes: MemoryNodes,
+        reads: usize,
+    }
+    impl NodeSource for Counted {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.reads += 1;
+            self.nodes.read(digest)
+        }
+    }
+    #[test]
+    fn s4_local_descent_public_subroots_reuse_only_complete_value_closure() {
+        let mut nodes = MemoryNodes::new();
+        let child = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::String("payload".repeat(2000))]),
+        )
+        .unwrap()
+        .content_ref();
+        let root = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::edge_of_ref(&child).unwrap()]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut source = Counted { nodes, reads: 0 };
+        verify(&mut source, &child).unwrap();
+        let before = source.reads;
+        audit_verify_public_with_verified_subroots(
+            &mut source,
+            [&root].map(Into::into),
+            [&child].map(Into::into),
+        )
+        .unwrap();
+        let covered = source.reads - before;
+        let before = source.reads;
+        verify(&mut source, &root).unwrap();
+        assert!(covered < source.reads - before);
+        for wrong in [
+            ContentRef {
+                format: "wrong".into(),
+                ..child.clone()
+            },
+            ContentRef {
+                kind: Kind::Object,
+                ..child.clone()
+            },
+            ContentRef {
+                extent: Some(999),
+                ..child.clone()
+            },
+        ] {
+            assert!(audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&root].map(Into::into),
+                [&wrong].map(Into::into)
+            )
+            .is_err());
+        }
+        let sibling = write_value(
+            &mut source.nodes,
+            &Value::Array(vec![Value::Edge([17; 32])]),
+        )
+        .unwrap()
+        .content_ref();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&sibling].map(Into::into),
+                [&child].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::NODE_MISSING
+        );
+        source
+            .nodes
+            .insert_unchecked(child.digest().unwrap(), tag::ARRAY, vec![0]);
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&root].map(Into::into),
+                [&child].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::NODE_DIGEST
+        );
+    }
+    #[test]
+    fn s4_local_descent_public_subroots_do_not_cover_json_inner_or_template() {
+        let mut nodes = MemoryNodes::new();
+        let text = write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null)))
+            .unwrap()
+            .content_ref();
+        let array = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::edge_of_ref(&text).unwrap()]),
+        )
+        .unwrap()
+        .content_ref();
+        verify(&mut nodes, &array).unwrap();
+        let digest = frame(tag::JSON_TEXT, &array.digest().unwrap());
+        nodes
+            .put(digest, tag::JSON_TEXT, &array.digest().unwrap())
+            .unwrap();
+        let nested = content_ref_of(&mut nodes, &root_string(&digest)).unwrap();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut nodes,
+                [&nested].map(Into::into),
+                [&array].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::JSON_TEXT_INTERNAL_KIND
+        );
+        let template = write_template(&mut nodes, &Value::Array(vec![Value::BatchSelf]))
+            .unwrap()
+            .content_ref();
+        verify_template(&mut nodes, &template).unwrap();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut nodes,
+                [&template].map(Into::into),
+                std::iter::empty()
+            )
+            .unwrap_err()
+            .code(),
+            code::TEMPLATE_PLACEHOLDER
+        );
     }
 }
 

@@ -1,38 +1,38 @@
 {
   "id": "venue-profile-P0",
-  "version": 1,
+  "version": 2,
   "kind": "venue_profile",
   "profile_id": "P0",
   "symbol": "BTC",
   "admissible": true,
-  "ticket": "#1602（#1586 审计 C-06/C-17；ADR 0041）",
-  "scope": "P0 确定性回放（ADR 0028 P0 槽位；ADR 0044 P0 签署记录：Binance 现货 BTC 1m）。P2 未启用（ADR 0028「P2 处置」，#1561），不在此表",
+  "ticket": "#1774（ADR 0057 裁定三 `replay_binance_spot_1m`；#1602 / ADR 0041 记录机制）",
+  "scope": "ADR 0057 的 `replay_binance_spot_1m`：P0 确定性回放（ADR 0028 P0 槽位；ADR 0044 P0 签署记录：Binance 现货 BTC 1m）。`P0` 是本记录的 profile_id 别名（#1774 用户批 B1+B2：别名留给 replay，不给 synthetic）。通用选择器按 symbol=BTC 或 profile_id=P0 选中本记录；S 结构写者不绑本记录。P2 未启用（ADR 0028「P2 处置」，#1561），不在此表",
   "fields": {
     "tick_size": {
-      "value": "AwaitingPolicy",
+      "value": 0.01,
       "unit": "价格最小变动单位",
-      "source": "未签。tick 是场所事实（#1586 AUDIT C-17），P0 场所 tick 没有签署落盘；1e-8 只是未知场所的保守夹具值，只写在 venue-profile-diagnostic-fixture，生产不借"
+      "source": "ADR 0057 R1：Binance 现货 `api/v3/exchangeInfo?symbol=BTCUSDT` PRICE_FILTER tickSize 0.01000000；原件 1775-receipts/binance_spot_exchangeInfo_BTCUSDT.json sha256 f1929b007e6978e7d469bbc262705118433a2be3734a634323579d22d8507b54，抓取 2026-10-27T22:21:52Z（R2 sha256 73ab034c4e96a2163cd55159d98458c3c39fc69a74ff5a30390ace0ebe9ce378）；生效 2026-10-28，有效至 2027-10-28；射程 = 快照当日，不证 2017–2026 全历史 tick 恒为 0.01（ADR 0057 R29A U-B / D4）"
     },
     "commission_bps": {
       "value": 10,
       "unit": "bp/side",
-      "source": "ADR 0044 P0 签署记录 fee: Known，Binance 现货 VIP0 taker 1/1000（analysis/data_cache/venue_fee_binance_spot_20260726.json，ADR 0044:24）"
+      "source": "ADR 0044 P0 签署记录 fee: Known，Binance 现货 VIP0 taker 1/1000（analysis/data_cache/venue_fee_binance_spot_20260726.json，ADR 0044:24）；ADR 0057 裁定一维持不动"
     },
     "slippage_bps": {
       "value": "AwaitingPolicy",
       "unit": "bp/side",
-      "source": "ADR 0044 P0 slippage: Missing（:26）。Missing 不代 0，也不拿未标定常数凑数（ADR 0044 被否方案；ADR 0035:27）"
+      "source": "ADR 0057 裁定二、四：回放撮合滑点与成本门滑点是两个量；仓内无 P0 逐笔滑点观测，1m OHLCV 测不出盘口滑点。退场条件：带日期与哈希的实测来源，或用户按 [新缠论:选择] 另签回放撮合假设值。不拿诊断夹具 2.0 或未标定常数凑数（ADR 0035:44 被否方案）"
     },
     "tax_bps": {
       "value": "AwaitingPolicy",
       "unit": "bp/side",
-      "source": "ADR 0044 P0 未签此项"
+      "source": "ADR 0057 裁定四：无可回查的场所原件给出现货交易税，税务取决于账户主体辖区。`fee_schedule` 互斥约束（config.rs）是结构理由，不是签署来源，不据此代填 0"
     },
     "entry_delay_bars": {
       "value": "AwaitingPolicy",
       "unit": "基础 K 根数",
-      "source": "ADR 0044 P0 latency_error 只有 ProxyLowerBound（只能判失败），不充作入场延迟值"
+      "source": "ADR 0057 裁定五：撮合模型参数，版本化可配置；默认 AwaitingPolicy，不得静默取 1；夹具值 1 与 #907 DELAYERR 不作证据。由本 profile 的使用方提请用户按 [新缠论:选择] 签值进新版本"
     }
   },
-  "cost": "本版 tick_size 与三项成本未签，生产与验收回放停在 AwaitingPolicy{venue_profile, cost_inputs}；签署任一项即出新版本（version +1）"
+  "cost": "本版 tick_size 已签（ADR 0057 R1），三项成本未签：生产与验收回放停在 AwaitingPolicy{cost_inputs}；签署任一项即出新版本（version +1）"
 }

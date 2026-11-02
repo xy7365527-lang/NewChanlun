@@ -99,6 +99,8 @@ pub(super) fn publish_borrowed(
         #[cfg(feature = "s_incremental")]
         None,
         None,
+        #[cfg(feature = "s_incremental")]
+        None,
     )
     .map_err(newchan_rust::s_content::ContextError::into_message)
 }
@@ -114,6 +116,9 @@ pub(super) fn publish_borrowed_staged(
     runtime: &[sc::NodeDigest],
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
+    #[cfg(feature = "s_incremental")] source_manifest: Option<
+        content_manifest::ManifestSourceReceipt,
+    >,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -126,6 +131,7 @@ pub(super) fn publish_borrowed_staged(
         runtime,
         workspace,
         work,
+        source_manifest,
     )
     .map_err(newchan_rust::s_content::ContextError::into_message)
 }
@@ -152,6 +158,7 @@ pub(super) fn publish_borrowed_with_workspace(
         policy_records,
         workspace,
         None,
+        None,
     )
     .map_err(newchan_rust::s_content::ContextError::into_message)
 }
@@ -165,6 +172,9 @@ pub(super) fn publish_borrowed_with_workspace_admitted(
     policy_records: &str,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
+    #[cfg(feature = "s_incremental")] source_manifest: Option<
+        content_manifest::ManifestSourceReceipt,
+    >,
 ) -> Result<CommitReceipt, PublishError> {
     publish_prepared_inner(
         tx,
@@ -179,6 +189,7 @@ pub(super) fn publish_borrowed_with_workspace_admitted(
         &[],
         workspace,
         work,
+        source_manifest,
     )
 }
 fn publish_prepared_inner(
@@ -194,6 +205,9 @@ fn publish_prepared_inner(
         content_manifest::PreparedManifestWorkspace,
     >,
     work: Option<&WorkScope>,
+    #[cfg(feature = "s_incremental")] source_manifest: Option<
+        content_manifest::ManifestSourceReceipt,
+    >,
 ) -> Result<CommitReceipt, PublishError> {
     let m = metadata;
     let (count, head): (i64, i64) = tx
@@ -241,6 +255,26 @@ fn publish_prepared_inner(
     #[cfg(not(feature = "s_incremental"))]
     let resolved =
         content_publication::resolve_current_births(&tx, begin_token, m, roots, manifest)?;
+    // 来源/组装证明只在真实发布解析（含原件重绑或严格冷核）成功后消费。
+    #[cfg(feature = "s_incremental")]
+    let _source_receipt = match source_manifest {
+        Some(proof) => {
+            let previous = content_publication::current_publication_frontier_admitted(tx, work)?;
+            let from = usize::try_from(previous.checked_add(1).ok_or_else(|| err("来源前缀溢出"))?)
+                .map_err(err)?;
+            let to = usize::try_from(
+                m.input_frontier
+                    .checked_add(1)
+                    .ok_or_else(|| err("来源前沿溢出"))?,
+            )
+            .map_err(err)?;
+            let receipt = proof.consume(begin_token, m, roots, manifest, from..to)?;
+            #[cfg(test)]
+            source_audit::source_receipt::note_publication_consumed_for_test(receipt.rows().len());
+            Some(receipt)
+        }
+        None => None,
+    };
     let clock = v2::stored_clock(&tx)?;
     let control = S3Control::attach(&tx, &clock)?;
     let source = &m.source_commit;
@@ -252,8 +286,8 @@ fn publish_prepared_inner(
     if view.is_committed() || view.is_fresh() {
         return Err((publish_err("本次发布消息不是已接纳未提交状态")).into());
     }
-    if control.commit_time(&view)?.as_deref() != Some(m.semantic_commit_ns.as_str()) {
-        return Err((publish_err("本次提交时刻与持久 Begin 不同")).into());
+    if !control.sealed_commit_matches(&view, &m.semantic_commit_ns)? {
+        return Err(publish_err("本次提交时刻与持久 Begin 不同"));
     }
 
     let (seq_range, run, evidence_ref) = {
@@ -299,7 +333,7 @@ fn publish_prepared_inner(
         params![m.generation,manifest.batch_id,&manifest.value.digest[..],
             &resolved.snapshot.digest().map_err(publish_err)?[..],&resolved.delta.digest().map_err(publish_err)?[..]],
     ).map_err(publish_err)?;
-    control.commit(&view, m.generation, m.input_frontier)?;
+    control.commit_sealed(&view, m.generation, m.input_frontier, &m.semantic_commit_ns)?;
     let admission = NativeAdmission(work);
     let generation_text = admission
         .native_format(format_args!("{}", m.generation))

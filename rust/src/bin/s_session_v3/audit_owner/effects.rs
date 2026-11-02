@@ -118,7 +118,8 @@ impl Table {
                 "SELECT rowid,* FROM main.\"s_content_observations\" ORDER BY rowid"
             }
             Self::Catalog => "SELECT rowid,* FROM main.\"catalog\" ORDER BY rowid",
-            Self::Delivery => "SELECT rowid,* FROM main.\"s_delivery_refs\" ORDER BY rowid",
+            // #1481：与 CompleteCandidate 冷捕获的固定只读授权 SQL 保持一致。
+            Self::Delivery => "SELECT rowid,* FROM \"s_delivery_refs\" ORDER BY rowid",
             Self::Policy => "SELECT rowid,* FROM main.\"s_delivery_policy\" ORDER BY rowid",
             Self::Node => "SELECT rowid,* FROM main.\"s_content_nodes\" ORDER BY rowid",
         }
@@ -1258,6 +1259,64 @@ pub(crate) struct SourceCutBinding {
     root: construction_set::Declaration,
     raw: RawAdvanceBinding,
 }
+/// 只由来源核最终封口成功点签发；Counts 本身不是来源资格。
+pub(crate) struct QualifiedSourceCut {
+    binding: SourceCutBinding,
+    counts: super::super::source_audit::Counts,
+    exports: super::super::source_audit::source_receipt::source_facts::SourceExports,
+}
+impl QualifiedSourceCut {
+    pub(crate) fn consume(
+        self,
+        access: &MaterialAccess<'_, '_, '_>,
+        root: sc::RefView<'_>,
+        raw: &BoundRawAdvance<'_>,
+        metadata: &crate::content_manifest::ManifestMetadata,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<
+        (
+            super::super::source_audit::Counts,
+            super::super::source_audit::source_receipt::source_facts::SourceExports,
+        ),
+        String,
+    > {
+        raw.ensure_current()?;
+        super::super::history::check_deadline(deadline)?;
+        let context =
+            crate::content_manifest::NativeMetadata::from_view(metadata.view(), Some(access.work))
+                .map_err(invalid)?;
+        let mut j = access.journal.lock().map_err(invalid)?;
+        access.check(&j)?;
+        if self.binding.root
+            != construction_set::Declaration::read(root).map_err(PublishError::into_message)?
+            || self.binding.raw != raw.current_binding()
+            || self.binding.epoch != j.material_epoch
+            || self.binding.seal != access.seal
+            || j.set.is_none()
+        {
+            return Err(construction_state::stale("来源成功结果与当前原件切面不符"));
+        }
+        let extra = sum([j.extra_bytes, context.retained_bytes()]);
+        let bytes = sum([j.container_bytes(), extra]);
+        if bytes > j.cap {
+            return Err(construction_state::stale("来源请求身份保留账超过材料帽"));
+        }
+        j.set
+            .as_mut()
+            .ok_or_else(|| construction_state::stale("来源集合已退役"))?
+            .bind_source_context(context, deadline)?;
+        #[cfg(test)]
+        j.set
+            .as_mut()
+            .unwrap()
+            .context_negatives_for_test(metadata, root, raw.current_prefix());
+        j.extra_bytes = extra;
+        j.bytes = bytes;
+        j.peak = j.peak.max(bytes);
+        Ok((self.counts, self.exports))
+    }
+}
+
 pub(crate) struct SourceMaterial<'material, 'tx, 'work, 'db> {
     access: &'material MaterialAccess<'tx, 'work, 'db>,
     reader: ActualRead<'material, 'db>,
@@ -1369,9 +1428,10 @@ pub(super) fn audit_native_source(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
+    export_sources: bool,
 ) -> Result<
     (
-        super::super::source_audit::Counts,
+        QualifiedSourceCut,
         super::super::source_audit::NativeSourceState,
     ),
     PublishError,
@@ -1457,16 +1517,21 @@ pub(super) fn audit_native_source(
             binding,
             set: construction_set::LazySet::new(seed, root, previous.as_ref())?,
         };
+        #[cfg(all(test, feature = "s_incremental"))]
+        if export_sources {
+            super::super::source_audit::source_receipt::fee_probe::bind(&access.budget);
+        }
         let verdict = super::super::source_audit::audit_native_bound(
             previous,
             &mut material,
             raw,
             profile,
             rule,
+            export_sources,
         )?;
         material.check()?;
         raw.ensure_current()?;
-        let (actual_binding, counts, source) = verdict.into_parts();
+        let (actual_binding, counts, source, exports) = verdict.into_parts();
         if actual_binding != binding {
             return Err((construction_state::stale("来源核返回不同切面")).into());
         }
@@ -1492,7 +1557,14 @@ pub(super) fn audit_native_source(
         }
         j.set = Some(set);
         j.source_binding = None;
-        Ok((counts, source))
+        Ok((
+            QualifiedSourceCut {
+                binding,
+                counts,
+                exports,
+            },
+            source,
+        ))
     })();
     if result.is_err() {
         if let Ok(mut j) = access.journal.lock() {

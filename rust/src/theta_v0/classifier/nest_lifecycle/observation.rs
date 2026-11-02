@@ -196,3 +196,23 @@ impl<'a> ForceMaterial<'a> {
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PanLiveWindow → LifecycleKey 转换（#1719 I4：bridge 注册需要完整键）
+// ═══════════════════════════════════════════════════════════════════════════
+
+impl From<&PanLiveWindow> for LifecycleKey {
+    /// 从活窗提取身份键（复用 `LifecycleObservation::key()` 的 PanLive 分支逻辑）。
+    ///
+    /// 用途：`HypothesisBridge` 注册时需要完整 `LifecycleKey`（精确匹配清账对象）。
+    fn from(window: &PanLiveWindow) -> Self {
+        LifecycleKey {
+            level: window.level,
+            side: window.side,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: window.seg_a,
+            seg_c_full: window.seg_c_live,
+            b_center_start: window.b_center_start,
+        }
+    }
+}

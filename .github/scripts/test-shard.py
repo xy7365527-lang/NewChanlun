@@ -16,6 +16,9 @@ run：
 
 verify：读 N 片的产物，断言全集各片一致、分配两两不交且并集 == 全集、各片执行集 == 分配集，
   并汇总 ok/ignored/FAILED 计数（与拆分前单步的 "test result:" 对拍用）。
+  --require MIN:FILTER（可重复）：FILTER 按 cargo test 过滤器的子串语义匹配全集测试名，
+  要求命中数 >= MIN、其中 ok 数 >= MIN、且命中者无 ignored/FAILED。动态全集会随 cfg 收缩或
+  #[ignore] 同步变化，集合等式拦不住整组消失；具名锁的下限只能这样钉住（#1527 42S B1）。
 
 权重只影响各片耗时是否均衡，不影响覆盖：任何权重表（含空表、过期表）下并集 == 全集都成立。
 """
@@ -152,7 +155,28 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def parse_requirement(raw: str) -> tuple[int, str]:
+    minimum, sep, pattern = raw.partition(":")
+    if not sep or not pattern or not minimum.isdigit() or int(minimum) < 1:
+        fail("Invalid requirement", f"--require expects MIN:FILTER with MIN >= 1, got {raw!r}")
+    return int(minimum), pattern
+
+
+def check_requirements(requirements: list[tuple[int, str]], executed: dict[str, str]) -> None:
+    for minimum, pattern in requirements:
+        matched = {name: result for name, result in executed.items() if pattern in name}
+        ok = sum(result == "ok" for result in matched.values())
+        not_ok = sorted(name for name, result in matched.items() if result != "ok")
+        print(f"require filter={pattern} min={minimum} matched={len(matched)} ok={ok} not_ok={len(not_ok)}")
+        if len(matched) < minimum or ok < minimum or not_ok:
+            fail(
+                "Required tests missing",
+                f"filter={pattern} min={minimum} matched={len(matched)} ok={ok} not_ok={not_ok[:5]}",
+            )
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
+    requirements = [parse_requirement(raw) for raw in args.require]
     dirs = [Path(d) for d in args.dirs]
     if len(dirs) != args.count:
         fail("Shard artifacts missing", f"expected {args.count} shard dirs, got {len(dirs)}")
@@ -163,6 +187,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     shards = [(d / "assigned.txt").read_text(encoding="utf-8").splitlines() for d in dirs]
     check_partition(names, shards)
     totals: dict[str, int] = {"ok": 0, "ignored": 0, "FAILED": 0}
+    union: dict[str, str] = {}
     for d, shard in zip(dirs, shards):
         executed_path = d / "executed.tsv"
         # run 在 cargo 结束后才落 executed.tsv；缺它说明该片中途被杀（超时、OOM 等），没有执行记录。
@@ -174,11 +199,13 @@ def cmd_verify(args: argparse.Namespace) -> int:
             fail("Shard executed != assigned", f"{d}: assigned={len(shard)} executed={len(executed)}")
         for result in executed.values():
             totals[result] += 1
+        union.update(executed)
         print(f"shard_dir={d} assigned={len(shard)} executed={len(executed)}")
     print(
         f"shard_union total={len(names)} ok={totals['ok']} ignored={totals['ignored']} "
         f"failed={totals['FAILED']}"
     )
+    check_requirements(requirements, union)
     return 0
 
 
@@ -194,6 +221,7 @@ def main(argv: list[str]) -> int:
     run.add_argument("cargo_args", nargs=argparse.REMAINDER)
     verify = sub.add_parser("verify")
     verify.add_argument("--count", type=int, required=True)
+    verify.add_argument("--require", action="append", default=[], metavar="MIN:FILTER")
     verify.add_argument("dirs", nargs="+")
     args = parser.parse_args(argv)
     if args.command == "run":

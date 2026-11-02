@@ -4,6 +4,7 @@
 //   → 不合 main（人工闸，#1003 裁 3）。
 // 跑法：npx tsx .sandcastle/main.mts
 
+import { useScheduler } from "./scheduler-config.mts";
 import { withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 // #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
@@ -28,6 +29,8 @@ import {
   runGuardedReview,
 } from "./review-context.mts";
 
+const scheduler = useScheduler("main", ["workerEffort", "mainMaxIterations", "mainMaxTickets", "implementerIdleSeconds", "worktreeMaxAttempts", "worktreeRetryDelayMs", "frontierQueryLimit", "backlogQueryLimit"]);
+
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
 if (existsSync(TOKEN_ROTATION_MARKER)) {
   console.error(`[FAIL-loud #1182] GitHub token 尚未轮换（marker=${TOKEN_ROTATION_MARKER}），拒绝启动`);
@@ -38,14 +41,14 @@ if (existsSync(TOKEN_ROTATION_MARKER)) {
 // #1617：实装与独审均与主控同型；独立性来自不同 invocation，而非异模型。
 const IMPLEMENTER_MODEL = MAIN_MODEL;
 const REVIEWER_MODEL = MAIN_MODEL;
-const EFFORT = "medium" as const;
+const EFFORT = scheduler.workerEffort;
 // #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 agent 会话
 // （runWithResume），而非 sandcastle 内建 maxIterations 的「多轮各自全新会话」。
-const MAX_ITERATIONS = 3;
+const MAX_ITERATIONS = scheduler.mainMaxIterations;
 // 每次运行认领并处理的最大票数（与每阶段续跑轮数无关；本票不扩大取票吞吐，#1066 未涉此闸）。
-const MAX_TICKETS_PER_RUN = 1;
+const MAX_TICKETS_PER_RUN = scheduler.mainMaxTickets;
 // #1066：implementer 数据拉取/长静默任务不被默认 600s idle fail 误杀（#1044 第一次空转形态）。
-const IMPLEMENTER_IDLE_TIMEOUT_SECONDS = 1800;
+const IMPLEMENTER_IDLE_TIMEOUT_SECONDS = scheduler.implementerIdleSeconds;
 
 // ── frontier 查询（host 侧）：open + sandcastle label + 未 assign + 无 open blocker ──
 // blocker 过滤吃 tracker 原生依赖边（#1005 补齐；与 prompt 层判定叠加，#1007 裁 3）。
@@ -133,8 +136,8 @@ function logWorker(e: Record<string, unknown>) {
 // （间隔 ≥5s），仍失败才回滚；其他异常不吞错、不重试，直接回滚后原样上抛。回滚动作与
 // #1007 摘标/assign 对称：remove-assignee @me + add-label sandcastle。claim-loop 收尾处还有
 // 一道按 workers.jsonl 判定的兜底回滚（覆盖 main.mts 被杀/收不到自己异常的场景）。
-const WORKTREE_TIMEOUT_MAX_ATTEMPTS = 2;
-const WORKTREE_TIMEOUT_RETRY_DELAY_MS = 5000;
+const WORKTREE_TIMEOUT_MAX_ATTEMPTS = scheduler.worktreeMaxAttempts;
+const WORKTREE_TIMEOUT_RETRY_DELAY_MS = scheduler.worktreeRetryDelayMs;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -193,7 +196,7 @@ async function createSandboxWithWorktreeRetry(opts: { branch: string }): Promise
 
 function pickIssue(): number | null {
   const out = execSync(
-    `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
+    `gh issue list --label sandcastle --state open --limit ${scheduler.frontierQueryLimit} --json number,assignees`,
     { encoding: "utf8", env: GH_CLEAN_ENV },
   );
   const open = (JSON.parse(out) as Array<{ number: number; assignees: unknown[] }>)
@@ -208,7 +211,7 @@ function pickIssue(): number | null {
 // 状态页不再把「专属队列为空」误写成「全仓 AFK 做完」。
 function repoReadyForAgentCount(): number {
   const out = execSync(
-    `gh issue list --label ready-for-agent --state open --limit 1000 --json number --jq length`,
+    `gh issue list --label ready-for-agent --state open --limit ${scheduler.backlogQueryLimit} --json number --jq length`,
     { encoding: "utf8", env: GH_CLEAN_ENV },
   ).trim();
   return Number(out);

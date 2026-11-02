@@ -421,6 +421,145 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
+/// #1481：已核冷原件交接专用。不开迁移，先让 owner 在 SQLite 写锁内核源连续性。
+#[cfg(all(feature = "s_incremental", unix))]
+fn open_db_after_h1_certification(db: &Path) -> Result<Connection, String> {
+    v3::admission::require_current(db)?;
+    let conn = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    conn.execute_batch("PRAGMA synchronous=FULL;")
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    conn.execute_batch("PRAGMA fullfsync=ON;")
+        .map_err(|e| e.to_string())?;
+    // #1481：连接自身初始化失败须沿普通关闭退出；只有待交接的只读连接保留源字节。
+    let configured = conn
+        .set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            true,
+        )
+        .map_err(|error| error.to_string())
+        .and_then(|disabled| {
+            if disabled {
+                Ok(())
+            } else {
+                Err("H1交接连接未禁用关闭检查点".into())
+            }
+        });
+    h1_close_after_failure(&conn, configured, false)?;
+    Ok(conn)
+}
+
+/// #1481：自身暂时失败恢复正常关闭；返回值和 SQLite 实际配置都必须核验。
+#[cfg(all(feature = "s_incremental", unix))]
+fn h1_normal_close(conn: &Connection) -> Result<(), String> {
+    let disabled = conn
+        .set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            false,
+        )
+        .map_err(|error| format!("H1恢复关闭检查点失败：{error}"))?;
+    if disabled {
+        return Err("H1正式写者未恢复关闭检查点".into());
+    }
+    Ok(())
+}
+
+// #1481：沿原件门具名类别区分实际失配和原件身份无法复核；后者保守保全证据。
+// SourceMetadataUnavailable 已丢失底层 errno，不能证明只是自身暂时失败；SourcePinFailed
+// 则是已核元数据后的自身开FD失败，沿正常关闭。不得仅按 HistoricalAuditStale 字符串猜测。
+#[cfg(all(feature = "s_incremental", unix))]
+fn h1_source_integrity_refusal(error: &str) -> bool {
+    matches!(
+        error,
+        "SourceIdentityChanged"
+            | "SourcePathLost"
+            | "SourceFdLost"
+            | "SourceMetadataUnavailable"
+            | "SourceWalChanged"
+            | "SourceTypeOrHardlinkUnsupported"
+            | "SourceChangedDuringPin"
+            | "ColdConversionMediumUnsupported"
+    )
+}
+
+#[cfg(all(feature = "s_incremental", unix))]
+fn h1_close_after_failure<T>(
+    conn: &Connection,
+    result: Result<T, String>,
+    integrity_refusal: bool,
+) -> Result<T, String> {
+    if result.is_err() && !integrity_refusal {
+        if let Err(close_error) = h1_normal_close(conn) {
+            // 保留原错误及失败证据；清理自身失败也必须显式上报，不冒充成功。
+            return Err(format!("{}；{close_error}", result.err().unwrap()));
+        }
+    }
+    result
+}
+
+/// #1481：保留旧 open_db 的合法非 WAL 输入域。调用前历史已由只读 H1 核完整认证；
+/// 转换前仍须在 SQLite 排他锁内核原件与迁移授权。空提交保留 EXCLUSIVE 锁，
+/// journal_mode 的合法转换在事务外执行。转成 WAL 后仍持排他锁采物理交接凭据；
+/// 调用方须关闭此一次性连接，再在普通连接的首把写锁内复核凭据，才可迁移与 seed。
+/// 不用 data_version 抵消“自身转换 +1”：首次 WAL 快照可能把外部提交合并成同一次变化。
+#[cfg(all(feature = "s_incremental", unix))]
+fn prepare_h1_wal_handoff<T>(
+    conn: &Connection,
+    authenticate: impl FnOnce() -> Result<(), String>,
+    snapshot: impl FnOnce() -> Result<T, String>,
+    integrity_refusal: &std::cell::Cell<bool>,
+) -> Result<Option<T>, String> {
+    let result = (|| {
+        let mode: String = conn
+            .query_row("PRAGMA main.journal_mode", [], |row| row.get(0))
+            .map_err(|error| format!("读取 H1 交接日志模式失败：{error}"))?;
+        if mode.eq_ignore_ascii_case("wal") {
+            return Ok(None);
+        }
+        let locking: String = conn
+            .query_row("PRAGMA main.locking_mode=EXCLUSIVE", [], |row| row.get(0))
+            .map_err(|error| format!("固定 H1 转换排他模式失败：{error}"))?;
+        if !locking.eq_ignore_ascii_case("exclusive") {
+            return Err("H1转换未取得排他模式".into());
+        }
+        let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Exclusive)
+            .map_err(|error| format!("锁定 H1 转换原件失败：{error}"))?;
+        // 此处尚未改写主库：坏历史、原件变化或未经准入授权的补列均先拒绝。
+        authenticate().inspect_err(|error| {
+            integrity_refusal.set(h1_source_integrity_refusal(error));
+        })?;
+        if policy_records_missing(&tx)? {
+            v3::admission::require_policy_records_migration()?;
+        }
+        tx.commit()
+            .map_err(|error| format!("结束 H1 转换只读核验失败：{error}"))?;
+        let mode: String = conn
+            .query_row("PRAGMA main.journal_mode=WAL", [], |row| row.get(0))
+            .map_err(|error| format!("转换已认证 H1 库到 WAL 失败：{error}"))?;
+        if !mode.eq_ignore_ascii_case("wal") {
+            return Err("H1已认证库未能转换为WAL".into());
+        }
+        // 在排他连接上先打开空 WAL，确保凭据也固定转换所建的 WAL 身份。
+        // EXCLUSIVE WAL 的索引在 heap，不会留下生产准入禁止的常驻 -shm。
+        let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Immediate)
+            .map_err(|error| format!("锁定 H1 转换后原件失败：{error}"))?;
+        let _: i64 = tx
+            .query_row("SELECT COUNT(*) FROM main.meta", [], |row| row.get(0))
+            .map_err(|error| format!("读取 H1 转换后原件失败：{error}"))?;
+        let token = snapshot().inspect_err(|error| {
+            integrity_refusal.set(h1_source_integrity_refusal(error));
+        })?;
+        tx.rollback()
+            .map_err(|error| format!("结束 H1 转换后只读核验失败：{error}"))?;
+        Ok(Some(token))
+    })();
+    h1_close_after_failure(conn, result, integrity_refusal.get())
+}
+
 /// #1602 之前的 structure_deltas 建表语句（`SCHEMA` 逐字去掉 `policy_records` 列）。
 /// 写前准入只用它精确识别尚未迁移的源库；开库迁移后的严格审计仍只认 `SCHEMA`。
 const PRE_POLICY_RECORDS_DELTAS: &str = r#"
@@ -467,7 +606,15 @@ fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 policy_records 迁移事务失败：{e}"))?;
-    if policy_records_missing(&tx)? {
+    migrate_in(&tx)?;
+    tx.commit()
+        .map_err(|e| format!("提交 policy_records 迁移失败：{e}"))?;
+    Ok(())
+}
+
+/// #1527：复用已持有的写事务；执行条件和原迁移授权门缺一不可。
+fn migrate_in(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
+    if policy_records_missing(tx)? {
         v3::admission::require_policy_records_migration()?;
         tx.execute(
             &format!(
@@ -477,8 +624,6 @@ fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
         )
         .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
     }
-    tx.commit()
-        .map_err(|e| format!("提交 policy_records 迁移失败：{e}"))?;
     Ok(())
 }
 
@@ -2515,6 +2660,124 @@ fn cmd_accept(
     v3::admission::write_current_result(&out)
 }
 
+struct PreparedAccept {
+    input: RawInputFile,
+    profile: Value,
+    profile_id: String,
+    profile_hash: String,
+    volume_unit: Option<String>,
+}
+
+fn prepare_accept(text: &str, profile_path: &Path) -> Result<PreparedAccept, String> {
+    let input = tb02a::parse_input(&v2::strict_json(text.as_bytes())?)?;
+    let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
+    raw_input::validate_profile_binding(&input, &profile_id)?;
+    let volume_unit = profile
+        .get("volume_unit")
+        .and_then(Value::as_str)
+        .map(|s| s.to_string());
+
+    Ok(PreparedAccept {
+        input,
+        profile,
+        profile_id,
+        profile_hash,
+        volume_unit,
+    })
+}
+
+fn check_accept_connection(conn: &Connection, prepared: &PreparedAccept) -> Result<(), String> {
+    let input = &prepared.input;
+    ensure_initialized(conn)?;
+    ensure_writable(conn)?;
+    if meta_get_opt(conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+        return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
+    }
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
+    record_connection_pragmas(conn, "accept");
+    let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
+    if meta_session != input.session_id {
+        return Err(format!(
+            "IdentityConflict：输入 session_id=`{}` 与库 session_id=`{meta_session}` 不一致",
+            input.session_id
+        ));
+    }
+
+    Ok(())
+}
+
+fn accept_body_in(
+    tx: &rusqlite::Transaction<'_>,
+    text: &str,
+    prepared: PreparedAccept,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let PreparedAccept {
+        input,
+        profile,
+        profile_id,
+        profile_hash,
+        volume_unit,
+    } = prepared;
+    let results;
+    {
+        verify_writer_epoch(tx, configured_epoch)?;
+        verify_reachable_root(tx)?;
+
+        let bound_profile_id = meta_get_opt(tx, "profile_id")?.unwrap_or_default();
+        if bound_profile_id.is_empty() {
+            if profile_id == tb02a::PROFILE {
+                tx.execute_batch(tb02a::SCHEMA).map_err(|e| e.to_string())?;
+            }
+            meta_set(tx, "profile_id", &profile_id)?;
+            meta_set(tx, "profile_hash", &profile_hash)?;
+            meta_set(tx, "profile_definition", &canonical_json(&profile))?;
+        } else if bound_profile_id != profile_id {
+            return Err(format!(
+                "IdentityConflict：session 已绑定 profile=`{bound_profile_id}`，本次 `{profile_id}` 不一致（不覆盖既有 cut 来源）"
+            ));
+        } else {
+            let bound_hash = meta_get_opt(tx, "profile_hash")?.unwrap_or_default();
+            if bound_hash != profile_hash {
+                return Err(format!(
+                    "IdentityConflict：profile_id=`{profile_id}` 已绑定规范哈希 `{bound_hash}`，本次字节哈希 `{profile_hash}` 不同（同名异字节，拒绝接纳元数据偷换已提交快照来源）"
+                ));
+            }
+        }
+
+        results = raw_input::accept_events(tx, &input, volume_unit.as_deref())?;
+
+        v2::record_accept(tx, context, &results)?;
+        meta_set(tx, "input_profile", &input.profile)?;
+        meta_set(tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
+    }
+    Ok(json!({
+        "ok": true,
+        "session_id": input.session_id,
+        "profile": profile_id,
+        "profile_hash": profile_hash,
+        "volume_unit": volume_unit,
+        "results": results,
+    }))
+}
+
+/// #1527 N1：原业务核的测试事务入口，保留对拍、回滚与错误次序 oracle。
+/// 生产接纳走 NativeOwner；此入口的事务提交或回滚由测试调用者负责。
+#[cfg(test)]
+fn accept_in(
+    tx: &rusqlite::Transaction<'_>,
+    text: &str,
+    profile_path: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+    let prepared = prepare_accept(text, profile_path)?;
+    check_accept_connection(tx, &prepared)?;
+    accept_body_in(tx, text, prepared, configured_epoch, context)
+}
+
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
     expect(
@@ -2529,77 +2792,17 @@ fn accept_core(
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
-    // #1394 第二段（2D）：一次 accept 共享一个捕获作用域（写入前会显式作废）。
     let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
-    let input = tb02a::parse_input(&v2::strict_json(text.as_bytes())?)?;
-    let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
-    raw_input::validate_profile_binding(&input, &profile_id)?;
-    let volume_unit = profile
-        .get("volume_unit")
-        .and_then(Value::as_str)
-        .map(|s| s.to_string());
-
+    let prepared = prepare_accept(text, profile_path)?;
     let mut conn = open_db(db)?;
-    ensure_initialized(&conn)?;
-    ensure_writable(&conn)?;
-    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
-        return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
-    }
-    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
-    record_connection_pragmas(&conn, "accept");
-    let meta_session = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
-    if meta_session != input.session_id {
-        return Err(format!(
-            "IdentityConflict：输入 session_id=`{}` 与库 session_id=`{meta_session}` 不一致",
-            input.session_id
-        ));
-    }
-
+    check_accept_connection(&conn, &prepared)?;
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 accept 事务失败：{e}"))?;
-    let results;
-    {
-        verify_writer_epoch(&tx, configured_epoch)?;
-        verify_reachable_root(&tx)?;
-
-        let bound_profile_id = meta_get_opt(&tx, "profile_id")?.unwrap_or_default();
-        if bound_profile_id.is_empty() {
-            if profile_id == tb02a::PROFILE {
-                tx.execute_batch(tb02a::SCHEMA).map_err(|e| e.to_string())?;
-            }
-            meta_set(&tx, "profile_id", &profile_id)?;
-            meta_set(&tx, "profile_hash", &profile_hash)?;
-            meta_set(&tx, "profile_definition", &canonical_json(&profile))?;
-        } else if bound_profile_id != profile_id {
-            return Err(format!(
-                "IdentityConflict：session 已绑定 profile=`{bound_profile_id}`，本次 `{profile_id}` 不一致（不覆盖既有 cut 来源）"
-            ));
-        } else {
-            let bound_hash = meta_get_opt(&tx, "profile_hash")?.unwrap_or_default();
-            if bound_hash != profile_hash {
-                return Err(format!(
-                    "IdentityConflict：profile_id=`{profile_id}` 已绑定规范哈希 `{bound_hash}`，本次字节哈希 `{profile_hash}` 不同（同名异字节，拒绝接纳元数据偷换已提交快照来源）"
-                ));
-            }
-        }
-
-        results = raw_input::accept_events(&tx, &input, volume_unit.as_deref())?;
-
-        v2::record_accept(&tx, context, &results)?;
-        meta_set(&tx, "input_profile", &input.profile)?;
-        meta_set(&tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
-    }
+    let result = accept_body_in(&tx, text, prepared, configured_epoch, context)?;
     tx.commit()
         .map_err(|e| format!("accept commit 失败：{e}"))?;
-    Ok(json!({
-        "ok": true,
-        "session_id": input.session_id,
-        "profile": profile_id,
-        "profile_hash": profile_hash,
-        "volume_unit": volume_unit,
-        "results": results,
-    }))
+    Ok(result)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3473,7 +3676,8 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     v3::admission::write_current_result(&out)
 }
 
-/// 正式生产入口：配置先于任何 Begin 或库写操作；缺 tick/成本即停，不用诊断夹具。
+/// 正式生产入口：配置先于任何 Begin 或库写操作；S 专用绑定 synthetic（#1774 B2），缺成本即停，
+/// 不用诊断夹具。
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
     expect(
@@ -3486,7 +3690,22 @@ fn advance_core(
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
-    let config = ThetaConfig::for_production_profile("P0").map_err(|error| error.to_string())?;
+    advance_core_production(
+        db,
+        configured_epoch,
+        context,
+        ThetaConfig::for_s_structure_writer(),
+    )
+}
+
+/// 正式生产入口的绑定步：配置构造失败或不可准入 ⟹ 在任何 Begin 之前返回。
+fn advance_core_production(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+    config: Result<ThetaConfig, newchan_rust::theta_v0::run_records::RunPolicyError>,
+) -> Result<Value, String> {
+    let config = config.map_err(|error| error.to_string())?;
     if !config.admissible() {
         return Err(format!(
             "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
@@ -6431,18 +6650,34 @@ mod tests {
         assert_eq!(rows, 0, "失败的声明 init 不得留下任何 meta");
     }
 
+    /// #1774 AC7：synthetic v1 夹具（三项成本未签）经正式入口的绑定步在任何 Begin 之前拒绝。
     #[test]
     fn production_advance_rejects_unsigned_profile_before_begin() {
+        use newchan_rust::theta_v0::run_records::{
+            production_venue_from_records, VenueUsage, ACTIVE_DATA_PROFILE_JSON,
+            ACTIVE_THETA_RISK_JSON, SYNTHETIC_TB02A_PROFILE_ID, VENUE_PROFILE_SYNTHETIC_TB02A_ID,
+        };
+        const SYNTHETIC_UNSIGNED_V1: &str =
+            include_str!("../../tests/fixtures/venue-profile-synthetic-tb02a-unsigned-v1.json");
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(
             &files,
             &located_ohlc_input(&[("policy-gate", 0, 6, 12, 3, 7)]),
         );
-        let error = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
-        assert!(error.contains("AwaitingPolicy"), "{error}");
-        assert!(error.contains("venue_profile"), "{error}");
-        assert!(error.contains("cost_inputs"), "{error}");
+        let unsigned = ThetaConfig::from_records(
+            production_venue_from_records(
+                &[(VENUE_PROFILE_SYNTHETIC_TB02A_ID, SYNTHETIC_UNSIGNED_V1)],
+                VenueUsage::SStructureWriter,
+                |p, _| p == SYNTHETIC_TB02A_PROFILE_ID,
+            ),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        );
+        let error =
+            advance_core_production(&files.db(), DEFAULT_WRITER_EPOCH, None, unsigned).unwrap_err();
+        assert!(error.starts_with("AwaitingPolicy{cost_inputs}"), "{error}");
+        assert!(!error.contains("venue_profile"), "{error}");
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state")
@@ -6454,6 +6689,27 @@ mod tests {
             .unwrap()
             .unwrap_or_default()
             .is_empty());
+    }
+
+    /// #1774 AC2：正式入口绑定已签 synthetic v2，advance 产出并在输出戳上写 synthetic 签署版本。
+    #[test]
+    fn production_advance_stamps_synthetic_record_versions() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[("policy-synthetic", 0, 6, 12, 3, 7)]),
+        );
+        let out = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap();
+        let labels = ThetaConfig::for_s_structure_writer()
+            .unwrap()
+            .record_labels();
+        assert_eq!(out["policy_records"], json!(labels));
+        assert!(
+            labels.contains("venue-profile-synthetic-tb02a/2"),
+            "{labels}"
+        );
+        assert!(!labels.contains("diagnostic-fixture"), "{labels}");
     }
 
     #[test]

@@ -281,19 +281,48 @@ impl<'a> S3Control<'a> {
         Ok(token)
     }
 
-    /// 本次已持久 Begin 对应的 Commit 时刻（同一 attempt 的 `commit_ns`）；未 Begin 即 `Err`。
+    /// 本次已持久 Begin 对应的 Commit 时刻；未 Begin 即 `Err`。
+    ///
+    /// Plan 读同一 attempt 的 `commit_ns`。System（#1769）在此取样一次：只由准备发布调用，
+    /// 读数封进批次元数据，发布事务以 [`Self::sealed_commit_matches`]／[`Self::commit_sealed`]
+    /// 沿用该值，不再取样。
     pub(super) fn commit_time(&self, view: &IngestView) -> Result<Option<String>, String> {
-        v2::commit_time_context(self.conn, &view.context)
+        v2::commit_reading_context(self.conn, &view.context)
+    }
+
+    /// 发布事务内核已封批的 Commit 读数（Plan 等于计划值；System 不早于持久相位前沿）。
+    pub(super) fn sealed_commit_matches(
+        &self,
+        view: &IngestView,
+        semantic_commit_ns: &str,
+    ) -> Result<bool, String> {
+        v2::sealed_commit_matches_context(self.conn, &view.context, semantic_commit_ns)
     }
 
     /// Commit（`AcceptedPending`，或本事务内刚接纳+Begin）：写 commit clock 事件、推进
     /// status/first_published_generation 与 delivery refs/policy（含保留窗口），入调用方同一事务。
+    #[cfg(test)]
     pub(super) fn commit(&self, view: &IngestView, gen: i64, frontier: i64) -> Result<(), String> {
         self.require_write_transaction()?;
         if view.state == StoredState::Committed {
             return Err("InvalidDomain：消息已提交，控制行不重复写".into());
         }
         v2::record_commit_context(self.conn, &view.context, gen, frontier)
+    }
+
+    /// 同 [`Self::commit`]，commit clock 读数取自本次已封批元数据（System 不在提交时取样）。
+    pub(super) fn commit_sealed(
+        &self,
+        view: &IngestView,
+        gen: i64,
+        frontier: i64,
+        semantic_commit_ns: &str,
+    ) -> Result<(), String> {
+        self.require_write_transaction()?;
+        if view.state == StoredState::Committed {
+            return Err("InvalidDomain：消息已提交，控制行不重复写".into());
+        }
+        v2::record_commit_sealed(self.conn, &view.context, gen, frontier, semantic_commit_ns)
     }
 
     /// recover：写 recover clock 事件并推进相位前沿（换代自身状态由调用方在同一事务内完成）。
@@ -879,5 +908,259 @@ mod tests {
             "Committed"
         );
         assert_eq!(count(&conn, "s_delivery_refs"), 1);
+    }
+
+    /// #1769：真实 System 时钟描述的 S3 域（固定三键，hash 不随运行变化）。
+    fn init_system_domain(dir: &Temp) -> (PathBuf, v2::ClockPlan) {
+        let db = dir.path("s3-system.sqlite");
+        let clock_path = dir.path("system-clock.json");
+        std::fs::write(
+            &clock_path,
+            canonical_json(&json!({"schema_revision":"s-clock-system/1","clock_id":"s3-control-system","unit":"ns"})),
+        )
+        .unwrap();
+        super::super::init_v3(
+            &db,
+            SESSION,
+            &fixture("catalog/signed-catalog.json"),
+            &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+            "1",
+            &clock_path,
+            4,
+        )
+        .unwrap();
+        let clock = v2::ClockPlan::load(&clock_path).unwrap();
+        assert!(clock.is_system());
+        (db, clock)
+    }
+
+    fn clock_rows(conn: &Connection) -> Vec<String> {
+        let mut stmt = conn
+            .prepare("SELECT clock_event_id||'|'||phase||'|'||attempt_index||'|'||semantic_ns FROM s_clock_events ORDER BY CAST(semantic_ns AS INTEGER)")
+            .unwrap();
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+        rows.collect::<Result<Vec<_>, _>>().unwrap()
+    }
+
+    #[test]
+    fn s_system_clock_samples_once_per_phase() {
+        use v2::system_clock_test as fake;
+        fake::install(Some(&[100, 200, 300, 400, 500, 600]));
+        let temp = Temp::new();
+        let (db, clock) = init_system_domain(&temp);
+        let mut conn = open_db(&db).unwrap();
+        assert_eq!(fake::samples(), 0, "init 不取样");
+
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        let view = control
+            .inspect_ingest(envelope("msg-1", "op-1", "10000", "1"))
+            .unwrap();
+        control
+            .accept(&view, &[accept_result("receipt-1")])
+            .unwrap();
+        assert_eq!(fake::samples(), 1);
+        control.begin(&view, 1, 0, "cut-0", "1").unwrap();
+        assert_eq!(fake::samples(), 2);
+        let sealed = control.commit_time(&view).unwrap().unwrap();
+        assert_eq!(sealed, "300");
+        assert_eq!(fake::samples(), 3);
+        assert_eq!(
+            control.commit_time(&view).unwrap().as_deref(),
+            Some("300"),
+            "同一 attempt 的 Commit 重读复用首次读数"
+        );
+        assert_eq!(fake::samples(), 3);
+        assert!(control.sealed_commit_matches(&view, &sealed).unwrap());
+        assert!(!control.sealed_commit_matches(&view, "301").unwrap());
+        insert_delta(&tx, 1);
+        let other = expect_err(
+            control.commit_sealed(&view, 1, 0, "301"),
+            "不同于首次读数的封批值不得落账",
+        );
+        assert!(other.contains("首次读数不同"), "{other}");
+        control.commit_sealed(&view, 1, 0, &sealed).unwrap();
+        assert_eq!(fake::samples(), 3, "封批读数原样落账，提交时不再取样");
+        tx.commit().unwrap();
+        assert_eq!(
+            clock_rows(&conn),
+            vec![
+                "op-1|accept|-1|100",
+                "op-1|begin|0|200",
+                "op-1|commit|0|300"
+            ]
+        );
+        assert_eq!(
+            scalar(&conn, "SELECT logical_phase_frontier FROM s_protocol_meta"),
+            "300"
+        );
+        assert_eq!(
+            scalar(&conn, "SELECT clock_plan_json FROM s_protocol_meta"),
+            canonical_json(&clock.value),
+            "描述绑定只含固定三键，不随读数变化"
+        );
+
+        // 已提交消息重投与回执查询：读持久回执，零取样、零新行。
+        let tx = conn.transaction().unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        let replayed = control
+            .inspect_ingest(envelope("msg-1", "op-1", "10000", "1"))
+            .unwrap();
+        assert!(replayed.is_committed());
+        assert_eq!(replayed.receipt()["kind"], json!("Committed"));
+        assert_eq!(
+            v2::lookup(
+                &tx,
+                "test.feed",
+                "1",
+                "msg-1",
+                replayed.envelope()["payload_hash"].as_str().unwrap()
+            )
+            .unwrap()["kind"],
+            json!("Committed")
+        );
+        tx.rollback().unwrap();
+        assert_eq!(fake::samples(), 3);
+        assert_eq!(count(&conn, "s_clock_events"), 3);
+
+        // 第二条消息：未带封批读数的提交在 System 下显式拒绝，不取样。
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        let second = control
+            .inspect_ingest(envelope("msg-2", "op-2", "10001", "1"))
+            .unwrap();
+        control
+            .accept(
+                &second,
+                &[json!({"status": "accepted", "seq": "1", "receipt_id": "receipt-2"})],
+            )
+            .unwrap();
+        control.begin(&second, 2, 1, "cut-1", "1").unwrap();
+        assert_eq!(fake::samples(), 5);
+        let unsealed = expect_err(control.commit(&second, 2, 1), "System 提交必须带封批读数");
+        assert!(unsealed.contains("封批读数"), "{unsealed}");
+        assert_eq!(fake::samples(), 5);
+        tx.rollback().unwrap();
+
+        // recover 在其相位取样一次。
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        assert_eq!(control.recover("recover-1", "1").unwrap(), "600");
+        assert_eq!(fake::samples(), 6);
+        tx.commit().unwrap();
+        assert_eq!(
+            clock_rows(&conn).last().map(String::as_str),
+            Some("recover-1|recover|-1|600")
+        );
+    }
+
+    #[test]
+    fn s_system_clock_regression_rejected() {
+        use v2::system_clock_test as fake;
+        let temp = Temp::new();
+        let (db, clock) = init_system_domain(&temp);
+        let mut conn = open_db(&db).unwrap();
+
+        // Begin 读数早于已持久 accept：拒绝，Begin 不落行、attempt 不推进。
+        fake::install(Some(&[100, 90]));
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        let view = control
+            .inspect_ingest(envelope("msg-1", "op-1", "10000", "1"))
+            .unwrap();
+        control
+            .accept(&view, &[accept_result("receipt-1")])
+            .unwrap();
+        let backward = expect_err(
+            control.begin(&view, 1, 0, "cut-0", "1"),
+            "Begin 倒退必须拒绝",
+        );
+        assert!(backward.contains("实际语义clock倒退"), "{backward}");
+        assert_eq!(count(&tx, "s_clock_events"), 1);
+        assert_eq!(
+            scalar(&tx, "SELECT attempt_count FROM s_input_messages"),
+            "0"
+        );
+        assert_eq!(
+            scalar(&tx, "SELECT next_attempt_ordinal FROM s_protocol_meta"),
+            "1"
+        );
+        tx.rollback().unwrap();
+
+        // Commit 读数早于 Begin：准备取样即拒绝；伪造更早的封批值落账也拒绝，不换钟、不钳位。
+        fake::install(Some(&[100, 200, 150]));
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        let view = control
+            .inspect_ingest(envelope("msg-1", "op-1", "10000", "1"))
+            .unwrap();
+        control
+            .accept(&view, &[accept_result("receipt-1")])
+            .unwrap();
+        control.begin(&view, 1, 0, "cut-0", "1").unwrap();
+        let backward = expect_err(control.commit_time(&view), "Commit 取样倒退必须拒绝");
+        assert!(backward.contains("实际语义clock倒退"), "{backward}");
+        let sealed = expect_err(
+            control.sealed_commit_matches(&view, "150"),
+            "早于 Begin 的封批值必须拒绝",
+        );
+        assert!(sealed.contains("实际语义clock倒退"), "{sealed}");
+        insert_delta(&tx, 1);
+        let commit = expect_err(
+            control.commit_sealed(&view, 1, 0, "150"),
+            "早于 Begin 的封批值不得落账",
+        );
+        assert!(commit.contains("实际语义clock倒退"), "{commit}");
+        assert_eq!(count(&tx, "s_clock_events"), 2);
+        assert_eq!(fake::samples(), 3);
+        tx.rollback().unwrap();
+        assert_eq!(count(&conn, "s_clock_events"), 0);
+    }
+
+    /// 旧 `s-clock-plan/1` 夹具在封批路径上仍以计划值为准：封批值不等于计划即拒绝。
+    #[test]
+    fn s_plan_clock_sealed_commit_must_equal_plan() {
+        let temp = Temp::new();
+        let (db, _, clock) = init_domain(&temp, CLOCK_ID);
+        let mut conn = open_db(&db).unwrap();
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let control = S3Control::attach(&tx, &clock).unwrap();
+        let view = control
+            .inspect_ingest(envelope("msg-1", "op-1", "10000", "1"))
+            .unwrap();
+        control
+            .accept(&view, &[accept_result("receipt-1")])
+            .unwrap();
+        control.begin(&view, 1, 0, "cut-0", "1").unwrap();
+        assert_eq!(control.commit_time(&view).unwrap().as_deref(), Some("120"));
+        assert!(control.sealed_commit_matches(&view, "120").unwrap());
+        assert!(!control.sealed_commit_matches(&view, "121").unwrap());
+        insert_delta(&tx, 1);
+        let mismatch = expect_err(
+            control.commit_sealed(&view, 1, 0, "121"),
+            "封批值与计划不同必须拒绝",
+        );
+        assert!(mismatch.contains("封批clock读数与计划不同"), "{mismatch}");
+        control.commit_sealed(&view, 1, 0, "120").unwrap();
+        tx.commit().unwrap();
+        assert_eq!(
+            scalar(
+                &conn,
+                "SELECT semantic_ns FROM s_clock_events WHERE phase='commit'"
+            ),
+            "120"
+        );
     }
 }

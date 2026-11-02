@@ -380,11 +380,12 @@ impl<T: ObjectSlots> ObjectSlots for ObjectWrites<'_, T> {
     fn insert_group(
         &mut self,
         s: &(impl CodecRead + ?Sized),
+        id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, PublishError> {
         self.group = Some((index, GroupData::read(&group)));
-        self.slots.insert_group(s, index, group)
+        self.slots.insert_group(s, id, index, group)
     }
 }
 impl OrdinaryProofs {
@@ -412,7 +413,7 @@ impl OrdinaryProofs {
             }
             if let Some((i, g)) = g {
                 slots.reserve_group(s)?;
-                if slots.insert_group(s, *i, g.restore(s)?)? {
+                if slots.insert_group(s, &o.id, *i, g.restore(s)?)? {
                     return Err(err("同cut组合并序号重复"));
                 }
             }
@@ -1094,6 +1095,7 @@ mod tests {
                     &mut FullObjectSlots {
                         ids: &mut ids,
                         groups: &mut groups,
+                        owners: None,
                     },
                     &mut checked,
                     events.len(),
@@ -1150,6 +1152,7 @@ mod tests {
                 &mut FullObjectSlots {
                     ids: &mut bj::new_map(None),
                     groups: &mut bj::new_map(None),
+                    owners: None,
                 },
                 &mut bj::new_map(None),
                 events.len(),

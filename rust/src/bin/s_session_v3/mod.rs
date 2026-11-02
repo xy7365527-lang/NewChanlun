@@ -49,6 +49,7 @@ mod admission_private;
 mod admission_provider;
 pub(crate) mod audit_budget;
 mod audit_header;
+mod audit_ledger;
 pub(super) mod audit_owner;
 #[cfg(feature = "s_incremental")]
 pub(crate) mod audit_retention;
@@ -72,6 +73,8 @@ mod financial_session;
 pub(crate) mod fixed_radix;
 mod generation;
 mod history;
+#[cfg(all(feature = "s_incremental", unix))]
+pub(crate) use history::check_deadline;
 pub(crate) mod layout;
 pub(crate) mod native_shared;
 pub(super) mod object_index;

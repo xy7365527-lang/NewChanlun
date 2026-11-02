@@ -148,6 +148,37 @@ enum RawStorage<'a> {
     Arena(ArrayView<'a>),
     Borrowed(&'a [JsonView<'a>]),
 }
+// #1481: observe actual raw accesses only inside the owner raw-suffix check.
+#[cfg(all(test, feature = "s_incremental"))]
+thread_local! {
+    static H1_RAW_ACCESSES: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(all(test, feature = "s_incremental"))]
+fn h1_raw_access() {
+    H1_RAW_ACCESSES.with(|n| {
+        if let Some(value) = n.get() {
+            n.set(Some(value + 1));
+        }
+    });
+}
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) struct H1RawSuffixProbe;
+#[cfg(all(test, feature = "s_incremental"))]
+impl H1RawSuffixProbe {
+    pub(super) fn start(delta: usize) -> Self {
+        H1_RAW_ACCESSES.with(|n| assert!(n.replace(Some(0)).is_none()));
+        super::state::trace_event("h1_raw_suffix_delta", Some(delta as i64));
+        Self
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+impl Drop for H1RawSuffixProbe {
+    fn drop(&mut self) {
+        let reads = H1_RAW_ACCESSES.with(|n| n.replace(None).unwrap());
+        super::state::trace_event("h1_raw_suffix_reads", Some(reads as i64));
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct RawEventsView<'a> {
     storage: RawStorage<'a>,
@@ -179,6 +210,8 @@ impl<'a> RawEventsView<'a> {
         if i >= self.len {
             return None;
         }
+        #[cfg(all(test, feature = "s_incremental"))]
+        h1_raw_access();
         match self.storage {
             RawStorage::Plain(v) => Some((&v[i]).into()),
             RawStorage::Arena(v) => v.get(i),
@@ -257,6 +290,8 @@ impl<'a> Iterator for RawIter<'a> {
             return None;
         }
         self.left -= 1;
+        #[cfg(all(test, feature = "s_incremental"))]
+        h1_raw_access();
         match &mut self.storage {
             RawIterStorage::Plain(i) => i.next().map(JsonView::Plain),
             RawIterStorage::Arena(i) => i.next(),
@@ -392,13 +427,13 @@ pub(crate) fn effective<'a>(
 
 /// raw 的事务内 facade；所有前缀状态只持有稳定 seq ordinal 和完整身份文本。
 /// 原件资格由上层 owner 负责；取走 facts 不会保留 RawEventsView 或事务借用。
-pub(super) struct RawPrefixIndex<'raw> {
+pub(crate) struct RawPrefixIndex<'raw> {
     raw: RawEventsView<'raw>,
     facts: RawPrefixFacts,
     #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
 }
-pub(super) struct RawPrefixFacts {
+pub(crate) struct RawPrefixFacts {
     prefix: usize,
     winners: BusinessMap<NativeValue<String>, (i64, usize, i64)>,
     ordered: NativeTree<i64, usize>,
@@ -445,7 +480,7 @@ pub(crate) struct RawWinnerEdit {
     pub old: Option<RawWinner>,
     pub new: Option<RawWinner>,
 }
-pub(super) struct RawPrefixChanges {
+pub(crate) struct RawPrefixChanges {
     pub removed: sc::CodecVec<i64>,
     pub added: sc::CodecVec<(i64, usize)>,
     /// 按 identity 排序，每个 identity 只含最终赢家；消费时先撤全部 old 再加全部 new。
@@ -483,7 +518,7 @@ impl<'raw> RawPrefixFixture<'raw> {
 }
 
 impl<'raw> RawPrefixIndex<'raw> {
-    pub(super) fn new(raw: RawEventsView<'raw>) -> Self {
+    pub(crate) fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
             facts: RawPrefixFacts::default(),
@@ -552,7 +587,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
     }
-    pub(super) fn ordered(&self) -> impl Iterator<Item = (i64, usize)> + '_ {
+    pub(crate) fn ordered(&self) -> impl Iterator<Item = (i64, usize)> + '_ {
         self.ordered.iter().map(|(c, i)| (*c, *i))
     }
     #[cfg(test)]
@@ -588,7 +623,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     ) -> Result<RawPrefixChanges, PublishError> {
         self.advance_measured(prefix, admission, None, None)
     }
-    pub(super) fn advance_measured(
+    pub(crate) fn advance_measured(
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
@@ -3856,5 +3891,28 @@ mod raw_events_layout_tests {
         }
         drop(raw);
         assert_eq!(budget.live(), initial);
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl RawPrefixFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        let Self {
+            prefix,
+            winners,
+            ordered,
+            coordinates,
+        } = self;
+        let mut winners = winners
+            .iter()
+            .map(|(key, value)| json!([key.as_str(), value]))
+            .collect::<Vec<_>>();
+        winners.sort_by_key(crate::canonical_json);
+        let mut coordinates = coordinates
+            .iter()
+            .map(|(key, value)| json!([key, value]))
+            .collect::<Vec<_>>();
+        coordinates.sort_by_key(crate::canonical_json);
+        json!({"prefix":prefix,"winners":winners,"ordered":ordered.iter().map(|(k,v)|json!([k,v])).collect::<Vec<_>>(),"coordinates":coordinates})
     }
 }

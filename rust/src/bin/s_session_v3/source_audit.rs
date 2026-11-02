@@ -38,7 +38,9 @@ mod source_delta;
 #[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use source_contributions::SourceWork;
 #[cfg(feature = "s_incremental")]
-pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
+pub(crate) use source_contributions::{
+    audit_native_bound, audit_source_step, NativeSourceState, SourceInput, SourceRaw,
+};
 #[path = "ordinary_source.rs"]
 mod ordinary_source;
 pub(super) use ordinary_source::OrdinaryProofs;
@@ -50,6 +52,9 @@ pub(super) use ordinary_source::{
 mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
+#[cfg(feature = "s_incremental")]
+#[path = "source_receipt.rs"]
+pub(super) mod source_receipt;
 #[path = "source_structure.rs"]
 mod source_structure;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
@@ -1492,7 +1497,10 @@ impl<'raw> NativeRawLedger<'raw> {
                     self.stats.source_hashes += 4;
                 }
                 #[cfg(test)]
-                super::state::trace_raw_hashes(true, 4);
+                {
+                    super::state::trace_raw_hashes(true, 4);
+                    super::state::trace_event("historical_raw_source_hashes", None);
+                }
                 #[cfg(feature = "s_incremental")]
                 let capacity = self.originals.capacity();
                 s.native_map_room(&mut self.originals).map_err(err)?;
@@ -1638,6 +1646,17 @@ impl<'capture> NativeSourceAudit<'capture> {
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
     }
+    /// #1481：复用来源counts不等于已推进独立raw事实账。
+    pub(super) fn advance_raw_facts(&mut self, prefix_len: usize) -> Result<(), PublishError> {
+        let measure = self.reader.native_measure();
+        self.ledger.advance_measured(
+            &mut super::audit_store::StoreView::for_audit(&mut self.reader),
+            prefix_len,
+            measure.as_ref().and_then(|m| m.deadline),
+            measure.as_ref().and_then(|m| m.budget),
+        )?;
+        Ok(())
+    }
     pub(super) fn audit<'a>(
         &mut self,
         state: impl Into<sc::RefView<'a>>,
@@ -1659,6 +1678,8 @@ impl<'capture> NativeSourceAudit<'capture> {
                 Some(&mut self.source_memo),
                 Some(&mut self.fields),
                 Some(&mut self.ledger),
+                None,
+                #[cfg(feature = "s_incremental")]
                 None,
             )
         })();
@@ -1717,6 +1738,8 @@ pub(super) fn audit_generated_metered<'a>(
         None,
         None,
         None,
+        #[cfg(feature = "s_incremental")]
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -1751,6 +1774,8 @@ pub(super) fn audit_generated_for_audit<'a>(
         None,
         None,
         None,
+        #[cfg(feature = "s_incremental")]
+        None,
     )
 }
 
@@ -1780,6 +1805,8 @@ pub(super) fn audit_generated_with_proofs(
         None,
         None,
         proofs,
+        #[cfg(feature = "s_incremental")]
+        None,
     )
 }
 
@@ -1821,9 +1848,11 @@ trait ObjectSlots {
         Ok(())
     }
     fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError>;
+    /// `id` 是该 CC005 对象的 object_id；36M cover 以它而非 group_index 作组身份。
     fn insert_group(
         &mut self,
         s: &(impl CodecRead + ?Sized),
+        id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, PublishError>;
@@ -1831,6 +1860,7 @@ trait ObjectSlots {
 struct FullObjectSlots<'a> {
     ids: &'a mut BusinessMap<bj::TextValue, ()>,
     groups: &'a mut BusinessMap<i64, Group>,
+    owners: Option<&'a mut BusinessMap<i64, bj::TextValue>>,
 }
 impl ObjectSlots for FullObjectSlots<'_> {
     fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
@@ -1846,17 +1876,19 @@ impl ObjectSlots for FullObjectSlots<'_> {
     }
     fn insert_group(
         &mut self,
-        #[allow(
-            unused_variables,
-            reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-        )]
         s: &(impl CodecRead + ?Sized),
+        id: &str,
         index: i64,
         group: Group,
     ) -> Result<bool, PublishError> {
+        if let Some(owners) = self.owners.as_deref_mut() {
+            s.native_map_room(owners).map_err(err)?;
+            owners.insert(index, s.native_text(id)?).map_err(err)?;
+        }
         Ok(self.groups.insert(index, group).map_err(err)?.is_some())
     }
 }
+/// 生产路径自 36M 起直接调用 `audit_object_record_with_slots`，本包装只剩测试调用者。
 #[cfg(test)]
 fn audit_object_record(
     s: &mut (impl SourceFieldStore + ?Sized),
@@ -1881,7 +1913,11 @@ fn audit_object_record(
         producer,
         rule,
         current_generation,
-        &mut FullObjectSlots { ids, groups },
+        &mut FullObjectSlots {
+            ids,
+            groups,
+            owners: None,
+        },
         checked_refs,
         native_sources,
         raw_prefix_len,
@@ -2434,6 +2470,7 @@ fn audit_object_record_with_slots(
             slots.reserve_group(s)?;
             if slots.insert_group(
                 s,
+                id.as_str(),
                 index,
                 Group {
                     payload: s.native_ref_clone(&payload).map_err(err)?,
@@ -2750,6 +2787,9 @@ fn audit_generated_in_store(
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
     mut ordinary: Option<&mut OrdinaryProofs>,
+    #[cfg(feature = "s_incremental")] mut exports: Option<
+        &mut source_receipt::source_facts::SourceExports,
+    >,
 ) -> Result<Counts, PublishError> {
     #[cfg(test)]
     source_call_note(|n| {
@@ -2779,16 +2819,33 @@ fn audit_generated_in_store(
     let allocation;
     let ordinary_effective;
     let mut ordinary_raw;
+    // 36M cover 只能从完整原件的赢家 seq 导出；Native 账本路径不签发导出。
+    #[cfg(feature = "s_incremental")]
+    let mut winner_seqs = None;
     let raw = if let Some(ledger) = native_ledger {
+        #[cfg(feature = "s_incremental")]
+        if exports.is_some() {
+            return Err(err("cover 导出需要完整原件赢家 seq，不接 Native 账本"));
+        }
         allocation = source_allocation(s)?;
         ledger.advance_measured(s, raw_prefix.len(), deadline, budget)?
     } else {
         ordinary_effective = bj::effective(raw_prefix, deadline)?;
         allocation = source_allocation(s)?;
         ordinary_raw = bj::new_map(allocation.as_ref());
+        #[cfg(feature = "s_incremental")]
+        let mut seqs = bj::new_map(allocation.as_ref());
         for event in ordinary_effective.iter() {
             super::history::check_deadline(deadline)?;
             let coord = bj::coord(event)?;
+            #[cfg(feature = "s_incremental")]
+            if exports.is_some() {
+                let seq = bj::field(event, "seq")
+                    .as_i64()
+                    .ok_or_else(|| err("生效原件seq非i64"))?;
+                s.native_map_room(&mut seqs).map_err(err)?;
+                seqs.insert(coord, seq).map_err(err)?;
+            }
             let wire = bj::RawReference::new(event, false)?;
             let numeric = bj::RawReference::new(event, true)?;
             s.native_map_room(&mut ordinary_raw).map_err(err)?;
@@ -2808,6 +2865,10 @@ fn audit_generated_in_store(
                     },
                 )
                 .map_err(err)?;
+        }
+        #[cfg(feature = "s_incremental")]
+        {
+            winner_seqs = Some(seqs);
         }
         &ordinary_raw
     };
@@ -2835,6 +2896,7 @@ fn audit_generated_in_store(
     let mut objects = bj::new_work(allocation.as_ref());
     let mut ids = bj::new_map(allocation.as_ref());
     let mut groups = bj::new_map(allocation.as_ref());
+    let mut owners = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     source_call_note(|n| n.full_members_enumerations += 1);
     if object_array.kind() != Kind::Array {
@@ -2875,6 +2937,7 @@ fn audit_generated_in_store(
                 &mut FullObjectSlots {
                     ids: &mut ids,
                     groups: &mut groups,
+                    owners: Some(&mut owners),
                 },
                 &mut checked_refs,
                 raw_prefix.len(),
@@ -2892,6 +2955,7 @@ fn audit_generated_in_store(
                 &mut FullObjectSlots {
                     ids: &mut ids,
                     groups: &mut groups,
+                    owners: Some(&mut owners),
                 },
                 &mut checked_refs,
                 native_sources.as_deref_mut(),
@@ -2944,6 +3008,30 @@ fn audit_generated_in_store(
     if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
+    #[cfg(feature = "s_incremental")]
+    if let Some(exported) = exports.as_deref_mut() {
+        // 分区核通过后才导出整份 cover：组成员挂 object_id，已证 pending 无组身份。
+        let seqs = winner_seqs
+            .as_ref()
+            .ok_or_else(|| err("cover 导出缺赢家 seq 对照"))?;
+        let mut owner_of = bj::new_map(allocation.as_ref());
+        for (index, group) in groups.iter() {
+            let owner = owners.get(index).ok_or_else(|| err("组序号缺 object_id"))?;
+            for coord in group.members.iter() {
+                super::history::check_deadline(deadline)?;
+                s.native_map_room(&mut owner_of).map_err(err)?;
+                owner_of.insert(*coord, owner.as_str()).map_err(err)?;
+            }
+        }
+        for (coord, _) in sorted_numeric_entries(s, raw)?.iter() {
+            super::history::check_deadline(deadline)?;
+            let seq = *seqs.get(coord).ok_or_else(|| err("生效坐标缺赢家 seq"))?;
+            exported.push_cover(s, *coord, seq, owner_of.get(coord).copied())?;
+        }
+        exported.effective = raw.len();
+    }
+    #[cfg(not(feature = "s_incremental"))]
+    let _ = &owners;
     let mut shapes = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::state::trace_event("source_shapes", None);
@@ -3025,6 +3113,18 @@ fn audit_generated_in_store(
     source_call_note(|n| n.full_members_enumerations += 1);
     for item in elements(s, &observations)? {
         super::history::check_deadline(deadline)?;
+        #[cfg(feature = "s_incremental")]
+        if let Some(exported) = exports.as_deref_mut() {
+            let sources = source_receipt::source_facts::observation_sources(s, &item, |index| {
+                groups.get(&index).map(|g| &g.sources[..])
+            })?;
+            s.native_codec_room(&mut exported.observation_sources, 1)
+                .map_err(err)?;
+            exported
+                .observation_sources
+                .try_push((digest(&item)?, sources))
+                .map_err(err)?;
+        }
         let kind = if let Some(proofs) = ordinary.as_deref_mut() {
             proofs.observation(s, &item)?
         } else {
@@ -6421,4 +6521,35 @@ mod owner_retention {
         sources,
         originals
     });
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl NativeRawFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        fn source(s: &Source) -> Value {
+            let Source {
+                wire,
+                numeric,
+                raw,
+                bar,
+            } = s;
+            json!({"wire":wire,"numeric":numeric,"raw":raw,"bar":bar})
+        }
+        let Self {
+            winners,
+            sources,
+            originals,
+        } = self;
+        let mut sources = sources
+            .iter()
+            .map(|(k, v)| json!([k, source(v)]))
+            .collect::<Vec<_>>();
+        sources.sort_by_key(crate::canonical_json);
+        let mut originals = originals
+            .iter()
+            .map(|(k, (seq, s))| json!([k, seq, source(s)]))
+            .collect::<Vec<_>>();
+        originals.sort_by_key(crate::canonical_json);
+        json!({"winners":winners.h1_canonical(),"sources":sources,"originals":originals})
+    }
 }

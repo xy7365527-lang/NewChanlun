@@ -5,7 +5,10 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { useScheduler } from "./scheduler-config.mts";
 import { assertMountsExcludeAcceptance } from "./acceptance-dir.mts";
+
+const scheduler = useScheduler("docker-isolation", ["dockerCliTimeoutMs"]);
 
 export interface MountSpec { hostPath: string; sandboxPath: string; readonly?: boolean }
 
@@ -167,7 +170,7 @@ echo "symlinkIntoRo=$(r touch /probe/rw/lnk/x | tr '\n' ' ')"
 `;
 
 export type DockerCli = (args: string[]) => string;
-const dockerCli: DockerCli = (args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000, killSignal: "SIGKILL" });
+const dockerCli: DockerCli = (args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: scheduler.dockerCliTimeoutMs, killSignal: "SIGKILL" });
 
 export function parseObservation(logs: string): IsolationObservation {
   const kv = new Map<string, string>();

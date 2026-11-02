@@ -785,12 +785,27 @@ impl ThetaConfig {
         )
     }
 
-    /// 生产配置：按 profile id（如 `P0`）取生产场所 profile；缺值行为同 [`Self::for_production_symbol`]。
+    /// 生产配置（通用入口）：按 profile id（如 `P0`）取生产场所 profile；缺值行为同
+    /// [`Self::for_production_symbol`]。`usage: s_structure_writer` 的记录在此报
+    /// `InvalidPolicy{venue_profile}`（#1774 B2），不产配置。
     pub fn for_production_profile(
         profile_id: &str,
     ) -> Result<Self, super::run_records::RunPolicyError> {
         Self::from_records(
             super::run_records::production_venue_for_profile(profile_id),
+            Some(super::run_records::ACTIVE_THETA_RISK_JSON),
+            Some(super::run_records::ACTIVE_DATA_PROFILE_JSON),
+        )
+    }
+
+    /// S 结构写者生产配置（#1774 B2；ADR 0057 受影响代码清单 driver.rs 行）：经 S 专用选择器绑定
+    /// `production_synthetic_ohlc_integer_tb02a_v1`。缺值行为同 [`Self::for_production_symbol`]；
+    /// 最终准入仍由 [`Self::admissible`] 判，本构造不放宽。
+    pub fn for_s_structure_writer() -> Result<Self, super::run_records::RunPolicyError> {
+        Self::from_records(
+            super::run_records::production_venue_for_s_writer(
+                super::run_records::SYNTHETIC_TB02A_PROFILE_ID,
+            ),
             Some(super::run_records::ACTIVE_THETA_RISK_JSON),
             Some(super::run_records::ACTIVE_DATA_PROFILE_JSON),
         )
@@ -1008,8 +1023,9 @@ mod tests {
         assert_eq!(ThetaConfig::try_from_active_records().unwrap(), a);
     }
 
-    /// #1602 专项验收：生产与验收回放的配置入口对所有品种都停在 AwaitingPolicy——BTC（P0）是
-    /// tick/成本未签，其余品种是生产表里没有场所 profile；两槽 `venue_profile` 与 `cost_inputs` 都报。
+    /// #1602 专项验收（#1774 AC5 收敛）：生产与验收回放的配置入口对所有品种都停在 AwaitingPolicy——
+    /// BTC（P0）tick 已签（ADR 0057 R1）、三项成本未签，只剩 `cost_inputs`；其余品种是生产表里没有
+    /// 场所 profile，两槽 `venue_profile` 与 `cost_inputs` 都报。
     #[test]
     fn production_config_awaits_venue_profile_and_cost_inputs() {
         use super::super::backtest::data::SYMBOLS;
@@ -1017,13 +1033,65 @@ mod tests {
         for (sym, _, _) in SYMBOLS {
             let e = ThetaConfig::for_production_symbol(sym)
                 .expect_err("生产场所 profile 未签，不得产出配置");
-            assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS], "{sym}");
+            if sym == "BTC" {
+                assert_eq!(e.slots, vec![SLOT_COST_INPUTS], "{sym}");
+            } else {
+                assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS], "{sym}");
+            }
             assert!(e.is_awaiting_policy(), "{sym}: {e}");
         }
         let e = ThetaConfig::for_production_profile("P0").unwrap_err();
-        assert!(e
-            .to_string()
-            .starts_with("AwaitingPolicy{venue_profile, cost_inputs}"));
+        assert!(
+            e.to_string().starts_with("AwaitingPolicy{cost_inputs}"),
+            "{e}"
+        );
+        assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
+    }
+
+    /// #1774 AC2 第二层 + AC4 + AC9：S 专用构造最终 admissible 且 record_labels 带 synthetic 签署版本；
+    /// 通用 profile 构造对 synthetic id 报 InvalidPolicy{venue_profile}；就地改三项任一值即失去准入。
+    #[test]
+    fn s_structure_writer_config_is_admissible_and_general_profile_rejects_it() {
+        use super::super::run_records::{SLOT_VENUE_PROFILE, SYNTHETIC_TB02A_PROFILE_ID};
+        let c = ThetaConfig::for_s_structure_writer().expect("synthetic v2 已签");
+        assert!(c.admissible());
+        assert!(c.records.venue.admissible);
+        assert_eq!(c.records.venue.profile_id, SYNTHETIC_TB02A_PROFILE_ID);
+        assert_eq!(c.tick.tick_size, 1.0);
+        assert_eq!(
+            (
+                c.exec.commission_bps,
+                c.exec.slippage_bps,
+                c.exec.tax_bps,
+                c.exec.entry_delay_bars
+            ),
+            (10.0, 0.0, 0.0, 0)
+        );
+        assert!(
+            c.record_labels()
+                .contains("venue-profile-synthetic-tb02a/2"),
+            "{}",
+            c.record_labels()
+        );
+        let e = ThetaConfig::for_production_profile(SYNTHETIC_TB02A_PROFILE_ID).unwrap_err();
+        assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE]);
+        assert!(
+            e.to_string().starts_with("InvalidPolicy{venue_profile}"),
+            "{e}"
+        );
+        assert!(e.to_string().contains("usage 不符"), "{e}");
+        let mut delayed = c.clone();
+        delayed.exec.entry_delay_bars = 1;
+        let mut slipped = c.clone();
+        slipped.exec.slippage_bps = 2.0;
+        let mut taxed = c.clone();
+        taxed.exec.tax_bps = 0.5;
+        for r in [delayed, slipped, taxed] {
+            assert!(!r.admissible());
+            assert!(r
+                .record_labels()
+                .contains("venue-profile-synthetic-tb02a/research-override"));
+        }
     }
 
     /// #1602 变异体锁：签齐的场所 profile / Θ_risk / 数据 profile 新版本 ⟹ 配置逐字段取记录值、

@@ -214,6 +214,10 @@ const OBS = {
 };
 const HEAD40 = "a".repeat(40); const CLEAN = { head: HEAD40, dirty: "" }; const imageIdOf = () => ID;
 const claimFiles = (d: string) => ls2(d).filter((f) => /^(used|resume|cp)-/.test(f));
+// 文件名形如 used-<nonce>-<row>.json / cp-<nonce>-<row>-<hash>.json / resume-<nonce>-<row>-<hash>-<n>.json；
+// nonce 是随机 UUID，可能自带 "-14"/"-15"（CI 实例：1594260c-…），所以行号只能按结构取，不能子串匹配。
+const rowOf = (f: string) => f.match(/^(?:used|resume|cp)-[0-9a-f-]{36}-(\d+)(?:\.json$|-)/)?.[1];
+const rowFiles = (d: string, row: string) => claimFiles(d).filter((f) => rowOf(f) === row);
 
 test("受控第 13 行：模型预检（含 502 overloaded 等瞬时故障）失败时不写 used-13，同一 receipt 随后仍可占用；成功才占用", () => {
   const d = mk2(j2(td2(), "route-order-")); issueReceipt({ imageIdOf, dir: d, image: "img", approval: "ok", swarmTicket: 4242, identity: CLEAN });
@@ -233,24 +237,26 @@ test("受控第 13 行：模型预检（含 502 overloaded 等瞬时故障）失
 });
 
 test("冲突路径 14/15：模型预检失败不写 used / resume / cp，随后仍可占用；占用后同一检查点重入才记 resume", () => {
+  assert.equal(rowOf("used-1594260c-8c81-467d-9da0-fc52754bba00-14.json"), "14", "CI run 41213375682 的 nonce 含 -15，仍判为第 14 行");
+  assert.equal(rowOf("resume-1594260c-8c81-467d-9da0-fc52754bba00-14-2fae82fa6dbfe569-1.json"), "14");
   const d = mk2(j2(td2(), "route-order-")); issueReceipt({ imageIdOf, dir: d, image: "img", approval: "ok", swarmTicket: 4242, identity: CLEAN });
   const cp = (o: Partial<{ head: string; incoming: string }> = {}) => mergeBinding({ runId: "run-a", base: "b".repeat(40), instance: "inst-1", head: "c".repeat(40), incoming: "d".repeat(40), ...o });
   for (const row of ["14", "15"] as const) {
     const acceptance = { imageIdOf, dir: d, env: { [ROW_ENV]: row }, identity: CLEAN };
     const run = (binding: string, modelProbe: (id: string) => void) => assertSwarmExecutionReady("img", { rows: ["14", "15"], binding, acceptance, probe: () => OBS, modelProbe });
     assert.throws(() => run(cp(), () => { throw new Error("HTTP 503"); }), /503/);
-    assert.deepEqual(claimFiles(d).filter((f) => f.includes(`-${row}`)), [], `第 ${row} 行预检失败：无 used/cp`);
+    assert.deepEqual(rowFiles(d, row), [], `第 ${row} 行预检失败：无 used/cp`);
     run(cp(), () => undefined);
-    assert.equal(claimFiles(d).filter((f) => f.startsWith("used-") && f.includes(`-${row}`)).length, 1);
+    assert.equal(rowFiles(d, row).filter((f) => f.startsWith("used-")).length, 1);
     // 同一检查点重入（新进程语义）：预检失败不新增 resume；成功才记 resume
     const before = claimFiles(d).length;
     assert.throws(() => run(cp(), () => { throw new Error("HTTP 502"); }), /502/);
     assert.equal(claimFiles(d).length, before, "预检失败不新增 resume");
     run(cp(), () => undefined);
-    assert.equal(claimFiles(d).filter((f) => f.startsWith("resume-") && f.includes(`-${row}-`)).length, 1);
+    assert.equal(rowFiles(d, row).filter((f) => f.startsWith("resume-")).length, 1);
     // 新检查点：预检失败不新增 cp-
     assert.throws(() => run(cp({ incoming: "e".repeat(40) }), () => { throw new Error("HTTP 502"); }), /502/);
-    assert.equal(claimFiles(d).filter((f) => f.startsWith("cp-") && f.includes(`-${row}-`)).length, 0);
+    assert.equal(rowFiles(d, row).filter((f) => f.startsWith("cp-")).length, 0);
   }
   void checkAdmission; void ex2;
 });
