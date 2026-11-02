@@ -1,0 +1,9 @@
+{
+  "ticket": 1818,
+  "model": "claude-fable-5-1",
+  "klass": "T",
+  "reason": "本票只裁 launcher 启动前对并发写域落入 S admission 测量域 M 的路径边界拒绝规则（InvalidDomain）、owner 落点（load_manifest）与测试锁，属接口/seam/恢复语义类技术取舍；有 PR #1773 独审 M-2、launcher 既有 InvalidDomain 先例（production_session.rs:124-200）、#1567 resolution 第 4 条与 ADR 0028:46 可援引，考古各点均为 A/B/代码事实、无 C 类 decision/research/probe 缺口，且不涉资金、隔离放宽、真实场所、关图或 Destination 改写。",
+  "parsed": true,
+  "durationMs": 13534,
+  "raw": "```json\n{\"class\":\"T\",\"reason\":\"本票只裁 launcher 启动前对并发写域落入 S admission 测量域 M 的路径边界拒绝规则（InvalidDomain）、owner 落点（load_manifest）与测试锁，属接口/seam/恢复语义类技术取舍；有 PR #1773 独审 M-2、launcher 既有 InvalidDomain 先例（production_session.rs:124-200）、#1567 resolution 第 4 条与 ADR 0028:46 可援引，考古各点均为 A/B/代码事实、无 C 类 decision/research/probe 缺口，且不涉资金、隔离放宽、真实场所、关图或 Destination 改写。\"}\n```"
+}

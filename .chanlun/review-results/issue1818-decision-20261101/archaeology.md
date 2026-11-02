@@ -1,0 +1,250 @@
+# #1818 考古
+
+[grilling] production_session 并发写域与 S admission 测量域布局合同（#1781 前置）
+
+归类：A 已裁 2 · B 有先例未正式裁 9 · C 确未设计 1。只有 C 类可列为真正待决；B 类以「默认值，确认或否决」呈现；A 类直接沿用。
+
+## Q1 [B] launcher 遇到并发写域落入 S 测量域 M 的布局时怎么处置：启动前拒绝（A）、静默改写/迁移 s.db（B）、启动排序等 S 打开后再拉 E/B/X（C）、部署前显式生成布局工具（D）
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | "独占目录" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"独占目录" in:title,body,comments'` | 3 |
+| tracker | "InvalidDomain" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"InvalidDomain" in:title,body,comments'` | 6 |
+| tracker | "启动排序" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"启动排序" in:title,body,comments'` | 1 |
+| tracker | "DB 路径变更" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"DB 路径变更" in:title,body,comments'` | 4 |
+| repo | 独占目录\|自动分目录\|共用目录\|共享目录\|分目录 | `rg -n '独占目录\|自动分目录\|共用目录\|共享目录\|分目录' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md analysis` | 0 |
+| repo | InvalidDomain | `rg -n 'InvalidDomain' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md analysis` | 10 |
+
+命中：
+- /Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1773-INDEPENDENT-REVIEW-6C6E.md:84：M-2 | S admission 核对父目录身份；生产 launcher 并发拉起 E/B/X 在同目录建文件会间歇触发 `SourceIdentityChanged`。返修只在测试夹具隔离了 `s/`，runbook 与 launcher 均未约束
+- rust/src/bin/production_session.rs:8：`InvalidDomain` 退出，S 库文件不创建；既有 S 库不带声明或声明不一致同样 `InvalidDomain`。
+- docs/runbook_production_session.md:51：`namespaces` 与 `execution_capabilities.namespaces` 相交即 `InvalidDomain`，在拉起 S、创建 S 库之前退出
+- #1567 评论 6267636964 第 4 条：R4 的 revalidate（库身份、目录身份、pending 不存在）就是 ADR 0028 `:46` 机器层「恢复/重启、DB 路径变更」失效触发在 S 侧的实例；锚失效 = 拒绝启动，不回退任何旧 writer、不降级到无锚路径。
+- #1567 评论 6267636964 第 6 条：换库拒绝：binding 所记库身份与当前库不符（跨设备/inode/所有者、nlink≠1）⟹ `Identity`/`Changed` 拒绝，不得以「路径相同」放行。
+- rust/src/bin/s_session_v3/admission_anchor.rs:1337-1342：if declared_db.as_ref() != Some(&db) || anchor.db != db || anchor.path != expected_path || cli_path != expected_path { return Err(prelude.error(ErrorKind::Identity, Stage::E1)); }
+- rust/src/bin/production_session.rs:455-467：spawn("S".into(), s, true)?; ... spawn("E".into(), e, true)?;（S 之后立即拉 E，无等待）
+- rust/src/bin/s_session_v3/admission_provider.rs:348-349：原件合法写入后主库/目录只核身份；监督器控制锁仍核固定完整 stamp。
+
+- 出处：B 先例：PR #1773 独审 M-2（1773-INDEPENDENT-REVIEW-6C6E.md:51-55,84）建议 launcher 拒启；launcher 既有「拉起任何域前 InvalidDomain、不建域文件」模式 production_session.rs:8,124-200 与 runbook:51；ADR 0056 §五.2 同款「在拉起任何域之前以 InvalidDomain 退出」。排除 B 的 A 类依据：#1567 resolution 第 4、6 条 + ADR 0028:46 + admission_anchor.rs:1337-1342。
+- 推理链：[代码事实] M 含 parent(s.db) 本身且 verify_before_open 对其做严格 stamp 比对（admission_provider.rs:299-345），E/B/X serve 在 S serve 之后无等待拉起（production_session.rs:455-490）并在各自库旁建 -wal/-shm/.writer.lock ⟹ 同目录即间歇失败。[新缠论:推论] 四候选逐一：B 改写路径会使 owner 原件 db ≠ CLI db（anchor:1337）或库身份变化，S 以 Identity 拒启，且 #1567 第 4 条把「DB 路径变更」定为锚失效，故 B 与已裁冲突；C 启动排序只覆盖本 launcher 内的竞态，运维单独重启 S 时 E/B/X 仍在跑，且 verify_runtime 只核身份（:348-360）意味着问题只在打开窗口，排序把 E/B/X 启动绑到 S 就绪，收益窄；D 未设计、不违已裁。A 与既有 launcher 模式同型，只会误拒不会误放（与 L-2 同一判据）。
+- 默认值：A：load_manifest 在任何 init、写 state_dir、拉起之前按 Q2 的 M 边界判定，命中即 InvalidDomain 并点名两条 manifest 字段；B 排除（已裁冲突）；C、D 记录不采用/保留。
+- 冲突：候选 B 与 #1567 resolution 第 4、6 条及 ADR 0028:46 冲突（静默改写 = DB 路径变更 = 锚失效 = 拒启），故 B 不是合法候选；本点因此不能归 A，归 B。
+
+## Q2 [B] 冲突判定集合：S 测量域 M 的精确成员与并发写域（E/B/X）的写足迹各是什么
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | SourceMembershipChanged | `gh search issues "SourceMembershipChanged" --repo xy7365527-lang/NewChanlun --limit 50` | 1 |
+| tracker | SourceIdentityChanged | `gh search issues "SourceIdentityChanged" --repo xy7365527-lang/NewChanlun --limit 50` | 3 |
+| repo | SourceIdentityChanged\|SourceMembershipChanged | `rg -n 'SourceIdentityChanged\|SourceMembershipChanged' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md analysis` | 0 |
+| repo | 测量域 | `rg -n '测量域' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md analysis` | 1 |
+| repo | writer.lock / 同型 | `grep -rn 'writer.lock' rust/src/bin/x_execution_session.rs rust/src/bin/e_economic_session.rs rust/src/bin/b_chong_session.rs` | 1 |
+
+命中：
+- rust/src/bin/s_session_v3/admission_provider.rs:216-217：let mut set = BTreeSet::new(); set.insert(parent.to_owned());
+- rust/src/bin/s_session_v3/admission_provider.rs:224-227：if raw == basename || (raw.starts_with(basename) && matches!(raw.get(basename.len()), Some(b'.' | b'-')))
+- rust/src/bin/s_session_v3/admission_provider.rs:229-243：path != db && !["-wal","-shm","-journal",".writer.lock",".maintenance.lock",".control.lock",".control-owner.json",".admission-private"] ... return Err(consumed.failure("UnknownDatabaseSidecar"))
+- rust/src/bin/s_session_v3/admission_provider.rs:250-254：// parent 已列入分配账；state 恰为 parent 时仍须枚举其全部子项。 if state == parent { set.remove(state); } Self::walk(state, &mut set, consumed)?;
+- rust/src/bin/s_session_v3/admission_provider.rs:265,278-279：std::fs::symlink_metadata(path) ... else if !m.is_file() { return Err(consumed.failure("SourceTypeUnsupported")); }
+- rust/src/bin/s_session_v3/admission_provider.rs:341-343：if found != self.members { return Err("SourceMembershipChanged".into()); }
+- rust/src/bin/x_execution_session.rs:3：X 与 S/E/B 同型：自有 SQLite 库、`<db>.writer.lock` 独占进程锁、持久化 `writer_epoch`。
+- rust/src/bin/production_session.rs:340-345 与 368：E/B/X 的 `init` 在 spawn_domains 之前顺序执行（if !Path::new(e_db).exists() { ... init ... }），S serve 之后只有 serve 阶段并发
+
+- 出处：代码在用：admission_provider.rs:209-255（members）、:299-345（verify_before_open）、:348-360（verify_runtime）；x_execution_session.rs:3；production_session.rs:340-368,455-490。无正本层或已关票 resolution 定义 M。
+- 推理链：[代码事实] M = {P} ∪ walk(P 内 basename 族条目) ∪ walk(A)，比对不经 canonicalize、不跟随符号链接（symlink_metadata），非文件非目录成员即 SourceTypeUnsupported；P 内 basename 族若不在 8 项 sidecar 白名单即 UnknownDatabaseSidecar（确定性拒绝，非竞态）。[代码事实] E/B/X init 在 S serve 之前串行完成，并发只发生在 serve 阶段，写足迹为 parent(d) 内 -wal/-shm/-journal/.writer.lock 的建删以及 parent(d) 的 mtime 变化。[新缠论:推论] 因此冲突充要条件是 canon(parent(d)) 落入 {P} ∪ A 子树 ∪ S 族条目子树；P 的祖先、P 的非族非 A 子目录都不在 M 内（在其中建文件不改 P 的 mtime）。40M 嵌套反例（A=P，E 在 P/e/）成立。
+- 默认值：按草稿规则 1–3、6 定义边界；规则 3 第四点（d 本身是 S 族名字）注明「S 侧已以 UnknownDatabaseSidecar 确定性拒绝，launcher 判定只是前移」。
+
+## Q3 [B] launcher manifest `state_dir` 与 admission state 目录 A 是否同一个东西；launcher `state_dir` 是否进拒绝规则
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | launcher state_dir | `gh search issues "launcher state_dir" --repo xy7365527-lang/NewChanlun --limit 50` | 1 |
+| tracker | "structure-source.json" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"structure-source.json" in:title,body,comments'` | 1 |
+| repo | state_dir | `rg -n 'state_dir' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md analysis` | 3 |
+| repo | state_dir（代码） | `grep -n 'state_dir' rust/src/bin/production_session.rs` | 4 |
+
+命中：
+- rust/src/bin/production_session.rs:320-323：if !s_db.exists() { std::fs::create_dir_all(&m.state_dir)...; let decl = m.state_dir.join("structure-source.json"); std::fs::write(&decl, m.source.canonical())
+- rust/src/bin/s_session_v3/admission_anchor.rs:1327-1336：let owner_fields = exact(&node, &["db", "state_dir", "admission"]) ... let expected_path = state_path.join(PUBLISHED).join(LIMITS_NAME);
+- rust/src/bin/s_session_v3/admission_anchor.rs:29-31：const PUBLISHED: &str = "s-admission"; ... const LIMITS_NAME: &str = "limits.json";
+- docs/runbook_production_session.md:35："state_dir": "/abs/launcher-state",
+- docs/runbook_production_session.md:40："admission_job_limits": "<state>/s-admission/limits.json"
+- docs/runbook_production_session.md:58：S `serve` 需要 admission 锚（`<db>.control-owner.json` + `state/s-admission/{limits,binding}.json`）。
+- docs/adr/0050-s-resource-admission-contract-v1.md:44：签发不建立数据库和 state 目录，不授予交易
+
+- 出处：代码事实 production_session.rs:118,195,321-322；admission_anchor.rs:1327-1342；runbook:35/40/58；ADR 0050:44、:48（owner 保留 db/state_dir 两字段）。
+- 推理链：[代码事实] launcher `state_dir` 只在 s.db 不存在时、S init 之前写一个文件，之后不再触碰；S 的 A 来自 owner 原件 `state_dir`，且 CLI `--admission-job-limits` 必须恰等于 `A/s-admission/limits.json`，故 A 可由 manifest `s.admission_job_limits` 上两级目录推出。[新缠论:推论] launcher `state_dir` 的唯一写发生在 S 打开窗口之前，不与测量并发，即使等于 P 或 A 也只会成为稳定成员；故不进拒绝规则。runbook 两处 `<state>`/`state` 与 manifest 顶层 `state_dir` 同名异物，是文档歧义。
+- 默认值：不比较 launcher `state_dir`（草稿规则 4）；A 按 `canon(parent(parent(s.admission_job_limits)))` 推出；runbook :40、:58 改写为「admission state 目录（owner 原件 `state_dir`，非 manifest 顶层 `state_dir`）」并给分目录示例。
+- 冲突：runbook:40/:58 的 `<state>`/`state` 与 runbook:35 manifest 顶层 `state_dir` 同名异物；代码两者无关（launcher 的在 production_session.rs，S 的在 admission_anchor.rs）。文档歧义，待验收第 9 条订正。
+
+## Q4 [B] `s.socket` 路径是否纳入布局拒绝规则
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | "s.socket" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"s.socket" in:title,body,comments'` | 1 |
+| tracker | production_session socket | `gh issue list -R xy7365527-lang/NewChanlun --state all --search 'production_session socket in:title,body,comments'` | 1 |
+| repo | socket 时序（代码） | `grep -n 'unlink\|bind(' rust/src/session_transport.rs; grep -n 'fn socket_path\|socket路径已占用\|serve_unix' rust/src/bin/s_session_v3/writer_cli.rs` | 6 |
+| repo | socket | `rg -n 'socket' docs/runbook_production_session.md docs/adr/0050-s-resource-admission-contract-v1.md` | 2 |
+
+命中：
+- rust/src/bin/s_session_v3/writer_cli.rs:340-361：socket 路径门：非空且不超过旧启动器的 100 字节上限；本命令不 bind，只核参数。 ... Ok(_) => return Err("TransportUnavailable：socket路径已占用".into())
+- rust/src/bin/s_session_v3/writer_cli.rs:725-765 → 802：Driver::open_for_serve_with_identity(... admission.into()) ... 之后 serve_unix(&options.socket, ...)
+- rust/src/session_transport.rs:634-635：// 不擅自unlink既有socket：SIGKILL残留由监督器核路径/PID后清理。 let listener = UnixListener::bind(socket)
+
+- 出处：代码事实 writer_cli.rs:340-361（参数期检查）、:393、:725-802（open 先于 bind）；session_transport.rs:634-635。
+- 推理链：[代码事实] S serve 在解析参数时已要求 socket 路径不存在（symlink_metadata 命中即 TransportUnavailable），这发生在 admission 打开之前；bind 在 driver open 之后；运行期目录只核身份。[新缠论:推论] 新跑时测量窗口内 socket 不存在、打开后建 socket 不触发运行期核验；残留 socket 由 writer_cli:359 确定性拒绝，不是竞态，也轮不到 admission walk 报 SourceTypeUnsupported。socket 不构成「并发写域落入 M」，不立规则。
+- 默认值：不比较 `s.socket`（草稿规则 5），但把 resolution 里「残留时 walk 报 SourceTypeUnsupported(:279)」改为「S 以 TransportUnavailable：socket路径已占用（writer_cli.rs:359）在打开前确定性拒绝」；清理仍归监督器与 #1527 生命周期。
+- 冲突：40N archaeology Q4 称残留 socket 会在 walk 报 SourceTypeUnsupported；代码顺序是 writer_cli.rs:340-361 参数门先于 admission 打开，残留 socket 先以 TransportUnavailable 拒绝。结论（不立规则）不变，叙述须订正。
+
+## Q5 [B] L-2：launcher 的 immutable=1 只读预检是否改为 S `serve --structure-source` 自核
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | "immutable=1" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"immutable=1" in:title,body,comments'` | 3 |
+| repo | immutable=1\|immutable 预检\|自核 | `rg -n 'immutable=1\|immutable 预检\|自核' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md analysis` | 0 |
+| repo | immutable（代码） | `grep -n 'immutable' rust/src/bin/production_session.rs` | 4 |
+
+命中：
+- /Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1773-INDEPENDENT-REVIEW-6C6E.md:88：L-2 | launcher 以 immutable 读 S 库做一致性预检；在残留外来写者场景下只会误拒不会误放，但 launcher 打开域库本身与模块意图不贴
+- rust/src/bin/production_session.rs:204-207：以 `immutable=1` 只读打开：不取锁、不建 `-shm`/`-wal` ... 判「不带声明」拒绝，不会放行错误声明。
+- docs/runbook_production_session.md:26：launcher 不打开任何域的写连接；各域进程自行持锁与 epoch。
+
+- 出处：先例 PR #1773 独审 L-2（:88）；现状 production_session.rs:204-241；runbook:26 只禁写连接。
+- 推理链：[代码事实] 预检只读、不建侧件，失败方向单一（误拒不误放）。[新缠论:推论] 改为 S 自核需改 S v3 writer CLI 接口（新增 `serve --structure-source`），超出本票「布局合同」范围且不改变本票任何判据；按 L-2 自身「后续、非本 PR 必需」。
+- 默认值：只在 resolution 记录取舍：「immutable 预检最多误拒不误放；改 S 自核需改 S v3 writer CLI，另开票」，不改实现（草稿验收第 10 条）。
+
+## Q6 [A] 布局拒绝是否做成 manifest 可调字段（允许放行冲突布局）
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | "可调字段" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"可调字段" in:title,body,comments'` | 10 |
+| tracker | "宽严两档" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"宽严两档" in:title,body,comments'` | 10 |
+| repo | 宽严两档 | `rg -n '宽严两档' docs/adr .chanlun/definitions CONTEXT.md docs/agents` | 28 |
+| repo | 自由度通则 | `grep -n '自由度\\|判别句' docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md` | 6 |
+
+命中：
+- docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md:11：同一判断的松紧两个版本不是自由度，事前单选也不得落为可调字段。
+- docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md:13：判别句：先问候选是不是同一判断的两套松紧判据（两档实现；同一判据取不同参数值不算）——是 ⟹ #799 管辖，不是自由度，不得做成可调字段（哪怕事前单选）。
+- CONTEXT.md:393：_Avoid_: 「配置开关」「运行时切换」——运行中改值是 #799 所禁的失败兜底；同一判断的宽严两档本身不是自由度
+
+- 出处：ADR 0041:11,13（正本层）；CONTEXT.md:393；#799 收敛通则（AGENTS.md §收敛通则）。
+- 推理链：[新缠论:推论，援引 ADR 0041 判别句现场重过] 「放行冲突布局」不是另一取值，而是同一「并发写域是否落入 M」判断的宽松版：放行后 S admission 仍按严格版拒绝，只是从确定性拒绝变为间歇失败。两档实现 ⟹ #799 管辖 ⟹ 不得落为可调字段。
+- 推荐值：不设字段；resolution 引 ADR 0041:13 判别句一句话说明。
+
+## Q7 [A] 本票分级 T 还是 P；授权引用是否成立
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | N-1 预授权 | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search 'N-1 预授权 in:title,body,comments'` | 10 |
+| tracker | #1323 Notes N-1 | `gh issue view 1323 -R xy7365527-lang/NewChanlun --json body --jq .body \| grep -n 'N-1'` | 5 |
+| repo | T 类\|P 类 | `grep -n 'T 类\\|P 类' .sandcastle/docs/graph-engineering.md` | 8 |
+
+命中：
+- .sandcastle/docs/graph-engineering.md:23：T 类（技术取舍）：数据结构、接口与 seam、owner 落点、状态机与事件 schema、测试锁、迁移步骤、恢复语义。有权威源或本仓判例可援引。→ 自动裁决。
+- .sandcastle/docs/graph-engineering.md:24：P 类（政策）：资金与费用参数…、真实场所/账户/权限、关图与 #1279 去向、Destination 改写、产品 taste、本仓无先例的新取舍。
+- #1323 body:74：N-1 技术类决策预授权（2026-10-19 记录…）：T 类 grilling 票经代理起草+独审通过即裁定，P 类影子待批；判定时 resolution 首行引本条。
+
+- 出处：graph-engineering.md:23-24；#1323 Notes N-1（body:74）。
+- 推理链：[代码事实/正本] 本票裁 launcher 启动前校验（接口与 seam、恢复语义），有 M-2 与 launcher InvalidDomain 判例可援引，不涉资金、隔离放宽、场所、Destination；Q1 的 B 类先例成立，Q6 有正本层通则。无 research/probe 缺口（见各点）。
+- 推荐值：T 类，resolution 首行「本条依 #1323 Notes N-1 预授权判定」。
+
+## Q8 [B] 路径比较语义：是否解析符号链接、尚不存在的库目录如何取 canon、为什么 launcher 侧用 canon 而 S 侧原样比较
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | symlink production_session | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search 'symlink production_session in:title,body,comments'` | 1 |
+| tracker | canonicalize launcher | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search 'canonicalize launcher in:title,body,comments'` | 0 |
+| repo | canonicalize（S 代码） | `grep -n 'canonicalize' rust/src/bin/s_session_v3/*.rs rust/src/bin/production_session.rs` | 10 |
+| repo | canonical\|符号链接\|symlink | `rg -n 'canonical\|符号链接\|symlink' docs/adr .chanlun/definitions CONTEXT.md docs/agents docs/runbook_production_session.md` | 97 |
+
+命中：
+- rust/src/bin/s_session_v3/admission_anchor.rs:1294：std::fs::canonicalize(db).map_err(|_| prelude.error(ErrorKind::Identity, Stage::E0))?;
+- rust/src/bin/s_session_v3/admission_anchor.rs:226：R4 producer 写入已解析绝对路径；不把另一份声明 canonicalize 成合法 authority。
+- rust/src/bin/s_session_v3/cross_request_source_cache.rs:2240-2243：assert_eq!(owner.canonicalize().unwrap(), owner, "owner不得经symlink"); assert_eq!(db.canonicalize().unwrap(), db, "DB不得经symlink");
+- rust/src/bin/s_session_v3/admission_provider.rs:265：let m = std::fs::symlink_metadata(path)
+- rust/tests/production_session_entry.rs:71-72：fn path(&self, name: &str) -> PathBuf { self.0.path().canonicalize().unwrap().join(name) }
+
+- 出处：代码先例：S 对 db 做 canonicalize（anchor:1294）、owner/db 不得经 symlink（cross_request_source_cache.rs:2240-2243）、walk 用 symlink_metadata 不跟随；夹具 path() 已 canonicalize（production_session_entry.rs:71）。无正本层裁定。
+- 推理链：[代码事实] S 的 P 是 canonicalize(db) 的父目录，M 内条目用 symlink_metadata 枚举（符号链接成员本身即 SourceTypeUnsupported）。[新缠论:推论] 冲突的物理判据是 E/B/X 的写落在同一真实目录，所以 launcher 须把 parent(d) 解析到真实路径再与 canon(P)/canon(A) 比，否则 `/alias→P` 可绕过；尚不存在的目录没有 inode，取最近存在祖先的 canon 再接剩余段，是对「将来 create_dir_all 后真实位置」的唯一确定推断。两侧语义不同但 launcher 侧是超集，只多拒不多放，与 L-2 同一方向。
+- 默认值：采用草稿定义：canon = 解析符号链接后的绝对路径；不存在时取最近存在祖先的 canon 接剩余段；验收第 5、6 条保留。
+
+## Q9 [B] 验收落点与正控夹具：测试文件、CI job、以及「各自独立目录」正控与 #1769 原八项夹具布局是否一致
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | production_session_entry | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search 'production_session_entry in:title,body,comments'` | 1 |
+| tracker | "原八项" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"原八项" in:title,body,comments'` | 3 |
+| repo | rust-test-production-session | `grep -rn 'rust-test-production-session\\|production_session_entry' .github/workflows/ci.yml` | 3 |
+| repo | 夹具布局 | `sed -n 60,82p rust/tests/production_session_entry.rs; sed -n 192,226p rust/tests/production_session_entry.rs; sed -n 336,360p rust/tests/production_session_entry.rs` | 3 |
+
+命中：
+- .github/workflows/ci.yml:500,517,523：rust-test-production-session: ... cargo test --release --locked --features production_session_testonly --test production_session_entry ... 与 --features production_session --test production_session_entry（纯生产构建）
+- rust/tests/production_session_entry.rs:73-78：S 库独占子目录：S admission 固定并核对库所在目录本身的身份（含 mtime），与 E/B/X 同目录时它们并发建文件会使 S 以 SourceIdentityChanged 拒启。 fn s_db ... dir = self.path("s") ... dir.join("s.db")
+- rust/tests/production_session_entry.rs:194-195：let state = db.parent().unwrap().join("s-state"); let published = state.join("s-admission");
+- rust/tests/production_session_entry.rs:347-357："state_dir":space.path("launcher-state") ... "e":{"db":space.path("e.db")} ... "b":[{"db":space.path("b.db")}] ... "x":{"db":space.path("x.db")}
+
+- 出处：ci.yml:500-523；production_session_entry.rs:60-82,192-226,336-360；commit 9de18e606b「verify original eight acceptance cases on signed S configuration」。
+- 推理链：[代码事实] 现行夹具布局是 P=`<tmp>/s`、A=`<tmp>/s/s-state`（A 在 P 之下）、E/B/X 库在 `<tmp>`（P 的父目录）、launcher state_dir=`<tmp>/launcher-state`、socket=`<tmp>/s.sock`。[新缠论:推论] 该布局按 Q2 规则放行（Q=P 的祖先，不在 M 内；A⊂P 无并发写者），是规则 6 与「A 嵌套于 P」的正控，但不是草稿验收 7 所述「S、A、E、B、X 各自独立目录」。两条 CI step 都跑同一测试文件，新测试名在两处逐行 ok 可二值判定。
+- 默认值：验收 7 拆成两条：`layout_accepts_original_fixture_layout`（A⊂P、E/B/X 在 P 父目录，即原八项夹具）与 `layout_accepts_separate_directories`（五者全部独立）；二值判据改为「两条 cargo test step 日志均逐行 ok」。
+- 冲突：草稿验收第 7 条把原八项夹具描述为「各自独立目录」，与 production_session_entry.rs:194（A=P/s-state 嵌套于 P）、:347-357（E/B/X 在 P 父目录）不符。
+
+## Q10 [B] runbook `<state>` 歧义订正范围与分目录示例
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | runbook_production_session | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search 'runbook_production_session in:title,body,comments'` | 2 |
+| repo | <state>\|state/s-admission | `rg -n '<state>\|state/s-admission\|launcher-state' docs/runbook_production_session.md` | 3 |
+
+命中：
+- docs/runbook_production_session.md:40："admission_job_limits": "<state>/s-admission/limits.json"
+- docs/runbook_production_session.md:53：S 库不存在：launcher 以 `init ... --structure-source <state_dir>/structure-source.json` 建库
+- docs/runbook_production_session.md:58：S `serve` 需要 admission 锚（`<db>.control-owner.json` + `state/s-admission/{limits,binding}.json`）。
+- docs/runbook_production_session.md:21-24：| S | ... | `s.db` | `<db>.writer.lock` | ... | E | ... | `economic.e.db` | 同上 |（未对各域库目录关系作要求）
+
+- 出处：runbook:35,40,53,58 与 Q3 代码事实。
+- 推理链：[代码事实] :53 的 `<state_dir>` 指 manifest 顶层字段，:40/:58 的 `<state>`/`state` 指 owner 原件 `state_dir`（A）；同文内同名异物。[新缠论:推论] 布局合同落 runbook 需同时写 M 三部分、拒绝规则、两种 state 的区分及一份分目录示例，否则运维仍可能照 :35-44 示例把 E/B/X 放进 P。
+- 默认值：验收第 9 条保留：订正 :40、:58 为「admission state 目录 A（owner 原件 state_dir）」，:53 标注「launcher 自身 state_dir」，并给出 `s/`、`s-state/`、`e/`、`b/`、`x/` 的分目录示例。
+
+## Q11 [B] 图归属与实施时序：本票挂 #1340 并 blocks #1781 是否成立；「#1781 实施排在 FU-16 合入之后」是否仍是事实
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | "FU-16" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"FU-16" in:title,body,comments'` | 10 |
+| tracker | #1538 state / #1769 state | `gh issue view 1538 -R xy7365527-lang/NewChanlun --json state,comments --jq '.state,(.comments[-1].body[:300])'; gh issue view 1769 -R xy7365527-lang/NewChanlun --json state,title` | 2 |
+| tracker | "ADR 0056" | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 20 --search '"ADR 0056" in:title,body,comments'` | 14 |
+| repo | DEFAULT_MAPS / claimer 扫描范围 | `grep -n '1323\\|1340' .sandcastle/decision-claimer.mts; sed -n 1486,1491p .sandcastle/decision-claimer.mts` | 5 |
+| repo | ADR 0056 §五.2 | `sed -n 50,56p docs/adr/0056-three-mode-shared-core-adapter-boundary.md` | 1 |
+
+命中：
+- #1538 关票评论：关票声明：resolution=af15e1a9…（正本 `docs/adr/0056-three-mode-shared-core-adapter-boundary.md`，PR #1796 squash）…mergedAt 2026-10-29T01:52:20Z），均已并入 main
+- .sandcastle/decision-claimer.mts:36：export const DEFAULT_MAPS = [1323, 1340];
+- .sandcastle/decision-claimer.mts:1486-1489：.filter((c) => (c.labels ?? []).some((l) => l.name === "wayfinder:grilling")) ... .filter((c) => (c.issue_dependencies_summary?.blocked_by ?? 0) === 0)
+- docs/adr/0056-three-mode-shared-core-adapter-boundary.md:53：`production_session` 遇到 `TestOnly` 时钟，或时钟 kind 与 `evidence_class` 不符，在拉起任何域之前以 `InvalidDomain` 退出。
+- #1818 评论（40P 订正）：已核现役 decision-claimer 只扫描 #1323/#1340 的直接子票，嵌套在 #1781 会不可见。#1340 有空余且已有 grilling 子票先例，因此本票改挂 #1340，仍在 #1323 原图，保留 #1781 blocked_by #1818。
+- gh issue view 1769：OPEN [impl] #1523-L production_session 与 x_execution_session 可运行骨架（ADR 0039 迁移步骤 1）
+
+- 出处：decision-claimer.mts:36,1486-1491；#1818 两条 40P 评论；#1538 关票评论（ADR 0056 已入 main 2026-10-29）；#1769 OPEN 且已 blocks #1781。
+- 推理链：[代码事实] claimer 只扫 DEFAULT_MAPS=[1323,1340] 直接子票中无 assignee、无 blocker 的 grilling 票，挂 #1340 可见、blocks #1781 不影响本票被拾取。[代码事实] FU-16（#1538）决策已关并入 main；ADR 0056 §五.2 要求在 load_manifest 同一位置加时钟 InvalidDomain 检查，该实施尚未落 production_session.rs（grep 无 clock kind 检查），归 #1769/#1523 实施线。[新缠论:推论] 草稿「排在 FU-16 合入之后」指的是这段实施而非决策，措辞已过期；既有边 #1769 → #1781 已表达该顺序，不需新边。
+- 默认值：维持挂 #1340、blocks #1781；resolution 把「FU-16 合入之后」改写为「#1769（含 ADR 0056 §五.2 的 load_manifest 改动）合入之后，既有边，不加新边」。
+- 冲突：草稿「#1781 实施排在 FU-16 合入之后」与 #1538 已于 2026-10-29 关票并入 main 的事实不符；真实依赖是实施线 #1769。
+
+## Q12 [C] launcher 推导 A 时是否同时校验 `s.admission_job_limits` 必须以 `s-admission/limits.json` 结尾
+
+| 路 | 查询词 | 命令 | 命中数 |
+|---|---|---|---|
+| tracker | admission_job_limits | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search 'admission_job_limits in:title,body,comments'` | 1 |
+| tracker | "limits.json" launcher | `gh issue list -R xy7365527-lang/NewChanlun --state all --limit 30 --search '"limits.json" launcher in:title,body,comments'` | 2 |
+| repo | LIMITS_NAME\|PUBLISHED | `grep -n 'LIMITS_NAME\\|PUBLISHED\\|LIMITS_FLAG' rust/src/bin/s_session_v3/admission_anchor.rs \| head` | 8 |
+| repo | admission_job_limits | `rg -n 'admission_job_limits' rust/src/bin/production_session.rs docs/runbook_production_session.md` | 3 |
+
+命中：
+- rust/src/bin/s_session_v3/admission_anchor.rs:1336-1342：let expected_path = state_path.join(PUBLISHED).join(LIMITS_NAME); if ... || cli_path != expected_path { return Err(prelude.error(ErrorKind::Identity, Stage::E1)); }
+- rust/src/bin/production_session.rs:156："s.admission_job_limits",（load_manifest 只要求字段存在为字符串）
+
+- 推荐值：不加后缀校验。推导：S 在 E1 以 Identity 确定性拒绝任何不等于 `A/s-admission/limits.json` 的 CLI 路径（anchor:1336-1342），不是竞态，launcher 重复校验不增加保护；launcher 无条件取上两级目录为 A 参与布局判定，后缀不合时 S 随后拒启，launcher 至多误拒不误放。规则 1 补一句「A 的推导不检查后缀，后缀合法性由 S E1 核验」即可。
+- 已搜关键词：admission_job_limits、limits.json、LIMITS_NAME、s-admission
+- 缺口去向：交用户决定
+
+## 机械校验
+
+通过。
