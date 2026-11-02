@@ -84,6 +84,7 @@ JSON真实载荷析构归还原许可
 K1恢复只接受Native游标线形
 Key 全部 Plain 文本及 Proof Vec 新块须先计入同父域
 K物理live恰好计一次
+M8B 差分父账不应失效
 Missing 不伪造首读起钟
 MissingDependency：Q3CaptureInvalid：x
 MissingDependency：R4
@@ -199,6 +200,7 @@ SQL/行序/列名/非空scope/完整cell字节均须相同
 SQL与暂存同摘要异原件
 SQL增量账与全量oracle
 SQL文本实际复制失败必须保留来源
+SQL读回不应破坏父账
 STAGED_NODES_OUTPUT
 S_AUDIT_COST_DB
 S_AUDIT_COST_EXPECT_GENERATION
@@ -350,6 +352,7 @@ detail 递归整数投影
 discard不改K的live
 each candidate仍完整fresh Public核验
 edits buffer 仍存活
+effects fixture 原件必须存在
 effects闭合仍非COMMIT
 empty节点body错误
 epoch 2 别名接纳不能先于 epoch 1 推进消息的接纳
@@ -660,6 +663,7 @@ writer/recover闭合后无SHM
 具名版本不得全局过滤同价原因
 兼容anchor仅接无scope值
 内容 Commit 已完成，不能伪称回滚
+内容库生涯已变化
 内容边闭包可核
 内层 Ledger 须并入外层
 内层已消费的旧池不得复活
@@ -958,6 +962,7 @@ writer/recover闭合后无SHM
 崩溃现场重开
 嵌套数组顺序
 工作域元数据 M 与独立布局推导不符
+差分父账不应失效
 已从allowance扣除旧池，不在新父账再次seed
 已保留的确认证书必须仍有同源 confirms 关系
 已分配裸块不得在生产入口绑票
@@ -1247,6 +1252,7 @@ writer/recover闭合后无SHM
 末次关闭须已检查点
 末次托管看见提交
 末窗口应可判
+本事务行不应缺失
 本代 upsert 必须是完整活动集的真子集
 本代见证必须是完整见证集的真子集
 本副本全部来源原料已超过原S7余量；本轮无逐cut独立proof闭包，不能猜测可接纳数量
@@ -1762,6 +1768,7 @@ writer/recover闭合后无SHM
 首代车道坐标
 首根 W 未定原件
 首次分区：K的L0≠静止点读数，必须拒绝
+首次可达正文
 首次底层读取耗时必须在job绝对期限内
 首次节点写失败
 首次读取不能为第二次续期

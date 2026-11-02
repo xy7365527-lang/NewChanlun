@@ -43,9 +43,45 @@ pub mod json_writer;
 pub mod raw_materials;
 mod ref_owner;
 pub mod sqlite_audit;
-// #1419 M8A：先在当前累计 capture 上对拍接口；生产调用与原件持有保持原样。
-#[cfg(all(test, feature = "s_incremental"))]
+// #1419 M8A/M8B：capture 包装与 SQL 受管回读只接测试，生产调用与原件持有保持原样。
+#[cfg(any(
+    all(test, feature = "s_incremental"),
+    feature = "s_capture_native_testonly"
+))]
 mod step_reader;
+
+/// #1419 M8B：仅现有 Native TestOnly 特性下向 bin 差分锁开放借用回调。
+/// 回调不能移出 SQL 正文或租约；普通生产特性不编译此接缝。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+pub mod m8b_testonly {
+    use super::*;
+
+    pub fn sql_reads_on_thread() -> u64 {
+        step_reader::managed_sql::sql_reads_on_thread()
+    }
+
+    pub fn with_sql_frame<T>(
+        tx: &mut rusqlite::Transaction<'_>,
+        work: &capture_allocation::scratch::WorkScope,
+        sample: &dyn Fn() -> Result<(), CodecError>,
+        digest: &NodeDigest,
+        f: impl FnOnce(u8, &[u8]) -> T,
+    ) -> Result<Option<T>, CodecError> {
+        step_reader::managed_sql::with_sql_frame(tx, work, sample, digest, f)
+    }
+
+    pub fn with_sql_root<T>(
+        tx: &mut rusqlite::Transaction<'_>,
+        work: &capture_allocation::scratch::WorkScope,
+        sample: &dyn Fn() -> Result<(), CodecError>,
+        reference: RefView<'_>,
+        mode: Mode,
+        f: impl FnOnce(u8, &[u8]) -> T,
+    ) -> Result<T, CodecError> {
+        step_reader::managed_sql::with_sql_root(tx, work, sample, reference, mode, f)
+    }
+}
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkBudget, WorkMap, WorkSet, WorkVec};
 use closed::CodecContext;

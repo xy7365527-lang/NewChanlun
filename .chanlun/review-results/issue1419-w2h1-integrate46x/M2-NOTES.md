@@ -2094,3 +2094,21 @@ M7D §7 已据此收敛 §4 的首拒归因，并给出 i 的 `2Q=3693600 B + D_
 - 非作者独立进程只读评审最终 PASS，范围限本片静态设计、接口与对拍锁；已核非空 STRING 40 字节加 SEQ_EMPTY 的真实 backing、角色额 `(2,234)`、旧/新 origin 同父释放、首错原样传播与资源桥、借用寿命、未证明项及 CI 自然覆盖。评审本机也实际执行格式、禁串与差异检查，未运行 cargo/rustc。该 PASS 不替代 CI 编译、7 锁执行或原完整验收。
 
 本阶段 status=ready 仅指片 1 交付可供 CI 与下游验收；方案 ii 的 SQL 受管回读、持有者/证书迁移、回收和冷恢复均未启用。**Rust 未验证，待 CI。**
+
+## M8B
+
+本节绑定 #1419 受管阶段 M8B，开工基线 `sandcastle/issue-1419@30770b7cd11e91716a939f7d5a6e4803b1d1b5bb`，按本轮用户指令推进方案 ii 第 2 片受管同事务读回及首片独审四项必修。完整封包见 [M8B-SLICE2.md](M8B-SLICE2.md)，含原合同回查、异父工作域撤销结论、八项证明进度、生产差异和 CI 运行门。本片不启用淘汰/回收，第 4 片继续等待八项逐项具备字节与生命周期证据。
+
+本追加明确取代 M8A-SLICE1 §5 及上节“两条独立臂”的四个 pair 锁说明，原记录逐字保留。`direct()` 与新接口复制同一核调用序列，准确名称为“包装透明锁”，它们继续保留；真实生产差分另比 effects 的 append+verify_owner_refview、CaptureReader/read_scoped_checked 和 content_store TxStore scoped 路径。
+
+异父语义按现核位置分开：基线 `s_content.rs:3955-3956` 与 `closed.rs:776-795` 只核本 WorkScope 健康，未比较 capture 旧正文父身份，健康 foreign 父在旧核中可能成功。`verify_owner_refview` 内任何实际 Err 仍由 `s_content.rs:3998-3999` revoke；append 移交同父失败仍由 `:3525-3530` revoke。新封闭描述符在入核前绑定错域只拒本次绑定，不能把 M8A 全表扫描失败后新增 revoke 当作旧核合同。逐字引文及 #1481/#1488/#1644 本轮查询收据见 M8B-SLICE2 §2。
+
+八项目前仍未闭合。① 已由源码坐实 HashSet/owner AVL 新成功键随全史累积，AVL 只改善单次索引路径；本步 AuditMemo 另随当次闭包增大。⑥ 基线 native_body_reserved 在 Rust Vec 复制前 reserve，不能覆盖更早发生的 SQLite statement/step/blob/页缓存。M8B 的 adapter 局部许可收据与 SQLite 内部归属须分开，页缓存与生产总峰仍未证明；其余 Counts、缓存、组/成员、多路 edits、生产栈及冷折叠义务保持，绝不签有界。
+
+主控实际检查：7 份变更 Rust 文件的 `rustfmt --edition 2021 --config skip_children=true --check` 退出 0；禁串生成器同步输出 count=1774，随后 `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check` 退出 0；`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py` 退出 0，3 项通过；`PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/check-prod-no-test-hooks.py` 退出 0，violations=0；`git diff --check` 退出 0。5 份新文件空白核对、M2 历史前缀和生产 cfg 接缝外逐字核对均通过，暂存区为空。本机未执行 cargo/rustc，Rust 未验证，待 CI。未 git add/commit，未回退其他代理改动。
+
+交付为独占 `&mut Transaction` 的本步受管 descriptor、实际 SQL→原单位核→自持租约及 16 条新增锁；完整模块前缀和 CI 步骤见 M8B-SLICE2 §5。新锁自然进入现有 `test-feature-delta.sh s_capture_native_testonly` 的 lib/bin 差集，不改 CI。真实生产读者差分已明列物理变化：冷三节点 STRING 旧 F=10 / SQL节点读=3 / capture读=4，新 F=5 / SQL节点读=5 / capture读=0，数值仍是待 CI 的断言；新身份与 metadata 查询、旧保留正文/索引/成功树和新临时租约的事件分账另列。没有将语义对拍当作观测逐位不变，生产调用点留第 3 片；页缓存归属及八项完整证明继续开放。
+
+本节追加前笔记 256960 字节，SHA-256 `b6b3603ca114b2c5b3c018b1cb3e27b24b8ee228680fe5246e0b978a8752b86b`；前文保留为历史记录。C/D g23、E/F g26 原失败与原完整验收义务不变。
+
+封包非作者独立静态评审 PASS，无剩余 BLOCK；报告 `/private/tmp/issue1419-m8b-independent-review.md`，SHA-256 `b2b56e2ac069c8b657b0c09e0dec24f7f44f8347679fec8643726e1ae61596e0`。主控已全文读回并核报告七份 Rust 哈希与最终源码一致，评审后仅追加本收据。该 PASS 限测试后端及静态核查，Rust 编译/16 锁执行、warnings、原完整验收均待 CI；八项证明与第 4 片门仍开放。

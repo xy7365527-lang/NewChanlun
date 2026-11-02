@@ -3273,6 +3273,9 @@ mod capture_allocation_tests {
     }
 }
 
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod m8b_production_diff;
+
 // #1394 编译负例：闭包在两遍间写同事务的旧调用必须被类型边界拒绝。
 // cargo rustc --release --features s_session --bin s_structure_session -- --test --cfg issue1394_capture_callback_refusal
 #[cfg(all(test, issue1394_capture_callback_refusal))]

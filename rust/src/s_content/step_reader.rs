@@ -1,24 +1,31 @@
 //! #1419 M8A 首片：当前不可变 capture 的私有本步读取接口。
 //!
 //! 调用者以完整引用和 Mode 取一份根租约；内部 Flavor 仍由原 Verifier 推导。
-//! 本片只在测试中接现有后端，不提供 SQL adapter、淘汰或跨请求能力。
+//! M8B 增加同事务受管 SQL 后端；仍不提供淘汰或跨请求能力。
 //! capture 借用仍会 pin 全部原件；这不是有界持有已经完成的声明。
 use super::*;
 use capture_allocation::scratch::WorkScope;
 
+pub(super) mod managed_sql;
+#[cfg(test)]
+mod production_diff;
+
 /// 同一个不可变 owner 与同一活动工作域是本片的封闭读取域。
 /// 这里只借用，不复制父账、origin 或生涯能力；不冒充尚未实现的 SQL 事务身份。
+#[cfg(test)]
 struct CaptureStep<'step> {
     capture: &'step AuditCapture,
     work: &'step WorkScope,
 }
 
+#[cfg(test)]
 struct StepReader<'step> {
     backend: CaptureStep<'step>,
 }
 
 /// 不提供 Clone、into_body 或跨步句柄。正文的可见借用受租约限制，
 /// 租约又独占借用 reader；退出当前帧即结束借用，不销毁 capture backing。
+#[cfg(test)]
 struct ReadLease<'lease> {
     reference: RefView<'lease>,
     flavor: Flavor,
@@ -27,11 +34,12 @@ struct ReadLease<'lease> {
     body: VerifierBody<'lease>,
 }
 
+#[cfg(test)]
 impl<'step> StepReader<'step> {
     fn new(capture: &'step AuditCapture, work: &'step WorkScope) -> Result<Self, CodecError> {
-        // 本片累计后端尚无封闭存储描述符，逐一核真实已有许可的父身份。
-        // 只比父身份，不能要求旧正文许可 origin 等于新请求 origin。
-        // 这是测试接缝的全表检查，不是未来有界 adapter 的实现或复杂度证明。
+        // 兼容首片包装锁：只核当前域与已存在的索引描述符，不再扫描全表。
+        // 索引许可不是全部正文同父的证明；此借用后端仍 pin 原 capture。
+        // 新 SQL 域由 managed_sql 的封闭 Transaction/父账描述符签发。
         let result = (|| {
             work.check_current()?;
             let CaptureNodes::Native(native) = &capture.nodes else {
@@ -41,9 +49,6 @@ impl<'step> StepReader<'step> {
                 .index_permit
                 .as_ref()
                 .is_some_and(|p| !p.belongs_to_parent(work))
-                || native.nodes.values().any(|node| {
-                    node.body.is_native_bound() && !node.body.native_belongs_to_work(work)
-                })
             {
                 return Err(work.reject(capture_allocation::scratch::ScratchFailure::Ledger));
             }
@@ -51,9 +56,7 @@ impl<'step> StepReader<'step> {
                 backend: CaptureStep { capture, work },
             })
         })();
-        if result.is_err() {
-            capture.owner_codec.borrow_mut().revoke();
-        }
+        // 域描述符拒绝尚未进入 owner 核，不能增添撤销成功资格的语义。
         result
     }
 
@@ -197,8 +200,8 @@ mod tests {
             body: lease.body.to_vec(),
         }
     }
-    /// 独立旧路径：没有 StepReader/ReadLease，顺序是原请求验证后读实际根正文。
-    fn direct(
+    /// 包装透明基线：与接口同核同序列，不是独立生产路径差分。
+    fn wrapper_baseline(
         capture: &AuditCapture,
         work: &WorkScope,
         reference: RefView<'_>,
@@ -273,7 +276,7 @@ mod tests {
                 } else {
                     set_fault(&parent, fault);
                     for (reference, mode) in references {
-                        let result = direct(&capture, scope, reference.into(), *mode);
+                        let result = wrapper_baseline(&capture, scope, reference.into(), *mode);
                         if let Some(bridge) = record(&result) {
                             bridges.push(bridge);
                         }
@@ -429,7 +432,7 @@ mod tests {
                             .read_checked((&root).into(), Mode::Public)
                             .map(output)
                     } else {
-                        direct(&capture, scope, (&root).into(), Mode::Public)
+                        wrapper_baseline(&capture, scope, (&root).into(), Mode::Public)
                     }
                 })
                 .unwrap();
@@ -446,10 +449,17 @@ mod tests {
     }
 
     #[test]
-    fn m8a_step_reader_foreign_parent_rejects_and_keeps_original_permits() {
+    fn m8a_step_reader_foreign_descriptor_rejects_request_without_revoking_owner() {
         let original = Parent::new();
         let foreign = Parent::new();
-        let (capture, _) = managed(&original, tag::BOOL_TRUE, b"");
+        let (capture, digest) = managed(&original, tag::BOOL_TRUE, b"");
+        let root = ContentRef::new(Kind::Bool, &digest, None);
+        CodecWork::new(original.clone(), 32 << 20)
+            .unwrap()
+            .run(|scope| capture.verify_owner_refview((&root).into(), Mode::Public, scope))
+            .unwrap();
+        let success = capture.owner_codec_retained_bytes();
+        assert!(success > 0);
         let retained = original.live.load(Ordering::SeqCst);
         let result = CodecWork::new(foreign.clone(), 32 << 20)
             .unwrap()
@@ -460,9 +470,14 @@ mod tests {
                 ScratchFailure::Ledger
             ))
         ));
-        assert!(capture.owner_codec.borrow().revoked);
+        assert!(!capture.owner_codec.borrow().revoked);
+        assert_eq!(capture.owner_codec_retained_bytes(), success);
         assert_eq!(original.live.load(Ordering::SeqCst), retained);
         assert_eq!(foreign.live.load(Ordering::SeqCst), 0);
+        CodecWork::new(original.clone(), 32 << 20)
+            .unwrap()
+            .run(|scope| capture.verify_owner_refview((&root).into(), Mode::Public, scope))
+            .unwrap();
         drop(capture);
         assert_eq!(original.live.load(Ordering::SeqCst), 0);
     }
