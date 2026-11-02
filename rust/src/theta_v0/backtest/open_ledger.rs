@@ -1,14 +1,17 @@
 //! #571 typed ledger 在飞表：以 `(carrier, generation)` 标识 campaign 实例。
 //!
+//! #1635 第6项：本模块当前仅被自身测试消费，`backtest/mod.rs` 以 `#[cfg(test)]` 引入（#1608）。
+//! runner 尚未接线，待驱动票接线。接线票将本模块接入生产时，须同时撤掉该 `cfg(test)`。
+//!
 //! 结构层关闭事件只携 carrier；本模块按 generation 升序 drain 该 carrier 的全部 live
 //! campaign，各自结算为一条 [`TypedTrade`]。新开不会把旧 generation 假结算为 supersede。
 //!
 //! # drain 的有效域声明（#596 MED-1）
 //!
-//! **已验证**：drain 使 typed ledger 与**决策层** `StepTrace` 生命周期事件一一对应——每条
-//! `opened` 恰对一条 `TypedTrade`（wf8 BTC 双向 multiset join 795/795、失配 0/0，键
-//! `(entry_bar, level, source_index, dir)`；#571 报告 §9.3）。这是 L2（真实数据）等级的证据，
-//! 有效域 = 「typed ledger ↔ 决策层腿事件」这一条对应关系。
+//! **历史验证**：#571 报告 §9.3 记录 drain 使 typed ledger 与**决策层** `StepTrace` 生命周期事件
+//! 一一对应，每条 `opened` 恰对一条 `TypedTrade`（wf8 BTC 双向 multiset join 795/795、失配 0/0，键
+//! `(entry_bar, level, source_index, dir)`）。这是 L2（真实数据）等级的历史证据，
+//! 有效域 = 「typed ledger ↔ 决策层腿事件」这一条对应关系，不代表本模块当前已接入 runner。
 //!
 //! **未验证、且上述 join 结构上无法证伪**：typed ledger 与**执行层**腿数的对应。自 #571 起
 //! 同一 carrier 可并存 N 个 live generation，各自落一条 typed 行；而净额执行路径（`apply_order`
@@ -18,7 +21,7 @@
 //! 无论通过与否都不能证伪这一不等式。
 //!
 //! **下游约束**：凡把 typed ledger 行数/行级 `units` 当作执行层腿数或腿级持仓消费的读数，
-//! 都落在本模块已验证的有效域**之外**，需自带执行层证据。`LedgerOpen::units` 本身是 carrier 级
+//! 都落在上述历史验证的有效域**之外**，需自带执行层证据。`LedgerOpen::units` 本身是 carrier 级
 //! 目标快照而非实例级增量——其单份取用见 [`OpenTable::parent_units`]（#596 HIGH-1）。
 
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -132,7 +135,8 @@ impl<V> OpenTable<V> {
     }
 }
 
-/// 在飞表的只读实例视图（风控门 [`super::admission::k_theta_risk_gate`] 唯一消费方）。
+/// 在飞表的只读实例视图，预定唯一消费方为风控门 [`super::admission::k_theta_risk_gate`]。
+/// 当前仍待风控侧接线，本模块仅被自身测试消费（#1635 第6项）。
 ///
 /// #571 之前一个 carrier 至多一条 `LedgerOpen`，风控 `get(carrier)` 即得全部；改键后同
 /// carrier 可并存多 generation ⟹ 止损必须**逐实例**判（#570 探针 §3「风控止损」行：
