@@ -662,7 +662,7 @@ def register(state_root: Path, gateway: RepoGateway, *, ticket: int, run_id: str
     run = parse_unit_run_id(ticket, run_id)
     sha = parse_sha(base)
     if subprocess.run(["git", "-C", str(source_repo), "cat-file", "-e", f"{sha}^{{commit}}"],
-                      capture_output=True).returncode != 0:
+                      check=False, capture_output=True).returncode != 0:
         raise AdmissionRefused(f"本地没有基线 {sha}")
     if not gateway.commit_exists(sha):
         raise AdmissionRefused(f"远端没有基线 {sha}")
@@ -755,8 +755,9 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
     serve.add_argument("--private-key", type=Path, required=True)
     cutover = sub.add_parser("cutover", help="全局冻结排空证据；不执行生产切换")
-    cutover.add_argument("operation", choices=("snapshot", "verify", "record"))
+    cutover.add_argument("operation", choices=("snapshot", "pending", "audit-release", "verify", "record"))
     cutover.add_argument("--snapshot", type=Path)
+    cutover.add_argument("--request", type=Path, help="审计释放请求；只用于 audit-release")
     cutover.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
     cutover.add_argument("--private-key", type=Path)
     status = sub.add_parser("status", help="只读本机状态，不访问 GitHub")
@@ -807,6 +808,14 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
         if args.command == "cutover":
             snapshot_path = args.snapshot or args.state_root / "cutover-snapshot.json"
+            if args.operation == "pending":
+                from .audit_release import pending_releases
+                print(json.dumps(pending_releases(cutover_store), ensure_ascii=False, indent=2))
+                return 0
+            if args.operation == "audit-release" and args.request is None:
+                raise ValueError("audit-release 需要 --request 显式路径")
+            if args.operation != "audit-release" and args.request is not None:
+                raise ValueError("--request 只用于 audit-release")
             if args.operation == "snapshot":
                 snapshot = cutover_store.snapshot()
                 snapshot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -817,12 +826,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(str(snapshot_path))
                 return 0
             if args.private_key is None:
-                raise ValueError("cutover verify/record 需要 --private-key 显式路径")
+                raise ValueError("cutover verify/record/audit-release 需要 --private-key 显式路径")
         with _client(args) as client:
             gateway = RepoGateway(client)
             if args.command == "cutover":
                 data = json.loads(snapshot_path.read_text())
                 data["legacy_snapshot"] = tuple(LegacyProcess(**p) for p in data["legacy_snapshot"])
+                if args.operation == "audit-release":
+                    from .audit_release import audit_release
+                    record = audit_release(cutover_store, FrozenSnapshot(**data),
+                                           json.loads(args.request.read_text()), gateway)
+                    print(json.dumps(record, ensure_ascii=False, indent=2))
+                    return 0
                 head = subprocess.run(["git", "-C", str(source_repo), "rev-parse", "HEAD"], check=True,
                                       capture_output=True, text=True).stdout.strip()
                 with (cutover_store.drain_root / "admission.lock").open("a") as lock:

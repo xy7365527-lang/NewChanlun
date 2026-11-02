@@ -90,10 +90,13 @@ def test_terminal_phases_are_not_all_completed_events():
         worker_claims([{'ticket': 1, 'phase': 'invented', 'status': 'completed'}])
 
 
-def test_pid_reuse_is_not_the_snapshot_process(barrier):
+def test_pid_reuse_is_not_the_snapshot_process(barrier, legacy_inventory):
+    from pilot1742.cutover import legacy_processes
     store, snap, remote = barrier
     snap = replace(snap, legacy_snapshot=(LegacyProcess(123, 'old', 'main.mts'),))
-    assert store.verify(snap, remote, (LegacyProcess(123, 'new', 'main.mts'),), 'a' * 40)
+    legacy_inventory([(123, 1, '/usr/bin/unrelated', '/unrelated')])
+    assert legacy_processes() == ()
+    assert store.verify(snap, remote, legacy_processes(), 'a' * 40)
 
 
 def test_remote_barrier_reads_actions_and_variable_without_github_writes(monkeypatch):
@@ -260,7 +263,25 @@ def test_runbook_stops_healer_first_and_restores_it_last():
     healer_stop = output.index('launchctl bootout gui/')
     assert 'health-monitor' in output[healer_stop:].splitlines()[0]
     assert output.index('health-monitor') < output.index('cutover snapshot')
+    assert output.index('cd /') < output.index('cutover snapshot')
     assert output.rstrip().endswith('先恢复旧服务，最后恢复 health-monitor 自愈。')
+
+
+def test_runbook_drains_hotzone_and_shells_before_record_then_restores_on_rollback():
+    script = Path(__file__).resolve().parents[2] / 'cutover-runbook.sh'
+    output = subprocess.run(['bash', str(script)], capture_output=True, text=True, check=True).stdout
+    lines = output.splitlines()
+    hotzone_stop = next(i for i, line in enumerate(lines)
+                        if line.startswith('launchctl bootout ') and line.endswith('/com.newchanlun.arch-hotzone '))
+    verify = next(i for i, line in enumerate(lines) if ' cutover verify ' in line)
+    record = next(i for i, line in enumerate(lines) if ' cutover record ' in line)
+    bootstrap = next(i for i, line in enumerate(lines) if line.startswith('launchctl bootstrap '))
+    assert hotzone_stop < verify < record < bootstrap
+    assert '旧宿主内业务 shell 由其 owner 离开该目录或结束' in output
+    rollback = output.split('# 回退先让新执行器', 1)[1]
+    assert '回退恢复清单' in rollback and 'arch-hotzone' in rollback
+    assert rollback.index('arch-hotzone') < rollback.index('health-monitor')
+    assert 'arch-hotzone 是否重启由部署 owner 在 record 后决定' in output
 
 
 @pytest.mark.parametrize('field,value', [('open_claims', ''), ('v', True), ('drain_generation', True),
@@ -358,3 +379,132 @@ def test_merge_events_are_enforced_by_cutover_consumers(barrier, merge_lifecycle
     store.check_ticket(9999, record)
     with pytest.raises(CutoverError, match='after snapshot'):
         store.check_ticket(1481, record)
+
+
+@pytest.mark.parametrize('command,expected', [
+    ('/opt/homebrew/bin/node --import tsx /Volumes/AgentStorage/h1-managed43r/runner-s1d.mts', True),
+    ('./node_modules/.bin/tsx /Volumes/AgentStorage/h1-managed43r/runner-s1j.mts', True),
+    ('/usr/bin/perl /Volumes/AgentStorage/h1-managed43r/launch-s1d.pl', True),
+    ('/opt/homebrew/bin/node /Volumes/AgentStorage/h1-managed43r/runner.mts', True),
+    ('/opt/homebrew/bin/node /unrelated/runner-s1d.mts', False),
+    ('/opt/homebrew/bin/node /Volumes/AgentStorage/h1-managed43r/runner-s1d.mts.backup', False),
+    ('/usr/bin/grep /Volumes/AgentStorage/h1-managed43r/runner-s1d.mts', False),
+    ('/bin/echo /Volumes/AgentStorage/h1-managed43r/runner-s1d.mts', False),
+    ('/opt/homebrew/bin/node /Volumes/AgentStorage/h1-managed43r/S1D-RUNTIME.json', False),
+])
+def test_managed_legacy_processes_use_bounded_entrypoint_inventory(legacy_inventory, command, expected):
+    from pilot1742.cutover import legacy_processes
+    legacy_inventory([(99999, 1, command, '/unrelated')])
+    assert bool(legacy_processes()) is expected
+
+
+def test_managed_runner_is_captured_in_snapshot_and_blocks_verify(barrier, legacy_inventory):
+    from pilot1742.cutover import LEGACY_HOST_REPO, legacy_processes
+    command = '/opt/homebrew/bin/node --import tsx /Volumes/AgentStorage/l2-fix45y/runner.mts'
+    legacy_inventory([(99999, 1, command, str(LEGACY_HOST_REPO))])
+    store, _, remote = barrier
+    snap = store.snapshot()
+    assert [p.pid for p in snap.legacy_snapshot] == [99999]
+    with pytest.raises(CutoverError, match='snapshot process still alive'):
+        store.verify(snap, remote, legacy_processes(), 'a' * 40)
+    legacy_inventory([(99998, 1, command, str(LEGACY_HOST_REPO))])
+    with pytest.raises(CutoverError, match='legacy writer still alive after frozen snapshot'):
+        store.verify(snap, remote, legacy_processes(), 'a' * 40)
+
+
+@pytest.fixture
+def legacy_inventory(monkeypatch):
+    from types import SimpleNamespace
+    responses = {}
+    def populate(rows):
+        responses['ps'] = ''.join(f'{pid} {ppid} Mon Nov 2 01:02:03 2026 S {cmd}\n'
+                                  for pid, ppid, cmd, _ in rows)
+        responses['lsof'] = ''.join(f'p{pid}\nfcwd\nn{cwd}\n' for pid, _, _, cwd in rows)
+        return responses
+    def command(args, **kwargs):
+        assert args[0] in ('ps', 'lsof')
+        return SimpleNamespace(stdout=responses[args[0]], stderr='', returncode=0)
+    monkeypatch.setattr('pilot1742.cutover.subprocess.run', command)
+    return populate
+
+
+@pytest.mark.parametrize('entrypoint', [
+    '/Volumes/AgentStorage/i4-managed-resume42z/runner-fix2.mts',
+    '/Volumes/AgentStorage/l2-fix45y/runner.mts',
+    '/Volumes/AgentStorage/l2-resume45w/runner.mts',
+    '/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1719-recover-runner26.mts',
+    '/Volumes/AgentStorage/future-round/launch.pl',
+])
+def test_dynamic_legacy_writer_uses_real_host_layout(tmp_path, monkeypatch, legacy_inventory, entrypoint):
+    from pilot1742 import cutover
+    host = tmp_path / 'host'
+    host.mkdir()
+    child = host / '.sandcastle/worktrees/child'
+    child.mkdir(parents=True)
+    alias = tmp_path / 'host-alias'
+    alias.symlink_to(host, target_is_directory=True)
+    monkeypatch.setattr(cutover, 'LEGACY_HOST_REPO', host)
+    legacy_inventory([(99991, 1, f'/usr/bin/node {entrypoint}', str(alias)),
+                      (99992, 1, '/bin/bash -c sleep', str(child)),
+                      (99993, 1, f'/usr/bin/node {entrypoint}', str(tmp_path / 'host-other'))])
+    assert {p.pid for p in cutover.legacy_processes()} == {99991, 99992}
+
+
+def test_legacy_descendants_cannot_escape_by_changing_cwd(legacy_inventory):
+    from pilot1742.cutover import LEGACY_HOST_REPO, legacy_processes
+    legacy_inventory([(99991, 1, '/usr/bin/perl /unknown/launcher.pl', str(LEGACY_HOST_REPO)),
+                      (99992, 99991, '/usr/bin/node /dynamic/runner.mts', '/elsewhere'),
+                      (99993, 99992, '/usr/bin/worker', '/outside'),
+                      (99994, 1, '/bin/bash', '/unrelated')])
+    assert {p.pid for p in legacy_processes()} == {99991, 99992, 99993}
+
+
+def test_legacy_inspection_excludes_only_own_process_tree(legacy_inventory):
+    from pilot1742.cutover import LEGACY_HOST_REPO, legacy_processes
+    own = os.getpid()
+    legacy_inventory([(99991, 1, '/bin/bash', str(LEGACY_HOST_REPO)),
+                      (own, 99991, '/usr/bin/python -m pilot1742.executor', '/'),
+                      (99992, own, '/usr/bin/lsof', str(LEGACY_HOST_REPO)),
+                      (99993, 99991, '/bin/bash', str(LEGACY_HOST_REPO))])
+    assert {p.pid for p in legacy_processes()} == {99991, 99993}
+
+
+def test_legacy_inspector_inside_host_requires_explicit_control_location(tmp_path, monkeypatch):
+    from pilot1742 import cutover
+    host = tmp_path / 'host'
+    host.mkdir()
+    alias = tmp_path / 'alias'
+    alias.symlink_to(host, target_is_directory=True)
+    monkeypatch.setattr(cutover, 'LEGACY_HOST_REPO', host)
+    monkeypatch.chdir(alias)
+    with pytest.raises(CutoverError, match='cd / first'):
+        cutover.legacy_processes()
+
+
+@pytest.mark.parametrize('program,output', [
+    ('ps', ''), ('ps', 'bad row\n'), ('lsof', ''), ('lsof', 'p99991\n'),
+    ('lsof', 'n/unowned\n'), ('lsof', 'p99991\nnrelative\n'),
+])
+def test_legacy_inventory_invalid_or_missing_refuses(legacy_inventory, program, output):
+    from pilot1742.cutover import legacy_processes
+    responses = legacy_inventory([(99991, 1, '/usr/bin/unrelated', '/')])
+    responses[program] = output
+    with pytest.raises(CutoverError, match='inventory'):
+        legacy_processes()
+
+
+@pytest.mark.parametrize('failure', ['returncode', 'stderr', 'timeout', 'missing'])
+def test_legacy_inventory_sampling_failure_refuses(monkeypatch, failure):
+    from types import SimpleNamespace
+
+    from pilot1742.cutover import legacy_processes
+    def command(*args, **kwargs):
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired('ps', 30)
+        if failure == 'missing':
+            raise FileNotFoundError('ps')
+        return SimpleNamespace(stdout='ignored', stderr='warning' if failure == 'stderr' else '',
+                               returncode=1 if failure == 'returncode' else 0)
+    monkeypatch.setattr('pilot1742.cutover.subprocess.run', command)
+    with pytest.raises(CutoverError, match='legacy inventory failed'):
+        legacy_processes()
