@@ -5590,7 +5590,9 @@ mod tests {
         // 必需 11409 = 1b 4263 + 1d 7079 + 闭包 67。
         // 本轮零新增分配：仅无 memo 路径免除前缀末项对本单元的重审 29×147=4263 读，
         // 两条路径均复用已读 unit.bar，免除 1c 的 1218 读。以下为前值 − 4263 − 1218：
-        // reads 232828→227347、F 254341→248860；两个摘要保留前值，待 CI 实测重冻。
+        // reads 232828→227347、F 254341→248860。
+        // #1419 M6H：两个摘要按 run 41414959715 job 125176459116 原始日志实测重冻（48ffac48），
+        // reads/F 实测与 M4 预期一致。
         assert_eq!(
             (
                 counts.objects,
@@ -5614,11 +5616,11 @@ mod tests {
         );
         assert_eq!(
             read_hash,
-            "54375e9815ef8078d68d213e0a077f0b814ad7ce7a22432854441f1747eedfac"
+            "13bd2c89eae9fa7590d79dcf172f3ee2419ced7b826191ecc73a888f6c3052c2"
         );
         assert_eq!(
             budget_hash,
-            "6dea88d382928c12c511d19a2acd7ce03c5e0b3ff4273408b1b66df1c92290a4"
+            "20e6e506fdbbe095e5838c68df99add568377e9881a26460ae97540da00da37d"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {

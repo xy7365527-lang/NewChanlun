@@ -1626,3 +1626,158 @@ cargo test --locked --features s_session,s_incremental --bin s_structure_session
 CI 执行后，在 owned 步骤日志中核对原名 `publication_native_cut_scope_real_budget_preserves_origin ... ok`，并执行 `grep -F '[budget-telemetry 1419-M6D]' <日志>`，确认首次成功预演后的既有预算读数可见。此处仅记录待执行取证，未取得遥测实测值。
 
 实际检查：Python `yaml.safe_load` 解析 ci.yml 通过；逐字对拍确认 ci.yml 相对开工 HEAD 仅追加这一处 ` --show-output`，本笔记原前缀逐字保留，包装脚本和所有 Rust 源码未改；`git diff --check` 通过。未运行 cargo/rustc，未 git add/commit。CI 待执行。
+
+### M6F
+
+本节绑定 #1419 受管阶段 M6F，开工 HEAD 为 `b3889d89ec4752697c907b14327769355a798d44`，分支 `sandcastle/issue-1419`。已读 M6C、M6D、M6E。**status=blocked**：源码确实从持久库读取规则，但在本阶段限定的「现役 W2 原件、仅改一个持久字段、不改生产代码」下，两个持久规则字段都先被其他检查拒绝，无法补出命中资格规则比较本身的真实 cold-open 负控；检索后也未找到可替代该绑定负控的既有具名锁。按用户明定的 fallback，只追加本节，所有 Rust 源码及现有内部精确负控、identity/root/unit 负控和正控保持原样。
+
+#### 组件 cold-open 的持久规则调用链
+
+本阶段要求的原拒绝闭包在 `rust/src/bin/s_session_v3/audit_owner/history_clamp_tests.rs:941-960`，调用 `AuditConnection::open_certified_history_component`；其余本节源码行号同属当前 HEAD。
+
+1. `audit_owner.rs:488-500` 的组件入口把 `QualifiedSource` 交给 seeded 核；`:529-530` 开 Deferred 事务并调用 seed，`:1905-1940` 的 `seed_historical_certificate` 经 `HistoricalCertificate::cold_for_request` 传入 `QualifiedSeed`。
+2. `state.rs:1877-1884` → `:1910-1934` → `:1960` 的 `cold_captured`。先在 `:2021-2030` 调 `history::fold_certified_history` 完整核验原件，随后才在 `:2076-2086` 用 `CheckedStatement` 读取**内容库** `meta.value WHERE key='rule_revision'`，把借用文本直接传给 `QualifiedCertification::fold(seed, row.text(0), &cuts)`。`QualifiedSource` 的定义（`:1496-1500`）不含规则字段，调用方不能声明替代规则。
+3. `state.rs:1594-1623` 的 `fold` 按该持久文本长度持票并构造 `QualifiedIdentity.rule_revision`，调用 `read_qualification`；后者 `:1695` 经 `prepared.rs:398-405` 的 `Runtime::audit_qualification_bounded` 取得完整资格。
+4. 资格的规则来自**旁挂台账**：`audit_ledger.rs:605-624` 同一 SELECT 联读末代 `cert` 和台账 `meta`，读取的是 `m.rule_revision`。`audit_ledger.rs:22-42` 的 schema 中，`cert` 没有独立规则列；`Qualification.rule_revision` 由台账 meta 字段产生。该读取先在 `:616-617` 比较持久规则与 Ledger 安装时保存的规则，再在 `:639-643` 核资格字符串总长度上界并复制。
+5. 最终 `state.rs:1696-1700` 比较 `q.rule_revision` 与上述内容库规则身份，失败原文为 `S3StateInvalid：完整资格的规则/内容库/二进制身份与本写者不符`；其后的 cut 规则比较在 `:1724-1725`。绑定涉及内容库规则与台账持久规则两端，不是只传写者常量。
+
+#### 单字段构造为何无法命中目标比较
+
+| 仅篡改的持久字段（W2 末字节 `2`→`3`，等长） | 在目标比较之前的拒绝 | 不能算本阶段覆盖的原因 |
+|---|---|---|
+| 内容库 `meta.value WHERE key='rule_revision'` | `state.rs:2021` 的历史折叠进入 `history.rs:1250` 的 `audit_one_published_cut`；`:1563-1571` 将 manifest 的 `m.rule_revision` 与当前冻结 meta 逐字比较，返回 `manifest.rule_revision 与冻结域不符` | 原件 manifest 仍是 W2，仅改 meta 必然破坏冻结域一致性；该错误早于 `state.rs:2078` 的资格规则读取，更早于 `:1696` 的资格身份比较，不能证明后者的持久绑定。 |
+| 台账 `meta.rule_revision WHERE singleton=1` | `audit_ledger.rs:616-617` 返回 `AuditLedgerStale：台账持久规则与安装规则不一致` | 内容库、Ledger 内存安装规则和原件仍为 W2；资格读取在返回 `q` 前已失败，`state.rs:1696` 尚未取得可比较的资格。这里虽也是持久规则比较，但比较的是台账值与安装内存值，无法证明内容库 meta→fold identity→q 规则的绑定。 |
+
+两项阻断都不是规则长度/预算问题，改成等长单字节仍不能越过。同步改 manifest、安装规则或其他字段超出「单字段，其余保持一致」的限定；直接把参数交给内部核则正是 M6C 已有覆盖，不能重复称作真实入口绑定负控。空历史也不能隔离本题：`state.rs:1615-1618` 在 cuts 为空时直接取得 Empty 前沿，不调用 `read_qualification`。
+
+已核此前的开门顺序：`audit_owner.rs:417-418` 经 `s_structure_session.rs:401-425` 的 `open_db` 打开库；`:636-683` 的 `open_historical_readonly` 对篡改后的未知规则返回只读连接，本身没有把它拒绝为 `VersionUnsupported`。本组件只做冷读，不走 `mod.rs:175-188` 的 `require_current_writer_rule`；schema 和版本选择器也不能消除后续 manifest 冻结域检查。本处实质阻断是上表两项，不能归因于写者门。`driver.rs:1625-1629` 既有注释也明确记录非空历史只改 meta 会造出不合法库，不能用 W parser 新造旧串库。
+
+还区分了正式 rebuild 入口：`audit_owner.rs:581` 的 `open_rebuilt_history_into` 在 `:606-626` 清理旧台账缓存；`:636-648` 读取内容库 meta 规则并用同值创建 fresh Ledger，`:654-672` 完整重建后将同一规则传入 `install_cold_qualification`。此路径不会消费旧缓存中被篡改的规则，且不是原 reject 闭包调用的组件入口；其成功重建不能补本题的规则不匹配负控。
+
+#### 既有具名锁检索及边界
+
+实际用 `rg` 搜索整个 `rust/` 中的 `open_certified_history_component`、`install_cold_qualification` 和目标错误原文，并在 S3 测试中搜索包含 `cold`、`qualified`、`qualification`、`rule`、`persist` 的函数名及规则 UPDATE；对命中锁逐一阅读构造与断言：
+
+- `h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch`，`audit_owner/history_clamp_tests.rs:930`：`:973-1065` 保留 M6C 的内部参数等长单字节负控，`:1022-1025` 精确核目标错误。它绕过持久读取，不能满足本阶段追加要求。
+- `h1_qualified_online_consumes_real_ledger_and_cold_rebuild_matches`，同文件 `:829`：`:876-889` 真实 cold-open 三代并比较前沿与完整历史，内容库和台账规则始终同为 W2。这是经过绑定调用链的同值正控，无法区分该链是否错取常量，不能替代持久规则不匹配负控。
+- `h1_qualified_stage_rejects_externally_rewritten_fold_digest_or_rule_revision`，同文件 `:1170`：`:1182-1197` 改台账 meta 后发起**在线 publish**，精确断言「上一代资格与台账当前已提交状态不符」；没有重新 cold-open。
+- `p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit`，`prepared.rs:3160`：安装其他规则的 Ledger 后调用在线 publish，断言 `AuditLedgerStale：台账请求、规则或代号不一致`，不是 cold-open 资格读取。
+- `h1_admission_cold_negative_classes_match_full_oracle`，`audit_owner/admission_tests.rs:271`：六类实际损坏为 node、内容、index、clock、manifest，没有持久规则不匹配；`h1_cert_rejects_control_manifest_current_sql_and_missing_original`，`state.rs:4308`，同样没有规则扰动或 QualifiedSource。
+- `cross_request_source_cache_damaged_current_material_rejects_and_clears`，`cross_request_source_cache.rs:1938`：`:1951` 改内容 meta 规则，只以 `audit_native_current`/source keeper 的 `is_err` 核整库审计拒绝，不走本题组件入口，也不精确命中资格比较。
+- `historical_bi_rule_is_readable_but_writer_and_recover_leave_it_unchanged`，`driver.rs:1306`，及 `s3_writer_and_recover_reject_frozen_nonempty_historical_session_unchanged`，`:1631`：断言旧规则正式写者/恢复拒绝，覆盖写者规则门，不能替代资格规则绑定负控。
+
+因此没有新增负控的命中位置或运行收据。本阶段可准确保留的结论是：当前源码的持久读取→资格比较调用链存在，M6C 锁证明内部比较，现有正控经过该调用链；**真实 cold-open 对持久规则绑定的差分负控仍缺**。解除该缺口至少需要主控扩大测试构造授权或重新裁定验收判据，允许为被前置检查遮蔽的链路设计独立可达的验证；本节没有据此引入生产改动、额外测试注入或多字段夹具方案。
+
+#### 实际检查
+
+主控已取得以下本机回执：`rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner/history_clamp_tests.rs` 退出 0；`PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check` 退出 0、清单与源码一致；`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py` 退出 0、3 项通过。检查不调用 cargo/rustc。最终差异与笔记原前缀保留由主控复核；本节不宣称 Rust 编译或执行通过。Rust 未验证，待 CI。未 git add/commit。
+
+非作者只读终审通过，确认上述两处前置拒绝与既有锁的覆盖边界。主控执行 Python 逐字对拍，确认仅追加 M6F、笔记原前缀保留、全部源码未改、暂存区为空、HEAD 未变；最终 `git diff --check` 退出 0。
+
+
+### M6G
+
+本节绑定 #1419 受管阶段 M6G，接续 M6F；HEAD 仍为 `b3889d89ec4752697c907b14327769355a798d44`，分支 `sandcastle/issue-1419`。**status=blocked**。主控已授权把内容库规则的 meta 与 manifest 副本一致改为完整 W2 串末字节 `2`→`3`、台账保持 W2。本轮源码核查发现，这个完整串先被内容历史的规则注册门拒绝，尚到不了 manifest 完整性检查，更到不了 `state.rs:1696-1700`。不改白名单、不绕过检查、不扩大篡改字段；仅追加本节，全部 Rust 源码、既有 M6C 内部精确负控、identity/root/unit 负控与正控不变。M6F 小节逐字保留；其中「内容 meta 首先撞 manifest 冻结域」的先后顺序由本节订正。
+
+#### 授权构造的持久位置与恢复顺序
+
+以下是依源码定位的构造方案，**未实际创建、篡改或 cold-open Rust 夹具**，行数为配方推导，不能当作实际 SQL 回执。
+
+| 内容 | 表／列／键与拟改行数 | 保持不动的字段 |
+|---|---|---|
+| 内容库规则 meta | 内容库 `meta.value WHERE key='rule_revision'`，1 行；原串来自 `s_structure_session.rs:139`，共 153 个 ASCII 字节 | meta 的其他键、generation |
+| manifest 中规则副本 | manifest 并非 JSON 列；`s_content_publications.manifest_root` 指向 `s_content_nodes` 内容寻址闭包，`history.rs:2411` 经 `text_meta` 取规则字符串。按 `s_content.rs:1516-1527`、`:1076-1091` 的编码及 `CHUNK_BYTES=4096`，153 字节全串只占一个 `tag=0x10` 的 BYTES_CHUNK；拟仅改该行 `body` 的最后一字节，1 行 | 该行 `digest`、tag、字符串头、序列边、所有祖先节点及 `manifest_root` |
+| 旁挂完整台账 | `h1-identity.sqlite` 的 `meta.rule_revision WHERE singleton=1`，0 行 | W2 规则、cert 四根、fold_digest、node 全部保留 |
+
+Python 按 `s_content.rs:491-508` 的 F 配方静态计算：原 chunk 的 digest 为 `56dbb552a6fc0395a5f0e2316d3f162e14d0941891cbf0d89a16235f7a99a185`，末字节改为 `3` 后重算为 `cd7354fb013ed1c2a50ee5946b480a502a97bbca8b5df07623024934059797a9`。这是配方计算结果，未从运行中的夹具读到这些行；没有把重算值写入任何库。`content_store` 的节点表定义为 digest 主键（`s_session_v2/content_store.rs:77-80`），同一 W2 字符串跨 manifest／代数共享该 chunk，改它会一致影响所有引用该串的规则副本。本目标锁只发布第 1 代（`history_clamp_tests.rs:937-941`）；不另造其他代或其他规则。
+
+若构造可达，顺序应为：先保存两行原始值及台账资格／候选快照；在内容库同一事务内更新 meta 与上述 chunk，核各更新 1 行并提交；经原 reject 闭包调用 `open_certified_history_component`；拒绝后核目标精确错误、无 slot、父账归基线及资格／候选不变；再在同一事务恢复两行原值并提交，逐字回查；最后同入口 cold-open，比较完整资格与 `h1_compare_complete_history` 的完整冷 oracle。当前构造在规则注册门必拒绝，因此未实施上述步骤，也未把这个方案写成断言目标错误的测试。没有持久篡改或恢复残留。
+
+#### 实际先行边界：内容历史的完整规则注册门
+
+当前 HEAD 的调用链如下；本节所有路径均相对 `rust/src/bin/`，另注明的 library 路径除外。
+
+1. 原 reject 闭包在 `s_session_v3/audit_owner/history_clamp_tests.rs:942-958`，入口仍是 `audit_owner.rs:488-500` 的 `open_certified_history_component`。seeded 核在 `:529-530` 开 Deferred 事务并调用 seed。
+2. `audit_owner.rs:1932-1940` → `state.rs:1877-1884` → `:1924-1933` 的 `cold_captured`；`:1977-1988` 从本事务捕获完整节点，`:2021-2030` 调 `history::fold_certified_history`。捕获不是绕过摘要的成功证明：`s_session_v2/content_store.rs:2495-2565` 只登记原件，library `s_content.rs:3817` 明写不预核 F。
+3. `history.rs:551-577` 进入 `read_indexed_history_inner`，先在 `:1016` 读辅助索引，再在 `:1021` 调 `object_index::load_for_history`，尚未执行后面的 manifest Template 全核（`:1077-1092`）或逐代冻结域比较（`:1563-1571`）。
+4. `object_index.rs:2124` 的第一条实质语句是 `Layout::of_library(tx).map_err(err)?`。`layout.rs:35-43` 从**持久内容库 meta**读取完整规则，经 `:24-25`、`:160-161` 进入 `registered` 的全串 match（`:120-155`）。W2 登记在 `:128`；末字节变成 `3` 的 `bounded-layout/3` 串未登记，`:155` 直接拒绝。
+5. `object_index.rs:58-59` 增加 `ObjectIndexInvalid：`；`history.rs:1021` 与 `state.rs:2021-2030` 的 `?` 传播没有再包 `HistoryInvalid：` 或 `S3StateInvalid：`。library `s_content.rs:237-245` 的 `From<String>` 保留原 message；`state.rs:1933` 的 `into_message`、`audit_owner.rs:1924-1927` 的 Invalid 分支及 `:1017-1022` 的 `history_result` 同样保留原文。
+
+源码可确定的错误原文是下面这一整串，**不是本轮 Rust 运行收据**：
+
+```text
+ObjectIndexInvalid：VersionUnsupported：未登记完整规则 s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/3
+```
+
+既有规则锁已把完全相同的扰动列入非法值：`s_session_v3/mod.rs:1028` 的 `W_STRUCTURE_RULE_REVISION.replace("bounded-layout/2", "bounded-layout/3")`，并在 `:1038` 断言 `Layout::of_rule(&invalid).is_err()`。本轮只读该锁，未执行。`open_historical_readonly`（`s_structure_session.rs:636-683`）允许以只读连接打开陌生规则，不代表随后历史审计接受它；这里不是正式写者的 `require_current_writer_rule` 门。
+
+这个注册门本身构成「真实读取持久内容库规则，并按全串决定能否解释历史」的证据；它没有读取或比较旁挂台账的资格规则，**不能替代内容库规则与完整资格绑定的差分负控**。因此 M6G 所要的 `S3StateInvalid：完整资格的规则/内容库/二进制身份与本写者不符` 仍未命中。
+
+#### manifest 摘要的后续独立边界
+
+即便另有裁定解除注册门，保持现有摘要与根不动而改 chunk 正文，仍不能把它当作合法 manifest。`history.rs:1077-1092` 完整 Template 核验在 decode_manifest 之前；当前 cold 路径有 work、使用 NativeMeasured capture（`:991-1002`、`:4343-4370`）。原件读经过 `HashReader::checked_read_scoped`（`:3976-4002`）→ library `s_content.rs:4827-4842` 的 `checked_native_current` → `:2509` 的 `CheckedFrame::checked`，实际摘要不符在 `s_content/job.rs:523-533` 返回 `node_digest`，细节原文为「节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧」。这不是 `closed.rs:432` 或 allocation prototype 的 `s_content.rs:2065` 分支。本构造已被更早注册门拒绝，不能声称本轮实际命中此摘要错误。
+
+此检查把规则字节绑定在持久 manifest 的内容寻址闭包中；配合冻结域比较可约束 meta 与 manifest 同值，但没有单独证明台账资格比较的差分拒绝。既有具名锁 `history.rs:6726-6766` 的 `manifest_template_coverage_failure_precedes_real_history_decode` 在修改 manifest 子节点后断言 `node_digest` 且 manifest 解码次数为 0，源码可佐证检查顺序，仍非本轮执行证据。重算叶摘要、改边、祖先、manifest_root 或批次身份均超出本阶段授权，未实施。
+
+#### 各断言与交付边界
+
+| 要求 | 本轮结果 |
+|---|---|
+| 同一原 reject 闭包／cold-open 入口，新负控精确命中 `state.rs:1696-1700` | blocked；注册门先拒绝，不添加明知不可达的断言 |
+| 无 slot、父账回基线 | 原闭包 `history_clamp_tests.rs:956-957` 原样保留；本轮没有新增运行结果 |
+| 资格／候选未变、M6C 内部精确比较 | 原内部锁 `:1022-1059` 原样保留；不能借它冒充本轮持久扰动的证明 |
+| 两处恢复后同入口成功、完整冷 oracle 对拍 | 未执行新构造，未新增恢复成功声明；原有同规则 cold-open 与完整 oracle 正控保持原样 |
+| 不改生产检查、白名单、规则、资源帽、CI，不用旧 writer 或规则注入 | 所有源码及这些文件均无改动；M6F 未改写，M6G 仅追加 |
+
+#### 实际检查
+
+本轮实际执行以下检查，全部退出 0：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner/history_clamp_tests.rs`，无格式差异。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`，报告 `.github/prod-banned-literals.txt 与源码一致`，未重建或手改清单。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，3 项通过；执行前完整读过脚本，确认该检查不调用 cargo/rustc。
+- `git diff --check`，无空白错误。
+
+另以 Python 逐字对拍，确认开工时包含 M6F 的全部笔记前缀保留，仅追加 M6G；`git diff --name-only` 只有本笔记。HEAD、分支未变，暂存区为空。本轮未运行 cargo/rustc；Rust 未验证，待 CI。未 git add/commit。
+
+
+### M6H
+
+本节绑定 #1419 受管阶段 M6H，接续并逐字保留 M6F/M6G。开工 HEAD 为 `b3889d89ec4752697c907b14327769355a798d44`，分支 `sandcastle/issue-1419`。本阶段按主控裁定接受夹具迁移的源码合同，并仅重冻 full Some 测试的两个审计摘要。
+
+#### 主控裁定与证据限制
+
+主控接受 M6C 的分层证据：内部精确负控、真实 cold-open 同值正控 `h1_qualified_online_consumes_real_ledger_and_cold_rebuild_matches`，以及持久完整性边界。边界包括 `rust/src/bin/s_session_v3/state.rs:2076-2086` 直读内容库 meta 并传入 fold、`rust/src/bin/s_session_v3/audit_ledger.rs:605-624` 核台账持久规则与安装身份一致，以及 layout 全串注册门、内容寻址摘要与冻结域。这些证据足以接受本次夹具迁移的源码合同；不恢复旧 writer，不重算内容寻址树。
+
+M6F/M6G 两次构造仅为源码推导，未跑 Rust，不能记成运行拒绝证据。前两节的 blocked 是各自限定构造的历史结论，本阶段的验收按上述主控裁定收口。全项目历史读取与回退义务保持，本次裁定不免除这些义务，也不增加真实持久规则差分负控的运行收据。
+
+#### 重冻来源与原文
+
+来源为 PR #1855 的 `48ffac48c0b17317575fe0377f46f943716484cc`，[CI run 41414959715 / job 125176459116](https://github.com/xy7365527-lang/NewChanlun/actions/runs/41414959715/job/125176459116)，`rust-test-s-session` shard 1 原始日志第 1900 行。本阶段逐字取任务提供的该行原文，不从摘要转抄；未另行下载日志。打印来自目标测试 `full_some_audit_keeps_frozen_read_and_budget_trace` 自身：
+
+```text
+Some full: counts=Counts { objects: 91, groups: 13, windows: 11, effective: 14, insufficient: 0, outside_domain: 0 }, reads=227347, F=248860, read_hash=13bd2c89eae9fa7590d79dcf172f3ee2419ced7b826191ecc73a888f6c3052c2, budget_hash=20e6e506fdbbe095e5838c68df99add568377e9881a26460ae97540da00da37d
+```
+
+该 CI 在当时 `source_audit.rs:5615` 的 read_hash 断言失败，left 为 `13bd2c89eae9fa7590d79dcf172f3ee2419ced7b826191ecc73a888f6c3052c2`，right 为旧期望 `54375e9815ef8078d68d213e0a077f0b814ad7ce7a22432854441f1747eedfac`。前面的 counts、reads、F 断言未失败，实测与 M4 预期一致。budget_hash 取同一打印行的完整值，不声称 CI 已运行到其断言。
+
+唯一源码改动位于 `rust/src/bin/s_session_v3/source_audit.rs` 的该测试：read_hash、budget_hash 期望分别换成上述原文值，并更新注释注明 run、job、提交和 reads/F 与 M4 一致。counts 元组 `(81 + 10, 13, 11, 14, 0, 0)`、reads/F 公式及其值均不动。
+
+#### 实测对当前 HEAD 的适用性
+
+动手前执行 `git diff 48ffac48c0b17317575fe0377f46f943716484cc HEAD -- rust/src/bin/s_session_v3/source_audit.rs`，输出为空；另以 Python 对拍工作区整份文件与该 CI 提交，逐字相同，目标夹具、审计调用、轨迹收集和摘要计算均未变。
+
+同时枚举两提交全部差异，只有 M2-NOTES、ci.yml、`audit_owner/history_clamp_tests.rs` 与 `history.rs` 四份文件。Rust 差异只有后两份：前者为独立 H1 测试变更；后者仅在 `pub(super) mod tests` 的另一预算锁内插入 11 行只读遥测。去掉该唯一插入块后，history.rs 与 CI 提交逐字相同，包括目标调用的 HashReader 及被测生产路径。ci.yml 差异为 owned 组输出参数与 H1 收据名，不改变 shard 1 的目标测试。因此该行实测仍适用于当前 HEAD，无影响目标路径的差异。
+
+#### 实际检查
+
+以下检查本轮实际执行，全部退出 0：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/source_audit.rs`，无格式差异。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`，报告 `.github/prod-banned-literals.txt 与源码一致`。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，3 项通过；该检查不调用 cargo/rustc。
+- `git diff --check`，无空白错误。
+
+Python 反向对拍确认 source_audit.rs 除两个期望与指定注释外和开工 HEAD 逐字相同；计算原公式仍得 reads=227347、F=248860。笔记开工前缀共 201108 字节，SHA-256 为 `64d7d79e43a8252e834f6dd2e945d16b94b35e49a5f6d2a89d3751197b3d54d1`，追加后逐字前缀对拍通过，M6F/M6G 均保留。工作区全部改动仅本笔记和 source_audit.rs；生产代码、其他测试和 ci.yml 未改，暂存区为空，HEAD 与分支未变。未 git add/commit，未回退任何改动。
+
+本阶段 status=ready。本机未运行 cargo/rustc；Rust 未验证，待 CI。
