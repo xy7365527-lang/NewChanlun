@@ -1600,7 +1600,18 @@ mod tests {
             let _guard = scope.enter().unwrap();
             scope.require_admitted().unwrap();
             let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
-            // 真实连接已创建，但startup尚未开始事务；改变下一事务实际看到的材料。
+            conn.startup(
+                &f.profile,
+                "1",
+                &f.clock,
+                None,
+                &s_allocation::Mode::CapturedNative,
+                Some(&mut context),
+            )
+            .unwrap();
+            assert_eq!((context.cold, context.hits), (1, 0));
+            assert!(context.has_slot());
+            // #1481：真实 startup 已建立 slot；改变下一事务实际看到的材料。
             let mut mutation = open_db(&f.db).unwrap();
             match change {
                 "same" => {}
@@ -1647,19 +1658,17 @@ mod tests {
             match expected {
                 Ok(()) => {
                     actual.unwrap();
-                    assert_eq!((context.cold, context.hits), (1, 0));
-                    conn.startup(
-                        &f.profile,
-                        "1",
-                        &f.clock,
-                        None,
-                        &s_allocation::Mode::CapturedNative,
-                        Some(&mut context),
-                    )
-                    .unwrap();
-                    assert_eq!((context.cold, context.hits), (1, 1));
+                    let expected_counts = match change {
+                        "same" => (1, 1),
+                        "append" => (2, 0),
+                        _ => unreachable!(),
+                    };
+                    assert_eq!((context.cold, context.hits), expected_counts, "{change}");
                 }
-                Err(expected) => assert_eq!(actual.err().unwrap(), expected, "{change}"),
+                Err(expected) => {
+                    assert_eq!(actual.err().unwrap(), expected, "{change}");
+                    assert!(!context.has_slot());
+                }
             }
         }
     }
