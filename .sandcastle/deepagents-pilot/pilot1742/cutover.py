@@ -25,6 +25,8 @@ WORKER_EVENTS = {
     'correction': {'error_record_52009', 'error_record_53495'},
     'reviewer': {'started', 'sealed', 'completed', 'failed'},
     'managed-stage': {'failed'},
+    # #1742: H1 runners finish the merge phase before authoring; neither event releases the sandbox.
+    'merge': {'started', 'completed'},
     'sandbox': {'closed'},
     'merger': {'ready', 'merging', 'conflict', 'prepared', 'committed', 'failed', 'done'},
 }

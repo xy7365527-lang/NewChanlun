@@ -1,0 +1,6 @@
+{"ts":"2026-11-01T21:18:12.411Z","ticket":1481,"branch":"sandcastle/issue-1481","phase":"merge","status":"started","manager":"/root/h1_recover45c","model":"gpt-6.1-sol","effort":"high","head":"822309387d0f4aa7c4e03c75b3da8ba47183265e","mergeHead":"784bc6d77016a216d085d0a63564c7937e325ed1","conflicts":["rust/src/bin/s_session_v3/admission_private/mod.rs","rust/src/bin/s_structure_session.rs"]}
+{"ts":"2026-11-01T21:21:15.057Z","ticket":1481,"branch":"sandcastle/issue-1481","phase":"managed-stage","status":"failed"}
+{"ts":"2026-11-01T21:21:15.167Z","ticket":1481,"branch":"sandcastle/issue-1481","phase":"sandbox","status":"closed"}
+{"ts":"2026-11-01T21:45:51.048Z","ticket":1481,"branch":"sandcastle/issue-1481","phase":"implementer","status":"started"}
+{"ts":"2026-11-01T22:06:30.203Z","ticket":1481,"branch":"sandcastle/issue-1481","phase":"implementer","status":"completed","verification":"github-ci-pending"}
+{"ts":"2026-11-01T22:06:31.222Z","ticket":1481,"branch":"sandcastle/issue-1481","phase":"sandbox","status":"closed"}

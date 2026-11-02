@@ -16,6 +16,7 @@ from pilot1742.cutover import (
     LegacyProcess,
     RemoteBarrier,
     worker_claims,
+    worker_rows,
 )
 
 
@@ -287,3 +288,73 @@ def test_snapshot_binds_log_source_and_ticket_checks_use_that_source(barrier, tm
     store.workers_log.write_text('{"ticket":3,"phase":"sandbox","status":"closed"}\n')
     with pytest.raises(CutoverError, match='after snapshot'):
         reader.check_ticket(3, reader.load())
+
+
+@pytest.fixture
+def merge_lifecycle():
+    # #1742: production #1481 merge failure/close followed by a new author stage.
+    return worker_rows(Path(__file__).with_name('fixtures').joinpath('legacy_merge_lifecycle.jsonl').read_bytes())
+
+
+def test_merge_lifecycle_closes_only_at_sandbox_close_and_reopens(merge_lifecycle):
+    for length in (1, 2, 4, 5):
+        with pytest.raises(CutoverError, match='open legacy work: 1481$'):
+            worker_claims(merge_lifecycle[:length])
+    assert worker_claims(merge_lifecycle[:3]) == ()
+    assert worker_claims(merge_lifecycle) == ()
+
+
+@pytest.mark.parametrize('status', ['started', 'completed'])
+def test_merge_stage_with_unknown_exit_stays_pending(merge_lifecycle, status):
+    # runner-s1d.mts emits completed before starting the author, not at resource release.
+    row = dict(merge_lifecycle[0], status=status, exit_code=None)
+    with pytest.raises(CutoverError, match='open legacy work: 1481$'):
+        worker_claims([merge_lifecycle[0], row])
+    assert worker_claims([merge_lifecycle[0], row, merge_lifecycle[2]]) == ()
+
+
+@pytest.mark.parametrize('branch', ['', 'sandcastle/issue-1481-fix'])
+def test_merge_close_does_not_release_another_branch(merge_lifecycle, branch):
+    started = dict(merge_lifecycle[0], branch=branch)
+    with pytest.raises(CutoverError, match='open legacy work: 1481$'):
+        worker_claims([started, merge_lifecycle[2]])
+    assert worker_claims([started, dict(merge_lifecycle[2], branch=branch)]) == ()
+
+
+@pytest.mark.parametrize('phase,status', [('merge', 'finished'), ('merge-future', 'started')])
+def test_merge_unknown_events_are_still_rejected(merge_lifecycle, phase, status):
+    with pytest.raises(CutoverError, match='unknown phase/status'):
+        worker_rows(json.dumps(dict(merge_lifecycle[0], phase=phase, status=status)).encode())
+
+
+def test_merge_lifecycle_does_not_clear_other_open_legacy_keys(merge_lifecycle):
+    open_rows = [
+        {'ticket': 1240, 'branch': 'sandcastle/issue-1240', 'phase': 'implementer', 'status': 'started'},
+        {'ticket': 1394, 'branch': 'sandcastle/issue-1394', 'phase': 'implementer', 'status': 'started'},
+        {'ticket': 1488, 'phase': 'implementer', 'status': 'started'},
+        {'ticket': 1621, 'phase': 'implementer', 'status': 'started'},
+        {'ticket': 1622, 'branch': 'sandcastle/issue-1622-fix', 'phase': 'implementer', 'status': 'completed'},
+    ]
+    with pytest.raises(CutoverError, match='open legacy work: 1240,1394,1488,1621,1622$'):
+        worker_claims([*open_rows, *merge_lifecycle])
+
+
+def test_merge_events_are_enforced_by_cutover_consumers(barrier, merge_lifecycle):
+    store, snap, remote = barrier
+    raw = ('\n'.join(json.dumps(row) for row in merge_lifecycle) + '\n').encode()
+    store.workers_log.write_bytes(raw)
+    snap = replace(snap, workers_log_length=len(raw))
+    record = store.verify(snap, remote, (), 'a' * 40)
+    store.record(record)
+    with store.workers_log.open('a') as stream:
+        stream.write(json.dumps(merge_lifecycle[0]) + '\n')
+    with pytest.raises(CutoverError, match='open legacy work: 1481$'):
+        store.verify(snap, remote, (), 'a' * 40)
+    with pytest.raises(CutoverError, match='open legacy work: 1481$'):
+        store.check_ticket(9999, record)
+    with store.workers_log.open('a') as stream:
+        stream.write(json.dumps(merge_lifecycle[2]) + '\n')
+    assert store.verify(snap, remote, (), 'a' * 40) == record
+    store.check_ticket(9999, record)
+    with pytest.raises(CutoverError, match='after snapshot'):
+        store.check_ticket(1481, record)
