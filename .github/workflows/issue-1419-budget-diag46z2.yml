@@ -1,0 +1,50 @@
+name: Issue 1419 budget diag 46z2
+# 诊断专用（不合入）：只测量 W2×H1 冷往返锁首次资源拒绝；不改判定、帽、断言。
+on:
+  push:
+    branches: ['codex/1419-budget-diag46z2']
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Build release test binary (s_session,s_incremental)
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 --no-run
+      - name: Run three W2×H1 cold locks with budget diag
+        env:
+          NEWCHAN_BUDGET_DIAG: '1'
+        run: |
+          set -o pipefail
+          mkdir -p ../diag
+          for t in \
+            v3::audit_owner::construction_tests::w2_h1_cold_bounded2_shape_development_window_matches_online \
+            v3::audit_owner::construction_tests::w2_h1_cold_cd_second_cursor_continuation_matches_online \
+            v3::audit_owner::construction_tests::w2_h1_cold_ef_seed_pair_qualification_and_canonical_matches_online; do
+            name="${t##*::}"
+            echo "=== $name"
+            cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact "$t" --test-threads 1 --nocapture > "../diag/$name.log" 2>&1 \
+              && echo "RESULT $name ok" | tee -a ../diag/summary.txt \
+              || echo "RESULT $name FAILED" | tee -a ../diag/summary.txt
+            grep -c BUDGET_DIAG "../diag/$name.log" || true
+            tail -5 "../diag/$name.log"
+          done
+          gzip -k ../diag/*.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: budget-diag46z2-${{ github.sha }}
+          path: |
+            diag/summary.txt
+            diag/*.log.gz
+          if-no-files-found: warn
+          retention-days: 14

@@ -3561,14 +3561,65 @@ impl AuditCapture {
                 .saturating_mul(2)
                 .saturating_add(16)
                 .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1);
-            let permit = work.map(|w| w.reserve_native(growth)).transpose()?;
-            if growth > cap || native.nodes.try_reserve(1).is_err() {
+            let diag = capture_allocation::scratch::budget_diag::on();
+            if diag {
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=s_content.index_grow.begin len={} capacity={} model_capacity={capacity} slot_width={} G={growth} cap={} cap_is_max={} work={} body_len={}",
+                    capture_allocation::scratch::budget_diag::seq(),
+                    native.nodes.len(),
+                    native.nodes.capacity(),
+                    std::mem::size_of::<(NodeDigest, NativeNode)>(),
+                    cap,
+                    cap == usize::MAX,
+                    work.is_some(),
+                    native.body_len
+                );
+            }
+            let permit = match work.map(|w| w.reserve_native(growth)).transpose() {
+                Ok(permit) => permit,
+                Err(error) => {
+                    if diag {
+                        eprintln!(
+                            "BUDGET_DIAG seq={} site=s_content.index_grow.parent_reserve_err G={growth} cap={cap} len={} capacity={} error={error}",
+                            capture_allocation::scratch::budget_diag::seq(),
+                            native.nodes.len(),
+                            native.nodes.capacity()
+                        );
+                    }
+                    return Err(error);
+                }
+            };
+            let over_cap = growth > cap;
+            if diag {
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=s_content.index_grow.parent_reserve_ok G={growth} cap={cap} over_cap={over_cap}",
+                    capture_allocation::scratch::budget_diag::seq()
+                );
+            }
+            if over_cap || native.nodes.try_reserve(1).is_err() {
+                if diag {
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=s_content.index_grow.reject reason={} G={growth} cap={cap} len={} capacity={}",
+                        capture_allocation::scratch::budget_diag::seq(),
+                        if over_cap { "G_gt_cap" } else { "try_reserve_err" },
+                        native.nodes.len(),
+                        native.nodes.capacity()
+                    );
+                }
                 if let Some(work) = work {
                     return Err(
                         work.reject(capture_allocation::scratch::ScratchFailure::Allocation)
                     );
                 }
                 return Ok(false);
+            }
+            if diag {
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=s_content.index_grow.done len={} new_capacity={}",
+                    capture_allocation::scratch::budget_diag::seq(),
+                    native.nodes.len(),
+                    native.nodes.capacity()
+                );
             }
             native.index_permit = permit;
         }

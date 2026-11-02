@@ -1572,16 +1572,48 @@ impl Ledger {
         if d.state & BROKEN != 0 || expected.is_some_and(|e| e != u64::from(d.serial)) {
             return Err(ScratchFailure::Ledger);
         }
-        let next = d
-            .remaining
-            .checked_sub(bytes)
-            .ok_or(ScratchFailure::Budget)?;
-        let total = self
+        #[cfg(test)]
+        let diag_reject = |gate: &str| {
+            if newchan_rust::s_content::capture_allocation::scratch::budget_diag::on() {
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=native.reserve_account.reject gate={gate} requested={bytes} kind={kind:?} expected={expected:?} serial={} parent_remaining={} parent_live={} parent_total_limit={} parent_low_water={} parent_peak={} scratch_live={} native_live={} active_scopes={}",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq(),
+                    d.serial,
+                    d.remaining,
+                    self.live.load(Ordering::Acquire),
+                    d.total_limit,
+                    d.low_water,
+                    self.peak.load(Ordering::Acquire),
+                    self.scratch_live.load(Ordering::Acquire),
+                    self.native_live.load(Ordering::Acquire),
+                    d.active_scopes
+                );
+                newchan_rust::s_content::capture_allocation::scratch::budget_diag::backtrace(
+                    "native.reserve_account",
+                );
+            }
+        };
+        let next = match d.remaining.checked_sub(bytes) {
+            Some(next) => next,
+            None => {
+                #[cfg(test)]
+                diag_reject("remaining");
+                return Err(ScratchFailure::Budget);
+            }
+        };
+        let total = match self
             .live
             .load(Ordering::Acquire)
             .checked_add(bytes)
             .filter(|n| *n <= d.total_limit)
-            .ok_or(ScratchFailure::Budget)?;
+        {
+            Some(total) => total,
+            None => {
+                #[cfg(test)]
+                diag_reject("total_limit");
+                return Err(ScratchFailure::Budget);
+            }
+        };
         let part = kind
             .map(|k| {
                 let (live, peak) = self.component(k);

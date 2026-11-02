@@ -1542,6 +1542,11 @@ impl AuditConnection {
             None => {
                 #[cfg(unix)]
                 if self.require_historical_certificate {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=publish_degradable.first_attempt_none -> HistoricalAuditStale",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
                     return self.history_result(Err(history_clamp::stale(
                         "认证发布资源不足；禁止无候选重试或完整审计兜底",
                     )));
@@ -2717,6 +2722,40 @@ impl AuditTxn<'_> {
         {
             return Err(construction_state::stale("publication父账或冻结额度域改变"));
         }
+        #[cfg(test)]
+        if newchan_rust::s_content::capture_allocation::scratch::budget_diag::on() {
+            eprintln!(
+                "BUDGET_DIAG seq={} site=issue_publication_resources A_candidate_limit={} parent_remaining={} parent_live={} parent_total_limit={:?} parent_peak={} parent_request_peak={} native_live_peak={:?} scratch_obs={:?} charge_total={} entry_reserved={} retention_cap={} workspace_limit={}",
+                newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq(),
+                candidate.limit,
+                candidate.resources.remaining(),
+                candidate.resources.live(),
+                candidate.resources.total_limit(),
+                candidate.resources.peak(),
+                candidate.resources.request_peak(),
+                candidate.resources.native_observation(),
+                candidate.resources.scratch_observation(),
+                candidate.charge.total,
+                context.complete_entry_reserved_bytes(),
+                context.complete_retention_cap(),
+                context.complete_workspace_limit()
+            );
+            if let Some(r) = candidate
+                .capture
+                .as_ref()
+                .and_then(|c| c.native_retention_numbers())
+            {
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=issue_publication_resources.capture nodes={} index_capacity={} index_payload={} body_len={} body_capacity={}",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq(),
+                    r.nodes,
+                    r.index_capacity,
+                    r.index_payload,
+                    r.body_len,
+                    r.body_capacity
+                );
+            }
+        }
         Ok(PublicationResources {
             budget: candidate.resources.clone(),
             parent_limit: candidate.limit,
@@ -3869,14 +3908,29 @@ impl CompleteCandidate {
             // limit 已扣除外层 raw/source/set；全父账峰必须和完整父帽比较，
             // 否则会对已经计入同账的载荷再次扣费。
             if peak > self.limit {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3872",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
                 return Ok(None);
             }
             peak
         } else {
             let Some(peak) = retained_at_entry.checked_add(effects.peak) else {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3877",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
                 return Ok(None);
             };
             if peak >= limit {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3880",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
                 return Ok(None);
             }
             peak
@@ -3929,7 +3983,14 @@ impl CompleteCandidate {
         };
         match node_result {
             Ok(()) => {}
-            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::BudgetExceeded) => {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3932",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
+                return Ok(None);
+            }
             Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         match self.q.advance(tx, &effects, &mut self.audited, &budget) {
@@ -3939,22 +4000,46 @@ impl CompleteCandidate {
                     .historical_and_raw_capacity
                     .checked_add(raw_added)
                 else {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3942",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
                     return Ok(None);
                 };
                 self.charge.historical_and_raw_capacity = total;
             }
-            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::BudgetExceeded) => {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3946",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
+                return Ok(None);
+            }
             Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         let bound = BoundOriginals { _private: () };
         match self.audited.check_owner_raw(capture, &bound, &budget) {
             Ok(added) => {
                 let Some(total) = self.charge.historical_and_raw_capacity.checked_add(added) else {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3953",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
                     return Ok(None);
                 };
                 self.charge.historical_and_raw_capacity = total;
             }
-            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::BudgetExceeded) => {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=3957",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
+                return Ok(None);
+            }
             Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         if effects.operation == effects::Operation::Publish {
@@ -4023,7 +4108,14 @@ impl CompleteCandidate {
                     auxiliary: [a0, a1, a2],
                     _fees: [objects_fee, f0, f1, f2],
                 },
-                Err(_) => return Ok(None),
+                Err(_) => {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4026",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
+                    return Ok(None);
+                }
             };
             #[cfg(test)]
             eprintln!(
@@ -4065,23 +4157,43 @@ impl CompleteCandidate {
             );
             let (audited, retained) = match updated {
                 Ok(updated) => updated,
-                Err(native::Failure::BudgetExceeded) => return Ok(None),
+                Err(native::Failure::BudgetExceeded) => {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4068",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
+                    return Ok(None);
+                }
                 Err(native::Failure::Invalid(e)) => return Err(e.into()),
             };
             // 这些行号只在本次 append_cut 借用；真实销毁后归还各 Vec 实际容量。
             drop(row_ids);
             self.audited = audited;
-            self.charge.historical_and_raw_capacity =
-                match retained.apply(self.charge.historical_and_raw_capacity) {
-                    Ok(total) => total,
-                    Err(native::Failure::BudgetExceeded) => return Ok(None),
-                    Err(native::Failure::Invalid(error)) => return Err(error.into()),
-                };
+            self.charge.historical_and_raw_capacity = match retained
+                .apply(self.charge.historical_and_raw_capacity)
+            {
+                Ok(total) => total,
+                Err(native::Failure::BudgetExceeded) => {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4077",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
+                    return Ok(None);
+                }
+                Err(native::Failure::Invalid(error)) => return Err(error.into()),
+            };
         }
         // 40B B2：资格交接的持久上界在本代后缀入账后、费用终检前持票并计入历史账；提交后交接只消费它。
         if effects.operation == effects::Operation::Publish {
             if let Some(transition) = self.audited.qualified_transition_bound() {
                 let Ok(permit) = budget.reserve(transition) else {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4085",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
                     return Ok(None);
                 };
                 let Some(total) = self
@@ -4089,6 +4201,11 @@ impl CompleteCandidate {
                     .historical_and_raw_capacity
                     .checked_add(transition)
                 else {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4092",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
                     return Ok(None);
                 };
                 self.charge.historical_and_raw_capacity = total;
@@ -4103,7 +4220,14 @@ impl CompleteCandidate {
             &mut self.charge.current_sql_capacity,
         ) {
             Ok(peak) => peak,
-            Err(native::Failure::BudgetExceeded) => return Ok(None),
+            Err(native::Failure::BudgetExceeded) => {
+                #[cfg(test)]
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4106",
+                    newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                );
+                return Ok(None);
+            }
             Err(native::Failure::Invalid(e)) => return Err(e.into()),
         };
         self.capture = Some(
@@ -4156,6 +4280,11 @@ impl CompleteCandidate {
             .checked_add(native::Budget::metadata_bytes())
             .is_none_or(|n| n > budget.total_limit().unwrap_or(0))
         {
+            #[cfg(test)]
+            eprintln!(
+                "BUDGET_DIAG seq={} site=validate_effects.none orig_line=4159",
+                newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+            );
             return Ok(None);
         }
         self.charge.incremental_steps += 1;
@@ -4373,6 +4502,25 @@ impl AuditTxn<'_> {
                     .map(|c| c.complete_workspace_limit())
                     .unwrap_or(candidate.limit)
                     .min(candidate.resources.remaining());
+                #[cfg(test)]
+                if newchan_rust::s_content::capture_allocation::scratch::budget_diag::on() {
+                    let cap = candidate
+                        .capture
+                        .as_ref()
+                        .and_then(|c| c.native_retention_numbers())
+                        .map(|r| (r.nodes, r.index_capacity));
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=journal_cap op={:?} P={limit} J={} workspace_limit={:?} candidate_limit={} parent_remaining={} parent_live={} parent_total_limit={:?} capture_nodes_capacity={cap:?}",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq(),
+                        std::mem::discriminant(&operation),
+                        limit / 8,
+                        context.map(|c| c.complete_workspace_limit()),
+                        candidate.limit,
+                        candidate.resources.remaining(),
+                        candidate.resources.live(),
+                        candidate.resources.total_limit()
+                    );
+                }
                 let raw_bytes = self
                     .construction
                     .borrow()
@@ -7795,7 +7943,14 @@ impl AuditConnection {
             let before = resources.before;
             let work = match resources.budget.codec_work() {
                 Ok(work) => work,
-                Err(native::Failure::BudgetExceeded) => return Ok(None),
+                Err(native::Failure::BudgetExceeded) => {
+                    #[cfg(test)]
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=publish_attempt.none orig_line=7798",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq()
+                    );
+                    return Ok(None);
+                }
                 Err(native::Failure::Invalid(_)) => {
                     return Err(construction_state::stale("publication父工作域额度不足"))
                 }
@@ -7859,10 +8014,24 @@ impl AuditConnection {
             });
             let (receipt, after) = match run {
                 Ok(done) => done,
-                Err(error) => match publication_degrade_verdict(error, operation_error, trace) {
-                    Ok(()) => return Ok(None),
-                    Err(e) => return Err(e.into_message()),
-                },
+                Err(error) => {
+                    match {
+                        #[cfg(test)]
+                        eprintln!(
+                        "BUDGET_DIAG seq={} site=publish_attempt.run_err operation_error={:?} trace={trace:?}",
+                        newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq(),
+                        operation_error.clone().map(|e| e.into_message())
+                    );
+                        publication_degrade_verdict(error, operation_error, trace)
+                    } {
+                        Ok(()) => {
+                            #[cfg(test)]
+                            eprintln!("BUDGET_DIAG seq={} site=publish_attempt.none orig_line=7863", newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq());
+                            return Ok(None);
+                        }
+                        Err(e) => return Err(e.into_message()),
+                    }
+                }
             };
             (
                 receipt,

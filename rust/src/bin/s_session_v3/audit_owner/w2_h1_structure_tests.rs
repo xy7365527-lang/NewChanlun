@@ -289,6 +289,12 @@ fn w2_h1_roundtrip_selected(envelopes: &[Value], mut check: impl FnMut(usize, &V
     let mut prefixes = Vec::new();
     for (offset, envelope) in envelopes.iter().enumerate() {
         let n = offset + 1;
+        newchan_rust::s_content::capture_allocation::scratch::budget_diag::reset_backtraces(4);
+        eprintln!(
+            "BUDGET_DIAG seq={} site=test.online_request n={n} of={}",
+            newchan_rust::s_content::capture_allocation::scratch::budget_diag::seq(),
+            envelopes.len()
+        );
         let before = state::full_audit_calls_for_test();
         assert_eq!(
             online.handle(envelope.clone()).unwrap()["kind"],

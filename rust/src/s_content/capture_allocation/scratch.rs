@@ -8,6 +8,59 @@ use std::sync::{
     Arc,
 };
 
+/// #1419 budget-diag46z2：仅诊断分支（不合入）。NEWCHAN_BUDGET_DIAG=1 才输出；不改任何判定。
+#[doc(hidden)]
+pub mod budget_diag {
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use std::sync::OnceLock;
+    static ON: OnceLock<bool> = OnceLock::new();
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    static BT_LEFT: AtomicUsize = AtomicUsize::new(0);
+    pub fn on() -> bool {
+        *ON.get_or_init(|| std::env::var("NEWCHAN_BUDGET_DIAG").is_ok_and(|v| v == "1"))
+    }
+    pub fn seq() -> u64 {
+        SEQ.fetch_add(1, Ordering::Relaxed) + 1
+    }
+    pub fn reset_backtraces(n: usize) {
+        BT_LEFT.store(n, Ordering::Relaxed);
+    }
+    /// 只打印本仓帧（newchan_rust / s_structure_session）及其 at 行。
+    pub fn backtrace(tag: &str) {
+        if !on()
+            || BT_LEFT
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1))
+                .is_err()
+        {
+            return;
+        }
+        let text = std::backtrace::Backtrace::force_capture().to_string();
+        eprintln!("BUDGET_DIAG_BT begin tag={tag}");
+        let mut keep = false;
+        let mut shown = 0usize;
+        for line in text.lines() {
+            let t = line.trim_start();
+            let header = t
+                .split_once(':')
+                .is_some_and(|(n, _)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+            if header {
+                keep = (t.contains("newchan_rust") || t.contains("s_structure_session"))
+                    && !t.contains("budget_diag");
+                if keep {
+                    shown += 1;
+                    if shown > 60 {
+                        break;
+                    }
+                }
+            }
+            if keep {
+                eprintln!("BUDGET_DIAG_BT {t}");
+            }
+        }
+        eprintln!("BUDGET_DIAG_BT end tag={tag}");
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(usize)]
 pub enum ScratchFailure {
@@ -208,6 +261,13 @@ impl ScratchHandle {
         let origin = parent
             .reserve_in_origin(bytes, ScratchCharge::Native, self.core().origin)
             .map_err(|failure| {
+                if budget_diag::on() {
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=scratch.reserve_native.parent_reject failure={failure:?} requested={bytes} scope_origin={}",
+                        budget_diag::seq(),
+                        self.core().origin
+                    );
+                }
                 self.fail(failure);
                 CodecError::scratch(failure)
             })?;
@@ -230,6 +290,21 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn fail(&self, failure: ScratchFailure) {
+        if budget_diag::on() && failure != ScratchFailure::Ledger {
+            let c = self.core();
+            eprintln!(
+                "BUDGET_DIAG seq={} site=scratch.fail failure={failure:?} scope_first={} scope_limit={} scope_live={} scope_peak={} scope_meta={} scope_origin={} scope_attempts={}",
+                budget_diag::seq(),
+                c.failure.load(Ordering::Acquire) == 0,
+                c.limit,
+                c.live.load(Ordering::Acquire),
+                c.peak.load(Ordering::Acquire),
+                c.metadata_charge,
+                c.origin,
+                c.attempts.load(Ordering::Acquire)
+            );
+            budget_diag::backtrace("scratch.fail");
+        }
         if traced(failure) == ScratchFailure::Ledger {
             let _ = self
                 .core()
@@ -297,6 +372,14 @@ impl ScratchHandle {
             .parent
             .reserve_in_origin(bytes, ScratchCharge::Layout, c.origin)
             .map_err(|e| {
+                if budget_diag::on() {
+                    eprintln!(
+                        "BUDGET_DIAG seq={} site=scratch.reserve_layout.parent_reject failure={e:?} requested={bytes} scope_live={} scope_limit={}",
+                        budget_diag::seq(),
+                        c.live.load(Ordering::Acquire),
+                        c.limit
+                    );
+                }
                 self.fail(e);
                 e
             })?;
@@ -311,6 +394,14 @@ impl ScratchHandle {
             })
             .is_err()
         {
+            if budget_diag::on() {
+                eprintln!(
+                    "BUDGET_DIAG seq={} site=scratch.reserve_layout.scope_limit requested={bytes} scope_live={} scope_limit={}",
+                    budget_diag::seq(),
+                    c.live.load(Ordering::Acquire),
+                    c.limit
+                );
+            }
             self.fail(ScratchFailure::Budget);
             if let Err(e) = c.parent.release(bytes, ScratchCharge::Layout, c.origin) {
                 self.fail(e);
