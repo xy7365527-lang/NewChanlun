@@ -16,6 +16,7 @@ from pilot1742.cutover import (
     LegacyProcess,
     RemoteBarrier,
     worker_claims,
+    worker_lifecycles,
     worker_rows,
 )
 
@@ -509,3 +510,61 @@ def test_legacy_inventory_sampling_failure_refuses(monkeypatch, failure):
     monkeypatch.setattr('pilot1742.cutover.subprocess.run', command)
     with pytest.raises(CutoverError, match='legacy inventory failed'):
         legacy_processes()
+
+
+@pytest.fixture(params=range(4))
+def resumed_event(request):
+    raw = Path(__file__).with_name('fixtures').joinpath('legacy_resumed_events.jsonl').read_bytes()
+    return json.loads(raw.splitlines()[request.param])
+
+
+def test_resumed_events_preserve_source_and_remain_pending(resumed_event):
+    encoded = json.dumps(resumed_event).encode()
+    assert worker_rows(encoded) == [resumed_event]
+    key = ('1419', 'sandcastle/issue-1419')
+    for row in (resumed_event, dict(resumed_event, exit_code=None)):
+        assert worker_lifecycles([row])[key] == {
+            'first_index': 1, 'first_event': row, 'last_index': 1, 'last_event': row,
+        }
+        completed = dict(row, status='completed')
+        with pytest.raises(CutoverError, match='open legacy work: 1419$'):
+            worker_claims([row, completed])
+        closed = dict(row, phase='sandbox', status='closed')
+        assert worker_claims([row, completed, closed]) == ()
+    assert json.dumps(resumed_event).encode() == encoded
+
+
+def test_resumed_event_reopens_closed_key_without_closing_other_branch(resumed_event):
+    closed = dict(resumed_event, phase='sandbox', status='closed')
+    other = dict(resumed_event, branch='sandcastle/issue-1419-fix')
+    rows = [closed, resumed_event, other, closed]
+    assert set(worker_lifecycles(rows)) == {('1419', 'sandcastle/issue-1419-fix')}
+    with pytest.raises(CutoverError, match='open legacy work: 1419$'):
+        worker_claims(rows)
+    assert worker_claims([*rows, dict(closed, branch=other['branch'])]) == ()
+
+
+@pytest.mark.parametrize('phase,status', [
+    ('merge', 'finished'), ('implementer', 'resume'), ('merge-future', 'resumed'),
+    ('reviewer', 'resumed'), ('sandbox', 'resumed'),
+])
+def test_resume_schema_only_accepts_observed_producer_events(phase, status):
+    with pytest.raises(CutoverError, match='unknown phase/status'):
+        worker_rows(json.dumps({'ticket': 1419, 'phase': phase, 'status': status}).encode())
+
+
+def test_resume_tail_blocks_cutover_and_ticket_until_exact_close(barrier, resumed_event):
+    store, snap, remote = barrier
+    record = store.verify(snap, remote, (), 'a' * 40)
+    store.workers_log.write_text(json.dumps(resumed_event) + '\n')
+    with pytest.raises(CutoverError, match='open legacy work: 1419$'):
+        store.verify(snap, remote, (), 'a' * 40)
+    with pytest.raises(CutoverError, match='open legacy work: 1419$'):
+        store.check_ticket(9999, record)
+    assert not store.path.exists()
+    with store.workers_log.open('a') as stream:
+        stream.write(json.dumps(dict(resumed_event, phase='sandbox', status='closed')) + '\n')
+    assert store.verify(snap, remote, (), 'a' * 40) == record
+    store.check_ticket(9999, record)
+    with pytest.raises(CutoverError, match='after snapshot'):
+        store.check_ticket(1419, record)

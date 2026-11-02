@@ -33,12 +33,12 @@ MANAGED_LEGACY_ENTRYPOINTS = frozenset(
 # Recovery/failure is not a lifecycle terminal; corrections never change pending work.
 WORKER_EVENTS = {
     'claim': {'claimed', 'rolled_back'},
-    'implementer': {'started', 'no_commit', 'completed', 'verification_failed', 'failed', 'recovery_returned'},
+    'implementer': {'started', 'resumed', 'no_commit', 'completed', 'verification_failed', 'failed', 'recovery_returned'},
     'correction': {'error_record_52009', 'error_record_53495'},
     'reviewer': {'started', 'sealed', 'completed', 'failed'},
     'managed-stage': {'failed'},
     # #1742: H1 runners finish the merge phase before authoring; neither event releases the sandbox.
-    'merge': {'started', 'completed'},
+    'merge': {'started', 'resumed', 'completed'},
     'reconciliation': {'released'},
     'sandbox': {'closed'},
     'merger': {'ready', 'merging', 'conflict', 'prepared', 'committed', 'failed', 'done'},
