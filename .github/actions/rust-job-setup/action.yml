@@ -7,6 +7,22 @@ description: >-
 runs:
   using: composite
   steps:
+    # #1323：newchan_rust 依赖 pyo3 0.23（pyo3-ffi 0.23.5 最高支持 CPython 3.13）。ubuntu runner 镜像的
+    #   默认 python3 已升到 3.14，pyo3-ffi build script 在编译前直接拒绝（run 40696853620）。
+    #   钉 3.13（与 ci.yml test / s-sequence-1488 / s-fields-native-1488 同版本），并以 PYO3_PYTHON
+    #   显式指向该解释器；不用 PYO3_USE_ABI3_FORWARD_COMPATIBILITY 绕过检查。升 pyo3 另议。
+    - name: Set up Python 3.13 for pyo3 (#1323)
+      id: setup-python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Point PYO3_PYTHON at the pinned interpreter (#1323)
+      shell: bash
+      run: |
+        echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+        "${{ steps.setup-python.outputs.python-path }}" -V
+
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash
       working-directory: rust

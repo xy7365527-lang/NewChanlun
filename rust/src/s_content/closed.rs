@@ -578,41 +578,41 @@ impl<'body> FrameMaterial<'body> {
 
 /// #1394 仅活在一次 Native 值树编码中；不实现读取/写入 trait，也不持核验凭据。
 /// 标签分桶后以完整 body 为键，查询借用 body，只有真实 put 成功后才复制登记。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Default)]
 pub(super) struct NativeLocalMaterialMemo {
     materials: BTreeMap<u8, BTreeMap<Vec<u8>, NodeDigest>>,
     scoped: Option<WorkMap<NativeMaterial, NodeDigest>>,
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeMaterial {
     tag: u8,
     body: WorkVec<u8>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl std::hash::Hash for NativeMaterial {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         std::hash::Hash::hash(&(self.tag, &self.body[..]), state);
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl PartialEq for NativeMaterial {
     fn eq(&self, other: &Self) -> bool {
         self.tag == other.tag && self.body[..] == other.body[..]
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl Eq for NativeMaterial {}
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct BorrowedMaterial<'a>(u8, &'a [u8]);
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl std::hash::Hash for BorrowedMaterial<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         std::hash::Hash::hash(&(self.0, self.1), state);
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl hashbrown::Equivalent<NativeMaterial> for BorrowedMaterial<'_> {
     fn equivalent(&self, other: &NativeMaterial) -> bool {
         self.0 == other.tag && self.1 == &other.body[..]
@@ -624,12 +624,20 @@ pub(super) enum CodecContext<'read, 'capture> {
     Source(&'read mut dyn NodeSource),
     Store(&'read mut dyn NodeStore),
     Sink(&'read mut dyn NodeSink, Option<OwnedBudget>),
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     NativeLocal {
         sink: &'read mut dyn NodeSink,
         memo: &'read mut NativeLocalMaterialMemo,
     },
-    Capture(&'capture AuditCapture),
+    Capture(
+        &'capture AuditCapture,
+        Option<&'read dyn CaptureReadObserver>,
+    ),
+    #[cfg(feature = "s_incremental")]
+    OwnerCapture {
+        capture: &'capture AuditCapture,
+        work: &'read capture_allocation::scratch::WorkScope,
+    },
     Closed(&'read mut ClosedCapturedOwner<'capture>),
     QAccess {
         owner: &'read mut ClosedCapturedOwner<'capture>,
@@ -638,6 +646,14 @@ pub(super) enum CodecContext<'read, 'capture> {
     Fragment(&'read mut dyn fragment::FragmentRead<'capture>),
 }
 impl<'read, 'capture> CodecContext<'read, 'capture> {
+    pub(super) fn preserve_sequence_read_trace(&self) -> bool {
+        match self {
+            Self::Source(s) => s.preserve_sequence_read_trace(),
+            Self::Store(s) => s.preserve_sequence_read_trace(),
+            _ => false,
+        }
+    }
+
     pub(super) fn reserve_native(
         &self,
         bytes: usize,
@@ -648,47 +664,26 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         }
     }
 
+    pub(super) fn native_vec_room<T>(
+        &self,
+        result: &mut WorkVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        match self.work_budget() {
+            Some(work @ WorkBudget::Scratch(_)) => result.reserve_native_work(&work, additional),
+            _ => result.try_reserve(additional),
+        }
+    }
     pub(super) fn plain_vec_room<T>(
         &self,
         result: &mut WorkVec<T>,
         additional: usize,
     ) -> Result<(), CodecError> {
-        let failure = |reason| {
-            self.work_budget()
-                .map_or_else(capture_allocation::work::allocation_error, |b| {
-                    b.native_failure(reason)
-                })
-        };
-        let needed = result
-            .len()
-            .checked_add(additional)
-            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
-        if needed <= result.capacity() || self.budget().is_some() {
-            return Ok(());
-        }
-        // 只替 Native 动态结果申请新完整块；已释放旧块仍保守持账，不提前减费。
-        let next = needed
-            .max(
-                result
-                    .capacity()
-                    .checked_mul(2)
-                    .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?,
-            )
-            .max(4);
-        let bytes = next
-            .checked_mul(std::mem::size_of::<T>())
-            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
-        if let Some(permit) = self.reserve_native(bytes)? {
-            result
-                .try_reserve_exact(next - result.len())
-                .map_err(|_| failure(capture_allocation::scratch::ScratchFailure::Allocation))?;
-            permit.retain();
-        }
-        Ok(())
+        self.native_vec_room(result, additional)
     }
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
         match self {
-            Self::Capture(c) => match &c.nodes {
+            Self::Capture(c, _) => match &c.nodes {
                 CaptureNodes::AllocationPrototype(s) => Some(s.owned_budget()),
                 _ => None,
             },
@@ -702,9 +697,11 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
     pub(super) fn work_budget(&self) -> Option<WorkBudget> {
         let scope = match self {
             Self::Source(s) => s.codec_work(),
+            #[cfg(feature = "s_incremental")]
+            Self::OwnerCapture { work, .. } => Some(*work),
             Self::Store(s) => s.codec_work(),
             Self::Sink(s, _) => s.codec_sink_work(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             Self::NativeLocal { sink, .. } => sink.codec_sink_work(),
             _ => None,
         };
@@ -717,12 +714,14 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Source(s) => CodecContext::Source(&mut **s),
             Self::Store(s) => CodecContext::Store(&mut **s),
             Self::Sink(s, b) => CodecContext::Sink(&mut **s, b.clone()),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             Self::NativeLocal { sink, memo } => CodecContext::NativeLocal {
                 sink: &mut **sink,
                 memo: &mut **memo,
             },
-            Self::Capture(c) => CodecContext::Capture(c),
+            Self::Capture(c, observer) => CodecContext::Capture(c, *observer),
+            #[cfg(feature = "s_incremental")]
+            Self::OwnerCapture { capture, work } => CodecContext::OwnerCapture { capture, work },
             Self::Closed(c) => CodecContext::Closed(&mut **c),
             Self::QAccess { owner, access } => CodecContext::QAccess {
                 owner: &mut **owner,
@@ -738,8 +737,33 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         match self {
             Self::Source(s) => read_scoped_checked(&mut **s, d),
             Self::Store(s) => read_scoped_checked(&mut **s, d),
-            Self::Capture(c) => {
-                let mut reader = CaptureReader(c);
+            #[cfg(feature = "s_incremental")]
+            Self::OwnerCapture { capture, work } => {
+                let _health = work.reserve_native(0)?;
+                #[cfg(test)]
+                trace_capture_body_read(d);
+                capture.reads.set(capture.reads.get().saturating_add(1));
+                let (tag, body) = capture.original(d).ok_or_else(|| {
+                    CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+                })?;
+                let actual = frame(tag, body);
+                if actual != *d {
+                    return Err(CodecError::new(
+                        code::NODE_DIGEST,
+                        format!(
+                            "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
+                            root_string(d),
+                            root_string(&actual)
+                        ),
+                    ));
+                }
+                Ok((tag, VerifierBody::Borrowed(body)))
+            }
+            Self::Capture(c, observer) => {
+                let mut reader = ObservedCaptureReader {
+                    reader: CaptureReader(c),
+                    observer: *observer,
+                };
                 if c.is_allocation_prototype() {
                     read_body_checked(&mut reader, Some(c), d)
                 } else {
@@ -755,12 +779,12 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             }
             Self::Fragment(r) => r.read(d),
             Self::Sink(_, _) => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             Self::NativeLocal { .. } => Err(CodecError::new(code::SOURCE, "只写context不可读节点")),
         }
     }
     pub(super) fn emit(&mut self, tag: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Self::NativeLocal { sink, memo } = self {
             if let Some(scope) = sink.codec_sink_work() {
                 let work = scope.budget();
@@ -795,7 +819,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         match self {
             Self::Store(s) => s.put(m.digest, m.tag, m.body)?,
             Self::Sink(s, _) => s.put(m.digest, m.tag, m.body)?,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             Self::NativeLocal { .. } => unreachable!("Native 单次材料已在上方处理"),
             Self::Closed(c) => c.put_material(m)?,
             Self::QAccess { owner, access } => {
@@ -806,7 +830,14 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Fragment(_) => {
                 return Err(CodecError::new(code::SOURCE, "只读fragment不可写节点"))
             }
-            Self::Source(_) | Self::Capture(_) => {
+            #[cfg(feature = "s_incremental")]
+            Self::OwnerCapture { .. } => {
+                return Err(CodecError::new(
+                    code::SOURCE,
+                    "只读 owner context 不可写节点",
+                ))
+            }
+            Self::Source(_) | Self::Capture(_, _) => {
                 return Err(CodecError::new(code::SOURCE, "只读context不可写节点"))
             }
         }
@@ -856,7 +887,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_local_tests {
     use super::*;
 
@@ -930,35 +961,29 @@ mod native_local_tests {
             ..ProbeSink::default()
         };
         assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value)
+            write_value_native_local(&mut sink, &value)
                 .unwrap_err()
                 .code(),
             code::SINK
         );
         assert_eq!(sink.calls, 1);
         sink.fail_at = None;
-        let first = write_value_native_local_for_testonly(&mut sink, &value).unwrap();
+        let first = write_value_native_local(&mut sink, &value).unwrap();
         let per_call = sink.calls - 1;
         assert_eq!(per_call, sink.nodes.len());
         let before = sink.calls;
-        assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value).unwrap(),
-            first
-        );
+        assert_eq!(write_value_native_local(&mut sink, &value).unwrap(), first);
         assert_eq!(sink.calls - before, per_call);
         sink.fail_at = Some(sink.calls + 2);
         assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value)
+            write_value_native_local(&mut sink, &value)
                 .unwrap_err()
                 .code(),
             code::SINK
         );
         sink.fail_at = None;
         let before = sink.calls;
-        assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value).unwrap(),
-            first
-        );
+        assert_eq!(write_value_native_local(&mut sink, &value).unwrap(), first);
         assert_eq!(sink.calls - before, per_call);
     }
 
@@ -978,17 +1003,15 @@ mod native_local_tests {
             (Value::Edge([0xab; 32]), code::KIND),
         ] {
             assert_eq!(
-                write_value_native_local_for_testonly(&mut sink, &value)
+                write_value_native_local(&mut sink, &value)
                     .unwrap_err()
                     .code(),
                 expected
             );
         }
-        let built = write_value_native_local_for_testonly(
-            &mut sink,
-            &Value::Array(vec![Value::Edge([0xab; 32])]),
-        )
-        .unwrap();
+        let built =
+            write_value_native_local(&mut sink, &Value::Array(vec![Value::Edge([0xab; 32])]))
+                .unwrap();
         assert_eq!(
             verify(&mut sink.nodes, &built.content_ref())
                 .unwrap_err()

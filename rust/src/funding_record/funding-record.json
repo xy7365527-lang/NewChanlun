@@ -1,0 +1,41 @@
+{
+  "id": "funding-record",
+  "ticket": "#1601（#1586 审计 C-01/C-02；ADR 0040「签署记录」funding-record 块逐字转录，ADR 0029:31 八字段形状 + 可选 scope；cap 承载 Q_total）",
+  "source": "docs/adr/0040-funding-signature-and-chong-derivation.md「签署记录」```funding-record 块；漂移由 funding_record::tests::active_records_match_adr_0040 锁",
+  "records": [
+    {
+      "profile_id": "P0",
+      "policy_id": "#1557/funding-authorization/v1",
+      "version": "v1",
+      "supersedes": "none",
+      "cap": 100000,
+      "currency": "USDC",
+      "authorizer": "用户（#1557/#1558 2026-10-20 批复）",
+      "authorized_at": "2026-10-20",
+      "valid_through": "2027-10-20"
+    },
+    {
+      "profile_id": "P1-hl-testnet",
+      "policy_id": "#1557/funding-authorization/v1",
+      "version": "v1",
+      "supersedes": "none",
+      "cap": 500,
+      "currency": "USDC",
+      "authorizer": "用户（#1557/#1558 2026-10-20 批复）",
+      "authorized_at": "2026-10-20",
+      "valid_through": "2027-10-20"
+    },
+    {
+      "profile_id": "P0-acceptance-5m",
+      "policy_id": "#1557/funding-authorization/v1",
+      "version": "v1",
+      "supersedes": "none",
+      "scope": "evidence_only",
+      "cap": 5000000,
+      "currency": "USDC",
+      "authorizer": "用户（#1557/#1558 2026-10-20 批复）",
+      "authorized_at": "2026-10-20",
+      "valid_through": "2027-10-20"
+    }
+  ]
+}

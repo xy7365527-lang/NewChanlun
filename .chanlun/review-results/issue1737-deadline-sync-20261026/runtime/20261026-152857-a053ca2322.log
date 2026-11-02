@@ -1,0 +1,29 @@
+ref=codex/1737-deadline-sync-20261026 sha=a053ca2322ac9ab8d27d98e376f9c569024046bb sub=rust target=/home/hanju/nc-remote/target cmd=bash -lc $'set -e; source ~/.cargo/env; cat >/tmp/issue1737-controlled-channel.rs <<\'RS\'\nuse std::sync::mpsc;\nuse std::time::{Duration, Instant};\nfn main() {\n    let mode = std::env::args().nth(1).unwrap();\n    let (job_tx, job_rx) = mpsc::sync_channel(1);\n    let (release_tx, release_rx) = mpsc::sync_channel(1);\n    let (done_tx, done_rx) = mpsc::sync_channel(1);\n    let receiver = std::thread::spawn(move || {\n        let (reply_tx, reply_rx) = mpsc::sync_channel::<()>(1);\n        job_tx.send((Instant::now() + Duration::from_millis(10), reply_tx)).unwrap();\n        release_rx.recv_timeout(Duration::from_secs(2)).unwrap();\n        drop(reply_rx);\n        done_tx.send(()).unwrap();\n    });\n    let (deadline, reply_tx) = job_rx.recv_timeout(Duration::from_secs(2)).unwrap();\n    std::thread::sleep(deadline.saturating_duration_since(Instant::now()));\n    assert!(Instant::now() >= deadline);\n    if mode == old {\n        assert!(reply_tx.try_send(()).is_err(), old assertion failed: deadline expired while receiver is held alive);\n    } else {\n        assert!(reply_tx.try_send(()).is_ok());\n        release_tx.send(()).unwrap();\n        done_rx.recv_timeout(Duration::from_secs(2)).unwrap();\n        assert!(reply_tx.try_send(()).is_err());\n        receiver.join().unwrap();\n        println!(CONTROLLED_SYNC_PASS);\n    }\n}\nRS\nrustc /tmp/issue1737-controlled-channel.rs -o /tmp/issue1737-controlled-channel; set +e; /tmp/issue1737-controlled-channel old; red=0; set -e; echo REPRO_OLD_EXIT=; test  -ne 0; /tmp/issue1737-controlled-channel fixed; cargo fmt --all -- --check; cargo test --locked --features s_session --lib session_transport::tests::queued_unix_job_keeps_ingress_response_deadline_in_actor -- --exact --nocapture; cargo test --locked --features s_session --lib economic_session::finance_tests::trusted_ingress_deadline_is_not_restarted_by_economic_job -- --exact --nocapture' 
+
+thread 'main' (79) panicked at /tmp/issue1737-controlled-channel.rs:19:9:
+old assertion failed: deadline expired while receiver is held alive
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+REPRO_OLD_EXIT=101
+CONTROLLED_SYNC_PASS
+   Compiling pyo3-build-config v0.23.5
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling pyo3-macros v0.23.5
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261026-152857-a053ca2322/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 47.76s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-e4c5e760517ef883)
+
+running 1 test
+test session_transport::tests::queued_unix_job_keeps_ingress_response_deadline_in_actor ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3502 filtered out; finished in 0.01s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-e4c5e760517ef883)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3503 filtered out; finished in 0.00s
+
+EXIT=0 SECONDS=52

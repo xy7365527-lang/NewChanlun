@@ -23,7 +23,7 @@ use super::super::config::ExecConfig;
 use super::super::strategy::ledger::{tw_step, TwEvent, TwState};
 use super::super::venue_fee::FeeQuote;
 
-/// **未标定 fallback 单边费率**（分数）。`ExecConfig::default()` 下恰为 `3e-4`（1+2+0 bps）。
+/// **未标定 fallback 单边费率**（分数）。`ExecConfig::default()`（诊断夹具记录，#1602）下恰为 `3e-4`（1+2+0 bps）。
 ///
 /// ★#360 后语义收窄：本函数给的是 `fee_schedule = None` 档的常率（口径标签
 /// [`RATE_UNCALIBRATED_LABEL`](super::super::strategy::risk::RATE_UNCALIBRATED_LABEL)）。

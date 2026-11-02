@@ -197,7 +197,7 @@ use super::nested_fugue::div_segment_broken;
 use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::{BarSig, SignalTape};
-use super::types::{BspEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
+use super::types::{BspEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use crate::buysellpoint::{prove_s11_s9_located, prove_s12_center, BspKind, Side, SigLocatedState};
 use crate::stroke::Direction;
 
@@ -1130,7 +1130,7 @@ pub(crate) struct UnnStreamCore {
     n_base: f64,
     book: CenterBook,
     depth_ref: DepthRef,
-    /// 操作绑定级别（操作者参数，#1278 L0 裁定）。默认 = DEFAULT_OP_LADDER。
+    /// 操作绑定级别（操作者参数，#1278 L0 裁定）。由回放记录 `l_start` 给出（#1601）。
     op_ladder: usize,
     // pending 窗口（双侧，k ≥ op_ladder；segment 非势源）。
     nest_sell: [Option<Pending>; MAX_LADDER],
@@ -1160,17 +1160,18 @@ pub(crate) struct UnnStreamCore {
 
 impl UnnStreamCore {
     /// 初始化（floor_ladder 仅作结构递归基断言 = FIRST_BSP_LADDER，N4；
-    /// op_ladder = 操作绑定级别，操作者参数，#1278 L0 裁定）。
+    /// op_ladder = 操作绑定级别，操作者参数，#1278 L0 裁定；q_total = 期初现金池，ADR 0040
+    /// funding-record `cap`，#1601）。
     /// 注：tape 级 capability guard（has_bsp/div/dir）是批量入口专属——流式无完整
     /// tape 可查，capability 由调用方逐 bar 传事件结构保证（push_bar 总传事件行）。
-    pub(crate) fn new(floor_ladder: usize, op_ladder: usize) -> Result<Self, String> {
+    pub(crate) fn new(floor_ladder: usize, op_ladder: usize, q_total: f64) -> Result<Self, String> {
         if floor_ladder != FIRST_BSP_LADDER {
             return Err(format!(
                 "unified_necessity 是零操作参数引擎：floor_ladder 仅作结构递归基 = \
                  FIRST_BSP_LADDER={FIRST_BSP_LADDER}（N4 纯成本门，无操作 floor）；得 {floor_ladder}"
             ));
         }
-        // 操作绑定级别（操作者参数，#1278 L0 裁定）：默认 = DEFAULT_OP_LADDER（维持现行为）。
+        // 操作绑定级别（操作者参数，#1278 L0 裁定）：由回放记录 `l_start` 给出（#1601，`funding_record`）。
         // segment 非势源（85-91% 坍缩实测 + 540 号为操作层依据），下界 = FIRST_BSP_LADDER+1。
         if !(FIRST_BSP_LADDER + 1..MAX_LADDER).contains(&op_ladder) {
             return Err(format!(
@@ -1182,7 +1183,7 @@ impl UnnStreamCore {
         Ok(Self {
             res: PositionalResult::default(),
             voices: Vec::new(),
-            free: INITIAL_CAPITAL,
+            free: q_total,
             n_base: 0.0,
             book: CenterBook::new(),
             depth_ref: DepthRef::new(DEPTH_REF_WINDOW),
@@ -1950,6 +1951,7 @@ pub(crate) fn run_unified_necessity(
     tape: &SignalTape,
     floor_ladder: usize,
     op_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !tape.has_bsp_events() {
         return Err("unified_necessity 要求事件磁带（bsp_events 全空）".to_string());
@@ -1964,7 +1966,7 @@ pub(crate) fn run_unified_necessity(
                 .to_string(),
         );
     }
-    let mut core = UnnStreamCore::new(floor_ladder, op_ladder)?;
+    let mut core = UnnStreamCore::new(floor_ladder, op_ladder, q_total)?;
     let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
     let mut flip_ptr = 0usize;
     let n = tape.bars.len();
@@ -1984,10 +1986,11 @@ pub(crate) fn run_unified_necessity(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
-    use crate::trading::types::{BspClass, LadderMask, DEFAULT_OP_LADDER};
+    use crate::trading::types::FIXTURE_Q_TOTAL;
+    use crate::trading::types::{BspClass, LadderMask, FIXTURE_OP_LADDER};
 
     const UNN: PolarityMode = PolarityMode::UnifiedNecessity;
 
@@ -2071,7 +2074,7 @@ mod tests {
             dir_flips: Some(dir_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, UNN).unwrap()
+        run_positional_fx(&t, 2, UNN).unwrap()
     }
 
     /// 构造**向心**区间套买链（T49 读法C）⇒ 根在 source=4 满仓入场。内圈 type1 在 candidate
@@ -2128,7 +2131,7 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, UNN)
+        assert!(run_positional_fx(&t, 2, UNN)
             .unwrap_err()
             .contains("bsp_events"));
         // 缺 dir_flips ⇒ Err（div_events 不再是必然性输入——T49 向心回溯用 type1_hist，
@@ -2142,7 +2145,7 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, UNN)
+        assert!(run_positional_fx(&t2, 2, UNN)
             .unwrap_err()
             .contains("dir_flips"));
     }
@@ -2162,7 +2165,7 @@ mod tests {
             .find(|t| t.polarity == Polarity::Long)
             .unwrap();
         assert!(
-            (entry.shares * entry.entry_price - INITIAL_CAPITAL).abs() < 1e-6,
+            (entry.shares * entry.entry_price - FIXTURE_Q_TOTAL).abs() < 1e-6,
             "满仓恒仓"
         );
     }
@@ -2181,7 +2184,7 @@ mod tests {
             0,
             "segment 非势源 ⇒ 零入场"
         );
-        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "全程现金");
+        assert!((r.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9, "全程现金");
     }
 
     fn buy1_ev(price: f64) -> BspEvent {
@@ -2523,7 +2526,7 @@ mod tests {
         let mut confirms: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         confirms[4] = Some((100.0, 5)); // since=5 < bar=100（cascade_arm 时序断言满足）
         let post: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER]; // 故意错：≠ re-fold
-        prove_t53_connection_assoc(&pre, &confirms, Side::Buy, 100, &post, DEFAULT_OP_LADDER);
+        prove_t53_connection_assoc(&pre, &confirms, Side::Buy, 100, &post, FIXTURE_OP_LADDER);
     }
 
     #[test]
@@ -2562,8 +2565,8 @@ mod tests {
         // 产生 confirm fire（角向圈 φ=0 闭合），先经 candidate@4 武装（arm）。
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        let radial = prove_t56_angular_radial_holonomy(&r, DEFAULT_OP_LADDER); // 不 panic（segment 无角向圈）
-        let active = prove_t58_angular_basic_domain(&r, DEFAULT_OP_LADDER); // 不 panic（fire⟹arm 生命周期）
+        let radial = prove_t56_angular_radial_holonomy(&r, FIXTURE_OP_LADDER); // 不 panic（segment 无角向圈）
+        let active = prove_t58_angular_basic_domain(&r, FIXTURE_OP_LADDER); // 不 panic（fire⟹arm 生命周期）
         assert_eq!(
             r.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER]
                 + r.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER],
@@ -2579,8 +2582,8 @@ mod tests {
             "T58：≥1 级别完成 arm→fire 生命周期（23环辩证链闭合）"
         );
         // T57/T59 观测型（~ regime 依赖）不 panic，返回退化层计数。
-        let _ = prove_t57_chirality_mirror(&r, DEFAULT_OP_LADDER);
-        let _ = prove_t59_scale_invariance(&r, DEFAULT_OP_LADDER);
+        let _ = prove_t57_chirality_mirror(&r, FIXTURE_OP_LADDER);
+        let _ = prove_t59_scale_invariance(&r, FIXTURE_OP_LADDER);
     }
 
     #[test]
@@ -2591,7 +2594,7 @@ mod tests {
         // 起算点错位 ⇒ 必 panic。真实 bug 类（fire 计数误下沉到 segment）检出能力证明。
         let mut res = PositionalResult::default();
         res.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER] = 1;
-        prove_t56_angular_radial_holonomy(&res, DEFAULT_OP_LADDER);
+        prove_t56_angular_radial_holonomy(&res, FIXTURE_OP_LADDER);
     }
 
     #[test]
@@ -2600,8 +2603,8 @@ mod tests {
         // 反证 prove_t58 **非重言**：某势源层 fire>0 但 arms=0（角向圈无起始直接闭合 = 23环辩证
         // 链在该级别断裂）⇒ 必 panic。arm/fire 是独立计数器（跨 bar，原理上可分离）⇒ 守卫可证伪。
         let mut res = PositionalResult::default();
-        res.n_nest_fire_sell_by_ladder[DEFAULT_OP_LADDER] = 1; // fire 但 arms[DEFAULT_OP_LADDER]=0
-        prove_t58_angular_basic_domain(&res, DEFAULT_OP_LADDER);
+        res.n_nest_fire_sell_by_ladder[FIXTURE_OP_LADDER] = 1; // fire 但 arms[FIXTURE_OP_LADDER]=0
+        prove_t58_angular_basic_domain(&res, FIXTURE_OP_LADDER);
     }
 
     // ════════════ 配额 σ-不变性（T18×T48×T59，542号缺瓦补全）════════════

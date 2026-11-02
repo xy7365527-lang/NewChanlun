@@ -174,7 +174,7 @@ pub struct EngineConfig {
     /// ⇒ 大额做空是否吃熊」。net-up 灾难（CL L4 单笔 −40928，539）；有效域 ⊂ 真 bear。env `T_PAIR_CORE_SHORT_T3`。
     pub enable_pair_core_short_open: bool,
     /// **Face B 均匀基准单元定仓（做空腿赚 #110，shortleg-profit-spec §5.3/§6.3）**：true ⇒ LegPair
-    /// open_long_leg/open_short_leg 用 `uniform_base_units`（= INITIAL_CAPITAL×MOBILE_FRAC，级别无关，
+    /// open_long_leg/open_short_leg 用 `uniform_base_units`（= 期初资金×MOBILE_FRAC，级别无关，
     /// 无 depth 衰减）取代 `geom_tower_quota`（恒仓归一化 Σ=free≤1× = 压制副作用，msb §14.1）。多级别独立
     /// 叠加 → 杠杆来源A 涌现（579），否定线 [ZD,ZG] 封顶每条腿（liq=0）。**同时**令信号层（rec_stream）
     /// 填充 `view.zd/zg`（进场中枢边界）⇒ pair_stop_loss_step 真生效（RB_PAIR 下 zd/zg 恒 None=死代码，

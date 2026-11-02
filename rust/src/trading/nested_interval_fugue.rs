@@ -71,9 +71,7 @@ use super::nested_fugue::{
 use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
@@ -127,6 +125,7 @@ pub(crate) fn run_nested_interval_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
     min_trade_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -156,7 +155,7 @@ pub(crate) fn run_nested_interval_fugue(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut chain: Vec<Voice> = Vec::with_capacity(MAX_LADDER);
-    let mut free = INITIAL_CAPITAL;
+    let mut free = q_total;
     let mut n_base = 0.0f64;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
@@ -598,10 +597,11 @@ pub(crate) fn run_nested_interval_fugue(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     fn nif(min_trade_ladder: usize) -> PolarityMode {
         PolarityMode::NestedInterval { min_trade_ladder }
@@ -689,7 +689,7 @@ mod tests {
             dir_flips: Some(dir_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, nif(min)).unwrap()
+        run_positional_fx(&t, 2, nif(min)).unwrap()
     }
 
     #[test]
@@ -709,7 +709,7 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            run_positional(&t, 2, nif(1)).is_err(),
+            run_positional_fx(&t, 2, nif(1)).is_err(),
             "min<floor 拒绝（parse 已挡 nif1）"
         );
         // 缺背驰磁带 ⇒ Err。
@@ -722,7 +722,7 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, nif(3))
+        assert!(run_positional_fx(&t2, 2, nif(3))
             .unwrap_err()
             .contains("背驰磁带"));
     }
@@ -777,8 +777,8 @@ mod tests {
             dir_flips: Some(flips),
             ..Default::default()
         };
-        let r_nif = run_positional(&t_nif, 2, nif(2)).unwrap();
-        let r_urs = run_positional(&t_urs, 2, PolarityMode::UnifiedRecursive).unwrap();
+        let r_nif = run_positional_fx(&t_nif, 2, nif(2)).unwrap();
+        let r_urs = run_positional_fx(&t_urs, 2, PolarityMode::UnifiedRecursive).unwrap();
         assert_eq!(
             r_nif.trades.len(),
             r_urs.trades.len(),
@@ -832,7 +832,7 @@ mod tests {
                 dir_flips: Some(vec![]),
                 ..Default::default()
             };
-            run_positional(&t, 2, nif(3)).unwrap()
+            run_positional_fx(&t, 2, nif(3)).unwrap()
         };
         let r4 = {
             let t = SignalTape {
@@ -840,7 +840,7 @@ mod tests {
                 dir_flips: Some(vec![]),
                 ..Default::default()
             };
-            run_positional(&t, 2, nif(4)).unwrap()
+            run_positional_fx(&t, 2, nif(4)).unwrap()
         };
         assert_eq!(
             r3.n_nrf_spawns_by_ladder[3], 1,
@@ -896,7 +896,7 @@ mod tests {
                 dir_flips: Some(vec![]),
                 ..Default::default()
             };
-            run_positional(&t, 2, nif(3)).unwrap()
+            run_positional_fx(&t, 2, nif(3)).unwrap()
         };
         let r4 = {
             let t = SignalTape {
@@ -904,7 +904,7 @@ mod tests {
                 dir_flips: Some(vec![]),
                 ..Default::default()
             };
-            run_positional(&t, 2, nif(4)).unwrap()
+            run_positional_fx(&t, 2, nif(4)).unwrap()
         };
         assert_eq!(r3.n_nrf_root_entries_by_ladder[3], 1, "min=3：根入场@3");
         assert_eq!(
@@ -913,7 +913,7 @@ mod tests {
             "min=4：无可交易入场层"
         );
         assert!(
-            (r4.final_nav - INITIAL_CAPITAL).abs() < 1e-9,
+            (r4.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9,
             "min=4：全程现金"
         );
     }

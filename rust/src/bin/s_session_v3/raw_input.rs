@@ -27,6 +27,8 @@ pub(super) fn accept_events(
     input: &RawInputFile,
     volume_unit: Option<&str>,
 ) -> Result<Vec<Value>, String> {
+    // #1769：有结构源声明的库只接纳声明内 namespace；在任何行写入之前拒绝，事务随调用方回滚。
+    newchan_rust::structure_source::admit_input(tx, &input.source_namespace)?;
     let mut results = Vec::new();
     let mut qrev = tx
         .prepare("SELECT receipt_id, payload_hash, source_coord, seq FROM raw_events WHERE identity_key=?1 AND revision=?2")

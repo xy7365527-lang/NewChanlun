@@ -5,20 +5,25 @@
  * stale claim（workers.jsonl 非终态且 >48h 无后续事件）、外盘可用空间、CLIProxy 8318 可达。
  *
  * 默认只读：写 .sandcastle/logs/health-report.json 后退出。
- * --heal：wayfinder/claim-loop 停摆 → launchctl kickstart -k；stale claim → 与 claim-loop
+ * --heal：wayfinder/claim-loop 停摆 → launchctl kickstart -k，服务未加载则 bootstrap
+ * .sandcastle/launchd/<label>.plist 并复判运行态（#1678）；stale claim → 与 claim-loop
  * rollbackClaim 同款回滚（unassign @me + 恢复 sandcastle 标签 + workers.jsonl 记 rolled_back）。
  * 宿主脏树不自动清理（需人工或 PR 合入后 reset），外盘只报告不删文件。
  *
  * 跑法：npx tsx .sandcastle/health-monitor.mts [--heal] [--report <path>]
  */
+import { useScheduler } from "./scheduler-config.mts";
+import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
+const scheduler = useScheduler("health-monitor", ["wayfinderStaleMs", "claimStaleMs", "diskMinGiB", "healthProcessWaitMs", "healthProcessPollSeconds", "healthHttpTimeoutMs"]);
+
 // ── 阈值与路径（环境变量可覆盖） ─────────────────────────────────────────────
-export const WAYFINDER_STALE_MS = 10 * 60 * 1000;
-export const CLAIM_STALE_MS = 48 * 60 * 60 * 1000;
-export const DISK_MIN_GIB = Number(process.env.HEALTH_DISK_MIN_GIB ?? 100);
+export const WAYFINDER_STALE_MS = scheduler.wayfinderStaleMs;
+export const CLAIM_STALE_MS = scheduler.claimStaleMs;
+export const DISK_MIN_GIB = scheduler.diskMinGiB;
 
 const MAIN_REPO = process.env.HEALTH_MAIN_REPO ?? "/Users/silencehan/Projects/NewChanlun";
 const HOST_REPO = process.env.SANDCASTLE_HOST_REPO ?? "/Users/silencehan/Projects/NewChanlun-sandcastle-host";
@@ -32,6 +37,8 @@ const CLIPROXY_CONFIG =
   process.env.HEALTH_CLIPROXY_CONFIG ?? "/Users/silencehan/Library/Application Support/CLIProxyLocal/config.yaml";
 const LABEL_WAYFINDER = "com.newchanlun.wayfinder-engine";
 const LABEL_CLAIMER = "com.newchanlun.sandcastle-claimer";
+const PROC_WAYFINDER = "scripts/[w]ayfinder_engine[.]mts";
+const PROC_CLAIMER = "[.]sandcastle/[c]laim-loop[.]mts";
 
 const GH_ENV: NodeJS.ProcessEnv = {
   ...process.env,
@@ -182,14 +189,58 @@ function pgrep(pattern: string): boolean {
   }
 }
 
-function kickstart(label: string): string {
-  const uid = sh("id", ["-u"]).trim();
+/** launchd 服务停摆自愈；run 失败即抛（同 execFileSync），isRunning 为加载后复判的运行态。 */
+export interface HealDeps {
+  run: (cmd: string, args: string[]) => string;
+  isRunning: () => boolean;
+}
+export interface HealResult {
+  status: Status;
+  action: string;
+}
+
+function errText(e: unknown): string {
+  const stderr = (e as { stderr?: unknown })?.stderr;
+  return `${String(e)} ${typeof stderr === "string" ? stderr : ""}`.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+/**
+ * kickstart -k；若 launchd 报「服务不存在/未加载」（#1678，Could not find service）→ bootstrap 对应 plist
+ * 再判一次运行态。其它 kickstart 错误只报告，不叠加重试。
+ */
+export function healService(label: string, plist: string, uid: string, deps: HealDeps): HealResult {
   try {
-    sh("launchctl", ["kickstart", "-k", `gui/${uid}/${label}`]);
-    return `已 kickstart ${label}`;
+    deps.run("launchctl", ["kickstart", "-k", `gui/${uid}/${label}`]);
+    return { status: deps.isRunning() ? "healthy" : "red", action: `已 kickstart ${label}` };
   } catch (e) {
-    return `kickstart ${label} 失败：${String(e).slice(0, 200)}`;
+    const msg = errText(e);
+    if (!/Could not find service/i.test(msg)) return { status: "red", action: `kickstart ${label} 失败：${msg}` };
   }
+  try {
+    deps.run("launchctl", ["bootstrap", `gui/${uid}`, plist]);
+  } catch (e) {
+    return { status: "red", action: `${label} 未加载，bootstrap ${plist} 失败：${errText(e)}` };
+  }
+  return deps.isRunning()
+    ? { status: "healthy", action: `${label} 未加载，已 bootstrap ${plist}，进程已起` }
+    : { status: "red", action: `${label} 未加载，已 bootstrap ${plist}，但进程仍不在` };
+}
+
+/** 轮询进程出现（launchd 拉起有延迟），最多 waitMs。 */
+function waitForProcess(pattern: string, waitMs = scheduler.healthProcessWaitMs): boolean {
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    if (pgrep(pattern)) return true;
+    if (Date.now() >= deadline) return false;
+    sh("sleep", [String(scheduler.healthProcessPollSeconds)]);
+  }
+}
+
+function healLaunchd(label: string, processPattern: string): string {
+  const uid = sh("id", ["-u"]).trim();
+  const plist = `${HOST_REPO}/.sandcastle/launchd/${label}.plist`;
+  const r = healService(label, plist, uid, { run: sh, isRunning: () => waitForProcess(processPattern) });
+  return `${r.action}（复判：${r.status}）`;
 }
 
 function checkWayfinder(now: number): CheckResult {
@@ -214,7 +265,7 @@ function hostDirtyPaths(): string[] {
 }
 
 function checkClaimLoop(): CheckResult {
-  const running = pgrep("[.]sandcastle/[c]laim-loop[.]mts");
+  const running = pgrep(PROC_CLAIMER);
   const state = judgeClaimLoop({
     running,
     stderrTail: tail(CLAIMER_STDERR),
@@ -313,7 +364,7 @@ async function checkCliproxy(): Promise<CheckResult> {
     const res = await fetch(CLIPROXY_URL, {
       method: "GET",
       headers: key ? { Authorization: `Bearer ${key}` } : {},
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(scheduler.healthHttpTimeoutMs),
     });
     let models = 0;
     if (res.ok) {
@@ -361,12 +412,21 @@ async function main(): Promise<void> {
   const checks = [wayfinder, claimLoop, stale.result, disk, cliproxy];
 
   const actions: string[] = [];
-  if (heal) {
-    if (wayfinder.status === "red") actions.push(kickstart(LABEL_WAYFINDER));
-    if (claimLoop.state === "stopped") actions.push(kickstart(LABEL_CLAIMER));
-    if (claimLoop.state === "fail_closed") actions.push("claim_loop：宿主脏树不自动清理，留人工/PR");
-    for (const s of stale.actionable) actions.push(rollbackClaim(s));
-    if (disk.status === "red") actions.push("disk_space：只报告，不删除外盘文件");
+  if (heal && drainRequested()) {
+    actions.push("legacy drain：只报告，不重启服务、不回滚认领");
+  } else if (heal) {
+    try {
+      await withLegacyAdmission(() => {
+        if (wayfinder.status === "red") actions.push(healLaunchd(LABEL_WAYFINDER, PROC_WAYFINDER));
+        if (claimLoop.state === "stopped") actions.push(healLaunchd(LABEL_CLAIMER, PROC_CLAIMER));
+        if (claimLoop.state === "fail_closed") actions.push("claim_loop：宿主脏树不自动清理，留人工/PR");
+        for (const s of stale.actionable) actions.push(rollbackClaim(s));
+        if (disk.status === "red") actions.push("disk_space：只报告，不删除外盘文件");
+      });
+    } catch (error) {
+      if (!(error instanceof DrainFrozenError)) throw error;
+      actions.push("legacy drain：冻结已生效，未执行heal");
+    }
   }
 
   const report = {

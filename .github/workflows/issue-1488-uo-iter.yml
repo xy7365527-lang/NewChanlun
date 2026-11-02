@@ -1,0 +1,105 @@
+name: '#1488 统一所有权 编译与具名锁迭代'
+
+on:
+  push:
+    branches: ['codex/1488-uo-ci-20261019']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-1488-uo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  uo:
+    runs-on: ubuntu-24.04
+    # Native 组另含 release-only 锁（实测 release 编译约 3.5 分钟 + S4 约 33 分钟，run 39588126034）；debug 组实际约 11 分钟。
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ['s_session', 's_session,s_capture_native_testonly']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # #1323：pyo3 0.23 最高支持 CPython 3.13，runner 默认 python3 已是 3.14。
+      - id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: uo1488-${{ runner.os }}-j${{ strategy.job-index }}-${{ hashFiles('rust/Cargo.lock') }}
+      - name: build tests
+        working-directory: rust
+        run: |
+          set -o pipefail
+          cargo -V; rustc -V
+          cargo test --locked -j 4 --features '${{ matrix.features }}' --no-run --bin s_structure_session 2>&1 | tee ../build.log
+      - name: list
+        if: always()
+        working-directory: rust
+        run: cargo test --locked --features '${{ matrix.features }}' --bin s_structure_session -- --list --format terse > ../list.txt 2>&1 || true
+      - name: named locks (each exact)
+        working-directory: rust
+        run: |
+          set +e
+          fail=0
+          : > ../locks.tsv
+          while IFS= read -r t; do
+            [ -z "$t" ] && continue
+            case "$t" in \#*) continue;; esac
+            if ! grep -qx "$t: test" ../list.txt; then echo -e "$t\tNOT_LISTED" >> ../locks.tsv; continue; fi
+            timeout 600 cargo test --locked --features '${{ matrix.features }}' --bin s_structure_session -- --exact "$t" --test-threads 1 > "../out-$(echo $t | tr ':/' '__').log" 2>&1
+            rc=$?
+            if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "../out-$(echo $t | tr ':/' '__').log"; then echo -e "$t\tPASS" >> ../locks.tsv; else echo -e "$t\tFAIL($rc)" >> ../locks.tsv; fail=1; fi
+          done < ../.github/1488-uo-locks.txt
+          cat ../locks.tsv
+          exit $fail
+      # fix-0089 负责人裁定：release-only 锁（测试 #[ignore = "release-only: …"]，debug 下 O(N²) 超时）
+      #   只在 Native 组以 --release --ignored --exact 执行；不缩代数、不削弱比较。结果并入 locks.tsv。
+      #   #1640（ADR 0042）：release-only 锁改在生产增量构建 s_session,s_incremental 下执行（仍挂 Native 组）。
+      - name: build release-only locks
+        if: ${{ !cancelled() && matrix.features == 's_session,s_capture_native_testonly' }}
+        working-directory: rust
+        run: |
+          set -o pipefail
+          cargo test --release --locked -j 4 --features s_session,s_incremental --no-run --bin s_structure_session 2>&1 | tee ../build-release.log
+      - name: release-only locks (each exact, --release --ignored)
+        if: ${{ !cancelled() && matrix.features == 's_session,s_capture_native_testonly' }}
+        working-directory: rust
+        timeout-minutes: 50
+        run: |
+          set +e
+          fail=0
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --list --format terse --ignored > ../list-release.txt 2>&1
+          while IFS= read -r t; do
+            [ -z "$t" ] && continue
+            case "$t" in \#*) continue;; esac
+            log="../out-release-$(echo $t | tr ':/' '__').log"
+            if ! grep -qx "$t: test" ../list-release.txt; then echo -e "$t\tNOT_LISTED_RELEASE" >> ../locks.tsv; fail=1; continue; fi
+            timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
+            rc=$?
+            if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "$log"; then echo -e "$t\tPASS_RELEASE" >> ../locks.tsv; else echo -e "$t\tFAIL_RELEASE($rc)" >> ../locks.tsv; fail=1; fi
+          done < ../.github/1488-uo-release-locks.txt
+          cat ../locks.tsv
+          exit $fail
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uo1488-${{ github.run_id }}-${{ strategy.job-index }}-${{ github.sha }}
+          path: |
+            build.log
+            build-release.log
+            list.txt
+            list-release.txt
+            locks.tsv
+            out-*.log
+          if-no-files-found: warn

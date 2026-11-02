@@ -1,0 +1,27 @@
+remote:
+remote: GitHub found 217 vulnerabilities on xy7365527-lang/NewChanlun's default branch (8 critical, 90 high, 93 moderate, 26 low). To find out more, visit:
+remote:      https://github.com/xy7365527-lang/NewChanlun/security/dependabot
+remote:
+To github.com:xy7365527-lang/NewChanlun.git
+-	:refs/heads/codex/1488-a2-c2-ci-20261015	[deleted]
+-	:refs/heads/codex/1488-a2-ci-20261015	[deleted]
+-	:refs/heads/codex/1488-abc-fix-20261015	[deleted]
+-	:refs/heads/codex/1488-abc-integration-20261015	[deleted]
+-	:refs/heads/codex/1488-b2-native-20261015	[deleted]
+-	:refs/heads/codex/1488-budget-full-chain-fix-v2-20261018	[deleted]
+-	:refs/heads/codex/1488-driver-six-v4-20261020	[deleted]
+-	:refs/heads/codex/1488-fields-20261015	[deleted]
+-	:refs/heads/codex/1488-fixed-radix-borrowfix-six-20261018	[deleted]
+-	:refs/heads/codex/1488-r5-driver-six-20261018	[deleted]
+-	:refs/heads/codex/1488-recover-journal-frozen-20261020	[deleted]
+-	:refs/heads/codex/1488-sequence-20261015	[deleted]
+-	:refs/heads/codex/1488-stageowner-check	[deleted]
+-	:refs/heads/codex/1488-stageowner-check-r3	[deleted]
+-	:refs/heads/codex/1488-stageowner-check-r4	[deleted]
+-	:refs/heads/codex/1488-stageowner-check-r5	[deleted]
+-	:refs/heads/codex/1488-successor-testfix-six-20261018	[deleted]
+-	:refs/heads/codex/1488-unified-ownership-v4-frozen-20261020	[deleted]
+-	:refs/heads/codex/1488-uo-ci-20261019	[deleted]
+-	:refs/heads/validate/1488-driver-six	[deleted]
+-	:refs/heads/wt-1488-b2v3-driver-v4	[deleted]
+Done

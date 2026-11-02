@@ -3,7 +3,7 @@
 //! 交易行为分解数据产出（2026-06-11 编排者任务）— 纯 Rust，不走 Python→PyO3。
 //!
 //! 职责：从磁带二进制（`analysis/_dump_tape_rust.py` 落盘，信号事件全部来自
-//! Rust 增量接口）加载 SignalTape → run_organic V2r → 输出逐腿 JSON 供分析：
+//! Rust 增量接口）加载 SignalTape → run_organic_fx V2r → 输出逐腿 JSON 供分析：
 //!   - rev_open_log / rev_close_log（开腿触发 kind/trigger、锚中枢、闭腿原因）
 //!   - diag 中 leg=rev 的 LegTrace（配对盈亏、持仓区间）
 //!   - 全部 trades（权益曲线/回撤背景）
@@ -21,7 +21,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::config::{variant, StopMode};
-use super::runner::run_organic;
+use super::runner::run_organic_fx;
 use super::tape::{BarSig, SignalTape};
 use super::types::{BspClass, BspEvent, DivEvent, LadderMask, MAX_LADDER};
 use crate::divergence::DivKind;
@@ -211,8 +211,8 @@ fn run_and_dump(sym: &str, exp: &Expect) {
     let tape = load_tape(sym);
     println!("[{sym}] 磁带 {} bars 加载完成", tape.bars.len());
     let cfg = variant("V2r").expect("V2r 在 config.rs 注册");
-    let res = run_organic(&tape, FLOOR_LADDER, &cfg, StopMode::None, true)
-        .unwrap_or_else(|e| panic!("run_organic: {e}"));
+    let res = run_organic_fx(&tape, FLOOR_LADDER, &cfg, StopMode::None, true)
+        .unwrap_or_else(|e| panic!("run_organic_fx: {e}"));
     let c = &res.counters;
     // ── 在册硬校验（fail-fast，混表禁止）──
     assert_eq!(c.n_rev_open, exp.open, "n_rev_open 与在册不符");

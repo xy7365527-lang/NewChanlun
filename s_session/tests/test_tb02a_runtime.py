@@ -13,11 +13,12 @@ from unittest.mock import patch
 
 from tb02a_runtime import Tb02aRun, helper_exchange
 import s_service_control as control
+from r4_anchor_fixture import anchored_controller
 
 
 class RuntimeLibraryTests(unittest.TestCase):
     def environment(self, root, metadata):
-        controller = control.Controller({"db": str(root / "owned.sqlite"), "python": "/explicit/python3.12"},
+        controller = anchored_controller({"db": str(root / "owned.sqlite"), "python": "/explicit/python3.12"},
                                         root / "control")
         try:
             reply = subprocess.CompletedProcess([], 0, json.dumps(metadata).encode(), b"")

@@ -1,0 +1,39 @@
+{
+  "id": "venue-profile-synthetic-tb02a",
+  "version": 2,
+  "kind": "venue_profile",
+  "profile_id": "production_synthetic_ohlc_integer_tb02a_v1",
+  "symbol": null,
+  "usage": "s_structure_writer",
+  "admissible": true,
+  "ticket": "#1774（ADR 0057 裁定三 R3 签 tick_size；ADR 0057 追加修订段签三项成本：用户批 https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6542854318 ）",
+  "scope": "#1640 S 结构写者整数 tick 输入的量化约定（`s_session/profiles/ohlc_integer_tb02a_v1.json`），继承 `not_product_default`：凭它跑出的生产臂读数只证 synthetic 整数输入路径，不证 Binance 现货价位尺度，不构成真实场所准入证据。使用域 B1+B2（#1774 用户批）：`symbol: null` 使 symbol 路选不到；`usage: s_structure_writer` 使通用 profile 选择器以 InvalidPolicy{venue_profile} 拒绝，只有 S 专用选择器 `production_venue_for_s_writer` 可绑定。scope 文字只作说明，拒绝机制在选择层",
+  "fields": {
+    "tick_size": {
+      "value": 1,
+      "unit": "价格最小变动单位（tick）",
+      "source": "ADR 0057 R3：`s_session/profiles/ohlc_integer_tb02a_v1.json`（unit: tick、tick_size: \"1\"、not_product_default: true）sha256 482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6；生效 2026-10-28，有效至 2027-10-28；输入约定，不是场所事实"
+    },
+    "commission_bps": {
+      "value": 10,
+      "unit": "bp/side",
+      "source": "ADR 0057 裁定一：`commission_bps` 维持 ADR 0044 P0 已签值，本记录由 P0 v1 按裁定三拆出而继承；本次 #1774 用户批只签三项，未另签本项"
+    },
+    "slippage_bps": {
+      "value": 0,
+      "unit": "bp/side",
+      "source": "[新缠论:选择] 模型假设，非场所事实：本结构专用输入不模拟盘口摩擦，最乐观；不使 ADR 0044 成本门 slippage 升 Known（ADR 0057 裁定二）。用户批 #1774 评论 6542854318（2026-10-31）；可改签任一 ≥0 有限值即新版本"
+    },
+    "tax_bps": {
+      "value": 0,
+      "unit": "bp/side",
+      "source": "[新缠论:选择] 模型假设，非税务事实：本模型不计税；synthetic 输入无账户主体与辖区。用户批 #1774 评论 6542854318（2026-10-31）；可改签任一 ≥0 有限值即新版本"
+    },
+    "entry_delay_bars": {
+      "value": 0,
+      "unit": "基础 K 根数",
+      "source": "[新缠论:选择] 模型假设，非真实延迟：从信号 bar 起找首根可交易 bar（strategy/exec.rs fill_bar_index），最乐观。S 结构计算不消费本值。用户批 #1774 评论 6542854318（2026-10-31）；可改签任一非负整数即新版本"
+    }
+  },
+  "cost": "三项成本为具名模型假设：泄漏到执行/回放时会被当作最乐观的场所事实，输出须标本记录 id/版本；就地改任一值即 research-override、失去准入"
+}

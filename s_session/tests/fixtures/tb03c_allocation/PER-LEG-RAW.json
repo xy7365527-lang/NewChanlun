@@ -1,0 +1,248 @@
+{
+  "events": [
+    {
+      "allocation_id": "alloc-N1-open",
+      "book_identity": {
+        "chong_id": "chong-N1",
+        "fixed_q": "1",
+        "op_level": "1",
+        "side": "long",
+        "symbol": "TEST-N"
+      },
+      "event": "N1-open",
+      "family_id": "fam-N1",
+      "known_cost_components": [
+        {
+          "amount_text": "100",
+          "canonical_amount": "100",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "N1-open:cost"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "1",
+        "witness_refs": {
+          "A": "N1-open:A",
+          "Pi": "N1-open:Pi",
+          "W": "N1-open:W",
+          "units": "N1-open:units"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "N1-open",
+        "received_time": "source-received-1",
+        "source_cursor": "1",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-1",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "100",
+        "source_ref": "N1-open:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-N2-open",
+      "book_identity": {
+        "chong_id": "chong-N2",
+        "fixed_q": "3",
+        "op_level": "2",
+        "side": "long",
+        "symbol": "TEST-N"
+      },
+      "event": "N2-open",
+      "family_id": "fam-N2",
+      "known_cost_components": [
+        {
+          "amount_text": "200",
+          "canonical_amount": "200",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "N2-open:cost"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "2",
+        "witness_refs": {
+          "A": "N2-open:A",
+          "Pi": "N2-open:Pi",
+          "W": "N2-open:W",
+          "units": "N2-open:units"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "N2-open",
+        "received_time": "source-received-2",
+        "source_cursor": "2",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-2",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "100",
+        "source_ref": "N2-open:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-N3-open",
+      "book_identity": {
+        "chong_id": "chong-N3",
+        "fixed_q": "3",
+        "op_level": "3",
+        "side": "long",
+        "symbol": "TEST-N"
+      },
+      "event": "N3-open",
+      "family_id": "fam-N3",
+      "known_cost_components": [
+        {
+          "amount_text": "200",
+          "canonical_amount": "200",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "N3-open:cost"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "2",
+        "witness_refs": {
+          "A": "N3-open:A",
+          "Pi": "N3-open:Pi",
+          "W": "N3-open:W",
+          "units": "N3-open:units"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "N3-open",
+        "received_time": "source-received-3",
+        "source_cursor": "3",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-3",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "100",
+        "source_ref": "N3-open:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-net-fill-1",
+      "event": "net-fill-1",
+      "per_leg_report": {
+        "commission": "3",
+        "leg_attribution": {
+          "chong-N1": {
+            "acquisition_cash": "200",
+            "commission": "2",
+            "units": "2"
+          },
+          "chong-N2": {
+            "acquisition_cash": "100",
+            "commission": "1",
+            "units": "1"
+          },
+          "chong-N3": {
+            "acquisition_cash": "0",
+            "commission": "0",
+            "units": "0"
+          }
+        },
+        "manifest_hash": "1cf5b5af5d150dba4e3f5138cdf7c602d5f65750c89ada0dc74ad24277c7fb7b",
+        "reported_quantity": "3",
+        "source_ref": "net-fill-1:fill",
+        "symbol": "TEST-N",
+        "unit_price": "100"
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "net-fill-1",
+        "received_time": "source-received-4",
+        "source_cursor": "4",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-4",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "101",
+        "source_ref": "net-fill-1:sp"
+      }
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "N1-open:cost": [
+        {
+          "json_pointer": "/events/0/known_cost_components/0"
+        }
+      ],
+      "N1-open:sp": [
+        {
+          "json_pointer": "/events/0/stable_point"
+        }
+      ],
+      "N2-open:cost": [
+        {
+          "json_pointer": "/events/1/known_cost_components/0"
+        }
+      ],
+      "N2-open:sp": [
+        {
+          "json_pointer": "/events/1/stable_point"
+        }
+      ],
+      "N3-open:cost": [
+        {
+          "json_pointer": "/events/2/known_cost_components/0"
+        }
+      ],
+      "N3-open:sp": [
+        {
+          "json_pointer": "/events/2/stable_point"
+        }
+      ],
+      "net-fill-1:fill": [
+        {
+          "json_pointer": "/events/3/per_leg_report"
+        }
+      ],
+      "net-fill-1:sp": [
+        {
+          "json_pointer": "/events/3/stable_point"
+        }
+      ]
+    }
+  },
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "money": {
+      "currency": "TEST-CASH",
+      "quantum": "1",
+      "unit": "TEST-CASH"
+    },
+    "numeric_encoding": "exact_decimal_integer_text",
+    "quantity": {
+      "quantum": "1",
+      "unit": "TEST-UNIT"
+    }
+  }
+}

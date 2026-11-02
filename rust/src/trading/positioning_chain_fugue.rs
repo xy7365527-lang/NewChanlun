@@ -112,9 +112,7 @@ use super::nested_fugue::{div_segment_broken, nav, pop_tail, rec_sub_evidence, u
 use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -265,6 +263,7 @@ pub(crate) fn run_positioning_chain_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
     op_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -272,7 +271,7 @@ pub(crate) fn run_positioning_chain_fugue(
              （结构 BSP 承载层下界 = 递归基，非操作 floor）；floor_ladder={floor_ladder}"
         ));
     }
-    // 操作绑定级别（操作者参数，#1278 L0 裁定）：默认 = DEFAULT_OP_LADDER（维持现行为）。
+    // 操作绑定级别（操作者参数，#1278 L0 裁定）：由回放记录 `l_start` 给出（#1601，`funding_record`）。
     // segment 非势源（85-91% 坍缩实测 + 540 号为操作层依据），故下界 = FIRST_BSP_LADDER+1。
     if !(FIRST_BSP_LADDER + 1..MAX_LADDER).contains(&op_ladder) {
         return Err(format!(
@@ -296,7 +295,7 @@ pub(crate) fn run_positioning_chain_fugue(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut chain: Vec<Voice> = Vec::with_capacity(MAX_LADDER);
-    let mut free = INITIAL_CAPITAL;
+    let mut free = q_total;
     let mut n_base = 0.0f64;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
@@ -766,10 +765,11 @@ pub(crate) fn run_positioning_chain_fugue(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     const PCF: PolarityMode = PolarityMode::PositioningChain;
 
@@ -848,7 +848,7 @@ mod tests {
             dir_flips: Some(dir_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, PCF).unwrap()
+        run_positional_fx(&t, 2, PCF).unwrap()
     }
 
     #[test]
@@ -864,7 +864,9 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, PCF).unwrap_err().contains("背驰磁带"));
+        assert!(run_positional_fx(&t, 2, PCF)
+            .unwrap_err()
+            .contains("背驰磁带"));
         // 缺 dir_flips ⇒ Err。
         let t2 = SignalTape {
             bars: vec![with_empty_div(with_ev(
@@ -875,7 +877,7 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, PCF)
+        assert!(run_positional_fx(&t2, 2, PCF)
             .unwrap_err()
             .contains("dir_flips"));
     }
@@ -1000,7 +1002,7 @@ mod tests {
             0,
             "segment 单独 candidate ⇒ 零入场（source 必 > segment）"
         );
-        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "全程现金");
+        assert!((r.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9, "全程现金");
     }
 
     /// 构造高级别买 pending [3,4] + segment/a0 confirm ⇒ 根在 source=4 满仓入场。
@@ -1035,7 +1037,7 @@ mod tests {
             .find(|t| t.polarity == Polarity::Long)
             .unwrap();
         assert!(
-            (entry.shares * entry.entry_price - INITIAL_CAPITAL).abs() < 1e-6,
+            (entry.shares * entry.entry_price - FIXTURE_Q_TOTAL).abs() < 1e-6,
             "满仓恒仓（全部资金入场）shares={} px={}",
             entry.shares,
             entry.entry_price
@@ -1058,7 +1060,7 @@ mod tests {
             0,
             "无 confirm ⇒ 零入场"
         );
-        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "全程现金");
+        assert!((r.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9, "全程现金");
     }
 
     #[test]

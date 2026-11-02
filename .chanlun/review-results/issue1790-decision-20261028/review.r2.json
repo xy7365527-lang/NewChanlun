@@ -1,0 +1,13 @@
+{
+  "verdict": "BLOCK",
+  "reviewer_model": "gpt-6.1-sol",
+  "findings": [
+    {
+      "id": "R8-ARCH-002",
+      "severity": "HIGH",
+      "evidence": "r2 的 archaeology.json 已 parsed=true、含 8 个 points，schema 与 decisions/1786/archaeology.json 一致；archaeology.md 也已补齐。抽查 Q1/Q2/Q4/Q5/Q7/Q8 命中可复现，但 archaeology.md:63 的 Q3 命令为 git grep -n -E 'fn order_key\\\\|Slot::Shape\\\\(w\\\\) => OrderKey::Shape\\\\|fn public_rank\\\\|first_known_generation\")\\\\? != g' ...。在 -E 下 \\\\| 是字面竖线，该命令实际命中 0，不是表中声明的 7；将 \\\\| 改为 | 后才命中 7。",
+      "required_fix": "修正 archaeology.md 与 archaeology.json 对应 Q3 的命令及命中记录，重新原样复跑并确认输出与命中数一致；修复后重新提交独审。"
+    }
+  ],
+  "summary": "r2 已修复原 R1：E3 叶编码、bind_source 版本换根、E5a-e seed/establish/new_group/merge 与有效域、未封口边界、bounded 无 subsequent_development 均可由 a485194947 代码支撑；CONTEXT.md:176 影响项也准确。ADR 载体与核心结论无新增问题。唯一剩余阻断是 R8 考古 Q3 命令在 -E 下不可复跑，故仍 BLOCK。"
+}

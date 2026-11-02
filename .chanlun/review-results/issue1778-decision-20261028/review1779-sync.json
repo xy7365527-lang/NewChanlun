@@ -1,0 +1,100 @@
+{
+  "verdict": "PASS",
+  "scope": "PR1779 文书 main 同步增量独审",
+  "head": "95e680aed2f54ed69609a7a4244ddfa6222e9f04",
+  "base": "af15e1a9920954b9505d01273e0b9035b25d9317",
+  "previous_head": "01358862d619b99b71d38e7a766aec88657f455d",
+  "worktree": "/Volumes/AgentStorage/issue1778-land-28n/worktree",
+  "observed_utc": "2026-10-28T23:31:21Z",
+  "local_check_completed_utc": "2026-10-28T23:31:49Z",
+  "pr_url": "https://github.com/xy7365527-lang/NewChanlun/pull/1779",
+  "findings": [],
+  "reused_evidence": [
+    "/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1778-INDEPENDENT-REVIEW-28I.md",
+    "/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1778-LOW-FIX-28J.md",
+    "/Volumes/AgentStorage/decisions/1778/draft.md"
+  ],
+  "reused_coverage": "28I R1-R8 的原裁定、证据、考古、分级和边清单。28J LOW 修订。未重做旧裁定。",
+  "incremental_coverage": [
+    "本地与GitHub精确head相同",
+    "普通merge双父为原候选与main基线",
+    "remerge-diff无冲突解决差异",
+    "ADR0053相对原候选无变化",
+    "ADR0051相对原候选与main均无变化",
+    "CONTEXT main同核adapter与候选撤回子合同指路同时保留",
+    "相对main仅两文书文件新增112行",
+    "原经济会话论据与ADR0041、ADR0051、SPEC5.8在同步中未变",
+    "无政策变更",
+    "diff --check通过"
+  ],
+  "ci": {
+    "queried_once": true,
+    "mergeable": "MERGEABLE",
+    "merge_state": "UNSTABLE",
+    "all_required_green": false,
+    "runs": [
+      {
+        "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/40786910031",
+        "status": "尚有运行与排队job"
+      },
+      {
+        "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/40786909945",
+        "status": "IN_PROGRESS"
+      }
+    ],
+    "success": [
+      "test",
+      "rust-check",
+      "rust-test-s-session-extras (content)",
+      "#1488 序列与真实 memo (Plain)",
+      "s-observer",
+      "fixture-drift",
+      "sandcastle-ts"
+    ],
+    "in_progress": [
+      "DevSkim",
+      "rust-test-default",
+      "rust-test-s-session (shard 0)",
+      "rust-test-s-session (shard 1)",
+      "rust-test-s-session (shard 2)",
+      "rust-test-s-session (shard 3)",
+      "rust-test-s-session-extras (economic)",
+      "rust-test-backtest-bin",
+      "#1488 序列与真实 memo (Owned)",
+      "#1488 固定字段共享核 (Native)"
+    ],
+    "queued": [
+      "rust-test-s-session-extras (native)",
+      "rust-test-s-session-extras (owned)"
+    ],
+    "skipped": [
+      "macos-session"
+    ],
+    "failures_observed": []
+  },
+  "commands": [
+    "date -u '+%Y-%m-%dT%H:%M:%SZ'",
+    "git status --porcelain",
+    "git rev-parse HEAD",
+    "git show -s --format='%H%n%P%n%s' HEAD",
+    "git diff --stat af15e1a9920954b9505d01273e0b9035b25d9317 95e680aed2f54ed69609a7a4244ddfa6222e9f04",
+    "git diff --check af15e1a9920954b9505d01273e0b9035b25d9317 95e680aed2f54ed69609a7a4244ddfa6222e9f04",
+    "git diff af15e1a9920954b9505d01273e0b9035b25d9317 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- CONTEXT.md",
+    "git diff 01358862d619b99b71d38e7a766aec88657f455d 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- docs/adr/0053-domain-event-withdrawal-subcontract.md 'docs/adr/0051*'",
+    "git diff af15e1a9920954b9505d01273e0b9035b25d9317 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- 'docs/adr/0051*'",
+    "git show --remerge-diff --format=fuller 95e680aed2f54ed69609a7a4244ddfa6222e9f04",
+    "git diff 01358862d619b99b71d38e7a766aec88657f455d 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- CONTEXT.md",
+    "git diff --name-only 01358862d619b99b71d38e7a766aec88657f455d 95e680aed2f54ed69609a7a4244ddfa6222e9f04",
+    "git show 95e680aed2f54ed69609a7a4244ddfa6222e9f04:CONTEXT.md | nl -ba | sed -n '377,390p;458,472p'",
+    "git log --format='%H %s' -- docs/adr/0053-domain-event-withdrawal-subcontract.md",
+    "git show 95e680aed2f54ed69609a7a4244ddfa6222e9f04:docs/adr/0053-domain-event-withdrawal-subcontract.md | nl -ba | sed -n '55,112p'",
+    "git diff --exit-code 01358862d619b99b71d38e7a766aec88657f455d 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- rust/src/economic_session docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md .chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md",
+    "git diff --exit-code af15e1a9920954b9505d01273e0b9035b25d9317 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- . ':!CONTEXT.md' ':!docs/adr/0053-domain-event-withdrawal-subcontract.md'",
+    "git diff --exit-code 01358862d619b99b71d38e7a766aec88657f455d 95e680aed2f54ed69609a7a4244ddfa6222e9f04 -- docs/adr/0053-domain-event-withdrawal-subcontract.md",
+    "gh pr view 1779 --repo xy7365527-lang/NewChanlun --json url,title,state,baseRefName,baseRefOid,headRefName,headRefOid,mergeable,mergeStateStatus,files,statusCheckRollup"
+  ],
+  "no_comments": "不适用。相对main无应用代码。",
+  "compilation": "未运行，纯文书增量。",
+  "next_owner": "主控",
+  "next_action": "按既有授权在合入前核当前head必要CI终态及最终squash消息。"
+}

@@ -1,0 +1,5021 @@
+{
+ "row_field_diffs": {
+  "objects:CC-008.endpoint": {
+   ".payload.data.raw_first": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.raw_last": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.raw_position": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-008.new_bi_pair": {
+   ".payload.data.evidence": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "[]"
+     ]
+    ]
+   },
+   ".payload.data.new.raw_first": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.new.raw_last": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.new.raw_position": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.old.raw_first": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.old.raw_last": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.old.raw_position": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-010.bi": {
+   ".payload.data.end.raw_first": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.end.raw_last": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.end.raw_position": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.start.raw_first": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.start.raw_last": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.start.raw_position": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-011.segment_seed": {
+   ".payload.schema_revision": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-012.feature_sequence": {
+   ".payload.schema_revision": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-013.segment": {
+   ".payload.schema_revision": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-054.knowledge_state": {
+   ".payload.domain": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "established_direction_without_extreme_identity_competition",
+      "established_direction_with_extreme_root_sets"
+     ]
+    ]
+   }
+  },
+  "objects:CC-055.change_event": {
+   ".payload.data.after.end.raw_first": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ]
+    ]
+   },
+   ".payload.data.after.end.raw_last": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ]
+    ]
+   },
+   ".payload.data.after.end.raw_position": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.after.start.raw_first": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.after.start.raw_last": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.after.start.raw_position": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.before.end.raw_first": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ]
+    ]
+   },
+   ".payload.data.before.end.raw_last": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ]
+    ]
+   },
+   ".payload.data.before.end.raw_position": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.before.start.raw_first": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.before.start.raw_last": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.before.start.raw_position": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.causes[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-055.relation": {
+   ".payload.policy_version": {
+    "count": 55,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 55,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 55,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-055.segment_change": {
+   ".payload.schema_revision": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-055.segment_relation": {
+   ".payload.schema_revision": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "objects:CC-056.segment_version": {
+   ".fact_key": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[\"CC-056.segment_version\",\"TB-02-D\"]",
+      "[\"CC-056.segment_version\",\"TB-02-W\"]"
+     ]
+    ]
+   },
+   ".object_id": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g32|active>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g32|active>"
+     ]
+    ]
+   },
+   ".payload.data.deferred_scope[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "general_scan_continuation",
+      "global_G006_bridge"
+     ],
+     [
+      "global_G006_bridge",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.delivered_scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "seed_strict_first_and_finite_second",
+      "seed_strict_first_and_second_terminal"
+     ]
+    ]
+   },
+   ".payload.data.scan_budget.policy": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "second-seq-scan-budget/1"
+     ]
+    ]
+   },
+   ".payload.data.scan_budget.round_strokes": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "0"
+     ]
+    ]
+   },
+   ".payload.data.scan_cursors": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "[]"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   },
+   ".payload.slot": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-D",
+      "TB-02-W"
+     ]
+    ]
+   }
+  },
+  "objects:CC-056.version": {
+   ".payload.policy_version": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "relations:replaces": {
+   ".object": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g9|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g9|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g10|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g10|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g11|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g11|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g12|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g12|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g13|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g13|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g14|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g14|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g15|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g15|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g16|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g16|withdrawn>"
+     ]
+    ]
+   },
+   ".subject": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g10|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g10|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g11|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g11|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g12|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g12|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g13|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g13|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g14|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g14|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g15|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g15|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g16|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g16|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g17|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g17|withdrawn>"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-008.endpoint": {
+   ".payload.data.raw_first": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.raw_last": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.raw_position": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 8,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-008.new_bi_pair": {
+   ".payload.data.evidence": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "[]"
+     ]
+    ]
+   },
+   ".payload.data.new.raw_first": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.new.raw_last": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.new.raw_position": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.old.raw_first": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.old.raw_last": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.old.raw_position": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 7,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-010.bi": {
+   ".payload.data.end.raw_first": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.end.raw_last": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ]
+    ]
+   },
+   ".payload.data.end.raw_position": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.start.raw_first": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.start.raw_last": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ]
+    ]
+   },
+   ".payload.data.start.raw_position": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 13,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-011.seed_candidate": {
+   ".payload.schema_revision": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-011.segment_seed": {
+   ".payload.schema_revision": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-012.feature_sequence": {
+   ".payload.schema_revision": {
+    "count": 10,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 10,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-013.segment": {
+   ".payload.schema_revision": {
+    "count": 10,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 10,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-054.knowledge_state": {
+   ".payload.domain": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "established_direction_without_extreme_identity_competition",
+      "established_direction_with_extreme_root_sets"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-055.change_event": {
+   ".payload.data.after.end.raw_first": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ]
+    ]
+   },
+   ".payload.data.after.end.raw_last": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ],
+     [
+      "<absent>",
+      "29"
+     ]
+    ]
+   },
+   ".payload.data.after.end.raw_position": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ],
+     [
+      "29",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.after.start.raw_first": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.after.start.raw_last": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.after.start.raw_position": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.before.end.raw_first": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.before.end.raw_last": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ],
+     [
+      "<absent>",
+      "25"
+     ]
+    ]
+   },
+   ".payload.data.before.end.raw_position": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ],
+     [
+      "25",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.before.start.raw_first": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ]
+    ]
+   },
+   ".payload.data.before.start.raw_last": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "1"
+     ],
+     [
+      "<absent>",
+      "5"
+     ],
+     [
+      "<absent>",
+      "9"
+     ],
+     [
+      "<absent>",
+      "13"
+     ],
+     [
+      "<absent>",
+      "17"
+     ],
+     [
+      "<absent>",
+      "21"
+     ]
+    ]
+   },
+   ".payload.data.before.start.raw_position": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "1",
+      "<absent>"
+     ],
+     [
+      "5",
+      "<absent>"
+     ],
+     [
+      "9",
+      "<absent>"
+     ],
+     [
+      "13",
+      "<absent>"
+     ],
+     [
+      "17",
+      "<absent>"
+     ],
+     [
+      "21",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.causes[]": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   },
+   ".payload.policy_version": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 18,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-055.relation": {
+   ".payload.policy_version": {
+    "count": 91,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 91,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 91,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-055.segment_change": {
+   ".payload.schema_revision": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 11,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-055.segment_relation": {
+   ".payload.schema_revision": {
+    "count": 27,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 27,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-056.segment_version": {
+   ".fact_key": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "[\"CC-056.segment_version\",\"TB-02-D\"]",
+      "[\"CC-056.segment_version\",\"TB-02-W\"]"
+     ]
+    ]
+   },
+   ".object_id": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g1|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g1|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g10|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g10|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g11|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g11|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g12|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g12|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g13|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g13|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g14|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g14|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g15|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g15|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g16|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g16|withdrawn>"
+     ]
+    ]
+   },
+   ".payload.data.deferred_scope[]": {
+    "count": 62,
+    "distinct_old_new": [
+     [
+      "general_scan_continuation",
+      "global_G006_bridge"
+     ],
+     [
+      "global_G006_bridge",
+      "<absent>"
+     ]
+    ]
+   },
+   ".payload.data.delivered_scope": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "seed_strict_first_and_finite_second",
+      "seed_strict_first_and_second_terminal"
+     ]
+    ]
+   },
+   ".payload.data.scan_budget.policy": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "second-seq-scan-budget/1"
+     ]
+    ]
+   },
+   ".payload.data.scan_budget.round_strokes": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "0"
+     ]
+    ]
+   },
+   ".payload.data.scan_cursors": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "[]"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "s-segment/2",
+      "s-segment/3"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "segment-second/1",
+      "segment-second/2"
+     ]
+    ]
+   },
+   ".payload.slot": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "TB-02-D",
+      "TB-02-W"
+     ]
+    ]
+   },
+   ".superseded_by": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g2|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g2|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g11|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g11|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g12|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g12|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g13|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g13|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g14|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g14|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g15|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g15|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g16|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g16|withdrawn>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g17|withdrawn>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g17|withdrawn>"
+     ]
+    ]
+   }
+  },
+  "withdrawn_objects:CC-056.version": {
+   ".payload.policy_version": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "standard_raw_gap_3",
+      "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"
+     ]
+    ]
+   },
+   ".payload.schema_revision": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "s-new-bi/1",
+      "s-new-bi/2"
+     ]
+    ]
+   },
+   ".payload.semantic_version": {
+    "count": 31,
+    "distinct_old_new": [
+     [
+      "new-bi-dual-coordinate/1",
+      "new-bi-dual-coordinate/2"
+     ]
+    ]
+   }
+  }
+ },
+ "rows_by_kind": {
+  "objects:CC-004.inclusion_step": {
+   "identical": 32,
+   "new": 32,
+   "new_only": 0,
+   "old": 32,
+   "old_only": 0
+  },
+  "objects:CC-005.inclusion_group": {
+   "identical": 32,
+   "new": 32,
+   "new_only": 0,
+   "old": 32,
+   "old_only": 0
+  },
+  "objects:CC-006.local_shape": {
+   "identical": 30,
+   "new": 30,
+   "new_only": 0,
+   "old": 30,
+   "old_only": 0
+  },
+  "objects:CC-007.fractal_description": {
+   "identical": 8,
+   "new": 8,
+   "new_only": 0,
+   "old": 8,
+   "old_only": 0
+  },
+  "objects:CC-008.endpoint": {
+   "identical": 0,
+   "new": 8,
+   "new_only": 8,
+   "old": 8,
+   "old_only": 8,
+   "paired": 8,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-008.new_bi_pair": {
+   "identical": 0,
+   "new": 7,
+   "new_only": 7,
+   "old": 7,
+   "old_only": 7,
+   "paired": 7,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-010.bi": {
+   "identical": 0,
+   "new": 7,
+   "new_only": 7,
+   "old": 7,
+   "old_only": 7,
+   "paired": 7,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-011.segment_seed": {
+   "identical": 0,
+   "new": 2,
+   "new_only": 2,
+   "old": 2,
+   "old_only": 2,
+   "paired": 2,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-012.feature_sequence": {
+   "identical": 0,
+   "new": 2,
+   "new_only": 2,
+   "old": 2,
+   "old_only": 2,
+   "paired": 2,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-013.segment": {
+   "identical": 0,
+   "new": 2,
+   "new_only": 2,
+   "old": 2,
+   "old_only": 2,
+   "paired": 2,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-022.unit_assignment": {
+   "identical": 0,
+   "new": 0,
+   "new_only": 0,
+   "old": 2,
+   "old_only": 2,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 0,
+   "unpaired_old": [
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "28"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+     "1",
+     "32"
+    ]
+   ]
+  },
+  "objects:CC-054.knowledge_state": {
+   "identical": 0,
+   "new": 1,
+   "new_only": 1,
+   "old": 1,
+   "old_only": 1,
+   "paired": 1,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-055.change_event": {
+   "identical": 0,
+   "new": 2,
+   "new_only": 2,
+   "old": 2,
+   "old_only": 2,
+   "paired": 2,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-055.relation": {
+   "identical": 0,
+   "new": 55,
+   "new_only": 55,
+   "old": 55,
+   "old_only": 55,
+   "paired": 55,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-055.segment_change": {
+   "identical": 0,
+   "new": 1,
+   "new_only": 1,
+   "old": 1,
+   "old_only": 1,
+   "paired": 1,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-055.segment_relation": {
+   "identical": 0,
+   "new": 7,
+   "new_only": 7,
+   "old": 7,
+   "old_only": 7,
+   "paired": 7,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "objects:CC-056.center_version": {
+   "identical": 0,
+   "new": 0,
+   "new_only": 0,
+   "old": 1,
+   "old_only": 1,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 0,
+   "unpaired_old": [
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "32"
+    ]
+   ]
+  },
+  "objects:CC-056.segment_version": {
+   "identical": 0,
+   "new": 1,
+   "new_only": 1,
+   "old": 1,
+   "old_only": 1,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 1
+  },
+  "objects:CC-056.version": {
+   "identical": 0,
+   "new": 1,
+   "new_only": 1,
+   "old": 1,
+   "old_only": 1,
+   "paired": 1,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "observations:awaiting_scope": {
+   "identical": 72,
+   "new": 72,
+   "new_only": 0,
+   "old": 72,
+   "old_only": 0
+  },
+  "raw_history:": {
+   "identical": 32,
+   "new": 32,
+   "new_only": 0,
+   "old": 32,
+   "old_only": 0
+  },
+  "relations:classified_as": {
+   "identical": 59,
+   "new": 59,
+   "new_only": 0,
+   "old": 59,
+   "old_only": 0
+  },
+  "relations:confirms": {
+   "identical": 6,
+   "new": 6,
+   "new_only": 0,
+   "old": 6,
+   "old_only": 0
+  },
+  "relations:derived_from": {
+   "identical": 16,
+   "new": 16,
+   "new_only": 0,
+   "old": 16,
+   "old_only": 0
+  },
+  "relations:has_witness": {
+   "identical": 177,
+   "new": 177,
+   "new_only": 0,
+   "old": 177,
+   "old_only": 0
+  },
+  "relations:member_of": {
+   "identical": 40,
+   "new": 40,
+   "new_only": 0,
+   "old": 40,
+   "old_only": 0
+  },
+  "relations:replaces": {
+   "identical": 413,
+   "new": 444,
+   "new_only": 31,
+   "old": 485,
+   "old_only": 72,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 31,
+   "unpaired_old": [
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g16|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g15|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g19|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g16|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g20|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g19|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g23|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g20|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g24|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g23|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g27|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g24|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g28|active>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g27|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g28|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g27|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g28|withdrawn>"
+    ],
+    [
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+     "replaces",
+     "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g10|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g9|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g11|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g10|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g12|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g11|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g13|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g12|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g14|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g13|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g15|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g14|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g16|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g15|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g17|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g16|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g18|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g17|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g19|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g18|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g20|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g19|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g21|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g20|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g22|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g21|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g23|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g22|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g24|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g23|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g25|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g24|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g26|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g25|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g27|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g26|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g28|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g27|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g29|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g28|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g2|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g1|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g30|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g29|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g31|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g30|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g32|active>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g31|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g3|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g2|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g4|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g3|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g5|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g4|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g6|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g5|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g7|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g6|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g8|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g7|withdrawn>"
+    ],
+    [
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g9|withdrawn>",
+     "replaces",
+     "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g8|withdrawn>"
+    ]
+   ]
+  },
+  "withdrawn_objects:CC-005.inclusion_group": {
+   "identical": 31,
+   "new": 31,
+   "new_only": 0,
+   "old": 31,
+   "old_only": 0
+  },
+  "withdrawn_objects:CC-006.local_shape": {
+   "identical": 29,
+   "new": 29,
+   "new_only": 0,
+   "old": 29,
+   "old_only": 0
+  },
+  "withdrawn_objects:CC-007.fractal_description": {
+   "identical": 120,
+   "new": 120,
+   "new_only": 0,
+   "old": 120,
+   "old_only": 0
+  },
+  "withdrawn_objects:CC-008.endpoint": {
+   "identical": 0,
+   "new": 8,
+   "new_only": 8,
+   "old": 8,
+   "old_only": 8,
+   "paired": 8,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-008.new_bi_pair": {
+   "identical": 0,
+   "new": 7,
+   "new_only": 7,
+   "old": 7,
+   "old_only": 7,
+   "paired": 7,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-010.bi": {
+   "identical": 0,
+   "new": 13,
+   "new_only": 13,
+   "old": 13,
+   "old_only": 13,
+   "paired": 13,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-011.seed_candidate": {
+   "identical": 0,
+   "new": 5,
+   "new_only": 5,
+   "old": 5,
+   "old_only": 5,
+   "paired": 5,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-011.segment_seed": {
+   "identical": 0,
+   "new": 2,
+   "new_only": 2,
+   "old": 2,
+   "old_only": 2,
+   "paired": 2,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-012.feature_sequence": {
+   "identical": 0,
+   "new": 10,
+   "new_only": 10,
+   "old": 10,
+   "old_only": 10,
+   "paired": 10,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-013.segment": {
+   "identical": 0,
+   "new": 10,
+   "new_only": 10,
+   "old": 10,
+   "old_only": 10,
+   "paired": 10,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-022.unit_assignment": {
+   "identical": 0,
+   "new": 0,
+   "new_only": 0,
+   "old": 10,
+   "old_only": 10,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 0,
+   "unpaired_old": [
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "15"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "16"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "19"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "20"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "23"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "24"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+     "1",
+     "27"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:1\"]",
+     "1",
+     "27"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+     "1",
+     "28"
+    ],
+    [
+     "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+     "1",
+     "31"
+    ]
+   ]
+  },
+  "withdrawn_objects:CC-054.knowledge_state": {
+   "identical": 0,
+   "new": 31,
+   "new_only": 31,
+   "old": 31,
+   "old_only": 31,
+   "paired": 31,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-055.change_event": {
+   "identical": 0,
+   "new": 18,
+   "new_only": 18,
+   "old": 18,
+   "old_only": 18,
+   "paired": 18,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-055.relation": {
+   "identical": 0,
+   "new": 91,
+   "new_only": 91,
+   "old": 91,
+   "old_only": 91,
+   "paired": 91,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-055.segment_change": {
+   "identical": 0,
+   "new": 11,
+   "new_only": 11,
+   "old": 11,
+   "old_only": 11,
+   "paired": 11,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-055.segment_relation": {
+   "identical": 0,
+   "new": 27,
+   "new_only": 27,
+   "old": 27,
+   "old_only": 27,
+   "paired": 27,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "withdrawn_objects:CC-056.center_version": {
+   "identical": 0,
+   "new": 0,
+   "new_only": 0,
+   "old": 31,
+   "old_only": 31,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 0,
+   "unpaired_old": [
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "1"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "10"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "11"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "12"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "13"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "14"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "15"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "16"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "17"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "18"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "19"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "2"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "20"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "21"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "22"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "23"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "24"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "25"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "26"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "27"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "28"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "29"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "3"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "30"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "31"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "4"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "5"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "6"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "7"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "8"
+    ],
+    [
+     "[\"CC-056.center_version\",\"TB-02-E\"]",
+     "1",
+     "9"
+    ]
+   ]
+  },
+  "withdrawn_objects:CC-056.segment_version": {
+   "identical": 0,
+   "new": 31,
+   "new_only": 31,
+   "old": 31,
+   "old_only": 31,
+   "paired": 0,
+   "paired_relaxed_without_fact_key": 31
+  },
+  "withdrawn_objects:CC-056.version": {
+   "identical": 0,
+   "new": 31,
+   "new_only": 31,
+   "old": 31,
+   "old_only": 31,
+   "paired": 31,
+   "paired_relaxed_without_fact_key": 0
+  },
+  "witnesses:": {
+   "identical": 177,
+   "new": 177,
+   "new_only": 0,
+   "old": 177,
+   "old_only": 0
+  }
+ },
+ "schema": "semdiff/2",
+ "top_level_diffs": {
+  "catalog": {
+   ".catalog_evidence.axes.CC-016.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.object_ids": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[]",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.impl_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_implemented",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.proof_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_proved",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "waiting",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.object_ids": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[]",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.impl_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_implemented",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.proof_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_proved",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "waiting",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.object_ids[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<absent>"
+     ],
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g28|active>",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.impl_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_implemented",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.proof_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_proved",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "run",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.object_ids[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g32|active>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g32|active>",
+      "<CC-056.version|\"[\\\"CC-056.version\\\",\\\"TB-02-B\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-056.version|\"[\\\"CC-056.version\\\",\\\"TB-02-B\\\"]\"|r1|g32|active>",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.replaces[].new_object_id": {
+    "count": 22,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-23@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.replaces[].old_object_id": {
+    "count": 22,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-23@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].fact_key": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+      "[\"CC-054.knowledge_state\",\"TB-02-A\"]"
+     ],
+     [
+      "[\"CC-054.knowledge_state\",\"TB-02-A\"]",
+      "[\"CC-055.change_event\",[\"31\",\"bi:1:25\",\"formed\"]]"
+     ],
+     [
+      "[\"CC-055.change_event\",[\"31\",\"bi:1:25\",\"formed\"]]",
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:21\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:21\"]]",
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:25\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:25\"]]",
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:25\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:25\"]]",
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:29\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:29\"]]",
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\",\"member_of\",\"bi:1:21\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\",\"member_of\",\"bi:1:21\"]]",
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\",\"member_of\",\"bi:1:21\"]]"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].object_id": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>",
+      "<CC-055.change_event|\"[\\\"CC-055.change_event\\\",[\\\"31\\\",\\\"bi:1:25\\\",\\\"formed\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.change_event|\"[\\\"CC-055.change_event\\\",[\\\"31\\\",\\\"bi:1:25\\\",\\\"formed\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].reason": {
+    "count": 6,
+    "distinct_old_new": [
+     [
+      "superseded_by_revision",
+      "fact_removed"
+     ],
+     [
+      "fact_removed",
+      "superseded_by_revision"
+     ],
+     [
+      "superseded_by_revision",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].superseded_by": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>",
+      null
+     ],
+     [
+      null,
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ]
+    ]
+   },
+   ".catalog_evidence.classified_objects": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "201",
+      "198"
+     ]
+    ]
+   },
+   ".catalog_evidence.replaces": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "38",
+      "36"
+     ]
+    ]
+   },
+   ".catalog_evidence.rule_revision": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "s2-axis-quantifiers+new-bi/1+segment-second/1+center-seed/1",
+      "s2-axis-quantifiers+new-bi/2+segment-second/2"
+     ]
+    ]
+   },
+   ".catalog_evidence.withdrawals": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "40",
+      "38"
+     ]
+    ]
+   },
+   ".counts.not_run": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "97",
+      "100"
+     ]
+    ]
+   },
+   ".counts.run": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "17",
+      "16"
+     ]
+    ]
+   },
+   ".items.id=CC-016.evidence": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "{}"
+     ]
+    ]
+   },
+   ".items.id=CC-016.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-016.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-016.evidence.object_ids": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[]",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-016.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-016.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-016.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "waiting",
+      "not_run"
+     ]
+    ]
+   },
+   ".items.id=CC-017.evidence": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "{}"
+     ]
+    ]
+   },
+   ".items.id=CC-017.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-017.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-017.evidence.object_ids": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[]",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-017.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-017.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-017.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "waiting",
+      "not_run"
+     ]
+    ]
+   },
+   ".items.id=CC-022.evidence": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "<absent>",
+      "{}"
+     ]
+    ]
+   },
+   ".items.id=CC-022.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-022.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-022.evidence.object_ids[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<absent>"
+     ],
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g28|active>",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-022.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-022.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-022.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "run",
+      "not_run"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.object_ids[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g32|active>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g32|active>",
+      "<CC-056.version|\"[\\\"CC-056.version\\\",\\\"TB-02-B\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-056.version|\"[\\\"CC-056.version\\\",\\\"TB-02-B\\\"]\"|r1|g32|active>",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.replaces[].new_object_id": {
+    "count": 22,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-23@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.replaces[].old_object_id": {
+    "count": 22,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-23@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.withdrawals[].fact_key": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+      "[\"CC-054.knowledge_state\",\"TB-02-A\"]"
+     ],
+     [
+      "[\"CC-054.knowledge_state\",\"TB-02-A\"]",
+      "[\"CC-055.change_event\",[\"31\",\"bi:1:25\",\"formed\"]]"
+     ],
+     [
+      "[\"CC-055.change_event\",[\"31\",\"bi:1:25\",\"formed\"]]",
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:21\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:21\"]]",
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:25\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:25\"]]",
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:25\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:25\"]]",
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:29\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:29\"]]",
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\",\"member_of\",\"bi:1:21\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\",\"member_of\",\"bi:1:21\"]]",
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\",\"member_of\",\"bi:1:21\"]]"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.withdrawals[].object_id": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>",
+      "<CC-055.change_event|\"[\\\"CC-055.change_event\\\",[\\\"31\\\",\\\"bi:1:25\\\",\\\"formed\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.change_event|\"[\\\"CC-055.change_event\\\",[\\\"31\\\",\\\"bi:1:25\\\",\\\"formed\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.withdrawals[].reason": {
+    "count": 6,
+    "distinct_old_new": [
+     [
+      "superseded_by_revision",
+      "fact_removed"
+     ],
+     [
+      "fact_removed",
+      "superseded_by_revision"
+     ],
+     [
+      "superseded_by_revision",
+      "<absent>"
+     ]
+    ]
+   },
+   ".items.id=CC-056.evidence.withdrawals[].superseded_by": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>",
+      null
+     ],
+     [
+      null,
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ]
+    ]
+   }
+  },
+  "counts": {
+   ".objects": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "201",
+      "198"
+     ]
+    ]
+   },
+   ".relations": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "783",
+      "742"
+     ]
+    ]
+   },
+   ".total": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "1781",
+      "1696"
+     ]
+    ]
+   },
+   ".withdrawn_objects": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "516",
+      "475"
+     ]
+    ]
+   }
+  },
+  "fixed_cut": {
+   ".catalog_evidence.axes.CC-016.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.object_ids": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[]",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.impl_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_implemented",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.proof_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_proved",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-016.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "waiting",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.object_ids": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "[]",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.impl_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_implemented",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.proof_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_proved",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-017.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "waiting",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.deferred_subobligations[]": {
+    "count": 5,
+    "distinct_old_new": [
+     [
+      "connector_upper_construction_1429",
+      "<absent>"
+     ],
+     [
+      "expansion_newborn_1424",
+      "<absent>"
+     ],
+     [
+      "ge9_upgrade_1429",
+      "<absent>"
+     ],
+     [
+      "global_G009_upper_levels_1429",
+      "<absent>"
+     ],
+     [
+      "third_class_and_break_1434",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.delivered_subobligations[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "c_resume_assignment_and_connectors",
+      "<absent>"
+     ],
+     [
+      "l0_strict_seed_vector_and_core_order",
+      "<absent>"
+     ],
+     [
+      "zn_outer_inner_roles_with_contributors",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.object_ids[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<absent>"
+     ],
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:1\\\"]\"|r1|g28|active>",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.scope": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "TB-02-E",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.evidence.waiting_reasons[]": {
+    "count": 2,
+    "distinct_old_new": [
+     [
+      "NO_LEFT_CENTER_IN_WINDOW",
+      "<absent>"
+     ],
+     [
+      "UNIT_NOT_COMPLETED",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.impl_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_implemented",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.proof_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "not_proved",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-022.run_status": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "run",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.object_ids[]": {
+    "count": 3,
+    "distinct_old_new": [
+     [
+      "<CC-056.center_version|\"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\"|r1|g32|active>",
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-W\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-056.segment_version|\"[\\\"CC-056.segment_version\\\",\\\"TB-02-D\\\"]\"|r1|g32|active>",
+      "<CC-056.version|\"[\\\"CC-056.version\\\",\\\"TB-02-B\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-056.version|\"[\\\"CC-056.version\\\",\\\"TB-02-B\\\"]\"|r1|g32|active>",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.replaces[].new_object_id": {
+    "count": 22,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-23@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.replaces[].old_object_id": {
+    "count": 22,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-23@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].fact_key": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "[\"CC-022.unit_assignment\",\"assign:segment:1:13\"]",
+      "[\"CC-054.knowledge_state\",\"TB-02-A\"]"
+     ],
+     [
+      "[\"CC-054.knowledge_state\",\"TB-02-A\"]",
+      "[\"CC-055.change_event\",[\"31\",\"bi:1:25\",\"formed\"]]"
+     ],
+     [
+      "[\"CC-055.change_event\",[\"31\",\"bi:1:25\",\"formed\"]]",
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:21\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:21\"]]",
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:25\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:21\",\"derived_from\",\"fx:1:25\"]]",
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:25\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:25\"]]",
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:29\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"bi:1:25\",\"derived_from\",\"fx:1:29\"]]",
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\",\"member_of\",\"bi:1:21\"]]"
+     ],
+     [
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\",\"member_of\",\"bi:1:21\"]]",
+      "[\"CC-055.relation\",[\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\",\"member_of\",\"bi:1:21\"]]"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].object_id": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g31|withdrawn>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g31|withdrawn>",
+      "<CC-055.change_event|\"[\\\"CC-055.change_event\\\",[\\\"31\\\",\\\"bi:1:25\\\",\\\"formed\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.change_event|\"[\\\"CC-055.change_event\\\",[\\\"31\\\",\\\"bi:1:25\\\",\\\"formed\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g31|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g28|withdrawn>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].reason": {
+    "count": 6,
+    "distinct_old_new": [
+     [
+      "superseded_by_revision",
+      "fact_removed"
+     ],
+     [
+      "fact_removed",
+      "superseded_by_revision"
+     ],
+     [
+      "superseded_by_revision",
+      "<absent>"
+     ]
+    ]
+   },
+   ".catalog_evidence.axes.CC-056.evidence.withdrawals[].superseded_by": {
+    "count": 24,
+    "distinct_old_new": [
+     [
+      "<CC-022.unit_assignment|\"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\"|r1|g32|active>",
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-054.knowledge_state|\"[\\\"CC-054.knowledge_state\\\",\\\"TB-02-A\\\"]\"|r1|g32|active>",
+      null
+     ],
+     [
+      null,
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:21\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:25\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"bi:1:25\\\",\\\"derived_from\\\",\\\"fx:1:29\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ],
+     [
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-21@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>",
+      "<CC-055.relation|\"[\\\"CC-055.relation\\\",[\\\"raw:testonly.ohlc.tb1419-s0b-min12-per-bar|1|TEST-OHLC|raw-22@1\\\",\\\"member_of\\\",\\\"bi:1:21\\\"]]\"|r1|g32|active>"
+     ]
+    ]
+   },
+   ".catalog_evidence.classified_objects": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "201",
+      "198"
+     ]
+    ]
+   },
+   ".catalog_evidence.replaces": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "38",
+      "36"
+     ]
+    ]
+   },
+   ".catalog_evidence.rule_revision": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "s2-axis-quantifiers+new-bi/1+segment-second/1+center-seed/1",
+      "s2-axis-quantifiers+new-bi/2+segment-second/2"
+     ]
+    ]
+   },
+   ".catalog_evidence.withdrawals": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "40",
+      "38"
+     ]
+    ]
+   },
+   ".rule_revision": {
+    "count": 1,
+    "distinct_old_new": [
+     [
+      "s2-axis-quantifiers+new-bi/1+segment-second/1+center-seed/1",
+      "s2-axis-quantifiers+new-bi/2+segment-second/2"
+     ]
+    ]
+   }
+  }
+ }
+}

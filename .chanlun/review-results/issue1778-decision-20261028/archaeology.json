@@ -1,0 +1,577 @@
+{
+  "ticket": 1778,
+  "class": "T",
+  "agent": "/root/draft1778_contract28f",
+  "model": "claude-fable-5-1",
+  "generated_at": "2026-10-28T07:24+08:00",
+  "baseline": {
+    "origin_main": "c0c5a369a49852e0fa5a724e57d9adbfab205975",
+    "repair_head": "e1bd49a5b67aea729aa39ad983d93a58db16f72e",
+    "pr1772_head": "89edf18f0932d1ad43429f11f9fdca9628e19805",
+    "fast_forward": true
+  },
+  "routes": {
+    "tracker": [
+      {
+        "id": "T1",
+        "query": "gh issue list --state all --search withdraw",
+        "hits": [
+          "1778",
+          "1408",
+          "1599",
+          "1340",
+          "734",
+          "1560"
+        ]
+      },
+      {
+        "id": "T2",
+        "query": "gh issue list --state all --search 撤回",
+        "hits": [
+          "1768",
+          "1380",
+          "1651",
+          "1534",
+          "1371"
+        ]
+      },
+      {
+        "id": "T3",
+        "query": "gh issue list --state all --search 'domain event' / 'domain-event'",
+        "hits": [
+          "1768",
+          "1534",
+          "1536",
+          "1621",
+          "1619",
+          "1323",
+          "1488"
+        ]
+      },
+      {
+        "id": "T4",
+        "query": "gh issue list --state all --search 'schema revision'",
+        "hits": [
+          "1768",
+          "1672",
+          "1534",
+          "1537",
+          "1371",
+          "1372",
+          "1394",
+          "1612"
+        ]
+      },
+      {
+        "id": "T5",
+        "query": "gh issue list --state all --search 子契约 / 子合同",
+        "hits": [
+          "1768",
+          "1657",
+          "1716",
+          "1715",
+          "1717",
+          "1718",
+          "1527",
+          "1406",
+          "1620",
+          "1674"
+        ]
+      },
+      {
+        "id": "T6",
+        "query": "gh issue list --state all --search sr-expansion",
+        "hits": [
+          "1717",
+          "1340",
+          "1599"
+        ]
+      },
+      {
+        "id": "T7",
+        "query": "gh issue list --state all --search tb03c-book",
+        "hits": [
+          "1406",
+          "1674",
+          "1620",
+          "1715",
+          "1669",
+          "1671",
+          "1622"
+        ]
+      },
+      {
+        "id": "T8",
+        "query": "gh issue list --state all --search tb03b-finance",
+        "hits": [
+          "1673",
+          "1672",
+          "1408",
+          "1349",
+          "1406",
+          "1394"
+        ]
+      },
+      {
+        "id": "T9",
+        "query": "gh issue list --state all --search economic-session/2",
+        "hits": [
+          "1672",
+          "1768",
+          "1398",
+          "1749",
+          "1670",
+          "1717",
+          "1621",
+          "1716",
+          "1769",
+          "1406"
+        ]
+      },
+      {
+        "id": "T11",
+        "query": "gh issue view 1534 --json body,comments",
+        "hits": [
+          "T→P after two BLOCK",
+          "user 2026-10-27 批准",
+          "ADR 0051 via PR #1766 squash 7b842b69a1"
+        ]
+      },
+      {
+        "id": "T12",
+        "query": "gh issue view 1768 --json body,comments",
+        "hits": [
+          "body:45 stop clause on protocol/schema revision",
+          "body:19 nine Python readers",
+          "first comment 2026-10-27T20:40:35Z 卡点1 需新增子契约修订",
+          "independent review BLOCK 3 HIGH"
+        ]
+      },
+      {
+        "id": "T13",
+        "query": "gh api repos/xy7365527-lang/NewChanlun/issues/1768 dependencies",
+        "hits": [
+          "blocked_by: 1534(closed), 1778(open)",
+          "blocking: 1361,1363,1399"
+        ]
+      },
+      {
+        "id": "T15",
+        "query": "gh issue view 1778 --json body,comments; gh issue view 1776",
+        "hits": [
+          "body:25 '#1776 blocks #1768' was a typo, corrected on ticket by lead at 2026-10-27T23:42:02Z",
+          "comment 2026-10-27T23:17:54Z '#1778 blocks #1768'",
+          "#1776 OPEN unrelated [task] #1742 Docker 方案 B 第13行受控验收专用票"
+        ]
+      },
+      {
+        "id": "T16",
+        "query": "gh api repos/.../issues/1778/parent; issues/1323 sub_issues_summary",
+        "hits": [
+          "parent 404: not native sub-issue of #1323",
+          "#1323 sub-issues total=100"
+        ]
+      },
+      {
+        "id": "T17",
+        "query": "gh issue view 1323 --json body",
+        "hits": [
+          "## Decisions-so-far at :88",
+          "index line sample :92 (#1534)",
+          "body 70804 bytes"
+        ]
+      }
+    ],
+    "repo": [
+      {
+        "id": "R1",
+        "query": "rg 旧域不原地|不原地升级|不原地扩义|不混写 analysis docs .chanlun rust/src",
+        "hits": [
+          "rust/src/economic_session/store.rs:18",
+          "store.rs:41",
+          "store.rs:946",
+          "finance.rs:637",
+          ".chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md:115"
+        ]
+      },
+      {
+        "id": "R2",
+        "query": "rg 子合同|子契约 docs/adr .chanlun/definitions CONTEXT.md",
+        "hits": []
+      },
+      {
+        "id": "R3",
+        "query": "rg 子合同 rust/src",
+        "hits": [
+          "book.rs:7",
+          "store.rs:104",
+          "store.rs:797",
+          "finance.rs:18",
+          "finance.rs:22",
+          "finance.rs:38",
+          "finance.rs:40",
+          "finance.rs:81",
+          "finance.rs:200",
+          "finance.rs:711"
+        ]
+      },
+      {
+        "id": "R4",
+        "query": "rg WithdrawDomainEvent|DomainEventWithdrawn|domain-event-withdraw . (main worktree)",
+        "hits": []
+      },
+      {
+        "id": "R6",
+        "query": "sed -n 368,392p .chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md",
+        "hits": [
+          "§5.8 不重写不重铸",
+          "旧库不原地改格式 不授权热迁移",
+          "未知版本 混合域 旧validator收到新字段 均拒绝"
+        ]
+      },
+      {
+        "id": "R7",
+        "query": "git show origin/main:rust/src/economic_session/store.rs",
+        "hits": [
+          ":108-125",
+          ":276-297",
+          ":293 manifest_hash shared by E and all B",
+          ":15-20",
+          ":17-18",
+          ":26-27",
+          ":64-66",
+          ":207-236",
+          ":232-233",
+          ":235",
+          ":801-806",
+          ":802-803 book_revision not domain-gated",
+          ":805-806 sr E-only",
+          ":998-1013",
+          ":1003",
+          ":1013",
+          ":1099-1150",
+          ":1132 else",
+          ":1139",
+          ":1141 E",
+          ":1147 B"
+        ]
+      },
+      {
+        "id": "R8",
+        "query": "git show origin/main:rust/src/economic_session/sr_expansion.rs",
+        "hits": [
+          ":9-15",
+          ":25-27",
+          ":33-35",
+          ":281-296",
+          ":329-336"
+        ]
+      },
+      {
+        "id": "R9",
+        "query": "git show origin/main:rust/src/economic_session/finance.rs",
+        "hits": [
+          ":17-25",
+          ":20-22 tb03b-finance/3 on economic-session/1",
+          ":55",
+          ":67-85"
+        ]
+      },
+      {
+        "id": "R10",
+        "query": "git show origin/main:rust/src/economic_session/book.rs; C8-REPORT.md",
+        "hits": [
+          "book.rs:7-11 manifest top-level book_revision applies to all domains",
+          ".chanlun/review-results/issue1406-owner-20261020/C8-REPORT.md:1-13"
+        ]
+      },
+      {
+        "id": "R11",
+        "query": "git log origin/main -S'\"BindVoice\"' / §5.8 string / precedent commits",
+        "hits": [
+          "c0ed0497a1 2026-09-14 BindVoice",
+          "4a635b7a40 2026-09-14 ChongAdvance etc",
+          "8f42dece50 2026-09-30 §5.8 registration",
+          "3b1a1841cd #1716 finance/4",
+          "499841b592 #1717 sr-expansion",
+          "0fe8e2f3c9 #1715 book/3",
+          "92dc58eafc #1674 book/2"
+        ]
+      },
+      {
+        "id": "R12",
+        "query": "git show e1bd49a:rust/src/economic_session/store.rs",
+        "hits": [
+          ":230",
+          ":233-234",
+          ":1100-1114",
+          ":1228-1251",
+          ":1369-1371",
+          ":1426-1440"
+        ]
+      },
+      {
+        "id": "R13",
+        "query": "git show e1bd49a:rust/src/economic_session/service.rs",
+        "hits": [
+          ":1462"
+        ]
+      },
+      {
+        "id": "R14",
+        "query": "git show e1bd49a:rust/src/economic_session/domain_event.rs",
+        "hits": [
+          ":16",
+          ":18-24",
+          ":460",
+          ":510-511",
+          ":531-534",
+          ":605-650",
+          ":652-700"
+        ]
+      },
+      {
+        "id": "R15",
+        "query": "git show origin/main:docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md",
+        "hits": [
+          ":7-8",
+          ":236",
+          ":247",
+          ":273",
+          ":290-300",
+          ":312",
+          ":353-357",
+          ":370",
+          ":374",
+          ":394"
+        ]
+      },
+      {
+        "id": "R16",
+        "query": "git show origin/main:CONTEXT.md | grep 域事件",
+        "hits": [
+          ":457-469"
+        ]
+      },
+      {
+        "id": "R17",
+        "query": "git show origin/main:docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md",
+        "hits": [
+          ":9",
+          ":13",
+          ":17-23"
+        ]
+      },
+      {
+        "id": "R18",
+        "query": "cat /Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1772-CONTRACT-ROUTING-28S.md",
+        "hits": [
+          "conclusion 1-2",
+          "评论路由 1-4"
+        ]
+      },
+      {
+        "id": "R19",
+        "query": "sed -n 10,30p /Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1772-OWNER-REPAIR-28Q.md",
+        "hits": [
+          ":13-14",
+          ":27",
+          ":29"
+        ]
+      },
+      {
+        "id": "R20",
+        "query": "grep history|kind|receipt s_session/economic_query.py",
+        "hits": [
+          ":282",
+          ":772",
+          ":860-889"
+        ]
+      },
+      {
+        "id": "R21",
+        "query": "git show origin/main:rust/src/economic_session/store.rs | sed -n '108,125p;969,1015p;226,236p'",
+        "hits": [
+          "no exact check on manifest top-level keys or meta keys",
+          "old binary ignores domain_event_withdrawal key",
+          "source operations granting WithdrawDomainEvent rejected at :235 InvalidDomain"
+        ]
+      }
+    ]
+  },
+  "points": [
+    {
+      "id": "Q1",
+      "question": "持久撤回 op 落在旧域原地扩义、并列子合同还是新域版本",
+      "class": "B",
+      "sources": [
+        "R6",
+        "R7",
+        "R8",
+        "R9",
+        "R10",
+        "R11",
+        "T5",
+        "T12"
+      ],
+      "default": "并列子合同，manifest 显式选择、init 绑定、audit 核对；/1 /2 已知 op 集合不变"
+    },
+    {
+      "id": "Q2",
+      "question": "子合同选择子与绑定形状",
+      "class": "B",
+      "sources": [
+        "R8",
+        "R9",
+        "R10",
+        "R7",
+        "T5",
+        "T7"
+      ],
+      "default": "manifest 顶层 domain_event_withdrawal={schema_revision:'domain-event-withdrawal/1'}；init 写 meta domain_event_withdrawal_revision；audit 核对否则 IdentityConflict；未选择域中 op 不进已知集合、不分派"
+    },
+    {
+      "id": "Q3",
+      "question": "选择粒度：仅 E、全会话、还是逐域",
+      "class": "B",
+      "sources": [
+        "R7",
+        "R10",
+        "R15",
+        "R13",
+        "R8",
+        "T12"
+      ],
+      "default": "同一会话 manifest 的选择作用于其所含全部 E 与 Bᵢ 域；E 与每个 Bᵢ 在各自 init 写 meta，audit/recover 各自核对同一 manifest 选择；不设逐域列表；S 不在范围内"
+    },
+    {
+      "id": "Q4",
+      "question": "domain-event/1 外壳是否升版",
+      "class": "A",
+      "sources": [
+        "R15",
+        "R14",
+        "T11"
+      ],
+      "default": "沿用 ADR 0051:236：外壳形状未改，不升版"
+    },
+    {
+      "id": "Q5",
+      "question": "审计四处与 history/回执 kind 的归属",
+      "class": "B",
+      "sources": [
+        "R7",
+        "R8",
+        "R12",
+        "T5"
+      ],
+      "default": "四处分支以本会话已选择子合同且本域 meta 已在 init 绑定为前置；不满足该条件的域出现撤回条目或回执 = StorageUnavailable"
+    },
+    {
+      "id": "Q6",
+      "question": "旧库迁移与回放边界",
+      "class": "A",
+      "sources": [
+        "R6",
+        "R7",
+        "R4",
+        "T4"
+      ],
+      "default": "只能 init 绑定；recover 不补绑；旧库不迁移；当前无带撤回条目的生产库"
+    },
+    {
+      "id": "Q7",
+      "question": "是否 ADR 0041 自由度",
+      "class": "A",
+      "sources": [
+        "R17"
+      ],
+      "default": "不是缠论自由度，不落可调字段；改签即新版本精神沿用"
+    },
+    {
+      "id": "Q8",
+      "question": "HIGH-1/HIGH-3 修复是否受本裁定影响",
+      "class": "B",
+      "sources": [
+        "R14",
+        "R18",
+        "T12"
+      ],
+      "default": "不受影响，原 owner 实施门控时保留"
+    },
+    {
+      "id": "Q9",
+      "question": "#1778 票面第4项 #1776 blocks #1768",
+      "class": "A",
+      "sources": [
+        "T13",
+        "T15"
+      ],
+      "default": "笔误（票面已于 2026-10-27T23:42:02Z 更正）；实际依赖 #1778 blocks #1768（已存在）；禁止新建 #1776→#1768"
+    },
+    {
+      "id": "Q10",
+      "question": "正本落点能否改 ADR 0051",
+      "class": "A",
+      "sources": [
+        "R15",
+        "T11"
+      ],
+      "default": "不改 ADR 0051；另立新 ADR 并在 CONTEXT.md 加指针句；N-1 只授权新决策，不回写用户批准的旧正本"
+    },
+    {
+      "id": "Q11",
+      "question": "旧二进制遇已选择子合同的域",
+      "class": "A",
+      "sources": [
+        "R21",
+        "T5"
+      ],
+      "default": "忽略新顶层键与 meta 行，不识别；来源授予 WithdrawDomainEvent 时加载即在 store.rs:235 拒绝，不能执行新 op"
+    },
+    {
+      "id": "Q12",
+      "question": "map 挂接",
+      "class": "A",
+      "sources": [
+        "T16",
+        "T17"
+      ],
+      "default": "resolution 首行 N-1；#1323 ## Decisions-so-far 补索引行；不伪造原生 sub-issue"
+    }
+  ],
+  "c_class_count": 0,
+  "edges": {
+    "existing": [
+      "#1778 blocks #1768 (verified via API, not touched)"
+    ],
+    "proposed_add": [],
+    "proposed_remove": [],
+    "forbidden_add": [
+      "#1776 blocks #1768 (ticket body item 4 typo, corrected 2026-10-27T23:42:02Z)"
+    ]
+  },
+  "repair_round": {
+    "id": "28H",
+    "agent": "/root/repair1778_contract28h",
+    "review": "/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1778-INDEPENDENT-REVIEW-28G.md",
+    "fixes": [
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6",
+      "F7"
+    ]
+  },
+  "repair_round_28J": {
+    "review": "/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1778-INDEPENDENT-REVIEW-28I.md",
+    "verdict": "PASS",
+    "fixes": [
+      "LOW-1 #1776 past tense",
+      "LOW-2 ruling 5/6 wording",
+      "LOW-3 acceptance details"
+    ]
+  }
+}

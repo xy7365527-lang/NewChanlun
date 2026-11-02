@@ -39,6 +39,75 @@ def read_domain(path):
     return {"meta": meta, "commits": commits, "receipts": receipts, "requests": requests}
 
 
+def cap_activation(manifest_path):
+    """#1716 tb03b-finance/3 与 /4：只读 E 原库，独立复算每次 cap 激活与其后 Reserve 的生效版本判定。"""
+    manifest = json.loads(Path(manifest_path).read_text())
+    revision = manifest["finance"]["schema_revision"]
+    protocol = manifest.get("protocol_revision", "economic-session/1")
+    assert (protocol, revision) in (("economic-session/1", "tb03b-finance/3"), ("economic-session/2", "tb03b-finance/4"))
+    data_raw = Path(manifest["finance"]["input_path"]).read_bytes()
+    assert hashlib.sha256(data_raw).hexdigest() == manifest["finance"]["input_sha256"]
+    data = json.loads(data_raw)
+    policy = data["policy"]
+    domain = read_domain(manifest["e"]["db"])
+    image = domain["commits"][-1]["image"]
+    cap = {"version": 1, "cap": amount(policy["cap"]), "valid_through_ns": amount(policy["valid_through_ns"])}
+    liability, imported, activations, reserves = 0, False, [], []
+    for event in image["history"]:
+        if event["kind"] not in ("ImportResponsibility", "ActivateCapPolicy", "Reserve"):
+            continue
+        kind, request, ns = event["kind"], event["request"]["payload"], amount(event["commit_ns"])
+        if kind == "ImportResponsibility":
+            liability += amount(data["baseline"]["amount"])
+            imported = True
+        elif kind == "ActivateCapPolicy":
+            raw = event["witness"]["cap_policy_raw"]
+            assert hashlib.sha256(raw.encode()).hexdigest() == request["policy_record"]["sha256"]
+            signed = json.loads(raw)
+            assert signed["schema_revision"] == "funding-cap-policy-record/1" and signed["kind"] == "TestOnly"
+            assert all(signed[k] == policy[k] for k in ("profile_id", "policy_id", "currency", "money_unit"))
+            assert signed["supersedes"] == request["from_version"] == str(cap["version"])
+            assert signed["version"] == request["to_version"] == str(cap["version"] + 1)
+            assert signed["cap"] == request["cap"] and signed["valid_through_ns"] == request["valid_through_ns"]
+            assert signed["authorizer"] and signed["signature_ref"] and amount(signed["authorized_at_ns"]) <= ns
+            assert imported and liability <= amount(signed["cap"]) and amount(signed["valid_through_ns"]) >= ns
+            assert event["record"]["liability_at_activation"] == str(liability)
+            assert event["record"]["to"]["policy_record_sha256"] == request["policy_record"]["sha256"]
+            assert event["record"]["to"]["profile_id"] == policy["profile_id"]
+            cap = {"version": cap["version"] + 1, "cap": amount(signed["cap"]), "valid_through_ns": amount(signed["valid_through_ns"])}
+            activations.append({"seq": event["commit_seq"], "version": str(cap["version"]), "cap": str(cap["cap"]), "liability": str(liability)})
+        elif kind == "Reserve":
+            assert imported and cap["valid_through_ns"] >= ns
+            slot = next(s for s in data["slots"] if s["slot_id"] == request["slot_id"])
+            plans = {p["decision_id"]: p for p in data["plans"]}
+            closed = {(c["owner"], c["applicant_epoch"], c["applicant_generation"])
+                      for c in event["record"]["closed_applicants"] if c["slot_id"] == request["slot_id"]}
+            active = [plans[a] for a in slot["applicants"]
+                      if (plans[a]["owner"], plans[a]["applicant_epoch"], plans[a]["applicant_generation"]) not in closed]
+            required_total = liability + sum(amount(p["quantity"]) * amount(p["limit_price"]) + amount(p["fee_tail"]) for p in active)
+            fits = required_total <= cap["cap"]
+            assert event["record"]["state"] == ("Reserved" if fits else "AwaitingAllocationPolicy")
+            assert event["record"]["required_total"] == str(required_total)
+            if activations:
+                assert event["record"]["cap_policy"]["policy_version"] == str(cap["version"])
+            else:
+                assert "cap_policy" not in event["record"]
+            if fits:
+                liability = required_total
+            reserves.append({"seq": event["commit_seq"], "cap_version": str(cap["version"]), "cap": str(cap["cap"]),
+                             "required_total": str(required_total), "state": event["record"]["state"]})
+    finance = image["finance"]
+    assert sum(amount(r["amount"]) for r in finance["responsibilities"]) == liability
+    if activations:
+        assert finance["cap_policy"]["policy_version"] == str(cap["version"]) and amount(finance["cap_policy"]["cap"]) == cap["cap"]
+        assert cap["cap"] >= liability
+    else:
+        assert "cap_policy" not in finance
+    return {"scope": "#1716 " + revision + " independent cap-activation oracle", "manifest": str(manifest_path),
+            "input_sha256": hashlib.sha256(data_raw).hexdigest(), "activations": activations, "reserves": reserves,
+            "final_liability": str(liability), "final_cap_version": str(cap["version"]), "final_cap": str(cap["cap"])}
+
+
 def check(manifest_path, expect="committed"):
     manifest = json.loads(Path(manifest_path).read_text())
     data_raw = Path(manifest["finance"]["input_path"]).read_bytes()
@@ -111,10 +180,10 @@ def check(manifest_path, expect="committed"):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--manifest", type=Path, required=True)
-    p.add_argument("--expect", choices=("committed", "awaiting_policy", "unavailable_alpha", "reserved"), default="committed")
+    p.add_argument("--expect", choices=("committed", "awaiting_policy", "unavailable_alpha", "reserved", "cap_activation"), default="committed")
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
-    result = check(args.manifest, args.expect)
+    result = cap_activation(args.manifest) if args.expect == "cap_activation" else check(args.manifest, args.expect)
     with args.output.open("x") as stream:
         json.dump(result, stream, ensure_ascii=False, indent=2)
     print(json.dumps({k: v for k, v in result.items() if k != "semantic"}, ensure_ascii=False))

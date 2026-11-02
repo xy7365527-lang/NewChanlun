@@ -302,6 +302,13 @@ impl Packed {
         deadline: Instant,
     ) -> Result<Self, String> {
         check(deadline, "Verify")?;
+        // #1488：当前capture构造只传work=None；StageOwner的Native Q不经Packed。
+        // 未来capture Native化须单独迁移字节owner，禁止在这里脱许可编码。
+        if matches!(&proof.audited.raw, RawEvents::Native(_)) {
+            return Err(err(
+                "prototype_audit_allocation_incomplete：Packed尚未接入Native捕获",
+            ));
+        }
         let pages = scalar(&proof.db, c"PRAGMA page_count")?;
         let page_size = scalar(&proof.db, c"PRAGMA page_size")?;
         if pages < 0
@@ -423,6 +430,11 @@ impl Packed {
         // Packed has moved raw into owned encoded records; this is an empty placeholder.
         match &a.raw {
             RawEvents::Plain(v) => m.vec(v)?,
+            RawEvents::Native(_) => {
+                return Err(err(
+                    "Incomplete/RetainedBytes：保留图像未移出Native原始账树",
+                ))
+            }
             #[cfg(feature = "s_allocation_json_testonly")]
             RawEvents::Owned(_) => {
                 return Err(err("Incomplete/RetainedBytes：保留图像未移出原始账树"))
@@ -872,5 +884,59 @@ mod owned_cache_tests {
                 .contains("VerifyTimeout")
         );
         assert_eq!(ample.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod native_boundary_tests {
+    use super::super::super::{audit_owner::native::Budget, business_json as bj};
+    use super::*;
+
+    #[test]
+    fn plain_capture_roundtrip_stays_plain_and_unreachable_native_injection_is_rejected() {
+        let mut fixture = prepared::tests::Fixture::new();
+        let (event, token) = fixture.accept_begin(1, ("packed-original", 0, 6, 12, 3, 7), 1);
+        fixture.publish(&event, &token).unwrap();
+        let max = 16 * 1024 * 1024;
+        let limits = Limits {
+            max_capture_bytes: max,
+            capture_deadline_ms: 20000,
+            verify_deadline_ms: 20000,
+        };
+        let proof = capture_verified(&fixture.db_path(), limits).unwrap();
+        assert!(matches!(&proof.audited.raw, RawEvents::Plain(_)));
+        let expected = serde_json::to_value(&proof.audited.raw).unwrap();
+        let deadline = Instant::now() + std::time::Duration::from_secs(30);
+        let mut packed = Packed::new(proof, max, deadline).unwrap();
+        for _ in 0..2 {
+            let borrowed = packed.checkout(deadline).unwrap();
+            assert!(matches!(&borrowed.audited.raw, RawEvents::Plain(_)));
+            assert_eq!(
+                serde_json::to_value(&borrowed.audited.raw).unwrap(),
+                expected
+            );
+            packed.restore(borrowed);
+        }
+        let mut proof = packed.checkout(deadline).unwrap();
+        let budget = Budget::new(max as usize, 0).unwrap();
+        let baseline = budget.live();
+        // 仅测试强行注入：生产verify_image_metered没有WorkScope参数。
+        proof.audited.raw = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut rows = bj::ScopedJsonArray::native(work)?;
+                for row in expected.as_array().unwrap() {
+                    rows.push(row.into())?;
+                }
+                bj::RawEvents::from_json_owner(rows.finish())
+            })
+            .unwrap();
+        assert!(budget.live() > baseline);
+        let error = Packed::new(proof, max, deadline)
+            .err()
+            .expect("Native捕获尚未获准");
+        assert!(error.contains("Packed尚未接入Native捕获"));
+        assert_eq!(budget.live(), baseline, "拒绝后实际owner归还原许可");
     }
 }

@@ -1,0 +1,41 @@
+{
+  "ticket": 1818,
+  "pr": 1826,
+  "verdict": "BLOCK",
+  "reviewer": "independent-astra",
+  "head": "b636af32e84c9e64701d9f7c4d3c482dd83bf434",
+  "base": "71df2ae749664714e6bff10f8f71d9e15cc4c815",
+  "scope": "ADR publication and current-main integration; read-only",
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P2",
+      "path": "docs/adr/0059-production-session-layout-contract.md",
+      "start_line": 82,
+      "end_line": 86,
+      "title": "库文件符号链接漏过布局判定",
+      "evidence": "Q=canon(parent(d)) misses a final DB-file symlink. Existing process_lock canonicalizes d itself (session_transport.rs:43-56) and creates its target-adjacent writer.lock (:57-62). x_execution_session.rs:171-178 calls it without rejecting file symlinks; launcher spawns S at :455 and X at :490 without waiting.",
+      "counterexample": "P=/abs/s; A=/abs/s-state; x.db=/abs/x/alias.db symlinks to existing /abs/s/x.db; writer.lock absent. ADR allows Q=/abs/x; X creates /abs/s/x.db.writer.lock inside measured P.",
+      "required_change": "Align comparison with resolved DB/write target, retaining existing layout coverage; amend Q2/Q8, rule 3-4 and add final-file-symlink rejection acceptance."
+    }
+  ],
+  "rules": {
+    "R1": "BLOCK",
+    "R2": "PASS",
+    "R3": "BLOCK",
+    "R4": "PASS",
+    "R5": "PASS",
+    "R6": "PASS",
+    "R7": "PASS",
+    "R8": "BLOCK"
+  },
+  "checks": {
+    "diff_check": "PASS",
+    "merge_tree": "PASS",
+    "current_main_integration": "PASS",
+    "source_semantics": "BLOCK",
+    "rust": "NOT_RUN",
+    "ci": "NOT_RUN_NOT_WAITED"
+  },
+  "report": "/Volumes/AgentStorage/layout-review41i/REPORT.md"
+}

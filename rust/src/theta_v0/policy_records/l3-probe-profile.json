@@ -1,0 +1,15 @@
+{
+  "id": "#1605/l3-probe-profile",
+  "version": 1,
+  "kind": "named_probe_profile",
+  "ticket": "#1605 探针 funding-record / named profile 交付",
+  "fields": {
+    "nav_floor": { "value": 1000000.0, "default": 1000000.0, "source": "l3_pi_probe::nav_for 与 L3 同族探针现行 max 下限" },
+    "first_px_multiplier": { "value": 1000.0, "default": 1000.0, "source": "l3_pi_probe::nav_for 与 L3 同族探针现行首价倍率" },
+    "missing_first_px_fallback": { "value": 1.0, "default": 1.0, "source": "l3_pi_probe::nav_for 原 unwrap_or(1.0)；只迁移旧默认，不声称新签署" },
+    "supersedes": { "value": "none", "source": "首版" },
+    "authorizer": { "value": "#1605 返修仅等值记录化现行探针资金公式", "source": "用户授权范围；不暗填新资金签署" },
+    "authorized_at": { "value": "2026-10-25", "source": "版本化 JSON profile 落地日期" }
+  },
+  "cost": "NAV 改变会改变手数、成交与全部下游读数；只适用于首价×1000、下限 1e6 的 L3 探针，不覆盖 replay_dump 等首价×10000 的其他回测口径。"
+}

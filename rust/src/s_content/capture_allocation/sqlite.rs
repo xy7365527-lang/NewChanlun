@@ -165,6 +165,8 @@ pub struct TestOnlySqliteAllocator {
     original: ffi::sqlite3_mem_methods,
     _isolated: PhantomData<Rc<()>>,
 }
+// #1640 S1：显式镜像父模块门（capture_allocation.rs `pub mod sqlite`），供源码机检逐项判定。
+#[cfg(feature = "s_allocation_sqlite_testonly")]
 impl TestOnlySqliteAllocator {
     /// # Safety
     /// Exactly one fresh isolated process/test, before any SQLite initialization/open.
@@ -276,6 +278,8 @@ impl Drop for TestOnlySqliteAllocator {
 pub struct RefusalControl {
     budget: OwnedBudget,
 }
+// #1640 S1：显式镜像父模块门（capture_allocation.rs `pub mod sqlite`），供源码机检逐项判定。
+#[cfg(feature = "s_allocation_sqlite_testonly")]
 impl RefusalControl {
     pub fn set_remaining_for_testonly(&self, bytes: usize) {
         let mut m = OwnedBudget::lock(&self.budget.0);

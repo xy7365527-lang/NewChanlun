@@ -1,0 +1,36 @@
+{
+ "checkpoint": {
+  "busy": 0,
+  "checkpointed_frames": 0,
+  "log_frames": 0
+ },
+ "checkpoint_ok": true,
+ "checkpointed_sha256": "f83b5add5ead692f156e55d18d479dcc1a9ed9ca0f392871bc9273a0f412d107",
+ "db": "/mnt/g/AgentStorage/1488-accept/s2/run-b/session.sqlite",
+ "logical_dump_sha256": "b585f5ea100d472737469e7144085f51a7c575fa5575ca6bf1eafbd978785b79",
+ "main_file_sha256": "4f1853998f6de030867e5e2de03a7f8312d6c70a507448261c18332d6387dedc",
+ "table_rows": {
+  "batches": 52,
+  "catalog": 116,
+  "meta": 25,
+  "objects": 99,
+  "observations": 117,
+  "raw_events": 52,
+  "raw_ohlc": 52,
+  "relations": 1405,
+  "s_clock_events": 156,
+  "s_delivery_policy": 1,
+  "s_delivery_refs": 4,
+  "s_evidence_format": 1,
+  "s_evidence_nodes": 45837,
+  "s_evidence_roots": 1296,
+  "s_input_messages": 52,
+  "s_protocol_meta": 1,
+  "s_storage_format": 1,
+  "structure_deltas": 52,
+  "structure_facts": 1192,
+  "witnesses": 297,
+  "writer_epoch_history": 0
+ },
+ "wal_bytes": 6381912
+}

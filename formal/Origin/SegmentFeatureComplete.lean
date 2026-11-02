@@ -100,13 +100,13 @@ deriving Repr
 
   ★这把 #116 良构封装（仅方向反转）升级为完整判据：分型 ∧ 两情况 ∧ 顶高于底。
 -/
-def SegEndComplete (d : SegEndData) : Prop :=
+def SegEndComplete (t : Tangency) (d : SegEndData) : Prop :=
   (match d.dir with
    | Direction.up   => IsTopFractal d.e1 d.e2 d.e3
    | Direction.down => IsBottomFractal d.e1 d.e2 d.e3)
   ∧ (match d.dir with
-     | Direction.up   => SegmentEndUp d.e1 d.e2 d.revSeq
-     | Direction.down => SegmentEndDown d.e1 d.e2 d.revSeq)
+     | Direction.up   => SegmentEndUp t d.e1 d.e2 d.revSeq
+     | Direction.down => SegmentEndDown t d.e1 d.e2 d.revSeq)
   ∧ TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice }
 
 /--
@@ -120,13 +120,13 @@ def SegEndComplete (d : SegEndData) : Prop :=
   **不是**任何跨层/跨定义的实质证明。真正承载内容的是三合取各支自身（分型/两情况/顶高于底）
   与 § 2 的跨层分叉、§ 3 的正例确认。
 -/
-def FeatureConfirmed (d : SegEndData) : Prop :=
+def FeatureConfirmed (t : Tangency) (d : SegEndData) : Prop :=
   (match d.dir with
    | Direction.up   => IsTopFractal d.e1 d.e2 d.e3
    | Direction.down => IsBottomFractal d.e1 d.e2 d.e3)
   ∧ (match d.dir with
-     | Direction.up   => SegmentEndUp d.e1 d.e2 d.revSeq
-     | Direction.down => SegmentEndDown d.e1 d.e2 d.revSeq)
+     | Direction.up   => SegmentEndUp t d.e1 d.e2 d.revSeq
+     | Direction.down => SegmentEndDown t d.e1 d.e2 d.revSeq)
   ∧ TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice }
 
 /--
@@ -140,8 +140,8 @@ def FeatureConfirmed (d : SegEndData) : Prop :=
   此定理的唯一作用：把判据的两个语义名字（"完整确认"/"真特征序列确认"）显式登记为同一谓词，
   供下游引用时不必区分。它不是"A′ 升级核心定理"——升级的实证内容在 § 2/§ 3，不在这条 `rfl`。
 -/
-theorem segEndComplete_iff_featureConfirmed (d : SegEndData) :
-    SegEndComplete d ↔ FeatureConfirmed d := by
+theorem segEndComplete_iff_featureConfirmed (t : Tangency) (d : SegEndData) :
+    SegEndComplete t d ↔ FeatureConfirmed t d := by
   unfold SegEndComplete FeatureConfirmed
   -- 两者逐字相同（合取三支结构一致）—— L0 同义反复，非实质证明
   exact Iff.rfl
@@ -259,7 +259,7 @@ theorem peculiar_scanSegEnd_cuts :
   顶分型不成立 ⟹ 完整判据正确拒绝（良构封装会错误切分）。这是 A′ 从良构封装到缠论-忠实的
   **可观测升级证据**：两者在古怪线段上结论分叉。
 -/
-theorem peculiar_not_segEndComplete : ¬ SegEndComplete peculiarSegEnd := by
+theorem peculiar_not_segEndComplete (t : Tangency) : ¬ SegEndComplete t peculiarSegEnd := by
   intro h
   -- h.1 是顶分型 IsTopFractal e1 e2 e3，即 e1.high<e2.high ∧ e3.high<e2.high
   have hfrac : IsTopFractal peculiarSegEnd.e1 peculiarSegEnd.e2 peculiarSegEnd.e3 := h.1
@@ -279,10 +279,10 @@ theorem peculiar_not_segEndComplete : ¬ SegEndComplete peculiarSegEnd := by
   `FeatureElem.ofStroke`（`peculiar_strokes_abstract`）绑定。升 #116 A′ 从"扫方向反转即切"
   到"完整特征序列确认"——并机器证明了"committed scan 真会切 ∧ 完整判据不切"。
 -/
-theorem complete_strictly_refines_naive :
+theorem complete_strictly_refines_naive (t : Tangency) :
     ∃ (strokes : List Stroke) (d : SegEndData),
-      NaiveScanCutsAt d.dir strokes.tail ∧ ¬ SegEndComplete d :=
-  ⟨peculiarStrokes, peculiarSegEnd, peculiar_naiveScanCuts, peculiar_not_segEndComplete⟩
+      NaiveScanCutsAt d.dir strokes.tail ∧ ¬ SegEndComplete t d :=
+  ⟨peculiarStrokes, peculiarSegEnd, peculiar_naiveScanCuts, peculiar_not_segEndComplete t⟩
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 3. 合法段尾正例（完整判据确认一个真线段）+ 两情况完全分类接入
@@ -302,22 +302,21 @@ def validUpSegEnd : SegEndData :=
     endPrice := 15 }
 
 /-- e1 e2 无缺口（第一种情况）：e1=[5,10] 与 e2=[8,15] 重合（无缺口）。 -/
-theorem validUp_no_gap : ¬ HasGap validUpSegEnd.e1 validUpSegEnd.e2 := by
+theorem validUp_no_gap (t : Tangency) : ¬ HasGap t validUpSegEnd.e1 validUpSegEnd.e2 := by
   unfold HasGap validUpSegEnd
-  simp only [Tick]
-  omega
+  cases t <;> simp only [Tick] at * <;> omega
 
 /--
   **★合法段尾完整判据确认（L0，正例）** —— `SegEndComplete validUpSegEnd`。
   三条全成立：顶分型（e2 最高）∧ 第一种情况无缺口直接确认 ∧ 顶高于底（5<15）。
   与古怪线段反例对照：完整判据**接受**真线段、**拒绝**古怪线段——判据有内容（非平凡）。
 -/
-theorem valid_segEndComplete : SegEndComplete validUpSegEnd := by
+theorem valid_segEndComplete (t : Tangency) : SegEndComplete t validUpSegEnd := by
   refine ⟨?_, ?_, ?_⟩
   · -- 顶分型：e1.high=10<e2.high=15 ∧ e3.high=12<e2.high=15
     unfold IsTopFractal validUpSegEnd; simp only [Tick]; omega
   · -- 第一种情况：无缺口 ⟹ SegmentEndUp 直接成立
-    exact segmentEndUp_caseOne validUpSegEnd.e1 validUpSegEnd.e2 validUpSegEnd.revSeq validUp_no_gap
+    exact segmentEndUp_caseOne t validUpSegEnd.e1 validUpSegEnd.e2 validUpSegEnd.revSeq (validUp_no_gap t)
   · -- 顶高于底：5 < 15
     unfold TopAboveBottom; simp only [validUpSegEnd]; decide
 
@@ -327,30 +326,30 @@ theorem valid_segEndComplete : SegEndComplete validUpSegEnd := by
   须 revSeq 出现底分型）。这把 SegmentFeatureSeq 的 `segment_two_cases_exhaustive` 抬升到
   完整段尾确认层——完整判据**继承**第67课两情况完全分类（非 ad-hoc 列举）。
 -/
-theorem segEndComplete_up_two_cases (d : SegEndData) (hdir : d.dir = Direction.up) :
-    (¬ HasGap d.e1 d.e2 ∧
-      (SegEndComplete d ↔ IsTopFractal d.e1 d.e2 d.e3 ∧
+theorem segEndComplete_up_two_cases (t : Tangency) (d : SegEndData) (hdir : d.dir = Direction.up) :
+    (¬ HasGap t d.e1 d.e2 ∧
+      (SegEndComplete t d ↔ IsTopFractal d.e1 d.e2 d.e3 ∧
         TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice })) ∨
-    (HasGap d.e1 d.e2 ∧
-      (SegEndComplete d ↔ IsTopFractal d.e1 d.e2 d.e3 ∧ FractalInSeq false d.revSeq ∧
+    (HasGap t d.e1 d.e2 ∧
+      (SegEndComplete t d ↔ IsTopFractal d.e1 d.e2 d.e3 ∧ FractalInSeq false d.revSeq ∧
         TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice })) := by
   unfold SegEndComplete
   -- 用 hdir 把两个 match 归约到 up 分支（d.dir 是投影，不能 subst，改 rw [hdir]）
   rw [hdir]
-  by_cases hgap : HasGap d.e1 d.e2
+  by_cases hgap : HasGap t d.e1 d.e2
   · -- 第二种情况：有缺口 ⟹ SegmentEndUp ↔ FractalInSeq false revSeq
     refine Or.inr ⟨hgap, ?_⟩
     constructor
     · rintro ⟨hf, hs, ht⟩
-      exact ⟨hf, (segmentEndUp_caseTwo d.e1 d.e2 d.revSeq hgap).mp hs, ht⟩
+      exact ⟨hf, (segmentEndUp_caseTwo t d.e1 d.e2 d.revSeq hgap).mp hs, ht⟩
     · rintro ⟨hf, hfr, ht⟩
-      exact ⟨hf, (segmentEndUp_caseTwo d.e1 d.e2 d.revSeq hgap).mpr hfr, ht⟩
+      exact ⟨hf, (segmentEndUp_caseTwo t d.e1 d.e2 d.revSeq hgap).mpr hfr, ht⟩
   · -- 第一种情况：无缺口 ⟹ SegmentEndUp 恒真，确认 ⟺ 分型 ∧ 顶高于底
     refine Or.inl ⟨hgap, ?_⟩
     constructor
     · rintro ⟨hf, _, ht⟩; exact ⟨hf, ht⟩
     · rintro ⟨hf, ht⟩
-      exact ⟨hf, segmentEndUp_caseOne d.e1 d.e2 d.revSeq hgap, ht⟩
+      exact ⟨hf, segmentEndUp_caseOne t d.e1 d.e2 d.revSeq hgap, ht⟩
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 4. 第78课古怪线段唯一原因 + 顶高于底硬约束（结构定理）
@@ -376,9 +375,9 @@ def IsPeculiarCause (strokes : List Stroke) (d : SegEndData) : Prop :=
   线段成因（committed scan 切但无特征序列分型），则完整判据必不确认。这把第78课"古怪线段唯一
   原因"形式化为从"无分型"到"完整判据拒绝"的蕴含——古怪线段恰是完整判据与良构封装分叉处。
 -/
-theorem peculiarCause_not_complete (strokes : List Stroke) (d : SegEndData)
+theorem peculiarCause_not_complete (t : Tangency) (strokes : List Stroke) (d : SegEndData)
     (h : IsPeculiarCause strokes d) :
-    ¬ SegEndComplete d := by
+    ¬ SegEndComplete t d := by
   intro hc
   -- hc.1 是分型成立，h.2 是分型不成立，矛盾
   exact h.2 hc.1
@@ -397,7 +396,7 @@ theorem peculiar_isPeculiarCause : IsPeculiarCause peculiarStrokes peculiarSegEn
   这把第78课"顶肯定要高于底，划出不符合的肯定是划错了"形式化为完整判据的**投影必要条件**：
   任何被完整判据确认的段尾，其端点必满足顶高于底（划错的段被完整判据排除）。
 -/
-theorem segEndComplete_implies_topAboveBottom (d : SegEndData) (h : SegEndComplete d) :
+theorem segEndComplete_implies_topAboveBottom (t : Tangency) (d : SegEndData) (h : SegEndComplete t d) :
     TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice } :=
   h.2.2
 
@@ -405,7 +404,7 @@ theorem segEndComplete_implies_topAboveBottom (d : SegEndData) (h : SegEndComple
   **★分型是段尾必要前提（L0，第67:48）** —— 完整判据确认 ⟹ 特征序列分型成立。
   "出现特征序列的分型，是线段结束的前提条件。"——形式化为完整判据的第一投影必要条件。
 -/
-theorem segEndComplete_implies_fractal (d : SegEndData) (h : SegEndComplete d) :
+theorem segEndComplete_implies_fractal (t : Tangency) (d : SegEndData) (h : SegEndComplete t d) :
     (match d.dir with
      | Direction.up   => IsTopFractal d.e1 d.e2 d.e3
      | Direction.down => IsBottomFractal d.e1 d.e2 d.e3) :=

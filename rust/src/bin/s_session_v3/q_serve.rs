@@ -250,14 +250,14 @@ mod tests {
         .into_iter()
         .map(str::to_owned)
         .collect();
-        assert!(super::super::dispatch(&a)
+        assert!(super::super::dispatch_fixture(&a)
             .unwrap_err()
             .contains("--producer-epoch"));
         let mut old = a.clone();
         old[3] = "s-session/2".into();
-        assert!(super::super::dispatch(&old)
+        assert!(super::super::dispatch_fixture(&old)
             .unwrap_err()
             .contains("VersionUnsupported"));
-        assert!(!super::super::dispatch(&a[..2]).unwrap());
+        assert!(!super::super::dispatch_fixture(&a[..2]).unwrap());
     }
 }

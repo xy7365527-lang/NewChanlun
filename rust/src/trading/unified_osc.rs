@@ -226,7 +226,7 @@ impl OscLayer {
 
     /// 开腿尝试（阶段 B：层 k Long 且无在外腿时每 bar 调用）。
     /// 触发判据 = LOU osc 开腿逐字：!frozen(j) ∧ c ≥ ZG(j) ∧ sub_sell(j−1)。
-    /// j ≥ k ≥ FIRST_BSP_LADDER ⇒ j−1 ≥ 1（笔=a0 越界在类型层不可达）。
+    /// j ≥ k ≥ FIRST_BSP_LADDER ⇒ j−1 ≥ 1（越过阶梯下限——笔层不开一类点——在类型层不可达）。
     #[allow(clippy::too_many_arguments)]
     pub fn try_open(
         &mut self,

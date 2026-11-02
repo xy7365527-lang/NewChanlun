@@ -1,0 +1,36 @@
+{
+ "binary": "/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-testonly-3ee05a2713",
+ "binary_sha256": "4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882",
+ "inputs": {
+  "catalog": {
+   "path": "/home/hanju/nc-remote/wt/20261021-090745-87d09a50ce/.chanlun/review-results/1488-acceptance/s86/signed-catalog.json",
+   "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+  },
+  "profile": {
+   "path": "/home/hanju/nc-remote/wt/20261021-090745-87d09a50ce/.chanlun/review-results/1488-acceptance/s86/ohlc_integer_tb02a_v1.json",
+   "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+  },
+  "clock": {
+   "path": "/home/hanju/nc-remote/wt/20261021-090745-87d09a50ce/.chanlun/review-results/1488-acceptance/s86/clock-plan.s86.json",
+   "sha256": "fba1bdfb1d5753877b41c13ca4313553c6e123109378c2ca2b69262ee91750d8"
+  },
+  "resources": {
+   "path": "/home/hanju/nc-remote/wt/20261021-090745-87d09a50ce/.chanlun/review-results/1488-acceptance/s86/s-resources.json",
+   "sha256": "a1243e98a4823e311499e80b86e2b2f5259108ac16d9c96d3bb7a596a5209bea"
+  },
+  "messages": {
+   "path": "/home/hanju/nc-remote/wt/20261021-090745-87d09a50ce/.chanlun/review-results/1488-acceptance/s86/messages.jsonl",
+   "sha256": "b6429b2e5a0f02ea2419b251d10a0cb7c7ca59ca998084bccb85d5d43053bfc5"
+  }
+ },
+ "native": true,
+ "workdir": "/home/hanju/nc-remote/1488-accept/s5/n1",
+ "started_unix": 1792544915.3890777,
+ "serve_startup_ns": 54681888,
+ "serve_returncode": -15,
+ "generations": 2,
+ "failure": "第 2 条未 Committed：{\"transport\": \"DeliveryUnknown\", \"message_id\": \"message-2\", \"detail\": \"[Errno 104] Connection reset by peer\"}",
+ "basis_ref_returncode": 0,
+ "host": "Silence",
+ "kernel": "6.6.87.2-microsoft-standard-WSL2"
+}

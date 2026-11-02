@@ -1,0 +1,57 @@
+{
+  "ticket": 1818,
+  "attempt": 1,
+  "mode": "initial",
+  "drafter": "claude-fable-5-1",
+  "reviewer": "claude-opus-5-5",
+  "klass": "T",
+  "verdict": "BLOCK",
+  "parseError": false,
+  "retried": false,
+  "items": [
+    {
+      "rule": "R1",
+      "verdict": "BLOCK",
+      "basis": "「引用自证」表在，正文里的引用表中都有对应。我重跑了十几条，大部分对得上：#1567 评论 6267636964 作者是 xy7365527-lang，第 71 行和第 83 行逐字一致；#1323 评论 6261281111 作者是 xy7365527-lang，内含用户 2026-10-18 原话；#1323 body:74 N-1 成立；#1818 三条评论 6550327210、6550407378、6550474840 都在；#1781 blocked_by=1769,1818；admission_anchor.rs:30,32 两个常量，:1294 canonicalize，:1327-1342 Identity E1，均成立；writer_cli.rs:340-361、:725、:802 成立；session_transport.rs:634-635 成立；production_session_entry.rs:71-80、:194-195、:345-358 成立；ci.yml:500、:517、:523 成立；1773 独审 :51-55、:84、:88 成立；runbook :21-24、:35、:40、:51、:53、:58 成立；ADR 0041:11,13、0028:46、0050:44,48、CONTEXT.md:393 都逐字一致。有三处行号与内容不符，要改：(1) 『ADR 0056:52（§五.2）』错了。sed -n 52p 实际是 §五.1『时钟 kind 是封闭枚举…』；§五.2『在拉起任何域之前以 InvalidDomain 退出』在第 53 行。权威依据、Q1、授权引用段和自证表四处都要改成 :53。考古写的也是 :53。(2) 『production_session.rs:165-172 对 economic.b 与 X profile mode 的 InvalidDomain 拒绝』错了。:172 只有 economic.b 那一条；X profile mode 的 InvalidDomain 在 :179-184。要改成 :165-184，或拆写成 :172 和 :179-184。(3) 『verify_before_open（admission_provider.rs:302-345）』起点不对。grep 显示函数从 :299 开始。正文和自证表都要改成 :299-345。另外，正文的『40M 嵌套反例』『40N 考古 Q4』只是内部代号，没有可回查的路径或评论 id，建议在表里补上出处。"
+    },
+    {
+      "rule": "R2",
+      "verdict": "PASS",
+      "basis": "布局边界 M 是代码事实（admission_provider.rs:206-255、:299-345），不是原文无定论的自由度。草稿没有把哪个合法候选当错误排除：C、D 记为未采用或未来候选，没写成被否。B 的排除有已裁依据：#1567 第 4、6 条，ADR 0028:46，anchor:1337-1342。第 8 条依 ADR 0041:13 判别句，不把『放行冲突布局』做成可调字段，与 #799、AGENTS.md:46-58 一致。Q12 不做后缀校验，靠 S 在 E1 确定性拒绝；canon 超集语义只会多拒、不会多放，不构成宽严两档。与 ADR 0050、0056 及正本 definitions 不冲突。"
+    },
+    {
+      "rule": "R3",
+      "verdict": "BLOCK",
+      "basis": "验收 1-9：每条都有测试名，判据是两条 CI step（ci.yml:517、:523）逐行 ok，加上 stderr 字段和文件不存在，是二值判据。验收 11 的 rg 命中数、验收 12 的 resolution 首行也都是二值。验收 10 不行：『docs/adr/NNNN-production-session-layout-contract.md 存在，含裁定第 1–10 条』里 NNNN 没定，『含第 1–10 条』也没有可执行的判定命令。要改成：编号在合入时按 main 顺序确定（当前最大编号是 0057），并配一条可执行检查，例如用 rg 匹配裁定各条的锚句（如『不比较 launcher manifest `state_dir`』『不设可调字段』『L-2 记录』等），逐条命中数 ≥1。另外它只列第 1–10 条、漏了第 11 条 owner 落点，要说明理由或补上。"
+    },
+    {
+      "rule": "R4",
+      "verdict": "PASS",
+      "basis": "正本落点是 docs/adr/NNNN，在允许范围内。runbook 和 load_manifest 是 #1781 的实施产物，不是正本。裁定内容只有启动前拒绝规则、owner 落点、测试锁和恢复语义，不涉资金、隔离放宽、真实场所、关图或 Destination，没有夹带 P 类取舍。L-2 改为 S 自核明确另开票，没有越界。"
+    },
+    {
+      "rule": "R5",
+      "verdict": "PASS",
+      "basis": "没有新增宽严两档：第 8 条明确不设放行字段。也没有失败兜底：候选 B 自动迁移已排除，C 启动排序未采用。launcher 前移判定与 S 侧判定方向相同，只多拒不多放，S 侧拒绝照旧保留，不是两档接在同一个 if-else 上。"
+    },
+    {
+      "rule": "R6",
+      "verdict": "PASS",
+      "basis": "gh 实核：#1818 OPEN，父票 #1340；#1781 OPEN，blocked_by 1769、1818；#1769 OPEN impl；#1538 CLOSED；#1340 OPEN；#1527 OPEN。草稿的不增不删边，与 #1781 现有边一致，#1781 body 和 triage 也没有要求新边。#1323 Decisions 行也已列入。建议提一句 #1657（生产首签决定 admission state 目录 A 的位置），不影响判定。"
+    },
+    {
+      "rule": "R7",
+      "verdict": "PASS",
+      "basis": "graph-engineering.md:23 的 T 类明列接口与 seam、owner 落点、测试锁、恢复语义，要求有权威源或判例。本票的判例都已核实：1773 独审 M-2（:53、:84 原文建议 launcher 以 InvalidDomain 拒启）；launcher 既有 InvalidDomain 模式（production_session.rs:7-8、:124、:172、:179-184）；#1567 第 4 条；ADR 0028:46。按 :24 的 P 类各项（资金、场所、关图、Destination、无先例取舍）逐条对照，都不涉及。分级为 T 成立。"
+    },
+    {
+      "rule": "R8",
+      "verdict": "PASS",
+      "basis": "重跑了考古查询：Q1 tracker \"InvalidDomain\" 6 条，\"独占目录\" 3 条（1781、1818、1789），repo rg InvalidDomain 10 行；Q3 repo state_dir 3 行。全部与表述相符。命中内容抽核：production_session.rs:455-467 S 之后立即拉 E；anchor:1337-1342；runbook:51；1773 独审 :84、:88，都成立。换说法复搜 B 点 Q1/Q2：tracker \"SourceIdentityChanged\" 得 1781、1675、1818，\"父目录\" launcher 得 1781、1818、1323；repo rg 同目录|父目录|库目录 没有相关裁定。#1781 body 只把『拒绝 vs 自动分目录』交给裁定，没有搜到更早或相冲突的先例。考古对照覆盖 Q1-Q12 全部 12 点，A 类 Q6、Q7 直接沿用，B 类以默认值形式呈现并附查询证据。Q12 是 C 类 decision，不是 research/probe 事实缺口，草稿给出推荐值并按 T 裁定，没有把事实缺口交给用户。考古自身有几处行号小偏：常量写 29-31，实为 30-32；verify_runtime 注释写 348-349，实为 346。内容都对，不构成命中不符。"
+    }
+  ],
+  "problems": [],
+  "draftMissingSections": [],
+  "durationMs": 156912,
+  "raw": "```json\n{\"R1\":{\"verdict\":\"BLOCK\",\"basis\":\"「引用自证」表在，正文里的引用表中都有对应。我重跑了十几条，大部分对得上：#1567 评论 6267636964 作者是 xy7365527-lang，第 71 行和第 83 行逐字一致；#1323 评论 6261281111 作者是 xy7365527-lang，内含用户 2026-10-18 原话；#1323 body:74 N-1 成立；#1818 三条评论 6550327210、6550407378、6550474840 都在；#1781 blocked_by=1769,1818；admission_anchor.rs:30,32 两个常量，:1294 canonicalize，:1327-1342 Identity E1，均成立；writer_cli.rs:340-361、:725、:802 成立；session_transport.rs:634-635 成立；production_session_entry.rs:71-80、:194-195、:345-358 成立；ci.yml:500、:517、:523 成立；1773 独审 :51-55、:84、:88 成立；runbook :21-24、:35、:40、:51、:53、:58 成立；ADR 0041:11,13、0028:46、0050:44,48、CONTEXT.md:393 都逐字一致。有三处行号与内容不符，要改：(1) 『ADR 0056:52（§五.2）』错了。sed -n 52p 实际是 §五.1『时钟 kind 是封闭枚举…』；§五.2『在拉起任何域之前以 InvalidDomain 退出』在第 53 行。权威依据、Q1、授权引用段和自证表四处都要改成 :53。考古写的也是 :53。(2) 『production_session.rs:165-172 对 economic.b 与 X profile mode 的 InvalidDomain 拒绝』错了。:172 只有 economic.b 那一条；X profile mode 的 InvalidDomain 在 :179-184。要改成 :165-184，或拆写成 :172 和 :179-184。(3) 『verify_before_open（admission_provider.rs:302-345）』起点不对。grep 显示函数从 :299 开始。正文和自证表都要改成 :299-345。另外，正文的『40M 嵌套反例』『40N 考古 Q4』只是内部代号，没有可回查的路径或评论 id，建议在表里补上出处。\"},\n\"R2\":{\"verdict\":\"PASS\",\"basis\":\"布局边界 M 是代码事实（admission_provider.rs:206-255、:299-345），不是原文无定论的自由度。草稿没有把哪个合法候选当错误排除：C、D 记为未采用或未来候选，没写成被否。B 的排除有已裁依据：#1567 第 4、6 条，ADR 0028:46，anchor:1337-1342。第 8 条依 ADR 0041:13 判别句，不把『放行冲突布局』做成可调字段，与 #799、AGENTS.md:46-58 一致。Q12 不做后缀校验，靠 S 在 E1 确定性拒绝；canon 超集语义只会多拒、不会多放，不构成宽严两档。与 ADR 0050、0056 及正本 definitions 不冲突。\"},\n\"R3\":{\"verdict\":\"BLOCK\",\"basis\":\"验收 1-9：每条都有测试名，判据是两条 CI step（ci.yml:517、:523）逐行 ok，加上 stderr 字段和文件不存在，是二值判据。验收 11 的 rg 命中数、验收 12 的 resolution 首行也都是二值。验收 10 不行：『docs/adr/NNNN-production-session-layout-contract.md 存在，含裁定第 1–10 条』里 NNNN 没定，『含第 1–10 条』也没有可执行的判定命令。要改成：编号在合入时按 main 顺序确定（当前最大编号是 0057），并配一条可执行检查，例如用 rg 匹配裁定各条的锚句（如『不比较 launcher manifest `state_dir`』『不设可调字段』『L-2 记录』等），逐条命中数 ≥1。另外它只列第 1–10 条、漏了第 11 条 owner 落点，要说明理由或补上。\"},\n\"R4\":{\"verdict\":\"PASS\",\"basis\":\"正本落点是 docs/adr/NNNN，在允许范围内。runbook 和 load_manifest 是 #1781 的实施产物，不是正本。裁定内容只有启动前拒绝规则、owner 落点、测试锁和恢复语义，不涉资金、隔离放宽、真实场所、关图或 Destination，没有夹带 P 类取舍。L-2 改为 S 自核明确另开票，没有越界。\"},\n\"R5\":{\"verdict\":\"PASS\",\"basis\":\"没有新增宽严两档：第 8 条明确不设放行字段。也没有失败兜底：候选 B 自动迁移已排除，C 启动排序未采用。launcher 前移判定与 S 侧判定方向相同，只多拒不多放，S 侧拒绝照旧保留，不是两档接在同一个 if-else 上。\"},\n\"R6\":{\"verdict\":\"PASS\",\"basis\":\"gh 实核：#1818 OPEN，父票 #1340；#1781 OPEN，blocked_by 1769、1818；#1769 OPEN impl；#1538 CLOSED；#1340 OPEN；#1527 OPEN。草稿的不增不删边，与 #1781 现有边一致，#1781 body 和 triage 也没有要求新边。#1323 Decisions 行也已列入。建议提一句 #1657（生产首签决定 admission state 目录 A 的位置），不影响判定。\"},\n\"R7\":{\"verdict\":\"PASS\",\"basis\":\"graph-engineering.md:23 的 T 类明列接口与 seam、owner 落点、测试锁、恢复语义，要求有权威源或判例。本票的判例都已核实：1773 独审 M-2（:53、:84 原文建议 launcher 以 InvalidDomain 拒启）；launcher 既有 InvalidDomain 模式（production_session.rs:7-8、:124、:172、:179-184）；#1567 第 4 条；ADR 0028:46。按 :24 的 P 类各项（资金、场所、关图、Destination、无先例取舍）逐条对照，都不涉及。分级为 T 成立。\"},\n\"R8\":{\"verdict\":\"PASS\",\"basis\":\"重跑了考古查询：Q1 tracker \\\"InvalidDomain\\\" 6 条，\\\"独占目录\\\" 3 条（1781、1818、1789），repo rg InvalidDomain 10 行；Q3 repo state_dir 3 行。全部与表述相符。命中内容抽核：production_session.rs:455-467 S 之后立即拉 E；anchor:1337-1342；runbook:51；1773 独审 :84、:88，都成立。换说法复搜 B 点 Q1/Q2：tracker \\\"SourceIdentityChanged\\\" 得 1781、1675、1818，\\\"父目录\\\" launcher 得 1781、1818、1323；repo rg 同目录|父目录|库目录 没有相关裁定。#1781 body 只把『拒绝 vs 自动分目录』交给裁定，没有搜到更早或相冲突的先例。考古对照覆盖 Q1-Q12 全部 12 点，A 类 Q6、Q7 直接沿用，B 类以默认值形式呈现并附查询证据。Q12 是 C 类 decision，不是 research/probe 事实缺口，草稿给出推荐值并按 T 裁定，没有把事实缺口交给用户。考古自身有几处行号小偏：常量写 29-31，实为 30-32；verify_runtime 注释写 348-349，实为 346。内容都对，不构成命中不符。\"}}\n```"
+}

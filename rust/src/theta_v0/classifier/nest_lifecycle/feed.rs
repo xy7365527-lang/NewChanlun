@@ -251,3 +251,49 @@ pub fn feed_replay_bar(
         book.completion_force_unavailable_audits().len() - unavailable_before;
     (delta, stats)
 }
+
+/// #1719 伴随绑定喂入。旧 channel_switch 函数及其两相执行顺序保持不变。
+/// bindings 必须来自本 bar 的 active provider；迁移由原 book 执行。
+/// 返回每份绑定的接纳/政策冻结/拒绝结果，调用方不能把新政策误报为已接纳。
+pub fn feed_replay_bar_with_bridges(
+    book: &mut NestLifecycleBook,
+    feed: &ReplayBarFeed<'_>,
+    material: &ForceMaterial,
+    bindings: &[HypothesisBridge],
+) -> (
+    Vec<LifecycleRevision>,
+    ReplayFeedStats,
+    Vec<BridgeRegistration>,
+) {
+    let (delta, stats) = feed_replay_bar(book, feed, material);
+    let registrations = bindings
+        .iter()
+        .map(|binding| {
+            // 不允许借本 bar 的入口迟绑旧观测、伪造其它对象或提前引用。
+            let supplied = binding.registered_at == feed.as_of
+                && feed.phases.iter().any(|phase| {
+                    matches!(phase, PanProviderPhase::Live(window)
+                        if LifecycleKey::from(window) == binding.binding_key)
+                });
+            if supplied {
+                book.register_center_bridge(binding.clone())
+            } else {
+                BridgeRegistration::Rejected
+            }
+        })
+        .collect();
+    (delta, stats, registrations)
+}
+
+/// #1719 只消费已提取的 Broken，不遍历当前 centers，不猜 B、不代填政策。
+/// 保留每份事实的全部目标结果；恢复调用方须处理待恢复/未就绪，不能只收集修订。
+pub fn apply_center_breaks(
+    book: &mut NestLifecycleBook,
+    broken_facts: &[CenterBreakFact],
+    as_of: usize,
+) -> Vec<CenterBreakResult> {
+    broken_facts
+        .iter()
+        .map(|fact| book.apply_center_break(fact, as_of))
+        .collect()
+}

@@ -1,0 +1,313 @@
+{
+ "mode": "same-binary",
+ "run_a": "/home/hanju/nc-remote/1488-accept/s5/p1",
+ "run_b": "/home/hanju/nc-remote/1488-accept/s5/p2",
+ "verdict": "PASS",
+ "invariant_items": 31,
+ "invariant_equal": 31,
+ "conditional_items": 5,
+ "conditional_equal": 5,
+ "conditional_differences_to_explain": [],
+ "info": {
+  "basis_recompute_matches_product": true,
+  "generations": [
+   86,
+   86
+  ],
+  "final_snapshot_root": [
+   "7508b621a01011e8175e6f63a603fd23788c609ab4419abbb84a9e7afc724f5b",
+   "7508b621a01011e8175e6f63a603fd23788c609ab4419abbb84a9e7afc724f5b"
+  ],
+  "final_basis_root": [
+   "sc1-c195df5907960fa559f7a9a139b4619d9eba0e52384b5190ba9cdba5d5414d7e",
+   "sc1-c195df5907960fa559f7a9a139b4619d9eba0e52384b5190ba9cdba5d5414d7e"
+  ],
+  "nodes_a": {
+   "stored": 560069,
+   "reachable": 344419,
+   "unreachable": 215650,
+   "unreachable_fraction": 0.385042,
+   "stored_body_bytes": 35082658
+  },
+  "nodes_b": {
+   "stored": 560069,
+   "reachable": 344419,
+   "unreachable": 215650,
+   "unreachable_fraction": 0.385042,
+   "stored_body_bytes": 35082658
+  }
+ },
+ "results": [
+  {
+   "tier": "INVARIANT",
+   "item": "init.json",
+   "equal": true,
+   "digest_a": "39c85728cbfef37fe991f510b1d7bd6d20d9000792e6cd108a6ce372fd2845e9",
+   "digest_b": "39c85728cbfef37fe991f510b1d7bd6d20d9000792e6cd108a6ce372fd2845e9"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "responses.jsonl(86 回复帧逐位)",
+   "equal": true,
+   "digest_a": "e4c9e4986a66908a2749b7181deb54c4d6138cf754a4121886c64876d6ee9a57",
+   "digest_b": "e4c9e4986a66908a2749b7181deb54c4d6138cf754a4121886c64876d6ee9a57"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "逐代公开根 manifest/snapshot/delta_root",
+   "equal": true,
+   "digest_a": "1a6947015da5f38d12ab0b280d95598df6eb6df5cc7b2b74ee87afe0985fa045",
+   "digest_b": "1a6947015da5f38d12ab0b280d95598df6eb6df5cc7b2b74ee87afe0985fa045"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "逐代 FinancialBasis 根（独立重算）",
+   "equal": true,
+   "digest_a": "7ee00f8db1ea241db4d62c420b30ae7d139fcc5967d4e0c87288e26ba3a1230d",
+   "digest_b": "7ee00f8db1ea241db4d62c420b30ae7d139fcc5967d4e0c87288e26ba3a1230d"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "basis-ref.json（产品 financial-basis-ref 末代回执）",
+   "equal": true,
+   "digest_a": "9607846efe5c4968b18fbaa16c82745f1d169455feb8e659ddd0d6a92823b258",
+   "digest_b": "9607846efe5c4968b18fbaa16c82745f1d169455feb8e659ddd0d6a92823b258"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 batches（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 catalog（116 行）",
+   "equal": true,
+   "digest_a": "026e89428b88472fd906e48c210bb4425e43968e0f7944b60b92462acaa7734f",
+   "digest_b": "026e89428b88472fd906e48c210bb4425e43968e0f7944b60b92462acaa7734f"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "meta 环境键",
+   "equal": true,
+   "digest_a": "91a37c4d9ebfdbe43d2c0ed29d59874c0b4373548693fc20b3ba7ee5148dc00b",
+   "digest_b": "91a37c4d9ebfdbe43d2c0ed29d59874c0b4373548693fc20b3ba7ee5148dc00b"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 meta（21 行）",
+   "equal": true,
+   "digest_a": "e4db3878b6f578e394b994b68b9d8e83e779dbd633af567d789ca0ec3906b93c",
+   "digest_b": "e4db3878b6f578e394b994b68b9d8e83e779dbd633af567d789ca0ec3906b93c"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 objects（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 observations（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 raw_events（86 行）",
+   "equal": true,
+   "digest_a": "6b49a5ef6639aeec4dd775a46575df6aae5174dee94a16cbc89bf9334e304353",
+   "digest_b": "6b49a5ef6639aeec4dd775a46575df6aae5174dee94a16cbc89bf9334e304353"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 raw_ohlc（86 行）",
+   "equal": true,
+   "digest_a": "5aa0229f5f85e211abbf355d79061842d58abff07de2b9b80da56b83af1c9968",
+   "digest_b": "5aa0229f5f85e211abbf355d79061842d58abff07de2b9b80da56b83af1c9968"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 relations（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_clock_events（258 行）",
+   "equal": true,
+   "digest_a": "a3edc2f0f8537258229f6138f2ee17dc43b30dc406656270a15c81723955d2c2",
+   "digest_b": "a3edc2f0f8537258229f6138f2ee17dc43b30dc406656270a15c81723955d2c2"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_meta（1 行）",
+   "equal": true,
+   "digest_a": "f38fd8c295d0745c1a11f14c76b15bd0432a5a755b30c33864f72914ca76bb1f",
+   "digest_b": "f38fd8c295d0745c1a11f14c76b15bd0432a5a755b30c33864f72914ca76bb1f"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_objects（1028 行）",
+   "equal": true,
+   "digest_a": "29623898c65b2bdf88f8bbbcc1c332a3708428aac17e90c08ae2f32a7a481d03",
+   "digest_b": "29623898c65b2bdf88f8bbbcc1c332a3708428aac17e90c08ae2f32a7a481d03"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_observations（171 行）",
+   "equal": true,
+   "digest_a": "c4c10cff6be0240acd42312239282db1a6e814db449de93c2809717b3a5a0304",
+   "digest_b": "c4c10cff6be0240acd42312239282db1a6e814db449de93c2809717b3a5a0304"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_publications（86 行）",
+   "equal": true,
+   "digest_a": "9e1a79c11c6ed5e4ee60fe47b402d8ae55a75f80acab75fbf93b6987623645df",
+   "digest_b": "9e1a79c11c6ed5e4ee60fe47b402d8ae55a75f80acab75fbf93b6987623645df"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_relations（1416 行）",
+   "equal": true,
+   "digest_a": "e867b7c3dee780e89b1496c098b0d4e8b8c24ef700225656e0bd4ab4451be6ef",
+   "digest_b": "e867b7c3dee780e89b1496c098b0d4e8b8c24ef700225656e0bd4ab4451be6ef"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_witnesses（501 行）",
+   "equal": true,
+   "digest_a": "c7e84866133003c033a0420075ef332633379cc43b21e4d8fe2be8e39d28200b",
+   "digest_b": "c7e84866133003c033a0420075ef332633379cc43b21e4d8fe2be8e39d28200b"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_delivery_policy（1 行）",
+   "equal": true,
+   "digest_a": "b7ff5e5acd51cbdf11c3ab6a63c146172aa773387d9169eeef6537ce6a6a8e7a",
+   "digest_b": "b7ff5e5acd51cbdf11c3ab6a63c146172aa773387d9169eeef6537ce6a6a8e7a"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_delivery_refs（4 行）",
+   "equal": true,
+   "digest_a": "3b0659109cacd33b419e18ee7653cf6bbe9d0543871c087d73273a9b3cf1de6a",
+   "digest_b": "3b0659109cacd33b419e18ee7653cf6bbe9d0543871c087d73273a9b3cf1de6a"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_input_messages（86 行）",
+   "equal": true,
+   "digest_a": "e7b89a09b2a81de19581fc33c979983d9cd0ae68abcec38ddf38761f8003f875",
+   "digest_b": "e7b89a09b2a81de19581fc33c979983d9cd0ae68abcec38ddf38761f8003f875"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_protocol_meta（1 行）",
+   "equal": true,
+   "digest_a": "c0ab6338c6f14b6af6723959913e24bd092fa241548d4eabdf5d7addad1a7ca1",
+   "digest_b": "c0ab6338c6f14b6af6723959913e24bd092fa241548d4eabdf5d7addad1a7ca1"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 structure_deltas（86 行）",
+   "equal": true,
+   "digest_a": "882fb984a4fca5447b028456081378501a46d132c23d1a4a39089a9e40d1526e",
+   "digest_b": "882fb984a4fca5447b028456081378501a46d132c23d1a4a39089a9e40d1526e"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 structure_facts（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 witnesses（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 writer_epoch_history（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "公开根集合",
+   "equal": true,
+   "digest_a": "66064c03066601a599a6e60ed10c78881021b489ad9054b45d12f8bbec33cace",
+   "digest_b": "66064c03066601a599a6e60ed10c78881021b489ad9054b45d12f8bbec33cace"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "可达闭包节点（344419/344419，digest:tag:sha(body)，均已核 F）",
+   "equal": true,
+   "digest_a": "08fc2d80f5163fccf0336348c2b55a4e3218f67411f4e144182ffa7289740541",
+   "digest_b": "08fc2d80f5163fccf0336348c2b55a4e3218f67411f4e144182ffa7289740541"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "s_content_nodes 全集（560069/560069）",
+   "equal": true,
+   "digest_a": "06dd89360be098cf53446aab86a1af56b37907311daf0467bb84c9f585d7ed1c",
+   "digest_b": "06dd89360be098cf53446aab86a1af56b37907311daf0467bb84c9f585d7ed1c"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "sqlite_master DDL",
+   "equal": true,
+   "digest_a": "fb3ee09bb6b929e39a629834e34a75900476c2e38996a78c2388aa8b7d111a0d",
+   "digest_b": "fb3ee09bb6b929e39a629834e34a75900476c2e38996a78c2388aa8b7d111a0d"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "binary_sha256",
+   "equal": true,
+   "digest_a": "f30c95d9284d82ea88f9ebbd1f645c3d2d12fc2a8eb5268bd048e1cd8580d507",
+   "digest_b": "f30c95d9284d82ea88f9ebbd1f645c3d2d12fc2a8eb5268bd048e1cd8580d507"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "输入文件 sha256（同输入前提）",
+   "equal": true,
+   "digest_a": "a85c204c49f75c50d299455afd23217ea91261ab4ca6ef764ab29e95a4fbdfe3",
+   "digest_b": "a85c204c49f75c50d299455afd23217ea91261ab4ca6ef764ab29e95a4fbdfe3"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "逐代 stored_nodes/stored_body_bytes",
+   "equal": true,
+   "digest_a": "2da2a88894f8fb6c93b65bf1b6fd2bdc3d78e804d443ef926f8557df83bd723d",
+   "digest_b": "2da2a88894f8fb6c93b65bf1b6fd2bdc3d78e804d443ef926f8557df83bd723d"
+  }
+ ],
+ "always_different_not_compared": {
+  "readings": "elapsed_ns、rchar/wchar/syscr/syscw/read_bytes/write_bytes、cpu_ticks",
+  "run-manifest": "started_unix、serve_startup_ns、workdir、binary 路径、host/kernel",
+  "process": "pid、socket 路径、serve.stderr",
+  "db_files": {
+   "a": {
+    "s.sqlite": "ddb1d5b0b853e955c95729e0c028bf0cf70c05ac65d9f53a95594c08545dc1c9",
+    "s.sqlite-shm": "06012625fc6faeac9846e3d23b8d401d9a7f3651035be4a4819ec185f0ebb671",
+    "s.sqlite-wal": "d94df0ab6c299e88296606e568f1627d83e375f9c838abe1aa288b9c6f825f40",
+    "s.sqlite.writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "b": {
+    "s.sqlite": "ddb1d5b0b853e955c95729e0c028bf0cf70c05ac65d9f53a95594c08545dc1c9",
+    "s.sqlite-shm": "177819497bb49a327d958376419d20fe56af590d8ac50d2311aaafe38f6bd408",
+    "s.sqlite-wal": "c87b808da3a9b54d28acce4ee36fd0f385a28c34af5cf9c3dc3bbb9f3405a075",
+    "s.sqlite.writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   }
+  }
+ }
+}

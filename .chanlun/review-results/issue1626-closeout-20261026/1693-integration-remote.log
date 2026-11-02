@@ -1,0 +1,133 @@
+ref=codex/1693-main-integration-20261026 sha=3e587ab2d05478cbe721d030565eeeb89617a76f sub=rust target=/home/hanju/nc-remote/target cmd=bash -c set\ -e\;\ rustfmt\ --edition\ 2021\ --check\ src/theta_v0/policy_records.rs\ src/theta_v0/classifier/bsp.rs\;\ cargo\ test\ --lib\ --features\ backtest_bin\ --jobs\ 2\ policy_records\;\ cargo\ test\ --lib\ --features\ backtest_bin\ --jobs\ 2\ tower_base\;\ cargo\ test\ --lib\ --features\ backtest_bin\ --jobs\ 2\ no_stray_bsp_binding_rewrites_outside_registry 
+   Compiling serde_core v1.0.229
+   Compiling memchr v2.8.2
+   Compiling fnv v1.0.7
+   Compiling equivalent v1.0.2
+   Compiling rand_core v0.10.1
+   Compiling darling_core v0.20.11
+   Compiling serde v1.0.229
+   Compiling smallvec v1.15.2
+   Compiling futures-core v0.3.34
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling darling_macro v0.20.11
+   Compiling aho-corasick v1.1.4
+   Compiling indexmap v2.14.0
+   Compiling parking_lot_core v0.9.12
+   Compiling num-traits v0.2.19
+   Compiling getrandom v0.4.3
+   Compiling futures-sink v0.3.34
+   Compiling pin-project-lite v0.2.17
+   Compiling cpufeatures v0.3.0
+   Compiling regex-automata v0.4.18
+   Compiling futures-channel v0.3.34
+   Compiling toml_edit v0.25.12+spec-1.1.0
+   Compiling zerocopy v0.8.52
+   Compiling darling v0.20.11
+   Compiling getrandom v0.3.4
+   Compiling futures-io v0.3.34
+   Compiling futures-task v0.3.34
+   Compiling slab v0.4.12
+   Compiling arrayvec v0.7.7
+   Compiling futures-util v0.3.34
+   Compiling ahash v0.8.12
+   Compiling derive_builder_core v0.20.2
+   Compiling regex v1.13.1
+   Compiling proc-macro-crate v3.5.0
+   Compiling chacha20 v0.10.1
+   Compiling rmp v0.8.15
+   Compiling parking_lot v0.12.5
+   Compiling unicode-width v0.2.2
+   Compiling jiff-tzdb v0.1.8
+   Compiling byteorder v1.5.0
+   Compiling jiff-core v0.1.0
+   Compiling value-bag v1.12.0
+   Compiling lazy_static v1.5.0
+   Compiling bytecount v0.6.9
+   Compiling serde_json v1.0.151
+   Compiling jiff v0.2.35
+   Compiling rstest_macros v0.26.1
+   Compiling papergrid v0.18.0
+   Compiling ustr v1.1.0
+   Compiling log v0.4.33
+   Compiling thiserror v2.0.20
+   Compiling rmp-serde v1.3.1
+   Compiling rand v0.10.2
+   Compiling bon v3.9.3
+   Compiling derive_builder_macro v0.20.2
+   Compiling crossbeam-utils v0.8.21
+   Compiling rust_decimal v1.42.1
+   Compiling anyhow v1.0.104
+   Compiling uuid v1.26.0
+   Compiling bytes v1.12.1
+   Compiling arc-swap v1.9.2
+   Compiling hashbrown v0.14.5
+   Compiling futures-timer v3.0.4
+   Compiling dashmap v6.2.1
+   Compiling rstest v0.26.1
+   Compiling ruint v1.20.0
+   Compiling nautilus-core v0.62.0
+   Compiling strum v0.28.0
+   Compiling derive_builder v0.20.2
+   Compiling implied-vol v2.0.0
+   Compiling tabled v0.21.0
+   Compiling enum_dispatch v0.3.13
+   Compiling regex-syntax v0.8.11
+   Compiling nautilus-model v0.62.0
+   Compiling async-stream v0.3.6
+   Compiling futures v0.3.34
+   Compiling sysinfo v0.39.6
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling constant_time_eq v0.4.2
+   Compiling blake3 v1.8.7
+   Compiling pyo3-macros v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling tempfile v3.27.0
+   Compiling nautilus-common v0.62.0
+   Compiling nautilus-analysis v0.62.0
+   Compiling nautilus-portfolio v0.62.0
+   Compiling nautilus-execution v0.62.0
+   Compiling nautilus-trading v0.62.0
+   Compiling nautilus-risk v0.62.0
+   Compiling nautilus-data v0.62.0
+   Compiling nautilus-system v0.62.0
+   Compiling nautilus-backtest v0.62.0
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261026-050816-3e587ab2d0/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 11s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 11 tests
+test theta_v0::policy_records::tests::active_records_carry_current_values_and_version_1 ... ok
+test theta_v0::policy_records::tests::active_scan_budget_and_construction_records ... ok
+test theta_v0::policy_records::tests::negative_controls_scan_budget_and_tangency ... ok
+test theta_v0::policy_records::tests::other_legal_versions_parse_with_their_own_version ... ok
+test theta_v0::policy_records::tests::negative_controls_missing_unsigned_invalid ... ok
+test theta_v0::policy_records::tests::scan_budget_and_construction_other_versions ... ok
+test theta_v0::policy_records::tests::tower_base_record_drives_config_and_rejects_unsupported_base ... ok
+test theta_v0::policy_records::tests::trend_scope_profile_mismatch_and_missing_values_do_not_fallback ... ok
+test theta_v0::policy_records::tests::trend_scope_profiles_read_their_own_record_values ... ok
+test theta_v0::policy_records::tests::source_guard_tangency_only_from_record ... ok
+test theta_v0::policy_records::tests::source_guard_no_constants_or_in_place_writes ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 3086 filtered out; finished in 0.39s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 4 tests
+test theta_v0::classifier::recursive_tower::tests::compose_level_resume_rejects_unsupported_tower_base - should panic ... ok
+test theta_v0::classifier::recursive_tower::tests::compose_level_rejects_unsupported_tower_base - should panic ... ok
+test theta_v0::policy_records::tests::tower_base_record_drives_config_and_rejects_unsupported_base ... ok
+test theta_v0::classifier::tests::tower_policy::unsupported_tower_base_stops_before_l0_construction - should panic ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 3093 filtered out; finished in 0.00s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 1 test
+test theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3096 filtered out; finished in 0.01s
+
+EXIT=0 SECONDS=90

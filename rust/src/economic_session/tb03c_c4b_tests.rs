@@ -3,6 +3,10 @@ const C4B_RAW: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_allocation/C4B-RAW.json");
 const C4B_HAND: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_allocation/C4B-HAND-ORACLE.json");
+const PER_LEG_RAW: &str =
+    include_str!("../../../s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json");
+const PER_LEG_HAND: &str =
+    include_str!("../../../s_session/tests/fixtures/tb03c_allocation/PER-LEG-HAND-ORACLE.json");
 
 fn c4b_apply_all(s: &mut Session, r: &Value) -> Vec<Value> {
     s.allocations(r)
@@ -172,17 +176,16 @@ fn c4b_fee_before_fill_waits_for_named_record_resolution_and_each_b_application(
 }
 
 #[test]
-fn c4b_wrong_predecessor_policy_and_cross_fill_bust_fail_without_applied() {
+fn c4b_wrong_predecessor_or_policy_fail_without_applied() {
     for (tag, mutation, expected) in [
         ("opening", 0, "IdentityConflict"),
         ("allocation", 1, "IdentityConflict"),
         ("policy", 2, "IdentityConflict"),
-        ("cross-fill", 3, "Unsupported"),
     ] {
         let mut s = Session::new(&format!("c4b-{tag}"), true);
         c4b_fills(&mut s);
         let mut raw: Value = serde_json::from_str(C4B_RAW).unwrap();
-        let index = if mutation == 3 { 7 } else { 6 };
+        let index = 6;
         match mutation {
             0 => {
                 let original = raw["events"][0].clone();
@@ -198,13 +201,9 @@ fn c4b_wrong_predecessor_policy_and_cross_fill_bust_fail_without_applied() {
                 raw["events"][index]["netted_fill"]["fill_ref"]["allocation_id"] =
                     json!("not-original")
             }
-            2 => {
+            _ => {
                 raw["events"][index]["netted_fill"]["fill_ref"]["policy_revision"] =
                     json!("wrong-policy-revision")
-            }
-            _ => {
-                raw["events"][index]["netted_fill"]["to"] = json!("3");
-                raw["events"][index]["netted_fill"]["reported_quantity"] = json!("4");
             }
         }
         let r = s.capture(&canonical_json(&raw), index);
@@ -270,6 +269,13 @@ fn c4b_per_leg_raw(s: &Session, attribution: Value) -> String {
     raw["evidence_index"]["fragments"][key] = json!([{"json_pointer":"/events/3/per_leg_report"}]);
     canonical_json(&raw)
 }
+fn c4b_per_leg_attribution() -> Value {
+    json!({
+        "chong-N1":{"units":"2","acquisition_cash":"200","commission":"2"},
+        "chong-N2":{"units":"1","acquisition_cash":"100","commission":"1"},
+        "chong-N3":{"units":"0","acquisition_cash":"0","commission":"0"}
+    })
+}
 #[test]
 fn c4b_per_leg_missing_attribution_is_persistent_unmatched_without_amounts_or_fallback() {
     let mut s = Session::custom("c4b-per-leg", true, c4b_per_leg_manifest);
@@ -309,14 +315,86 @@ fn c4b_per_leg_missing_attribution_is_persistent_unmatched_without_amounts_or_fa
     raw["events"][3]["netted_fill"]["manifest_hash"] =
         s.configs[0].manifest["fill_manifests"][0]["manifest_hash"].clone();
     assert_error(&s.capture(&canonical_json(&raw), 3), "IdentityConflict");
-    let mut second = Session::custom("c4b-per-leg-known", true, c4b_per_leg_manifest);
-    second.opening();
-    let raw = c4b_per_leg_raw(&second, json!({"chong_id":"chong-N1"}));
-    let r = second.capture(&raw, 3);
+}
+
+#[test]
+fn c4b_per_leg_source_attribution_applies_once_matches_oracle_and_recovers() {
+    let mut s = Session::custom("c4b-per-leg-success", true, c4b_per_leg_manifest);
+    s.opening();
+    let r = s.capture(PER_LEG_RAW, 3);
     assert_eq!(r["kind"], "Recorded", "{r}");
-    let before = second.image(0);
-    assert_error(&second.resolve(&r, 4), "Unsupported");
-    assert_eq!(second.image(0), before);
+    assert_eq!(s.resolve(&r, 4)["kind"], "Resolved");
+    let hand: Value = serde_json::from_str(PER_LEG_HAND).unwrap();
+    let allocations = s.allocations(&r);
+    assert_eq!(allocations.len(), 3);
+    for (allocation, expected) in allocations.iter().zip(hand["routes"].as_array().unwrap()) {
+        assert_eq!(allocation["chong_id"], expected["chong_id"]);
+        for key in ["units", "acquisition_cash", "commission"] {
+            assert_eq!(allocation[key], expected[key], "{allocation}");
+        }
+        assert_eq!(allocation["fill_allocation_policy_id"], hand["policy"]);
+        assert!(allocation.get("unmatched_reason").is_none());
+    }
+    // [2,1,0] 不是冻结请求量 [1,3,3] 的比例分配；改成比例 resolve 会使这里和账簿同时变红。
+    assert_eq!(allocations[0]["units"], "2");
+    assert_eq!(allocations[1]["units"], "1");
+    assert_eq!(allocations[2]["units"], "0");
+    c4b_reopen(&mut s, 0);
+    let receipts = c4b_apply_all(&mut s, &r);
+    c4b_book_matches(&s, &hand["after_fill"]);
+    for (i, receipt) in receipts.iter().enumerate() {
+        let owner = i + 1;
+        c4b_reopen(&mut s, owner);
+        let before = s.image(owner);
+        let request = apply_request(&r, &allocations[i]["allocation_id"]);
+        assert_eq!(&s.send(owner, request.clone()), receipt);
+        assert_eq!(s.image(owner), before);
+        let mut conflict = request;
+        conflict["expected_fact_hash"] = json!("different-fact-hash");
+        assert_error(&s.send(owner, conflict), "IdentityConflict");
+        assert_eq!(s.image(owner), before);
+        store::audit(&s.dbs[owner], &s.configs[owner]).unwrap();
+    }
+    store::audit(&s.dbs[0], &s.configs[0]).unwrap();
+}
+
+#[test]
+fn c4b_per_leg_attribution_negative_controls_preserve_e_and_b_images() {
+    let mut missing = c4b_per_leg_attribution();
+    missing.as_object_mut().unwrap().remove("chong-N2");
+    let mut unknown = c4b_per_leg_attribution();
+    let zero = unknown.as_object_mut().unwrap().remove("chong-N3").unwrap();
+    unknown["chong-unknown"] = zero;
+    let mut quantity = c4b_per_leg_attribution();
+    quantity["chong-N1"]["units"] = json!("3");
+    quantity["chong-N1"]["acquisition_cash"] = json!("300");
+    let mut cash = c4b_per_leg_attribution();
+    cash["chong-N1"]["acquisition_cash"] = json!("201");
+    let mut commission = c4b_per_leg_attribution();
+    commission["chong-N1"]["commission"] = json!("3");
+    let mut zero_with_fee = c4b_per_leg_attribution();
+    zero_with_fee["chong-N3"]["commission"] = json!("1");
+    for (name, attribution) in [
+        ("missing", missing),
+        ("unknown", unknown),
+        ("quantity", quantity),
+        ("cash", cash),
+        ("commission", commission),
+        ("zero-with-fee", zero_with_fee),
+    ] {
+        let mut s = Session::custom(&format!("c4b-per-leg-{name}"), true, c4b_per_leg_manifest);
+        s.opening();
+        let before_b = (1..4).map(|i| s.image(i)).collect::<Vec<_>>();
+        let raw = c4b_per_leg_raw(&s, attribution);
+        let r = s.capture(&raw, 3);
+        assert_eq!(r["kind"], "Recorded", "{name}: {r}");
+        let before_e = s.image(0);
+        assert_error(&s.resolve(&r, 4), "IdentityConflict");
+        assert_eq!(s.image(0), before_e, "{name}");
+        for (i, before) in before_b.into_iter().enumerate() {
+            assert_eq!(s.image(i + 1), before, "{name}");
+        }
+    }
 }
 
 #[test]
@@ -481,5 +559,204 @@ fn c4b_surviving_original_fill_after_refill_reversal_reopens_and_keeps_original_
             store::recover(&s.configs[i + 1]).unwrap()["kind"],
             "Recovered"
         );
+    }
+}
+
+/// #1683：以 C4B 原件中的 bust 为底，改为具名 `fill`、逆区间 `from→to` 的新事实。
+fn c4b_bust_raw(id: &str, cursor: &str, fill: &str, from: &str, to: &str, q: &str) -> String {
+    let mut raw: Value = serde_json::from_str(C4B_RAW).unwrap();
+    let event = &mut raw["events"][7];
+    event["event"] = json!(id);
+    event["source"]["external_fact_id"] = json!(id);
+    event["source"]["source_cursor"] = json!(cursor);
+    event["allocation_id"] = json!(format!("alloc-{id}"));
+    event["depends_on"]["external_fact_id"] = json!(fill);
+    event["netted_fill"]["fill_ref"]["external_fact_id"] = json!(fill);
+    event["netted_fill"]["fill_ref"]["allocation_id"] = json!(format!("alloc-{fill}"));
+    event["netted_fill"]["from"] = json!(from);
+    event["netted_fill"]["to"] = json!(to);
+    event["netted_fill"]["reported_quantity"] = json!(q);
+    canonical_json(&raw)
+}
+fn c4b_column(allocations: &[Value], key: &str) -> Vec<i64> {
+    allocations
+        .iter()
+        .map(|a| a[key].as_str().unwrap().parse().unwrap())
+        .collect()
+}
+
+#[test]
+fn c4b_total_bust_across_three_fills_reverses_per_unit_from_range_stack_and_recovers() {
+    let mut s = Session::new("c4b-cross-fill", true);
+    c4b_fills(&mut s);
+    c4b_book_matches(&s, &json!({"q":[2,5,5],"K":[204,506,506]}));
+    let original_rows = s.image(0)["fill_allocations"].as_array().unwrap().clone();
+    let original_recorded = s.image(0)["recorded"].as_array().unwrap().clone();
+    let original_applied = (1..4)
+        .map(|i| s.image(i)["applied"].clone())
+        .collect::<Vec<_>>();
+
+    // 独立逐单位 oracle：单位 k 归 A(k) − A(k−1) 指向的重，原价取累计位置所在原 fill。
+    let (w, t) = ([1, 3, 3], [0, 1, 2]);
+    let fills = [(0, 3, 100), (3, 4, 101), (4, 7, 102)];
+    let mut per_unit = Vec::new();
+    let mut tie_broken = 0;
+    for k in 3..=7 {
+        let hi = super::allocation::apportion(k, &w, &t).unwrap();
+        let lo = super::allocation::apportion(k - 1, &w, &t).unwrap();
+        let chong = (0..3).find(|&i| hi.alloc[i] > lo.alloc[i]).unwrap();
+        let price = fills.iter().find(|f| f.0 < k && k <= f.1).unwrap().2;
+        tie_broken += hi.tie_breaks - lo.tie_breaks;
+        per_unit.push((k, chong, price));
+    }
+    // 单位3/5 由 tie_break_order 在 N2、N3 并列中给 N2。
+    assert_eq!(
+        per_unit,
+        vec![(3, 1, 100), (4, 2, 101), (5, 1, 102), (6, 2, 102), (7, 0, 102)]
+    );
+    assert_eq!(tie_broken, 2);
+    let mut want_units = vec![0i64; 3];
+    let mut want_cash = vec![0i64; 3];
+    for &(_, chong, price) in &per_unit {
+        want_units[chong] -= 1;
+        want_cash[chong] += price;
+    }
+    let rule6 = super::allocation::increments(2, 7, &w, &t).unwrap();
+    assert_eq!(want_units, rule6.iter().map(|x| -x).collect::<Vec<_>>());
+    assert_eq!(want_units, vec![-1, -2, -2]);
+    assert_eq!(want_cash, vec![102, 202, 203]);
+
+    // b=5 跨 N1[0,3]、N2[3,4]、N3[4,7] 三笔原 fill，具名仍是 N3。
+    let raw = c4b_bust_raw("bust-cross-7-2", "8", "net-fill-3", "7", "2", "5");
+    let r = s.capture(&raw, 7);
+    assert_eq!(r["kind"], "Recorded", "{r}");
+    let resolved = s.resolve(&r, 8);
+    assert_eq!(resolved["kind"], "Resolved", "{resolved}");
+    c4b_reopen(&mut s, 0);
+    assert_eq!(s.resolve(&r, 8), resolved);
+    let allocations = s.allocations(&r);
+    assert_eq!(c4b_column(&allocations, "units"), want_units);
+    assert_eq!(c4b_column(&allocations, "acquisition_cash"), want_cash);
+    assert_eq!(c4b_column(&allocations, "units").iter().sum::<i64>(), -5);
+    assert_eq!(
+        c4b_column(&allocations, "acquisition_cash")
+            .iter()
+            .sum::<i64>(),
+        100 + 101 + 3 * 102
+    );
+    for a in &allocations {
+        assert_eq!(a["component"], "acquisition_cash");
+        assert_eq!(a["reversal"], true);
+        assert_eq!(a["commission"], "0");
+    }
+    let receipts = c4b_apply_all(&mut s, &r);
+    c4b_book_matches(&s, &json!({"q":[1,3,3],"K":[102,304,303]}));
+    // E 已在重送 Resolve 前恢复；这里只恢复三个 B，使后续退款 Capture/Resolve
+    // 与 B Apply 同处 epoch 2，避免 E 二次恢复后领先 B 一个时钟列。
+    for owner in 1..4 {
+        c4b_reopen(&mut s, owner);
+    }
+    assert_eq!(s.resolve(&r, 8), resolved);
+    for i in 1..4 {
+        assert_eq!(
+            s.send(i, apply_request(&r, &allocations[i - 1]["allocation_id"])),
+            receipts[i - 1]
+        );
+        assert_eq!(
+            &s.image(i)["applied"].as_array().unwrap()[..4],
+            original_applied[i - 1].as_array().unwrap().as_slice()
+        );
+    }
+
+    // 裁定五：费用另由原子分量反冲，沿 N1 原 fill 的分配比例 (0,2,1)。
+    let mut refund: Value = serde_json::from_str(C4B_RAW).unwrap();
+    let event = &mut refund["events"][8];
+    event["depends_on"]["external_fact_id"] = json!("net-fill-1");
+    event["netted_fill"]["fill_ref"]["external_fact_id"] = json!("net-fill-1");
+    event["netted_fill"]["fill_ref"]["allocation_id"] = json!("alloc-net-fill-1");
+    let refund = s.capture(&canonical_json(&refund), 8);
+    assert_eq!(refund["kind"], "Recorded", "{refund}");
+    assert_eq!(s.resolve(&refund, 9)["kind"], "Resolved");
+    assert_eq!(
+        c4b_column(&s.allocations(&refund), "commission"),
+        vec![0, 2, 1]
+    );
+    c4b_apply_all(&mut s, &refund);
+    c4b_book_matches(&s, &json!({"q":[1,3,3],"K":[102,302,302]}));
+
+    // 跨 fill 逆事件已持久后，存续区间栈重放出 N1[0,2]，余量仍按 N1 原价100反冲。
+    let tail = s.capture(
+        &c4b_bust_raw("bust-n1-rest", "10", "net-fill-1", "2", "0", "2"),
+        7,
+    );
+    assert_eq!(tail["kind"], "Recorded", "{tail}");
+    let resolved_tail = s.resolve(&tail, 10);
+    assert_eq!(resolved_tail["kind"], "Resolved", "{resolved_tail}");
+    let tail_allocations = s.allocations(&tail);
+    assert_eq!(c4b_column(&tail_allocations, "units"), vec![0, -1, -1]);
+    assert_eq!(
+        c4b_column(&tail_allocations, "acquisition_cash"),
+        vec![0, 100, 100]
+    );
+    c4b_apply_all(&mut s, &tail);
+    c4b_book_matches(&s, &json!({"q":[1,2,2],"K":[102,202,202]}));
+    c4b_reopen_all(&mut s);
+    assert_eq!(s.resolve(&r, 8), resolved);
+    assert_eq!(s.resolve(&tail, 10), resolved_tail);
+
+    // 原报与旧 Applied 不删。
+    assert_eq!(
+        &s.image(0)["fill_allocations"].as_array().unwrap()[..3],
+        original_rows.as_slice()
+    );
+    assert_eq!(
+        &s.image(0)["recorded"].as_array().unwrap()[..6],
+        original_recorded.as_slice()
+    );
+    let books = (1..4).map(|i| s.image(i)).collect::<Vec<_>>();
+    drop(s.dbs.remove(0));
+    std::fs::rename(&s.configs[0].db, s._space.0.join("offline-cross-e.db")).unwrap();
+    for i in 0..3 {
+        store::audit(&s.dbs[i], &s.configs[i + 1]).unwrap();
+        assert_eq!(
+            store::recover(&s.configs[i + 1]).unwrap()["kind"],
+            "Recovered"
+        );
+        assert_eq!(
+            store::latest(&store::open(&s.configs[i + 1].db, false).unwrap().0)
+                .unwrap()
+                .3["book"],
+            books[i]["book"]
+        );
+    }
+}
+
+#[test]
+fn c4b_cross_fill_bust_must_name_a_reversed_source_and_stay_within_stack() {
+    let mut s = Session::new("c4b-cross-named", true);
+    c4b_fills(&mut s);
+    // 具名原 fill 必须是被撤回段之一：撤 7→4 只覆盖 N3，具名 N1 冲突。
+    let bad = s.capture(
+        &c4b_bust_raw("bust-misnamed", "8", "net-fill-1", "7", "4", "3"),
+        7,
+    );
+    assert_eq!(bad["kind"], "Recorded", "{bad}");
+    let before = s.image(0);
+    assert_error(&s.resolve(&bad, 8), "IdentityConflict");
+    assert_eq!(s.image(0), before);
+    // 具名区间内任一笔都可：撤 7→3 具名 N2，跨 N2、N3 两笔。
+    let ok = s.capture(
+        &c4b_bust_raw("bust-cross-n2", "9", "net-fill-2", "7", "3", "4"),
+        7,
+    );
+    assert_eq!(s.resolve(&ok, 9)["kind"], "Resolved");
+    let allocations = s.allocations(&ok);
+    assert_eq!(c4b_column(&allocations, "units"), vec![-1, -1, -2]);
+    assert_eq!(
+        c4b_column(&allocations, "acquisition_cash"),
+        vec![102, 102, 203]
+    );
+    for i in 0..4 {
+        store::audit(&s.dbs[i], &s.configs[i]).unwrap();
     }
 }

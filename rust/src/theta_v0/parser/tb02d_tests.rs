@@ -65,7 +65,7 @@ fn tb02d_second_frontier_and_independent_break_facts() {
 fn tb02d_complete_prefix_and_resource_bound_are_distinct() {
     let ss = chain(&[0, 20, 10, 40, 25, 35, 22, 30, 23, 33], 1);
     let mut config = ThetaConfig::default();
-    config.parse.second_seq_scan_window = 3;
+    config.parse.research_override_second_seq_window(3);
     let (_, _, facts) = segment::divide_segments_with_facts(&ss, &config.parse);
     let c = &facts.candidates[0];
     assert_eq!(c.result, "PENDING_CASE_TWO");

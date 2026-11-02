@@ -35,6 +35,9 @@ pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
 mod closed;
+#[cfg(feature = "s_incremental")]
+#[doc(hidden)]
+pub mod closure_delta;
 /// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
 pub mod json_writer;
 mod ref_owner;
@@ -48,6 +51,9 @@ pub use ref_owner::{OwnedRefFields, RefDiagnostic, RefOwner, RefView, TransportR
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
+/// #1527：旧证据图纯行验证；独立于 S-content 编码与计量。
+pub mod legacy_evidence;
+
 /// 真实 Unix I/O（调用者提供的 `UnixStream`）接到 job 计费与绝对期限的薄适配（仅 unix）。
 /// 只覆盖该连接上的读写字节；connect／spawn／HTTP／stderr 由外层各自带期限与计费。
 #[cfg(unix)]
@@ -57,8 +63,9 @@ pub mod job_wire;
 pub mod sequence;
 pub use sequence::{
     sequence_append, sequence_append_with_allocation, sequence_concat,
-    sequence_concat_with_allocation, sequence_split, sequence_split_with_allocation, NodeStore,
-    SequenceRef,
+    sequence_concat_with_allocation, sequence_rebuild_suffix,
+    sequence_rebuild_suffix_with_allocation, sequence_split, sequence_split_with_allocation,
+    NodeStore, SequenceRef,
 };
 
 /// §5.4/§5.6 的路径定位与本批占位（0x08）定点替换（#1394 采纳 C）。
@@ -123,7 +130,7 @@ pub struct CodecError {
 impl CodecError {
     fn scratch(failure: capture_allocation::scratch::ScratchFailure) -> Self {
         let mut error = Self::static_detail(capture_allocation::LIMIT, "codec 工作域分配失败");
-        error.scratch_failure = Some(failure);
+        error.scratch_failure = Some(capture_allocation::scratch::traced(failure));
         error
     }
     pub fn scratch_failure(&self) -> Option<capture_allocation::scratch::ScratchFailure> {
@@ -156,7 +163,7 @@ impl CodecError {
 
 impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.code, self.detail)
+        write!(f, "{}: {}", self.code, *self.shown())
     }
 }
 
@@ -299,7 +306,7 @@ pub fn checked_frame_len(n: u64) -> Result<[u8; 8], CodecError> {
 std::thread_local! {
     /// 本线程内 `frame` 的实际调用次数（诊断探针，见 [`frame_calls_on_thread`]）。
     static FRAME_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     static FRAME_BYTES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
@@ -314,7 +321,7 @@ pub fn frame_calls_on_thread() -> u64 {
 }
 
 /// 与实际 frame 同位置累计 SHA256 输入字节，仅 Native 诊断使用。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[doc(hidden)]
 pub fn frame_bytes_on_thread() -> u64 {
     FRAME_BYTES.with(std::cell::Cell::get)
@@ -323,7 +330,7 @@ pub fn frame_bytes_on_thread() -> u64 {
 /// F(tag, body) = SHA256(D || one_byte(tag) || U64(len(body)) || body)。
 pub fn frame(t: u8, body: &[u8]) -> NodeDigest {
     FRAME_CALLS.with(|calls| calls.set(calls.get().wrapping_add(1)));
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     FRAME_BYTES.with(|bytes| {
         bytes.set(
             bytes
@@ -462,6 +469,12 @@ pub enum NodeRead {
 /// （不可变快照或等价的一致性保证）。生产 job 可以在任意一次 `read` 返回 `Err` 中止
 /// 本轮核验；`Err` 原样上抛，不会变成「部分通过」。
 pub trait NodeSource {
+    /// 原始读取仍保持原门序，正文与原许可一起移动；没有预先核F或预算降级。
+    fn read_scoped(&mut self, digest: &NodeDigest) -> Result<job::ScopedNodeRead, CodecError> {
+        self.read(digest)
+            .map(|read| job::ScopedNodeRead::from_plain(read, None))
+    }
+
     /// 同一次真实帧读取的临时正文许可；普通来源沿既有检查，Native 包装器保留生命周期。
     fn checked_read_scoped(
         &mut self,
@@ -490,6 +503,12 @@ pub trait NodeSource {
     /// 仅完整审计 BudgetNone 显式选择 root[] 线性枚举；默认保持旧逐 Index 读取。
     /// 不影响 lookup_path/fragment，不承诺闭包或 JsonInner 上下文已核验。
     fn audit_full_array_scan(&self) -> bool {
+        false
+    }
+
+    /// #1640：旧计量审计保留序列所选子节点的再次读取与计费次序。
+    /// 默认使用已核验子节点；此标记只保留观测合同，不改变结构判据。
+    fn preserve_sequence_read_trace(&self) -> bool {
         false
     }
 
@@ -993,9 +1012,9 @@ pub fn write_value(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, Code
 /// 只按标签和完整 body 复用本次成功写入的材料，不证明当前存储、闭包或来源资格。
 /// 调用方仅用于已取得同次 parser 资格的固定 24 关系树；发布仍须完整冷核验。
 /// 普通/Owned 入口不经此处，也不由此声称任意大 Value 的 heap 资源合格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[doc(hidden)]
-pub fn write_value_native_local_for_testonly(
+pub fn write_value_native_local(
     sink: &mut dyn NodeSink,
     value: &Value,
 ) -> Result<Built, CodecError> {
@@ -1506,7 +1525,7 @@ pub struct Verified {
 }
 
 /// 节点在树里的位置：逻辑值位 / json_text 内部位。两者各自核验（同一摘要可两处出现）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Flavor {
     Value,
     JsonInner,
@@ -1691,7 +1710,7 @@ fn header_extent(t: u8, body: &[u8]) -> Result<Option<u64>, CodecError> {
 // ── 有限状态：UTF-8 与 JSON 数字文法（跨块推进，可组合） ─────────────────────
 
 /// UTF-8 解码状态：空 = 可接受的边界；Pending = 当前字符已收集的字节。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Utf8State {
     Empty,
     Pending { len: u8, b: [u8; 3] },
@@ -1746,7 +1765,7 @@ fn utf8_feed(state: Utf8State, bytes: &[u8]) -> Option<Utf8State> {
 }
 
 /// JSON 数字文法（RFC 8259）状态。`Dead` 一旦进入不可恢复。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum NumState {
     Start,
     Sign,
@@ -1997,6 +2016,7 @@ struct AuditMemo {
     elem_memo: WorkMap<(NodeDigest, Flavor), u64>,
     field_memo: WorkMap<(NodeDigest, Flavor), FieldAgg>,
     key_cmp: WorkMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
+    native_seen_permit: Option<capture_allocation::scratch::NativeReservation>,
 }
 
 impl AuditMemo {
@@ -2014,44 +2034,152 @@ impl AuditMemo {
             elem_memo: WorkMap::new_work(b),
             field_memo: WorkMap::new_work(b),
             key_cmp: WorkMap::new_work(b),
+            native_seen_permit: None,
         }
     }
 }
+/// #1481：一次历史请求内的闭包证明，只绑定这一份不可变捕获与工作域。
+/// Public/Template 各用原 Verifier 的 memo；根四字段每次重核，不签持久资格。
+#[cfg(feature = "s_incremental")]
+pub struct CapturedRequestVerifier<'a> {
+    capture: &'a AuditCapture,
+    work: &'a capture_allocation::scratch::WorkScope,
+    public: Option<AuditMemo>,
+    template: Option<AuditMemo>,
+    failed: bool,
+    _header: capture_allocation::scratch::NativeReservation,
+}
+
+#[cfg(feature = "s_incremental")]
+impl<'a> CapturedRequestVerifier<'a> {
+    pub fn new(
+        capture: &'a AuditCapture,
+        work: &'a capture_allocation::scratch::WorkScope,
+    ) -> Result<Self, CodecError> {
+        let header = work.reserve_native(std::mem::size_of::<Self>())?;
+        Ok(Self {
+            capture,
+            work,
+            public: None,
+            template: None,
+            failed: false,
+            _header: header,
+        })
+    }
+
+    pub fn invalidate(&mut self) {
+        self.public = None;
+        self.template = None;
+        self.failed = true;
+    }
+
+    pub fn check_current(&self) -> Result<(), CodecError> {
+        if self.failed {
+            return Err(CodecError::new(code::SOURCE, "本请求闭包证明已撤销"));
+        }
+        self.work.check_current()
+    }
+
+    pub fn verify_refview(&mut self, reference: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        if let Err(error) = self.check_current() {
+            self.invalidate();
+            return Err(error);
+        }
+        let slot = match mode {
+            Mode::Public => &mut self.public,
+            Mode::Template => &mut self.template,
+        };
+        let mut verifier = Verifier::with_context(
+            CodecContext::OwnerCapture {
+                capture: self.capture,
+                work: self.work,
+            },
+            mode,
+            slot.take().unwrap_or_default(),
+        );
+        match verifier.verify_refview(reference) {
+            Ok(_) => {
+                *slot = Some(verifier.into_memo());
+                Ok(())
+            }
+            Err(error) => {
+                drop(verifier);
+                self.invalidate();
+                Err(error)
+            }
+        }
+    }
+}
+
 /// #1394 算法原型：完整自有节点捕获，无 NodeSink、无可变原件入口。
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
 enum CaptureNodes {
     Legacy(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     Native(NativeCaptureNodes),
     AllocationPrototype(capture_allocation::CaptureSlab),
 }
-// #1394 Native TestOnly：原件与纯 F 证明共用完整摘要索引；正文仍逐次复制后重绑定。
-#[cfg(feature = "s_capture_native_testonly")]
+// #1394 Native TestOnly：原件与纯 F 证明共用完整摘要索引。
+// #1488 R 正文可持原 CodecVec 许可；旧 Vec 入口仍保持其既有来源计费合同。
+#[cfg(feature = "s_incremental")]
 struct NativeNode {
     tag: u8,
-    body: Vec<u8>,
+    body: CodecVec<u8>,
+    source_claim: Option<SourceClaim>,
     // 成功后才分配证明；未读节点不常驻完整 CheckedFrame。
-    proof: std::cell::RefCell<Option<allocator_api2::boxed::Box<NativeFrameProof>>>,
+    proof:
+        std::cell::RefCell<Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>>,
     // owner热写清理链复用节点inline，不另分配全nodes列表。
     owner_dirty: std::cell::Cell<bool>,
     owner_next: std::cell::Cell<Option<NodeDigest>>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeNode {
+    #[cfg_attr(not(test), allow(dead_code))]
     fn new(tag: u8, body: Vec<u8>) -> Self {
+        Self::new_codec(tag, CodecVec::from_plain(body))
+    }
+    fn new_codec(tag: u8, body: CodecVec<u8>) -> Self {
         Self {
             tag,
             body,
+            source_claim: None,
             proof: Default::default(),
             owner_dirty: Default::default(),
             owner_next: Default::default(),
         }
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+/// #1488 P2-A（主控裁定）：S7来源合同角色（正文+digest/tag/证书=body.len()+97），只进E/O合同账，
+/// 不在父账物理reserve；父账物理只由正文块自身的Native许可计一次。只能对同一节点内已物理计费
+/// （Native绑定）的正文块签出，指不到即拒。原先这里是一张同额物理许可（r14：803张/111,334B），
+/// 与正文块许可对同一allocation双计。
+#[cfg(feature = "s_incremental")]
+#[derive(Debug)]
+struct SourceClaim {
+    bytes: usize,
+}
+#[cfg(feature = "s_incremental")]
+impl SourceClaim {
+    fn on_body(body: &CodecVec<u8>) -> Result<Self, CodecError> {
+        if !body.is_native_bound() {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "来源合同项指不到已物理计费的正文块",
+            ));
+        }
+        let bytes = body
+            .len()
+            .checked_add(97)
+            .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?;
+        Ok(Self { bytes })
+    }
+}
+#[cfg(feature = "s_incremental")]
 struct NativeCaptureNodes {
     // 标准 RandomState；未核摘要不使用弱哈希。
     nodes: std::collections::HashMap<NodeDigest, NativeNode>,
+    index_permit: Option<capture_allocation::scratch::NativeReservation>,
     body_len: usize,
     body_capacity: usize,
     owner_dirty_head: std::cell::Cell<Option<NodeDigest>>,
@@ -2059,7 +2187,7 @@ struct NativeCaptureNodes {
     #[cfg(test)]
     index_lookups: std::cell::Cell<u64>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCaptureNodes {
     fn get(&self, digest: &NodeDigest) -> Option<&NativeNode> {
         #[cfg(test)]
@@ -2069,12 +2197,12 @@ impl NativeCaptureNodes {
         self.nodes.get(digest)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeFrameProof {
     frame: job::CheckedFrame,
     body_capacity: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeFrameMemo {
     entry_limit: usize,
     body_capacity_limit: usize,
@@ -2087,7 +2215,7 @@ struct NativeFrameMemo {
     failed_f_calls: u64,
     retention_skips: u64,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeFrameMemo {
     fn new(entry_limit: usize, body_capacity_limit: usize) -> Self {
         Self {
@@ -2103,7 +2231,10 @@ impl NativeFrameMemo {
             retention_skips: 0,
         }
     }
-    fn remove(&mut self, proof: &mut Option<allocator_api2::boxed::Box<NativeFrameProof>>) {
+    fn remove(
+        &mut self,
+        proof: &mut Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>,
+    ) {
         if let Some(old) = proof.take() {
             self.retained_body_capacity = self
                 .retained_body_capacity
@@ -2117,7 +2248,7 @@ impl NativeFrameMemo {
     }
     fn retain(
         &mut self,
-        slot: &mut Option<allocator_api2::boxed::Box<NativeFrameProof>>,
+        slot: &mut Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>,
         frame: &job::CheckedFrame,
     ) {
         // 先检查本次原件长度；复制后以 Vec 的实际 capacity 再核保留资格。
@@ -2138,7 +2269,7 @@ impl NativeFrameMemo {
     }
     fn retain_copy(
         &mut self,
-        slot: &mut Option<allocator_api2::boxed::Box<NativeFrameProof>>,
+        slot: &mut Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>,
         frame: &job::CheckedFrame,
         body: Vec<u8>,
     ) {
@@ -2165,7 +2296,9 @@ impl NativeFrameMemo {
                 self.retention_skips = self.retention_skips.saturating_add(1);
                 return;
             };
-            *slot = Some(proof);
+            *slot = Some(capture_allocation::native_owned::NativeBox::from_reserved(
+                proof, None,
+            ));
             self.retained_entries = entries;
             self.retained_body_capacity = retained;
         }
@@ -2225,15 +2358,16 @@ impl NativeFrameMemo {
 }
 // #1394 私有成功根证书。修改codec判据时须同步递增版本；不序列化、不接受外来构造。
 // format与版本来自当前codec；集合分别固定Mode，所有根只对应Flavor::Value。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeCodecRootCertificates {
     format: &'static str,
     predicate_revision: u32,
     flavor: Flavor,
     public: std::collections::HashSet<NodeDigest>,
     template: std::collections::HashSet<NodeDigest>,
+    public_permit: Option<capture_allocation::scratch::NativeReservation>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl Default for NativeCodecRootCertificates {
     fn default() -> Self {
         Self {
@@ -2242,19 +2376,303 @@ impl Default for NativeCodecRootCertificates {
             flavor: Flavor::Value,
             public: Default::default(),
             template: Default::default(),
+            public_permit: None,
         }
     }
 }
+// #1488 成功证明用确定性 AVL 索引：每次只沿索引路径/旋转，无历史整表重哈希。
+// key/value 均为固定 Copy tuple；节点 Layout 含左右 Box、height、padding，无带外 heap。
+#[cfg(feature = "s_incremental")]
+type OwnerProofLink<K, V> =
+    Option<capture_allocation::native_owned::NativeBox<OwnerProofNode<K, V>>>;
+#[cfg(feature = "s_incremental")]
+struct OwnerProofNode<K, V> {
+    key: K,
+    value: V,
+    left: OwnerProofLink<K, V>,
+    right: OwnerProofLink<K, V>,
+    height: usize,
+}
+#[cfg(feature = "s_incremental")]
+impl<K, V> OwnerProofNode<K, V> {
+    fn height(link: &OwnerProofLink<K, V>) -> usize {
+        link.as_ref().map_or(0, |node| node.height)
+    }
+    fn refresh_height(&mut self) {
+        self.height = Self::height(&self.left).max(Self::height(&self.right)) + 1;
+    }
+    fn balance(&self) -> isize {
+        Self::height(&self.left) as isize - Self::height(&self.right) as isize
+    }
+}
+#[cfg(feature = "s_incremental")]
+struct OwnerProofTree<K, V> {
+    root: OwnerProofLink<K, V>,
+    len: usize,
+    retained_bytes: usize,
+}
+#[cfg(feature = "s_incremental")]
+impl<K, V> Default for OwnerProofTree<K, V> {
+    fn default() -> Self {
+        Self {
+            root: None,
+            len: 0,
+            retained_bytes: 0,
+        }
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+thread_local! {
+    // 比较、旋转、新节点数；不参与资格，不由生产输入设置。
+    static OWNER_CODEC_INDEX_TRACE: std::cell::Cell<(usize, usize, usize)> = const { std::cell::Cell::new((0, 0, 0)) };
+}
+#[cfg(feature = "s_incremental")]
+impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
+    fn get(&self, key: &K) -> Option<&V> {
+        let mut link = &self.root;
+        while let Some(node) = link {
+            #[cfg(test)]
+            OWNER_CODEC_INDEX_TRACE.with(|p| {
+                let (a, b, c) = p.get();
+                p.set((a + 1, b, c));
+            });
+            match key.cmp(&node.key) {
+                std::cmp::Ordering::Less => link = &node.left,
+                std::cmp::Ordering::Greater => link = &node.right,
+                std::cmp::Ordering::Equal => return Some(&node.value),
+            }
+        }
+        None
+    }
+    fn contains_key(&self, key: &K) -> bool {
+        self.get(key).is_some()
+    }
+    #[cfg_attr(not(test), allow(dead_code))]
+    fn len(&self) -> usize {
+        self.len
+    }
+    fn retained_layout_bytes(&self) -> usize {
+        self.retained_bytes
+    }
+
+    fn insert(
+        &mut self,
+        key: K,
+        value: V,
+        work: &capture_allocation::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        // 重复键不分配、不改已证明的值，也不在额度已满时虚构新增长。
+        if self.contains_key(&key) {
+            return Ok(());
+        }
+        let layout = std::alloc::Layout::new::<OwnerProofNode<K, V>>();
+        let overflow = || work.reject(capture_allocation::scratch::ScratchFailure::Budget);
+        let next_len = self.len.checked_add(1).ok_or_else(overflow)?;
+        let next_bytes = self
+            .retained_bytes
+            .checked_add(layout.size())
+            .ok_or_else(overflow)?;
+        Self::insert_absent(&mut self.root, key, value, work)?;
+        self.len = next_len;
+        self.retained_bytes = next_bytes;
+        Ok(())
+    }
+
+    fn insert_absent(
+        link: &mut OwnerProofLink<K, V>,
+        key: K,
+        value: V,
+        work: &capture_allocation::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        let Some(node) = link.as_mut() else {
+            let layout = std::alloc::Layout::new::<OwnerProofNode<K, V>>();
+            let permit = work.reserve_native(layout.size())?;
+            let node = allocator_api2::boxed::Box::try_new(OwnerProofNode {
+                key,
+                value,
+                left: None,
+                right: None,
+                height: 1,
+            })
+            .map_err(|_| work.reject(capture_allocation::scratch::ScratchFailure::Allocation))?;
+            // 此后只有不可失败的指针旋转；许可仍保守留本轮原父账，不带进新 scope。
+            *link = Some(capture_allocation::native_owned::NativeBox::from_reserved(
+                node,
+                Some(permit),
+            ));
+            #[cfg(test)]
+            OWNER_CODEC_INDEX_TRACE.with(|p| {
+                let (a, b, c) = p.get();
+                p.set((a, b, c + 1));
+            });
+            return Ok(());
+        };
+        #[cfg(test)]
+        OWNER_CODEC_INDEX_TRACE.with(|p| {
+            let (a, b, c) = p.get();
+            p.set((a + 1, b, c));
+        });
+        match key.cmp(&node.key) {
+            std::cmp::Ordering::Less => Self::insert_absent(&mut node.left, key, value, work)?,
+            std::cmp::Ordering::Greater => Self::insert_absent(&mut node.right, key, value, work)?,
+            std::cmp::Ordering::Equal => unreachable!("同一私有树已排除重复键"),
+        }
+        // 叶分配失败在此前直接返回，未修改任何祖先链接/高度。
+        Self::rebalance(link);
+        Ok(())
+    }
+    fn rebalance(link: &mut OwnerProofLink<K, V>) {
+        let node = link.as_mut().expect("插入祖先存在");
+        node.refresh_height();
+        let balance = node.balance();
+        if balance > 1 {
+            if node.left.as_ref().expect("AVL左重必有左子").balance() < 0 {
+                Self::rotate_left(&mut node.left);
+            }
+            Self::rotate_right(link);
+        } else if balance < -1 {
+            if node.right.as_ref().expect("AVL右重必有右子").balance() > 0 {
+                Self::rotate_right(&mut node.right);
+            }
+            Self::rotate_left(link);
+        }
+    }
+    fn rotate_left(link: &mut OwnerProofLink<K, V>) {
+        let mut old = link.take().expect("旋转根存在");
+        let mut next = old.right.take().expect("左旋右子存在");
+        old.right = next.left.take();
+        old.refresh_height();
+        next.left = Some(old);
+        next.refresh_height();
+        *link = Some(next);
+        #[cfg(test)]
+        OWNER_CODEC_INDEX_TRACE.with(|p| {
+            let (a, b, c) = p.get();
+            p.set((a, b + 1, c));
+        });
+    }
+    fn rotate_right(link: &mut OwnerProofLink<K, V>) {
+        let mut old = link.take().expect("旋转根存在");
+        let mut next = old.left.take().expect("右旋左子存在");
+        old.left = next.right.take();
+        old.refresh_height();
+        next.right = Some(old);
+        next.refresh_height();
+        *link = Some(next);
+        #[cfg(test)]
+        OWNER_CODEC_INDEX_TRACE.with(|p| {
+            let (a, b, c) = p.get();
+            p.set((a, b + 1, c));
+        });
+    }
+}
+
+// #1488 封闭 owner 的跨操作纯 codec 证明。与 Value 根证书及 AuditMemo 分离：
+// 不持 WorkBudget，不存 pushed/todo；只在整根完整成功后接纳本轮 delta。
+// 表键保存完整解释上下文；Public/Template 两套表从不互借。
+#[cfg(feature = "s_incremental")]
+#[derive(Default)]
+struct NativeOwnerCodecMemo {
+    seen: OwnerProofTree<(NodeDigest, Flavor), ()>,
+    bytes: OwnerProofTree<(NodeDigest, Utf8State, NumState), ByteAgg>,
+    elems: OwnerProofTree<(NodeDigest, Flavor), u64>,
+    fields: OwnerProofTree<(NodeDigest, Flavor), FieldAgg>,
+    key_cmp: OwnerProofTree<(NodeDigest, NodeDigest), std::cmp::Ordering>,
+}
+#[cfg(feature = "s_incremental")]
+impl NativeOwnerCodecMemo {
+    fn retained_bytes(&self) -> usize {
+        // 精确 Box 节点 Layout 随成功插入累计；只取常数张树的计数，不扫描旧证明。
+        [
+            self.seen.retained_layout_bytes(),
+            self.bytes.retained_layout_bytes(),
+            self.elems.retained_layout_bytes(),
+            self.fields.retained_layout_bytes(),
+            self.key_cmp.retained_layout_bytes(),
+        ]
+        .into_iter()
+        .fold(0usize, usize::saturating_add)
+    }
+    fn merge_success(
+        &mut self,
+        memo: &AuditMemo,
+        work: &capture_allocation::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        // 只枚举当次新增 scratch；每一新成功键走索引路径，不扫描/复制/rehash历史证明。
+        // 旧节点、当前 scratch 和新增节点始终同父账共存。
+        match &memo.seen {
+            WorkSet::Plain(seen) => {
+                for &key in seen {
+                    self.seen.insert(key, (), work)?;
+                }
+            }
+            WorkSet::Owned(seen) => {
+                for &key in seen {
+                    self.seen.insert(key, (), work)?;
+                }
+            }
+        }
+        for (&key, &value) in memo.bytes_memo.iter() {
+            self.bytes.insert(key, value, work)?;
+        }
+        for (&key, &value) in memo.elem_memo.iter() {
+            self.elems.insert(key, value, work)?;
+        }
+        for (&key, &value) in memo.field_memo.iter() {
+            self.fields.insert(key, value, work)?;
+        }
+        for (&key, &value) in memo.key_cmp.iter() {
+            self.key_cmp.insert(key, value, work)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+struct NativeOwnerCodecCertificates {
+    format: &'static str,
+    predicate_revision: u32,
+    revoked: bool,
+    public: NativeOwnerCodecMemo,
+    template: NativeOwnerCodecMemo,
+}
+#[cfg(feature = "s_incremental")]
+impl Default for NativeOwnerCodecCertificates {
+    fn default() -> Self {
+        Self {
+            format: CONTENT_FORMAT,
+            predicate_revision: 1,
+            revoked: false,
+            public: Default::default(),
+            template: Default::default(),
+        }
+    }
+}
+#[cfg(feature = "s_incremental")]
+impl NativeOwnerCodecCertificates {
+    fn clear(&mut self) {
+        self.public = NativeOwnerCodecMemo::default();
+        self.template = NativeOwnerCodecMemo::default();
+    }
+    fn revoke(&mut self) {
+        self.clear();
+        self.revoked = true;
+    }
+    fn compatible(&self) -> bool {
+        !self.revoked && self.format == CONTENT_FORMAT && self.predicate_revision == 1
+    }
+}
+
 /// #1394 私有构造：同次全新核验器完成导航与三个完整Public闭包后才生成。
 /// 此证书只描述Counts依据；仅整组接纳的三个Value根可封存codec资格，不授予来源业务资格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub struct NativeCountsSubsetCertificate {
-    state: ContentRef,
+    state: capture_allocation::native_owned::NativeValue<ContentRef>,
     codec_revision: u32,
     dependency_revision: u32,
-    roots: [ContentRef; 3],
+    roots: [capture_allocation::native_owned::NativeValue<ContentRef>; 3],
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCountsSubsetCertificate {
     #[doc(hidden)]
     pub fn source_bytes(&self) -> Result<usize, CodecError> {
@@ -2276,11 +2694,20 @@ impl NativeCountsSubsetCertificate {
     pub fn matches_state(&self, state: &ContentRef) -> bool {
         self.codec_revision == NativeCodecRootCertificates::default().predicate_revision
             && self.dependency_revision == 1
-            && state == &self.state
+            && state == self.state.as_ref()
+    }
+    /// #1488 P3-c：逐张列出证书实际持有的Native许可字节。
+    #[doc(hidden)]
+    pub fn native_permit_inventory(&self, out: &mut Vec<usize>) {
+        out.extend(
+            std::iter::once(&self.state)
+                .chain(&self.roots)
+                .filter_map(|root| root.retained_charge()),
+        );
     }
 }
 /// 诊断计数不充当单组依赖列表；实际持有的闭包证书另逐字计费。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Default, serde::Serialize)]
 pub struct NativeCountsSubsetReport {
     pub attempted_groups: usize,
@@ -2293,10 +2720,10 @@ pub struct NativeCountsSubsetReport {
 }
 /// Counts封存的Plain容器许可；完整新块在旧块仍存活时先入同父账。
 /// Native许可保守留到父作用域结束，codec工作集仍由真实Layout账释放。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Copy)]
 struct NativeCountsSubsetAdmission<'a>(Option<&'a capture_allocation::scratch::WorkScope>);
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCountsSubsetAdmission<'_> {
     fn failure(&self, failure: capture_allocation::scratch::ScratchFailure) -> CodecError {
         self.0.map_or_else(
@@ -2342,8 +2769,29 @@ impl NativeCountsSubsetAdmission<'_> {
             .ok_or_else(|| self.failure(ScratchFailure::Budget))?;
         self.reserve(bytes)
     }
-    fn vec_room<T>(&self, values: &mut Vec<T>, additional: usize) -> Result<(), CodecError> {
+    fn vec_room<T>(&self, values: &mut CodecVec<T>, additional: usize) -> Result<(), CodecError> {
+        match self.0 {
+            Some(work) => values.try_reserve_native(work, additional),
+            None => values.try_reserve(additional),
+        }
+    }
+    fn set_room<T: Eq + std::hash::Hash>(
+        &self,
+        values: &mut std::collections::HashSet<T>,
+        fee: &mut Option<capture_allocation::scratch::NativeReservation>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
         use capture_allocation::scratch::ScratchFailure;
+        if let Some(work) = self.0 {
+            work.check_current()?;
+            if fee.as_ref().is_some_and(|p| !p.belongs_to_parent(work))
+                || (fee.is_none() && values.capacity() != 0)
+            {
+                return Err(work.reject(ScratchFailure::Ledger));
+            }
+        } else if fee.is_some() {
+            return Err(self.failure(ScratchFailure::Ledger));
+        }
         let needed = values
             .len()
             .checked_add(additional)
@@ -2351,54 +2799,27 @@ impl NativeCountsSubsetAdmission<'_> {
         if needed <= values.capacity() {
             return Ok(());
         }
-        if self.0.is_none() {
-            return values
-                .try_reserve(additional)
-                .map_err(|_| self.failure(ScratchFailure::Allocation));
-        }
-        let next = needed
-            .max(
-                values
-                    .capacity()
-                    .checked_mul(2)
-                    .ok_or_else(|| self.failure(ScratchFailure::Budget))?,
-            )
-            .max(4);
-        let bytes = next
-            .checked_mul(std::mem::size_of::<T>())
-            .ok_or_else(|| self.failure(ScratchFailure::Budget))?;
-        let permit = self.reserve(bytes)?;
-        values
-            .try_reserve_exact(next - values.len())
-            .map_err(|_| self.failure(ScratchFailure::Allocation))?;
-        if let Some(permit) = permit {
-            permit.retain();
-        }
-        Ok(())
-    }
-    fn set_room<T: Eq + std::hash::Hash>(
-        &self,
-        values: &mut std::collections::HashSet<T>,
-        additional: usize,
-    ) -> Result<(), CodecError> {
         let permit = self.hash_room::<T, ()>(values.len(), values.capacity(), additional)?;
-        values
-            .try_reserve(additional)
-            .map_err(|_| self.failure(capture_allocation::scratch::ScratchFailure::Allocation))?;
-        if let Some(permit) = permit {
-            permit.retain();
-        }
+        let mut replacement = std::collections::HashSet::new();
+        replacement
+            .try_reserve(needed)
+            .map_err(|_| self.failure(ScratchFailure::Allocation))?;
+        replacement.extend(values.drain());
+        *values = replacement;
+        *fee = permit;
         Ok(())
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+
+#[cfg(feature = "s_incremental")]
 #[derive(Default)]
 struct NativeCountsSubsetLedger {
     digests: std::collections::HashSet<NodeDigest>,
-    order: Vec<NodeDigest>,
+    order: CodecVec<NodeDigest>,
     source_bytes: usize,
+    digests_permit: Option<capture_allocation::scratch::NativeReservation>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCountsSubsetLedger {
     fn record(
         &mut self,
@@ -2406,6 +2827,9 @@ impl NativeCountsSubsetLedger {
         capture: &AuditCapture,
         admission: NativeCountsSubsetAdmission<'_>,
     ) -> Result<(), CodecError> {
+        if let Some(work) = admission.0 {
+            work.check_current()?;
+        }
         if self.digests.contains(digest) {
             return Ok(());
         }
@@ -2417,34 +2841,38 @@ impl NativeCountsSubsetLedger {
             .checked_add(body.len())
             .and_then(|v| v.checked_add(32 + 1 + 64))
             .ok_or_else(|| CodecError::new(code::SOURCE, "Counts原件费用溢出"))?;
-        admission.set_room(&mut self.digests, 1)?;
+        admission.set_room(&mut self.digests, &mut self.digests_permit, 1)?;
         admission.vec_room(&mut self.order, 1)?;
         self.digests.insert(*digest);
-        self.order.push(*digest);
+        self.order.try_push(*digest)?;
         self.source_bytes = bytes;
         Ok(())
     }
     fn rollback(&mut self, checkpoint: (usize, usize)) -> usize {
         let removed = self.order.len() - checkpoint.0;
-        for digest in self.order.drain(checkpoint.0..) {
+        while self.order.len() > checkpoint.0 {
+            let digest = self.order.pop().expect("已核回滚长度");
             self.digests.remove(&digest);
         }
         self.source_bytes = checkpoint.1;
         removed
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeCountsSubsetReader<'a> {
     capture: &'a AuditCapture,
     ledger: &'a std::cell::RefCell<NativeCountsSubsetLedger>,
     admission: NativeCountsSubsetAdmission<'a>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NodeSource for NativeCountsSubsetReader<'_> {
     fn codec_work(&self) -> Option<&capture_allocation::scratch::WorkScope> {
         self.admission.0
     }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        self.read_scoped(digest)?.into_plain()
+    }
+    fn read_scoped(&mut self, digest: &NodeDigest) -> Result<job::ScopedNodeRead, CodecError> {
         let bytes = self
             .capture
             .original(digest)
@@ -2455,19 +2883,15 @@ impl NodeSource for NativeCountsSubsetReader<'_> {
             self.ledger
                 .borrow_mut()
                 .record(digest, self.capture, self.admission)?;
-            // read返回Plain body，许可无法跟随，保守留在父作用域。
-            if let Some(permit) = permit {
-                permit.retain();
-            }
         }
-        Ok(got)
+        Ok(job::ScopedNodeRead::from_plain(got, permit))
     }
     fn checked_read(
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
         self.checked_read_scoped(digest)
-            .map(|frame| frame.map(job::ScopedFrame::into_frame))
+            .and_then(|frame| frame.map(job::ScopedFrame::into_frame).transpose())
     }
     fn checked_read_scoped(
         &mut self,
@@ -2506,12 +2930,10 @@ impl NodeSource for NativeCountsSubsetReader<'_> {
         };
         let got = CaptureReader(self.capture).checked_read(digest)?;
         if let Some(permit) = proof_permit {
-            if native
-                .nodes
-                .get(digest)
-                .is_some_and(|node| node.proof.borrow().is_some())
-            {
-                permit.retain();
+            if let Some(node) = native.nodes.get(digest) {
+                if let Some(proof) = node.proof.borrow_mut().as_mut() {
+                    proof.attach(permit);
+                }
             }
         }
         if got.is_some() {
@@ -2525,12 +2947,13 @@ impl NodeSource for NativeCountsSubsetReader<'_> {
         true
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl AuditCapture {
     /// 按调用方给出的新到旧顺序，仅接纳整组导航+三完整闭包。
     /// fixed费用含SQL及一次codec固定费，group费用含Key/Counts；不提供验证资格。
     /// 全新Verifier只建一次；跨组memo仅引用此前已接纳D。首次超额回滚新增D并终止，
     /// 核验器与半组资格立即丢弃。最终裁剪按值移交正文，仅封存已接纳三闭包的根。
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     #[doc(hidden)]
     pub fn into_counts_original_subset_for_testonly(
         self,
@@ -2540,29 +2963,41 @@ impl AuditCapture {
     ) -> Result<
         (
             Self,
-            Vec<NativeCountsSubsetCertificate>,
+            CodecVec<NativeCountsSubsetCertificate>,
             NativeCountsSubsetReport,
         ),
         CodecError,
     > {
-        self.into_counts_original_subset_admitted_for_testonly(
-            groups,
+        self.into_counts_original_subset_admitted(
+            groups.into_iter().map(|(state, bytes)| {
+                (
+                    capture_allocation::native_owned::NativeValue::<ContentRef>::from_unscoped(
+                        state,
+                    ),
+                    bytes,
+                )
+            }),
             fixed_source_bytes,
             cap,
             None,
         )
     }
     #[doc(hidden)]
-    pub fn into_counts_original_subset_admitted_for_testonly(
+    pub fn into_counts_original_subset_admitted(
         mut self,
-        groups: impl IntoIterator<Item = (ContentRef, usize)>,
+        groups: impl IntoIterator<
+            Item = (
+                capture_allocation::native_owned::NativeValue<ContentRef>,
+                usize,
+            ),
+        >,
         fixed_source_bytes: usize,
         cap: usize,
         work: Option<&capture_allocation::scratch::WorkScope>,
     ) -> Result<
         (
             Self,
-            Vec<NativeCountsSubsetCertificate>,
+            CodecVec<NativeCountsSubsetCertificate>,
             NativeCountsSubsetReport,
         ),
         CodecError,
@@ -2574,12 +3009,13 @@ impl AuditCapture {
                 "Counts稀疏原件只接受Native捕获",
             ));
         }
-        self = self.into_originals_only_for_testonly()?;
+        self = self.into_originals_only()?;
         let ledger = std::cell::RefCell::new(NativeCountsSubsetLedger::default());
-        let mut certificates = Vec::new();
+        let mut certificates = CodecVec::default();
         let mut report = NativeCountsSubsetReport::default();
         let mut accepted_metadata_bytes = 0usize;
         let mut admitted_public_roots = std::collections::HashSet::new();
+        let mut admitted_public_fee = None;
         {
             let mut reader = NativeCountsSubsetReader {
                 capture: &self,
@@ -2594,27 +3030,27 @@ impl AuditCapture {
                     (material.order.len(), material.source_bytes)
                 };
                 let names = ["objects", "witnesses", "observations"];
-                let fields: CodecFields = path::object_fields_output(
-                    &mut verifier.source,
-                    RefView::from(&state),
-                    &names,
-                    false,
-                )?;
-                // 导航已给全部字段文本和BTree节点许可；移出三引用，无二次clone。
-                let mut fields = fields.into_plain()?;
-                let roots = [
-                    fields
-                        .remove("objects")
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺objects"))?,
-                    fields
-                        .remove("witnesses")
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺witnesses"))?,
-                    fields
-                        .remove("observations")
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺observations"))?,
-                ];
+                let fields: capture_allocation::native_owned::NativeRefFields =
+                    path::object_fields_output(
+                        &mut verifier.source,
+                        RefView::from(state.as_ref()),
+                        &names,
+                        false,
+                    )?;
+                // 字段拥有者先持原许可；证书另在当前域准入三根，fields随即释放。
+                let root = |name| {
+                    let value = fields
+                        .get(name)
+                        .ok_or_else(|| CodecError::new(code::SOURCE, format!("Counts缺{name}")))?;
+                    capture_allocation::native_owned::NativeValue::<ContentRef>::try_from_view(
+                        value.as_ref().into(),
+                        work,
+                    )
+                };
+                let roots = [root("objects")?, root("witnesses")?, root("observations")?];
+                drop(fields);
                 for root in &roots {
-                    verifier.verify_refview(RefView::from(root))?;
+                    verifier.verify_refview(RefView::from(root.as_ref()))?;
                 }
                 // 完整核验成功后才允许私有构造；未核半组不会得到可携带证书。
                 let certificate = NativeCountsSubsetCertificate {
@@ -2659,8 +3095,12 @@ impl AuditCapture {
                 }
                 admission.vec_room(&mut certificates, 1)?;
                 // 资源失败直达可选缓存外边界，不变成source cap回滚或None重跑。
-                admission.set_room(&mut admitted_public_roots, new_public_root_count)?;
-                certificates.push(certificate);
+                admission.set_room(
+                    &mut admitted_public_roots,
+                    &mut admitted_public_fee,
+                    new_public_root_count,
+                )?;
+                certificates.try_push(certificate)?;
                 admitted_public_roots.extend(new_public_roots.into_iter().flatten());
                 accepted_metadata_bytes = metadata_bytes;
                 report.accepted_groups += 1;
@@ -2676,9 +3116,6 @@ impl AuditCapture {
         kept.try_reserve(material.digests.len()).map_err(|_| {
             admission.failure(capture_allocation::scratch::ScratchFailure::Allocation)
         })?;
-        if let Some(permit) = permit {
-            permit.retain();
-        }
         let CaptureNodes::Native(native) = &mut self.nodes else {
             unreachable!()
         };
@@ -2690,19 +3127,21 @@ impl AuditCapture {
                 native.body_capacity = native.body_capacity.saturating_add(node.body.capacity());
                 kept.insert(digest, node);
             }
-            // 不保留的NativeNode在本轮drop；body Vec不复制、不留在旧HashMap或proof中。
+            // 不保留的NativeNode在本轮drop；正文与其许可不复制、不留在旧HashMap或proof中。
         }
         native.nodes = kept;
+        native.index_permit = permit;
         // collector产生的F proof及全请求memo都不得跟随稀疏owner保留。
-        self = self.into_originals_only_for_testonly()?;
+        self = self.into_originals_only()?;
         // generated_state仅导航，不授予完整根资格；Template保持Default空集合。
         self.codec_roots.get_mut().public = admitted_public_roots;
+        self.codec_roots.get_mut().public_permit = admitted_public_fee;
         Ok((self, certificates, report))
     }
 }
 
 /// Native owner 的无分配计费读数；不构造诊断 JSON 或赋予审计资格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[doc(hidden)]
 pub struct NativeCaptureRetention {
     pub nodes: usize,
@@ -2716,39 +3155,54 @@ pub struct NativeCaptureRetention {
     pub template_capacity: usize,
 }
 
+#[cfg(feature = "s_incremental")]
+struct OriginalFees {
+    bodies: CodecVec<(
+        NodeDigest,
+        Option<capture_allocation::scratch::NativeReservation>,
+        // #1488 P2-A：来源合同额（只记账，不物理reserve），须指到同条已计费正文。
+        Option<usize>,
+    )>,
+    table: CodecVec<capture_allocation::scratch::NativeReservation>,
+}
 pub struct AuditCapture {
     nodes: CaptureNodes,
     public: std::cell::RefCell<AuditMemo>,
     template: std::cell::RefCell<AuditMemo>,
     reads: std::cell::Cell<u64>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     codec_roots: std::cell::RefCell<NativeCodecRootCertificates>,
+    #[cfg(feature = "s_incremental")]
+    owner_codec: std::cell::RefCell<NativeOwnerCodecCertificates>,
+    // nodes先释放；无复制初始费用随对应Legacy原件直到按值转换。
+    #[cfg(feature = "s_incremental")]
+    original_fees: Option<OriginalFees>,
 }
 impl AuditCapture {
     /// #1394 隔离来源缓存：消费审计捕获，只保留原始tuple owner，清除全部验证和帧证明。
     /// 不复制正文、不重新读SQL；返回值的存在不表示其中每个无关节点都被验证过。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn into_originals_only_for_testonly(mut self) -> Result<Self, CodecError> {
+    pub fn into_originals_only(mut self) -> Result<Self, CodecError> {
         *self.codec_roots.get_mut() = NativeCodecRootCertificates::default();
-        self.clear_request_codec_and_frames_for_testonly()?;
+        self.clear_request_codec_and_frames()?;
         Ok(self)
     }
 
     /// #1394 同一成功handler封存原件与纯codec根证书；全部语义memo和Frame均清空。
     /// 原件证明须由下一次当前Native capture重新逐tuple绑定，证书不授予业务资格。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn into_originals_and_codec_roots_for_testonly(mut self) -> Result<Self, CodecError> {
+    pub fn into_originals_and_codec_roots(mut self) -> Result<Self, CodecError> {
         if !matches!(&self.nodes, CaptureNodes::Native(_)) {
             return Err(CodecError::new(code::SOURCE, "codec根证书只封存Native捕获"));
         }
-        self.clear_request_codec_and_frames_for_testonly()?;
+        self.clear_request_codec_and_frames()?;
         Ok(self)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
-    fn clear_request_codec_and_frames_for_testonly(&mut self) -> Result<(), CodecError> {
+    #[cfg(feature = "s_incremental")]
+    fn clear_request_codec_and_frames(&mut self) -> Result<(), CodecError> {
         if matches!(self.nodes, CaptureNodes::AllocationPrototype(_)) {
             return Err(CodecError::new(
                 code::SOURCE,
@@ -2757,6 +3211,7 @@ impl AuditCapture {
         }
         *self.public.get_mut() = AuditMemo::default();
         *self.template.get_mut() = AuditMemo::default();
+        self.owner_codec.get_mut().clear();
         if let CaptureNodes::Native(native) = &mut self.nodes {
             let bytes = native.body_len;
             for node in native.nodes.values_mut() {
@@ -2774,17 +3229,20 @@ impl AuditCapture {
     /// #1394 APPROVED-SOURCE.md:65、286：本次完整原件相同包含旧capture全部tuple才复用。
     /// 调用方不能传same资格；Legacy/Owned、上下文不兼容或材料不包含时保持当前冷路径。
     /// 仅在新的独立memo.seen播种已成功的Value根，所有其余工作集与用量收据均冷。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(all(
+        feature = "s_incremental",
+        any(test, feature = "s_capture_native_testonly")
+    ))]
     #[doc(hidden)]
     pub fn seed_codec_roots_from_native_capture_for_testonly(
         &self,
         prior: &Self,
     ) -> Result<usize, CodecError> {
-        self.seed_codec_roots_admitted_for_testonly(prior, None)
+        self.seed_codec_roots_admitted(prior, None)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn seed_codec_roots_admitted_for_testonly(
+    pub fn seed_codec_roots_admitted(
         &self,
         prior: &Self,
         work: Option<&capture_allocation::scratch::WorkScope>,
@@ -2801,9 +3259,10 @@ impl AuditCapture {
             || old.flavor != Flavor::Value
             || previous.nodes.len() > current.nodes.len()
             || !previous.nodes.iter().all(|(digest, node)| {
-                current.nodes.get(digest).is_some_and(|now| {
-                    now.tag == node.tag && now.body.as_slice() == node.body.as_slice()
-                })
+                current
+                    .nodes
+                    .get(digest)
+                    .is_some_and(|now| now.tag == node.tag && now.body[..] == node.body[..])
             })
         {
             return Ok(0);
@@ -2811,9 +3270,9 @@ impl AuditCapture {
         let mut public = AuditMemo::default();
         let mut template = AuditMemo::default();
         // StdSet即标准HashSet；先许可含装载率/桶舍入上界，再用fallible reserve建表。
-        for (set, len) in [
-            (&mut public.seen, old.public.len()),
-            (&mut template.seen, old.template.len()),
+        for (memo, len) in [
+            (&mut public, old.public.len()),
+            (&mut template, old.template.len()),
         ] {
             if let Some(work) = work {
                 let bytes = if len == 0 {
@@ -2830,13 +3289,13 @@ impl AuditCapture {
                         })?
                 };
                 let permit = work.reserve_native(bytes)?;
-                let WorkSet::Plain(values) = set else {
+                let WorkSet::Plain(values) = &mut memo.seen else {
                     unreachable!()
                 };
                 values.try_reserve(len).map_err(|_| {
                     work.reject(capture_allocation::scratch::ScratchFailure::Allocation)
                 })?;
-                permit.retain();
+                memo.native_seen_permit = Some(permit);
             }
         }
         for digest in &old.public {
@@ -2858,13 +3317,62 @@ impl AuditCapture {
 
     /// #1394 owner 已在锁内回读的追加 tuple。只保持内容关系，不能签发 Q/C 资格。
     /// cap 是调用方扣除全部共存归属后给出的索引扩容余量；正文按值移动。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn append_original_for_owner_testonly(
+    pub fn append_original_for_owner(
         &mut self,
         digest: NodeDigest,
         tag: u8,
         body: Vec<u8>,
+        cap: usize,
+        work: Option<&capture_allocation::scratch::WorkScope>,
+    ) -> Result<bool, CodecError> {
+        let result = self.append_original_for_owner_inner(
+            digest,
+            tag,
+            CodecVec::from_plain(body),
+            cap,
+            work,
+        );
+        if !matches!(&result, Ok(true)) {
+            self.owner_codec.get_mut().revoke();
+        }
+        result
+    }
+    /// #1488 R 正文移交：只接受已有 Native 绑定，原 backing 与许可随节点移动。
+    /// 来源 body.len()+97 与索引旧费用另计；旧 E retain 通道仍未迁移。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn append_original_codec_for_owner(
+        &mut self,
+        digest: NodeDigest,
+        tag: u8,
+        mut body: CodecVec<u8>,
+        cap: usize,
+        work: &capture_allocation::scratch::WorkScope,
+    ) -> Result<bool, CodecError> {
+        let result = (|| {
+            if !body.is_native_bound() {
+                return Err(CodecError::new(
+                    code::SOURCE,
+                    "owner正文移交只接受已有Native绑定",
+                ));
+            }
+            // 零增长也核本次活动域与原许可同父，含容量为零的正文。
+            body.try_reserve_native(work, 0)?;
+            self.append_original_for_owner_inner(digest, tag, body, cap, Some(work))
+        })();
+        if !matches!(&result, Ok(true)) {
+            self.owner_codec.get_mut().revoke();
+        }
+        result
+    }
+    #[cfg(feature = "s_incremental")]
+    fn append_original_for_owner_inner(
+        &mut self,
+        digest: NodeDigest,
+        tag: u8,
+        body: CodecVec<u8>,
         cap: usize,
         work: Option<&capture_allocation::scratch::WorkScope>,
     ) -> Result<bool, CodecError> {
@@ -2878,21 +3386,14 @@ impl AuditCapture {
             ));
         };
         if let Some(old) = native.nodes.get(&digest) {
-            if old.tag != tag || old.body != body {
+            if old.tag != tag || old.body[..] != body[..] {
                 return Err(CodecError::new(code::NODE_DIGEST, "同摘要异原件"));
             }
             return Ok(true);
         }
-        // body 按值从 effects 移入，其分配已收费；S7 正文/证书归属另行全额登记。
-        let source_permit = if let Some(work) = work {
-            let bytes = body
-                .len()
-                .checked_add(97)
-                .ok_or_else(|| work.reject(capture_allocation::scratch::ScratchFailure::Budget))?;
-            Some(work.reserve_native(bytes)?)
-        } else {
-            None
-        };
+        // body 按值从 effects 移入，其分配已收费；S7 正文/证书归属只登记合同项（#1488 P2-A），
+        // 须指到这块已物理计费的正文，不再在父账同额物理reserve。
+        let source_claim = work.map(|_| SourceClaim::on_body(&body)).transpose()?;
         if native.nodes.len() == native.nodes.capacity() {
             let capacity = native.nodes.capacity().saturating_mul(2).max(4);
             let growth = capacity
@@ -2908,9 +3409,7 @@ impl AuditCapture {
                 }
                 return Ok(false);
             }
-            if let Some(permit) = permit {
-                permit.retain();
-            }
+            native.index_permit = permit;
         }
         let bytes = body.capacity();
         native.body_len = native
@@ -2921,10 +3420,9 @@ impl AuditCapture {
             .body_capacity
             .checked_add(bytes)
             .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总capacity溢出"))?;
-        native.nodes.insert(digest, NativeNode::new(tag, body));
-        if let Some(permit) = source_permit {
-            permit.retain();
-        }
+        let mut node = NativeNode::new_codec(tag, body);
+        node.source_claim = source_claim;
+        native.nodes.insert(digest, node);
         let memo = native.memo.get_mut();
         memo.entry_limit = memo.entry_limit.saturating_add(1);
         memo.body_capacity_limit = memo.body_capacity_limit.saturating_add(bytes);
@@ -2933,9 +3431,9 @@ impl AuditCapture {
 
     /// #1394 owner正常追加的热交接：只清本步实际生成过proof的节点。
     /// 完整原件与根证书继续保留；不扫描旧节点求body总量。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn finish_owner_step_for_testonly(mut self) -> Result<Self, CodecError> {
+    pub fn finish_owner_step(mut self) -> Result<Self, CodecError> {
         let CaptureNodes::Native(native) = &mut self.nodes else {
             return Err(CodecError::new(code::SOURCE, "owner交接只接受Native"));
         };
@@ -2955,7 +3453,7 @@ impl AuditCapture {
         self.reads.set(0);
         Ok(self)
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     fn assert_owner_retention_oracle(&self) {
         let CaptureNodes::Native(native) = &self.nodes else {
             panic!("Native oracle");
@@ -2975,7 +3473,7 @@ impl AuditCapture {
     }
 
     /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn exact_original_tuples_equal(&self, other: &Self) -> Result<bool, CodecError> {
         let count = |nodes: &CaptureNodes| match nodes {
@@ -3005,7 +3503,7 @@ impl AuditCapture {
             CaptureNodes::Native(nodes) => nodes
                 .nodes
                 .get(digest)
-                .is_some_and(|node| node.tag == tag && node.body.as_slice() == body),
+                .is_some_and(|node| node.tag == tag && &node.body[..] == body),
             CaptureNodes::AllocationPrototype(_) => false,
         };
         Ok(match &self.nodes {
@@ -3025,8 +3523,12 @@ impl AuditCapture {
             public: Default::default(),
             template: Default::default(),
             reads: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             codec_roots: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            owner_codec: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            original_fees: None,
         }
     }
     #[doc(hidden)]
@@ -3037,20 +3539,63 @@ impl AuditCapture {
             public: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             template: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             reads: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             codec_roots: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            owner_codec: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            original_fees: None,
         }
+    }
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn with_original_fees(
+        mut self,
+        table: CodecVec<capture_allocation::scratch::NativeReservation>,
+        mut bodies: CodecVec<(
+            NodeDigest,
+            Option<capture_allocation::scratch::NativeReservation>,
+            Option<usize>,
+        )>,
+    ) -> Result<Self, CodecError> {
+        bodies.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+        self.original_fees = Some(OriginalFees { bodies, table });
+        let CaptureNodes::Legacy(nodes) = &self.nodes else {
+            return Err(CodecError::scratch(
+                capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
+        };
+        let fees = self.original_fees.as_ref().unwrap();
+        if nodes.len() != fees.bodies.len()
+            || nodes.iter().zip(fees.bodies.iter().rev()).any(
+                |((digest, (_, body)), (key, fee, source))| {
+                    digest != key
+                        || fee
+                            .as_ref()
+                            .is_some_and(|fee| fee.bytes() != body.capacity())
+                        // #1488 P2-A：来源合同项指不到已物理计费的正文块即拒。
+                        || source.is_some_and(|bytes| {
+                            fee.is_none() || body.len().checked_add(97) != Some(bytes)
+                        })
+                },
+            )
+        {
+            return Err(CodecError::scratch(
+                capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
+        }
+        Ok(self)
     }
     /// #1394：显式 Native TestOnly opt-in；资格只来自本捕获的节点数和原 body 总长度。
     /// 不适用于 Owned/AllocationPrototype，不声明整 heap 或 S 资源准入。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn enable_native_frame_reuse_for_testonly(self) -> Result<Self, CodecError> {
-        self.enable_native_frame_reuse_admitted_for_testonly(None)
+    pub fn enable_native_frame_reuse(self) -> Result<Self, CodecError> {
+        self.enable_native_frame_reuse_admitted(None)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn enable_native_frame_reuse_admitted_for_testonly(
+    pub fn enable_native_frame_reuse_admitted(
         mut self,
         work: Option<&capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, CodecError> {
@@ -3103,9 +3648,6 @@ impl AuditCapture {
                 |w| w.reject(capture_allocation::scratch::ScratchFailure::Allocation),
             )
         })?;
-        if let Some(permit) = permit {
-            permit.retain();
-        }
         let CaptureNodes::Legacy(nodes) =
             std::mem::replace(&mut self.nodes, CaptureNodes::Legacy(BTreeMap::new()))
         else {
@@ -3117,10 +3659,33 @@ impl AuditCapture {
             body_capacity = body_capacity
                 .checked_add(body.capacity())
                 .ok_or_else(|| CodecError::new(code::SOURCE, "原件capacity溢出"))?;
-            native_nodes.insert(digest, NativeNode::new(tag, body));
+            let mut body = CodecVec::from_plain(body);
+            let mut source_claim = None;
+            if let Some(fees) = &mut self.original_fees {
+                let (key, fee, source) = fees.bodies.pop().expect("已核原件费用条目");
+                debug_assert_eq!(key, digest);
+                if let Some(fee) = fee {
+                    body.attach_native_reservation(fee)?;
+                }
+                if let Some(bytes) = source {
+                    let claim = SourceClaim::on_body(&body)?;
+                    if claim.bytes != bytes {
+                        return Err(CodecError::scratch(
+                            capture_allocation::scratch::ScratchFailure::Ledger,
+                        ));
+                    }
+                    source_claim = Some(claim);
+                }
+            }
+            let mut node = NativeNode::new_codec(tag, body);
+            node.source_claim = source_claim;
+            native_nodes.insert(digest, node);
         }
+        // Legacy BTree迭代器已耗尽，树节点已经释放；现在才归还旧表及费用索引容量。
+        drop(self.original_fees.take());
         self.nodes = CaptureNodes::Native(NativeCaptureNodes {
             nodes: native_nodes,
+            index_permit: permit,
             body_len: body_capacity_limit,
             body_capacity,
             owner_dirty_head: Default::default(),
@@ -3134,27 +3699,47 @@ impl AuditCapture {
         self.original(digest).is_some()
     }
     /// #1394：只读见证实际Native owner，不扫描原件或改变任何证明。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn native_frame_reuse_active_for_testonly(&self) -> bool {
+    pub fn native_frame_reuse_active(&self) -> bool {
         matches!(&self.nodes, CaptureNodes::Native(_))
     }
     pub fn original(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match &self.nodes {
             CaptureNodes::Legacy(nodes) => nodes.get(digest).map(|(t, b)| (*t, b.as_slice())),
-            #[cfg(feature = "s_capture_native_testonly")]
-            CaptureNodes::Native(nodes) => nodes.get(digest).map(|n| (n.tag, n.body.as_slice())),
+            #[cfg(feature = "s_incremental")]
+            CaptureNodes::Native(nodes) => nodes.get(digest).map(|n| (n.tag, &n.body[..])),
             CaptureNodes::AllocationPrototype(slab) => slab.original(digest),
         }
     }
     pub fn reader(&self) -> impl NodeSource + '_ {
         CaptureReader(self)
     }
+    #[doc(hidden)]
+    pub fn reader_observed<'a>(
+        &'a self,
+        observer: &'a dyn CaptureReadObserver,
+    ) -> impl NodeSource + 'a {
+        ObservedCaptureReader {
+            reader: CaptureReader(self),
+            observer: Some(observer),
+        }
+    }
     pub fn verify(&self, reference: &ContentRef, mode: Mode) -> Result<(), CodecError> {
         self.verify_refview(reference.into(), mode)
     }
     #[doc(hidden)]
     pub fn verify_refview(&self, reference: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        self.verify_refview_observed(reference, mode, None)
+    }
+    /// 当前调用的读取观察；保留原 capture memo，不保存观察者。
+    #[doc(hidden)]
+    pub fn verify_refview_observed(
+        &self,
+        reference: RefView<'_>,
+        mode: Mode,
+        observer: Option<&dyn CaptureReadObserver>,
+    ) -> Result<(), CodecError> {
         let slot = if mode == Mode::Public {
             &self.public
         } else {
@@ -3165,33 +3750,229 @@ impl AuditCapture {
             _ => None,
         };
         let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
-        let mut source = CaptureReader(self);
-        let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
+        let mut verifier =
+            Verifier::with_context(CodecContext::Capture(self, observer), mode, memo);
         let result = verifier.verify_refview(reference);
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
         if let Ok((digest, _, _)) = &result {
             *slot.borrow_mut() = verifier.into_memo();
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             if matches!(&self.nodes, CaptureNodes::Native(_)) {
                 let mut roots = self.codec_roots.borrow_mut();
+                // 已封存的Native表没有本次WorkScope，不能从旧许可新签扩容。
+                let sealed_public = mode == Mode::Public && roots.public_permit.is_some();
                 let set = if mode == Mode::Public {
                     &mut roots.public
                 } else {
                     &mut roots.template
                 };
                 // 证书保留失败不改变本次已经成功的业务校验；只是下次少一个复用根。
-                if set.contains(digest) || set.try_reserve(1).is_ok() {
+                if set.contains(digest) || (!sealed_public && set.try_reserve(1).is_ok()) {
                     set.insert(*digest);
                 }
             }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             let _ = digest;
         }
         result.map(|_| ())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    /// #1488 仅供实际 owner 的 append-only/effects 续接：持同一个原件 owner，
+    /// 不接受外来 source、成功集合或资格 bool。调用方负责真实事务/effects/COMMIT。
+    /// 新 scratch 只借本轮父账；成功证明无旧 WorkBudget，跨轮不会污染新操作账。
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
-    pub fn native_retention_numbers_for_testonly(&self) -> Option<NativeCaptureRetention> {
+    pub fn verify_owner_refview(
+        &self,
+        reference: RefView<'_>,
+        mode: Mode,
+        work: &capture_allocation::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        let result = (|| {
+            // 零新增的 warm hit 同样必须核当前工作域健康，不凭旧容量绕过停止门。
+            let _health = work.reserve_native(0)?;
+            if !matches!(&self.nodes, CaptureNodes::Native(_)) {
+                return Err(CodecError::new(
+                    code::SOURCE,
+                    "owner codec 只接受同一 Native 原件",
+                ));
+            }
+            let certificates = self.owner_codec.borrow();
+            if !certificates.compatible() {
+                return Err(CodecError::new(
+                    code::SOURCE,
+                    "owner codec 续接已撤销或解释版本不符",
+                ));
+            }
+            let prior = if mode == Mode::Public {
+                &certificates.public
+            } else {
+                &certificates.template
+            };
+            let mut verifier = Verifier::with_context(
+                CodecContext::OwnerCapture {
+                    capture: self,
+                    work,
+                },
+                mode,
+                AuditMemo::default(),
+            );
+            verifier.owner_codec = Some(prior);
+            verifier.verify_refview(reference)?;
+            // 全部待核后继成功后才转出 scratch。失败提前插入的 seen/序列摘要永不提升。
+            let memo = verifier.into_memo();
+            drop(certificates);
+            let mut certificates = self.owner_codec.borrow_mut();
+            let retained = if mode == Mode::Public {
+                &mut certificates.public
+            } else {
+                &mut certificates.template
+            };
+            retained.merge_success(&memo, work)?;
+            // memo 到此析构，scratch 真 Layout 与父账一起释放；retained 无旧作用域引用。
+            Ok(())
+        })();
+        if result.is_err() {
+            self.owner_codec.borrow_mut().revoke();
+        }
+        result
+    }
+
+    /// 持久证明实际 heap Layout；常数张表，固定头由 enclosing capture owner 计费。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn owner_codec_retained_bytes(&self) -> usize {
+        let certificates = self.owner_codec.borrow();
+        certificates
+            .public
+            .retained_bytes()
+            .saturating_add(certificates.template.retained_bytes())
+    }
+
+    /// #1488 P3-c：逐个列出本capture实际持有的Native许可字节（索引、正文块、codec根、
+    /// 未转换原件费及其容器、memo seen）；按持有者枚举，不由live差额或释放读数推导。
+    /// 证明、owner codec证书仍存活时拒绝（封存后应已清空，不得漏列）。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn native_permit_inventory(&self, out: &mut Vec<usize>) -> Result<(), CodecError> {
+        let held = |p: &Option<capture_allocation::scratch::NativeReservation>| {
+            p.as_ref()
+                .map(capture_allocation::scratch::NativeReservation::bytes)
+        };
+        if self.owner_codec_retained_bytes() != 0 {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "许可清单：owner codec证书未清空",
+            ));
+        }
+        for memo in [&self.public, &self.template] {
+            out.extend(held(&memo.borrow().native_seen_permit));
+        }
+        if let CaptureNodes::Native(native) = &self.nodes {
+            out.extend(held(&native.index_permit));
+            for node in native.nodes.values() {
+                if node.proof.borrow().is_some() {
+                    return Err(CodecError::new(code::SOURCE, "许可清单：节点证明未清空"));
+                }
+                out.extend(node.body.native_retained_charge());
+            }
+        }
+        out.extend(held(&self.codec_roots.borrow().public_permit));
+        if let Some(fees) = &self.original_fees {
+            out.extend(fees.bodies.native_retained_charge());
+            out.extend(fees.bodies.iter().filter_map(|(_, permit, _)| held(permit)));
+            out.extend(fees.table.native_retained_charge());
+            out.extend(fees.table.iter().map(|p| p.bytes()));
+        }
+        Ok(())
+    }
+
+    /// #1488 P2-A：逐节点复核来源合同项——每项须指到同节点已物理计费（Native绑定）的正文块，
+    /// 且合同额=正文+97；指不到即拒。返回（合同项数，合同额和）；无项的节点不计。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn native_source_claim_totals(&self) -> Result<(usize, usize), CodecError> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Ok((0, 0));
+        };
+        native
+            .nodes
+            .values()
+            .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
+            .try_fold((0usize, 0usize), |(count, sum), (node, claim)| {
+                let backed = SourceClaim::on_body(&node.body)?;
+                if backed.bytes != claim.bytes {
+                    return Err(CodecError::scratch(
+                        capture_allocation::scratch::ScratchFailure::Ledger,
+                    ));
+                }
+                Ok((
+                    count + 1,
+                    sum.checked_add(claim.bytes)
+                        .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?,
+                ))
+            })
+    }
+    /// #1488 P3-β：正文块已物理计费（Native绑定）的节点数；与合同项数对拍，漏签claim即可检出。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn native_bound_body_nodes(&self) -> usize {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return 0;
+        };
+        native
+            .nodes
+            .values()
+            .filter(|node| node.body.is_native_bound())
+            .count()
+    }
+    /// #1488 P3-α：逐节点来源合同额（多重集），供普查实测“与合同额同额、却无持有者的物理许可”张数。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn native_source_claim_amounts(&self) -> Vec<usize> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Vec::new();
+        };
+        native
+            .nodes
+            .values()
+            .filter_map(|node| node.source_claim.as_ref().map(|claim| claim.bytes))
+            .collect()
+    }
+    /// #1488 P2-β：索引许可布局实测——（索引许可字节，现槽宽=size_of<(NodeDigest,NativeNode)>+1，
+    /// P2-A前槽宽：同布局镜像但`source_permit: Option<NativeReservation>`）。索引许可=槽数×槽宽，
+    /// 故P2-A的布局连带降幅=槽数×(旧槽宽−现槽宽)。
+    #[cfg(all(
+        feature = "s_incremental",
+        any(test, feature = "s_capture_native_testonly")
+    ))]
+    #[doc(hidden)]
+    pub fn native_index_layout_for_testonly(&self) -> Option<(usize, usize, usize)> {
+        #[allow(dead_code)]
+        struct NativeNodeBeforeP2a {
+            tag: u8,
+            body: CodecVec<u8>,
+            source_permit: Option<capture_allocation::scratch::NativeReservation>,
+            proof: std::cell::RefCell<
+                Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>,
+            >,
+            owner_dirty: std::cell::Cell<bool>,
+            owner_next: std::cell::Cell<Option<NodeDigest>>,
+        }
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return None;
+        };
+        Some((
+            native
+                .index_permit
+                .as_ref()
+                .map_or(0, capture_allocation::scratch::NativeReservation::bytes),
+            std::mem::size_of::<(NodeDigest, NativeNode)>() + 1,
+            std::mem::size_of::<(NodeDigest, NativeNodeBeforeP2a)>() + 1,
+        ))
+    }
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn native_retention_numbers(&self) -> Option<NativeCaptureRetention> {
         let CaptureNodes::Native(native) = &self.nodes else {
             return None;
         };
@@ -3235,7 +4016,7 @@ impl AuditCapture {
                 nodes.values().map(|(_, b)| b.capacity()).sum::<usize>(),
                 serde_json::Value::Null,
             ),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             CaptureNodes::Native(native) => (
                 native.nodes.len(),
                 native.nodes.values().map(|n| n.body.len()).sum::<usize>(),
@@ -3260,7 +4041,7 @@ impl AuditCapture {
             "first_f_calls":0,"changed_f_calls":0,"strict_f_calls":0,"failed_f_calls":0,
             "retention_skips":0
         });
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let native_frame_reuse = match &self.nodes {
             CaptureNodes::Native(native) => {
                 let m = native.memo.borrow();
@@ -3273,13 +4054,13 @@ impl AuditCapture {
                     "failed_f_calls":m.failed_f_calls,"retention_skips":m.retention_skips,
                     "source_index_capacity":native.nodes.capacity(),
                     "source_index_capacity_payload_bytes":native.nodes.capacity().saturating_mul(std::mem::size_of::<(NodeDigest,NativeNode)>()),
-                    "proof_slot_bytes_per_entry":std::mem::size_of::<std::cell::RefCell<Option<allocator_api2::boxed::Box<NativeFrameProof>>>>(),
+                    "proof_slot_bytes_per_entry":std::mem::size_of::<std::cell::RefCell<Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>>>(),
                     "retained_proof_box_payload_bytes":m.retained_entries.saturating_mul(std::mem::size_of::<NativeFrameProof>())
                 })
             }
             _ => native_frame_reuse,
         };
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let codec_root_certificates = {
             let r = self.codec_roots.borrow();
             serde_json::json!({"format":r.format,"predicate_revision":r.predicate_revision,
@@ -3287,7 +4068,7 @@ impl AuditCapture {
                 "public_roots":r.public.len(),"template_roots":r.template.len(),
                 "public_capacity":r.public.capacity(),"template_capacity":r.template.capacity()})
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let codec_root_certificates = serde_json::Value::Null;
         serde_json::json!({"captured_nodes":nodes,"body_len_bytes":body_len,
             "body_vec_capacity_bytes":body_capacity,"capture_allocation_prototype":allocation,
@@ -3300,13 +4081,13 @@ impl AuditCapture {
 }
 struct CaptureReader<'a>(&'a AuditCapture);
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod codec_root_success_tests {
     use super::*;
 
     fn native(nodes: &MemoryNodes) -> AuditCapture {
         AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap()
     }
     fn fixture() -> (MemoryNodes, ContentRef, ContentRef) {
@@ -3381,7 +4162,7 @@ mod codec_root_success_tests {
         old.verify(&public, Mode::Public).unwrap();
         old.verify(&template, Mode::Template).unwrap();
         let pointer = old.original(&public.digest().unwrap()).unwrap().1.as_ptr();
-        let old = old.into_originals_and_codec_roots_for_testonly().unwrap();
+        let old = old.into_originals_and_codec_roots().unwrap();
         assert_eq!(
             pointer,
             old.original(&public.digest().unwrap()).unwrap().1.as_ptr()
@@ -3416,7 +4197,7 @@ mod codec_root_success_tests {
         let old = native(&nodes);
         old.verify(&public, Mode::Public).unwrap();
         old.verify(&template, Mode::Template).unwrap();
-        let old = old.into_originals_and_codec_roots_for_testonly().unwrap();
+        let old = old.into_originals_and_codec_roots().unwrap();
         write_value(&mut nodes, &Value::String("合法独立新增节点".into())).unwrap();
         let public_new = write_value(
             &mut nodes,
@@ -3489,7 +4270,7 @@ mod codec_root_success_tests {
         .content_ref();
         let old = native(&nodes);
         old.verify(&public, Mode::Public).unwrap();
-        let old = old.into_originals_and_codec_roots_for_testonly().unwrap();
+        let old = old.into_originals_and_codec_roots().unwrap();
         let warm = native(&nodes);
         assert_eq!(
             warm.seed_codec_roots_from_native_capture_for_testonly(&old)
@@ -3519,7 +4300,7 @@ mod codec_root_success_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod counts_subset_codec_root_tests {
     use super::*;
 
@@ -3553,7 +4334,7 @@ mod counts_subset_codec_root_tests {
     }
     fn native(nodes: &MemoryNodes) -> AuditCapture {
         AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap()
     }
     fn assert_cold_workspaces(capture: &AuditCapture) {
@@ -3732,7 +4513,7 @@ mod counts_subset_codec_root_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod source_cache_original_owner_tests {
     use super::*;
     #[test]
@@ -3749,7 +4530,7 @@ mod source_cache_original_owner_tests {
         .content_ref();
         let digest = root.digest().unwrap();
         let capture = AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let pointer = capture.original(&digest).unwrap().1.as_ptr();
         capture.verify(&root, Mode::Public).unwrap();
@@ -3760,7 +4541,7 @@ mod source_cache_original_owner_tests {
                 .unwrap()
                 > 0
         );
-        let keeper = capture.into_originals_only_for_testonly().unwrap();
+        let keeper = capture.into_originals_only().unwrap();
         assert_eq!(keeper.original(&digest).unwrap().1.as_ptr(), pointer);
         let retention = keeper.retention();
         for mode in ["public", "template"] {
@@ -3783,8 +4564,33 @@ mod source_cache_original_owner_tests {
         let budget = capture_allocation::OwnedBudget::new(4096);
         let slab = capture_allocation::CaptureSlab::new(0, 0, &budget).unwrap();
         let capture = AuditCapture::from_slab_for_allocation_prototype(slab);
-        assert!(capture.into_originals_only_for_testonly().is_err());
+        assert!(capture.into_originals_only().is_err());
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+/// 当前调用的节点访问计量；不保存在 capture 或 memo 内。
+#[doc(hidden)]
+pub trait CaptureReadObserver {
+    fn before_read(&self) -> Result<(), CodecError>;
+    fn prepare_node(&self) -> Result<(), CodecError>;
+    fn accept_prepared_frame(&self, frame: &job::CheckedFrame) -> Result<(), CodecError>;
+}
+struct ObservedCaptureReader<'a, 'o> {
+    reader: CaptureReader<'a>,
+    observer: Option<&'o dyn CaptureReadObserver>,
+}
+impl NodeSource for ObservedCaptureReader<'_, '_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        if let Some(observer) = self.observer {
+            observer.before_read()?;
+        }
+        self.reader.read(digest)
+    }
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        self.reader.checked_observed(digest, self.observer)
     }
 }
 impl CaptureReader<'_> {
@@ -3795,7 +4601,7 @@ impl CaptureReader<'_> {
         let _ = digest;
         self.0.reads.set(self.0.reads.get().saturating_add(1));
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn checked_native_current(
         &self,
         digest: &NodeDigest,
@@ -3834,37 +4640,140 @@ impl NodeSource for CaptureReader<'_> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        self.checked_observed(digest, None)
+    }
+}
+impl CaptureReader<'_> {
+    fn checked_observed(
+        &mut self,
+        digest: &NodeDigest,
+        observer: Option<&dyn CaptureReadObserver>,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
+        let result = self.checked_observed_inner(digest, observer)?;
+        if let (Some(observer), Some(frame)) = (observer, result.as_ref()) {
+            observer.accept_prepared_frame(frame)?;
+        }
+        Ok(result)
+    }
+    fn checked_observed_inner(
+        &mut self,
+        digest: &NodeDigest,
+        observer: Option<&dyn CaptureReadObserver>,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        #[cfg(feature = "s_incremental")]
         if let CaptureNodes::Native(native) = &self.0.nodes {
             return self.checked_native_current(digest, native, |node| {
-                Ok(match node {
+                let read = match node {
                     Some(node) => NodeRead::Found {
                         tag: node.tag,
                         body: node.body.to_vec(),
                     },
                     None => NodeRead::Missing,
-                })
+                };
+                if matches!(&read, NodeRead::Found { .. }) {
+                    if let Some(observer) = observer {
+                        observer.prepare_node()?;
+                    }
+                }
+                Ok(read)
             });
         }
         match self.read(digest)? {
             NodeRead::Missing => Ok(None),
             NodeRead::Found { tag, body } => {
+                if let Some(observer) = observer {
+                    observer.prepare_node()?;
+                }
                 job::CheckedFrame::checked(digest, tag, body).map(Some)
             }
         }
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_frame_reuse_tests {
     use super::*;
+
+    #[derive(Default)]
+    struct ReadMeter {
+        reads: std::cell::Cell<usize>,
+        prepared: std::cell::Cell<usize>,
+        accepted: std::cell::Cell<usize>,
+        stop: std::cell::Cell<bool>,
+    }
+    impl CaptureReadObserver for ReadMeter {
+        fn before_read(&self) -> Result<(), CodecError> {
+            self.reads.set(self.reads.get() + 1);
+            Ok(())
+        }
+        fn prepare_node(&self) -> Result<(), CodecError> {
+            self.prepared.set(self.prepared.get() + 1);
+            if self.stop.get() {
+                return Err(CodecError::new("test_stop", "stop"));
+            }
+            Ok(())
+        }
+        fn accept_prepared_frame(&self, _: &job::CheckedFrame) -> Result<(), CodecError> {
+            self.accepted.set(self.accepted.get() + 1);
+            Ok(())
+        }
+    }
+    #[test]
+    fn measured_capture_preserves_memo_and_observes_only_actual_reads() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(&mut nodes, &Value::String("原件".into())).unwrap();
+        let capture = AuditCapture::new(nodes)
+            .enable_native_frame_reuse()
+            .unwrap();
+        let reference = built.content_ref();
+        let meter = ReadMeter::default();
+        capture
+            .verify_refview_observed((&reference).into(), Mode::Public, Some(&meter))
+            .unwrap();
+        assert!(meter.accepted.get() > 0);
+        assert_eq!(meter.prepared.get(), meter.accepted.get());
+        let reads = capture.reads.get();
+        let observed = meter.reads.get();
+        capture
+            .verify_refview_observed((&reference).into(), Mode::Public, Some(&meter))
+            .unwrap();
+        assert_eq!(
+            capture.reads.get() - reads,
+            (meter.reads.get() - observed) as u64
+        );
+        let missing = [255; 32];
+        let prepared = meter.prepared.get();
+        assert!(capture
+            .reader_observed(&meter)
+            .checked_read(&missing)
+            .unwrap()
+            .is_none());
+        assert_eq!(meter.prepared.get(), prepared);
+        meter.stop.set(true);
+        let accepted = meter.accepted.get();
+        assert!(capture
+            .reader_observed(&meter)
+            .checked_read(&built.digest)
+            .is_err());
+        assert_eq!(meter.accepted.get(), accepted);
+        meter.stop.set(false);
+        capture
+            .reader_observed(&meter)
+            .checked_read(&built.digest)
+            .unwrap()
+            .unwrap();
+        assert_eq!(meter.accepted.get(), accepted + 1);
+    }
 
     fn capture_node(tag: u8, body: &[u8]) -> (AuditCapture, MemoryNodes, NodeDigest) {
         let digest = frame(tag, body);
         let mut nodes = MemoryNodes::new();
         nodes.insert_unchecked(digest, tag, body.to_vec());
         let capture = AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         (capture, nodes, digest)
     }
@@ -3884,7 +4793,7 @@ mod native_frame_reuse_tests {
         let nodes = &mut native_mut(capture).nodes;
         if let Some(node) = nodes.get_mut(&digest) {
             node.tag = tag;
-            node.body = body;
+            node.body = CodecVec::from_plain(body);
         } else {
             nodes.insert(digest, NativeNode::new(tag, body));
         }
@@ -3910,34 +4819,34 @@ mod native_frame_reuse_tests {
         let mut nodes = MemoryNodes::new();
         let first = write_value(&mut nodes, &Value::String("正常原件é".into())).unwrap();
         let mut capture = AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         capture.assert_owner_retention_oracle();
         let pointer = capture.original(&first.digest).unwrap().1.as_ptr();
         capture.verify(&first.content_ref(), Mode::Public).unwrap();
         assert!(native(&capture).owner_dirty_head.get().is_some());
-        capture = capture.finish_owner_step_for_testonly().unwrap();
+        capture = capture.finish_owner_step().unwrap();
         assert!(native(&capture).owner_dirty_head.get().is_none());
         assert_eq!(native(&capture).memo.borrow().retained_entries, 0);
         assert!(native(&capture)
             .nodes
             .values()
             .all(|n| n.proof.borrow().is_none()));
-        let old = capture.native_retention_numbers_for_testonly().unwrap();
+        let old = capture.native_retention_numbers().unwrap();
         let body = "第二个合法字节块".as_bytes().to_vec();
         let digest = frame(tag::BYTES_CHUNK, &body);
         let len = body.len();
         let cap = body.capacity();
         assert!(capture
-            .append_original_for_owner_testonly(digest, tag::BYTES_CHUNK, body, usize::MAX, None)
+            .append_original_for_owner(digest, tag::BYTES_CHUNK, body, usize::MAX, None)
             .unwrap());
         capture.assert_owner_retention_oracle();
-        let new = capture.native_retention_numbers_for_testonly().unwrap();
+        let new = capture.native_retention_numbers().unwrap();
         assert_eq!(new.body_len, old.body_len + len);
         assert_eq!(new.body_capacity, old.body_capacity + cap);
         assert_eq!(capture.original(&first.digest).unwrap().1.as_ptr(), pointer);
         capture.reader().checked_read(&digest).unwrap().unwrap();
-        capture = capture.finish_owner_step_for_testonly().unwrap();
+        capture = capture.finish_owner_step().unwrap();
         assert_eq!(native(&capture).memo.borrow().retained_entries, 0);
         capture.assert_owner_retention_oracle();
         assert_eq!(capture.original(&first.digest).unwrap().1.as_ptr(), pointer);
@@ -3955,7 +4864,7 @@ mod native_frame_reuse_tests {
         let capture = AuditCapture::new(nodes);
         assert!(matches!(&capture.nodes, CaptureNodes::Legacy(_)));
         assert!(!capture.is_allocation_prototype());
-        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        let capture = capture.enable_native_frame_reuse().unwrap();
         assert!(!capture.is_allocation_prototype());
         let node = native(&capture).nodes.get(&digest).unwrap();
         assert_eq!(node.body.as_ptr(), pointer);
@@ -3986,7 +4895,7 @@ mod native_frame_reuse_tests {
             .unwrap()
             .into_parts();
         let capture = AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         for mode in [Mode::Public, Mode::Template] {
             capture.verify(&null, mode).unwrap();
@@ -3998,7 +4907,7 @@ mod native_frame_reuse_tests {
         let before = capture.retention();
         assert_eq!(before["native_frame_reuse"]["retained_entries"], 2);
         let source_capacity = native(&capture).nodes.capacity();
-        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        let capture = capture.enable_native_frame_reuse().unwrap();
         let after = capture.retention();
         assert_eq!(after["public"], before["public"]);
         assert_eq!(after["template"], before["template"]);
@@ -4250,7 +5159,7 @@ mod native_frame_reuse_tests {
         nodes.insert_unchecked(outer_digest, tag::JSON_TEXT, inner.digest.to_vec());
         let outer = ContentRef::new(Kind::JsonText, &outer_digest, None);
         let capture = AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let oracle = AuditCapture::new(nodes);
         for reference in [placeholder.content_ref(), inner.content_ref()] {
@@ -4285,7 +5194,7 @@ mod native_frame_reuse_tests {
         let (capture, nodes, digest) = capture_node(tag::BYTES_CHUNK, b"material");
         read(&capture, &digest).unwrap().unwrap();
         let fresh = AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let start = frame_calls_on_thread();
         read(&fresh, &digest).unwrap().unwrap();
@@ -4315,9 +5224,7 @@ mod native_frame_reuse_tests {
         assert_eq!(frame_calls_on_thread() - start, 2);
         assert_eq!(stats(&owned)["enabled"], false);
         assert_eq!(stats(&owned)["retained_entries"], 0);
-        assert!(
-            matches!(owned.enable_native_frame_reuse_for_testonly(), Err(e) if e.code() == code::SOURCE)
-        );
+        assert!(matches!(owned.enable_native_frame_reuse(), Err(e) if e.code() == code::SOURCE));
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
     #[test]
@@ -4390,6 +5297,10 @@ mod native_frame_reuse_tests {
 
 struct Verifier<'a, 'capture> {
     source: CodecContext<'a, 'capture>,
+    #[cfg(feature = "s_incremental")]
+    owner_codec: Option<&'a NativeOwnerCodecMemo>,
+    #[cfg(feature = "s_incremental")]
+    closure_frontier: Option<&'a dyn closure_delta::Frontier>,
     mode: Mode,
     work: Option<WorkBudget>,
     /// 已核过的 (摘要, 上下文)。
@@ -4403,16 +5314,18 @@ struct Verifier<'a, 'capture> {
     elem_memo: WorkMap<(NodeDigest, Flavor), u64>,
     field_memo: WorkMap<(NodeDigest, Flavor), FieldAgg>,
     key_cmp: WorkMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
+    native_seen_permit: Option<capture_allocation::scratch::NativeReservation>,
 }
 
 impl<'a, 'capture> Verifier<'a, 'capture> {
     // #1394 Root 内部实施裁定：具体capture与私有context闭合，不接受dyn成功token。
+    #[cfg(test)]
     fn with_memo_capture(
         source: &'a mut CaptureReader<'capture>,
         mode: Mode,
         memo: AuditMemo,
     ) -> Self {
-        Self::with_context(CodecContext::Capture(source.0), mode, memo)
+        Self::with_context(CodecContext::Capture(source.0, None), mode, memo)
     }
     #[cfg(test)]
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
@@ -4428,6 +5341,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         };
         Self {
             source,
+            #[cfg(feature = "s_incremental")]
+            owner_codec: None,
+            #[cfg(feature = "s_incremental")]
+            closure_frontier: None,
             mode,
             work: memo.budget,
             seen: memo.seen,
@@ -4438,6 +5355,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             elem_memo: memo.elem_memo,
             field_memo: memo.field_memo,
             key_cmp: memo.key_cmp,
+            native_seen_permit: memo.native_seen_permit,
         }
     }
     fn into_memo(self) -> AuditMemo {
@@ -4451,6 +5369,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             elem_memo: self.elem_memo,
             field_memo: self.field_memo,
             key_cmp: self.key_cmp,
+            native_seen_permit: self.native_seen_permit,
         }
     }
 
@@ -4467,7 +5386,31 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         Ok(got)
     }
 
+    fn remember_verified(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        #[cfg(feature = "s_incremental")]
+        if let Some(frontier) = self.closure_frontier {
+            if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
+                return Ok(());
+            }
+        }
+        self.seen.insert((digest, flavor))?;
+        Ok(())
+    }
+
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        #[cfg(feature = "s_incremental")]
+        if let Some(frontier) = self.closure_frontier {
+            if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
+                return Ok(());
+            }
+        }
+        #[cfg(feature = "s_incremental")]
+        if self
+            .owner_codec
+            .is_some_and(|prior| prior.seen.contains_key(&(digest, flavor)))
+        {
+            return Ok(());
+        }
         if self.pushed.insert((digest, flavor))? {
             self.todo.push((digest, flavor))?;
         }
@@ -4504,6 +5447,14 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter { digest, utf8, num } => {
+                    #[cfg(feature = "s_incremental")]
+                    if let Some(agg) = self
+                        .owner_codec
+                        .and_then(|p| p.bytes.get(&(digest, utf8, num)))
+                    {
+                        aggs.push(*agg)?;
+                        continue;
+                    }
                     if let Some(agg) = self.bytes_memo.get(&(digest, utf8, num)) {
                         aggs.push(*agg)?;
                         continue;
@@ -4659,6 +5610,14 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
+                    #[cfg(feature = "s_incremental")]
+                    if let Some(count) = self
+                        .owner_codec
+                        .and_then(|p| p.elems.get(&(digest, flavor)))
+                    {
+                        counts.push(*count)?;
+                        continue;
+                    }
                     if let Some(count) = self.elem_memo.get(&(digest, flavor)) {
                         counts.push(*count)?;
                         continue;
@@ -4760,6 +5719,14 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
+                    #[cfg(feature = "s_incremental")]
+                    if let Some(agg) = self
+                        .owner_codec
+                        .and_then(|p| p.fields.get(&(digest, flavor)))
+                    {
+                        aggs.push(*agg)?;
+                        continue;
+                    }
                     if let Some(agg) = self.field_memo.get(&(digest, flavor)) {
                         aggs.push(*agg)?;
                         continue;
@@ -4799,7 +5766,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let key = digest_at(&fbody, 0);
                             let value = digest_at(&fbody, 32);
                             self.validate_string_node(&key)?;
-                            self.seen.insert((key, Flavor::Value))?;
+                            self.remember_verified(key, Flavor::Value)?;
                             self.push_work(value, flavor)?;
                             let agg = FieldAgg {
                                 count: 1,
@@ -4940,6 +5907,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         if a == b {
             return Ok(Ordering::Equal);
         }
+        #[cfg(feature = "s_incremental")]
+        if let Some(ord) = self.owner_codec.and_then(|p| p.key_cmp.get(&(*a, *b))) {
+            return Ok(*ord);
+        }
         if let Some(ord) = self.key_cmp.get(&(*a, *b)) {
             return Ok(*ord);
         }
@@ -5056,6 +6027,14 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         &mut self,
         reference: RefView<'_>,
     ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
+        let header = self.verify_refview_header(reference)?;
+        self.run(&header.0)?;
+        Ok(header)
+    }
+    fn verify_refview_header(
+        &mut self,
+        reference: RefView<'_>,
+    ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
         let digest = reference.digest()?;
         let (t, body) = self.read_node(&digest)?;
         let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
@@ -5080,7 +6059,6 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 ),
             ));
         }
-        self.run(&digest)?;
         Ok((digest, kind, extent))
     }
 
@@ -5201,6 +6179,26 @@ fn content_ref_ctx(
     source: &mut CodecContext<'_, '_>,
     root: &str,
 ) -> Result<ContentRef, CodecError> {
+    if matches!(source.work_budget(), Some(WorkBudget::Scratch(_))) {
+        return Err(CodecError::scratch(
+            capture_allocation::scratch::ScratchFailure::Ledger,
+        ));
+    }
+    let (reference, permit) = content_ref_reserved(source, root)?;
+    debug_assert!(permit.is_none());
+    Ok(reference)
+}
+// 同一根解析/真实读取/头核验核；Native adapter 直接接原准入 token。
+fn content_ref_reserved(
+    source: &mut CodecContext<'_, '_>,
+    root: &str,
+) -> Result<
+    (
+        ContentRef,
+        Option<capture_allocation::scratch::NativeReservation>,
+    ),
+    CodecError,
+> {
     let digest = parse_root(root)?;
     let (kind, extent) = path::reference_header(source, &digest)?;
     let permit = source.reserve_native(CONTENT_FORMAT.len() + root.len())?;
@@ -5210,10 +6208,7 @@ fn content_ref_ctx(
         kind,
         extent,
     };
-    if let Some(permit) = permit {
-        permit.retain();
-    }
-    Ok(reference)
+    Ok((reference, permit))
 }
 
 /// 严格核验通用公开逻辑值：`ContentRef` 四字段逐项对真实节点，且全闭包通过。
@@ -6998,6 +7993,49 @@ pub fn render_refview(
     render_refview_ctx(CodecContext::Source(source), r, out)
 }
 
+/// 仅重核每个根的声明与真实帧。调用方必须已在同一不可变读集核过完整闭包。
+#[doc(hidden)]
+pub fn audit_verify_refview_headers<'a>(
+    source: &mut dyn NodeSource,
+    refs: impl IntoIterator<Item = RefView<'a>>,
+) -> Result<(), CodecError> {
+    let mut verifier = Verifier::new(source, Mode::Template);
+    for reference in refs {
+        let result = verifier.verify_refview_header(reference);
+        if let Some(work) = &verifier.work {
+            work.observe(&result);
+        }
+        result?;
+    }
+    Ok(())
+}
+
+/// 已覆盖子根必须在同一不可变读集以 Public 完整核验成功。
+/// 只复用 Value 闭包，不把 Public 证明转作 JsonInner 或 Template 证明。
+#[doc(hidden)]
+pub fn audit_verify_public_with_verified_subroots<'a, 'b>(
+    source: &mut dyn NodeSource,
+    refs: impl IntoIterator<Item = RefView<'a>>,
+    verified: impl IntoIterator<Item = RefView<'b>>,
+) -> Result<(), CodecError> {
+    let mut verifier = Verifier::new(source, Mode::Public);
+    for reference in verified {
+        let (digest, kind, _) = verifier.verify_refview_header(reference)?;
+        if kind == Kind::TemplateBatch {
+            return Err(CodecError::new(
+                code::TEMPLATE_PLACEHOLDER,
+                "Public覆盖不能包含模板占位",
+            ));
+        }
+        verifier.seen.insert((digest, Flavor::Value))?;
+        verifier.pushed.insert((digest, Flavor::Value))?;
+    }
+    for reference in refs {
+        verifier.verify_refview(reference)?;
+    }
+    Ok(())
+}
+
 #[doc(hidden)]
 pub fn audit_verify_many_refview<'a>(
     source: &mut dyn NodeSource,
@@ -7118,7 +8156,7 @@ mod sha256_backend_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod request_original_tuple_tests {
     use super::*;
     #[test]
@@ -7126,7 +8164,7 @@ mod request_original_tuple_tests {
         let mut nodes = MemoryNodes::new();
         nodes.nodes.insert([1; 32], (7, vec![1, 2, 3]));
         let original = AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         assert!(original
             .exact_original_tuples_equal(&AuditCapture::new(nodes.clone()))
@@ -7169,11 +8207,14 @@ mod r6_codec_memo_tests {
             panic!("正常生命周期不应损坏账本");
         }
 
-        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
             self.0.fetch_add(n, Ordering::SeqCst);
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(&self, n: usize, _: ScratchCharge, origin: u64) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             assert!(self.0.fetch_sub(n, Ordering::SeqCst) >= n);
             Ok(())
         }
@@ -7224,5 +8265,1248 @@ mod r6_codec_memo_tests {
             })
             .unwrap();
         assert_eq!(parent.0.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod native_owner_codec_bridge_tests {
+    use super::*;
+    use capture_allocation::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError, WorkScope,
+    };
+    use std::sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    };
+
+    struct Parent {
+        limit: usize,
+        live: AtomicUsize,
+        layout: AtomicUsize,
+        native: AtomicUsize,
+        native_limit: AtomicUsize,
+        peak: AtomicUsize,
+        failed: AtomicBool,
+    }
+    impl Parent {
+        fn new(limit: usize, retained: usize) -> Arc<Self> {
+            Arc::new(Self {
+                limit,
+                live: AtomicUsize::new(retained),
+                layout: AtomicUsize::new(0),
+                native: AtomicUsize::new(retained),
+                native_limit: AtomicUsize::new(usize::MAX),
+                peak: AtomicUsize::new(retained),
+                failed: AtomicBool::new(false),
+            })
+        }
+    }
+    impl ScratchParent for Parent {
+        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
+            if let ScratchCharge::Native = kind {
+                if self
+                    .native
+                    .load(Ordering::SeqCst)
+                    .checked_add(n)
+                    .is_none_or(|total| total > self.native_limit.load(Ordering::SeqCst))
+                {
+                    return Err(ScratchFailure::Budget);
+                }
+            }
+            let previous = self
+                .live
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |old| {
+                    old.checked_add(n).filter(|next| *next <= self.limit)
+                })
+                .map_err(|_| ScratchFailure::Budget)?;
+            self.peak.fetch_max(previous + n, Ordering::SeqCst);
+            match kind {
+                ScratchCharge::Layout => {
+                    self.layout.fetch_add(n, Ordering::SeqCst);
+                }
+                ScratchCharge::Native => {
+                    self.native.fetch_add(n, Ordering::SeqCst);
+                }
+                ScratchCharge::Metadata => {}
+            }
+            Ok(0)
+        }
+        fn release(
+            &self,
+            n: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
+            assert!(self.live.fetch_sub(n, Ordering::SeqCst) >= n);
+            match kind {
+                ScratchCharge::Layout => {
+                    assert!(self.layout.fetch_sub(n, Ordering::SeqCst) >= n);
+                }
+                ScratchCharge::Native => {
+                    assert!(self.native.fetch_sub(n, Ordering::SeqCst) >= n);
+                }
+                ScratchCharge::Metadata => {}
+            }
+            Ok(())
+        }
+        fn health(&self) -> Result<(), ScratchFailure> {
+            if self.failed.load(Ordering::SeqCst) {
+                Err(ScratchFailure::Ledger)
+            } else {
+                Ok(())
+            }
+        }
+        fn invalidate(&self) {
+            self.failed.store(true, Ordering::SeqCst);
+        }
+    }
+    fn native(nodes: MemoryNodes) -> AuditCapture {
+        AuditCapture::new(nodes)
+            .enable_native_frame_reuse()
+            .unwrap()
+    }
+    fn run<T>(
+        parent: &Arc<Parent>,
+        op: impl FnOnce(&WorkScope) -> Result<T, CodecError>,
+    ) -> Result<T, WorkError<CodecError>> {
+        CodecWork::new(parent.clone(), parent.limit)
+            .unwrap()
+            .run(op)
+    }
+    fn verify(
+        capture: &AuditCapture,
+        root: &ContentRef,
+        mode: Mode,
+    ) -> Result<(), WorkError<CodecError>> {
+        let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes());
+        run(&parent, |work| {
+            capture.verify_owner_refview(root.into(), mode, work)
+        })
+    }
+    fn append(capture: &mut AuditCapture, nodes: MemoryNodes) {
+        let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes());
+        run(&parent, |work| {
+            // #1488 P2-A：活动域追加的正文须已物理计费，来源合同项才指得到它。
+            for (digest, (tag, body)) in nodes.nodes {
+                let mut codec = CodecVec::default();
+                codec.try_reserve_native(work, body.len())?;
+                for byte in body {
+                    codec.try_push_native(byte, work)?;
+                }
+                assert!(capture.append_original_codec_for_owner(
+                    digest,
+                    tag,
+                    codec,
+                    usize::MAX,
+                    work
+                )?);
+            }
+            Ok(())
+        })
+        .unwrap();
+    }
+    fn operation_error(result: Result<(), WorkError<CodecError>>) -> CodecError {
+        match result {
+            Err(WorkError::Operation(error)) => error,
+            other => panic!("expected codec semantic rejection, got {other:?}"),
+        }
+    }
+    fn assert_plain_proofs(capture: &AuditCapture) {
+        fn tree<K: Ord + Copy + std::fmt::Debug, V: Copy>(t: &OwnerProofTree<K, V>) {
+            fn scan<K: Ord + Copy + std::fmt::Debug, V: Copy>(
+                link: &OwnerProofLink<K, V>,
+                low: Option<K>,
+                high: Option<K>,
+            ) -> (usize, usize, usize) {
+                let Some(node) = link else {
+                    return (0, 0, 0);
+                };
+                assert!(low.is_none_or(|key| key < node.key));
+                assert!(high.is_none_or(|key| node.key < key));
+                let (lh, ln, lb) = scan(&node.left, low, Some(node.key));
+                let (rh, rn, rb) = scan(&node.right, Some(node.key), high);
+                assert!(lh.abs_diff(rh) <= 1);
+                assert_eq!(node.height, lh.max(rh) + 1);
+                (
+                    node.height,
+                    ln + rn + 1,
+                    lb + rb + std::mem::size_of_val(&**node),
+                )
+            }
+            let (_, count, bytes) = scan(&t.root, None, None);
+            assert_eq!(count, t.len());
+            assert_eq!(bytes, t.retained_layout_bytes());
+            assert_eq!(
+                bytes,
+                count * std::alloc::Layout::new::<OwnerProofNode<K, V>>().size()
+            );
+        }
+        let proofs = capture.owner_codec.borrow();
+        for memo in [&proofs.public, &proofs.template] {
+            tree(&memo.seen);
+            tree(&memo.bytes);
+            tree(&memo.elems);
+            tree(&memo.fields);
+            tree(&memo.key_cmp);
+        }
+    }
+
+    #[test]
+    fn b2_owner_codec_cross_scope_preserves_only_success_and_charges_current_parent() {
+        let mut nodes = MemoryNodes::new();
+        let first = write_value(
+            &mut nodes,
+            &Value::Object(vec![
+                (
+                    "a".into(),
+                    Value::Array((0..64).map(|i| Value::string(format!("v-{i}"))).collect()),
+                ),
+                ("z".into(), Value::Null),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let capture = native(nodes);
+        let old_parent = Parent::new(32 << 20, 0);
+        run(&old_parent, |work| {
+            capture.verify_owner_refview((&first).into(), Mode::Public, work)?;
+            assert_eq!(work.snapshot().live, 0, "scratch 已析构");
+            Ok(())
+        })
+        .unwrap();
+        let retained = capture.owner_codec_retained_bytes();
+        assert!(retained > 0);
+        assert_plain_proofs(&capture);
+        assert_eq!(old_parent.layout.load(Ordering::SeqCst), 0);
+        // P1c（control/1488-budget-full-chain-counterexample-fix-v2.md:9，959d860065）：证明节点实际载荷
+        // 持原父许可到真实析构，不再 retain 丢许可；旧 scope 已析构，父引用只由这些许可持有（末尾 drop 核归零）。
+        // 0088 P3-2：精确计数（探针 close-0085 log 20261021-212331-46ca88b909：strong=268，
+        // 即本地 1 + 证明节点许可 267），固定输入下确定。
+        assert_eq!(
+            Arc::strong_count(&old_parent),
+            268,
+            "证明许可持原父账到真实析构"
+        );
+        let old_charge = old_parent.live.load(Ordering::SeqCst);
+        assert!(old_charge >= retained, "Native 旧许可保守留父账");
+        let capture = capture.finish_owner_step().unwrap();
+        assert_eq!(capture.owner_codec_retained_bytes(), retained);
+        let current_parent = Parent::new(32 << 20, retained);
+        run(&current_parent, |work| {
+            capture.verify_owner_refview((&first).into(), Mode::Public, work)?;
+            assert!(work.snapshot().attempts > 0, "新根 header scratch 记本轮账");
+            assert_eq!(work.snapshot().live, 0);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(capture.reads.get(), 1, "warm 只重核真实根 header");
+        assert_eq!(capture.owner_codec_retained_bytes(), retained);
+        assert_eq!(current_parent.live.load(Ordering::SeqCst), retained);
+        assert!(
+            current_parent.peak.load(Ordering::SeqCst) > retained + CodecWork::metadata_bytes()
+        );
+        assert_eq!(old_parent.live.load(Ordering::SeqCst), old_charge);
+        assert_eq!(Arc::strong_count(&current_parent), 1);
+        drop(capture);
+        assert_eq!(
+            old_parent.live.load(Ordering::SeqCst),
+            0,
+            "真实析构全额还原父账"
+        );
+        assert_eq!(Arc::strong_count(&old_parent), 1, "析构后不留旧父引用");
+    }
+
+    #[test]
+    fn b2_owner_codec_append_delta_skips_successful_sequence_subtrees() {
+        let mut nodes = MemoryNodes::new();
+        let values: Vec<Value> = (0..128)
+            .map(|i| Value::string(format!("member-{i}")))
+            .collect();
+        let root = write_value(&mut nodes, &Value::Array(values.clone())).unwrap();
+        let mut capture = native(nodes);
+        verify(&capture, &root.content_ref(), Mode::Public).unwrap();
+        let cold_reads = capture.reads.get();
+        let before = capture.owner_codec.borrow().public.seen.len();
+        capture = capture.finish_owner_step().unwrap();
+        let mut additions = MemoryNodes::new();
+        let mut next = values;
+        next.push(Value::string("member-next"));
+        let next_root = write_value(&mut additions, &Value::Array(next))
+            .unwrap()
+            .content_ref();
+        append(&mut capture, additions);
+        verify(&capture, &next_root, Mode::Public).unwrap();
+        assert_eq!(
+            capture.owner_codec.borrow().public.seen.len() - before,
+            2,
+            "只新增数组根和新字符串"
+        );
+        assert!(
+            capture.reads.get() <= 12,
+            "旧 128 元素序列整体证明应跳过，实际 {}",
+            capture.reads.get()
+        );
+        assert!(cold_reads > capture.reads.get() * 10);
+        assert_plain_proofs(&capture);
+    }
+
+    #[test]
+    fn b2_owner_codec_failed_partial_closure_never_becomes_reusable() {
+        let mut nodes = MemoryNodes::new();
+        let malformed = frame(tag::BOOL_TRUE, b"invalid-body");
+        nodes
+            .nodes
+            .insert(malformed, (tag::BOOL_TRUE, b"invalid-body".to_vec()));
+        let bad = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::Edge(malformed), Value::Null]),
+        )
+        .unwrap()
+        .content_ref();
+        let good = write_value(&mut nodes, &Value::Null).unwrap().content_ref();
+        let capture = native(nodes);
+        let error = operation_error(verify(&capture, &bad, Mode::Public));
+        assert_eq!(error.code(), code::BODY_SHAPE);
+        assert_eq!(capture.owner_codec_retained_bytes(), 0);
+        assert!(capture.owner_codec.borrow().revoked);
+        assert_eq!(
+            operation_error(verify(&capture, &good, Mode::Public)).code(),
+            code::SOURCE
+        );
+        let capture = capture.into_originals_only().unwrap();
+        assert_eq!(
+            operation_error(verify(&capture, &good, Mode::Public)).code(),
+            code::SOURCE,
+            "冷清理不得把失败 owner 洗回有效"
+        );
+        // 原 full verify 保持独立判据；它的成功不能重新签发 owner 桥。
+        capture.verify(&good, Mode::Public).unwrap();
+        assert_eq!(
+            operation_error(verify(&capture, &good, Mode::Public)).code(),
+            code::SOURCE
+        );
+    }
+
+    #[test]
+    fn b2_owner_codec_same_digest_different_body_revokes_existing_success() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &Value::Null).unwrap();
+        let mut capture = native(nodes);
+        verify(&capture, &root.content_ref(), Mode::Public).unwrap();
+        let error = capture
+            .append_original_for_owner(root.digest, tag::NULL, vec![0], usize::MAX, None)
+            .unwrap_err();
+        assert_eq!(error.code(), code::NODE_DIGEST);
+        assert_eq!(capture.owner_codec_retained_bytes(), 0);
+        assert_eq!(
+            operation_error(verify(&capture, &root.content_ref(), Mode::Public)).code(),
+            code::SOURCE
+        );
+    }
+
+    #[test]
+    fn b2_owner_codec_mode_and_json_role_do_not_share_success() {
+        let mut nodes = MemoryNodes::new();
+        let placeholder = write_template(&mut nodes, &Value::BatchSelf)
+            .unwrap()
+            .content_ref();
+        let capture = native(nodes.clone());
+        verify(&capture, &placeholder, Mode::Template).unwrap();
+        let actual = operation_error(verify(&capture, &placeholder, Mode::Public));
+        let expected = AuditCapture::new(nodes)
+            .verify(&placeholder, Mode::Public)
+            .unwrap_err();
+        assert_eq!(actual, expected);
+
+        let mut nodes = MemoryNodes::new();
+        let inner = write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null))).unwrap();
+        let outer_digest = frame(tag::JSON_TEXT, &inner.digest);
+        nodes
+            .nodes
+            .insert(outer_digest, (tag::JSON_TEXT, inner.digest.to_vec()));
+        let outer = ContentRef::new(Kind::JsonText, &outer_digest, None);
+        let capture = native(nodes.clone());
+        verify(&capture, &inner.content_ref(), Mode::Public).unwrap();
+        let actual = operation_error(verify(&capture, &outer, Mode::Public));
+        let expected = AuditCapture::new(nodes)
+            .verify(&outer, Mode::Public)
+            .unwrap_err();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.code(), code::JSON_TEXT_INTERNAL_KIND);
+    }
+
+    #[test]
+    fn b2_owner_codec_sequence_and_field_proofs_keep_json_role() {
+        for field_sequence in [false, true] {
+            let mut nodes = MemoryNodes::new();
+            let inner =
+                write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null))).unwrap();
+            let root = write_value(
+                &mut nodes,
+                &if field_sequence {
+                    Value::Object(vec![("key".into(), Value::Edge(inner.digest))])
+                } else {
+                    Value::Array(vec![Value::Edge(inner.digest)])
+                },
+            )
+            .unwrap();
+            let wrapped_digest = frame(tag::JSON_TEXT, &root.digest);
+            nodes
+                .nodes
+                .insert(wrapped_digest, (tag::JSON_TEXT, root.digest.to_vec()));
+            let wrapped = ContentRef::new(Kind::JsonText, &wrapped_digest, None);
+            let capture = native(nodes.clone());
+            verify(&capture, &root.content_ref(), Mode::Public).unwrap();
+            let actual = operation_error(verify(&capture, &wrapped, Mode::Public));
+            let expected = AuditCapture::new(nodes)
+                .verify(&wrapped, Mode::Public)
+                .unwrap_err();
+            assert_eq!(actual, expected);
+            assert_eq!(actual.code(), code::JSON_TEXT_INTERNAL_KIND);
+        }
+    }
+
+    #[test]
+    fn b2_owner_codec_full_verify_and_value_root_seed_do_not_mint_owner_proof() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &Value::Array(vec![Value::string("x"); 32]))
+            .unwrap()
+            .content_ref();
+        let old = native(nodes.clone());
+        old.verify(&root, Mode::Public).unwrap();
+        assert_eq!(old.owner_codec_retained_bytes(), 0);
+        let prior = old.into_originals_and_codec_roots().unwrap();
+        let fresh = native(nodes);
+        assert_eq!(
+            fresh
+                .seed_codec_roots_from_native_capture_for_testonly(&prior)
+                .unwrap(),
+            1
+        );
+        assert_eq!(fresh.owner_codec_retained_bytes(), 0);
+        verify(&fresh, &root, Mode::Public).unwrap();
+        assert!(
+            fresh.reads.get() > 1,
+            "旧 Value 根证书不得进入本次 owner 子树资格"
+        );
+        assert!(fresh.owner_codec_retained_bytes() > 0);
+    }
+
+    #[test]
+    fn b2_owner_codec_checks_headers_and_revision_even_on_warm_success() {
+        for fault in 0..4 {
+            let mut nodes = MemoryNodes::new();
+            let mut root = write_value(&mut nodes, &Value::Array(vec![Value::Null]))
+                .unwrap()
+                .content_ref();
+            let capture = native(nodes.clone());
+            verify(&capture, &root, Mode::Public).unwrap();
+            match fault {
+                0 => root.kind = Kind::Object,
+                1 => root.extent = Some(999),
+                2 => root.format = "other-format".into(),
+                _ => capture.owner_codec.borrow_mut().predicate_revision += 1,
+            }
+            let actual = operation_error(verify(&capture, &root, Mode::Public));
+            if fault == 3 {
+                assert_eq!(actual.code(), code::SOURCE);
+            } else {
+                assert_eq!(
+                    actual,
+                    AuditCapture::new(nodes)
+                        .verify(&root, Mode::Public)
+                        .unwrap_err()
+                );
+            }
+            assert_eq!(capture.owner_codec_retained_bytes(), 0);
+        }
+    }
+
+    #[test]
+    fn b2_owner_codec_old_new_and_scratch_share_total_cap_before_growth() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &Value::Array(vec![Value::Null; 16]))
+            .unwrap()
+            .content_ref();
+        let capture = native(nodes);
+        verify(&capture, &root, Mode::Public).unwrap();
+        let retained = capture.owner_codec_retained_bytes();
+        // 足够已存证明+scope头，但没有新 header read_digests 的一个真实 Layout。
+        let parent = Parent::new(retained + CodecWork::metadata_bytes(), retained);
+        let result = run(&parent, |work| {
+            capture.verify_owner_refview((&root).into(), Mode::Public, work)
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(
+            parent.peak.load(Ordering::SeqCst),
+            retained + CodecWork::metadata_bytes()
+        );
+        assert_eq!(parent.layout.load(Ordering::SeqCst), 0);
+        assert_eq!(capture.owner_codec_retained_bytes(), 0);
+        assert!(capture.owner_codec.borrow().revoked);
+    }
+
+    #[test]
+    fn b2_owner_codec_parent_invalidation_rejects_warm_hit_before_read() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &Value::Null).unwrap().content_ref();
+        let capture = native(nodes);
+        verify(&capture, &root, Mode::Public).unwrap();
+        let reads = capture.reads.get();
+        let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes());
+        let work = CodecWork::new(parent.clone(), parent.limit).unwrap();
+        parent.failed.store(true, Ordering::SeqCst);
+        let result =
+            work.run(|scope| capture.verify_owner_refview((&root).into(), Mode::Public, scope));
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Ledger))
+        ));
+        assert_eq!(capture.reads.get(), reads);
+        assert!(capture.owner_codec.borrow().revoked);
+    }
+
+    fn tree_snapshot(tree: &OwnerProofTree<u64, u64>) -> BTreeMap<u64, usize> {
+        fn scan(
+            link: &OwnerProofLink<u64, u64>,
+            low: Option<u64>,
+            high: Option<u64>,
+            out: &mut BTreeMap<u64, usize>,
+        ) -> usize {
+            let Some(node) = link else {
+                return 0;
+            };
+            assert!(low.is_none_or(|key| key < node.key));
+            assert!(high.is_none_or(|key| node.key < key));
+            assert_eq!(node.value, node.key);
+            assert!(out
+                .insert(
+                    node.key,
+                    (&**node as *const OwnerProofNode<u64, u64>) as usize
+                )
+                .is_none());
+            let left = scan(&node.left, low, Some(node.key), out);
+            let right = scan(&node.right, Some(node.key), high, out);
+            assert!(left.abs_diff(right) <= 1);
+            assert_eq!(node.height, left.max(right) + 1);
+            node.height
+        }
+        let mut out = BTreeMap::new();
+        let height = scan(&tree.root, None, None, &mut out);
+        assert_eq!(out.len(), tree.len());
+        assert_eq!(
+            tree.retained_layout_bytes(),
+            out.len() * std::alloc::Layout::new::<OwnerProofNode<u64, u64>>().size()
+        );
+        let bits = usize::BITS as usize - (tree.len() + 1).leading_zeros() as usize;
+        assert!(height <= 2 * bits);
+        out
+    }
+
+    #[test]
+    fn b2_owner_codec_avl_fixed_delta_keeps_old_addresses_and_logarithmic_paths() {
+        for order in 0..3 {
+            let parent = Parent::new(32 << 20, 0);
+            let mut tree = OwnerProofTree::<u64, u64>::default();
+            run(&parent, |work| {
+                for index in 0..512u64 {
+                    let key = match order {
+                        0 => index,
+                        1 => 511 - index,
+                        _ => {
+                            if index % 2 == 0 {
+                                index / 2
+                            } else {
+                                511 - index / 2
+                            }
+                        }
+                    };
+                    let old = tree_snapshot(&tree);
+                    let height = OwnerProofNode::height(&tree.root);
+                    let before_native = parent.native.load(Ordering::SeqCst);
+                    OWNER_CODEC_INDEX_TRACE.with(|p| p.set((0, 0, 0)));
+                    tree.insert(key, key, work)?;
+                    let (compares, rotates, allocations) =
+                        OWNER_CODEC_INDEX_TRACE.with(|p| p.get());
+                    assert!(
+                        compares <= height * 2,
+                        "two index paths only: {compares} vs {height}"
+                    );
+                    assert!(rotates <= 2, "AVL insertion needs at most double rotation");
+                    assert_eq!(allocations, 1);
+                    assert_eq!(
+                        parent.native.load(Ordering::SeqCst) - before_native,
+                        std::alloc::Layout::new::<OwnerProofNode<u64, u64>>().size()
+                    );
+                    let current = tree_snapshot(&tree);
+                    for (old_key, address) in old {
+                        assert_eq!(current[&old_key], address, "old node must not migrate");
+                    }
+                    OWNER_CODEC_INDEX_TRACE.with(|p| p.set((0, 0, 0)));
+                    assert_eq!(tree.get(&key), Some(&key));
+                    let (reads, rotates, allocations) = OWNER_CODEC_INDEX_TRACE.with(|p| p.get());
+                    assert!(reads <= OwnerProofNode::height(&tree.root));
+                    assert_eq!((rotates, allocations), (0, 0));
+                }
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(parent.layout.load(Ordering::SeqCst), 0);
+            assert_eq!(
+                parent.live.load(Ordering::SeqCst),
+                tree.retained_layout_bytes()
+            );
+            // P1c：每个节点载荷持一张原父许可到真实析构。
+            assert_eq!(Arc::strong_count(&parent), 1 + tree.len());
+            drop(tree);
+            assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+            assert_eq!(Arc::strong_count(&parent), 1);
+        }
+    }
+
+    #[test]
+    fn b2_owner_codec_avl_duplicate_and_one_byte_refusal_preserve_original_tree() {
+        let mut tree = OwnerProofTree::<u64, u64>::default();
+        let parent = Parent::new(32 << 20, 0);
+        run(&parent, |work| {
+            for key in 0..64 {
+                tree.insert(key, key, work)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+        let old = tree_snapshot(&tree);
+        let retained = tree.retained_layout_bytes();
+        let tight = Parent::new(retained + CodecWork::metadata_bytes(), retained);
+        OWNER_CODEC_INDEX_TRACE.with(|p| p.set((0, 0, 0)));
+        run(&tight, |work| tree.insert(32, 999, work)).unwrap();
+        assert_eq!(OWNER_CODEC_INDEX_TRACE.with(|p| p.get()).2, 0);
+        assert_eq!(
+            tree.get(&32),
+            Some(&32),
+            "duplicate must not replace proven value"
+        );
+        assert_eq!(tree_snapshot(&tree), old);
+        assert_eq!(tight.live.load(Ordering::SeqCst), retained);
+        let layout = std::alloc::Layout::new::<OwnerProofNode<u64, u64>>().size();
+        let refused = Parent::new(
+            retained + CodecWork::metadata_bytes() + layout - 1,
+            retained,
+        );
+        OWNER_CODEC_INDEX_TRACE.with(|p| p.set((0, 0, 0)));
+        let result = run(&refused, |work| tree.insert(64, 64, work));
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(OWNER_CODEC_INDEX_TRACE.with(|p| p.get()).2, 0);
+        assert_eq!(tree_snapshot(&tree), old);
+        assert_eq!(refused.live.load(Ordering::SeqCst), retained);
+        assert_eq!(tree.retained_layout_bytes(), retained);
+    }
+
+    #[test]
+    fn b2_owner_codec_successful_verify_then_partial_promotion_failure_revokes_all() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::Null, Value::Bool(true)]),
+        )
+        .unwrap()
+        .content_ref();
+        let capture = native(nodes);
+        let parent = Parent::new(32 << 20, 0);
+        let one_node = std::alloc::Layout::new::<OwnerProofNode<(NodeDigest, Flavor), ()>>().size();
+        parent.native_limit.store(one_node, Ordering::SeqCst);
+        OWNER_CODEC_INDEX_TRACE.with(|p| p.set((0, 0, 0)));
+        let result = run(&parent, |work| {
+            capture.verify_owner_refview((&root).into(), Mode::Public, work)
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(
+            OWNER_CODEC_INDEX_TRACE.with(|p| p.get()).2,
+            1,
+            "first success certificate admitted before injected second-node refusal"
+        );
+        assert_eq!(capture.owner_codec_retained_bytes(), 0);
+        assert!(capture.owner_codec.borrow().revoked);
+        assert_eq!(parent.layout.load(Ordering::SeqCst), 0);
+        // P1c：撤销即真实析构已成功节点，许可随之还原父账（不再 retain 留账到父生命周期结束）。
+        assert!(parent.peak.load(Ordering::SeqCst) >= one_node);
+        assert_eq!(
+            parent.live.load(Ordering::SeqCst),
+            0,
+            "revoked Native proof releases its permit on real drop"
+        );
+        assert_eq!(Arc::strong_count(&parent), 1);
+        assert_eq!(
+            operation_error(verify(&capture, &root, Mode::Public)).code(),
+            code::SOURCE
+        );
+    }
+
+    #[test]
+    fn b2_owner_codec_avl_order_equality_matches_all_context_components() {
+        let utf8 = [
+            Utf8State::Empty,
+            Utf8State::Pending {
+                len: 1,
+                b: [0xc2, 0, 0],
+            },
+            Utf8State::Pending {
+                len: 2,
+                b: [0xe0, 0xa0, 0],
+            },
+            Utf8State::Pending {
+                len: 3,
+                b: [0xf0, 0x90, 0x80],
+            },
+        ];
+        let numeric = [
+            NumState::Start,
+            NumState::Sign,
+            NumState::Zero,
+            NumState::Int,
+            NumState::DotZero,
+            NumState::DotInt,
+            NumState::Frac,
+            NumState::Exp,
+            NumState::ExpSign,
+            NumState::ExpDigits,
+            NumState::Dead,
+        ];
+        let mut keys: Vec<(NodeDigest, Utf8State, NumState)> = Vec::new();
+        for digest in [[0; 32], [1; 32], [255; 32]] {
+            for u in utf8 {
+                for n in numeric {
+                    keys.push((digest, u, n));
+                }
+            }
+        }
+        for a in &keys {
+            for b in &keys {
+                assert_eq!(a.cmp(b) == std::cmp::Ordering::Equal, a == b);
+            }
+        }
+        assert_ne!(
+            ([0; 32], Flavor::Value).cmp(&([0; 32], Flavor::JsonInner)),
+            std::cmp::Ordering::Equal
+        );
+        let parent = Parent::new(32 << 20, 0);
+        let mut tree = OwnerProofTree::default();
+        run(&parent, |work| {
+            for (i, key) in keys.iter().copied().enumerate() {
+                tree.insert(key, i, work)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(tree.len(), keys.len());
+        for (i, key) in keys.iter().enumerate() {
+            assert_eq!(tree.get(key), Some(&i));
+        }
+    }
+    fn codec_body(parent: &Arc<Parent>, bytes: &[u8]) -> CodecVec<u8> {
+        run(parent, |work| {
+            let mut body = CodecVec::default();
+            body.try_reserve_native(work, bytes.len())?;
+            for byte in bytes {
+                body.try_push_native(*byte, work)?;
+            }
+            Ok(body)
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn codec_original_moves_pointer_capacity_and_releases_all_permits_on_drop() {
+        let parent = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        // Creation scope is closed; existing owner may move through a new live same-parent scope.
+        let body = codec_body(&parent, b"held");
+        let pointer = body.as_ptr();
+        let capacity = body.capacity();
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        assert_eq!(parent.live.load(Ordering::SeqCst), capacity);
+        run(&parent, |work| {
+            assert!(capture.append_original_codec_for_owner(
+                digest,
+                tag::BYTES_CHUNK,
+                body,
+                usize::MAX,
+                work,
+            )?);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(capture.original(&digest).unwrap().1.as_ptr(), pointer);
+        let CaptureNodes::Native(nodes) = &capture.nodes else {
+            unreachable!()
+        };
+        assert_eq!(nodes.nodes[&digest].body.capacity(), capacity);
+        let retained_before_drop = parent.live.load(Ordering::SeqCst);
+        assert!(
+            retained_before_drop > capacity,
+            "old semantic source/index retain remains separate"
+        );
+        drop(capture);
+        // P1c：正文与索引/来源许可都由实际载荷持有，capture 真实析构全部还原。
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn codec_original_duplicate_releases_only_new_owner_and_preserves_old_bytes() {
+        let parent = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        let body = codec_body(&parent, b"same");
+        let pointer = body.as_ptr();
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        run(&parent, |work| {
+            capture.append_original_codec_for_owner(
+                digest,
+                tag::BYTES_CHUNK,
+                body,
+                usize::MAX,
+                work,
+            )
+        })
+        .unwrap();
+        let baseline = parent.live.load(Ordering::SeqCst);
+        let duplicate = codec_body(&parent, b"same");
+        run(&parent, |work| {
+            capture.append_original_codec_for_owner(
+                digest,
+                tag::BYTES_CHUNK,
+                duplicate,
+                usize::MAX,
+                work,
+            )
+        })
+        .unwrap();
+        assert_eq!(parent.live.load(Ordering::SeqCst), baseline);
+        assert_eq!(capture.original(&digest).unwrap().1.as_ptr(), pointer);
+        assert!(!capture.owner_codec.borrow().revoked);
+    }
+
+    #[test]
+    fn codec_original_digest_error_releases_body_and_revokes_without_insert() {
+        let parent = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        let body = codec_body(&parent, b"bad digest");
+        let result = run(&parent, |work| {
+            capture
+                .append_original_codec_for_owner([0; 32], tag::BYTES_CHUNK, body, usize::MAX, work)
+                .map(|_| ())
+        });
+        assert_eq!(operation_error(result).code(), code::NODE_DIGEST);
+        assert!(capture.owner_codec.borrow().revoked);
+        assert!(capture.original(&[0; 32]).is_none());
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn codec_original_rejects_unbound_plain_owned_and_non_native_capture() {
+        let parent = Parent::new(32 << 20, 0);
+        let owned_budget = capture_allocation::OwnedBudget::new(1 << 20);
+        let mut owned = CodecVec::new_with_allocation(Some(&owned_budget));
+        owned.try_push(1u8).unwrap();
+        for body in [CodecVec::from_plain(vec![1u8]), CodecVec::default(), owned] {
+            let mut capture = native(MemoryNodes::new());
+            let digest = frame(tag::BYTES_CHUNK, &body);
+            let error = operation_error(run(&parent, |work| {
+                capture
+                    .append_original_codec_for_owner(
+                        digest,
+                        tag::BYTES_CHUNK,
+                        body,
+                        usize::MAX,
+                        work,
+                    )
+                    .map(|_| ())
+            }));
+            assert_eq!(error.code(), code::SOURCE);
+            assert!(capture.owner_codec.borrow().revoked);
+        }
+        assert_eq!(owned_budget.snapshot().live_requested_layout_bytes, 0);
+        let body = codec_body(&parent, b"legacy");
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        let mut capture = AuditCapture::new(MemoryNodes::new());
+        assert_eq!(
+            operation_error(run(&parent, |work| capture
+                .append_original_codec_for_owner(digest, tag::BYTES_CHUNK, body, usize::MAX, work)
+                .map(|_| ())))
+            .code(),
+            code::SOURCE
+        );
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn codec_original_empty_binding_requires_same_parent_and_live_healthy_operation() {
+        let original = Parent::new(32 << 20, 0);
+        let foreign = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        let body = codec_body(&original, b"");
+        assert!(body.is_native_bound());
+        assert!(matches!(
+            run(&foreign, |work| capture.append_original_codec_for_owner(
+                frame(tag::BYTES_CHUNK, b""),
+                tag::BYTES_CHUNK,
+                body,
+                usize::MAX,
+                work,
+            )),
+            Err(WorkError::Resource(ScratchFailure::Ledger))
+        ));
+        assert!(capture.owner_codec.borrow().revoked);
+        assert_eq!(original.live.load(Ordering::SeqCst), 0);
+        let body = codec_body(&original, b"");
+        let mut capture = native(MemoryNodes::new());
+        assert!(matches!(
+            run(&original, |work| {
+                let _ = work.reject(ScratchFailure::Budget);
+                capture.append_original_codec_for_owner(
+                    frame(tag::BYTES_CHUNK, b""),
+                    tag::BYTES_CHUNK,
+                    body,
+                    usize::MAX,
+                    work,
+                )
+            }),
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert!(capture.owner_codec.borrow().revoked);
+        let body = codec_body(&original, b"");
+        let mut capture = native(MemoryNodes::new());
+        run(&original, |work| {
+            capture.append_original_codec_for_owner(
+                frame(tag::BYTES_CHUNK, b""),
+                tag::BYTES_CHUNK,
+                body,
+                usize::MAX,
+                work,
+            )
+        })
+        .unwrap();
+        assert_eq!(
+            capture
+                .original(&frame(tag::BYTES_CHUNK, b""))
+                .unwrap()
+                .1
+                .len(),
+            0
+        );
+    }
+
+    #[test]
+    fn codec_original_sparse_node_move_drops_only_discarded_body_permits() {
+        let parent = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        let keep = codec_body(&parent, b"keep");
+        let _keep_capacity = keep.capacity();
+        let keep_pointer = keep.as_ptr();
+        let keep_digest = frame(tag::BYTES_CHUNK, &keep);
+        let discard = codec_body(&parent, b"discarded");
+        let discard_capacity = discard.capacity();
+        let discard_digest = frame(tag::BYTES_CHUNK, &discard);
+        run(&parent, |work| {
+            capture.append_original_codec_for_owner(
+                keep_digest,
+                tag::BYTES_CHUNK,
+                keep,
+                usize::MAX,
+                work,
+            )?;
+            capture.append_original_codec_for_owner(
+                discard_digest,
+                tag::BYTES_CHUNK,
+                discard,
+                usize::MAX,
+                work,
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let before = parent.live.load(Ordering::SeqCst);
+        // Exercise the sparse collector's actual NativeNode drain/move ownership operation.
+        let CaptureNodes::Native(nodes) = &mut capture.nodes else {
+            unreachable!()
+        };
+        let mut kept = std::collections::HashMap::new();
+        for (digest, node) in nodes.nodes.drain() {
+            if digest == keep_digest {
+                kept.insert(digest, node);
+            }
+        }
+        nodes.nodes = kept;
+        assert_eq!(
+            parent.live.load(Ordering::SeqCst),
+            before - discard_capacity
+        );
+        assert_eq!(
+            capture.original(&keep_digest).unwrap().1.as_ptr(),
+            keep_pointer
+        );
+        assert!(capture.original(&discard_digest).is_none());
+        drop(capture);
+        // P1c：保留正文与索引许可在 capture 真实析构时一并还原。
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn codec_original_old_vec_entry_still_moves_unbound_buffer_without_native_gate() {
+        let mut capture = native(MemoryNodes::new());
+        let body = b"old E path".to_vec();
+        let pointer = body.as_ptr();
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        assert!(capture
+            .append_original_for_owner(digest, tag::BYTES_CHUNK, body, usize::MAX, None)
+            .unwrap());
+        assert_eq!(capture.original(&digest).unwrap().1.as_ptr(), pointer);
+    }
+    #[test]
+    fn codec_original_same_digest_corrupt_old_payload_fails_and_keeps_old_owner() {
+        let parent = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        let original = codec_body(&parent, b"original");
+        let digest = frame(tag::BYTES_CHUNK, &original);
+        run(&parent, |work| {
+            capture.append_original_codec_for_owner(
+                digest,
+                tag::BYTES_CHUNK,
+                original,
+                usize::MAX,
+                work,
+            )
+        })
+        .unwrap();
+        let CaptureNodes::Native(nodes) = &mut capture.nodes else {
+            unreachable!()
+        };
+        nodes.nodes.get_mut(&digest).unwrap().tag = tag::STRING;
+        let baseline = parent.live.load(Ordering::SeqCst);
+        let incoming = codec_body(&parent, b"original");
+        let error = operation_error(run(&parent, |work| {
+            capture
+                .append_original_codec_for_owner(
+                    digest,
+                    tag::BYTES_CHUNK,
+                    incoming,
+                    usize::MAX,
+                    work,
+                )
+                .map(|_| ())
+        }));
+        assert_eq!(error.code(), code::NODE_DIGEST);
+        assert!(capture.owner_codec.borrow().revoked);
+        assert_eq!(parent.live.load(Ordering::SeqCst), baseline);
+        assert_eq!(capture.original(&digest).unwrap().0, tag::STRING);
+    }
+
+    #[test]
+    fn codec_original_index_cap_failure_refunds_incoming_body_and_provisional_charges() {
+        let parent = Parent::new(32 << 20, 0);
+        let mut capture = native(MemoryNodes::new());
+        let body = codec_body(&parent, b"cap failure");
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        let result = run(&parent, |work| {
+            capture.append_original_codec_for_owner(digest, tag::BYTES_CHUNK, body, 0, work)
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Allocation))
+        ));
+        assert!(capture.owner_codec.borrow().revoked);
+        assert!(!capture.contains(&digest));
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn codec_original_allocation_prototype_capture_remains_rejected() {
+        let parent = Parent::new(32 << 20, 0);
+        let budget = capture_allocation::OwnedBudget::new(4096);
+        let slab = capture_allocation::CaptureSlab::new(0, 0, &budget).unwrap();
+        let mut capture = AuditCapture::from_slab_for_allocation_prototype(slab);
+        let body = codec_body(&parent, b"owned capture");
+        let digest = frame(tag::BYTES_CHUNK, &body);
+        assert_eq!(
+            operation_error(run(&parent, |work| capture
+                .append_original_codec_for_owner(digest, tag::BYTES_CHUNK, body, usize::MAX, work)
+                .map(|_| ())))
+            .code(),
+            code::SOURCE
+        );
+        assert!(matches!(
+            &capture.nodes,
+            CaptureNodes::AllocationPrototype(_)
+        ));
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[cfg(all(
+    feature = "s_incremental",
+    any(test, feature = "s_capture_native_testonly")
+))]
+impl CodecError {
+    /// #1488 0072 测试面：不经任何作用域直接构造 scratch 错误，与 SourceClaim 字节不符、
+    /// check_write 域关闭等 Ledger 构造点同一入口（经类型化失败记录）。
+    #[doc(hidden)]
+    pub fn scratch_unscoped_for_test(failure: capture_allocation::scratch::ScratchFailure) -> Self {
+        Self::scratch(failure)
+    }
+}
+
+impl CodecError {
+    /// #1488 0072 Display 挂点：生产构建为 `&self.detail` 恒等，testonly 门内登记过桥渲染。
+    #[inline(always)]
+    fn shown(&self) -> &std::borrow::Cow<'static, str> {
+        capture_allocation::scratch::shown(self)
+    }
+}
+
+#[cfg(test)]
+mod verified_public_subroots_tests {
+    use super::*;
+    struct Counted {
+        nodes: MemoryNodes,
+        reads: usize,
+    }
+    impl NodeSource for Counted {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.reads += 1;
+            self.nodes.read(digest)
+        }
+    }
+    #[test]
+    fn s4_local_descent_public_subroots_reuse_only_complete_value_closure() {
+        let mut nodes = MemoryNodes::new();
+        let child = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::String("payload".repeat(2000))]),
+        )
+        .unwrap()
+        .content_ref();
+        let root = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::edge_of_ref(&child).unwrap()]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut source = Counted { nodes, reads: 0 };
+        verify(&mut source, &child).unwrap();
+        let before = source.reads;
+        audit_verify_public_with_verified_subroots(
+            &mut source,
+            [&root].map(Into::into),
+            [&child].map(Into::into),
+        )
+        .unwrap();
+        let covered = source.reads - before;
+        let before = source.reads;
+        verify(&mut source, &root).unwrap();
+        assert!(covered < source.reads - before);
+        for wrong in [
+            ContentRef {
+                format: "wrong".into(),
+                ..child.clone()
+            },
+            ContentRef {
+                kind: Kind::Object,
+                ..child.clone()
+            },
+            ContentRef {
+                extent: Some(999),
+                ..child.clone()
+            },
+        ] {
+            assert!(audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&root].map(Into::into),
+                [&wrong].map(Into::into)
+            )
+            .is_err());
+        }
+        let sibling = write_value(
+            &mut source.nodes,
+            &Value::Array(vec![Value::Edge([17; 32])]),
+        )
+        .unwrap()
+        .content_ref();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&sibling].map(Into::into),
+                [&child].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::NODE_MISSING
+        );
+        source
+            .nodes
+            .insert_unchecked(child.digest().unwrap(), tag::ARRAY, vec![0]);
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut source,
+                [&root].map(Into::into),
+                [&child].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::NODE_DIGEST
+        );
+    }
+    #[test]
+    fn s4_local_descent_public_subroots_do_not_cover_json_inner_or_template() {
+        let mut nodes = MemoryNodes::new();
+        let text = write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null)))
+            .unwrap()
+            .content_ref();
+        let array = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::edge_of_ref(&text).unwrap()]),
+        )
+        .unwrap()
+        .content_ref();
+        verify(&mut nodes, &array).unwrap();
+        let digest = frame(tag::JSON_TEXT, &array.digest().unwrap());
+        nodes
+            .put(digest, tag::JSON_TEXT, &array.digest().unwrap())
+            .unwrap();
+        let nested = content_ref_of(&mut nodes, &root_string(&digest)).unwrap();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut nodes,
+                [&nested].map(Into::into),
+                [&array].map(Into::into)
+            )
+            .unwrap_err()
+            .code(),
+            code::JSON_TEXT_INTERNAL_KIND
+        );
+        let template = write_template(&mut nodes, &Value::Array(vec![Value::BatchSelf]))
+            .unwrap()
+            .content_ref();
+        verify_template(&mut nodes, &template).unwrap();
+        assert_eq!(
+            audit_verify_public_with_verified_subroots(
+                &mut nodes,
+                [&template].map(Into::into),
+                std::iter::empty()
+            )
+            .unwrap_err()
+            .code(),
+            code::TEMPLATE_PLACEHOLDER
+        );
     }
 }

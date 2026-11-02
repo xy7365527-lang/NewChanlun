@@ -1,0 +1,1 @@
+{"s_resources":{"audit_cache_source_bytes":"268435456","max_connections":"48","max_frame_bytes":"1048576","queue_capacity":"32","read_timeout_ms":"2000","response_timeout_ms":"1800000","write_timeout_ms":"1000"},"schema_revision":"s-structure-resources/1"}

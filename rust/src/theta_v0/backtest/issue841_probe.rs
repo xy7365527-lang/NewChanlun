@@ -260,15 +260,17 @@ fn issue841_axis_funded() {
     let cfg = ThetaConfig::default();
     let ds = load_window();
     let years = ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav = ds
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * cfg.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let stats = super::research_stats::active_research_stats().expect("C-19 research stats record");
+    let probe_profile = super::l3_probe_profile::active_no_floor_probe_profile()
+        .expect("no-floor probe profile record");
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
+    let nav = probe_profile.nav_for(&ds, &cfg);
 
-    let r = run_theta_v0_pi_overlay(&ds, &cfg, years, nav);
+    let r = run_theta_v0_pi_overlay(&ds, &cfg, years, nav).expect("C-19 research stats record");
     let ll = &r.level_ledger;
 
     // 全部曾拿到钱的声部（closed + 窗末在飞）：id → parent_id。
@@ -355,7 +357,11 @@ fn issue841_axis_funded() {
         }
     }
 
-    let mut s = String::new();
+    let mut s = format!(
+        "统计记录={}\n探针资金记录={}\n\n",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     s.push_str(&format!(
         "# #841 探针B 资金口径（BTC 前 {} bar，生产 run_theta_v0_pi_overlay）\n\n\
          n_orders={} 声部总数（分母）={}（closed={} active={}）\n\
@@ -402,16 +408,18 @@ fn issue841_level_cap_counterfactual() {
     let ds = load_window();
     let plain = ThetaConfig::default();
     let years = ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav = ds
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * plain.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let stats = super::research_stats::active_research_stats().expect("C-19 research stats record");
+    let probe_profile = super::l3_probe_profile::active_no_floor_probe_profile()
+        .expect("no-floor probe profile record");
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
+    let nav = probe_profile.nav_for(&ds, &plain);
 
     let run = |cfg: &ThetaConfig| {
-        let r = run_theta_v0_pi_overlay(&ds, cfg, years, nav);
+        let r = run_theta_v0_pi_overlay(&ds, cfg, years, nav).expect("C-19 research stats record");
         let eq = r
             .net_result
             .equity_curve
@@ -431,7 +439,11 @@ fn issue841_level_cap_counterfactual() {
     assert!(!cfg_off.risk.enforce_level_cap, "default 必须 off");
     let (n_off, pnls_off, sum_off, eq_off) = run(&cfg_off);
 
-    let mut s = String::new();
+    let mut s = format!(
+        "统计记录={}\n探针资金记录={}\n\n",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     s.push_str(&format!(
         "# #841 探针C w_ℓ 反事实（BTC 前 {} bar）\n\n\
          | 臂 | level_weights | Σw | n_orders | trade 笔数 | 已实现 PnL 和 | 权益终值 | 与 off 逐位相同？ |\n\

@@ -637,3 +637,33 @@ fn tb03c_chain_fin1_grant_responsibility_alone_does_not_cover_post_commit_fill()
         "alpha grant 责任 30 已在 E，但不含该成交覆盖"
     );
 }
+
+/// #1621：财务消费者不能在实际 S 提交之前获知结构；修正证明时钟后同一计划可继续。
+#[test]
+fn finance_cannot_know_structure_before_s_commit() {
+    let mut c = Chain::new("issue1621-s-b-clock");
+    let opening = c.opening.clone();
+    let open = c.capture(&opening, "token-opening");
+    assert_eq!(open["kind"], "Recorded", "{open}");
+    let applied = c.send(A, json!({"op":"ApplyAllocation","fact_key":open["fact_key"],"allocation_id":"allocation-alpha","expected_fact_hash":open["fact_hash"]}));
+    assert_eq!(applied["kind"], "Applied", "{applied}");
+    let bound = c.send(A, c.binding.clone());
+    assert_eq!(bound["kind"], "VoiceBound", "{bound}");
+    let imported = c.send(E, c.fin("ImportResponsibility", c.epochs[E]));
+    assert_eq!(imported["record"]["state"], "ResponsibilityImported");
+
+    let basis_path = c._space.0.join("s-basis.json");
+    let original = std::fs::read_to_string(&basis_path).unwrap();
+    let mut basis: Value = serde_json::from_str(&original).unwrap();
+    basis["commit_ns"] = json!("1000000");
+    std::fs::write(&basis_path, canonical_json(&basis)).unwrap();
+    let rejected = c.send(A, c.fin("PrepareDecision", c.epochs[A]));
+    assert_eq!(
+        rejected["error"], "InvalidDomain：获知时刻早于实际 S 提交",
+        "{rejected}"
+    );
+
+    std::fs::write(&basis_path, original).unwrap();
+    let prepared = c.send(A, c.fin("PrepareDecision", c.epochs[A]));
+    assert_eq!(prepared["record"]["state"], "Prepared", "{prepared}");
+}

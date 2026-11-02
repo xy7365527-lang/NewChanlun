@@ -33,8 +33,8 @@ _Avoid_: 默认方向 UP；用 close/open 推断初始方向（#1286 冻结的�
 _Avoid_: 多头重、空头重（把方向当作重的固定属性）
 
 **量档 policy**:
-具名版本化记录（`#1355/quantity-tier-policy/v1`），绑定 profile/标的/操作级别；固定 Q 只引用资金授权；逐档 w 为整数对并带来源域，`tier_quantity` 为版本内冻结的整数动作量；逐级容量须用户签署，Unknown ≠ 无限。未定档只阻该深度（`AwaitingPolicy{tier}`）。
-_Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户权益或市值当 Q 或容量。
+具名版本化记录（`#1355/quantity-tier-policy/v1`），绑定 profile/标的/操作级别；Q_amount 为逐重资金金额，Q_units 为版本冻结的资产数量；q_ref 绑定资金授权身份及版本，不能作算术量（ADR 0049）；逐档 w 为整数对并带来源域，`tier_quantity` 为版本内冻结的整数动作量；逐级容量默认 UserSigned；ProbeAuto 仅在已签域和证据门均满足时可用（ADR 0034，#1598），Unknown ≠ 无限。未定档只阻该深度（`AwaitingPolicy{tier}`）。
+_Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户权益或市值替代固定 Q 或容量；这不排除已签同量纲换算后的 mark_value 溢出观测（ADR 0034）。
 
 **增长权益 G**:
 回本后由利润滚出的筹码与资本化现金 `{units_g, cash_g, cost_g}`，属重，不是本金，不自动进 Q；资金溢出换档只从 G 取。
@@ -70,6 +70,7 @@ experiment/production profile 下 growth_eligible 首次为真的同源 AsKnown 
 _Avoid_: 与「模拟批（Simulation Batch）」混用——slot 是同一稳定点的资金申请集合，模拟批是同一 bar 的外效集合。
 
 **成本下降速率（Cost-decline rate）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md)）：闸门前验收只问一件事——**成本降得稳不稳**。定义＝每次操作（成本落袋事件）的相对降幅 `(C_before−C_after)/C_before` ÷ 占用时间（自上次事件起），与 `049:74`【正文】利润率「每次操作的平均利润／需要占用资金的平均时间」同形。**费后口径**（扣手续费与资金费率，同 ADR 0015 裁定四）；**通过 ＝ 单边 95% 下界 > 0**（按月分块 block bootstrap；事件数 ≥ 30 且月块 ≥ 12，不足则「结构性稀疏，判不出」）。中位数/分位数只作报告不作门。窗口纪律＝下界不用点估计／≥3 个互不重叠窗／每窗各自过线／合计覆盖 ≥50% 全史。**频率不合成**——两道独立门：频率管开重（ADR 0016 裁定四）、速率管验收。闸门后判据（净头寸价值）参数暂缺，待生产首次触达闸门后再定（触达后、启用前先定参数）。
+「成本下降速率」门的参数以 #1677/evidence-gate/vN 记录为准（ADR 0022 修订节）。
 _Avoid_: 拿中位数/点估计当验收门（N-6 判例：擦线处失效）；把频率乘进速率合成验收标量（抹平两个正交失败模式）；参数落盘前重算任何旧实验（ADR 0015 裁定六）；在零样本下硬编闸门后判据的数字。
 
 **工作线（Workline）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md) 之后的统一架构正本 §十四）：执行组织单位——一条带目的地与票链的开发线（map/SPEC/实施票）。与「接缝」不混用。
@@ -149,7 +150,7 @@ _Avoid_: 在买卖点/证书等结构对象上加同形字段存级别下标（�
 **代际（Generation, n）**:
 声部在赋格树中的嵌套代数：根声部为 0，子声部 = 父代际 + 1。方向由逐层关系 `σ_u = −σ_{p(u)}` 给出。代码字段 `depth` 即此概念。
 **「相对深度」是本词的合法别名**（2026-08-06 编排者裁定，落 [ADR 0017](docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md) 时定）：[#841](https://github.com/xy7365527-lang/NewChanlun/issues/841) 实测已把它与塔的结构级别钉死成**同一根轴的相对/绝对两种坐标**（`绝对级别 = root_level − depth`，20 万 bar 窗零反例、105.8 万次对拍全过），故「相对深度 d」是精确用词，不是混淆。ADR 0016 `:253`「按声部深度分」与 `rust/src/theta_v0/strategy/level_risk.rs:20` 同款用法，均合法。
-_Avoid_: **裸称"深度"**（不带"相对"/"区间套"限定词时，易与区间套深度混淆——**禁的是裸称，不是这个字**）；奇偶/相位表述（撞词已降格的实证"奇偶交替"，方向教义只用 `σ_u = −σ_{p(u)}`）
+_Avoid_: **裸称"深度"**（不带"相对"/"区间套"限定词时，易与区间套深度混淆——**禁的是裸称，不是这个字**）；奇偶/相位表述（撞词已降格的实证"奇偶交替"，方向教义只用 `σ_u = −σ_{p(u)}`）；把 S 的发布代 `structure_generation` 称作代际（那是「结构代」，[ADR 0051](docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md)）
 
 **区间套深度（Nest Depth, Ndepth）**:
 证书成立层区间套确认的梯级数，满足恒等式 `ℓ = e + Ndepth`。属证书层概念，与声部代际无关。
@@ -172,6 +173,8 @@ _Avoid_: 把布局版本塞进 `content_format`（§5.2 编码没变）或 `prof
 **单元批记录（Development Batch）**（同上）:
 `CC-007.development_batch`：每代一条 typed 记录，承载本 bar 对全部被跟踪分型的比较单元（S 同核产生、内容寻址、每单元只发一次）及每个分型截至本 bar 的单元序列 root。分型描述对象因此只在基础来源修订时出新版。读者只读 entry 与序列分片，不重算比较。
 _Avoid_: 把后续 bar 的比较拷进分型对象载荷；让 Q／前端／审计现场重算 order；把单元发成每单元一条记录或 observation
+entries 按所引分型 `window[0]`（源坐标）严格升序，即窗口序，不按出生序（#1783，[ADR 0054](docs/adr/0054-development-batch-entries-window-order.md)；两序在可达输入上恒等，#1790）。
+_Avoid_: 按分型首获知代给 entries 排序（载荷会依赖发布史，破「增量 ≡ 冷算」）
 
 **固有事实项 / 开销项（Inherent-fact Term / Overhead Term）**（同上）:
 每代新增可达节点 Δ_R(g) 的分解：固有事实项 u·F(g)（被跟踪分型数 × 每单元节点）由已批合同要求产生、不可削；开销项 = Δ_R − u·F(g)，是表示与布局的代价。bounded-layout 的目标与验收门是逐代上界：Δ_R(g) ≤ Σ_f(u+e+⌈log₂count_f⌉+1) + C₀_base + C_bi·bi_births + C₁·⌈log₂N⌉，五常数独立实测冻结，超界代数 0。
@@ -289,7 +292,7 @@ _Avoid_: 拿子的 A 段套父的 D 段当区间套判据（两边不同种对�
 
 **背驰段候选事件（divergence-segment candidate event）**:
 塔内原生一等事件对象（2026-07-28 #540 裁定，ADR-0007）：承载 E2E-D1-D3 结构载荷 + 背驰段区间（C 段，interval_b 同口径）+ 状态与钟；classify_impl 主路径按级内联产出（非 sidecar 事后扫），每级 append-only 事件流存储，生命周期走 E2E-O 修订协议（修订只追加、observed/first_provable 一次写、终态不复活、同 as_of 重跑零 Delta）。身份键 = 结构身份键（level + 中枢对 + seg_a + c_start + B_p 指纹；c 段右端与 as_of 不入键，生长走修订）。
-_Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除模拟失效；事后 sidecar 重扫冒充主路径产出
+_Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除模拟失效；事后 sidecar 重扫冒充主路径产出；称作「域事件」（它是 S 域事件 `payload` 里的内容，不是外壳，[ADR 0051](docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md)）
 
 **级别链证书（tower chain certificate）**:
 塔内原生一等谱系对象（2026-07-29 #636 裁定、#641 落地；`TowerChainCertificate` 独立于 NestCertificate）：节点 = 背驰段候选事件身份键（沿用 N1 键），边 = C⊆C Sub 包含（N2 谓词在存活端点间统一裁）+ skip 边（缺席/跳级如实记，禁伪造中间级证书）。终态：Closed = 链头 Confirmed + 链不可再扩展 + **≥1 有效链段**（谓词判过的边，含 skip 边，空集不真空成立）；Invalidated = 谓词判不过或链头 Invalidated（不复活）；否则 Open。证伪节点留痕不判死上级；Absent（查无）非证伪，不落 Invalidated。谱系 append-only，路径扩展走 extends_lineage_key（查簿命中才写）。
@@ -361,7 +364,7 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
-**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
+**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**π 组件证据 CLI**（历史名「最小生产路径 CLI」）指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，只产组件证据，不是生产入口，也不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
 
 **场所 profile（Venue Profile）**（2026-10-13 [#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351) 裁定，[ADR 0028](docs/adr/0028-first-capability-verification-profile.md)）:
 一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。`P2` 本图不启用、TB-09/TB-10 以 P1 验收，首发授权记录格式见 ADR 0028「P2 处置」节（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)）。
@@ -377,6 +380,10 @@ _Avoid_: 行文裸称「production」——按上条「生产」拆三义的规�
 **模拟批（Simulation Batch）**（同上）:
 同一 bar 内全部外效的集合；批内各重各自独立判定、不排序、不互占资金，批内真实先后声明为未知；双跑只比较批级终态。依据 ADR 0013 裁定一／ADR 0014 裁定二：重间不需要次序。
 
+**同核 adapter（Shared-Core Adapter）**（2026-10-28 [#1538](https://github.com/xy7365527-lang/NewChanlun/issues/1538) 裁定九，[ADR 0056](docs/adr/0056-three-mode-shared-core-adapter-boundary.md)）:
+历史回放、paper、live 三模式共用一个核心，随模式替换的只有六类 adapter：结构 feed（owner S）、执行行情 feed（owner X）、clock（manifest `clock` 段，各域按其读）、matcher/venue（owner X）、传输（X 对外一段）、受控持久化（各域单写者）。接口与替换规则见 ADR 0056 裁定三。
+_Avoid_: 把模式差异写进核心判定；把域间传输或 SQLite/WAL 持久化当成随模式替换的 adapter。
+
 **自由度（Degree of Freedom）**（2026-10-20 用户立，[ADR 0041](docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md)）:
 正本标为 `[新缠论:选择]`、或属参数类且缠师原文无定论的量，存在不止一个合法取值。缠师原文语义与已裁教义推论不是自由度。
 _Avoid_: 把原文语义称作「可选项」；把另一个合法取值写成「被否」。
@@ -384,6 +391,14 @@ _Avoid_: 把原文语义称作「可选项」；把另一个合法取值写成�
 **可调字段（Configurable Field）**（同上）:
 自由度在具名版本化记录里的落点：带默认值、出处与可选值集合，一次运行只读一个值，改值即新版本。已裁定签署前不得代填的字段（资金、量档、容量、成本门 θ、风险阈值等），默认值就是 `AwaitingPolicy`（不签不跑），数值推荐值只写进签署单待确认。
 _Avoid_: 「配置开关」「运行时切换」——运行中改值是 #799 所禁的失败兜底；同一判断的宽严两档本身不是自由度。
+
+**唯一真账（Single Authority Ledger）**（2026-11-02 [#1539](https://github.com/xy7365527-lang/NewChanlun/issues/1539) 裁定，[ADR 0060](docs/adr/0060-fill-position-single-authority-and-crosswalk.md)）:
+成交原件与逐重分配的唯一写者是 E；逐重 position（毛账、成本、阶段）的唯一写者是该重 Bᵢ；物理持仓是「E 已 Recorded 的场所原件」与「Σ各重 B applications」两列的派生对账读数，没有写者，只经 `Q.ReadEconomicView` 输出，差异只产 Pending 或封闸。
+_Avoid_: 把场所净仓或 book image 叫真账；从场所净仓覆写或重建 B 账。
+
+**crosswalk**（同上，ADR 0060 裁定七）:
+同一外效在五类身份记录之间持久、可逆的四跳逐跳映射：场所身份 ↔ X 观测记录 ↔ E 原件 ↔ 逐重分配 ↔ Bᵢ application。每跳由所在域的唯一写者持久化，不设第二权威写入口；物化汇总只能是可重算、不反写的只读投影；审计由 `Q.ReadEconomicView` 双向逐跳拼接，缺跳报缺项。
+_Avoid_: 与 `IMPLEMENTATION-CROSSWALK.json`（故事↔验收映射）、ADR 0037 crosswalk oracle（S 布局对拍锁）、旧→新迁移 crosswalk（归 #1535）混称。
 
 ### 出场判定
 
@@ -452,3 +467,22 @@ _Avoid_: "被拒的往返不记账"（旧口径，系统性偏乐观已废）
 **外效分配政策版本（Fill Allocation Policy Version）**（同上）:
 `(fill_allocation_policy_id, manifest_hash, policy_revision)` 三元组随每条 allocation 持久；更正与重放引用原版本的逆规则，换版本只能是显式迁移事件。
 _Avoid_: 与 RD-11 资金准入的 `allocation_policy_id`（#1394）混称「分配政策」——那是另一个 id 空间。
+
+### 域事件与纪元
+
+**域事件（Domain Event）**（2026-10-27 [#1534](https://github.com/xy7365527-lang/NewChanlun/issues/1534) 裁定，[ADR 0051](docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md)）:
+S、E、各 Bᵢ 每条持久事件共用的外壳 `domain-event/1`，X 侧订单/成交原件也套它；带写入域、事件身份、提交切面、写者纪元、来源、政策/模型引用、前后状态与因果，各域差异只在载荷与字段值。只追加，撤回也是一条新的域事件。
+B/E 的持久撤回写口由子合同 domain-event-withdrawal/1 按会话 manifest 显式选择，见 [ADR 0053](docs/adr/0053-domain-event-withdrawal-subcontract.md)。
+_Avoid_: 为单个域另造事件 schema；把 ADR 0007 的「背驰段候选事件」称作域事件（它是 S 载荷里的内容）
+
+**写者纪元（Writer Epoch）**（同上）:
+`writer_epoch`，一个持久域当前获准写者的代数；换代即提升，旧纪元的写入一律拒收（ADR 0039）。不进事件身份与 `fact_key`，换代不重铸任何 ID。
+_Avoid_: 裸称 epoch；与来源纪元共用字段名
+
+**来源纪元（Source Epoch）**（同上）:
+`source_epoch`，外部来源命名空间的纪元，与 `source_namespace`、`external_fact_id` 一起构成外部事实身份 `fact_key`（SPEC #1340 C02.1）。
+_Avoid_: 裸称 epoch；因写者换代而改写来源纪元
+
+**结构代（Structure Generation）**（同上）:
+S 的发布代整数 `structure_generation`，对应结构切面 `structure_cut = cut-{gen}`；只与 S 的 generation 比较，不与 B/E/X 的 `commit_seq` 互比。
+_Avoid_: 称作代际（代际是声部嵌套代数 n）；把域提交切面 `cut` 与 `structure_cut` 合成一个字段

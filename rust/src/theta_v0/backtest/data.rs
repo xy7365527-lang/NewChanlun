@@ -214,7 +214,7 @@ fn date_to_timestamp(date: &str) -> Timestamp {
 
 /// 加载单品种全量数据（量化为整数 tick bar，标注不可交易）。
 ///
-/// `tick_size` 来自 [`ThetaConfig`]（默认 1e-8，types.rs:24 `quantize`）。**不删除坏 bar**
+/// `tick_size` 来自 [`ThetaConfig`] 的场所 profile 记录（#1602；types.rs:24 `quantize`）。**不删除坏 bar**
 /// （区别于 recursive_t 口径）——保序列连续 + 标 `untradable`（Θ_exec §1.2 要求）。
 ///
 /// 边界条件：文件不存在 ⇒ `Err`；JSON 解析失败 ⇒ `Err`；五列长度不一致 ⇒ `Err`
@@ -279,13 +279,13 @@ pub fn load_symbol(
                 quantize(l, tick_size),
                 quantize(c, tick_size),
             );
-            // ★#922 坏 tick 闸：bar 四价对**前收（已净化）**的最大偏离 > 80% ⟹ 数据损坏
+            // ★#922 坏 tick 闸：bar 四价对**前收（已净化）**的最大偏离超过阈值 ⟹ 数据损坏
             // （价格坍缩至近零的坏 print），按缺 OHLC 同款处置——前收填充 + untradable，
             // 统计层（σ_GK 等）与执行层都不再见到坏值。对净化前收比较 ⟹ 坏 tick 次根的
             // 正常回弹不被误伤（BRN 2024-02-19 17:42 实证）。
-            // 阈值依据（全品种存量扫描，chanlun/review-results/issue922-bad-tick-scan-20260816.md）：
-            // 合法极端 ≤0.40x（CL 2020-04 负油价时代、BRN 2019-09 沙特遇袭跳空）；
-            // 坏 tick ≥0.999x（坍缩近零）——空档 (0.40, 0.999) 取 0.80，双侧余量 ≥2×。
+            // #1602（#1586 C-18）：阈值只从 `data-profile` 记录读取（`config.data.bad_tick_max_dev`），
+            // 依据（#922 全品种存量扫描读数、#1013 影子评审）写在记录里。
+            let max_dev_limit = config.data.bad_tick_max_dev;
             if !untradable {
                 if let Some(prev) = bars.last() {
                     if prev.close > 0 {
@@ -294,9 +294,9 @@ pub fn load_symbol(
                             .iter()
                             .map(|q| (*q - pc).unsigned_abs() as f64 / pc as f64)
                             .fold(0.0_f64, f64::max);
-                        if max_dev > 0.80 {
+                        if max_dev > max_dev_limit {
                             eprintln!(
-                                    "[data] #922 坏 tick 闸：{symbol} bar#{i}（{}）四价对前收偏离 {max_dev:.2}x > 0.80——前收填充 + untradable",
+                                    "[data] #922 坏 tick 闸：{symbol} bar#{i}（{}）四价对前收偏离 {max_dev:.2}x > {max_dev_limit}——前收填充 + untradable",
                                     raw.dates[i]
                                 );
                             untradable = true;
@@ -597,6 +597,30 @@ mod tests {
         assert_eq!(ds.bars[4].close, q(110.2));
         // bar0/bar1 不受影响。
         assert!(!ds.bars[0].untradable && !ds.bars[1].untradable);
+        let _ = std::fs::remove_file(&dir);
+    }
+
+    /// #1602（C-18）变异体锁：闸阈值取自 `config.data`（data-profile 记录）。阈值改 0.25 ⟹
+    /// 30% 跳空被拦；读取改回常数 0.80 ⟹ 本测试红。
+    #[test]
+    fn bad_tick_gate_reads_data_profile_threshold() {
+        let dir = std::env::temp_dir().join("issue1602_bad_tick_threshold_test.json");
+        let json = r#"{
+            "opens":  [100.0, 130.0],
+            "highs":  [100.5, 130.5],
+            "lows":   [99.5, 129.5],
+            "closes": [100.0, 130.0],
+            "volumes":[100.0, 100.0],
+            "dates":  ["2024-01-01 00:00:00+00:00","2024-01-01 00:01:00+00:00"]
+        }"#;
+        std::fs::write(&dir, json).expect("写临时夹具");
+        let mut cfg = ThetaConfig::default();
+        let ds = load_symbol(&dir, "TEST", &cfg, 60).expect("加载");
+        assert!(!ds.bars[1].untradable, "v1 阈值下 30% 跳空合法");
+        cfg.data.bad_tick_max_dev = 0.25;
+        let ds = load_symbol(&dir, "TEST", &cfg, 60).expect("加载");
+        assert!(ds.bars[1].untradable, "阈值 0.25 ⟹ 30% 跳空被拦");
+        assert_eq!(ds.bars[1].close, ds.bars[0].close, "前收填充");
         let _ = std::fs::remove_file(&dir);
     }
 

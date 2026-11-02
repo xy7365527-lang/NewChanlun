@@ -416,7 +416,7 @@ struct ArmOut {
 
 fn run_arm(ds: &data::Dataset, cfg: &ThetaConfig, nav: f64) -> ArmOut {
     let years = ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let r = run_theta_v0_pi_overlay(ds, cfg, years, nav);
+    let r = run_theta_v0_pi_overlay(ds, cfg, years, nav).expect("C-19 research stats record");
     let last = ds.bars.len().saturating_sub(1);
     let spans = collect_spans(&r.level_ledger, last);
     ArmOut {
@@ -456,16 +456,21 @@ fn issue837_cross_level_opposing_actions() {
         }
     }
 
-    let nav_of = |d: &data::Dataset| {
-        d.bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * plain.tick.tick_size)
-            .unwrap_or(1.0)
-            * 1000.0
-    };
+    let stats = super::research_stats::active_research_stats().expect("C-19 research stats record");
+    let probe_profile = super::l3_probe_profile::active_no_floor_probe_profile()
+        .expect("no-floor probe profile record");
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
+    let nav_of = |d: &data::Dataset| probe_profile.nav_for(d, &plain);
 
-    let mut report = String::new();
+    let mut report = format!(
+        "统计记录={}\n探针资金记录={}\n",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     for (tag, lo, hi) in &wins {
         let win = ds.slice_date_window(lo, hi);
         assert!(!win.bars.is_empty(), "窗口 {tag} 为空");

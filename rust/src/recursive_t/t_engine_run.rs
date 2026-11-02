@@ -27,7 +27,7 @@
 use super::stream::TFugueStreamCore;
 use super::t_engine::BASE_LADDER;
 use crate::fugue_v3::layer::FugueResult;
-use crate::fugue_v3::INITIAL_CAPITAL;
+use crate::trading::types::FIXTURE_Q_TOTAL;
 use crate::trading::types::MAX_LADDER;
 use std::path::PathBuf;
 
@@ -218,7 +218,7 @@ fn t_engine_8x3() {
             }
             core.finish();
             let res = core.result();
-            let strat = (res.final_nav / INITIAL_CAPITAL - 1.0) * 100.0;
+            let strat = (res.final_nav / FIXTURE_Q_TOTAL - 1.0) * 100.0;
             let dd = max_drawdown(res);
 
             row.strat[mi] = strat;
@@ -768,7 +768,7 @@ fn t_bsp_op_diagnosis() {
         core.finish();
         let res = core.result();
         let d = core.op_diag();
-        let strat = (res.final_nav / INITIAL_CAPITAL - 1.0) * 100.0;
+        let strat = (res.final_nav / FIXTURE_Q_TOTAL - 1.0) * 100.0;
 
         let sells = d.sell_sink
             + d.sell_drain

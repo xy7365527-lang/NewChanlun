@@ -7,7 +7,7 @@
 //! 同一步进函数，故无中断扫描、分批续扫、自游标恢复后续扫在同一完整输入上逐位相同。
 //!
 //! **游标字段（K1）**：输入代际（最近一次所见笔数 + 已封存消费笔数 + 其指纹）、规则与政策版本
-//! （`second-candidate-terminal/1`、`second-seq-scan-budget/1` 与累计获批预算）、候选身份
+//! （`second-candidate-terminal/1`、本次所读预算记录 `second-seq-scan-budget/<版本>` 与累计获批预算）、候选身份
 //! （方向、b 笔、P）、from/through、标准元素与成员笔、dir_state、越界水位、状态与原因。
 //!
 //! **等价条件**：已封存消费的笔逐字段不变。游标从不封存输入末笔（末笔可改写：`stroke.rs`
@@ -26,8 +26,8 @@ use super::super::types::{Direction, Stroke, Tick};
 use super::feature_seq::{
     apply_inclusion, stroke_high_low, FeatureElement, FeatureStep, ScanCoverage, SecondCheck,
     SecondKill, SecondSequenceFacts, SecondTerminal, SECOND_CANDIDATE_RULE_REVISION,
-    SECOND_SEQ_SCAN_BUDGET_POLICY,
 };
+use crate::theta_v0::policy_records::PolicyRef;
 
 /// K1 游标结构版本。
 pub const SECOND_FOLD_CURSOR_SCHEMA: &str = "second-fold-cursor/1";
@@ -337,7 +337,9 @@ fn window_grant(scan_window: u32) -> Option<usize> {
 pub struct SecondFoldCursor {
     pub schema: &'static str,
     pub rule_revision: &'static str,
-    pub budget_policy: &'static str,
+    /// #1604：所读预算记录（`second-seq-scan-budget` 的 id/版本），由游标簿从 `ParseConfig::scan_budget`
+    /// 带入；线形写 `label()`（例 `second-seq-scan-budget/2`）。不写代码常数。
+    pub budget_policy: PolicyRef,
     /// 累计获批预算（笔数，自 from 起含反向笔）；`None` = 无限（窗口 0）。
     pub budget_granted: Option<usize>,
     pub candidate: SecondCandidateId,
@@ -349,12 +351,12 @@ pub struct SecondFoldCursor {
 }
 
 impl SecondFoldCursor {
-    /// 新游标：`scan_window` 0 = 无限预算。
-    pub fn new(candidate: SecondCandidateId, scan_window: u32) -> Self {
+    /// 新游标：`scan_window` 0 = 无限预算；`budget_policy` = 该预算出自的记录版本。
+    pub fn new(candidate: SecondCandidateId, scan_window: u32, budget_policy: PolicyRef) -> Self {
         SecondFoldCursor {
             schema: SECOND_FOLD_CURSOR_SCHEMA,
             rule_revision: SECOND_CANDIDATE_RULE_REVISION,
-            budget_policy: SECOND_SEQ_SCAN_BUDGET_POLICY,
+            budget_policy,
             budget_granted: window_grant(scan_window),
             candidate,
             input_stroke_count: 0,
@@ -408,10 +410,12 @@ impl SecondFoldCursor {
     }
 
     /// 在 `strokes` 上续左折叠并出具结果；结果与在同一输入上无中断折叠（同额预算）逐位相同。
+    ///
+    /// 预算记录版本不在此比对：内存游标的 `budget_policy` 由游标簿按本次所读记录写入，线形恢复时
+    /// 由 [`Self::from_wire`] 对照本次记录核验（#1604）。
     pub fn resume(&mut self, strokes: &[Stroke]) -> Result<SecondSequenceFacts, FoldResumeError> {
         if self.schema != SECOND_FOLD_CURSOR_SCHEMA
             || self.rule_revision != SECOND_CANDIDATE_RULE_REVISION
-            || self.budget_policy != SECOND_SEQ_SCAN_BUDGET_POLICY
         {
             return Err(FoldResumeError::VersionMismatch);
         }
@@ -489,7 +493,7 @@ impl SecondFoldCursor {
         serde_json::json!({
             "schema": self.schema,
             "rule_revision": self.rule_revision,
-            "budget_policy": self.budget_policy,
+            "budget_policy": self.budget_policy.label(),
             "budget_granted": self.budget_granted,
             "candidate": {
                 "seg_dir": dir_name(self.candidate.seg_dir),
@@ -521,10 +525,17 @@ impl SecondFoldCursor {
     /// 自线形恢复：身份与版本取线形；已封存部分在 `strokes` 上重折叠核验，相符即采纳。
     /// 返回 `(游标, 已核验, 上一轮已耗尽)`；未核验时游标为自 b 笔的空封存态（保留累计预算），
     /// 续扫即重折叠。「上一轮已耗尽」是调度事实，按线形判（未决且封存步数等于累计预算）。
-    pub fn from_wire(wire: &serde_json::Value, strokes: &[Stroke]) -> Option<(Self, bool, bool)> {
+    ///
+    /// `budget_policy` = 本次所读预算记录；线形所带版本与之不同即不可读（返回 `None`，调用方新建游标、
+    /// 自 b 笔重折叠），不沿用旧版本的累计预算（#1604）。
+    pub fn from_wire(
+        wire: &serde_json::Value,
+        strokes: &[Stroke],
+        budget_policy: PolicyRef,
+    ) -> Option<(Self, bool, bool)> {
         if wire["schema"] != SECOND_FOLD_CURSOR_SCHEMA
             || wire["rule_revision"] != SECOND_CANDIDATE_RULE_REVISION
-            || wire["budget_policy"] != SECOND_SEQ_SCAN_BUDGET_POLICY
+            || wire["budget_policy"].as_str() != Some(budget_policy.label().as_str())
         {
             return None;
         }
@@ -545,7 +556,7 @@ impl SecondFoldCursor {
         };
         let consumed = usize::try_from(wire_int(&wire["consumed_len"])?).ok()?;
         let exhausted = wire["semantic_state"].is_null() && budget_granted == Some(consumed);
-        let mut cursor = SecondFoldCursor::new(candidate, 0);
+        let mut cursor = SecondFoldCursor::new(candidate, 0, budget_policy);
         cursor.budget_granted = budget_granted;
         cursor.input_stroke_count = usize::try_from(wire_int(&wire["input_stroke_count"])?).ok()?;
         let from = cursor.state.facts.from_stroke;
@@ -572,9 +583,11 @@ impl SecondFoldCursor {
 /// 每轮获批预算 `round_budget`（笔数，0 = 无限）：新候选以它为初始预算；上一轮已耗尽的游标在本轮
 /// 先 `grant(round_budget)` 再续扫——预算耗尽只让覆盖暂缺，下一轮接着扫，不会永久停在
 /// `INCOMPLETE_RESOURCE_BOUND`。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SecondFoldStore {
     pub round_budget: u32,
+    /// #1604：`round_budget` 出自的预算记录（id/版本）；游标与 S 线形的 `budget_policy` 皆取此值。
+    pub policy: PolicyRef,
     restored: std::collections::BTreeMap<(u8, usize, Tick), serde_json::Value>,
     cursors: std::collections::BTreeMap<(u8, usize, Tick), SecondFoldCursor>,
     verified: usize,
@@ -590,11 +603,21 @@ fn store_key(c: &SecondCandidateId) -> (u8, usize, Tick) {
 }
 
 impl SecondFoldStore {
-    pub fn new(round_budget: u32) -> Self {
+    pub fn new(round_budget: u32, policy: PolicyRef) -> Self {
         SecondFoldStore {
             round_budget,
-            ..Self::default()
+            policy,
+            restored: Default::default(),
+            cursors: Default::default(),
+            verified: 0,
+            granted: 0,
         }
+    }
+
+    /// #1604：每轮预算与其记录版本都取自 `ParseConfig`（即记录 `second-seq-scan-budget` 的
+    /// `second_seq_window` 字段，与无游标簿路径的第二序列窗口同一个值），不另设常数。
+    pub fn from_parse_config(config: &super::super::config::ParseConfig) -> Self {
+        SecondFoldStore::new(config.second_seq_scan_window, config.scan_budget)
     }
 
     /// 登记上一轮的 K1 线形（本轮首次用到该候选时才在当轮输入上核验）。身份不可读的线形丢弃。
@@ -629,7 +652,7 @@ impl SecondFoldStore {
             let cursor = match self
                 .restored
                 .remove(&key)
-                .and_then(|w| SecondFoldCursor::from_wire(&w, strokes))
+                .and_then(|w| SecondFoldCursor::from_wire(&w, strokes, self.policy))
             {
                 Some((mut cursor, verified, exhausted)) => {
                     self.verified += usize::from(verified);
@@ -639,7 +662,7 @@ impl SecondFoldStore {
                     }
                     cursor
                 }
-                None => SecondFoldCursor::new(candidate, self.round_budget),
+                None => SecondFoldCursor::new(candidate, self.round_budget, self.policy),
             };
             self.cursors.insert(key, cursor);
         }

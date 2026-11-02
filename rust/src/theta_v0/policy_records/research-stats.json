@@ -1,0 +1,32 @@
+{
+  "id": "#1605/research-stats",
+  "version": 1,
+  "kind": "research_acceptance_stats",
+  "ticket": "#1605（#1586 审计 C-19；ADR 0022 修订节、ADR 0041）",
+  "fields": {
+    "z_alpha": { "value": 1.645, "default": 1.645, "source": "decontam §4 预注册单边 95% LCB；等值迁移 highlow_mu/wverify/l3_delta_r_alpha 现行调用值" },
+    "perm_alpha": { "value": 0.05, "default": 0.05, "source": "decontam §4 预注册置换显著性门；等值迁移现行调用值" },
+    "annualization_days": { "value": 252.0, "default": 252.0, "source": "backtest-protocol-v0 §3.1；metrics::sharpe_sortino 原 ANN" },
+    "significance_p_threshold": { "value": 0.05, "default": 0.05, "source": "backtest-protocol-v0 §3.4/§5；metrics/L3/econ_positive 现行显著性门" },
+    "cvar_tail": { "value": 0.05, "default": 0.05, "source": "backtest-protocol-v0 §3.1 CVaR(5%)；metrics::compute 原参数" },
+    "ci_lower_quantile": { "value": 0.025, "default": 0.025, "source": "backtest-protocol-v0 §3.4 双边 95% bootstrap CI；metrics::significance 原参数" },
+    "ci_upper_quantile": { "value": 0.975, "default": 0.975, "source": "backtest-protocol-v0 §3.4 双边 95% bootstrap CI；metrics::significance 原参数" },
+    "sharpe_ci_z": { "value": 1.96, "default": 1.96, "source": "Lo 2002 双边 95% Sharpe CI；metrics::sharpe_lo2002 原参数" },
+    "icc_low_threshold": { "value": 0.3, "default": 0.3, "source": "l3_delta_r_alpha 现行 ICC 同质门；本票只记录化，不重新签署" },
+    "icc_high_threshold": { "value": 0.7, "default": 0.7, "source": "l3_delta_r_alpha 现行 ICC 异质门；本票只记录化，不重新签署" },
+    "trade_block_len": { "value": 5, "default": 5, "unit": "交易笔数", "source": "metrics::TRADE_BLOCK_LEN；交易序列块长，非协议的 20 交易日块长" },
+    "trade_n_resample": { "value": 1000, "default": 1000, "source": "backtest-protocol-v0 §3.4/§4；metrics::N_RESAMPLE" },
+    "delta_r_n_resample": { "value": 1000, "default": 1000, "source": "l3_delta_r_alpha 局部 N_RESAMPLE；与交易指标重采样分开命名，避免未来改值互相污染" },
+    "delta_r_block_len": { "value": 20, "default": 20, "unit": "bar 序列观测", "source": "l3_delta_r_alpha::delta_r_stats/gross_stats/crossfit 现行 BLOCK；不同于交易笔数块长" },
+    "min_test_bars": { "value": 252, "default": 252, "unit": "1m bars", "source": "l3_delta_r_alpha::MIN_TEST_BARS 现行值" },
+    "time_block_bars": { "value": 43200, "default": 43200, "unit": "1m bars", "source": "l3_delta_r_alpha::TIME_BLOCK_BARS 现行值" },
+    "min_trades_for_l2": { "value": 30, "default": 30, "source": "backtest-protocol-v0 §5.5 与 l3_pi_probe 现行功效门；等值迁移，不替代 evidence_gate.min_events" },
+    "econ_neff_lag": { "value": 20, "default": 20, "source": "econ_positive 真实验收 helper 现行自相关截断 lag" },
+    "econ_block_len": { "value": 20, "default": 20, "unit": "日收益观测", "source": "econ_positive 真实验收 block_bootstrap_pvalue 现行块长" },
+    "econ_n_resample": { "value": 2000, "default": 2000, "source": "econ_positive 真实验收 block_bootstrap_pvalue 现行迭代数" },
+    "supersedes": { "value": "none", "source": "首版；原 docs/policies/research-stats-v1.txt 为本票前身，不是另一份生效记录" },
+    "authorizer": { "value": "#1605 返修仅等值记录化现行实现；未重新签署研究判据", "source": "用户授权的 C-19 返修范围" },
+    "authorized_at": { "value": "2026-10-25", "source": "版本化 JSON 记录落地日期" }
+  },
+  "cost": "任一值变化都会改变指标、显著性或验收判定；必须递增版本并重跑对应消费域，不得在主记录失败后回退旧值。"
+}

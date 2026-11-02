@@ -1,16 +1,14 @@
 //! #1394 C §5.6.1：完整实际 Delta 的三项原子限额。
 //! 调用者先绑定已发布历史；本层不凭裸根授权，也不以片段proof代替完整闭包。
 use super::audit_store::RefValue;
+use super::audit_store::{NativeAdmission, NativeTree};
 use super::q_resources::{Limit, QResources};
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path_refview, PathStep},
-    CodecError, Kind, NodeDigest, NodeRead, NodeSource, RefView,
+    self as sc, CodecError, Kind, NodeDigest, NodeRead, NodeSource, RefView,
 };
-use std::collections::BTreeSet;
 
 const RECORDS: [&str; 7] = [
     "upserts",
@@ -38,7 +36,7 @@ pub(super) fn measure<'a>(
     let mut meter = Meter {
         source,
         job,
-        seen: BTreeSet::new(),
+        seen: NativeTree::default(),
         nodes: 0,
         bytes: 0,
         max_nodes: resources.limit(Limit::DeltaNodes),
@@ -75,6 +73,9 @@ pub(super) fn measure_closed(
     }
 }
 trait DeltaRead {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        None
+    }
     fn lookup(&mut self, root: RefView<'_>, step: Step<'_>) -> Result<RefValue, CodecError>;
     fn verify(&mut self, root: RefView<'_>) -> Result<(), CodecError>;
     fn record(&mut self) -> Result<(), CodecError>;
@@ -107,6 +108,9 @@ fn measure_core(
         if records > u128::from(resources.limit(Limit::DeltaRecords)) {
             return Err(limit("max_atomic_delta_records").to_string());
         }
+        if let Some(work) = reader.codec_work() {
+            arrays.try_reserve_native(work, 1).map_err(err)?;
+        }
         arrays.try_push((array, n)).map_err(err)?;
     }
     reader.verify(delta).map_err(err)?;
@@ -120,12 +124,15 @@ fn measure_core(
 }
 struct PlainDelta<'a, 'source>(&'a mut Meter<'source>);
 impl DeltaRead for PlainDelta<'_, '_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.0.codec_work()
+    }
     fn lookup(&mut self, r: RefView<'_>, step: Step<'_>) -> Result<RefValue, CodecError> {
-        let path = [match step {
-            Step::Field(k) => PathStep::Field(k.into()),
-            Step::Index(i) => PathStep::Index(i),
-        }];
-        lookup_path_refview(self.0, r, &path).map(RefValue::Plain)
+        let path = SingleStep(match step {
+            Step::Field(k) => sc::path::PathStepView::Field(k),
+            Step::Index(i) => sc::path::PathStepView::Index(i),
+        });
+        sc::path::lookup_path_view_native(self.0, r, &path).map(RefValue::Plain)
     }
     fn verify(&mut self, r: RefView<'_>) -> Result<(), CodecError> {
         sc::verify_refview(self.0, r, sc::Mode::Public)
@@ -142,9 +149,7 @@ impl DeltaRead for PlainDelta<'_, '_> {
         })
     }
 }
-#[cfg(feature = "s_allocation_json_testonly")]
 struct SingleStep<'a>(sc::path::PathStepView<'a>);
-#[cfg(feature = "s_allocation_json_testonly")]
 impl sc::path::PathView for SingleStep<'_> {
     fn len(&self) -> usize {
         1
@@ -294,13 +299,16 @@ fn limit(name: &str) -> CodecError {
 struct Meter<'a> {
     source: &'a mut dyn NodeSource,
     job: &'a mut dyn Access,
-    seen: BTreeSet<NodeDigest>,
+    seen: NativeTree<NodeDigest, ()>,
     nodes: u64,
     bytes: u64,
     max_nodes: u64,
     max_bytes: u64,
 }
 impl NodeSource for Meter<'_> {
+    fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source.codec_work()
+    }
     fn max_render_bytes(&self) -> Option<u64> {
         self.source.max_render_bytes()
     }
@@ -311,7 +319,7 @@ impl NodeSource for Meter<'_> {
         if let NodeRead::Found { tag, body } = &read {
             // 全job先核实际字节/digest，跨Delta复用仍受job期限与身份校验约束。
             self.job.accept_node(digest, *tag, body)?;
-            if !self.seen.contains(digest) {
+            if !self.seen.contains_key(digest) {
                 let bytes = u128::from(self.bytes)
                     + (sc::DOMAIN_SEPARATOR.len() + 1 + 8) as u128
                     + body.len() as u128;
@@ -323,7 +331,11 @@ impl NodeSource for Meter<'_> {
                 }
                 self.bytes = bytes as u64;
                 self.nodes += 1;
-                self.seen.insert(*digest);
+                self.seen.insert_admitted(
+                    *digest,
+                    (),
+                    &NativeAdmission(self.source.codec_work()),
+                )?;
             }
         }
         Ok(read)

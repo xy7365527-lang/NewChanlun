@@ -30,17 +30,24 @@ pub const MAX_LADDER: usize = 11;
 pub const FIRST_BSP_LADDER: usize = 2;
 /// ARM 初始级别（Python arm_ladder = LADDER_MOVE）。
 pub const LADDER_MOVE: usize = 3;
-/// 操作绑定级别默认值（操作者参数，#1278 L0 裁定，2026-08-29）：= move(L1)。
-/// 操作级别是操作者选择（缠师）；默认维持现行为（= 旧 PENDING_LO），85-91% 坍缩
-/// 实测 + 540 号为操作层依据（不再伪装成扫描起点限制）。
-pub const DEFAULT_OP_LADDER: usize = FIRST_BSP_LADDER + 1;
+// #1601（#1586 审计 C-01/C-22）：操作绑定级别、初始资金、ARM 过期窗口不再是代码常数。
+// 生产与回放路径从版本化记录读：`Q_total` 与 `l_start` 读 ADR 0040 签署记录
+// （`crate::funding_record`，ladder = FIRST_BSP_LADDER + ℓ：L0 ↔ 2=segment，L1 ↔ 3=move(L1)），
+// ARM 过期窗口读旧线 policy 记录 `arm-sub-expiry`。缺值即 AwaitingPolicy 停止，无备用值。
 
-/// 初始资金（与 `fugue_alpha_diagnosis.INITIAL_CAPITAL` 逐字）。
-pub const INITIAL_CAPITAL: f64 = 100_000.0;
 /// 核心止损比例（stop_mode A/B）。
 pub const STOP_FRAC: f64 = 0.02;
-/// ARM 后次级别确认过期 bar 数（`fugue_alpha_diagnosis.SUB_EXPIRY`）。
-pub const SUB_EXPIRY: i64 = 60;
+
+/// 测试夹具：与改前常数等值的回放记录读数（`funding_record::ReplayRecords::legacy_parity_fixture`
+/// 同值；旧 `INITIAL_CAPITAL` = 100_000.0）。只在 `cfg(test)` 下存在，生产路径无此名。
+#[cfg(test)]
+pub const FIXTURE_Q_TOTAL: f64 = 100_000.0;
+/// 测试夹具：旧 `DEFAULT_OP_LADDER` = FIRST_BSP_LADDER + 1（= move(L1)，即 `l_start = L1`）。
+#[cfg(test)]
+pub const FIXTURE_OP_LADDER: usize = FIRST_BSP_LADDER + 1;
+/// 测试夹具：旧 `SUB_EXPIRY` = 60（= 生效 `arm-sub-expiry/1`）。
+#[cfg(test)]
+pub const FIXTURE_SUB_EXPIRY: i64 = 60;
 
 /// ladder → 人类可读级别名（`fugue_version_i.ladder_name` 逐字；exit_reason 字符串成分）。
 pub fn ladder_name(ladder: usize) -> String {

@@ -43,6 +43,7 @@ import Origin.BspClassification
 import Origin.SellPointRecog
 import Origin.SellClosedLoop
 import Origin.SegmentFeatureSeq
+import Origin.TangencyPolicyIO
 import Origin.BuySellPredicate
 import Origin.RMoveCompose
 import Origin.SubLevelDescent
@@ -93,18 +94,18 @@ def baseAccount (baseA : Int) : ChanlunAccount := { ledger := mkLedger 0 baseA 0
     ⟹ rust 谓词结果与导出真值不符」即红。
 
     ★Overlaps 直化（ticket #296）：`Overlaps` 已补 `Decidable` instance
-    （SegmentFeatureSeq.lean:114，与 :105 HasGap 同范式），本字段直接 `decide (Overlaps a b)`
+    （SegmentFeatureSeq.lean:114，与 :105 HasGap 同范式），本字段直接 `decide (Overlaps t a b)`
     求值。历史（090 留痕）：#248 落地时 Overlaps 无 instance，曾绕道 `decide (¬ HasGap a b)`
     ——经已证 `gap_iff_not_overlap`（SegmentFeatureSeq.lean:118，`HasGap ↔ ¬ Overlaps`）
     严格互推，数学等价零 gap；本票是直化不是补缺，导出值不变。 -/
-def gapOverlapJson (a b : FeatureElem) : Json :=
+def gapOverlapJson (t : Tangency) (a b : FeatureElem) : Json :=
   Json.mkObj [
     ("a_low",    Json.num a.low),
     ("a_high",   Json.num a.high),
     ("b_low",    Json.num b.low),
     ("b_high",   Json.num b.high),
-    ("has_gap",  Json.bool (decide (HasGap a b))),
-    ("overlaps", Json.bool (decide (Overlaps a b)))
+    ("has_gap",  Json.bool (decide (HasGap t a b))),
+    ("overlaps", Json.bool (decide (Overlaps t a b)))
   ]
 
 /-- gap/overlap 用例区间构造（`valid` 由 omega 直推；区间端点是用例输入，与
@@ -467,7 +468,7 @@ def secondTypeStructureVectors : List (String × Side × List SubLevelDescent.RM
   - sell_transition：卖侧闭环 transition 后 ledger.A/Pi（base=5，sellTransition 真跑）。
   - position：classifyPosition 在 sampleCenter 三见证点的结果（真求值后 match 枚举名）。
 -/
-def fixtureJson : Json :=
+def fixtureJson (t : Tangency) : Json :=
   Json.mkObj [
     ("meta", Json.mkObj [
       ("source", Json.str "formal/Origin/ParityFixtureExport.lean #eval (machine-exported)"),
@@ -544,11 +545,11 @@ def fixtureJson : Json :=
     -- 侧仍无见证（#276 MED-1 已知缺角），rust 侧由手填单测
     -- three_stroke_overlap_distinct_triple_tangent 覆盖，非机器耦合。
     ("gap_overlap", Json.mkObj [
-      ("tangent_a_high_eq_b_low", gapOverlapJson (feOf 5 10 (by omega)) (feOf 10 20 (by omega))),
-      ("tangent_b_high_eq_a_low", gapOverlapJson (feOf 10 20 (by omega)) (feOf 5 10 (by omega))),
-      ("strict_disjoint",         gapOverlapJson (feOf 5 10 (by omega)) (feOf 11 20 (by omega))),
-      ("strict_disjoint_rev",     gapOverlapJson (feOf 11 20 (by omega)) (feOf 5 10 (by omega))),
-      ("strict_overlap",          gapOverlapJson (feOf 5 12 (by omega)) (feOf 8 20 (by omega)))
+      ("tangent_a_high_eq_b_low", gapOverlapJson t (feOf 5 10 (by omega)) (feOf 10 20 (by omega))),
+      ("tangent_b_high_eq_a_low", gapOverlapJson t (feOf 10 20 (by omega)) (feOf 5 10 (by omega))),
+      ("strict_disjoint",         gapOverlapJson t (feOf 5 10 (by omega)) (feOf 11 20 (by omega))),
+      ("strict_disjoint_rev",     gapOverlapJson t (feOf 11 20 (by omega)) (feOf 5 10 (by omega))),
+      ("strict_overlap",          gapOverlapJson t (feOf 5 12 (by omega)) (feOf 8 20 (by omega)))
     ]),
     -- #1294 F-8：BSP 谓词族向量级锁（IsType1 / IsType3Buy(firstRetrace) /
     -- SecondTypeStructure）——固定输入向量集，Lean `decide` 真求值 vs rust 输出逐位比对
@@ -566,4 +567,6 @@ end NewChanlun.Origin.ParityFixtureExport
 -- ★机器导出入口：#eval 用 IO.println 输出**裸** fixture JSON（单行 compress，非 String 字面量），
 -- `lake env lean Origin/ParityFixtureExport.lean` 抓 stdout 重定向落盘为 fixture 文件。
 -- 注：doc-comment `/-- -/` 必须紧跟声明，不能跟 #eval command，故此处用普通行注释。
-#eval IO.println NewChanlun.Origin.ParityFixtureExport.fixtureJson.compress
+#eval do
+  let policy ← NewChanlun.Origin.readTangencyPolicy "../rust/src/theta_v0/policy_records/segment-second.json"
+  IO.println (NewChanlun.Origin.ParityFixtureExport.fixtureJson policy.tangency).compress

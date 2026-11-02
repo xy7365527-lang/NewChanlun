@@ -1,0 +1,312 @@
+{
+ "objects:CC-004.inclusion_step": {
+  "new": 16,
+  "new_only": 0,
+  "old": 16,
+  "old_only": 0
+ },
+ "objects:CC-005.inclusion_group": {
+  "new": 16,
+  "new_only": 0,
+  "old": 16,
+  "old_only": 0
+ },
+ "objects:CC-006.local_shape": {
+  "new": 14,
+  "new_only": 0,
+  "old": 14,
+  "old_only": 0
+ },
+ "objects:CC-007.fractal_description": {
+  "new": 4,
+  "new_only": 0,
+  "old": 4,
+  "old_only": 0
+ },
+ "objects:CC-008.endpoint": {
+  "new": 4,
+  "new_only": 0,
+  "old": 4,
+  "old_only": 0
+ },
+ "objects:CC-008.new_bi_pair": {
+  "field_diffs": {},
+  "new": 3,
+  "new_only": 3,
+  "old": 3,
+  "old_only": 3,
+  "paired_by_fact_key": 3
+ },
+ "objects:CC-010.bi": {
+  "new": 3,
+  "new_only": 0,
+  "old": 3,
+  "old_only": 0
+ },
+ "objects:CC-011.segment_seed": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "objects:CC-012.feature_sequence": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "objects:CC-013.segment": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "objects:CC-022.unit_assignment": {
+  "new": 0,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 1
+ },
+ "objects:CC-054.knowledge_state": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "objects:CC-055.change_event": {
+  "field_diffs": {
+   ".payload.data.causes[]": {
+    "count": 2,
+    "example_old_new": [
+     "new-bi-dual-coordinate/1",
+     "new-bi-dual-coordinate/2"
+    ]
+   }
+  },
+  "new": 2,
+  "new_only": 2,
+  "old": 2,
+  "old_only": 2,
+  "paired_by_fact_key": 2
+ },
+ "objects:CC-055.relation": {
+  "new": 23,
+  "new_only": 0,
+  "old": 23,
+  "old_only": 0
+ },
+ "objects:CC-055.segment_change": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "objects:CC-055.segment_relation": {
+  "new": 2,
+  "new_only": 0,
+  "old": 2,
+  "old_only": 0
+ },
+ "objects:CC-056.center_version": {
+  "new": 0,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 1
+ },
+ "objects:CC-056.segment_version": {
+  "field_diffs": {},
+  "new": 1,
+  "new_only": 1,
+  "old": 1,
+  "old_only": 1,
+  "paired_by_fact_key": 0
+ },
+ "objects:CC-056.version": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "observations:awaiting_scope": {
+  "new": 36,
+  "new_only": 0,
+  "old": 36,
+  "old_only": 0
+ },
+ "raw_history:": {
+  "new": 16,
+  "new_only": 0,
+  "old": 16,
+  "old_only": 0
+ },
+ "relations:classified_as": {
+  "new": 27,
+  "new_only": 0,
+  "old": 27,
+  "old_only": 0
+ },
+ "relations:confirms": {
+  "new": 2,
+  "new_only": 0,
+  "old": 2,
+  "old_only": 0
+ },
+ "relations:derived_from": {
+  "new": 7,
+  "new_only": 0,
+  "old": 7,
+  "old_only": 0
+ },
+ "relations:has_witness": {
+  "new": 81,
+  "new_only": 0,
+  "old": 81,
+  "old_only": 0
+ },
+ "relations:member_of": {
+  "new": 16,
+  "new_only": 0,
+  "old": 16,
+  "old_only": 0
+ },
+ "relations:replaces": {
+  "new": 156,
+  "new_only": 0,
+  "old": 172,
+  "old_only": 16
+ },
+ "withdrawn_objects:CC-005.inclusion_group": {
+  "new": 15,
+  "new_only": 0,
+  "old": 15,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-006.local_shape": {
+  "new": 13,
+  "new_only": 0,
+  "old": 13,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-007.fractal_description": {
+  "new": 28,
+  "new_only": 0,
+  "old": 28,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-008.endpoint": {
+  "new": 4,
+  "new_only": 0,
+  "old": 4,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-008.new_bi_pair": {
+  "field_diffs": {},
+  "new": 3,
+  "new_only": 3,
+  "old": 3,
+  "old_only": 3,
+  "paired_by_fact_key": 3
+ },
+ "withdrawn_objects:CC-010.bi": {
+  "new": 5,
+  "new_only": 0,
+  "old": 5,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-011.seed_candidate": {
+  "new": 5,
+  "new_only": 0,
+  "old": 5,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-011.segment_seed": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-012.feature_sequence": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-013.segment": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-022.unit_assignment": {
+  "new": 0,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 1
+ },
+ "withdrawn_objects:CC-054.knowledge_state": {
+  "new": 15,
+  "new_only": 0,
+  "old": 15,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-055.change_event": {
+  "field_diffs": {
+   ".payload.data.causes[]": {
+    "count": 6,
+    "example_old_new": [
+     "new-bi-dual-coordinate/1",
+     "new-bi-dual-coordinate/2"
+    ]
+   }
+  },
+  "new": 6,
+  "new_only": 6,
+  "old": 6,
+  "old_only": 6,
+  "paired_by_fact_key": 6
+ },
+ "withdrawn_objects:CC-055.relation": {
+  "new": 35,
+  "new_only": 0,
+  "old": 35,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-055.segment_change": {
+  "new": 1,
+  "new_only": 0,
+  "old": 1,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-055.segment_relation": {
+  "new": 2,
+  "new_only": 0,
+  "old": 2,
+  "old_only": 0
+ },
+ "withdrawn_objects:CC-056.center_version": {
+  "new": 0,
+  "new_only": 0,
+  "old": 15,
+  "old_only": 15
+ },
+ "withdrawn_objects:CC-056.segment_version": {
+  "field_diffs": {},
+  "new": 15,
+  "new_only": 15,
+  "old": 15,
+  "old_only": 15,
+  "paired_by_fact_key": 0
+ },
+ "withdrawn_objects:CC-056.version": {
+  "new": 15,
+  "new_only": 0,
+  "old": 15,
+  "old_only": 0
+ },
+ "witnesses:": {
+  "new": 81,
+  "new_only": 0,
+  "old": 81,
+  "old_only": 0
+ }
+}

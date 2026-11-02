@@ -1,4 +1,5 @@
 // #1456：原生 Codex 子代理管理一个外部 Sandcastle/Codex 工蜂；一次运行，不取票、不合入。
+import { useScheduler } from "./scheduler-config.mts";
 import type { AgentProvider, NoSandboxHandle } from "@ai-hero/sandcastle";
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
@@ -10,10 +11,16 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { gitEnvironment } from "./git-environment.ts";
+import { MAIN_MODEL } from "./main-model.mts";
 
-/** 经本机 CLIProxyLocal 的 OAuth 订阅路由；不带 mf/、yd/ 等中转前缀（用户 2026-10-13 指示）。 */
-export const MODEL = "claude-opus-5-5";
-export const EFFORT = "xhigh";
+const scheduler = useScheduler("codex-child", ["childEffort", "opusModel", "childIdleSeconds", "childTimeoutSeconds", "childKillGraceMs", "childExitPollMs", "childExitWaitMs"]);
+
+/** 与主控同型，经本机 CLIProxyLocal 的 OAuth 订阅路由；不带中转前缀（#1617）。缺省调用者使用它。 */
+export const MODEL = MAIN_MODEL;
+/** #1742：调用者可显式选的模型；缺省仍是 MODEL。GPT 作者配 Opus 独审需要两个家族同走本入口。 */
+export const ALLOWED_MODELS: readonly string[] = [MODEL, scheduler.opusModel];
+export type ChildModel = string;
+export const EFFORT = scheduler.childEffort;
 /** 命令带 --ignore-user-config，不读用户 config.toml；provider 由下方具名定义经 -c 显式给出。 */
 export const MODEL_PROVIDER = "cliproxy-local";
 /** CLIProxy 客户端密钥所在的环境变量名。只传变量名；值不进命令、提示、日志或运行记录。 */
@@ -42,6 +49,7 @@ export interface ChildOptions {
   mode: ChildMode;
   promptFile: string;
   outputDir: string;
+  model?: ChildModel;
   /** 管理者所在 checkout；默认为启动入口的 cwd。不能同时也是工蜂 checkout。 */
   controllerCheckout?: string;
   idleTimeoutSeconds?: number;
@@ -73,7 +81,7 @@ export interface ChildRecord {
   native_subagent: false;
   status: ChildStatus;
   mode: ChildMode;
-  model: typeof MODEL;
+  model: ChildModel;
   effort: typeof EFFORT;
   model_provider: typeof MODEL_PROVIDER;
   sandbox_backend: "no-sandbox";
@@ -159,10 +167,11 @@ export function validateOptions(options: ChildOptions): void {
   }
   if (!/^[a-f0-9]{40}$/.test(options.expectedHead)) throw new Error("expected-head 必须是完整的 40 位小写提交 SHA");
   if (options.mode !== "review" && options.mode !== "execute") throw new Error("mode 只能是 review 或 execute");
+  if (options.model !== undefined) assertRoute(options.model);
   for (const [name, path] of [["checkout", options.checkout], ["prompt-file", options.promptFile], ["output-dir", options.outputDir]]) {
     if (!path || !isAbsolute(path)) throw new Error(`${name} 必须是绝对路径`);
   }
-  for (const seconds of [options.idleTimeoutSeconds ?? 600, options.timeoutSeconds ?? 3600]) {
+  for (const seconds of [options.idleTimeoutSeconds ?? scheduler.childIdleSeconds, options.timeoutSeconds ?? scheduler.childTimeoutSeconds]) {
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 43200) throw new Error("超时必须在 0 到 43200 秒之间");
   }
 }
@@ -192,6 +201,7 @@ export function assertRoute(model: string = MODEL, provider: string = MODEL_PROV
   if (model.includes("/")) throw new Error("模型名不得含 /：禁止 mf/、yd/ 等中转前缀，只接受 CLIProxy 的 OAuth 直连模型名");
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(model)) throw new Error("模型名格式无效");
   if (provider !== "cliproxy-local") throw new Error("model_provider 只能是 cliproxy-local");
+  if (!(ALLOWED_MODELS as readonly string[]).includes(model)) throw new Error(`模型只能是 ${ALLOWED_MODELS.join("、")}`);
 }
 
 /** --ignore-user-config 下给 Codex 的 provider 覆盖项；只含变量名，不含密钥值。 */
@@ -239,12 +249,12 @@ export function providerEnvironment(env: Record<string, string>, lookup: KeyLook
 }
 
 /** SDK 0.12 的 codex() 忽略 dangerouslySkipPermissions=false；在调用边界做精确、失败即停的适配。 */
-export async function boundedCodex(mode: ChildMode, schemaPath: string, env = workerEnvironment()): Promise<AgentProvider> {
+export async function boundedCodex(mode: ChildMode, schemaPath: string, env = workerEnvironment(), model: ChildModel = MODEL): Promise<AgentProvider> {
   // 根 package 为 CommonJS、Sandcastle 只导出 ESM；显式动态导入，不改变全仓模块制。
-  assertRoute();
+  assertRoute(model);
   const overrides = providerOverrides();
   const { codex } = await import("@ai-hero/sandcastle");
-  const provider = codex(MODEL, {
+  const provider = codex(model, {
     effort: EFFORT,
     sessionStorage: { hostSessionsDir: join(env.CODEX_HOME ?? join(env.HOME ?? homedir(), ".codex"), "sessions") },
   });
@@ -255,7 +265,7 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
       const built = provider.buildPrintCommand({ ...options, dangerouslySkipPermissions: false });
       const bypass = " --dangerously-bypass-approvals-and-sandbox";
       if (!built.command.startsWith("codex exec --json ") || built.command.split(bypass).length !== 2
-        || !built.command.includes(` -m ${shellQuote(MODEL)}`) || built.stdin !== options.prompt) {
+        || !built.command.includes(` -m ${shellQuote(model)}`) || built.stdin !== options.prompt) {
         throw new Error("Sandcastle codex() 命令契约已变，拒绝猜测权限替换");
       }
       const sandbox = mode === "review" ? "read-only" : "workspace-write";
@@ -265,6 +275,8 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
         + ` --output-schema ${shellQuote(schemaPath)}`
         + ` -c 'sandbox_workspace_write.network_access=false' -c 'web_search="disabled"'`
         + ` -c 'shell_environment_policy.inherit="core"'`
+        // --ignore-user-config 不读用户的 apps=false，而 codex 默认开启 Apps 与 plugins，会把无关工具 schema 带进每次请求（#1764）。
+        + ` -c 'features.apps=false' -c 'features.plugins=false'`
         + overrides.map((override) => ` -c ${shellQuote(override)}`).join("")
         + ` --disable multi_agent -`;
       if (/dangerously|danger-full-access|--full-auto|on-request/.test(command)) throw new Error("检测到不允许的权限参数");
@@ -395,7 +407,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
           }
           killTimer = setTimeout(() => { // DevSkim: ignore DS172411 回调为函数字面量而非字符串
             try { process.kill(-child.pid!, "SIGKILL"); } catch { /* 进程组已退出；仍等待 close。 */ }
-          }, 1000);
+          }, scheduler.childKillGraceMs);
         };
         const guarded = (label: string, action: () => void) => {
           try { action(); } catch (error) {
@@ -448,7 +460,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
               if ((error as NodeJS.ErrnoException).code !== "ESRCH") issue ??= "工蜂进程组清理失败";
             }
             // 等待本次独立进程组真正消失。无法证明退出则失败，不能提前宣称完成。
-            const deadline = Date.now() + 3000;
+            const deadline = Date.now() + scheduler.childExitWaitMs;
             for (;;) {
               try { process.kill(-child.pid, 0); } catch (error) {
                 if ((error as NodeJS.ErrnoException).code === "ESRCH") break;
@@ -456,7 +468,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
                 break;
               }
               if (Date.now() >= deadline) { issue ??= "工蜂进程组退出未确认"; break; }
-              await new Promise((done) => setTimeout(done, 25));
+              await new Promise((done) => setTimeout(done, scheduler.childExitPollMs));
             }
           }
           clearTimeout(killTimer);
@@ -508,16 +520,22 @@ export async function runCodexChild(
   } = {},
 ): Promise<ChildRecord> {
   validateOptions(options);
+  if (options.idleTimeoutSeconds !== undefined) console.error(`[配置 #1606] codex-child.childIdleSeconds=${options.idleTimeoutSeconds} source=explicit:idleTimeoutSeconds`);
+  if (options.timeoutSeconds !== undefined) console.error(`[配置 #1606] codex-child.childTimeoutSeconds=${options.timeoutSeconds} source=explicit:timeoutSeconds`);
   const outputDir = join(realpathSync(dirname(options.outputDir)), basename(options.outputDir));
   const checkout = realpathSync(options.checkout);
   if (inside(outputDir, checkout)) throw new Error("output-dir 必须在工蜂 checkout 之外");
   // 不接管旧结果目录，不覆盖失败证据。
   mkdirSync(outputDir, { mode: 0o700 });
+  // 每次运行使用独立 home，避免宿主 Codex Apps 工具缓存进入上游请求。
+  // outputDir 本身是一次性的；同一运行内的 env 与 sessionStorage 共用此目录。
+  const codexHome = join(outputDir, "codex-home");
+  mkdirSync(codexHome, { mode: 0o700 });
   const record: ChildRecord = {
     schema_version: 1, run_id: randomUUID(), ticket: options.ticket,
     parent_thread_id: options.parentThreadId, manager_agent_id: options.managerAgentId,
     manager_kind: "codex_native_subagent", worker_kind: "sandcastle_external_codex", native_subagent: false,
-    status: "running", mode: options.mode, model: MODEL, effort: EFFORT, model_provider: MODEL_PROVIDER,
+    status: "running", mode: options.mode, model: options.model ?? MODEL, effort: EFFORT, model_provider: MODEL_PROVIDER,
     sandbox_backend: "no-sandbox", codex_sandbox: options.mode === "review" ? "read-only" : "workspace-write",
     approval_policy: "never", automatic_claim: false, automatic_push: false, automatic_merge: false,
     checkout_preserved: true, expected_head: options.expectedHead,
@@ -574,8 +592,12 @@ export async function runCodexChild(
     const schemaPath = join(outputDir, "output.schema.json");
     writeFileSync(schemaPath, JSON.stringify(OUTPUT_SCHEMA), { flag: "wx", mode: 0o600 });
     // 密钥缺失在任何进程启动前失败；env 只交给子进程，不进入 record。
-    const env = providerEnvironment(workerEnvironment(control.env ?? process.env), control.keyLookup);
-    provider = await boundedCodex(options.mode, schemaPath, env);
+    // 覆盖白名单透传的宿主 CODEX_HOME，确保进程与 sessionStorage 使用同一隔离 home。
+    const env = providerEnvironment({
+      ...workerEnvironment(control.env ?? process.env),
+      CODEX_HOME: codexHome,
+    }, control.keyLookup);
+    provider = await boundedCodex(options.mode, schemaPath, env, record.model);
     transcript = new CodexTranscript(provider);
     const command = provider.buildPrintCommand({ prompt, dangerouslySkipPermissions: false });
     // 最后一次预检紧邻 spawn；不以最初快照代替当前状态。
@@ -583,7 +605,7 @@ export async function runCodexChild(
     handle = await supervisedNoSandbox(checkout, {
       signal: control.signal, env, stdoutFile: record.stdout_log, stderrFile: record.stderr_log,
       writeLog: control.writeLog,
-      idleTimeoutSeconds: options.idleTimeoutSeconds ?? 600, timeoutSeconds: options.timeoutSeconds ?? 3600,
+      idleTimeoutSeconds: options.idleTimeoutSeconds ?? scheduler.childIdleSeconds, timeoutSeconds: options.timeoutSeconds ?? scheduler.childTimeoutSeconds,
       onSpawn(pid) { record.process_pid = pid; publish(); },
       onExit(code, signal) { record.process_exit = { code, signal }; },
     });

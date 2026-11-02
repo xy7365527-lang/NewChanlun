@@ -1,0 +1,9 @@
+{
+  "ticket": 1538,
+  "model": "claude-fable-5-1",
+  "klass": "T",
+  "reason": "本票裁决的是三模式共享核心与 feed/clock/matcher/venue/传输/持久化 adapter 的接口 seam、owner 落点及同输入等价验证（测试锁），属 graph-engineering.md「1. 分级」T 类判据，且有 ADR 0027 裁定三「环境差异只允许落在行情、撮合和场所 adapter」与 ADR 0038 双跑确定性判例可援引；不涉及资金参数、真实场所/账户/权限（后者归 FU-17/18）。",
+  "parsed": true,
+  "durationMs": 19866,
+  "raw": "```json\n{\"class\":\"T\",\"reason\":\"本票裁决的是三模式共享核心与 feed/clock/matcher/venue/传输/持久化 adapter 的接口 seam、owner 落点及同输入等价验证（测试锁），属 graph-engineering.md「1. 分级」T 类判据，且有 ADR 0027 裁定三「环境差异只允许落在行情、撮合和场所 adapter」与 ADR 0038 双跑确定性判例可援引；不涉及资金参数、真实场所/账户/权限（后者归 FU-17/18）。\"}\n```"
+}

@@ -1,5 +1,5 @@
 > 正本：本文件是双跑确定性、恢复语义、seek 不偷未来、AsKnown 分证协议的教义正本。
-> 最后裁定：#1537（2026-10-19）
+> 最后裁定：#1537（2026-10-19）；修订：#1539（2026-11-02，见文末「修订」节）
 > 受影响代码清单：见「受影响票与 blocking 边变化」节
 
 ## 问题
@@ -126,3 +126,15 @@
 | ADR 0027:46-47【裁定三正文】 | `sed -n '46,47p' docs/adr/0027-classification-chong-operating-program-ownership.md` | 第 46-47 行：「历史回放、paper 与 live 必须共用同一个结构判定域实现和同一个重操作程序实现。不得为任一运行环境保留特有的结构判定、重状态推进或交易决策程序。」 |
 | ADR 0028:13【裁定一表格】| `rg -n "evidence_class" docs/adr/0028-first-capability-verification-profile.md` | 第 13 行起 profile schema 表含 `environment`、`execution_form`、`evidence_class`、`credential_scope` 四字段 |
 | `049-第49课.md:62` | `sed -n '62p' docs/chanlun/text/blog/049-第49课.md` | 第 62 行：「其后，中枢已经完成就无所谓中枢震荡了」 |
+
+## 修订（#1539，恢复语义按证据类分述，2026-11-02）
+
+（append-only：裁定一至四与验收清单原文不改，本节为现行修订。依据 #1539 P 类裁定稿，用户 2026-11-02 批复（[批复评论](https://github.com/xy7365527-lang/NewChanlun/issues/1539#issuecomment-6564138279)）；草稿、考古与审查原件：首两轮在 `/Volumes/AgentStorage/decisions/1539/`，其后依次为 `/Volumes/AgentStorage/fu17-repair40r/`、`/Volumes/AgentStorage/fu17-review40y/`、`/Volumes/AgentStorage/fu17-repair41f/`、`/Volumes/AgentStorage/fu17-review41k/`、`/Volumes/AgentStorage/fu17-publish41p/`（获批版本）；本仓存档 `.chanlun/review-results/issue1539-decision-20261102/`。）
+
+**原因**：裁定二「恢复」条（:60）含两句。前句「检测上次 checkpoint、加载六面快照并重放至当前 bar」对三种证据类都成立，ADR 0051 裁定三（:274）即据此定恢复幂等。后句「杀停等同未完成 bar 的全部外效未发生，S/B/E 回退到上一 checkpoint」的前提只在 simulation 成立。experiment/production 下 checkpoint 之后可能已有真实回报和可能已发出的调用，按后句回退与 #1340 C07.6、C09.8、C09.9、AT-13 及 ADR 0030 裁定五相反。ADR 0039 把本条写进正式 launcher 启动序列（:27、:147、:289），故在本文件修订。
+
+1. **通用（三种证据类）。** 恢复＝从最后一个 checkpoint 加载六面快照，再按持久日志重放。幂等判据为 ADR 0051:275-276 的 (a)(b)，任一不成立报 `StorageUnavailable` 并停写。任何证据类下恢复都不删除 append-only 真相行（ADR 0051:310）。
+2. **simulation。** :60 后句照旧：未完成 bar 的外效视为未发生，S/B/E 工作态回到 checkpoint 快照，由受控撮合按同一五元组重跑该 bar。重跑产出与已持久行同 `fact_key` 同内容，按 (a) 返回原 application、不新增行；不一致即报 `StorageUnavailable`。
+3. **experiment / production。** 不适用 :60 后句。重放持久日志直至最后提交：checkpoint 之后已 Recorded 的 E 事实与 Pending、已 Applied 的 Bᵢ 应用、X 已持久的 OwnAttempt/MayHaveCalled 与观测记录全部保留，不回到旧状态（#1340 C09.9）。恢复后先只读对账在途订单，外部未知按最大责任保留、不伪造终态（ADR 0030:48）；MayHaveCalled 保留最大责任、不自动重发（C07.6）；X 重启或换代先确认旧发送者已退出（C09.8）。
+4. **验收。** H1/H2（:80、:81、:89）判据与射程不变：照 ADR 0056:63 裁定七 (a)，三种证据类的同模式会话都在固定完整输入（输入及修订、政策/模型、时钟、种子、数值语义、故障与调度轨迹，#1340 C10.4；experiment/production 的场所侧用受控场所夹具）下验 H2，各证据类以本节第 2、3 条各自的恢复方法满足它。#1340 AT-13「回退保留所有已经发生的外效」与 C07.6 不重发是附加约束，不替代六面 H2。恢复幂等另按 ADR 0051 裁定三 (a)(b)。本修订不增删验收项。
+5. seek（:62-67）、不偷未来（:69）与裁定一、三、四不变。

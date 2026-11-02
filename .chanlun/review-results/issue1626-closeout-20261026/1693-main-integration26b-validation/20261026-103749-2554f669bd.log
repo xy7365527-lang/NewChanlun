@@ -1,0 +1,78 @@
+ref=codex/1693-main-integration-20261026 sha=2554f669bd9923fbb4bc0fee53d86defaef04dd6 sub=rust target=/home/hanju/nc-remote/target cmd=bash -lc rustfmt\ --check\ --edition\ 2021\ src/trading/positional.rs\ src/theta_v0/policy_records.rs\;\ cargo\ test\ --lib\ --features\ backtest_bin\ trading::positional::tests\ --jobs\ 1\ --\ --nocapture\ --test-threads=1\;\ a=$\?\;\ \[\ "$a"\ =\ 0\ \]\ \|\|\ exit\ "$a"\;\ cargo\ test\ --lib\ --features\ backtest_bin\ funding_record::\ --jobs\ 1\ --\ --nocapture\ --test-threads=1\;\ b=$\?\;\ \[\ "$b"\ =\ 0\ \]\ \|\|\ exit\ "$b"\;\ cargo\ test\ --lib\ --features\ backtest_bin\ policy_records\ --jobs\ 1\ --\ --nocapture\ --test-threads=1 
+Diff in /home/hanju/nc-remote/wt/20261026-103749-2554f669bd/rust/src/trading/positional.rs:1978:
+             trend_flips: Some(vec![]),
+             ..Default::default()
+         };
+[31m-        let err = run_positional(&tape, 2, PolarityMode::parse("fusion_t").unwrap(), &rec)
+(B[m[31m-            .unwrap_err();
+(B[m[32m+        let err =
+(B[m[32m+            run_positional(&tape, 2, PolarityMode::parse("fusion_t").unwrap(), &rec).unwrap_err();
+(B[m         assert!(err.contains("op_ladder=2"), "{err}");
+     }
+ 
+   Compiling pyo3-build-config v0.23.5
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling pyo3-macros v0.23.5
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261026-103749-2554f669bd/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 58.17s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 20 tests
+test trading::positional::tests::active_l0_record_makes_fusion_refuse_not_fallback ... ok
+test trading::positional::tests::ancestor_profiles_reject_cross_profile_values_before_fusion ... ok
+test trading::positional::tests::armed_disarms_on_sell1 ... ok
+test trading::positional::tests::expiry_fallback_entry ... ok
+test trading::positional::tests::floor_guard_rejects_bar_level ... ok
+test trading::positional::tests::fusion_preserves_funding_and_trend_scope_records_together ... ok
+test trading::positional::tests::fusion_rejects_record_op_ladder_without_fixture_fallback ... ok
+test trading::positional::tests::fusion_t_rejects_unregistered_ancestor_scopes_before_fusion ... ok
+test trading::positional::tests::hold26_pending_when_pool_dry_cancelled_by_sellpt ... ok
+test trading::positional::tests::hold26_slices_oscillate_around_full ... ok
+test trading::positional::tests::hold26_t1_vocabulary_ignores_non_t1_sells ... ok
+test trading::positional::tests::layer_state_seven_variants_mutually_exclusive ... ok
+test trading::positional::tests::layers_exit_independently_lesson44 ... ok
+test trading::positional::tests::legal_new_scope_versions_keep_their_preregistered_identities ... ok
+test trading::positional::tests::nav_conservation_round_trip ... ok
+test trading::positional::tests::noref_skip_when_theta_undefined ... ok
+test trading::positional::tests::pending_cancelled_by_sell1 ... ok
+test trading::positional::tests::pool_starvation_defers_then_fills_after_exit ... ok
+test trading::positional::tests::replay_reads_q_total_and_version_from_records ... ok
+test trading::positional::tests::weights_emerge_from_amplitude_share ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 3101 filtered out; finished in 0.01s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 6 tests
+test funding_record::tests::active_profiles_carry_signed_q_total_and_version ... ok
+test funding_record::tests::active_records_match_adr_0040 ... ok
+test funding_record::tests::legacy_fixture_matches_fixture_constants ... ok
+test funding_record::tests::negative_controls_missing_unsigned_invalid ... ok
+test funding_record::tests::production_sources_hold_no_funding_constants ... ok
+test funding_record::tests::replay_records_label_names_every_record_and_version ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 3115 filtered out; finished in 0.02s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 12 tests
+test theta_v0::policy_records::tests::active_records_carry_current_values_and_version_1 ... ok
+test theta_v0::policy_records::tests::active_scan_budget_and_construction_records ... ok
+test theta_v0::policy_records::tests::arm_sub_expiry_active_and_negative_controls ... ok
+test theta_v0::policy_records::tests::negative_controls_missing_unsigned_invalid ... ok
+test theta_v0::policy_records::tests::negative_controls_scan_budget_and_tangency ... ok
+test theta_v0::policy_records::tests::other_legal_versions_parse_with_their_own_version ... ok
+test theta_v0::policy_records::tests::scan_budget_and_construction_other_versions ... ok
+test theta_v0::policy_records::tests::source_guard_no_constants_or_in_place_writes ... ok
+test theta_v0::policy_records::tests::source_guard_tangency_only_from_record ... ok
+test theta_v0::policy_records::tests::tower_base_record_drives_config_and_rejects_unsupported_base ... ok
+test theta_v0::policy_records::tests::trend_scope_profile_mismatch_and_missing_values_do_not_fallback ... ok
+test theta_v0::policy_records::tests::trend_scope_profiles_read_their_own_record_values ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 3109 filtered out; finished in 0.55s
+
+EXIT=0 SECONDS=100

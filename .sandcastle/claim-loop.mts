@@ -12,15 +12,19 @@
 // 部署（受管常驻，launchd KeepAlive；宿主侧安装由编排者执行 install 脚本）：
 //   bash .sandcastle/install-sandcastle-claimer.sh install
 
+import { useScheduler } from "./scheduler-config.mts";
+import { drainRequested, withLegacyAdmission } from "./drain-control.mts";
 import { execSync, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 
+const scheduler = useScheduler("claim-loop", ["claimPollSeconds", "claimRollbackMs", "frontierQueryLimit"]);
+
 // ── 顶部常量（周期默认 60s；env CLAIM_LOOP_POLL_SECONDS / --poll-seconds 覆盖） ──
-const DEFAULT_POLL_SECONDS = 60;
+const DEFAULT_POLL_SECONDS = scheduler.claimPollSeconds;
 
 // #1259 看门狗：claim 事件后无任何后续事件且无 running main.mts 的票，超此时长才回滚
 // （覆盖「claim-loop 与 main.mts 同时失联」盲区；每轮附带检查，不新增进程）。
-const CLAIM_ROLLBACK_WATCHDOG_MS = 15 * 60 * 1000;
+const CLAIM_ROLLBACK_WATCHDOG_MS = scheduler.claimRollbackMs;
 
 // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉（main.mts 同款）。
 const GH_CLEAN_ENV: NodeJS.ProcessEnv = {
@@ -124,7 +128,7 @@ function hasOpenBlocker(issue: number): boolean {
 /** sandcastle 队列（open + sandcastle 标签）+ 逐票 blocker 查询，归并为 frontier 候选。 */
 function fetchFrontier(): FrontierCandidate[] {
   const out = execSync(
-    `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
+    `gh issue list --label sandcastle --state open --limit ${scheduler.frontierQueryLimit} --json number,assignees`,
     { encoding: "utf8", env: GH_CLEAN_ENV },
   );
   const issues = JSON.parse(out) as Array<{ number: number; assignees: unknown[] }>;
@@ -197,9 +201,9 @@ function appendWorkerEvent(e: Record<string, unknown>): void {
 
 /** 认领回滚动作（与 #1007 摘标/assign 对称）：remove-assignee @me + add-label sandcastle，
  *  workers.jsonl 追加 {phase:"claim", status:"rolled_back"}。失败不抛出（记日志，下轮再试）。 */
-function rollbackClaim(ticket: number, branch: string): void {
+async function rollbackClaim(ticket: number, branch: string): Promise<void> {
   try {
-    execSync(`gh issue edit ${ticket} --remove-assignee @me --add-label sandcastle`, { env: GH_CLEAN_ENV });
+    await withLegacyAdmission(() => execSync(`gh issue edit ${ticket} --remove-assignee @me --add-label sandcastle`, { env: GH_CLEAN_ENV }));
     appendWorkerEvent({ ticket, branch, phase: "claim", status: "rolled_back" });
     console.log(`[claim-loop] #${ticket} 认领回滚：unassigned + sandcastle 标签恢复，下轮可重拾。`);
   } catch (e) {
@@ -209,7 +213,8 @@ function rollbackClaim(ticket: number, branch: string): void {
 
 /** 扫描 workers.jsonl 中所有 stale-claimed 票并回滚（dryRun 只打印）。
  *  minAgeMs>0 仅回滚超时的陈旧认领（看门狗）；minAgeMs=0 立即回滚（主路径：main.mts 已确认退出失败）。 */
-function rollbackStuckClaims(opts: { dryRun: boolean; minAgeMs: number }): void {
+async function rollbackStuckClaims(opts: { dryRun: boolean; minAgeMs: number }): Promise<void> {
+  if (drainRequested()) return;
   const stale = findStaleClaims(readWorkerEvents(), { minAgeMs: opts.minAgeMs });
   if (stale.length === 0) return;
   for (const s of stale) {
@@ -217,7 +222,7 @@ function rollbackStuckClaims(opts: { dryRun: boolean; minAgeMs: number }): void 
       console.log(`[claim-loop] [dry-run] 将回滚 stale-claimed #${s.ticket}（unassign @me + 恢复 sandcastle 标签）`);
       continue;
     }
-    rollbackClaim(s.ticket, s.branch);
+    await rollbackClaim(s.ticket, s.branch);
   }
   if (!opts.dryRun) {
     console.log(`[claim-loop] 本轮回滚 ${stale.length} 张 stale-claimed 票。`);
@@ -251,13 +256,14 @@ function runMainMts(): Promise<MainMtsExit> {
 // ── 单轮 ──────────────────────────────────────────────────────────────────────
 
 async function runOnce(cfg: { dryRun: boolean }): Promise<void> {
+  if (drainRequested()) return;
   if (isMainMtsRunning()) {
     console.log("[claim-loop] main.mts running 实例在跑，本轮跳过（不并发多实例）");
     return;
   }
   // #1259 看门狗：无 running main.mts 时，每轮附带清掉超时（>15min）无后续事件的 stale-claimed 票。
   // 覆盖「claim-loop 与 main.mts 同时失联」盲区；不新增进程。
-  rollbackStuckClaims({ dryRun: cfg.dryRun, minAgeMs: CLAIM_ROLLBACK_WATCHDOG_MS });
+  await rollbackStuckClaims({ dryRun: cfg.dryRun, minAgeMs: CLAIM_ROLLBACK_WATCHDOG_MS });
   const candidates = fetchFrontier();
   if (!hasRunnableIssue(candidates)) {
     console.log(
@@ -272,14 +278,15 @@ async function runOnce(cfg: { dryRun: boolean }): Promise<void> {
   }
   if (!refreshHostMain()) return;
   console.log(`[claim-loop] frontier 非空且无 running 实例（可拾取：${runnable}）→ spawn main.mts`);
-  const exit = await runMainMts();
+  const started = await withLegacyAdmission(() => ({ completion: runMainMts() }));
+  const exit = await started.completion;
   // #1259 主路径：main.mts 已退出且失败（exit≠0 或被信号杀）→ 立即回滚 stale-claimed 票
   // （判定链：最后事件=claim 且无 implementer started；反向判据：有 implementer started 不回滚）。
   const failed = !exit.spawnFailed && (exit.code === null || exit.code !== 0);
   const exitLabel = exit.spawnFailed ? "spawn 失败" : exit.code === null ? `signal ${exit.signal}` : `exit=${exit.code}`;
   console.log(`[claim-loop] main.mts 收尾 ${exitLabel}，下一轮再查`);
   if (failed) {
-    rollbackStuckClaims({ dryRun: false, minAgeMs: 0 });
+    await rollbackStuckClaims({ dryRun: false, minAgeMs: 0 });
   }
 }
 
@@ -288,8 +295,7 @@ async function runOnce(cfg: { dryRun: boolean }): Promise<void> {
 function parseArgs(argv: string[]): { dryRun: boolean; once: boolean; pollSeconds: number } {
   let dryRun = true; // 安全默认：真实 spawn 须显式 --live（wayfinder_engine 同款口径）
   let once = false;
-  const envPoll = Number(process.env.CLAIM_LOOP_POLL_SECONDS ?? DEFAULT_POLL_SECONDS);
-  let pollSeconds = Number.isFinite(envPoll) && envPoll > 0 ? envPoll : DEFAULT_POLL_SECONDS;
+  let pollSeconds = DEFAULT_POLL_SECONDS;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--live") dryRun = false;
@@ -299,6 +305,7 @@ function parseArgs(argv: string[]): { dryRun: boolean; once: boolean; pollSecond
       const n = Number(argv[i + 1]);
       if (Number.isFinite(n) && n > 0) {
         pollSeconds = n;
+        console.error(`[配置 #1606] claim-loop.claimPollSeconds=${n} source=cli:--poll-seconds`);
         i++;
       }
     }
@@ -316,6 +323,7 @@ async function main(): Promise<void> {
     return;
   }
   for (;;) {
+    if (drainRequested()) { console.log("旧入口冻结，本轮不再领新工作"); return; }
     try {
       await runOnce(cfg);
     } catch (e) {

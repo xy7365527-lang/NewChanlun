@@ -408,7 +408,9 @@
       index++;
     }
   }
-  async function bindSources(snapshot, charge = () => {}) {
+  // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
+  // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
+  async function bindSources(snapshot, charge = () => {}, layout = typed.LAYOUTS.LAYOUT1) {
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
@@ -418,7 +420,7 @@
         charge();
         records.push(record);
         const kind = await t(record, "kind");
-        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record);
+        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record, layout);
         else await shapeRecord(record);
         const refs = await f(record, "input_refs"),
           active = (await s(record, "lifecycle")) === "active";
@@ -560,6 +562,8 @@
       need(selected.length === 3, "形态组缺失");
       bound.set(id, selected);
     }
+    // #1491 bounded-layout/1：CC-007 三跳只读绑定（分型对象 → 批记录 entry → 单元序列）。
+    await typed.bindDevelopmentBatches(records, layout);
     return { raw, records, shapes, bound };
   }
   async function shapeIdentity(
@@ -713,7 +717,7 @@
     ["s2-axis-quantifiers+new-bi/1+segment-second/1", TB02_AXES],
     ["s2-axis-quantifiers+new-bi/2+segment-second/1", TB02_AXES],
     ["s2-axis-quantifiers+new-bi/2+segment-second/2", TB02_AXES],
-    ["s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1", TB02_AXES],
+    ["s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1", TB02_AXES], ["s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2", TB02_AXES],
   ]);
   async function axesValidate(axes, active = null) {
     axes = of(axes);
@@ -879,7 +883,7 @@
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
       const logicalSlot =
         (await v.has("schema_revision")) &&
-        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4"].includes(
+        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4", "s-segment/5"].includes(
           await s(v, "schema_revision"),
         );
       for await (const e of v.entries()) {
@@ -1260,7 +1264,7 @@
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
       // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
-      need(RULE_AXES.has(rule), "cut规则修订未声明");
+      need(RULE_AXES.has(typed.splitRule(rule).doctrine), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -1347,11 +1351,15 @@
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule),
+          RULE_AXES.get(typed.splitRule(rule).doctrine),
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
-      const binding = await bindSources(snapshot, charge);
+      const binding = await bindSources(
+        snapshot,
+        charge,
+        typed.splitRule(rule).layout,
+      );
       await bindSegmentSequences(snapshot);
       for (const record of binding.records) {
         charge();
@@ -1372,7 +1380,7 @@
         }
         const kind = await t(record, "kind");
         if (typed.TB02_KINDS.includes(kind)) {
-          const [biSchema, segmentSchema, domain] = Object.hasOwn(typed.RULE_CONTRACTS, rule) ? typed.RULE_CONTRACTS[rule] : [null, null, null];
+          const [biSchema, segmentSchema, domain] = typed.ruleContract(rule) || [null, null, null];
           const payload = await f(record, "payload");
           if (typed.SEGMENT_KINDS.includes(kind))
             need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");
@@ -1418,7 +1426,7 @@
       for (const value of activeValues.values()) {
         if ((await s(value, "kind")) !== "CC-013.segment") continue;
         const r = await typed.plain(value);
-        if (!["s-segment/2", "s-segment/3", "s-segment/4"].includes(r.payload.schema_revision)) continue;
+        if (!["s-segment/2", "s-segment/3", "s-segment/4", "s-segment/5"].includes(r.payload.schema_revision)) continue;
         const d = r.payload.data;
         need(d.second_sequence_id !== null || d.fact_vector.scan_complete, "未完成扫描缺SECOND资源证据");
         for (const [prefix, role] of [["sequence", "FIRST_SEQUENCE"], ["second_sequence", "SECOND_SEQUENCE"]]) {
@@ -1431,16 +1439,16 @@
           if (role === "FIRST_SEQUENCE" && d.strict !== null) need(v.facts.checks.some(c => equalPlain(c.elements, d.strict.elements)), "strict未绑定FIRST检查");
           if (role === "SECOND_SEQUENCE") need(d.fact_vector.scan_complete !== (v.facts.resource_truncated && v.facts.matched === null), "段事实可知性未绑定SECOND扫描证据");
           if (role === "SECOND_SEQUENCE" && d.result === "CASE_TWO") need(v.second_sequence_status === "CONFIRMED" && equalPlain(d.fact_vector.termination_witness.second_match, v.facts.matched), "第二种终结证书未绑定同次SECOND命中");
-          if (role === "SECOND_SEQUENCE" && ["s-segment/3", "s-segment/4"].includes(r.payload.schema_revision) && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
-          if (role === "FIRST_SEQUENCE" && r.payload.schema_revision === "s-segment/4") typed.turnLinks(d, v.facts);
+          if (role === "SECOND_SEQUENCE" && ["s-segment/3", "s-segment/4", "s-segment/5"].includes(r.payload.schema_revision) && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
+          if (role === "FIRST_SEQUENCE" && ["s-segment/4", "s-segment/5"].includes(r.payload.schema_revision)) typed.turnLinks(d, v.facts);
         }
-        if (r.payload.schema_revision === "s-segment/4" && d.parse_invalid !== null) {
+        if (["s-segment/4", "s-segment/5"].includes(r.payload.schema_revision) && d.parse_invalid !== null) {
           // #1493 §7.1 第 6 条：段端门失败 fail-closed——同 cut 段版本与逐轴证据必须带阻断标记。
           const versions = [];
           for (const x of activeValues.values()) {
             if ((await s(x, "kind")) !== "CC-056.segment_version") continue;
             const pv = await typed.plain(x);
-            if (pv.payload.schema_revision === "s-segment/4") versions.push(pv);
+            if (pv.payload.schema_revision === r.payload.schema_revision) versions.push(pv);
           }
           need(versions.length > 0 && versions.every(x => x.payload.data.waiting_reasons.includes(typed.PARSE_INVALID_REASON)), "段端门失败未在段版本标阻断");
           const axes = await typed.plain(await f(await f(snapshot, "catalog_evidence"), "axes"));

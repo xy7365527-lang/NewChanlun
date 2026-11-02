@@ -1,0 +1,27 @@
+test_bad_schema_and_identity_fail (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_bad_schema_and_identity_fail) ... ok
+test_escape_paths_fail (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_escape_paths_fail) ... ok
+test_exact_result_passes_and_preserves_raw_scan (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_exact_result_passes_and_preserves_raw_scan) ... ok
+test_file_drift_and_missing_file_fail (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_file_drift_and_missing_file_fail) ... ok
+test_manifest_without_source_root_fails (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_manifest_without_source_root_fails) ... ok
+test_new_rule_stays_red (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_new_rule_stays_red) ... ok
+test_same_old_key_new_position_or_snippet_stays_red (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_same_old_key_new_position_or_snippet_stays_red) ... ok
+test_scan_upload_and_tool_failures_are_not_exempt (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_scan_upload_and_tool_failures_are_not_exempt) ... ok
+test_source_root_without_manifest_fails (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_source_root_without_manifest_fails) ... ok
+test_symlink_escape_fails (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_symlink_escape_fails) ... ok
+test_unconfigured_keeps_original_red (test_devskim_reviewed_false_positives.TestReviewedFalsePositives.test_unconfigured_keeps_original_red) ... ok
+test_invalid_summary_cap_is_a_usage_error (test_devskim_sarif_gate.TestDevskimSarifGate.test_invalid_summary_cap_is_a_usage_error) ... ok
+test_known_baseline_and_removed_key_are_not_new_findings (test_devskim_sarif_gate.TestDevskimSarifGate.test_known_baseline_and_removed_key_are_not_new_findings) ... ok
+test_large_difference_is_complete_ordered_and_appended (test_devskim_sarif_gate.TestDevskimSarifGate.test_large_difference_is_complete_ordered_and_appended) ... ok
+test_multiple_errors_and_summary_write_failure_remain_visible (test_devskim_sarif_gate.TestDevskimSarifGate.test_multiple_errors_and_summary_write_failure_remain_visible) ... ok
+test_no_findings_succeeds_without_summary_file (test_devskim_sarif_gate.TestDevskimSarifGate.test_no_findings_succeeds_without_summary_file) ... ok
+test_summary_cap_0200_means_two_hundred (test_devskim_sarif_gate.TestDevskimSarifGate.test_summary_cap_0200_means_two_hundred) ... ok
+test_summary_cap_boundary_keeps_identical_report (test_devskim_sarif_gate.TestDevskimSarifGate.test_summary_cap_boundary_keeps_identical_report) ... ok
+test_summary_cap_exceeded_by_one_truncates_summary_only (test_devskim_sarif_gate.TestDevskimSarifGate.test_summary_cap_exceeded_by_one_truncates_summary_only) ... ok
+test_summary_cap_leading_zero_is_decimal_not_octal (test_devskim_sarif_gate.TestDevskimSarifGate.test_summary_cap_leading_zero_is_decimal_not_octal) ... ok
+test_summary_cap_zero_still_fails_and_lists_nothing (test_devskim_sarif_gate.TestDevskimSarifGate.test_summary_cap_zero_still_fails_and_lists_nothing) ... ok
+test_summary_write_failure_overrides_an_otherwise_passing_gate (test_devskim_sarif_gate.TestDevskimSarifGate.test_summary_write_failure_overrides_an_otherwise_passing_gate) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 3.231s
+
+OK

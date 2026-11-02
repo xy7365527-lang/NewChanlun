@@ -539,6 +539,7 @@ fn read_once(
         "session_id":pins.session_id,"session_generation":pins.session_generation,
         "writer_epoch":pins.writer_epoch,"object_ids":object_ids});
     let reply = pins.call("financial-basis-ref", &request, job, deadline)?;
+    super::phase_trace::mark("s_basis_ref_call", "S");
     exact(&reply, &BASIS_REPLY)?;
     if reply["schema_revision"] != "s-financial-basis/3"
         || reply["content_format"] != sc::CONTENT_FORMAT
@@ -606,6 +607,7 @@ fn read_once(
     if pins.reading == Reading::ColdFragment {
         import_proof(&proof, stage, job, Some(deadline))?;
     }
+    super::phase_trace::mark("s_basis_checks", "S");
     // One complete check on a cached root. Missing nodes trigger retrieval by the one
     // frozen reading and a new check; any rows visited by the failed attempt stay charged.
     // 读法在冻结时已定（A6 第4节）：这里按 `Reading` 分派，失败直接返回，不换读法（#799）。
@@ -628,6 +630,7 @@ fn read_once(
         },
         Err(error) => return Err(error),
     };
+    super::phase_trace::mark("s_local_verify", "S");
     if result.snapshot_ref != snapshot {
         return Err("IdentityConflict：本地 snapshot 与 transport 不同".into());
     }

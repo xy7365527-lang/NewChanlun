@@ -1,0 +1,6 @@
+# #1488 S5（0075）二进制收据；文件留 WSL /mnt/g/AgentStorage/1488-accept/s5/bin/（rustc 1.99.1，WSL Ubuntu 经 nc-remote 构建，NC_TARGET=target-s75）
+# sha256                                                            bytes      file                                     源/特性
+d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e  12754072  s_structure_session-prod-3ee05a2713      终面 3ee05a2713，--release --features s_session（生产构建；p1/p2 臂）
+4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882  15686608  s_structure_session-testonly-3ee05a2713  终面 3ee05a2713，release testonly native（n1/n1b 臂）
+65eae4632fbf25375e9f06e740caa85cd8cacf365b8164713d0732a33a1708bd  15690488  s_structure_session-diag2-c081bfdeee     派生诊断提交 c081bfdeee（父 3ee05a2713，仅 audit_owner.rs:727 加 s5_charge 字段；不在本分支、不入产品），testonly native（d2 臂，仅供 D7 读数）
+# 对照基线：main 6badaa6049 r8a/r8b（S1 收据，见 ../s86/）

@@ -1,0 +1,39 @@
+{
+  "service": "s",
+  "pid": 27383,
+  "db": "/home/hanju/nc-remote/1488-accept/a5s6/final2/session.sqlite",
+  "process_identity": "1000 Wed Oct 21 12:23:55 2026 /mnt/g/AgentStorage/1488-accept/a5s6/bin/s_structure_session-3ee05a2713 serve --db /home/hanju/nc-remote/1488-accept/a5s6/final2/session.sqlite --socket /tmp/a76-final2.sock --writer-epoch 1 --profile /home/hanju/nc-remote/wt/20261021-122345-2a576099bf/s_session/profiles/ohlc_integer_tb02a_v1.json --clock-plan /home/hanju/nc-remote/wt/20261021-122345-2a576099bf/.chanlun/review-results/1488-acceptance/min12/input/clock.json --protocol-revision s-session/3 --resource-config /home/hanju/nc-remote/1488-accept/a5s6/final2/control/s-resources-5efb5d99-b834-452b-85fe-6ba79fc0bd97.json",
+  "command": [
+    "/mnt/g/AgentStorage/1488-accept/a5s6/bin/s_structure_session-3ee05a2713",
+    "serve",
+    "--db",
+    "/home/hanju/nc-remote/1488-accept/a5s6/final2/session.sqlite",
+    "--socket",
+    "/tmp/a76-final2.sock",
+    "--writer-epoch",
+    "1",
+    "--profile",
+    "/home/hanju/nc-remote/wt/20261021-122345-2a576099bf/s_session/profiles/ohlc_integer_tb02a_v1.json",
+    "--clock-plan",
+    "/home/hanju/nc-remote/wt/20261021-122345-2a576099bf/.chanlun/review-results/1488-acceptance/min12/input/clock.json",
+    "--protocol-revision",
+    "s-session/3",
+    "--resource-config",
+    "/home/hanju/nc-remote/1488-accept/a5s6/final2/control/s-resources-5efb5d99-b834-452b-85fe-6ba79fc0bd97.json"
+  ],
+  "control_instance_id": "3f9659ef-38ca-444c-8d18-23d738854d31",
+  "resource_identity": {
+    "path": "/home/hanju/nc-remote/1488-accept/a5s6/final2/control/s-resources-5efb5d99-b834-452b-85fe-6ba79fc0bd97.json",
+    "nonce": "5efb5d99-b834-452b-85fe-6ba79fc0bd97",
+    "sha256": "38e54410ae9a3874dee564fabe70986547c583076e7cf8f6d8c540205fd0178c",
+    "device": 2096,
+    "inode": 2003227,
+    "uid": 1000
+  },
+  "socket_identity": {
+    "path": "/tmp/a76-final2.sock",
+    "device": 2096,
+    "inode": 2004017,
+    "uid": 1000
+  }
+}

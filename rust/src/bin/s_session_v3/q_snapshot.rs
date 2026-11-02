@@ -335,9 +335,13 @@ pub(super) fn token(
     if matches!(projection.wire, JsonOwner::Owned(_)) {
         panic!("旧token只支持None投影，请使用token_with_budget");
     }
+    assert!(
+        !matches!(&projection.wire, JsonOwner::Plain(value) if value.is_native_admitted()),
+        "旧token不可复制Native投影为无scope值"
+    );
     match token_with_budget(projection, issued, page_size, offset, None).expect("None token同核")
     {
-        JsonOwner::Plain(v) => v,
+        JsonOwner::Plain(v) => v.into_unscoped().expect("兼容token仅接无scope值"),
         #[cfg(feature = "s_allocation_json_testonly")]
         JsonOwner::Owned(_) => unreachable!(),
     }

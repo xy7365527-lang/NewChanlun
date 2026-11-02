@@ -55,10 +55,11 @@
    - **leaf sub-issue（有 parent、无子票、无 open blocker）→ 允许**（上游拒绝一切 sub-issue，此处改判）；
    - 原生 open blocker（`issue_dependencies_summary.blocked_by > 0`）→ 拒绝并标 `agent:blocked`。
 2. **agent auth/model**（`shared/agent.ts`）：
-   - Prime 是模型无关控制面，不进入 workflow；GitHub-hosted runner 用 Sandcastle 内置
-     `claudeCode()` + GitHub Secret `CLAUDE_CODE_OAUTH_TOKEN`；
-   - 模型常量集中：实装 Sonnet（`claude-sonnet-4-6`）、评审 Opus（`claude-opus-4-8`）；
-   - 缺 secret fail-loud（写 `failure_reason.txt` + 非零退出 → workflow 回写 blocked + 评论）。
+   - #1617 现行合同：GitHub-hosted runner 没有获批的 Astra 凭据或可达 CLIProxy 端点，
+     无标签 Claude 默认在模型调用前退役；不再注入 `CLAUDE_CODE_OAUTH_TOKEN` 或按角色分档；
+   - `agent:model:deepseek-v4-pro` 仅作 implement / implement-pr / review 的显式 legacy opt-in；
+   - 本机受管默认统一为 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`，经 CLIProxyLocal；
+   - 缺 secret、未知标签、冲突标签与退役默认均 fail-loud（写 `failure_reason.txt` → blocked）。
 
 ## 本仓必要接线（非语义适配）
 
@@ -67,8 +68,7 @@
 - `.sandcastle/agent-workflows/package.json`：`{"type":"module"}`——上游在仓库根声明
   `type: module`，本仓 Rust/Python 为主、根 package.json 无 type 字段，故把 ESM 作用域
   收窄到本目录（tsgo `moduleResolution: nodenext` 依赖它识别 ESM）。
-- `shared/common.ts` 的 `fail()` 保留上游 `process.exit(1)` 语义（见 `agent.ts` 内
-  `|| fail(...)` 注释：tsgo 不把 never 调用当控制流终止点）。
+- `shared/common.ts` 的 `fail()` 保留上游 `process.exit(1)` 语义（供各 workflow 顶层失败回写使用）。
 
 ## 验证（AC-6/AC-7）
 

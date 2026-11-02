@@ -1,0 +1,64 @@
+name: Admission operator contract (#1657)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'rust/src/bin/s_session_v3/admission*'
+      - 'rust/src/bin/s_structure_session.rs'
+      - 's_session/contracts/**'
+      - 's_session/s_service_control.py'
+      - 's_session/tests/issue1657_admission.rs'
+      - 's_session/tests/test_tb01c_admission_contract.py'
+      - '.github/workflows/issue-1657-admission.yml'
+jobs:
+  admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: admission-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+      - name: Run named negative controls and positive lifecycle
+        working-directory: rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --features s_session --bin s_structure_session admission_prepare_ -- --list | tee "$RUNNER_TEMP/admission-list.log"
+          for name in forged_limits_sha relocated_db_identity superseded_contract missing_contract_version existing_published_anchor live_writer foreign_uid unapproved_contract awaiting_measurement_contract; do
+            grep -F "admission_prepare_rejects_${name}: test" "$RUNNER_TEMP/admission-list.log"
+          done
+          cargo test --locked --features s_session --bin s_structure_session admission_prepare_ -- --nocapture | tee "$RUNNER_TEMP/admission-tests.log"
+          # 验收 7：launcher 调用 R4 前的 admission-contract 入口窗口不足负控（主控 2026-10-28 裁定，prepare 路径不代替）。
+          launcher=admission_contract_rejects_insufficient_startup_window_before_r4
+          cargo test --locked --features s_session --bin s_structure_session "$launcher" -- --list | tee "$RUNNER_TEMP/admission-launcher-list.log"
+          grep -F "${launcher}: test" "$RUNNER_TEMP/admission-launcher-list.log"
+          cargo test --locked --features s_session --bin s_structure_session "$launcher" -- --nocapture | tee "$RUNNER_TEMP/admission-launcher-tests.log"
+          grep -F "test result: ok. 1 passed" "$RUNNER_TEMP/admission-launcher-tests.log"
+      - name: Launcher contracts and adjacent lifecycle
+        run: python -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v
+      - name: Release must not contain test-only anchor issuance
+        working-directory: rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --features s_session --bin s_structure_session
+          nm -C target/release/s_structure_session > "$RUNNER_TEMP/admission-symbols.log"
+          if grep -q test_prepare "$RUNNER_TEMP/admission-symbols.log"; then exit 1; fi
+          set +e
+          target/release/s_structure_session admission-prepare --contract-version s-admission-small/1-awaiting-measurement --contract ../s_session/contracts/admission-small-v1.json --startup-timeout-ms 10000 2> "$RUNNER_TEMP/admission-release-refusal.log"
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -F AdmissionContractAwaitingMeasurement "$RUNNER_TEMP/admission-release-refusal.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue1657-admission-evidence
+          path: ${{ runner.temp }}/admission-*.log

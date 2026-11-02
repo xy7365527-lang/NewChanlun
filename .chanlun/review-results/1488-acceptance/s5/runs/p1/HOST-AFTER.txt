@@ -1,0 +1,9 @@
+end=2026-10-21T03:18:33Z loadavg=13.63 12.34 10.10 12/221 27528 driver_rc=0
+  PID     ELAPSED %CPU COMMAND
+26435       06:50  444 /home/hanju/nc-remote/issue1608/debug/deps/s_structure_session-6334780ee30570c4 --skip v3::financial_session
+27526       00:02 90.4 /usr/lib/git-core/git reset --hard --no-recurse-submodules --quiet
+  862    01:16:46 90.2 /home/hanju/nc-remote/issue1629/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995
+27088    03:41:37 89.0 /home/hanju/nc-remote/issue1597post/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995
+26980       29:40 52.4 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 serve --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --socket /tmp/a76-main1.sock --writer-epoch 1 --profile 
+26991       29:40 26.9 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --resource-config 
+27518       00:02  0.3 bash -s

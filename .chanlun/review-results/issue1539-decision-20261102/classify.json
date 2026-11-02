@@ -1,0 +1,9 @@
+{
+  "ticket": 1539,
+  "model": "claude-fable-5-1",
+  "klass": "T",
+  "reason": "本票裁决的是 fill/position 唯一权威写者的 owner 落点、重复/乱序/更正/恢复下累计量稳定的事件协议（状态机与恢复语义）及 crosswalk 的可审计数据结构，全部落在 graph-engineering.md「1. 分级」T 类判据，且有 ADR 0027 裁定三、ADR 0039:272-292（每域一库一 writer.lock/writer_epoch）、#1340 C09.7/C10 与已关 #1538（R4 明文将单一真账/crosswalk 归本票）可援引；票面「费用」指费用事件入账协议而非费用参数，真实场所账户/权限已归 #1540，不涉及资金参数与 Destination 改写。",
+  "parsed": true,
+  "durationMs": 33937,
+  "raw": "```json\n{\"class\":\"T\",\"reason\":\"本票裁决的是 fill/position 唯一权威写者的 owner 落点、重复/乱序/更正/恢复下累计量稳定的事件协议（状态机与恢复语义）及 crosswalk 的可审计数据结构，全部落在 graph-engineering.md「1. 分级」T 类判据，且有 ADR 0027 裁定三、ADR 0039:272-292（每域一库一 writer.lock/writer_epoch）、#1340 C09.7/C10 与已关 #1538（R4 明文将单一真账/crosswalk 归本票）可援引；票面「费用」指费用事件入账协议而非费用参数，真实场所账户/权限已归 #1540，不涉及资金参数与 Destination 改写。\"}\n```"
+}

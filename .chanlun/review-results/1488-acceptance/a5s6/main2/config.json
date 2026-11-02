@@ -1,0 +1,32 @@
+{
+  "schema_revision": "s-launcher/3",
+  "session_id": "tb1419-s0b-min12-per-bar",
+  "session_generation": "1",
+  "source_namespace": "testonly.ohlc.tb1419-s0b-min12-per-bar",
+  "source_epoch": "1",
+  "producer_id": "tb1419-s0b-control",
+  "producer_epoch": "1",
+  "writer_epoch": "1",
+  "query_epoch": "1",
+  "delivery_retain_generations": "4",
+  "port": "18877",
+  "startup_timeout_ms": "10000",
+  "db": "/home/hanju/nc-remote/1488-accept/a5s6/main2/session.sqlite",
+  "socket": "/tmp/a76-main2.sock",
+  "binary": "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049",
+  "python": "/usr/bin/python3.12",
+  "catalog": "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/s_session/catalog/signed-catalog.json",
+  "profile": "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/s_session/profiles/ohlc_integer_tb02a_v1.json",
+  "clock_plan": "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/min12/input/clock.json",
+  "browser": "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/s_session/browser/index.html",
+  "query_resource_config": "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/q3-frozen.json",
+  "s_resources": {
+    "max_frame_bytes": "1048576",
+    "read_timeout_ms": "2000",
+    "write_timeout_ms": "1000",
+    "queue_capacity": "32",
+    "max_connections": "48",
+    "response_timeout_ms": "1800000",
+    "audit_cache_source_bytes": "268435456"
+  }
+}

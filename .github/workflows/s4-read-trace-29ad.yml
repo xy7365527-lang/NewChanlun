@@ -1,0 +1,41 @@
+name: S4 read trace 29ad
+on:
+  push:
+    branches: [codex/1757-s4-cold-read29ad]
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Build release test
+        run: cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4
+      - name: Check local descent and caller contracts
+        run: |
+          cargo test --release --locked --features s_session,s_incremental --lib s4_local_descent -- --test-threads 1 --nocapture
+          cargo test --release --locked --features s_session,s_incremental --test s_content_path --test s_content_key_subset --test s_content_array_scan -- --test-threads 1
+      - name: Check manifest coverage behavior
+        run: |
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session history_public_coverage -- --test-threads 1
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session manifest_template_coverage -- --test-threads 1
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session committed_history_binds_manifest_source_public_roots_without_writes -- --test-threads 1
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session valid_but_substituted_snapshot_is_rejected_against_manifest -- --test-threads 1
+      - name: Run exact S4
+        run: |
+          set -o pipefail
+          timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages --test-threads 1 --nocapture 2>&1 | tee ../s4-trace.log
+          grep -q '1 passed; 0 failed' ../s4-trace.log
+          echo PASS_RELEASE | tee -a ../s4-trace.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s4-read-trace-${{ github.run_id }}
+          path: s4-trace.log
+          if-no-files-found: warn

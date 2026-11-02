@@ -14,6 +14,7 @@
   "include": [
     ".sandcastle/*.ts",
     ".sandcastle/*.mts",
-    ".sandcastle/agent-workflows/**/*.ts"
+    ".sandcastle/agent-workflows/**/*.ts",
+    "scripts/wayfinder_engine.mts"
   ]
 }

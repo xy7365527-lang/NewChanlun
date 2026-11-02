@@ -1,0 +1,307 @@
+{
+ "label": "r8a-main-6badaa6049",
+ "run": "/home/hanju/nc-remote/1488-accept/s1/r8a",
+ "binary_sha256": "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040",
+ "nodes": 784774,
+ "reachable": 344419,
+ "unreachable": 440355,
+ "unreachable_ratio": 0.561123,
+ "tops": 101601,
+ "unowned": 0,
+ "classes": {
+  "seq-top": {
+   "tops": 70051,
+   "nodes": 224705,
+   "tags": {
+    "0x13": 224705
+   }
+  },
+  "obj:record-generated": {
+   "tops": 13336,
+   "nodes": 90729,
+   "tags": {
+    "0x13": 77393,
+    "0x06": 13336
+   }
+  },
+  "obj:record-internal": {
+   "tops": 13336,
+   "nodes": 90552,
+   "tags": {
+    "0x06": 13336,
+    "0x13": 77216
+   }
+  },
+  "obj:manifest-snapshot-draft": {
+   "tops": 1285,
+   "nodes": 15124,
+   "tags": {
+    "0x13": 10764,
+    "0x14": 1026,
+    "0x05": 1023,
+    "0x06": 1285,
+    "0x12": 1026
+   }
+  },
+  "obj:manifest-delta-draft": {
+   "tops": 1285,
+   "nodes": 13410,
+   "tags": {
+    "0x13": 9050,
+    "0x12": 1026,
+    "0x06": 1285,
+    "0x05": 1023,
+    "0x14": 1026
+   }
+  },
+  "array-memo": {
+   "tops": 1714,
+   "nodes": 2911,
+   "tags": {
+    "0x13": 1197,
+    "0x05": 1714
+   }
+  },
+  "obj:source-mi": {
+   "tops": 501,
+   "nodes": 1678,
+   "tags": {
+    "0x06": 501,
+    "0x13": 1002,
+    "0x14": 86,
+    "0x12": 87,
+    "0x10": 1,
+    "0x03": 1
+   }
+  },
+  "obj:generation-scope": {
+   "tops": 86,
+   "nodes": 1032,
+   "tags": {
+    "0x13": 946,
+    "0x06": 86
+   }
+  },
+  "mixed": {
+   "tops": 0,
+   "nodes": 200,
+   "tags": {
+    "0x13": 194,
+    "0x05": 4,
+    "0x12": 1,
+    "0x14": 1
+   }
+  },
+  "array-other": {
+   "tops": 7,
+   "nodes": 14,
+   "tags": {
+    "0x13": 7,
+    "0x05": 7
+   }
+  }
+ },
+ "array_top_sublist": {
+  "interior": 1604,
+  "suffix": 110,
+  "none": 7
+ },
+ "object_top_keysets": {
+  "obj:record-internal": [
+   [
+    9933,
+    [
+     "batch_id",
+     "fact_key",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "kind",
+     "lifecycle",
+     "object_id",
+     "object_revision",
+     "payload",
+     "published_generation",
+     "source_coords",
+     "superseded_by",
+     "withdrawal_reason",
+     "withdrawn_generation"
+    ]
+   ],
+   [
+    3403,
+    [
+     "batch_id",
+     "branch",
+     "comparisons",
+     "dir_ab",
+     "dir_bc",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "kind",
+     "lifecycle",
+     "object_id",
+     "object_revision",
+     "published_generation",
+     "source_coords",
+     "superseded_by",
+     "window_end",
+     "window_mid",
+     "window_start",
+     "withdrawal_reason",
+     "withdrawn_generation"
+    ]
+   ]
+  ],
+  "obj:manifest-delta-draft": [
+   [
+    1285,
+    [
+     "base_cut",
+     "catalog_evidence",
+     "catalog_revision",
+     "catalog_run_status",
+     "generation",
+     "index_frontier",
+     "input_frontier",
+     "next_cut",
+     "observations",
+     "raw_history_added",
+     "relations",
+     "replaces",
+     "seq_range",
+     "session_id",
+     "upserts",
+     "withdrawals",
+     "witnesses"
+    ]
+   ]
+  ],
+  "obj:record-generated": [
+   [
+    9933,
+    [
+     "fact_key",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "input_refs_json",
+     "kind",
+     "object_id",
+     "object_revision",
+     "payload",
+     "payload_json",
+     "published_generation",
+     "source_coords",
+     "source_coords_json"
+    ]
+   ],
+   [
+    3403,
+    [
+     "branch",
+     "comparisons",
+     "dir_ab",
+     "dir_bc",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "input_refs_json",
+     "kind",
+     "object_id",
+     "object_revision",
+     "published_generation",
+     "source_coords",
+     "source_coords_json",
+     "window_end",
+     "window_mid",
+     "window_start"
+    ]
+   ]
+  ],
+  "obj:source-mi": [
+   [
+    501,
+    [
+     "mi",
+     "object_id",
+     "raw_bars",
+     "slot"
+    ]
+   ]
+  ],
+  "obj:manifest-snapshot-draft": [
+   [
+    1285,
+    [
+     "as_of_generation",
+     "catalog_evidence",
+     "catalog_revision",
+     "catalog_run_status",
+     "generation",
+     "history_mode",
+     "index_frontier",
+     "input_frontier",
+     "objects",
+     "observations",
+     "profile_hash",
+     "profile_id",
+     "raw_history",
+     "relations",
+     "scope",
+     "seq_range",
+     "session_id",
+     "structure_cut",
+     "withdrawn_objects",
+     "witnesses"
+    ]
+   ]
+  ],
+  "obj:generation-scope": [
+   [
+    86,
+    [
+     "catalog_revision",
+     "effective_events",
+     "generation",
+     "input_frontier",
+     "objects",
+     "observations",
+     "profile_hash",
+     "profile_id",
+     "raw_events",
+     "relations",
+     "rule_revision",
+     "scope",
+     "structure_cut",
+     "witnesses"
+    ]
+   ]
+  ]
+ },
+ "record_top_vs_object_row": {
+  "obj:record-internal rev=same pg=diff live": 12311,
+  "obj:record-generated rev=same pg=diff live": 12311,
+  "obj:record-internal rev=same pg=diff withdrawn": 1025,
+  "obj:record-generated rev=same pg=diff withdrawn": 1025
+ },
+ "record_top_kinds": {
+  "obj:record-internal CC-004.inclusion_step": 3655,
+  "obj:record-generated CC-004.inclusion_step": 3655,
+  "obj:record-generated CC-005.inclusion_group": 3570,
+  "obj:record-internal CC-005.inclusion_group": 3570,
+  "obj:record-internal CC-006.local_shape": 3403,
+  "obj:record-generated CC-006.local_shape": 3403,
+  "obj:record-internal CC-055.relation": 2231,
+  "obj:record-generated CC-055.relation": 2231,
+  "obj:record-generated CC-008.endpoint": 211,
+  "obj:record-internal CC-008.endpoint": 211,
+  "obj:record-internal CC-008.new_bi_pair": 134,
+  "obj:record-generated CC-008.new_bi_pair": 134,
+  "obj:record-internal CC-010.bi": 132,
+  "obj:record-generated CC-010.bi": 132
+ },
+ "publications_rows": 86,
+ "abandoned_generations": []
+}

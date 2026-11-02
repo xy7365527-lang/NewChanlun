@@ -1,0 +1,6 @@
+test profile_fullwindow_bottleneck ... ignored, 全窗瓶颈 profile，需 analysis/data_cache/btc_1m_full.json；release 模式；显式 --ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+EXIT=0 SECONDS=359
+log: /tmp/nc-remote/20261025-061228-0be91d6af3.log

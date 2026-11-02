@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -65,6 +66,10 @@ from nautilus_trader.trading.strategy import Strategy  # noqa: E402
 
 import newchan_rust as nr  # noqa: E402
 
+# #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
+# AwaitingPolicy{funding_record}，不回退任何默认资金。
+FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
+
 from nested_recursive_fugue_final_backtest import FLOOR, LADDER_NAMES, bh_mdd  # noqa: E402
 from organic_signals import StreamingSignalReader, push_signal  # noqa: E402
 
@@ -84,7 +89,7 @@ def analyze_fugue(res: dict, closes) -> dict:
     的 nrf 字段（no-patch-mentality：声明=能力）。物理 NAV 唯一真值 = equity 序列末值。
     """
     trades = res["trades"]
-    strat_pct = (res["final_nav"] / 100_000.0 - 1) * 100
+    strat_pct = (res["final_nav"] / res["q_total"] - 1) * 100  # 基准 = 记录 Q_total（#1601）
     equity = res["equity"]
     assert abs(equity[-1][1] - res["final_nav"]) < 1e-3, \
         f"equity 末值漂移：{equity[-1][1]} ≠ {res['final_nav']}"
@@ -178,7 +183,7 @@ class FugueV3StreamStrategy(Strategy):
     def on_start(self) -> None:
         # require_settled=True：与 unn_stream/批量基线逐字一致。
         self.reader = StreamingSignalReader(dir_flips=self.dir_flips, require_settled=True)
-        self.stream = nr.FugueV3Stream(floor_ladder=FLOOR)
+        self.stream = nr.FugueV3Stream(floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
         self.subscribe_bars(self.config.bar_type)
         self.log.info(f"FugueV3StreamStrategy 启动: {self.config.bar_type}（逐 bar process_bar→push_bar）")
 
@@ -222,7 +227,7 @@ def verify_bit_exact(stream_res: dict, bartuples: list, closes) -> dict:
     本对账仅校验引擎层 step/finish 流式累积 == 批量。bit-exact 由构造保证（共享 step/finish），
     本函数仅作实证确认。
     """
-    batch_res = nr.run_fugue_v3(bartuples, floor_ladder=FLOOR)
+    batch_res = nr.run_fugue_v3(bartuples, floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
     sa = analyze_fugue(stream_res, closes)
     ba = analyze_fugue(batch_res, closes)
     keys = set(sa) | set(ba)
@@ -234,6 +239,8 @@ def verify_bit_exact(stream_res: dict, bartuples: list, closes) -> dict:
 
 def build_engine(spec, log_level: str, verify_batch: bool):
     instrument = make_instrument(spec)
+    # venue 与 Rust 流式引擎共用同一份签署记录；缺记录时在装配前停止。
+    funding = nr.read_funding_record(FUNDING_PROFILE)
     engine = BacktestEngine(
         config=BacktestEngineConfig(
             trader_id=TraderId("FUGUEV3-STREAM-001"),
@@ -245,7 +252,7 @@ def build_engine(spec, log_level: str, verify_batch: bool):
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         base_currency=USD,
-        starting_balances=[Money(1_000_000.0, USD)],
+        starting_balances=[Money(float(funding["q_total"]), USD)],
         fill_model=FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0),
     )
     engine.add_instrument(instrument)

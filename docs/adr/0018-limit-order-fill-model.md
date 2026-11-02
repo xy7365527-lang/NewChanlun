@@ -66,7 +66,7 @@
 
 ---
 
-## 裁定一：穿越才成交，打平不成交
+## 裁定一：生产与验收穿越成交，触及仅诊断
 
 **买单 `low < 挂单价` 才成交（严格小于），`low == 挂单价` 不成交。卖单对称（`high > 挂单价`）。** 成交价见裁定二。
 
@@ -76,10 +76,9 @@
 2. **这批挂单挂在 ZG/ZD——全市场盯着的关口**，正是排队最长的价位。价格擦一下即弹走时，队列根本轮不到你。「触及即成交」在**最不该乐观的地方最乐观**。
 3. **否则等于按每根 bar 的极值给自己成交**，这是限价回测最经典的过拟合来源；而它伪造出的假 alpha 恰好长得像「短差做得准」——正是本图要验的东西。
 
-**被否的候选**：
+> #1599（用户 2026-10-26 批准）：字段进入所属具名版本，一次运行只读一个已签版本，改值即新版本并重推导；不得因失败换值放行。
 
-- **触及即成交（`low <= 挂单价`）**：见上。
-- **触及 + 穿透 k 个 tick 的缓冲**：k **无数据可标定**（本仓无逐笔、无盘口）。`venue_fee.rs` 的 `uncalibrated_addon` 已是一个「看着合理的拍脑袋常数」被其自身文件登记为裂缝的前例，不加第二个。若日后要做，k 走 [#917](https://github.com/xy7365527-lang/NewChanlun/issues/917) 的标定线。
+`fill_rule={cross(k≥1),touch}`，默认 cross：整数 tick 域严格穿越就是最小 1 tick，不另设未签缓冲 k。更大 k 的标定仍归 #917。touch（买单 low≤挂单价，卖单对称）只保留为诊断选项；报告须写乐观撮合与过拟合代价，绝不参与准入或作为验收结果。禁止 cross 失败后以 touch 重新放行。
 
 **代价**：实盘中排在队首者那一下**确实成交了**，本裁定判其未成交 ⟹ **系统性悲观**。接受，因为它与现状（close 成交）**偏差同向**，不翻边——而 (乙) 的最大风险恰是把偏差翻到乐观侧。
 
@@ -191,3 +190,7 @@ strategy 层在挂单那一刻**算不出中枢何时失效——那是未来信
 - **接口改状态流** → [订单接口：事件流 → 状态流 #927](https://github.com/xy7365527-lang/NewChanlun/issues/927)（挂 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787)，由 [#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 与 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) blocking）。**其形态空间已被 #926 收窄两处**：裁定三应复用既有 `ConflictKey` 而非新造排序键；裁定四的状态流上游（`p_star`）已在生产、`entry_tick_for` 接入点已预留 ⟹ 「结构性改动」仍成立，但不是从零造。**⟹ 2026-08-06 已裁定形态：[ADR 0019](0019-limit-order-state-flow-interface.md)**（只改回测臂 / `Order` 加 `limit_px: Option<Tick>` / 快照按 `(CenterId, 方向)` 认单 / 市价路径零改 / 实装 spec 等探针）。**其裁定一订正了上面这句「裁定三应复用既有 `ConflictKey`」的作用域**——见「勘察回填」节「订正二之补」。
 - **`config.rs:284-285` 的过期清单**：原判「把 `simulate_fills` 列为生产回路」，[#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 查实**四条里坏三条**（另两条已随 #499 删除）。与在飞决策不挂钩的文本欠账，按 `docs/agents/wayfinder-workflow.md` 入流判据**不进图**，走 triage 挂 `debt` → [#928](https://github.com/xy7365527-lang/NewChanlun/issues/928)。
 - **`fill.rs:23` 的 `types.rs:218` 行号漂移**：同上，随 debt 一并订正。
+
+## #1599 批复与受影响清单
+
+[用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。

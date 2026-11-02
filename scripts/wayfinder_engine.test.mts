@@ -34,7 +34,7 @@ import {
   specDrafterEnv,
   DEFAULT_SPEC_MODEL,
   DEFAULT_SPEC_PROVIDER,
-  CLAUDE_FAMILY_SPEC_MODELS,
+  SUPPORTED_SPEC_MODELS,
 } from "./wayfinder_engine.mts";
 import type {
   ChildIssue,
@@ -574,32 +574,32 @@ test("releaseTicket：写前复核读到负责人 / blocker 不发 --add-label�
   assert.deepEqual(ok.writes, ["issue edit 1524 --add-label sandcastle"]);
 });
 
-// ── #1588：spec 起草子代理只用 Claude 家族（经 CLIProxyLocal） ─────────────────
+// ── #1617：spec 起草子代理与主控同型（经 CLIProxyLocal） ─────────────────
 
-test("起草子代理默认：claude-cliproxy / claude-opus-5-5", () => {
+test("起草子代理默认：claude-cliproxy / gpt-6.1-sol", () => {
   assert.equal(DEFAULT_SPEC_PROVIDER, "claude-cliproxy");
-  assert.equal(DEFAULT_SPEC_MODEL, "claude-opus-5-5");
-  assert.deepEqual(resolveSpecDrafter({}), { specProvider: "claude-cliproxy", specModel: "claude-opus-5-5" });
-  assert.deepEqual([...CLAUDE_FAMILY_SPEC_MODELS], ["claude-opus-5-5", "claude-fable-5-1"]);
+  assert.equal(DEFAULT_SPEC_MODEL, DEFAULT_SPEC_MODEL);
+  assert.deepEqual(resolveSpecDrafter({}), { specProvider: "claude-cliproxy", specModel: DEFAULT_SPEC_MODEL });
+  assert.deepEqual([...SUPPORTED_SPEC_MODELS], [DEFAULT_SPEC_MODEL]);
 });
 
-test("起草子代理可配成 Claude 家族白名单内的 claude-fable-5-1", () => {
-  assert.deepEqual(resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: "claude-fable-5-1" }), {
+test("起草子代理显式配置主控同型仍可用", () => {
+  assert.deepEqual(resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: DEFAULT_SPEC_MODEL }), {
     specProvider: "claude-cliproxy",
-    specModel: "claude-fable-5-1",
+    specModel: DEFAULT_SPEC_MODEL,
   });
 });
 
-test("起草子代理配非 Claude 家族模型 → fail-loud，不回退默认", () => {
-  for (const m of ["deepseek-v4-pro", "gpt-6-astra", "mf/claude-opus-5-5", "claude-haiku-4-5", ""]) {
-    assert.throws(() => resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: m }), /不属于 Claude 家族白名单/, `model=${m}`);
+test("起草子代理配非主控模型 → fail-loud，不回退默认", () => {
+  for (const m of ["deepseek-v4-pro", "kimi-k3.1-pro", "claude-opus-5-5", "claude-fable-5-1", "mf/claude-opus-5-5", "claude-haiku-4-5", ""]) {
+    assert.throws(() => resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: m }), /不等于当前主控模型/, `model=${m}`);
   }
 });
 
 test("起草子代理配非 claude-cliproxy provider → fail-loud（旧 deepseek / prime-agent 路由不复活）", () => {
   for (const p of ["deepseek", "cliproxy-local", "anthropic"]) {
     assert.throws(
-      () => resolveSpecDrafter({ WAYFINDER_SPEC_PROVIDER: p, WAYFINDER_SPEC_MODEL: "claude-opus-5-5" }),
+      () => resolveSpecDrafter({ WAYFINDER_SPEC_PROVIDER: p, WAYFINDER_SPEC_MODEL: DEFAULT_SPEC_MODEL }),
       /不受支持/,
       `provider=${p}`,
     );
@@ -607,9 +607,9 @@ test("起草子代理配非 claude-cliproxy provider → fail-loud（旧 deepsee
 });
 
 test("起草子代理调用：Claude Code CLI 无头 -p、禁用全部工具、不落会话，模型显式传入", () => {
-  const { file, args } = specDrafterCommand("claude-opus-5-5");
+  const { file, args } = specDrafterCommand(DEFAULT_SPEC_MODEL);
   assert.equal(file, "claude");
-  assert.deepEqual(args, ["-p", "--model", "claude-opus-5-5", "--output-format", "text", "--tools", "", "--no-session-persistence"]);
+  assert.deepEqual(args, ["-p", "--bare", "--model", DEFAULT_SPEC_MODEL, "--output-format", "text", "--tools", "", "--no-session-persistence"]);
   assert.ok(!args.includes("prime-agent") && !args.some((a) => /deepseek/.test(a)));
 });
 

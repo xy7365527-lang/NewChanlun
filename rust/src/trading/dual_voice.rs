@@ -78,9 +78,7 @@ use super::positional::{
 };
 use super::positional_fusion::PhaseView;
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
@@ -174,6 +172,7 @@ pub(crate) fn run_dual_voice(
     floor_ladder: usize,
     dual_book: bool,
     nest_deep: bool,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -203,7 +202,7 @@ pub(crate) fn run_dual_voice(
     let mut res = PositionalResult::default();
     let mut layers: [LayerState; MAX_LADDER] = [LayerState::Flat; MAX_LADDER];
     let mut shorts: [ShortState; MAX_LADDER] = [ShortState::Flat; MAX_LADDER];
-    let mut pool = INITIAL_CAPITAL;
+    let mut pool = q_total;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
     let mut osc_layer = OscLayer::new();
@@ -1004,7 +1003,7 @@ pub(crate) fn run_dual_voice(
 #[cfg(test)]
 mod tests {
     use super::super::config::SUB_COST_MIN_OBS;
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
@@ -1086,7 +1085,7 @@ mod tests {
             trend_flips: Some(trend_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, mode).unwrap()
+        run_positional_fx(&t, 2, mode).unwrap()
     }
 
     #[test]

@@ -1,0 +1,32 @@
+ref=codex/1488-fix-p2-resume-20261023 sha=ef258130d5b5664f6014287c6b6c8bac58972e32 sub=rust target=/home/hanju/nc-remote/target-r88 cmd=bash -c set\ +e\;\ RUSTFLAGS="-D\ warnings"\ cargo\ check\ --locked\ --all-targets\ --features\ s_session\,s_capture_native_testonly\;\ rc=$\?\;\ cargo\ fmt\ --all\ --\ --check\;\ fmt=$\?\;\ echo\ CHECK_RC=$rc\ FMT_RC=$fmt\;\ \[\ $rc\ =\ 0\ \]\ \&\&\ \[\ $fmt\ =\ 0\ \] 
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-215947-ef258130d5/rust)
+error: expected one of `.`, `;`, `?`, `where`, or an operator, found `";
+                   const SUFFIX: &str = "`
+    --> src/bin/s_session_v3/audit_owner.rs:2446:61
+     |
+2446 |   ... = "SELECT rowid,* FROM main."";
+     |                                    ^
+     |                                    |
+     |  __________________________________expected one of `.`, `;`, `?`, `where`, or an operator
+     | |
+2447 | | ... = "" ORDER BY rowid";
+     | |_______^ unexpected token
+
+error: could not compile `newchan_rust` (bin "s_structure_session") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `newchan_rust` (bin "s_structure_session" test) due to 1 previous error
+error: expected one of `.`, `;`, `?`, `where`, or an operator, found `";
+                   const SUFFIX: &str = "`
+    --> /home/hanju/nc-remote/wt/20261025-215947-ef258130d5/rust/src/bin/s_session_v3/audit_owner.rs:2446:61
+     |
+2446 |   ... = "SELECT rowid,* FROM main."";
+     |                                    ^
+     |                                    |
+     |  __________________________________expected one of `.`, `;`, `?`, `where`, or an operator
+     | |
+2447 | | ... = "" ORDER BY rowid";
+     | |_______^ unexpected token
+
+Error writing files: failed to resolve mod `audit_owner`: cannot parse /home/hanju/nc-remote/wt/20261025-215947-ef258130d5/rust/src/bin/s_session_v3/audit_owner.rs
+CHECK_RC=101 FMT_RC=1
+EXIT=1 SECONDS=24

@@ -83,4 +83,6 @@ jobs:
             --expected-tool-name 'devskim' \
             --expected-tool-version '1.0.90+fb2d676ce4' \
             --baseline .github/devskim-baseline.json \
+            --false-positives .github/devskim-reviewed-1488.json \
+            --source-root "$GITHUB_WORKSPACE" \
             --summary "$GITHUB_STEP_SUMMARY"

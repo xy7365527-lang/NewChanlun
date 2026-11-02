@@ -21,7 +21,7 @@
 //! 一致）。本文件升为命名常量 + L2 标注（重命名+标注，非新增；231号零新参数）。
 
 pub use crate::trading::positional::EQUITY_SAMPLE_BARS;
-pub use crate::trading::types::{FIRST_BSP_LADDER, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
+pub use crate::trading::types::{FIRST_BSP_LADDER, LADDER_MOVE, MAX_LADDER};
 
 /// pending 势源下界（N5/N6）：move(L1)。segment(=FIRST_BSP_LADDER) 非势源。
 /// **L0**（T28 move(L1)=势源下界，segment 非势源；零自由度）。

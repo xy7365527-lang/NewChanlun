@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -61,6 +62,10 @@ from nautilus_trader.model.objects import Money  # noqa: E402
 from nautilus_trader.trading.strategy import Strategy  # noqa: E402
 
 import newchan_rust as nr  # noqa: E402
+
+# #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
+# AwaitingPolicy{funding_record}，不回退任何默认资金。
+FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
 
 from nested_recursive_fugue_final_backtest import FLOOR, analyze, bh_mdd  # noqa: E402
 from organic_fugue_rust_check import pack_tape  # noqa: E402
@@ -106,7 +111,7 @@ class UnnStreamStrategy(Strategy):
     def on_start(self) -> None:
         # require_settled=True：与 analysis/批量基线逐字一致（backtest_unn.run_unn 同口径）。
         self.reader = StreamingSignalReader(dir_flips=self.dir_flips, require_settled=True)
-        self.stream = nr.UnnStream(floor_ladder=FLOOR)
+        self.stream = nr.UnnStream(floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
         self.subscribe_bars(self.config.bar_type)
         self.log.info(f"UnnStreamStrategy 启动: {self.config.bar_type}（逐 bar 流式 process_bar→push_bar）")
 
@@ -151,7 +156,9 @@ def run_unn_batch(opens: list, highs: list, lows: list, closes: list) -> dict:
     tape = compute_organic_signals(opens, highs, lows, closes,
                                    dir_flips=dir_flips, require_settled=True)
     rtape = pack_tape(tape, dir_flips=dir_flips)
-    res = nr.run_positional_rust(rtape, floor_ladder=FLOOR, mode="unn")
+    res = nr.run_positional_rust(
+        rtape, floor_ladder=FLOOR, mode="unn", funding_profile=FUNDING_PROFILE
+    )
     a = analyze(res, closes, years=None)
     a["nrf_max_children"] = res.get("nrf_max_children", 0)
     return a
@@ -173,6 +180,8 @@ def verify_bit_exact(stream_result: dict, batch_result: dict) -> dict:
 
 def build_engine(spec, log_level: str):
     instrument = make_instrument(spec)
+    # venue 与 Rust 流式引擎共用同一份签署记录；缺记录时在装配前停止。
+    funding = nr.read_funding_record(FUNDING_PROFILE)
     engine = BacktestEngine(
         config=BacktestEngineConfig(
             trader_id=TraderId("UNN-STREAM-001"),
@@ -184,7 +193,7 @@ def build_engine(spec, log_level: str):
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         base_currency=USD,
-        starting_balances=[Money(1_000_000.0, USD)],
+        starting_balances=[Money(float(funding["q_total"]), USD)],
         fill_model=FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0),
     )
     engine.add_instrument(instrument)

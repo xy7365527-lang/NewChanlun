@@ -1,0 +1,61 @@
+{
+  "issue": 1657,
+  "pr": 1710,
+  "reviewer": "/root/review1657_final",
+  "verdict": "PASS",
+  "head": "507c3fed75ddc2538578999a85a1e3f259dcedc4",
+  "base": "3ddd2323c47e0658eba56f8205027a573e9f1f2e",
+  "findings": [],
+  "checks": [
+    {
+      "name": "contract-and-policy",
+      "result": "PASS"
+    },
+    {
+      "name": "issuance-revocation-locks-and-recovery",
+      "result": "PASS"
+    },
+    {
+      "name": "launcher-contract-before-publication",
+      "result": "PASS"
+    },
+    {
+      "name": "test-production-separation",
+      "result": "PASS"
+    },
+    {
+      "name": "independent-python-contract",
+      "result": "PASS",
+      "tests": 5,
+      "exit": 0
+    },
+    {
+      "name": "reused-wsl-rust",
+      "result": "PASS",
+      "tests": 14,
+      "evidence": "../rust-final-release.log"
+    },
+    {
+      "name": "reused-python-adjacent",
+      "result": "PASS",
+      "tests": 82,
+      "evidence": "../python-tests.log"
+    },
+    {
+      "name": "release-no-test-prepare-and-real-refusal",
+      "result": "PASS",
+      "evidence": "../rust-final-release.log"
+    },
+    {
+      "name": "comment-review",
+      "result": "PASS",
+      "mustKill": []
+    }
+  ],
+  "remaining": [
+    "最终PR CI由主控收齐",
+    "main批准及#1527→#1657合入顺序",
+    "当前七项AwaitingMeasurement拒签；#1675承担实测、适用库辨识、新版本与成功收据"
+  ],
+  "report": "INDEPENDENT-REVIEW.md"
+}

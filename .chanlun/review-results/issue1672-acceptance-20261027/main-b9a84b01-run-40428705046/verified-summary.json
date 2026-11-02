@@ -1,0 +1,110 @@
+{
+  "responses": {
+    "Recorded": 6,
+    "Applied": 12,
+    "Resolved": 3
+  },
+  "resend_pairs_exact_except_epochs": 21,
+  "storage_phases": {
+    "initialized": 4,
+    "original": 21,
+    "before_recover": 4,
+    "after_recover": 4,
+    "before_resend": 21,
+    "after_resend": 21
+  },
+  "owners": {
+    "E": {
+      "max_observed_page_count": 209,
+      "min_cleanup_margin": 22950272,
+      "max_allocated": 1277952,
+      "final_image_bytes": 91706,
+      "connection_max_page_counts": [
+        1016,
+        4294967294
+      ],
+      "db_counts": {
+        "commits": 11,
+        "messages": 10,
+        "receipts": 10,
+        "applications": 0,
+        "content_staging": 0
+      }
+    },
+    "B:chong-N1": {
+      "max_observed_page_count": 584,
+      "min_cleanup_margin": 21803392,
+      "max_allocated": 2424832,
+      "final_image_bytes": 771028,
+      "connection_max_page_counts": [
+        1016,
+        4294967294
+      ],
+      "db_counts": {
+        "commits": 5,
+        "messages": 4,
+        "receipts": 4,
+        "applications": 4,
+        "content_staging": 0
+      }
+    },
+    "B:chong-N2": {
+      "max_observed_page_count": 605,
+      "min_cleanup_margin": 21717376,
+      "max_allocated": 2510848,
+      "final_image_bytes": 785605,
+      "connection_max_page_counts": [
+        1016,
+        4294967294
+      ],
+      "db_counts": {
+        "commits": 5,
+        "messages": 4,
+        "receipts": 4,
+        "applications": 4,
+        "content_staging": 0
+      }
+    },
+    "B:chong-N3": {
+      "max_observed_page_count": 622,
+      "min_cleanup_margin": 21647744,
+      "max_allocated": 2580480,
+      "final_image_bytes": 800181,
+      "connection_max_page_counts": [
+        1016,
+        4294967294
+      ],
+      "db_counts": {
+        "commits": 5,
+        "messages": 4,
+        "receipts": 4,
+        "applications": 4,
+        "content_staging": 0
+      }
+    }
+  },
+  "final_books_q_K": [
+    [
+      "2",
+      "204"
+    ],
+    [
+      "5",
+      "506"
+    ],
+    [
+      "5",
+      "506"
+    ]
+  ],
+  "cleanup": {
+    "command_exit": "0",
+    "cleanup_failed": "0",
+    "root": "/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF",
+    "root_exists": "no"
+  },
+  "two_ignored_tests": "actual 2 passed, 0 failed, 0 ignored, 24.79s",
+  "limits": [
+    "Recovery byte equality and full frozen table comparisons are execution assertions in the passed test; only the final DB snapshot is archived."
+  ]
+}

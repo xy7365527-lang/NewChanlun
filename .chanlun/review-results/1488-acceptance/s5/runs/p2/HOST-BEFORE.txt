@@ -1,0 +1,10 @@
+label=p2 mode=ordinary bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-prod-3ee05a2713 sha256=d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e head=87d09a50ce495121babac1edc9c73d75a102206d
+start=2026-10-21T03:18:36Z loadavg=13.58 12.36 10.12 12/223 27576
+  PID     ELAPSED %CPU COMMAND
+26435       06:54  444 /home/hanju/nc-remote/issue1608/debug/deps/s_structure_session-6334780ee30570c4 --skip v3::financial_session
+27565       00:01 97.2 /home/hanju/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustfmt /home/hanju/nc-remote/wt/20261021-111822-2c2d467e26/rust/src/bin/b_chong_session.rs /home/hanju/nc-remote/wt/20261021-1118
+  862    01:16:50 90.2 /home/hanju/nc-remote/issue1629/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995
+27088    03:41:41 89.0 /home/hanju/nc-remote/issue1597post/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995
+26980       29:44 52.4 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 serve --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --socket /tmp/a76-main1.sock --writer-epoch 1 --profile 
+26991       29:44 26.8 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --resource-config 
+27547       00:01  0.6 /home/hanju/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo-fmt fmt --all -- --check

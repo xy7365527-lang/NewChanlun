@@ -1,0 +1,23 @@
+{
+  "service": "q",
+  "pid": 26991,
+  "db": "/home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite",
+  "process_identity": "1000 Wed Oct 21 10:48:52 2026 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --resource-config /home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/q3-frozen.json --producer-epoch 1 --host 127.0.0.1 --port 18877",
+  "command": [
+    "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049",
+    "query-serve",
+    "--protocol-revision",
+    "s-session/3",
+    "--db",
+    "/home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite",
+    "--resource-config",
+    "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/q3-frozen.json",
+    "--producer-epoch",
+    "1",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18877"
+  ],
+  "control_instance_id": "2d07e728-c897-4ba2-8771-f2f6a1a9357f"
+}

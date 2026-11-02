@@ -44,9 +44,11 @@
 #![allow(dead_code)]
 
 use super::content_producer::{array_from_sequence, Cc004Producer, ProducerError, TypedObject};
+use super::v3::fixed_radix::{FixedRadix, Iter as RadixIter};
 use super::*;
 use newchan_rust::s_content::capture_allocation::audit_json::{ArrayView, JsonArray, JsonView};
-use newchan_rust::s_content::path::{lookup_path, PathStep};
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+use newchan_rust::s_content::path::{lookup_path_native, PathStep};
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, SequenceRef,
     Value as CValue,
@@ -179,6 +181,8 @@ fn event_coord(event: JsonView<'_>) -> Result<i64, BiError> {
 pub(super) enum BiLedgerView<'a> {
     Plain(&'a BTreeMap<i64, Value>),
     Views(&'a BTreeMap<i64, JsonView<'a>>),
+    RadixViews(&'a FixedRadix<i64, JsonView<'a>>),
+    Delta(super::s_fact_cache::EffectiveRawView<'a>),
 }
 
 impl<'a> BiLedgerView<'a> {
@@ -186,13 +190,17 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => rows.len(),
             Self::Views(rows) => rows.len(),
+            Self::RadixViews(rows) => rows.len(),
+            Self::Delta(rows) => rows.len(),
         }
     }
 
-    fn get(self, coord: i64) -> Option<JsonView<'a>> {
+    pub(super) fn get(self, coord: i64) -> Option<JsonView<'a>> {
         match self {
             Self::Plain(rows) => rows.get(&coord).map(JsonView::from),
             Self::Views(rows) => rows.get(&coord).copied(),
+            Self::RadixViews(rows) => rows.get(&coord).copied(),
+            Self::Delta(rows) => rows.get(coord),
         }
     }
 
@@ -200,6 +208,8 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => BiRows::Plain(rows.iter()),
             Self::Views(rows) => BiRows::Views(rows.iter()),
+            Self::RadixViews(rows) => BiRows::Radix(rows.iter()),
+            Self::Delta(rows) => BiRows::Delta(rows.rows_from(0)),
         }
     }
 
@@ -207,11 +217,15 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => BiRows::PlainRange(rows.range(start..=end)),
             Self::Views(rows) => BiRows::ViewsRange(rows.range(start..=end)),
+            Self::RadixViews(rows) => BiRows::Radix(rows.range(start..=end)),
+            Self::Delta(rows) => BiRows::Delta(rows.range(start, end)),
         }
     }
 }
 
 enum BiRows<'a> {
+    Radix(RadixIter<'a, i64, JsonView<'a>>),
+    Delta(super::s_fact_cache::EffectiveRawRows<'a>),
     Plain(std::collections::btree_map::Iter<'a, i64, Value>),
     Views(std::collections::btree_map::Iter<'a, i64, JsonView<'a>>),
     PlainRange(std::collections::btree_map::Range<'a, i64, Value>),
@@ -223,8 +237,10 @@ impl<'a> Iterator for BiRows<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
+            Self::Delta(rows) => rows.next(),
             Self::Plain(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
             Self::Views(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
+            Self::Radix(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
             Self::PlainRange(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
             Self::ViewsRange(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
         }
@@ -306,13 +322,15 @@ pub(super) struct DepsArrays {
 ///   故永不失效；
 /// - `refs`：叶 = 当前源版本的八字段引用值根；`refs_leaves` 是与 `coords` 对齐的**水位索引**。
 ///   `RawCoords::sync` 逐位与 `Cc004Producer::source_root` 比对，**实际变化**的最早位置起
-///   重建尾部（`sequence_split` 取前缀 + 逐叶 `sequence_append`），未变前缀的节点原样保留；
+///   重建尾部（`sequence_rebuild_suffix` 保留前缀 + 整段新尾一次构造，不落逐叶中间根），
+///   不构造被丢弃的旧右段，未变前缀的节点原样保留；
 /// - `coords` 是区间定位用的升序坐标索引（与调用方账本同量级），不是内容物化。
 struct RawCoords {
     coords: Vec<i64>,
     refs_leaves: Vec<NodeDigest>,
     text: SequenceRef,
     refs: SequenceRef,
+    delta_binding: Option<crate::v3::audit_owner::RawAdvanceBinding>,
 }
 
 impl RawCoords {
@@ -322,6 +340,7 @@ impl RawCoords {
             refs_leaves: Vec::new(),
             text: SequenceRef::empty(),
             refs: SequenceRef::empty(),
+            delta_binding: None,
         }
     }
 
@@ -337,6 +356,14 @@ impl RawCoords {
         producer: &mut Cc004Producer,
         ledger: &Ledger<'_>,
     ) -> Result<(), BiError> {
+        if let BiLedgerView::Delta(view) = ledger.rows {
+            return self.sync_delta(store, producer, view);
+        }
+        if self.delta_binding.is_some() {
+            return Err(BiError::Facts {
+                detail: "delta RawCoords 不得切回无资格全扫".into(),
+            });
+        }
         let common = self.coords.len().min(ledger.rows.len());
         let mut first = common;
         for (index, (&mine, (theirs, _))) in self.coords.iter().zip(ledger.rows.iter()).enumerate()
@@ -358,28 +385,102 @@ impl RawCoords {
         if first == self.coords.len() && self.coords.len() == ledger.rows.len() {
             return Ok(());
         }
-        let (text_prefix, _) = sc::sequence_split(&mut *store, &self.text, first as u64)?;
-        let (refs_prefix, _) = sc::sequence_split(&mut *store, &self.refs, first as u64)?;
-        let mut text = text_prefix;
-        let mut refs = refs_prefix;
         let mut tail: Vec<i64> = Vec::new();
+        let mut tail_text: Vec<NodeDigest> = Vec::new();
         let mut tail_refs: Vec<NodeDigest> = Vec::new();
         for (coord, _) in ledger.rows.iter().skip(first) {
             let leaf = producer.coord_text_leaf(&mut *store, coord)?;
-            text = sc::sequence_append(&mut *store, &text, &leaf)?;
             let source = producer
                 .source_root(coord)
                 .ok_or(ProducerError::MissingSource(coord))?;
-            refs = sc::sequence_append(&mut *store, &refs, &source)?;
             tail.push(coord);
+            tail_text.push(leaf);
             tail_refs.push(source);
         }
+        // 与 delta 口同一做法：一次构造最终后缀，不逐 leaf 落作废中间根（#1488 S3）。
+        let text = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &tail_text)?;
+        let refs = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &tail_refs)?;
         self.coords.truncate(first);
         self.refs_leaves.truncate(first);
         self.coords.extend(tail);
         self.refs_leaves.extend(tail_refs);
         self.text = text;
         self.refs = refs;
+        Ok(())
+    }
+
+    /// 实际旧根/计数由本实例持有，dirty 只能来自同一 owner 推进后的车道。
+    fn sync_delta(
+        &mut self,
+        store: &mut dyn NodeStore,
+        producer: &mut Cc004Producer,
+        view: super::s_fact_cache::EffectiveRawView<'_>,
+    ) -> Result<(), BiError> {
+        producer.check_effective_view(view)?;
+        let valid_binding = match self.delta_binding {
+            Some(previous) => previous == view.bound().previous_binding(),
+            None => view.bound().previous_binding().is_initial() && self.coords.is_empty(),
+        };
+        if view.bound().raw().budget().is_some() {
+            return Err(BiError::Facts {
+                detail: "prototype_audit_allocation_incomplete：RawCoords delta 尚非 Owned".into(),
+            });
+        }
+        if !valid_binding
+            || self.coords.len() != view.previous_len()
+            || self.refs_leaves.len() != self.coords.len()
+            || self.text.count() != self.coords.len() as u64
+            || self.refs.count() != self.coords.len() as u64
+        {
+            return Err(BiError::Facts {
+                detail: "RawCoords 前代 binding/计数/根资格不一致".into(),
+            });
+        }
+        let first = view.dirty_from();
+        if first > self.coords.len() {
+            return Err(BiError::Facts {
+                detail: "RawCoords dirty 后缀越过旧账".into(),
+            });
+        }
+        if first == self.coords.len() && first == view.len() {
+            self.delta_binding = Some(view.bound().current_binding());
+            return Ok(());
+        }
+        let mut tail = Vec::with_capacity(view.len() - first);
+        let mut tail_refs = Vec::with_capacity(view.len() - first);
+        let mut tail_text = sc::CodecVec::new_with_allocation(view.bound().raw().budget());
+        tail_text.try_reserve_exact(view.len() - first)?;
+        for (coord, _) in view.rows_from(first) {
+            let leaf = producer.coord_text_leaf(&mut *store, coord)?;
+            let source = producer
+                .source_root(coord)
+                .ok_or(ProducerError::MissingSource(coord))?;
+            tail_text.try_push(leaf)?;
+            tail.push(coord);
+            tail_refs.push(source);
+        }
+        // 一次构造最终后缀，不逐 leaf 落作废中间根；只保存本次真实受影响的尾部叶。
+        let text = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &self.text,
+            first as u64,
+            &tail_text,
+            view.bound().raw().budget(),
+        )?;
+        let refs = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &self.refs,
+            first as u64,
+            &tail_refs,
+            view.bound().raw().budget(),
+        )?;
+        self.coords.truncate(first);
+        self.coords.extend(tail);
+        self.refs_leaves.truncate(first);
+        self.refs_leaves.extend(tail_refs);
+        self.text = text;
+        self.refs = refs;
+        self.delta_binding = Some(view.bound().current_binding());
         Ok(())
     }
 
@@ -664,16 +765,16 @@ struct PriorBi {
     entity_id: String,
     entity_revision: i64,
     end_group_anchor: i64,
-    start: ContentRef,
-    end: ContentRef,
-    data: ContentRef,
-    confirmation: Option<ContentRef>,
+    start: NativeValue<ContentRef>,
+    end: NativeValue<ContentRef>,
+    data: NativeValue<ContentRef>,
+    confirmation: Option<NativeValue<ContentRef>>,
     confirmation_successor_start: Option<String>,
     confirmation_source_coords: Option<Vec<usize>>,
-    formed_known_at: ContentRef,
-    formed_evidence: ContentRef,
-    confirmed_known_at: Option<ContentRef>,
-    version_causes: ContentRef,
+    formed_known_at: NativeValue<ContentRef>,
+    formed_evidence: NativeValue<ContentRef>,
+    confirmed_known_at: Option<NativeValue<ContentRef>>,
+    version_causes: NativeValue<ContentRef>,
 }
 
 /// 上一代发布态的索引：活跃 bi 记录 + 由版本对象给出的当前事实代际。
@@ -789,7 +890,7 @@ impl PriorBi {
 
 /// 上一代一条 `obj3` 记录的公共核验结果：已核的载荷边 + 事实键槽位。
 struct PriorRecord {
-    payload: ContentRef,
+    payload: NativeValue<ContentRef>,
     slot: String,
 }
 
@@ -1008,7 +1109,7 @@ pub(super) struct ContentBi {
 }
 
 impl ContentBi {
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         if self.coords.coords.is_empty() {
             return;
@@ -1064,6 +1165,22 @@ impl ContentBi {
 
     /// 无复制借用适配。门序、判据、身份及生命周期与 normal 入口共用此核。
     pub(super) fn build_borrowed(
+        &mut self,
+        producer: &mut Cc004Producer,
+        store: &mut dyn NodeStore,
+        input: &BiBuildInputView<'_>,
+    ) -> Result<BiBuild, BiError> {
+        let result = self.build_borrowed_inner(producer, store, input);
+        if result.is_err() {
+            if let BiLedgerView::Delta(view) = input.raw {
+                view.bound().invalidate_after_consumer_failure();
+                self.discard_runtime_state(producer);
+            }
+        }
+        result
+    }
+
+    fn build_borrowed_inner(
         &mut self,
         producer: &mut Cc004Producer,
         store: &mut dyn NodeStore,
@@ -1858,12 +1975,13 @@ fn nested_path(names: &[&str]) -> Vec<PathStep> {
 }
 
 /// 按路径定位（只核路径触碰到的节点与序列形状，见 `s_content::path`）。
+/// 活动工作域下查找签发的原正文许可随引用持有，至持有者（上一代索引）释放。
 fn resolve(
     store: &mut dyn NodeStore,
     reference: &ContentRef,
     path: &[PathStep],
-) -> Result<ContentRef, BiError> {
-    Ok(lookup_path(&mut *store, reference, path)?)
+) -> Result<NativeValue<ContentRef>, BiError> {
+    Ok(lookup_path_native(&mut *store, reference.into(), path)?)
 }
 
 /// 单个**叶**值的规范渲染（字符串 / 数字叶没有子树，闭包即该节点；容器不许走这里）。
@@ -1918,7 +2036,7 @@ fn optional_object(
     store: &mut dyn NodeStore,
     reference: &ContentRef,
     path: &[PathStep],
-) -> Result<Option<ContentRef>, BiError> {
+) -> Result<Option<NativeValue<ContentRef>>, BiError> {
     let target = resolve(store, reference, path)?;
     if target.kind == Kind::Null {
         return Ok(None);
@@ -1988,6 +2106,49 @@ fn coord_array(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn radix_ledger_borrowed_rows_match_plain_and_views_with_closed_ranges() {
+        let mut raw = BTreeMap::new();
+        for coord in [i64::MIN, -1, 0, 1, i64::MAX] {
+            raw.insert(
+                coord,
+                serde_json::json!({"source_coord":coord.to_string(),"seq":coord}),
+            );
+        }
+        let views: BTreeMap<i64, JsonView<'_>> = raw.iter().map(|(k, v)| (*k, v.into())).collect();
+        let mut radix = FixedRadix::new();
+        let admission = MemoryNodes::new();
+        for (coord, row) in &views {
+            radix.insert_admitted(*coord, *row, &admission).unwrap();
+        }
+        let layouts = [
+            BiLedgerView::Plain(&raw),
+            BiLedgerView::Views(&views),
+            BiLedgerView::RadixViews(&radix),
+        ];
+        let snapshot = |rows: BiRows<'_>| {
+            rows.map(|(coord, row)| (coord, serde_json::to_value(row).unwrap()))
+                .collect::<Vec<_>>()
+        };
+        let expected = snapshot(layouts[0].iter());
+        for layout in layouts {
+            assert_eq!(layout.len(), raw.len());
+            assert_eq!(snapshot(layout.iter()), expected);
+            for key in [i64::MIN, -1, 0, 1, i64::MAX] {
+                assert_eq!(
+                    serde_json::to_value(layout.get(key).unwrap()).unwrap(),
+                    raw[&key]
+                );
+                for end in [key, i64::MAX] {
+                    assert_eq!(
+                        snapshot(layout.range(key, end)),
+                        snapshot(layouts[0].range(key, end))
+                    );
+                }
+            }
+        }
+    }
+
     use super::content_producer::RawRefSpec;
     use super::*;
     use newchan_rust::s_content::{MemoryNodes, NodeRead, NodeSink, NodeSource};
@@ -3234,6 +3395,109 @@ mod tests {
         );
     }
 
+    /// `verify` 全闭包实际读到的节点即可达集（空序列按规范不读节点，单独豁免）。
+    fn reachable_nodes(nodes: &mut MemoryNodes, refs: &[ContentRef]) -> BTreeSet<NodeDigest> {
+        struct Reads<'a> {
+            nodes: &'a mut MemoryNodes,
+            seen: BTreeSet<NodeDigest>,
+        }
+        impl NodeSource for Reads<'_> {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.seen.insert(*digest);
+                self.nodes.read(digest)
+            }
+        }
+        let mut reads = Reads {
+            nodes,
+            seen: BTreeSet::new(),
+        };
+        // 同一核验器内共享子树只读一次；读集 = 全部根的公开全闭包。
+        sc::verify_many(&mut reads, refs.iter().cloned()).expect("产出全闭包可核");
+        reads.seen.insert(SequenceRef::empty().root());
+        reads.seen
+    }
+
+    /// #1488 S3 锁：非 delta `RawCoords::sync` 多代续接（追加 + 中段源修订）每代新写节点
+    /// 全部可从本代全账本数组闭包到达（不可达 = 0，不落逐叶作废中间根），且末代根与冷构建逐位相同。
+    #[test]
+    fn raw_coords_sync_writes_no_orphans_and_matches_cold() {
+        let row = |index: usize, revision: i64| Row {
+            coord: index as i64 * 10,
+            high: 100 + index as i64,
+            low: 50 + index as i64,
+            revision,
+            seq: index as i64,
+        };
+        let mut rows: Vec<Row> = (0..24).map(|index| row(index, 1)).collect();
+        let mut harness = Harness::new();
+        let mut coords = RawCoords::new();
+        let mut steps = 0usize;
+        // 0..3：每代追加 5 行；3：第 12 行源修订（截断重建尾部）；4：修订 + 再追加 7 行。
+        for step in 0..5usize {
+            match step {
+                3 => rows[12] = row(12, 2),
+                4 => {
+                    rows[20] = row(20, 2);
+                    let base = rows.len();
+                    rows.extend((base..base + 7).map(|index| row(index, 1)));
+                }
+                _ if step > 0 => {
+                    let base = rows.len();
+                    rows.extend((base..base + 5).map(|index| row(index, 1)));
+                }
+                _ => {}
+            }
+            let (_, raw, _) = ledger(&rows);
+            harness.bind(&raw);
+            let before: BTreeSet<NodeDigest> = harness
+                .store
+                .nodes
+                .iter()
+                .map(|(digest, _, _)| *digest)
+                .collect();
+            coords
+                .sync(
+                    &mut harness.store,
+                    &mut harness.producer,
+                    &Ledger::new(&raw),
+                )
+                .expect("对齐坐标序列");
+            let whole = coords.whole(&mut harness.store).expect("全账本数组");
+            let reachable = reachable_nodes(
+                &mut harness.store.nodes,
+                &[
+                    whole.input_refs.content_ref(),
+                    whole.source_coords.content_ref(),
+                ],
+            );
+            let orphans: Vec<NodeDigest> = harness
+                .store
+                .nodes
+                .iter()
+                .map(|(digest, _, _)| *digest)
+                .filter(|digest| !before.contains(digest) && !reachable.contains(digest))
+                .collect();
+            assert!(
+                orphans.is_empty(),
+                "第 {step} 代 RawCoords::sync 留下 {} 个不可达节点",
+                orphans.len()
+            );
+            steps += 1;
+        }
+        assert_eq!(steps, 5, "逐代不可达锁不是假空");
+        let (_, raw, _) = ledger(&rows);
+        let mut cold = Harness::new();
+        cold.bind(&raw);
+        let mut cold_coords = RawCoords::new();
+        cold_coords
+            .sync(&mut cold.store, &mut cold.producer, &Ledger::new(&raw))
+            .expect("冷对齐");
+        assert_eq!(coords.coords, cold_coords.coords);
+        assert_eq!(coords.refs_leaves, cold_coords.refs_leaves);
+        assert_eq!(coords.text, cold_coords.text, "暖/冷坐标文本序列逐位相同");
+        assert_eq!(coords.refs, cold_coords.refs, "暖/冷源引用序列逐位相同");
+    }
+
     /// 增量内容序列与共享 coords 树是**同一条判据**：同一逻辑坐标集必须给出同根
     /// （否则「同一判断两档」）。
     #[test]
@@ -3620,6 +3884,15 @@ mod tests {
             .expect("首代车道");
         let head_coords: Vec<i64> = raw_head.keys().copied().collect();
         assert_eq!(lane.coords, head_coords, "首代车道坐标");
+        // 新源先登记：sync 先收齐尾部叶再一次构造后缀（sequence_rebuild_suffix，#1488 S3），
+        // 未登记源会在构造后缀前即以 MissingSource 退出，测不到半途拒写。
+        for (coord, row) in &raw_full {
+            if !raw_head.contains_key(coord) {
+                producer
+                    .bind_source(&mut store, *coord, spec_of(row))
+                    .expect("登记新源版本");
+            }
+        }
         let before = store.puts;
         store.refuse_put_after = Some(before + 3);
         let error = lane
@@ -3640,13 +3913,6 @@ mod tests {
             "半途失败后引用叶车道必须保持上一代整根"
         );
         store.refuse_put_after = None;
-        for (coord, row) in &raw_full {
-            if !raw_head.contains_key(coord) {
-                producer
-                    .bind_source(&mut store, *coord, spec_of(row))
-                    .expect("登记新源版本");
-            }
-        }
         lane.sync(&mut store, &mut producer, &Ledger::new(&raw_full))
             .expect("解除拒写后必须可恢复");
 

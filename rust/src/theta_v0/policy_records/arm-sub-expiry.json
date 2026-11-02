@@ -1,0 +1,16 @@
+{
+  "id": "arm-sub-expiry",
+  "version": 1,
+  "kind": "legacy_line_policy",
+  "ticket": "#1601（#1586 审计 C-22；ADR 0041）",
+  "fields": {
+    "sub_expiry_bars": {
+      "value": 60,
+      "default": 60,
+      "unit": "bar 数（ARM 后等待次级别确认的过期窗口）",
+      "source": "旧线 trading/types.rs:43 SUB_EXPIRY = 60（与 fugue_alpha_diagnosis.SUB_EXPIRY 逐字）；#1586 AUDIT C-22 判 T：确认过期的 bar 数，原文没有定论。v1 只把现行值迁入记录，未经新签",
+      "options": "任意正整数。取大：ARM 后等次级别确认更久才超时入场；取小：更早超时入场",
+      "cost": "只作用于旧经济臂（run_positional 基础路径、run_organic）；改值即新版本"
+    }
+  }
+}

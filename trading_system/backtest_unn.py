@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -67,6 +68,10 @@ from nautilus_trader.model.objects import Money  # noqa: E402
 from nautilus_trader.trading.strategy import Strategy  # noqa: E402
 
 import newchan_rust as nr  # noqa: E402
+
+# #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
+# AwaitingPolicy{funding_record}，不回退任何默认资金。
+FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
 
 from fugue_v2_full_backtest import SYMBOL_FILES, load_ohlc  # noqa: E402
 from nested_recursive_fugue_final_backtest import FLOOR, analyze, bh_mdd  # noqa: E402
@@ -176,7 +181,9 @@ def run_unn(opens: list, highs: list, lows: list, closes: list) -> dict:
     t_sig = time.time() - t0
     rtape = pack_tape(tape, dir_flips=dir_flips)
     t1 = time.time()
-    res = nr.run_positional_rust(rtape, floor_ladder=FLOOR, mode="unn")  # prove panic = 必然性失败
+    res = nr.run_positional_rust(
+        rtape, floor_ladder=FLOOR, mode="unn", funding_profile=FUNDING_PROFILE
+    )  # prove panic = 必然性失败
     t_eng = time.time() - t1
     # years=None：NT 路径不做分年（分年是诊断维度，不影响 strat_pct/mdd/n_trades 的 P0 比对）。
     a = analyze(res, closes, years=None)
@@ -219,6 +226,8 @@ def verify_against_baseline(sym: str, nt_result: dict) -> dict:
 def build_engine(spec, log_level: str) -> tuple[BacktestEngine, object, BarType]:
     instrument = make_instrument(spec)
     venue = instrument.id.venue
+    # #1601：venue 起始余额读 funding-record 的 Q_total（缺 profile ⟹ AwaitingPolicy 报错）。
+    funding = nr.read_funding_record(FUNDING_PROFILE)
     engine = BacktestEngine(
         config=BacktestEngineConfig(
             trader_id=TraderId("UNN-NT-001"),
@@ -230,7 +239,7 @@ def build_engine(spec, log_level: str) -> tuple[BacktestEngine, object, BarType]
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         base_currency=USD,
-        starting_balances=[Money(1_000_000.0, USD)],
+        starting_balances=[Money(float(funding["q_total"]), USD)],
         # 判决一：保守撮合口径（队列末位，穿越才成交）——批量路径不下单，此处仅为装配完整。
         fill_model=FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0),
     )

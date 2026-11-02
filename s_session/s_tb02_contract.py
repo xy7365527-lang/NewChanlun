@@ -31,6 +31,8 @@ RULE_CONTRACTS = {
     "s2-axis-quantifiers+new-bi/2+segment-second/2": ("s-new-bi/2", "s-segment/3", KNOWLEDGE_DOMAIN_V2),
     # #1493（xianduan.md §7.1 第 7 条）：§7.1 写的 s-segment/3 已被 #1420 占用，本代段合同用 s-segment/4。
     "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": ("s-new-bi/2", "s-segment/4", KNOWLEDGE_DOMAIN_V2),
+    # #1604：预算 token 改写本次所读记录 `second-seq-scan-budget/2`（合同必填值变）⟹ 会话级规则加该 token、段合同升 s-segment/5（形状同 /4）。
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2": ("s-new-bi/2", "s-segment/5", KNOWLEDGE_DOMAIN_V2),
 }
 # #1493 §7.1：第一种情况候选三态（检查只出已决两态与「不是第一种情况候选」；前缀末端开窗另记 open_turn）。
 TURN_CHECK_STATES = ("CONFIRMED", "KILLED_BY_NEW_EXTREME", "NOT_CASE_ONE")
@@ -470,7 +472,7 @@ def validate_segment_links(records, axes=None):
     by_id = {r["object_id"]: r for r in records}
     for r in records:
         # #1420：s-segment/3 同 v2 走引用闭合；被引序列须与段同一合同版本。#1493：s-segment/4 ⊃ /3。
-        if r["kind"] != "CC-013.segment" or r["payload"]["schema_revision"] not in ("s-segment/2", "s-segment/3", "s-segment/4"):
+        if r["kind"] != "CC-013.segment" or r["payload"]["schema_revision"] not in ("s-segment/2", "s-segment/3", "s-segment/4", "s-segment/5"):
             continue
         schema = r["payload"]["schema_revision"]
         d = r["payload"]["data"]
@@ -497,12 +499,12 @@ def validate_segment_links(records, axes=None):
             if role == "SECOND_SEQUENCE" and d["result"] == "CASE_TWO":
                 if q["second_sequence_status"] != "CONFIRMED" or d["fact_vector"]["termination_witness"]["second_match"] != q["facts"]["matched"]:
                     raise ValueError("第二种终结证书未绑定同次SECOND命中")
-            if role == "SECOND_SEQUENCE" and schema in ("s-segment/3", "s-segment/4") and d["result"] in ("KILLED_CASE_TWO", "PENDING_CASE_TWO"):
+            if role == "SECOND_SEQUENCE" and schema in ("s-segment/3", "s-segment/4", "s-segment/5") and d["result"] in ("KILLED_CASE_TWO", "PENDING_CASE_TWO"):
                 if q["second_sequence_status"] != ("KILLED" if d["result"] == "KILLED_CASE_TWO" else "PENDING"):
                     raise ValueError("段结果未绑定SECOND终态")
-            if role == "FIRST_SEQUENCE" and schema == "s-segment/4":
+            if role == "FIRST_SEQUENCE" and schema in ("s-segment/4", "s-segment/5"):
                 _turn_links(d, q["facts"])
-        if schema == "s-segment/4" and d["parse_invalid"] is not None:
+        if schema in ("s-segment/4", "s-segment/5") and d["parse_invalid"] is not None:
             # #1493 §7.1 第 6 条：段端门失败 fail-closed——同 cut 段版本与逐轴证据必须带阻断标记，不许静默。
             versions = [v for v in records if v["kind"] == "CC-056.segment_version" and v["payload"]["schema_revision"] == schema]
             if not versions or any(PARSE_INVALID_REASON not in v["payload"]["data"]["waiting_reasons"] for v in versions):
@@ -564,14 +566,21 @@ def validate_shape_refs(shape, effective=None, groups=None):
         raise ValueError("CC006 source_coords 不等于成员与构造/边界依据并集")
 
 
-SECOND_SCAN_BUDGET_POLICY = "second-seq-scan-budget/1"
+# #1420 s-segment/3 与 #1493 s-segment/4 写的是预算 token `second-seq-scan-budget/1`（历史合同，原样保留）；
+# #1604 起写者写本次所读记录 `second-seq-scan-budget` 的 id/版本，合同升 s-segment/5，必为签署版本 v2。
+SECOND_SCAN_BUDGET_POLICY_V3 = "second-seq-scan-budget/1"
+SECOND_SCAN_BUDGET_POLICY = "second-seq-scan-budget/2"
+
+
+def _budget_policy(v5):
+    return SECOND_SCAN_BUDGET_POLICY if v5 else SECOND_SCAN_BUDGET_POLICY_V3
 SECOND_FOLD_CURSOR_FIELDS = ("schema", "rule_revision", "budget_policy", "budget_granted", "candidate", "input_stroke_count", "from_stroke", "through_stroke", "consumed_len", "consumed_digest", "dir_state", "standard", "breach_watermark", "semantic_state", "killed_by", "matched")
 
 
-def _fold_cursor(c, element, kill, check):
+def _fold_cursor(c, element, kill, check, v5=False):
     """#1420 K1 游标线形自身：形状/枚举/整数/摘要、候选起点（b+1）与封存见证非空性；同对象相等绑定由调用方另做。"""
     keys(c, SECOND_FOLD_CURSOR_FIELDS, "K1游标")
-    if (c["schema"], c["rule_revision"], c["budget_policy"]) != ("second-fold-cursor/1", "second-candidate-terminal/1", SECOND_SCAN_BUDGET_POLICY):
+    if (c["schema"], c["rule_revision"], c["budget_policy"]) != ("second-fold-cursor/1", "second-candidate-terminal/1", _budget_policy(v5)):
         raise ValueError("K1游标版本不符")
     candidate = c["candidate"]
     keys(candidate, ("seg_dir", "b_stroke", "candidate_extreme"), "K1候选身份")
@@ -638,14 +647,14 @@ def _checkpoint_check(check, v4=False):
     integer(check["through_stroke"], "through_stroke", 0)
 
 
-def _scan_checkpoints(cursors, round_strokes, v4=False):
+def _scan_checkpoints(cursors, round_strokes, v4=False, v5=False):
     """#1420 r2 CC-056.scan_cursors：本 cut 续扫检查点只含调度相关游标（累计预算大于每轮或本轮耗尽）；无同对象 facts 可比。"""
     cursors = array(cursors, "scan_cursors")
     if round_strokes == 0 and cursors:
         raise ValueError("预算0却登记续扫检查点")
     seen = set()
     for c in cursors:
-        _fold_cursor(c, lambda e: _checkpoint_element(e, v4), _checkpoint_kill, lambda k: _checkpoint_check(k, v4))
+        _fold_cursor(c, lambda e: _checkpoint_element(e, v4), _checkpoint_kill, lambda k: _checkpoint_check(k, v4), v5)
         if c["budget_granted"] is None or int(c["consumed_len"]) > int(c["budget_granted"]):
             raise ValueError("续扫检查点预算不符")
         identity = (c["candidate"]["seg_dir"], c["candidate"]["b_stroke"], c["candidate"]["candidate_extreme"])
@@ -654,7 +663,7 @@ def _scan_checkpoints(cursors, round_strokes, v4=False):
         seen.add(identity)
 
 
-def _second_terminal(d, element, indices, second_check):
+def _second_terminal(d, element, indices, second_check, v5=False):
     """#1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠。"""
     scan, f = d["scan"], d["facts"]
     semantic = scan["semantic_state"]
@@ -668,7 +677,7 @@ def _second_terminal(d, element, indices, second_check):
     if f["semantic_state"] != semantic or f["coverage"] != scan["coverage"]:
         raise ValueError("SECOND事实终态与扫描不一致")
     keys(scan["budget"], ("policy", "granted"), "扫描预算")
-    if scan["budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
+    if scan["budget"]["policy"] != _budget_policy(v5):
         raise ValueError("扫描预算政策版本不符")
     if scan["budget"]["granted"] is not None:
         integer(scan["budget"]["granted"], "budget.granted", 1)
@@ -691,7 +700,7 @@ def _second_terminal(d, element, indices, second_check):
         if f["breach_watermark"] != f["killed_by"]["price"]:
             raise ValueError("越界水位未绑定失效见证")
     c = scan["cursor"]
-    start = _fold_cursor(c, element, kill, second_check)
+    start = _fold_cursor(c, element, kill, second_check, v5)
     if c["budget_granted"] != scan["budget"]["granted"]:
         raise ValueError("K1游标预算未绑定扫描预算")
     if c["candidate"]["seg_dir"] != d["direction"] or start != int(scan["from_stroke"]) or c["candidate"]["candidate_extreme"] != f["candidate_extreme"]:
@@ -751,10 +760,12 @@ def validate_segment_payload(kind, p):
     # KILLED_CASE_TWO、CC-056 范围与槽。
     # #1493：v4（s-segment/4）⊃ v3，只另管版本元组、FIRST 动作集/作用域与 tie_with、元素窗成员、
     # 第一种情况候选态与 a/b 配套、open_turn、PENDING_CASE_ONE、CC-013 候选态/窗成员/段端门 fail-closed。
-    v4 = p["schema_revision"] == "s-segment/4"
+    # #1604：v5（s-segment/5）形状同 v4，只把预算 token 从 v1 换成所读记录 v2（_budget_policy）。
+    v5 = p["schema_revision"] == "s-segment/5"
+    v4 = v5 or p["schema_revision"] == "s-segment/4"
     v3 = v4 or p["schema_revision"] == "s-segment/3"
     v2 = v3 or p["schema_revision"] == "s-segment/2"
-    expected_version = ("s-segment/4", "segment-second/2", "seed_closed_strict_second", "main") if v4 else ("s-segment/3", "segment-second/2", "seed_closed_strict_second", "main") if v3 else ("s-segment/2", "segment-second/1", "seed_closed_strict_second", "main") if v2 else ("s-segment/1", "segment-seed-first/1", "seed_closed_first_no_gap", "main")
+    expected_version = (p["schema_revision"], "segment-second/2", "seed_closed_strict_second", "main") if v4 else ("s-segment/3", "segment-second/2", "seed_closed_strict_second", "main") if v3 else ("s-segment/2", "segment-second/1", "seed_closed_strict_second", "main") if v2 else ("s-segment/1", "segment-seed-first/1", "seed_closed_first_no_gap", "main")
     if (p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) != expected_version:
         raise ValueError("段规则/范围版本不符")
     integer(p["object_generation"], "object_generation", 1)
@@ -973,7 +984,7 @@ def validate_segment_payload(kind, p):
                 if k["comparison"] != (">" if up else "<") or not (price > int(b["high"]) if up else price < int(b["low"])) or int(k["stroke_idx"]) <= int(b["stroke_idx"]):
                     raise ValueError("开窗作废见证未严格越过P")
         if second and v3:
-            _second_terminal(d, lambda e: element(e, True), indices, second_check)
+            _second_terminal(d, lambda e: element(e, True), indices, second_check, v5)
     elif kind == SEGMENT_KINDS[2]:
         keys(d, ("entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs") + (("second_sequence_id", "second_sequence_object_id", "strict", "fact_vector") if v2 else ()) + (("turn_hypothesis_state", "window_members", "parse_invalid_from", "parse_invalid") if v4 else ()), kind)
         integer(d["entity_revision"], "entity_revision", 1)
@@ -1096,9 +1107,9 @@ def validate_segment_payload(kind, p):
             raise ValueError("段交付范围不符")
         if v3:
             keys(d["scan_budget"], ("policy", "round_strokes"), "段扫描预算")
-            if d["scan_budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
+            if d["scan_budget"]["policy"] != _budget_policy(v5):
                 raise ValueError("扫描预算政策版本不符")
-            _scan_checkpoints(d["scan_cursors"], integer(d["scan_budget"]["round_strokes"], "round_strokes", 0), v4)
+            _scan_checkpoints(d["scan_cursors"], integer(d["scan_budget"]["round_strokes"], "round_strokes", 0), v4, v5)
     if kind in SEGMENT_KINDS[:3] + SEGMENT_KINDS[6:]:
         if kind == SEGMENT_KINDS[1]:
             expected_segment = f'segment:{p["object_generation"]}:{refs[segment_start]["start_anchor"]}'

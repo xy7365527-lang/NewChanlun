@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""机械验证 .sandcastle 官方 GitHub Actions scaffold（#1110）与 #1128/#1173 显式模型 registry。
+"""机械验证 GitHub Actions scaffold 与 #1617 主控同型/legacy 路由合同。
 
 验证面（对应 #1110 + #1128 + #1173 验收）：
   1. workflow YAML 结构不变式（trigger/label 闸、concurrency、权限最小化、
@@ -11,9 +11,10 @@
   4. #1128/#1173 模型 registry 机械锁：运行时实读 label + grep -qx 精确路由
      （禁止静态 contains / toJSON+contains 子串）、最小 EVENT_PAYLOAD 接线
      （只传 labels.*.name）、固定 Secret allowlist、票面字符串不成为 env/secret
-     key、remote-child identity 与模型凭据分离、事件 fixture 覆盖（默认 Claude /
+     key、remote-child identity 与模型凭据分离、事件 fixture 覆盖（退役默认 /
      显式 DeepSeek / PR review DeepSeek / Draft PR / resume / 冲突 / 未知 /
-     缺 secret / P1 敌对标签 / 大小写变体）。
+     缺 secret / P1 敌对标签 / 大小写变体）；hosted 无标签默认明确退役，
+     不再读取 Claude OAuth 或启动旧 Claude provider（#1617）。
   5. #1185 jq 字符串转义机械锁：逐条提取 agent workflow 的 jq/--jq 表达式，
      本机 jq -n 语法校验，并禁止 \\s/\\d 等 jq 字符串非法转义回潮。
 
@@ -141,13 +142,12 @@ EVENT_PAYLOAD_RULES = {
     "agent-review.yml": (PR_EVENT_PAYLOAD, 2),
     "agent-implement-pr.yml": (PR_EVENT_PAYLOAD, 2),
     "agent-explore.yml": (ISSUE_EVENT_PAYLOAD, 1),
-    "agent-update-branch.yml": (PR_EVENT_PAYLOAD, 1),
+    "agent-update-branch.yml": (PR_EVENT_PAYLOAD, 2),
 }
 
 ALLOWED_SECRET_REFS = {
     "GITHUB_TOKEN",
     "AGENT_PAT",
-    "CLAUDE_CODE_OAUTH_TOKEN",
     "DEEPSEEK_API_KEY",
 }
 
@@ -358,8 +358,8 @@ def main() -> int:
     check("gh pr ready" in review_raw, "agent-review.yml 通过后必须标 Ready")
     check("Install Prime Agent (DeepSeek v4-pro route)" in review_raw
           and "Run review agent (DeepSeek v4-pro)" in review_raw
-          and "Run review agent (Claude default)" in review_raw,
-          "agent-review.yml 必须提供互斥的 Claude 默认 / DeepSeek v4-pro 两条评审路线")
+          and "Run review agent (hosted default retired)" in review_raw,
+          "agent-review.yml 必须提供退役默认失败路径与显式 DeepSeek legacy 路线")
 
     # implement-PR 修正入口（AC-3 至少包含 implement-PR 或明确不纳入理由）
     impl_pr = load_wf("agent-implement-pr.yml")
@@ -381,6 +381,18 @@ def main() -> int:
     check(update.get("on", {}).get("pull_request_target", {}).get("types") == ["labeled"],
           "agent-update-branch.yml 必须以 pull_request_target labeled 触发")
     check("--force-with-lease=" in update_raw, "agent-update-branch.yml push 必须 force-with-lease")
+    update_steps = job(update, "update-branch")["steps"]
+    update_step_names = [step.get("name") for step in update_steps]
+    update_run_name = "Run update-branch agent (hosted default retired)"
+    update_push_name = "Push branch (abort cleanly if non-fast-forward)"
+    update_blocked_name = "Mark blocked on failure"
+    check(
+        update_step_names.index(update_run_name) < update_step_names.index(update_push_name)
+        and update_steps[update_step_names.index(update_push_name)].get("if") == "success()"
+        and update_steps[update_step_names.index(update_blocked_name)].get("if") == "failure()"
+        and '--add-label "agent:blocked"' in update_steps[update_step_names.index(update_blocked_name)]["run"],
+        "agent-update-branch.yml 退役失败必须跳过 push 并回写 agent:blocked",
+    )
 
     # pull_request_target 风险面：PR 型 workflow 只能由 labeled 事件触发
     # （不可信 PR 内容不会自动跑）；label 是信任闸（需仓库写权限）。
@@ -450,7 +462,7 @@ def main() -> int:
         "kimi-coding" not in all_text and "kimi-coding" not in provider_text,
         "#1002 旧 Kimi provider 常量不得在 workflow/agent-workflows/prime-agent-provider.ts 复活",
     )
-    check("claudeCode" in all_text, "agent provider 必须使用 Sandcastle 内置 claudeCode()")
+    check("claudeCode" not in all_text, "hosted agent workflow 不得复活旧 Claude provider（#1617）")
 
     # ── 4. #1128 显式模型 registry 机械锁 ────────────────────────────────────
     agent_ts = (AW_DIR / "shared" / "agent.ts").read_text()
@@ -496,6 +508,11 @@ def main() -> int:
             not re.search(r"contains\(github\.event\.(?:issue|pull_request)\.labels", raw),
             f"{name} 不得再用静态 event labels contains 路由（大小写不敏感/快照不可靠）",
         )
+    update_raw = raw_wf("agent-update-branch.yml")
+    check(
+        "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' | grep -qx 'agent:model:deepseek-v4-pro'" in update_raw,
+        "agent-update-branch.yml 必须运行时实读 PR labels 精确选择 legacy 路由",
+    )
 
     # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
     secret_refs = set(re.findall(r"secrets\.([A-Z0-9_]+)", "\n".join(raw_wf(n) for n in WORKFLOWS)))
@@ -503,11 +520,22 @@ def main() -> int:
         secret_refs <= ALLOWED_SECRET_REFS,
         f"workflow Secret 引用必须封闭 allowlist（实为 {sorted(secret_refs)}）",
     )
+    check("CLAUDE_CODE_OAUTH_TOKEN" not in secret_refs,
+          "hosted workflow 不得再读取 Claude OAuth（#1617）")
+    retired_steps = {
+        "agent-implement.yml": "Run implementation agent (hosted default retired)",
+        "agent-implement-pr.yml": "Run implement-PR agent (hosted default retired)",
+        "agent-review.yml": "Run review agent (hosted default retired)",
+        "agent-explore.yml": "Run explore agent (hosted default retired)",
+        "agent-update-branch.yml": "Run update-branch agent (hosted default retired)",
+    }
+    for name, step in retired_steps.items():
+        raw = raw_wf(name)
+        check(step in raw and "Install Claude Code" not in raw,
+              f"{name} 必须显式退役旧默认，且不得安装 Claude Code")
 
-    # 可选 DeepSeek 角色（issue implement / PR implement-pr / PR review）注入
-    # DeepSeek secret；explore/update-branch 固定 Claude，绝不把 DeepSeek key
-    # 放进进程 env。
-    for name in ["agent-implement.yml", "agent-implement-pr.yml", "agent-review.yml"]:
+    # 可选 DeepSeek 角色只在其显式 legacy 分支注入固定 Secret；无标签默认仍退役。
+    for name in ["agent-implement.yml", "agent-implement-pr.yml", "agent-review.yml", "agent-update-branch.yml"]:
         raw = raw_wf(name)
         check(
             "DEEPSEEK_API_KEY" in raw and "agent:model:deepseek-v4-pro" in raw,
@@ -517,19 +545,19 @@ def main() -> int:
             "prime-agent-0.7.2.tgz" in raw,
             f"{name} 必须安装与 .sandcastle/Dockerfile 同版本的 Prime Agent CLI",
         )
-    for name in ["agent-explore.yml", "agent-update-branch.yml"]:
+    for name in ["agent-explore.yml"]:
         raw = raw_wf(name)
         check(
             "DEEPSEEK_API_KEY" not in raw,
-            f"{name} 固定 Claude 角色，不得注入 DEEPSEEK_API_KEY",
+            f"{name} hosted 默认已退役，不得注入 DEEPSEEK_API_KEY",
         )
 
     check("MODEL_REGISTRY" in agent_ts and "agent:model:deepseek-v4-pro" in agent_ts,
           "shared/agent.ts 必须包含显式模型 registry allowlist")
     check(
         '"review"' in agent_ts
-        and 'appliesTo: ["implement", "implement-pr", "review"]' in agent_ts,
-        "shared/agent.ts DeepSeek registry 必须对 review 角色生效",
+        and 'appliesTo: ["implement", "implement-pr", "review", "update-branch"]' in agent_ts,
+        "shared/agent.ts DeepSeek registry 必须对 review 与 update-branch 角色生效",
     )
 
     review_ts = (AW_DIR / "review" / "review.ts").read_text()
@@ -537,10 +565,13 @@ def main() -> int:
         "readModelLabelsFromEnv" in review_ts
         and 'selectedAgent("review"' in review_ts
         and 'claudeAgent("review")' not in review_ts,
-        "review.ts 必须经 selectedAgent('review') 走显式模型 registry（默认仍为 Claude）",
+        "review.ts 必须经 selectedAgent('review') 走显式 legacy registry（无标签默认退役）",
     )
-    check("primeAgent" in agent_ts and "claudeCode" in agent_ts,
-          "shared/agent.ts 必须同时具备 Claude 内置 provider 与自定义 Prime Agent provider")
+    check("primeAgent" in agent_ts and "claudeCode" not in agent_ts and "AGENT_MODELS" not in agent_ts,
+          "shared/agent.ts 只保留显式 legacy provider，不得复活 Claude 默认/角色分档")
+    check("HOSTED_DEFAULT_RETIRED" in agent_ts
+          and agent_ts.count("throw new ModelRegistryError(HOSTED_DEFAULT_RETIRED)") >= 2,
+          "shared/agent.ts selectedAgent 与 claudeAgent 必须在模型调用前拒绝退役默认")
     check(
         'entry.primeProvider === "deepseek"' in agent_ts,
         "shared/agent.ts DeepSeek 构造分支必须同时断言 entry.primeProvider === 'deepseek'",
@@ -571,7 +602,7 @@ def main() -> int:
             "remote-child invitation/lease allowlist 不得包含模型凭据名",
         )
 
-    # 事件 fixture：存在、合法 JSON、覆盖必需场景（默认 Claude / DeepSeek / 冲突+未知 / 缺 secret / P1 敌对标签）。
+    # 事件 fixture：存在、合法 JSON、覆盖必需场景（退役默认 / DeepSeek / 冲突+未知 / 缺 secret / P1 敌对标签）。
     for filename, required_labels in FIXTURE_REQUIREMENTS.items():
         path = FIXTURE_DIR / filename
         check(path.is_file(), f"缺少 #1128 事件 fixture {filename}")
@@ -626,7 +657,7 @@ def main() -> int:
         "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json",
     }
     check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
-          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/Draft PR/resume/冲突/未知/缺 secret/P1 敌对标签/大小写变体）")
+          "必需事件 fixture 集合缺失（退役默认/DeepSeek/PR review DeepSeek/Draft PR/resume/冲突/未知/缺 secret/P1 敌对标签/大小写变体）")
 
     # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
     # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。
@@ -641,8 +672,8 @@ def main() -> int:
     # ── 5. #1185 jq 字符串转义机械锁 ─────────────────────────────────────────
     jq_expressions = list(_iter_workflow_jq_expressions())
     check(
-        len(jq_expressions) == 21,
-        f"agent workflows 应提取到 21 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
+        len(jq_expressions) == 22,
+        f"agent workflows 应提取到 22 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
     )
     for name, lineno, cmd, expr in jq_expressions:
         _validate_jq_expression(expr, f"{name}:{lineno} ({cmd})")

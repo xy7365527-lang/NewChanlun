@@ -9,7 +9,7 @@
  *   - stateless：不建状态库，tracker 即账本。
  *
  * 自动动作边界（#1078 裁定 4）：
- *   1. 图清（子票全关、frontier 空）→ 派 Claude 起草子代理（经 CLIProxyLocal，#1588）起草 spec 草案 → 开图内 spec 票
+ *   1. 图清（子票全关、frontier 空）→ 派主控同型起草子代理（经 CLIProxyLocal，#1588 / #1617）起草 spec 草案 → 开图内 spec 票
  *      → @编排者批【闸一】；
  *   2. spec 批准（编排者 comment 批）→ 自动拆 tracer-bullet 实装票
  *      （blocking 边 + 票面逐条挂裁定票）+ 挂 sandcastle 标签 → 工蜂拾取；
@@ -37,11 +37,13 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
+import { drainRequested, withLegacyAdmission } from "../.sandcastle/drain-control.mts";
 import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cliProxyEnv } from "../.sandcastle/claude-route.mts";
+import { cliProxyEnv } from "../.sandcastle/cliproxy-env.mts";
+import { MAIN_MODEL, SUPPORTED_MAIN_MODELS } from "../.sandcastle/main-model.mts";
 
 // ── 顶部常量（编排者 / 周期 / 起草子代理模型） ──────────────────────────────
 // 环境变量覆盖：WAYFINDER_ORCHESTRATOR / WAYFINDER_POLL_SECONDS /
@@ -49,13 +51,12 @@ import { cliProxyEnv } from "../.sandcastle/claude-route.mts";
 // 默认 dry-run（安全默认）；真实执行须显式 --live。
 const DEFAULT_ORCHESTRATOR = "xy7365527-lang";
 const DEFAULT_POLL_SECONDS = 240; // 4 分钟（dispatcher 先例）
-// 起草子代理只用 Claude 家族（用户规定，#1588）：Claude Code CLI 经本机 CLIProxyLocal 统一路由，
-// 与 sandcastle 工蜂同一份接线（.sandcastle/claude-route.mts，#1547）。prime-agent 不走：其
-// cliproxy-local provider 只登记了带上游前缀的 mf/yd 型号、无 fable，anthropic provider 直连官方不过 CLIProxy。
-export const DEFAULT_SPEC_MODEL = "claude-opus-5-5";
+// 起草子代理与当前主控同型（用户 2026-10-24，#1617）：Claude Code CLI 经本机
+// CLIProxyLocal 自动路由；实际模型只在 main-model.mts 配置，独立评审不靠异模型。
+export const DEFAULT_SPEC_MODEL = MAIN_MODEL;
 export const DEFAULT_SPEC_PROVIDER = "claude-cliproxy";
-/** WAYFINDER_SPEC_MODEL 白名单：配置值不在此列即 fail-loud，不回退默认。 */
-export const CLAUDE_FAMILY_SPEC_MODELS: readonly string[] = ["claude-opus-5-5", "claude-fable-5-1"];
+/** WAYFINDER_SPEC_MODEL 只接受主控同型；非法值 fail-loud，不回退旧模型。 */
+export const SUPPORTED_SPEC_MODELS = SUPPORTED_MAIN_MODELS;
 // 闸一待批的 spec 票标签：编排者需人工批，故挂 ready-for-human（三态 triage 标签之一）。
 const SPEC_AWAIT_LABEL = "ready-for-human";
 // 实装票标签：ready-for-agent（已就绪）+ sandcastle（工蜂拾取闸，main.mts 读取）。
@@ -913,7 +914,7 @@ function issueDbId(number: number): number {
 
 /**
  * 纯函数：解析并校验 spec 起草子代理配置（#1588）。
- * provider 只认 claude-cliproxy；model 只认 Claude 家族白名单。非法值 throw，不静默回退默认。
+ * provider 只认 claude-cliproxy；model 只认主控同型。非法值 throw，不静默回退默认。
  */
 export function resolveSpecDrafter(env: Record<string, string | undefined>): {
   specProvider: string;
@@ -926,9 +927,9 @@ export function resolveSpecDrafter(env: Record<string, string | undefined>): {
       `[FAIL-loud #1588] WAYFINDER_SPEC_PROVIDER=${specProvider} 不受支持：起草子代理只走 ${DEFAULT_SPEC_PROVIDER}（Claude Code CLI 经 CLIProxyLocal）`,
     );
   }
-  if (!CLAUDE_FAMILY_SPEC_MODELS.includes(specModel)) {
+  if (!SUPPORTED_SPEC_MODELS.includes(specModel)) {
     throw new Error(
-      `[FAIL-loud #1588] WAYFINDER_SPEC_MODEL=${specModel} 不属于 Claude 家族白名单（${CLAUDE_FAMILY_SPEC_MODELS.join(" / ")}）`,
+      `[FAIL-loud #1588] WAYFINDER_SPEC_MODEL=${specModel} 不等于当前主控模型（${SUPPORTED_SPEC_MODELS.join(" / ")}）`,
     );
   }
   return { specProvider, specModel };
@@ -938,7 +939,7 @@ export function resolveSpecDrafter(env: Record<string, string | undefined>): {
 export function specDrafterCommand(specModel: string): { file: string; args: string[] } {
   return {
     file: "claude",
-    args: ["-p", "--model", specModel, "--output-format", "text", "--tools", "", "--no-session-persistence"],
+    args: ["-p", "--bare", "--model", specModel, "--output-format", "text", "--tools", "", "--no-session-persistence"],
   };
 }
 
@@ -1188,6 +1189,7 @@ function describeAction(a: Action): string {
 // ── 壳：轮询 + 每轮重算 ready 集 ───────────────────────────────────────────────
 
 async function runOnce(cfg: EngineConfig): Promise<void> {
+  if (drainRequested()) return;
   const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
   console.log(`\n[wayfinder_engine] ${stamp} 一轮开始（${cfg.dryRun ? "dry-run" : "live"}）`);
   let maps: MapState[];
@@ -1212,7 +1214,7 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
         console.log(`    [dry-run] 将执行：${describeAction(action)}`);
       } else {
         try {
-          executeAction(action, cfg);
+          await withLegacyAdmission(() => executeAction(action, cfg));
         } catch (e) {
           console.error(`    ✗ 执行失败（${action.kind}）：${e}`);
         }
@@ -1237,7 +1239,7 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
       console.log(`    [dry-run] 将释放（挂 sandcastle）：#${n}`);
     } else {
       try {
-        const why = releaseTicket(n);
+        const why = await withLegacyAdmission(() => releaseTicket(n));
         if (why) console.log(`    · 写前复核不放行 #${n}：${why}`);
         else console.log(`    ✓ 已释放（挂 sandcastle）：#${n}`);
       } catch (e) {
@@ -1274,7 +1276,7 @@ function parseArgs(argv: string[]): EngineConfig {
     orchestrator: process.env.WAYFINDER_ORCHESTRATOR ?? DEFAULT_ORCHESTRATOR,
     dryRun,
     pollSeconds,
-    // 启动即校验（非 Claude 家族直接 fail-loud，不等到图清起草时才炸）。
+    // 启动即校验（非主控同型直接 fail-loud，不等到图清起草时才炸）。
     ...resolveSpecDrafter(process.env),
     once,
     explain,
@@ -1293,6 +1295,7 @@ async function main(): Promise<void> {
     return;
   }
   for (;;) {
+    if (drainRequested()) { console.log("旧入口冻结，本轮不再领新工作"); return; }
     try {
       await runOnce(cfg);
     } catch (e) {

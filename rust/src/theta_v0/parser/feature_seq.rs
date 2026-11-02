@@ -40,6 +40,7 @@
 //! 窗成员；第一种情况唯一的确认判据是 `071:30/:32` 的先破判据。v1「先试不合并、以当下有无分型
 //! 决定合并」在 `071:42` 两句上都做反（#1487 E1/E2），已删除。
 
+use super::super::config::Tangency;
 use super::super::types::{Direction, Stroke, Tick};
 use serde::Serialize;
 
@@ -180,8 +181,9 @@ pub struct SecondCheck {
 }
 /// #1344 / xianduan §5.1：第二种候选语义终点的规则版本（随 S `rule_revision` 绑定）。
 pub const SECOND_CANDIDATE_RULE_REVISION: &str = "second-candidate-terminal/1";
-/// #1420 根裁定：第二特征序列扫描预算的具名版本——调度参数，不是语义。
-pub const SECOND_SEQ_SCAN_BUDGET_POLICY: &str = "second-seq-scan-budget/1";
+// #1420 根裁定：第二特征序列扫描预算是具名、版本化的调度参数（不是语义）。#1604 起不再有版本常数：
+// 运行时所读记录版本只出自 `ParseConfig::scan_budget`（记录 `second-seq-scan-budget`），K1 游标与
+// S 线形的 `budget_policy` / `scan_budget.policy` 写的都是它的 `label()`。
 
 /// #1344 第一问：第二种候选 X（主序列分型极值 P）自 b 笔后逐笔推进的语义终点。
 /// 只在扫描覆盖 `COMPLETE` 时成立；预算耗尽时语义状态为空（不是否定，A-ST-048-01）。
@@ -258,6 +260,9 @@ pub(super) fn stroke_high_low(s: &Stroke) -> (Tick, Tick) {
 /// 缺口与重合严格互补，本谓词与 `segment.rs::three_stroke_overlap` 必须同口径、同批改。
 /// ⚠原「bit-exact 对齐 Python `_is_fractal_and_gap`」声明在**缺口谓词边界上作废**：Python 参考
 /// 实现（`>=`，相切算缺口）不再是该谓词的权威基线；分型判定及其余 Python 对齐声明不受影响。
+///
+/// #1604（#1586 A-12）：相切边界改读记录字段 `tangency`（`t`）；`closed` 即上述严格 `>`，`open` 为 `>=`。
+#[allow(clippy::too_many_arguments)]
 fn is_fractal_and_gap(
     a_h: Tick,
     a_l: Tick,
@@ -266,6 +271,7 @@ fn is_fractal_and_gap(
     c_h: Tick,
     c_l: Tick,
     seg_dir: Direction,
+    t: Tangency,
 ) -> (bool, bool) {
     match seg_dir {
         Direction::Up => {
@@ -277,7 +283,7 @@ fn is_fractal_and_gap(
                         p.tangent_up += 1;
                     }
                 });
-                b_l > a_h
+                !t.meets(b_l, a_h)
             } else {
                 false
             };
@@ -292,7 +298,7 @@ fn is_fractal_and_gap(
                         p.tangent_down += 1;
                     }
                 });
-                a_l > b_h
+                !t.meets(a_l, b_h)
             } else {
                 false
             };
@@ -421,11 +427,19 @@ fn is_peak(a: FeatElem, b: FeatElem, seg_dir: Direction) -> bool {
     }
 }
 
-/// a、b 之间的缺口（`071:40`），与 `is_fractal_and_gap` 同为严格 `>`（#246）。
-fn gap_between(a: FeatElem, b: FeatElem, seg_dir: Direction) -> bool {
+/// a、b 之间的缺口（`071:40`），与 `is_fractal_and_gap` 读同一个 `tangency`（#246 / #1604）。
+fn gap_between(a: FeatElem, b: FeatElem, seg_dir: Direction, t: Tangency) -> bool {
     match seg_dir {
-        Direction::Up => b.low > a.high,
-        Direction::Down => a.low > b.high,
+        Direction::Up => !t.meets(b.low, a.high),
+        Direction::Down => !t.meets(a.low, b.high),
+    }
+}
+
+/// c 是否封闭 a、b 之间的缺口（c 与 a 重合，`067:196`）；与缺口谓词读同一个 `tangency`（#1604）。
+fn closed_by_c(a: FeatElem, c: FeatElem, seg_dir: Direction, t: Tangency) -> bool {
+    match seg_dir {
+        Direction::Up => t.meets(c.low, a.high),
+        Direction::Down => t.meets(a.low, c.high),
     }
 }
 
@@ -461,7 +475,8 @@ fn case_one_confirms(w: [FeatElem; 3], seg_dir: Direction) -> bool {
     let [a, b, c] = w;
     #[cfg(test)]
     if CASE_ONE_ORACLE_067.with(|o| o.get()) {
-        return is_fractal_and_gap(a.high, a.low, b.high, b.low, c.high, c.low, seg_dir).0;
+        let t = super::super::config::ParseConfig::default().tangency;
+        return is_fractal_and_gap(a.high, a.low, b.high, b.low, c.high, c.low, seg_dir, t).0;
     }
     match seg_dir {
         Direction::Up => b.high > a.high && c.high <= b.high && c.low < b.low,
@@ -502,8 +517,15 @@ pub struct FeatureSeqState {
     skip_until_stroke: i64,
     seg_dir: Direction,
     extend_mode: ExtendMode,
-    /// 尾窗扫描大小（0 = 无限，对齐 Python TAIL_WINDOW=7 但 L2 验证窗口非约束）。
+    /// 尾窗扫描大小（0 = 无限）。#1604：值来自 `second-seq-scan-budget` 记录（原代码常数 7）。
     tail_window: u32,
+    /// 相切口径（#1604，记录 `segment-second.tangency`）：缺口与「c 封闭缺口」两谓词共读。
+    tangency: Tangency,
+    /// 尾窗挤出探查的进度：`[.., probed_upto)` 的标准元素下标已探查过（见 [`Self::probe_tail_excluded`]）。
+    probed_upto: usize,
+    /// #1604（#1586 C-04）：本段有可准入候选被尾窗挤出、未按定型窗口判过 ⟹ 输出覆盖
+    /// `INCOMPLETE_RESOURCE_BOUND`。粘性，`reset` 清零。`tail_window >= 3` 时恒假。
+    tail_truncated: bool,
     /// 第二特征序列扫描窗口（config second_seq_scan_window，0=无限）。
     second_seq_window: u32,
     /// #88 frontier 修复：本段扫描期间是否跳过过**尚可改判**的 SecondKind 候选。`reset` 清零
@@ -514,7 +536,7 @@ pub struct FeatureSeqState {
     skipped_secondkind: bool,
     /// 未决阻断（#1420 A-ST-048-01；#1493 裁定 1 / `xianduan.md` §7.1 第 8 条）：本段已遇语义状态
     /// 未决的第二种候选——`OPEN_AT_PREFIX_END` 或预算耗尽（二者同一路径、同一标志）。未决不是否定，
-    /// 本段其后的候选一律不判，直到该候选在新输入上确认或失效；标志粘住，故 `TAIL_WINDOW` 的扫描起点
+    /// 本段其后的候选一律不判，直到该候选在新输入上确认或失效；标志粘住，故尾窗 `tail_window` 的扫描起点
     /// 截断不能把它挪出去（尾窗是调度截断，不截断未决阻断）。`reset` 清零，增量层每次 append 新建
     /// 状态机，故不跨段、不跨扫描。
     unresolved_blocked: bool,
@@ -534,6 +556,7 @@ impl FeatureSeqState {
         extend_mode: ExtendMode,
         tail_window: u32,
         second_seq_window: u32,
+        tangency: Tangency,
     ) -> Self {
         FeatureSeqState {
             std: Vec::new(),
@@ -546,6 +569,9 @@ impl FeatureSeqState {
             seg_dir,
             extend_mode,
             tail_window,
+            tangency,
+            probed_upto: 0,
+            tail_truncated: false,
             second_seq_window,
             skipped_secondkind: false,
             unresolved_blocked: false,
@@ -569,6 +595,8 @@ impl FeatureSeqState {
         self.seg_dir = seg_dir;
         self.skipped_secondkind = false;
         self.unresolved_blocked = false;
+        self.probed_upto = 0;
+        self.tail_truncated = false;
         self.second = None;
         self.frozen_first.clear();
         self.frozen_first_facts.clear();
@@ -596,6 +624,16 @@ impl FeatureSeqState {
 
     pub fn second_facts(&self) -> Option<SecondSequenceFacts> {
         self.second.clone()
+    }
+
+    /// 本状态机所读的相切口径（段层事实输出与构造门同读，#1604）。
+    pub fn tangency(&self) -> Tangency {
+        self.tangency
+    }
+
+    /// #1604：本段是否有可准入候选被尾窗挤出（资源上界，见 [`Self::probe_tail_excluded`]）。
+    pub fn tail_truncated(&self) -> bool {
+        self.tail_truncated
     }
 
     /// #88：本段扫描期间是否跳过过 SecondKind 候选（unsealed 起点信号，增量层读取）。
@@ -757,7 +795,13 @@ impl FeatureSeqState {
     /// 末两标准元素 (a,b) 之间是否有缺口（`071:40`；与 `is_fractal_and_gap` 同为严格 `>`）。
     fn last_has_gap(&self) -> bool {
         let n = self.std.len();
-        n >= 2 && gap_between(self.std[n - 2], self.std[n - 1], self.seg_dir)
+        n >= 2
+            && gap_between(
+                self.std[n - 2],
+                self.std[n - 1],
+                self.seg_dir,
+                self.tangency,
+            )
     }
 
     /// #1490 §7.1 第 1 条：末标准元素 b 是无缺口峰候选（有窗成员或尚无第三元素）⟹ `OPEN_AT_PREFIX_END`。
@@ -846,6 +890,82 @@ impl FeatureSeqState {
         }
     }
 
+    /// #1604（#1586 C-04）尾窗挤出探查：本次扫描起点 `tail_lo` 把 `[.., tail_lo)` 挤出窗外；对其中
+    /// 尚未探查过的下标，按主循环同一判定（跳过集、冻结窗、峰候选、缺口与封闭、先破判据、第二种
+    /// 候选的语义终点）纯判断一次，不改任何准入状态。窗口已定型（后一元素不是末元素）的下标只探一次；
+    /// 窗口含末元素的下标 `n-2`（全扫此刻也按这个未定型窗口判，确认时才冻结，#1493）每次都重探。
+    /// 可准入且不是 `KILLED_BY_NEW_EXTREME` ⟹ 该候选按全扫会确认或封段，却被尾窗挤掉 ⟹ 置
+    /// `tail_truncated`（输出覆盖 `INCOMPLETE_RESOURCE_BOUND`）。
+    ///
+    /// 结构事实：标准序列只有末元素可变（合并 / R1 追加），故下标 `i` 的窗口 `(i-1,i,i+1)` 在长度
+    /// 达到 `i+3` 时定型；那一次扫描的起点 `≤ max(last_checked, i+3-tail_window)`，`tail_window ≥ 3`
+    /// 时 `i` 必在窗内且按定型窗口判过，判定结果之后不变（可准入非失效 ⟹ 命中复位或粘性封段）。
+    /// 故 `tail_window ≥ 3` 与 0（全扫）的判定结果逐位相同、本探查恒不置位；`1`、`2` 才会挤掉未判
+    /// 候选。（诊断轨迹 `FeatureCheck` 不在此列：全扫会重复求值已判过的峰，多记几条重复检查。）
+    /// 第二种候选的终点按全扫（窗口 0）判：只问语义上是否失效，不让第二序列预算混入尾窗标记。
+    fn probe_tail_excluded(&mut self, strokes: &[Stroke], tail_lo: usize) {
+        let n = self.std.len();
+        let finalized_end = tail_lo.min(n.saturating_sub(2));
+        let end = tail_lo.min(n.saturating_sub(1));
+        let from = 1.max(self.last_checked).max(self.probed_upto);
+        if self.tail_truncated || from >= end {
+            self.probed_upto = self.probed_upto.max(finalized_end);
+            return;
+        }
+        for i in from..end {
+            let b_stroke = self.std[i].stroke_idx;
+            if (b_stroke as i64) <= self.skip_until_stroke {
+                continue;
+            }
+            let window = self.frozen_first.get(&b_stroke).copied().unwrap_or([
+                self.std[i - 1],
+                self.std[i],
+                self.std[i + 1],
+            ]);
+            let [a, b, c] = window;
+            if !is_peak(a, b, self.seg_dir) {
+                continue;
+            }
+            let raw_gap = gap_between(a, b, self.seg_dir, self.tangency);
+            let case_two = raw_gap
+                && (self.extend_mode == ExtendMode::Optimized
+                    || !closed_by_c(a, c, self.seg_dir, self.tangency));
+            let material = if case_two {
+                // 分型谓词同 `is_fractal_and_gap`；不经它调用，免得探查计入 #246 相切探针计数。
+                let is_fractal = match self.seg_dir {
+                    Direction::Up => b.high > a.high && b.high > c.high,
+                    Direction::Down => b.low < a.low && b.low < c.low,
+                };
+                if !is_fractal {
+                    continue;
+                }
+                let candidate_extreme = match self.seg_dir {
+                    Direction::Up => b.high,
+                    Direction::Down => b.low,
+                };
+                let second = second_sequence(strokes, self.seg_dir, b_stroke, candidate_extreme, 0);
+                // 失效笔仍是输入末笔 ⟹ 失效尚可撤销，本段保持 unsealed（同主循环规则），增量层重扫时重探。
+                if second
+                    .killed_by
+                    .as_ref()
+                    .is_some_and(|k| k.stroke_idx + 1 >= strokes.len())
+                {
+                    self.skipped_secondkind = true;
+                }
+                second.semantic_state != Some(SecondTerminal::KilledByNewExtreme)
+            } else {
+                case_one_confirms(window, self.seg_dir)
+            };
+            if material {
+                // 被挤掉的候选未来可能失效（标记随之撤销）⟹ 本段保持 unsealed，增量层与全量同判（#804）。
+                self.tail_truncated = true;
+                self.skipped_secondkind = true;
+                break;
+            }
+        }
+        self.probed_upto = self.probed_upto.max(finalized_end);
+    }
+
     /// 从 last_checked 向后扫描（受尾窗限制），找第一个可准入的 FIRST 分型。
     ///
     /// 向上段看顶、向下段看底；跳过 stroke_idx <= skip_until_stroke 的候选。对每个峰候选 b（前一
@@ -871,6 +991,7 @@ impl FeatureSeqState {
         } else {
             n.saturating_sub(self.tail_window as usize)
         };
+        self.probe_tail_excluded(strokes, tail_lo);
         let start = 1.max(self.last_checked).max(tail_lo);
         for i in start..n - 1 {
             let b_stroke = self.std[i].stroke_idx;
@@ -886,13 +1007,11 @@ impl FeatureSeqState {
             let (b_h, b_l) = (window[1].high, window[1].low);
             let (c_h, c_l) = (window[2].high, window[2].low);
             // 第二种情况的 067 严格谓词（含 #246 缺口口径）一字不改。
-            let (is_fractal, _) = is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir);
+            let (is_fractal, _) =
+                is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir, self.tangency);
             let peak = is_peak(window[0], window[1], self.seg_dir);
-            let raw_gap = peak && gap_between(window[0], window[1], self.seg_dir);
-            let closed_by_c = match self.seg_dir {
-                Direction::Up => c_l <= a_h,
-                Direction::Down => c_h >= a_l,
-            };
+            let raw_gap = peak && gap_between(window[0], window[1], self.seg_dir, self.tangency);
+            let closed_by_c = closed_by_c(window[0], window[2], self.seg_dir, self.tangency);
             let case_two = raw_gap && (self.extend_mode == ExtendMode::Optimized || !closed_by_c);
             let (admissible, state) = if !peak {
                 (false, TURN_NOT_CASE_ONE)
@@ -1040,7 +1159,7 @@ mod tests {
     #[test]
     fn is_fractal_and_gap_up_top_with_gap() {
         // 向上段：b_h 最高 → 顶分型；b_l > a_h → 缺口（#246 严格）。
-        let (f, g) = is_fractal_and_gap(10, 5, 20, 12, 8, 3, Direction::Up);
+        let (f, g) = is_fractal_and_gap(10, 5, 20, 12, 8, 3, Direction::Up, Tangency::Closed);
         assert!(f); // 20 > 10 && 20 > 8
         assert!(g); // b_l=12 > a_h=10（严格）
     }
@@ -1048,7 +1167,7 @@ mod tests {
     #[test]
     fn is_fractal_and_gap_up_top_no_gap() {
         // 顶分型但 b_l < a_h → 无缺口（第一种情况）。
-        let (f, g) = is_fractal_and_gap(10, 5, 20, 8, 8, 3, Direction::Up);
+        let (f, g) = is_fractal_and_gap(10, 5, 20, 8, 8, 3, Direction::Up, Tangency::Closed);
         assert!(f);
         assert!(!g); // b_l=8 < a_h=10
     }
@@ -1056,7 +1175,7 @@ mod tests {
     #[test]
     fn is_fractal_and_gap_down_bottom() {
         // 向下段：b_l 最低 → 底分型；a_l > b_h → 缺口（#246 严格）。
-        let (f, g) = is_fractal_and_gap(15, 12, 8, 3, 18, 14, Direction::Down);
+        let (f, g) = is_fractal_and_gap(15, 12, 8, 3, 18, 14, Direction::Down, Tangency::Closed);
         assert!(f); // 3 < 12 && 3 < 14
         assert!(g); // a_l=12 > b_h=8（严格）
     }
@@ -1080,8 +1199,16 @@ mod tests {
         for case in super::super::gap_overlap_fixture::gap_overlap_cases() {
             let ((lo_l, lo_h), (up_l, up_h)) = case.ordered();
             // 向上段顶分型：b 在上，缺口谓词 = `b_l > a_h`。
-            let (f_up, g_up) =
-                is_fractal_and_gap(lo_h, lo_l, up_h, up_l, lo_h, lo_l, Direction::Up);
+            let (f_up, g_up) = is_fractal_and_gap(
+                lo_h,
+                lo_l,
+                up_h,
+                up_l,
+                lo_h,
+                lo_l,
+                Direction::Up,
+                Tangency::Closed,
+            );
             assert!(
                 f_up,
                 "{}: 向上段前件（顶分型）应成立，否则断言退化",
@@ -1093,8 +1220,16 @@ mod tests {
                 case.name
             );
             // 向下段底分型：b 在下，缺口谓词 = `a_l > b_h`。
-            let (f_dn, g_dn) =
-                is_fractal_and_gap(up_h, up_l, lo_h, lo_l, up_h, up_l, Direction::Down);
+            let (f_dn, g_dn) = is_fractal_and_gap(
+                up_h,
+                up_l,
+                lo_h,
+                lo_l,
+                up_h,
+                up_l,
+                Direction::Down,
+                Tangency::Closed,
+            );
             assert!(
                 f_dn,
                 "{}: 向下段前件（底分型）应成立，否则断言退化",
@@ -1115,7 +1250,7 @@ mod tests {
     fn is_fractal_and_gap_tangent_up_no_gap() {
         // 向上段顶分型，b 与 a 仅公共端点（b_l == a_h == 10，相切）。
         // 相切=重合 ⟹ 无缺口：has_gap 必须为 false。
-        let (f, g) = is_fractal_and_gap(10, 5, 20, 10, 8, 3, Direction::Up);
+        let (f, g) = is_fractal_and_gap(10, 5, 20, 10, 8, 3, Direction::Up, Tangency::Closed);
         assert!(f); // 20 > 10 && 20 > 8
         assert!(!g); // b_l=10 相切 a_h=10 → 有重合 → 无缺口
     }
@@ -1124,7 +1259,7 @@ mod tests {
     fn is_fractal_and_gap_tangent_down_no_gap() {
         // 向下段底分型，a 与 b 仅公共端点（a_l == b_h == 10，相切）。
         // 相切=重合 ⟹ 无缺口：has_gap 必须为 false。
-        let (f, g) = is_fractal_and_gap(15, 10, 10, 3, 18, 14, Direction::Down);
+        let (f, g) = is_fractal_and_gap(15, 10, 10, 3, 18, 14, Direction::Down, Tangency::Closed);
         assert!(f); // 3 < 10 && 3 < 14
         assert!(!g); // a_l=10 相切 b_h=10 → 有重合 → 无缺口
     }
@@ -1164,7 +1299,8 @@ mod tests {
 
     #[test]
     fn append_empty_pushes_first() {
-        let mut st = FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0);
+        let mut st =
+            FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0, Tangency::Closed);
         st.append(0, 20, 10, &[]);
         assert_eq!(st.std.len(), 1);
     }
@@ -1173,7 +1309,8 @@ mod tests {
     /// FIRST 三元素，确认时才冻结。
     #[test]
     fn frozen_first_waits_for_confirmation() {
-        let mut st = FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0);
+        let mut st =
+            FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0, Tangency::Closed);
         st.observe();
         for (i, h, l) in [(1, 10, 4), (3, 20, 5), (5, 18, 7)] {
             st.append(i, h, l, &[]);
@@ -1196,7 +1333,8 @@ mod tests {
 
     #[test]
     fn scan_trigger_too_few_none() {
-        let mut st = FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0);
+        let mut st =
+            FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0, Tangency::Closed);
         st.append(0, 20, 10, &[]);
         st.append(2, 25, 15, &[]);
         assert_eq!(st.scan_trigger(&[]), None); // < 3 元素
@@ -1205,7 +1343,8 @@ mod tests {
     #[test]
     fn scan_trigger_finds_top_no_gap() {
         // 向上段特征序列 [10,5],[20,8],[8,3]：中间 high=20 最高 → 顶分型；b_l=8<a_h=10 无缺口。
-        let mut st = FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0);
+        let mut st =
+            FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0, Tangency::Closed);
         st.append(1, 10, 5, &[]);
         st.append(3, 20, 8, &[]);
         st.append(5, 8, 3, &[]);

@@ -43,6 +43,7 @@ use newchan_rust::theta_v0::backtest::m1_dual::{
     dual_leg_metrics, large_bootstrap_percentile_dual, Percentile, MIN_N_FOR_P3, N_BOOTSTRAP_LARGE,
 };
 use newchan_rust::theta_v0::backtest::replay_dump::{initial_nav_for, run_replay_double};
+use newchan_rust::theta_v0::backtest::research_stats::active_research_stats;
 use newchan_rust::theta_v0::backtest::runner::run_theta_v0_pi;
 use newchan_rust::theta_v0::config::ThetaConfig;
 
@@ -114,7 +115,7 @@ fn run_symbol(symbol: &str, config: &ThetaConfig) -> Result<SymbolResult, String
     let initial_nav = initial_nav_for(&full, config);
 
     // ── 生产 runner（七链 π_Θ + 完整判据面）。 ──
-    let r = run_theta_v0_pi(&full, config, years, initial_nav);
+    let r = run_theta_v0_pi(&full, config, years, initial_nav).expect("C-19 research stats record");
 
     // ── 双开腿口径 + 预注册百分位（#1282 判据，#1309 同口径）。 ──
     let legs = dual_leg_metrics(&r.prices, &r.trades);
@@ -218,10 +219,12 @@ fn write_report(
     };
 
     let mut md = String::new();
+    let stats = active_research_stats().expect("C-19 research stats record");
     let _ = writeln!(
         md,
         "# #1317 M1 最终实验：生产引擎 7 期货回放 + 预注册 7/7 判据结果\n"
     );
+    let _ = writeln!(md, "统计记录：`{}`\n", stats.record.label());
     let _ = writeln!(
         md,
         "> 7 标的（ES/GC/CL/ZN/6E/BRN/DX）1min 全量（prereg 表冻结值）| 生产 runner 路径 "
@@ -399,6 +402,7 @@ fn write_report(
     // JSON（机器可读，per-symbol 明细 + 汇总）。
     let json: serde_json::Value = serde_json::json!({
         "issue": 1317,
+        "research_stats": stats.record.label(),
         "criterion": "7/7 百分位全部越过各自随机中位（符号检验单侧 p=0.0078125）",
         "n_pass": n_pass,
         "n_total": n_total,
@@ -478,6 +482,13 @@ fn main() -> std::process::ExitCode {
     }
 
     println!("=== M1 最终实验：生产引擎 7 期货回放 + 预注册 7/7 判据（#1317）===");
+    println!(
+        "统计记录  : {}",
+        active_research_stats()
+            .expect("C-19 research stats record")
+            .record
+            .label()
+    );
     println!("判据      : 7/7 百分位全部越过各自随机中位（符号检验单侧 p={SIGN_TEST_P_7OF7:.4}）");
     println!("品种      : {}", symbols.join(", "));
     println!("随机基线  : 双腿各 N×H 随机进出 {N_BOOTSTRAP_LARGE} 次（MT19937，与 #1309 冻结函数逐位同构）");

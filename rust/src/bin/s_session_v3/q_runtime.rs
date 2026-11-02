@@ -95,7 +95,7 @@ impl Runtime {
     pub(super) fn with_control_instance_id(mut self, id: String) -> Result<Self, String> {
         self.control_instance_id = match self.allocation.as_ref() {
             Some(profile) => TextValue::from_str(&id, Some(&profile.budget))?,
-            None => TextValue::Plain(id),
+            None => TextValue::from(id),
         };
         Ok(self)
     }
@@ -1114,7 +1114,7 @@ mod tests {
     }
     fn plain_wire(p: &Projection) -> &Value {
         match &p.wire {
-            super::super::business_json::JsonOwner::Plain(value) => value,
+            super::super::business_json::JsonOwner::Plain(value) => value.as_ref(),
             #[cfg(feature = "s_allocation_json_testonly")]
             super::super::business_json::JsonOwner::Owned(_) => {
                 panic!("测试oracle只接普通投影")

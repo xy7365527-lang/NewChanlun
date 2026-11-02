@@ -66,7 +66,9 @@ fn complete_array_matches_every_ref_and_reads_each_logical_position_linearly() {
             "不展开嵌套值，不按摘要去重逻辑位置"
         );
         if n >= 16 {
-            assert!(s.reads * 4 < old_reads);
+            // #1757：逐 Index 下行也已消重；n=16 对照为 192 读，线性仍为 48。
+            // 至少四倍；上面的精确 3*n 锁继续限制线性路径本身。
+            assert!(s.reads * 4 <= old_reads);
         }
     }
 }

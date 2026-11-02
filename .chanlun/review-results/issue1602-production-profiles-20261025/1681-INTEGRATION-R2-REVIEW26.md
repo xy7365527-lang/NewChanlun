@@ -1,0 +1,11 @@
+# PR1681 新增交叉测试非作者复审
+
+结论 PASS，固定候选 a9ad34d5cd605e1867fd137903fd83b2bc05888b。主控非作者复核14ec6e9之后三文件110行测试增量，原1681-INTEGRATION-INDEPENDENT-REVIEW26.md已通过的集成语义复用。本次解除其唯一交叉测试BLOCK，不代表CI已通过。
+
+测试显式设非默认解析tail_window=17及Signed(2)政策，Native与Ordinary均传同配置。test-only getter读取生成器实际theta_config；该字段即generation.rs parse_layer_with_group_evidence消费字段，不是独立影子配置。trace断言真实delta路径，SQL逐代policy_records与外部回执均比具名标签，重复receipt一致。
+
+第二代真实SQLite COMMIT hook拒绝后两个发布表仍仅第一代。遵循既有连接退役合同，经recover升级epoch2、重开恢复pending，未修改生产失败路径为原连接重试。Ordinary对照停在Begin并走相同恢复；最终runtime_root_tables枚举sqlite_schema全表（include_nodes=true）逐列逐值比对，未以摘要替代。该小夹具覆盖新增交叉路径，既有全表原子性锁不重复扩跑。
+
+已读远端原始日志1681-validation26/20261026-070523-53e68f472a.log，具名测试1 passed/0 failed，EXIT=0。实跑前执行rustfmt，53e68f→最终head仅格式回收，逐段diff已核；diff --check通过。没有macOS Rust编译。现PR回读head与候选一致，新CI40243584993排队中。
+
+原reviewer复审唤醒遇agent thread limit，主控直接承担此非作者尾审，不把派发失败当审查完成。main批准门单独保留，未合入未关票。

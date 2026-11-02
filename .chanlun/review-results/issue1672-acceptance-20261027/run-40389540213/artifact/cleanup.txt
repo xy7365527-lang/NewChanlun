@@ -1,0 +1,4 @@
+command_exit=0
+cleanup_failed=0
+root=/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.9YSvbh
+root_exists=no

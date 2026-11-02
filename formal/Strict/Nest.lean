@@ -96,6 +96,72 @@ structure Interval where
   idx : Nat
 deriving DecidableEq, Repr
 
+/-- `selector_keys` 的四个合法组合。`endTime` 固定降序（其升序在正本中仍未批准）。 -/
+inductive SelectorKeys where
+  | StartDescIdxAsc
+  | StartDescIdxDesc
+  | StartAscIdxAsc
+  | StartAscIdxDesc
+deriving DecidableEq, Repr
+
+/-- 选择器记录：纯键序 + 可追溯的 record id/version。 -/
+structure SelectorPolicy where
+  keys : SelectorKeys
+  recordId : String
+  version : Nat
+deriving Repr, DecidableEq
+
+/-- 当前 `selector-keys/1` 的显式测试输入，不是缺记录时的备用值。 -/
+def defaultSelectorKeys : SelectorKeys := .StartDescIdxAsc
+
+/-- 当前 `selector-keys/1` 的显式测试记录。 -/
+def defaultSelectorPolicy : SelectorPolicy := {
+  keys := defaultSelectorKeys,
+  recordId := "selector-keys",
+  version := 1
+}
+
+/-- 按记录比较：`endTime` 固定降序，另外两个方向来自同一键表。 -/
+def selOrderWithKeys (keys : SelectorKeys) (a b : Interval) : Prop :=
+  match keys with
+  | .StartDescIdxAsc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime > b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx < b.idx)
+  | .StartDescIdxDesc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime > b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx > b.idx)
+  | .StartAscIdxAsc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime < b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx < b.idx)
+  | .StartAscIdxDesc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime < b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx > b.idx)
+
+/-- 通用键表的反对称性。 -/
+theorem selOrderWithKeys_asymm {keys : SelectorKeys} {a b : Interval}
+    (h : selOrderWithKeys keys a b) : ¬ selOrderWithKeys keys b a := by
+  intro h'
+  cases keys <;> simp [selOrderWithKeys] at h h'
+  <;> rcases h with he | ⟨_, hs⟩ | ⟨_, _, hi⟩ <;>
+    rcases h' with he' | ⟨_, hs'⟩ | ⟨_, _, hi'⟩ <;> omega
+
+/-- 通用键表的三歧性。 -/
+theorem selOrderWithKeys_trichotomy (keys : SelectorKeys) (a b : Interval) :
+    selOrderWithKeys keys a b ∨
+      (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx = b.idx) ∨
+      selOrderWithKeys keys b a := by
+  cases keys <;> simp [selOrderWithKeys] at * <;> omega
+
+/-- 通用键表的传递性。 -/
+theorem selOrderWithKeys_trans {keys : SelectorKeys} {a b c : Interval}
+    (h₁ : selOrderWithKeys keys a b) (h₂ : selOrderWithKeys keys b c) :
+    selOrderWithKeys keys a c := by
+  cases keys <;> simp [selOrderWithKeys] at * <;> omega
+
 /--
   **Sel_Θ 字典序键** —— 把一个区间映射到其三键 `(endTime, startTime, idx)`。
 
@@ -113,11 +179,11 @@ def selKey (J : Interval) : Nat × Nat × Nat :=
 
   ★`selOrder` 编码「最新 endTime 优先、再最新 startTime、再最小 idx」：
     endTime 大者优 / startTime 大者优 / idx 小者优。
+  ★版本化字段 `selector_keys`（qujiantao.md §14.1，ADR 0041，[#1600]）：
+    当前仅作显式测试默认对照；生产选择使用 `selOrderWithKeys` 与实际记录。
 -/
 def selOrder (a b : Interval) : Prop :=
-  a.endTime > b.endTime
-    ∨ (a.endTime = b.endTime ∧ a.startTime > b.startTime)
-    ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx < b.idx)
+  selOrderWithKeys defaultSelectorKeys a b
 
 /--
   `IsSelected cands J`：`J` 是 `cands` 中 `Sel_Θ` 选出的唯一最优候选。
@@ -128,9 +194,13 @@ def selOrder (a b : Interval) : Prop :=
   ★`best` 同时给出存在（`J` 是最优）与唯一性骨架（任何非 `J` 候选都被 `J` 严格压制，
     故被选中者在三键上唯一）——下游 `selected_key_unique` 由此读出唯一性。
 -/
-structure IsSelected (cands : List Interval) (J : Interval) : Prop where
+structure IsSelectedWithKeys (keys : SelectorKeys) (cands : List Interval) (J : Interval) : Prop where
   mem : J ∈ cands
-  best : ∀ J', J' ∈ cands → J' = J ∨ selOrder J J'
+  best : ∀ J', J' ∈ cands → J' = J ∨ selOrderWithKeys keys J J'
+
+/-- 既有 Prop 接口仅是显式默认键表的别名。 -/
+def IsSelected (cands : List Interval) (J : Interval) : Prop :=
+  IsSelectedWithKeys defaultSelectorKeys cands J
 
 /--
   **selOrder 的反对称性（严格）** —— 若 `selOrder a b` 则 `¬ selOrder b a`。
@@ -174,6 +244,33 @@ theorem selected_key_unique
   · rcases h₂.best J₁ h₁.mem with hEq' | hLt'
     · exact congrArg selKey hEq'
     · exact absurd hLt' (selOrder_asymm hLt)
+
+/-- 同一版本化键表下的选择键唯一性。 -/
+theorem selectedWithKeys_key_unique
+    {keys : SelectorKeys} {cands : List Interval} {J₁ J₂ : Interval}
+    (h₁ : IsSelectedWithKeys keys cands J₁) (h₂ : IsSelectedWithKeys keys cands J₂) :
+    selKey J₁ = selKey J₂ := by
+  rcases h₁.best J₂ h₂.mem with hEq | hLt
+  · exact congrArg selKey hEq.symm
+  · rcases h₂.best J₁ h₁.mem with hEq' | hLt'
+    · exact congrArg selKey hEq'
+    · exact absurd hLt' (selOrderWithKeys_asymm hLt)
+
+/-- 键相等可在 `selOrderWithKeys` 左位替换。 -/
+theorem selOrderWithKeys_left_congr {keys : SelectorKeys} {a a' b : Interval}
+    (hk : selKey a = selKey a') (h : selOrderWithKeys keys a b) :
+    selOrderWithKeys keys a' b := by
+  simp only [selKey, Prod.mk.injEq] at hk
+  obtain ⟨h1, h2, h3⟩ := hk
+  cases keys <;> simp [selOrderWithKeys] at * <;> omega
+
+/-- 键相等可在 `selOrderWithKeys` 右位替换。 -/
+theorem selOrderWithKeys_right_congr {keys : SelectorKeys} {a b b' : Interval}
+    (hk : selKey b = selKey b') (h : selOrderWithKeys keys a b) :
+    selOrderWithKeys keys a b' := by
+  simp only [selKey, Prod.mk.injEq] at hk
+  obtain ⟨h1, h2, h3⟩ := hk
+  cases keys <;> simp [selOrderWithKeys] at * <;> omega
 
 /--
   **区间套关系 `Sub`** —— `Sub J' J` 表示候选区间 `J'`（低级别）套在 `J`（高级别）之内，

@@ -102,7 +102,7 @@ pub use operate::OperateEngine;
 // ════════════════════════════ 常量 + 认识论标注 ════════════════════════════
 
 pub use crate::trading::positional::EQUITY_SAMPLE_BARS;
-pub use crate::trading::types::{FIRST_BSP_LADDER, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
+pub use crate::trading::types::{FIRST_BSP_LADDER, LADDER_MOVE, MAX_LADDER};
 
 /// pending 势源下界（N5/N6）：move(L1)。segment(=FIRST_BSP_LADDER) 非势源。**L0**（T28）。
 pub const PENDING_LO: usize = FIRST_BSP_LADDER + 1;

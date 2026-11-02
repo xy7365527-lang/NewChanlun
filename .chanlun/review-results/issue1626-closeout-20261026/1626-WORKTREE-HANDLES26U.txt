@@ -1,0 +1,10 @@
+observed_at=2026-10-26T05:39:51Z
+
+WORKTREE=/Volumes/AgentStorage/issue1626-versioned-fields-20261025/worktree
+lsof_exit=1
+
+WORKTREE=/Volumes/AgentStorage/issue1693-integration-20261026/worktree
+lsof_exit=1
+
+WORKTREE=/Volumes/AgentStorage/pr1693-consume1723-20261026
+lsof_exit=1

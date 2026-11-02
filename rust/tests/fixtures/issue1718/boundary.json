@@ -1,0 +1,54 @@
+{
+  "schema": "diagnostic-fill-request/1",
+  "model_id": "adr0018-integer-bar/1",
+  "record_version": "synthetic-boundary/1",
+  "mode": "diagnostic",
+  "fill_rule": {
+    "Cross": 1
+  },
+  "market_snapshot": "TestOnly/touch-and-cross/1",
+  "as_of": 20,
+  "orders": [
+    {
+      "id": "buy",
+      "side": "Buy",
+      "quantity": 3,
+      "limit_ticks": 100,
+      "submitted_at": 0
+    },
+    {
+      "id": "sell",
+      "side": "Sell",
+      "quantity": 2,
+      "limit_ticks": 110,
+      "submitted_at": 0
+    },
+    {
+      "id": "pending",
+      "side": "Buy",
+      "quantity": 1,
+      "limit_ticks": 90,
+      "submitted_at": 0
+    }
+  ],
+  "bars": [
+    {
+      "event_time": 10,
+      "known_at": 10,
+      "open": 105,
+      "high": 110,
+      "low": 100,
+      "close": 105,
+      "opened_at": 0
+    },
+    {
+      "event_time": 20,
+      "known_at": 20,
+      "open": 99,
+      "high": 111,
+      "low": 99,
+      "close": 106,
+      "opened_at": 10
+    }
+  ]
+}

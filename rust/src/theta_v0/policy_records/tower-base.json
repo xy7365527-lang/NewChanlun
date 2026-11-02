@@ -1,0 +1,16 @@
+{
+  "id": "tower-base",
+  "version": 1,
+  "kind": "tower_construction_policy",
+  "ticket": "#1626（#1600 / qujiantao §14.3；ADR 0035、0041、0044）",
+  "note": "ADR 0035 的 tower_base_ref=L0 对应当前 segment 构件。kline3/trade3 只保留合法值域；没有相应构件与数据 profile 时显式拒绝，不冒充支持。",
+  "fields": {
+    "tower_base": {
+      "value": "segment",
+      "default": "segment",
+      "source": "qujiantao §14.3 与 zhongshu §2.1.1：现行生产 L0 线段层；ADR 0044 的 L0 同义",
+      "options": "segment / kline3 / trade3；缠论笔不在值域",
+      "cost": "kline3/trade3 需要各自真实构件和数据 profile，当前缺失时 typed reject，禁止用线段输入冒充"
+    }
+  }
+}

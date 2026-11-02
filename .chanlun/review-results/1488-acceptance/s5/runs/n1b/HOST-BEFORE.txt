@@ -1,0 +1,10 @@
+label=n1b mode=native bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-testonly-3ee05a2713 sha256=4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882 head=87d09a50ce495121babac1edc9c73d75a102206d
+start=2026-10-21T01:10:14Z loadavg=9.66 7.70 6.54 7/239 6771
+  PID     ELAPSED %CPU COMMAND
+ 6676       00:14 99.7 /home/hanju/nc-remote/issue1629/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 49995
+   65    13:40:09 96.2 /mnt/g/AgentStorage/1488-accept/r2p/bin/s_structure_session-c2bdf9b662 serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/r2p/mergec2bd-r2/s.sqlite --profile /mnt/g/AgentS
+   31    13:42:10 96.1 /mnt/g/AgentStorage/1488-accept/s1/bin/s_structure_session-6badaa6049 serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/r2p/main6bad/s.sqlite --profile /mnt/g/AgentStorag
+27088    01:33:18 92.1 /home/hanju/nc-remote/issue1597post/release/issue1588_parse_mem_probe /home/hanju/nc-remote/data/btc_1m_full.json facts 299995
+ 6715       00:12 55.7 /mnt/g/AgentStorage/1488-accept/a5s6/bin/s_structure_session-3ee05a2713 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/smoke1/session.sqlite --resource-conf
+ 6719       00:12 47.8 node /home/hanju/nc-remote/wt/20261021-090608-39f25d8f72/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs --repo /home/hanju/nc-remote/wt/20261021-090608-39f25d8f72 --base-url http:
+ 6151       00:54 41.3 /usr/lib/git-core/git index-pack --fix-thin --stdin

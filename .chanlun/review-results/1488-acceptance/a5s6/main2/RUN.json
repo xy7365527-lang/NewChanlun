@@ -1,0 +1,168 @@
+{
+  "schema": "1488-a5s6-run/1",
+  "binary": "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049",
+  "binary_sha256": "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040",
+  "messages_sha256": "d61371c95036eaaaacc94c9780955555271be41a49ad4d5f242424a1c447c6cd",
+  "clock_sha256": "779dcb8539bc9278933bde14d852e9d34493d956cb2c2647cb1db3ead9dfb36f",
+  "repo_head": "2a576099bfd86604189c838b46bc6f1e0512f499",
+  "repo_status_porcelain": "",
+  "reply_timeout_ms": 1800000,
+  "q_resources_sha256": "62a59ecbb65c1391871de6f557c2156ffa3017054805db48cb7be472c2e22794",
+  "q_functional_sha256": "b2a4f72acffbb70f3032f705a757a7c107085a103ffbc6c5ff574169c96902ee",
+  "nproc": 8,
+  "host_before": {
+    "loadavg": [
+      1.62,
+      3.22,
+      4.8
+    ],
+    "top": [
+      {
+        "pid": 28787,
+        "pcpu": 99.5,
+        "etimes": 4,
+        "cmd": "/home/hanju/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name s_structure_session --edition=2021 src/bin/s_structure_session.rs --error-"
+      },
+      {
+        "pid": 24350,
+        "pcpu": 99.1,
+        "etimes": 777,
+        "cmd": "/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-diag2-c081bfdeee serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/s5/d2/s"
+      },
+      {
+        "pid": 28823,
+        "pcpu": 7.6,
+        "etimes": 0,
+        "cmd": "python3.12 /home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5s6_run.py --repo /home/hanju/nc-remote/wt/20"
+      },
+      {
+        "pid": 24348,
+        "pcpu": 0.5,
+        "etimes": 777,
+        "cmd": "python3.12 /home/hanju/nc-remote/wt/20261021-125216-87d09a50ce/.chanlun/review-results/1488-acceptance/s5/run_s5.py --bin /mnt/g/AgentStorage/1488-accept/s5/bin"
+      },
+      {
+        "pid": 28497,
+        "pcpu": 0.3,
+        "etimes": 19,
+        "cmd": "/home/hanju/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j 16 --features s_session,s_capture_native_testonly --bin s_structure_se"
+      },
+      {
+        "pid": 1,
+        "pcpu": 0.0,
+        "etimes": 63437,
+        "cmd": "/init"
+      }
+    ]
+  },
+  "started_utc": "2026-10-21T05:05:21Z",
+  "start_exit": 0,
+  "start_stdout": "{\n  \"ok\": true,\n  \"result\": [\n    {\n      \"service\": \"s\",\n      \"state\": \"ready\",\n      \"reply\": {\n        \"causal_refs\": [\n          {\n            \"message_id\": \"launcher-ready-1\",\n            \"payload_hash\": \"91d6ef0c4ad15a0f5a84670f4ab7d73913145192bb307d7db275516f53237652\",\n            \"source_epoch\": \"1\",\n            \"source_namespace\": \"testonly.ohlc.tb1419-s0b-min12-per-bar\"\n          }\n        ],\n        \"message_id\": \"reply-2e6bc48f100aee98227d7fc78039393aa7d7de7594360e2a69768b19de6bbb5f\",\n        \"payload\": {\n          \"advance_state\": \"idle\",\n          \"clock_plan_hash\": \"c22c8992095c52f4c4f8abd43d7effb2c6fb35b97d1cf2e44e9f26c24b6f23b2\",\n          \"control_instance_id\": \"a12fe8a0-6a32-4248-af2b-03afbaaae866\",\n          \"delivery_frontier\": {\n            \"first_available_generation\": \"1\",\n            \"head_generation\": \"0\",\n            \"min_valid_after_generation\": \"0\",\n            \"retain_generations\": \"4\"\n          },\n          \"generation\": \"0\",\n          \"index_frontier\": \"\",\n          \"kind\": \"Ready\",\n          \"ok\": true,\n          \"profile_hash\": \"1c11d398cd9ac43a161bc6494b196771f131fba74c42c0bf1ccb6474a8fc4d57\",\n          \"profile_id\": \"ohlc_integer_tb02a_v1\",\n          \"schema_revision\": \"s-session/3\",\n          \"session_generation\": \"1\",\n          \"session_id\": \"tb1419-s0b-min12-per-bar\",\n          \"structure_cut\": \"cut-0\",\n          \"writer_epoch\": \"1\"\n        },\n        \"payload_hash\": \"86de084a0ceffbf1e734d9ac99883660f9ef778994902105262982df8b59ec91\",\n        \"producer_epoch\": \"1\",\n        \"producer_id\": \"S:tb1419-s0b-min12-per-bar\",\n        \"schema_revision\": \"s-session/3\",\n        \"session_generation\": \"1\",\n        \"session_id\": \"tb1419-s0b-min12-per-bar\",\n        \"source_epoch\": \"1\",\n        \"source_namespace\": \"s-session/replies\"\n      },\n      \"initialization\": {\n        \"catalog_hash\": \"874c7b8d27158741d467da59731c73f8ff60070a76d908b6362818d4be5a098c\",\n        \"catalog_items\": 116,\n        \"catalog_revision\": \"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)\",\n        \"clock_plan_hash\": \"c22c8992095c52f4c4f8abd43d7effb2c6fb35b97d1cf2e44e9f26c24b6f23b2\",\n        \"content_format\": \"s-content/1\",\n        \"delivery_retain_generations\": 4,\n        \"generation\": \"0\",\n        \"index_frontier\": \"\",\n        \"journal_mode\": \"wal\",\n        \"last_advance_frontier\": \"-1\",\n        \"ok\": true,\n        \"platform\": \"linux\",\n        \"profile_hash\": \"1c11d398cd9ac43a161bc6494b196771f131fba74c42c0bf1ccb6474a8fc4d57\",\n        \"profile_id\": \"ohlc_integer_tb02a_v1\",\n        \"protocol_revision\": \"s-session/3\",\n        \"session_generation\": \"1\",\n        \"session_id\": \"tb1419-s0b-min12-per-bar\",\n        \"sqlite_version\": \"3.53.2\",\n        \"structure_cut\": \"cut-0\",\n        \"synchronous\": 2,\n        \"writer_epoch\": \"1\"\n      },\n      \"socket_cleanup\": null\n    },\n    {\n      \"service\": \"q\",\n      \"state\": \"ready\",\n      \"reply\": {\n        \"control_instance_id\": \"e3c85de9-fbfd-4f51-a9b8-7d3810f65164\",\n        \"cut\": {\n          \"catalog_revision\": \"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)\",\n          \"generation\": \"0\",\n          \"index_frontier\": \"\",\n          \"session_generation\": \"1\",\n          \"session_id\": \"tb1419-s0b-min12-per-bar\",\n          \"structure_cut\": \"cut-0\"\n        },\n        \"ok\": true,\n        \"producer_epoch\": \"1\"\n      }\n    }\n  ]\n}\n",
+  "start_stderr": "",
+  "s_pid": 28853,
+  "q_pid": 28864,
+  "ingest_complete": true,
+  "head_generation": 52,
+  "host_after_ingest": {
+    "loadavg": [
+      4.67,
+      4.8,
+      5.0
+    ],
+    "top": [
+      {
+        "pid": 29170,
+        "pcpu": 391.0,
+        "etimes": 1480,
+        "cmd": "/home/hanju/nc-remote/target-m83/debug/deps/s_structure_session-054cbefe7ff1de7c --test-threads 4"
+      },
+      {
+        "pid": 28853,
+        "pcpu": 85.6,
+        "etimes": 1503,
+        "cmd": "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 serve --db /home/hanju/nc-remote/1488-accept/a5s6/main2/session.sqlite --socket /tmp/a76-m"
+      },
+      {
+        "pid": 28864,
+        "pcpu": 14.1,
+        "etimes": 1503,
+        "cmd": "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/ma"
+      },
+      {
+        "pid": 28823,
+        "pcpu": 0.1,
+        "etimes": 1503,
+        "cmd": "python3.12 /home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5s6_run.py --repo /home/hanju/nc-remote/wt/20"
+      },
+      {
+        "pid": 28497,
+        "pcpu": 0.0,
+        "etimes": 1522,
+        "cmd": "/home/hanju/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j 16 --features s_session,s_capture_native_testonly --bin s_structure_se"
+      },
+      {
+        "pid": 1,
+        "pcpu": 0.0,
+        "etimes": 64940,
+        "cmd": "/init"
+      }
+    ]
+  },
+  "a5_formal": {
+    "cmd": [
+      "node",
+      "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+      "--repo",
+      "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf",
+      "--base-url",
+      "http://127.0.0.1:18877",
+      "--gens",
+      "1",
+      "--out",
+      "/home/hanju/nc-remote/1488-accept/a5s6/main2/A5-formal.jsonl",
+      "--limits",
+      "fixture",
+      "--oracle",
+      "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json",
+      "--current"
+    ],
+    "rc": 1,
+    "seconds": 10.6
+  },
+  "tb03a_economic_ready_http": "404",
+  "stop_attempts": [
+    {
+      "exit": 0,
+      "seconds": 0.1,
+      "stdout": "{\n  \"ok\": true,\n  \"result\": [\n    {\n      \"service\": \"q\",\n      \"state\": \"stopped\",\n      \"pid\": 28864,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": []\n    },\n    {\n      \"service\": \"s\",\n      \"state\": \"stopped\",\n      \"pid\": 28853,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": []\n    }\n  ]\n}\n",
+      "stderr": ""
+    }
+  ],
+  "stop_exit": 0,
+  "stop_stdout": "{\n  \"ok\": true,\n  \"result\": [\n    {\n      \"service\": \"q\",\n      \"state\": \"stopped\",\n      \"pid\": 28864,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": []\n    },\n    {\n      \"service\": \"s\",\n      \"state\": \"stopped\",\n      \"pid\": 28853,\n      \"signal\": \"SIGTERM\",\n      \"exit_observation_warnings\": []\n    }\n  ]\n}\n",
+  "stop_stderr": "",
+  "a5_functional": {
+    "cmd": [
+      "node",
+      "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5_client.cjs",
+      "--repo",
+      "/home/hanju/nc-remote/wt/20261021-130513-2a576099bf",
+      "--base-url",
+      "http://127.0.0.1:18877",
+      "--gens",
+      "1",
+      "--out",
+      "/home/hanju/nc-remote/1488-accept/a5s6/main2/A5-functional.jsonl",
+      "--limits",
+      "relaxed",
+      "--oracle",
+      "/mnt/g/AgentStorage/1488-accept/d65/min12d-main1/RUN.json"
+    ],
+    "rc": 0,
+    "seconds": 115.8
+  },
+  "functional_q_returncode": 0,
+  "finished_utc": "2026-10-21T05:33:35Z",
+  "db_sha256": "5c893f3f96fb1500bcd34611ba46e8d79157639bb9f164bf6e1b0189f176c628",
+  "ok": true
+}

@@ -1,7 +1,7 @@
 // #1456：CLI 只接一次已指定任务，不包含队列、认领、push 或合入动作。
 import { parseArgs } from "node:util";
 import { writeSync } from "node:fs";
-import { runCodexChild, SupervisionError, type ChildMode } from "./codex-child.ts";
+import { runCodexChild, SupervisionError, type ChildMode, type ChildModel } from "./codex-child.ts";
 
 const { values } = parseArgs({
   options: {
@@ -11,6 +11,7 @@ const { values } = parseArgs({
     checkout: { type: "string" },
     "expected-head": { type: "string" },
     mode: { type: "string", default: "review" },
+    model: { type: "string" },
     "prompt-file": { type: "string" },
     "output-dir": { type: "string" },
     "idle-timeout-seconds": { type: "string", default: "600" },
@@ -22,7 +23,7 @@ const { values } = parseArgs({
 });
 
 if (values.help) {
-  writeSync(process.stdout.fd, "用法：node --import tsx .sandcastle/codex-child.mts --ticket <票号> --parent-thread-id <父任务ID> --manager-agent-id <原生子代理ID> --checkout <独立干净checkout绝对路径> --expected-head <40位SHA> --mode review|execute --prompt-file <绝对路径> --output-dir <不存在的绝对目录>\n");
+  writeSync(process.stdout.fd, "用法：node --import tsx .sandcastle/codex-child.mts --ticket <票号> --parent-thread-id <父任务ID> --manager-agent-id <原生子代理ID> --checkout <独立干净checkout绝对路径> --expected-head <40位SHA> --mode review|execute [--model claude-opus-5-5|gpt-6.1-sol] --prompt-file <绝对路径> --output-dir <不存在的绝对目录>\n");
 } else {
   const controller = new AbortController();
   const cancel = () => controller.abort();
@@ -38,6 +39,7 @@ if (values.help) {
       checkout: values.checkout ?? "",
       expectedHead: values["expected-head"] ?? "",
       mode: values.mode as ChildMode,
+      model: values.model as ChildModel | undefined,
       promptFile: values["prompt-file"] ?? "",
       outputDir: values["output-dir"] ?? "",
       idleTimeoutSeconds: Number(values["idle-timeout-seconds"]),

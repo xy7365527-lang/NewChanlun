@@ -381,7 +381,13 @@ mod tests {
                 )
             })
             .collect();
-        let (_c, l1, _) = compose_level(&units, &l0, true, 1);
+        let (_c, l1, _) = compose_level(
+            &units,
+            &l0,
+            true,
+            1,
+            crate::theta_v0::config::TowerBase::Segment,
+        );
         vec![l0, l1]
     }
 

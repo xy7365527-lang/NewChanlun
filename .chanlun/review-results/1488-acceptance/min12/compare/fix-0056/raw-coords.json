@@ -1,0 +1,18 @@
+{
+ "known15": {
+  "old_raw_position_coords": 62,
+  "new_coord_points": 62,
+  "multiset_equal": true,
+  "raw_first_eq_raw_last": 62,
+  "raw_first_ne_raw_last": 0,
+  "old_uses_raw_first": false
+ },
+ "known31": {
+  "old_raw_position_coords": 150,
+  "new_coord_points": 150,
+  "multiset_equal": true,
+  "raw_first_eq_raw_last": 150,
+  "raw_first_ne_raw_last": 0,
+  "old_uses_raw_first": false
+ }
+}

@@ -64,35 +64,37 @@ pub enum PerfectionMode {
     Or,
 }
 
-/// a₀（递归底座）来源（谱系 526 / 第65课 065:182「区别仅在 a0」）。
+/// 塔底来源开关（谱系 526 / 第65课 065:182「区别仅在 a0」）。
 ///
-/// 第65课原文5：两者在递归形式上一样，`aₙ=f(aₙ₋₁)`，**唯一不同就是预先给出的 a₀**。
-/// 引擎的两个 a₀ 载体，二者都处于「a₀ 确认层」（526号），过滤口径不同：
+/// `a₀` 构件值域的唯一正本是 `.chanlun/definitions/zhongshu.md` §2.1.1（#1627）：
+/// `segment`（默认）/ `kline3` / `trade3`；**缠论笔不在值域内**（`083:14`／`:16`、`064:34`，
+/// 在案 A/B `.chanlun/roadmap.yaml:970-972` 已否证）。本枚举只有两档：
 /// - `Segment`：a₀ = 线段序列，`confirmed && kind==Settled`——现状默认，保 bit-exact。
 ///   Settled 是线段特有的**特征序列递归确认**语义（第67/71课）。
-/// - `Stroke`：a₀ = 笔序列，仅 `confirmed`——递归底座下移（级别数 5-6→8-10 的主因）。
-///   笔无 Settled 语义（bi.md:151「最后一笔始终 confirmed=False，直到下一笔生成后才结算」），
-///   完成口径 = confirmed（525号「完成在本级别图上可观测、不需下钻」第18课:24 +
-///   526号「a₀确认层=操作性意义」）。
-///
-/// 两层各自的级别增量必须**分别测量**（filter-spec 下游推论1）——故 a₀ 来源是可切换
-/// 参数（与 bar_spec 对称），能跑 a0=线段(基线) vs a0=笔(新) A/B 对比，非兼容垫片。
+/// - `Stroke`：**已否证的对照臂，不是 `a₀` 合法值**（#1627 / #1654）。以 confirmed 笔为塔底
+///   单元，仅供 `rec_stream.rs` 的 `#[ignore]` 回测 `rec_btc`（`T_A0=stroke`）复现谱系 526 号
+///   E1 A/B（a0 段→笔）。#951 B3 冻结链 `trading_system/backtest_t_fugue.py` 从未传 `a0`，其
+///   `t_fugue_*.json` 缓存均在 `Segment` 下生成、不含 `a0` 字段，不依赖本档（#1654 核查）。
+///   按 #799 裁定六属对照臂「不适用」，**不得进入任何准入／生产判定路径**
+///   （`docs/unified-architecture-canon.md:81`）。随 recursive_t 退场一并删除（#808）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum A0Source {
     /// a₀ = 线段序列（`confirmed && Settled` 过滤）——现状默认，保 bit-exact。
     #[default]
     Segment,
-    /// a₀ = 笔序列（`confirmed` 过滤）——递归底座下移（526号 / 第65课:182）。
+    /// 已否证的对照臂（#1627 zhongshu §2.1.1 第 2 条：缠论笔不是 `a₀` 合法值）：confirmed 笔
+    /// 作塔底单元，仅供 `rec_btc` 复现 526 号 E1 A/B，不进任何准入路径。
     Stroke,
 }
 
 /// 单元（泛型，所有级别通用）。
 ///
 /// 递归恒等式（谱系 540）：级别 k 的一个完整走势类型 `Move(k)` ≡ 级别 k+1 的一根「笔」。
-/// 所以 `Unit` 既表示 a₀ 的笔（level=0），也表示任意级别封装后的上级单元。
+/// 所以 `Unit` 既表示塔底单元（level=0：默认线段；`A0Source::Stroke` 对照臂下为笔），
+/// 也表示任意级别封装后的上级单元。
 ///
 /// `inner_zhongshu_count`：本单元作为「下级走势封装」时其内部的中枢数量。
-/// - a₀ 笔 / 线段：`0`——线段以下是类中枢，无真中枢（第64课）；
+/// - 塔底单元（线段 / 对照臂笔）：`0`——线段以下是类中枢，无真中枢（第64课）；
 /// - level≥1 单元：= 被封装走势的中枢数 ≥ 1。
 ///
 /// 这个字段是结构滤网 F（第37课条件2/3/5「嵌套深度」）的必要输入：扁平的 high/low
@@ -107,7 +109,7 @@ pub struct Unit {
     pub start_bar: i64,
     pub end_bar: i64,
     pub direction: Direction,
-    /// 递归深度（a₀ 笔 = 0）。
+    /// 递归深度（塔底单元 = 0）。
     pub level: usize,
     /// 内部中枢数（嵌套深度，a₀ = 0）。
     pub inner_zhongshu_count: usize,
@@ -127,7 +129,7 @@ pub struct Unit {
 }
 
 impl Unit {
-    /// 构造一根 a₀ 笔（level=0，无内部中枢，无 MACD 面积）。
+    /// 构造一个塔底单元（level=0，无内部中枢，无 MACD 面积；函数名沿用历史，单元可为线段）。
     ///
     /// `area_pos`/`area_neg` 默认 `0.0`（判据不读，M 已随 #1243 退役）。需 MACD 面积
     /// 探针/对照读数时由调用方直接构造 `Unit { .., area_pos, area_neg }`（见
@@ -350,7 +352,7 @@ pub struct TLevelOutput {
 /// 整个递归塔（Tᵏ 迭代到 r* 的结果）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecursiveTree {
-    /// 每个级别的输出，`levels[0]` 是 T 作用于 a₀（笔序列）的结果。
+    /// 每个级别的输出，`levels[0]` 是 T 作用于 a₀（默认线段序列，zhongshu §2.1.1）的结果。
     pub levels: Vec<TLevelOutput>,
 }
 

@@ -1,0 +1,41 @@
+{
+  "id": "chong-derivation-input",
+  "ticket": "#1601（#1586 审计 C-22；ADR 0040「签署记录」derivation-input 块逐字转录，本文件只取 l_start 及记录头）",
+  "source": "docs/adr/0040-funding-signature-and-chong-derivation.md「签署记录」```derivation-input 块；漂移由 funding_record::tests::active_records_match_adr_0040 锁",
+  "records": [
+    {
+      "profile_id": "P0",
+      "policy_id": "#1558/chong-derivation-input/v1",
+      "version": "v1",
+      "supersedes": "none",
+      "symbol": "BTC",
+      "l_start": "L0",
+      "authorizer": "用户（#1557/#1558 2026-10-20 批复）",
+      "authorized_at": "2026-10-20",
+      "valid_through": "2027-10-20"
+    },
+    {
+      "profile_id": "P1-hl-testnet",
+      "policy_id": "#1558/chong-derivation-input/v1",
+      "version": "v1",
+      "supersedes": "none",
+      "symbol": "BTC",
+      "l_start": "L0",
+      "authorizer": "用户（#1557/#1558 2026-10-20 批复）",
+      "authorized_at": "2026-10-20",
+      "valid_through": "2027-10-20"
+    },
+    {
+      "profile_id": "P0-acceptance-5m",
+      "policy_id": "#1558/chong-derivation-input/v1",
+      "version": "v1",
+      "supersedes": "none",
+      "scope": "evidence_only",
+      "symbol": "BTC",
+      "l_start": "L0",
+      "authorizer": "用户（#1557/#1558 2026-10-20 批复）",
+      "authorized_at": "2026-10-20",
+      "valid_through": "2027-10-20"
+    }
+  ]
+}

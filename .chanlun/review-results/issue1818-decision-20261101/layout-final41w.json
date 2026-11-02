@@ -1,0 +1,53 @@
+{
+  "ticket": 1818,
+  "pr": 1826,
+  "verdict": "PASS",
+  "reviewer": "layout-final41w-independent",
+  "reviewer_family": "GPT",
+  "author_family": "Claude",
+  "head": "8ce09b7b31aa64ec6a299e5a66e0f76c63a5b265",
+  "diff_base": "07fb67f116c002f6604214f10ddebb55e58a6500",
+  "scope": "ADR 0059 增量静态独审，41T F1 的 Q5 修订、验收 17/18、正控与编号直接依赖",
+  "original_41t_finding": "RESOLVED",
+  "findings": [],
+  "rules": {
+    "R1": "PASS",
+    "R2": "PASS_REUSED_41T_41R",
+    "R3": "PASS",
+    "R4": "PASS",
+    "R5": "PASS",
+    "R6": "PASS_REUSED_41T_41R",
+    "R7": "PASS_REUSED_41R",
+    "R8": "PASS_SCOPED"
+  },
+  "checks": {
+    "local_and_pr_head": "MATCH",
+    "diff_scope": "ADR_ONLY_26_ADDITIONS_22_DELETIONS",
+    "diff_check": "PASS",
+    "static_formula_substitution": "Q5_REJECTS_FINAL_DANGLING_SOCKET_SYMLINK_INTO_P_AND_A",
+    "positive_controls": "SAFE_SUBDIR_AND_S_SOCKET_PRESERVED",
+    "new_false_rejection_contract_conflict": "NONE_FOUND",
+    "acceptance_numbering": "CONTIGUOUS_1_TO_31",
+    "adr_suffix_count": 1,
+    "pr_body_number_references": "PASS",
+    "rust": "NOT_RUN",
+    "ci": "NOT_RUN",
+    "experiments": "NOT_RUN",
+    "sqlite_db_lock_direct_socket": "REUSED_41T_41R_UNCHANGED"
+  },
+  "source_platform": {
+    "apple_source_commit": "f6217f891ac0bb64f3d375211650a4c1ff8ca1ea",
+    "evidence": "REUSED_41T_FIXED_SOURCE_REVIEW",
+    "running_kernel_equivalence": "NOT_CLAIMED"
+  },
+  "unknowns_preserved": [
+    "TestOnly marker",
+    "SQLite 临时文件",
+    "金融读子进程",
+    "未追模块"
+  ],
+  "implementation_acceptance_owner": 1781,
+  "implementation_completed": false,
+  "report": "/Volumes/AgentStorage/layout-final41w/REPORT.md",
+  "verified_at": "2026-11-01T01:05:32Z"
+}

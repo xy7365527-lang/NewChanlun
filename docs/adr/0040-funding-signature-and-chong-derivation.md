@@ -1,7 +1,7 @@
 # ADR 0040：资金签署记录与重的确定性推导
 
 > 正本：本文件是资金签署记录（总投入、共同 cap、逐级容量、起始操作级别、频率门、杠杆、量档）及其推出的重清单的正本。
-> 最后裁定：#1557 / #1558（2026-10-20，用户批复）
+> 最后裁定：#1610（2026-10-26 分维订正）；#1557 / #1558（2026-10-20 资金签署原件保留）
 > 受影响代码清单：见「受影响票与代码」节
 
 **日期**：2026-10-20
@@ -53,14 +53,20 @@ ADR 0029、0031、0034 定了 cap、本金批次、量档与容量记录的形�
 1. `ℓ := l_start`，`R := Q_total`。成本门 NotEvaluable 不挡 L0（ADR 0035:15）。
 2. 逐级：买点或卖点 < `F_min` ⟹ NotViable，不开重，看 ℓ+1；`F_min` 未签、无频率读数或 C(ℓ) = Unknown ⟹ `AwaitingPolicy{frequency | capacity, level:ℓ}`，停止；其余 Placeable。
 3. Placeable：`q := min(R, C(ℓ))`，开重 ⟨S, ℓ, q⟩，`R := R − q`；`R = 0` 停止，否则 ℓ+1。无方向参数，同一 (S, ℓ) 至多一个重。
-4. 每重开局批 `amount = ⌈Q / L⌉`（ADR 0031:12）：声部为多时是锁定的自有现金/保证金，声部为空时就是投入保证金 M。`authorization_ref` 指该 profile funding-record 的版本。
-5. 量档记录 `q_ref` 指 funding-record；开重与换档激活时复核 `Q ≤ C(ℓ)`（ADR 0034:23）。
+4. 每重开局批 `amount = ⌈Q_amount / margin_leverage⌉`（原公式中的 L 是无量纲杠杆，不是价格；#1610、ADR 0049）：声部为多时是锁定的自有现金/保证金，声部为空时就是投入保证金 M。`authorization_ref` 指该 profile funding-record 的版本。
+5. 量档记录 `q_ref` 指 funding-record 授权身份并绑定 version；逐重 Q_amount 由同签版及 (S,ℓ) 派生，C8 载体为 manifest.chongs[i].funding.Q，不能读总 cap 替代。金额域激活复核 Q_amount≤C_amount(ℓ)；动作量 Q_units 与冻结档量另依 ADR 0049 定标，不把金额直接当 BTC quantum。
 
 运行中利润长大按 ADR 0016:155 与 ADR 0034:29 溢出到上一级开新重，不重签；目标级 Unknown ⟹ 不触发，G 留重内。改总投入、`l_start`、容量、频率门或杠杆都签新版本，以新版本重推，只作用于生效后：新推出而现役没有的重照开；Q 变大不自动改现役 Q（输出 `AwaitingPolicy{q_rebase, (S,ℓ)}`）；变小或消失不减仓（ADR 0029:25-27）。旧版本不删，`supersedes` 指向旧版本（ADR 0034:20）。
 
 ### 五、两条验收路径
 
-小资金单重路径（`P0`、`P1-hl-testnet`）：任一时刻只有 ⟨BTC, L0⟩ 一个重，只在 L0 买卖点全仓进出，符号改变都经过 0。多重赋格路径（`P0-acceptance-5m`）：开出 L0/L1/L2 三重，各重内符号改变都经过 0，至少一个 bar 上两个不同级别的重持相反符号，L1 重短差一档 1,110,400。两条都由下游实施票验收（#1444/#1445/#1446/#1406）。
+小资金单重路径（`P0`、`P1-hl-testnet`）：任一时刻只有 ⟨BTC, L0⟩ 一个重，只在 L0 买卖点全仓进出，符号改变都经过 0。多重赋格路径（`P0-acceptance-5m`）：开出 L0/L1/L2 三重，各重内符号改变都经过 0，至少一个 bar 上两个不同级别的重持相反符号，L1 重短差档量须按 ADR 0049 的数量定标记录冻结；旧 1,110,400 为金额乘系数结果，不是 BTC quantum。两条都由下游实施票验收（#1444/#1445/#1446/#1406）。
+
+## #1610 订正：历史原件不等于数量定标
+
+下列资金签署和历史推导原样保留。历史 `tier_quantity:1110400` 仅是 3,200,000 USDC×347/1000，量纲为金额，撤回其作为资产数量的解释；不能机械填入新数量档。新记录按 [ADR 0049](0049-funding-quantity-and-policy-reference-dimensions.md) 的 quantity_basis、冻结锚及报价尺度得到 Q_units 后再算 tier_quantity。本文不签实际报价、max_quote_age 或 quantity quantum。
+
+新 cap 的生效检查与责任变更共用原子顺序；新 cap 小于责任拒绝整次激活，原有效 funding/cap/policy 保持，不部分切换；相等可激活，低 1 拒绝。旧版过期不因此恢复新授信。没有新增自动排队协议。
 
 ## 签署记录
 
@@ -306,7 +312,11 @@ P1-hl-testnet profile 须增 `margin_leverage` 字段，按 ADR 0028:28 升 v2�
 
 ## 被否方案
 
-按方向签投入额、开多头重与空头重（用户 Q1/Q2 否，ADR 0010:23 三要件无方向）；同一 (S, ℓ) 开一多一空两个重并签容量占用口径（Q2；Netting 场所上只是双份保证金的净额）；签方向份额切一份钱（ADR 0013:17）；小资金强行切多重（Q3；ADR 0016:92/:98）；起始级别写死成 L0 或 L1（Q5）；C(ℓ) Unknown 时跳级（ADR 0034:23）；探针容量自动准入（ADR 0034:39）；测试网余额当 cap 或投入额（ADR 0029:33）；成本门 NotEvaluable 时挡 L0（ADR 0035:15）。
+按方向签投入额、开多头重与空头重（用户 Q1/Q2 否，ADR 0010:23 三要件无方向）；同一 (S, ℓ) 开一多一空两个重并签容量占用口径（Q2；Netting 场所上只是双份保证金的净额）；签方向份额切一份钱（ADR 0013:17）；小资金强行切多重（Q3；ADR 0016:92/:98）；起始级别写死成 L0 或 L1（Q5）；C(ℓ) Unknown 时跳级（ADR 0034:23）；未签域或证据门未满足就启用探针容量；测试网余额当 cap 或投入额（ADR 0029:33）；成本门 NotEvaluable 时挡 L0（ADR 0035:15）。
+
+## 合法候选：探针容量来源（#1598）
+
+`ProbeAuto` 按 ADR 0034 裁定四保留，默认仍 UserSigned。已签域并不替代窗口和不确定性带；当前证据前置未满足，不自动生效。每次新读数新版本，在途不追改。
 
 ## 未裁项
 
@@ -321,3 +331,13 @@ ADR 0013 裁定三/四与 ADR 0031:12 按「多头重 / 空头重」写三阶段
 ## 溯源标签
 
 重无固定方向、按级别开：`[新缠论:推论]`（ADR 0010 三要件 + ADR 0014 裁定一/三 + 用户 Q1/Q2）。小资金单重：`[旧缠论]`（`026:36`、`035:30`）。塔底 L0：`[新缠论:选择]`（qujiantao.md:441）。频率门「≥ 1」、cap 1% 余量、有效期、USDC 1:1 记美元读数：`[新缠论:选择]`。数值：用户签署。
+
+## #1598 批复与受影响清单
+
+本次修订沿用的 ADR 旧行号以获批草稿固定基线 `13ed4d45c8ff85175819ca987690328ab2a247a4` 为准；当前条款按标题定位。
+
+用户 2026-10-26 批复 [resolution](https://github.com/xy7365527-lang/NewChanlun/issues/1598#issuecomment-6403277308)。本次字段修订为 `[新缠论:选择]`，ROUNDTRIP 沿用已裁推论。受影响文件、固定基线与候选承接见 [清单](../../.chanlun/review-results/issue1598-policy-20261026/affected-code.md)；政策批准不代表下游已接单或实现。
+
+## #1610 受影响清单
+
+[用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1610#issuecomment-6403279340)；[ADR 0049](0049-funding-quantity-and-policy-reference-dimensions.md) 给出完整方法与待实施负控；[历史基线清单](../../.chanlun/review-results/issue1610-policy-20261026/affected-code.md)。本次不修改任何旧资金签署块、测试黄金或已验 /2 合同。

@@ -44,7 +44,7 @@
 //!   买点被当作新信号。fills 日志可审计。
 
 use super::tape::SignalTape;
-use super::types::{BspEvent, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
+use super::types::{BspEvent, FIRST_BSP_LADDER, MAX_LADDER};
 use crate::buysellpoint::Side;
 
 /// 级别权重函数。Exp2 = 2^(k−floor)（级别时间尺度几何递增的镜像，主变体）；
@@ -116,6 +116,8 @@ pub struct RecursiveResult {
 struct Slices {
     shares: [f64; MAX_LADDER],
     cash: f64,
+    /// 期初资金（ADR 0040 funding-record `cap`，#1601）——quota 与换手的基数。
+    q_total: f64,
 }
 
 impl Slices {
@@ -144,6 +146,7 @@ pub fn run_recursive(
     weight: WeightFn,
     sell_t1_only: bool,
     with_fills: bool,
+    q_total: f64,
 ) -> Result<RecursiveResult, String> {
     if floor_ladder < FIRST_BSP_LADDER {
         return Err(format!(
@@ -160,10 +163,11 @@ pub fn run_recursive(
 
     let mut st = Slices {
         shares: [0.0; MAX_LADDER],
-        cash: INITIAL_CAPITAL,
+        cash: q_total,
+        q_total,
     };
     let mut res = RecursiveResult::default();
-    let mut peak = INITIAL_CAPITAL;
+    let mut peak = q_total;
     let mut invested_frac_sum = 0.0;
     let n = tape.bars.len();
 
@@ -209,7 +213,7 @@ pub fn run_recursive(
 
     let last_close = tape.bars[n - 1].close;
     let final_eq = st.equity(last_close);
-    res.final_return_pct = (final_eq - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
+    res.final_return_pct = (final_eq - q_total) / q_total * 100.0;
     res.avg_invested_frac = invested_frac_sum / n as f64;
     res.final_invested_frac = if final_eq > 0.0 {
         st.invested(last_close) / final_eq
@@ -236,7 +240,7 @@ fn apply_event(
     const EPS: f64 = 1e-9;
     match e.class.side() {
         Side::Buy => {
-            let target = base_frac * weight.weight(lad, floor) * INITIAL_CAPITAL;
+            let target = base_frac * weight.weight(lad, floor) * st.q_total;
             let need = target - st.shares[lad] * c;
             if need <= EPS {
                 res.buy_noops[lad] += 1;
@@ -253,7 +257,7 @@ fn apply_event(
             st.cash -= spend;
             st.shares[lad] += spend / c;
             res.buy_fills[lad] += 1;
-            res.turnover += spend / INITIAL_CAPITAL;
+            res.turnover += spend / st.q_total;
             if with_fills {
                 res.fills.push(FillRec {
                     bar,
@@ -275,7 +279,7 @@ fn apply_event(
             st.shares[lad] = 0.0;
             st.cash += sh * c;
             res.sell_clears[lad] += 1;
-            res.turnover += sh * c / INITIAL_CAPITAL;
+            res.turnover += sh * c / st.q_total;
             if with_fills {
                 res.fills.push(FillRec {
                     bar,
@@ -296,6 +300,7 @@ mod tests {
     use super::super::tape::BarSig;
     use super::super::types::BspClass;
     use super::*;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     fn ev(class: BspClass, confirmed: bool) -> BspEvent {
         BspEvent {
@@ -339,7 +344,7 @@ mod tests {
             bar(100.0, vec![(2, ev(BspClass::Buy2, true))]), // 已满 → no-op
             bar(100.0, vec![(3, ev(BspClass::Buy1, true))]),
         ]);
-        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, true).unwrap();
+        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, true, FIXTURE_Q_TOTAL).unwrap();
         assert_eq!(r.buy_fills[2], 1);
         assert_eq!(r.buy_noops[2], 1);
         assert_eq!(r.buy_fills[3], 1);
@@ -358,7 +363,7 @@ mod tests {
             bar(110.0, vec![(2, ev(BspClass::Sell1, true))]),
             bar(110.0, vec![(2, ev(BspClass::Sell2, true))]), // 空 → no-op
         ]);
-        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, false).unwrap();
+        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).unwrap();
         assert_eq!(r.sell_clears[2], 1);
         assert_eq!(r.sell_noops[2], 1);
         // 100 股 @100 买入、@110 清仓 → +1000 = +1% of 100k
@@ -373,7 +378,7 @@ mod tests {
             bar(100.0, vec![(2, ev(BspClass::Buy1, true))]),
             bar(100.0, vec![(3, ev(BspClass::Buy1, true))]),
         ]);
-        let r = run_recursive(&t, 2, 0.5, WeightFn::Exp2, false, false).unwrap();
+        let r = run_recursive(&t, 2, 0.5, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).unwrap();
         assert_eq!(r.buy_fills[3], 1);
         assert_eq!(r.buy_starved[3], 1); // 截断计数
         assert!((r.final_invested_frac - 1.0).abs() < 1e-9); // 满仓
@@ -386,7 +391,7 @@ mod tests {
             bar(100.0, vec![(2, ev(BspClass::Buy1, false))]),
             bar(100.0, vec![]),
         ]);
-        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, false).unwrap();
+        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).unwrap();
         assert_eq!(r.buy_fills[2], 0);
         assert!((r.final_invested_frac - 0.0).abs() < 1e-9);
     }
@@ -399,7 +404,7 @@ mod tests {
             bar(110.0, vec![(2, ev(BspClass::Sell1, true))]),
             bar(105.0, vec![(2, ev(BspClass::Buy2, true))]),
         ]);
-        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, false).unwrap();
+        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).unwrap();
         assert_eq!(r.buy_fills[2], 2);
         assert_eq!(r.sell_clears[2], 1);
         // 第二次回补按 quota 重填（10k @105）
@@ -414,7 +419,7 @@ mod tests {
             bar(120.0, vec![(2, ev(BspClass::Sell2, true))]), // 忽略
             bar(130.0, vec![(2, ev(BspClass::Sell1, true))]), // 清
         ]);
-        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, true, false).unwrap();
+        let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, true, false, FIXTURE_Q_TOTAL).unwrap();
         assert_eq!(r.sell_clears[2], 1);
         assert_eq!(r.sell_noops[2], 0); // 被忽略的卖点不入 noop 计数
                                         // 100 股 @100 → @130 清 → +3000 = +3%
@@ -427,8 +432,8 @@ mod tests {
         assert_eq!(WeightFn::Linear.weight(4, 2), 3.0);
         assert_eq!(WeightFn::Exp2.weight(4, 2), 4.0);
         let t = tape(vec![bar(100.0, vec![(2, ev(BspClass::Buy1, true))])]);
-        assert!(run_recursive(&t, 1, 0.1, WeightFn::Exp2, false, false).is_err());
-        assert!(run_recursive(&t, 2, 0.0, WeightFn::Exp2, false, false).is_err());
-        assert!(run_recursive(&t, 2, 1.5, WeightFn::Exp2, false, false).is_err());
+        assert!(run_recursive(&t, 1, 0.1, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).is_err());
+        assert!(run_recursive(&t, 2, 0.0, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).is_err());
+        assert!(run_recursive(&t, 2, 1.5, WeightFn::Exp2, false, false, FIXTURE_Q_TOTAL).is_err());
     }
 }

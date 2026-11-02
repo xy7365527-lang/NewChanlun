@@ -1,0 +1,17 @@
+{
+  "id": "venue-profile-synthetic-tb02a",
+  "version": 1,
+  "kind": "venue_profile",
+  "profile_id": "production_synthetic_ohlc_integer_tb02a_v1",
+  "symbol": null,
+  "usage": "s_structure_writer",
+  "admissible": true,
+  "ticket": "#1774 测试夹具：ADR 0057 裁定三只签 tick_size、三项成本 AwaitingPolicy 的 synthetic v1 状态；不在生产表",
+  "fields": {
+    "tick_size": {"value": 1, "unit": "tick", "source": "ADR 0057 R3"},
+    "commission_bps": {"value": 10, "unit": "bp/side", "source": "ADR 0057 裁定一继承"},
+    "slippage_bps": {"value": "AwaitingPolicy", "unit": "bp/side", "source": "ADR 0057 裁定四"},
+    "tax_bps": {"value": "AwaitingPolicy", "unit": "bp/side", "source": "ADR 0057 裁定四"},
+    "entry_delay_bars": {"value": "AwaitingPolicy", "unit": "基础 K 根数", "source": "ADR 0057 裁定五"}
+  }
+}

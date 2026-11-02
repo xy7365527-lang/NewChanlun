@@ -57,7 +57,9 @@ async function capture(name){
     await send("Network.enable");await send("Network.setBlockedURLs",{urls:["https://*"]});
     await send("Page.navigate",{url:url.href});await settle();const first=await capture("current");
     const discovery=await evaluate("client.discovery");
-    if(discovery.finance_revision!=="tb03b-finance/2" || first.completeness!=="CompleteVector")throw new Error("必须真实 /2 完整向量");
+    // #1716：/4 = /2 内容域 + 签署 cap 激活，同走内容域完整向量。
+    const contentDomain=["tb03b-finance/2","tb03b-finance/4"];
+    if(!contentDomain.includes(discovery.finance_revision) || first.completeness!=="CompleteVector")throw new Error("必须真实内容域（/2 或 /4）完整向量");
     const decisions=Object.entries(first.domains).filter(([d])=>d.startsWith("B:")).flatMap(([domain,v])=>v.image.finance.decisions.map(d=>({domain,decision:d})));
     if(new Set(decisions.map(d=>d.domain)).size<2 || decisions.some(({decision:d})=>d.state!=="Committed"))throw new Error("当前域缺双方真实 Committed");
     if(!args["--as-known"])throw new Error("必须指定可同时观察双方 Prepared 的 --as-known");
@@ -99,7 +101,7 @@ async function capture(name){
       const raw=body.base64Encoded?Buffer.from(body.body,"base64").toString("utf8"):body.body;
       fs.writeFileSync(path.join(output,"http-"+http.length+".json"),raw,{flag:"wx"});
       const value=JSON.parse(raw);
-      if(response.url.endsWith("/ready")){if(value.finance_revision!=="tb03b-finance/2")throw new Error("真实 discovery 版本不符");}
+      if(response.url.endsWith("/ready")){if(!["tb03b-finance/2","tb03b-finance/4"].includes(value.finance_revision))throw new Error("真实 discovery 版本不符");}
       else if(value.schema_revision!=="economic-session/2")throw new Error("真实 HTTP envelope 非 /2");
       http.push({requestId,url:response.url,status:response.status,body_file:"http-"+http.length+".json"});
     }

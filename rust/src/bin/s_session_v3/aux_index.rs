@@ -3,13 +3,19 @@
 //! 观察 detail 与来源数组保留为边；仅单条原始事件沿既有投影转换。索引不替代来源业务审计。
 use super::business_json::{self as bj, RawEventsView};
 use super::generation::{Generated, SequenceMemo, WitnessRecord};
-use crate::v3::audit_store::{CodecRead, CodecStore, RefValue};
+use super::layout::Layout;
+use crate::v3::audit_store::{CodecRead, CodecStore, NativeTree, RefValue};
 use crate::{content_store, meta_get_opt};
 use aj::JsonView;
 use bj::TextValue;
-#[cfg(test)]
-use newchan_rust::s_content::NodeStore;
-use newchan_rust::s_content::{self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest};
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
+use newchan_rust::s_content::{
+    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
+};
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
@@ -226,6 +232,17 @@ fn fmt_text(
         TextValue::from_str(text, budget).map_err(err)
     }
 }
+/// 见证/关系/观察的公开主序键：出生代（表列 `published_generation`，载入为 `first`）经
+/// [`Layout::rank`] 取代际前缀，再接 layout/1 原键；快照排序与历史 cut 重建只经这三处取键。
+fn witness_rank(layout: Layout, row: &Witness) -> (i64, (&TextValue, i64)) {
+    layout.rank(row.first, (&row.object_id, row.slot))
+}
+fn relation_rank(layout: Layout, row: &Relation) -> (i64, (&TextValue, &TextValue, &TextValue)) {
+    layout.rank(row.first, (&row.subject, &row.relation_type, &row.object))
+}
+fn obs_rank(layout: Layout, row: &Observation) -> (i64, (&TextValue, Option<i64>)) {
+    layout.rank(row.first, (&row.kind, row.window_start))
+}
 fn stable_sort<T>(
     rows: &mut CodecVec<T>,
     compare: impl Fn(&T, &T) -> std::cmp::Ordering,
@@ -269,14 +286,18 @@ pub(super) struct Witness {
     pub first: i64,
 }
 impl Witness {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            id: self.id.try_clone()?,
-            object_id: self.object_id.try_clone()?,
+            id: self.id.try_clone_admitted(store.codec_work())?,
+            object_id: self.object_id.try_clone_admitted(store.codec_work())?,
             slot: self.slot,
             merged_index: self.merged_index,
-            generated: self.generated.clone(),
-            wire: self.wire.clone(),
+            generated: store.native_ref_clone(&self.generated).map_err(err)?,
+            wire: store.native_ref_clone(&self.wire).map_err(err)?,
             first: self.first,
         })
     }
@@ -291,13 +312,23 @@ pub(super) struct Relation {
     pub first: i64,
 }
 impl Relation {
+    #[cfg_attr(
+        not(all(test, feature = "s_incremental")),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
+        )
+    )]
     fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            id: self.id.try_clone()?,
-            subject: self.subject.try_clone()?,
-            relation_type: self.relation_type.try_clone()?,
-            object: self.object.try_clone()?,
-            generated: self.generated.clone(),
+            id: self.id.try_clone_admitted(store.codec_work())?,
+            subject: self.subject.try_clone_admitted(store.codec_work())?,
+            relation_type: self.relation_type.try_clone_admitted(store.codec_work())?,
+            object: self.object.try_clone_admitted(store.codec_work())?,
+            generated: store.native_ref_clone(&self.generated).map_err(err)?,
             first: self.first,
         })
     }
@@ -313,14 +344,22 @@ pub(super) struct Observation {
     pub first: i64,
 }
 impl Observation {
+    #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            id: self.id.try_clone()?,
-            kind: self.kind.try_clone()?,
+            id: self.id.try_clone_admitted(store.codec_work())?,
+            kind: self.kind.try_clone_admitted(store.codec_work())?,
             window_start: self.window_start,
-            generated: self.generated.clone(),
-            wire: self.wire.clone(),
-            batch: self.batch.as_ref().map(TextValue::try_clone).transpose()?,
+            generated: store.native_ref_clone(&self.generated).map_err(err)?,
+            wire: store.native_ref_clone(&self.wire).map_err(err)?,
+            batch: self
+                .batch
+                .as_ref()
+                .map(|v| v.try_clone_admitted(store.codec_work()))
+                .transpose()?,
             first: self.first,
         })
     }
@@ -345,7 +384,15 @@ impl Index {
     pub(super) fn try_clone(&self) -> Result<Self, String> {
         self.clone_in(self.budget.clone())
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn clone_in(&self, budget: Option<OwnedBudget>) -> Result<Self, String> {
+        self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None))
+    }
+    fn clone_in_admitted(
+        &self,
+        budget: Option<OwnedBudget>,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, String> {
         let retained = self.witnesses.capacity() != 0
             || self.relations.capacity() != 0
             || self.observations.capacity() != 0;
@@ -356,13 +403,28 @@ impl Index {
         }
         let mut out = Self::new(budget);
         for row in &self.witnesses {
-            out.witnesses.try_push(row.try_clone()?).map_err(err)?;
+            store
+                .native_codec_room(&mut out.witnesses, 1)
+                .map_err(err)?;
+            out.witnesses
+                .try_push(row.try_clone_admitted(store)?)
+                .map_err(err)?;
         }
         for row in &self.relations {
-            out.relations.try_push(row.try_clone()?).map_err(err)?;
+            store
+                .native_codec_room(&mut out.relations, 1)
+                .map_err(err)?;
+            out.relations
+                .try_push(row.try_clone_admitted(store)?)
+                .map_err(err)?;
         }
         for row in &self.observations {
-            out.observations.try_push(row.try_clone()?).map_err(err)?;
+            store
+                .native_codec_room(&mut out.observations, 1)
+                .map_err(err)?;
+            out.observations
+                .try_push(row.try_clone_admitted(store)?)
+                .map_err(err)?;
         }
         Ok(out)
     }
@@ -464,7 +526,7 @@ pub(super) struct Runtime {
     sequences: [SequenceMemo; 8],
 }
 impl Runtime {
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(
         &self,
         f: &mut dyn FnMut(&'static str, NodeDigest),
@@ -521,9 +583,9 @@ impl Runtime {
         let object_id = text(s, &generated, "object_id")?;
         let slot = integer(s, &generated, "slot")?;
         let id = text(s, &generated, "witness_id")?;
-        if object_id != w.object_id
+        if object_id.as_str() != w.object_id.as_str()
             || slot != w.slot as i64
-            || id != w.witness_id
+            || id.as_str() != w.witness_id.as_str()
             || !(0..3).contains(&slot)
         {
             return Err(err("见证生成记录与元数据不符"));
@@ -532,13 +594,14 @@ impl Runtime {
             &(w.built.digest, merged_index),
             s.allocation_budget().as_ref(),
         )? {
-            Some(r) => r.clone(),
+            Some(r) => s.native_ref_clone(r).map_err(err)?,
             None => {
                 verify_witness_id(s, &generated, &id, &object_id, slot, merged_index)?;
                 let r = self.witness_wire(s, &generated)?;
-                self.witness_wires.insert(
+                self.witness_wires.insert_admitted(
+                    s,
                     (w.built.digest, merged_index),
-                    r.clone(),
+                    s.native_ref_clone(&r).map_err(err)?,
                     s.allocation_budget().as_ref(),
                 )?;
                 r
@@ -622,12 +685,13 @@ impl Runtime {
             .observation_ids
             .get(&b.digest, s.allocation_budget().as_ref())?
         {
-            id.try_clone()?
+            id.try_clone_admitted(s.codec_work())?
         } else {
             let id = observation_id(s, &generated)?;
-            self.observation_ids.insert(
+            self.observation_ids.insert_admitted(
+                s,
                 b.digest,
-                id.try_clone()?,
+                id.try_clone_admitted(s.codec_work())?,
                 s.allocation_budget().as_ref(),
             )?;
             id
@@ -647,6 +711,7 @@ impl Runtime {
     pub(super) fn plan<'a>(
         &mut self,
         s: &mut (impl CodecStore + ?Sized),
+        layout: Layout,
         old: &Index,
         generated: &Generated<'_>,
         replaces: impl Into<RawEventsView<'a>>,
@@ -665,17 +730,35 @@ impl Runtime {
             return Err(err("代号/原始前沿非法"));
         }
         let owned_budget = s.allocation_budget();
-        let mut snapshot = old.clone_in(owned_budget.clone())?;
+        let mut snapshot = old.clone_in_admitted(owned_budget.clone(), s)?;
         let mut births = Index::new(owned_budget.clone());
         let mut ws = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.witnesses.iter().enumerate() {
-            ws.insert(row.id.try_clone()?, i).map_err(err)?;
+            s.native_map_room(&mut ws).map_err(err)?;
+            ws.insert(row.id.try_clone_admitted(s.codec_work())?, i)
+                .map_err(err)?;
+        }
+        // 未变行跳过（#1488 S3）：生成态逐代给全量见证/关系/观察，但旧快照已含同内容
+        // 行时，冷口重算只得到同一行并在下方比对后丢弃。按生成记录摘要直接跳过，
+        // 读量只随本代新内容；换内容仍走完整路径并照旧报冲突。
+        let unchanged = incremental_plan();
+        let mut known_witnesses = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.witnesses.iter() {
+                s.native_map_room(&mut known_witnesses).map_err(err)?;
+                known_witnesses
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
         }
         for w in &generated.witnesses {
+            if known_witnesses.get(&w.built.digest).is_some() {
+                continue;
+            }
             let object = generated
                 .objects
                 .iter()
-                .find(|o| o.object_id() == w.object_id)
+                .find(|o| o.object_id() == w.object_id.as_str())
                 .ok_or_else(|| err("见证对象不在本代生成态"))?;
             let generated_object = built_ref(s, object.generated())?;
             let group = s
@@ -700,27 +783,61 @@ impl Runtime {
                     return Err(err("同见证身份换内容"));
                 }
             } else {
-                ws.insert(row.id.try_clone()?, snapshot.witnesses.len())
+                s.native_map_room(&mut ws).map_err(err)?;
+                ws.insert(
+                    row.id.try_clone_admitted(s.codec_work())?,
+                    snapshot.witnesses.len(),
+                )
+                .map_err(err)?;
+                s.native_codec_room(&mut snapshot.witnesses, 1)
                     .map_err(err)?;
-                snapshot.witnesses.try_push(row.try_clone()?).map_err(err)?;
+                snapshot
+                    .witnesses
+                    .try_push(row.try_clone_admitted(s)?)
+                    .map_err(err)?;
+                s.native_codec_room(&mut births.witnesses, 1).map_err(err)?;
                 births.witnesses.try_push(row).map_err(err)?;
             }
         }
         let mut rs = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.relations.iter().enumerate() {
-            rs.insert(row.id.try_clone()?, i).map_err(err)?;
+            s.native_map_room(&mut rs).map_err(err)?;
+            rs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
+                .map_err(err)?;
+        }
+        let mut known_relations = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.relations.iter() {
+                s.native_map_room(&mut known_relations).map_err(err)?;
+                known_relations
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
         }
         let mut candidates = bj::new_work(owned_budget.as_ref());
         for b in &generated.relations {
+            if known_relations.get(&b.digest).is_some() {
+                continue;
+            }
+            s.native_codec_room(&mut candidates, 1).map_err(err)?;
             candidates.try_push(built_ref(s, b)?).map_err(err)?;
         }
         for r in replaces {
+            s.native_codec_room(&mut candidates, 1).map_err(err)?;
             candidates
                 .try_push(replacement_relation(s, r)?)
                 .map_err(err)?;
         }
-        for event in raw.prefix(frontier as usize + 1)? {
+        // 旧前缀的 supersedes 关系已由前代出生入旧快照；只扫本代新增原始事件（Δ_R）。
+        let supersedes_from = if unchanged {
+            (previous_frontier + 1) as usize
+        } else {
+            0
+        };
+        for n in supersedes_from..=frontier as usize {
+            let event = raw.get(n).ok_or_else(|| err("原始前缀越界"))?;
             if let Some(r) = supersedes_relation(s, event)? {
+                s.native_codec_room(&mut candidates, 1).map_err(err)?;
                 candidates.try_push(r).map_err(err)?;
             }
         }
@@ -731,17 +848,41 @@ impl Runtime {
                     return Err(err("同关系身份换内容"));
                 }
             } else {
-                rs.insert(row.id.try_clone()?, snapshot.relations.len())
+                s.native_map_room(&mut rs).map_err(err)?;
+                rs.insert(
+                    row.id.try_clone_admitted(s.codec_work())?,
+                    snapshot.relations.len(),
+                )
+                .map_err(err)?;
+                s.native_codec_room(&mut snapshot.relations, 1)
                     .map_err(err)?;
-                snapshot.relations.try_push(row.try_clone()?).map_err(err)?;
+                snapshot
+                    .relations
+                    .try_push(row.try_clone_admitted(s)?)
+                    .map_err(err)?;
+                s.native_codec_room(&mut births.relations, 1).map_err(err)?;
                 births.relations.try_push(row).map_err(err)?;
             }
         }
         let mut obs = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.observations.iter().enumerate() {
-            obs.insert(row.id.try_clone()?, i).map_err(err)?;
+            s.native_map_room(&mut obs).map_err(err)?;
+            obs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
+                .map_err(err)?;
+        }
+        let mut known_observations = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.observations.iter() {
+                s.native_map_room(&mut known_observations).map_err(err)?;
+                known_observations
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
         }
         for b in &generated.observations {
+            if known_observations.get(&b.digest).is_some() {
+                continue;
+            }
             let row = self.observation(s, b, g)?;
             if let Some(i) = obs.get(&row.id) {
                 // 旧非 tb02a 配方不把 detail 纳入身份：重现保留首版，绝不覆盖；
@@ -753,36 +894,38 @@ impl Runtime {
                     return Err(err("同观察身份的身份字段冲突"));
                 }
             } else {
-                obs.insert(row.id.try_clone()?, snapshot.observations.len())
+                s.native_map_room(&mut obs).map_err(err)?;
+                obs.insert(
+                    row.id.try_clone_admitted(s.codec_work())?,
+                    snapshot.observations.len(),
+                )
+                .map_err(err)?;
+                s.native_codec_room(&mut snapshot.observations, 1)
                     .map_err(err)?;
                 snapshot
                     .observations
-                    .try_push(row.try_clone()?)
+                    .try_push(row.try_clone_admitted(s)?)
+                    .map_err(err)?;
+                s.native_codec_room(&mut births.observations, 1)
                     .map_err(err)?;
                 births.observations.try_push(row).map_err(err)?;
             }
         }
         stable_sort(
             &mut snapshot.witnesses,
-            |a, b| (&a.object_id, a.slot).cmp(&(&b.object_id, b.slot)),
+            |a, b| witness_rank(layout, a).cmp(&witness_rank(layout, b)),
             owned_budget.as_ref(),
             s,
         )?;
         stable_sort(
             &mut snapshot.relations,
-            |a, b| {
-                (&a.subject, &a.relation_type, &a.object).cmp(&(
-                    &b.subject,
-                    &b.relation_type,
-                    &b.object,
-                ))
-            },
+            |a, b| relation_rank(layout, a).cmp(&relation_rank(layout, b)),
             owned_budget.as_ref(),
             s,
         )?;
         stable_sort(
             &mut snapshot.observations,
-            |a, b| (&a.kind, a.window_start).cmp(&(&b.kind, b.window_start)),
+            |a, b| obs_rank(layout, a).cmp(&obs_rank(layout, b)),
             owned_budget.as_ref(),
             s,
         )?;
@@ -819,6 +962,24 @@ impl Runtime {
             snapshot_values,
             delta_values,
         })
+    }
+}
+
+#[cfg(test)]
+thread_local! { static FULL_PLAN_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+/// 测试离线对照臂：置位后 plan 走旧完整重算（逐行回读、全原始前缀扫 supersedes）。
+#[cfg(test)]
+pub(super) fn set_full_plan_for_test(full: bool) {
+    FULL_PLAN_FOR_TEST.with(|f| f.set(full));
+}
+fn incremental_plan() -> bool {
+    #[cfg(test)]
+    {
+        !FULL_PLAN_FOR_TEST.with(std::cell::Cell::get)
+    }
+    #[cfg(not(test))]
+    {
+        true
     }
 }
 
@@ -1149,22 +1310,16 @@ fn state_members(
 thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(super) fn reset_aux_audit_stats() {
     AUX_AUDIT_STATS.with(|s| s.set([0; 6]));
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(super) fn aux_audit_stats() -> [u64; 6] {
     AUX_AUDIT_STATS.with(std::cell::Cell::get)
@@ -1179,21 +1334,21 @@ fn audit_count(slot: usize) {
     #[cfg(not(test))]
     let _ = slot;
 }
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct RelationRefKey {
-    format: String,
-    root: String,
+    format: NativeValue<String>,
+    root: NativeValue<String>,
     kind: Kind,
     extent: Option<u64>,
 }
 impl RelationRefKey {
-    fn new(r: &RefValue) -> Self {
-        Self {
-            format: r.view().format().into(),
-            root: r.view().root().into(),
+    fn new(r: &RefValue, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        Ok(Self {
+            format: store.native_string(r.view().format()).map_err(err)?,
+            root: store.native_string(r.view().root()).map_err(err)?,
             kind: r.kind(),
             extent: r.extent(),
-        }
+        })
     }
 }
 struct RelationCore {
@@ -1205,18 +1360,14 @@ struct RelationCore {
 }
 impl RelationCore {
     fn at(&self, g: i64, admission: &(impl CodecRead + ?Sized)) -> Result<Relation, String> {
-        for text in [&self.id, &self.subject, &self.relation_type, &self.object] {
-            admission.native_admit(text.len()).map_err(err)?;
-        }
-        admission
-            .native_admit(self.generated.view().root().len() + self.generated.view().format().len())
-            .map_err(err)?;
         Ok(Relation {
-            id: self.id.try_clone()?,
-            subject: self.subject.try_clone()?,
-            relation_type: self.relation_type.try_clone()?,
-            object: self.object.try_clone()?,
-            generated: self.generated.clone(),
+            id: self.id.try_clone_admitted(admission.codec_work())?,
+            subject: self.subject.try_clone_admitted(admission.codec_work())?,
+            relation_type: self
+                .relation_type
+                .try_clone_admitted(admission.codec_work())?,
+            object: self.object.try_clone_admitted(admission.codec_work())?,
+            generated: admission.native_ref_clone(&self.generated).map_err(err)?,
             first: g,
         })
     }
@@ -1228,14 +1379,14 @@ fn native_tables<T>(
     store: &(impl CodecRead + ?Sized),
 ) -> Result<
     (
-        std::collections::HashMap<String, usize>,
-        std::collections::BTreeMap<i64, Vec<usize>>,
+        bj::BusinessMap<NativeValue<String>, usize>,
+        NativeTree<i64, CodecVec<usize>>,
         Option<i64>,
     ),
     String,
 > {
-    let mut map = std::collections::HashMap::<String, usize>::new();
-    let mut born = std::collections::BTreeMap::<i64, Vec<usize>>::new();
+    let mut map = bj::new_map(None);
+    let mut born = NativeTree::<i64, CodecVec<usize>>::default();
     let mut duplicate = None;
     for (ordinal, row) in rows.iter().enumerate() {
         audit_count(0);
@@ -1243,35 +1394,36 @@ fn native_tables<T>(
         let name = id(row);
         let g = first(row);
         if !born.contains_key(&g) {
-            store
-                .native_tree_room::<i64, Vec<usize>>(born.len())
+            born.insert_admitted(g, bj::new_work(None), store)
                 .map_err(err)?;
         }
-        let bucket = born.entry(g).or_default();
-        store.native_vec_room(bucket, 1).map_err(err)?;
-        bucket.push(ordinal);
+        let bucket = born.get_mut(&g).expect("已插入出生桶");
+        store.native_codec_room(bucket, 1).map_err(err)?;
+        bucket.try_push(ordinal).map_err(err)?;
         if let Some(previous) = map.get(name).copied() {
             let from = g.max(first(&rows[previous]));
             duplicate = Some(duplicate.map_or(from, |old: i64| old.min(from)));
             if g < first(&rows[previous]) {
-                map.insert(store.native_string(name).map_err(err)?, ordinal);
+                map.insert(store.native_string(name).map_err(err)?, ordinal)
+                    .map_err(err)?;
             }
         } else {
-            store.native_std_map_room(&mut map).map_err(err)?;
-            map.insert(store.native_string(name).map_err(err)?, ordinal);
+            store.native_map_room(&mut map).map_err(err)?;
+            map.insert(store.native_string(name).map_err(err)?, ordinal)
+                .map_err(err)?;
         }
     }
     Ok((map, born, duplicate))
 }
 /// 完整身份表按原 SQL 行序保存稳定 ordinal；首次观察桶不借用索引行或身份文本。
 pub(super) struct NativeAuxFacts {
-    witnesses: std::collections::HashMap<String, usize>,
-    relations: std::collections::HashMap<String, usize>,
-    observations: std::collections::HashMap<String, usize>,
-    born: [std::collections::BTreeMap<i64, Vec<usize>>; 3],
+    witnesses: bj::BusinessMap<NativeValue<String>, usize>,
+    relations: bj::BusinessMap<NativeValue<String>, usize>,
+    observations: bj::BusinessMap<NativeValue<String>, usize>,
+    born: [NativeTree<i64, CodecVec<usize>>; 3],
     duplicates: [Option<i64>; 3],
     raw_scanned: usize,
-    raw_revisions: Vec<usize>,
+    raw_revisions: CodecVec<usize>,
 }
 /// 本事务 facade 绑定原件及索引；纯 codec memo 随 facade 终结，不移交为当前性资格。
 pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
@@ -1279,10 +1431,10 @@ pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
     index: &'index Index,
     raw: RawEventsView<'raw>,
     facts: NativeAuxFacts,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained_raw_capacity: usize,
-    relation_memo: std::collections::HashMap<RelationRefKey, RelationCore>,
-    raw_memo: std::collections::HashMap<usize, Option<RefValue>>,
+    relation_memo: bj::BusinessMap<RelationRefKey, RelationCore>,
+    raw_memo: bj::BusinessMap<usize, Option<RefValue>>,
 }
 impl std::ops::Deref for NativeAuxAudit<'_, '_, '_> {
     type Target = NativeAuxFacts;
@@ -1303,8 +1455,8 @@ fn same_birth_order<'a>(
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn from_loaded(
         s: &super::history::HashReader<'capture>,
@@ -1354,15 +1506,15 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 born: [bw, br, bo],
                 duplicates: [dw, dr, do_],
                 raw_scanned: 0,
-                raw_revisions: Vec::new(),
+                raw_revisions: bj::new_work(None),
             },
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained_raw_capacity: 0,
-            relation_memo: Default::default(),
-            raw_memo: Default::default(),
+            relation_memo: bj::new_map(None),
+            raw_memo: bj::new_map(None),
         }))
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn restore(
         s: &super::history::HashReader<'capture>,
         index: &'index Index,
@@ -1381,8 +1533,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             raw,
             retained_raw_capacity: facts.raw_revisions.capacity(),
             facts,
-            relation_memo: Default::default(),
-            raw_memo: Default::default(),
+            relation_memo: bj::new_map(None),
+            raw_memo: bj::new_map(None),
         })
     }
     pub(super) fn audit(
@@ -1405,8 +1557,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             verify_generated_members_in_view(s, index, state, replaces, raw, g, Some(self))
         })();
         if result.is_err() {
-            self.relation_memo.clear();
-            self.raw_memo.clear();
+            self.relation_memo.retain(|_, _| false);
+            self.raw_memo.retain(|_, _| false);
             self.raw_scanned = 0;
             self.raw_revisions.clear();
         }
@@ -1418,7 +1570,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     pub(super) fn into_facts(self) -> NativeAuxFacts {
         self.facts
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn into_facts_retained(
         self,
         delta: &mut super::audit_retention::RetainedDelta,
@@ -1433,7 +1585,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     fn birth_names(&self, role: usize, g: i64) -> impl ExactSizeIterator<Item = &str> {
         self.born[role]
             .get(&g)
-            .map(Vec::as_slice)
+            .map(|v| &v[..])
             .unwrap_or(&[])
             .iter()
             .map(move |ordinal| match role {
@@ -1454,9 +1606,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         }
         s.native_verify_original(self.capture, candidate.view(), sc::Mode::Public)
             .map_err(err)?;
-        s.native_admit(candidate.view().root().len() + candidate.view().format().len())
-            .map_err(err)?;
-        let key = RelationRefKey::new(&candidate);
+        let key = RelationRefKey::new(&candidate, s)?;
         if let Some(core) = self.relation_memo.get(&key) {
             return core.at(g, s);
         }
@@ -1469,9 +1619,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             generated: parsed.generated,
         };
         let result = core.at(g, s)?;
-        s.native_std_map_room(&mut self.relation_memo)
-            .map_err(err)?;
-        self.relation_memo.insert(key, core);
+        s.native_map_room(&mut self.relation_memo).map_err(err)?;
+        self.relation_memo.insert(key, core).map_err(err)?;
         Ok(result)
     }
     fn raw_relation(
@@ -1507,14 +1656,16 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             }
         };
         if eligible {
-            s.native_std_map_room(&mut self.raw_memo).map_err(err)?;
-            self.raw_memo.insert(
-                ordinal,
-                value
-                    .as_ref()
-                    .map(|r| s.native_ref_clone(r).map_err(err))
-                    .transpose()?,
-            );
+            s.native_map_room(&mut self.raw_memo).map_err(err)?;
+            self.raw_memo
+                .insert(
+                    ordinal,
+                    value
+                        .as_ref()
+                        .map(|r| s.native_ref_clone(r).map_err(err))
+                        .transpose()?,
+                )
+                .map_err(err)?;
         }
         Ok(value)
     }
@@ -1533,9 +1684,9 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 .ok_or_else(|| err("raw ordinal越界"))?;
             if !bj::field(event, "supersedes_revision").is_null() {
                 admission
-                    .native_vec_room(&mut self.facts.raw_revisions, 1)
+                    .native_codec_room(&mut self.facts.raw_revisions, 1)
                     .map_err(err)?;
-                self.raw_revisions.push(ordinal);
+                self.raw_revisions.try_push(ordinal).map_err(err)?;
             }
         }
         self.raw_scanned = self.raw_scanned.max(prefix);
@@ -1900,7 +2051,7 @@ pub(super) fn load(
     stmt.finalize().map_err(err)?;
     Ok(out)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn update_from_owner(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
@@ -1928,8 +2079,11 @@ pub(super) fn update_from_owner(
             let (id, ordinal, first) = match role {
                 0 => {
                     let e = audit_persisted_witness(&mut row, s, latest, None, &mut rt)?;
-                    s.native_admit(e.id.len()).map_err(err)?;
-                    let out = (e.id.to_string(), index.witnesses.len(), e.first);
+                    let out = (
+                        s.native_string(e.id.as_str()).map_err(err)?,
+                        index.witnesses.len(),
+                        e.first,
+                    );
                     retained.add(&e);
                     let capacity = index.witnesses.capacity();
                     s.native_codec_room(&mut index.witnesses, 1).map_err(err)?;
@@ -1939,8 +2093,11 @@ pub(super) fn update_from_owner(
                 }
                 1 => {
                     let e = audit_persisted_relation(&mut row, s, latest, None)?;
-                    s.native_admit(e.id.len()).map_err(err)?;
-                    let out = (e.id.to_string(), index.relations.len(), e.first);
+                    let out = (
+                        s.native_string(e.id.as_str()).map_err(err)?,
+                        index.relations.len(),
+                        e.first,
+                    );
                     retained.add(&e);
                     let capacity = index.relations.capacity();
                     s.native_codec_room(&mut index.relations, 1).map_err(err)?;
@@ -1950,8 +2107,11 @@ pub(super) fn update_from_owner(
                 }
                 _ => {
                     let e = audit_persisted_observation(&mut row, s, latest, None)?;
-                    s.native_admit(e.id.len()).map_err(err)?;
-                    let out = (e.id.to_string(), index.observations.len(), e.first);
+                    let out = (
+                        s.native_string(e.id.as_str()).map_err(err)?,
+                        index.observations.len(),
+                        e.first,
+                    );
                     retained.add(&e);
                     let capacity = index.observations.capacity();
                     s.native_codec_room(&mut index.observations, 1)
@@ -1970,21 +2130,24 @@ pub(super) fn update_from_owner(
             };
             let capacity = map.capacity();
             retained.add(&id);
-            s.native_std_map_room(map).map_err(err)?;
-            if map.insert(id, ordinal).is_some() {
+            s.native_map_room(map).map_err(err)?;
+            if map.insert(id, ordinal).map_err(err)?.is_some() {
                 return Err(err("辅助索引重复身份"));
             }
-            retained.hash_capacity::<String, usize>(capacity, map.capacity());
-            let len = facts.born[role].len();
+            retained.hash_capacity::<NativeValue<String>, usize>(capacity, map.capacity());
+            let tree_bytes = facts.born[role].allocation_bytes();
             if !facts.born[role].contains_key(&first) {
-                s.native_tree_room::<i64, Vec<usize>>(len).map_err(err)?;
+                facts.born[role]
+                    .insert_admitted(first, bj::new_work(None), s)
+                    .map_err(err)?;
             }
-            let bucket = facts.born[role].entry(first).or_default();
+            let bucket = facts.born[role].get_mut(&first).expect("已插入出生桶");
             let capacity = bucket.capacity();
-            s.native_vec_room(bucket, 1).map_err(err)?;
-            bucket.push(ordinal);
+            s.native_codec_room(bucket, 1).map_err(err)?;
+            bucket.try_push(ordinal).map_err(err)?;
             retained.vec_capacity::<usize>(capacity, bucket.capacity());
-            retained.tree_len::<i64, Vec<usize>>(len, facts.born[role].len());
+            retained.release_bytes(tree_bytes);
+            retained.add_bytes(facts.born[role].allocation_bytes());
         }
     }
     Ok(())
@@ -1998,14 +2161,9 @@ fn audit_persisted_witness(
     allocation: Option<&OwnedBudget>,
     rt: &mut Runtime,
 ) -> Result<Witness, String> {
-    if s.codec_work().is_some() {
-        s.native_admit(row.text(0).map_err(err)?.len())
-            .map_err(err)?;
-        s.native_admit(row.text(1).map_err(err)?.len())
-            .map_err(err)?;
-    }
-    let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
-    let object_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?;
+    let object_id =
+        TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(err)?;
     let slot: i64 = row.integer(2).map_err(err)?;
     let merged_index: i64 = row.integer(6).map_err(err)?;
     let generated = root(s, row.blob(3).map_err(err)?)?;
@@ -2063,18 +2221,10 @@ fn audit_persisted_observation(
     latest: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<Observation, String> {
-    if s.codec_work().is_some() {
-        s.native_admit(row.text(0).map_err(err)?.len())
-            .map_err(err)?;
-        s.native_admit(row.text(1).map_err(err)?.len())
-            .map_err(err)?;
-        s.native_admit(row.text(3).map_err(err)?.len())
-            .map_err(err)?;
-    }
-    let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
-    let kind = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?;
+    let kind = TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(err)?;
     let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
-    let batch = TextValue::from_sql(row, 3, allocation).map_err(err)?;
+    let batch = TextValue::from_sql_admitted(row, 3, allocation, s.codec_work()).map_err(err)?;
     check_batch(&batch)?;
     let generated = root(s, row.blob(4).map_err(err)?)?;
     let wire = root(s, row.blob(5).map_err(err)?)?;
@@ -2107,27 +2257,30 @@ fn check_generation(first: i64, latest: i64) -> Result<(), String> {
     }
 }
 
-/// 历史 cut 的独立成员方程：Snapshot 全历史按旧公开顺序；Delta 仅本代首次、按插入序。
-/// load 按 rowid 返回，保留首次插入顺序。
+/// 历史 cut 的独立成员方程：Snapshot 全历史按库布局的公开主序（[`Layout::rank`]）；
+/// Delta 仅本代首次、按插入序。load 按 rowid 返回，保留首次插入顺序。
 #[cfg(test)]
 pub(super) fn cut_members(
     index: &Index,
+    layout: Layout,
     generation: i64,
     delta: bool,
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
-    cut_members_metered(index, generation, delta, None)
+    cut_members_metered(index, layout, generation, delta, None)
 }
 pub(super) fn cut_members_metered(
     index: &Index,
+    layout: Layout,
     generation: i64,
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
-    cut_members_projected(index, generation, delta, budget, None).map(|v| v.0)
+    cut_members_projected(index, layout, generation, delta, budget, None).map(|v| v.0)
 }
 pub(super) fn native_cut_members(
     index: &Index,
     s: &mut super::history::HashReader<'_>,
+    layout: Layout,
     generation: i64,
     delta: bool,
     batch: &str,
@@ -2136,11 +2289,12 @@ pub(super) fn native_cut_members(
         return Err(err("Native观察双投影资格不符"));
     }
     let (members, template) =
-        cut_members_projected(index, generation, delta, None, Some((s, batch)))?;
+        cut_members_projected(index, layout, generation, delta, None, Some((s, batch)))?;
     Ok((members, template.ok_or_else(|| err("缺Native观察模板"))?))
 }
 fn cut_members_projected(
     index: &Index,
+    layout: Layout,
     generation: i64,
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
@@ -2181,25 +2335,19 @@ fn cut_members_projected(
     if !delta {
         stable_sort(
             &mut w,
-            |a, b| (&a.object_id, a.slot).cmp(&(&b.object_id, b.slot)),
+            |a, b| witness_rank(layout, a).cmp(&witness_rank(layout, b)),
             owned,
             &admission,
         )?;
         stable_sort(
             &mut r,
-            |a, b| {
-                (&a.subject, &a.relation_type, &a.object).cmp(&(
-                    &b.subject,
-                    &b.relation_type,
-                    &b.object,
-                ))
-            },
+            |a, b| relation_rank(layout, a).cmp(&relation_rank(layout, b)),
             owned,
             &admission,
         )?;
         stable_sort(
             &mut o,
-            |a, b| (&a.kind, a.window_start).cmp(&(&b.kind, b.window_start)),
+            |a, b| obs_rank(layout, a).cmp(&obs_rank(layout, b)),
             owned,
             &admission,
         )?;
@@ -2207,7 +2355,7 @@ fn cut_members_projected(
     let mut witnesses = bj::new_work(owned);
     let mut relations = bj::new_work(owned);
     let mut observations = bj::new_work(owned);
-    let mut template_observations = native.as_ref().map(|_| Vec::new());
+    let mut template_observations = native.as_ref().map(|_| bj::new_work(None));
     for row in w {
         if let Some(b) = budget {
             b.record().map_err(err)?;
@@ -2255,21 +2403,23 @@ fn cut_members_projected(
                     "window_end",
                 ];
                 let fields = s.lookup_fields_ref(row.wire.view(), NAMES).map_err(err)?;
-                let mut values = Vec::new();
-                s.native_vec_room(&mut values, NAMES.len()).map_err(err)?;
+                let mut values = bj::new_work(None);
+                s.native_codec_room(&mut values, NAMES.len()).map_err(err)?;
                 for name in NAMES {
                     let r = fields
                         .get_admitted(*s, name)
                         .map_err(err)?
                         .ok_or_else(|| err("观察wire缺字段"))?;
-                    values.push((
-                        *name,
-                        if *name == "batch_id" {
-                            VV::BatchSelf
-                        } else {
-                            VV::Edge(r.digest().map_err(err)?)
-                        },
-                    ));
+                    values
+                        .try_push((
+                            *name,
+                            if *name == "batch_id" {
+                                VV::BatchSelf
+                            } else {
+                                VV::Edge(r.digest().map_err(err)?)
+                            },
+                        ))
+                        .map_err(err)?;
                 }
                 s.write_template_view(VV::Object(&values))
                     .map_err(err)?
@@ -2277,9 +2427,13 @@ fn cut_members_projected(
             } else {
                 digest(&row.wire)?
             };
-            s.native_vec_room(template_observations.as_mut().unwrap(), 1)
+            s.native_codec_room(template_observations.as_mut().unwrap(), 1)
                 .map_err(err)?;
-            template_observations.as_mut().unwrap().push(template);
+            template_observations
+                .as_mut()
+                .unwrap()
+                .try_push(template)
+                .map_err(err)?;
         }
         if let Some((s, _)) = native.as_ref() {
             s.native_codec_room(&mut observations, 1).map_err(err)?;
@@ -2287,14 +2441,16 @@ fn cut_members_projected(
         observations.try_push(digest(&row.wire)?).map_err(err)?;
     }
     let template = if let Some(nodes) = template_observations {
-        let mut values = Vec::new();
+        let mut values = bj::new_work(None);
         native
             .as_ref()
             .unwrap()
             .0
-            .native_vec_room(&mut values, nodes.len())
+            .native_codec_room(&mut values, nodes.len())
             .map_err(err)?;
-        values.extend(nodes.iter().copied().map(VV::Edge));
+        for node in &nodes {
+            values.try_push(VV::Edge(*node)).map_err(err)?;
+        }
         Some(
             native
                 .as_mut()
@@ -2322,17 +2478,44 @@ fn check_batch(batch: &str) -> Result<(), String> {
 }
 
 /// manifest 已得到真实身份之后调用；任何后续错误由调用方回滚整个事务。无 INSERT OR IGNORE。
+#[cfg_attr(
+    all(not(test), feature = "s_incremental"),
+    allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+)]
 pub(super) fn stage(
     tx: &Transaction<'_>,
     s: &mut (impl CodecStore + ?Sized),
     p: &Plan,
     batch: &str,
 ) -> Result<(), String> {
+    stage_in_material(
+        tx,
+        s,
+        p,
+        batch,
+        #[cfg(feature = "s_incremental")]
+        None,
+    )
+}
+pub(super) fn stage_in_material(
+    tx: &Transaction<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    p: &Plan,
+    batch: &str,
+    #[cfg(feature = "s_incremental")] material: Option<
+        &super::audit_owner::MaterialAccess<'_, '_, '_>,
+    >,
+) -> Result<(), String> {
     check_batch(batch)?;
     for w in &p.births.witnesses {
         if w.first != p.generation {
             return Err(err("见证出生代错绑"));
         }
+        #[cfg(feature = "s_incremental")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::Witness,
+        )?;
         tx.execute(
             "INSERT INTO s_content_witnesses(witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index) VALUES(?1,?2,?3,?4,?5,?6,?7)",
             params![
@@ -2346,11 +2529,18 @@ pub(super) fn stage(
             ],
         )
         .map_err(err)?;
+        #[cfg(feature = "s_incremental")]
+        construction_stage.finish(material)?;
     }
     for r in &p.births.relations {
         if r.first != p.generation {
             return Err(err("关系出生代错绑"));
         }
+        #[cfg(feature = "s_incremental")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::Relation,
+        )?;
         tx.execute(
             "INSERT INTO s_content_relations VALUES(?1,?2,?3,?4,?5,?6)",
             params![
@@ -2363,11 +2553,18 @@ pub(super) fn stage(
             ],
         )
         .map_err(err)?;
+        #[cfg(feature = "s_incremental")]
+        construction_stage.finish(material)?;
     }
     for o in &p.births.observations {
         if o.first != p.generation || o.batch.is_some() {
             return Err(err("观察出生代/模板错绑"));
         }
+        #[cfg(feature = "s_incremental")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::Observation,
+        )?;
         let wire = s
             .replace_ref(o.wire.view(), &[f("batch_id")], batch)
             .map_err(err)?;
@@ -2386,12 +2583,74 @@ pub(super) fn stage(
             ],
         )
         .map_err(err)?;
+        #[cfg(feature = "s_incremental")]
+        construction_stage.finish(material)?;
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_aux_tables_retain_owners_across_scope_and_release_on_drop() {
+        let rows = [("alpha", 3), ("beta", 1), ("alpha", 2)];
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let (ids, born, duplicate) = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let store = super::super::audit_store::NativeAdmission(Some(scope));
+                    native_tables(&rows, |r| r.0, |r| r.1, &store)
+                })
+                .unwrap();
+            assert_eq!(ids.get("alpha"), Some(&2));
+            assert_eq!(ids.get("beta"), Some(&1));
+            assert_eq!(duplicate, Some(3));
+            assert_eq!(&born.get(&2).unwrap()[..], &[2]);
+            assert!(budget.live() > baseline);
+            drop((ids, born));
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn native_aux_failed_table_construction_releases_partial_owners() {
+        let rows = [("alpha", 1), ("beta", 2)];
+        let limit = 1 << 20;
+        let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let baseline = budget.live();
+        // 只给工作域元数据留位：开域本身须计父账，父满时连 codec_work 都开不成，到不了被测表构造。
+        let work_metadata =
+            newchan_rust::s_content::capture_allocation::scratch::CodecWork::metadata_bytes();
+        let occupied = budget.reserve(limit - baseline - work_metadata).unwrap();
+        let before = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let store = super::super::audit_store::NativeAdmission(Some(scope));
+            native_tables(&rows, |r| r.0, |r| r.1, &store)
+        });
+        assert!(result.is_err());
+        assert_eq!(budget.live(), before);
+        drop(occupied);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    fn clone_ref(value: &RefValue) -> RefValue {
+        super::super::audit_store::NativeAdmission(None)
+            .native_ref_clone(value)
+            .unwrap()
+    }
+    #[cfg_attr(
+        all(test, not(feature = "s_incremental")),
+        allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+    )]
+    fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
+        values.iter().map(clone_ref).collect()
+    }
+
     use super::super::generation::{GenerationInput, GenerationRuntime};
     use super::*;
     use crate::{
@@ -2401,7 +2660,7 @@ mod tests {
     };
     use rusqlite::Connection;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r12_cold_object_aux_shared_scope_matches_complete_plain_outputs() {
         use super::super::{audit_owner::native::Budget, history::HashReader, object_index};
@@ -2442,8 +2701,10 @@ mod tests {
                 &expected_aux.observations
             )
         );
-        let expected_sets = [false, true]
-            .map(|delta| native_cut_members(&expected_aux, &mut plain, 4, delta, &batch).unwrap());
+        let layout = expected_objects.layout();
+        let expected_sets = [false, true].map(|delta| {
+            native_cut_members(&expected_aux, &mut plain, layout, 4, delta, &batch).unwrap()
+        });
         let expected_facts = NativeAuxAudit::from_loaded(&plain, &expected_aux, raw)
             .unwrap()
             .into_facts();
@@ -2459,7 +2720,7 @@ mod tests {
                     content_store::capture_for_request_prototype_admitted(&tx, Some(scope))
                         .map_err(err)?;
                 let scoped_capture = scoped_capture
-                    .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
+                    .enable_native_frame_reuse_admitted(Some(scope))
                     .map_err(err)?;
                 let mut reader = HashReader::captured_for_audit(&scoped_capture, None)
                     .unwrap()
@@ -2482,16 +2743,39 @@ mod tests {
                     expected_rows
                 );
                 let aux = NativeAuxAudit::from_loaded_admitted(&reader, &index, raw)?.unwrap();
-                assert_eq!(aux.witnesses, expected_facts.witnesses);
-                assert_eq!(aux.relations, expected_facts.relations);
-                assert_eq!(aux.observations, expected_facts.observations);
-                assert_eq!(aux.born, expected_facts.born);
+                for (actual, expected) in [
+                    (&aux.witnesses, &expected_facts.witnesses),
+                    (&aux.relations, &expected_facts.relations),
+                    (&aux.observations, &expected_facts.observations),
+                ] {
+                    fn entries(
+                        map: &bj::BusinessMap<NativeValue<String>, usize>,
+                    ) -> std::collections::BTreeMap<&str, usize> {
+                        map.iter()
+                            .map(|(key, value)| (key.as_str(), *value))
+                            .collect()
+                    }
+                    assert_eq!(entries(actual), entries(expected));
+                }
+                for (actual, expected) in aux.born.iter().zip(&expected_facts.born) {
+                    assert_eq!(actual.len(), expected.len());
+                    assert_eq!(
+                        actual
+                            .iter()
+                            .map(|(generation, rows)| (*generation, &rows[..]))
+                            .collect::<Vec<_>>(),
+                        expected
+                            .iter()
+                            .map(|(generation, rows)| (*generation, &rows[..]))
+                            .collect::<Vec<_>>()
+                    );
+                }
                 assert_eq!(aux.duplicates, expected_facts.duplicates);
                 assert_eq!(aux.raw_scanned, expected_facts.raw_scanned);
                 assert_eq!(aux.raw_revisions, expected_facts.raw_revisions);
                 for (delta, expected) in [false, true].into_iter().zip(&expected_sets) {
                     let (members, template) =
-                        native_cut_members(&index, &mut reader, 4, delta, &batch)?;
+                        native_cut_members(&index, &mut reader, Layout::Sorted, 4, delta, &batch)?;
                     for (actual, expected) in members.iter().zip(&expected.0) {
                         assert_eq!(&actual[..], &expected[..]);
                     }
@@ -2511,8 +2795,70 @@ mod tests {
             .unwrap();
     }
 
-    // 此夹具只验证真实生成器→辅助索引→SQLite，不声称完整 S3 控制/对象发布已接线。
+    /// #1488 0077 P50（mut-0057 M2a 盲区）：Legacy→Native 转换期的索引许可须按「槽数×(size_of+1)」
+    /// 全额计入本请求 scope（转换期峰值越过转换前 live + 许可）；漏计控制字节（M2a）或不经 scope
+    /// 预留都变红。槽数按转换前 Legacy 节点数
+    /// 独立推得（next_pow2(n)×4+16），不读被测实现的中间值。
     #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p50_legacy_to_native_index_permit_counts_control_byte_per_slot() {
+        use super::super::audit_owner::native::Budget;
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+        ] {
+            let (event, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let stored: i64 = tx
+            .query_row("SELECT COUNT(*) FROM s_content_nodes", [], |row| row.get(0))
+            .unwrap();
+        let stored = usize::try_from(stored).unwrap();
+        let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let (legacy, node_count) =
+                    content_store::capture_for_request_prototype_admitted(&tx, Some(scope))
+                        .map_err(err)?;
+                assert!(node_count > 0 && node_count <= stored, "{node_count}/{stored}");
+                assert!(legacy.native_index_layout_for_testonly().is_none(), "转换前须为 Legacy");
+                let (before, peak_before) = (budget.live(), budget.peak());
+                let native = legacy
+                    .enable_native_frame_reuse_admitted(Some(scope))
+                    .map_err(err)?;
+                let (index_bytes, slot_now, _) = native
+                    .native_index_layout_for_testonly()
+                    .expect("转换后须为 Native");
+                let slots = node_count.next_power_of_two() * 4 + 16;
+                assert_eq!(
+                    index_bytes,
+                    slots * slot_now,
+                    "索引许可须为槽数×(size_of+1)：slots={slots} slot={slot_now}"
+                );
+                // 转换期瞬时共存：索引许可先于 Legacy 原件释放计入，峰值须越过「转换前 live + 许可」。
+                // （净 live 增量因 Legacy 释放小于许可，不作判据。）
+                assert!(
+                    peak_before < before + index_bytes && budget.peak() >= before + index_bytes,
+                    "索引许可须在转换期计入本 scope：live {before}，峰值 {peak_before} → {}，许可 {index_bytes}",
+                    budget.peak()
+                );
+                eprintln!(
+                    "P50_INDEX nodes={node_count} stored={stored} slots={slots} slot={slot_now} index={index_bytes} live={before}->{} peak={peak_before}->{}",
+                    budget.live(),
+                    budget.peak()
+                );
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
+
+    // 此夹具只验证真实生成器→辅助索引→SQLite，不声称完整 S3 控制/对象发布已接线。
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_aux_owner_prefix_duplicates_reference_and_overlay_matrix() {
         fn state(s: &mut impl CodecStore, relations: &[RefValue]) -> RefValue {
@@ -2527,7 +2873,7 @@ mod tests {
                 ("relations", VV::Edge(rel.digest)),
                 ("observations", VV::Edge(empty.digest)),
             ];
-            RefValue::Plain(
+            RefValue::from(
                 s.write_value_view(VV::Object(&fields))
                     .unwrap()
                     .content_ref(),
@@ -2547,16 +2893,16 @@ mod tests {
             .unwrap()
             .unwrap();
         let empty = state(&mut nodes, &[]);
-        let repeated = state(&mut nodes, &[r1.clone(), r1.clone()]);
-        let reordered = state(&mut nodes, &[r2.clone(), r1.clone()]);
+        let repeated = state(&mut nodes, &[clone_ref(&r1), clone_ref(&r1)]);
+        let reordered = state(&mut nodes, &[clone_ref(&r2), clone_ref(&r1)]);
         let mut index = Index::default();
         index
             .relations
-            .try_push(relation(&mut nodes, r1.clone(), 2).unwrap())
+            .try_push(relation(&mut nodes, clone_ref(&r1), 2).unwrap())
             .unwrap();
         index
             .relations
-            .try_push(relation(&mut nodes, r2.clone(), 2).unwrap())
+            .try_push(relation(&mut nodes, clone_ref(&r2), 2).unwrap())
             .unwrap();
         let capture = sc::AuditCapture::new(nodes);
         let mut reader =
@@ -2640,9 +2986,12 @@ mod tests {
             .is_err());
         // Ref declarations are not encoded by Edge; pass the malformed STATE declaration
         // directly into the actual owner entry instead of panicking in the builder.
-        let mut malformed_state = empty.clone();
-        if let RefValue::Plain(r) = &mut malformed_state {
-            r.format = "bad-format".into();
+        let mut malformed_state = clone_ref(&empty);
+        if let RefValue::Plain(r) = &malformed_state {
+            assert!(!r.is_native_admitted());
+            let mut value = r.as_ref().clone();
+            value.format = "bad-format".into();
+            malformed_state = value.into();
         }
         assert!(owner
             .audit(
@@ -2653,15 +3002,18 @@ mod tests {
                 1
             )
             .is_err());
-        let mut malformed_relation = r1.clone();
-        if let RefValue::Plain(r) = &mut malformed_relation {
-            r.extent = Some(4);
+        let mut malformed_relation = clone_ref(&r1);
+        if let RefValue::Plain(r) = &malformed_relation {
+            assert!(!r.is_native_admitted());
+            let mut value = r.as_ref().clone();
+            value.extent = Some(4);
+            malformed_relation = value.into();
         }
         assert!(owner.relation(&mut reader, malformed_relation, 2).is_err());
         drop(owner);
         let mut changed = index.try_clone().unwrap();
         changed.relations[0].first = 1;
-        changed.relations[0].generated = r2.clone();
+        changed.relations[0].generated = clone_ref(&r2);
         let mut owner =
             NativeAuxAudit::from_loaded(&reader, &changed, RawEventsView::plain(&[])).unwrap();
         assert!(owner
@@ -2750,7 +3102,7 @@ mod tests {
         .unwrap();
         overlay_index
             .relations
-            .try_push(relation(&mut reader, original_overlay.clone(), 1).unwrap())
+            .try_push(relation(&mut reader, clone_ref(&original_overlay), 1).unwrap())
             .unwrap();
         let mut overlay_owner =
             NativeAuxAudit::from_loaded(&reader, &overlay_index, RawEventsView::plain(&[]))
@@ -2834,8 +3186,8 @@ mod tests {
                     .witness(
                         &mut store,
                         &WitnessRecord {
-                            witness_id: id,
-                            object_id: object.to_owned(),
+                            witness_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(id),
+                            object_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(object.to_owned()),
                             slot: 0,
                             built: b,
                         },
@@ -2922,7 +3274,7 @@ mod tests {
         let mut normal = content_store::TxStore::new(&tx).unwrap();
         let expected = load(&tx, &mut normal, 1).unwrap();
         let expected_values = aux_values(&expected);
-        let expected_members = cut_members(&expected, 1, false).unwrap();
+        let expected_members = cut_members(&expected, Layout::Sorted, 1, false).unwrap();
         let mut normal_runtime = Runtime::default();
         let b = |r: &RefValue| Built {
             digest: r.digest().unwrap(),
@@ -2931,8 +3283,12 @@ mod tests {
         };
         let w = &expected.witnesses[0];
         let metadata = WitnessRecord {
-            witness_id: w.id.as_str().to_owned(),
-            object_id: w.object_id.as_str().to_owned(),
+            witness_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(
+                w.id.as_str().to_owned(),
+            ),
+            object_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(
+                w.object_id.as_str().to_owned(),
+            ),
             slot: w.slot as usize,
             built: b(&w.generated),
         };
@@ -2948,7 +3304,7 @@ mod tests {
         for r in &expected.relations {
             constructed
                 .relations
-                .try_push(relation(&mut normal, r.generated.clone(), 1).unwrap())
+                .try_push(relation(&mut normal, clone_ref(&r.generated), 1).unwrap())
                 .unwrap();
         }
         for r in &expected.observations {
@@ -2993,7 +3349,7 @@ mod tests {
                 for r in &actual.relations {
                     constructed
                         .relations
-                        .try_push(relation(store, r.generated.clone(), 1).unwrap())
+                        .try_push(relation(store, clone_ref(&r.generated), 1).unwrap())
                         .unwrap();
                 }
                 for r in &actual.observations {
@@ -3049,7 +3405,7 @@ mod tests {
                 );
                 tx.execute("UPDATE s_content_witnesses SET slot=0", [])
                     .unwrap();
-                let members = cut_members(&actual, 1, false).unwrap();
+                let members = cut_members(&actual, Layout::Sorted, 1, false).unwrap();
                 for (a, b) in members.iter().zip(&expected_members) {
                     assert_eq!(&a[..], &b[..]);
                 }
@@ -3274,7 +3630,17 @@ mod tests {
             let generated = generator.generate(&mut s, &input).unwrap();
             assert!(!generated.witnesses.is_empty());
             let p = runtime
-                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
+                .plan(
+                    &mut s,
+                    Layout::Sorted,
+                    &old,
+                    &generated,
+                    &[],
+                    &raw,
+                    previous,
+                    frontier,
+                    g,
+                )
                 .unwrap();
             let public = stored_wires(&p.snapshot_values, &mut s);
             assert_eq!(
@@ -3300,7 +3666,7 @@ mod tests {
                     .snapshot
                     .witnesses
                     .iter()
-                    .find(|r| r.id == w.witness_id)
+                    .find(|r| r.id.as_str() == w.witness_id.as_str())
                     .unwrap();
                 assert_eq!(render_plain(&mut s, &actual.wire).unwrap(), expected);
             }
@@ -3326,13 +3692,13 @@ mod tests {
             verify_generated_members(
                 &mut s,
                 &stored,
-                &generated.generated_state,
+                &*generated.generated_state,
                 &[],
                 &raw[..=frontier as usize],
                 g,
             )
             .unwrap();
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             {
                 let capture = content_store::capture_for_prototype(&tx).unwrap();
                 let mut reader =
@@ -3344,7 +3710,7 @@ mod tests {
                 owner
                     .audit(
                         &mut reader,
-                        &generated.generated_state,
+                        &*generated.generated_state,
                         JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                         frontier as usize + 1,
                         g,
@@ -3360,7 +3726,7 @@ mod tests {
                 owner
                     .audit(
                         &mut reader,
-                        &generated.generated_state,
+                        &*generated.generated_state,
                         JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                         frontier as usize + 1,
                         g,
@@ -3393,7 +3759,7 @@ mod tests {
                                     .iter()
                                     .map(|r| VV::Edge(r.digest().unwrap()))
                                     .collect::<Vec<_>>();
-                                RefValue::Plain(
+                                RefValue::from(
                                     s.write_value_view(VV::Array(&v)).unwrap().content_ref(),
                                 )
                             } else {
@@ -3401,25 +3767,26 @@ mod tests {
                             };
                             roots.push((field_name, VV::Edge(r.digest().unwrap())));
                         }
-                        RefValue::Plain(
+                        RefValue::from(
                             s.write_value_view(VV::Object(&roots))
                                 .unwrap()
                                 .content_ref(),
                         )
                     }
                     for name in ["witnesses", "observations"] {
-                        let original = state_members(&mut reader, &generated.generated_state, name)
-                            .unwrap()
-                            .into_iter()
-                            .collect::<Vec<_>>();
+                        let original =
+                            state_members(&mut reader, &*generated.generated_state, name)
+                                .unwrap()
+                                .into_iter()
+                                .collect::<Vec<_>>();
                         assert!(!original.is_empty(), "real fixture {name}");
                         for (label, items) in [
                             ("duplicate", {
-                                let mut v = original.clone();
-                                v.push(v[0].clone());
+                                let mut v = clone_refs(&original);
+                                v.push(clone_ref(&v[0]));
                                 v
                             }),
-                            ("missing", original[1..].to_vec()),
+                            ("missing", clone_refs(&original[1..])),
                         ] {
                             let badstate = replacement_state(
                                 &mut reader,
@@ -3456,11 +3823,11 @@ mod tests {
                     }
                     if stored.witnesses.len() > 1 {
                         let items =
-                            state_members(&mut reader, &generated.generated_state, "witnesses")
+                            state_members(&mut reader, &*generated.generated_state, "witnesses")
                                 .unwrap()
                                 .into_iter()
                                 .collect::<Vec<_>>();
-                        let mut reverse = items.clone();
+                        let mut reverse = clone_refs(&items);
                         reverse.swap(0, 1);
                         let badstate = replacement_state(
                             &mut reader,
@@ -3487,7 +3854,7 @@ mod tests {
                     assert!(owner
                         .audit(
                             &mut reader,
-                            &generated.generated_state,
+                            &*generated.generated_state,
                             (&bad_replaces).into(),
                             raw.len(),
                             g
@@ -3502,7 +3869,7 @@ mod tests {
                     assert!(owner
                         .audit(
                             &mut reader,
-                            &generated.generated_state,
+                            &*generated.generated_state,
                             JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                             raw.len(),
                             g
@@ -3518,7 +3885,7 @@ mod tests {
                     assert!(owner
                         .audit(
                             &mut reader,
-                            &generated.generated_state,
+                            &*generated.generated_state,
                             JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                             raw.len(),
                             g
@@ -3543,7 +3910,7 @@ mod tests {
                 assert!(verify_generated_members(
                     &mut s,
                     &missing,
-                    &generated.generated_state,
+                    &*generated.generated_state,
                     &[],
                     &raw[..=frontier as usize],
                     g,
@@ -3561,7 +3928,7 @@ mod tests {
                 assert!(verify_generated_members(
                     &mut s,
                     &ghost,
-                    &generated.generated_state,
+                    &*generated.generated_state,
                     &[],
                     &raw[..=frontier as usize],
                     g,
@@ -3573,14 +3940,14 @@ mod tests {
                     .iter()
                     .enumerate()
                     .find(|(i, row)| *i != first && row.first == g)
-                    .map(|(_, row)| row.generated.clone())
+                    .map(|(_, row)| clone_ref(&row.generated))
                     .unwrap();
                 let mut wrong = stored.try_clone().unwrap();
                 wrong.witnesses[first].generated = other;
                 assert!(verify_generated_members(
                     &mut s,
                     &wrong,
-                    &generated.generated_state,
+                    &*generated.generated_state,
                     &[],
                     &raw[..=frontier as usize],
                     g,
@@ -3588,7 +3955,7 @@ mod tests {
                 .is_err());
             }
             for (is_delta, expected) in [(false, &p.snapshot), (true, &p.births)] {
-                let members = cut_members(&stored, g, is_delta).unwrap();
+                let members = cut_members(&stored, Layout::Sorted, g, is_delta).unwrap();
                 assert_eq!(
                     &members[0][..],
                     expected
@@ -3621,6 +3988,41 @@ mod tests {
                     .collect::<Vec<_>>();
                 assert_eq!(&members[2][..], &obs[..]);
             }
+            // #1491 layout 锁：Delta 两布局同为插入序；bounded Snapshot ＝ layout/1 公开序按出生代
+            // 稳定重排（代际单调不减，同代内沿原键）。
+            let sorted_delta = cut_members(&stored, Layout::Sorted, g, true).unwrap();
+            let bounded_delta = cut_members(&stored, Layout::Bounded1, g, true).unwrap();
+            for (sorted, bounded) in sorted_delta.iter().zip(&bounded_delta) {
+                assert_eq!(&sorted[..], &bounded[..]);
+            }
+            let bounded = cut_members(&stored, Layout::Bounded1, g, false).unwrap();
+            let mut witnesses: Vec<_> = p.snapshot.witnesses.iter().collect();
+            witnesses.sort_by_key(|r| r.first);
+            let witnesses: Vec<_> = witnesses.iter().map(|r| digest(&r.wire).unwrap()).collect();
+            assert_eq!(&bounded[0][..], &witnesses[..]);
+            let mut relations: Vec<_> = p.snapshot.relations.iter().collect();
+            relations.sort_by_key(|r| r.first);
+            let relations: Vec<_> = relations
+                .iter()
+                .map(|r| digest(&r.generated).unwrap())
+                .collect();
+            assert_eq!(&bounded[1][..], &relations[..]);
+            let mut observations: Vec<_> = p.snapshot.observations.iter().collect();
+            observations.sort_by_key(|r| r.first);
+            let observations: Vec<_> = observations
+                .iter()
+                .map(|r| {
+                    if r.first == g {
+                        s.replace_ref(r.wire.view(), &[f("batch_id")], &batch)
+                            .unwrap()
+                            .digest()
+                            .unwrap()
+                    } else {
+                        digest(&r.wire).unwrap()
+                    }
+                })
+                .collect();
+            assert_eq!(&bounded[2][..], &observations[..]);
             if g == 3 {
                 let edge = p
                     .births
@@ -3667,6 +4069,183 @@ mod tests {
             assert_eq!(count(&conn, old), 0);
         }
         assert!(count(&conn, "s_content_witnesses") > 0);
+    }
+
+    /// #1488 S3：plan 的暖口（跨代 Runtime 记忆）与冷口（每代新 Runtime）逐位相同，
+    /// 并打出每代暖口 SQL 读量，供 D6「读量 ∝ 本代重建后缀与 Δ_R」核对。
+    #[test]
+    fn aux_plan_warm_matches_cold_and_reads_track_delta() {
+        fn rows_of(index: &Index) -> Value {
+            json!({
+                "witnesses": index.witnesses.iter().map(|r| json!([r.id.as_str(), r.object_id.as_str(), r.slot, r.merged_index, r.generated.digest().unwrap().to_vec(), r.wire.digest().unwrap().to_vec(), r.first])).collect::<Vec<_>>(),
+                "relations": index.relations.iter().map(|r| json!([r.id.as_str(), r.subject.as_str(), r.relation_type.as_str(), r.object.as_str(), r.generated.digest().unwrap().to_vec(), r.first])).collect::<Vec<_>>(),
+                "observations": index.observations.iter().map(|r| json!([r.id.as_str(), r.kind.as_str(), r.window_start, r.generated.digest().unwrap().to_vec(), r.wire.digest().unwrap().to_vec(), r.batch.as_ref().map(|b| b.as_str().to_owned()), r.first])).collect::<Vec<_>>(),
+            })
+        }
+        fn sets_of(p: &PublicSets) -> [NodeDigest; 4] {
+            [
+                p.witnesses.digest,
+                p.relations.digest,
+                p.observations.digest,
+                p.raw_history.digest,
+            ]
+        }
+        fn bar(i: usize) -> (String, i64, i64, i64, i64, i64) {
+            let (high, low) = if i % 2 == 0 {
+                (20 + (i % 7) as i64, 12 + (i % 5) as i64)
+            } else {
+                (14 + (i % 3) as i64, 5 + (i % 4) as i64)
+            };
+            (
+                format!("x{i}"),
+                (i * 10) as i64,
+                low + 1,
+                high,
+                low,
+                low + 1,
+            )
+        }
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut conn = database();
+        let mut runtime = Runtime::default();
+        let mut previous = -1;
+        let mut next = 0usize;
+        for g in 1..=10i64 {
+            let grow = if g == 1 { 8 } else { 3 };
+            let mut rows = (next..next + grow).map(bar).collect::<Vec<_>>();
+            next += grow;
+            let mut input = {
+                let borrowed = rows
+                    .iter()
+                    .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+                    .collect::<Vec<_>>();
+                located_ohlc_input(&borrowed)
+            };
+            if g == 5 || g == 8 {
+                let at = if g == 5 { 3 } else { 10 };
+                let (id, c, o, h, l, cl) = bar(at);
+                rows = vec![(id, c, o, h + 2, l, cl)];
+                let borrowed = rows
+                    .iter()
+                    .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+                    .collect::<Vec<_>>();
+                let mut revision = located_ohlc_input(&borrowed);
+                revision["events"][0]["revision"] = json!("2");
+                accept_ohlc(&files, &revision);
+            }
+            accept_ohlc(&files, &input.take());
+            let source = open_db(&files.db()).unwrap();
+            let raw = read_raw_events(&source).unwrap();
+            let effective = read_effective_events(&raw).unwrap();
+            let profile_hash = meta_get_opt(&source, "profile_hash").unwrap().unwrap();
+            let rule = meta_get_opt(&source, "rule_revision").unwrap().unwrap();
+            let catalog = meta_get_opt(&source, "catalog_revision").unwrap().unwrap();
+            let scope =
+                serde_json::from_str(&meta_get_opt(&source, "scope").unwrap().unwrap()).unwrap();
+            let cut = format!("cut-{g}");
+            let frontier = raw.len() as i64 - 1;
+            let tx = conn.transaction().unwrap();
+            let mut s = content_store::TxStore::new(&tx).unwrap();
+            let old = load(&tx, &mut s, g - 1).unwrap();
+            let mut generator = GenerationRuntime::new(
+                format!("aux-s3/{}/{g}", files.db().display()),
+                tb02a::PROFILE,
+                &rule,
+            );
+            let input = GenerationInput {
+                all_events: (&raw).into(),
+                effective: (&effective).into(),
+                generation: g,
+                structure_cut: &cut,
+                input_frontier: frontier,
+                profile_id: tb02a::PROFILE,
+                profile_hash: &profile_hash,
+                rule_revision: &rule,
+                catalog_revision: &catalog,
+                scope: &scope,
+                semantic_commit_ns: None,
+                prior: PriorState {
+                    bi_records: vec![],
+                    version_record: None,
+                },
+            };
+            let generated = generator.generate(&mut s, &input).unwrap();
+            let sql = content_store::sql_reads_on_thread();
+            let frames = sc::frame_calls_on_thread();
+            let warm = runtime
+                .plan(
+                    &mut s,
+                    Layout::Sorted,
+                    &old,
+                    &generated,
+                    &[],
+                    &raw,
+                    previous,
+                    frontier,
+                    g,
+                )
+                .unwrap();
+            let warm_sql = content_store::sql_reads_on_thread() - sql;
+            let warm_frames = sc::frame_calls_on_thread() - frames;
+            let sql = content_store::sql_reads_on_thread();
+            set_full_plan_for_test(true);
+            let cold = Runtime::default().plan(
+                &mut s,
+                Layout::Sorted,
+                &old,
+                &generated,
+                &[],
+                &raw,
+                previous,
+                frontier,
+                g,
+            );
+            set_full_plan_for_test(false);
+            let cold = cold.unwrap();
+            let cold_sql = content_store::sql_reads_on_thread() - sql;
+            assert_eq!(
+                rows_of(&warm.snapshot),
+                rows_of(&cold.snapshot),
+                "g={g} snapshot"
+            );
+            assert_eq!(rows_of(&warm.births), rows_of(&cold.births), "g={g} births");
+            assert_eq!(
+                sets_of(&warm.snapshot_values),
+                sets_of(&cold.snapshot_values),
+                "g={g}"
+            );
+            assert_eq!(
+                sets_of(&warm.delta_values),
+                sets_of(&cold.delta_values),
+                "g={g}"
+            );
+            let state = warm.snapshot.witnesses.len()
+                + warm.snapshot.relations.len()
+                + warm.snapshot.observations.len();
+            let births = warm.births.witnesses.len()
+                + warm.births.relations.len()
+                + warm.births.observations.len();
+            eprintln!(
+                "S3_AUX_PLAN g={g} raw={} delta_raw={} state_rows={state} birth_rows={births} generated_witnesses={} warm_sql={warm_sql} warm_frames={warm_frames} cold_sql={cold_sql}",
+                raw.len(),
+                frontier - previous,
+                generated.witnesses.len(),
+            );
+            // 读量锁（D6）：暖口 SQL 读 ≤ 常数 ×（本代出生行 + Δ_R），常数与 g 无关。
+            // 实测每行约 1.0–1.3k（g=1..10）；旧完整重算到 g=4 即超 2k/行并随状态线性增长。
+            let delta = births as u64 + (frontier - previous) as u64;
+            assert!(
+                warm_sql <= 1600 * delta,
+                "g={g} 暖口读量 {warm_sql} 超出 1600×(出生行{births}+Δ_R{})",
+                frontier - previous
+            );
+            let batch = format!("batch3-{}", (g % 10).to_string().repeat(64));
+            stage(&tx, &mut s, &warm, &batch).unwrap();
+            drop(s);
+            tx.commit().unwrap();
+            previous = frontier;
+        }
     }
 
     #[test]
@@ -3761,7 +4340,7 @@ mod tests {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};
@@ -3825,5 +4404,49 @@ mod owner_retention {
 impl Index {
     pub(super) fn overlay_ab_budget_absent(&self) -> bool {
         self.budget.is_none()
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl NativeAuxFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        let Self {
+            witnesses,
+            relations,
+            observations,
+            born,
+            duplicates,
+            raw_scanned,
+            raw_revisions,
+        } = self;
+        let maps = [witnesses, relations, observations].map(|m| {
+            let mut rows = m
+                .iter()
+                .map(|(k, v)| json!([k.as_str(), v]))
+                .collect::<Vec<_>>();
+            rows.sort_by_key(crate::canonical_json);
+            rows
+        });
+        json!({"identities":maps,"born":born.iter().map(|m|m.iter().map(|(k,v)|json!([k,v.as_ref()])).collect::<Vec<_>>()).collect::<Vec<_>>(),
+            "duplicates":duplicates,"raw_scanned":raw_scanned,"raw_revisions":raw_revisions.as_ref()})
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+impl Index {
+    pub(super) fn h1_canonical(&self) -> Value {
+        let Self {
+            witnesses,
+            relations,
+            observations,
+            budget: _,
+        } = self;
+        json!({
+            "witnesses":witnesses.iter().map(|w| { let Witness { id, object_id, slot, merged_index, generated, wire, first } = w;
+                json!({"id":id,"object_id":object_id,"slot":slot,"merged_index":merged_index,"generated":generated,"wire":wire,"first":first}) }).collect::<Vec<_>>(),
+            "relations":relations.iter().map(|r| { let Relation { id, subject, relation_type, object, generated, first } = r;
+                json!({"id":id,"subject":subject,"relation_type":relation_type,"object":object,"generated":generated,"first":first}) }).collect::<Vec<_>>(),
+            "observations":observations.iter().map(|o| { let Observation { id, kind, window_start, generated, wire, batch, first } = o;
+                json!({"id":id,"kind":kind,"window_start":window_start,"generated":generated,"wire":wire,"batch":batch,"first":first}) }).collect::<Vec<_>>()
+        })
     }
 }

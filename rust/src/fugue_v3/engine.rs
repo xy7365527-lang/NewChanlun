@@ -49,7 +49,8 @@ pub struct FugueEngineCore {
 
 impl FugueEngineCore {
     /// 初始化（`floor_ladder` 仅作结构递归基断言 = FIRST_BSP_LADDER，零操作参数引擎）。
-    pub fn new(floor_ladder: usize) -> Result<Self, String> {
+    /// `q_total`：期初现金池（ADR 0040 funding-record `cap`，#1601；调用方从记录读）。
+    pub fn new(floor_ladder: usize, q_total: f64) -> Result<Self, String> {
         if floor_ladder != FIRST_BSP_LADDER {
             return Err(format!(
                 "赋格引擎 v3 是零操作参数引擎：floor_ladder 仅作结构递归基 = FIRST_BSP_LADDER={FIRST_BSP_LADDER}；得 {floor_ladder}"
@@ -59,7 +60,7 @@ impl FugueEngineCore {
             signal: SignalState::new(),
             morph: MorphologyState::new(),
             sig_res: SpiralResult::default(),
-            operate: OperateEngine::new(),
+            operate: OperateEngine::new(q_total),
             cur_bar: 0,
             finished: false,
             nf_fires: Vec::new(),
@@ -151,8 +152,8 @@ impl FugueEngineCore {
 
 #[cfg(test)]
 mod tests {
-    use super::super::INITIAL_CAPITAL;
     use super::*;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
     use crate::trading::types::{BspClass, BspEvent, LadderMask};
 
     const NO_FLIP: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
@@ -191,14 +192,15 @@ mod tests {
 
     #[test]
     fn empty_bars_noop_conservation_holds() {
-        let mut core = FugueEngineCore::new(FIRST_BSP_LADDER).expect("floor=FIRST_BSP");
+        let mut core =
+            FugueEngineCore::new(FIRST_BSP_LADDER, FIXTURE_Q_TOTAL).expect("floor=FIRST_BSP");
         for _ in 0..5 {
             core.step(&mk_bar(100.0, 0, 0, 0, vec![]), &NO_FLIP);
         }
         core.finish();
         assert!(core.result().trades.is_empty(), "无事件不应产生 trade");
         assert!(
-            (core.result().final_nav - INITIAL_CAPITAL).abs() < 1e-6,
+            (core.result().final_nav - FIXTURE_Q_TOTAL).abs() < 1e-6,
             "无操作 final_nav 应 = 初始资本，得 {}",
             core.result().final_nav
         );
@@ -214,7 +216,8 @@ mod tests {
         // 入场方向 polarity = f(root_direction)：f(Up)=Long, f(Down)=Short——
         // root_direction 是最高涌现级别走势方向，BSP 触发只决定时机。
         // 高级别 Up（L4 涨）+ 次级别底买点（L3 跌末 buy1）⇒ 顺势做多 Long @ L3。
-        let mut core = FugueEngineCore::new(FIRST_BSP_LADDER).expect("floor=FIRST_BSP");
+        let mut core =
+            FugueEngineCore::new(FIRST_BSP_LADDER, FIXTURE_Q_TOTAL).expect("floor=FIRST_BSP");
         let mut flip0: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
         flip0[3] = Some(Direction::Down); // L3 跌末（type1 buy 端点必然方向）
         flip0[4] = Some(Direction::Up); // L4 涨（root_direction=Up，顺势做多）
@@ -243,14 +246,14 @@ mod tests {
             "建仓后无空头（1/3 拆分是后续 τ 涌现，非建仓硬编码）"
         );
         assert!(
-            (nav_after - INITIAL_CAPITAL).abs() < 1e-4,
+            (nav_after - FIXTURE_Q_TOTAL).abs() < 1e-4,
             "F 建仓 NAV 中性"
         );
         // flat 至 eod，同价进出 ⇒ final_nav = 初始资本。
         core.step(&mk_bar(100.0, 0, 0, 4, vec![]), &NO_FLIP);
         core.finish();
         assert!(
-            (core.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4,
+            (core.result().final_nav - FIXTURE_Q_TOTAL).abs() < 1e-4,
             "同价进出 final_nav 应 = 初始资本，得 {}",
             core.result().final_nav
         );

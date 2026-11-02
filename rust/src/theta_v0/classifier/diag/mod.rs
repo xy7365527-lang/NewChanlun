@@ -13,6 +13,8 @@ pub mod oracle_probe;
 /// `merged_scan_resume` 的原始输入与四产口，绝不参与判定或回写生产状态。
 pub mod s2_mirror_capture;
 pub mod stage_profile;
+#[cfg(test)]
+mod tb1585_tests;
 
 pub use cand_delta::{cand_delta_entry_tower, cand_delta_tower, cand_delta_tower_cached};
 pub use cp_recall_audit::cp_recall_upper_bound_audit;

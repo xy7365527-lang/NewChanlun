@@ -78,9 +78,7 @@ use super::nested_fugue::{
 use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
@@ -149,6 +147,7 @@ const C_CLEAR_NOT_FLIP: bool = false;
 pub(crate) fn run_unified_recursive(
     tape: &SignalTape,
     floor_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -171,7 +170,7 @@ pub(crate) fn run_unified_recursive(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut chain: Vec<Voice> = Vec::with_capacity(MAX_LADDER);
-    let mut free = INITIAL_CAPITAL;
+    let mut free = q_total;
     let mut n_base = 0.0f64;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
@@ -632,7 +631,7 @@ pub(crate) fn run_unified_recursive(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
@@ -722,7 +721,7 @@ mod tests {
             dir_flips: Some(dir_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, URS).unwrap()
+        run_positional_fx(&t, 2, URS).unwrap()
     }
 
     #[test]
@@ -738,7 +737,9 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, URS).unwrap_err().contains("背驰磁带"));
+        assert!(run_positional_fx(&t, 2, URS)
+            .unwrap_err()
+            .contains("背驰磁带"));
         // 缺 dir_flips ⇒ Err（E* 涌现层判据残缺）。
         let t2 = SignalTape {
             bars: vec![with_empty_div(with_ev(
@@ -749,7 +750,7 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, URS)
+        assert!(run_positional_fx(&t2, 2, URS)
             .unwrap_err()
             .contains("dir_flips"));
     }

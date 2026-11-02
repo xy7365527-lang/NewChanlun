@@ -317,7 +317,8 @@ impl VenueFeeSchedule {
 ///
 /// - `None` ⟹ 恒返回 `fallback_rate`（= `ExecConfig` 三常数合成率），与改动前**逐位相同**；
 /// - `Some` ⟹ **datum 费率 + `uncalibrated_addon`**。后者是 datum **不覆盖**的摩擦科目，
-///   当前恒 = `slippage_bps/1e4`：venue 费率表只标定佣金/监管/清算，滑点是价差/冲击性质，
+///   当前恒 = `slippage_bps/1e4`（#1602：`slippage_bps` 取自场所 profile 记录，本项随之派生，不另持常数）：
+///   venue 费率表只标定佣金/监管/清算，滑点是价差/冲击性质，
 ///   报告 §3.3 明文「保留 `slippage_bps` 未标定（或另立 spread datum…本票不展开）」。
 ///   **不加这一项就是把 2bp 滑点悄悄抹掉**（标定后总摩擦反而低于未标定档 = 声明膨胀）。
 #[derive(Debug, Clone, Copy)]

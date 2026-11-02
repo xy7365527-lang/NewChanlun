@@ -28,6 +28,8 @@
 use super::super::closed_loop::state::{AssemblyState, ChongAssembly, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
 use super::super::config::ThetaConfig;
+use super::super::policy_records::PolicyError;
+use super::super::policy_records::ACTIVE_RESEARCH_STATS_JSON;
 use super::super::strategy::chong::{ChongBook, ChongKey};
 use super::super::strategy::ledger::RiskPolicy;
 use super::super::types::Bar;
@@ -46,6 +48,7 @@ pub(super) use super::ledger::{track_position_transition, OpsemEntrySnapshot};
 pub use super::ledger::{TypedTrade, VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION};
 use super::metrics::{self, Metrics};
 pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
+use super::research_stats::{parse_research_stats, ResearchStats};
 #[cfg(test)]
 use std::rc::Rc;
 // ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + FillOutput(Family)
@@ -264,9 +267,16 @@ pub fn run_theta_v0_pi(
     config: &ThetaConfig,
     years: f64,
     initial_nav: f64,
-) -> RunResult {
+) -> Result<RunResult, PolicyError> {
     // χ≡1 全覆盖（默认入口，frozen Θ v0 bit-exact 不变）。χ 阈值过滤端到端入口见 [`run_theta_v0_pi_chi`]。
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None)
+    run_theta_v0_pi_inner(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        None,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 /// ★χ_t 阈值过滤端到端入口（task #41 + delta-r-alpha #42）——`run_theta_v0_pi` 接 χ 过滤的版本。
@@ -281,7 +291,7 @@ pub fn run_theta_v0_pi_chi(
     initial_nav: f64,
     est: &super::mu_estimator::MuEstimator,
     treat_empty_as_pass: bool,
-) -> RunResult {
+) -> Result<RunResult, PolicyError> {
     let chi = config.risk.chi_theta.map(|theta| ChiFilterCtx {
         est,
         theta,
@@ -289,7 +299,14 @@ pub fn run_theta_v0_pi_chi(
         treat_empty_as_pass,
         shrink_tau_sq: None,
     });
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
+    run_theta_v0_pi_inner(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        chi,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 /// shrinkage 准入入口（acc-three-way-l2 #83）：与 [`run_theta_v0_pi_chi`] 同 harness，唯一区别
@@ -302,7 +319,7 @@ pub fn run_theta_v0_pi_chi_shrink(
     est: &super::mu_estimator::MuEstimator,
     tau_sq: f64,
     treat_empty_as_pass: bool,
-) -> RunResult {
+) -> Result<RunResult, PolicyError> {
     let chi = config.risk.chi_theta.map(|theta| ChiFilterCtx {
         est,
         theta,
@@ -310,7 +327,14 @@ pub fn run_theta_v0_pi_chi_shrink(
         treat_empty_as_pass,
         shrink_tau_sq: Some(tau_sq),
     });
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
+    run_theta_v0_pi_inner(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        chi,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 fn run_theta_v0_pi_inner(
@@ -319,7 +343,31 @@ fn run_theta_v0_pi_inner(
     years: f64,
     initial_nav: f64,
     chi: Option<ChiFilterCtx>,
-) -> RunResult {
+    record: Option<&str>,
+) -> Result<RunResult, PolicyError> {
+    let stats = parse_research_stats(record)?;
+    run_theta_v0_pi_inner_with_stats(dataset, config, years, initial_nav, chi, &stats)
+}
+
+#[cfg(test)]
+fn run_theta_v0_pi_with_record(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    record: Option<&str>,
+) -> Result<RunResult, PolicyError> {
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None, record)
+}
+
+fn run_theta_v0_pi_inner_with_stats(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    chi: Option<ChiFilterCtx>,
+    stats: &ResearchStats,
+) -> Result<RunResult, PolicyError> {
     let bars = &dataset.bars;
 
     // 闭环终态证据（与退役 v1 契约同——bar 闭环驱动）。
@@ -393,12 +441,13 @@ fn run_theta_v0_pi_inner(
     );
 
     let bh_return = buy_and_hold_return(bars);
-    let m = metrics::compute(
+    let m = metrics::compute_with_policy(
         &fill.equity_curve,
         &fill.daily_returns,
         &fill.trade_pnls_with_forced,
         years,
         bh_return,
+        stats,
     );
 
     let n_orders = fill.n_orders;
@@ -412,7 +461,7 @@ fn run_theta_v0_pi_inner(
     let theta_return_mtm = m.strat_return;
     let strict_nest_sidecar = strict_nest_sidecar.finish();
 
-    RunResult {
+    Ok(RunResult {
         symbol: dataset.symbol.clone(),
         metrics: m,
         n_bars: bars.len(),
@@ -432,7 +481,7 @@ fn run_theta_v0_pi_inner(
         strict_nest_sidecar,
         turn_class_rows: fill.turn_class_rows, // #1208 ①件 turn_class 生产桥出口（门关闭 ⟹ None）
         otherwise_domain_sidecar: None, // 本路径（run_theta_v0_pi/_chi/_chi_shrink）未接线（S1 仅接 overlay 臂）
-    }
+    })
 }
 
 /// ★M5 声部执行层跑批产出（多空对冲.pdf p16 关卡10 / TARGET_STRATEGY_MAXFULL.md §M5）。
@@ -551,7 +600,24 @@ pub fn run_theta_v0_pi_overlay(
     config: &ThetaConfig,
     years: f64,
     initial_nav: f64,
-) -> OverlayRunResult {
+) -> Result<OverlayRunResult, PolicyError> {
+    run_theta_v0_pi_overlay_with_record(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
+}
+
+fn run_theta_v0_pi_overlay_with_record(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    record: Option<&str>,
+) -> Result<OverlayRunResult, PolicyError> {
+    let stats = parse_research_stats(record)?;
     let bars = &dataset.bars;
     let mut overlay = super::super::strategy::overlay_state::OverlayState::new();
     // ★LEE M1（#644 语义重放）：与 overlay 并列的级别账本只读旁路镜像（同一 sep_legs 按
@@ -606,12 +672,13 @@ pub fn run_theta_v0_pi_overlay(
 
     // 净额执行层 RunResult（与 run_theta_v0_pi 同装配，bit-exact——overlay 是只读旁路）。
     let bh_return = buy_and_hold_return(bars);
-    let m = metrics::compute(
+    let m = metrics::compute_with_policy(
         &fill.equity_curve,
         &fill.daily_returns,
         &fill.trade_pnls_with_forced,
         years,
         bh_return,
+        &stats,
     );
     let n_orders = fill.n_orders;
     let untradable_ratio = dataset.untradable_ratio();
@@ -684,7 +751,7 @@ pub fn run_theta_v0_pi_overlay(
         }
     });
 
-    OverlayRunResult {
+    Ok(OverlayRunResult {
         symbol: dataset.symbol.clone(),
         n_bars: bars.len(),
         n_overlay_fill_events,
@@ -703,7 +770,7 @@ pub fn run_theta_v0_pi_overlay(
         voice_exec,
         campaign_book,
         campaign_witness,
-    }
+    })
 }
 
 /// ★七链 π_Θ per-bar fill 循环（三适配器 [A][B][C] + 执行层父容器 σ_p + close_pred 折 𝒦_Θ）。
@@ -737,12 +804,9 @@ pub fn run_theta_v0_pi_overlay(
 /// AncOK）不依赖 nav 绝对值；nav 只进 base_units/风控门（equity>0 常态下门全开）。
 #[cfg(test)]
 pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<TypedTrade> {
-    let first_px = bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * config.tick.tick_size)
-        .unwrap_or(1.0);
-    let nav = (first_px * 1000.0).max(1.0e6);
+    let nav = super::l3_probe_profile::active_l3_probe_profile()
+        .expect("L3 probe profile record")
+        .nav_for_bars(bars, config);
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
     let fill = pi_theta_fill_loop(
         |i| {

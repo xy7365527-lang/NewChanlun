@@ -417,7 +417,7 @@ pub struct OrganicConfig {
     // ── 次级别确认完整递归消融位（2026-06-11 任务；27课区间套延拓到全部
     //    操作点。统一谓词 BarRows::sub_confirm = 同 bar 事件证据 ∨ D3 方向行
     //    结构证据——非 R1 的窗口记忆形式，bi 层有 D3 行故有效域非空）──
-    /// SCe：ARMED→入场取消 SUB_EXPIRY 超时 fallback——无次级别买确认不入场
+    /// SCe：ARMED→入场取消 sub_expiry（`arm-sub-expiry` 记录）超时 fallback——无次级别买确认不入场
     /// （type1 买开仓的严格区间套；超时后继续等待直到确认或 sell1 撤防）。
     pub sc_entry_strict: bool,
     /// SCm：master type1 卖出场（含 earning 升级出场）要求次级别卖侧确认
@@ -633,7 +633,7 @@ pub enum SubMode {
     /// - vs Fractal（OKLO −73.8pp，近似实现）：信号源 = 本级别 BSP/盘背
     ///   事件流，非笔级方向行翻转（a0 近似死因矫正）；
     /// - vs Sequence38：方向遵守符号交替塔（38课程式的方向镜像），非恒 Short。
-    /// 递归终止三范畴：深度预算 ∧ 存在论下限 FIRST_BSP_LADDER（笔 = a0，
+    /// 递归终止三范畴：深度预算 ∧ 阶梯下限 FIRST_BSP_LADDER（笔层不开一类点，
     /// 62/77/78课）∧ 35课成本门（sub_cost_gate：θ_q ≥ sub_cost_k×friction）。
     CounterSeg,
 }

@@ -1,0 +1,106 @@
+ref=codex/1693-main-integration-20261026 sha=2fee8af14fdcdb317024b0a201bb36ea85ee3063 sub=rust target=/home/hanju/nc-remote/target cmd=bash -lc set\ -e\;\ rustfmt\ --check\ --edition\ 2021\ src/trading/positional.rs\ src/theta_v0/policy_records.rs\;\ cargo\ test\ --lib\ --features\ backtest_bin\ trading::positional_fusion::tests\ --jobs\ 1\ --\ --nocapture\ --test-threads=1\;\ cargo\ test\ --lib\ --features\ backtest_bin\ no_stray_bsp_binding_rewrites_outside_registry\ --jobs\ 1\ --\ --nocapture\ --test-threads=1\;\ cargo\ check\ --lib\ --jobs\ 1 
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3-macros v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261026-104044-2fee8af14f/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 53.51s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 78 tests
+test trading::positional_fusion::tests::anc_ancestor_trend_suppresses_self_layer_trim ... ok
+test trading::positional_fusion::tests::anc_bear_ancestor_keeps_trim_and_ta_unions_self ... ok
+test trading::positional_fusion::tests::anc_monotonicity_break_resumes_trim ... ok
+test trading::positional_fusion::tests::b3_window_closes_on_dir_flip_down ... ok
+test trading::positional_fusion::tests::b3_window_closes_on_up_divergence ... ok
+test trading::positional_fusion::tests::b3_window_holds_first_departure_until_new_center ... ok
+test trading::positional_fusion::tests::bear_direction_keeps_hold26_trim ... ok
+test trading::positional_fusion::tests::bi_floor_blocks_segment_layer_sub ... ok
+test trading::positional_fusion::tests::btra_anc_gate_conditions_flip ... ok
+test trading::positional_fusion::tests::btran_nest_sell_flips_short_and_nest_buy_covers ... ok
+test trading::positional_fusion::tests::btraq_seq38_nobreak_close_requires_sub_confirm ... ok
+test trading::positional_fusion::tests::btraq_seq38_opens_and_closes_on_consolidation_div ... ok
+test trading::positional_fusion::tests::btrau_osc_skips_short_whitelist_layers ... ok
+test trading::positional_fusion::tests::btrauf_h1_freezes_osc_open ... ok
+test trading::positional_fusion::tests::btrg_gates_restore_without_short_exposure ... ok
+test trading::positional_fusion::tests::btrg_parse_and_guards ... ok
+test trading::positional_fusion::tests::cost_gate_constants_match_organic_defaults ... ok
+test trading::positional_fusion::tests::cost_gate_noref_and_thin_amp_reject ... ok
+test trading::positional_fusion::tests::decoupled_equals_coupled_when_pool_unbinding ... ok
+test trading::positional_fusion::tests::decoupled_escrow_prevents_misappropriation ... ok
+test trading::positional_fusion::tests::decoupled_escrow_released_on_hinge_escalate ... ok
+test trading::positional_fusion::tests::decoupled_nav_conservation_and_eod_release ... ok
+test trading::positional_fusion::tests::decoupled_topup_on_price_chase ... ok
+test trading::positional_fusion::tests::div_exit_full_exit_on_type1_in_trend ... ok
+test trading::positional_fusion::tests::flip_round_trip_nav_conservation ... ok
+test trading::positional_fusion::tests::flip_short_on_sellpt_then_cover_on_buypt ... ok
+test trading::positional_fusion::tests::fusion_p_candidate_departure_stops_trim_until_negated ... ok
+test trading::positional_fusion::tests::fusion_p_confirmed_buy3_locks_until_new_center_settles ... ok
+test trading::positional_fusion::tests::fusion_p_locked_moveup_closes_on_up_divergence ... ok
+test trading::positional_fusion::tests::fusion_p_movedown_keeps_trim ... ok
+test trading::positional_fusion::tests::fusion_pr_osc_gate_and_movedown_fallback ... ok
+test trading::positional_fusion::tests::fusion_pu_osc_blocked_in_candidate_window_admits_after_negation ... ok
+test trading::positional_fusion::tests::fusion_pu_phase_restore_on_candidate_departure ... ok
+test trading::positional_fusion::tests::fusion_tr_bear_leg_trims_freely_below_zg ... ok
+test trading::positional_fusion::tests::fusion_tr_blocks_low_position_trim_allows_high ... ok
+test trading::positional_fusion::tests::fusion_u_amp_gate_rejects_thin_level ... ok
+test trading::positional_fusion::tests::fusion_u_degenerates_to_fusion_t_when_routing_rejects ... ok
+test trading::positional_fusion::tests::fusion_u_full_tower_trend_holds_like_fusion_t ... ok
+test trading::positional_fusion::tests::fusion_u_hinge_blocked_in_k_trend_phase ... ok
+test trading::positional_fusion::tests::fusion_u_hinge_escalates_on_k_sellpt ... ok
+test trading::positional_fusion::tests::fusion_u_opens_home_level_and_zd_restores ... ok
+test trading::positional_fusion::tests::fusion_u_phase_restore_on_trend_start ... ok
+test trading::positional_fusion::tests::fusion_u_routes_upward_when_home_in_trend ... ok
+test trading::positional_fusion::tests::fusion_u_sell3_veto_blocks_kbuy_until_zd ... ok
+test trading::positional_fusion::tests::fusion_u_shift_close_on_center_upmove ... ok
+test trading::positional_fusion::tests::fusion_u_weak_oscillation_rejected_uw_admits ... ok
+test trading::positional_fusion::tests::gate41_blocks_bear_rally_hold_until_parent_exhausts ... ok
+test trading::positional_fusion::tests::gate41_passes_when_parent_dir_up_or_undefined ... ok
+test trading::positional_fusion::tests::hinge_escalates_to_layer_exit_on_k_level_sellpt ... ok
+test trading::positional_fusion::tests::k_level_buypt_closes_sub ... ok
+test trading::positional_fusion::tests::movedown_blocks_cover_moveup_forces_cover ... ok
+test trading::positional_fusion::tests::nav_reconstruction_invariant_round_trip ... ok
+test trading::positional_fusion::tests::nest_break_negates_window ... ok
+test trading::positional_fusion::tests::nest_buy_fires_entry ... ok
+test trading::positional_fusion::tests::nest_fires_on_sub_evidence_before_confirmed ... ok
+test trading::positional_fusion::tests::nest_lead_pairing_on_late_confirmed ... ok
+test trading::positional_fusion::tests::nest_off_zero_intrusion ... ok
+test trading::positional_fusion::tests::nest_parse_and_guards ... ok
+test trading::positional_fusion::tests::non_whitelist_layer_keeps_inbook_flat ... ok
+test trading::positional_fusion::tests::parse_anc_modes_and_guards ... ok
+test trading::positional_fusion::tests::parse_and_guards ... ok
+test trading::positional_fusion::tests::parse_btr_modes_and_guards ... ok
+test trading::positional_fusion::tests::parse_btra_mods_grammar ... ok
+test trading::positional_fusion::tests::parse_btran_and_guards ... ok
+test trading::positional_fusion::tests::parse_fusion_p_modes_and_guards ... ok
+test trading::positional_fusion::tests::parse_fusion_u_modes_and_guards ... ok
+test trading::positional_fusion::tests::parse_r2_modes_and_guards ... ok
+test trading::positional_fusion::tests::parse_trend_axis_modes_and_guards ... ok
+test trading::positional_fusion::tests::restore_deferred_when_pool_drained_then_retries ... ok
+test trading::positional_fusion::tests::short_liquidation_caps_loss_at_margin ... ok
+test trading::positional_fusion::tests::short_r2_gate_blocks_cover_above_zd ... ok
+test trading::positional_fusion::tests::sub_cycle_sell_high_buy_back_same_shares ... ok
+test trading::positional_fusion::tests::sub_opens_on_consolidation_div_and_closes_on_buy3 ... ok
+test trading::positional_fusion::tests::sub_spawn_frac_bit_identical_to_pre_943_literal ... ok
+test trading::positional_fusion::tests::trend_phase_blocks_sub_open ... ok
+test trading::positional_fusion::tests::trend_phase_forces_buy_back ... ok
+test trading::positional_fusion::tests::trend_phase_suppresses_trim_oscillation_resumes ... ok
+test trading::positional_fusion::tests::trend_scope_policy_is_stamped_from_active_record ... ok
+
+test result: ok. 78 passed; 0 failed; 0 ignored; 0 measured; 3043 filtered out; finished in 0.03s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-420cea139f250896)
+
+running 1 test
+test theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3120 filtered out; finished in 0.01s
+
+   Compiling pyo3-build-config v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling pyo3-macros v0.23.5
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261026-104044-2fee8af14f/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.80s
+EXIT=0 SECONDS=106

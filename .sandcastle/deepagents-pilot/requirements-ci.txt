@@ -1,0 +1,5 @@
+-r requirements.lock
+-r requirements-studio.txt
+../approval-signing
+ruff==0.17.2
+mypy==2.4.0

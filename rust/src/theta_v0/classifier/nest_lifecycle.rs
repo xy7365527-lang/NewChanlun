@@ -116,8 +116,10 @@ use std::collections::{BTreeMap, BTreeSet};
 // 身份键与桥 → `key`；域类型（三态/原因码/力度/修订/entry）→ `entry`；
 // 观察契约 → `observation`；审计/统计载体 → `stats`；注册表 → `book`；
 // pan 活窗产出机 + L1 active C frontier → `pan`；L1/L2 active window frontier →
-// `window`；回放喂数出口 → `feed`。重导出保 `nest_lifecycle::X` 原路径逐字不变。
+// `window`；回放喂数出口 → `feed`；center_break 桥接 (#1719 I4) → `center_break`。
+// 重导出保 `nest_lifecycle::X` 原路径逐字不变。
 mod book;
+mod center_break;
 mod entry;
 mod feed;
 mod key;
@@ -127,21 +129,27 @@ mod stats;
 mod window;
 
 pub use book::NestLifecycleBook;
+pub use center_break::{
+    BridgeRegistration, CenterBreakAttempt, CenterBreakAudit, CenterBreakFact, CenterBreakOutcome,
+    CenterBreakResult, CenterBreakTarget, CompletionAnchor, CompletionPolicy, HypothesisBridge,
+};
 pub use entry::{
     ForceCheck, ForceEvidence, InvalidatedReason, LifecycleRevision, LifecycleRevisionKind,
     NestEventState, NestLifecycleEntry, NestPolicy, UnavailReason, VanishCause,
 };
 pub use feed::{
-    feed_replay_bar, provide_replay_live_windows, PanCompletionEvent, PanLiveRun, PanProviderPhase,
-    ReplayBarFeed, ReplayFeedStats,
+    apply_center_breaks, feed_replay_bar, feed_replay_bar_with_bridges,
+    provide_replay_live_windows, PanCompletionEvent, PanLiveRun, PanProviderPhase, ReplayBarFeed,
+    ReplayFeedStats,
 };
 pub use key::LifecycleKey;
 pub use observation::{
     active_window_right_edge, ForceMaterial, LifecycleObservation, PanLiveWindow,
 };
 pub use pan::{
-    active_segment_frontier, provide_active_pan_live_windows, provide_pan_live_windows,
-    ActiveSegmentFrontier, PanLiveOutcome,
+    active_segment_frontier, provide_active_pan_live_windows,
+    provide_active_pan_live_windows_with_policy, provide_pan_live_windows, ActiveSegmentFrontier,
+    PanLiveOutcome,
 };
 pub use stats::{
     CompletionForceUnavailableAudit, CompletionSignal, LifecycleSettlementStats,
@@ -4236,5 +4244,10 @@ mod tests {
             "终态前身仍逐位不动"
         );
         book.assert_invariants();
+    }
+
+    mod i4_bridge {
+        use super::*;
+        include!("nest_lifecycle/i4_bridge_tests.rs");
     }
 }

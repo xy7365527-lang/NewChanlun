@@ -1,0 +1,1468 @@
+{
+ "run": "/home/hanju/nc-remote/1488-accept/s5/d2",
+ "eight_mib": 8388608,
+ "publications": 86,
+ "with_charge": 31,
+ "abandoned_generations": [
+  20,
+  32,
+  34
+ ],
+ "retained_after": 31,
+ "lock_request_peak": {
+  "min": 6607526,
+  "median": 50927351,
+  "max": 266815263,
+  "argmax_generation": 33
+ },
+ "resources_request_peak": {
+  "min": 6607526,
+  "median": 50927351,
+  "max": 266815263,
+  "argmax_generation": 33
+ },
+ "lock_ratio_8mib": {
+  "min": 0.788,
+  "median": 6.071,
+  "max": 31.807,
+  "argmax_generation": 33
+ },
+ "request_peak_ratio_8mib": {
+  "min": 0.788,
+  "median": 6.071,
+  "max": 31.807,
+  "argmax_generation": 33
+ },
+ "generations_at_or_above_90pct_of_8mib": 29,
+ "verdict_d7": "转 #1612 切片 2",
+ "rows": [
+  {
+   "generation": 1,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 268435456,
+    "legacy": 0,
+    "old_pool": 0,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 6689211,
+   "entry_reserved_bytes": 0,
+   "lock_request_peak": 6689211,
+   "resources_request_peak": 6689211,
+   "charge_total": 3045971,
+   "limit": 268435456,
+   "resources_total_limit": 268435456,
+   "lock_ratio_8mib": 0.797,
+   "request_peak_ratio_8mib": 0.797,
+   "lock_ratio_allowance": 0.025
+  },
+  {
+   "generation": 2,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 265236813,
+    "legacy": 0,
+    "old_pool": 3198643,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 9806169,
+   "entry_reserved_bytes": 3198643,
+   "lock_request_peak": 6607526,
+   "resources_request_peak": 6607526,
+   "charge_total": 3608109,
+   "limit": 265236813,
+   "resources_total_limit": 268258947,
+   "lock_ratio_8mib": 0.788,
+   "request_peak_ratio_8mib": 0.788,
+   "lock_ratio_allowance": 0.025
+  },
+  {
+   "generation": 3,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 264505877,
+    "legacy": 0,
+    "old_pool": 3929579,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 15637445,
+   "entry_reserved_bytes": 3929579,
+   "lock_request_peak": 11707866,
+   "resources_request_peak": 11707866,
+   "charge_total": 5946976,
+   "limit": 264505877,
+   "resources_total_limit": 268140555,
+   "lock_ratio_8mib": 1.396,
+   "request_peak_ratio_8mib": 1.396,
+   "lock_ratio_allowance": 0.044
+  },
+  {
+   "generation": 4,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 261883167,
+    "legacy": 0,
+    "old_pool": 6552289,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 17181017,
+   "entry_reserved_bytes": 6552289,
+   "lock_request_peak": 10628728,
+   "resources_request_peak": 10628728,
+   "charge_total": 6754984,
+   "limit": 261883167,
+   "resources_total_limit": 267958642,
+   "lock_ratio_8mib": 1.267,
+   "request_peak_ratio_8mib": 1.267,
+   "lock_ratio_allowance": 0.041
+  },
+  {
+   "generation": 5,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 260724148,
+    "legacy": 0,
+    "old_pool": 7711308,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 26854297,
+   "entry_reserved_bytes": 7711308,
+   "lock_request_peak": 19142989,
+   "resources_request_peak": 19142989,
+   "charge_total": 10818884,
+   "limit": 260724148,
+   "resources_total_limit": 267754690,
+   "lock_ratio_8mib": 2.282,
+   "request_peak_ratio_8mib": 2.282,
+   "lock_ratio_allowance": 0.073
+  },
+  {
+   "generation": 6,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 256268381,
+    "legacy": 0,
+    "old_pool": 12167075,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 26854297,
+   "entry_reserved_bytes": 12167075,
+   "lock_request_peak": 14687222,
+   "resources_request_peak": 14431732,
+   "charge_total": 11701125,
+   "limit": 256268381,
+   "resources_total_limit": 267535599,
+   "lock_ratio_8mib": 1.751,
+   "request_peak_ratio_8mib": 1.72,
+   "lock_ratio_allowance": 0.057
+  },
+  {
+   "generation": 7,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 254980345,
+    "legacy": 0,
+    "old_pool": 13455111,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 29663492,
+   "entry_reserved_bytes": 13455111,
+   "lock_request_peak": 16208381,
+   "resources_request_peak": 16208381,
+   "charge_total": 12572771,
+   "limit": 254980345,
+   "resources_total_limit": 267304174,
+   "lock_ratio_8mib": 1.932,
+   "request_peak_ratio_8mib": 1.932,
+   "lock_ratio_allowance": 0.064
+  },
+  {
+   "generation": 8,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 253670248,
+    "legacy": 0,
+    "old_pool": 14765208,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 47889888,
+   "entry_reserved_bytes": 14765208,
+   "lock_request_peak": 33124680,
+   "resources_request_peak": 33124680,
+   "charge_total": 20195530,
+   "limit": 253670248,
+   "resources_total_limit": 267055441,
+   "lock_ratio_8mib": 3.949,
+   "request_peak_ratio_8mib": 3.949,
+   "lock_ratio_allowance": 0.131
+  },
+  {
+   "generation": 9,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 245428431,
+    "legacy": 0,
+    "old_pool": 23007025,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 47889888,
+   "entry_reserved_bytes": 23007025,
+   "lock_request_peak": 24882863,
+   "resources_request_peak": 23672415,
+   "charge_total": 21414204,
+   "limit": 245428431,
+   "resources_total_limit": 266702114,
+   "lock_ratio_8mib": 2.966,
+   "request_peak_ratio_8mib": 2.822,
+   "lock_ratio_allowance": 0.101
+  },
+  {
+   "generation": 10,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 243712810,
+    "legacy": 0,
+    "old_pool": 24722646,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 50266772,
+   "entry_reserved_bytes": 24722646,
+   "lock_request_peak": 25544126,
+   "resources_request_peak": 25544126,
+   "charge_total": 22595575,
+   "limit": 243712810,
+   "resources_total_limit": 266339333,
+   "lock_ratio_8mib": 3.045,
+   "request_peak_ratio_8mib": 3.045,
+   "lock_ratio_allowance": 0.105
+  },
+  {
+   "generation": 11,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 242049548,
+    "legacy": 0,
+    "old_pool": 26385908,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 54444230,
+   "entry_reserved_bytes": 26385908,
+   "lock_request_peak": 28058322,
+   "resources_request_peak": 28058322,
+   "charge_total": 23712344,
+   "limit": 242049548,
+   "resources_total_limit": 266005211,
+   "lock_ratio_8mib": 3.345,
+   "request_peak_ratio_8mib": 3.345,
+   "lock_ratio_allowance": 0.116
+  },
+  {
+   "generation": 12,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 240417064,
+    "legacy": 0,
+    "old_pool": 28018392,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 58597042,
+   "entry_reserved_bytes": 28018392,
+   "lock_request_peak": 30578650,
+   "resources_request_peak": 30578650,
+   "charge_total": 24854732,
+   "limit": 240417064,
+   "resources_total_limit": 265651871,
+   "lock_ratio_8mib": 3.645,
+   "request_peak_ratio_8mib": 3.645,
+   "lock_ratio_allowance": 0.127
+  },
+  {
+   "generation": 13,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 238745991,
+    "legacy": 0,
+    "old_pool": 29689465,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 88589689,
+   "entry_reserved_bytes": 29689465,
+   "lock_request_peak": 58900224,
+   "resources_request_peak": 58900224,
+   "charge_total": 38966793,
+   "limit": 238745991,
+   "resources_total_limit": 265287875,
+   "lock_ratio_8mib": 7.021,
+   "request_peak_ratio_8mib": 7.021,
+   "lock_ratio_allowance": 0.247
+  },
+  {
+   "generation": 14,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 224095523,
+    "legacy": 0,
+    "old_pool": 44339933,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 88589689,
+   "entry_reserved_bytes": 44339933,
+   "lock_request_peak": 44249756,
+   "resources_request_peak": 35611897,
+   "charge_total": 40172860,
+   "limit": 224095523,
+   "resources_total_limit": 264915518,
+   "lock_ratio_8mib": 5.275,
+   "request_peak_ratio_8mib": 4.245,
+   "lock_ratio_allowance": 0.197
+  },
+  {
+   "generation": 15,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 222343297,
+    "legacy": 0,
+    "old_pool": 46092159,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 90483197,
+   "entry_reserved_bytes": 46092159,
+   "lock_request_peak": 44391038,
+   "resources_request_peak": 44391038,
+   "charge_total": 42351907,
+   "limit": 222343297,
+   "resources_total_limit": 264520269,
+   "lock_ratio_8mib": 5.292,
+   "request_peak_ratio_8mib": 5.292,
+   "lock_ratio_allowance": 0.2
+  },
+  {
+   "generation": 16,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 218808659,
+    "legacy": 0,
+    "old_pool": 49626797,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 98313139,
+   "entry_reserved_bytes": 49626797,
+   "lock_request_peak": 48686342,
+   "resources_request_peak": 48686342,
+   "charge_total": 45348262,
+   "limit": 218808659,
+   "resources_total_limit": 263772793,
+   "lock_ratio_8mib": 5.804,
+   "request_peak_ratio_8mib": 5.804,
+   "lock_ratio_allowance": 0.223
+  },
+  {
+   "generation": 17,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 215161065,
+    "legacy": 0,
+    "old_pool": 53274391,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 104201742,
+   "entry_reserved_bytes": 53274391,
+   "lock_request_peak": 50927351,
+   "resources_request_peak": 50927351,
+   "charge_total": 47103908,
+   "limit": 215161065,
+   "resources_total_limit": 263017756,
+   "lock_ratio_8mib": 6.071,
+   "request_peak_ratio_8mib": 6.071,
+   "lock_ratio_allowance": 0.237
+  },
+  {
+   "generation": 18,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 212842682,
+    "legacy": 0,
+    "old_pool": 55592774,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 111334589,
+   "entry_reserved_bytes": 55592774,
+   "lock_request_peak": 55741815,
+   "resources_request_peak": 55741815,
+   "charge_total": 48495899,
+   "limit": 212842682,
+   "resources_total_limit": 262498717,
+   "lock_ratio_8mib": 6.645,
+   "request_peak_ratio_8mib": 6.645,
+   "lock_ratio_allowance": 0.262
+  },
+  {
+   "generation": 19,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 210848196,
+    "legacy": 0,
+    "old_pool": 57587260,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 115669914,
+   "entry_reserved_bytes": 57587260,
+   "lock_request_peak": 58082654,
+   "resources_request_peak": 58082654,
+   "charge_total": 49874086,
+   "limit": 210848196,
+   "resources_total_limit": 261966308,
+   "lock_ratio_8mib": 6.924,
+   "request_peak_ratio_8mib": 6.924,
+   "lock_ratio_allowance": 0.275
+  },
+  {
+   "generation": 20,
+   "candidate_entry": true,
+   "abandoned": true,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 208853266,
+    "legacy": 0,
+    "old_pool": 59582190,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 21,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 268435456,
+    "legacy": 0,
+    "old_pool": 0,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 139193810,
+   "entry_reserved_bytes": 0,
+   "lock_request_peak": 139193810,
+   "resources_request_peak": 139193810,
+   "charge_total": 76177058,
+   "limit": 268435456,
+   "resources_total_limit": 268435456,
+   "lock_ratio_8mib": 16.593,
+   "request_peak_ratio_8mib": 16.593,
+   "lock_ratio_allowance": 0.519
+  },
+  {
+   "generation": 22,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 181737064,
+    "legacy": 0,
+    "old_pool": 86698392,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 154226577,
+   "entry_reserved_bytes": 86698392,
+   "lock_request_peak": 67528185,
+   "resources_request_peak": 67528185,
+   "charge_total": 77693374,
+   "limit": 181737064,
+   "resources_total_limit": 267633601,
+   "lock_ratio_8mib": 8.05,
+   "request_peak_ratio_8mib": 8.05,
+   "lock_ratio_allowance": 0.372
+  },
+  {
+   "generation": 23,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 179125301,
+    "legacy": 0,
+    "old_pool": 89310155,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 159334375,
+   "entry_reserved_bytes": 89310155,
+   "lock_request_peak": 70024220,
+   "resources_request_peak": 70024220,
+   "charge_total": 79262027,
+   "limit": 179125301,
+   "resources_total_limit": 267078909,
+   "lock_ratio_8mib": 8.348,
+   "request_peak_ratio_8mib": 8.348,
+   "lock_ratio_allowance": 0.391
+  },
+  {
+   "generation": 24,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 176900169,
+    "legacy": 0,
+    "old_pool": 91535287,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 164582142,
+   "entry_reserved_bytes": 91535287,
+   "lock_request_peak": 73046855,
+   "resources_request_peak": 73046855,
+   "charge_total": 80943588,
+   "limit": 176900169,
+   "resources_total_limit": 266500828,
+   "lock_ratio_8mib": 8.708,
+   "request_peak_ratio_8mib": 8.708,
+   "lock_ratio_allowance": 0.413
+  },
+  {
+   "generation": 25,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 174551673,
+    "legacy": 0,
+    "old_pool": 93883783,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 169969993,
+   "entry_reserved_bytes": 93883783,
+   "lock_request_peak": 76086210,
+   "resources_request_peak": 76086210,
+   "charge_total": 82615921,
+   "limit": 174551673,
+   "resources_total_limit": 265899271,
+   "lock_ratio_8mib": 9.07,
+   "request_peak_ratio_8mib": 9.07,
+   "lock_ratio_allowance": 0.436
+  },
+  {
+   "generation": 26,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 172200205,
+    "legacy": 0,
+    "old_pool": 96235251,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 175316750,
+   "entry_reserved_bytes": 96235251,
+   "lock_request_peak": 79081499,
+   "resources_request_peak": 79081499,
+   "charge_total": 84266607,
+   "limit": 172200205,
+   "resources_total_limit": 265277438,
+   "lock_ratio_8mib": 9.427,
+   "request_peak_ratio_8mib": 9.427,
+   "lock_ratio_allowance": 0.459
+  },
+  {
+   "generation": 27,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 169867856,
+    "legacy": 0,
+    "old_pool": 98567600,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 180690832,
+   "entry_reserved_bytes": 98567600,
+   "lock_request_peak": 82123232,
+   "resources_request_peak": 82123232,
+   "charge_total": 85948762,
+   "limit": 169867856,
+   "resources_total_limit": 264655202,
+   "lock_ratio_8mib": 9.79,
+   "request_peak_ratio_8mib": 9.79,
+   "lock_ratio_allowance": 0.483
+  },
+  {
+   "generation": 28,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 167498198,
+    "legacy": 0,
+    "old_pool": 100937258,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 186116901,
+   "entry_reserved_bytes": 100937258,
+   "lock_request_peak": 85179643,
+   "resources_request_peak": 85179643,
+   "charge_total": 87628469,
+   "limit": 167498198,
+   "resources_total_limit": 264014387,
+   "lock_ratio_8mib": 10.154,
+   "request_peak_ratio_8mib": 10.154,
+   "lock_ratio_allowance": 0.509
+  },
+  {
+   "generation": 29,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 165125148,
+    "legacy": 0,
+    "old_pool": 103310308,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 192652240,
+   "entry_reserved_bytes": 103310308,
+   "lock_request_peak": 89341932,
+   "resources_request_peak": 89341932,
+   "charge_total": 89651902,
+   "limit": 165125148,
+   "resources_total_limit": 263380172,
+   "lock_ratio_8mib": 10.65,
+   "request_peak_ratio_8mib": 10.65,
+   "lock_ratio_allowance": 0.541
+  },
+  {
+   "generation": 30,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 162397044,
+    "legacy": 0,
+    "old_pool": 106038412,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 198478405,
+   "entry_reserved_bytes": 106038412,
+   "lock_request_peak": 92439993,
+   "resources_request_peak": 92439993,
+   "charge_total": 91387380,
+   "limit": 162397044,
+   "resources_total_limit": 262715653,
+   "lock_ratio_8mib": 11.02,
+   "request_peak_ratio_8mib": 11.02,
+   "lock_ratio_allowance": 0.569
+  },
+  {
+   "generation": 31,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 159956543,
+    "legacy": 0,
+    "old_pool": 108478913,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 213372123,
+   "entry_reserved_bytes": 108478913,
+   "lock_request_peak": 104893210,
+   "resources_request_peak": 104893210,
+   "charge_total": 94647170,
+   "limit": 159956543,
+   "resources_total_limit": 262058603,
+   "lock_ratio_8mib": 12.504,
+   "request_peak_ratio_8mib": 12.504,
+   "lock_ratio_allowance": 0.656
+  },
+  {
+   "generation": 32,
+   "candidate_entry": true,
+   "abandoned": true,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 153903640,
+    "legacy": 0,
+    "old_pool": 114531816,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 33,
+   "candidate_entry": true,
+   "abandoned": false,
+   "candidate_after": true,
+   "budget_entry": {
+    "allowance": 268435456,
+    "legacy": 0,
+    "old_pool": 0,
+    "total": 268435456,
+    "uncovered": 0
+   },
+   "handoff_peak": 266815263,
+   "entry_reserved_bytes": 0,
+   "lock_request_peak": 266815263,
+   "resources_request_peak": 266815263,
+   "charge_total": 151946658,
+   "limit": 268435456,
+   "resources_total_limit": 268435456,
+   "lock_ratio_8mib": 31.807,
+   "request_peak_ratio_8mib": 31.807,
+   "lock_ratio_allowance": 0.994
+  },
+  {
+   "generation": 34,
+   "candidate_entry": true,
+   "abandoned": true,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 95427766,
+    "legacy": 0,
+    "old_pool": 173007690,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 35,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 268435456,
+    "legacy": 0,
+    "old_pool": 0,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 36,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 260934310,
+    "legacy": 0,
+    "old_pool": 7501146,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 37,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 260600225,
+    "legacy": 0,
+    "old_pool": 7835231,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 38,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 260262131,
+    "legacy": 0,
+    "old_pool": 8173325,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 39,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 259919690,
+    "legacy": 0,
+    "old_pool": 8515766,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 40,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 259572902,
+    "legacy": 0,
+    "old_pool": 8862554,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 41,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 259221936,
+    "legacy": 0,
+    "old_pool": 9213520,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 42,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 258867130,
+    "legacy": 0,
+    "old_pool": 9568326,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 43,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 258509160,
+    "legacy": 0,
+    "old_pool": 9926296,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 44,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 258147350,
+    "legacy": 0,
+    "old_pool": 10288106,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 45,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 257781193,
+    "legacy": 0,
+    "old_pool": 10654263,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 46,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 257410520,
+    "legacy": 0,
+    "old_pool": 11024936,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 47,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 257036176,
+    "legacy": 0,
+    "old_pool": 11399280,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 48,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 256657316,
+    "legacy": 0,
+    "old_pool": 11778140,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 49,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 256274785,
+    "legacy": 0,
+    "old_pool": 12160671,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 50,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 255888921,
+    "legacy": 0,
+    "old_pool": 12546535,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 51,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 255499893,
+    "legacy": 0,
+    "old_pool": 12935563,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 52,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 255107363,
+    "legacy": 0,
+    "old_pool": 13328093,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 53,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 254710317,
+    "legacy": 0,
+    "old_pool": 13725139,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 54,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 254310576,
+    "legacy": 0,
+    "old_pool": 14124880,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 55,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 253905512,
+    "legacy": 0,
+    "old_pool": 14529944,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 56,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 253495932,
+    "legacy": 0,
+    "old_pool": 14939524,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 57,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 253082005,
+    "legacy": 0,
+    "old_pool": 15353451,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 58,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 252664238,
+    "legacy": 0,
+    "old_pool": 15771218,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 59,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 252243138,
+    "legacy": 0,
+    "old_pool": 16192318,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 60,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 251817860,
+    "legacy": 0,
+    "old_pool": 16617596,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 61,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 251388404,
+    "legacy": 0,
+    "old_pool": 17047052,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 62,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 250955765,
+    "legacy": 0,
+    "old_pool": 17479691,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 63,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 250518704,
+    "legacy": 0,
+    "old_pool": 17916752,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 64,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 250076666,
+    "legacy": 0,
+    "old_pool": 18358790,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 65,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 249630160,
+    "legacy": 0,
+    "old_pool": 18805296,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 66,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 249180490,
+    "legacy": 0,
+    "old_pool": 19254966,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 67,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 248729177,
+    "legacy": 0,
+    "old_pool": 19706279,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 68,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 248274700,
+    "legacy": 0,
+    "old_pool": 20160756,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 69,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 247815876,
+    "legacy": 0,
+    "old_pool": 20619580,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 70,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 247353550,
+    "legacy": 0,
+    "old_pool": 21081906,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 71,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 246887215,
+    "legacy": 0,
+    "old_pool": 21548241,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 72,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 246416369,
+    "legacy": 0,
+    "old_pool": 22019087,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 73,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 245941178,
+    "legacy": 0,
+    "old_pool": 22494278,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 74,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 245462148,
+    "legacy": 0,
+    "old_pool": 22973308,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 75,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 244980123,
+    "legacy": 0,
+    "old_pool": 23455333,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 76,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 244494432,
+    "legacy": 0,
+    "old_pool": 23941024,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 77,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 243623247,
+    "legacy": 0,
+    "old_pool": 24812209,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 78,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 242802326,
+    "legacy": 0,
+    "old_pool": 25633130,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 79,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 242225001,
+    "legacy": 0,
+    "old_pool": 26210455,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 80,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 241642522,
+    "legacy": 0,
+    "old_pool": 26792934,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 81,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 241055695,
+    "legacy": 0,
+    "old_pool": 27379761,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 82,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 240466042,
+    "legacy": 0,
+    "old_pool": 27969414,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 83,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 239873732,
+    "legacy": 0,
+    "old_pool": 28561724,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 84,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 239278698,
+    "legacy": 0,
+    "old_pool": 29156758,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 85,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 238678491,
+    "legacy": 0,
+    "old_pool": 29756965,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  },
+  {
+   "generation": 86,
+   "candidate_entry": false,
+   "abandoned": false,
+   "candidate_after": false,
+   "budget_entry": {
+    "allowance": 238074154,
+    "legacy": 0,
+    "old_pool": 30361302,
+    "total": 268435456,
+    "uncovered": 0
+   }
+  }
+ ]
+}

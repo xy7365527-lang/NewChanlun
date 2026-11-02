@@ -40,8 +40,10 @@
 
 use super::super::config::ThetaConfig;
 use super::data::{self, Dataset};
+use super::l3_probe_profile::active_l3_probe_profile;
 use super::metrics;
 use super::prereg_windows::PREREG_WINDOWS;
+use super::research_stats::active_research_stats;
 use super::runner::run_theta_v0_pi;
 
 /// OOS 窗年跨（与 l3_fullwindow 同口径：朴素序数日差 / 365.25）。
@@ -67,14 +69,20 @@ fn oos_years(oos_start: &str, oos_end: &str) -> f64 {
 #[ignore = "Phase-2 pi 否证；O(n²) 截断窗；需 10 品种数据；--release"]
 fn l3_pi_falsify_multi_symbol_significance() {
     let config = ThetaConfig::default();
+    let stats = active_research_stats().expect("C-19 research stats record");
+    let probe_profile = active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     // depth=0 baseline：仅 depth-0 根声部（within_max_depth(d)=d<max_depth ⟹ max_depth=1 仅 d=0 开）。
     let mut baseline_config = config.clone();
     baseline_config.voice.max_depth = 1;
 
-    const MIN_TRADES_FOR_L2: usize = 30; // 协议 §5.5：real_trades<30 inconclusive（625 铁律）
-                                         // 可行子集窗 bar 数（全窗 O(n²) 不可行，探针外推单品种全窗≈75h）。
-                                         // 32K：诊断实测 CL 32K≈49s / BTC 32K≈66s（且 CL/BTC 至 64K 仍 0 单）⟹ 8 品种 ~7min 可控；
-                                         // 显式有效域边界（非全窗结论）。诊断坐实零订单在 16K–64K 鲁棒，32K 为可行子集代表窗。
+    // 可行子集窗 bar 数（全窗 O(n²) 不可行，探针外推单品种全窗≈75h）。
+    // 32K：诊断实测 CL 32K≈49s / BTC 32K≈66s（且 CL/BTC 至 64K 仍 0 单）⟹ 8 品种 ~7min 可控；
+    // 显式有效域边界（非全窗结论）。诊断坐实零订单在 16K–64K 鲁棒，32K 为可行子集代表窗。
     const MAX_BARS_PI: usize = 32_000;
 
     eprintln!(
@@ -137,23 +145,18 @@ fn l3_pi_falsify_multi_symbol_significance() {
         } else {
             full_years
         };
-        let first_px = oos
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
+        let nav = probe_profile.nav_for(&oos, &config);
 
         let t0 = std::time::Instant::now();
-        let res = run_theta_v0_pi(&oos, &config, years, nav);
+        let res = run_theta_v0_pi(&oos, &config, years, nav).expect("C-19 research stats record");
         let pnls = &res.trade_pnls;
         let n_trades = pnls.len();
         let n_real_trades = res.trades.iter().filter(|t| !t.forced_close).count();
 
         // ②风险调整 depth=0 baseline（仅 strategy 产订单时跑——零订单 baseline 必零，超额退化）。
         let (d_sharpe, d_calmar, base_sharpe) = if res.n_orders > 0 {
-            let base = run_theta_v0_pi(&oos, &baseline_config, years, nav);
+            let base = run_theta_v0_pi(&oos, &baseline_config, years, nav)
+                .expect("C-19 research stats record");
             (
                 res.metrics.sharpe - base.metrics.sharpe,
                 res.metrics.calmar - base.metrics.calmar,
@@ -179,7 +182,8 @@ fn l3_pi_falsify_multi_symbol_significance() {
             res.fee_rate
                 .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
-        );
+        )
+        .expect("C-19 research stats record");
         if sig.theta_beats_random {
             n_beats_random += 1;
         }
@@ -188,13 +192,13 @@ fn l3_pi_falsify_multi_symbol_significance() {
         let verdict = if res.n_orders == 0 || n_trades == 0 {
             n_engine_block += 1;
             "(a)工程断流(0单)"
-        } else if n_real_trades < MIN_TRADES_FOR_L2 {
+        } else if n_real_trades < stats.min_trades_for_l2 {
             n_inconclusive += 1;
             "(c)样本饥饿real<30"
         } else if sig.controls_degenerate {
             n_inconclusive += 1;
             "(d)对照退化"
-        } else if sig.boot_pvalue_pnl_le_0 > 0.05 {
+        } else if sig.boot_pvalue_pnl_le_0 > stats.significance_p_threshold {
             n_falsify += 1;
             "(b)否证:收益不显著"
         } else if !sig.theta_beats_random {

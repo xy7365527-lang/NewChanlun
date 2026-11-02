@@ -24,6 +24,7 @@ use super::engine::SpiralEngineCore;
 use super::result::SpiralResult;
 use crate::buysellpoint::{BspKind, Side};
 use crate::divergence::DivKind;
+use crate::funding_record::{py_funding_record, FundingRecord};
 use crate::stroke::Direction;
 use crate::trading::tape::BarSig;
 use crate::trading::types::{BspClass, BspEvent, DivEvent, LadderMask, MAX_LADDER};
@@ -283,16 +284,20 @@ fn result_to_dict<'py>(py: Python<'py>, res: &SpiralResult) -> PyResult<Bound<'p
 #[pyclass(name = "SpiralStream")]
 pub struct PySpiralStream {
     core: SpiralEngineCore,
+    funding: FundingRecord,
 }
 
 #[pymethods]
 impl PySpiralStream {
     #[new]
-    #[pyo3(signature = (floor_ladder = 2))]
-    fn new(floor_ladder: usize) -> PyResult<Self> {
-        let core =
-            SpiralEngineCore::new(floor_ladder).map_err(pyo3::exceptions::PyValueError::new_err)?;
-        Ok(Self { core })
+    /// `funding_profile`：ADR 0040 funding-record 的 profile（如 `"P0"`）；期初现金池读该记录的
+    /// `Q_total`。未给 ⟹ `AwaitingPolicy{funding_record}` 报错（#1601，无默认）。
+    #[pyo3(signature = (floor_ladder = 2, funding_profile = None))]
+    fn new(floor_ladder: usize, funding_profile: Option<&str>) -> PyResult<Self> {
+        let funding = py_funding_record(funding_profile)?;
+        let core = SpiralEngineCore::new(floor_ladder, funding.q_total_f64())
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        Ok(Self { core, funding })
     }
 
     /// 逐 bar 推送（事件行无 bar 字段，本 bar 内）。返回本 bar **新增** trade（trade11）。
@@ -348,17 +353,26 @@ impl PySpiralStream {
     /// 收尾（eod cascade 关根 + N4 反证 + T 观测）并返回完整结果 dict。幂等。
     fn finish(&mut self, py: Python<'_>) -> PyResult<PyObject> {
         self.core.finish();
-        Ok(result_to_dict(py, self.core.result())?.into())
+        let d = result_to_dict(py, self.core.result())?;
+        d.set_item("funding_record", self.funding.label())?;
+        d.set_item("q_total", self.funding.q_total)?;
+        Ok(d.into())
     }
 }
 
 /// 批量螺旋回测（与 `SpiralStream.finish` 同结构 dict）。共享 `step/finish` ⇒ 与流式
 /// 逐位等价（bit-exact 构造性保证）。`bars` = 每 bar 11-tuple（与 push_bar 参数同序）。
 #[pyfunction]
-#[pyo3(signature = (bars, floor_ladder = 2))]
-pub fn run_spiral(py: Python<'_>, bars: Vec<BarTuple>, floor_ladder: usize) -> PyResult<PyObject> {
-    let mut core =
-        SpiralEngineCore::new(floor_ladder).map_err(pyo3::exceptions::PyValueError::new_err)?;
+#[pyo3(signature = (bars, floor_ladder = 2, funding_profile = None))]
+pub fn run_spiral(
+    py: Python<'_>,
+    bars: Vec<BarTuple>,
+    floor_ladder: usize,
+    funding_profile: Option<&str>,
+) -> PyResult<PyObject> {
+    let funding = py_funding_record(funding_profile)?;
+    let mut core = SpiralEngineCore::new(floor_ladder, funding.q_total_f64())
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
     for (
         close,
         buy1,
@@ -380,5 +394,8 @@ pub fn run_spiral(py: Python<'_>, bars: Vec<BarTuple>, floor_ladder: usize) -> P
         core.step(&sig, &flip_edge);
     }
     core.finish();
-    Ok(result_to_dict(py, core.result())?.into())
+    let d = result_to_dict(py, core.result())?;
+    d.set_item("funding_record", funding.label())?;
+    d.set_item("q_total", funding.q_total)?;
+    Ok(d.into())
 }

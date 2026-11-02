@@ -22,7 +22,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::config::{variant, StopMode};
-use super::runner::run_organic;
+use super::runner::run_organic_fx;
 use super::trade_behavior::load_tape;
 
 const FLOOR_LADDER: usize = 2; // LADDER_SEG（在册回测口径）
@@ -382,8 +382,8 @@ fn sublevel_confirm_oklo() {
 
     for (vi, name) in VARIANTS.iter().enumerate() {
         let cfg = variant(name).unwrap_or_else(|| panic!("{name} 未注册"));
-        let res = run_organic(&tape, FLOOR_LADDER, &cfg, StopMode::None, true)
-            .unwrap_or_else(|e| panic!("run_organic {name}: {e}"));
+        let res = run_organic_fx(&tape, FLOOR_LADDER, &cfg, StopMode::None, true)
+            .unwrap_or_else(|e| panic!("run_organic_fx {name}: {e}"));
         let c = &res.counters;
 
         // ── V2r 基线零侵入守卫（在册 enginefix 期望，consol harness 同源）──

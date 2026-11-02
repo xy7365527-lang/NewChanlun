@@ -1,0 +1,52 @@
+[
+  {
+    "path": ".chanlun/review-results/1488-acceptance/fix-p2-0092/REPORT-resume-20261023.md",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/.chanlun/review-results/1488-acceptance/fix-p2-0092/REPORT-resume-20261023.md",
+    "equal": true
+  },
+  {
+    "path": "fix_all.py",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/fix_all.py",
+    "equal": true
+  },
+  {
+    "path": "fix_p2_windows.sh",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/fix_p2_windows.sh",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/audit_owner.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/audit_owner.rs.bak",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/audit_owner/effects.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/audit_owner/effects.rs.bak",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/audit_owner/native.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/audit_owner/native.rs.bak",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/prepared.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/prepared.rs.bak",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/request_audit.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/request_audit.rs.bak",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_audit.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/source_audit.rs.bak",
+    "equal": true
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_contributions.rs.bak",
+    "independent_copy": "/Volumes/AgentStorage/issue1488-closeout-archive-20261026/worktrees/43/files/rust/src/bin/s_session_v3/source_contributions.rs.bak",
+    "equal": true
+  }
+]

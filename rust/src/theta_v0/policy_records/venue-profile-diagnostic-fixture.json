@@ -1,0 +1,37 @@
+{
+  "id": "venue-profile-diagnostic-fixture",
+  "version": 1,
+  "kind": "venue_profile",
+  "profile_id": "diagnostic-fixture",
+  "symbol": null,
+  "admissible": false,
+  "ticket": "#1602（#1586 审计 C-06/C-17；ADR 0041）",
+  "scope": "测试夹具与诊断运行专用，不参与准入（#799 限定词②）。数值等于改前 `impl Default` 常数，用于等值对拍（#804）",
+  "fields": {
+    "tick_size": {
+      "value": 1e-8,
+      "unit": "价格最小变动单位",
+      "source": "reference-theta-v0.md:15「无 tick_size 默认 1e-8」[设计选择,默认值]；#1586 AUDIT C-17：只作未知场所的保守值"
+    },
+    "commission_bps": {
+      "value": 1,
+      "unit": "bp/side",
+      "source": "reference-theta-v0.md:52「commission 1bp/side」[设计选择,默认值;L3经验待标定]；AUDIT C-06：来源在代码里查不到，未经场所标定"
+    },
+    "slippage_bps": {
+      "value": 2,
+      "unit": "bp/side",
+      "source": "reference-theta-v0.md:52「slippage 2bp/side」；未标定（venue_fee.rs 模块头、venue_fee_provenance.md:46）。FeeQuoter 的 uncalibrated_addon 恒等于本值/1e4"
+    },
+    "tax_bps": {
+      "value": 0,
+      "unit": "bp/side",
+      "source": "reference-theta-v0.md:52「tax 0bp」"
+    },
+    "entry_delay_bars": {
+      "value": 1,
+      "unit": "基础 K 根数",
+      "source": "reference-theta-v0.md:51「信号确认后延迟 1 根基础 K，以下一根 open 成交」"
+    }
+  }
+}

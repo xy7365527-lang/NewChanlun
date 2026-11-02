@@ -1,0 +1,8 @@
+Filesystem   1024-blocks Used Available Capacity iused      ifree %iused  Mounted on
+/dev/disk7s1       32728 1600     31128     5%       3 4294967276    0%   /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/e
+Filesystem   1024-blocks Used Available Capacity iused      ifree %iused  Mounted on
+/dev/disk8s1       32728 3100     29628    10%       3 4294967276    0%   /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/b0
+Filesystem   1024-blocks Used Available Capacity iused      ifree %iused  Mounted on
+/dev/disk9s1       32728 3184     29544    10%       3 4294967276    0%   /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/b1
+Filesystem    1024-blocks Used Available Capacity iused      ifree %iused  Mounted on
+/dev/disk10s1       32728 3252     29476    10%       3 4294967276    0%   /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/b2

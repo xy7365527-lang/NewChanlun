@@ -8,7 +8,7 @@
 //! 并用低阈值负控证明该上限真的会拦。
 
 use newchan_rust::s_content::sequence::{
-    sequence_append, sequence_concat, sequence_split, SequenceRef,
+    sequence_append, sequence_concat, sequence_rebuild_suffix, sequence_split, SequenceRef,
 };
 use newchan_rust::s_content::{
     self, code, frame, root_string, tag, CodecError, MemoryNodes, NodeDigest, NodeRead, NodeSink,
@@ -16,7 +16,7 @@ use newchan_rust::s_content::{
 };
 use serde_json::Value as J;
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 /// 已批准输入的 SHA256（§5.10 记录值；向量是输入，不是本实现自己产出的期望值）。
@@ -944,7 +944,7 @@ mod local_memo_allocation {
     use newchan_rust::s_content::capture_allocation::{OwnedBudget, LIMIT};
     use newchan_rust::s_content::sequence::{
         sequence_append_with_allocation, sequence_concat_with_allocation,
-        sequence_split_with_allocation,
+        sequence_rebuild_suffix_with_allocation, sequence_split_with_allocation,
     };
     use newchan_rust::s_content::CodecVec;
 
@@ -1015,6 +1015,296 @@ mod local_memo_allocation {
             .iter()
             .map(|(root, t, body)| (*root, (t, body.to_vec())))
             .collect()
+    }
+
+    fn check_owned_rebuild(
+        seed: &MemoryNodes,
+        seq: &SequenceRef,
+        keep: u64,
+        suffix: &[NodeDigest],
+        expected_root: NodeDigest,
+        expected_closure: &BTreeMap<String, (u8, Vec<u8>)>,
+    ) {
+        let nodes = nodes_from_memory(seed);
+        let budget = OwnedBudget::new(1 << 20);
+        let owner = baseline(&budget);
+        let base = budget.snapshot().live_requested_layout_bytes;
+        let mut plain = TraceStore::new(nodes.clone(), None);
+        let mut owned = TraceStore::new(nodes.clone(), Some(&budget));
+        let p = sequence_rebuild_suffix(&mut plain, seq, keep, suffix).unwrap();
+        let o =
+            sequence_rebuild_suffix_with_allocation(&mut owned, seq, keep, suffix, Some(&budget))
+                .unwrap();
+        assert_eq!(p, o);
+        assert_eq!(o.root(), expected_root);
+        assert_eq!(o.count(), keep + suffix.len() as u64);
+        assert_eq!(plain.events, owned.events);
+        assert_eq!(plain.inner.nodes, owned.inner.nodes);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        let reachable = closure(&mut owned.inner, &[o.root()]);
+        assert_eq!(&reachable, expected_closure);
+        for (digest, (t, body)) in &owned.inner.nodes {
+            if !nodes.contains_key(digest) {
+                assert_eq!(
+                    reachable.get(&root_string(digest)),
+                    Some(&(*t, body.clone())),
+                    "rebuild 不得写出结果不可达节点"
+                );
+            }
+        }
+        drop(owner);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    #[test]
+    fn owned_rebuild_suffix_matches_independent_vectors_plain_trace_and_reachable_nodes() {
+        let doc = vector_doc();
+        let vectors = vector_nodes(&doc);
+        for name in ["array_1", "array_2", "array_3", "array_5"] {
+            let case = doc["positive"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|p| p["name"] == name)
+                .unwrap();
+            let (_, body) = vectors.get(case["root"].as_str().unwrap()).unwrap();
+            let root = digest_at(body, 8);
+            let root_text = root_string(&root);
+            let items = vector_seq_leaves(&vectors, &root_text);
+            let expected = vector_seq_closure(&vectors, &root_text);
+            for keep in 0..=items.len() {
+                let mut seed = MemoryNodes::new();
+                let prefix = s_content::write_sequence(&mut seed, &items[..keep]).unwrap();
+                check_owned_rebuild(
+                    &seed,
+                    &SequenceRef::from_parts_unchecked(prefix, keep as u64),
+                    keep as u64,
+                    &items[keep..],
+                    root,
+                    &expected,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn owned_rebuild_suffix_matches_write_sequence_across_replacement_shapes() {
+        for count in [0u64, 1, 2, 3, 7, 8, 15, 16, 31] {
+            let items = leaves(count);
+            let mut seed = MemoryNodes::new();
+            let root = s_content::write_sequence(&mut seed, &items).unwrap();
+            let seq = SequenceRef::from_parts_unchecked(root, count);
+            let mut keeps = vec![0, count / 2, count.saturating_sub(1), count];
+            keeps.sort();
+            keeps.dedup();
+            for keep in keeps {
+                for added in [0u64, 1, 3, 8] {
+                    let suffix: Vec<_> = (0..added).map(suffix_leaf).collect();
+                    let mut expected_items = items[..keep as usize].to_vec();
+                    expected_items.extend_from_slice(&suffix);
+                    let mut oracle = MemoryNodes::new();
+                    let expected = s_content::write_sequence(&mut oracle, &expected_items).unwrap();
+                    check_owned_rebuild(
+                        &seed,
+                        &seq,
+                        keep,
+                        &suffix,
+                        expected,
+                        &closure(&mut oracle, &[expected]),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn owned_rebuild_suffix_stack_grow_refusal_and_source_sink_errors_release_to_baseline() {
+        let (nodes, root) = perfect_chain(leaf_digest(0), 16);
+        let seq = SequenceRef::from_parts_unchecked(root, 1 << 16);
+        // 16 个保留块加上第一个新叶，迫使真实右脊栈增长；后续读写保留实际活块读数。
+        let keep = seq.count() - 1;
+        let suffix = [suffix_leaf(0), suffix_leaf(1), suffix_leaf(2)];
+        let budget = OwnedBudget::new(1 << 20);
+        let owner = baseline(&budget);
+        let before = budget.snapshot();
+        let base = before.live_requested_layout_bytes;
+        let mut plain = TraceStore::new(nodes.clone(), None);
+        let mut owned = TraceStore::new(nodes.clone(), Some(&budget));
+        let expected = sequence_rebuild_suffix(&mut plain, &seq, keep, &suffix).unwrap();
+        let result =
+            sequence_rebuild_suffix_with_allocation(&mut owned, &seq, keep, &suffix, Some(&budget))
+                .unwrap();
+        assert_eq!(result, expected);
+        assert_eq!(plain.events, owned.events);
+        assert_eq!(plain.inner.nodes, owned.inner.nodes);
+        let success = budget.snapshot();
+        assert_eq!(success.live_requested_layout_bytes, base);
+        assert!(success.allocated_layouts - before.allocated_layouts >= 2);
+        let peak = success.peak_requested_layout_bytes;
+        let retained_peak = owned
+            .live_before_event
+            .iter()
+            .flatten()
+            .copied()
+            .max()
+            .unwrap();
+        assert!(peak > retained_peak, "grow 峰值必须包含旧块与完整新块共存");
+
+        for fail_read in [true, false] {
+            let target = owned
+                .events
+                .iter()
+                .zip(&owned.live_before_event)
+                .rposition(|(event, live)| {
+                    matches!(event, Event::Read(_)) == fail_read
+                        && live.is_some_and(|bytes| bytes > base)
+                })
+                .expect("右脊栈已分配后必须仍有实际读和写");
+            let ordinal = owned.events[..=target]
+                .iter()
+                .filter(|event| matches!(event, Event::Read(_)) == fail_read)
+                .count() as u64;
+            let mut p = TraceStore::new(nodes.clone(), None);
+            let mut o = TraceStore::new(nodes.clone(), Some(&budget));
+            if fail_read {
+                p.inner.read_cap = ordinal - 1;
+                o.inner.read_cap = ordinal - 1;
+            } else {
+                p.inner.write_cap = ordinal - 1;
+                o.inner.write_cap = ordinal - 1;
+            }
+            let pe = sequence_rebuild_suffix(&mut p, &seq, keep, &suffix).unwrap_err();
+            let oe =
+                sequence_rebuild_suffix_with_allocation(&mut o, &seq, keep, &suffix, Some(&budget))
+                    .unwrap_err();
+            assert_eq!(pe.code(), BUDGET_CODE);
+            assert_eq!(pe.to_string(), oe.to_string());
+            assert_eq!(p.events, o.events);
+            assert_eq!(o.events, owned.events[..=target]);
+            assert_eq!(p.inner.nodes, o.inner.nodes);
+            assert_eq!(o.live_at_error, owned.live_before_event[target]);
+            assert!(o.live_at_error.unwrap() > base);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        }
+
+        // 实际占据原账本余量，只留这次成功栈峰值少 1 字节；不另造估算额度。
+        let mut blocker = CodecVec::<u8>::new_with_allocation(Some(&budget));
+        blocker
+            .try_reserve_exact(success.limit_bytes - peak + 1)
+            .unwrap();
+        let blocked_base = budget.snapshot().live_requested_layout_bytes;
+        let mut rejected = TraceStore::new(nodes, Some(&budget));
+        let error = sequence_rebuild_suffix_with_allocation(
+            &mut rejected,
+            &seq,
+            keep,
+            &suffix,
+            Some(&budget),
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), LIMIT);
+        let probe = budget.allocation_request_probe();
+        assert_eq!(
+            probe.refused_kind,
+            std::any::type_name::<(NodeDigest, u64)>()
+        );
+        assert_eq!(
+            probe.refused_align,
+            std::mem::align_of::<(NodeDigest, u64)>()
+        );
+        let old_bytes = probe.live_before_refusal - blocked_base;
+        assert!(old_bytes > 0, "grow 拒绝时旧栈仍活");
+        assert!(probe.refused_bytes > old_bytes, "拒绝的是完整新块");
+        assert_eq!(old_bytes + probe.refused_bytes, peak - base);
+        assert_eq!(
+            probe.live_before_refusal + probe.refused_bytes,
+            success.limit_bytes + 1
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, blocked_base);
+        drop(blocker);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(owner);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!budget.ledger_health().invariant_broken);
+    }
+
+    #[test]
+    fn owned_rebuild_suffix_rejects_corrupt_deep_reused_subtrees_and_terminal() {
+        let mut seed = MemoryNodes::new();
+        let root = s_content::write_sequence(&mut seed, &leaves(15)).unwrap();
+        let nodes = nodes_from_memory(&seed);
+        // 右子树内复用的 4 叶左块，以及最终直接复用的单叶；均不在入口直接子层。
+        for offsets in [vec![40usize, 8], vec![40, 40, 40]] {
+            let mut path = Vec::new();
+            let mut target = root;
+            for offset in offsets {
+                path.push((target, offset));
+                target = digest_at(&nodes[&target].1, offset);
+            }
+            for expected_code in [code::NODE_MISSING, code::NODE_DIGEST, code::SEQUENCE_SHAPE] {
+                let mut input = nodes.clone();
+                let mut input_root = root;
+                let mut bad_target = target;
+                match expected_code {
+                    code::NODE_MISSING => {
+                        input.remove(&target).unwrap();
+                    }
+                    code::NODE_DIGEST => input.get_mut(&target).unwrap().1[7] ^= 1,
+                    code::SEQUENCE_SHAPE => {
+                        let (t, body) = &nodes[&target];
+                        let mut bad_body = if *t == tag::SEQ_BRANCH {
+                            let mut b = body.clone();
+                            b[..8].copy_from_slice(&3u64.to_be_bytes());
+                            b
+                        } else {
+                            let mut b = vec![0; 72];
+                            b[..8].copy_from_slice(&2u64.to_be_bytes());
+                            b[8..40].copy_from_slice(&target);
+                            b[40..72].copy_from_slice(&target);
+                            b
+                        };
+                        // 重算被改节点及所有祖先摘要，使错误确为形状/声明计数，非摘要错误。
+                        bad_target = frame(tag::SEQ_BRANCH, &bad_body);
+                        input.insert(bad_target, (tag::SEQ_BRANCH, bad_body));
+                        input_root = bad_target;
+                        for (ancestor, offset) in path.iter().rev() {
+                            bad_body = nodes[ancestor].1.clone();
+                            bad_body[*offset..*offset + 32].copy_from_slice(&input_root);
+                            input_root = frame(tag::SEQ_BRANCH, &bad_body);
+                            input.insert(input_root, (tag::SEQ_BRANCH, bad_body));
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                let budget = OwnedBudget::new(1 << 20);
+                let owner = baseline(&budget);
+                let base = budget.snapshot().live_requested_layout_bytes;
+                let seq = SequenceRef::from_parts_unchecked(input_root, 15);
+                let mut plain = TraceStore::new(input.clone(), None);
+                let mut owned = TraceStore::new(input, Some(&budget));
+                let pe =
+                    sequence_rebuild_suffix(&mut plain, &seq, 15, &[suffix_leaf(0)]).unwrap_err();
+                let oe = sequence_rebuild_suffix_with_allocation(
+                    &mut owned,
+                    &seq,
+                    15,
+                    &[suffix_leaf(0)],
+                    Some(&budget),
+                )
+                .unwrap_err();
+                assert_eq!(pe.code(), expected_code);
+                assert_eq!(pe.to_string(), oe.to_string());
+                assert_eq!(plain.events, owned.events);
+                assert_eq!(owned.events.last(), Some(&Event::Read(bad_target)));
+                assert!(owned.live_before_event.last().unwrap().unwrap() > base);
+                assert_eq!(owned.inner.writes, 0);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+                drop(owner);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+                assert!(!budget.ledger_health().invariant_broken);
+            }
+        }
     }
 
     #[test]
@@ -1199,6 +1489,108 @@ fn sequence_allocation_entry_refuses_unsupported_owned_build_without_plain_fallb
         &mut store,
         &SequenceRef::empty(),
         &leaf_digest(0),
+        Some(&budget),
+    )
+    .unwrap_err();
+    assert_eq!(error.code(), s_content::capture_allocation::INCOMPLETE);
+    assert_eq!(budget.snapshot().allocation_attempts, 0);
+    assert_eq!(store.len(), 0);
+}
+
+fn seq_by_append(store: &mut MemoryNodes, items: &[NodeDigest]) -> SequenceRef {
+    let mut seq = SequenceRef::empty();
+    for item in items {
+        seq = sequence_append(store, &seq, item).expect("逐元素 append");
+    }
+    seq
+}
+
+fn suffix_leaf(i: u64) -> NodeDigest {
+    leaf_digest(1_000_000 + i)
+}
+
+#[test]
+fn sequence_rebuild_suffix_matches_elementwise_append_and_writes_only_reachable() {
+    for count in [0u64, 1, 2, 3, 4, 5, 7, 8, 9, 16, 17, 31] {
+        let base = leaves(count);
+        let mut keeps = vec![0, count, count / 2, count.saturating_sub(1), count.min(1)];
+        keeps.sort();
+        keeps.dedup();
+        for keep in keeps {
+            for m in [0u64, 1, 2, 3, 8] {
+                let mut origin = MemoryNodes::new();
+                let seq = seq_by_append(&mut origin, &base);
+                let suffix: Vec<NodeDigest> = (0..m).map(suffix_leaf).collect();
+                let mut expected_items = base[..keep as usize].to_vec();
+                expected_items.extend_from_slice(&suffix);
+                let mut oracle = MemoryNodes::new();
+                let expected = seq_by_append(&mut oracle, &expected_items);
+                let mut store = MemoryNodes::new();
+                copy_nodes(&origin, &mut store);
+                let before: HashSet<NodeDigest> = store.iter().map(|(d, _, _)| *d).collect();
+                let got =
+                    sequence_rebuild_suffix(&mut store, &seq, keep, &suffix).expect("批量后缀重建");
+                assert_eq!(
+                    got.count(),
+                    expected.count(),
+                    "count={count} keep={keep} m={m}"
+                );
+                assert_eq!(
+                    got.root(),
+                    expected.root(),
+                    "count={count} keep={keep} m={m}"
+                );
+                let new_nodes: Vec<(NodeDigest, u8)> = store
+                    .iter()
+                    .filter(|(d, _, _)| !before.contains(*d))
+                    .map(|(d, t, _)| (*d, t))
+                    .collect();
+                if !got.is_empty() {
+                    let reach = closure(&mut store, &[got.root()]);
+                    for (d, _) in &new_nodes {
+                        assert!(
+                            reach.contains_key(&root_string(d)),
+                            "写了不可达节点 count={count} keep={keep} m={m}"
+                        );
+                    }
+                }
+                let branches = new_nodes
+                    .iter()
+                    .filter(|(_, t)| *t == tag::SEQ_BRANCH)
+                    .count() as u64;
+                if m >= 1 {
+                    assert_eq!(
+                        branches,
+                        u64::from(keep.count_ones()) + m - 1,
+                        "count={count} keep={keep} m={m}"
+                    );
+                    assert!(branches <= m * (bits_of(keep + m) + 1));
+                } else if keep == count {
+                    assert!(new_nodes.is_empty(), "无变化不得写节点");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn sequence_rebuild_suffix_rejects_keep_beyond_count() {
+    let mut store = MemoryNodes::new();
+    let seq = seq_by_append(&mut store, &leaves(3));
+    assert!(sequence_rebuild_suffix(&mut store, &seq, 4, &[]).is_err());
+}
+
+#[cfg(not(feature = "s_allocation_json_testonly"))]
+#[test]
+fn sequence_rebuild_suffix_allocation_entry_refuses_unsupported_owned_build_without_plain_fallback()
+{
+    let budget = s_content::capture_allocation::OwnedBudget::new(1 << 20);
+    let mut store = MemoryNodes::new();
+    let error = s_content::sequence_rebuild_suffix_with_allocation(
+        &mut store,
+        &SequenceRef::empty(),
+        0,
+        &[leaf_digest(0)],
         Some(&budget),
     )
     .unwrap_err();

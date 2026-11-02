@@ -1,13 +1,16 @@
 //! #1394：同一次冷审计的 history → source 纯字段交接；不保存业务通过结果。
 use super::super::audit_store::{CodecRead, NativeAdmission, RefFields};
-use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
-use newchan_rust::s_content::{self as sc, ContentRef, Kind, NodeDigest};
-use std::collections::{BTreeMap, HashMap};
+use newchan_rust::s_content::capture_allocation::{
+    audit_json::BusinessMap,
+    native_owned::{NativeRefFields, NativeValue},
+    scratch::WorkScope,
+};
+use newchan_rust::s_content::{self as sc, Kind, NodeDigest};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct RecordKey {
-    format: String,
-    root: String,
+    format: NativeValue<String>,
+    root: NativeValue<String>,
     kind: Kind,
     extent: Option<u64>,
     digest: NodeDigest,
@@ -19,7 +22,7 @@ mod tests {
     use super::super::HashReader;
     use super::*;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn record_sidecar_shared_scope_seed_subset_matches_plain() {
         let mut nodes = sc::MemoryNodes::default();
@@ -64,16 +67,111 @@ mod tests {
                 }
                 for (names, expected) in requests.into_iter().zip(&expected) {
                     let actual = records.subset((&original).into(), names)?.unwrap();
-                    assert_eq!(&actual, expected);
+                    assert!(actual.iter().eq(expected.iter()));
                 }
                 assert!(budget.live() > before);
                 let retained = budget.live();
                 records.clear();
-                assert_eq!(budget.live(), retained);
+                assert!(budget.live() < retained, "clear 释放实际条目");
+                assert!(budget.live() > before, "clear 仍持有实际 hash buffer");
+                drop(records);
+                assert_eq!(budget.live(), before);
+                let records = NativeRecordFields::new_admitted(&capture, Some(scope)).unwrap();
                 assert!(records.subset((&original).into(), &["a"])?.is_none());
                 Ok::<_, sc::CodecError>(())
             })
             .unwrap();
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn record_sidecar_subset_outlives_scope_and_drops_its_own_permits() {
+        let mut nodes = sc::MemoryNodes::default();
+        let original = sc::write_value(
+            &mut nodes,
+            &sc::Value::Object(vec![("a".into(), sc::Value::String("value".into()))]),
+        )
+        .unwrap()
+        .content_ref();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut reader = HashReader::captured(&capture, None);
+        let fields = reader
+            .lookup_fields_ref((&original).into(), &["a"])
+            .unwrap();
+        let budget = super::super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let subset = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut records =
+                        NativeRecordFields::new_admitted(&capture, Some(scope)).unwrap();
+                    records.seed((&original).into(), &["a"], &fields)?;
+                    let before = budget.live();
+                    let subset = records.subset((&original).into(), &["a"])?.unwrap();
+                    assert!(budget.live() > before, "subset 和原字段独立持费");
+                    records.clear();
+                    assert_eq!(
+                        subset.get("a").unwrap().root.as_str(),
+                        fields.get("a").unwrap().root()
+                    );
+                    Ok::<_, sc::CodecError>(subset)
+                })
+                .unwrap();
+            assert!(budget.live() > baseline, "离域结果仍持原许可");
+            assert_eq!(
+                subset.get("a").unwrap().root.as_str(),
+                fields.get("a").unwrap().root()
+            );
+            drop(subset);
+            assert_eq!(budget.live(), baseline, "所有结果销毁后只剩父账本元数据");
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn record_sidecar_failed_replacement_keeps_original_and_releases_temporaries() {
+        let mut nodes = sc::MemoryNodes::default();
+        let original = sc::write_value(
+            &mut nodes,
+            &sc::Value::Object(vec![("a".into(), sc::Value::String("value".into()))]),
+        )
+        .unwrap()
+        .content_ref();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut reader = HashReader::captured(&capture, None);
+        let fields = reader
+            .lookup_fields_ref((&original).into(), &["a"])
+            .unwrap();
+        let limit = 1 << 20;
+        let budget = super::super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let mut records = NativeRecordFields::new_admitted(&capture, Some(scope)).unwrap();
+            records.seed((&original).into(), &["a"], &fields)?;
+            let before = budget.live();
+            let occupied = budget.reserve(limit - before).unwrap();
+            let error = records
+                .seed((&original).into(), &["a"], &fields)
+                .unwrap_err();
+            // 失败后仅借用观察旧值，绝不在失败工作域重试另一条准入路径。
+            assert_eq!(records.records.len(), 1);
+            let (key, saved) = records.records.iter().next().unwrap();
+            assert_eq!(key.format.as_str(), original.format.as_str());
+            assert_eq!(key.root.as_str(), original.root.as_str());
+            assert_eq!(key.kind, original.kind);
+            assert_eq!(key.extent, original.extent);
+            assert_eq!(
+                saved.get("a").unwrap().root.as_str(),
+                fields.get("a").unwrap().root()
+            );
+            drop(occupied);
+            assert_eq!(budget.live(), before, "失败构造不留临时收费");
+            Err::<(), _>(error)
+        });
+        assert!(result.is_err());
+        assert_eq!(budget.live(), baseline);
     }
 
     #[test]
@@ -106,11 +204,12 @@ mod tests {
         for names in [&["a"][..], &["b", "a"][..]] {
             let got = records.subset((&original).into(), names).unwrap().unwrap();
             for name in names {
-                let expected = match fields.get(name).unwrap() {
-                    super::super::super::audit_store::RefValue::Plain(r) => r,
-                    _ => panic!("普通原件不得补造Owned引用"),
-                };
-                assert_eq!(got.get(name), Some(&expected));
+                let expected = fields.get(name).unwrap();
+                let actual: sc::RefView<'_> = got.get(name).unwrap().into();
+                assert_eq!(actual.format(), expected.format());
+                assert_eq!(actual.root(), expected.root());
+                assert_eq!(actual.kind(), expected.kind());
+                assert_eq!(actual.extent(), expected.extent());
             }
         }
         assert!(records
@@ -191,22 +290,16 @@ thread_local! {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(crate) fn reset_native_record_field_stats() {
     STATS.with(|s| s.set(NativeRecordFieldStats::default()));
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(crate) fn native_record_field_stats() -> NativeRecordFieldStats {
     STATS.with(std::cell::Cell::get)
@@ -216,7 +309,7 @@ pub(crate) fn native_record_field_stats() -> NativeRecordFieldStats {
 pub(crate) struct NativeRecordFields<'capture> {
     capture: &'capture sc::AuditCapture,
     work: Option<&'capture WorkScope>,
-    records: HashMap<RecordKey, BTreeMap<String, ContentRef>>,
+    records: BusinessMap<RecordKey, NativeRefFields>,
 }
 impl<'capture> NativeRecordFields<'capture> {
     #[cfg(test)]
@@ -224,10 +317,10 @@ impl<'capture> NativeRecordFields<'capture> {
         Self::new_admitted(capture, None)
     }
     #[cfg_attr(
-        all(not(test), not(feature = "s_capture_native_testonly")),
+        all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub(crate) fn new_admitted(
@@ -237,18 +330,28 @@ impl<'capture> NativeRecordFields<'capture> {
         (!capture.is_allocation_prototype()).then(|| Self {
             capture,
             work,
-            records: HashMap::new(),
+            records: BusinessMap::plain(),
         })
     }
     pub(crate) fn belongs_to(&self, capture: &sc::AuditCapture) -> bool {
         std::ptr::eq(self.capture, capture)
     }
-    /// 仅在 history 成功 exact 读取完整 generated record 后调用。
+    /// 原无计量包装继续供既有测试使用。
+    #[cfg(test)]
     pub(crate) fn seed(
         &mut self,
         r: sc::RefView<'_>,
         names: &[&str],
         fields: &RefFields<'_>,
+    ) -> Result<(), sc::CodecError> {
+        self.seed_measured(r, names, fields, None)
+    }
+    pub(crate) fn seed_measured(
+        &mut self,
+        r: sc::RefView<'_>,
+        names: &[&str],
+        fields: &RefFields<'_>,
+        measure: Option<&super::super::audit_budget::NativeMeasure<'_>>,
     ) -> Result<(), sc::CodecError> {
         let sc::RefView::Normal(original) = r else {
             return Ok(());
@@ -257,7 +360,7 @@ impl<'capture> NativeRecordFields<'capture> {
             return Ok(());
         }
         let admission = NativeAdmission(self.work);
-        admission.native_verify_original(self.capture, r, sc::Mode::Public)?;
+        admission.native_verify_original_measured(self.capture, r, sc::Mode::Public, measure)?;
         // 不从 Owned 结果或不完整字段集补造原件。
         let RefFields::Plain(fields) = fields else {
             return Ok(());
@@ -269,18 +372,20 @@ impl<'capture> NativeRecordFields<'capture> {
         {
             return Ok(());
         }
-        let mut originals = BTreeMap::new();
-        for name in names {
-            admission.native_tree_room::<String, ContentRef>(originals.len())?;
-            let key = admission.native_string(name)?;
-            let reference = admission.native_plain_ref((&fields[*name]).into())?;
-            originals.insert(key, reference);
-        }
+        let originals = NativeRefFields::try_from_views(
+            names
+                .iter()
+                .enumerate()
+                .filter(|(at, name)| !names[..*at].contains(name))
+                .map(|(_, name)| (*name, fields.get(name).unwrap().into())),
+            self.work,
+        )?;
         let key = RecordKey::new(r, &admission)?;
         if !self.records.contains_key(&key) {
-            admission.native_std_map_room(&mut self.records)?;
+            admission.native_map_room(&mut self.records)?;
         }
-        self.records.insert(key, originals);
+        // 全部新载荷准入成功后才替换；旧字段的原许可随旧 owner 析构归还。
+        self.records.insert(key, originals)?;
         #[cfg(test)]
         STATS.with(|s| {
             let mut stats = s.get();
@@ -293,7 +398,7 @@ impl<'capture> NativeRecordFields<'capture> {
         &self,
         r: sc::RefView<'_>,
         names: &[&str],
-    ) -> Result<Option<sc::CodecFields>, sc::CodecError> {
+    ) -> Result<Option<NativeRefFields>, sc::CodecError> {
         if !matches!(r, sc::RefView::Normal(_)) {
             return Ok(None);
         }
@@ -311,24 +416,25 @@ impl<'capture> NativeRecordFields<'capture> {
             return Ok(None);
         };
         // 缺字段沿原 lookup 路径报错；不将一个部分结果冒充成功。
-        if names.iter().any(|name| !fields.contains_key(*name)) {
+        if names.iter().any(|name| fields.get(name).is_none()) {
             return Ok(None);
         }
-        admission.native_ref_fields_bytes(names.iter().map(|name| (*name, &fields[*name])))?;
-        let subset = names
-            .iter()
-            .map(|name| ((*name).to_owned(), fields[*name].clone()))
-            .collect();
+        let subset = NativeRefFields::try_from_views(
+            names
+                .iter()
+                .map(|name| (*name, fields.get(name).unwrap().into())),
+            self.work,
+        )?;
         #[cfg(test)]
         STATS.with(|s| {
             let mut stats = s.get();
             stats.source_subset_hits += 1;
             s.set(stats);
         });
-        Ok(Some(sc::CodecFields::from_plain(subset)))
+        Ok(Some(subset))
     }
     pub(crate) fn clear(&mut self) {
-        // 清字段仍保留 HashMap 容量；Native 父账也保守保留此前准入。
-        self.records.clear();
+        // 清除实际条目会析构键及字段 owner；hash buffer 仍存在，保留其原许可。
+        self.records.retain(|_, _| false);
     }
 }

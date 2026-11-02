@@ -1,0 +1,19 @@
+{
+  "verdict": "BLOCK",
+  "reviewer_model": "gpt-6.1-sol",
+  "findings": [
+    {
+      "id": "R8-ARCH-001",
+      "severity": "HIGH",
+      "evidence": "独审口径要求 /Volumes/AgentStorage/decisions/1790/archaeology.md 与可解析 archaeology.json；当前仅有 archaeology.json，且其 parsed=false、problems=[\"考古输出无可解析的 points JSON\"]，/Volumes/AgentStorage/decisions/1790/summary.json 的 phase=error、error=考古输出两次均无法解析为 points JSON。draft.md §1 也明确承认考古两次失败并只沿用 raw 输出。",
+      "required_fix": "按 .sandcastle/docs/graph-engineering.md §2 重跑考古，生成可解析的 archaeology.json 与 archaeology.md；Q1-Q8 每项都需有 tracker/repo 查询、命中、A/B/C 归类和可回查出处。修复后重新提交独审。"
+    },
+    {
+      "id": "R1-CIT-002",
+      "severity": "MEDIUM",
+      "evidence": "draft.md E3 将 source_refs 叶断言为含 revision/seq 的八字段，但引用 cp:916-929、2719-2760 未覆盖 RawRefSpec 字段与两种叶编码；实际承重代码在 content_producer.rs:106-214、404-444、804-839。E4/E5 的完整前缀证明仅引 inclusion.rs:1170-1188，未覆盖 seed（1084-1120）和 merge（1247-1322）路径。",
+      "required_fix": "补全逐条代码证据引用，至少加入上述 RawRefSpec/Leaves/bind_source 及 inclusion 三分支行号，并明确非退化严格递增域是命题有效域。"
+    }
+  ],
+  "summary": "代码命题与订正方向经复核基本成立：group_sources_coords/证据链、含 revision 的源叶、CC-006/CC-007 身份绑定和三夹具后缀锁相互一致；ADR 0054 追加修订段也符合 0005/0022/0026/0032/0015 先例。但考古产物未通过解析且缺 archaeology.md，违反 R8 完成门，故本轮 BLOCK。"
+}

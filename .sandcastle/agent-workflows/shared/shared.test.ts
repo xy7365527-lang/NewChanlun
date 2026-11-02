@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  AGENT_MODELS,
-  CLAUDE_CODE_SECRET,
+  HOSTED_DEFAULT_RETIRED,
+  MODEL_SECRET_NAMES,
   DEEPSEEK_SECRET,
   MODEL_LABEL_PREFIX,
   MODEL_REGISTRY,
@@ -127,7 +127,7 @@ const fixture = (name: string): unknown =>
     readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"),
   ) as unknown;
 
-test("resolveModelSelection 无模型标签默认 Claude（不读任何 secret）", () => {
+test("resolveModelSelection 无模型标签只返回空选择（不读任何 secret）", () => {
   assert.deepEqual(resolveModelSelection([]), {
     label: null,
     entry: null,
@@ -149,6 +149,7 @@ test("resolveModelSelection 显式 DeepSeek 标签走 registry 的 provider/mode
     "implement",
     "implement-pr",
     "review",
+    "update-branch",
   ]);
 });
 
@@ -193,16 +194,20 @@ test("resolveModelSelection 多个模型标签冲突 fail-loud（含 known+unkno
   );
 });
 
-test("selectedAgent 默认 Claude：claudeCode + 仅 CLAUDE_CODE_OAUTH_TOKEN 进 provider env", () => {
-  const provider = selectedAgent("implement", [], {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-  });
-  assert.equal(provider.name, "claude-code");
-  assert.deepEqual(provider.env, {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-  });
-  assert.ok(!("DEEPSEEK_API_KEY" in provider.env));
-  assert.equal(provider.buildPrintCommand({ prompt: "hi", dangerouslySkipPermissions: true }).command.includes("claude-sonnet-4-6"), true);
+test("selectedAgent/claudeAgent：hosted 无标签默认在任何模型调用前退役", () => {
+  for (const role of ["implement", "implement-pr", "review"] as const) {
+    assert.throws(
+      () => selectedAgent(role, [], { CLAUDE_CODE_OAUTH_TOKEN: "claude-token" }),
+      (error: unknown) => error instanceof ModelRegistryError && error.message === HOSTED_DEFAULT_RETIRED,
+    );
+  }
+  for (const role of ["explore", "update-branch"] as const) {
+    assert.throws(
+      () => claudeAgent(role, { CLAUDE_CODE_OAUTH_TOKEN: "claude-token" }),
+      (error: unknown) => error instanceof ModelRegistryError && error.message === HOSTED_DEFAULT_RETIRED,
+    );
+  }
+  assert.match(HOSTED_DEFAULT_RETIRED, /kimi-k3\.1-pro/);
 });
 
 test("selectedAgent 显式 DeepSeek：Prime Agent deepseek/deepseek-v4-pro，仅 DEEPSEEK_API_KEY 进 provider env", () => {
@@ -273,8 +278,8 @@ test("selectedAgent DeepSeek 缺 key 在任何模型调用前抛错，不回退 
   );
 });
 
-test("模型标签作用于 implement/implement-pr/review；explore/update-branch 拒绝消费", () => {
-  for (const role of ["implement", "implement-pr", "review"] as const) {
+test("模型标签作用于 implement/implement-pr/review/update-branch；explore 拒绝消费", () => {
+  for (const role of ["implement", "implement-pr", "review", "update-branch"] as const) {
     const provider = selectedAgent(
       role,
       ["agent:model:deepseek-v4-pro"],
@@ -285,21 +290,18 @@ test("模型标签作用于 implement/implement-pr/review；explore/update-branc
       DEEPSEEK_API_KEY: "deepseek-token",
     });
   }
+  assert.throws(
+    () =>
+      selectedAgent(
+        "explore" as unknown as SelectableRole,
+        ["agent:model:deepseek-v4-pro"],
+        { DEEPSEEK_API_KEY: "deepseek-token" },
+      ),
+    /does not apply to role explore/,
+  );
   for (const role of ["explore", "update-branch"] as const) {
-    assert.throws(
-      () =>
-        selectedAgent(
-          role as unknown as SelectableRole,
-          ["agent:model:deepseek-v4-pro"],
-          { DEEPSEEK_API_KEY: "deepseek-token" },
-        ),
-      new RegExp(`does not apply to role ${role}`),
-    );
+    assert.throws(() => claudeAgent(role, {}), new RegExp("Hosted agent default is retired"));
   }
-  // 这些角色仍以 Claude 模型为固定默认。
-  assert.ok(AGENT_MODELS.review.startsWith("claude-opus"));
-  assert.ok(AGENT_MODELS.explore.startsWith("claude-opus"));
-  assert.ok(AGENT_MODELS["update-branch"].startsWith("claude-opus"));
 });
 
 test("assertValidModelLabels 只校验标签，不读 DeepSeek/Claude 凭据", () => {
@@ -317,12 +319,7 @@ test("modelCredential 只能读 allowlist 内的固定 env 名", () => {
     modelCredential(DEEPSEEK_SECRET, { DEEPSEEK_API_KEY: " sk " }),
     "sk",
   );
-  assert.equal(
-    modelCredential(CLAUDE_CODE_SECRET, {
-      CLAUDE_CODE_OAUTH_TOKEN: " tok ",
-    }),
-    "tok",
-  );
+  assert.deepEqual(MODEL_SECRET_NAMES, ["DEEPSEEK_API_KEY"]);
   assert.throws(() => modelCredential(DEEPSEEK_SECRET, {}), /DEEPSEEK_API_KEY/);
 });
 
@@ -361,20 +358,8 @@ test("provider env 生产接线：只透传选定凭据 + remote-child identity 
   });
   assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in deepseek.env));
 
-  const claude = selectedAgent("implement", [], env);
-  assert.deepEqual(claude.env, {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
-    PRIME_REMOTE_CHILD_LEASE: "short-lease",
-  });
-  assert.ok(!("DEEPSEEK_API_KEY" in claude.env));
-
-  const fixedClaude = claudeAgent("explore", env);
-  assert.deepEqual(fixedClaude.env, {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
-    PRIME_REMOTE_CHILD_LEASE: "short-lease",
-  });
+  assert.throws(() => selectedAgent("implement", [], env), new RegExp("Hosted agent default is retired"));
+  assert.throws(() => claudeAgent("explore", env), new RegExp("Hosted agent default is retired"));
 });
 
 test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 labels 数组", () => {
@@ -447,12 +432,13 @@ test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺失 fail-loud，仅 SANDC
   );
 });
 
-test("#1128 事件 fixture：默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret", () => {
-  // 默认 Claude fixture
+test("#1617 事件 fixture：退役默认 / 显式 DeepSeek / 冲突 / 未知 / 缺 secret", () => {
+  // 无标签 fixture：解析为空选择，实际构造 provider 时明确退役
   const defaultLabels = modelLabelsFromEvent(
     fixture("issue-labeled-default-claude.json"),
   );
   assert.equal(resolveModelSelection(defaultLabels).entry, null);
+  assert.throws(() => selectedAgent("implement", defaultLabels, {}), new RegExp("Hosted agent default is retired"));
 
   // 显式 DeepSeek fixture
   const deepseekLabels = modelLabelsFromEvent(
@@ -503,7 +489,7 @@ test("#1128 事件 fixture：默认 Claude / 显式 DeepSeek / 冲突 / 未知 /
   );
 });
 
-test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不选中 DeepSeek", () => {
+test("#1617 P1 敌对标签：not-* 子串不选 legacy；-legacy fail-loud", () => {
   // 旧 toJSON+contains 子串路由会误命中这两个标签；TS 层必须保持精确前缀语义。
   const notSubstringLabels = modelLabelsFromEvent(
     fixture("issue-labeled-not-deepseek-substring.json"),
@@ -512,12 +498,13 @@ test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不�
     label: null,
     entry: null,
   });
-  const defaultProvider = selectedAgent("implement", notSubstringLabels, {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-    DEEPSEEK_API_KEY: "deepseek-token",
-  });
-  assert.equal(defaultProvider.name, "claude-code");
-  assert.ok(!("DEEPSEEK_API_KEY" in defaultProvider.env));
+  assert.throws(
+    () => selectedAgent("implement", notSubstringLabels, {
+      CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+      DEEPSEEK_API_KEY: "deepseek-token",
+    }),
+    new RegExp("Hosted agent default is retired"),
+  );
 
   const legacyLabels = modelLabelsFromEvent(
     fixture("issue-labeled-deepseek-v4-pro-legacy.json"),
@@ -563,14 +550,14 @@ test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不�
       /Unknown model label/.test(error.message) &&
       /agent:model:DEEPSEEK-V4-PRO/.test(error.message),
   );
-  // 全大写前缀也会被识别为 model label 后 fail-loud，不静默默认 Claude。
+  // 全大写前缀也会被识别为 model label 后 fail-loud，不静默进入退役默认。
   assert.throws(
     () => resolveModelSelection(["AGENT:MODEL:DEEPSEEK-V4-PRO"]),
     /Unknown model label/,
   );
 });
 
-test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标签走 DeepSeek", () => {
+test("#1617 PR fixture：review 无标签退役，显式 DeepSeek 标签走 legacy", () => {
   const defaultReviewLabels = modelLabelsFromEvent(
     fixture("pr-labeled-review.json"),
   );
@@ -578,18 +565,11 @@ test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标�
     label: null,
     entry: null,
   });
-  const defaultReview = selectedAgent("review", defaultReviewLabels, {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-  });
-  assert.equal(defaultReview.name, "claude-code");
-  assert.deepEqual(defaultReview.env, {
-    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
-  });
-  assert.ok(!("DEEPSEEK_API_KEY" in defaultReview.env));
-  assert.ok(
-    defaultReview
-      .buildPrintCommand({ prompt: "hi", dangerouslySkipPermissions: true })
-      .command.includes("claude-opus-4-8"),
+  assert.throws(
+    () => selectedAgent("review", defaultReviewLabels, {
+      CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    }),
+    new RegExp("Hosted agent default is retired"),
   );
 
   const deepseekReviewLabels = modelLabelsFromEvent(
@@ -665,13 +645,12 @@ test("#1002 provider 回退 fail-loud：未显式传 provider 时 buildPrintComm
   );
 });
 
-test("#1002 历史不复活：registry 只含显式 allowlist，不含 Kimi 常量/票面路由", () => {
+test("#1617 hosted registry：只含显式 legacy allowlist，不含主控同型伪装入口", () => {
   assert.ok(!("agent:model:kimi-k3" in MODEL_REGISTRY));
   for (const entry of Object.values(MODEL_REGISTRY)) {
     assert.equal(entry.primeProvider, "deepseek");
   }
-  assert.ok(
-    Object.values(AGENT_MODELS).every((model) => model.startsWith("claude-")),
-  );
+  assert.match(HOSTED_DEFAULT_RETIRED, /kimi-k3\.1-pro/);
+  assert.deepEqual(MODEL_SECRET_NAMES, ["DEEPSEEK_API_KEY"]);
   assert.equal(MODEL_LABEL_PREFIX, "agent:model:");
 });

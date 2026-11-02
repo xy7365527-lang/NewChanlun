@@ -23,6 +23,7 @@ fn active_records_stamp_v1_and_natural_termination() {
     assert_eq!(cfg, ThetaConfig::default(), "fallible 入口与 Default 同值");
     let out = classify(&operation_oscillating_layer(), &cfg, &[]);
     assert_eq!(out.policy.level_budget.label(), "tower-level-budget/1");
+    assert_eq!(out.policy.tower_base.label(), "tower-base/1");
     assert_eq!(out.policy.macd.label(), "macd-force/1");
     assert_eq!(out.termination, TowerTermination::Natural);
     assert_eq!(out.termination.code(), "NATURAL");
@@ -101,4 +102,12 @@ fn research_override_is_labelled() {
         out.policy.level_budget.label(),
         "tower-level-budget/research-override"
     );
+}
+
+#[test]
+#[should_panic(expected = "尚无真实构件")]
+fn unsupported_tower_base_stops_before_l0_construction() {
+    let mut cfg = ThetaConfig::default();
+    cfg.level.tower_base = crate::theta_v0::config::TowerBase::Kline3;
+    let _ = classify(&operation_oscillating_layer(), &cfg, &[]);
 }

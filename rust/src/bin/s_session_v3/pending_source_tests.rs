@@ -77,7 +77,7 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
     }
     let tx = fixture.conn.transaction().unwrap();
     let ordinary = state::audit(&tx).unwrap();
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     {
         let native = state::audit_native_current(&tx).unwrap();
         assert_eq!(audit_summary(&ordinary), audit_summary(&native));

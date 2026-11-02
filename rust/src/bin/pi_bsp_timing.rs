@@ -780,7 +780,8 @@ fn main() -> std::process::ExitCode {
     } else {
         0.0
     };
-    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
+    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return)
+        .expect("C-19 research stats record");
     let sig = metrics::significance(
         &trade_pnls,
         &daily_returns,
@@ -788,7 +789,8 @@ fn main() -> std::process::ExitCode {
         &prices,
         fee_rate,
         m.strat_return,
-    );
+    )
+    .expect("C-19 research stats record");
 
     let n_voices = voices.len();
     let n_long = voices.iter().filter(|v| v.dir > 0).count();
@@ -796,6 +798,7 @@ fn main() -> std::process::ExitCode {
     let max_net = net_per_bar.iter().fold(0.0f64, |a, &x| a.max(x.abs()));
 
     println!("=== π_Θ^bsp 买卖点多声部离散择时回测（忠实 PDF §1-19）===");
+    println!("统计记录        : {}", m.research_stats.label());
     println!("品种            : {}", dataset.symbol);
     println!("bar 数          : {n}");
     println!("年化基数(years) : {years:.4}");

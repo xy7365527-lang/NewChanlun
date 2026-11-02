@@ -1,0 +1,866 @@
+{
+ "schema": "1488-s2-min12-oracle/1",
+ "rule_revision": "s2-axis-quantifiers+new-bi/2+segment-second/2",
+ "binary": {
+  "source": "main 6badaa6049",
+  "features": "s_session",
+  "sha256": "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040",
+  "location": "G:/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049"
+ },
+ "input": {
+  "messages_sha256": "d61371c95036eaaaacc94c9780955555271be41a49ad4d5f242424a1c447c6cd",
+  "clock_sha256": "779dcb8539bc9278933bde14d852e9d34493d956cb2c2647cb1db3ead9dfb36f",
+  "lines": 52
+ },
+ "query": {
+  "endpoint": "POST /api/v2/snapshot",
+  "history_mode": "AsKnown",
+  "scope": {
+   "economic": "not_started",
+   "structure": "CompleteCut"
+  },
+  "page_size": "31",
+  "order_version": "s-record-order/2"
+ },
+ "full_cut_files": "G:/AgentStorage/1488-accept/s2/run-{a,b}/oracle/g-XXXX.json（canonical projection；sha256(file)=cut_projection_digest）",
+ "structural_jsonl": {
+  "sha256": "eb75995a4ee9745674ef7216c1a83cdaa2e0b41b35ab968d5a432939f2997761",
+  "run_b_equal": true,
+  "location": "G:/AgentStorage/1488-accept/s2/run-a/STRUCTURAL.jsonl"
+ },
+ "db_sha256_both_runs": "4f1853998f6de030867e5e2de03a7f8312d6c70a507448261c18332d6387dedc",
+ "generations": [
+  {
+   "generation": 1,
+   "cut_projection_digest": "bdc89e20c1953f7f0eea1b71406707e6f3cede3ed63d6328eaffa3d14c81aace",
+   "file_sha256_run_a": "bdc89e20c1953f7f0eea1b71406707e6f3cede3ed63d6328eaffa3d14c81aace",
+   "file_sha256_run_b": "bdc89e20c1953f7f0eea1b71406707e6f3cede3ed63d6328eaffa3d14c81aace",
+   "bytes": 86724,
+   "counts": {
+    "objects": "6",
+    "observations": "2",
+    "raw_history": "1",
+    "relations": "0",
+    "total": "9",
+    "withdrawn_objects": "0",
+    "witnesses": "0"
+   }
+  },
+  {
+   "generation": 2,
+   "cut_projection_digest": "87816cbea56192b322ac916e31bf10c3d69194aca380f224b9068ef618c7344f",
+   "file_sha256_run_a": "87816cbea56192b322ac916e31bf10c3d69194aca380f224b9068ef618c7344f",
+   "file_sha256_run_b": "87816cbea56192b322ac916e31bf10c3d69194aca380f224b9068ef618c7344f",
+   "bytes": 108680,
+   "counts": {
+    "objects": "8",
+    "observations": "4",
+    "raw_history": "2",
+    "relations": "4",
+    "total": "22",
+    "withdrawn_objects": "4",
+    "witnesses": "0"
+   }
+  },
+  {
+   "generation": 3,
+   "cut_projection_digest": "0a61500139fde98d12883de4e30f1a147594a450f976cc05cbb2efef5133b750",
+   "file_sha256_run_a": "0a61500139fde98d12883de4e30f1a147594a450f976cc05cbb2efef5133b750",
+   "file_sha256_run_b": "0a61500139fde98d12883de4e30f1a147594a450f976cc05cbb2efef5133b750",
+   "bytes": 142407,
+   "counts": {
+    "objects": "13",
+    "observations": "7",
+    "raw_history": "3",
+    "relations": "12",
+    "total": "46",
+    "withdrawn_objects": "8",
+    "witnesses": "3"
+   }
+  },
+  {
+   "generation": 4,
+   "cut_projection_digest": "2bc15964f4a38300a6966df51aaaca89ad62dc736abd587da153246451e29ef9",
+   "file_sha256_run_a": "2bc15964f4a38300a6966df51aaaca89ad62dc736abd587da153246451e29ef9",
+   "file_sha256_run_b": "2bc15964f4a38300a6966df51aaaca89ad62dc736abd587da153246451e29ef9",
+   "bytes": 194455,
+   "counts": {
+    "objects": "16",
+    "observations": "9",
+    "raw_history": "4",
+    "relations": "27",
+    "total": "80",
+    "withdrawn_objects": "15",
+    "witnesses": "9"
+   }
+  },
+  {
+   "generation": 5,
+   "cut_projection_digest": "4cbb2c7d3d581719a373e9c3aa02b8fcac00ef14ec651d0348d04f7d2c852511",
+   "file_sha256_run_a": "4cbb2c7d3d581719a373e9c3aa02b8fcac00ef14ec651d0348d04f7d2c852511",
+   "file_sha256_run_b": "4cbb2c7d3d581719a373e9c3aa02b8fcac00ef14ec651d0348d04f7d2c852511",
+   "bytes": 245759,
+   "counts": {
+    "objects": "19",
+    "observations": "11",
+    "raw_history": "5",
+    "relations": "41",
+    "total": "112",
+    "withdrawn_objects": "21",
+    "witnesses": "15"
+   }
+  },
+  {
+   "generation": 6,
+   "cut_projection_digest": "50c9c226fa31e9066d17e0d09e9d4ff35cb879ba256b8c085b0e68ee0d4990af",
+   "file_sha256_run_a": "50c9c226fa31e9066d17e0d09e9d4ff35cb879ba256b8c085b0e68ee0d4990af",
+   "file_sha256_run_b": "50c9c226fa31e9066d17e0d09e9d4ff35cb879ba256b8c085b0e68ee0d4990af",
+   "bytes": 305333,
+   "counts": {
+    "objects": "22",
+    "observations": "13",
+    "raw_history": "6",
+    "relations": "55",
+    "total": "144",
+    "withdrawn_objects": "27",
+    "witnesses": "21"
+   }
+  },
+  {
+   "generation": 7,
+   "cut_projection_digest": "d877eaa9228f99aff403c9f5ac0e859f09f4aeda2f431bffa3d9ccbc1228e66c",
+   "file_sha256_run_a": "d877eaa9228f99aff403c9f5ac0e859f09f4aeda2f431bffa3d9ccbc1228e66c",
+   "file_sha256_run_b": "d877eaa9228f99aff403c9f5ac0e859f09f4aeda2f431bffa3d9ccbc1228e66c",
+   "bytes": 422098,
+   "counts": {
+    "objects": "37",
+    "observations": "16",
+    "raw_history": "7",
+    "relations": "76",
+    "total": "197",
+    "withdrawn_objects": "34",
+    "witnesses": "27"
+   }
+  },
+  {
+   "generation": 8,
+   "cut_projection_digest": "daab04ba59e369e844010e6638383c811aa4ed26fdbaea91b76446d7f17f7519",
+   "file_sha256_run_a": "daab04ba59e369e844010e6638383c811aa4ed26fdbaea91b76446d7f17f7519",
+   "file_sha256_run_b": "daab04ba59e369e844010e6638383c811aa4ed26fdbaea91b76446d7f17f7519",
+   "bytes": 570347,
+   "counts": {
+    "objects": "40",
+    "observations": "18",
+    "raw_history": "8",
+    "relations": "102",
+    "total": "254",
+    "withdrawn_objects": "53",
+    "witnesses": "33"
+   }
+  },
+  {
+   "generation": 9,
+   "cut_projection_digest": "fcbd88f7b9ab6354213ecee743307fc7aaa4dfa5e4adbf17f9e75755147915f4",
+   "file_sha256_run_a": "fcbd88f7b9ab6354213ecee743307fc7aaa4dfa5e4adbf17f9e75755147915f4",
+   "file_sha256_run_b": "fcbd88f7b9ab6354213ecee743307fc7aaa4dfa5e4adbf17f9e75755147915f4",
+   "bytes": 645821,
+   "counts": {
+    "objects": "42",
+    "observations": "20",
+    "raw_history": "9",
+    "relations": "117",
+    "total": "288",
+    "withdrawn_objects": "61",
+    "witnesses": "39"
+   }
+  },
+  {
+   "generation": 10,
+   "cut_projection_digest": "5b86420e377eba75fa12623cf378dbb82afa0ade92844e00af2f41ba14382497",
+   "file_sha256_run_a": "5b86420e377eba75fa12623cf378dbb82afa0ade92844e00af2f41ba14382497",
+   "file_sha256_run_b": "5b86420e377eba75fa12623cf378dbb82afa0ade92844e00af2f41ba14382497",
+   "bytes": 746109,
+   "counts": {
+    "objects": "45",
+    "observations": "22",
+    "raw_history": "10",
+    "relations": "132",
+    "total": "322",
+    "withdrawn_objects": "68",
+    "witnesses": "45"
+   }
+  },
+  {
+   "generation": 11,
+   "cut_projection_digest": "c358298b123a83f72d633c85926d113174fbef8700721a7546b9a6f00383a704",
+   "file_sha256_run_a": "c358298b123a83f72d633c85926d113174fbef8700721a7546b9a6f00383a704",
+   "file_sha256_run_b": "c358298b123a83f72d633c85926d113174fbef8700721a7546b9a6f00383a704",
+   "bytes": 923439,
+   "counts": {
+    "objects": "60",
+    "observations": "25",
+    "raw_history": "11",
+    "relations": "155",
+    "total": "378",
+    "withdrawn_objects": "76",
+    "witnesses": "51"
+   }
+  },
+  {
+   "generation": 12,
+   "cut_projection_digest": "0f36cbcacbc585a9b5b088abccad3cc02faeca013b24f7883ca5d40f689dd319",
+   "file_sha256_run_a": "0f36cbcacbc585a9b5b088abccad3cc02faeca013b24f7883ca5d40f689dd319",
+   "file_sha256_run_b": "0f36cbcacbc585a9b5b088abccad3cc02faeca013b24f7883ca5d40f689dd319",
+   "bytes": 1198931,
+   "counts": {
+    "objects": "65",
+    "observations": "27",
+    "raw_history": "12",
+    "relations": "191",
+    "total": "456",
+    "withdrawn_objects": "104",
+    "witnesses": "57"
+   }
+  },
+  {
+   "generation": 13,
+   "cut_projection_digest": "09afc30c0f63dde30363aaa0a96ce8b7934addc7ff19c57e15fde330b634fb45",
+   "file_sha256_run_a": "09afc30c0f63dde30363aaa0a96ce8b7934addc7ff19c57e15fde330b634fb45",
+   "file_sha256_run_b": "09afc30c0f63dde30363aaa0a96ce8b7934addc7ff19c57e15fde330b634fb45",
+   "bytes": 1314112,
+   "counts": {
+    "objects": "66",
+    "observations": "29",
+    "raw_history": "13",
+    "relations": "207",
+    "total": "492",
+    "withdrawn_objects": "114",
+    "witnesses": "63"
+   }
+  },
+  {
+   "generation": 14,
+   "cut_projection_digest": "8017b14831bdbe2635ba5b67098c40421ebf04ee43f94bd70532e94a9029f197",
+   "file_sha256_run_a": "8017b14831bdbe2635ba5b67098c40421ebf04ee43f94bd70532e94a9029f197",
+   "file_sha256_run_b": "8017b14831bdbe2635ba5b67098c40421ebf04ee43f94bd70532e94a9029f197",
+   "bytes": 1467518,
+   "counts": {
+    "objects": "69",
+    "observations": "31",
+    "raw_history": "14",
+    "relations": "223",
+    "total": "528",
+    "withdrawn_objects": "122",
+    "witnesses": "69"
+   }
+  },
+  {
+   "generation": 15,
+   "cut_projection_digest": "708abf4c733bfcd3a003514c229e4b4daa0ec4aee0b74692c99c4d1eba86ff00",
+   "file_sha256_run_a": "708abf4c733bfcd3a003514c229e4b4daa0ec4aee0b74692c99c4d1eba86ff00",
+   "file_sha256_run_b": "708abf4c733bfcd3a003514c229e4b4daa0ec4aee0b74692c99c4d1eba86ff00",
+   "bytes": 1746875,
+   "counts": {
+    "objects": "89",
+    "observations": "34",
+    "raw_history": "15",
+    "relations": "248",
+    "total": "592",
+    "withdrawn_objects": "131",
+    "witnesses": "75"
+   }
+  },
+  {
+   "generation": 16,
+   "cut_projection_digest": "74d8df32739f92e87b8a62f46c5f68ef9ad5e139adbe86cf7daf45c220f6bcfe",
+   "file_sha256_run_a": "74d8df32739f92e87b8a62f46c5f68ef9ad5e139adbe86cf7daf45c220f6bcfe",
+   "file_sha256_run_b": "74d8df32739f92e87b8a62f46c5f68ef9ad5e139adbe86cf7daf45c220f6bcfe",
+   "bytes": 2149870,
+   "counts": {
+    "objects": "94",
+    "observations": "36",
+    "raw_history": "16",
+    "relations": "289",
+    "total": "681",
+    "withdrawn_objects": "165",
+    "witnesses": "81"
+   }
+  },
+  {
+   "generation": 17,
+   "cut_projection_digest": "1db8f4cef1fbe325ebd816e45ca3dffeb021a2971c4d95e282c7aba0ebbb7a70",
+   "file_sha256_run_a": "1db8f4cef1fbe325ebd816e45ca3dffeb021a2971c4d95e282c7aba0ebbb7a70",
+   "file_sha256_run_b": "1db8f4cef1fbe325ebd816e45ca3dffeb021a2971c4d95e282c7aba0ebbb7a70",
+   "bytes": 2322459,
+   "counts": {
+    "objects": "94",
+    "observations": "38",
+    "raw_history": "17",
+    "relations": "306",
+    "total": "719",
+    "withdrawn_objects": "177",
+    "witnesses": "87"
+   }
+  },
+  {
+   "generation": 18,
+   "cut_projection_digest": "a83dcab78c553d456445f112076288005b8a7cb8a19b5c329db973f4ba4ee399",
+   "file_sha256_run_a": "a83dcab78c553d456445f112076288005b8a7cb8a19b5c329db973f4ba4ee399",
+   "file_sha256_run_b": "a83dcab78c553d456445f112076288005b8a7cb8a19b5c329db973f4ba4ee399",
+   "bytes": 2541072,
+   "counts": {
+    "objects": "97",
+    "observations": "40",
+    "raw_history": "18",
+    "relations": "323",
+    "total": "757",
+    "withdrawn_objects": "186",
+    "witnesses": "93"
+   }
+  },
+  {
+   "generation": 19,
+   "cut_projection_digest": "449d10f47403f27c48c877f644aa7f3c574cf1173645d5b9d3d2ba39a5cabb5a",
+   "file_sha256_run_a": "449d10f47403f27c48c877f644aa7f3c574cf1173645d5b9d3d2ba39a5cabb5a",
+   "file_sha256_run_b": "449d10f47403f27c48c877f644aa7f3c574cf1173645d5b9d3d2ba39a5cabb5a",
+   "bytes": 2916806,
+   "counts": {
+    "objects": "114",
+    "observations": "43",
+    "raw_history": "19",
+    "relations": "352",
+    "total": "826",
+    "withdrawn_objects": "199",
+    "witnesses": "99"
+   }
+  },
+  {
+   "generation": 20,
+   "cut_projection_digest": "957ea2e0091f1c35411fed88b5e32c9f9e1c49bd4a9a29f95f2383edd48b82d4",
+   "file_sha256_run_a": "957ea2e0091f1c35411fed88b5e32c9f9e1c49bd4a9a29f95f2383edd48b82d4",
+   "file_sha256_run_b": "957ea2e0091f1c35411fed88b5e32c9f9e1c49bd4a9a29f95f2383edd48b82d4",
+   "bytes": 3418792,
+   "counts": {
+    "objects": "119",
+    "observations": "45",
+    "raw_history": "20",
+    "relations": "394",
+    "total": "917",
+    "withdrawn_objects": "234",
+    "witnesses": "105"
+   }
+  },
+  {
+   "generation": 21,
+   "cut_projection_digest": "122ead398209debf473070522bfbb156cd0e51e7eac228114ece3fa8d0e9d553",
+   "file_sha256_run_a": "122ead398209debf473070522bfbb156cd0e51e7eac228114ece3fa8d0e9d553",
+   "file_sha256_run_b": "122ead398209debf473070522bfbb156cd0e51e7eac228114ece3fa8d0e9d553",
+   "bytes": 3666344,
+   "counts": {
+    "objects": "119",
+    "observations": "47",
+    "raw_history": "21",
+    "relations": "412",
+    "total": "957",
+    "withdrawn_objects": "247",
+    "witnesses": "111"
+   }
+  },
+  {
+   "generation": 22,
+   "cut_projection_digest": "086304d73f8b9827ef5eedb83efa7278b6d357a930b2b3d00e136747d53279ab",
+   "file_sha256_run_a": "086304d73f8b9827ef5eedb83efa7278b6d357a930b2b3d00e136747d53279ab",
+   "file_sha256_run_b": "086304d73f8b9827ef5eedb83efa7278b6d357a930b2b3d00e136747d53279ab",
+   "bytes": 3962814,
+   "counts": {
+    "objects": "122",
+    "observations": "49",
+    "raw_history": "22",
+    "relations": "430",
+    "total": "997",
+    "withdrawn_objects": "257",
+    "witnesses": "117"
+   }
+  },
+  {
+   "generation": 23,
+   "cut_projection_digest": "a69060728710b75b4e6c7600cf588a48e708cd4688acc00d4dea9f902453a18f",
+   "file_sha256_run_a": "a69060728710b75b4e6c7600cf588a48e708cd4688acc00d4dea9f902453a18f",
+   "file_sha256_run_b": "a69060728710b75b4e6c7600cf588a48e708cd4688acc00d4dea9f902453a18f",
+   "bytes": 4440357,
+   "counts": {
+    "objects": "138",
+    "observations": "52",
+    "raw_history": "23",
+    "relations": "460",
+    "total": "1068",
+    "withdrawn_objects": "272",
+    "witnesses": "123"
+   }
+  },
+  {
+   "generation": 24,
+   "cut_projection_digest": "4738295e93a17419a13b7cdbc98eb3c4c21d3a8c5743160227d8335b8bd78f3b",
+   "file_sha256_run_a": "4738295e93a17419a13b7cdbc98eb3c4c21d3a8c5743160227d8335b8bd78f3b",
+   "file_sha256_run_b": "4738295e93a17419a13b7cdbc98eb3c4c21d3a8c5743160227d8335b8bd78f3b",
+   "bytes": 5055343,
+   "counts": {
+    "objects": "143",
+    "observations": "54",
+    "raw_history": "24",
+    "relations": "503",
+    "total": "1161",
+    "withdrawn_objects": "308",
+    "witnesses": "129"
+   }
+  },
+  {
+   "generation": 25,
+   "cut_projection_digest": "b30e428454ac4c5d2e19e180ca7f1dc0683c84816651639655c2b1979cf38c5b",
+   "file_sha256_run_a": "b30e428454ac4c5d2e19e180ca7f1dc0683c84816651639655c2b1979cf38c5b",
+   "file_sha256_run_b": "b30e428454ac4c5d2e19e180ca7f1dc0683c84816651639655c2b1979cf38c5b",
+   "bytes": 5390149,
+   "counts": {
+    "objects": "143",
+    "observations": "56",
+    "raw_history": "25",
+    "relations": "522",
+    "total": "1203",
+    "withdrawn_objects": "322",
+    "witnesses": "135"
+   }
+  },
+  {
+   "generation": 26,
+   "cut_projection_digest": "dd51aea41b0f5bd3c51941d9b0af573454b64360a99b842e6e6f51fdcca071a0",
+   "file_sha256_run_a": "dd51aea41b0f5bd3c51941d9b0af573454b64360a99b842e6e6f51fdcca071a0",
+   "file_sha256_run_b": "dd51aea41b0f5bd3c51941d9b0af573454b64360a99b842e6e6f51fdcca071a0",
+   "bytes": 5776622,
+   "counts": {
+    "objects": "146",
+    "observations": "58",
+    "raw_history": "26",
+    "relations": "541",
+    "total": "1245",
+    "withdrawn_objects": "333",
+    "witnesses": "141"
+   }
+  },
+  {
+   "generation": 27,
+   "cut_projection_digest": "d273cf120e039338fedb152de818c3dd66d83549a5ee91e4806b77735e84423d",
+   "file_sha256_run_a": "d273cf120e039338fedb152de818c3dd66d83549a5ee91e4806b77735e84423d",
+   "file_sha256_run_b": "d273cf120e039338fedb152de818c3dd66d83549a5ee91e4806b77735e84423d",
+   "bytes": 6437217,
+   "counts": {
+    "objects": "169",
+    "observations": "61",
+    "raw_history": "27",
+    "relations": "575",
+    "total": "1328",
+    "withdrawn_objects": "349",
+    "witnesses": "147"
+   }
+  },
+  {
+   "generation": 28,
+   "cut_projection_digest": "ecdb70be26bed0f1e900f4f8c54b4eca67f56d79ca50564b67a1ac0b4d803b1f",
+   "file_sha256_run_a": "ecdb70be26bed0f1e900f4f8c54b4eca67f56d79ca50564b67a1ac0b4d803b1f",
+   "file_sha256_run_b": "ecdb70be26bed0f1e900f4f8c54b4eca67f56d79ca50564b67a1ac0b4d803b1f",
+   "bytes": 7264011,
+   "counts": {
+    "objects": "174",
+    "observations": "63",
+    "raw_history": "28",
+    "relations": "625",
+    "total": "1436",
+    "withdrawn_objects": "393",
+    "witnesses": "153"
+   }
+  },
+  {
+   "generation": 29,
+   "cut_projection_digest": "41de54789a70a3cc62cce7bf731b24f5ea30b6314642c598ac6d785ddce97b70",
+   "file_sha256_run_a": "41de54789a70a3cc62cce7bf731b24f5ea30b6314642c598ac6d785ddce97b70",
+   "file_sha256_run_b": "41de54789a70a3cc62cce7bf731b24f5ea30b6314642c598ac6d785ddce97b70",
+   "bytes": 7689680,
+   "counts": {
+    "objects": "173",
+    "observations": "65",
+    "raw_history": "29",
+    "relations": "645",
+    "total": "1480",
+    "withdrawn_objects": "409",
+    "witnesses": "159"
+   }
+  },
+  {
+   "generation": 30,
+   "cut_projection_digest": "91770e60220385b7193205a47f22fc3ac2692b663dffc2c79e49bb23976365bb",
+   "file_sha256_run_a": "91770e60220385b7193205a47f22fc3ac2692b663dffc2c79e49bb23976365bb",
+   "file_sha256_run_b": "91770e60220385b7193205a47f22fc3ac2692b663dffc2c79e49bb23976365bb",
+   "bytes": 8177563,
+   "counts": {
+    "objects": "176",
+    "observations": "67",
+    "raw_history": "30",
+    "relations": "665",
+    "total": "1524",
+    "withdrawn_objects": "421",
+    "witnesses": "165"
+   }
+  },
+  {
+   "generation": 31,
+   "cut_projection_digest": "c8c1ffa3681c28ae63554bb5f0404550d5e0ee2681e04fcbcb5fb7b5a7625a7f",
+   "file_sha256_run_a": "c8c1ffa3681c28ae63554bb5f0404550d5e0ee2681e04fcbcb5fb7b5a7625a7f",
+   "file_sha256_run_b": "c8c1ffa3681c28ae63554bb5f0404550d5e0ee2681e04fcbcb5fb7b5a7625a7f",
+   "bytes": 8894299,
+   "counts": {
+    "objects": "193",
+    "observations": "70",
+    "raw_history": "31",
+    "relations": "697",
+    "total": "1599",
+    "withdrawn_objects": "437",
+    "witnesses": "171"
+   }
+  },
+  {
+   "generation": 32,
+   "cut_projection_digest": "383df8bc1bb4bcd233aef72bb0afb10e7eba3648d3607321a86b7674cbf35ebe",
+   "file_sha256_run_a": "383df8bc1bb4bcd233aef72bb0afb10e7eba3648d3607321a86b7674cbf35ebe",
+   "file_sha256_run_b": "383df8bc1bb4bcd233aef72bb0afb10e7eba3648d3607321a86b7674cbf35ebe",
+   "bytes": 9780665,
+   "counts": {
+    "objects": "198",
+    "observations": "72",
+    "raw_history": "32",
+    "relations": "742",
+    "total": "1696",
+    "withdrawn_objects": "475",
+    "witnesses": "177"
+   }
+  },
+  {
+   "generation": 33,
+   "cut_projection_digest": "14d62fb3db3949abe3068f122c2f1b49537b337e9b48141f2ec8ef12e6a5baac",
+   "file_sha256_run_a": "14d62fb3db3949abe3068f122c2f1b49537b337e9b48141f2ec8ef12e6a5baac",
+   "file_sha256_run_b": "14d62fb3db3949abe3068f122c2f1b49537b337e9b48141f2ec8ef12e6a5baac",
+   "bytes": 10326227,
+   "counts": {
+    "objects": "198",
+    "observations": "74",
+    "raw_history": "33",
+    "relations": "763",
+    "total": "1742",
+    "withdrawn_objects": "491",
+    "witnesses": "183"
+   }
+  },
+  {
+   "generation": 34,
+   "cut_projection_digest": "36fa2b11de73f0466994b88dd250508bea7f5ee5c47df02612b4c8efadbea270",
+   "file_sha256_run_a": "36fa2b11de73f0466994b88dd250508bea7f5ee5c47df02612b4c8efadbea270",
+   "file_sha256_run_b": "36fa2b11de73f0466994b88dd250508bea7f5ee5c47df02612b4c8efadbea270",
+   "bytes": 10928924,
+   "counts": {
+    "objects": "201",
+    "observations": "76",
+    "raw_history": "34",
+    "relations": "784",
+    "total": "1788",
+    "withdrawn_objects": "504",
+    "witnesses": "189"
+   }
+  },
+  {
+   "generation": 35,
+   "cut_projection_digest": "d2950e663b0d87f8ed19427fdf4effc2ba5273ded92b64ecc83ad19f7605b431",
+   "file_sha256_run_a": "d2950e663b0d87f8ed19427fdf4effc2ba5273ded92b64ecc83ad19f7605b431",
+   "file_sha256_run_b": "d2950e663b0d87f8ed19427fdf4effc2ba5273ded92b64ecc83ad19f7605b431",
+   "bytes": 11783772,
+   "counts": {
+    "objects": "217",
+    "observations": "79",
+    "raw_history": "35",
+    "relations": "817",
+    "total": "1865",
+    "withdrawn_objects": "522",
+    "witnesses": "195"
+   }
+  },
+  {
+   "generation": 36,
+   "cut_projection_digest": "d5ab48ac9d2a02fb3f2c5a6b49307e2ab1d7c7d70e93ab441a85de800af53fe2",
+   "file_sha256_run_a": "d5ab48ac9d2a02fb3f2c5a6b49307e2ab1d7c7d70e93ab441a85de800af53fe2",
+   "file_sha256_run_b": "d5ab48ac9d2a02fb3f2c5a6b49307e2ab1d7c7d70e93ab441a85de800af53fe2",
+   "bytes": 12819297,
+   "counts": {
+    "objects": "222",
+    "observations": "81",
+    "raw_history": "36",
+    "relations": "863",
+    "total": "1964",
+    "withdrawn_objects": "561",
+    "witnesses": "201"
+   }
+  },
+  {
+   "generation": 37,
+   "cut_projection_digest": "7c0a236db5626dd40f3eef66cea6830ecc29af0848426bca9c96b99115ea5a4f",
+   "file_sha256_run_a": "7c0a236db5626dd40f3eef66cea6830ecc29af0848426bca9c96b99115ea5a4f",
+   "file_sha256_run_b": "7c0a236db5626dd40f3eef66cea6830ecc29af0848426bca9c96b99115ea5a4f",
+   "bytes": 13488355,
+   "counts": {
+    "objects": "222",
+    "observations": "83",
+    "raw_history": "37",
+    "relations": "885",
+    "total": "2012",
+    "withdrawn_objects": "578",
+    "witnesses": "207"
+   }
+  },
+  {
+   "generation": 38,
+   "cut_projection_digest": "762b5a0adc3e78f3d8f8311bc015c9edfe4edc566aaf533e6e92108487fe9188",
+   "file_sha256_run_a": "762b5a0adc3e78f3d8f8311bc015c9edfe4edc566aaf533e6e92108487fe9188",
+   "file_sha256_run_b": "762b5a0adc3e78f3d8f8311bc015c9edfe4edc566aaf533e6e92108487fe9188",
+   "bytes": 14217273,
+   "counts": {
+    "objects": "225",
+    "observations": "85",
+    "raw_history": "38",
+    "relations": "907",
+    "total": "2060",
+    "withdrawn_objects": "592",
+    "witnesses": "213"
+   }
+  },
+  {
+   "generation": 39,
+   "cut_projection_digest": "d4086b4a15903d94bfa25c5b618d3178f75a2f4b47a225ce166107820b2bd68f",
+   "file_sha256_run_a": "d4086b4a15903d94bfa25c5b618d3178f75a2f4b47a225ce166107820b2bd68f",
+   "file_sha256_run_b": "d4086b4a15903d94bfa25c5b618d3178f75a2f4b47a225ce166107820b2bd68f",
+   "bytes": 15315630,
+   "counts": {
+    "objects": "248",
+    "observations": "88",
+    "raw_history": "39",
+    "relations": "944",
+    "total": "2149",
+    "withdrawn_objects": "611",
+    "witnesses": "219"
+   }
+  },
+  {
+   "generation": 40,
+   "cut_projection_digest": "9da1c2c7fd78171bff6d1492e3ddc1f0ceb9eb676d40739365c0c6ca2b17880e",
+   "file_sha256_run_a": "9da1c2c7fd78171bff6d1492e3ddc1f0ceb9eb676d40739365c0c6ca2b17880e",
+   "file_sha256_run_b": "9da1c2c7fd78171bff6d1492e3ddc1f0ceb9eb676d40739365c0c6ca2b17880e",
+   "bytes": 16623472,
+   "counts": {
+    "objects": "253",
+    "observations": "90",
+    "raw_history": "40",
+    "relations": "997",
+    "total": "2263",
+    "withdrawn_objects": "658",
+    "witnesses": "225"
+   }
+  },
+  {
+   "generation": 41,
+   "cut_projection_digest": "1d8b2e6d7a43a3d29872f5e8cc3a7958c377b1b57448a6893d1e51b848137771",
+   "file_sha256_run_a": "1d8b2e6d7a43a3d29872f5e8cc3a7958c377b1b57448a6893d1e51b848137771",
+   "file_sha256_run_b": "1d8b2e6d7a43a3d29872f5e8cc3a7958c377b1b57448a6893d1e51b848137771",
+   "bytes": 17419728,
+   "counts": {
+    "objects": "252",
+    "observations": "92",
+    "raw_history": "41",
+    "relations": "1020",
+    "total": "2313",
+    "withdrawn_objects": "677",
+    "witnesses": "231"
+   }
+  },
+  {
+   "generation": 42,
+   "cut_projection_digest": "ea69c7d4c848be5993fbef9b2b8640235972c248bb89f1a763e75cf975348336",
+   "file_sha256_run_a": "ea69c7d4c848be5993fbef9b2b8640235972c248bb89f1a763e75cf975348336",
+   "file_sha256_run_b": "ea69c7d4c848be5993fbef9b2b8640235972c248bb89f1a763e75cf975348336",
+   "bytes": 18286393,
+   "counts": {
+    "objects": "255",
+    "observations": "94",
+    "raw_history": "42",
+    "relations": "1043",
+    "total": "2363",
+    "withdrawn_objects": "692",
+    "witnesses": "237"
+   }
+  },
+  {
+   "generation": 43,
+   "cut_projection_digest": "cc55940927f6b27f99d05153b418f996337e158990034c787981f6d44e8847c9",
+   "file_sha256_run_a": "cc55940927f6b27f99d05153b418f996337e158990034c787981f6d44e8847c9",
+   "file_sha256_run_b": "cc55940927f6b27f99d05153b418f996337e158990034c787981f6d44e8847c9",
+   "bytes": 19452876,
+   "counts": {
+    "objects": "272",
+    "observations": "97",
+    "raw_history": "43",
+    "relations": "1078",
+    "total": "2444",
+    "withdrawn_objects": "711",
+    "witnesses": "243"
+   }
+  },
+  {
+   "generation": 44,
+   "cut_projection_digest": "55e16653b31639e34a8ad815bc170099dbde03f5b3c5bc24af79d63cc905f264",
+   "file_sha256_run_a": "55e16653b31639e34a8ad815bc170099dbde03f5b3c5bc24af79d63cc905f264",
+   "file_sha256_run_b": "55e16653b31639e34a8ad815bc170099dbde03f5b3c5bc24af79d63cc905f264",
+   "bytes": 20832240,
+   "counts": {
+    "objects": "277",
+    "observations": "99",
+    "raw_history": "44",
+    "relations": "1126",
+    "total": "2547",
+    "withdrawn_objects": "752",
+    "witnesses": "249"
+   }
+  },
+  {
+   "generation": 45,
+   "cut_projection_digest": "65936b4902f254e8081ec678bc520e9887b086fe9e07fca1c5272ebba60d1a40",
+   "file_sha256_run_a": "65936b4902f254e8081ec678bc520e9887b086fe9e07fca1c5272ebba60d1a40",
+   "file_sha256_run_b": "65936b4902f254e8081ec678bc520e9887b086fe9e07fca1c5272ebba60d1a40",
+   "bytes": 21784628,
+   "counts": {
+    "objects": "277",
+    "observations": "101",
+    "raw_history": "45",
+    "relations": "1150",
+    "total": "2599",
+    "withdrawn_objects": "771",
+    "witnesses": "255"
+   }
+  },
+  {
+   "generation": 46,
+   "cut_projection_digest": "3c44045ba91d65a8551b71aae3a90dd18f1b341ebc0c942a47960930d0213994",
+   "file_sha256_run_a": "3c44045ba91d65a8551b71aae3a90dd18f1b341ebc0c942a47960930d0213994",
+   "file_sha256_run_b": "3c44045ba91d65a8551b71aae3a90dd18f1b341ebc0c942a47960930d0213994",
+   "bytes": 22802325,
+   "counts": {
+    "objects": "280",
+    "observations": "103",
+    "raw_history": "46",
+    "relations": "1174",
+    "total": "2651",
+    "withdrawn_objects": "787",
+    "witnesses": "261"
+   }
+  },
+  {
+   "generation": 47,
+   "cut_projection_digest": "5cafe976d0291ec324b7181af079ffc1ee1381b4b9dfc3e0941be89a0ad7fa26",
+   "file_sha256_run_a": "5cafe976d0291ec324b7181af079ffc1ee1381b4b9dfc3e0941be89a0ad7fa26",
+   "file_sha256_run_b": "5cafe976d0291ec324b7181af079ffc1ee1381b4b9dfc3e0941be89a0ad7fa26",
+   "bytes": 24143180,
+   "counts": {
+    "objects": "296",
+    "observations": "106",
+    "raw_history": "47",
+    "relations": "1210",
+    "total": "2734",
+    "withdrawn_objects": "808",
+    "witnesses": "267"
+   }
+  },
+  {
+   "generation": 48,
+   "cut_projection_digest": "483d6b71b584b69fead64082982a6fad348196a85711984871f86dc1433a49a8",
+   "file_sha256_run_a": "483d6b71b584b69fead64082982a6fad348196a85711984871f86dc1433a49a8",
+   "file_sha256_run_b": "483d6b71b584b69fead64082982a6fad348196a85711984871f86dc1433a49a8",
+   "bytes": 25708014,
+   "counts": {
+    "objects": "301",
+    "observations": "108",
+    "raw_history": "48",
+    "relations": "1259",
+    "total": "2839",
+    "withdrawn_objects": "850",
+    "witnesses": "273"
+   }
+  },
+  {
+   "generation": 49,
+   "cut_projection_digest": "55fe4e0ab0a1c219ad97e7ddeae49b6bacfa653e79cff724779e6629a8f9d13a",
+   "file_sha256_run_a": "55fe4e0ab0a1c219ad97e7ddeae49b6bacfa653e79cff724779e6629a8f9d13a",
+   "file_sha256_run_b": "55fe4e0ab0a1c219ad97e7ddeae49b6bacfa653e79cff724779e6629a8f9d13a",
+   "bytes": 26820234,
+   "counts": {
+    "objects": "301",
+    "observations": "110",
+    "raw_history": "49",
+    "relations": "1284",
+    "total": "2893",
+    "withdrawn_objects": "870",
+    "witnesses": "279"
+   }
+  },
+  {
+   "generation": 50,
+   "cut_projection_digest": "73c8b5511b330470ebe65817de5088c49cdc8369808901200736428dc67ab9a9",
+   "file_sha256_run_a": "73c8b5511b330470ebe65817de5088c49cdc8369808901200736428dc67ab9a9",
+   "file_sha256_run_b": "73c8b5511b330470ebe65817de5088c49cdc8369808901200736428dc67ab9a9",
+   "bytes": 28000489,
+   "counts": {
+    "objects": "304",
+    "observations": "112",
+    "raw_history": "50",
+    "relations": "1309",
+    "total": "2947",
+    "withdrawn_objects": "887",
+    "witnesses": "285"
+   }
+  },
+  {
+   "generation": 51,
+   "cut_projection_digest": "9c29ba687fdc825cdeab499641b5bd9b527b46c51c6430f7a85ddcce75599374",
+   "file_sha256_run_a": "9c29ba687fdc825cdeab499641b5bd9b527b46c51c6430f7a85ddcce75599374",
+   "file_sha256_run_b": "9c29ba687fdc825cdeab499641b5bd9b527b46c51c6430f7a85ddcce75599374",
+   "bytes": 29645393,
+   "counts": {
+    "objects": "327",
+    "observations": "115",
+    "raw_history": "51",
+    "relations": "1349",
+    "total": "3042",
+    "withdrawn_objects": "909",
+    "witnesses": "291"
+   }
+  },
+  {
+   "generation": 52,
+   "cut_projection_digest": "c15e3fb543c447c6d1eb47d116e3583cfa2b4dff47b38f7a4e3fdbab921768a5",
+   "file_sha256_run_a": "c15e3fb543c447c6d1eb47d116e3583cfa2b4dff47b38f7a4e3fdbab921768a5",
+   "file_sha256_run_b": "c15e3fb543c447c6d1eb47d116e3583cfa2b4dff47b38f7a4e3fdbab921768a5",
+   "bytes": 31543041,
+   "counts": {
+    "objects": "332",
+    "observations": "117",
+    "raw_history": "52",
+    "relations": "1405",
+    "total": "3162",
+    "withdrawn_objects": "959",
+    "witnesses": "297"
+   }
+  }
+ ]
+}

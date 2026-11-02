@@ -34,6 +34,7 @@ use super::master::{MasterExitSignal, MasterState};
 use super::tape::SignalTape;
 use super::trend_exhaustion::TrendExhaustion;
 use super::types::*;
+use crate::funding_record::ReplayRecords;
 
 /// 完成交易记录（Python `CompletedTrade` 逐字段）。
 #[derive(Debug, Clone)]
@@ -72,6 +73,8 @@ pub struct TradeDiag {
 #[derive(Debug, Default)]
 pub struct RunResult {
     pub trades: Vec<TradeRec>,
+    /// 本次回放读的记录 id 与版本（`ReplayRecords::label`，#1601）。
+    pub records: String,
     pub counters: Counters,
     pub rev_attempts_by_ladder: [u64; MAX_LADDER],
     pub rev_opens_by_ladder: [u64; MAX_LADDER],
@@ -105,6 +108,10 @@ const SHORT: u8 = 4;
 
 struct Run {
     floor_ladder: usize,
+    /// 期初资金（ADR 0040 funding-record `cap`，#1601）。
+    q_total: f64,
+    /// ARM 后次级别确认过期 bar 数（`arm-sub-expiry` 记录，#1601）。
+    sub_expiry: i64,
     stop_on: bool,
     entry_mode: EntryMode,
     /// entry 级完整声部（NRF E 轴）：active_levels 上界含 entry 级。
@@ -125,7 +132,7 @@ struct Run {
     arm_ladder: usize,
     pos: Option<OrganicLedger>,
     /// 空侧持仓单位（#1313；SHORT 态专属，1x 全仓镜像 long 的
-    /// INITIAL_CAPITAL/price）。非 SHORT 态恒 0.0。margin 隐式 =
+    /// q_total/price）。非 SHORT 态恒 0.0。margin 隐式 =
     /// units×entry_price（与 fusion 1x 虚拟逐仓同口径）。
     short_units: f64,
     active_levels: Vec<usize>,
@@ -155,15 +162,15 @@ impl Run {
         let level_frac = if n_sub > 0 { 1.0 / n_sub as f64 } else { 0.0 };
         self.pos = Some(match self.entry_mode {
             EntryMode::Full => {
-                OrganicLedger::new(price, INITIAL_CAPITAL / price, level_frac, self.with_diag)
+                OrganicLedger::new(price, self.q_total / price, level_frac, self.with_diag)
             }
             EntryMode::Recursive { base_frac } => {
-                let deployed = INITIAL_CAPITAL * base_frac;
+                let deployed = self.q_total * base_frac;
                 self.res.rec_fills.push((bar, el as u8, base_frac, price));
                 OrganicLedger::with_reserve(
                     price,
                     deployed,
-                    INITIAL_CAPITAL - deployed,
+                    self.q_total - deployed,
                     level_frac,
                     self.with_diag,
                 )
@@ -198,13 +205,13 @@ impl Run {
     }
 
     /// 空侧入场（#1313 方向对称化）：`open_position` 的短侧镜像——1x 全仓
-    /// 持空（units = INITIAL_CAPITAL/price，与 long 全仓同量纲），零声部、
+    /// 持空（units = q_total/price，与 long 全仓同量纲），零声部、
     /// 零递归建仓（短侧表达位：布防→确认→持空→买点平空的最小二元循环）。
     fn open_short(&mut self, bar: i64, price: f64, el: usize) {
         self.entry_bar = bar;
         self.entry_price = price;
         self.entry_ladder = el;
-        self.short_units = INITIAL_CAPITAL / price;
+        self.short_units = self.q_total / price;
         self.state = SHORT;
     }
 
@@ -219,7 +226,7 @@ impl Run {
             return;
         }
         let pnl = self.short_units * (self.entry_price - price);
-        let pnl_pct = pnl / INITIAL_CAPITAL * 100.0;
+        let pnl_pct = pnl / self.q_total * 100.0;
         let held = bar - self.entry_bar;
         self.res.trades.push(TradeRec {
             entry_bar: self.entry_bar,
@@ -263,7 +270,7 @@ impl Run {
         if pos.undeployed_cash > 0.0 {
             self.counters.n_rec_entry_partial_exits += 1;
         }
-        let pnl_pct = (total_value - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
+        let pnl_pct = (total_value - self.q_total) / self.q_total * 100.0;
         let held = bar - self.entry_bar;
         self.res.trades.push(TradeRec {
             entry_bar: self.entry_bar,
@@ -310,12 +317,16 @@ impl Run {
 }
 
 /// 主入口。`diag=true` 时返回逐 trade 快照 + 腿 trace。
+///
+/// `rec`：本次回放读的版本化记录（#1601）——期初资金 = `rec.q_total()`，ARM 过期窗口 =
+/// `rec.sub_expiry()`；结果 `records` 写出记录 id 与版本。
 pub fn run_organic(
     tape: &SignalTape,
     floor_ladder: usize,
     cfg: &OrganicConfig,
     stop_mode: StopMode,
     diag: bool,
+    rec: &ReplayRecords,
 ) -> Result<RunResult, String> {
     // ── capability guards（Python 逐字 + v2 D3）──
     if floor_ladder < FIRST_BSP_LADDER {
@@ -700,6 +711,8 @@ pub fn run_organic(
     let n = tape.bars.len();
     let mut run = Run {
         floor_ladder,
+        q_total: rec.q_total(),
+        sub_expiry: rec.sub_expiry(),
         stop_on: stop_mode.is_on(),
         entry_mode: cfg.entry_mode,
         entry_voice: cfg.entry_voice,
@@ -723,6 +736,7 @@ pub fn run_organic(
         counters: Counters::default(),
         res: RunResult {
             diag: if diag { Some(Vec::new()) } else { None },
+            records: rec.label(),
             ..Default::default()
         },
         fsm_recovered: std::collections::BTreeMap::new(),
@@ -884,11 +898,11 @@ pub fn run_organic(
             // 区间套入场：次级别任意买点确认（[bar, arm_ladder) 任一层）
             let sub_mask = (1u16 << run.arm_ladder) - 1;
             let mut do_enter = sig.buy_any.0 & sub_mask != 0;
-            if !do_enter && (i as i64 - run.arm_bar) > SUB_EXPIRY {
+            if !do_enter && (i as i64 - run.arm_bar) > run.sub_expiry {
                 if cfg.sc_entry_strict {
                     // SCe：严格区间套——超时不强制入场，继续等待次级别确认
                     // 或 sell1 撤防（27课：无次级别把握的买点不操作）。
-                    if (i as i64 - run.arm_bar) == SUB_EXPIRY + 1 {
+                    if (i as i64 - run.arm_bar) == run.sub_expiry + 1 {
                         run.counters.n_sc_entry_expire_skips += 1;
                     }
                 } else {
@@ -911,11 +925,11 @@ pub fn run_organic(
             }
             let sub_mask = (1u16 << run.arm_ladder) - 1;
             let mut do_enter = sig.sell_any.0 & sub_mask != 0;
-            if !do_enter && (i as i64 - run.arm_bar) > SUB_EXPIRY {
+            if !do_enter && (i as i64 - run.arm_bar) > run.sub_expiry {
                 if cfg.sc_entry_strict {
                     // SCe 镜像：严格区间套——超时不强制开空，继续等待次级别
                     // 卖确认或 buy1 撤防。
-                    if (i as i64 - run.arm_bar) == SUB_EXPIRY + 1 {
+                    if (i as i64 - run.arm_bar) == run.sub_expiry + 1 {
                         run.counters.n_sc_entry_expire_skips += 1;
                     }
                 } else {
@@ -1146,7 +1160,7 @@ pub fn run_organic(
                     let cash = if k == sig.max_ladder as usize {
                         pos.undeployed_cash // 最高级别确认 → 补满
                     } else {
-                        (INITIAL_CAPITAL * run.next_quota).min(pos.undeployed_cash)
+                        (run.q_total * run.next_quota).min(pos.undeployed_cash)
                     };
                     if pos.add_entry_tranche(cash, c) {
                         run.fill_ladder = k;
@@ -1154,12 +1168,12 @@ pub fn run_organic(
                         run.counters.n_rec_entry_fills += 1;
                         run.res
                             .rec_fills
-                            .push((i as i64, k as u8, cash / INITIAL_CAPITAL, c));
+                            .push((i as i64, k as u8, cash / run.q_total, c));
                         if pos.undeployed_cash <= 0.0 {
                             run.filled_frac = 1.0;
                             run.counters.n_rec_entry_full += 1;
                         } else {
-                            run.filled_frac = 1.0 - pos.undeployed_cash / INITIAL_CAPITAL;
+                            run.filled_frac = 1.0 - pos.undeployed_cash / run.q_total;
                         }
                     } else {
                         run.counters.n_rec_entry_earning_rejects += 1;
@@ -1491,7 +1505,7 @@ mod ledger_voice_tests {
             bar_ev(106.0, 2, ev(BspClass::Buy2, true)),
         ]);
         let cfg = variant("VL").unwrap();
-        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(r.counters.n_ledger_opens, 1);
         assert_eq!(r.counters.n_ledger_sell_noops, 1);
         assert_eq!(r.counters.n_ledger_closes, 1);
@@ -1501,11 +1515,50 @@ mod ledger_voice_tests {
         assert_eq!(r.trades[0].n_short_diffs, 1);
     }
 
+    /// #1601 专项验收：P0 与 P0-acceptance-5m 两份记录各跑一次回放，输出写出记录 id 与版本，
+    /// 期初资金随 `Q_total` 变（短差现金 ×50）；P0 与改前常数等值夹具除 `records` 外逐位相同。
+    /// 把 `run.q_total` 改回常数的变异体让 ×50 断言变红。
+    #[test]
+    fn replay_reads_q_total_and_version_from_records() {
+        let t = entry_tape(vec![
+            bar_ev(110.0, 2, ev(BspClass::Sell2, true)),
+            bar_ev(112.0, 2, ev(BspClass::Sell1, true)),
+            bar_ev(105.0, 2, ev(BspClass::Buy1, true)),
+            bar_ev(106.0, 2, ev(BspClass::Buy2, true)),
+        ]);
+        let cfg = variant("VL").unwrap();
+        let run =
+            |rec: &ReplayRecords| run_organic(&t, 2, &cfg, StopMode::None, false, rec).unwrap();
+        let fx = run(&ReplayRecords::legacy_parity_fixture());
+        let p0 = run(&ReplayRecords::active("P0").unwrap());
+        let acc = run(&ReplayRecords::active("P0-acceptance-5m").unwrap());
+        assert_eq!(
+            p0.records,
+            "#1557/funding-authorization/v1@P0/v1; #1558/chong-derivation-input/v1@P0/v1; arm-sub-expiry/1"
+        );
+        assert_eq!(
+            acc.records,
+            "#1557/funding-authorization/v1@P0-acceptance-5m/v1; \
+             #1558/chong-derivation-input/v1@P0-acceptance-5m/v1; arm-sub-expiry/1"
+        );
+        // Q_total 可追溯：短差回收现金按 Q 线性缩放（5,000,000 / 100,000 = 50）。
+        let cash = |r: &RunResult| r.leg_contribution.iter().map(|(_, c, _)| c).sum::<f64>();
+        assert!(cash(&p0) != 0.0, "场景须产生短差现金");
+        assert!((cash(&acc) / cash(&p0) - 50.0).abs() < 1e-9);
+        assert_eq!(p0.trades.len(), acc.trades.len());
+        // 等值对拍：Q_total、ARM 窗口等值（run_organic 不读 op_ladder）⟹ 除 records 外逐位相同。
+        let strip = |mut r: RunResult| {
+            r.records.clear();
+            format!("{r:?}")
+        };
+        assert_eq!(strip(fx), strip(p0));
+    }
+
     #[test]
     fn ledger_voice_candidate_events_not_consumed() {
         let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, false))]);
         let cfg = variant("VL").unwrap();
-        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(r.counters.n_ledger_opens, 0);
         assert_eq!(r.counters.n_ledger_sell_noops, 0);
     }
@@ -1519,7 +1572,7 @@ mod ledger_voice_tests {
             bar_ev(105.0, 2, ev(BspClass::Buy1, true)),
         ]);
         let cfg = variant("VLs1").unwrap();
-        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(r.counters.n_ledger_opens, 1);
         assert_eq!(r.counters.n_ledger_sell_noops, 0);
         assert_eq!(r.counters.n_ledger_closes, 1);
@@ -1550,7 +1603,7 @@ mod ledger_voice_tests {
         ]);
         t.trend_flips = Some(vec![(0, 2, true), (3, 2, false), (4, 2, true)]);
         let cfg = variant("VLd").unwrap();
-        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(r.counters.n_ledger_domain_rejects, 1, "bar2 趋势态拒开");
         assert_eq!(r.counters.n_ledger_opens, 1, "bar3 盘整态开腿");
         assert_eq!(r.counters.n_ledger_closes, 1, "bar4 趋势态闭腿不受门约束");
@@ -1561,7 +1614,7 @@ mod ledger_voice_tests {
     fn ledger_domain_gate_requires_trend_rows() {
         let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, true))]);
         let cfg = variant("VLd").unwrap();
-        assert!(run_organic(&t, 2, &cfg, StopMode::None, false).is_err());
+        assert!(run_organic_fx(&t, 2, &cfg, StopMode::None, false).is_err());
     }
 
     #[test]
@@ -1581,7 +1634,7 @@ mod ledger_voice_tests {
         tail.push(bar_ev(105.0, 2, ev(BspClass::Buy1, true)));
         let t = entry_tape(tail);
         let cfg = variant("VLc").unwrap();
-        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(
             r.counters.n_ledger_cost_noref_rejects, 1,
             "warm-up 期保守拒绝"
@@ -1601,7 +1654,7 @@ mod ledger_voice_tests {
         }
         tail2.push(bar_ev(110.0, 2, ev(BspClass::Sell1, true)));
         let t2 = entry_tape(tail2);
-        let r2 = run_organic(&t2, 2, &cfg, StopMode::None, false).unwrap();
+        let r2 = run_organic_fx(&t2, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(
             r2.counters.n_ledger_cost_rejects, 1,
             "θ_q=0.01% < 0.2% 配额归零"
@@ -1637,7 +1690,7 @@ mod ledger_voice_tests {
             ..Default::default()
         };
         let cfg = variant("VL").unwrap();
-        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &cfg, StopMode::None, false).unwrap();
         assert_eq!(r.counters.n_ledger_opens, 2, "两声部同 bar 各自开腿");
         assert_eq!(r.counters.n_ledger_closes, 1, "Buy@2 只闭 voice2");
         // 归因分离：py_key=2（voice2 信号闭，@110→@105 盈利）与
@@ -1667,12 +1720,12 @@ mod ledger_voice_tests {
             ledger_domain_gate: true,
             ..OrganicConfig::default()
         };
-        assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
+        assert!(run_organic_fx(&t, 2, &orphan, StopMode::None, false).is_err());
         let orphan2 = OrganicConfig {
             ledger_cost_gate: true,
             ..OrganicConfig::default()
         };
-        assert!(run_organic(&t, 2, &orphan2, StopMode::None, false).is_err());
+        assert!(run_organic_fx(&t, 2, &orphan2, StopMode::None, false).is_err());
     }
 
     #[test]
@@ -1683,13 +1736,13 @@ mod ledger_voice_tests {
             voice_mode: VoiceMode::Ledger,
             ..variant("V2oa25").unwrap()
         };
-        assert!(run_organic(&t, 2, &bad, StopMode::None, false).is_err());
+        assert!(run_organic_fx(&t, 2, &bad, StopMode::None, false).is_err());
         // FSM 路径带 ledger_sell_t1_only ⇒ 拒绝（孤儿位）
         let orphan = OrganicConfig {
             ledger_sell_t1_only: true,
             ..OrganicConfig::default()
         };
-        assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
+        assert!(run_organic_fx(&t, 2, &orphan, StopMode::None, false).is_err());
     }
 }
 
@@ -1788,7 +1841,7 @@ mod fsm_symmetry_tests {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &perp(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 1, "短侧一轮完整循环 = 一条 trade");
         let tr = &r.trades[0];
         assert_eq!(tr.exit_reason, "short_cover");
@@ -1815,7 +1868,7 @@ mod fsm_symmetry_tests {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &perp(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 1);
         assert!(
             (r.trades[0].pnl_pct + 10.0).abs() < 1e-6,
@@ -1839,23 +1892,23 @@ mod fsm_symmetry_tests {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &perp(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 0, "撤防后 sell_any 不再开空");
     }
 
-    /// 卖出对称单测：次级别卖确认不来 → SUB_EXPIRY 超时强制开空（long 侧
+    /// 卖出对称单测：次级别卖确认不来 → FIXTURE_SUB_EXPIRY 超时强制开空（long 侧
     /// 超时 fallback 的镜像）。
     #[test]
     fn perp_short_timeout_force_entry() {
         let mut bars = vec![with_bsp(sell1(bar(100.0), 3))];
-        for _ in 0..(SUB_EXPIRY + 2) {
+        for _ in 0..(FIXTURE_SUB_EXPIRY + 2) {
             bars.push(bar(100.0));
         }
         let t = SignalTape {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &perp(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 1, "超时 fallback 开空");
         assert_eq!(
             r.trades[0].exit_reason, "short_eod",
@@ -1875,7 +1928,7 @@ mod fsm_symmetry_tests {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &perp(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 1);
         assert_eq!(r.trades[0].exit_reason, "short_eod");
         assert_eq!(r.trades[0].exit_price, 95.0);
@@ -1895,7 +1948,7 @@ mod fsm_symmetry_tests {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &stock(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &stock(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 0, "Stock 在册路径零短侧行为");
     }
 
@@ -1914,11 +1967,30 @@ mod fsm_symmetry_tests {
             bars,
             ..Default::default()
         };
-        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        let r = run_organic_fx(&t, 2, &perp(), StopMode::None, false).unwrap();
         assert_eq!(r.trades.len(), 1, "同 bar 并现 long 布防优先，短侧不接管");
         assert_eq!(
             r.trades[0].exit_reason, "exit_move(L1)_type1sell",
             "长侧 buy1 布防→次级别买确认→sell1 出场的完整循环（短侧接管则无此出场）"
         );
     }
+}
+
+/// 测试夹具入口：与改前常数等值的记录（`ReplayRecords::legacy_parity_fixture`）。
+#[cfg(test)]
+pub(crate) fn run_organic_fx(
+    tape: &SignalTape,
+    floor_ladder: usize,
+    cfg: &OrganicConfig,
+    stop_mode: StopMode,
+    diag: bool,
+) -> Result<RunResult, String> {
+    run_organic(
+        tape,
+        floor_ladder,
+        cfg,
+        stop_mode,
+        diag,
+        &ReplayRecords::legacy_parity_fixture(),
+    )
 }

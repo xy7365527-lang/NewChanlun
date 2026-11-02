@@ -1,0 +1,357 @@
+{
+ "mode": "cross-binary",
+ "run_a": "/home/hanju/nc-remote/1488-accept/s5/n1b",
+ "run_b": "/home/hanju/nc-remote/1488-accept/s1/r8a",
+ "verdict": "PASS",
+ "invariant_items": 31,
+ "invariant_equal": 31,
+ "conditional_items": 5,
+ "conditional_equal": 2,
+ "conditional_differences_to_explain": [
+  "s_content_nodes 全集（560037/784774）",
+  "binary_sha256",
+  "逐代 stored_nodes/stored_body_bytes"
+ ],
+ "info": {
+  "basis_recompute_matches_product": true,
+  "generations": [
+   86,
+   86
+  ],
+  "final_snapshot_root": [
+   "7508b621a01011e8175e6f63a603fd23788c609ab4419abbb84a9e7afc724f5b",
+   "7508b621a01011e8175e6f63a603fd23788c609ab4419abbb84a9e7afc724f5b"
+  ],
+  "final_basis_root": [
+   "sc1-c195df5907960fa559f7a9a139b4619d9eba0e52384b5190ba9cdba5d5414d7e",
+   "sc1-c195df5907960fa559f7a9a139b4619d9eba0e52384b5190ba9cdba5d5414d7e"
+  ],
+  "nodes_a": {
+   "stored": 560037,
+   "reachable": 344419,
+   "unreachable": 215618,
+   "unreachable_fraction": 0.385007,
+   "stored_body_bytes": 35080866
+  },
+  "nodes_b": {
+   "stored": 784774,
+   "reachable": 344419,
+   "unreachable": 440355,
+   "unreachable_fraction": 0.561123,
+   "stored_body_bytes": 51261418
+  }
+ },
+ "results": [
+  {
+   "tier": "INVARIANT",
+   "item": "init.json",
+   "equal": true,
+   "digest_a": "39c85728cbfef37fe991f510b1d7bd6d20d9000792e6cd108a6ce372fd2845e9",
+   "digest_b": "39c85728cbfef37fe991f510b1d7bd6d20d9000792e6cd108a6ce372fd2845e9"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "responses.jsonl(86 回复帧逐位)",
+   "equal": true,
+   "digest_a": "e4c9e4986a66908a2749b7181deb54c4d6138cf754a4121886c64876d6ee9a57",
+   "digest_b": "e4c9e4986a66908a2749b7181deb54c4d6138cf754a4121886c64876d6ee9a57"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "逐代公开根 manifest/snapshot/delta_root",
+   "equal": true,
+   "digest_a": "1a6947015da5f38d12ab0b280d95598df6eb6df5cc7b2b74ee87afe0985fa045",
+   "digest_b": "1a6947015da5f38d12ab0b280d95598df6eb6df5cc7b2b74ee87afe0985fa045"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "逐代 FinancialBasis 根（独立重算）",
+   "equal": true,
+   "digest_a": "7ee00f8db1ea241db4d62c420b30ae7d139fcc5967d4e0c87288e26ba3a1230d",
+   "digest_b": "7ee00f8db1ea241db4d62c420b30ae7d139fcc5967d4e0c87288e26ba3a1230d"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "basis-ref.json（产品 financial-basis-ref 末代回执）",
+   "equal": true,
+   "digest_a": "9607846efe5c4968b18fbaa16c82745f1d169455feb8e659ddd0d6a92823b258",
+   "digest_b": "9607846efe5c4968b18fbaa16c82745f1d169455feb8e659ddd0d6a92823b258"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 batches（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 catalog（116 行）",
+   "equal": true,
+   "digest_a": "026e89428b88472fd906e48c210bb4425e43968e0f7944b60b92462acaa7734f",
+   "digest_b": "026e89428b88472fd906e48c210bb4425e43968e0f7944b60b92462acaa7734f"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "meta 环境键",
+   "equal": true,
+   "digest_a": "91a37c4d9ebfdbe43d2c0ed29d59874c0b4373548693fc20b3ba7ee5148dc00b",
+   "digest_b": "91a37c4d9ebfdbe43d2c0ed29d59874c0b4373548693fc20b3ba7ee5148dc00b"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 meta（21 行）",
+   "equal": true,
+   "digest_a": "e4db3878b6f578e394b994b68b9d8e83e779dbd633af567d789ca0ec3906b93c",
+   "digest_b": "e4db3878b6f578e394b994b68b9d8e83e779dbd633af567d789ca0ec3906b93c"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 objects（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 observations（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 raw_events（86 行）",
+   "equal": true,
+   "digest_a": "6b49a5ef6639aeec4dd775a46575df6aae5174dee94a16cbc89bf9334e304353",
+   "digest_b": "6b49a5ef6639aeec4dd775a46575df6aae5174dee94a16cbc89bf9334e304353"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 raw_ohlc（86 行）",
+   "equal": true,
+   "digest_a": "5aa0229f5f85e211abbf355d79061842d58abff07de2b9b80da56b83af1c9968",
+   "digest_b": "5aa0229f5f85e211abbf355d79061842d58abff07de2b9b80da56b83af1c9968"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 relations（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_clock_events（258 行）",
+   "equal": true,
+   "digest_a": "a3edc2f0f8537258229f6138f2ee17dc43b30dc406656270a15c81723955d2c2",
+   "digest_b": "a3edc2f0f8537258229f6138f2ee17dc43b30dc406656270a15c81723955d2c2"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_meta（1 行）",
+   "equal": true,
+   "digest_a": "f38fd8c295d0745c1a11f14c76b15bd0432a5a755b30c33864f72914ca76bb1f",
+   "digest_b": "f38fd8c295d0745c1a11f14c76b15bd0432a5a755b30c33864f72914ca76bb1f"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_objects（1028 行）",
+   "equal": true,
+   "digest_a": "29623898c65b2bdf88f8bbbcc1c332a3708428aac17e90c08ae2f32a7a481d03",
+   "digest_b": "29623898c65b2bdf88f8bbbcc1c332a3708428aac17e90c08ae2f32a7a481d03"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_observations（171 行）",
+   "equal": true,
+   "digest_a": "c4c10cff6be0240acd42312239282db1a6e814db449de93c2809717b3a5a0304",
+   "digest_b": "c4c10cff6be0240acd42312239282db1a6e814db449de93c2809717b3a5a0304"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_publications（86 行）",
+   "equal": true,
+   "digest_a": "9e1a79c11c6ed5e4ee60fe47b402d8ae55a75f80acab75fbf93b6987623645df",
+   "digest_b": "9e1a79c11c6ed5e4ee60fe47b402d8ae55a75f80acab75fbf93b6987623645df"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_relations（1416 行）",
+   "equal": true,
+   "digest_a": "e867b7c3dee780e89b1496c098b0d4e8b8c24ef700225656e0bd4ab4451be6ef",
+   "digest_b": "e867b7c3dee780e89b1496c098b0d4e8b8c24ef700225656e0bd4ab4451be6ef"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_content_witnesses（501 行）",
+   "equal": true,
+   "digest_a": "c7e84866133003c033a0420075ef332633379cc43b21e4d8fe2be8e39d28200b",
+   "digest_b": "c7e84866133003c033a0420075ef332633379cc43b21e4d8fe2be8e39d28200b"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_delivery_policy（1 行）",
+   "equal": true,
+   "digest_a": "b7ff5e5acd51cbdf11c3ab6a63c146172aa773387d9169eeef6537ce6a6a8e7a",
+   "digest_b": "b7ff5e5acd51cbdf11c3ab6a63c146172aa773387d9169eeef6537ce6a6a8e7a"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_delivery_refs（4 行）",
+   "equal": true,
+   "digest_a": "3b0659109cacd33b419e18ee7653cf6bbe9d0543871c087d73273a9b3cf1de6a",
+   "digest_b": "3b0659109cacd33b419e18ee7653cf6bbe9d0543871c087d73273a9b3cf1de6a"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_input_messages（86 行）",
+   "equal": true,
+   "digest_a": "e7b89a09b2a81de19581fc33c979983d9cd0ae68abcec38ddf38761f8003f875",
+   "digest_b": "e7b89a09b2a81de19581fc33c979983d9cd0ae68abcec38ddf38761f8003f875"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 s_protocol_meta（1 行）",
+   "equal": true,
+   "digest_a": "c0ab6338c6f14b6af6723959913e24bd092fa241548d4eabdf5d7addad1a7ca1",
+   "digest_b": "c0ab6338c6f14b6af6723959913e24bd092fa241548d4eabdf5d7addad1a7ca1"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 structure_deltas（86 行）",
+   "equal": true,
+   "digest_a": "882fb984a4fca5447b028456081378501a46d132c23d1a4a39089a9e40d1526e",
+   "digest_b": "882fb984a4fca5447b028456081378501a46d132c23d1a4a39089a9e40d1526e"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 structure_facts（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 witnesses（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "表 writer_epoch_history（0 行）",
+   "equal": true,
+   "digest_a": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "digest_b": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "公开根集合",
+   "equal": true,
+   "digest_a": "66064c03066601a599a6e60ed10c78881021b489ad9054b45d12f8bbec33cace",
+   "digest_b": "66064c03066601a599a6e60ed10c78881021b489ad9054b45d12f8bbec33cace"
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "可达闭包节点（344419/344419，digest:tag:sha(body)，均已核 F）",
+   "equal": true,
+   "digest_a": "08fc2d80f5163fccf0336348c2b55a4e3218f67411f4e144182ffa7289740541",
+   "digest_b": "08fc2d80f5163fccf0336348c2b55a4e3218f67411f4e144182ffa7289740541"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "s_content_nodes 全集（560037/784774）",
+   "equal": false,
+   "digest_a": "d94c7f0621af1bff6eb9f49ff3b817ef16be0352e2886461976f8e0c1b9ff515",
+   "digest_b": "64cdbc6f0718d1bd3082cfbc354ebe2d6120d5741ed74b10d6d804dc169ce942",
+   "diff": {
+    "len": [
+     560037,
+     784774
+    ],
+    "only_a": [],
+    "only_b": [
+     "00004d8157ddb9acfa710f8cc50a72940207c72c6738b4c6af51c4c8ddcbce74:13:48d512918235c0f0f7cfe28cd1d282de341f06096c2600798afcabb7437ad98b",
+     "0000e10b25a2835995f17093d72df8d0cb7654dd3ebfd75a9475b34b4138d097:13:1ac47ac5f53e7b26119bdec364a679d54e1f192aa022cccb0bc9d3d35935b3a5",
+     "0000f2bc778e764a2feb98f427794189aec5b0dcea4740f10d1873f166e86be3:13:32ea889f09c5e3a764ebe0fc27bbe4fdb019401e1bf1ac2720b25d5d940dc0d3",
+     "000112e6a5463fbaaaea5a00e9bf7e7d0297c2b8e5e0c0f13443be05986effd5:13:2f48b1110c11b890ad049d9a14a22d1e8ccff766ea8e10d3c2dd1c33182fd265",
+     "0001493f547acb7db4fdf2834a7cd2d2b5cc8945e9d9bc4c11e05826e50cd2d9:13:7a7f81e4b35ee6689c252790e13bec4f1b60b99465f742abd01287a69ca58a18"
+    ],
+    "order_or_multiplicity_only": false
+   }
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "sqlite_master DDL",
+   "equal": true,
+   "digest_a": "fb3ee09bb6b929e39a629834e34a75900476c2e38996a78c2388aa8b7d111a0d",
+   "digest_b": "fb3ee09bb6b929e39a629834e34a75900476c2e38996a78c2388aa8b7d111a0d"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "binary_sha256",
+   "equal": false,
+   "digest_a": "bdc789cabb6ea0ca2525985a41276bba33fa11ed68253e5778df5886512badf5",
+   "digest_b": "c042ef106292420a43991eece23330705df2ba5eae8d4adcb1dcfa6e7f6732cd",
+   "diff": {
+    "a": "4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882",
+    "b": "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040"
+   }
+  },
+  {
+   "tier": "INVARIANT",
+   "item": "输入文件 sha256（同输入前提）",
+   "equal": true,
+   "digest_a": "a85c204c49f75c50d299455afd23217ea91261ab4ca6ef764ab29e95a4fbdfe3",
+   "digest_b": "a85c204c49f75c50d299455afd23217ea91261ab4ca6ef764ab29e95a4fbdfe3"
+  },
+  {
+   "tier": "CONDITIONAL",
+   "item": "逐代 stored_nodes/stored_body_bytes",
+   "equal": false,
+   "digest_a": "c527839479dafe292659d3b8cbc7471326894a81301eda4d90ddf414a65dc0aa",
+   "digest_b": "a9bb1d8b39b6bfcb00c08b95953646bd8ae5b69f98182c6fe38a3fa563b6c5cb",
+   "diff": {
+    "len": [
+     86,
+     86
+    ],
+    "only_a": [
+     "[10,\"Committed\",21619,1245204]",
+     "[11,\"Committed\",24457,1415972]",
+     "[12,\"Committed\",27351,1590348]",
+     "[13,\"Committed\",30298,1768024]",
+     "[14,\"Committed\",33377,1954764]"
+    ],
+    "only_b": [
+     "[10,\"Committed\",22541,1311588]",
+     "[11,\"Committed\",25768,1510364]",
+     "[12,\"Committed\",29085,1715196]",
+     "[13,\"Committed\",32338,1914904]",
+     "[14,\"Committed\",35870,2134260]"
+    ],
+    "order_or_multiplicity_only": false
+   }
+  }
+ ],
+ "always_different_not_compared": {
+  "readings": "elapsed_ns、rchar/wchar/syscr/syscw/read_bytes/write_bytes、cpu_ticks",
+  "run-manifest": "started_unix、serve_startup_ns、workdir、binary 路径、host/kernel",
+  "process": "pid、socket 路径、serve.stderr",
+  "db_files": {
+   "a": {
+    "s.sqlite": "720bd66845e5abb70b4681089de74cc585635048f7a611d27a480a4dc410913d",
+    "s.sqlite-shm": "2cf3532e8de02add009c8534544d617f4195f648af513b5045fe8438858ed854",
+    "s.sqlite-wal": "d925748327ff0318e4f67fa3300d895906d8a01aad41db1af593861c867c6c5d",
+    "s.sqlite.writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "b": {
+    "s.sqlite": "f8a563a0294f44810c956135fa6b5828a0a114172c6775af1cdbff4cb72d76da",
+    "s.sqlite-shm": "0948a32608ba77d58b052668b30d41c8c110daae9c355af5b2977b2ba2736563",
+    "s.sqlite-wal": "4ced153ef6dd6b358e4434437b031905bfc573c8a611fef2073263d1d360a9f4",
+    "s.sqlite.writer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   }
+  }
+ }
+}

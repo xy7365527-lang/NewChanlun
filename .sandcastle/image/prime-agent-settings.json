@@ -1,6 +1,4 @@
 {
-  "defaultProvider": "kimi-coding",
-  "defaultModel": "k3",
   "mcpServers": {
     "serena": {
       "type": "http",

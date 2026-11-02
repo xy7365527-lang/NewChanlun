@@ -117,9 +117,9 @@ class RunAndVerifyTests(unittest.TestCase):
             env=self.env | env, capture_output=True, text=True,
         )
 
-    def verify(self, count: int, dirs: list[str]) -> subprocess.CompletedProcess[str]:
+    def verify(self, count: int, dirs: list[str], *extra: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(SCRIPT), "verify", "--count", str(count), *dirs],
+            [sys.executable, str(SCRIPT), "verify", "--count", str(count), *extra, *dirs],
             capture_output=True, text=True,
         )
 
@@ -163,6 +163,42 @@ class RunAndVerifyTests(unittest.TestCase):
         self.assertEqual(done.returncode, 1)
         self.assertIn("::error title=Shard executed.tsv missing::", done.stderr)
         self.assertNotIn("Traceback", done.stderr)
+
+    def run_all(self, count: int) -> list[str]:
+        for i in range(count):
+            self.assertEqual(self.run_shard(i, count).returncode, 0)
+        return [str(self.root / f"shard-{i}") for i in range(count)]
+
+    def test_verify_accepts_named_groups_meeting_minimum(self) -> None:
+        dirs = self.run_all(3)
+        done = self.verify(3, dirs, "--require", "6:mod1::tests::", "--require", "1:tests::slow_a")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("require filter=mod1::tests:: min=6 matched=7 ok=7 not_ok=0", done.stdout)
+
+    def test_verify_rejects_group_below_minimum(self) -> None:
+        dirs = self.run_all(3)
+        done = self.verify(3, dirs, "--require", "8:mod1::tests::")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("::error title=Required tests missing::filter=mod1::tests:: min=8", done.stderr)
+
+    def test_verify_rejects_missing_group(self) -> None:
+        dirs = self.run_all(3)
+        done = self.verify(3, dirs, "--require", "1:native_n1_")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("filter=native_n1_ min=1 matched=0 ok=0", done.stderr)
+
+    def test_verify_rejects_ignored_member_of_required_group(self) -> None:
+        dirs = self.run_all(3)
+        done = self.verify(3, dirs, "--require", "1:mod0::tests::")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("not_ok=['mod0::tests::case_00']", done.stderr)
+
+    def test_verify_rejects_malformed_requirement(self) -> None:
+        dirs = self.run_all(3)
+        for raw in ("native_n1_", "0:native_n1_", "x:native_n1_", "3:"):
+            done = self.verify(3, dirs, "--require", raw)
+            self.assertEqual(done.returncode, 1, raw)
+            self.assertIn("Invalid requirement", done.stderr)
 
     def test_invalid_index_is_rejected(self) -> None:
         done = self.run_shard(3, 3)

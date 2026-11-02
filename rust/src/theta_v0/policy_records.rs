@@ -6,30 +6,78 @@
 //! - `tower-level-budget`：[`policy_records/tower-level-budget.json`]，字段 `l_max`；
 //! - `macd-force`：[`policy_records/macd-force.json`]，字段 `fast`/`slow`/`signal`。
 //!
+//! #1604（#1586 审计 C-04/A-12）沿同一形制再加两份：
+//!
+//! - `second-seq-scan-budget`（v2）：[`policy_records/second-seq-scan-budget.json`]，字段
+//!   `second_seq_window`（v1 原有的第二序列窗口）与 `tail_window`（原代码常数 `TAIL_WINDOW = 7`）；
+//! - `segment-second`（v2）：[`policy_records/segment-second.json`]，线段构造规则记录，字段
+//!   `tangency ∈ {closed, open}`（xianduan §6.3）。`id/version` 就是现行规则 token
+//!   `segment-second/2`（`parser::segment::CONSTRUCTION_RULE`），不新增 token。
+//!
 //! 记录随源码入库并编进二进制（`include_str!`）；数值只写在记录文件里，Rust 代码不再持有这些
 //! 常数。改值 ＝ 改签新版本（`version` +1），按新值重推导；输出经 [`PolicyRef`] 写明所用记录
 //! id 与版本（见 `classifier::pipeline::ClassifyOutput::policy`）。
 //!
 //! ## 缺值行为（ADR 0041 裁定二推论、#799）
 //!
-//! 记录缺失 ⟹ [`PolicyError::RecordMissing`]；字段缺失、`value` 为 `null` 或 `"AwaitingPolicy"`
-//! ⟹ [`PolicyError::AwaitingPolicy`]；值非法 ⟹ [`PolicyError::Invalid`]。三者都是错误、
+//! 记录缺失 ⟹ [`PolicyError::RecordMissing`]；字段缺失、字段直写或 `value` 为 `null` /
+//! `"AwaitingPolicy"` ⟹ [`PolicyError::AwaitingPolicy`]；值非法 ⟹ [`PolicyError::Invalid`]。三者都是错误、
 //! 调用方必须停止；本模块**没有**备用值，也不回退到任何旧常数。
 
 use serde_json::Value;
 
-use super::config::{LevelConfig, MacdConfig};
+use super::config::{LevelConfig, MacdConfig, Tangency, TowerBase};
+use crate::trading::positional::TrendScope;
 
 /// 级别塔资源预算记录 id（C-09）。
 pub const TOWER_LEVEL_BUDGET_ID: &str = "tower-level-budget";
 /// MACD 力度 policy 记录 id（C-10）。
 pub const MACD_FORCE_ID: &str = "macd-force";
+/// 特征序列扫描预算记录 id（C-04，#1604）。
+pub const SECOND_SEQ_SCAN_BUDGET_ID: &str = "second-seq-scan-budget";
+/// 线段构造规则记录 id（A-12，#1604；xianduan §6.3 载体）。
+pub const SEGMENT_CONSTRUCTION_ID: &str = "segment-second";
+/// 趋势作用域 policy 记录 id（A-14）。
+pub const TREND_SCOPE_ID: &str = "trend-scope";
+/// 塔底构造 policy 记录 id（A-15）。
+pub const TOWER_BASE_ID: &str = "tower-base";
+/// C-19 研究回测与验收统计记录 id（#1605；与 evidence_gate 独立）。
+pub const RESEARCH_STATS_ID: &str = "#1605/research-stats";
+/// ADR 0022 evidence_gate 记录 id（#1677；下游消费由 #1398/#1410/#1441 实施）。
+pub const EVIDENCE_GATE_ID: &str = "#1677/evidence-gate";
+/// L3 探针资金 profile id（#1605；不是研究统计字段的摆设）。
+pub const L3_PROBE_PROFILE_ID: &str = "#1605/l3-probe-profile";
+/// W-VERIFY 探针资金 profile id（现行公式无 L3 的 1e6 下限，不能混用）。
+pub const NO_FLOOR_PROBE_PROFILE_ID: &str = "#1605/no-floor-probe-profile";
 
 /// 当前生效的级别塔资源预算记录（编进二进制）。
 pub const ACTIVE_TOWER_LEVEL_BUDGET_JSON: &str =
     include_str!("policy_records/tower-level-budget.json");
 /// 当前生效的 MACD 力度 policy 记录（编进二进制）。
 pub const ACTIVE_MACD_FORCE_JSON: &str = include_str!("policy_records/macd-force.json");
+/// 当前生效的特征序列扫描预算记录（编进二进制）。
+pub const ACTIVE_SECOND_SEQ_SCAN_BUDGET_JSON: &str =
+    include_str!("policy_records/second-seq-scan-budget.json");
+/// 当前生效的线段构造规则记录（编进二进制；Python 侧读同一文件，#1604）。
+pub const ACTIVE_SEGMENT_CONSTRUCTION_JSON: &str =
+    include_str!("policy_records/segment-second.json");
+/// 当前生效的趋势作用域记录。
+pub const ACTIVE_TREND_SCOPE_JSON: &str = include_str!("policy_records/trend-scope.json");
+/// 当前生效的塔底构造记录。
+pub const ACTIVE_TOWER_BASE_JSON: &str = include_str!("policy_records/tower-base.json");
+/// 旧经济臂 ARM 后次级别确认过期窗口记录 id（#1601，#1586 C-22）。
+pub const ARM_SUB_EXPIRY_ID: &str = "arm-sub-expiry";
+/// 当前生效的 `arm-sub-expiry` 记录（编进二进制）。
+pub const ACTIVE_ARM_SUB_EXPIRY_JSON: &str = include_str!("policy_records/arm-sub-expiry.json");
+/// 当前生效的 C-19 研究统计记录。
+pub const ACTIVE_RESEARCH_STATS_JSON: &str = include_str!("policy_records/research-stats.json");
+/// 当前生效的 evidence_gate 记录；与 C-19 不合并。
+pub const ACTIVE_EVIDENCE_GATE_JSON: &str = include_str!("policy_records/evidence-gate.json");
+/// 当前生效的 L3 探针资金 profile。
+pub const ACTIVE_L3_PROBE_PROFILE_JSON: &str = include_str!("policy_records/l3-probe-profile.json");
+/// 当前生效的 W-VERIFY 探针资金 profile。
+pub const ACTIVE_NO_FLOOR_PROBE_PROFILE_JSON: &str =
+    include_str!("policy_records/no-floor-probe-profile.json");
 
 /// 记录版本。`Signed(n)` 来自记录文件的 `version` 字段；`ResearchOverride` 是研究/镜像工具在
 /// 代码里改了字段值、没有对应签署版本的情形——输出照实写出，不冒充签署版本。
@@ -47,12 +95,14 @@ pub struct PolicyRef {
 }
 
 impl PolicyRef {
-    /// `id/版本` 形式，例如 `tower-level-budget/1`；研究覆写写作 `tower-level-budget/research-override`。
+    /// `id/版本` 形式，例如 `tower-level-budget/1`；票据命名记录写 `#1605/research-stats/v1`。
     pub fn label(&self) -> String {
-        match self.version {
-            PolicyVersion::Signed(v) => format!("{}/{}", self.id, v),
-            PolicyVersion::ResearchOverride => format!("{}/research-override", self.id),
-        }
+        let version = match self.version {
+            PolicyVersion::Signed(v) if self.id.starts_with('#') => format!("v{v}"),
+            PolicyVersion::Signed(v) => v.to_string(),
+            PolicyVersion::ResearchOverride => "research-override".to_string(),
+        };
+        format!("{}/{}", self.id, version)
     }
 }
 
@@ -67,7 +117,8 @@ impl std::fmt::Display for PolicyRef {
 pub enum PolicyError {
     /// 记录不存在（未提供记录文本）。
     RecordMissing { id: &'static str },
-    /// 字段未签：字段缺失，或 `value` 为 `null` / `"AwaitingPolicy"`。
+    /// 字段未签：字段缺失；字段直写为 `null` / `"AwaitingPolicy"`；或 `value` 缺失、为 `null` /
+    /// `"AwaitingPolicy"`。记录头 `version` 缺失或为 `null` 同判此类（`field = "version"`）。
     AwaitingPolicy { id: &'static str, field: String },
     /// 记录或字段值非法。
     Invalid {
@@ -98,7 +149,7 @@ impl std::fmt::Display for PolicyError {
 
 impl std::error::Error for PolicyError {}
 
-fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyError {
+pub(crate) fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyError {
     PolicyError::Invalid {
         id,
         field: field.to_string(),
@@ -107,7 +158,7 @@ fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyEr
 }
 
 /// 解析记录头：`id` 必须等于期望 id，`version` 必须是正整数。返回 (`PolicyRef`, `fields` 对象)。
-fn parse_header(
+pub(crate) fn parse_header(
     id: &'static str,
     text: Option<&str>,
 ) -> Result<(PolicyRef, serde_json::Map<String, Value>), PolicyError> {
@@ -154,12 +205,12 @@ fn parse_header(
     ))
 }
 
-/// 读一个非负整数字段（`fields.<name>.value`）。
-fn read_u32(
+/// 取已签字段的 `value`（`fields.<name>.value`）；缺失或未签 ⟹ `AwaitingPolicy`。
+fn signed_value<'a>(
     id: &'static str,
-    fields: &serde_json::Map<String, Value>,
+    fields: &'a serde_json::Map<String, Value>,
     name: &str,
-) -> Result<u32, PolicyError> {
+) -> Result<&'a Value, PolicyError> {
     let awaiting = || PolicyError::AwaitingPolicy {
         id,
         field: name.to_string(),
@@ -173,16 +224,103 @@ fn read_u32(
     let entry = entry
         .as_object()
         .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
-    let value = entry.get("value").ok_or_else(awaiting)?;
-    match value {
+    match entry.get("value") {
+        None | Some(Value::Null) => Err(awaiting()),
+        Some(Value::String(s)) if s == "AwaitingPolicy" => Err(awaiting()),
+        Some(v) => Ok(v),
+    }
+}
+
+/// 读一个有限浮点字段。JSON 的整数也接受；NaN/Infinity 与指数溢出均判非法。
+pub(crate) fn read_f64(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<f64, PolicyError> {
+    let awaiting = || PolicyError::AwaitingPolicy {
+        id,
+        field: name.to_string(),
+    };
+    let entry = fields.get(name).ok_or_else(awaiting)?;
+    if entry.is_null() || entry.as_str() == Some("AwaitingPolicy") {
+        return Err(awaiting());
+    }
+    let entry = entry
+        .as_object()
+        .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
+    match entry.get("value").ok_or_else(awaiting)? {
         Value::Null => Err(awaiting()),
         Value::String(s) if s == "AwaitingPolicy" => Err(awaiting()),
         v => v
-            .as_u64()
-            .filter(|&n| n <= u64::from(u32::MAX))
-            .map(|n| n as u32)
-            .ok_or_else(|| invalid(id, name, format!("须为非负整数，得 {v}"))),
+            .as_f64()
+            .filter(|x| x.is_finite())
+            .ok_or_else(|| invalid(id, name, format!("须为有限数值，得 {v}"))),
     }
+}
+
+/// 读一个字符串字段（`fields.<name>.value`）；缺失与未签的口径同 [`read_u32`]，非字符串判非法。
+pub(crate) fn read_str(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<String, PolicyError> {
+    let awaiting = || PolicyError::AwaitingPolicy {
+        id,
+        field: name.to_string(),
+    };
+    let entry = fields.get(name).ok_or_else(awaiting)?;
+    if entry.is_null() || entry.as_str() == Some("AwaitingPolicy") {
+        return Err(awaiting());
+    }
+    let entry = entry
+        .as_object()
+        .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
+    match entry.get("value").ok_or_else(awaiting)? {
+        Value::Null => Err(awaiting()),
+        Value::String(s) if s == "AwaitingPolicy" => Err(awaiting()),
+        Value::String(s) => Ok(s.clone()),
+        v => Err(invalid(id, name, format!("须为字符串，得 {v}"))),
+    }
+}
+
+/// 读一个非负整数字段（`fields.<name>.value`）。
+pub(crate) fn read_u32(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<u32, PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    v.as_u64()
+        .filter(|&n| n <= u64::from(u32::MAX))
+        .map(|n| n as u32)
+        .ok_or_else(|| invalid(id, name, format!("须为非负整数，得 {v}")))
+}
+
+/// 读一个布尔字段（`fields.<name>.value`）。
+pub(super) fn read_bool(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<bool, PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    v.as_bool()
+        .ok_or_else(|| invalid(id, name, format!("须为 true/false，得 {v}")))
+}
+
+/// 读一个定长有限浮点数组字段（`fields.<name>.value`）。
+pub(super) fn read_f64_array<const N: usize>(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<[f64; N], PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    let bad = || invalid(id, name, format!("须为 {N} 个有限数的数组，得 {v}"));
+    let arr = v.as_array().filter(|a| a.len() == N).ok_or_else(bad)?;
+    let mut out = [0.0; N];
+    for (slot, x) in out.iter_mut().zip(arr) {
+        *slot = x.as_f64().filter(|x| x.is_finite()).ok_or_else(bad)?;
+    }
+    Ok(out)
 }
 
 /// 解析 `tower-level-budget` 记录。`min_parts_per_level` 不在本记录里：它是中枢定义的三段下限
@@ -219,6 +357,32 @@ pub fn parse_macd_force(text: Option<&str>) -> Result<MacdConfig, PolicyError> {
     })
 }
 
+/// 解析 `arm-sub-expiry` 记录（#1601，#1586 C-22）。合法性：正整数 bar 数。
+pub fn parse_arm_sub_expiry(text: Option<&str>) -> Result<ArmSubExpiry, PolicyError> {
+    let (record, fields) = parse_header(ARM_SUB_EXPIRY_ID, text)?;
+    let bars = read_u32(ARM_SUB_EXPIRY_ID, &fields, "sub_expiry_bars")?;
+    if bars == 0 {
+        return Err(invalid(
+            ARM_SUB_EXPIRY_ID,
+            "sub_expiry_bars",
+            "过期窗口须 ≥ 1 bar",
+        ));
+    }
+    Ok(ArmSubExpiry { record, bars })
+}
+
+/// `arm-sub-expiry` 记录的解析结果（旧经济臂 ARM 后次级别确认过期窗口）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArmSubExpiry {
+    pub record: PolicyRef,
+    pub bars: u32,
+}
+
+/// 当前生效记录的 `arm-sub-expiry`。
+pub fn active_arm_sub_expiry() -> Result<ArmSubExpiry, PolicyError> {
+    parse_arm_sub_expiry(Some(ACTIVE_ARM_SUB_EXPIRY_JSON))
+}
+
 /// `tower-level-budget` 记录的解析结果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TowerLevelBudget {
@@ -236,18 +400,204 @@ pub fn active_macd_force() -> Result<MacdConfig, PolicyError> {
     parse_macd_force(Some(ACTIVE_MACD_FORCE_JSON))
 }
 
-/// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
-pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
-    LevelConfig {
+/// `second-seq-scan-budget` 记录的解析结果（C-04）。两个窗口都是 0 = 不设上限。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScanBudget {
+    pub record: PolicyRef,
+    /// 第二特征序列扫描窗口（`ParseConfig::second_seq_scan_window`）。
+    pub second_seq_window: u32,
+    /// 主特征序列尾窗（`ParseConfig::tail_window`）。
+    pub tail_window: u32,
+}
+
+/// 解析 `second-seq-scan-budget` 记录。v1 只是 S 线形里的 token、没有记录文件，故 `version < 2`
+/// 的记录判非法（v1 没有 `tail_window` 字段，不能拿它补值）。
+pub fn parse_second_seq_scan_budget(text: Option<&str>) -> Result<ScanBudget, PolicyError> {
+    let (record, fields) = parse_header(SECOND_SEQ_SCAN_BUDGET_ID, text)?;
+    if record.version == PolicyVersion::Signed(1) {
+        return Err(invalid(
+            SECOND_SEQ_SCAN_BUDGET_ID,
+            "version",
+            "v1 未承载 tail_window（#1604 起为 v2）",
+        ));
+    }
+    let second_seq_window = read_u32(SECOND_SEQ_SCAN_BUDGET_ID, &fields, "second_seq_window")?;
+    let tail_window = read_u32(SECOND_SEQ_SCAN_BUDGET_ID, &fields, "tail_window")?;
+    Ok(ScanBudget {
+        record,
+        second_seq_window,
+        tail_window,
+    })
+}
+
+/// 线段构造规则记录的解析结果（A-12）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SegmentConstruction {
+    pub record: PolicyRef,
+    pub tangency: Tangency,
+}
+
+/// 解析 `segment-second` 记录。`tangency` 只认 `closed` / `open`，其余判非法。
+pub fn parse_segment_construction(text: Option<&str>) -> Result<SegmentConstruction, PolicyError> {
+    let (record, fields) = parse_header(SEGMENT_CONSTRUCTION_ID, text)?;
+    let raw = read_str(SEGMENT_CONSTRUCTION_ID, &fields, "tangency")?;
+    let tangency = Tangency::from_token(&raw).ok_or_else(|| {
+        invalid(
+            SEGMENT_CONSTRUCTION_ID,
+            "tangency",
+            format!("须为 closed 或 open，得 `{raw}`"),
+        )
+    })?;
+    Ok(SegmentConstruction { record, tangency })
+}
+
+/// 当前生效记录的特征序列扫描预算。
+pub fn active_second_seq_scan_budget() -> Result<ScanBudget, PolicyError> {
+    parse_second_seq_scan_budget(Some(ACTIVE_SECOND_SEQ_SCAN_BUDGET_JSON))
+}
+
+/// 当前生效记录的线段构造规则。
+pub fn active_segment_construction() -> Result<SegmentConstruction, PolicyError> {
+    parse_segment_construction(Some(ACTIVE_SEGMENT_CONSTRUCTION_JSON))
+}
+
+/// 趋势作用域的 profile 键。生产模式串只选择这个键，实际值由记录给出。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrendScopeProfile {
+    Default,
+    Hold26Anc,
+    FusionTa,
+}
+
+impl TrendScopeProfile {
+    fn field(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Hold26Anc => "hold26_anc",
+            Self::FusionTa => "fusion_ta",
+        }
+    }
+
+    fn expected(self) -> TrendScope {
+        match self {
+            Self::Default => TrendScope::SelfLayer,
+            Self::Hold26Anc => TrendScope::Ancestor,
+            Self::FusionTa => TrendScope::SelfOrAncestor,
+        }
+    }
+}
+
+/// 一份趋势作用域记录及其当前值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrendScopePolicy {
+    pub record: PolicyRef,
+    pub value: TrendScope,
+}
+
+/// 按 profile 读取趋势作用域；值必须仍对应该预注册研究臂。
+/// 缺字段/未签/非法值或跨 profile 赋值均停止，不回退模式串旧值。
+pub fn parse_trend_scope_for_profile(
+    profile: TrendScopeProfile,
+    text: Option<&str>,
+) -> Result<TrendScopePolicy, PolicyError> {
+    let (record, fields) = parse_header(TREND_SCOPE_ID, text)?;
+    let field = profile.field();
+    let raw = read_str(TREND_SCOPE_ID, &fields, field)?;
+    let value = match raw.as_str() {
+        "SelfLayer" => TrendScope::SelfLayer,
+        "Ancestor" => TrendScope::Ancestor,
+        "SelfOrAncestor" => TrendScope::SelfOrAncestor,
+        _ => {
+            return Err(invalid(
+                TREND_SCOPE_ID,
+                field,
+                format!("须为 SelfLayer / Ancestor / SelfOrAncestor，得 `{raw}`"),
+            ))
+        }
+    };
+    let expected = profile.expected();
+    if value != expected {
+        return Err(invalid(
+            TREND_SCOPE_ID,
+            field,
+            format!("profile `{field}` 的预注册作用域须为 {expected:?}，得 `{raw}`"),
+        ));
+    }
+    Ok(TrendScopePolicy { record, value })
+}
+
+/// 当前生效记录中的趋势作用域。
+pub fn active_trend_scope_for_profile(
+    profile: TrendScopeProfile,
+) -> Result<TrendScopePolicy, PolicyError> {
+    parse_trend_scope_for_profile(profile, Some(ACTIVE_TREND_SCOPE_JSON))
+}
+
+/// 塔底记录及其当前值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TowerBasePolicy {
+    pub record: PolicyRef,
+    pub value: TowerBase,
+}
+
+/// 解析塔底记录。三种合法值均可解析；是否具备实际构件由 [`try_level_config_from`] 另行拒绝。
+pub fn parse_tower_base(text: Option<&str>) -> Result<TowerBasePolicy, PolicyError> {
+    let (record, fields) = parse_header(TOWER_BASE_ID, text)?;
+    let raw = read_str(TOWER_BASE_ID, &fields, "tower_base")?;
+    let value = match raw.as_str() {
+        "segment" => TowerBase::Segment,
+        "kline3" => TowerBase::Kline3,
+        "trade3" => TowerBase::Trade3,
+        _ => {
+            return Err(invalid(
+                TOWER_BASE_ID,
+                "tower_base",
+                format!("须为 segment / kline3 / trade3，得 `{raw}`"),
+            ))
+        }
+    };
+    Ok(TowerBasePolicy { record, value })
+}
+
+/// 当前生效的塔底记录。
+pub fn active_tower_base() -> Result<TowerBasePolicy, PolicyError> {
+    parse_tower_base(Some(ACTIVE_TOWER_BASE_JSON))
+}
+
+/// 由预算与塔底记录组装 [`LevelConfig`]。当前只有 `segment` 具备真实构件；其它合法值
+/// 在任何 L0 构造前 typed reject，不回退 `segment` 或用线段输入冒充。
+pub fn try_level_config_from(
+    budget: TowerLevelBudget,
+    tower_base: TowerBasePolicy,
+    min_parts_per_level: u32,
+) -> Result<LevelConfig, PolicyError> {
+    if tower_base.value != TowerBase::Segment {
+        return Err(invalid(
+            TOWER_BASE_ID,
+            "tower_base",
+            format!("{:?} 尚无真实构件与数据 profile", tower_base.value),
+        ));
+    }
+    Ok(LevelConfig {
         l_max: budget.l_max,
         min_parts_per_level,
         budget: budget.record,
-    }
+        tower_base: tower_base.value,
+        tower_base_policy: tower_base.record,
+    })
+}
+
+/// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
+pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
+    let tower_base = active_tower_base().unwrap_or_else(|e| panic!("{e}"));
+    try_level_config_from(budget, tower_base, min_parts_per_level).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theta_v0::config::TowerBase;
+    use crate::trading::positional::TrendScope;
 
     const TOWER_V2_L3: &str =
         r#"{"id":"tower-level-budget","version":2,"fields":{"l_max":{"value":3}}}"#;
@@ -263,6 +613,32 @@ mod tests {
         assert_eq!(m.record.label(), "macd-force/1");
     }
 
+    /// #1601（C-22）：`arm-sub-expiry` v1 = 现行值 60；缺记录 / 未签 / 0 各一例负控。
+    #[test]
+    fn arm_sub_expiry_active_and_negative_controls() {
+        let s = active_arm_sub_expiry().expect("生效 arm-sub-expiry 记录可解析");
+        assert_eq!(s.bars, 60);
+        assert_eq!(s.record.label(), "arm-sub-expiry/1");
+        assert_eq!(
+            parse_arm_sub_expiry(None),
+            Err(PolicyError::RecordMissing {
+                id: ARM_SUB_EXPIRY_ID
+            })
+        );
+        let unsigned =
+            r#"{"id":"arm-sub-expiry","version":1,"fields":{"sub_expiry_bars":{"value":null}}}"#;
+        assert!(matches!(
+            parse_arm_sub_expiry(Some(unsigned)),
+            Err(PolicyError::AwaitingPolicy { .. })
+        ));
+        let zero =
+            r#"{"id":"arm-sub-expiry","version":1,"fields":{"sub_expiry_bars":{"value":0}}}"#;
+        assert!(matches!(
+            parse_arm_sub_expiry(Some(zero)),
+            Err(PolicyError::Invalid { .. })
+        ));
+    }
+
     #[test]
     fn other_legal_versions_parse_with_their_own_version() {
         let t = parse_tower_level_budget(Some(TOWER_V2_L3)).unwrap();
@@ -275,15 +651,46 @@ mod tests {
         assert_eq!(m.record.label(), "macd-force/2");
     }
 
-    /// 源码守卫（独审 note 1/2）：Rust 源码里不得再写这几个记录值的常数，也不得就地改写
-    /// `level.l_max` / `macd.*`（就地改写会让输出戳仍写签署版本）。研究工具须走
-    /// `LevelConfig::research_override_l_max`。
+    /// 就地改写守卫的字段（#1603 的 `level`/`macd` + #1604 的尾窗 / 第二序列窗口 / 相切）。
+    const IN_PLACE_GUARDED: [&str; 7] = [
+        ".level.l_max",
+        ".macd.fast",
+        ".macd.slow",
+        ".macd.signal",
+        ".tail_window",
+        ".second_seq_scan_window",
+        ".tangency",
+    ];
+
+    fn is_1604_field(pat: &str) -> bool {
+        IN_PLACE_GUARDED[4..].contains(&pat)
+    }
+
+    /// 源码守卫（独审 note 1/2；#1604 扩展）：Rust 源码里不得再写这几个记录值的常数，也不得就地
+    /// 改写记录字段（就地改写会让输出戳仍写签署版本）。研究工具须走 `research_override_*`。
     #[test]
     fn source_guard_no_constants_or_in_place_writes() {
         let config_src = include_str!("config.rs");
-        for lit in ["l_max: 6", "fast: 12", "slow: 26", "signal: 9"] {
+        for lit in [
+            "l_max: 6",
+            "fast: 12",
+            "slow: 26",
+            "signal: 9",
+            "tail_window: 7",
+            "second_seq_scan_window: 0",
+            "tangency: Tangency::",
+        ] {
             assert!(!config_src.contains(lit), "config.rs 又出现常数 `{lit}`");
         }
+        let segment_src = include_str!("parser/segment.rs");
+        assert!(
+            !segment_src.lines().any(|l| l
+                .split("//")
+                .next()
+                .unwrap_or("")
+                .contains("TAIL_WINDOW")),
+            "parser/segment.rs 又出现尾窗常数 `TAIL_WINDOW`（#1604）"
+        );
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut stack = vec![root];
         let mut offenders = Vec::new();
@@ -296,8 +703,12 @@ mod tests {
                     let text = std::fs::read_to_string(&path).unwrap();
                     for (i, line) in text.lines().enumerate() {
                         let code = line.split("//").next().unwrap_or("");
-                        for pat in [".level.l_max", ".macd.fast", ".macd.slow", ".macd.signal"] {
-                            if let Some(pos) = code.find(pat) {
+                        for pat in IN_PLACE_GUARDED {
+                            for (pos, _) in code.match_indices(pat) {
+                                // #1604 三字段：`research_override_*` 与状态机内部的 `self.x = …` 不算。
+                                if is_1604_field(pat) && code[..pos].ends_with("self") {
+                                    continue;
+                                }
                                 let rest = code[pos + pat.len()..].trim_start();
                                 if rest.starts_with('=') && !rest.starts_with("==") {
                                     offenders.push(format!("{}:{}", path.display(), i + 1));
@@ -373,6 +784,15 @@ mod tests {
             parse_tower_level_budget(Some(bare_unsigned)),
             Err(PolicyError::AwaitingPolicy { .. })
         ));
+        // #1653（#1603 尾审 LOW-1）：直写 `null` 独立负控——只删 `entry.is_null()` 分支会退成 Invalid。
+        let bare_null = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":null}}"#;
+        assert_eq!(
+            parse_tower_level_budget(Some(bare_null)),
+            Err(PolicyError::AwaitingPolicy {
+                id: TOWER_LEVEL_BUDGET_ID,
+                field: "l_max".into()
+            })
+        );
         let bare = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":6}}"#;
         assert!(matches!(
             parse_tower_level_budget(Some(bare)),
@@ -382,6 +802,210 @@ mod tests {
         assert!(matches!(
             parse_macd_force(Some(bad_version)),
             Err(PolicyError::Invalid { .. })
+        ));
+    }
+
+    /// #1604 跨层一致锁（#804）：相切取值只能来自记录。生产源码（`mod tests` 之前、非
+    /// `*_tests.rs`）里除记录解析处（`config.rs` 定义、`policy_records.rs`）外不得点名
+    /// `Tangency::Closed` / `Tangency::Open`——任一层回退成常量即红。
+    #[test]
+    fn source_guard_tangency_only_from_record() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut stack = vec![root];
+        let mut offenders = Vec::new();
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let skip = !name.ends_with(".rs")
+                    || name.ends_with("_tests.rs")
+                    || ((name == "config.rs" || name == "policy_records.rs")
+                        && path.parent().is_some_and(|d| d.ends_with("theta_v0")));
+                if skip {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).unwrap();
+                let prod = text.split("#[cfg(test)]\nmod tests {").next().unwrap_or("");
+                for (i, line) in prod.lines().enumerate() {
+                    let code = line.split("//").next().unwrap_or("");
+                    if code.contains("Tangency::Closed") || code.contains("Tangency::Open") {
+                        offenders.push(format!("{}:{}", path.display(), i + 1));
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "生产路径硬编码相切取值：{offenders:?}"
+        );
+    }
+
+    #[test]
+    fn active_scan_budget_and_construction_records() {
+        let b = active_second_seq_scan_budget().expect("生效扫描预算记录可解析");
+        assert_eq!((b.second_seq_window, b.tail_window), (0, 7));
+        assert_eq!(b.record.label(), "second-seq-scan-budget/2");
+        let c = active_segment_construction().expect("生效线段构造记录可解析");
+        assert_eq!(c.tangency, Tangency::Closed);
+        assert_eq!(
+            c.record.label(),
+            super::super::parser::segment::CONSTRUCTION_RULE
+        );
+    }
+
+    #[test]
+    fn scan_budget_and_construction_other_versions() {
+        let b3 = r#"{"id":"second-seq-scan-budget","version":3,"fields":{"second_seq_window":{"value":4},"tail_window":{"value":1}}}"#;
+        let b = parse_second_seq_scan_budget(Some(b3)).unwrap();
+        assert_eq!((b.second_seq_window, b.tail_window), (4, 1));
+        assert_eq!(b.record.label(), "second-seq-scan-budget/3");
+        let c3 = r#"{"id":"segment-second","version":3,"fields":{"tangency":{"value":"open"}}}"#;
+        let c = parse_segment_construction(Some(c3)).unwrap();
+        assert_eq!(c.tangency, Tangency::Open);
+        assert_eq!(c.record.label(), "segment-second/3");
+    }
+
+    /// #1604 负控：缺记录 / 缺字段 / 未签 / 非法值 / v1 预算，均报错（无备用值）。
+    #[test]
+    fn negative_controls_scan_budget_and_tangency() {
+        assert_eq!(
+            parse_second_seq_scan_budget(None),
+            Err(PolicyError::RecordMissing {
+                id: SECOND_SEQ_SCAN_BUDGET_ID
+            })
+        );
+        assert_eq!(
+            parse_segment_construction(None),
+            Err(PolicyError::RecordMissing {
+                id: SEGMENT_CONSTRUCTION_ID
+            })
+        );
+        let no_tail = r#"{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0}}}"#;
+        assert_eq!(
+            parse_second_seq_scan_budget(Some(no_tail)),
+            Err(PolicyError::AwaitingPolicy {
+                id: SECOND_SEQ_SCAN_BUDGET_ID,
+                field: "tail_window".into()
+            })
+        );
+        let no_tangency = r#"{"id":"segment-second","version":2,"fields":{}}"#;
+        assert_eq!(
+            parse_segment_construction(Some(no_tangency)),
+            Err(PolicyError::AwaitingPolicy {
+                id: SEGMENT_CONSTRUCTION_ID,
+                field: "tangency".into()
+            })
+        );
+        let unsigned = r#"{"id":"segment-second","version":2,"fields":{"tangency":{"value":"AwaitingPolicy"}}}"#;
+        assert!(matches!(
+            parse_segment_construction(Some(unsigned)),
+            Err(PolicyError::AwaitingPolicy { .. })
+        ));
+        let null_tail = r#"{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":null}}}"#;
+        assert!(matches!(
+            parse_second_seq_scan_budget(Some(null_tail)),
+            Err(PolicyError::AwaitingPolicy { .. })
+        ));
+        for bad in [
+            r#"{"id":"segment-second","version":2,"fields":{"tangency":{"value":"half"}}}"#,
+            r#"{"id":"segment-second","version":2,"fields":{"tangency":{"value":"Closed"}}}"#,
+            r#"{"id":"segment-second","version":2,"fields":{"tangency":{"value":1}}}"#,
+            r#"{"id":"segment-second","version":2,"fields":{"tangency":"closed"}}"#,
+            r#"{"id":"macd-force","version":2,"fields":{"tangency":{"value":"closed"}}}"#,
+        ] {
+            assert!(
+                matches!(
+                    parse_segment_construction(Some(bad)),
+                    Err(PolicyError::Invalid { .. })
+                ),
+                "{bad}"
+            );
+        }
+        for bad in [
+            r#"{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":-1}}}"#,
+            r#"{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":7}}"#,
+            r#"{"id":"second-seq-scan-budget","version":1,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":7}}}"#,
+        ] {
+            assert!(
+                matches!(
+                    parse_second_seq_scan_budget(Some(bad)),
+                    Err(PolicyError::Invalid { .. })
+                ),
+                "{bad}"
+            );
+        }
+    }
+    #[test]
+    fn trend_scope_profiles_read_their_own_record_values() {
+        let default = active_trend_scope_for_profile(TrendScopeProfile::Default).unwrap();
+        assert_eq!(default.value, TrendScope::SelfLayer);
+        assert_eq!(default.record.label(), "trend-scope/1");
+        let anc = active_trend_scope_for_profile(TrendScopeProfile::Hold26Anc).unwrap();
+        assert_eq!(anc.value, TrendScope::Ancestor);
+        let ta = active_trend_scope_for_profile(TrendScopeProfile::FusionTa).unwrap();
+        assert_eq!(ta.value, TrendScope::SelfOrAncestor);
+        assert_eq!(anc.record, ta.record);
+    }
+
+    #[test]
+    fn trend_scope_profile_mismatch_and_missing_values_do_not_fallback() {
+        let changed =
+            r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"Ancestor"}}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)),
+            Err(PolicyError::Invalid { field, .. }) if field == "default"
+        ));
+
+        let legal_new_version =
+            r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"SelfLayer"}}}"#;
+        let parsed =
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(legal_new_version))
+                .unwrap();
+        assert_eq!(parsed.value, TrendScope::SelfLayer);
+        assert_eq!(parsed.record.label(), "trend-scope/2");
+
+        let missing = r#"{"id":"trend-scope","version":1,"fields":{}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(missing)),
+            Err(PolicyError::AwaitingPolicy { field, .. }) if field == "default"
+        ));
+        let invalid = r#"{"id":"trend-scope","version":1,"fields":{"default":{"value":"self"}}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(invalid)),
+            Err(PolicyError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn tower_base_record_drives_config_and_rejects_unsupported_base() {
+        let active = active_tower_base().unwrap();
+        assert_eq!(active.value, TowerBase::Segment);
+        assert_eq!(active.record.label(), "tower-base/1");
+        let budget = active_tower_level_budget().unwrap();
+        let cfg = try_level_config_from(budget, active, 3).unwrap();
+        assert_eq!(cfg.tower_base, TowerBase::Segment);
+        assert_eq!(cfg.tower_base_policy.label(), "tower-base/1");
+
+        for (token, expected) in [("kline3", TowerBase::Kline3), ("trade3", TowerBase::Trade3)] {
+            let text = format!(
+                "{{\"id\":\"tower-base\",\"version\":2,\"fields\":{{\"tower_base\":{{\"value\":\"{token}\"}}}}}}"
+            );
+            let policy = parse_tower_base(Some(&text)).unwrap();
+            assert_eq!(policy.value, expected);
+            assert!(matches!(
+                try_level_config_from(budget, policy, 3),
+                Err(PolicyError::Invalid { .. })
+            ));
+        }
+
+        let missing = r#"{"id":"tower-base","version":1,"fields":{}}"#;
+        assert!(matches!(
+            parse_tower_base(Some(missing)),
+            Err(PolicyError::AwaitingPolicy { field, .. }) if field == "tower_base"
         ));
     }
 }
