@@ -578,7 +578,8 @@ impl Driver {
         {
             #[cfg(unix)]
             {
-                super::audit_owner::AuditConnection::open_rebuilt_history(
+                let mut rebuilt = None;
+                super::audit_owner::AuditConnection::open_rebuilt_history_into(
                     db,
                     startup_context
                         .as_deref()
@@ -589,8 +590,9 @@ impl Driver {
                     &mut runtime,
                     scope.max_store_bytes(),
                     &scope,
-                )?
-                .0
+                    &mut rebuilt,
+                )?;
+                rebuilt.expect("冷交接成功后必有owner")
             }
             #[cfg(not(unix))]
             {
@@ -854,26 +856,42 @@ pub(super) fn recover_scoped_with_retention(
         )?;
         let _guard = scope.enter()?;
         scope.require_admitted()?;
-        let mut context = Driver::cold_context(retention)?;
-        let mut runtime = prepared::Runtime::with_config(
-            s_allocation::Mode::CapturedNative,
-            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
-                .map_err(|e| e.to_string())?,
-        );
-        let conn = super::audit_owner::AuditConnection::open_rebuilt_history(
-            scope.db_path(),
-            retention,
-            Some(scope.first_read_deadline()?),
-            &mut context,
-            &mut runtime,
-            scope.max_store_bytes(),
-            &scope,
-        )?
-        .0;
-        let result = conn.recover(new_epoch, clock, clock_event)?;
-        drop(conn);
+        let result = recover_rebuilt_history(&scope, retention, new_epoch, clock, clock_event)?;
         Ok((result, scope))
     }
+}
+
+// #1481：recover 的冷构造放独立帧，只经借用槽取得 owner；不按值传播 owner 的 Result。
+// Runtime/context 仍覆盖真正 Recover 与 conn 析构，保持冷台账及父账原存活次序。
+#[cfg(all(feature = "s_incremental", unix))]
+fn recover_rebuilt_history(
+    scope: &super::admission::WriterScope,
+    retention: usize,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+) -> Result<Value, String> {
+    let mut context = Driver::cold_context(retention)?;
+    let mut runtime = prepared::Runtime::with_config(
+        s_allocation::Mode::CapturedNative,
+        newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+            .map_err(|e| e.to_string())?,
+    );
+    let mut rebuilt = None;
+    super::audit_owner::AuditConnection::open_rebuilt_history_into(
+        scope.db_path(),
+        retention,
+        Some(scope.first_read_deadline()?),
+        &mut context,
+        &mut runtime,
+        scope.max_store_bytes(),
+        scope,
+        &mut rebuilt,
+    )?;
+    let conn = rebuilt.expect("冷恢复交接成功后必有owner");
+    let result = conn.recover(new_epoch, clock, clock_event)?;
+    drop(conn);
+    Ok(result)
 }
 
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。

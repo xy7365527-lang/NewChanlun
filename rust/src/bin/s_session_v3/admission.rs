@@ -303,6 +303,16 @@ impl WriterScope {
             super::admission_private::RejectionPrefix::None,
         )
     }
+    pub(crate) fn admit_legacy_write(
+        db: &Path,
+        prepared: PreparedAdmission,
+    ) -> Result<Self, String> {
+        Self::admit_prefix(
+            db,
+            prepared,
+            super::admission_private::RejectionPrefix::LegacyWrite,
+        )
+    }
     fn admit_prefix(
         db: &Path,
         prepared: PreparedAdmission,

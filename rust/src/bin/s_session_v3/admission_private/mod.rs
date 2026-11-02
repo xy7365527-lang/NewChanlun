@@ -375,6 +375,8 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
 /// #1481：增量实际连接仍须完成 H1 同核冷认证，前缀结果不得替代准入资格。
 pub(super) enum RejectionPrefix<'a> {
     None,
+    // #1481：真正的 v1/v2 写入口；v3 advance 的 None 不得借此拒绝。
+    LegacyWrite,
     // #1527：N1 独立组件的完整审计；不替代 #1481 写者的 H1 冷认证。
     NativeComponentAudit,
     OrdinaryStartup {
@@ -442,6 +444,11 @@ pub(super) fn audit_core(
 ) -> Result<(), String> {
     match crate::meta_get_opt(tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
+            // #1481：旧入口在只读前缀拒绝，不能先记下 PrePolicyRecords 迁移授权。
+            #[cfg(feature = "s_incremental")]
+            if matches!(prefix, RejectionPrefix::LegacyWrite) {
+                return Err("VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-session/3".into());
+            }
             // #1481：H1 前缀只核迁移前 schema；成功不代表历史已认证。
             // H1 冷折叠在实际持锁连接开门前完成，失败不得回落旧审计；
             // Ordinary 与 #1527 N1 独立组件保留各自的完整审计合同。
@@ -491,7 +498,9 @@ pub(super) fn audit_core(
                 }
             }
             match prefix {
-                RejectionPrefix::None | RejectionPrefix::NativeComponentAudit => Ok(()),
+                RejectionPrefix::None
+                | RejectionPrefix::LegacyWrite
+                | RejectionPrefix::NativeComponentAudit => Ok(()),
                 RejectionPrefix::LegacyServe {
                     db,
                     epoch,

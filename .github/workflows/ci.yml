@@ -466,6 +466,11 @@ jobs:
             h1_admission_normal_exit_same_database_new_process_restarts \
             h1_admission_temporary_seed_failure_same_database_new_process_restarts \
             h1_admission_mainonly_nonwal_prepolicy_preserves_domain \
+            h1_admission_legacy_v1_recover_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_legacy_v1_accept_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_legacy_v1_advance_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_legacy_v2_clock_recover_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_v3_selector_advance_prepolicy_mainonly_authenticates_before_migration \
             h1_admission_hot_rollback_journal_rejects_before_rw_open \
             h1_admission_nonwal_conversion_handoff_foreign_commit_rejects
           do

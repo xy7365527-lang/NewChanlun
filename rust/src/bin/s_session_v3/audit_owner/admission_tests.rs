@@ -155,42 +155,90 @@ fn h1_admission_publish(
 
 #[test]
 fn h1_admission_cold_prefixes_match_full_canonical() {
-    let f = H1AdmissionFixture::new();
-    // 每次冷开都由正式 Driver 一起构造 owner、Runtime 与启动账，不能把前一
-    // owner 的生成器序列记忆接到没有该 construction 资格的新 owner 上。
-    let mut driver = h1_admission_driver(&f, "1").unwrap();
-    for n in 0..=3 {
-        if n > 0 {
+    // 原升序追加场景保留；第二场景先修订旧来源，再在已发布坐标之间插入历史。
+    // 不构造坐标互换：正式接纳禁止同一业务身份换源位置，不能绕过该门造历史。
+    for (scenario, through) in [("append", 3), ("revision-and-insert", 5)] {
+        let f = H1AdmissionFixture::new();
+        // 每次冷开都由正式 Driver 一起构造 owner、Runtime 与启动账，不能把前一
+        // owner 的生成器序列记忆接到没有该 construction 资格的新 owner 上。
+        let mut driver = h1_admission_driver(&f, "1").unwrap();
+        for n in 0..=through {
+            if n > 0 {
+                let envelope = if scenario == "append" {
+                    b2_envelope(n)
+                } else {
+                    let (row, revision) = match n {
+                        1 => (("a", 0, 6, 12, 3, 7), 1),
+                        2 => (("b", 20, 14, 20, 10, 15), 1),
+                        // 同身份、同坐标、更高 revision，OHLC 也真实改变。
+                        3 => (("a", 0, 4, 9, 1, 6), 2),
+                        // 新身份落在 0 与 20 之间，不能退化为升序追加。
+                        4 => (("c", 10, 6, 12, 3, 7), 1),
+                        // g4 冷 seed 已包含修订和插入；随后再真实追加一代。
+                        5 => (("d", 30, 14, 21, 10, 15), 1),
+                        _ => unreachable!(),
+                    };
+                    h1_admission_revision_envelope(n, row, revision, "1")
+                };
+                let before = state::full_audit_calls_for_test();
+                let receipt = driver.handle(envelope).unwrap();
+                assert_eq!(receipt["kind"], "Committed", "{scenario} 第 {n} 代");
+                assert_eq!(state::full_audit_calls_for_test(), before);
+                assert_eq!(meta_i64(&f.conn(), "generation").unwrap(), n);
+            }
+            if scenario == "revision-and-insert" && n == 4 {
+                let conn = f.conn();
+                let mut statement = conn
+                    .prepare("SELECT event_id,revision,source_coord FROM raw_events ORDER BY seq")
+                    .unwrap();
+                let raw = statement
+                    .query_map([], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                assert_eq!(
+                    raw,
+                    vec![
+                        ("a".to_string(), 1, "0".to_string()),
+                        ("b".to_string(), 1, "20".to_string()),
+                        ("a".to_string(), 2, "0".to_string()),
+                        ("c".to_string(), 1, "10".to_string()),
+                    ],
+                    "冷点之前必须持久保留真实修订链和历史插入"
+                );
+            }
+            let expected = f.full_canonical();
+            assert_eq!(
+                h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
+                expected.as_bytes(),
+                "{scenario} 在线前缀 {n}"
+            );
+            drop(driver);
             let before = state::full_audit_calls_for_test();
-            let receipt = driver.handle(b2_envelope(n)).unwrap();
-            assert_eq!(receipt["kind"], "Committed");
-            assert_eq!(state::full_audit_calls_for_test(), before);
+            let (cold, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
+            driver = cold.unwrap();
+            assert_eq!(
+                state::full_audit_calls_for_test(),
+                before,
+                "{scenario} 冷准入不可回落旧审计"
+            );
+            assert_eq!(
+                h1_qualified_cuts(&events),
+                (1..=n).collect::<Vec<_>>(),
+                "{scenario} 冷从 g1 起逐代用同一 Δ 步"
+            );
+            assert_eq!(
+                h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
+                expected.as_bytes(),
+                "{scenario} 冷前缀 {n}"
+            );
         }
-        let expected = f.full_canonical();
-        assert_eq!(
-            h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
-            expected.as_bytes(),
-            "在线前缀 {n}"
-        );
-        drop(driver);
-        let before = state::full_audit_calls_for_test();
-        let (cold, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
-        driver = cold.unwrap();
-        assert_eq!(
-            state::full_audit_calls_for_test(),
-            before,
-            "冷准入不可回落旧审计"
-        );
-        assert_eq!(
-            h1_qualified_cuts(&events),
-            (1..=n).collect::<Vec<_>>(),
-            "冷从 g1 起逐代用同一 Δ 步"
-        );
-        assert_eq!(
-            h1_admission_canonical(driver.h1_owner_for_test()).as_bytes(),
-            expected.as_bytes(),
-            "冷前缀 {n}"
-        );
     }
 }
 

@@ -1316,3 +1316,711 @@ Rust 锁均位于 `s_session_v3/audit_owner/admission_tests.rs`，模块前缀�
 - `rust/src/bin/s_structure_session.rs`
 - `s_session/s_service_control.py`
 - `s_session/tests/test_tb01c_s3_service_control.py`
+
+
+## S1L
+
+> 状态：ready，交主控封包取精确新 head 的 CI。开工 HEAD 为 `614823a0b2cbed5ddac5f4de0748ca511e7e3a9c`，分支 `sandcastle/issue-1481`，工作区干净；该 head 已含 S1K。46M 报告及本轮 native 原日志的冻结对象为 `c5a1ba0d8d655cab469989620732e40eef63ba43`，本节已在实际工位重定位。以下是源码修复、测试接线及静态检查收据，**Rust 未验证，待 CI**。
+
+本轮沿 #1481 的 S1L 明确授权，已读取 S1D 及所引 S1/S1B/S1C 边界、S1E–S1K 提示、工位报告对应节、43K 简报、44G 及 46M 全文。只处理 P1-4、P2 冷历史对拍缺口与追加的 native debug 栈问题；不做资源 `/3`、scrub、launcher/5、ADR、性能或资源帽变更。未运行 cargo/rustc、重型窗口，未暂存/提交/推送，也未写 Git metadata。下文 Rust 简称相对 `rust/src/bin/`，除明确标为基线/日志外，行号均为本轮最终候选。
+
+### P1-4：真正旧写入口在只读前缀拒绝 v3
+
+根因重新定位：`s_session_v3/admission_private/mod.rs:445` 先按 protocol_revision 分派，原 None 前缀在增量构建执行 schema 核后直接成功；`control_audit.rs:195–210` 的 schema 核见缺列便在 `:208` 写 `DeltaShape::PrePolicyRecords`。这就是 `admission.rs:561–576` 的迁移许可。旧处理器的根 `open_db` 在 `s_structure_session.rs:332–354` 先转 WAL、补列，`recover_core:5873–5876` 才判规则拒绝；accept/advance 原样同族，未改它们来延后拒绝。
+
+**先区分入口再改的证据**：`s_session_v3/mod.rs:220–231` 无选择器即 `Ok(false)`，`:248–262` 只有显式 s-session/3 选择器进入 writer_cli。v3 `writer_cli.rs:928` advance 在该独立分派内直接 `WriterScope::admit`，继续得到 None；旧 v1 则由根 `s_structure_session.rs:5993` 经 `v2::legacy_write_lock:3395/3405`，旧 v2 clock recover 则由 `v2/mod.rs:3336–3354` 独立分支调用 scope。两个旧调用点是可靠的调用链分叉点，不靠命令名称或 None 值猜测。
+
+修法：`admission_private/mod.rs:379` 新增 LegacyWrite；`admission.rs:306–315` 用 `admit_legacy_write` 只签这个前缀；`v2/mod.rs:3354/3405` 两个真正旧入口迁移到它。`admission_private/mod.rs:447–451` 在只读连接读出 PROTOCOL_REVISION 后立即返回 `VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-session/3`。返回发生在 schema 核之前，未调用 before_write、更未把 PrePolicyRecords 写进 scope；也到不了 scope seal、正式写连接、根 open_db、WAL 转换及迁移。未恢复完整旧审计。v3 advance 仍是 None，未改 writer_cli。
+
+| 入口 | 修后前缀/拒绝点 | 拒绝前是否写源库 |
+|---|---|---|
+| v1 recover | LegacyWrite，`admission_private/mod.rs:450` VersionMismatch | 否；仅私有只读 FD/VFS，尚未进根 open_db |
+| v1 accept | 同上 | 否 |
+| v1 advance | 同上 | 否 |
+| v2 recover --clock-plan | `v2/mod.rs:3354` → LegacyWrite →同一 VersionMismatch | 否；clock 原件仍按旧次序只读加载 |
+| LegacyServe（无选择器） | 仍 LegacyServe，`v2/mod.rs:3112–3124` verify_serve_startup→active，active `:196–203` 只读拒 v3 | 否；本轮未改 |
+| v3 advance（显式选择器） | writer_cli:928 仍 None→H1 冷认证→认证后迁移 | 合法认证完成后才转 WAL/补列；正控还提交 g4 |
+| v3 serve/recover（显式选择器） | NativeStartup/UnboundRecover，原 H1 | 本轮未改其准入前缀语义 |
+
+**旧域逐位不变的源码证据**：新增提前拒绝仅 `cfg(s_incremental)` 且仅 PROTOCOL_REVISION 分支；None/PREVIOUS_REVISION 原 `audit_private_startup`、LegacyServe 唯一条件、原预算适配拒绝均原样。非增量的完整审计 wildcard 仍处理 LegacyWrite，最终 match 把 LegacyWrite 与原 None 同列。必要相邻面 `admission_private/mixed.rs:18` 也把 LegacyWrite 与 None 同列，避免旧 v1/v2 mixed 成功封存后被 wildcard 错拒；mixed 私有核 `:65–76` 对 v3 仍按原 MixedProtocolUnsupported 只读拒绝，未扩大 mixed SQL 合同。
+
+穷举所有 RejectionPrefix 匹配：audit_core 的增量完整审计选择保留两原变体；schema work 的 NativeStartup 专项+wildcard 不变；非增量 NativeStartup 专项+wildcard 不变；末尾完整 match 新增 LegacyWrite 同 None；旧协议 LegacyServe 的 if-let 不变；validate_prefix NativeStartup 的 context 清理 if-let 不变；mixed::SealedPrefix::require 已同步。无遗漏穷尽 match，也无新 allow。
+
+**新增锁**均在 `audit_owner/legacy_admission_tests.rs`；由 `audit_owner.rs:5639` 的 unix include 引入既有 test+s_incremental 模块：
+
+| 锁名 | 源位置 | CI 逐名位置 |
+|---|---|---|
+| h1_admission_legacy_v1_recover_prepolicy_mainonly_rejects_unchanged | :135 | ci.yml:469 |
+| h1_admission_legacy_v1_accept_prepolicy_mainonly_rejects_unchanged | :141 | ci.yml:470 |
+| h1_admission_legacy_v1_advance_prepolicy_mainonly_rejects_unchanged | :147 | ci.yml:471 |
+| h1_admission_legacy_v2_clock_recover_prepolicy_mainonly_rejects_unchanged | :153 | ci.yml:472 |
+| h1_admission_v3_selector_advance_prepolicy_mainonly_authenticates_before_migration | :159 | ci.yml:473 |
+
+CI step 保持 `.github/workflows/ci.yml:449`「H1 正式准入三层对拍与调用路径锁（#1481 S1）」原 release h1_ 实跑与逐名 grep；只在既有逐名清单追加5项，原清单不删，无 ignore。
+
+夹具 `legacy_admission_tests.rs:4–17`：先真实生成3代，再正式 Driver 冷重建留下存在的受管 `.audit-ledger.sqlite`，随后 DROP policy_records 并转 DELETE；无常驻 SQLite 连接，明确 MainOnly（源 -wal/-shm/-journal 全不存在）。`:29–52` 精确逐文件保存主库、-wal/-shm/-journal、台账及其3旁挂，共8份 Option<bytes>，不存在者须仍不存在。`:79–130` 依根 run 实际分派前缀分别执行旧入口，断言具名拒绝及正确选择器提示、full_audit_calls 不增、8文件字节不变；用只读连接再次核未补列、DELETE，核后再比8文件避免检查本身掩盖写入。
+
+正控 `:159`：**同一物理库**在 `:183–191` 先经四种旧入口逐一拒绝并核字节，再交显式 selector advance。子进程仅冻结 native testonly 环境，未增栈；走真实 v3 dispatch→writer_cli，断言 full_audit_calls 不变，资格轨迹 `[1,2,3,4]`（冷 g1..3 + 在线 g4），成功补列、模式 WAL、generation=4、正常关闭。保留父进程对真实单锁运行与 PASS 收据的断言。
+
+**cfg 六格源码核查（非 Rust 编译）**：
+
+| features | 非 test | test |
+|---|---|---|
+| s_session | LegacyWrite 与 wrapper 两个生产调用者均存在；提前拒绝 cfg 排除，原完整审计及最终 None 同列行为不变；mixed match 齐全 | 新文件不 include，不泄漏增量类型/调用 |
+| s_session,s_incremental | 旧入口独立前缀，guard 在 schema 及迁移授权前；v3 None 不变；所有入参引用就地借用，无大按值类型或新闭包类型推断 | 新5锁仅 test+s_incremental+unix；test_prepare 所在helper显式 cfg(test)；子进程只在测试中；显式 String 避免 Extend 推断歧义 |
+| s_session,s_incremental,s_capture_native_testonly | 同上；新生产逻辑不按 native testonly 变更 | 四负例直接真实入口；正控独立子进程选择 CapturedNative，不污染共享环境；同一源码锁及判据 |
+
+实际执行收据：改动5个 Rust 实装/新测试文件 `rustfmt --edition 2021 --check --config skip_children=true` 通过（audit_owner include由主控全局format）；`git diff --check` 通过；R4 `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v` 3 tests 通过；`python3 -B .github/scripts/check-prod-no-test-hooks.py` violations=0。静态核5新增名在 H1 CI 清单各唯一且无 ignore。禁串生成/一致性由主控统一执行，避免并行生成覆盖。未运行 cargo/rustc，六格 -D warnings 与5个Rust锁均待精确head CI。
+
+### P2：冷点之前包含源修订与历史插入
+
+扩展原 `s_session_v3/audit_owner/admission_tests.rs:157` 的 `h1_admission_cold_prefixes_match_full_canonical`，保留原 g0..g3 升序场景，并在同一测试增加 g0..g5 场景，不增加嵌套 Driver 大栈帧或第二组同时存活的 Driver：
+
+| 代 | 正式接纳输入 | 要锁住的变化 |
+|---|---|---|
+| g1 | a，坐标0，revision=1，OHLC=(6,12,3,7) | 初始历史 |
+| g2 | b，坐标20，revision=1 | 第二个历史坐标 |
+| g3 | a，坐标0，revision=2，OHLC=(4,9,1,6) | 同身份同坐标的真实源修订，载荷也改变 |
+| g4 | c，坐标10，revision=1 | 插在0和20之间的历史插入，不能退化成升序追加 |
+| g5 | d，坐标30，revision=1 | g4 已冷开后再真实追加至少一代 |
+
+`:183–187` 每代都要求 `Committed`、真实 meta generation 与 `full_audit_calls` 不增。`:189–214` 在 g4 冷点之前逐行核 raw 原件确实保留 a/rev1、b/rev1、a/rev2、c/rev1 及相应源坐标。`:216` 的独立 full canonical oracle 在计数区间外，在线与冷开结果都以完整 canonical 字节比较；`:223–239` 冷开期间旧审计计数必须不变，资格 trace 必须从 g1 逐代到当前代。g5 的在线续写与再次冷开继续同样对拍，不只比较 fingerprint。
+
+未构造坐标互换。`s_session_v3/raw_input.rs:154–160` 的正式生产门在同一业务身份修订换坐标时返回 `IdentityConflict`，原文明确“同一业务身份不得换源位置”；不绕过接纳门制造不可达历史。新锁仍沿正式 Driver 入口，源修订和历史插入均合法。
+
+原测试名与原 CI 逐名位置 `.github/workflows/ci.yml:456` 保持。父 `construction_tests` 为 test+s_incremental，include 另受 unix 门；无新增 helper/import/allow/ignore。Python 字节对照确认 admission_tests.rs 除此一个测试体外全文件与 HEAD 相同，原 S1K 的交接/临时失败/重启锁及全部断言保持。未改 46M 已审 PASS 的冷 seed 语义；本机不能执行这把 Rust 锁，最终对拍结果待 CI。
+
+### S1L native debug 残余栈：原件、根因与隔离修复
+
+原件 `/Volumes/AgentStorage/h1-recover45c/ci-41369194207/125035893237.log`：`:939–945` 明写 unoptimized + debuginfo 与 535 tests；`:1355` S1J 目标 `h1_admission_cold_handoff_foreign_sqlite_commit_rejects ... ok`；`:1475–1476` 则是 `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` 栈溢出；`:1480` 为全部 535 个 `--exact` 名的 SIGABRT 命令。日志没有逐步骤机器栈回溯，不能声称已定位撞 guard 的指令，也不能把这个失败写成 S1J 目标仍失败。失败收据锚 c5a1ba0d；本次源码对拍以当前 S1K HEAD 614823a0 为基线。
+
+新增固定负担是按值拥有的外壳及未执行后半段的 debug 移动槽：`driver.rs:837` 的受管 recover 原帧同时持 context、Runtime、owner、大 `Result<(AuditConnection,Duration)>`；`audit_owner.rs:526` 原长函数同时含冷 fold/seed 与后续 owner、两把 AuditTxn、Ended、Self 返回槽。冷认证尚未进入后半段，也会为这些类型留槽。`audit_owner.rs:324` 的 AuditTxn 实数包含一个 PendingRawState、**两个** CompleteCandidate 和 Recording，绝非“小型参数”；AuditConnection (`:257`) 还内含 CommittedRawState 和 CompleteCandidate。三代/五代历史均是循环，无新无界自调用；本轮不把 codec 原有有界树遍历当作新增递归。
+
+| 最终文件:行 | 隔离及逐句合同 |
+|---|---|
+| `rust/src/bin/s_session_v3/audit_owner.rs:526` | `open_rebuilt_history_into` 仅经 `&mut Option<Self>` 移交 owner，返回 Duration 小值；正式 Driver/recover 两调用点输出槽均初始 None。原认证/seed/外槽失败清理整个业务块逐字保留，原started传入finish，在最终swap后、converted等局部析构前取elapsed；保持原tuple的移交→计时→局部析构顺序。 |
+| 同文件 `:740` | 把第一写连接、转换、迁移、两锁、seed_rebuilt_history、adopt、源连续性复核、正常/拒绝关闭整体移进 `finish_rebuilt_history`。冷 fold/seed 执行时这些 owner/事务槽不再在它的共用帧里。所有回调、deadline、错误先后、candidate/construction 消费顺序不动。 |
+| 同文件 `:910` | `initialize_rebuilt_owner` 独帧消费 `Self::new` 的按值构造结果；浅构造返回后才进交接事务。finish 本地只持 owner_out 一槽与借用，最终 h1_close 成功且 require_historical_certificate 置真后才 swap 交给调用方；错误时仍先析构 owner，再由上层析构冷载荷。 |
+| `rust/src/bin/s_session_v3/driver.rs:582` | 正式启动直接提供 None 槽，取消大 `Result<Self>` 解包链；后续 startup、Driver 装配及 pending 恢复次序不动。 |
+| 同文件 `:837/:867/:881` | recover 的 context/Runtime 构造及借槽开库放 `recover_rebuilt_history`；该 helper 只返回 Value。Runtime/context **仍覆盖** conn.recover 与显式 drop(conn)，上层 scope guard 仍覆盖全部过程；没有提早析构冷台账或父账。 |
+
+实际执行 `/private/tmp/s1l-stack-semantics.py`：① 认证/seed 块逐字相同；② 写交接与失败收口块仅归一化已借用的 canonical/cold_runtime 接收者和 owner 构造三行后逐字相同；③ 两个 None 输出槽与唯一接口、recover 的 context→runtime→开库→recover→drop(conn) 顺序锁通过。独立非作者逐句阅读也未发现语义、cfg 或借用阻断。未改 construction_state/into_owner、S1G/S1J 来源核、seed 等价判据、任何费用/性能/资源帽；未增加 Box 或其他分配，未设置栈大小、修改 workflow、ignore 或删断言。
+
+### 535 项穷举方法与源码尺寸估算边界
+
+从 `:1480` 原始 `--exact` 命令重抽集合，与保存的 535 行名单逐字同序、去重后仍 535；SHA-256 为 `be1e8aec09b4bd51a4e05198213a49bf223f5f70829c99156fc1db9c825a4f8f`。每个名字均重新定位到唯一源码定义。表生成脚本只负责枚举、定位和排表，**不是 Rust 调用图分析器或栈测量工具**。入口映射另人工核了全仓 `open_rebuilt_history_into`（仅 Driver 两处）、retention startup、scoped retention recover、open_for_serve_with_identity、open_admitted_history、component/cold_for_request 的全部调用点和测试 helper；非 h1/b2/p6 名称同样纳入。
+
+64 位外壳模型沿 S1G/S1J：NativeSourceState 约 5.7 KiB（23 Map、11 Tree、3 Order）；ColdRawState/CommittedRawState 取 6–8 KiB；含 PendingSet/RecoverHandoff 的 PendingRawState 取 8–12 KiB；CompleteCandidate 连 AuditedState 的最大 Unique 变体、Q/slot/capture 外壳取 6–10 KiB；AuditTxn 的两候选+pending+Recording/事务取 24–40 KiB；AuditConnection 取 16–24 KiB；Runtime 连 generator/auxiliary 取 5–9 KiB，context 取 1–3 KiB。这里计容器壳、枚举最大变体和许可壳，**不把树/Vec 堆中的历史内容按条数算栈**。`None` 仍预留最大变体。
+
+为逐项估算，按拥有值约 **2–8 份** debug 参数/局部/Result/移动槽，给各函数族一份工程包络后求和；引用只记指针，并将测试/helper 外壳另留 384 KiB（低层锁 128 KiB）。这是假设，不是编译器保证；不能由 Rust 源码证明 LLVM 必定落在这个份数区间。下面列的是**可归属到源码外壳的模型帧和**，不含无法在禁 cargo/rustc 条件下测定的旧 codec 树遍历、libtest/SQLite 调用栈及机器 spill。采用默认 libtest 常见 2 MiB 作对照，把 1.5 MiB 作为模型分诊上限，另留 512 KiB 给未测部分；**未测部分也没有已证明的 512 KiB 上界**。因此表的“低于分诊线”不能写成 Rust 已通过、真实栈安全或 535 全绿，最终由精确新 head native debug CI 裁定。
+
+| 链代号 | 源码可达最深阶段（顺序阶段取最大，不把先后退出的帧相加） | 修后模型帧和 | 是否处理 |
+|---|---|---:|---|
+| H | Driver 冻结 context→open_rebuilt_history_into→certify_cold/read_session(unit)→cold_for_request_rebuilding/cold_captured→fold→advance_cold_sources/audit_source_step→原 codec；与 finish→两 AuditTxn/seed_rebuilt→adopt 分支取 max | 约 1,376 KiB＝测试/helper384+Driver192+冷载荷192+只读门64+state192+fold192+同核来源160 | 原长帧模型约 1,888 KiB，超1.5MiB；共用正式入口已拆帧/借槽。finish 分支另算约1,344 KiB＝测试384+Driver192+外层冷载荷192+owner_out128+单阶段事务/移动槽256+seed/adopt192；H取max(1,376,1,344)=1,376。 |
+| R | scoped retention recover→recover_rebuilt_history→H（ledger fresh、seed/adopt）→同owner recover；后一个事务与前一个深 fold 取 max | 约 1,440 KiB＝max(H 1,376+scope薄包装64, 后续同owner Recover 1,088)；后者约测试384+helper context/Runtime与owner192+txn256+候选/pending128+浅包装128 | 原模型约 2,016 KiB，且日志实际溢出；共用 H 和 recover 包装均处理。 |
+| H0 | 两 native_bootstrap identity 测试→open_for_serve_with_identity→cold_context→open_rebuilt_history_into→prepare_parent/metadata预算拒门；不到 fold/seed | 约 832 KiB＝测试384+Driver192+冷载荷192+预算门64 | 共用借槽/分帧覆盖；没有为测试提高 retention=1。 |
+| C | h1_certified_owner/h1_qualified_owner 或 AdmissionFixture::open→open_certified_history_component/seed_historical_certificate→cold_for_request→cold_captured；ledger=None，之后可能 qualified fold；与真实在线阶段取max | 约 1,056 KiB＝测试384+组件owner/txn192+候选64+state192+fold96+原来源128 | 未超模型分诊线；S1G/S1J组件拆帧保留，本轮不改其判据。 |
+| S | HistoricalCertificate::cold→cold_captured→fold；ledger=None，不走正式冷 seed | 约 832 KiB＝测试384+state192+fold128+原来源128 | 原组件壳；未超模型分诊线。 |
+| B | complete_driver/recover_lock_driver→同 owner AuditConnection::recover→完整候选绑定/PendingRawState 换代→真实 Recover commit；不走 supervisor H/R | 约 896 KiB＝测试384+txn192+候选128+pending64+原调用128 | 未超模型分诊线；没有误算成新 H1 冷重建。 |
+| P | AuditConnection::open 或 Fixture::publish→在线来源/真实owner→prepare/ledger/旧 full oracle；测试存在多个分支时保守取这几段最大 | 约 928 KiB＝测试384+txn192+Runtime64+在线共同核160+原codec128 | 无新增正式冷 seed；按共同核最大包络纳入，不按测试名字排除。 |
+| O | Driver default/未冻结 context 或 request_audit 完整旧cold→原完整 oracle；不是 source_cache_enabled 的 H/R | 约 1,056 KiB，保守取旧完整来源与 C/P 模型最大 | 无本轮新增 H1 深链；模型未超分诊线，不冒充运行PASS。 |
+| L | 直接 source receipt/ledger stage/bind/资格闭合，没有正式 cold Runtime/adopt | 约 384 KiB＝测试128+收据128+台账128 | 不含新冷seed；低层包络未超分诊线。 |
+| V | 只读物理/缓存登记/替换/费用门即拒，未进入cold来源深链 | 约 192 KiB＝测试128+只读门64 | 保留只读门。 |
+| X | 无上述 S1 冷/recover/重建/seed 调用边的低层/既有完整核；全仓调用点穷举及非作者复核排除，不用名称猜测可达性 | 新增链 0；既有帧未测 | 不宣称既有代码真实零栈或所有测试已PASS。 |
+
+两个 H0 还揭示一项**既有静态测试风险**：`native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged` 用 incremental_retention_bytes=1 后仍 unwrap；`cold_context` 冻结1字节，`prepare_parent(None)`→`Budget::bootstrap/build` 的父账元数据费大于1，按现有资源合同会先拒绝。另一项 epoch/profile/idle/illegal_request 测试也带1，但部分分支本就期望拒绝。没有为使它们通过而改资源帽、断言或跳过测试。该发现与真正栈溢出分开记录；本轮 ready 只表示指定修复候选可审，不代表这535项已全绿。
+
+以下每行保留原完整测试名、定位、最深链模型及处理；P/O 等多分支采用保守最大阶段而不声称取得动态回溯。X 逐项列出以便核排除面。所有数字均带上述未实测边界。
+
+| 原 --exact 测试名 | 当前定义（相对 rust/src/bin/） | 最深链 | 模型帧和/处理 |
+|---|---|---|---|
+| `cache::tests::mixed_cache_failed_publication_restores_prior_parent_tables` | `s_session_v2/cache.rs:2714` | X | 新增链0／旧帧未测 |
+| `cache::tests::mixed_cache_second_eviction_plan_failure_preserves_both_old_groups` | `s_session_v2/cache.rs:2672` | X | 新增链0／旧帧未测 |
+| `cache::tests::remove_cert_owned_insert_failure_keeps_payload_accounted` | `s_session_v2/cache.rs:2759` | X | 新增链0／旧帧未测 |
+| `content_manifest::tests::native_manifest_copy_failure_preserves_inputs_and_does_not_validate_early` | `s_session_v2/content_manifest.rs:2141` | X | 新增链0／旧帧未测 |
+| `content_manifest::tests::native_manifest_metadata_and_roots_outlive_scope_and_drop_independently` | `s_session_v2/content_manifest.rs:2111` | X | 新增链0／旧帧未测 |
+| `content_manifest::tests::native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence` | `s_session_v2/content_manifest.rs:2251` | X | 新增链0／旧帧未测 |
+| `content_manifest::tests::native_manifest_recorded_body_and_puts_keep_original_permits_after_scope` | `s_session_v2/content_manifest.rs:2196` | X | 新增链0／旧帧未测 |
+| `content_manifest::tests::native_publication_material_owner_normal_puts_keep_base_and_read_targets_cold` | `s_session_v2/content_manifest.rs:2304` | X | 新增链0／旧帧未测 |
+| `content_manifest::tests::r9a_manifest_scope_preserves_identity_and_accounts_outputs` | `s_session_v2/content_manifest.rs:2586` | X | 新增链0／旧帧未测 |
+| `content_producer::tests::native_local_fractal_relations_preserve_full_material_and_render_with_fewer_puts` | `s_session_v2/content_producer.rs:5926` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::admitted_sql_text_and_publication_path_keep_their_own_permits` | `s_session_v2/content_publication.rs:1549` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::native_publication_begin_and_consumers_share_parent_scope` | `s_session_v2/content_publication.rs:2820` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::native_publication_fields_exact_declaration_failures_and_overlay_not_cached` | `s_session_v2/content_publication.rs:2496` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::native_publication_fields_retains_per_cut_rejection_matrix` | `s_session_v2/content_publication.rs:2573` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::native_publication_fields_same_roots_output_and_fewer_real_lookups` | `s_session_v2/content_publication.rs:2381` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::native_publication_fresh_sql_vs_current_capture_diagnostic` | `s_session_v2/content_publication.rs:1598` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::ordinary_proof_publication_committed_active_fields_rejected_at_withdrawal_cut` | `s_session_v2/content_publication.rs:2234` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::ordinary_proof_publication_complete_outputs_two_frontiers_and_release` | `s_session_v2/content_publication.rs:2088` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::ordinary_proof_publication_exact_declarations_never_hit_good_root_entry` | `s_session_v2/content_publication.rs:2332` | X | 新增链0／旧帧未测 |
+| `content_publication::tests::ordinary_proof_publication_keeps_per_cut_rejection_matrix` | `s_session_v2/content_publication.rs:2178` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_actual_constraint_and_insert_deny_errors_poison_unchanged` | `s_session_v2/content_store.rs:1722` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_counter_witness_rejects_every_unproven_effect` | `s_session_v2/content_store.rs:1883` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_effects_cover_main_temp_indirect_delete_replace_and_ignore` | `s_session_v2/content_store.rs:1551` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_hidden_loaded_trigger_uses_actual_effects` | `s_session_v2/content_store.rs:1595` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_ignored_pragma_metadata_is_error_including_temp_replace_shadow` | `s_session_v2/content_store.rs:1777` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_loaded_shape_and_temp_shadow_reject_preservation` | `s_session_v2/content_store.rs:1641` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_pk_replace_misread_missing_removes_only_target_proof` | `s_session_v2/content_store.rs:1827` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_preserves_only_prior_other_reads_and_keeps_put_cold` | `s_session_v2/content_store.rs:1511` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_trigger_replace_delete_ignore_still_counts_inner_insert` | `s_session_v2/content_store.rs:1695` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_insert_unqualified_unique_replace_keeps_old_full_clear` | `s_session_v2/content_store.rs:1669` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_read_lease_isolation_activity_and_actual_interrupt` | `s_session_v2/content_store.rs:1978` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_read_lease_put_trigger_errors_and_poison_do_not_repair` | `s_session_v2/content_store.rs:1899` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_read_lease_sql_f_headers_and_cold_lifecycle` | `s_session_v2/content_store.rs:1435` | X | 新增链0／旧帧未测 |
+| `content_store::tests::native_read_lease_wal_snapshot_and_upgrade_failure` | `s_session_v2/content_store.rs:2063` | X | 新增链0／旧帧未测 |
+| `object_diff::tests::admitted_changes_keep_permits_past_scope_and_release_on_drop` | `s_session_v3/object_diff.rs:889` | X | 新增链0／旧帧未测 |
+| `object_diff::tests::admitted_diff_partial_output_growth_failure_releases_all_buffers` | `s_session_v3/object_diff.rs:1015` | X | 新增链0／旧帧未测 |
+| `object_diff::tests::admitted_diff_preserves_lazy_read_order_and_budget_failure_atomicity` | `s_session_v3/object_diff.rs:926` | X | 新增链0／旧帧未测 |
+| `object_diff::tests::admitted_diff_rejects_two_allocation_domains_before_growth` | `s_session_v3/object_diff.rs:988` | X | 新增链0／旧帧未测 |
+| `object_diff::tests::admitted_slice_and_indexed_share_order_and_failure_semantics` | `s_session_v3/object_diff.rs:828` | X | 新增链0／旧帧未测 |
+| `staged_nodes::staged_native_lease_uses_overlay_without_sql_material_cache_and_poison_cannot_retry` | `s_session_v2/staged_nodes.rs:745` | X | 新增链0／旧帧未测 |
+| `staged_nodes::staged_nodes_capacity_counts_unique_owned_vecs_without_per_put_heap_sampling` | `s_session_v2/staged_nodes.rs:538` | X | 新增链0／旧帧未测 |
+| `staged_nodes::staged_nodes_flush_counts_rows_and_traverses_old_parent_to_new_child` | `s_session_v2/staged_nodes.rs:572` | X | 新增链0／旧帧未测 |
+| `staged_nodes::staged_nodes_preserve_frame_and_current_sql_error_gates` | `s_session_v2/staged_nodes.rs:624` | X | 新增链0／旧帧未测 |
+| `staged_nodes::staged_scoped_copies_hold_distinct_permits_until_payload_drop` | `s_session_v2/staged_nodes.rs:660` | X | 新增链0／旧帧未测 |
+| `staged_nodes::staged_selective_cut_follows_sql_parent_and_keeps_unselected_payload_charged` | `s_session_v2/staged_nodes.rs:695` | X | 新增链0／旧帧未测 |
+| `tb02a_facts::catalog_axis_owner_tests::catalog_root_outlives_scope_and_every_capacity_failure_releases_partial_axes` | `s_session_v2/tb02a_facts.rs:1664` | X | 新增链0／旧帧未测 |
+| `tests::native_batch_header_shares_original_text_permits_until_last_drop` | `s_structure_session.rs:8277` | X | 新增链0／旧帧未测 |
+| `tests::native_cold_raw_ohlc_and_revision_matches_plain` | `s_structure_session.rs:8467` | X | 新增链0／旧帧未测 |
+| `tests::native_cold_raw_sql_json_hash_receipt_revision_matches_plain` | `s_structure_session.rs:8357` | X | 新增链0／旧帧未测 |
+| `tests::native_raw_column_errors_precede_ohlc_cardinality_and_earlier_row_faults` | `s_structure_session.rs:8380` | X | 新增链0／旧帧未测 |
+| `v3::admission_anchor::ram::tests::mixed_ram_parser_refusal_allocates_no_error_string` | `s_session_v3/admission_anchor/ram.rs:620` | X | 新增链0／旧帧未测 |
+| `v3::admission_provider::control_lock_tests::h1_ledger_cache_conversion_stamp_rejects_changed_main_or_wal_frames` | `s_session_v3/admission_provider.rs:733` | V | 192 KiB／只读拒门 |
+| `v3::admission_provider::control_lock_tests::h1_ledger_cache_discard_releases_only_cache_pins_before_rebuild` | `s_session_v3/admission_provider.rs:711` | V | 192 KiB／只读拒门 |
+| `v3::admission_provider::control_lock_tests::h1_ledger_cache_replacement_or_new_member_is_rejected_before_discard` | `s_session_v3/admission_provider.rs:688` | V | 192 KiB／只读拒门 |
+| `v3::admission_provider::control_lock_tests::h1_ledger_cache_uses_original_store_cap_before_discard` | `s_session_v3/admission_provider.rs:666` | V | 192 KiB／只读拒门 |
+| `v3::audit_ledger::tests::p6_raw_partition_cannot_reopen_or_append_to_complete_certified_ledger` | `s_session_v3/audit_ledger.rs:1332` | L | 384 KiB／低层闭合 |
+| `v3::audit_ledger::tests::p6_two_object_generations_commit_disjoint_closure_deltas` | `s_session_v3/audit_ledger.rs:1557` | L | 384 KiB／低层闭合 |
+| `v3::audit_ledger::tests::p6_verified_units_difference_keeps_mode_and_first_generation` | `s_session_v3/audit_ledger.rs:1406` | L | 384 KiB／低层闭合 |
+| `v3::audit_owner::audit_owner_ended_cannot_promote_earlier_context_or_fixture_life` | `s_session_v3/audit_owner.rs:3685` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::audit_owner_q_itemized_normal_cold_growth_and_typed_limit` | `s_session_v3/audit_owner.rs:4647` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_set::tests::owner_set_append_skips_shared_prefix_and_preserves_duplicate_occurrence` | `s_session_v3/construction_set.rs:1020` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_set::tests::owner_set_diff_budget_failure_does_not_reissue_success` | `s_session_v3/construction_set.rs:1178` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_set::tests::owner_set_full_material_diff_covers_witness_observation_and_nested_requests` | `s_session_v3/construction_set.rs:1104` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_set::tests::owner_set_sequence_exhaustive_occurrences_and_order` | `s_session_v3/construction_set.rs:955` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_set::tests::owner_set_wrong_root_owner_and_unclosed_domain_reject` | `s_session_v3/construction_set.rs:1145` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_set::tests::sequence_delta_retains_charge_and_drop_does_not_refill_next_request` | `s_session_v3/construction_set.rs:932` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_tests::b2_native_carry_budget_rejects_without_losing_committed_frontier` | `s_session_v3/audit_owner.rs:6813` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::b2_native_formal_failure_rollback_and_commit_failure_revoke_all_state` | `s_session_v3/audit_owner.rs:6637` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild` | `s_session_v3/audit_owner.rs:6352` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::b2_native_owner_restore_wrong_library_layout_rejects_in_append_owner_cut` | `s_session_v3/audit_owner.rs:6485` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::b2_native_source_future_duplicates_preserve_earlier_actual_fault` | `s_session_v3/audit_owner/b2_source_fault_tests.rs:580` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_tests::b2_native_source_global_dependencies_match_full_oracle_and_rollback` | `s_session_v3/audit_owner/b2_source_fault_tests.rs:568` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_tests::b2_native_source_phase_errors_precede_later_bad_material` | `s_session_v3/audit_owner/b2_source_fault_tests.rs:557` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_tests::b2_native_source_unsettled_rechecks_added_nonzero_group_before_partition` | `s_session_v3/audit_owner/b2_source_fault_tests.rs:589` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::construction_tests::b2_native_two_nonempty_formal_rounds_match_full_oracle_at_every_commit` | `s_session_v3/audit_owner.rs:6578` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::b2_native_warm_cold_and_ordinary_match_all_rows_nodes_roots_receipts_and_counts` | `s_session_v3/audit_owner.rs:6103` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::b2_native_warm_missing_or_stale_originals_reject_before_full_source` | `s_session_v3/audit_owner.rs:6758` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::cross_request_actual_commit_failure_cannot_promote` | `s_session_v3/audit_owner.rs:7049` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::cross_request_publication_tail_failure_cannot_commit` | `s_session_v3/audit_owner.rs:7045` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::cross_request_ready_first_publication_preserves_real_parent` | `s_session_v3/audit_owner.rs:7041` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_admission_cold_handoff_foreign_sqlite_commit_rejects` | `s_session_v3/audit_owner/admission_tests.rs:381` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_cold_negative_classes_match_full_oracle` | `s_session_v3/audit_owner/admission_tests.rs:271` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_admission_cold_prefixes_match_full_canonical` | `s_session_v3/audit_owner/admission_tests.rs:157` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_cold_real_wire_short_budget_rejects_before_write` | `s_session_v3/audit_owner/admission_tests.rs:800` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_driver_cold_preserves_original_node_record_gates` | `s_session_v3/audit_owner/admission_tests.rs:724` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` | `s_session_v3/audit_owner/admission_tests.rs:595` | R | 1,440 KiB／H+recover已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_foreign_sqlite_changes_retire_writer` | `s_session_v3/audit_owner/admission_tests.rs:347` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_admission_formal_accept_begin_prepare_recover_never_full_audit` | `s_session_v3/audit_owner/admission_tests.rs:461` | R | 1,440 KiB／H+recover已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_hot_rollback_journal_rejects_before_rw_open` | `s_session_v3/audit_owner/admission_tests.rs:1254` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_mainonly_nonwal_prepolicy_preserves_domain` | `s_session_v3/audit_owner/admission_tests.rs:1193` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_nonwal_conversion_handoff_foreign_commit_rejects` | `s_session_v3/audit_owner/admission_tests.rs:1312` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_normal_exit_same_database_new_process_restarts` | `s_session_v3/audit_owner/admission_tests.rs:1055` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_admission_online_own_commits_match_full_canonical` | `s_session_v3/audit_owner/admission_tests.rs:322` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration` | `s_session_v3/audit_owner/admission_tests.rs:1127` | O | 1,056 KiB／C建库+Ordinary旧核最大 |
+| `v3::audit_owner::construction_tests::h1_admission_prepolicy_bad_history_rejected_before_migration` | `s_session_v3/audit_owner/admission_tests.rs:861` | H | 1,376 KiB／共用H已拆帧 |
+| `v3::audit_owner::construction_tests::h1_certified_commit_failure_releases_controls_before_return` | `s_session_v3/audit_owner/history_clamp_tests.rs:652` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_certified_missing_candidate_and_mode_switch_are_sticky_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:482` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_certified_online_consumes_source_receipt_and_matches_cold` | `s_session_v3/audit_owner/history_clamp_tests.rs:373` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_certified_online_without_source_receipt_rejects_without_full_fallback` | `s_session_v3/audit_owner/history_clamp_tests.rs:432` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_certified_open_empty_and_reopen_from_originals` | `s_session_v3/audit_owner/history_clamp_tests.rs:460` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_certified_open_failures_leave_no_candidate_or_write` | `s_session_v3/audit_owner/history_clamp_tests.rs:513` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_complete_canonical_empty_history_is_deterministic` | `s_session_v3/audit_owner/history_clamp_tests.rs:190` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_control_bytes_change_in_same_connection_is_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:86` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_control_observation_budget_failure_retires_without_writing` | `s_session_v3/audit_owner/history_clamp_tests.rs:623` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_control_originals_are_retained_on_the_same_parent_and_released` | `s_session_v3/audit_owner/history_clamp_tests.rs:565` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_control_parent_rebind_precedes_warm_request_observation` | `s_session_v3/audit_owner/history_clamp_tests.rs:591` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_external_checkpoint_is_not_own_effect` | `s_session_v3/audit_owner/history_clamp_tests.rs:294` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_main_identity_replacement_is_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:53` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_missing_commit_receipt_retires_after_real_commit` | `s_session_v3/audit_owner/history_clamp_tests.rs:337` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_other_connection_commit_is_sticky_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:44` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_own_checkpoint_and_wal_reset_preserve_full_history` | `s_session_v3/audit_owner/history_clamp_tests.rs:239` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_partial_checkpoint_waits_for_reader_then_resets` | `s_session_v3/audit_owner/history_clamp_tests.rs:254` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch` | `s_session_v3/audit_owner/history_clamp_tests.rs:899` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_qualified_cold_rejects_missing_partial_or_foreign_qualification` | `s_session_v3/audit_owner/history_clamp_tests.rs:862` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_qualified_ledger_commit_failure_and_external_identity_write_are_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:991` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_qualified_online_consumes_real_ledger_and_cold_rebuild_matches` | `s_session_v3/audit_owner/history_clamp_tests.rs:798` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_qualified_stage_rejects_externally_rewritten_fold_digest_or_rule_revision` | `s_session_v3/audit_owner/history_clamp_tests.rs:1064` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_qualified_transition_short_budget_rejects_before_write_and_releases` | `s_session_v3/audit_owner/history_clamp_tests.rs:1128` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_raw_suffix_probe_detects_linear_skip_regression` | `s_session_v3/audit_owner/history_clamp_tests.rs:706` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_real_own_accept_begin_publish_continues_same_life` | `s_session_v3/audit_owner/history_clamp_tests.rs:24` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_real_write_does_not_explain_external_main_change_before_checkpoint` | `s_session_v3/audit_owner/history_clamp_tests.rs:309` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_request_closure_real_owner_multicut_reuses_resolved_roots` | `s_session_v3/audit_owner.rs:6339` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_roots_json_matches_real_cert_roots` | `s_session_v3/audit_owner/history_clamp_tests.rs:1213` | C | 1,056 KiB／保留既有隔离 |
+| `v3::audit_owner::construction_tests::h1_schema_and_domain_changes_are_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:99` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_sqlite_commit_failure_does_not_advance_clamp` | `s_session_v3/audit_owner/history_clamp_tests.rs:129` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_unchanged_snapshot_survives_read_end` | `s_session_v3/audit_owner/history_clamp_tests.rs:14` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_undeclared_write_rejected_before_sql_and_commit` | `s_session_v3/audit_owner/history_clamp_tests.rs:112` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_unexplained_main_stat_is_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:73` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_wal_identity_replacement_is_stale` | `s_session_v3/audit_owner/history_clamp_tests.rs:63` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::h1_zero_autocheckpoint_keeps_main_and_wal_round` | `s_session_v3/audit_owner/history_clamp_tests.rs:278` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_cold_candidate_born_from_grant_before_first_allocation` | `s_session_v3/audit_owner.rs:7239` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_commit_hook_failure_never_promotes` | `s_session_v3/audit_owner.rs:7220` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_external_commit_rejects_equal_length_material` | `s_session_v3/audit_owner.rs:7276` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_formal_accept_append_commits_before_nonempty_delta` | `s_session_v3/audit_owner.rs:5951` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_formal_accept_probe_is_scoped_to_owner_and_thread` | `s_session_v3/audit_owner.rs:5886` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_formal_accept_revision_commits_before_nonempty_delta` | `s_session_v3/audit_owner.rs:5955` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_nonempty_consumer_failure_stales_after_formal_accept_commit` | `s_session_v3/audit_owner.rs:5959` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_pending_state_holds_its_fee_until_drop` | `s_session_v3/audit_owner.rs:7259` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_real_effects_only_promote_after_real_commit` | `s_session_v3/audit_owner.rs:7132` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_rollback_unknown_write_and_unclosed_commit_revoke` | `s_session_v3/audit_owner.rs:7168` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_raw_schema_read_domain_and_consumer_failure_revoke` | `s_session_v3/audit_owner.rs:7307` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_set_real_publish_commit_failure_revokes_everything` | `s_session_v3/audit_owner.rs:7124` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_set_real_publish_stage_effects_commit_promotes` | `s_session_v3/audit_owner.rs:7120` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::owner_set_real_publish_unscoped_same_value_update_rejects` | `s_session_v3/audit_owner.rs:7128` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::p6_native_source_context_preserves_real_owner_multicut_contract` | `s_session_v3/audit_owner.rs:6331` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::publication_resource_tail_failure_prevents_actual_sql_commit` | `s_session_v3/audit_owner.rs:7058` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::construction_tests::publication_single_parent_scope_reaches_raw_runtime_material_and_validation` | `s_session_v3/audit_owner.rs:7054` | P | 928 KiB／共同核包络 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_effects_absent_budget_never_yields_coverage_receipt` | `s_session_v3/audit_owner/effects.rs:2488` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_effects_node_insert_and_repeated_noop_use_actual_write_counts` | `s_session_v3/audit_owner/effects.rs:2436` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_effects_strict_schema_rejects_rowid_node_substitute` | `s_session_v3/audit_owner/effects.rs:2475` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_effects_unhooked_without_rowid_write_and_trigger_side_effect_reject` | `s_session_v3/audit_owner/effects.rs:2454` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_actual_transaction_progress_cancellation_is_preserved` | `s_session_v3/audit_owner/effects.rs:3192` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_distinct_withdrawals_each_consume_one_actual_row` | `s_session_v3/audit_owner/effects.rs:3025` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_duplicate_withdrawal_same_final_row_poisons_ordered_seal` | `s_session_v3/audit_owner/effects.rs:3004` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_exact_work_cap_lives_through_effects_then_releases_only_its_charge` | `s_session_v3/audit_owner/effects.rs:3108` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_failed_source_drops_new_cap_without_erasing_existing_codec_retain` | `s_session_v3/audit_owner/effects.rs:3159` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_future_stage_cannot_repair_missing_current_original` | `s_session_v3/audit_owner/effects.rs:2914` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_merged_receipts_reject_dropped_misplaced_or_miscounted_event` | `s_session_v3/audit_owner/effects.rs:2792` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_none_scope_shares_journal_cap_and_failure_cannot_reset` | `s_session_v3/audit_owner/effects.rs:3085` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes` | `s_session_v3/audit_owner/effects.rs:2742` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_receipt_events_grow_alone_and_overflow_like_keys` | `s_session_v3/audit_owner/effects.rs:2852` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_source_cut_rejects_foreign_only_closure_and_cannot_reissue` | `s_session_v3/audit_owner/effects.rs:3052` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::owner_set_stage_drop_foreign_connection_and_omitted_business_row_reject` | `s_session_v3/audit_owner/effects.rs:2948` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::p2_2_journal_permit_taken_before_recording_allocation` | `s_session_v3/audit_owner/effects.rs:2504` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::p2_2_private_journal_parent_born_before_allocation_and_material_adds_no_fee` | `s_session_v3/audit_owner/effects.rs:2578` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::p3b_start_on_keeps_pre_p2_2_result_categories` | `s_session_v3/audit_owner/effects.rs:2538` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::publication_resource_attachment_is_once_and_foreign_scope_rejects` | `s_session_v3/audit_owner/effects.rs:2695` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::construction_coverage_tests::publication_weak_identity_does_not_block_finish_with_large_parent_retention` | `s_session_v3/audit_owner/effects.rs:2637` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::e_owner_move_tests::e_apply_native_insert_is_ordered_and_releases_only_manual_outer_charge` | `s_session_v3/audit_owner/effects.rs:3244` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::e_owner_move_tests::e_apply_native_replace_and_delete_keep_remaining_rows_owned` | `s_session_v3/audit_owner/effects.rs:3322` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::e_owner_move_tests::e_stage_into_row_keeps_charge_after_header_drop` | `s_session_v3/audit_owner/effects.rs:3214` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::native_journal_only_reserves_the_container_that_grows` | `s_session_v3/audit_owner/effects.rs:2358` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_accepts_cells_born_under_parent` | `s_session_v3/audit_owner/effects.rs:3408` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_rejects_plain_cell_or_foreign_parent_without_adopt` | `s_session_v3/audit_owner/effects.rs:3425` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::cross_request_denied_growth_preserves_old_payload_and_origin` | `s_session_v3/audit_owner/native.rs:2168` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::handoff_active_scope_overflow_and_changed_contract_are_atomic` | `s_session_v3/audit_owner/native.rs:2202` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::initial_original_fee_can_be_adopted_only_once` | `s_session_v3/audit_owner/native.rs:2258` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::native_growth_across_two_requests_keeps_payload_and_charge_origin` | `s_session_v3/audit_owner/native.rs:2136` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::native_reservation_split_merge_rejects_foreign_and_new_origin` | `s_session_v3/audit_owner/native.rs:2071` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::old_release_does_not_refill_allowance_with_real_native_payload` | `s_session_v3/audit_owner/native.rs:2104` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::old_tree_remove_and_drop_return_only_their_own_origin` | `s_session_v3/audit_owner/native.rs:2240` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::permit_split_merge_foreign_source_and_duplicate_consumption_reject` | `s_session_v3/audit_owner/native.rs:2222` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::cross_request_budget_tests::retained_scratch_layout_drops_in_old_origin_after_scope_closes` | `s_session_v3/audit_owner/native.rs:2044` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::business_map_rejects_foreign_parent_before_spare_capacity_or_growth` | `s_session_v3/audit_owner/native.rs:2425` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::expired_budget_rejects_spare_vec_hash_and_tree_replacement` | `s_session_v3/audit_owner/native.rs:2397` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::expired_domain_cannot_adopt_plain_vec_even_without_growth` | `s_session_v3/audit_owner/native.rs:2328` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::frozen_increment_accepts_700_old_and_20_new_with_200_allowance` | `s_session_v3/audit_owner/native.rs:2285` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::frozen_old_pool_must_include_actual_parent_metadata_before_handoff` | `s_session_v3/audit_owner/native.rs:2307` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::insufficient_scope_metadata_keeps_plain_vec_and_original_fee_unchanged` | `s_session_v3/audit_owner/native.rs:2363` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::lifecycle_repair_v2_tests::temporary_native_text_and_codec_capacity_release_on_actual_owner_drop` | `s_session_v3/audit_owner/native.rs:2475` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r6_codec_work_tests::r6_codec_completed_scope_keeps_readable_bytes_and_rejects_writes` | `s_session_v3/audit_owner/native.rs:29` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r6_codec_work_tests::r6_codec_parent_metadata_growth_refusal_and_real_drop` | `s_session_v3/audit_owner/native.rs:209` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r6_codec_work_tests::r6_codec_real_verify_render_lookup_writer_plain_and_scoped_memo` | `s_session_v3/audit_owner/native.rs:63` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r6_codec_work_tests::r6_codec_render_output_refusal_keeps_write_cause` | `s_session_v3/audit_owner/native.rs:177` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r8_native_admission_tests::r8_native_business_map_growth_uses_parent_ledger` | `s_session_v3/audit_owner/native.rs:1994` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r8_native_admission_tests::r8_native_frame_body_release_and_preallocation_refusal` | `s_session_v3/audit_owner/native.rs:1868` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::r8_native_admission_tests::r8_native_local_material_memo_consumes_work_and_releases` | `s_session_v3/audit_owner/native.rs:1925` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::tests::native_hash_bucket_bound_covers_actual_growth_and_json_shapes_cover_heap` | `s_session_v3/audit_owner/native.rs:1833` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::tests::native_permits_release_and_growth_keeps_old_block_until_reserve` | `s_session_v3/audit_owner/native.rs:1789` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::p2_3_rebirth_codec_vec_peak_counts_old_and_new_blocks` | `s_session_v3/audit_owner/native.rs:2837` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::p2_3_rebirth_vec_peak_counts_old_and_new_blocks` | `s_session_v3/audit_owner/native.rs:2810` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::p3a_production_reserve_native_rejects_allocated_plain_without_adopting` | `s_session_v3/audit_owner/native.rs:2876` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::p3g_codec_vec_grow_and_scratch_never_double_reserve_same_allocation` | `s_session_v3/audit_owner/native.rs:2914` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_effects_rows_accept_same_parent_born_without_charge` | `s_session_v3/audit_owner/native.rs:2733` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_effects_rows_reject_plain_and_foreign_without_adopt` | `s_session_v3/audit_owner/native.rs:2741` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_fresh_parent_codec_vec_grow_never_adopts_allocated_plain` | `s_session_v3/audit_owner/native.rs:3005` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_binds_new_block_under_parent` | `s_session_v3/audit_owner/native.rs:2758` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_never_draws_moved_in_or_foreign` | `s_session_v3/audit_owner/native.rs:2776` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_born_empty_and_journal_fee_reserved` | `s_session_v3/audit_owner/native.rs:2677` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_rejects_fee_beyond_real_room_instead_of_moved_in` | `s_session_v3/audit_owner/native.rs:2685` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_q_raw_rebirth_never_draws_moved_in` | `s_session_v3/audit_owner/native.rs:2716` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::u2_exit_adopt_tests::u2_q_raw_rebirth_reserves_new_block_and_fee_moves_with_vec` | `s_session_v3/audit_owner/native.rs:2697` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::unified_ownership_v4_tests::handoff_ends_move_in_and_old_rest_never_refills_new_allowance` | `s_session_v3/audit_owner/native.rs:2601` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::unified_ownership_v4_tests::move_in_rejects_legacy_moved_in_without_mutation` | `s_session_v3/audit_owner/native.rs:2627` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::unified_ownership_v4_tests::move_in_reserves_splits_and_returns_rest_without_partial_mutation` | `s_session_v3/audit_owner/native.rs:2566` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::unified_ownership_v4_tests::observer_rejects_when_sponsor_exceeds_allowance_without_mutation` | `s_session_v3/audit_owner/native.rs:2553` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::native::unified_ownership_v4_tests::observer_sponsor_counts_in_allowance_and_old_drop_never_refills` | `s_session_v3/audit_owner/native.rs:2517` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard` | `s_session_v3/audit_owner.rs:5132` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected` | `s_session_v3/audit_owner.rs:5238` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::p2_4_seal_census_flags_duplicate_permit_on_real_seal_path` | `s_session_v3/audit_owner.rs:5008` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::publication_degrade_verdict_tests::publication_degrade_verdict_only_for_pure_budget_shortfall` | `s_session_v3/audit_owner.rs:7754` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::q::actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_charge` | `s_session_v3/audit_owner/q.rs:961` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::q::pending_normal_last_remove_releases_root_before_charge` | `s_session_v3/audit_owner/q.rs:935` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::r13_cold_candidate_and_q_share_parent_and_preserve_complete_output` | `s_session_v3/audit_owner.rs:4749` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::r13_optional_sql_rows_share_parent_without_changing_cells` | `s_session_v3/audit_owner.rs:4859` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::r14_source_keeper_seal_and_next_request_share_explicit_parent` | `s_session_v3/audit_owner.rs:5306` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::raw_native_move_ownership_tests::pending_and_bound_raw_moves_keep_original_permits_until_payload_drop` | `s_session_v3/audit_owner.rs:7362` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::sqlite_pager_probe::tests::pager_probe_startup_line_keeps_field_set` | `s_session_v3/sqlite_pager_probe.rs:313` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::sqlite_pager_probe::tests::pager_probe_testonly_cache_kib_parse` | `s_session_v3/sqlite_pager_probe.rs:343` | X | 新增链0／旧帧未测 |
+| `v3::audit_owner::sqlite_pager_probe::tests::pager_probe_testonly_cache_request_sets_cache_size` | `s_session_v3/sqlite_pager_probe.rs:380` | X | 新增链0／旧帧未测 |
+| `v3::audit_store::ref_value_tests::native_tree_removed_entry_keeps_payload_charge_after_tree_and_scope_drop` | `s_session_v3/audit_store.rs:1248` | X | 新增链0／旧帧未测 |
+| `v3::audit_store::ref_value_tests::r9a_optional_fields_preserve_absence_kind_and_scoped_reads` | `s_session_v3/audit_store.rs:1347` | X | 新增链0／旧帧未测 |
+| `v3::audit_store::ref_value_tests::r9a_ref_outputs_charge_plain_text_and_preserve_values` | `s_session_v3/audit_store.rs:1287` | X | 新增链0／旧帧未测 |
+| `v3::aux_index::tests::native_aux_failed_table_construction_releases_partial_owners` | `s_session_v3/aux_index.rs:2621` | X | 新增链0／旧帧未测 |
+| `v3::aux_index::tests::native_aux_owner_prefix_duplicates_reference_and_overlay_matrix` | `s_session_v3/aux_index.rs:2863` | X | 新增链0／旧帧未测 |
+| `v3::aux_index::tests::native_aux_tables_retain_owners_across_scope_and_release_on_drop` | `s_session_v3/aux_index.rs:2596` | X | 新增链0／旧帧未测 |
+| `v3::aux_index::tests::p50_legacy_to_native_index_permit_counts_control_byte_per_slot` | `s_session_v3/aux_index.rs:2804` | X | 新增链0／旧帧未测 |
+| `v3::aux_index::tests::r12_cold_object_aux_shared_scope_matches_complete_plain_outputs` | `s_session_v3/aux_index.rs:2665` | X | 新增链0／旧帧未测 |
+| `v3::business_json::native_consumer_tests::admitted_json_and_hash_match_normal_with_payload_raii` | `s_session_v3/business_json.rs:3343` | X | 新增链0／旧帧未测 |
+| `v3::business_json::native_consumer_tests::admitted_sql_text_clone_and_json_parsers_match_plain` | `s_session_v3/business_json.rs:3304` | X | 新增链0／旧帧未测 |
+| `v3::business_json::native_consumer_tests::raw_native_owners_move_out_of_scope_and_release_only_on_drop` | `s_session_v3/business_json.rs:3242` | X | 新增链0／旧帧未测 |
+| `v3::business_json::native_consumer_tests::raw_native_tree_reuses_high_water_and_retains_buffer_until_drop` | `s_session_v3/business_json.rs:3278` | X | 新增链0／旧帧未测 |
+| `v3::business_json::plain_raii_tests::native_json_cannot_be_mutated_or_detached_without_admission` | `s_session_v3/business_json.rs:3462` | X | 新增链0／旧帧未测 |
+| `v3::business_json::plain_raii_tests::native_plain_values_keep_original_permits_past_scope_and_drop_independently` | `s_session_v3/business_json.rs:3387` | X | 新增链0／旧帧未测 |
+| `v3::business_json::plain_raii_tests::native_strict_parse_preserves_diagnostics_and_failed_parse_returns_permit` | `s_session_v3/business_json.rs:3437` | X | 新增链0／旧帧未测 |
+| `v3::business_json::raw_events_layout_tests::aggregate_tree_conversion_and_direct_append_refuse_without_releasing_live_children` | `s_session_v3/business_json.rs:3762` | X | 新增链0／旧帧未测 |
+| `v3::business_json::raw_events_layout_tests::itemized_array_multiple_growths_retain_exact_buffers_across_work_scopes` | `s_session_v3/business_json.rs:3812` | X | 新增链0／旧帧未测 |
+| `v3::business_json::raw_events_native_append_tests::failed_work_and_capacity_refusal_preserve_raw_payload_and_balance` | `s_session_v3/business_json.rs:3709` | X | 新增链0／旧帧未测 |
+| `v3::business_json::raw_events_native_append_tests::same_parent_new_work_appends_and_foreign_parent_refuses_without_mutation` | `s_session_v3/business_json.rs:3667` | X | 新增链0／旧帧未测 |
+| `v3::business_json::scoped_json_array_tests::scoped_array_each_preparation_refusal_preserves_parent_payload_capacity_and_live` | `s_session_v3/business_json.rs:3580` | X | 新增链0／旧帧未测 |
+| `v3::business_json::scoped_json_array_tests::scoped_array_growth_accounts_old_new_payload_and_metadata_together` | `s_session_v3/business_json.rs:3536` | X | 新增链0／旧帧未测 |
+| `v3::business_json::scoped_json_array_tests::scoped_array_outlives_scope_retains_metadata_and_releases_at_last_owner_drop` | `s_session_v3/business_json.rs:3495` | X | 新增链0／旧帧未测 |
+| `v3::business_json::scoped_json_array_tests::scoped_array_refuses_dual_parent_and_finished_native_rejects_unscoped_mutation` | `s_session_v3/business_json.rs:3622` | X | 新增链0／旧帧未测 |
+| `v3::capture::retained::native_boundary_tests::plain_capture_roundtrip_stays_plain_and_unreachable_native_injection_is_rejected` | `s_session_v3/q_retained.rs:896` | X | 新增链0／旧帧未测 |
+| `v3::catalog_evidence::native_catalog_temp_tests::reference_text_keeps_native_permit_after_scope_and_matches_canonical_oracle` | `s_session_v3/catalog_evidence.rs:960` | X | 新增链0／旧帧未测 |
+| `v3::catalog_evidence::native_catalog_temp_tests::reference_text_refusal_keeps_source_and_releases_partial_output` | `s_session_v3/catalog_evidence.rs:999` | X | 新增链0／旧帧未测 |
+| `v3::control_audit::tests::r12_native_control_cold_matches_plain_empty_domain_on_parent_scope` | `s_session_v3/control_audit.rs:544` | X | 新增链0／旧帧未测 |
+| `v3::control_audit::tests::r12_native_control_cold_matches_plain_published_facts_on_parent_scope` | `s_session_v3/control_audit.rs:486` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::counts_footprint_tests::counts_footprint_actual_owned_normal_diagnostic` | `s_session_v3/cross_request_source_cache.rs:2265` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::codec_root_success_handler_legal_growth_matches_complete_cold` | `s_session_v3/cross_request_source_cache.rs:1782` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::counts_subset_normal_multicut_bounded_groups_match_complete_cold` | `s_session_v3/cross_request_source_cache.rs:1543` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::counts_subset_normal_owner_releases_unselected_originals_and_keeps_exact_tuples` | `s_session_v3/cross_request_source_cache.rs:1652` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::counts_subset_normal_unrelated_legal_append_keeps_complete_counts` | `s_session_v3/cross_request_source_cache.rs:1623` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_actual_owned_snapshot_diagnostic` | `s_session_v3/cross_request_source_cache.rs:2114` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_complete_key_and_exact_rows_never_hash_only` | `s_session_v3/cross_request_source_cache.rs:1888` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_damaged_current_material_rejects_and_clears` | `s_session_v3/cross_request_source_cache.rs:1938` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_later_revision_and_withdrawal_still_use_current_index` | `s_session_v3/cross_request_source_cache.rs:1848` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_measured_cap_exact_minus_one_and_one` | `s_session_v3/cross_request_source_cache.rs:1871` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_real_append_matches_complete_cold` | `s_session_v3/cross_request_source_cache.rs:1814` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_sql_interrupt_never_cold_retries` | `s_session_v3/cross_request_source_cache.rs:2038` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_subset_requires_unique_complete_old_cover` | `s_session_v3/cross_request_source_cache.rs:2060` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_tail_and_late_catalog_fault_cannot_be_hidden` | `s_session_v3/cross_request_source_cache.rs:1972` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::cross_request_source_cache_unrelated_original_change_outside_counts_closure_still_hits` | `s_session_v3/cross_request_source_cache.rs:1997` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::p2a_source_claim_points_to_charged_body_and_duplicate_reserve_rejected` | `s_session_v3/cross_request_source_cache.rs:954` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::p3b_seal_rejects_missing_source_claim_on_charged_body` | `s_session_v3/cross_request_source_cache.rs:1046` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::r11_source_binding_new_and_seal_use_shared_scope` | `s_session_v3/cross_request_source_cache.rs:1111` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::r13_source_trial_cold_hit_miss_record_and_seal_use_shared_scope` | `s_session_v3/cross_request_source_cache.rs:1403` | X | 新增链0／旧帧未测 |
+| `v3::cross_request_source_cache::tests::r14_source_pool_normal_growth_and_sparse_cap_match_none` | `s_session_v3/cross_request_source_cache.rs:1169` | X | 新增链0／旧帧未测 |
+| `v3::driver::tests::audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification` | `s_session_v3/driver.rs:3097` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::audit_owner_complete_normal_second_connection_and_new_life_are_cold` | `s_session_v3/driver.rs:4845` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_complete_optional_budget_releases_without_changing_reply` | `s_session_v3/driver.rs:4224` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_complete_ready_receipt_repost_keep_owned_state_and_match_ordinary` | `s_session_v3/driver.rs:3026` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix` | `s_session_v3/driver.rs:7614` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_native_no_write_must_not_repeat_all_old_cut_semantics` | `s_session_v3/driver.rs:2956` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_new_message_raw_replay_matches_ordinary_complete_tables` | `s_session_v3/driver.rs:2870` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_normal_append_keeps_candidate_below_old_multiplier_gate` | `s_session_v3/driver.rs:4695` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_staged_normal_append_consumes_actual_nodes_and_suffix` | `s_session_v3/driver.rs:7550` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::audit_owner_write_budget_retains_candidate_within_retention_cap_and_parent_limit` | `s_session_v3/driver.rs:4770` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::counts_subset_driver_normal_rows_append_repost_restart_and_shared_s7` | `s_session_v3/driver.rs:5545` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::cross_request_ready_first_write_and_two_requests_preserve_parent` | `s_session_v3/driver.rs:4666` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::diagnostic_fixture_serve_entry_reaches_ready_but_refuses_every_advance` | `s_session_v3/driver.rs:1228` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::incremental_build_full_branch_only_at_birth` | `s_session_v3/driver.rs:7998` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_bootstrap_epoch_profile_idle_and_illegal_request_reject_before_pending_resume_and_release` | `s_session_v3/driver.rs:5174` | H0 | 832 KiB／H前段已覆盖 |
+| `v3::driver::tests::native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged` | `s_session_v3/driver.rs:4935` | H0 | 832 KiB／H前段已覆盖 |
+| `v3::driver::tests::native_bootstrap_pending_drops_startup_slot_before_resume_then_identity_cold_matches_current_frontier` | `s_session_v3/driver.rs:5038` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_bootstrap_two_transactions_reject_current_damage_or_sql_error_without_old_proof` | `s_session_v3/driver.rs:5109` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_capture_readonly_current_source_rejects_fresh_damage_without_writes` | `s_session_v3/driver.rs:6198` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_capture_real_sql_failures_preserve_each_persistent_phase_boundary` | `s_session_v3/driver.rs:6155` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_capture_three_commits_and_restart_match_ordinary_current_state` | `s_session_v3/driver.rs:6076` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_delta_explicit_policy_sql_receipt_and_failed_commit_retry` | `s_session_v3/driver.rs:1818` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_mode_is_frozen_before_pending_resume_captures_advance_and_prepare` | `s_session_v3/driver.rs:6131` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_prefix_context_rechecks_real_connection_current_material` | `s_session_v3/driver.rs:1505` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_prefix_final_deadline_preserves_business_and_clears_retained_context` | `s_session_v3/driver.rs:1665` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool` | `s_session_v3/driver.rs:1590` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_prefix_populated_capture_type_error_precedes_frame_and_epoch` | `s_session_v3/driver.rs:1469` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_prefix_preserves_business_epoch_rule_order_and_clears_context` | `s_session_v3/driver.rs:1417` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_prefix_success_keeps_actual_startup_validation` | `s_session_v3/driver.rs:1739` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_startup_full_audit_and_pending_resume_before_write_guards` | `s_session_v3/driver.rs:5268` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_startup_rejects_each_current_damage_before_pending_resume` | `s_session_v3/driver.rs:5312` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::native_startup_sql_errors_propagate_without_ordinary_fallback` | `s_session_v3/driver.rs:5366` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts` | `s_session_v3/driver.rs:8437` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::ordinary_proof_multicut_complete_outputs_match_frozen_oracle` | `s_session_v3/driver.rs:8336` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::p1_1_driver_warm_old_pool_partition_counts_l0_once` | `s_session_v3/driver.rs:4294` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::p24adj_cold_root_renewal_keeps_real_revocations` | `s_session_v3/driver.rs:4586` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits` | `s_session_v3/driver.rs:4462` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root` | `s_session_v3/driver.rs:4346` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected` | `s_session_v3/driver.rs:4395` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths` | `s_session_v3/driver.rs:8708` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::pager_probe_configure_keeps_carry_lease_open` | `s_session_v3/driver.rs:8124` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::publication_candidate_budget_shortfall_degrades_and_keeps_admitting` | `s_session_v3/driver.rs:7989` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::publication_ledger_after_budget_failure_rejects_without_degrade` | `s_session_v3/driver.rs:8113` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::publication_prepare_wrapped_allocation_failure_degrades` | `s_session_v3/driver.rs:8105` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::publication_real_error_after_budget_failure_rejects_without_degrade` | `s_session_v3/driver.rs:8083` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::publication_real_tail_failure_still_rejects_without_degrade` | `s_session_v3/driver.rs:8074` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::publication_source_append_allocation_failure_degrades` | `s_session_v3/driver.rs:8096` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::recover_lock_budget_live_and_peak_continue_across_recover` | `s_session_v3/driver.rs:3600` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_commit_failure_and_rollback_never_promote` | `s_session_v3/driver.rs:3503` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_external_write_and_read_domain_change_still_revoke` | `s_session_v3/driver.rs:3532` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_fee_permit_moves_on_same_parent_ledger` | `s_session_v3/driver.rs:3632` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_handoff_failure_revokes` | `s_session_v3/driver.rs:3585` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger` | `s_session_v3/driver.rs:4195` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_old_raw_token_and_begin_token_rejected_after_promotion` | `s_session_v3/driver.rs:3714` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_promotes_after_duplicate_ingest_and_chained_rebinds` | `s_session_v3/driver.rs:4134` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_promotes_after_new_request_readonly_rebind` | `s_session_v3/driver.rs:4011` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_promotes_after_new_request_receipt_rebind` | `s_session_v3/driver.rs:4105` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record` | `s_session_v3/driver.rs:4063` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_confirm_epoch_mismatch` | `s_session_v3/driver.rs:3862` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_foreign_ledger_budget_handoff` | `s_session_v3/driver.rs:3881` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_missing_candidate_or_parent_ledger` | `s_session_v3/driver.rs:3682` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_missing_same_snapshot_complete` | `s_session_v3/driver.rs:4176` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_non_increasing_epoch` | `s_session_v3/driver.rs:3440` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_qualification_recorded_on_other_parent_or_domain` | `s_session_v3/driver.rs:3937` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_qualification_without_parent_record` | `s_session_v3/driver.rs:4042` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_stale_qualification_stamp` | `s_session_v3/driver.rs:3834` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_rejects_unclosed_recover_effects` | `s_session_v3/driver.rs:3475` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease` | `s_session_v3/driver.rs:3382` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::recover_lock_schema_and_material_change_revoke` | `s_session_v3/driver.rs:3772` | B | 896 KiB／无新增冷seed |
+| `v3::driver::tests::request_history_handler_sql_and_commit_failures_release_context` | `s_session_v3/driver.rs:6023` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::request_history_real_driver_three_stages_reuse_and_repost_starts_cold` | `s_session_v3/driver.rs:5967` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages` | `s_session_v3/driver.rs:8660` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::s4_stage_measurement_from_bars` | `s_session_v3/driver.rs:8679` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::s_system_clock_budget_degrade_reuses_first_commit_reading` | `s_session_v3/driver.rs:2809` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::source_keeper_driver_append_repost_restart_preserves_results_and_request_reuse` | `s_session_v3/driver.rs:5707` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::source_keeper_driver_measured_cap_only_changes_retention` | `s_session_v3/driver.rs:5919` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::source_keeper_driver_workspace_shares_s7_with_nonempty_old_pool_and_exact_rows` | `s_session_v3/driver.rs:5815` | O | 1,056 KiB／旧核保守包络 |
+| `v3::driver::tests::staged_next106_cold_driver_observation` | `s_session_v3/driver.rs:5391` | O | 1,056 KiB／旧核保守包络 |
+| `v3::generation::tests::event_radix_memo_hit_requires_current_native_scope_and_keeps_root_recipe` | `s_session_v3/generation.rs:2614` | X | 新增链0／旧帧未测 |
+| `v3::generation::tests::finish_axes_resource_rejection_preserves_published_roots` | `s_session_v3/generation.rs:2900` | X | 新增链0／旧帧未测 |
+| `v3::generation::tests::native_generated_results_match_plain_and_keep_permits_until_drop` | `s_session_v3/generation.rs:2813` | X | 新增链0／旧帧未测 |
+| `v3::generation::tests::native_sequence_cross_generation_same_parent_foreign_refusal_and_discard` | `s_session_v3/generation.rs:2742` | X | 新增链0／旧帧未测 |
+| `v3::generation::tests::native_stable_sort_matches_old_equal_key_order_and_refuses_atomically` | `s_session_v3/generation.rs:2697` | X | 新增链0／旧帧未测 |
+| `v3::history::effective_sequence_tests::h1_effective_blocks_match_independent_array_each_cut` | `s_session_v3/history.rs:9409` | X | 新增链0／旧帧未测 |
+| `v3::history::effective_sequence_tests::h1_effective_final_winner_edits_and_coordinate_swaps` | `s_session_v3/history.rs:9458` | X | 新增链0／旧帧未测 |
+| `v3::history::effective_sequence_tests::h1_effective_native_parent_exact_peak_rejection_and_release` | `s_session_v3/history.rs:9574` | X | 新增链0／旧帧未测 |
+| `v3::history::effective_sequence_tests::h1_effective_revision_work_tracks_height_then_append_reuses_blocks` | `s_session_v3/history.rs:9493` | X | 新增链0／旧帧未测 |
+| `v3::history::native_reader_owner_tests::parsed_plain_owner_outlives_reader_and_scope_without_retaining_failed_parse` | `s_session_v3/history.rs:8699` | X | 新增链0／旧帧未测 |
+| `v3::history::native_record_fields::tests::record_sidecar_failed_replacement_keeps_original_and_releases_temporaries` | `s_session_v3/native_record_fields.rs:134` | X | 新增链0／旧帧未测 |
+| `v3::history::native_record_fields::tests::record_sidecar_shared_scope_seed_subset_matches_plain` | `s_session_v3/native_record_fields.rs:27` | X | 新增链0／旧帧未测 |
+| `v3::history::native_record_fields::tests::record_sidecar_subset_outlives_scope_and_drops_its_own_permits` | `s_session_v3/native_record_fields.rs:88` | X | 新增链0／旧帧未测 |
+| `v3::history::request_closure_tests::h1_request_closure_native_exact_peak_reject_and_release` | `s_session_v3/history.rs:9813` | X | 新增链0／旧帧未测 |
+| `v3::history::request_closure_tests::h1_request_closure_overlay_conflict_and_failure_do_not_escape_revocation` | `s_session_v3/history.rs:9751` | X | 新增链0／旧帧未测 |
+| `v3::history::request_closure_tests::h1_request_closure_rechecks_all_root_fields_and_revokes_both_modes` | `s_session_v3/history.rs:9668` | X | 新增链0／旧帧未测 |
+| `v3::history::request_closure_tests::h1_request_closure_shares_only_same_request_mode_and_keeps_canonical` | `s_session_v3/history.rs:9630` | X | 新增链0／旧帧未测 |
+| `v3::history::request_closure_tests::h1_request_closure_template_and_readset_negatives_match_full_oracle` | `s_session_v3/history.rs:9705` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::h1_native_history_prefix_real_multicut_roots_and_linear_leaf_visits` | `s_session_v3/history.rs:6725` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::h1_owner_retained_prefix_normal_append_and_revision_matches_oracle` | `s_session_v3/history.rs:4438` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::history_layout_multicut_native_projection_equals_plain_audit` | `s_session_v3/history.rs:6636` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage` | `s_session_v3/history.rs:6970` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline_native_publication_fields` | `s_session_v3/history.rs:4797` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_dual_actual_template_negative_matrix` | `s_session_v3/history.rs:7198` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_dual_real_multicut_roots_and_scoped_projection` | `s_session_v3/history.rs:7028` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_full_audit_duplicate_put_excludes_non_native_owned_bounded_and_gates` | `s_session_v3/history.rs:4694` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_full_audit_duplicate_put_keeps_conflict_bad_f_missing_and_existing_overlay` | `s_session_v3/history.rs:4579` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_full_audit_duplicate_put_keeps_current_source_vec_and_first_f` | `s_session_v3/history.rs:4514` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_history_prefix_bad_cut_and_unpublished_future_material_still_reject` | `s_session_v3/history.rs:6823` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_history_prefix_effective_topology_keeps_last_coord_overwrite` | `s_session_v3/history.rs:4472` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::native_measured_reader_retains_source_role_and_actual_frame_observation` | `s_session_v3/history.rs:4639` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::ordinary_material_whole_readonly_audit_heap_releases` | `s_session_v3/history.rs:6150` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty` | `s_session_v3/history.rs:6181` | X | 新增链0／旧帧未测 |
+| `v3::history::tests::r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication` | `s_session_v3/history.rs:6665` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::cold_relation_index_sort_ties_keep_complete_projection_roots` | `s_session_v3/object_index.rs:5642` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::history_public_coverage_ordinary_bound_births_preserves_record_budget_before_reuse` | `s_session_v3/object_index.rs:5826` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_candidate_fields_component_exact_metadata_slot_and_late_null_gates` | `s_session_v3/object_index.rs:4465` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_candidate_fields_internal_record_json_edge_gate_and_real_wire_sql_failure` | `s_session_v3/object_index.rs:4592` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_candidate_union_real_generations_match_plan_and_reduce_sql_reads` | `s_session_v3/object_index.rs:4796` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_candidate_union_second_root_errors_have_no_put_or_future_wire_repair_and_budget_refuses` | `s_session_v3/object_index.rs:4686` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_changes_use_current_scope_and_return_owned_json_permits` | `s_session_v3/object_index.rs:5316` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_cut_projection_endpoints_sort_ties_records_and_overlay_lifetime` | `s_session_v3/object_index.rs:5716` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_cut_projection_life_checked_on_hits_and_first_failure_not_cached` | `s_session_v3/object_index.rs:5874` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_cut_projection_missing_corrupt_or_overlay_only_closure_never_cached` | `s_session_v3/object_index.rs:5911` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_cut_projection_real_generations_reuse_exact_wire_after_overlay_clear` | `s_session_v3/object_index.rs:6008` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_event_cursors_admitted_cuts_match_scan_and_drop_to_baseline` | `s_session_v3/object_index.rs:5382` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_event_failed_consuming_candidate_drops_cursor_and_all_permits` | `s_session_v3/object_index.rs:5441` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_event_failed_wire_replacement_preserves_saved_owner` | `s_session_v3/object_index.rs:5467` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_event_owners_share_once_and_release_after_last_scope_owner` | `s_session_v3/object_index.rs:5346` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_history_projection_sweep_positive_real_generations_complete_roots_and_material` | `s_session_v3/object_index.rs:6013` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_plan_capacity_refusal_preserves_input_and_budget` | `s_session_v3/object_index.rs:5290` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_plan_late_missing_wire_releases_partial_plan_without_mutating_input` | `s_session_v3/object_index.rs:5263` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_plan_owners_outlive_scope_and_match_independent_change_rows` | `s_session_v3/object_index.rs:5167` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_shape_leaf_complete_declarations_error_clear_and_capture_owned_closure` | `s_session_v3/object_index.rs:4084` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_shape_leaf_real_load_rejects_changed_projection_and_shared_entry_damage` | `s_session_v3/object_index.rs:3992` | X | 新增链0／旧帧未测 |
+| `v3::object_index::tests::native_shape_leaf_real_load_reuses_across_distinct_births_and_excludes_gates` | `s_session_v3/object_index.rs:3919` | X | 新增链0／旧帧未测 |
+| `v3::object_records::tests::native_wire_bad_early_record_precedes_bad_late_life_and_releases_all_owners` | `s_session_v3/object_records.rs:2117` | X | 新增链0／旧帧未测 |
+| `v3::object_records::tests::native_wire_records_and_birth_reference_keep_permits_after_scope` | `s_session_v3/object_records.rs:2065` | X | 新增链0／旧帧未测 |
+| `v3::object_records::tests::native_wire_valid_record_late_life_error_and_early_resource_keep_priority` | `s_session_v3/object_records.rs:2165` | X | 新增链0／旧帧未测 |
+| `v3::ordinary_materials::tests::ordinary_material_pool_actual_heap_released_after_readonly_scope` | `s_session_v3/ordinary_materials_tests.rs:445` | X | 新增链0／旧帧未测 |
+| `v3::prepared::tests::assemble_manifest_reads_beyond_closure_verify_stay_constant` | `s_session_v3/prepared.rs:4105` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision` | `s_session_v3/prepared.rs:4017` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::native_capture_sqlite_commit_failure_retries_with_new_current_capture` | `s_session_v3/prepared.rs:4536` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::native_local_material_memo_cannot_publish_trigger_damaged_deep_key` | `s_session_v3/prepared.rs:4376` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::native_manifest_roots_keep_three_permits_after_scope_until_owner_drop` | `s_session_v3/prepared.rs:1883` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows` | `s_session_v3/prepared.rs:4144` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild` | `s_session_v3/prepared.rs:2896` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_complete_ledger_real_owner_records_pending_without_group` | `s_session_v3/prepared.rs:2988` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit` | `s_session_v3/prepared.rs:3040` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime` | `s_session_v3/prepared.rs:4339` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_production_manifest_source_receipt_consumed_without_third_assembly` | `s_session_v3/prepared.rs:3169` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_production_manifest_source_receipt_rejects_request_substitution` | `s_session_v3/prepared.rs:3183` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries` | `s_session_v3/prepared.rs:3124` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_queued_units_prepare_failure_discards_facts_and_stales` | `s_session_v3/prepared.rs:3078` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_queued_units_real_owner_commits_only_verified_complete_keys` | `s_session_v3/prepared.rs:2689` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_raw_partition_real_owner_keeps_revisions_without_full_certificate` | `s_session_v3/prepared.rs:2504` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_raw_partition_sidecar_commit_failure_keeps_content_and_stales` | `s_session_v3/prepared.rs:2612` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_real_prepare_closure_probe_stages_and_rolls_back_without_certification` | `s_session_v3/prepared.rs:3331` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_real_prepare_raw_receipt_keeps_old_revision_and_binds_request` | `s_session_v3/prepared.rs:3250` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_source_partitions_fees_release_after_refusal_commit_and_binding_failure` | `s_session_v3/prepared.rs:2364` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_source_partitions_real_owner_matches_originals_and_withdrawals` | `s_session_v3/prepared.rs:2111` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::p6_source_partitions_sidecar_commit_failure_keeps_content_and_stales` | `s_session_v3/prepared.rs:2618` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::r10_native_manifest_workspace_shared_scope_normal_commits_match_full_rows` | `s_session_v3/prepared.rs:4149` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::runtime_roots_append_revision_error_observation` | `s_session_v3/prepared.rs:3545` | P | 928 KiB／共同核包络 |
+| `v3::prepared::tests::staged_new_nodes_complete_commit_observation` | `s_session_v3/prepared.rs:3433` | P | 928 KiB／共同核包络 |
+| `v3::request_audit::handoff_domain_tests::bootstrap_grant_from_other_freeze_domain_is_rejected` | `s_session_v3/request_audit.rs:3187` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::handoff_domain_tests::bootstrap_grant_is_consumed_exactly_once` | `s_session_v3/request_audit.rs:3169` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::handoff_domain_tests::frozen_request_rejects_foreign_parent_and_expired_domain` | `s_session_v3/request_audit.rs:3133` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::handoff_domain_tests::p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract` | `s_session_v3/request_audit.rs:3222` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::handoff_domain_tests::p1_1_unmappable_old_pool_is_rejected_without_mutation` | `s_session_v3/request_audit.rs:3335` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::handoff_domain_tests::used_foreign_cold_parent_cannot_be_replaced_by_handoff` | `s_session_v3/request_audit.rs:3154` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::handoff_domain_tests::warm_prepare_binds_real_parent_and_voids_grant` | `s_session_v3/request_audit.rs:3415` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::r_owner_move_tests::r_optional_bad_sql_precedes_scope_and_rejected_read_refunds` | `s_session_v3/request_audit.rs:2991` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::r_owner_move_tests::r_sql_row_pop_and_blob_move_keep_exact_parent_charge` | `s_session_v3/request_audit.rs:2932` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::measured_capture_and_rebind_preserve_late_type_error_over_early_bad_frame` | `s_session_v3/request_audit.rs:2340` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::measured_default_context_cold_hit_and_limit_clear_slot_without_parent` | `s_session_v3/request_audit.rs:1593` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::measured_native_admitted_cold_hit_append_preserves_full_output_and_refunds` | `s_session_v3/request_audit.rs:1403` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::r11_exact_rows_admitted_preserves_all_sql_cells_scope_and_empty_columns` | `s_session_v3/request_audit.rs:1106` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::r11_request_native_shared_scope_cold_warm_append_full_output_equal` | `s_session_v3/request_audit.rs:1398` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_actual_current_three_fresh_transactions_diagnostic` | `s_session_v3/request_audit.rs:2091` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_binding_sql_interrupt_once_rejects_without_cold_retry` | `s_session_v3/request_audit.rs:1921` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_current_control_and_exact_old_material_damage_never_reuses` | `s_session_v3/request_audit.rs:1869` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_current_tail_damage_and_extra_ohlc_cannot_be_hidden_by_prefix_binding` | `s_session_v3/request_audit.rs:2074` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_exact_cells_preserve_type_null_and_raw_bytes` | `s_session_v3/request_audit.rs:2383` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_fresh_transactions_bind_exactly_and_drop_at_request_end` | `s_session_v3/request_audit.rs:1726` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_legal_node_set_change_builds_fresh_then_rebinds` | `s_session_v3/request_audit.rs:1802` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_node_error_precedes_current_control_error_and_clears_slot` | `s_session_v3/request_audit.rs:1977` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_node_mismatch_does_not_hide_later_decode_or_sql_error` | `s_session_v3/request_audit.rs:2290` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_node_rebind_complete_set_rejects_duplicate_digest_and_omission` | `s_session_v3/request_audit.rs:2269` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_node_sql_interrupt_once_rejects_without_capture_retry` | `s_session_v3/request_audit.rs:1946` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_one_capture_three_complete_current_node_scans` | `s_session_v3/request_audit.rs:1741` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_ordinary_and_zero_generation_do_not_gain_shared_source` | `s_session_v3/request_audit.rs:2012` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_original_tuple_comparison_in_bin_preserves_bytes_and_sets` | `s_session_v3/request_audit.rs:2220` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_rowid_reinsertion_is_material_change` | `s_session_v3/request_audit.rs:1909` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_tail_and_normal_begin_keys_reuse_but_complete_raw_stays_fresh` | `s_session_v3/request_audit.rs:1851` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_history_unknown_meta_changes_miss_even_if_original_gate_accepts` | `s_session_v3/request_audit.rs:1835` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal` | `s_session_v3/request_audit.rs:1393` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_native_scan_scratch_reuses_capacity_across_complete_transactions` | `s_session_v3/request_audit.rs:1345` | X | 新增链0／旧帧未测 |
+| `v3::request_audit::tests::request_native_three_capture_entries_borrow_digest_and_match_owned_sql_baseline` | `s_session_v3/request_audit.rs:1259` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_checked_refs_hit_registers_coord_after_preceding_object_withdraws` | `s_session_v3/ordinary_source.rs:1033` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_complete_ref_and_profile_rule_are_not_digest_only_keys` | `s_session_v3/ordinary_source.rs:1379` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_duplicate_global_effect_precedes_later_malformed_record` | `s_session_v3/ordinary_source.rs:954` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_group_dependency_changes_invalidate_same_shape_root` | `s_session_v3/ordinary_source.rs:1125` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_raw_wire_bar_and_original_changes_match_frozen_first_error` | `s_session_v3/ordinary_source.rs:926` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_request_negative_subject_dependency_cannot_be_reused` | `s_session_v3/ordinary_source.rs:1186` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_root_declaration_errors_match_independent_oracle` | `s_session_v3/ordinary_source.rs:1358` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_step_bar_and_witness_shape_dependencies_match_old_local_kernel` | `s_session_v3/ordinary_source.rs:1249` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_success_reuse_oracle_is_independent_and_two_frontiers_release` | `s_session_v3/ordinary_source.rs:881` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::component_tests::b2_source_duplicate_key_is_reported_at_second_current_occurrence` | `s_session_v3/source_contributions.rs:2142` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::component_tests::b2_source_nested_reverse_index_charges_each_member_and_clears_empty_root` | `s_session_v3/source_contributions.rs:2120` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::component_tests::b2_source_retained_tree_uses_actual_string_capacity_and_symmetric_release` | `s_session_v3/source_contributions.rs:2091` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::source_order::tests::b2_order_avl_stable_handles_survive_prefix_middle_and_reverse_edits` | `s_session_v3/source_order.rs:383` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::source_order::tests::b2_order_rejects_wrong_original_and_stale_handle_before_reuse` | `s_session_v3/source_order.rs:414` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::source_order::tests::native_order_admission_failure_preserves_avl_and_next_handle` | `s_session_v3/source_order.rs:469` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::source_order::tests::native_order_reclaimed_node_and_weak_tail_keep_original_parent_charge` | `s_session_v3/source_order.rs:429` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_contributions::source_order::tests::native_order_rotations_remove_reinsert_and_drop_release_all_nodes` | `s_session_v3/source_order.rs:532` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_prefix::tests::cached_coords_preserve_order_lexemes_negative_and_domain_rules` | `s_session_v3/source_prefix.rs:357` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_prefix::tests::future_invalid_or_colliding_raw_disables_only_reference_reuse` | `s_session_v3/source_prefix.rs:325` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_prefix::tests::native_invalid_future_identity_drops_partial_certificate_owners` | `s_session_v3/source_prefix.rs:143` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_prefix::tests::native_prefix_certificates_and_shared_coords_follow_actual_owners` | `s_session_v3/source_prefix.rs:72` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_prefix::tests::references_hit_shared_coords_then_reject_same_price_revision_and_future_sources` | `s_session_v3/source_prefix.rs:197` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_prefix::tests::winner_sweep_matches_every_effective_prefix_with_revisions_and_sparse_coords` | `s_session_v3/source_prefix.rs:169` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::source_receipt::tests::p6_business_source_coordinates_release_native_fees_on_success_and_refusal` | `s_session_v3/source_receipt.rs:666` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_partition_borrows_original_payload_and_releases_pending_parent_fees` | `s_session_v3/source_receipt.rs:824` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget` | `s_session_v3/source_receipt.rs:811` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_consumption_releases_budget` | `s_session_v3/source_receipt.rs:819` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_during_closure_releases_budget` | `s_session_v3/source_receipt.rs:815` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_fourth_root_failure_issues_no_prepared_receipt` | `s_session_v3/source_receipt.rs:1032` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_preserves_full_event_and_only_requested_suffix` | `s_session_v3/source_receipt.rs:928` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_rejects_request_and_four_root_substitution` | `s_session_v3/source_receipt.rs:987` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_source_failure_issues_nothing` | `s_session_v3/source_receipt.rs:965` | L | 384 KiB／低层闭合 |
+| `v3::source_audit::tests::cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view` | `s_session_v3/source_audit.rs:3085` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::cold_source_normal_fixture_oracle` | `s_session_v3/source_audit.rs:3239` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_field_memo_scoped_hit_copies_clear_and_drop_keep_original_permits` | `s_session_v3/source_audit.rs:3675` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_fields_exact_headers_names_and_overlay_isolation` | `s_session_v3/source_audit.rs:3584` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_fields_multi_cut_reuses_only_decoding_and_error_clears` | `s_session_v3/source_audit.rs:3527` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_history_record_handoff_eliminates_both_source_field_lookups` | `s_session_v3/source_audit.rs:3474` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_raw_facts_keep_original_bucket_permits_across_scope_and_move` | `s_session_v3/source_audit.rs:3155` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_raw_ledger_incremental_winners_rewind_and_overlay_clear` | `s_session_v3/source_audit.rs:3254` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_raw_ledger_invalid_source_only_checked_for_final_winner` | `s_session_v3/source_audit.rs:3356` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_raw_ledger_jump_skips_invalid_transients_and_checks_final_collisions_first` | `s_session_v3/source_audit.rs:3296` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_raw_ledger_measured_visits_hits_rewind_and_failure` | `s_session_v3/source_audit.rs:2989` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_raw_ledger_real_multicut_matches_full_source_audit` | `s_session_v3/source_audit.rs:3378` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_source_measured_preserves_fields_witness_and_failure_cleanup` | `s_session_v3/source_audit.rs:3909` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_witness_identity_exact_inputs_and_success_only` | `s_session_v3/source_audit.rs:3841` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_witness_identity_keeps_current_cut_faults` | `s_session_v3/source_audit.rs:3987` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_witness_identity_requires_original_complete_closure` | `s_session_v3/source_audit.rs:4130` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::native_witness_memo_scoped_hits_clear_and_drop_keep_original_permits` | `s_session_v3/source_audit.rs:3772` | X | 新增链0／旧帧未测 |
+| `v3::source_audit::tests::source_identity_producer_outlives_scope_without_freeing_initial_strings` | `s_session_v3/source_audit.rs:3196` | X | 新增链0／旧帧未测 |
+| `v3::state::audit_capture_gate_tests::cold_owned_facts_keep_unpublished_raw_separate_after_transaction_end` | `s_session_v3/state.rs:3164` | X | 新增链0／旧帧未测 |
+| `v3::state::audit_capture_gate_tests::cold_relation_indexes_normal_multicut_full_state_parity` | `s_session_v3/state.rs:3214` | X | 新增链0／旧帧未测 |
+| `v3::state::audit_capture_gate_tests::cold_relation_indexes_replay_message_keeps_raw_and_cuts` | `s_session_v3/state.rs:3319` | X | 新增链0／旧帧未测 |
+| `v3::state::audit_capture_gate_tests::native_frame_reuse_opt_in_respects_render_and_budget_gates` | `s_session_v3/state.rs:3362` | X | 新增链0／旧帧未测 |
+| `v3::state::h1_certificate_tests::h1_cert_cold_empty_revision_winner_and_unpublished_tail` | `s_session_v3/state.rs:4178` | S | 832 KiB／保留既有隔离 |
+| `v3::state::h1_certificate_tests::h1_cert_deadline_and_scratch_failure_release` | `s_session_v3/state.rs:4224` | S | 832 KiB／保留既有隔离 |
+| `v3::state::h1_certificate_tests::h1_cert_rejects_control_manifest_current_sql_and_missing_original` | `s_session_v3/state.rs:4201` | S | 832 KiB／保留既有隔离 |
+| `v3::writer_cli::tests::diagnostic_fixture_switch_accepts_only_the_fixture_record_id` | `s_session_v3/writer_cli.rs:1089` | X | 新增链0／旧帧未测 |
+| `v3::writer_cli::tests::diagnostic_fixture_tags_only_ready_inside_hashed_payload` | `s_session_v3/writer_cli.rs:1108` | X | 新增链0／旧帧未测 |
+| `v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file` | `s_session_v3/writer_cli.rs:1020` | X | 新增链0／旧帧未测 |
+
+**新增P1/P2锁补审：** 新5把legacy/positive控制锁的建库helper先经 `h1_admission_seed_three→f.open` 组件C，再显式 `drop(h1_admission_driver(...))` 正式H留台账缓存，主线程按H最大模型1,376 KiB；显式v3 advance正控另进子进程 `dispatch_fixture→writer_cli advance(None)→正式Driver→H`，同H预算且和父进程栈不相加。扩展的冷前缀修订/插入锁仍是原H锁，多轮顺序执行，不增加调用深度；业务源修订/历史插入的负担是堆中数据和迭代，模型不按代数乘栈。所有新增锁无ignore。
+
+实际静态验证：两生产文件 rustfmt --edition 2021 --check 通过；逐字归一化语义对拍通过；只读核对三档cfg（test/非test）接口和unix/non-unix分支；新增helper仅s_incremental+unix调用，无未用生产测试钩子或额外allow。未运行cargo/rustc、Rust测试或重型窗口；Rust未验证，待CI。
+
+冻结日志以外的当前新增锁另逐项补齐，避免把535误写成当前测试动态全集：
+
+| 新增全名（均为v3::audit_owner::construction_tests::前缀） | 最深链/模型帧和 | 处理 |
+|---|---|---|
+| `h1_admission_temporary_seed_failure_same_database_new_process_restarts`（S1K） | 子进程正式H；约1,376 KiB；包含finish第二锁内注入失败后正常关闭及下一进程重启 | 共用H拆帧，断言/失败收口不动 |
+| `h1_admission_legacy_v1_recover_prepolicy_mainonly_rejects_unchanged`（S1L） | C建库后显式H留真实缓存；约1,376 KiB；真正旧写入口只读VersionMismatch | 共用H拆帧，旧入口无写副作用 |
+| `h1_admission_legacy_v1_accept_prepolicy_mainonly_rejects_unchanged`（S1L） | 同上H最大约1,376 KiB | 同上 |
+| `h1_admission_legacy_v1_advance_prepolicy_mainonly_rejects_unchanged`（S1L） | 同上H最大约1,376 KiB | 同上 |
+| `h1_admission_legacy_v2_clock_recover_prepolicy_mainonly_rejects_unchanged`（S1L） | 同上H最大约1,376 KiB | 同上 |
+| `h1_admission_v3_selector_advance_prepolicy_mainonly_authenticates_before_migration`（S1L） | 父进程C/H夹具；子进程dispatch_fixture→writer_cli advance→正式H；两进程各约1,376 KiB，不相加 | 真入口共用H拆帧；None前缀不受旧写拒门影响 |
+
+### 三档 cfg、所有权及告警风险穷举
+
+| feature 档 | 非 test | test |
+|---|---|---|
+| `s_session` | LegacyWrite 及其两个旧调用点常驻，增量提前拒绝被排除，完整审计及旧协议分支保持；新冷帧 helper 与全部调用由 inc+unix 同门排除 | H1 两个测试 include 随父增量门排除，没有增量类型或 helper 泄漏 |
+| `s_session,s_incremental` | LegacyWrite 的只读拒门有真实调用；v3 advance None 不变。open_rebuilt_history_into、finish_rebuilt_history、initialize_rebuilt_owner、recover_rebuilt_history 均有对应生产调用，无遗留旧函数符号。认证闭包仍返回 unit、WorkError<String> 原标注保留，输出槽均为借用且两个调用点初值 None | 原测试与新增5锁仅 test+inc+unix；test_prepare 调用所在 helper 有显式外层 test 属性。P2 未增 helper/import。原 hook 的声明/消费仍各在 test 门内 |
+| `s_session,s_incremental,s_capture_native_testonly` | 新生产逻辑不新增 testonly 分支；同一 H1 核、同一 Ordinary/组件前缀分派及失败收口 | 新正控用原默认栈的独立进程冻结 Native 对照环境；不改变并行进程全局环境。原 Ordinary 先审后迁锁与所有原断言保留 |
+
+另外核对 rust-check 实际默认、backtest_bin 两档：S bin 仍受 Cargo required-features 限制，不编入这些修改；BSP 等磁盘源码扫描仍需通过。非 Unix 按原 inc+unix 配对，不宣称基线整个 bin 已支持非 Unix。
+
+没有新增 allow/expect lint 豁免、未使用导入或按值大对象泛型返回链。新增 expect 是同路径成功赋槽后的内部不变量断言；输出值不从借用逃逸。finish 中 owner 的借用在最终 swap 前结束，scope/enter guard 仍覆盖 recover helper 全程。以上是三档×test/非 test 的源码穷举，`-D warnings` 的实际编译裁定待 CI。
+
+### 实际自检、独审及保持项
+
+- 对全部8个改动/新增 Rust 文件执行 `rustfmt --edition 2021 --check --config skip_children=true`，通过。skip_children 只限制隐式模块递归；新 include 文件已显式列入。
+- `git diff --check` 通过；REPORT 历史前缀与 HEAD 逐字相同，仅追加 S1L。
+- `.github/workflows/ci.yml`、`history36h.yml` YAML 解析通过，所有 bash run 块 `bash -n` 通过，分别71/4块。H1 两组具名循环原22项全部保留且唯一，追加5项后27项；新增完整测试名与源码定义一一对应、无 ignore。history36h 本轮没有修改。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock s_session.tests.test_tb01c_query_integrity_layout -v`，8/8通过。另在 `s_session/tests` 目录实跑 S3 两条 H1 recover 合同锁、原 S3 recover 分派锁和旧生命周期 recover 两锁，5/5通过。首次调用误用测试类名，只产生 loader AttributeError，按真实 S3LifecycleTests 更正后上述5项均通过；没有修改 Python 实现或测试。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`；`python3 -B .github/scripts/gen-prod-banned-literals.py --check .` 与源码一致，禁串清单本轮未改。这里只是源码检查，生产 release 产物无钩子/禁串收据仍待 CI。
+- 按现行 BSP 锁原 grep/WHITELIST 双向集合静态复现，hits=23、whitelist=23、stray=[]、stale=[]，未改锁判据。
+- 原 admission_tests 除 P2 单个函数体外逐字保持；v2/mod.rs 精确对拍只有两个 WriterScope 调用目标替换。state/prepared/generation、ContentBi/producer、根 open_db/迁移/关闭 helper、Clamp/physical、Python 调用方及测试、history36h 共11个保护文件与 HEAD 逐字相同。
+- 已由两名非作者代理独立只读审查入口区分、mixed 兼容、五新锁、P2 输入、两锁次序、S1K 失败分类与析构、输出槽借用/cfg。审查发现的正控 trace 少算在线 g4 已修成 `[1,2,3,4]`，同库正控也已加强。native 名单另作独立535项提取和别名入口复核，详见上方栈表。
+
+本机未运行 cargo/rustc、Rust 测试、新 CI、生产构建或重型窗口；没有扩大默认线程栈、设置 RUST_MIN_STACK、另起大栈线程、改 profile、ignore、删断言或更改资源帽。Rust 编译、真实帧尺寸和具名测试结果仍须主控封包后在精确新 head 验证；ready 仅表示本轮指定修复候选可审，不等于 native535项或整票验收已通过。表中另列的旧 bootstrap 1字节预算夹具问题未扩修。
+
+MainOnly/非 WAL 合法输入域、热 journal 写前拒绝、完整性拒绝源字节保全、自身失败正常关闭/新进程重启、台账四文件精确登记/实际字节/64 GiB帽、未知旁挂拒绝、TestOnly Ordinary 先审后迁、E6 与 FU16 保持。S1K 的 Python recover 参数迁移、失败关闭分类和移除临时 push 触发均保持。
+
+### S1L 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `.github/workflows/ci.yml`
+- `rust/src/bin/s_session_v2/mod.rs`
+- `rust/src/bin/s_session_v3/admission.rs`
+- `rust/src/bin/s_session_v3/admission_private/mixed.rs`
+- `rust/src/bin/s_session_v3/admission_private/mod.rs`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_session_v3/audit_owner/admission_tests.rs`
+- `rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`
+- `rust/src/bin/s_session_v3/driver.rs`

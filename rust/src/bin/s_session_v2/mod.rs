@@ -3351,7 +3351,7 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
         let clock = ClockPlan::parse(strict_json(
             &admission.read_file(Path::new(&arg(args, "--clock-plan")?), None)?,
         )?)?;
-        let scope = crate::v3::admission::WriterScope::admit(&db, admission)?;
+        let scope = crate::v3::admission::WriterScope::admit_legacy_write(&db, admission)?;
         let _open_guard = scope.enter()?;
         scope.require_admitted()?;
         let out = recover_core(
@@ -3402,7 +3402,7 @@ pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, St
             crate::v3::admission_anchor::ControlEnv::capture(),
         )
         .map_err(|error| error.to_string())?;
-        return crate::v3::admission::WriterScope::admit(&db, prepared)
+        return crate::v3::admission::WriterScope::admit_legacy_write(&db, prepared)
             .map(|scope| Some(LegacyWriteGuard::Existing(scope)));
     }
     if matches!(command, Some("init" | "reset")) {

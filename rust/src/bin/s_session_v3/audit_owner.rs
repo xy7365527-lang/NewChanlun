@@ -523,7 +523,7 @@ impl AuditConnection {
     /// #1481：新进程在锁内抛弃旧台账，从 g1 用在线同一来源 Δ 重建，再消费完整资格。
     /// deadline/返回耗时是 S2 冷窗口唯一接入点，本阶段不增加资源档默认值。
     #[cfg(all(feature = "s_incremental", unix))]
-    pub(super) fn open_rebuilt_history(
+    pub(super) fn open_rebuilt_history_into(
         db: &Path,
         control_limit: usize,
         deadline: Option<std::time::Instant>,
@@ -531,7 +531,8 @@ impl AuditConnection {
         runtime: &mut prepared::Runtime,
         max_store_bytes: u64,
         admission: &super::admission::WriterScope,
-    ) -> Result<(Self, std::time::Duration), String> {
+        output: &mut Option<Self>,
+    ) -> Result<std::time::Duration, String> {
         use std::os::unix::fs::MetadataExt;
         let started = std::time::Instant::now();
         history::check_deadline(deadline)?;
@@ -716,12 +717,48 @@ impl AuditConnection {
             .as_ref()
             .expect("冷认证成功后必有构造载荷")
             .generation_binding();
+        // #1481：只读认证和写交接分帧；冷 fold/seed 不携带 owner/事务返回槽。
+        Self::finish_rebuilt_history(
+            &canonical,
+            control_limit,
+            deadline,
+            context,
+            runtime,
+            &mut cold_runtime,
+            &parent,
+            admission,
+            &mut candidate_out,
+            &mut construction_out,
+            cold_generation_binding,
+            cold_generation_prefix,
+            output,
+            started,
+        )
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn finish_rebuilt_history(
+        canonical: &Path,
+        control_limit: usize,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+        runtime: &mut prepared::Runtime,
+        cold_runtime: &mut prepared::Runtime,
+        parent: &native::Budget,
+        admission: &super::admission::WriterScope,
+        candidate_out: &mut Option<CompleteCandidate>,
+        construction_out: &mut Option<construction_state::ColdRawState>,
+        cold_generation_binding: construction_state::RawAdvanceBinding,
+        cold_generation_prefix: usize,
+        output: &mut Option<Self>,
+        started: std::time::Instant,
+    ) -> Result<std::time::Duration, String> {
         // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
         #[cfg(test)]
         if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
-            hook(&canonical)?;
+            hook(canonical)?;
         }
-        let connection = crate::open_db_after_h1_certification(&canonical)?;
+        let connection = crate::open_db_after_h1_certification(canonical)?;
         let integrity_refusal = Cell::new(false);
         let converted = crate::prepare_h1_wal_handoff(
             &connection,
@@ -734,13 +771,15 @@ impl AuditConnection {
             drop(connection);
             #[cfg(test)]
             if let Some(hook) = COLD_AFTER_WAL_HANDOFF.with(Cell::take) {
-                hook(&canonical)?;
+                hook(canonical)?;
             }
-            crate::open_db_after_h1_certification(&canonical)?
+            crate::open_db_after_h1_certification(canonical)?
         } else {
             connection
         };
-        let mut owner = Self::new(connection)?;
+        let mut owner_out = None;
+        Self::initialize_rebuilt_owner(connection, &mut owner_out)?;
+        let owner = owner_out.as_mut().expect("冷交接owner已初始化");
         // #1481 运维合同：SourceIdentityChanged/SourceWalChanged 等源连续性拒绝及
         // HistoricalAuditStale 外部提交/原件变化均 fail-stop，禁止关闭检查点改写源库/WAL。
         // 操作者须先确认全部连接停止并保全主库/WAL/SHM证据，再用既有 SQLite 普通连接
@@ -784,7 +823,7 @@ impl AuditConnection {
             *owner.history_clamp.borrow_mut() =
                 Some(history_clamp::Clamp::open_in_parent_with_refusal(
                     &owner.connection,
-                    &canonical,
+                    canonical,
                     control_limit,
                     Some(parent.clone()),
                     &integrity_refusal,
@@ -823,7 +862,7 @@ impl AuditConnection {
                 return Err(invalid("冷生成缓存与实际owner前沿不符"));
             }
             runtime.adopt_cold_audit_runtime(
-                &mut cold_runtime,
+                cold_runtime,
                 cold_generation_binding,
                 actual_binding,
                 actual_prefix,
@@ -863,7 +902,18 @@ impl AuditConnection {
         }
         crate::h1_close_after_failure(&owner.connection, handoff, integrity_refusal)?;
         owner.require_historical_certificate = true;
-        Ok((owner, started.elapsed()))
+        std::mem::swap(output, &mut owner_out);
+        Ok(started.elapsed())
+    }
+
+    // #1481：owner 构造的按值返回槽在任何冷交接事务之前退出，不压在事务深链上。
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn initialize_rebuilt_owner(
+        connection: Connection,
+        output: &mut Option<Self>,
+    ) -> Result<(), String> {
+        *output = Some(Self::new(connection)?);
+        Ok(())
     }
 
     /// #1481：对照臂，不参与准入；退场条件：三层对拍锁在 CI 实际执行且
@@ -5586,6 +5636,8 @@ pub(super) mod construction_tests {
     include!("audit_owner/history_clamp_tests.rs");
     #[cfg(unix)]
     include!("audit_owner/admission_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/legacy_admission_tests.rs");
 
     #[derive(Clone, Debug)]
     struct RawObservation {
