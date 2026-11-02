@@ -1859,7 +1859,9 @@ impl HistoricalCertificate {
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::cold_captured(tx, deadline, budget, work, None, None, None).map(|(cert, _, _)| cert)
+        Self::cold_captured(tx, deadline, budget, work, None, None, None)
+            .map(|(cert, _, _)| cert)
+            .map_err(PublishError::into_message)
     }
 
     #[cfg(test)]
@@ -1918,7 +1920,8 @@ impl HistoricalCertificate {
             qualified,
             ledger,
             source_out,
-        )?;
+        )
+        .map_err(PublishError::into_message)?;
         let AuditedState {
             raw,
             budget,
@@ -1956,10 +1959,10 @@ impl HistoricalCertificate {
             &super::audit_owner::native::Budget,
         )>,
         source_out: Option<&mut Option<source_audit::NativeSourceState>>,
-    ) -> Result<(Self, sc::AuditCapture, usize), String> {
+    ) -> Result<(Self, sc::AuditCapture, usize), PublishError> {
         history::check_deadline(deadline)?;
         if let Some(budget) = budget {
-            budget.precheck().map_err(err)?;
+            budget.precheck().map_err(publish_err)?;
         }
         let measure = audit_budget::NativeMeasure { budget, deadline };
         let (capture, node_count) = content_store::capture_for_request_prototype_admitted_measured(
@@ -1967,10 +1970,10 @@ impl HistoricalCertificate {
             work,
             Some(&measure),
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
         let capture = capture
             .enable_native_frame_reuse_admitted(work)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         let control = control_audit::prepare_s3_control_history_admitted(
             tx,
             None,
@@ -2016,16 +2019,25 @@ impl HistoricalCertificate {
             budget,
             &mut cold_sources,
         )?;
-        verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), None, work)?;
+        let live_axes = match indexed.cuts.last() {
+            Some(cut) => catalog_evidence::rule_axes(&cut.metadata.rule_revision)?,
+            None => &[],
+        };
+        verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), live_axes, None, work)?;
         let mut store = history::HashReader::captured_for_audit(&capture, None)
-            .map_err(err)?
+            .map_err(publish_err)?
             .with_audit_gate(budget, deadline)
             .with_source_policy(history::SourcePolicy::NativeMeasured)
             .with_native_scope(work)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         if let Some(last) = indexed.cuts.last() {
             let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-            catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+            catalog_evidence::verify_current_for_audit(
+                tx,
+                &mut store,
+                &axes,
+                &last.metadata.rule_revision,
+            )?;
         }
         history::check_deadline(deadline)?;
         let raw_sources = cold_sources

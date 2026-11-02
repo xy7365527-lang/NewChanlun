@@ -407,7 +407,7 @@ impl DeltaLane {
         admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
         deadline: Option<Instant>,
         budget: &dyn crate::v3::audit_budget::Budget,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, newchan_rust::s_content::ContextError> {
         if !binding.is_unbound_cold() || prefix > raw.len() || raw.budget().is_some() {
             return Err("GenError：冷车道必须来自未绑定的已核发布前缀".into());
         }
@@ -417,13 +417,15 @@ impl DeltaLane {
         if let Some(work) = admission.codec_work() {
             lane.rows
                 .try_reserve_native(work, winners.ordered().count())
-                .map_err(|e| e.to_string())?;
+                .map_err(newchan_rust::s_content::ContextError::from)?;
         } else {
             return Err("GenError：冷车道缺原生工作域".into());
         }
         for (_, ordinal) in winners.ordered() {
             crate::v3::check_deadline(deadline)?;
-            budget.precheck().map_err(|e| e.to_string())?;
+            budget
+                .precheck()
+                .map_err(newchan_rust::s_content::ContextError::from)?;
             let bar = bar_of(raw.get(ordinal).ok_or("GenError：冷winner原行缺失")?)?;
             let change = lane.state.append_with_changes(bar);
             if !change.shared_available() {
@@ -434,7 +436,7 @@ impl DeltaLane {
                     DeltaRawRow { ordinal, bar },
                     admission.codec_work().ok_or("GenError：冷车道缺工作域")?,
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(newchan_rust::s_content::ContextError::from)?;
         }
         lane.prefix = prefix;
         lane.binding = Some(binding);

@@ -224,7 +224,7 @@ impl CommittedSet {
         &mut self,
         old: RawAdvanceBinding,
         current: RawAdvanceBinding,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         (|| -> Result<(), PublishError> {
             if old.owner_life() != 0 || self.raw != old || current.owner_life() == 0 {
                 return Err(stale("冷集合重绑域不符"));
@@ -232,7 +232,6 @@ impl CommittedSet {
             self.raw = current;
             Ok(())
         })()
-        .map_err(PublishError::into_message)
     }
     /// #1481：只有冷认证 owner 从末代已核根与同核贡献态建立前身，下一代不可重走bootstrap。
     #[cfg(unix)]
@@ -241,7 +240,7 @@ impl CommittedSet {
         root: sc::RefView<'_>,
         raw: RawAdvanceBinding,
         source: &super::super::source_audit::NativeSourceState,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         (|| -> Result<Self, PublishError> {
             let knowledge = match source.cold_knowledge_ordinal()? {
                 Some(ordinal) => {
@@ -260,7 +259,6 @@ impl CommittedSet {
                 knowledge,
             })
         })()
-        .map_err(PublishError::into_message)
     }
 }
 pub(super) struct Seed {
@@ -348,7 +346,7 @@ impl OwnerSourceCheck {
         root: sc::RefView<'_>,
         raw_prefix: usize,
         deadline: Option<std::time::Instant>,
-    ) -> Result<super::super::source_audit::Counts, String> {
+    ) -> Result<super::super::source_audit::Counts, PublishError> {
         (|| -> Result<super::super::source_audit::Counts, PublishError> {
             super::super::history::check_deadline(self.deadline)?;
             super::super::history::check_deadline(deadline)?;
@@ -365,7 +363,6 @@ impl OwnerSourceCheck {
             }
             self.counts_for(root, raw_prefix)
         })()
-        .map_err(PublishError::into_message)
     }
     pub(crate) fn counts_for(
         &self,
@@ -391,7 +388,7 @@ impl PendingSet {
         &mut self,
         metadata: crate::content_manifest::NativeMetadata,
         deadline: Option<std::time::Instant>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         (|| -> Result<(), PublishError> {
             let source = self
                 .source_check
@@ -404,7 +401,6 @@ impl PendingSet {
             source.deadline = deadline;
             Ok(())
         })()
-        .map_err(PublishError::into_message)
     }
     #[cfg(test)]
     pub(super) fn context_negatives_for_test(
@@ -437,6 +433,7 @@ impl PendingSet {
         assert!(source
             .counts_for_cut(metadata.view(), root, raw_prefix, None)
             .unwrap_err()
+            .to_string()
             .contains("VerifyDeadline"));
         source.deadline = original;
     }
@@ -744,7 +741,7 @@ impl LazySet {
         previous_root: Option<sc::RefView<'_>>,
         current: sc::RefView<'_>,
         previous_state: Option<&super::super::source_audit::NativeSourceState>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         (|| -> Result<Self, PublishError> {
             if previous_state.is_some() && previous_root.is_none() {
                 return Err(stale("冷来源前代贡献缺对应已认证根"));
@@ -779,7 +776,6 @@ impl LazySet {
                 knowledge: None,
             })
         })()
-        .map_err(PublishError::into_message)
     }
     pub(super) fn delta<'a>(
         &'a mut self,

@@ -6,7 +6,6 @@
 '另一个档😀'
 (a) 须经冷根自然失败
 (b) ingest 须经冷根自然失败并无票重跑
-16M 下冷根不应失败
 1M 下首个 ingest 须恰经一次冷根自然失败且残留归零
 31M 下冷根不应失败
 3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账
@@ -205,6 +204,7 @@ S_ORDINARY_WIRE_CHILD
 S_TEST_AUDIT_CACHE_SOURCE_BYTES
 SchemaUnsupported：history_mode不符
 SchemaUnsupported：projection anchor必须是exact四字段
+SchemaUnsupported：s-clock-system/1 只用于 s-session/3
 SchemaUnsupported：仅s-session/3
 SchemaUnsupported：仅unsupported/1
 SchemaUnsupported：缺非空字符串 payload_hash
@@ -268,6 +268,7 @@ W 未定原件必须是 typed internal record
 W 规则不启用旧业务配方
 W2_BASE_SIDE
 W2_PENDING_COPY
+W2_PREVIOUS_SIDE
 W2_TRACE
 ["完整证据",1.0]
 accept 越出代际窗口必须拒绝
@@ -373,7 +374,6 @@ hit仍逐次读取、OHLC、validate、raw hash、RawWire
 hit必须移动同一capture正文owner
 import hashlib,json,struct;h=hashlib.sha256();v=[None,-2**63,2**63-1,'中\0é\n"',bytes([0,255,128,1])];[(lambda b,t:h.update(t+struct.pack('>Q',len(b))+b))(x if type(x)is bytes else json.dumps(x,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode(),b'b' if type(x)is bytes else type(x).__name__.encode()) for x in v];print(h.hexdigest())
 index实体与容量许可随index释放
-ingest-3 须与全程 16M 对照组同路
 ingest-3 须与全程 31M 对照组同路
 init 不应写内容节点
 injected actual header failure
@@ -533,7 +533,6 @@ withdrawn_generation 与独立记录不同
 writer 换代历史被塞入未闭合行
 writer/recover闭合后无SHM
 ①来源合同额之和
-②索引槽宽连带降幅
 ②索引槽宽连带降幅（每槽窄16B）
 一代不得出现两个版本对象
 一字节预算不得准入历史ordinal工作集
@@ -760,6 +759,7 @@ writer/recover闭合后无SHM
 只在实际COMMIT成功后晋升
 只新增数组根和新字符串
 只有实际read集合持账
+只用于 s-session/3
 叶本身是序列必须拒绝
 合法Merkle畸形在None/Some均须由原业务判据拒绝
 合法收紧额度保留完整候选；旧128倍门会提前丢弃
@@ -1228,7 +1228,6 @@ writer/recover闭合后无SHM
 未知tag，拒绝flush
 未知版本不得创建库
 未签 synthetic profile 不得打开 Driver
-未签生产 profile 不得打开 Driver
 未被引用的历史身份不得读不可变内容
 未解析的批次占位不渲染
 未进账的追认许可必须使恒等式失败
@@ -1406,11 +1405,9 @@ writer/recover闭合后无SHM
 生成态 merged_index 仍是数值（禁粗暴复用为 wire）
 生成态数值叶数组必须随源修订改根
 生成态是规范 JSON
-生成态装配不得读取载荷子图（记录自身字段根除外）
 登记新源版本
 登记真实当前 source
 监督器仍拥有锁
-目录必须含 13 轴之外的行
 目录必须含规则轴表之外的行
 目标存在却缺 catalog
 目标已存在时不进入清扫

@@ -567,6 +567,8 @@ fn development_exclusion_budget_stop_at_ordinary_native_and_owned() {
         None,
         None,
         Some(&mut ordinary),
+        #[cfg(feature = "s_incremental")]
+        None,
     );
     assert!(result.is_ok());
     assert_eq!(

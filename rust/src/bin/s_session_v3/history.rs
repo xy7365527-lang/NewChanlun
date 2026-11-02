@@ -2808,12 +2808,15 @@ enum EffectiveContents {
     Branch(EffectiveBlock, EffectiveBlock),
 }
 impl EffectiveBlock {
-    fn allocate(node: EffectiveNode, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn allocate(
+        node: EffectiveNode,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, PublishError> {
         let permit = store
             .native_reservation(std::mem::size_of::<EffectiveNode>())
-            .map_err(err)?;
-        let node =
-            allocator_api2::boxed::Box::try_new(node).map_err(|_| err(store.native_overflow()))?;
+            .map_err(publish_err)?;
+        let node = allocator_api2::boxed::Box::try_new(node)
+            .map_err(|_| publish_err(store.native_overflow()))?;
         Ok(Self { node, permit })
     }
     fn leaf(
@@ -2821,7 +2824,7 @@ impl EffectiveBlock {
         ordinal: usize,
         digest: NodeDigest,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         #[cfg(test)]
         record_effective_work(0);
         Self::allocate(
@@ -2835,12 +2838,16 @@ impl EffectiveBlock {
             store,
         )
     }
-    fn branch(left: Self, right: Self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn branch(
+        left: Self,
+        right: Self,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, PublishError> {
         let count = left
             .node
             .count
             .checked_add(right.node.count)
-            .ok_or_else(|| err("effective count overflow"))?;
+            .ok_or_else(|| publish_err("effective count overflow"))?;
         let digest = PrefixArray::branch(&left.node.digest, &right.node.digest, count)?;
         #[cfg(test)]
         record_effective_work(1);
@@ -2876,7 +2883,7 @@ impl EffectiveSequenceFacts {
                 .saturating_mul(std::mem::size_of::<EffectiveNode>())
         })
     }
-    fn array_root(&self) -> Result<NodeDigest, String> {
+    fn array_root(&self) -> Result<NodeDigest, PublishError> {
         let (count, digest) = self
             .root
             .as_ref()
@@ -2884,7 +2891,7 @@ impl EffectiveSequenceFacts {
                 (r.node.count, r.node.digest)
             });
         let mut body = [0; 40];
-        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..].copy_from_slice(&digest);
         Ok(sc::frame(sc::tag::ARRAY, &body))
     }
@@ -2893,7 +2900,7 @@ impl EffectiveSequenceFacts {
         changes: &[bj::RawWinnerEdit],
         raw: &[NodeDigest],
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if changes.is_empty() {
             return Ok(());
         }
@@ -2904,17 +2911,17 @@ impl EffectiveSequenceFacts {
                 changes
                     .len()
                     .checked_mul(2)
-                    .ok_or_else(|| err(store.native_overflow()))?,
+                    .ok_or_else(|| publish_err(store.native_overflow()))?,
             )
-            .map_err(err)?;
+            .map_err(publish_err)?;
         for change in changes {
             if let Some(old) = change.old {
-                edits.try_push((old.coord, None)).map_err(err)?;
+                edits.try_push((old.coord, None)).map_err(publish_err)?;
             }
             if let Some(new) = change.new {
                 edits
                     .try_push((new.coord, Some(new.ordinal)))
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
         }
         edits.sort_unstable_by_key(|&(coord, ordinal)| (coord, ordinal.is_some()));
@@ -2932,9 +2939,11 @@ impl EffectiveSequenceFacts {
         let mut peaks = sc::CodecVec::default();
         let mut count = 0u64;
         let mut cursor = 0;
-        store.native_vec_room(&mut pending, 1).map_err(err)?;
+        store
+            .native_vec_room(&mut pending, 1)
+            .map_err(publish_err)?;
         if let Some(root) = self.root.take() {
-            pending.try_push(root).map_err(err)?;
+            pending.try_push(root).map_err(publish_err)?;
         }
         while let Some(block) = pending.pop() {
             #[cfg(test)]
@@ -2957,9 +2966,11 @@ impl EffectiveSequenceFacts {
                         cursor += 1;
                     }
                     EffectiveContents::Branch(left, right) => {
-                        store.native_vec_room(&mut pending, 2).map_err(err)?;
-                        pending.try_push(right).map_err(err)?;
-                        pending.try_push(left).map_err(err)?;
+                        store
+                            .native_vec_room(&mut pending, 2)
+                            .map_err(publish_err)?;
+                        pending.try_push(right).map_err(publish_err)?;
+                        pending.try_push(left).map_err(publish_err)?;
                     }
                 }
             } else {
@@ -2983,11 +2994,11 @@ impl EffectiveSequenceFacts {
         peaks: &mut sc::CodecVec<EffectiveBlock>,
         count: &mut u64,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if let (coord, Some(ordinal)) = edit {
             let digest = *raw
                 .get(ordinal)
-                .ok_or_else(|| err("effective ordinal out of range"))?;
+                .ok_or_else(|| publish_err("effective ordinal out of range"))?;
             Self::emit_block(
                 EffectiveBlock::leaf(coord, ordinal, digest, store)?,
                 peaks,
@@ -3002,10 +3013,12 @@ impl EffectiveSequenceFacts {
         peaks: &mut sc::CodecVec<EffectiveBlock>,
         count: &mut u64,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let mut pending = sc::CodecVec::default();
-        store.native_vec_room(&mut pending, 1).map_err(err)?;
-        pending.try_push(block).map_err(err)?;
+        store
+            .native_vec_room(&mut pending, 1)
+            .map_err(publish_err)?;
+        pending.try_push(block).map_err(publish_err)?;
         while let Some(mut block) = pending.pop() {
             let size = block.node.count;
             if !size.is_power_of_two() || *count % size != 0 {
@@ -3014,22 +3027,24 @@ impl EffectiveSequenceFacts {
                 };
                 #[cfg(test)]
                 record_effective_work(3);
-                store.native_vec_room(&mut pending, 2).map_err(err)?;
-                pending.try_push(right).map_err(err)?;
-                pending.try_push(left).map_err(err)?;
+                store
+                    .native_vec_room(&mut pending, 2)
+                    .map_err(publish_err)?;
+                pending.try_push(right).map_err(publish_err)?;
+                pending.try_push(left).map_err(publish_err)?;
                 continue;
             }
             *count = count
                 .checked_add(size)
-                .ok_or_else(|| err("effective count overflow"))?;
+                .ok_or_else(|| publish_err("effective count overflow"))?;
             while peaks
                 .last()
                 .is_some_and(|left| left.node.count == block.node.count)
             {
                 block = EffectiveBlock::branch(peaks.pop().unwrap(), block, store)?;
             }
-            store.native_vec_room(peaks, 1).map_err(err)?;
-            peaks.try_push(block).map_err(err)?;
+            store.native_vec_room(peaks, 1).map_err(publish_err)?;
+            peaks.try_push(block).map_err(publish_err)?;
         }
         Ok(())
     }
@@ -10028,7 +10043,7 @@ mod effective_sequence_tests {
             facts.apply(&[edit(-1, None, 33)], &raw, &admission)?;
             facts.apply(&[edit(i64::MAX, None, 34)], &raw, &admission)?;
             assert_eq!(budget.live() - work_base, facts.heap_bytes());
-            Ok::<_, String>(facts)
+            Ok::<_, PublishError>(facts)
         });
         let success = result.is_ok();
         let peak = budget.peak();

@@ -135,14 +135,14 @@ impl QueuedFacts {
     pub(super) fn from_receipt(
         receipt: &super::source_audit::source_receipt::RawReceipt,
         metadata: &content_manifest::ManifestMetadata,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, sc::ContextError> {
         Self::from_receipt_view(receipt, metadata.view())
     }
     #[cfg(feature = "s_incremental")]
     pub(super) fn from_receipt_view(
         receipt: &super::source_audit::source_receipt::RawReceipt,
         metadata: content_manifest::MetadataView<'_>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, sc::ContextError> {
         let business = receipt.business_rows()?;
         let exports = receipt.cover();
         let mut raw = BTreeMap::new();
@@ -157,7 +157,7 @@ impl QueuedFacts {
                 )
                 .is_some()
             {
-                return Err(error("来源收据 raw seq 重复"));
+                return Err(error("来源收据 raw seq 重复").into());
             }
         }
         let mut objects = BTreeMap::new();
@@ -201,7 +201,7 @@ impl QueuedFacts {
                 None => CoverChange::Pending { seq: row.seq },
             };
             if cover.insert(row.coord, change).is_some() {
-                return Err(error("来源收据 cover 坐标重复"));
+                return Err(error("来源收据 cover 坐标重复").into());
             }
         }
         Ok(Self {
@@ -1007,7 +1007,9 @@ impl Ledger {
             {
                 return Err(error("raw分区代号或规则不连续"));
             }
-            let range = source.check_raw_partition(token, metadata, roots)?;
+            let range = source
+                .check_raw_partition(token, metadata, roots)
+                .map_err(sc::ContextError::into_message)?;
             let r = roots.view();
             let pending = Pending::new(
                 token,
@@ -1050,7 +1052,9 @@ impl Ledger {
                 next = next.checked_add(1).ok_or_else(|| error("raw序号溢出"))?;
             }
             if self.is_source_partitions() {
-                let rows = source.business_rows()?;
+                let rows = source
+                    .business_rows()
+                    .map_err(sc::ContextError::into_message)?;
                 for row in &rows.objects {
                     conn.execute(
                         "INSERT INTO object VALUES(?1,?2,?3,?4,?5,?6,0,?7)",
@@ -1094,7 +1098,9 @@ impl Ledger {
                     }
                 }
             }
-            source.check_raw_partition(token, metadata, roots)?;
+            source
+                .check_raw_partition(token, metadata, roots)
+                .map_err(sc::ContextError::into_message)?;
             self.check_storage()?;
             self.phase = Phase::Pending(pending);
             Ok(())

@@ -1278,28 +1278,27 @@ impl QualifiedSourceCut {
             super::super::source_audit::Counts,
             super::super::source_audit::source_receipt::source_facts::SourceExports,
         ),
-        String,
+        PublishError,
     > {
         raw.ensure_current()?;
         super::super::history::check_deadline(deadline)?;
         let context =
             crate::content_manifest::NativeMetadata::from_view(metadata.view(), Some(access.work))
-                .map_err(invalid)?;
-        let mut j = access.journal.lock().map_err(invalid)?;
+                .map_err(publish_err)?;
+        let mut j = access.journal.lock().map_err(publish_err)?;
         access.check(&j)?;
-        if self.binding.root
-            != construction_set::Declaration::read(root).map_err(PublishError::into_message)?
+        if self.binding.root != construction_set::Declaration::read(root)?
             || self.binding.raw != raw.current_binding()
             || self.binding.epoch != j.material_epoch
             || self.binding.seal != access.seal
             || j.set.is_none()
         {
-            return Err(construction_state::stale("来源成功结果与当前原件切面不符"));
+            return Err(construction_state::stale("来源成功结果与当前原件切面不符").into());
         }
         let extra = sum([j.extra_bytes, context.retained_bytes()]);
         let bytes = sum([j.container_bytes(), extra]);
         if bytes > j.cap {
-            return Err(construction_state::stale("来源请求身份保留账超过材料帽"));
+            return Err(construction_state::stale("来源请求身份保留账超过材料帽").into());
         }
         j.set
             .as_mut()

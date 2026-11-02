@@ -51,7 +51,7 @@ pub(crate) fn audit_raw_receipt(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
-) -> Result<RawReceipt, String> {
+) -> Result<RawReceipt, PublishError> {
     audit_receipt(
         store, token, generation, generated, raw, raw_from, profile, rule, deadline, budget, false,
     )
@@ -68,7 +68,7 @@ pub(crate) fn audit_source_partitions_receipt(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
-) -> Result<RawReceipt, String> {
+) -> Result<RawReceipt, PublishError> {
     audit_receipt(
         store, token, generation, generated, raw, raw_from, profile, rule, deadline, budget, true,
     )
@@ -86,7 +86,7 @@ fn audit_receipt(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
     export_sources: bool,
-) -> Result<RawReceipt, String> {
+) -> Result<RawReceipt, PublishError> {
     if token.is_empty() || generation < 1 || raw_from > raw.len() {
         return Err(err("P6来源收据请求或raw区间无效"));
     }
@@ -132,7 +132,7 @@ fn export_raw_receipt(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
     counts: Counts,
-) -> Result<RawReceipt, String> {
+) -> Result<RawReceipt, PublishError> {
     if token.is_empty() || generation < 1 || raw_from > raw.len() {
         return Err(err("P6来源收据请求或raw区间无效"));
     }
@@ -202,7 +202,7 @@ pub(crate) fn receipt_from_native(
     generated: sc::RefView<'_>,
     raw: &super::super::audit_owner::BoundRawAdvance<'_>,
     raw_from: usize,
-) -> Result<RawReceipt, String> {
+) -> Result<RawReceipt, PublishError> {
     let (counts, exports) = qualified.consume(material, generated, raw, metadata, None)?;
     let mut result = export_raw_receipt(
         &mut super::super::audit_store::StoreView::generic(store),
@@ -234,7 +234,7 @@ pub(in crate::v3) fn receipt_from_cold_step(
     counts: Counts,
     exports: source_facts::SourceExports,
     deadline: Option<std::time::Instant>,
-) -> Result<RawReceipt, String> {
+) -> Result<RawReceipt, PublishError> {
     let mut result = export_raw_receipt(
         store,
         token,
@@ -258,7 +258,7 @@ impl RawReceipt {
         store: &mut dyn NodeStore,
         objects: &super::super::object_index::Plan,
         auxiliary: &super::super::aux_index::Plan,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if objects.generation != self.generation
             || auxiliary.generation != self.generation
             || self.business.is_some()
@@ -303,7 +303,7 @@ impl RawReceipt {
         store: &mut (impl super::super::audit_store::CodecStore + ?Sized),
         objects: &[super::super::object_index::Entry],
         auxiliary: &super::super::aux_index::Index,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.business.is_some() {
             return Err(err("P6冷业务分区重复导出"));
         }
@@ -317,7 +317,7 @@ impl RawReceipt {
         Ok(())
     }
 
-    pub(crate) fn business_rows(&self) -> Result<&source_facts::BusinessRows, String> {
+    pub(crate) fn business_rows(&self) -> Result<&source_facts::BusinessRows, PublishError> {
         self.business
             .as_ref()
             .ok_or_else(|| err("P6缺完整业务分区来源"))
@@ -421,8 +421,8 @@ impl RawReceipt {
     pub(crate) fn with_store<T>(
         &self,
         store: &mut dyn NodeStore,
-        f: impl FnOnce(&mut dyn NodeStore) -> Result<T, String>,
-    ) -> Result<T, String> {
+        f: impl FnOnce(&mut dyn NodeStore) -> Result<T, PublishError>,
+    ) -> Result<T, PublishError> {
         super::super::history::check_deadline(self.deadline)?;
         let result = f(&mut DeadlineSource {
             source: store,
@@ -439,7 +439,7 @@ impl RawReceipt {
         raw_range: std::ops::Range<usize>,
         scope: sc::RefView<'_>,
         generated: sc::RefView<'_>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         super::super::history::check_deadline(self.deadline)?;
         if self.token.as_str() != token
             || self.generation != generation
@@ -461,7 +461,7 @@ impl RawReceipt {
         input_frontier: i64,
         scope: sc::RefView<'_>,
         generated: sc::RefView<'_>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let raw_to = input_frontier
             .checked_add(1)
             .and_then(|n| usize::try_from(n).ok())
@@ -483,7 +483,7 @@ impl RawReceipt {
         token: &str,
         metadata: &crate::content_manifest::ManifestMetadata,
         roots: &impl crate::content_manifest::ManifestRootSource,
-    ) -> Result<std::ops::Range<usize>, String> {
+    ) -> Result<std::ops::Range<usize>, PublishError> {
         let roots = roots.view();
         #[cfg(all(test, feature = "s_incremental"))]
         let token = if self.business.is_some() {
@@ -527,7 +527,7 @@ impl RawReceipt {
         self,
         store: &mut dyn NodeStore,
         roots: [sc::RefView<'_>; 4],
-    ) -> Result<PreparedReceipt, String> {
+    ) -> Result<PreparedReceipt, PublishError> {
         super::super::history::check_deadline(self.deadline)?;
         if !same_ref((&self.scope).into(), roots[0])
             || !same_ref((&self.generated).into(), roots[1])
@@ -571,7 +571,7 @@ impl PreparedReceipt {
         rule: &str,
         raw_range: std::ops::Range<usize>,
         roots: [sc::RefView<'_>; 4],
-    ) -> Result<RawReceipt, String> {
+    ) -> Result<RawReceipt, PublishError> {
         super::super::history::check_deadline(self.source.deadline)?;
         if self.source.token.as_str() != token
             || self.source.generation != generation
@@ -798,7 +798,7 @@ mod tests {
                     }
                     _ => unreachable!(),
                 };
-                assert!(failure.contains("VerifyDeadline"), "{failure}");
+                assert!(failure.to_string().contains("VerifyDeadline"), "{failure}");
                 assert_eq!(work.snapshot().live, 0);
                 assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
                 Ok::<_, sc::CodecError>(())

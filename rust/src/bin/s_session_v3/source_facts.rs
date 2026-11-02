@@ -43,7 +43,7 @@ impl SourceExports {
         coord: i64,
         seq: i64,
         owner: Option<&str>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let owner = owner
             .map(|id| s.native_string(id))
             .transpose()
@@ -57,7 +57,7 @@ impl SourceExports {
         &mut self,
         s: &(impl CodecRead + ?Sized),
         coord: i64,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         s.native_codec_room(&mut self.removed, 1).map_err(err)?;
         self.removed.try_push(coord).map_err(err)
     }
@@ -71,7 +71,7 @@ impl SourceExports {
 pub(crate) fn coordinates_digest(
     s: &(impl CodecRead + ?Sized),
     values: &[i64],
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     struct Coordinates(sc::CodecVec<bj::Decimal>);
     impl JsonArray for Coordinates {
         fn len(&self) -> usize {
@@ -102,7 +102,7 @@ pub(crate) fn observation_sources<'a>(
     s: &mut (impl CodecRead + ?Sized),
     record: &RefValue,
     mut group_sources: impl FnMut(i64) -> Option<&'a [i64]>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     let detail = field(s, record, "detail")?;
     let coordinates = match s
         .lookup_optional_field_ref(detail.view(), "source_coords")
@@ -132,7 +132,7 @@ pub(crate) fn observation_sources<'a>(
 fn object_record(
     s: &mut (impl CodecStore + ?Sized),
     root: sc::RefView<'_>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     let original = bj::render_json(s, root)?;
     let fields = original
         .view()
@@ -157,7 +157,7 @@ pub(crate) fn export(
     objects: &super::super::super::object_index::Plan,
     auxiliary: &super::super::super::aux_index::Plan,
     observation_sources: &[(NodeDigest, NodeDigest)],
-) -> Result<BusinessRows, String> {
+) -> Result<BusinessRows, PublishError> {
     export_parts(
         s,
         objects.births.iter(),
@@ -177,7 +177,7 @@ pub(crate) fn export_history(
     auxiliary: &super::super::super::aux_index::Index,
     generation: i64,
     observation_sources: &[(NodeDigest, NodeDigest)],
-) -> Result<BusinessRows, String> {
+) -> Result<BusinessRows, PublishError> {
     let (withdrawals, replaces) =
         super::super::super::object_index::changes_at_admitted(s, objects, generation, None)?;
     export_parts(
@@ -207,7 +207,7 @@ fn export_parts<'a>(
     witnesses: impl Iterator<Item = &'a super::super::super::aux_index::Witness>,
     observations: impl Iterator<Item = &'a super::super::super::aux_index::Observation>,
     observation_sources: &[(NodeDigest, NodeDigest)],
-) -> Result<BusinessRows, String> {
+) -> Result<BusinessRows, PublishError> {
     let mut rows = BusinessRows {
         objects: sc::CodecVec::default(),
         withdrawals: sc::CodecVec::default(),

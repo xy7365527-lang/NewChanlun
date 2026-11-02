@@ -644,7 +644,9 @@ impl AuditConnection {
                         .before_write()
                         .is_some_and(|shape| shape.get() == crate::DeltaShape::PrePolicyRecords);
                     if prepolicy {
-                        candidate.prepare_cold_policy_migration(work)?;
+                        candidate
+                            .prepare_cold_policy_migration(work)
+                            .map_err(PublishError::into_message)?;
                     }
                     let prefix = candidate
                         .audited
@@ -3246,7 +3248,7 @@ impl CompleteCandidate {
     fn prepare_cold_policy_migration(
         &mut self,
         work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         use super::audit_retention::Retained;
         let previous = self.originals.heap_bytes();
         let original = self
@@ -3264,10 +3266,11 @@ impl CompleteCandidate {
             let mut bytes = newchan_rust::s_content::CodecVec::default();
             bytes
                 .try_extend_bytes_native(crate::LEGACY_POLICY_RECORDS_UNKNOWN.as_bytes(), work)
-                .map_err(invalid)?;
+                .map_err(publish_err)?;
             request_audit::push_cell(row, request_audit::SqlCell::Text(bytes), Some(work))?;
         }
         self.refresh_cold_sql_charge(previous)
+            .map_err(PublishError::from)
     }
 
     #[cfg(unix)]

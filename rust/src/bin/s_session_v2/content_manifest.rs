@@ -1488,7 +1488,7 @@ impl ManifestSourceReceipt {
         metadata: &ManifestMetadata,
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
-    ) -> Result<s_content::closure_delta::VerifiedUnits, String> {
+    ) -> Result<s_content::closure_delta::VerifiedUnits, PublishError> {
         if !self.metadata.matches(metadata.view())
             || !same_roots(self.roots.view(), roots.view())
             || self.manifest_value != manifest.value
@@ -1515,7 +1515,7 @@ impl ManifestSourceReceipt {
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         raw_range: std::ops::Range<usize>,
-    ) -> Result<crate::v3::audit_owner::RawReceipt, String> {
+    ) -> Result<crate::v3::audit_owner::RawReceipt, PublishError> {
         let metadata_view = metadata.view();
         let roots_view = roots.view();
         #[cfg(test)]
@@ -1574,7 +1574,7 @@ pub(crate) fn assemble_with_source(
         Option<PreparedManifestWorkspace>,
         ManifestSourceReceipt,
     ),
-    String,
+    PublishError,
 > {
     source.check_manifest(
         metadata.generation,
@@ -1586,25 +1586,25 @@ pub(crate) fn assemble_with_source(
     )?;
     let (mut manifest, workspace) = source.with_store(store, |bounded| match budget {
         Some(budget) => assemble_workspace_units(bounded, metadata, roots, budget, collect_units)
-            .map_err(|e| e.to_string()),
+            .map_err(PublishError::from),
         None => {
             let mut view = crate::v3::audit_store::StoreView::generic(bounded);
             view.collect_manifest_units = collect_units;
             assemble_unpublished_in_store(&mut view, metadata, roots)
                 .map(|manifest| (manifest, None))
-                .map_err(|e| e.to_string())
+                .map_err(PublishError::from)
         }
     })?;
     let work = store.codec_work();
     let proof = ManifestSourceReceipt {
         source,
-        metadata: NativeMetadata::from_view(metadata.view(), work).map_err(|e| e.to_string())?,
-        roots: NativeRoots::from_view(roots.view(), work).map_err(|e| e.to_string())?,
+        metadata: NativeMetadata::from_view(metadata.view(), work).map_err(PublishError::from)?,
+        roots: NativeRoots::from_view(roots.view(), work).map_err(PublishError::from)?,
         manifest_value: manifest.value.clone(),
         closure_units: manifest.closure_units.take(),
         batch_id: TextValue::Plain(
             NativeValue::<String>::try_from_str(&manifest.batch_id, work)
-                .map_err(|e| e.to_string())?,
+                .map_err(PublishError::from)?,
         ),
     };
     Ok((manifest, workspace, proof))

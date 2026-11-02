@@ -292,7 +292,8 @@ impl ColdRawState {
                 .map_err(sc::ContextError::into_message)?;
         }
         if let Some(set) = self.0.set.as_mut() {
-            set.rebind_cold_owner(old, binding)?;
+            set.rebind_cold_owner(old, binding)
+                .map_err(sc::ContextError::into_message)?;
         }
         self.0.seal = seal;
         self.0.binding = binding;
@@ -342,9 +343,10 @@ impl CommittedRawState {
                 .map_err(sc::ContextError::into_message)?;
         }
         let set = match (root, source.as_ref()) {
-            (Some(root), Some(source)) => Some(super::construction_set::CommittedSet::cold(
-                admission, root, binding, source,
-            )?),
+            (Some(root), Some(source)) => Some(
+                super::construction_set::CommittedSet::cold(admission, root, binding, source)
+                    .map_err(sc::ContextError::into_message)?,
+            ),
             (None, None) => None,
             _ => return Err(stale("冷末代根与来源贡献态不配对")),
         };
