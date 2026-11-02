@@ -1308,7 +1308,7 @@ async function main(): Promise<void> {
     return;
   }
   for (;;) {
-    if (drainRequested()) { console.log("旧入口冻结，本轮不再领新工作"); return; }
+    if (drainRequested() && releaseLabel() !== QUEUE_LABEL) { console.log("旧入口冻结，本轮不再领新工作"); return; }
     try {
       await runOnce(cfg);
     } catch (e) {

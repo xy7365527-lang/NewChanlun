@@ -2428,3 +2428,72 @@ test("R2-4：会话退役后首次新调用中断，下一次仍重新分类而�
   assert.equal(third.klass, "P");
   assert.ok(!archCalls[0].prompt.includes(FIXED));
 });
+
+for (const scenario of ["block", "exhausted", "pass"] as const) {
+  for (const moment of ["before", "after"] as const) {
+    test(`A22：${scenario} 独审别名 ${moment} 发布中断后不重复独审或重发额度`, async () => {
+      const { d } = fakeDeps("dry-run", []);
+      const reviews = scenario === "exhausted" ? [r3Block, r3Block] : scenario === "block" ? [r3Block, fence(pass())] : [fence(pass())];
+      const cli = cliSessions(mainScript([...reviews]));
+      d.model = cli.run;
+      const dir = join(d.outRoot, "1531");
+      const attempt = scenario === "exhausted" ? 2 : 1;
+      const originalRename = fs.renameSync;
+      let injected = false;
+      fs.renameSync = ((from, to) => {
+        if (!injected && String(to) === join(dir, "review.json") && JSON.parse(readFileSync(from, "utf8")).attempt === attempt) {
+          injected = true;
+          if (moment === "after") originalRename(from, to);
+          throw new Error("A22 独审别名发布中断");
+        }
+        return originalRename(from, to);
+      }) as typeof fs.renameSync;
+      syncBuiltinESMExports();
+      let first;
+      try { first = await processTicket(1531, d); }
+      finally { fs.renameSync = originalRename; syncBuiltinESMExports(); }
+      assert.ok(injected, "命中真实别名发布");
+      assert.equal(first.phase, "error");
+      const checkpoint = JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8"));
+      console.log("A22 中断证据", JSON.stringify({ scenario, moment, phase: checkpoint.state.phase, rounds: checkpoint.progress.rounds.length, alias: existsSync(join(dir, "review.json")) ? JSON.parse(readFileSync(join(dir, "review.json"), "utf8")).verdict : null }));
+      cli.calls.length = 0;
+      const second = await processTicket(1531, d);
+      console.log("A22 恢复证据", JSON.stringify({ scenario, moment, phase: second.phase, attempts: second.attempts, calls: cli.calls.map(c => c.role), verdicts: second.rounds?.map(r => r.verdict) }));
+      assert.equal(second.phase, scenario === "exhausted" ? "shadow_p" : "land_t", second.error);
+      assert.deepEqual(cli.calls.map(c => c.role), scenario === "block" ? ["draft", "review"] : []);
+      assert.equal(second.attempts, scenario === "pass" ? 1 : 2);
+      assert.deepEqual(second.rounds!.map(r => r.verdict), scenario === "exhausted" ? ["BLOCK", "BLOCK"] : scenario === "block" ? ["BLOCK", "PASS"] : ["PASS"]);
+      assert.equal(JSON.parse(readFileSync(join(dir, `review.attempt${attempt}.json`), "utf8")).verdict, scenario === "pass" ? "PASS" : "BLOCK");
+      if (scenario === "block") assert.match(cli.calls[0].prompt, /R3 BLOCK/);
+    });
+  }
+}
+
+test("A22：轮次检查点提交失败不能发布已完成独审别名", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  const cli = cliSessions(mainScript([r3Block, fence(pass())]));
+  d.model = cli.run;
+  const dir = join(d.outRoot, "1531");
+  const originalRename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = ((from, to) => {
+    if (!injected && String(to) === join(dir, "main-rounds.json") && JSON.parse(readFileSync(from, "utf8")).progress.rounds.length === 1) {
+      injected = true;
+      throw new Error("A22 轮次检查点提交失败");
+    }
+    return originalRename(from, to);
+  }) as typeof fs.renameSync;
+  syncBuiltinESMExports();
+  let first;
+  try { first = await processTicket(1531, d); }
+  finally { fs.renameSync = originalRename; syncBuiltinESMExports(); }
+  assert.ok(injected);
+  assert.equal(first.phase, "error");
+  assert.equal(existsSync(join(dir, "review.json")), false, "未提交的独审不能作为已完成原件发布");
+  assert.equal(existsSync(join(dir, "review.attempt1.json")), false);
+  cli.calls.length = 0;
+  const second = await processTicket(1531, d);
+  assert.equal(second.phase, "land_t", second.error);
+  assert.deepEqual(cli.calls.map(c => c.role), ["review"]);
+  assert.equal(second.attempts, 1);
+});

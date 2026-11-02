@@ -1620,9 +1620,13 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         canonicalPlan: plan, durationMs: rr.durationMs, ...(reviewSwitches.length ? { modelSwitches: reviewSwitches } : {}), raw: rr.text,
       };
-      writeJson(join(dir, "review.json"), record);
-      assertDifferentModelFamilies(drafterUsed, reviewerUsed);
+      try { assertDifferentModelFamilies(drafterUsed, reviewerUsed); }
+      catch (e) {
+        writeJson(join(dir, "review.json"), record);
+        throw e;
+      }
       if (review.parseError) {
+        writeJson(join(dir, "review.json"), record);
         saveRound(); // 解析失败只保留待审草稿，不耗用或重发重做额度。
         s = { ...s, phase: "review_parse_error" };
         summary.error = "审查输出两次均无法解析为 R1–R8 JSON（review_parse_error），未计入 BLOCK";
@@ -1633,6 +1637,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       reviewRecord = record;
       s = nextAfterReview({ ...s, drafterModel: drafterUsed }, review);
       saveRound(); // 先提交轮次账本，重入可补齐逐轮原件而不重新独审。
+      writeJson(join(dir, "review.json"), record);
       writeJson(join(dir, `review.attempt${record.attempt}.json`), record);
     }
     summary.klass = s.klass;

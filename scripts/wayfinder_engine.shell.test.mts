@@ -1,7 +1,6 @@
 /**
  * wayfinder_engine 壳层测试（#1084 追加验收）：
  *  - 注入一次 GitHub API timeout → 有限重试 + 指数退避后自动恢复并继续（进程不永久停摆）；
- *  - 空队列 → 正常走完一轮（不退出即由常驻 for(;;) 收口，本测试只验 --once 一轮）。
  * 跑法：npx tsx --test scripts/wayfinder_engine.shell.test.mts
  *
  * 做法：临时目录里放一个假 gh（首 N 次调用 exit 1 模拟 timeout，之后对 issue list 返回 []），
@@ -9,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -145,4 +144,112 @@ fi
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFileSync(log, "utf8").trim(), "issue edit 99 --add-label deepagents:queue");
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+async function runLiveLoop(record: "valid" | "missing" | "malformed" | "stale", once = false) {
+  const root = mkdtempSync(join(tmpdir(), "wfe-live-loop-"));
+  const state = join(root, "exec"), drain = join(root, "drain"), log = join(root, "writes");
+  try {
+    for (const path of [state, drain, join(root, "scripts"), join(root, ".sandcastle/deepagents-pilot/pilot1742")])
+      mkdirSync(path, { recursive: true });
+    for (const file of ["scripts/wayfinder_engine.mts", ".sandcastle/cliproxy-env.mts",
+      ".sandcastle/main-model.mts", ".sandcastle/scheduler-config.mts", ".sandcastle/scheduler-config.json",
+      ".sandcastle/drain-control.mts", ".sandcastle/drain-control.py", ".sandcastle/deepagents-cutover.mts",
+      ".sandcastle/queue-policy.json", ".sandcastle/deepagents-pilot/pilot1742/cutover.py"]) {
+      const source = readFileSync(join(repoRoot, file), "utf8");
+      const content = file === ".sandcastle/drain-control.mts"
+        ? source.replace('"/Volumes/AgentStorage/newchanlun-legacy-drain"', JSON.stringify(drain))
+        : file === ".sandcastle/deepagents-cutover.mts"
+        ? source.replace('"/Volumes/AgentStorage/deepagents-exec"', JSON.stringify(state)) : source;
+      writeFileSync(join(root, file), content);
+    }
+    const freeze = (generation: number) => writeFileSync(join(drain, "state.json"),
+      JSON.stringify({ v: 1, mode: "draining", generation }));
+    freeze(record === "stale" ? 2 : 1);
+    const cutover = { v: 1, drain_generation: 1, frozen_at: "fixture", legacy_snapshot: [],
+      workers_log_length: 0, workers_log_path: "/fixture/workers.jsonl", open_claims: [],
+      remote_jobs_idle: true, remote_freeze_var: "1", variable_source: "user-token-readonly",
+      release_label: "deepagents:queue", engine_head: "a".repeat(40),
+      legacy_services_unloaded: ["com.newchanlun.sandcastle-claimer", "com.newchanlun.sandcastle-harvest"] };
+    if (record !== "missing") writeFileSync(join(state, "cutover.json"),
+      record === "malformed" ? "{" : JSON.stringify(cutover));
+    const ticket = { number: 99, title: "[impl] shell fixture", state: "OPEN",
+      labels: [{ name: "ready-for-agent" }], assignees: [] };
+    for (const [name, value] of Object.entries({
+      maps: [{ number: 1, title: "fixture map", state: "OPEN", labels: [] }],
+      children: [{ number: 2, title: "SPEC: fixture", state: "OPEN" }, ticket],
+      comments: [{ user: { login: "fixture-orchestrator" }, body: "批准", created_at: "2026-01-01" }],
+      tickets: [ticket],
+    })) writeFileSync(join(root, name), JSON.stringify(value));
+    writeFileSync(log, "");
+    writeFileSync(join(root, "calls"), "");
+    writeFileSync(join(root, "gh"), `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$WFE_FIXTURE/calls"
+case "$1 $2" in
+  "issue list")
+    case "$*" in
+      *"--label wayfinder:map"*) cat "$WFE_FIXTURE/maps" ;;
+      *) cat "$WFE_FIXTURE/tickets" ;;
+    esac ;;
+  "api --paginate")
+    case "$3" in
+      */issues/1/sub_issues) cat "$WFE_FIXTURE/children" ;;
+      */issues/2/comments) cat "$WFE_FIXTURE/comments" ;;
+      *) exit 71 ;;
+    esac ;;
+  "issue view")
+    if [ -s "$WFE_FIXTURE/writes" ]; then
+      echo '{"state":"OPEN","labels":[{"name":"deepagents:queue"}],"assignees":[]}'
+    else echo '{"state":"OPEN","labels":[],"assignees":[]}'; fi ;;
+  "issue edit") printf '%s\\n' "$*" >> "$WFE_FIXTURE/writes" ;;
+  *) exit 71 ;;
+esac
+`, { mode: 0o755 });
+    const child = spawn(process.execPath, ["--experimental-strip-types", "scripts/wayfinder_engine.mts",
+      "--live", "--poll-seconds", "0.05", ...(once ? ["--once"] : [])], {
+      cwd: root, env: { ...process.env, PATH: `${root}:${process.env.PATH}`, WFE_FIXTURE: root,
+        WAYFINDER_ORCHESTRATOR: "fixture-orchestrator", WAYFINDER_GH_MAX_ATTEMPTS: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let out = "", err = "", changed = false, timedOut = false;
+    const status = await new Promise<number | null>((resolve, reject) => {
+      const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, 10_000);
+      child.stdout.on("data", data => {
+        out += String(data);
+        if (!once && !changed && (out.match(/一轮结束/g) ?? []).length === 2) {
+          changed = true;
+          freeze(2);
+        }
+      });
+      child.stderr.on("data", data => { err += String(data); });
+      child.once("error", error => { clearTimeout(timer); reject(error); });
+      child.once("close", code => { clearTimeout(timer); resolve(code); });
+    });
+    assert.equal(timedOut, false, `常驻入口未退出\n${out}\n${err}`);
+    assert.equal(status, 0, `${out}\n${err}`);
+    return { out: out + err, writes: readFileSync(log, "utf8"), calls: readFileSync(join(root, "calls"), "utf8") };
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}
+
+test("常驻入口：有效切流记录放行新队列并持续轮询，冻结代次变化后退出", async () => {
+  const result = await runLiveLoop("valid");
+  assert.equal(result.writes, "issue edit 99 --add-label deepagents:queue\n", result.out);
+  assert.equal((result.out.match(/一轮结束/g) ?? []).length, 2);
+  assert.match(result.out, /旧入口冻结/);
+  assert.equal((result.calls.match(/issue list --label wayfinder:map/g) ?? []).length, 2);
+});
+
+for (const record of ["missing", "malformed", "stale"] as const) {
+  test(`常驻入口：${record} 切流记录不读 tracker、不放行并退出`, async () => {
+    const result = await runLiveLoop(record);
+    assert.equal(result.calls, "");
+    assert.equal(result.writes, "");
+    assert.match(result.out, /旧入口冻结/);
+  });
+}
+
+test("单轮入口：有效切流记录仍放行新队列且只运行一轮", async () => {
+  const result = await runLiveLoop("valid", true);
+  assert.equal(result.writes, "issue edit 99 --add-label deepagents:queue\n", result.out);
+  assert.equal((result.out.match(/一轮结束/g) ?? []).length, 1);
 });
