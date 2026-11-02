@@ -167,29 +167,12 @@ fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
     db
 }
 
-/// v1 init（既有 TestOnly 方式；可带结构源声明）。
-fn s_init_v1(space: &Space, declared: Option<&Value>) -> PathBuf {
-    let db = space.s_db();
-    let mut c = Command::new(s_bin());
-    c.args(["init", "--db"])
-        .arg(&db)
-        .args(["--session", SESSION, "--catalog"])
-        .arg(fixture("catalog/signed-catalog.json"));
-    if let Some(d) = declared {
-        c.arg("--structure-source")
-            .arg(write_json(&space.path("source.json"), d));
-    }
-    let out = run(&mut c);
-    assert!(
-        out.status.success(),
-        "S v1 init: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    db
-}
-
 /// TestOnly 造锚：owner 绑定 + state/s-admission/{limits,binding}.json；返回 limits 路径。
 fn anchor(db: &Path) -> PathBuf {
+    anchor_with_wire_limit(db, 1_073_741_824)
+}
+
+fn anchor_with_wire_limit(db: &Path, max_total_wire_bytes: u64) -> PathBuf {
     let db = db.canonicalize().unwrap();
     let state = db.parent().unwrap().join("s-state");
     let published = state.join("s-admission");
@@ -198,7 +181,7 @@ fn anchor(db: &Path) -> PathBuf {
     let limits = published.join("limits.json");
     let binding_path = published.join("binding.json");
     let raw = serde_json::to_vec(&json!({
-        "max_total_wire_bytes":"1073741824", "max_total_node_bytes":"1073741824", "max_total_nodes":"10000000",
+        "max_total_wire_bytes":max_total_wire_bytes.to_string(), "max_total_node_bytes":"1073741824", "max_total_nodes":"10000000",
         "max_total_records":"10000000", "max_total_requests":"1000000", "max_elapsed_ms":"600000",
         "max_staged_bytes":"67108864", "max_store_bytes":"1073741824"
     }))
@@ -671,27 +654,238 @@ fn s_rejects_same_shape_bars_from_undeclared_source() {
     s.wait().unwrap();
 }
 
+// #1845：所有声明负控使用同一 v3/profile/clock/resource/admission 夹具，避免旧库版本先拒启。
+fn structure_source_fixture(space: &Space, fault: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let source = declaration("TestOnlyStructure", DECLARED_NS);
+    let db = s_init_v3(
+        space,
+        if fault == "missing" {
+            None
+        } else {
+            Some(&source)
+        },
+    );
+    if fault == "stored_corrupt" {
+        let conn = Connection::open(&db).unwrap();
+        conn.execute("UPDATE meta SET value='{' WHERE key='structure_source'", [])
+            .unwrap();
+    }
+    let limits = anchor(&db);
+    let expected = if fault == "mismatch" {
+        declaration("TestOnlyStructure", "testonly.other")
+    } else {
+        source
+    };
+    let file = write_json(&space.path("expected-source.json"), &expected);
+    if fault == "file_corrupt" {
+        std::fs::write(&file, "{").unwrap();
+    } else if fault == "file_missing" {
+        std::fs::remove_file(&file).unwrap();
+    }
+    (db, limits, file)
+}
+
+fn assert_source_refusal(fault: &str, expected_error: &str) {
+    let space = Space::new();
+    let (db, limits, file) = structure_source_fixture(&space, fault);
+    let before = raw_rows_offline(&db);
+    let out = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains(expected_error), "{stderr}");
+    if fault == "mismatch" {
+        for ns in [DECLARED_NS, "testonly.other"] {
+            let canonical = newchan_rust::structure_source::Declaration::parse(&declaration(
+                "TestOnlyStructure",
+                ns,
+            ))
+            .unwrap()
+            .canonical();
+            // S 的错误字段是 JSON 字符串；去掉外层引号后核对完整声明的转义内容。
+            let encoded = serde_json::to_string(&canonical).unwrap();
+            assert!(stderr.contains(&encoded[1..encoded.len() - 1]), "{stderr}");
+        }
+    }
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&db), before);
+}
+
+#[test]
+fn s_serve_explicit_source_rejects_missing_stored_declaration() {
+    assert_source_refusal("missing", "不带结构源声明");
+}
+
+#[test]
+fn s_serve_explicit_source_rejects_mismatch_with_both_canonical_declarations() {
+    assert_source_refusal("mismatch", "不一致");
+}
+
+#[test]
+fn s_serve_explicit_source_rejects_corrupt_file() {
+    assert_source_refusal("file_corrupt", "结构源声明 JSON 解析失败");
+}
+
+#[test]
+fn s_serve_explicit_source_rejects_missing_file() {
+    assert_source_refusal("file_missing", "读结构源声明");
+}
+
+#[test]
+fn s_serve_explicit_source_charges_declaration_bytes_to_startup_limit() {
+    let space = Space::new();
+    let (db, _, file) = structure_source_fixture(&space, "match");
+    let wire_limit = 8 * 1024 * 1024;
+    let limits = anchor_with_wire_limit(&db, wire_limit);
+    // 声明语义仍匹配，仅在合法 JSON 后追加超过整本启动账字节帽的空白。
+    let mut bytes = std::fs::read(&file).unwrap();
+    bytes.resize(bytes.len() + wire_limit as usize + 1, b' ');
+    std::fs::write(&file, bytes).unwrap();
+    let out = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("读结构源声明"), "{stderr}");
+    assert!(stderr.contains("max_total_wire_bytes"), "{stderr}");
+    assert!(!space.path("s.sock").exists());
+}
+
+#[test]
+fn s_serve_explicit_source_rejects_corrupt_stored_declaration() {
+    assert_source_refusal("stored_corrupt", "meta.structure_source 损坏");
+}
+
+fn assert_source_listens(fault: &str, explicit: bool) {
+    let space = Space::new();
+    let (db, limits, file) = structure_source_fixture(&space, fault);
+    let mut command = s_serve_command(&space, &db, &limits);
+    if explicit {
+        command.arg("--structure-source").arg(file);
+    }
+    let mut child = command.spawn().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !space.path("s.sock").exists() {
+        if let Some(status) = child.try_wait().unwrap() {
+            panic!("S serve 提前退出 {status}：{}", launcher_stderr(&mut child));
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("S socket 未就绪");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_lock_held(&db);
+    child.kill().unwrap();
+    child.wait().unwrap();
+}
+
+#[test]
+fn s_serve_explicit_source_match_listens() {
+    assert_source_listens("match", true);
+}
+
+#[test]
+fn s_serve_standalone_without_source_keeps_missing_declaration_contract() {
+    assert_source_listens("missing", false);
+}
+
+#[test]
+fn s_serve_standalone_without_source_does_not_check_corrupt_declaration() {
+    assert_source_listens("stored_corrupt", false);
+}
+
+fn assert_launcher_source_failure(fault: &str) {
+    let space = Space::new();
+    let (db, limits, _) = structure_source_fixture(&space, fault);
+    let before = raw_rows_offline(&db);
+    let source = declaration(
+        "TestOnlyStructure",
+        if fault == "mismatch" {
+            "testonly.other"
+        } else {
+            DECLARED_NS
+        },
+    );
+    let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
+    let manifest = launcher_manifest(&space, "simulation", &source, &db, &limits, &xp);
+    let out = run_refusal(Command::new(launcher_bin()).arg("--manifest").arg(manifest));
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let events: Vec<Value> = stderr
+        .lines()
+        .filter_map(|line| line.strip_prefix("production_session "))
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .collect();
+    assert!(
+        events
+            .iter()
+            .any(|e| e["event"] == "exit" && e["domain"] == "S" && e["critical"] == true),
+        "{stderr}"
+    );
+    assert!(
+        events
+            .iter()
+            .any(|e| e["event"] == "stopped" && e["failed"] == true),
+        "{stderr}"
+    );
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&db), before);
+}
+
 #[test]
 fn production_session_refuses_s_db_without_source_declaration() {
+    assert_launcher_source_failure("missing");
+}
+
+#[test]
+fn production_session_refuses_s_db_with_mismatched_source_declaration() {
+    assert_launcher_source_failure("mismatch");
+}
+
+#[test]
+fn production_session_refuses_s_db_with_corrupt_source_declaration() {
+    assert_launcher_source_failure("stored_corrupt");
+}
+
+#[test]
+fn production_session_new_s_init_and_serve_share_source_declaration() {
     let space = Space::new();
-    let s_db = s_init_v1(&space, None);
-    let before = raw_rows(&s_db);
-    let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
-    let source = declaration("TestOnlyStructure", DECLARED_NS);
-    let manifest = launcher_manifest(
-        &space,
-        "simulation",
-        &source,
-        &s_db,
-        &space.path("limits.json"),
-        &xp,
+    let (manifest, db) = simulation(&space, "simulation", false);
+    // 锚绑定规范路径，init 重建同一路径；不改 admission 合同。
+    std::fs::remove_file(&db).unwrap();
+    let mut launcher = spawn_launcher(&manifest);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !space.path("s.sock").exists() {
+        if let Some(status) = launcher.try_wait().unwrap() {
+            panic!(
+                "launcher 提前退出 {status}：{}",
+                launcher_stderr(&mut launcher)
+            );
+        }
+        if Instant::now() >= deadline {
+            stop(&mut launcher);
+            panic!("新 S 库未监听");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(stop(&mut launcher).code(), Some(0));
+    let stderr = launcher_stderr(&mut launcher);
+    assert!(stderr.contains("\"event\":\"init\""), "{stderr}");
+    let conn = Connection::open(&db).unwrap();
+    let stored = newchan_rust::structure_source::stored(&conn)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(space.path("launcher-state/structure-source.json")).unwrap(),
+        stored.canonical()
     );
-    let out = run(Command::new(launcher_bin())
-        .arg("--manifest")
-        .arg(&manifest));
-    assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("InvalidDomain"));
-    assert_eq!(raw_rows(&s_db), before);
 }
 
 /// 经 S socket 提交第 `n` 条 ingest（`s-session/3` 封包、`s-ohlc/1` 原件；一帧 LF + 写端 EOF）。
