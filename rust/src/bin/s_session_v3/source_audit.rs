@@ -2214,7 +2214,9 @@ fn audit_development_batch_inner(
         if let Some(memo) = memo.as_deref_mut() {
             memo.save(&unit, coord);
         }
-        if unit_bar != bar {
+        let same_bar = unit_bar == bar;
+        drop(unit_bar);
+        if !same_bar {
             return Err(err("CC007单元bar与批记录不同"));
         }
         let development = field(s, &entry, "development")?;

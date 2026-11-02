@@ -1310,3 +1310,23 @@ Rust 未验证，待 CI。上述格式、Python 锁与静态核查不证明 Rust
 - `PublishPhase` 的 audited 候选、publication 父域、`raw: None`、`capture: None`、`source: None` 及唯一调用者不变，独立 full_lease 对照臂语义保持；没有删除测试或写入检查。
 
 结论：除已知 helper 的这三处外，在上述 35 个 H1 新增/改动函数及其全仓调用者中，未发现另一处静态可证的 String/PublishError 不一致。本报告为源码/类型合同核查，Rust 未验证，待 CI。
+
+## M4B
+
+本节绑定 #1419，按 48F 独审处理 M4 当前条目的 `unit_bar` 持有期。开工 HEAD 为 `37b58810d7a4261803b32b71a53b67c449e47529`，工作区干净。完整阅读 `/Volumes/AgentStorage/m4-review48f/REPORT.md` 与本笔记 M4 节；独审唯一阻塞为 B1，没有其他持有期修复项。
+
+独审原文要点：“`unit_bar` 是带 Drop 的 `RefValue`，Rust 在作用域末尾析构，不按最后一次使用提前释放”；“Native 路径上会多持有一份 `NativeReservation` 跨过前缀审计，抬高峰值准入占用”。报告由此指出边界资源拒绝可能改变，要求“比较后立即释放”。这是源码所有权与析构语义分析，报告及本阶段均无资源峰值实测。
+
+`source_audit.rs:2217` 将直接 `if unit_bar != bar` 改为先计算 `let same_bar = unit_bar == bar;`，下一句 `drop(unit_bar);`，再按 `if !same_bar` 返回原错误。`PartialEq` 借用两侧，仍逐项比较 format/root/kind/extent；比较完成后只保留布尔值，显式 drop 消费 `unit_bar` 并析构其载荷与预留。相等和不等两条路径都先释放，再进入原后续字段读取或返回错误，因此不跨越前缀循环，也不早于比较完成；释放点不晚于原重读 bar 的比较语句结束。`memo.save(&unit, coord)` 保持原位置，未增加读取、clone 或分配。
+
+穷举当前文件 helper 定义外的三处调用：`:2156` wrapper 保持 `.map(|_| ())`，成功元组及其 bar 在该表达式结束前丢弃，不移交给 wrapper 调用者；`:2213` 当前条目按上述位置显式释放；`:2242` memo miss 保持 `let (coord, _) = ...?;`，`_` 不绑定，返回元组内的 bar 在该语句结束时析构，随后才 `memo.save(previous, coord)`，没有改成会延长持有期的 `_bar`。`RefValue::Plain` 的 `NativeValue<ContentRef>` 持有 `Option<NativeReservation>`，`native_owned.rs:50` 起的字段声明顺序使载荷先于许可析构；本轮只缩短持有期，不改释放机制。
+
+实际检查：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/source_audit.rs` 退出 0，仅验证格式。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check` 退出 0，报告 `.github/prod-banned-literals.txt 与源码一致`，未修改或重建清单。
+- 完整阅读 anchor_lock 脚本后执行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，退出 0，3 项通过；该检查不调用 cargo/rustc。
+- Python 对拍 HEAD 与工作树，确认 `source_audit.rs` 仅有上述比较与显式释放替换；其他源码逐字保留，包括 memo 分支、wrapper、无 memo 前缀末项免审、循环后末项校验、冻结数值与摘要。追加本节前，原笔记与 HEAD 逐字相同。
+- `git diff --check` 退出 0；未运行 cargo/rustc，未暂存、提交或回退改动。
+
+本阶段 ready。Rust 未验证，待 CI。冻结数值与摘要沿用 M4 现状，由下一阶段依据 CI 实测更新。
