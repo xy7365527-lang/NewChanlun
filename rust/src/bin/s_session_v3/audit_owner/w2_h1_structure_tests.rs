@@ -65,6 +65,7 @@ impl W2H1Fixture {
             clock: v2::ClockPlan::parse(clock).unwrap(),
         }
     }
+    #[cfg(test)]
     fn open(&self, db: &Path) -> driver::Driver {
         h1_admission_assert_clean_close(db);
         driver::Driver::open_with_request_and_mode_retention(

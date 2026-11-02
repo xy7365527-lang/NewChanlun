@@ -1001,3 +1001,30 @@ feature_delta target=bin feature=s_capture_native_testonly base=964 with_feature
 - `check-prod-no-test-hooks.py` 退出0、violations=0；现有相关Python单测20项通过。`git diff --check` 退出0、暂存区为空；原交接笔记73753字节前缀SHA256保持 `c17dba9c23cb44d4e6dd40d0734e12b3d86e5469425a89f77c874f849cb2a7c9`，仅追加本节。
 
 本轮保留完整W2生产写者串，未新增test_writer_rule、修改资源帽/准入语义或任何生产判据；未修改生产函数，未增加宽严两档或失败兜底，未处理#1481自身native栈溢出。阶段交付ready；Rust未验证，待CI，实际行为与同名增量锁仍须执行确认。
+
+## M3C
+
+本节绑定 #1419，处理 PR #1855@dde4cd4b 的 admission 与 s-observer 同因失败。开工分支为 `sandcastle/issue-1419`，HEAD 为 `dde4cd4b65bf77f176134971e19279a00f7c5a72`，工作区干净。
+
+失败原文摘自 `/tmp/goal1323-s-observer-125128761166.log:363-368`：
+
+```text
+FAIL: test_rust_test_prepare_exists_only_under_cfg_test (test_tb01c_r4_anchor_lock.AnchorLockTests.test_rust_test_prepare_exists_only_under_cfg_test)
+Traceback (most recent call last):
+  File "/home/runner/work/NewChanlun/NewChanlun/s_session/tests/test_tb01c_r4_anchor_lock.py", line 44, in test_rust_test_prepare_exists_only_under_cfg_test
+    self.assertRegex(window, r"#\[cfg\((all\()?test", f"{path} 在非测试上下文调用 test_prepare")
+```
+
+第 368 行断言诊断末尾原文为 `/home/runner/work/NewChanlun/NewChanlun/rust/src/bin/s_session_v3/audit_owner/w2_h1_structure_tests.rs 在非测试上下文调用 test_prepare`。本机修改前运行同一目标单测，实际复现该失败。
+
+仅在 `w2_h1_structure_tests.rs` 的 `W2H1Fixture::open` 前增加 `#[cfg(test)]`。该文件经 `audit_owner.rs` 的 `construction_tests` 模块 `all(test, feature = "s_incremental")` 门和 `unix` include 门编入，函数声明与真实构建条件一致，不改变构建可达性。机械锁要求同文件调用前文存在测试 cfg，外层 include 门不能满足其文本判据。未改锁脚本、正则、测试内容或生产规则，未添加 allow。
+
+实际检查：
+
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py -k test_rust_test_prepare_exists_only_under_cfg_test`：修改前失败，修改后 1 项通过；已核该目标方法只读源码，不调用 cargo。
+- Python 按原锁完整复现定义唯一性、定义前 cfg、调用正则、定义排除及调用前文 cfg 判据，遍历 `rust/src` 全部 646 个 `.rs`，检查 113 处调用，违规 0。`w2_h1_window_tests.rs` 无直接 `test_prepare(` 调用，其余文件没有未覆盖调用，无需追加修改。
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner/w2_h1_structure_tests.rs`：退出 0，仅验证格式。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`：退出 0，报告 `.github/prod-banned-literals.txt 与源码一致`；清单未受影响，无需重建。
+- `git diff --check`：退出 0。核对源码相对 HEAD 仅新增上述属性；本笔记仅追加 M3C，未暂存、提交或回退任何改动。
+
+Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试。
