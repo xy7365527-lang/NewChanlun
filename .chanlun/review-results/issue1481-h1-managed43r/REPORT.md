@@ -2106,3 +2106,96 @@ PathBuf 修改后仍使用，没有新增 helper、import、变量、allow/expec
 
 - `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
 - `rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`
+
+## S1N
+
+> 状态：ready，交主控封包后取精确新 head 的 CI。基线为 `sandcastle/issue-1481` / `f39e32cb29551ffd92a0325297f4f5c1bafe19e1`，开工工作区干净。根因为测试后验只读连接重建旁挂；生产关闭恢复未发现缺口。本轮仅修夹具，**Rust 未验证，待 CI**。
+
+### 原始证据与根因
+
+已读本报告 S1K 的 46L P1-2 失败分类、S1L、S1M，以及 S1D–S1M 提示和所引 S1/S1B/S1C 边界。工位报告的实际路径是本文件，根目录没有另一份 REPORT.md。以下日志行号指原件 `/Volumes/AgentStorage/h1-recover45c/ci-f39e32cb/125061567066.log`，Rust 简称相对 `rust/src/bin/`；源码行号为本轮候选，明确标注基线者除外。
+
+原日志 `:154`、`:242` 确认为精确 head `f39e32cb`；`:423–424` 是 release、`s_session,s_incremental`、`h1_`、单测试线程的执行命令；`:494` 实选 77 项，`:710–713` 是 `admission_tests.rs:951` 的直接清理断言 panic，`:893` 汇总 76 passed / 1 failed。没有把这个旧 head 的结果记为修后 PASS。
+
+问题是 **advance 已关闭后，夹具又开了一个最后关闭的只读 WAL 连接**。连接没有设置 `NO_CKPT_ON_CLOSE=true`；其只读合同本身就使最后关闭检查点无法成功，因此仍留下 `-wal/-shm`。完整生命周期如下。
+
+| 阶段与文件:行 | 连接及关闭语义 |
+|---|---|
+| `audit_owner/legacy_admission_tests.rs:4–26`，父进程建库 | `H1AdmissionFixture` 在 `admission_tests.rs:4–8` 只存 anchor、路径和 clock，`:51–53` 的 conn() 每次返回临时连接；anchor 的库与本库不同。seed、冷 driver 及 ALTER/DELETE 的普通连接都已关闭；父进程不持本库 SQLite 连接进入 child。初始只读检查位于 DELETE 域，不是 WAL。 |
+| `writer_cli.rs:928–931`，请求预检 | scope 先持锁；`preflight_input` 在 `:484` 开只读连接，函数返回时事务及连接已析构。此时仍是 MainOnly/DELETE，先于 WAL 转换，没有跨入 driver 的活连接。 |
+| `driver.rs:489–520`、`:582`，H1 冷认证 | advance 的 retention 入口与 serve 共用冷 context 和 `AuditConnection::open_rebuilt_history_into`。`audit_owner.rs:576` 的 certify_cold 使用私有 FD/VFS；`admission_private/mod.rs:780–796` 关闭 SQLite、撤销注册后才交接，无普通主库连接存活到正式写者退出。 |
+| `audit_owner.rs:761–776`，合法模式转换 | 首个连接设 true；`s_structure_session.rs:454–488` 在 EXCLUSIVE 下核原件、转 WAL、采交接凭据。`:477–478` 明写 heap 索引，不建 SHM。转换连接在 `audit_owner.rs:771` 有意带 true 关闭，保留空 WAL 的 inode/stamp；随后 `:776` 重开真正 owner。 |
+| `audit_owner.rs:795–870`，迁移、seed/adopt | 首锁复核、migrate/COMMIT、Clamp、第二锁 seed、adopt 后，`:870` 调共同 `h1_normal_close`；根 `s_structure_session.rs:389–400` 核恢复 false。advance 没有绕过此步。 |
+| `writer_cli.rs:972–975`、`driver.rs:316–320`，正式推进及输出 | 真实 handle 推进 g4；into_output 先显式 drop(conn)，才移交仅持预算、原件 FD 和锁的 CommandOutput。dispatch 的 emit 不持 SQLite。至此正式最后连接已正常关闭。 |
+| `audit_owner/legacy_admission_tests.rs:175–176`，child 第一项介质检查 | 仍要求 cuts `[1,2,3,4]`，紧接着在任何后验连接前断言无 SHM/WAL。若生产退出留下旁挂，仍在此失败，后面的连接不能替生产清理。 |
+| 同文件基线 `:177–184`，后验检查及 child 返回 | 原来重新以 `SQLITE_OPEN_READ_ONLY` 打开已是 WAL 的库，查询补列、generation、journal_mode，return 才关闭。该连接重新创建旁挂，且只读最后关闭无法清理。父进程在基线 `:245` 再查无旁挂，于是失败。 |
+
+日志是父进程直接在共享 helper panic；若 child 的 dispatch、cuts 或第一项清理断言失败，父会在子进程状态断言处报带 `stdout=... stderr=...` 的失败包装。日志没有调用栈，不能单凭 helper 行号区分父建库期间的 `admission_tests.rs:512`、legacy `:15` 与父末尾检查。源码证明 child 的后验只读 WAL 连接会产生相同残留，下述探针复现该机制，生产入口穷举则确认 advance 共用成功恢复 false 的实现。三者支持本轮夹具修法；精确 Rust 调用点及修后结果仍待 CI，不把原日志冒充完整动态生命周期记录。
+
+依赖源码证据也闭合此因果。`rust/Cargo.toml:45` 启用 bundled；`rust/Cargo.lock:838–839` 固定 libsqlite3-sys 0.38.2，`:1638–1639` 固定 rusqlite 0.40.2。读取本机对应依赖原件 `/Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libsqlite3-sys-0.38.2/sqlite3/sqlite3.c`：`:470` 版本为 3.53.2；`:63781–63800` 的 PagerClose 在未禁关闭检查点时向 WalClose 提供检查点缓冲；`:71762` 对只读 WAL 的 checkpoint 返回 SQLITE_READONLY；`:69973–70009` 只有 checkpoint 成功才设 isDelete 并清理 WAL/index。故默认 false 也无法使这个只读连接完成清理。
+
+修码前先用 Python SQLite 3.53.4 实跑两臂探针，随后主控独立复跑。执行器在仓外 `/private/tmp/issue1481-s1n-sqlite-close-probe.py`，命令 `python3 -B /private/tmp/issue1481-s1n-sqlite-close-probe.py`；每次新建临时目录，无手工删除旁挂。主控复跑目录 `/private/tmp/issue1481-s1n-sqlite-close-3t0t4wd1`，结果如下。
+
+| 后验连接，仅做相同查询 | 打开前 WAL / SHM | 查询时 WAL / SHM | close 后 WAL / SHM |
+|---|---|---|---|
+| `mode=ro`，原夹具 | 不存在 / 不存在 | 0 / 32768 字节 | 0 / 32768 字节，复现残留 |
+| `mode=rw`，修后夹具 | 不存在 / 不存在 | 0 / 32768 字节 | 不存在 / 不存在，SQLite 自动清理 |
+
+Python 探针验证 SQLite 生命周期机制；依赖原件验证 bundled 的相同拒绝及清理条件。两者均不代替 Rust 锁在 CI 上的真实执行。
+
+### 修法与同类夹具核对
+
+`audit_owner/legacy_admission_tests.rs:177–180` 将迁移后的后验连接改为 `SQLITE_OPEN_READ_WRITE`，不带 CREATE，仅执行原查询；`:187–188` 显式 drop 后再调用原清理 helper。保留 `:176` 的生产关闭检查、`:249` 的父进程最终检查，以及原补列、generation、mode、cuts、旧审计零调用和子进程成功断言。共享 helper `admission_tests.rs:947–955` 逐字保持，未放宽“正常最后连接退出须清理 -shm”。普通读写连接的正常关闭与生产 owner 成功恢复 false 后的 SQLite 生命周期一致；第一项断言保证它不能代替生产连接补做清理。
+
+同类夹具扫描：legacy 的另一只读检查 `:20–27` 只核 DELETE 域；`admission_tests.rs` 无 READ_ONLY，其暂时失败/重启锁 `:967/:1007` 和正常退出锁 `:1061/:1086` 均用普通连接并显式关闭，清理检查分别在 `:973/:1018/:1094`。hot journal 的 `:1257` 是故意制造热日志、进程中止的拒绝负控。history_clamp_tests 与 audit_owner 其余测试没有同款“正常关闭后只读重开 WAL，再由父检查清理”的组合。未发现第二个夹具缺口。
+
+### 入口 × 路径的 NO_CKPT 核对
+
+下表 true/false 均指实际 SQLite 配置；完整性拒绝特指 S1K 的冷交接失败分类。恢复 false 失败仍返回错误及关闭失败证据，绝不当成成功。
+
+| 入口 | 成功路径 | 冷开门/交接自身失败 | 冷交接完整性拒绝 | 已交接后的业务或输出失败 |
+|---|---|---|---|---|
+| serve，`writer_cli.rs:769` → `driver.rs:260/:582` | 共同 owner `audit_owner.rs:870` 核 false；服务返回析构 driver，普通最后关闭 | 开门前无正式连接；开门后按 `s_structure_session.rs:421`、owner `:394/:903` 核 false | `audit_owner.rs:873–903` 合并 Clamp/原件/版本失配或失证，保留 true、源字节保全 | 已是 false；startup/resume/identity/transport 失败沿原事务及析构语义，无重设 true |
+| advance，`writer_cli.rs:933` → `driver.rs:489/:582` | 同上核 false；`driver.rs:316–320` 输出前 drop(conn) | 同一分类收口，预检失败则尚未开正式连接 | 同一分类，不因一次性命令而放行或重试 | handle/summary/emit 失败时已是 false；成功后的夹具后验连接本轮修齐 |
+| recover，`writer_cli.rs:994` → `driver.rs:837/:881` | 同一冷 owner 核 false；`driver.rs:892–893` Recover 后显式 drop | 冷构造与 seed/adopt 同一收口 | 同一分类，保留 true | Recover 自身事务失败时也已是 false，`?` 析构；不改 epoch/资金恢复语义 |
+| serve 内 accept/Begin/Prepare/commit/pending resume，`driver.rs:647/:651` 起 | 复用已核 false 的 driver.conn，不另开正式连接 | 若失败在 startup 的冷交接前段，仍走上面共同分类 | 同上 | 复用 false，走既有事务回滚/retire，不新增关闭配置切换 |
+| 独立 accept、无选择器旧 v1 accept/advance/recover、v2 clock recover | v3 无独立 accept 分派，`mod.rs:286–289` 拒未接线命令；旧入口在 `admission_private/mod.rs:448–450` 对 v3 只读拒绝 | 未开正式连接，无配置恢复义务；v1/v2 域旧行为保持 | 不进入 H1 交接 | 不进入该路径 |
+
+所有生产设置点及旁路连接也已穷举，未发现 advance 漏掉 S1K 恢复。
+
+| 连接类别 | 配置与成功/失败关闭 |
+|---|---|
+| MainOnly/非 WAL 一次性转换连接，`audit_owner.rs:761–776` | 成功有意保留 true 至 drop，保空 WAL 的身份交接；EXCLUSIVE 索引在 heap，无 SHM。`s_structure_session.rs:491` 对自身失败核 false、完整性失配保留 true。真正 owner 随后恢复 false，不能把转换连接的 true 当遗漏。 |
+| 冷认证私有 FD/VFS，`admission_private/fd_wal.rs:1149` | 有意 true，保护只读原件；`admission_private/mod.rs:780–796` 在结果交接前 close/撤销注册，私有 VFS 不提供 xShmMap，不是晚关的普通读连接。失败沿同一收尾，不参与正式关闭恢复。 |
+| ledger，`audit_ledger.rs:487–495` | 独立 `.audit-ledger.sqlite`，DELETE/FULL，默认 false；成功/失败均沿原关闭，不占主库最后连接。scope 的 `admission.rs:59–73` 和 `admission_provider.rs:99–109` 只持 FD、预算、锁，无 SQLite。 |
+| `admission_anchor/native_n1.rs:1667` | true 属文件头明写的 #1527 受限候选，未接生产 main，不是本票 H1 正式入口；保留既有候选测试。 |
+| `admission_tests.rs:394/:1325` | true 是外写完整性负控为保全字节而故意设置，原断言及关闭方式保持。 |
+| 本轮后验检查连接，legacy `:180` | 默认 false，READ_WRITE 不 CREATE；查询后显式 drop，再要求无 SHM/WAL。原只读连接未设 true，问题在只读 WAL checkpoint 拒绝。 |
+
+### cfg、实际检查与保持项
+
+| features | 非 test 源码穷举 | test 源码穷举 |
+|---|---|---|
+| `s_session` | 父 construction_tests 被排除，无新增生产引用 | 缺 s_incremental，整个新测试排除 |
+| `s_session,s_incremental` | 缺 test，夹具代码排除，生产关闭分类逐字保持 | `audit_owner.rs:5630` 的 test+incremental 与 `:5639` 的 unix include 覆盖修改；OpenFlags 公共常量、drop 和共享 helper 均可达 |
+| `s_session,s_incremental,s_capture_native_testonly` | 同上，无新增生产测试钩子或捷径 | 与上档相同；原 child native 环境门不变，未添加环境读取或线程配置 |
+
+非 Unix 仍排除该 include；default/backtest_bin 的 required-features 行为保持。没有新增导入、helper、未用变量或 lint 豁免；conn、mode 继续原用途，drop 消费连接后无再借用。上述六格是 `-D warnings` 风险的源码穷举，实际编译及告警检查待 CI。
+
+实际检查：
+
+- `rustfmt --edition 2021 --check rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`、`git diff --check` 通过。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3/3 通过，锁文件未改。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，violations=0；`python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，源码与禁串清单一致，无须重生成。
+- 按现行 BSP 原 grep/WHITELIST 双向集合静态复现：`python3 -B /private/tmp/issue1481-s1h-bsp-scan.py`，hits=23、whitelist=23、stray=[]、stale=[]，未改锁判据。
+- 上述 SQLite 两臂探针通过；Python 字节对拍核定唯一 Rust 差异为一处连接 flags、两行注释、显式 drop 与新增同一 helper 调用，原全部断言保持；除该夹具和本报告外无改动，报告历史前缀保持。
+- 非作者独立代理只读核对根因、全部入口/连接设置点、同类夹具、最终差异及六格 cfg，未发现确定阻断。独立性来自非作者进程；结论限源码与 SQLite 机制证据，不冒充 Rust 实跑。
+
+生产准入 SHM 判据、转换及完整性拒绝的源字节保护、S1K 自身失败恢复/监督器调用方迁移、S1L 旧入口拒门与冷 seed/拆帧、MainOnly/非 WAL 合法域、台账四文件精确登记/实际字节/64 GiB 帽、未知旁挂拒绝、Ordinary、资金、E6 与 FU16 全部保持。没有手工删 SHM/WAL，没有改 workflow、禁串表、资源帽、断言助手或已有测试名；原 H1 CI `ci.yml:473` 的逐名项继续执行该正控，无新增测试名需接线。
+
+本机未运行 cargo/rustc、Rust 测试、CI、生产构建或重型窗口，未操作 git add/commit/push 或 Git metadata。主控须在新精确 head 取三档 test/非 test `-D warnings` 以及原 H1/native CI 收据；本轮 ready 仅为修复候选可交接，不宣称 H1 77 项已转绿或整票验收。
+
+### S1N 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`

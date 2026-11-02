@@ -174,14 +174,18 @@ fn h1_admission_v3_selector_advance_prepolicy_mainonly_authenticates_before_migr
         // 冷认证逐代消费 g1..3，随后输入真实提交 g4 并推进同一资格步。
         assert_eq!(h1_qualified_cuts(&events), vec![1, 2, 3, 4]);
         h1_admission_assert_clean_close(&db);
+        // #1481 S1N：WAL 上的只读检查连接也会重建旁挂，且无法在最后关闭时清理。
+        // 沿用生产成功路径的普通读写关闭语义；这里只查询，不修改库内容。
         let conn =
-            Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+            Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE).unwrap();
         assert!(!crate::policy_records_missing(&conn).unwrap());
         assert_eq!(meta_i64(&conn, "generation").unwrap(), 4);
         let mode: String = conn
             .query_row("PRAGMA journal_mode", [], |row| row.get(0))
             .unwrap();
         assert_eq!(mode.to_ascii_lowercase(), "wal");
+        drop(conn);
+        h1_admission_assert_clean_close(&db);
         return;
     }
     let f = h1_legacy_prepolicy_mainonly();
