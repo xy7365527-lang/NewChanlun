@@ -2835,3 +2835,112 @@ S1R 的 `H1_STACK_PROBE` 使用 eprintln，`.github/scripts/test-feature-delta.s
 - 用 Python 与 HEAD 逐字比较，确认指定测试外内容、cfg、前缀断言、六类 mutation 和 oracle 未变，并核对两次 startup 的先后顺序及分支断言：通过。
 
 未运行 cargo/rustc，Rust 编译与测试执行未验证，待 CI。不执行 git add、commit、push，不写 Git metadata。
+
+## S1U：native 完整运行后六项 panic 的夹具返修
+
+> 状态：ready，交主控封包后取精确新 head 的 CI。基线 `sandcastle/issue-1481` / `bea93e191971af3b7e4a607d3acb7669359fd642`，开工工作区干净。仅修改测试夹具及追加本节，生产代码零改动。Rust 未验证，待 CI，包括三档 test/非 test 的 `-D warnings` 与六项目标的运行终态。
+
+### 原件与继承边界
+
+已读本报告 S1R、S1S、S1T 和 `/Volumes/AgentStorage/h1-s1s-review48d/REPORT.md`，并直接核对原日志 `/Volumes/AgentStorage/h1-recover45c/ci-bea93e19/125154371398.log`。该原件属于主 CI run `41407978724` / native job `125154371398`，精确 head `bea93e19`，debug、features `s_session,s_incremental,s_capture_native_testonly`。物理行 `:3595` 为 `526 passed; 6 failed; 9 ignored`，用时 `2901.12s`。本次完整运行，没有栈溢出；本节不把此前 abort 或源码预测当成本次失败证据。
+
+以下日志位置均为这份原件的物理行。Rust 路径简称相对 `rust/src/bin/s_session_v3/`，其他路径单独注明。panic 源码行是基线位置，修补位置是最终工作区位置。
+
+| 项 | 测试后缀 | 原文与基线位置 | 根因与修补位置 |
+|---|---|---|---|
+| 1 | `native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged` | `:3541–3544`，`driver.rs:5149`，`assert_eq` 的 left 为 3、right 为 2 | 漏数 idle 的 pending 查询绑定。`driver.rs:5168–5169` 改为精确 3，并列出三次来源。 |
+| 2 | `native_prefix_context_rechecks_real_connection_current_material` | `:3549–3550`，`driver.rs:1664`，`internal error: entered unreachable code` | 漏列合法的 `identity` 材料变化。`driver.rs:1592–1600` 显式列六项结果，`:1681–1689` 同时锁结果类别、精确计数及 slot 状态。 |
+| 3 | `native_prefix_preserves_business_epoch_rule_order_and_clears_context` | `:3554–3555`，`driver.rs:1508`，`assertion failed: !PathBuf::from(format!("{}-shm", f.db.display())).exists()` | 新加组件对照最后关闭的是旧规则只读 WAL owner。`driver.rs:1492–1503` 增加生产前缀退出的独立检查及只查询 RW keeper；`:1517–1521` 最后关 keeper，原 SHM/字节断言保留。 |
+| 4 | `p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths` | `:3569–3570`，`driver.rs:9069`，unwrap `Err("Native codec 工作账损坏")` | full 臂跨新 owner/新父账复用旧 `event_nodes`，`fixed_radix.rs:242–247` 正确拒绝。`driver.rs:9081` 在新 owner 前清生成运行态。 |
+| 5 | `p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild` | `:3576–3577`，`prepared.rs:2917`，unwrap `Err("GenError：raw sequence 与 owner 前代 prefix 不一致")` | 新 owner 前代为 0，旧 Runtime raw 序列长度为 1，`generation.rs:553–554` 正确拒绝。`prepared.rs:2915` 同步清生成运行态。 |
+| 6 | `p6_complete_ledger_real_owner_records_pending_without_group` | `:3583–3584`，`prepared.rs:3004`，同一 prefix 错误 | 与第 5 项同源。`prepared.rs:3004` 在新 owner 前清生成运行态；原 pending/cover/水位断言不变。 |
+
+### 第 1 项：多出来的是 pending 查询绑定，不是第二次冷认证
+
+`driver.rs:283–299` 的 bootstrap 先冷开、执行 startup，再读 identity。实际开库主体还在 `driver.rs:647` 调 `resume_pending`。即使本库没有 pending，`:805` 也会执行 `conn.pending_originals()`。
+
+三次 `owner_complete_hit` 的来源如下。它是测试 phase 事件的精确计数，不是三次完整审计：
+
+| 次序 | 入口与真实绑定链 |
+|---|---|
+| 1 | `driver.rs:613` startup → `audit_owner.rs:1167` 的 `bind_admitted_history`。 |
+| 2 | `driver.rs:647/:805` resume_pending → `audit_owner.rs:1780–1783` 的 pending_originals，在读取 pending 列表前绑定当前资格。 |
+| 3 | `driver.rs:297/:309` bootstrap identity → `audit_owner.rs:1220` 的同快照绑定。 |
+
+三条链均进入 `audit_owner.rs:994–1002` 的 `bind_admitted_history`，再到 `:4178` 的 `AuditTxn::bind_existing`，成功时在 `:4234` 发出一次 `trace_event("owner_complete_hit", None)`。S1S 只数 startup 与 identity，漏掉中间读 pending 的事务；48D 的 owner_hit=2 也受此源码推断遗漏影响，现以 panic 的实测 3 和完整调用链订正。H1 要求每次实际读取绑定本事务的资格，因此这第三次合法，无生产缺陷证据。
+
+仅把该 phase 预期从 2 改为 3。`h1_certified_cut=1`、`h1_qualified_cut=1`、两种旧 request_history phase=0、full_audit 不增、context 释放、Ready 整份等于 Ordinary、1 B 冷父拒绝及 Owned 拒绝全部保留。没有新增冷认证、绕过资格或抬高资源帽。
+
+### 第 2 项：六种 change 的结果逐项锁定，保留 48D B1
+
+漏项是 `identity`。它执行 `meta_set(&mutation, "session_generation", "0")`，改的是根 `meta`；真实 session_generation 在 `s_protocol_meta`，身份读取 SQL 见 `rust/src/bin/s_session_v2/mod.rs:2828`。这条 SQL 没有修改真实控制身份，完整 oracle 因而返回 Ok。`request_audit.rs:1010–1025` 又把所有 `meta` 行纳入历史材料绑定，只剔除四个正常 Begin 字段，故新增的这行必须使旧 slot 失配，重新冷核。
+
+首个实际 startup 仍在 mutation 前完成并锁 `(cold,hits)=(1,0)`、has_slot。第二次 startup 的完整结果表如下：
+
+| change | oracle 与实际入口必须满足的结果 | 第二次 startup 后精确计数与依据 |
+|---|---|---|
+| same | Ok，保有 slot | `(1,1)`；`state.rs:355–382` 同 binding、同节点时走 hit。 |
+| append | Ok，保有 slot | `(2,0)`；新增未引用节点合法，但节点材料已变，不能复用旧证明。 |
+| identity | Ok，保有 slot | `(2,0)`；未知 meta 行合法，但完整 meta 绑定已变。 |
+| bad_node | Err，逐字等于完整 oracle，清 slot | 捕获校验拒绝损坏节点；不得进入任何 Ok 映射。 |
+| epoch | Err，逐字等于完整 oracle，清 slot | `rust/src/bin/s_structure_session.rs:652` 的 writer_epoch 门拒绝。 |
+| version | Err，逐字等于完整 oracle，清 slot | `control_audit.rs:102–128` 要求 meta 与控制表两个协议标记均为现役值。 |
+
+未命中旧材料时 `state.rs:391–403` 转入严格冷核；`request_audit.rs:650/:652` 分别递增 hits/cold。新表以 `Some(精确计数)` 和 `None` 固定成功、失败类别。Ok 分支要求 Some、精确计数及 has_slot；Err 分支要求 None、原错误逐字相等及无 slot。没有用通配分支吞掉意外结果。same `(1,1)` 与 append `(2,0)` 的区别完整保留，满足 48D B1。
+
+### 第 3 项：只读对照连接重建 SHM，原清理断言不减
+
+测试先把库的 rule_revision 改成 LEGACY，再做 Native 前缀拒绝，随后 S1S 新增组件 startup 对照。最后打开的 `AuditConnection::open` 走 `rust/src/bin/s_structure_session.rs:336` 的 `open_db`；`:598–611` 对旧规则返回只读连接。故这是只读 WAL owner，不是成功交接后忘记恢复 NO_CKPT 的生产连接。该连接并未设置 NO_CKPT=true，但只读 WAL 的关闭 checkpoint 本身就会返回 READONLY，重建的 SHM 因而残留。
+
+修法分两个检查时点。`driver.rs:1492–1493` 在任何组件连接之前，立即要求 Native 前缀退出后无 SHM、主库字节等于 bytes，独立保留生产拒绝面的清理证据。组件臂在 `:1496–1503` 另外持有 `SQLITE_OPEN_READ_WRITE`、不带 CREATE 的夹具 keeper，只执行 `SELECT COUNT(*) FROM meta`。`:1517–1519` 先 drop 只读 owner 和 context，再最后 drop keeper，由 SQLite 正常关闭清旁挂。`:1520–1521` 的原无 SHM 与字节相等断言逐字保留；业务→epoch→rule 的错误顺序和 oracle 逐字对拍均未改。没有手删 SHM/WAL，没有改生产连接 flags 或关闭语义。
+
+实跑小探针 `python3 -B /private/tmp/issue1481-s1u-sqlite-close-probe.py`，SQLite `3.53.4`：readonly_last 的 SHM/WAL 均为 true，rw_keeper_last 均为 false，两臂主库 `bytes_same=true`。探针不入仓，无重型夹具，不手删旁挂。另核本机 bundled 依赖原件 `/Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libsqlite3-sys-0.38.2/sqlite3/sqlite3.c` 的 `:63793–63798`、`:71762`、`:69973–70009`：默认关闭传 checkpoint 缓冲、只读返回 SQLITE_READONLY、仅 checkpoint 成功才删除 WAL/index。结论与 S1N 相同；Python 机制复现不代替 Rust CI。
+
+### 第 4–6 项：新 owner 必须配空生成运行态，旁账继续保留
+
+已对照本地 `origin/main=67df861ee909efae902450b8f02b88e957f3a74c` 的原版夹具与 S1S 变更。main 的这些路径使用默认 context，既不签 raw 绑定，也不以新的 publication Native 父账给缓存赋权，所以当时的完整生成缓存可以跨这些组件 owner 续用。S1S 接入真实候选、raw 令牌和 Native 父账后，仍保留同一个 Runtime，却每代新开 owner、重建 context，缺了对应的运行态生命周期处理。
+
+需订正题面的一处疑点：`p6_source_context_for_test` 不是 S1S 新增，main `audit_owner.rs:6732` 已有相同 helper；S1S 新接了这些调用，并新增 `p6_publish_full_lease_for_test`。前者当前在 `audit_owner.rs:7566–7583`，真实执行 Deferred audit_admission/read_end/continue_with；后者在 `:7497`，只供 test+s_incremental 的独立 full_lease 对照。两个 helper 的绑定和严格检查没有被本轮削弱，文件全体逐字未改。
+
+第 4 项的第一处确定拒门是旧事件缓存的父身份门。原日志 `:3558–3565` 显示增量臂四代完成，`:3566–3567` 显示 full 臂第一代完成；第二代仍持第一代 `Runtime.generator.event_nodes`。新 context 签发新父账后，`generation.rs:806` 第一个 effective event 调 `event_node`，`:2219` 的 `memo.check_admission` 进入 `fixed_radix.rs:242–247`。旧 `Ownership::Native(parent)` 与本次 work 的父身份不同，`scratch.rs:59–60` 的 `Arc::ptr_eq` 为 false，直接 `reject(ScratchFailure::Ledger)`；`audit_owner/native.rs:1535` 把它渲染为 `Native codec 工作账损坏`。这个门早于 SequenceMemo 的同步，不能把后者泛称为本项首错。原日志没有回溯；这里的具体内层拒门由确定的输入与源码顺序证明，不冒称采到内层栈。
+
+第 5、6 项的共同拒门更直接：每代新 owner 的 construction=None。`audit_owner.rs:2764` 取出的 previous 为空，`construction_state.rs:557–575` 因而签 `previous_prefix=0`。上一代成功发布后，同一个 Runtime 的 `raw_events_seq.keys.len()` 却为 1；下一代在 `generation.rs:553–554` 比较 1 与 0，产生日志原错误。这是夹具把两个 owner 生涯的状态拼在一起，prefix 门正确拒绝。
+
+三处最小修法均在现有 accept_begin 后、新 owner/new context 前调用 `runtime.discard()`：`driver.rs:9081`、`prepared.rs:2915/:3004`。这是换 owner/父域时重建生成运行态，不是正常同 owner append 清缓存。`prepared.rs:438–449` 的现役 discard 调 `generation.rs:451–462` 清 event_nodes、delta_lane、六份序列和生成缓存，并清 auxiliary；上代发布已消费 queued facts，故不失效已提交 audit_ledger，也不重建或清空台账。新 owner 的 previous_prefix=0 与清后的生成序列长度 0 一致，新父账也不再接收旧缓存许可。
+
+prepared 两项继续走生产 `owner.publish` 的真实 raw 绑定路径；driver 完整臂继续走 `p6_publish_full_lease_for_test`，其 Runtime 仍 `raw=None`，每代恰一次完整分支/full_lease 的断言不变。没有必要退回 main 默认 context，那会触发 `prepared.rs:828–838` 缺 H1 绑定的正确拒门。所有 prefix/父账门、完整台账校验、真实 pending、修订赢家 seq≠coord、撤回、cover/raw/cert/qualification 水位、两轮重建、双路径逐行对拍及错误负控原样保留。没有新增输入、代数、循环或重型夹具。
+
+### 三档 cfg、告警风险与生产差异
+
+本轮全部代码 hunk 在 `driver.rs:961–962` 的 `#[cfg(test)] mod tests` 与 `prepared.rs:1875–1876` 的测试模块内，六个原函数均保留 `#[cfg(feature = "s_incremental")]`。无新 helper、导入、lint allow/expect、ignore、feature、环境变量或生产符号。
+
+| features | 非 test | test |
+|---|---|---|
+| `s_session` | 两个测试模块排除，生产字节不变 | 六个目标受 s_incremental 门排除，无新增引用。 |
+| `s_session,s_incremental` | 同上，生产没有测试钩子调用 | 原 cfg 内编入局部计数表、普通 Connection/OpenFlags 和三次既有 discard 调用，定义/可见性齐备。 |
+| `s_session,s_incremental,s_capture_native_testonly` | testonly feature 不开启 cfg(test)，新增代码仍排除 | 与上一格同路，没有新增按 native feature 分叉。 |
+
+表中是六格源码穷举，不是编译收据。RW keeper 显式使用 i64 读数并 drop；所有新局部均被消费，discard 是既有 pub(super) 方法、在两测试模块可达；不存在新增未用导入或函数。三档 test/非 test 的实际 `-D warnings` 仍须 CI，本机遵禁令未运行 cargo/rustc。
+
+生产改动清单：空。字节对拍确认 driver/prepared 测试模块前的生产前缀与 HEAD 相同，audit_owner.rs 全文件相同。workflow、资源帽、线程栈、S1R 探针、关闭分类、MainOnly/非 WAL 合法域、冷认证交接、台账四文件登记/真实字节/64 GiB 帽、未知旁挂拒绝、Ordinary、资金、E6、FU16 及 S1K Python recover 合同均保持。48D 已核通过的合同依据与生产零改动结论保持，只订正其 owner_hit=2 的旧推断。
+
+### 实际自检与交付
+
+本轮实际执行通过：
+
+- `rustfmt --edition 2021 --check rust/src/bin/s_session_v3/driver.rs rust/src/bin/s_session_v3/prepared.rs`，以及 `git diff --check`。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3/3 通过，锁文件未改。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，禁串清单与源码一致，无须改生成物。
+- `python3 -B /private/tmp/issue1481-s1h-bsp-scan.py`，现役 BSP 原 grep/WHITELIST 双向复现：hits=23、whitelist=23、stray=[]、stale=[]，不冒充 Rust 测试执行。
+- 上述 SQLite 两臂小探针，复现只读残留及 RW 最后关闭清理，主库字节不变。
+- Python 字节对拍：prepared 去掉两处新增 comment/discard 后与 HEAD 全文件逐字相同；driver 的 P6 目标起至文件末尾去掉一处新增后与 HEAD 相同；两文件全部函数名序列及 ignore 数量保持。生产前缀和 audit_owner 全文件不变。
+- 非作者独立只读代理复核六项因果、三处 discard 的缓存/旁账生命周期、48D B1、两阶段 SHM/字节门及六格 cfg，未发现剩余源码阻断。评审独立性来自非作者进程，不作 Rust 执行通过声明。
+
+报告仅追加本节，原 S1–S1T 前缀为 485502 字节，SHA256 `4aa428401aa8d86e646c293382c888cc85ead38cd2b06110e6653965bcbaceaa`。本机未运行 cargo/rustc、Rust 测试、生产构建或重型窗口；没有 git add/commit/push 或 Git metadata 写入。主控须在新精确 head 取六个原具名测试及三档编译日志，本轮 ready 仅表示修复候选可交接，不表示六项已转绿或 #1481 整票验收完成。
+
+实际改动文件：
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v3/driver.rs`
+- `rust/src/bin/s_session_v3/prepared.rs`

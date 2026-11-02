@@ -2910,6 +2910,9 @@ pub(crate) mod tests {
                 let g = i as i64 + 1;
                 let (envelope, token) =
                     f.accept_begin(g, (key, at, open, high, low, close), revision);
+                // #1481 S1U：每代新 owner 从 prefix=0 签 raw 资格，生成缓存须同步冷起；
+                // discard 只清运行态，已提交旁账及其水位跨代保留。
+                runtime.discard();
                 let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
                 let mut context = owner.p6_source_context_for_test();
                 let (_, ended) = owner
@@ -2997,6 +3000,8 @@ pub(crate) mod tests {
         {
             let g = i as i64 + 1;
             let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), 1);
+            // #1481 S1U：新 owner 的前代 prefix 为 0，不续用上一 owner 的生成前沿。
+            runtime.discard();
             let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
             let mut context = owner.p6_source_context_for_test();
             let (_, ended) = owner
