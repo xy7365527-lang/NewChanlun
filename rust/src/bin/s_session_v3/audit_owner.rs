@@ -80,6 +80,7 @@ fn cold_binary_commit(
 thread_local! {
     static COLD_AFTER_CERTIFICATION: Cell<Option<fn(&Path) -> Result<(), String>>> = const { Cell::new(None) };
     static COLD_AFTER_WAL_HANDOFF: Cell<Option<fn(&Path) -> Result<(), String>>> = const { Cell::new(None) };
+    static COLD_SEED_FAILURE: Cell<bool> = const { Cell::new(false) };
 }
 
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
@@ -380,12 +381,18 @@ impl AuditConnection {
     }
 
     fn new(connection: Connection) -> Result<Self, String> {
-        let life = NEXT_LIFE
-            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
-            .map_err(|_| invalid("连接生涯编号耗尽"))?;
-        if !connection.is_autocommit() {
-            return Err(invalid("不能接管已有活动事务的连接"));
-        }
+        let result = (|| {
+            let life = NEXT_LIFE
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                .map_err(|_| invalid("连接生涯编号耗尽"))?;
+            if !connection.is_autocommit() {
+                return Err(invalid("不能接管已有活动事务的连接"));
+            }
+            Ok(life)
+        })();
+        #[cfg(all(feature = "s_incremental", unix))]
+        let result = crate::h1_close_after_failure(&connection, result, false);
+        let life = result?;
         Ok(Self {
             connection,
             #[cfg(all(feature = "s_incremental", unix))]
@@ -705,19 +712,22 @@ impl AuditConnection {
             return Err(error);
         }
         // 只有原认证门及 rollback/close/撤销 VFS/结账/期限全部成功，才消费外槽。
-        let candidate = candidate_out.expect("冷认证成功后必有完整候选");
-        let construction = construction_out.expect("冷认证成功后必有构造载荷");
-        let (cold_generation_binding, cold_generation_prefix) = construction.generation_binding();
+        let (cold_generation_binding, cold_generation_prefix) = construction_out
+            .as_ref()
+            .expect("冷认证成功后必有构造载荷")
+            .generation_binding();
         // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
         #[cfg(test)]
         if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
             hook(&canonical)?;
         }
         let connection = crate::open_db_after_h1_certification(&canonical)?;
+        let integrity_refusal = Cell::new(false);
         let converted = crate::prepare_h1_wal_handoff(
             &connection,
             || admission.require_cold_content(),
             || admission.capture_cold_conversion(),
+            &integrity_refusal,
         )?;
         let connection = if converted.is_some() {
             // #1481：一次性交接连接保留排他锁至关闭；普通写者不继承整生涯排他锁。
@@ -731,66 +741,127 @@ impl AuditConnection {
             connection
         };
         let mut owner = Self::new(connection)?;
-        // 第一把 SQLite 写锁内核源连续性，再执行唯一受控迁移；尚未建立任何新夹持基线。
-        let migration = owner.begin(TransactionBehavior::Immediate)?;
-        if let Some(converted) = converted.as_ref() {
-            converted.verify()?;
-        } else {
-            admission.require_cold_content()?;
-        }
-        crate::migrate_in(migration.tx())?;
-        let inherited_data_version = migration.data_version;
-        owner.continue_with(migration.commit()?)?;
-        // physical::initial_progress 的 wal_checkpoint(NOOP)必须在事务外；尚未签发baseline。
-        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open_in_parent(
-            &owner.connection,
-            &canonical,
-            control_limit,
-            Some(parent.clone()),
-        )?);
-        let result = (|| {
-            // 自身COMMIT不改变同连接data_version；两把锁之间的任何外部COMMIT均拒绝。
-            // begin内部在本把SQLite写锁下采夹持baseline；它不授权下方data_version不符的候选。
-            let active = owner.begin(TransactionBehavior::Immediate)?;
-            if active.data_version != inherited_data_version {
-                return Err(history_clamp::stale("私有认证交接期间发生外部SQLite提交"));
+        // #1481 运维合同：SourceIdentityChanged/SourceWalChanged 等源连续性拒绝及
+        // HistoricalAuditStale 外部提交/原件变化均 fail-stop，禁止关闭检查点改写源库/WAL。
+        // 操作者须先确认全部连接停止并保全主库/WAL/SHM证据，再用既有 SQLite 普通连接
+        // 正常关闭完成介质恢复；不得删除旁挂或绕过 UnsupportedWalShmJournalCombination。
+        // 核无SHM后走原监督器 service recover → start-s（ADR0042，s_session/README.md）。
+        // 自身预算、期限、seed/adopt/迁移失败则正常关闭，原错误照报，不自动重试。
+        // 闭包只返回 ()；冷候选/构造载荷仍从外槽移入，不重建 debug 大返回帧。
+        let mut committed_data_version = None;
+        let mut handoff = (|| {
+            // 第一把 SQLite 写锁内核源连续性，再执行唯一受控迁移；尚未建立任何新夹持基线。
+            let migration = owner
+                .begin(TransactionBehavior::Immediate)
+                .map_err(|error| {
+                    // #1481：外部DROP/改坏meta可先让begin的固定SQL失败，不能因此漏掉源拒绝。
+                    let source = match converted.as_ref() {
+                        Some(converted) => converted.verify(),
+                        None => admission.require_cold_content(),
+                    };
+                    if let Err(source_error) = source {
+                        if crate::h1_source_integrity_refusal(&source_error) {
+                            integrity_refusal.set(true);
+                            return format!("{error}；{source_error}");
+                        }
+                    }
+                    error
+                })?;
+            if let Some(converted) = converted.as_ref() {
+                converted.verify().inspect_err(|error| {
+                    integrity_refusal.set(crate::h1_source_integrity_refusal(error));
+                })?;
+            } else {
+                admission.require_cold_content().inspect_err(|error| {
+                    integrity_refusal.set(crate::h1_source_integrity_refusal(error));
+                })?;
             }
-            active.check_history()?;
-            active.seed_rebuilt_history(deadline, context, candidate, construction)?;
-            let ended = active.read_end()?;
-            history::check_deadline(deadline)?;
-            owner.continue_with(ended)
+            crate::migrate_in(migration.tx())?;
+            let inherited_data_version = migration.data_version;
+            committed_data_version = Some(inherited_data_version);
+            owner.continue_with(migration.commit()?)?;
+            // physical::initial_progress 的 wal_checkpoint(NOOP)必须在事务外；尚未签发baseline。
+            *owner.history_clamp.borrow_mut() =
+                Some(history_clamp::Clamp::open_in_parent_with_refusal(
+                    &owner.connection,
+                    &canonical,
+                    control_limit,
+                    Some(parent.clone()),
+                    &integrity_refusal,
+                    Some(inherited_data_version),
+                )?);
+            let result = (|| {
+                // 自身COMMIT不改变同连接data_version；两把锁之间的任何外部COMMIT均拒绝。
+                // Clamp首检先核继承版本，再采baseline，避免资源失败掩盖已发生的外部提交。
+                let active = owner.begin(TransactionBehavior::Immediate)?;
+                active.check_history()?;
+                #[cfg(test)]
+                if COLD_SEED_FAILURE.with(|slot| slot.replace(false)) {
+                    return Err("h1_cold_seed: injected temporary failure".into());
+                }
+                active.seed_rebuilt_history(
+                    deadline,
+                    context,
+                    candidate_out.take().expect("冷认证成功后必有完整候选"),
+                    construction_out.take().expect("冷认证成功后必有构造载荷"),
+                )?;
+                let ended = active.read_end()?;
+                history::check_deadline(deadline)?;
+                owner.continue_with(ended)
+            })();
+            if result.is_err() {
+                drop(context.take());
+            }
+            owner.history_result(result)?;
+            let (actual_binding, actual_prefix) = owner
+                .construction
+                .borrow()
+                .as_ref()
+                .ok_or_else(|| invalid("冷交接后缺实际construction"))?
+                .generation_binding();
+            if actual_prefix != cold_generation_prefix {
+                return Err(invalid("冷生成缓存与实际owner前沿不符"));
+            }
+            runtime.adopt_cold_audit_runtime(
+                &mut cold_runtime,
+                cold_generation_binding,
+                actual_binding,
+                actual_prefix,
+            )?;
+            crate::h1_normal_close(&owner.connection)?;
+            Ok(())
         })();
-        if result.is_err() {
+        let mut integrity_refusal = integrity_refusal.get()
+            || owner
+                .history_clamp
+                .borrow()
+                .as_ref()
+                .is_some_and(|clamp| clamp.integrity_refusal());
+        // #1481：自身失败可能早于第二锁/Clamp初始化；正常关闭前统一排除迁移后的外部提交。
+        // 失败闭包的事务已回滚；只读版本核不重审历史，也不改写源库。
+        if handoff.is_err() && !integrity_refusal {
+            if let Some(inherited) = committed_data_version {
+                let continuity: Result<i64, _> =
+                    owner
+                        .connection
+                        .query_row("PRAGMA main.data_version", [], |row| row.get(0));
+                let refusal = match continuity {
+                    Ok(version) if version == inherited => None,
+                    Ok(_) => Some(history_clamp::stale("私有认证交接期间发生外部SQLite提交")),
+                    Err(error) => {
+                        Some(history_clamp::stale(format!("失败后源连续性失证：{error}")))
+                    }
+                };
+                if let Some(refusal) = refusal {
+                    integrity_refusal = true;
+                    handoff = handoff.map_err(|error| format!("{error}；{refusal}"));
+                }
+            }
+        }
+        if handoff.is_err() {
             drop(context.take());
         }
-        owner.history_result(result)?;
-        let (actual_binding, actual_prefix) = owner
-            .construction
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| invalid("冷交接后缺实际construction"))?
-            .generation_binding();
-        if actual_prefix != cold_generation_prefix {
-            return Err(invalid("冷生成缓存与实际owner前沿不符"));
-        }
-        runtime.adopt_cold_audit_runtime(
-            &mut cold_runtime,
-            cold_generation_binding,
-            actual_binding,
-            actual_prefix,
-        )?;
-        // #1481：仅交接拒绝路径禁止关闭检查点；成功写者恢复 SQLite 的正常退出清理。
-        if owner
-            .connection
-            .set_db_config(
-                rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
-                false,
-            )
-            .map_err(invalid)?
-        {
-            return Err(invalid("H1正式写者未恢复关闭检查点"));
-        }
+        crate::h1_close_after_failure(&owner.connection, handoff, integrity_refusal)?;
         owner.require_historical_certificate = true;
         Ok((owner, started.elapsed()))
     }

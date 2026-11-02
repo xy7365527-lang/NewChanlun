@@ -334,6 +334,7 @@ fresh verifier释放实际工作集，overlay固定布局仍在
 fresh 保持完整核验 oracle
 generation 是整数
 generation与独立依据不同
+h1_cold_seed: injected temporary failure
 handle 的审计结果与 capture 已释放
 high不是文本
 hit仍逐次读取、OHLC、validate、raw hash、RawWire

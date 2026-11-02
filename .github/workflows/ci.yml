@@ -450,7 +450,8 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_admission_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
+          # #1481 S1K：接替 history36h 的全部 h1_ release 锁，保留正式准入逐名收据。
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
           for test in \
             h1_admission_cold_prefixes_match_full_canonical \
             h1_admission_cold_negative_classes_match_full_oracle \
@@ -463,6 +464,7 @@ jobs:
             h1_admission_cold_real_wire_short_budget_rejects_before_write \
             h1_admission_prepolicy_bad_history_rejected_before_migration \
             h1_admission_normal_exit_same_database_new_process_restarts \
+            h1_admission_temporary_seed_failure_same_database_new_process_restarts \
             h1_admission_mainonly_nonwal_prepolicy_preserves_domain \
             h1_admission_hot_rollback_journal_rejects_before_rw_open \
             h1_admission_nonwal_conversion_handoff_foreign_commit_rejects
@@ -488,6 +490,35 @@ jobs:
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job ... ok" "$RUNNER_TEMP/1481-e6.log"
 
+      # #1481 S1K：临时分支 push 触发移除后，PR CI 保留 history36h 的同 feature/profile 覆盖。
+      - name: H1 SQLite commit failure locks（#1481 S1K）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs 4 -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
+          for test in \
+            v3::audit_owner::construction_tests::h1_sqlite_commit_failure_does_not_advance_clamp \
+            v3::commit::tests::prepared_commit_sqlite_commit_failure_returns_no_receipt_and_rolls_back \
+            v3::prepared::tests::sqlite_commit_failure_cannot_return_a_receipt_or_keep_real_prepared_state \
+            v3::prepared::tests::native_capture_sqlite_commit_failure_retries_with_new_current_capture
+          do
+            grep -Fx "test $test ... ok" "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
+          done
+
+      - name: H1 Native debug source suffix and receipt expiry locks（#1481 S1K）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --test-threads 1 --show-output --format pretty --color never v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_ 2>&1 | tee "$RUNNER_TEMP/1481-native-debug.log"
+          for test in \
+            v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix \
+            v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget \
+            v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_during_closure_releases_budget \
+            v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_consumption_releases_budget
+          do
+            grep -Fx "test $test ... ok" "$RUNNER_TEMP/1481-native-debug.log"
+          done
+
       - name: 上传 H1 正式准入逐名日志（#1481 S1）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         uses: actions/upload-artifact@v4
@@ -499,6 +530,8 @@ jobs:
             ${{ runner.temp }}/1481-ordinary.log
             ${{ runner.temp }}/1481-fd-wal.log
             ${{ runner.temp }}/1481-e6.log
+            ${{ runner.temp }}/1481-sqlite-commit-failure.log
+            ${{ runner.temp }}/1481-native-debug.log
           if-no-files-found: error
           overwrite: true
 

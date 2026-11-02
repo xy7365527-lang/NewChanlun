@@ -334,6 +334,7 @@ fn h1_admission_cold_handoff_foreign_sqlite_commit_rejects() {
     use std::cell::RefCell;
 
     thread_local! {
+        static DROP_META: Cell<bool> = const { Cell::new(false) };
         static HANDOFF_WRITES: Cell<usize> = const { Cell::new(0) };
         static AFTER_FOREIGN_COMMIT: RefCell<Option<(Vec<u8>, Option<Vec<u8>>)>> = const { RefCell::new(None) };
     }
@@ -347,13 +348,18 @@ fn h1_admission_cold_handoff_foreign_sqlite_commit_rejects() {
             )
             .map_err(|error| error.to_string())?;
         let tx = foreign.transaction().map_err(|error| error.to_string())?;
-        let changed = tx
-            .execute(
-                "UPDATE structure_deltas SET input_frontier=999 WHERE generation=1",
-                [],
-            )
-            .map_err(|error| error.to_string())?;
-        assert_eq!(changed, 1);
+        if DROP_META.with(Cell::get) {
+            tx.execute_batch("DROP TABLE meta")
+                .map_err(|error| error.to_string())?;
+        } else {
+            let changed = tx
+                .execute(
+                    "UPDATE structure_deltas SET input_frontier=999 WHERE generation=1",
+                    [],
+                )
+                .map_err(|error| error.to_string())?;
+            assert_eq!(changed, 1);
+        }
         tx.commit().map_err(|error| error.to_string())?;
         drop(foreign);
         HANDOFF_WRITES.with(|count| count.set(count.get() + 1));
@@ -368,31 +374,38 @@ fn h1_admission_cold_handoff_foreign_sqlite_commit_rejects() {
         Ok(())
     }
 
-    let f = H1AdmissionFixture::new();
-    h1_admission_seed_three(&f);
-    HANDOFF_WRITES.with(|count| count.set(0));
-    AFTER_FOREIGN_COMMIT.with(|bytes| *bytes.borrow_mut() = None);
-    AuditConnection::inject_cold_after_certification_for_test(foreign_commit);
-    let before = state::full_audit_calls_for_test();
-    let (opened, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
-    let error = opened
-        .err()
-        .expect("冷认证后的外连接 COMMIT 必须拒绝，不能给旧 capture 盖新 owner seal");
-    assert!(!error.is_empty());
-    HANDOFF_WRITES.with(|count| assert_eq!(count.get(), 1, "必须实际命中交接间隙"));
-    assert_eq!(
-        h1_qualified_cuts(&events),
-        vec![1, 2, 3],
-        "外写发生在完整认证之后，拒绝时不可重认证"
-    );
-    assert_eq!(state::full_audit_calls_for_test(), before);
-    AFTER_FOREIGN_COMMIT.with(|bytes| {
-        assert_eq!(
-            h1_admission_source_bytes(&f.db),
-            *bytes.borrow().as_ref().expect("必须保存真实外写后的字节"),
-            "外写之后的拒绝不得再写源库/WAL"
+    // 既覆盖源核验的直接拒绝，也覆盖begin固定SQL先被外部schema提交打断的拒绝。
+    for drop_meta in [false, true] {
+        DROP_META.with(|choice| choice.set(drop_meta));
+        let f = H1AdmissionFixture::new();
+        h1_admission_seed_three(&f);
+        HANDOFF_WRITES.with(|count| count.set(0));
+        AFTER_FOREIGN_COMMIT.with(|bytes| *bytes.borrow_mut() = None);
+        AuditConnection::inject_cold_after_certification_for_test(foreign_commit);
+        let before = state::full_audit_calls_for_test();
+        let (opened, events, _) = state::traced(false, || h1_admission_driver(&f, "1"));
+        let error = opened
+            .err()
+            .expect("冷认证后的外连接 COMMIT 必须拒绝，不能给旧 capture 盖新 owner seal");
+        assert!(
+            error.contains("SourceIdentityChanged") || error.contains("SourceWalChanged"),
+            "完整性拒绝须保留源身份具名错误：{error}"
         );
-    });
+        HANDOFF_WRITES.with(|count| assert_eq!(count.get(), 1, "必须实际命中交接间隙"));
+        assert_eq!(
+            h1_qualified_cuts(&events),
+            vec![1, 2, 3],
+            "外写发生在完整认证之后，拒绝时不可重认证"
+        );
+        assert_eq!(state::full_audit_calls_for_test(), before);
+        AFTER_FOREIGN_COMMIT.with(|bytes| {
+            assert_eq!(
+                h1_admission_source_bytes(&f.db),
+                *bytes.borrow().as_ref().expect("必须保存真实外写后的字节"),
+                "外写之后的拒绝不得再写源库/WAL"
+            );
+        });
+    }
 }
 
 #[cfg(test)]
@@ -896,6 +909,101 @@ fn h1_admission_assert_clean_close(db: &Path) {
 
 #[cfg(test)]
 #[test]
+fn h1_admission_temporary_seed_failure_same_database_new_process_restarts() {
+    const CHILD: &str = "H1_ADMISSION_SEED_FAILURE_CHILD";
+    const INJECTED: &str = "h1_cold_seed: injected temporary failure";
+    if let Some(db) = std::env::var_os(CHILD) {
+        let db = PathBuf::from(db);
+        let profile = PathBuf::from(std::env::var_os("H1_ADMISSION_SEED_FAILURE_PROFILE").unwrap());
+        let phase = std::env::var("H1_ADMISSION_SEED_FAILURE_PHASE").unwrap();
+        let conn = Connection::open(&db).unwrap();
+        let clock = v2::stored_clock(&conn).unwrap();
+        if phase == "failure" {
+            assert!(crate::policy_records_missing(&conn).unwrap());
+        }
+        drop(conn);
+        h1_admission_assert_clean_close(&db);
+        if phase == "failure" {
+            COLD_SEED_FAILURE.with(|slot| assert!(!slot.replace(true)));
+        }
+        let before = state::full_audit_calls_for_test();
+        let opened = driver::Driver::open_with_request_and_mode_retention(
+            &db,
+            &profile,
+            "1",
+            clock,
+            None,
+            s_allocation::Mode::CapturedNative,
+            536_870_912,
+            true,
+            super::super::admission_anchor::test_prepare(&db).into(),
+        );
+        if phase == "failure" {
+            assert_eq!(
+                opened.err().expect("第二锁 seed 暂时失败必须原样上报"),
+                INJECTED
+            );
+            COLD_SEED_FAILURE.with(|slot| assert!(!slot.get(), "必须真实命中一次注入"));
+            // 必须先核介质，再开任何新连接，防止断言连接替失败路径清理残留。
+            h1_admission_assert_clean_close(&db);
+        } else {
+            let driver = opened.expect("同库另一新进程必须可重新冷认证");
+            drop(driver);
+            h1_admission_assert_clean_close(&db);
+        }
+        assert_eq!(
+            state::full_audit_calls_for_test(),
+            before,
+            "失败/重启不得重跑旧审计"
+        );
+        let conn = Connection::open(&db).unwrap();
+        assert!(
+            !crate::policy_records_missing(&conn).unwrap(),
+            "注入须发生在真实迁移提交之后"
+        );
+        assert_eq!(
+            meta_i64(&conn, "generation").unwrap(),
+            3,
+            "不得丢失持久历史"
+        );
+        drop(conn);
+        h1_admission_assert_clean_close(&db);
+        return;
+    }
+    let f = H1AdmissionFixture::new();
+    h1_admission_seed_three(&f);
+    f.conn()
+        .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+        .unwrap();
+    h1_admission_assert_clean_close(&f.db);
+    for phase in ["failure", "restart"] {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "v3::audit_owner::construction_tests::h1_admission_temporary_seed_failure_same_database_new_process_restarts", "--nocapture"])
+            .env(CHILD, &f.db)
+            .env("H1_ADMISSION_SEED_FAILURE_PROFILE", &f.profile)
+            .env("H1_ADMISSION_SEED_FAILURE_PHASE", phase)
+            .output().unwrap();
+        assert!(
+            output.status.success(),
+            "{phase}: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("running 1 test"),
+            "必须实际执行子锁：{stdout}"
+        );
+        assert!(
+            stdout.contains("test result: ok. 1 passed"),
+            "子锁须有通过收据：{stdout}"
+        );
+        h1_admission_assert_clean_close(&f.db);
+    }
+}
+
+#[cfg(test)]
+#[test]
 fn h1_admission_normal_exit_same_database_new_process_restarts() {
     const CHILD: &str = "H1_ADMISSION_RESTART_CHILD";
     if let Some(db) = std::env::var_os(CHILD) {
@@ -1197,7 +1305,10 @@ fn h1_admission_nonwal_conversion_handoff_foreign_commit_rejects() {
     let error = opened
         .err()
         .expect("转换连接关闭到正式owner首锁之间的外部提交须拒绝");
-    assert!(!error.is_empty());
+    assert!(
+        error.contains("SourceIdentityChanged"),
+        "转换交接完整性拒绝须保留源身份具名错误：{error}"
+    );
     assert_eq!(
         h1_qualified_cuts(&events),
         vec![1, 2, 3],

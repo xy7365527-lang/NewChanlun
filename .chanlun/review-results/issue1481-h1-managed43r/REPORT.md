@@ -33,7 +33,7 @@
 | 准入三层完整规范对拍及正式入口无旧审计锁 | 已写 8 锁并接 CI，未实际执行 | 接受时比完整规范字节，负例比拒绝类别；没有运行 PASS、逐名 CI 日志或 Rust 编译证据 |
 | 保持 Ordinary、Q/c2、资金、隔离、64 GiB、30 秒、FU16 | 未完成整体验证 | Ordinary 新交接均 cfg 增量、旧控制流保留；Q/c2/时钟/资金/隔离未改。64 GiB 使用原每库帽，首读沿原期限；实际 wire 与迁移前置仍有回归，不能宣称全部保持 |
 | 资源 `/3`、cold_start_window、scrub 两字段 | 留 S2 | writer_cli 资源 schema、版本、字段和值不变；冷入口显式 deadline 并返回 elapsed，无新默认冷窗口 |
-| launcher/5、Python 服务控制、ADR 修订 | 留 S2 | 未改，Ordinary `/1` 与旧二进制 launcher/4 合同保留 |
+| launcher/5、ADR 修订与其余 Python 服务控制 | 留 S2；S1K 同步现役调用方 | Ordinary `/1` 保留。s_incremental 写者 recover/advance 已要求显式 `--resource-config`，不能声称未迁移的 launcher/4 恢复合同仍兼容；S1K 为 launcher/4 recover 传入 start-s 同份、已核身份的冻结资源原件，launcher/4 其余参数、阶段、错误与返回帧保持。 |
 | 两字段解析/AwaitingPolicy/超窗/scrub 轮转验证 | 留 S2 | 本阶段没有这些资源字段，不把现有 deadline 等同于 S2 冷窗口验收 |
 | #1419 g77 消费、9011/G4、默认切换、整票关闭 | 未做 | 不跑 28/106/9011/S86；未作性能或生产资源签值，不关票、不评论、不改默认构建 |
 
@@ -1200,3 +1200,119 @@ MainOnly/非WAL合法域与旧open_db合同、热RollbackJournal写前拒绝、�
 - `rust/src/bin/s_session_v3/construction_state.rs`
 - `rust/src/bin/s_session_v3/prepared.rs`
 - `rust/src/bin/s_session_v3/state.rs`
+
+## S1K
+
+> 状态：ready，交主控封包取精确新 head 的 CI。基线为 `sandcastle/issue-1481` / `c5a1ba0d8d655cab469989620732e40eef63ba43`，已含 main `eab5dd10`；开工工作区干净。本节只闭合非作者独审 46L 的三项 P1。Rust 未验证，待 CI，不能据源码核查宣称 Rust 编译、重启锁或整票验收通过。
+
+已读取 `/Volumes/AgentStorage/h1-review46l/REPORT.md` 全文、S1D 及引用、S1E–S1J 提示和本报告对应章节。沿 #1481 既有票及本轮明确授权实施；Python 调用方迁移是本轮 P1-1 明确授权的范围。未改 spec、launcher 版本号、资源 `/3`、scrub 或 ADR；46L 建议项留后续。下文 Rust 简称相对 `rust/src/bin/`。
+
+### P1-1：同步 launcher/4 的 recover 调用方
+
+根因是 `s_session/s_service_control.py:845` 原先只取 stopped 状态，丢弃了 status 已核验的资源身份，原 `:859` 构造 recover 时也未带 s_incremental 写者必填的 `--resource-config`。start-s 已有 `:733` 参数与 `:449` 身份验证核，无需另建资源文件路径。
+
+修法在 `s_session/s_service_control.py:845` 保留已核记录，`:862` 仅对 `s-launcher/4` 复用其中 `resource_identity`，给 recover 传恰一次原 start-s 冻结文件路径，并再次调用原 `validate_resource_identity`。仍用原 `require_current=False` 身份合同，允许当前 launcher 配置改动后恢复旧生涯；inode、权限、内容摘要和命令绑定仍须相符。阶段名、其余参数、错误收据和返回帧不变。`s-launcher/3` 对应非增量二进制，不接受此 recover 参数，保留其原命令；`/2` 也不变。Rust 必填与审计门均未放宽。
+
+对 Python 调用面搜索 `advance/recover/resource-config` 后确认：现役控制器没有一次性 advance CLI 调用，`s_socket_client.py` 的 advance 是 socket 请求，经济域 recover 调的是各自二进制；没有第二个需要迁移的现役 s_incremental CLI 调用方。测试、实验驱动中的旧协议命令没有改为生产部署入口。
+
+更正本报告原第 36 行：不能再写“旧二进制 launcher/4 合同保留”。准确表述是“s_incremental recover/advance 要求显式资源原件；本 PR 已同步 launcher/4 recover，复用已核 start-s 冻结文件；其余 launcher/4 使用合同保持”。该表行已改，其余历史章节不追改。
+
+### P1-2：按失败原因选择关闭语义
+
+根因是 H1 正式连接先开启 `NO_CKPT_ON_CLOSE=true`，直到整个交接、seed、adopt 成功才恢复；中途所有 `?` 都继承禁止检查点的关闭方式，明确的自身失败也会留下 SHM/WAL，下一次准入被 `UnsupportedWalShmJournalCombination` 拒绝。
+
+`s_structure_session.rs:389` 的 `h1_normal_close` 将该配置恢复 false 并核 SQLite 返回值；`:421` 的 `h1_close_after_failure` 仅对自身失败调用它，正常恢复时逐字返回原错误。恢复配置本身失败时，仍返回错误，保留原错误作为前缀并附加关闭失败证据。开门的连接本地 PRAGMA 移至禁止检查点配置之前，配置安装失败也走检查后的正常关闭；转换 helper 和 owner 构造的失败同样覆盖。
+
+`audit_owner.rs:752` 将正式交接收为返回 `()` 的闭包，所有自身早退经过统一关闭处理；candidate/construction 仍借用原外槽，到 seed 才 take，不再新增大载荷返回层。`audit_owner/history_clamp.rs` 用内联 Cell 标志记录实际比较失败及无法维持源连续性的错误；构造失败经借用的外 Cell 反馈，成功后由 Clamp 自持 Cell，两者在收口处合并，不新增 Rc 堆分配。其拒绝仍使用原具名错误，不按共同的 `HistoricalAuditStale` 外观把资源失败当完整性拒绝。首锁继承的 data_version 在 Clamp 首次检查中先于控制原件/预算读取核验；迁移后任一失败还在正常关闭前统一复核该版本，避免已发生的外部提交被资源错误掩盖。原 begin 实现和在线核不变。`history_physical.rs:39` 只同步新增观测字段的初始化；旧 test 包装补 `#[cfg(test)]`，不加 lint 豁免。
+
+完整性拒绝的运维合同也写入 `audit_owner.rs:743` 的 #1481 注释：保留 fail-stop，拒绝动作不 checkpoint、不再改写源主库/WAL；SHM/WAL 可作为失败证据保留，直接重试可能仍报 `UnsupportedWalShmJournalCombination`。操作者先确认 S/Q 和所有外部连接已停止，保全主库、WAL、SHM 与错误证据，查明并处理外部写入或身份冲突；需要恢复可信原件时沿原有原件恢复手续处理，不能丢弃已持久事实。介质收尾使用既有 SQLite 普通连接正常关闭，不能手工删除旁挂、不能跳过准入。核无 SHM 后走既有监督器 `s_service_control.py:842` recover，再 start-s；入口合同见 `s_session/README.md:111`、ADR 0042:40。这里没有新清理工具，也不声称 recover 能越过 SHM 拒门或修复坏历史。
+
+### 新增与加强的行为锁
+
+Rust 锁均位于 `s_session_v3/audit_owner/admission_tests.rs`，模块前缀为 `v3::audit_owner::construction_tests::`，无 ignore。
+
+| 锁与源码位置 | 行为与 CI 实际执行位置 |
+|---|---|
+| `h1_admission_temporary_seed_failure_same_database_new_process_restarts`，`:912` | 既有 cfg(test) thread-local 机制在第二锁、真实迁移 COMMIT 之后注入一次 seed 暂时失败；原错误逐字返回、钩子确实消费。失败返回后先断言无 SHM/WAL，再开任何检查连接；另一独立新进程对同库冷启成功，迁移已提交且 generation=3，不调用旧审计。`ci.yml:467` 逐名，owned 的 H1 release step `:449`，日志 `1481-admission.log`。 |
+| `h1_admission_cold_handoff_foreign_sqlite_commit_rejects`，`:333`，加强原锁 | 原 UPDATE 外写及新增 DROP meta 两子例均保留真实 COMMIT、命中计数、规范 cuts、旧审计零调用与主库/WAL 字节相等；增加 SourceIdentityChanged/SourceWalChanged 具名断言，DROP 子例覆盖 begin 的固定 SQL 先失败。原 owned H1 逐名项保持。 |
+| `h1_admission_nonwal_conversion_handoff_foreign_commit_rejects`，`:1264`，加强原锁 | 非 WAL 转换交接间隙外写要求 SourceIdentityChanged，原全部字节保护断言保持。原 owned H1 逐名项保持。 |
+| `test_h1_recover_preserves_versioned_resource_contract_after_config_change`，`s_session/tests/test_tb01c_s3_service_control.py:437` | 真走 start-s 记录后恢复，/4 参数恰一次且与 start-s 同路径；配置改动后不另 freeze；/3 argv 和 recover 返回帧保持。既有 `s-observer` 的 Python observer and lifecycle tests，`ci.yml:1038`。 |
+| `test_h1_recover_refuses_changed_resource_identity_before_process`，同文件 `:480` | inode、内容、登记命令和 status 后交接窗口替换都在恢复子进程前拒绝。与上一锁同一 Python discover step。 |
+
+16 个原 S3 Python 锁体与 HEAD 的 AST 逐位相同，原 recover 锁全部保留。原 H1、Ordinary、FD/WAL、E6 逐名清单未删除。
+
+### P1-3：移除临时触发与 PR 覆盖对照
+
+根因是 history36h 的临时 `sandcastle/issue-1481` push 触发仍在，而仅靠“其他 CI 可能也跑到”不足以证明同 feature/profile 覆盖。`history36h.yml:4` 现恢复 main `eab5dd10` 的两分支原样，`:5` 保留 workflow_dispatch。
+
+| history36h 原 step | PR `ci.yml` 覆盖与本轮处理 |
+|---|---|
+| H1 life clamp and history locks，`:19`，release `s_session,s_incremental` / `h1_` | 既有 extras(owned) H1 step `:449`，`:454` 过滤从 `h1_admission_` 扩为 `h1_`，承接全部原 H1 release 域，原逐名收据保留并加入新锁。 |
+| Existing SQLite commit failure locks，`:21`，release 同 features | 新增现有 owned job 内步骤 `ci.yml:494`，`:498` 执行同过滤，逐名核 `h1_sqlite_commit_failure_does_not_advance_clamp`、`prepared_commit_sqlite_commit_failure_returns_no_receipt_and_rolls_back`、`sqlite_commit_failure_cannot_return_a_receipt_or_keep_real_prepared_state`、`native_capture_sqlite_commit_failure_retries_with_new_current_capture` 四项。 |
+| Native debug source suffix and receipt expiry locks，`:23`，debug 同 features | 新增 owned 步骤 `ci.yml:508`，`:512` 保持 debug，逐名核 `audit_owner_incremental_normal_writes_full_oracle_and_suffix` 与 `p6_raw_receipt_expired_before_binding_releases_budget`、`p6_raw_receipt_expired_during_closure_releases_budget`、`p6_raw_receipt_expired_before_consumption_releases_budget`。 |
+| Ordinary build contract，`:25`，`cargo check --features s_session` | 既有 rust-check `ci.yml:207`，`:215` 的 `cargo check --all-targets --features s_session` 并启用 `-D warnings`，无需重复。 |
+
+新增两份 Rust 日志随原 H1 artifact 一起上传，`ci.yml:533`、`:534`；每项要求真实 `test ... ok`，不是只编译。Python 两新锁由现有 `test_tb01c_*.py` discover 覆盖，不新增重复步骤。上述是工作流接线核查，实际 Rust 收据须新 head CI 提供。
+
+### Python 实跑结果与边界
+
+使用 python3 实跑新增两锁、原 recover 锁与 R4 anchor 锁，均通过。非作者独立复跑新两锁及旧 recover 三锁共 5/5、R4 3/3 通过。
+
+完整 `test_tb01c_*.py` 发现 100 项，95 通过、5 error；只读动态加载 HEAD 基线发现 98 项，93 通过、同 5 error，错误集合与文本逐项相同，均为本沙盒执行 `ps` 的 `PermissionError: Operation not permitted`。新增两锁全部通过，没有修改旧锁回避环境限制。相关 `issue1527_recovery/test_python_r4.py` 48 项当前与 HEAD 同为 2 fail / 9 error，主要是旧夹具缺 main #1657 的 `AdmissionContractVersionMissing` 及其收据级联，失败集合逐项相同；未扩修这些基线问题。完整 Python 面不能记成全绿。
+
+实际对拍收据位于仓外 `/private/tmp/s1k-launcher-{current,baseline}-{tb01c,r4}.json`，临时执行器 `/private/tmp/s1k-launcher-verify.py` 未入仓。这些是本机实际测试记录，不代替 CI。
+
+### 正式开门到关闭恢复的失败点分类表
+
+表中“自身”均指错误仍须返回、清除本轮候选并退还原预算许可，随后核 false、正常关闭；“完整性”均指保留 true、fail-stop 及上面的受控恢复合同。没有将拒绝改成成功，也没有重新认证或旧审计兜底。
+
+| 失败点，最终文件:行 | 分类与处理 |
+|---|---|
+| `s_structure_session.rs:358` 原 scope 门、`:359` open、`:364`/`:367` 同步 PRAGMA | 准入或自身初始化失败，尚未设置 true；沿普通连接关闭，不会遗留本轮禁止检查点配置。 |
+| 同文件 `:370`–`:383` 安装 NO_CKPT 配置 | 自身；失败也由 `h1_close_after_failure` 核恢复 false。 |
+| 同文件 `:448` 日志模式读取、`:454`–`:461` 排他模式/锁、`:466`–`:480` policy 授权/只读提交/合法 WAL 转换、`:481`–`:487` 固定 meta 读及 rollback | 自身或授权错误；转换 helper `:491` 统一核正常关闭后返回原错。完整认证、迁移授权和合法输入域保持。 |
+| 同文件 `:463` authenticate、`:484` snapshot；`audit_owner.rs:769`–`:776` 首锁 token/原件核验 | `s_structure_session.rs:406` 按现有具名类别分类：Identity/Wal/Type/ChangedDuringPin/Medium 实际失配，以及 PathLost/FdLost/MetadataUnavailable 身份失证，保守按完整性处理。SourcePinFailed 是元数据已核后的本进程开 FD 失败，按自身处理。底层 errno 已丢的 metadata 失败不假称自身。 |
+| `audit_owner.rs:724`、`:739` 两次开门，`:734` 转换连接成功关闭 | 开门遵上面两行；转换成功仍禁止关闭检查点，以保留交接凭据，EXCLUSIVE 的 heap 索引不产生 SHM。两交接 hook 仅 test。 |
+| 同文件 `:743` Self::new；`:382`–`:395` 生涯编号及接管前置 | 自身；失败在接管连接前核 false，不增加 owner 大返回槽。 |
+| 同文件 `:754`–`:768` 第一锁 begin 的 SQL/锁错误 | 默认自身；外部 DROP/坏 schema 可使 SQL 先失败，因此失败回调仍有界复核原 source/token，失配或失证则保留原 SQL 错并附具名完整性错误，禁止 checkpoint。 |
+| 同文件 `:779` migrate_in、`:782` migration COMMIT/continue | 认证后的本写者合法迁移或自身事务失败，默认自身；`:781` 保存继承版本，后续任何失败收口再查版本，外部提交不得夹带自身错误正常关闭。迁移已提交的事实不回退。 |
+| 同文件 `:785` Clamp 初始化；`history_clamp.rs:139`–`:164` | 父账、普通 PRAGMA、阈值及物理 NOOP 初始化错误属自身；模式实际非 WAL、被观测路径 open/stat/header 无法维持身份可用性则按完整性保全。文件读取分类见同文件 `:44`–`:64`、`:203`–`:221`。 |
+| `audit_owner.rs:796` 第二锁 begin、`:797` check、`:802` seed、`:808` read_end、`:809` deadline、`:810` continue、`:815` history_result | 明确的资源、首读期限、seed、回滚和候选自身错误正常关闭；`history_clamp.rs:258` 首检先核继承版本，外部提交或文件/控制原件/连接域实际失配置完整性标志。history_result 只传播和清候选，retire 不清完整性标志。 |
+| 同文件 `:816`–`:823` construction/actual_prefix、`:825` adopt | 本写者自身交接或资源错误；全部进入统一错误收口，不再带 true 直接早退。 |
+| 同文件 `:831` 成功恢复、`:841`–`:860` 错误出口连续性复核 | 成功核 false；记录了继承版本的任一失败在正常关闭前只读再查 data_version。匹配才按自身关闭；不符附 HistoricalAuditStale 外部提交，读不到版本附 HistoricalAuditStale 失败后源连续性失证，两者 fail-stop。 |
+| 同文件 `:864` 最终错误收口；`s_structure_session.rs:389`、`:429` | set_db_config(false) 必须核返回值。成功时原错误逐字返回；关闭配置也失败则报“原错误；关闭错误”，保留两份证据，绝不成功返回。 |
+
+### cfg、告警风险和最终自检
+
+| feature 档 | 非 test 源码穷举 | test 源码穷举 |
+|---|---|---|
+| `s_session` | H1 helper、Clamp 与正式冷入口均按原 inc+unix 门排除。Self::new 的普通错误行为保持，没有增量类型泄漏。 | 新锁文件沿原 test+inc+unix include 排除，原 Ordinary 锁保持。 |
+| `s_session,s_incremental` | 关闭 helper、分类器、外 Cell/Clamp 内 Cell、继承版本字段及实际调用配对；无新堆分配、allow/expect、未用导入。原 begin 体逐字保持，T 仅 unit/u64/小转换凭据，冷大载荷仍在外槽。 | 新注入声明为 `all(test,s_incremental,unix)`，消费另有 `#[cfg(test)]`；测试调用显式 test 属性，无 ignore。open_in_parent 旧包装仅 test，防止生产 dead_code。 |
+| `s_session,s_incremental,s_capture_native_testonly` | 与上档同一冷核、同一错误收口；不引入 native-testonly 生产捷径或环境钩子。 | 原 TestOnly Ordinary 先审后迁保持；新失败锁和原所有 H1 锁均编入并由 CI 执行。 |
+
+默认与 backtest_bin 不编入 S bin，仍保留库源码扫描；非 Unix 维持原门控。上述六格是 `-D warnings` 风险源码核查，实际三档 test/非 test 编译及告警结论待 CI，未将“源码可读”写成“编译通过”。
+
+最终实际检查：
+
+- 5 个改动 Rust 文件 `rustfmt --edition 2021 --check --config skip_children=true` 通过，参数仅限制隐式递归；`git diff --check` 通过。
+- 两个 workflow YAML 解析、全部 run 块 `bash -n` 通过，ci 71 块、history 4 块；触发分支与 dispatch、原 26 个相关具名项保留、新锁唯一性和八条 SQLite/Native 源码定义及完整路径核对通过。
+- 仓库根 R4 anchor 锁 3/3；在 `s_session/tests` 目录以 python3 运行新增两锁及旧 recover 三锁 5/5。首次从根用包名运行该五锁因夹具不在 sys.path 而未导入，随后按测试目录入口重跑通过；完整 Python 实跑边界见上节。
+- 生产无测试钩子源码扫描 `violations=0`。禁串重生成 1639 条，唯一新增 `h1_cold_seed: injected temporary failure`，随后 `--check .` 与源码一致；没有生产产物构建收据。
+- 原 BSP grep/WHITELIST 双向集合静态复现 hits=23、whitelist=23、stray=[]、stale=[]，未修改判据。
+- 两名非作者代理分别核 Python 合同/锁、Rust 失败分类/cfg/借用/帧与 CI 覆盖；最终差异无剩余确定阻断。其证据限源码及上述 Python/静态工具，不代替 Rust 运行。
+
+没有运行 cargo/rustc、重型窗口、CI 或生产构建，没有设置 RUST_MIN_STACK、加大栈线程、ignore 或跳过测试；没有 git add/commit/push 或写 Git metadata，HEAD 仍为上述基线。MainOnly/非 WAL 合法域、热 journal 写前拒绝、完整性拒绝源字节保护、正常关闭重启、台账四文件精确登记/真实字节/64 GiB 帽、未知旁挂拒绝、Ordinary、资金、E6 和 FU16 保持。46L 的 CapturedNative 无 cache context 显式拒绝、structure_source 组合锁与其他建议留后续，不记为本轮完成。
+
+### S1K 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `.github/prod-banned-literals.txt`
+- `.github/workflows/ci.yml`
+- `.github/workflows/history36h.yml`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_session_v3/audit_owner/admission_tests.rs`
+- `rust/src/bin/s_session_v3/audit_owner/history_clamp.rs`
+- `rust/src/bin/s_session_v3/audit_owner/history_physical.rs`
+- `rust/src/bin/s_structure_session.rs`
+- `s_session/s_service_control.py`
+- `s_session/tests/test_tb01c_s3_service_control.py`
