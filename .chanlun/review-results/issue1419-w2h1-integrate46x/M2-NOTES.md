@@ -916,3 +916,88 @@ VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-
 - SQLite WAL 在线源的只读 `VACUUM INTO` 靶向检查通过，原 Blob 值/typeof 一致且源 data_version 不变。
 - `git diff --check` 退出0；`git diff --cached --name-only` 为空。未暂存、提交或回退任何改动，最终生产逻辑仅新增测试 include 门，无恢复实现变更。
 - Rust 未验证，待 CI。未运行 cargo/rustc、Rust 测试、编译负例或会间接调用 cargo 的检查。阶段为 ready，实际 Rust 编译与冷对拍待 CI，不能把上述静态检查称作四条冷往返锁通过。
+
+## M2D
+
+本节绑定 #1419，按用户授权处理 PR #1855 的四项定点失败。开工 HEAD 为 `640bf49e93722048de160bc507bb82eb3e8bc04d`，分支 `sandcastle/issue-1419`，开工工作区干净。先完整阅读本文件 M1/M2/M2C/M3 交接，再读 `/Volumes/AgentStorage/w2-h1-integrate46x/ci-045a478d/job-*.txt` 与 `ci-pr1793/job-*.txt` 中的失败原文。下列运行读数均来自已有 CI；本机只作源码、历史和 Python 静态推导，不运行 cargo/rustc，也不运行间接调用它们的门脚本。不暂存、不提交、不回退任何改动。
+
+### 1．完整 Some 审计冻结：逐对象归因后重冻
+
+原文 `ci-045a478d/job-125104867274.txt:2523`：
+
+```text
+Some full: counts=Counts { objects: 91, groups: 13, windows: 11, effective: 14, insufficient: 0, outside_domain: 0 }, reads=232828, F=254341, read_hash=54375e9815ef8078d68d213e0a077f0b814ad7ce7a22432854441f1747eedfac, budget_hash=6dea88d382928c12c511d19a2acd7ce03c5e0b3ff4273408b1b66df1c92290a4
+```
+
+随后 `:2525` 至 `:2529` 报对象元组 `(91,13,11,14,0,0)` 不等于旧冻 `(81,13,11,14,0,0)`。对照 `ci-pr1793/job-123737814511.txt:2929` 至 `:2934` 同样为 91≠81；该侧 reads=202561、F=224074，read_hash=`6d5e5711000a85cdce417685edc9ca08caa0d48c8ff77064739cfe9cfb6e3801`，budget_hash=`488ea53514684092948a4a9cb06f8d81c86688fd61cce80faef66010eaf97008`。因此对象冻结过期继承自 W2，不是 H1 集成新增的十个对象。
+
+实际执行 `git log ac24e9e3eb..HEAD -- rust/src/bin/s_session_v3/generation.rs rust/src/bin/s_session_v2/content_producer.rs rust/src/bin/s_session_v3/source_audit.rs rust/src/bin/s_session_v3/content_structure.rs` 并阅读相关提交：`0bace7c395`（#1780 / ADR 0037）新增 `CC-007.development_batch`；`6028c3e5ee` 将正式 W2 写者切入 bounded-layout/1；`4004c7cded` 升 bounded-layout/2，只为单元增加 `source_ref`，不另增对象种类或条数。现行 ADR 0037 的每后续 bar 一条批记录口径与 ADR 0054 的 entries 窗口序保持完整。
+
+从 `s_structure_session.rs::tb02b_oracle_rows` 的真实 14 行整数 OHLC 静态复算包含组和严格双轴分型，得到 13 组、11 窗；五个分型窗口及右组末成员为 `[0,10,20]→30`、`[40,50,60]→60`、`[50,60,70]→70`、`[60,70,80]→80`、`[100,110,120]→120`。首个底分型右组包含 raw20/raw30，其后 bar 恰为 `40、50、60、70、80、90、100、110、120、130`。其余分型的后续 bar 都在此集合内，加入对应批记录的 entries，不另造同坐标对象。因此十个新增对象逐个对应这十个坐标的 `[CC-007.development_batch, coord]`。
+
+唯一性证据：`generation.rs:2730` 的 BTreeSet 收集坐标，`:2763` 的 BTreeMap 每坐标只输出一条；`content_producer.rs:1799` 把坐标写入 fact_key；`source_audit.rs:2281` 在计数前拒绝重复 object_id，`:3140` 从对象数组长度计数。夹具 `source_audit.rs::fixture` 创建 fresh GenerationRuntime、空 StructurePriors 和单代 generation=1，无上代对象或撤回历史。故 +10 来自已批准批记录行为，没有发现重复计数或撤回遗漏，满足重冻前提。上述几何推导只作静态归因，不冒充 Rust 生成器实跑。
+
+`source_audit.rs::full_some_audit_keeps_frozen_read_and_budget_trace` 保留全部旧注释，追加上述提交、坐标与唯一性归因。数值以旧值加两段已测净增量表达：
+
+| 项 | ac24e9e3eb 旧冻 | ac24→PR1793 W2 链净变化 | PR1793→045a 集成净变化 | 新冻 |
+|---|---:|---:|---:|---:|
+| objects | 81 | +10 | 0 | 91 |
+| reads | 151351+13016+120+37928=202415 | +146 | +30267 | 232828 |
+| F | 170797+14276+120+38245=223438 | +636 | +30267 | 254341 |
+
+两段 reads/F 净变化均**未逐节点分解**；不能将整段净差全归给十个新增对象。完整 read_hash/budget_hash 按上述 045a CI 原文重冻，不使用 PR1793 的摘要替代。
+
+### 2．请求前缀稳定性：补齐六消息时钟
+
+`ci-045a478d/job-125104867177.txt:2294` 至 `:2297` 报 `w_requests_published_prior_prefix_stability` 在 `prepared.rs:2155` 解包失败：`MissingDependency：clock事件 input-5`；PR1793 `job-123737814511.txt:2922` 至 `:2925` 是同一错误，属于 W2 继承夹具缺陷。
+
+`prepared.rs::Fixture::new()` 仅建立默认四个 input 事件，而该测试依次驱动 1–6 六条消息，包括第 5 条历史插入和第 6 条修订。`projection.rs:1055` 改为既有 `Fixture::with_clock_events(4, 6)`：保留 retain=4，仅补全 input-1..6；全部消息、发布路径、请求排序/前缀/删除/插入/修订断言逐字保留。没有改生产时钟检查、断言或 Fixture 实现，也没有添加规则注入。
+
+### 3．两种 payload：按 W2 固定槽保证保留暖读锁
+
+`ci-045a478d/job-125104867274.txt:2514` 至 `:2519` 报 `ordinary_materials_tests.rs:332` 的“暖原件不重读 SQL”96≠95。PR1793 没有此项失败。CI 未打印 payload/fail_at；失败分支由下述静态路径推导，不能称 CI 已打印这些值。
+
+M2C 循环按 `[20,200]` 顺序分别创建独立夹具；每组按 `[usize::MAX,1,4,9,25]` 顺序执行。W2 `bc896d5e0c` 将 RawMaterials 改为固定槽，`a8ba7383bc` 已将 W2 原测试 repeat(200) 改为 repeat(20) 适配；H1 `42a3f959` 的原池仍使用共享连续 body 区，1400B 可驻留。集成沿用 W2 固定槽，M2C 又保留了 H1 的 repeat(200)，因此无条件零 SQL 断言不再适用于那一个超槽块。
+
+当前 `s_content/raw_materials.rs` 的 CAP=33554432、META_RESERVE=4096、ENTRY_BYTES=42、ENTRIES=65536、BUCKETS=131072，生产每槽 body 上限为 `(33554432-4096-65536*42-131072*4)/65536` 向下取整，即 **461B**。`"payload".repeat(20)` 为140B；repeat(200) 为1400B，未达4096B分片阈值。STRING 根 body 固定40B，真正拒存的是其唯一1400B `BYTES_CHUNK`。`RawMaterials::save` 按 body 长度拒存，后续 `read_material` 对该摘要再次调用 SQL reader；它仍正常通过同一 F 与业务审计，没有第二套判据。`sql_before` 位于 uncached expected 完成之后、actual 之前，采样没有跨循环错位。
+
+因此第一组20可以暖驻留；第二组200的首个 fail_at=MAX 完整验证会多读该块一次，对应95→96。较早预算失败停在该块之前。独立 Python 编码、SHA256 和槽映射推导用于交叉核对节点/访问次序；这仍是静态证据。
+
+仅修改测试夹具：测试内 WarmSource 对实际源读取按完整 digest 逐次检查。两组所有可驻留节点（包括200组）继续断言“暖原件不重读 SQL”，每次增量必须为0。例外只绑定 `frame(BYTES_CHUNK, payload1400)` 的完整摘要，并逐次核类型、1400B body 与**恰好1次 SQL**；拒存计数增量必须等于该块实际读取次数。外层总 SQL 也只扣除这个精确计数后与 sql_before 相等。保留两种 payload、全部五个 fail_at、完整 Some 结果/事件轨迹对拍、命中和容量检查。没有改缓存实现、槽宽或资源帽，也没有用宽松生产判据兜底。
+
+### 4．native feature：两项同名锁保留增量等价版本
+
+`ci-045a478d/job-125104867194.txt:945` 至 `:946`：
+
+```text
+s_capture_native_testonly removed 2 tests from bin
+feature_delta target=bin feature=s_capture_native_testonly base=964 with_feature=1528 delta=566 removed=2
+```
+
+完整读取 `.github/scripts/test-feature-delta.sh`：它用 s_session 基底与 feature 构建的测试名差集，removed 非零立即失败；**没有允许名单或登记格式**。没有修改门脚本。`s_capture_native_testonly` 隐含 s_incremental。
+
+静态沿模块、include 和测试 cfg 查得恰好两项，均在 `sqlite_base_tests.rs`：
+
+- `sqlite_base_two_readers_overlay_clear_and_fresh_obey_domain`；
+- `sqlite_base_real_audit_matches_frozen_baseline_and_first_errors`。
+
+二者自 `ebaff48880` 起就带 `not(s_incremental)`，属于 W2 有意的非增量证明测试，不是本轮合并错门；文件存在于 W2 `ab2bfac7`，H1 `42a3f959` 无此文件。`history.rs:3884` 的 eligible_sqlite_base 和 `state.rs:842` 的 ordinary_materials_qualified 都明确排除 s_incremental，生产资格门须保留。
+
+修法为去掉两项测试函数的外层非增量门，在函数内部保留原非增量全部断言，并提供增量语义下的对应断言：第一项同样跑双 reader、错误 overlay、clear、无关 overlay、fresh 与 NativeMeasured 隔离；增量读必须完整遍历，proof commits/hits 必须为0。第二项继续跑真实冻结库审计、持久表只读不变以及损坏/缺失首错对拍；增量构建要求 LAST_REPORT/LAST_PROOFS 始终为None，预先清空线程局部观测，避免继承前一测试残值。原25个 assert 全部保留，新增隔离断言。没有删测试、改生产排除门或处理 #1481 native 栈溢出。
+
+同名测试保留满足 feature-delta 不得丢名的合同；该脚本仅执行新增名字，因此原有名字的增量版本实际运行仍须由 CI 的相应测试执行确认，本机不作通过声明。
+
+### 独立复核、禁串与实际检查
+
+实装与只读复核分离。对象组独审 SQLite 两锁，确认全部原25个 assert 保留，新增增量隔离断言符合现有资格门；feature组独审暖缓存计量及冻结摘要。暖缓存三源口逐一直接委托底层同名 read/checked_read/checked_read_scoped，只借用返回值检查 tag/body 长度与 SQL，不重建 CheckedFrame 或增加 F。复核发现的 fact_key 行号已订正为 content_producer.rs:1799。
+
+实际完成以下检查：
+
+- 四个 Rust 改动文件统一执行 `rustfmt --edition 2021 --config skip_children=true --check`，退出0。
+- Python 从根入口遍历135个 mod/include 文件及其 cfg 链，以 Counter 保留同文件同名的多重计数：HEAD 基底964、native1532、消失2；工作树基底964、native1534、消失0。HEAD 比045 CI的1528多4，来自已封包M3四锁。此为静态枚举，不是 Rust `--list`。
+- Python token 对比确认 projection 原116个 assert、SQLite原25个 assert 全部按原顺序保留；现分别116/35。另确认 source_audit、projection、ordinary_materials_tests 各自目标测试函数以外的 token 与 HEAD 完全相同、测试数量不变；CI完整摘要与加法一致，两payload、五门、三个实际源口及精确超槽检查保留。
+- Python 独立静态模型：真实14行OHLC对应13组、11窗、五分型及十批坐标；暖缓存两payload各八个编码节点经SHA256映射到不同set，无碰撞挤出。完整预算路径11次源读取，200组仅最后大块多1次SQL；fail_at=1/4/9/25分别在0/1/2/6次读取后停止，均未到该大块。模型不代替Rust执行。
+- 正本生成器 `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py` 重建为1756项，随后同一生成器 `--check` 实际退出0、报告与源码一致；清单仅删除旧完整字面 `暖原件不重读 SQL`。源码保留了这一检查及相同文字前缀，但诊断已含payload/fail_at格式参数，按现行生成器的格式串排除规则不再单列该字面。没有手改清单、生成器或放宽门。
+- `check-prod-no-test-hooks.py` 退出0、violations=0；现有相关Python单测20项通过。`git diff --check` 退出0、暂存区为空；原交接笔记73753字节前缀SHA256保持 `c17dba9c23cb44d4e6dd40d0734e12b3d86e5469425a89f77c874f849cb2a7c9`，仅追加本节。
+
+本轮保留完整W2生产写者串，未新增test_writer_rule、修改资源帽/准入语义或任何生产判据；未修改生产函数，未增加宽严两档或失败兜底，未处理#1481自身native栈溢出。阶段交付ready；Rust未验证，待CI，实际行为与同名增量锁仍须执行确认。

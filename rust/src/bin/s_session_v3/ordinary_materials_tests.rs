@@ -244,6 +244,78 @@ fn replaced_and_oversized_materials_keep_sql_and_f_contract() {
 #[test]
 fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
     use std::cell::RefCell;
+    struct WarmSource<'a> {
+        source: &'a mut dyn NodeSource,
+        oversized: Option<NodeDigest>,
+        oversized_reads: u64,
+        payload_repeats: usize,
+        fail_at: usize,
+    }
+    impl WarmSource<'_> {
+        fn check_sql(&mut self, digest: &NodeDigest, before: u64, material: Option<(u8, usize)>) {
+            if self.oversized.as_ref() == Some(digest) {
+                assert_eq!(material, Some((sc::tag::BYTES_CHUNK, 1400)));
+                assert_eq!(
+                    content_store::sql_reads_on_thread(),
+                    before + 1,
+                    "超槽原件逐次读 SQL: payload={}, fail_at={}",
+                    self.payload_repeats,
+                    self.fail_at
+                );
+                self.oversized_reads += 1;
+            } else {
+                assert_eq!(
+                    content_store::sql_reads_on_thread(),
+                    before,
+                    "暖原件不重读 SQL: payload={}, fail_at={}, digest={digest:?}",
+                    self.payload_repeats,
+                    self.fail_at
+                );
+            }
+        }
+    }
+    impl NodeSource for WarmSource<'_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            let before = content_store::sql_reads_on_thread();
+            let value = self.source.read(digest)?;
+            let material = match &value {
+                NodeRead::Found { tag, body } => Some((*tag, body.len())),
+                NodeRead::Missing => None,
+            };
+            self.check_sql(digest, before, material);
+            Ok(value)
+        }
+        fn checked_read(
+            &mut self,
+            digest: &NodeDigest,
+        ) -> Result<Option<CheckedFrame>, CodecError> {
+            let before = content_store::sql_reads_on_thread();
+            let value = self.source.checked_read(digest)?;
+            self.check_sql(
+                digest,
+                before,
+                value
+                    .as_ref()
+                    .map(|frame| (frame.tag(), frame.body().len())),
+            );
+            Ok(value)
+        }
+        fn checked_read_scoped(
+            &mut self,
+            digest: &NodeDigest,
+        ) -> Result<Option<sc::job::ScopedFrame>, CodecError> {
+            let before = content_store::sql_reads_on_thread();
+            let value = self.source.checked_read_scoped(digest)?;
+            self.check_sql(
+                digest,
+                before,
+                value
+                    .as_ref()
+                    .map(|frame| (frame.tag(), frame.body().len())),
+            );
+            Ok(value)
+        }
+    }
     struct Meter {
         events: RefCell<Vec<String>>,
         fail_at: usize,
@@ -282,6 +354,12 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
         }
     }
     for payload_repeats in [20, 200] {
+        let payload = "payload".repeat(payload_repeats);
+        // #1419 M2D：W2 bc896d5e0c 的固定槽为 461B；H1 的共享 body 区可存
+        // 1400B，集成沿用 W2 槽。STRING 根只有40B，超槽的是其 BYTES_CHUNK。
+        // 两组都逐原件检查暖命中；只允许200组这个已知摘要逐次冷读一次。
+        let oversized =
+            (payload_repeats == 200).then(|| sc::frame(sc::tag::BYTES_CHUNK, payload.as_bytes()));
         let mut f = commit::tests::fixture();
         let reference = {
             let tx = f.conn.transaction().unwrap();
@@ -289,7 +367,7 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
             let reference = sc::write_value(
                 &mut content_store::TxStore::new(&tx).unwrap(),
                 &sc::Value::Array(vec![
-                    sc::Value::String("payload".repeat(payload_repeats)),
+                    sc::Value::String(payload.clone()),
                     sc::Value::Bool(true),
                 ]),
             )
@@ -312,6 +390,10 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
                 &reference,
             )
             .unwrap();
+            assert_eq!(
+                pool.stats().save_rejected_bytes,
+                u64::from(oversized.is_some())
+            );
             let run = |source: &mut dyn NodeSource| {
                 let meter = Meter {
                     events: RefCell::new(Vec::new()),
@@ -327,12 +409,31 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
             };
             let expected = run(&mut content_store::ReadStore::new(&tx).unwrap());
             let sql_before = content_store::sql_reads_on_thread();
-            let actual = run(&mut pool.source(content_store::ReadStore::new(&tx).unwrap()));
-            assert_eq!(actual, expected, "Some gate stop {fail_at}");
+            let rejected_before = pool.stats().save_rejected_bytes;
+            let (actual, oversized_reads) = {
+                let mut source = pool.source(content_store::ReadStore::new(&tx).unwrap());
+                let mut checked = WarmSource {
+                    source: &mut source,
+                    oversized,
+                    oversized_reads: 0,
+                    payload_repeats,
+                    fail_at,
+                };
+                (run(&mut checked), checked.oversized_reads)
+            };
             assert_eq!(
-                content_store::sql_reads_on_thread(),
+                actual, expected,
+                "Some gate stop {fail_at}, payload={payload_repeats}"
+            );
+            assert_eq!(
+                pool.stats().save_rejected_bytes - rejected_before,
+                oversized_reads,
+                "拒存必须逐次对应已知超槽块: payload={payload_repeats}, fail_at={fail_at}"
+            );
+            assert_eq!(
+                content_store::sql_reads_on_thread() - oversized_reads,
                 sql_before,
-                "暖原件不重读 SQL"
+                "暖原件不重读 SQL: payload={payload_repeats}, fail_at={fail_at}"
             );
             assert!(pool.stats().material_hits > 0);
             assert!(pool.stats().retained_capacity_highwater <= CAP);

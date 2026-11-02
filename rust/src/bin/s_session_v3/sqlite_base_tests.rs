@@ -1,7 +1,7 @@
 use super::super::audit_store::CodecRead;
 use super::*;
 
-#[cfg(not(feature = "s_incremental"))]
+// #1419 M2D / #1640：两种构建保留同名锁；增量构建核完整遍历及基础证明隔离。
 #[test]
 fn sqlite_base_two_readers_overlay_clear_and_fresh_obey_domain() {
     let mut f = super::super::commit::tests::fixture();
@@ -29,7 +29,14 @@ fn sqlite_base_two_readers_overlay_clear_and_fresh_obey_domain() {
     let reads = base.material_stats().logical_reads;
     let mut second = HashReader::sqlite_base(&base);
     second.verify_ref((&root).into(), sc::Mode::Public).unwrap();
+    #[cfg(not(feature = "s_incremental"))]
     assert_eq!(base.material_stats().logical_reads - reads, 1);
+    #[cfg(feature = "s_incremental")]
+    {
+        assert!(base.material_stats().logical_reads - reads > 1);
+        assert_eq!(base.proof_stats().commits, 0);
+        assert_eq!(base.proof_stats().hits, 0);
+    }
     let before = base.proof_stats();
     let digest = leaf.digest().unwrap();
     second
@@ -62,7 +69,10 @@ fn sqlite_base_two_readers_overlay_clear_and_fresh_obey_domain() {
     second.clear_overlay();
     let reads = base.material_stats().logical_reads;
     second.verify_ref((&root).into(), sc::Mode::Public).unwrap();
+    #[cfg(not(feature = "s_incremental"))]
     assert_eq!(base.material_stats().logical_reads - reads, 1);
+    #[cfg(feature = "s_incremental")]
+    assert!(base.material_stats().logical_reads - reads > 1);
     let before = base.proof_stats();
     let reads = base.material_stats().logical_reads;
     second
@@ -121,7 +131,7 @@ fn sqlite_base_actual_allocation_and_incremental_exclusion() {
     assert_eq!(base.proof_stats().hits, 0);
 }
 
-#[cfg(not(feature = "s_incremental"))]
+// #1419 M2D / #1640：增量构建保留真实只读审计与损坏/缺失首错对拍，普通池必须不建立。
 #[test]
 fn sqlite_base_real_audit_matches_frozen_baseline_and_first_errors() {
     use super::super::{ordinary_materials, prepared, state};
@@ -136,24 +146,40 @@ fn sqlite_base_real_audit_matches_frozen_baseline_and_first_errors() {
     let _remove = Remove(path.clone());
     let mut conn = Connection::open(path).unwrap();
     let before = prepared::tests::runtime_root_tables(&conn, true);
+    ordinary_materials::LAST_REPORT.with(|v| v.set(None));
+    ordinary_materials::LAST_PROOFS.with(|v| v.set(None));
     let old = {
         let tx = conn.transaction().unwrap();
         state::without_base_proofs_for_test(|| state::audit_until(&tx, None)).map(|s| s.cuts.len())
     };
     assert_eq!(old, Ok(1));
+    #[cfg(not(feature = "s_incremental"))]
     let old_stats = ordinary_materials::LAST_REPORT.with(|v| v.get()).unwrap();
+    #[cfg(feature = "s_incremental")]
+    {
+        ordinary_materials::LAST_REPORT.with(|v| assert!(v.get().is_none()));
+        ordinary_materials::LAST_PROOFS.with(|v| assert!(v.get().is_none()));
+    }
     let new = {
         let tx = conn.transaction().unwrap();
         state::audit_until(&tx, None).map(|s| s.cuts.len())
     };
     assert_eq!(new, old);
-    let new_stats = ordinary_materials::LAST_REPORT.with(|v| v.get()).unwrap();
-    let proofs = ordinary_materials::LAST_PROOFS.with(|v| v.get()).unwrap();
-    assert!(proofs.hits > 0);
-    assert!(new_stats.logical_reads < old_stats.logical_reads);
-    assert_eq!(new_stats.slab_capacity, old_stats.slab_capacity);
+    #[cfg(not(feature = "s_incremental"))]
+    {
+        let new_stats = ordinary_materials::LAST_REPORT.with(|v| v.get()).unwrap();
+        let proofs = ordinary_materials::LAST_PROOFS.with(|v| v.get()).unwrap();
+        assert!(proofs.hits > 0);
+        assert!(new_stats.logical_reads < old_stats.logical_reads);
+        assert_eq!(new_stats.slab_capacity, old_stats.slab_capacity);
+        eprintln!("SQLITE_BASE_AUDIT old={old_stats:?} new={new_stats:?} proof={proofs:?}");
+    }
+    #[cfg(feature = "s_incremental")]
+    {
+        ordinary_materials::LAST_REPORT.with(|v| assert!(v.get().is_none()));
+        ordinary_materials::LAST_PROOFS.with(|v| assert!(v.get().is_none()));
+    }
     assert_eq!(prepared::tests::runtime_root_tables(&conn, true), before);
-    eprintln!("SQLITE_BASE_AUDIT old={old_stats:?} new={new_stats:?} proof={proofs:?}");
     for statement in [
         "UPDATE s_content_nodes SET body=x'01' WHERE digest=(SELECT snapshot_root FROM s_content_publications ORDER BY generation LIMIT 1)",
         "DELETE FROM s_content_nodes WHERE digest=(SELECT snapshot_root FROM s_content_publications ORDER BY generation LIMIT 1)"
@@ -164,5 +190,10 @@ fn sqlite_base_real_audit_matches_frozen_baseline_and_first_errors() {
         let new=state::audit_until(&tx,None).map(|_|());
         assert!(old.is_err());
         assert_eq!(new,old);
+        #[cfg(feature = "s_incremental")]
+        {
+            ordinary_materials::LAST_REPORT.with(|v| assert!(v.get().is_none()));
+            ordinary_materials::LAST_PROOFS.with(|v| assert!(v.get().is_none()));
+        }
     }
 }

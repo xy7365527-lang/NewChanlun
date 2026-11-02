@@ -1052,7 +1052,7 @@ mod tests {
 
     #[test]
     fn w_requests_published_prior_prefix_stability() {
-        let mut f = Fixture::new();
+        let mut f = Fixture::with_clock_events(4, 6);
         let mut previous = Vec::new();
         let (mut finite_prefix, mut saw_delete, mut saw_insert, mut saw_revision) =
             (false, false, false, false);

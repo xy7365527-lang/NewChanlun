@@ -5562,6 +5562,20 @@ mod tests {
         // 初始化事实（槽 W）与 C/D/E/F 结构域对象（81 = 76 + 5），结构域与 W 判据的读取另加
         // 37928 reads / 38245 F；均为 nc-remote 实测（ac24e9e3eb，s_session 与 +native 两组合同值），
         // 摘要随规则修订与发布内容改变。旧摘要（new-bi/2，76 对象）：read ffa6288e…、budget 06e35514…。
+        // #1419 M2D：0bace7c395（#1780 / ADR 0037）新增 CC-007.development_batch，
+        // 6028c3e5ee 将正式 W2 写者切入 bounded-layout/1；4004c7cded 升 bounded-layout/2，
+        // 单元增加 source_ref，不另增对象。此 fixture 首个底分型窗口为 [0,10,20]，右组成员
+        // 为 [20,30]；其后 bar 坐标 40/50/60/70/80/90/100/110/120/130 各发一条批记录，
+        // 正好 +10（91 = 81 + 10）。其余四个分型的后续 bar 都在此集合内，聚入同坐标 entries。
+        // development_batches 用 BTreeSet 收集坐标、BTreeMap 每坐标保留一条，fact_key 为
+        // [kind,coord]；完整审计先拒重复 object_id，再按对象数组长度计数。本 fixture 为
+        // fresh runtime、空 prior 的单代生成，不含撤回历史，故这十条不是重复或撤回遗漏。
+        // PR1793@411db603 已实测 91 对象、202561 reads / 224074 F：ac24→PR1793 W2 链
+        // 净变化为 +146 reads / +636 F（批记录、W2 规则与有界载荷变化的合计，未逐节点分解）。
+        // 集成 045a478d 的 job-125104867274.txt 实测 PR1793→集成净变化各 +30267 reads / F；
+        // 对象数不变。该段也未逐节点分解，不将任一段净差全部计作十条新增对象的费用。
+        // 以下按这两段实测净差追加冻结，完整摘要取该 CI 的 Some full 行；旧 W 规则摘要为
+        // read 0dfe6b80…、budget 9236f017…，本机未运行 Rust 重测。
         assert_eq!(
             (
                 counts.objects,
@@ -5571,21 +5585,25 @@ mod tests {
                 counts.insufficient,
                 counts.outside_domain
             ),
-            (81, 13, 11, 14, 0, 0)
+            (81 + 10, 13, 11, 14, 0, 0)
         );
         assert_eq!(
             roots.len(),
-            151351 + 13016 + 120 + 37928,
+            151351 + 13016 + 120 + 37928 + 146 + 30267,
             "r3完整Some读取轨迹"
         );
-        assert_eq!(frames, 170797 + 14276 + 120 + 38245, "r3完整Some F次数");
+        assert_eq!(
+            frames,
+            170797 + 14276 + 120 + 38245 + 636 + 30267,
+            "r3完整Some F次数"
+        );
         assert_eq!(
             read_hash,
-            "0dfe6b80acb54cf47a8afaaaed7b3542c60fe64e1021f32e12f67783c498c95b"
+            "54375e9815ef8078d68d213e0a077f0b814ad7ce7a22432854441f1747eedfac"
         );
         assert_eq!(
             budget_hash,
-            "9236f0171f6eb6e523d894e338e634d55c0c69522bc03fdbe13937aa00980194"
+            "6dea88d382928c12c511d19a2acd7ce03c5e0b3ff4273408b1b66df1c92290a4"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {
