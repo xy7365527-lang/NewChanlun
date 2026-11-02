@@ -3926,6 +3926,11 @@ impl NodeSource for HashReader<'_> {
         self.read_scoped(d)?.into_plain()
     }
     fn read_scoped(&mut self, d: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        {
+            let marker = 0_u8;
+            super::audit_owner::h1_stack_probe::sample_codec(&marker);
+        }
         if self.owned.is_some() {
             return Err(sc::CodecError::new(
                 sc::capture_allocation::INCOMPLETE,
@@ -3972,6 +3977,11 @@ impl NodeSource for HashReader<'_> {
         &mut self,
         d: &NodeDigest,
     ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        {
+            let marker = 0_u8;
+            super::audit_owner::h1_stack_probe::sample_codec(&marker);
+        }
         if self.owned.is_some() {
             return Err(sc::CodecError::new(
                 sc::capture_allocation::INCOMPLETE,

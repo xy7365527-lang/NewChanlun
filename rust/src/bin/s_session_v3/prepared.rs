@@ -2829,14 +2829,10 @@ pub(crate) mod tests {
             let owner =
                 super::super::audit_owner::AuditConnection::open(&baseline.db_path()).unwrap();
             let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut context = owner.p6_source_context_for_test();
             content_manifest::take_assemble_call_reads_for_test();
             let (_, ended) = owner
-                .publish(
-                    &mut runtime,
-                    &token,
-                    &envelope,
-                    &mut request_audit::RequestAuditContext::default(),
-                )
+                .publish(&mut runtime, &token, &envelope, &mut context)
                 .unwrap();
             owner.continue_with(ended).unwrap();
             content_manifest::take_assemble_call_reads_for_test().len()
@@ -2849,15 +2845,11 @@ pub(crate) mod tests {
         let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime.install_audit_ledger(ledger).unwrap();
+        let mut context = owner.p6_source_context_for_test();
         let invented = [1u8; 32];
         content_manifest::take_assemble_call_reads_for_test();
         let (receipt, ended) = owner
-            .publish(
-                &mut runtime,
-                &token,
-                &envelope,
-                &mut request_audit::RequestAuditContext::default(),
-            )
+            .publish(&mut runtime, &token, &envelope, &mut context)
             .unwrap();
         assert_eq!(receipt.generation, 1);
         assert!(runtime.queued_audit_facts.is_none());
@@ -3055,13 +3047,9 @@ pub(crate) mod tests {
                 let (envelope, token) =
                     f.accept_begin(g, (key, at, open, high, low, close), revision);
                 let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let mut context = owner.p6_source_context_for_test();
                 let (_, ended) = owner
-                    .publish(
-                        &mut runtime,
-                        &token,
-                        &envelope,
-                        &mut request_audit::RequestAuditContext::default(),
-                    )
+                    .publish(&mut runtime, &token, &envelope, &mut context)
                     .unwrap();
                 owner.continue_with(ended).unwrap();
                 let ledger = runtime.audit_ledger.as_ref().unwrap();
@@ -3146,13 +3134,9 @@ pub(crate) mod tests {
             let g = i as i64 + 1;
             let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), 1);
             let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let mut context = owner.p6_source_context_for_test();
             let (_, ended) = owner
-                .publish(
-                    &mut runtime,
-                    &token,
-                    &envelope,
-                    &mut request_audit::RequestAuditContext::default(),
-                )
+                .publish(&mut runtime, &token, &envelope, &mut context)
                 .unwrap();
             owner.continue_with(ended).unwrap();
             let saved = Connection::open(&path).unwrap();
@@ -3186,14 +3170,13 @@ pub(crate) mod tests {
                 "TestOnly-other-rule",
             ))
             .unwrap();
-        assert!(owner
-            .publish(
-                &mut runtime,
-                &token,
-                &envelope,
-                &mut request_audit::RequestAuditContext::default()
-            )
-            .is_err());
+        let mut context = owner.p6_source_context_for_test();
+        let result = owner.publish(&mut runtime, &token, &envelope, &mut context);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap(),
+            "AuditLedgerStale：台账请求、规则或代号不一致"
+        );
         assert!(runtime.queued_audit_facts.is_none());
         assert!(runtime.audit_qualification().is_err());
         assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
@@ -3223,14 +3206,13 @@ pub(crate) mod tests {
             .unwrap();
         let mut invalid = envelope;
         invalid["payload"] = serde_json::json!({});
-        assert!(owner
-            .publish(
-                &mut runtime,
-                &token,
-                &invalid,
-                &mut request_audit::RequestAuditContext::default()
-            )
-            .is_err());
+        let mut context = owner.p6_source_context_for_test();
+        let result = owner.publish(&mut runtime, &token, &invalid, &mut context);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap(),
+            "S3PrepareInvalid：Commit原件与已接纳消息不同"
+        );
         assert!(runtime.queued_audit_facts.is_none());
         assert!(runtime
             .audit_ledger
@@ -3274,7 +3256,7 @@ pub(crate) mod tests {
         let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime.install_audit_ledger(ledger).unwrap();
-        let mut context = request_audit::RequestAuditContext::default();
+        let mut context = owner.p6_source_context_for_test();
         let error = owner
             .publish(&mut runtime, &token, &envelope, &mut context)
             .err()

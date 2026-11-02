@@ -10,6 +10,58 @@ use rusqlite::Transaction;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+// #1481 S1R：仅测试线程自报水位；地址由调用帧提供，不把探针自己的帧计入。
+#[cfg(all(test, feature = "s_incremental", unix))]
+pub(crate) mod h1_stack_probe {
+    thread_local! {
+        static ENTRY: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+        static CODEC_PEAK: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+    }
+
+    pub(crate) struct Entry;
+    impl Drop for Entry {
+        fn drop(&mut self) {
+            CODEC_PEAK.with(|peak| {
+                let (used, samples) = peak.get();
+                eprintln!("H1_STACK_PROBE codec_read_peak used={used} samples={samples}");
+            });
+            ENTRY.with(|entry| entry.set(None));
+        }
+    }
+    pub(crate) fn enter(marker: &u8) -> Entry {
+        CODEC_PEAK.with(|peak| peak.set((0, 0)));
+        ENTRY.with(|entry| {
+            entry.set(Some(std::hint::black_box(marker) as *const u8 as usize));
+        });
+        record("entry", None, marker);
+        Entry
+    }
+    pub(crate) fn sample_codec(marker: &u8) {
+        ENTRY.with(|entry| {
+            if let Some(base) = entry.get() {
+                let used = base.abs_diff(std::hint::black_box(marker) as *const u8 as usize);
+                CODEC_PEAK.with(|peak| {
+                    let (previous, samples) = peak.get();
+                    peak.set((previous.max(used), samples.saturating_add(1)));
+                });
+            }
+        });
+    }
+    pub(crate) fn record(point: &str, generation: Option<i64>, marker: &u8) {
+        ENTRY.with(|entry| {
+            if let Some(base) = entry.get() {
+                let used = base.abs_diff(std::hint::black_box(marker) as *const u8 as usize);
+                match generation {
+                    Some(generation) => {
+                        eprintln!("H1_STACK_PROBE {point}.g{generation} used={used}");
+                    }
+                    None => eprintln!("H1_STACK_PROBE {point} used={used}"),
+                }
+            }
+        });
+    }
+}
+
 #[cfg(feature = "s_incremental")]
 #[path = "sqlite_pager_probe.rs"]
 mod sqlite_pager_probe;
@@ -537,6 +589,11 @@ impl AuditConnection {
         output: &mut Option<Self>,
     ) -> Result<std::time::Duration, String> {
         use std::os::unix::fs::MetadataExt;
+        #[cfg(test)]
+        {
+            let marker = 0_u8;
+            h1_stack_probe::record("cold_open", None, &marker);
+        }
         let started = std::time::Instant::now();
         history::check_deadline(deadline)?;
         if !context.source_cache_enabled() {
@@ -690,6 +747,11 @@ impl AuditConnection {
                         deadline,
                         budget,
                     );
+                    #[cfg(test)]
+                    {
+                        let marker = 0_u8;
+                        h1_stack_probe::record("cold_seed_return", None, &marker);
+                    }
                     if let Err(error) = seeded {
                         // #1481：与原局部 construction 相同，在只读业务返回错误前退还许可。
                         construction_out = None;
@@ -758,6 +820,11 @@ impl AuditConnection {
         output: &mut Option<Self>,
         started: std::time::Instant,
     ) -> Result<std::time::Duration, String> {
+        #[cfg(test)]
+        {
+            let marker = 0_u8;
+            h1_stack_probe::record("cold_handoff", None, &marker);
+        }
         // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
         #[cfg(test)]
         if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
@@ -872,6 +939,11 @@ impl AuditConnection {
                 actual_binding,
                 actual_prefix,
             )?;
+            #[cfg(test)]
+            {
+                let marker = 0_u8;
+                h1_stack_probe::record("cold_adopt_return", None, &marker);
+            }
             crate::h1_normal_close(&owner.connection)?;
             Ok(())
         })();
@@ -7517,6 +7589,77 @@ mod raw_native_move_ownership_tests {
 
 #[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
+    /// #1481 S1S：P6 独立 full_lease 对照臂；同 set_publish_case 签施工许可，
+    /// 但不把 raw 令牌交给 Runtime，保留完整生成/来源导出覆盖，不代表正式 H1 生涯。
+    pub(super) fn p6_publish_full_lease_for_test(
+        &self,
+        runtime: &mut prepared::Runtime,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<(commit::CommitReceipt, Ended), String> {
+        let failure = |error: native::Failure| match error {
+            native::Failure::BudgetExceeded => invalid("P6完整对照臂父预算不足"),
+            native::Failure::Invalid(error) => error,
+        };
+        let result = (|| {
+            let mut active =
+                self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
+            if !active.bind_existing(Some(context))? {
+                return Err(invalid("P6完整对照臂缺同快照完整候选"));
+            }
+            active.with_bound_raw_advance(context, |raw| raw.ensure_current())?;
+            let resources = active.issue_publication_resources(context)?;
+            active.before_fixed_write(FixedOperation::Publish, Some(context))?;
+            let (receipt, after) = resources
+                .budget
+                .codec_work()
+                .map_err(&failure)?
+                .run(|work| {
+                    let parent = PublicationScope {
+                        resources: &resources,
+                        work,
+                    };
+                    effects::attach_recording_resources(active.tx(), &parent)?;
+                    let pending = active.pending.borrow();
+                    let candidate = pending
+                        .as_ref()
+                        .ok_or_else(|| invalid("P6完整对照臂缺本事务pending候选"))?;
+                    let phase = PublishPhase {
+                        publication: Some(&parent),
+                        transaction: active.transaction.as_mut().unwrap(),
+                        audited: Some(&candidate.audited),
+                        raw: None,
+                        capture: None,
+                        source: None,
+                    };
+                    let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
+                    drop(pending);
+                    active.finish_fixed_write_in_publication(Some(&parent))?;
+                    let after = active.construction_seal()?;
+                    active.check_publication_transition(resources.before, after)?;
+                    Ok::<_, String>((receipt, after))
+                })
+                .map_err(|error| failure(native::Failure::from(error)))?;
+            active.check_publication_run(ConstructionRun {
+                value: (),
+                before: resources.before,
+                after,
+            })?;
+            let ended = active.commit_publication()?;
+            runtime.commit_audit_ledger()?;
+            Ok((receipt, ended))
+        })();
+        if result.is_err() {
+            self.retired.set(true);
+            self.clear_candidates();
+            runtime.invalidate_audit_ledger();
+            runtime.discard();
+            drop(context.take());
+        }
+        result
+    }
+
     pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
         let total = 64 * 1024 * 1024;
         let mut context = request_audit::RequestAuditContext::with_source_keeper(
