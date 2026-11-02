@@ -279,7 +279,7 @@ impl Driver {
         } else {
             newchan_rust::theta_v0::config::ThetaConfig::default()
         };
-        let mut context = request_audit::RequestAuditContext::default();
+        let mut context = Self::cold_context(incremental_retention_bytes)?;
         let mut driver = Self::open_with_request_and_mode_context(
             db,
             profile,
@@ -475,6 +475,60 @@ impl Driver {
         )
     }
 
+    #[cfg(feature = "s_incremental")]
+    fn cold_context(retention: usize) -> Result<request_audit::RequestAuditContext, String> {
+        state::check_audit_source_retention(retention)?;
+        let mut context = request_audit::RequestAuditContext::default();
+        context.freeze_manifest_workspace_budget(retention, 0, 0)?;
+        context.attach_source_keeper(super::cross_request_source_cache::Keeper::new(retention));
+        Ok(context)
+    }
+
+    /// #1481：正式一次性入口在任何接纳/Begin 前完成冷资格；资源沿用 /2 显式第八门。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn open_with_request_and_mode_retention(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        retention: usize,
+        production: bool,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        if !matches!(mode, s_allocation::Mode::CapturedNative) {
+            return Err("S3WriterResourcesInvalid：增量正式入口要求Native".into());
+        }
+        let theta_config = if production {
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+                .map_err(|e| e.to_string())?
+        } else {
+            newchan_rust::theta_v0::config::ThetaConfig::default()
+        };
+        let mut context = Self::cold_context(retention)?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            Some(&mut context),
+            theta_config,
+            production,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(usize::MAX);
+        driver.incremental_retention_bytes = Some(retention);
+        Ok(driver)
+    }
+
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    pub(super) fn h1_owner_for_test(&self) -> &super::audit_owner::AuditConnection {
+        &self.conn
+    }
+
     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
     fn open_with_request_and_mode_context(
         db: &Path,
@@ -513,6 +567,41 @@ impl Driver {
         let _open_guard = scope.enter()?;
         let db = scope.db_path();
         scope.require_admitted()?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        let mut runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
+        #[cfg(feature = "s_incremental")]
+        let conn = if startup_context
+            .as_deref()
+            .is_some_and(|c| c.source_cache_enabled())
+        {
+            #[cfg(unix)]
+            {
+                let mut rebuilt = None;
+                super::audit_owner::AuditConnection::open_rebuilt_history_into(
+                    db,
+                    startup_context
+                        .as_deref()
+                        .unwrap()
+                        .complete_workspace_limit(),
+                    Some(scope.first_read_deadline()?),
+                    startup_context.as_deref_mut().unwrap(),
+                    &mut runtime,
+                    scope.max_store_bytes(),
+                    &scope,
+                    &mut rebuilt,
+                )?;
+                rebuilt.expect("冷交接成功后必有owner")
+            }
+            #[cfg(not(unix))]
+            {
+                return Err("H1准入需要Unix文件身份与只读FD/VFS".into());
+            }
+        } else {
+            super::audit_owner::AuditConnection::open(db)?
+        };
+        #[cfg(not(feature = "s_incremental"))]
         let conn = super::audit_owner::AuditConnection::open(db)?;
         #[cfg(feature = "s_incremental")]
         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
@@ -531,7 +620,7 @@ impl Driver {
         )?;
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::with_config(mode.clone(), theta_config.clone()),
+            runtime,
             mode,
             clock,
             epoch: epoch.into(),
@@ -548,6 +637,13 @@ impl Driver {
             #[cfg(test)]
             stop_after: None,
         };
+        #[cfg(feature = "s_incremental")]
+        if let Some(context) = startup_context.as_deref() {
+            if context.source_cache_enabled() {
+                driver.incremental_retention_bytes = Some(context.complete_workspace_limit());
+                driver.audit_cache_source_bytes = Some(usize::MAX);
+            }
+        }
         driver.resume_pending(startup_context)?;
         Ok(driver)
     }
@@ -713,19 +809,109 @@ impl Driver {
             );
         }
         for raw in originals {
-            // #1394：bootstrap slot不得跨入恢复请求；idle无pending才可复用到identity。
-            if let Some(context) = bootstrap_context.as_deref_mut() {
-                drop(context.take());
+            #[cfg(not(feature = "s_incremental"))]
+            {
+                if let Some(context) = bootstrap_context.as_deref_mut() {
+                    drop(context.take());
+                }
+                let mut request_audit = request_audit::RequestAuditContext::default();
+                self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
             }
-            let mut request_audit = request_audit::RequestAuditContext::default();
-            self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
+            // #1481：冷资格与同父域必须连续保留到 pending 发布；禁止丢槽后完整重审。
+            #[cfg(feature = "s_incremental")]
+            if let Some(context) = bootstrap_context.as_deref_mut() {
+                let (_, ended) = self.advance(&strict_json(raw.as_bytes())?, context)?;
+                self.conn.continue_with(ended)?;
+            } else {
+                let mut request_audit = request_audit::RequestAuditContext::default();
+                let (_, ended) = self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
+                self.conn.continue_with(ended)?;
+            }
         }
         Ok(())
     }
 }
 
+/// #1481：监督器新生涯先冷重建完整台账，完成 H1 资格消费后才允许 Recover 写入。
+#[cfg(feature = "s_incremental")]
+pub(super) fn recover_scoped_with_retention(
+    db: &Path,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+    retention: usize,
+    admission: super::admission::WriterAdmission,
+) -> Result<(Value, super::admission::WriterScope), String> {
+    #[cfg(not(unix))]
+    {
+        let _ = (db, new_epoch, clock, clock_event, retention, admission);
+        Err("H1恢复需要Unix文件身份与只读FD/VFS".into())
+    }
+    #[cfg(unix)]
+    {
+        parse_writer_epoch(new_epoch, "new writer_epoch")?;
+        let scope = admission.admit_prefix(
+            db,
+            super::admission_private::RejectionPrefix::UnboundRecover,
+        )?;
+        let _guard = scope.enter()?;
+        scope.require_admitted()?;
+        let result = recover_rebuilt_history(&scope, retention, new_epoch, clock, clock_event)?;
+        Ok((result, scope))
+    }
+}
+
+// #1481：recover 的冷构造放独立帧，只经借用槽取得 owner；不按值传播 owner 的 Result。
+// Runtime/context 仍覆盖真正 Recover 与 conn 析构，保持冷台账及父账原存活次序。
+#[cfg(all(feature = "s_incremental", unix))]
+fn recover_rebuilt_history(
+    scope: &super::admission::WriterScope,
+    retention: usize,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+) -> Result<Value, String> {
+    #[cfg(test)]
+    {
+        let marker = 0_u8;
+        super::audit_owner::h1_stack_probe::record("recover_open", None, &marker);
+    }
+    let mut context = Driver::cold_context(retention)?;
+    let mut runtime = prepared::Runtime::with_config(
+        s_allocation::Mode::CapturedNative,
+        newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+            .map_err(|e| e.to_string())?,
+    );
+    let mut rebuilt = None;
+    super::audit_owner::AuditConnection::open_rebuilt_history_into(
+        scope.db_path(),
+        retention,
+        Some(scope.first_read_deadline()?),
+        &mut context,
+        &mut runtime,
+        scope.max_store_bytes(),
+        scope,
+        &mut rebuilt,
+    )?;
+    let conn = rebuilt.expect("冷恢复交接成功后必有owner");
+    #[cfg(test)]
+    {
+        let marker = 0_u8;
+        super::audit_owner::h1_stack_probe::record("recover_before_write", None, &marker);
+    }
+    let result = conn.recover(new_epoch, clock, clock_event)?;
+    #[cfg(test)]
+    {
+        let marker = 0_u8;
+        super::audit_owner::h1_stack_probe::record("recover_after_write", None, &marker);
+    }
+    drop(conn);
+    Ok(result)
+}
+
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。
 /// 尚未接CLI；换代事务提交后，由新Driver开门继续持久pending原件。
+#[cfg(any(test, not(feature = "s_incremental")))]
 pub(super) fn recover_scoped(
     db: &Path,
     new_epoch: &str,
@@ -1265,6 +1451,18 @@ mod tests {
                         .err()
                         .unwrap()
                 };
+                let prefix_expected = {
+                    let tx = c.transaction().unwrap();
+                    super::super::control_audit::verify_s3_schema_admitted(&tx, None, None, None)
+                        .and_then(|_| crate::verify_writer_epoch(&tx, epoch))
+                        .and_then(|_| {
+                            super::super::require_current_writer_rule(
+                                &crate::meta_get_opt(&tx, "rule_revision")?.unwrap(),
+                            )
+                        })
+                        .err()
+                        .unwrap()
+                };
                 drop(c);
                 let _fixture_anchor = crate::v3::admission_anchor::test_prepare(&f.db);
                 let bytes = std::fs::read(&f.db).unwrap();
@@ -1284,8 +1482,41 @@ mod tests {
                     )
                     .err()
                     .unwrap();
-                    assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
+                    // #1481：Native 前缀只核 schema/epoch/rule，不签发历史证明。
+                    assert_eq!(
+                        error.split("；原准入账=").next(),
+                        Some(prefix_expected.as_str())
+                    );
+                    assert_eq!((context.cold, context.hits), (0, 0));
                     assert!(context.take().is_none(), "最终拒绝不得留下历史 slot");
+                    assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+                    assert_eq!(std::fs::read(&f.db).unwrap(), bytes);
+                    // 实际 startup 对照臂仍须先核业务，再核 epoch/rule。
+                    // #1481：旧规则 owner 是只读 WAL 连接；夹具以无写 RW 连接作最后关闭者。
+                    let cleanup = rusqlite::Connection::open_with_flags(
+                        &f.db,
+                        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE,
+                    )
+                    .unwrap();
+                    let _: i64 = cleanup
+                        .query_row("SELECT COUNT(*) FROM meta", [], |row| row.get(0))
+                        .unwrap();
+                    let owner = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+                    let startup_error = owner
+                        .startup(
+                            &f.profile,
+                            epoch,
+                            &f.clock,
+                            None,
+                            &s_allocation::Mode::CapturedNative,
+                            with_context.then_some(&mut context),
+                        )
+                        .err()
+                        .unwrap();
+                    assert_eq!(startup_error, expected);
+                    drop(owner);
+                    drop(context.take());
+                    drop(cleanup);
                     assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
                     assert_eq!(std::fs::read(&f.db).unwrap(), bytes);
                 }
@@ -1306,6 +1537,13 @@ mod tests {
             let tx = c.transaction().unwrap();
             state::audit_native_current(&tx).err().unwrap()
         };
+        let prefix_expected = {
+            let tx = c.transaction().unwrap();
+            super::super::control_audit::verify_s3_schema_admitted(&tx, None, None, None)
+                .and_then(|_| crate::verify_writer_epoch(&tx, "2"))
+                .err()
+                .unwrap()
+        };
         drop(c);
         for with_context in [false, true] {
             let mut context = request_audit::RequestAuditContext::default();
@@ -1323,7 +1561,26 @@ mod tests {
             )
             .err()
             .unwrap();
-            assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
+            assert_eq!(
+                error.split("；原准入账=").next(),
+                Some(prefix_expected.as_str())
+            );
+            assert_eq!((context.cold, context.hits), (0, 0));
+            // #1481：捕获的晚类型错误仍在实际 startup 先于早坏帧/epoch。
+            let owner = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+            let startup_error = owner
+                .startup(
+                    &f.profile,
+                    "2",
+                    &f.clock,
+                    None,
+                    &s_allocation::Mode::CapturedNative,
+                    with_context.then_some(&mut context),
+                )
+                .err()
+                .unwrap();
+            assert_eq!(startup_error, expected);
+            drop(owner);
             assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
             assert!(context.take().is_none());
         }
@@ -1332,7 +1589,15 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn native_prefix_context_rechecks_real_connection_current_material() {
-        for change in ["same", "append", "bad_node", "epoch", "identity", "version"] {
+        for (change, expected_counts) in [
+            ("same", Some((1, 1))),
+            ("append", Some((2, 0))),
+            ("bad_node", None),
+            ("epoch", None),
+            // #1481：meta.session_generation 不是控制身份；新增行合法，但完整材料绑定已变。
+            ("identity", Some((2, 0))),
+            ("version", None),
+        ] {
             let f = Fixture::new();
             let mut initial = f.open("1").unwrap();
             initial.handle(Fixture::ingest(1)).unwrap();
@@ -1350,12 +1615,23 @@ mod tests {
                 },
             )
             .unwrap();
-            assert!(context.has_slot());
-            assert_eq!((context.cold, context.hits), (1, 0));
+            assert!(!context.has_slot(), "schema 前缀不得伪造历史证明");
+            assert_eq!((context.cold, context.hits), (0, 0));
             let _guard = scope.enter().unwrap();
             scope.require_admitted().unwrap();
             let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
-            // 真实连接已创建，但startup尚未开始事务；改变下一事务实际看到的材料。
+            conn.startup(
+                &f.profile,
+                "1",
+                &f.clock,
+                None,
+                &s_allocation::Mode::CapturedNative,
+                Some(&mut context),
+            )
+            .unwrap();
+            assert_eq!((context.cold, context.hits), (1, 0));
+            assert!(context.has_slot());
+            // #1481：真实 startup 已建立 slot；改变下一事务实际看到的材料。
             let mut mutation = open_db(&f.db).unwrap();
             match change {
                 "same" => {}
@@ -1402,14 +1678,16 @@ mod tests {
             match expected {
                 Ok(()) => {
                     actual.unwrap();
-                    if change == "same" {
-                        assert_eq!((context.cold, context.hits), (1, 1));
-                    }
-                    if change == "append" {
-                        assert_eq!((context.cold, context.hits), (2, 0));
-                    }
+                    let expected_counts =
+                        expected_counts.unwrap_or_else(|| panic!("{change} 必须拒绝"));
+                    assert_eq!((context.cold, context.hits), expected_counts, "{change}");
+                    assert!(context.has_slot(), "{change}");
                 }
-                Err(expected) => assert_eq!(actual.err().unwrap(), expected, "{change}"),
+                Err(expected) => {
+                    assert!(expected_counts.is_none(), "{change} 必须接纳");
+                    assert_eq!(actual.err().unwrap(), expected, "{change}");
+                    assert!(!context.has_slot());
+                }
             }
         }
     }
@@ -1428,9 +1706,44 @@ mod tests {
             state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
         }
         assert!(keeper.retained_source_bytes() > 0);
-        drop(c);
         let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
         context.arm_source_pool_return(true);
+        let expected_epoch = crate::verify_writer_epoch(&c, "2").unwrap_err();
+        drop(c);
+        // 无 slot 时，schema 前缀不得消费或重建已有来源池。
+        let retained = context.retained_source_bytes();
+        let full_before = state::full_audit_calls_for_test();
+        let cold_error = super::super::admission::WriterAdmission::from(
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .admit_prefix(
+            &f.db,
+            super::super::admission_private::RejectionPrefix::NativeStartup {
+                epoch: "2",
+                context: Some(&mut context),
+                work: None,
+            },
+        )
+        .err()
+        .unwrap();
+        assert_eq!(
+            cold_error.split("；原准入账=").next(),
+            Some(expected_epoch.as_str())
+        );
+        assert_eq!(state::full_audit_calls_for_test(), full_before);
+        assert_eq!((context.cold, context.hits), (0, 0));
+        assert!(!context.has_slot());
+        assert_eq!(context.retained_source_bytes(), retained);
+        let mut c = open_db(&f.db).unwrap();
+        // #1481：显式准备已有候选；被拒前缀只能撤销它，不得重审或复活已消费池。
+        {
+            let tx = c.transaction().unwrap();
+            state::audit_native_in_request(&tx, &mut context).unwrap();
+        }
+        assert!(context.has_slot());
+        assert_eq!((context.cold, context.hits), (1, 0));
+        drop(c);
+        let full_before = state::full_audit_calls_for_test();
         let error = Driver::open_with_request_and_mode_context(
             &f.db,
             &f.profile,
@@ -1445,8 +1758,12 @@ mod tests {
         )
         .err()
         .unwrap();
-        assert!(error.starts_with("StaleWriter："), "{error}");
-        assert_eq!(context.cold, 1, "内层已完整成功并retain后，epoch才拒绝");
+        assert_eq!(
+            error.split("；原准入账=").next(),
+            Some(expected_epoch.as_str())
+        );
+        assert_eq!(state::full_audit_calls_for_test(), full_before);
+        assert_eq!((context.cold, context.hits), (1, 0), "前缀不新增冷审计");
         assert!(context.take().is_none());
         assert!(
             context.take_source_pool().is_none(),
@@ -1541,13 +1858,18 @@ mod tests {
             let (original, before, original_context, calls) = run(usize::MAX);
             if epoch == "1" {
                 assert!(original.is_ok());
-                assert!(original_context.has_slot());
+                assert!(!original_context.has_slot());
             } else {
                 assert!(original.as_ref().unwrap_err().starts_with("StaleWriter："));
             }
             let (late, after, context, actual_calls) = run(calls);
             assert_eq!(actual_calls, calls, "仅最后期限门发生变化");
-            assert_eq!(context.cold, 1, "期限门之前业务核已完成retain");
+            assert_eq!((original_context.cold, original_context.hits), (0, 0));
+            assert_eq!(
+                (context.cold, context.hits),
+                (0, 0),
+                "schema 前缀不认证历史"
+            );
             assert!(!context.has_slot());
             let late = late.unwrap_err();
             assert!(late.contains("deadline"), "{late}");
@@ -1558,8 +1880,39 @@ mod tests {
             assert_eq!(after.records, before.records);
             assert_eq!(after.nodes, before.nodes);
             assert_eq!(after.wire_bytes, before.wire_bytes);
-            assert!(after.records > 0 && after.wire_bytes > 0);
+            assert_eq!((after.records, after.nodes), (0, 0));
+            assert!(after.wire_bytes > 0, "schema 读取仍计实际 wire");
             assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+            if epoch == "1" {
+                // 前缀不签历史证明；实际 startup 的独立对照仍完成冷审计并 retain。
+                let mut startup_context = request_audit::RequestAuditContext::default();
+                let scope = super::super::admission::WriterAdmission::from(
+                    crate::v3::admission_anchor::test_prepare(&f.db),
+                )
+                .admit_prefix(
+                    &f.db,
+                    super::super::admission_private::RejectionPrefix::NativeStartup {
+                        epoch,
+                        context: Some(&mut startup_context),
+                        work: None,
+                    },
+                )
+                .unwrap();
+                let _guard = scope.enter().unwrap();
+                let owner = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+                owner
+                    .startup(
+                        &f.profile,
+                        epoch,
+                        &f.clock,
+                        None,
+                        &s_allocation::Mode::CapturedNative,
+                        Some(&mut startup_context),
+                    )
+                    .unwrap();
+                assert!(startup_context.has_slot());
+                assert_eq!((startup_context.cold, startup_context.hits), (1, 0));
+            }
         }
     }
 
@@ -1645,6 +1998,29 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn native_delta_explicit_policy_sql_receipt_and_failed_commit_retry() {
+        // #1481 S1S：四次冷开的大值返回槽留在独立夹具帧，重试主体仅持指针。
+        #[inline(never)]
+        fn open(
+            f: &Fixture,
+            epoch: &str,
+            mode: s_allocation::Mode,
+            config: ThetaConfig,
+        ) -> Box<Driver> {
+            Driver::open_with_request_and_mode_context(
+                &f.db,
+                &f.profile,
+                epoch,
+                f.clock.clone(),
+                None,
+                mode,
+                None,
+                config,
+                false,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .map(Box::new)
+            .unwrap()
+        }
         let f = Fixture::new();
         let o = Fixture::new();
         let mut config = ThetaConfig::default();
@@ -1653,21 +2029,9 @@ mod tests {
             newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
         assert_ne!(config, ThetaConfig::default());
         let labels = config.record_labels();
-        let mut native = Driver::open_with_request_and_mode_context(
-            &f.db,
-            &f.profile,
-            "1",
-            f.clock.clone(),
-            None,
-            s_allocation::Mode::CapturedNative,
-            None,
-            config.clone(),
-            false,
-            crate::v3::admission_anchor::test_prepare(&f.db).into(),
-        )
-        .unwrap();
+        let mut native = open(&f, "1", s_allocation::Mode::CapturedNative, config.clone());
         native.audit_cache_source_bytes = Some(536_870_912);
-        let mut ordinary = o.open_with_config("1", config.clone()).unwrap();
+        let mut ordinary = open(&o, "1", s_allocation::Mode::Ordinary, config.clone());
         for n in 1..=2 {
             let input = Fixture::ingest(n);
             if n == 2 {
@@ -1708,21 +2072,9 @@ mod tests {
                     crate::v3::admission_anchor::test_prepare(&o.db).into(),
                 )
                 .unwrap();
-                native = Driver::open_with_request_and_mode_context(
-                    &f.db,
-                    &f.profile,
-                    "2",
-                    f.clock.clone(),
-                    None,
-                    s_allocation::Mode::CapturedNative,
-                    None,
-                    config.clone(),
-                    false,
-                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
-                )
-                .unwrap();
+                native = open(&f, "2", s_allocation::Mode::CapturedNative, config.clone());
                 native.audit_cache_source_bytes = Some(536_870_912);
-                ordinary = o.open_with_config("2", config.clone()).unwrap();
+                ordinary = open(&o, "2", s_allocation::Mode::Ordinary, config.clone());
             }
             let request = if n == 2 {
                 receipt_request(&input)
@@ -4763,43 +5115,74 @@ mod tests {
     #[test]
     fn native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged(
     ) {
-        let f = Fixture::new();
-        let mut first = f.open("1").unwrap();
-        first.handle(Fixture::ingest(1)).unwrap();
-        let expected = first.identity().unwrap();
-        drop(first);
-        let (result, events, _) = state::traced(false, || {
+        #[inline(never)]
+        fn open(
+            f: &Fixture,
+            retention: usize,
+            mode: s_allocation::Mode,
+        ) -> Result<(Box<Driver>, (String, String, String)), String> {
             Driver::open_for_serve_with_identity(
                 &f.db,
                 &f.profile,
                 "1",
                 f.clock.clone(),
                 1,
-                1,
-                s_allocation::Mode::CapturedNative,
+                retention,
+                mode,
                 false,
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
+            .map(|(driver, identity)| (Box::new(driver), identity))
+        }
+        #[inline(never)]
+        fn ordinary(f: &Fixture) -> Result<Box<Driver>, String> {
+            f.open("1").map(Box::new)
+        }
+        let f = Fixture::new();
+        let mut first = ordinary(&f).unwrap();
+        first.handle(Fixture::ingest(1)).unwrap();
+        let expected = first.identity().unwrap();
+        let ready_request = envelope("bootstrap-ready", json!({"op":"ready"}));
+        let expected_ready = first.handle(ready_request.clone()).unwrap();
+        drop(first);
+        let full_before = state::full_audit_calls_for_test();
+        // #1481：第八门现在支付完整冷认证工作区；保留 1 B 拒绝负控，不放宽生产帽。
+        assert!(open(&f, 1, s_allocation::Mode::CapturedNative)
+            .err()
+            .unwrap()
+            .contains("S3WriterResourcesInvalid：cold父预算不足"));
+        assert_eq!(state::full_audit_calls_for_test(), full_before);
+        let (result, events, _) = state::traced(false, || {
+            open(&f, 536_870_912, s_allocation::Mode::CapturedNative)
         });
         let (mut driver, identity) = result.unwrap();
         assert_eq!(identity, expected);
         let phase_count =
             |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
-        assert_eq!(phase_count(&events, "request_history_cold"), 1);
-        // #1527 FixedFD前缀cold并保留纯内容slot；真实startup与identity各命中一次。
-        assert_eq!(phase_count(&events, "request_history_hit"), 2);
+        // #1481 / 43K：一次同核冷认证，startup 与 identity 绑定同快照 H1 候选；不跑旧审计。
+        assert_eq!(state::full_audit_calls_for_test(), full_before);
+        assert_eq!(phase_count(&events, "h1_certified_cut"), 1);
+        assert_eq!(phase_count(&events, "h1_qualified_cut"), 1);
+        assert_eq!(phase_count(&events, "request_history_cold"), 0);
+        assert_eq!(phase_count(&events, "request_history_hit"), 0);
+        // startup、resume_pending 的 pending_originals、bootstrap identity 各绑定一次。
+        assert_eq!(phase_count(&events, "owner_complete_hit"), 3);
         assert_eq!(phase_count(&events, "request_history_context_released"), 1);
         assert_eq!(
             events.last().unwrap()["phase"],
             "request_history_context_released",
             "返回Driver前已释放bootstrap原件"
         );
-        let (ready, events, _) = state::traced(false, || {
-            driver.handle(envelope("bootstrap-ready", json!({"op":"ready"})))
-        });
-        assert_eq!(ready.unwrap()["kind"], "Ready");
-        assert_eq!(phase_count(&events, "request_history_cold"), 1);
+        let (ready, events, _) = state::traced(false, || driver.handle(ready_request));
+        let ready = ready.unwrap();
+        assert_eq!(ready["kind"], "Ready");
+        assert_eq!(ready, expected_ready);
+        assert_eq!(state::full_audit_calls_for_test(), full_before);
+        assert_eq!(phase_count(&events, "request_history_cold"), 0);
         assert_eq!(phase_count(&events, "request_history_hit"), 0);
+        assert_eq!(phase_count(&events, "owner_complete_hit"), 1);
+        assert_eq!(phase_count(&events, "h1_certified_cut"), 0);
+        assert_eq!(phase_count(&events, "h1_qualified_cut"), 0);
         assert_eq!(phase_count(&events, "request_history_context_released"), 1);
         assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
         drop(driver);
@@ -4812,7 +5195,8 @@ mod tests {
                 1,
                 s_allocation::Mode::Ordinary,
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),
-            )?;
+            )
+            .map(Box::new)?;
             let identity = driver.identity()?;
             Ok::<_, String>((driver, identity))
         });
@@ -4827,19 +5211,7 @@ mod tests {
             overlay_slots: 0,
             overlay_bytes: 0,
         });
-        let error = Driver::open_for_serve_with_identity(
-            &f.db,
-            &f.profile,
-            "1",
-            f.clock.clone(),
-            1,
-            1,
-            owned.clone(),
-            false,
-            crate::v3::admission_anchor::test_prepare(&f.db).into(),
-        )
-        .err()
-        .unwrap();
+        let error = open(&f, 1, owned.clone()).err().unwrap();
         assert!(error.contains("只接受CapturedNative"));
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
@@ -4859,7 +5231,7 @@ mod tests {
                 .iter()
                 .any(|e| e["phase"].as_str().unwrap().starts_with("request_history_")));
         }
-        println!("Native idle bootstrap cold=1 hit=2 released_before_return=1; Ready cold=1 hit=0 released=1; retained_source=0");
+        println!("Native idle bootstrap H1_certified=1 qualified=1 owner_hit=2 released_before_return=1; Ready owner_hit=1 full_audit=0 released=1; retained_source=0");
     }
 
     #[cfg(feature = "s_incremental")]
@@ -4880,6 +5252,7 @@ mod tests {
             .contains("stop_after_accept"));
         drop(first);
         let mut context = request_audit::RequestAuditContext::default();
+        let full_before = state::full_audit_calls_for_test();
         let mut driver = Driver::open_with_request_and_mode_context(
             &f.db,
             &f.profile,
@@ -4893,9 +5266,12 @@ mod tests {
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
-        // #1527 前缀cold保留slot，真实startup命中；恢复pending前仍须丢弃。
-        assert_eq!((context.cold, context.hits), (1, 1));
-        assert!(!context.has_slot(), "startup原件不能跨着恢复请求保留");
+        // #1481：前缀仅核 schema；本对照臂的 startup 首次冷审，Begin/Prepare 各重新绑定一次。
+        assert_eq!((context.cold, context.hits), (1, 2));
+        assert_eq!(state::full_audit_calls_for_test(), full_before + 4);
+        let slot = context.take().expect("对照臂仍持有发布前原件");
+        assert_eq!(slot.result.cuts.last().unwrap().metadata.generation, 1);
+        context.restore_slot(slot);
         assert_eq!(count(&driver.conn, "s_content_publications"), 2);
         assert_eq!(count(&driver.conn, "s_clock_events"), 6);
         assert_eq!(meta_i64(&driver.conn, "generation").unwrap(), 2);
@@ -4914,12 +5290,24 @@ mod tests {
                 .as_deref(),
             Some(batch.as_str())
         );
+        let expected_identity = baseline.identity().unwrap();
+        let full_before = state::full_audit_calls_for_test();
         assert_eq!(
             driver.identity_in_bootstrap(&mut context).unwrap(),
-            baseline.identity().unwrap()
+            expected_identity
         );
-        assert_eq!((context.cold, context.hits), (2, 1));
-        assert!(context.has_slot());
+        assert_eq!(state::full_audit_calls_for_test(), full_before + 2);
+        assert_eq!((context.cold, context.hits), (2, 2));
+        let slot = context.take().expect("identity 必须重建当前发布前沿的原件");
+        assert_eq!(slot.result.cuts.last().unwrap().metadata.generation, 2);
+        context.restore_slot(slot);
+        // 旧 slot 未冒充新前沿证明；只有本次冷审后的新 slot 能在下一事务命中。
+        assert_eq!(
+            driver.identity_in_bootstrap(&mut context).unwrap(),
+            expected_identity
+        );
+        assert_eq!(state::full_audit_calls_for_test(), full_before + 3);
+        assert_eq!((context.cold, context.hits), (2, 3));
         drop(context);
         assert_eq!(driver.handle(Fixture::ingest(2)).unwrap(), expected);
         assert_eq!(
@@ -4930,7 +5318,7 @@ mod tests {
                 .handle(envelope("after-resume-ready", json!({"op":"ready"})))
                 .unwrap()
         );
-        println!("Native pending bootstrap cold=2 hit=1 startup_slot_dropped_before_advance=1; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
+        println!("Native pending bootstrap startup_cold=1 Begin_Prepare_hit=2 identity_cold=1 current_identity_hit=1; old_slot_generation=1 current_slot_generation=2; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
     }
 
     #[cfg(feature = "s_incremental")]
@@ -4950,17 +5338,19 @@ mod tests {
             let mut initial=f.open("1").unwrap();
             initial.handle(Fixture::ingest(1)).unwrap();drop(initial);
             let mut context=request_audit::RequestAuditContext::default();
+            let full_before=state::full_audit_calls_for_test();
             let driver=Driver::open_with_request_and_mode_context(&f.db,&f.profile,"1",f.clock.clone(),None,
                 s_allocation::Mode::CapturedNative,Some(&mut context),
                 newchan_rust::theta_v0::config::ThetaConfig::default(),false,
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),).unwrap();
             assert!(context.has_slot());
-            // #1527 前缀cold保留slot，真实startup命中；损坏后的identity不得再命中旧证明。
-            assert_eq!((context.cold,context.hits),(1,1));
+            // #1481：schema-only 前缀不预热旧 slot；startup 是唯一一次旧审计，identity 必须核当前原件。
+            assert_eq!((context.cold,context.hits),(1,0));
+            assert_eq!(state::full_audit_calls_for_test(),full_before+2);
             driver.conn.execute_batch(sql).unwrap();
             let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
             assert!(driver.identity_in_bootstrap(&mut context).is_err(),"{sql}");
-            assert!(!context.has_slot(),"{sql}");assert_eq!(context.hits,1,"{sql}");
+            assert!(!context.has_slot(),"{sql}");assert_eq!((context.cold,context.hits),(1,0),"{sql}");
             assert_eq!((count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications")),before);
         }
         // 实际SQL step中断也不能cold重试吞错。
@@ -4979,6 +5369,8 @@ mod tests {
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
+        assert_eq!((context.cold, context.hits), (1, 0));
+        let full_before = state::full_audit_calls_for_test();
         let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         driver
             .conn
@@ -4988,14 +5380,16 @@ mod tests {
             )
             .unwrap();
         assert!(driver.identity_in_bootstrap(&mut context).is_err());
+        assert_eq!(state::full_audit_calls_for_test(), full_before);
         driver
             .conn
             .progress_handler(0, None::<fn() -> bool>)
             .unwrap();
         assert!(!context.has_slot());
-        assert_eq!((context.cold, context.hits), (1, 1));
+        assert_eq!((context.cold, context.hits), (1, 0));
         driver.identity_in_bootstrap(&mut context).unwrap();
-        assert_eq!((context.cold, context.hits), (2, 1));
+        assert_eq!((context.cold, context.hits), (2, 0));
+        assert_eq!(state::full_audit_calls_for_test(), full_before + 2);
     }
 
     #[cfg(feature = "s_incremental")]
@@ -6559,7 +6953,7 @@ mod tests {
             &std::fs::read(format!("{}.control-owner.json", f.db.display())).unwrap(),
         )
         .unwrap();
-        [
+        let args = [
             "s_structure_session".into(),
             command.into(),
             "--protocol-revision".into(),
@@ -6573,7 +6967,39 @@ mod tests {
             "--admission-job-limits".into(),
             owner["admission"]["path"].as_str().unwrap().to_owned(),
         ]
-        .to_vec()
+        .to_vec();
+        #[cfg(feature = "s_incremental")]
+        let args = {
+            let mut args = args;
+            if matches!(command, "advance" | "recover") {
+                let path = f.path.join("one-shot-s-resources.json");
+                let limits: serde_json::Map<String, Value> = super::super::writer_cli::GATE_FIELDS
+                    .into_iter()
+                    .map(|key| {
+                        let value = if key == "incremental_retention_bytes" {
+                            "536870912"
+                        } else {
+                            "1"
+                        };
+                        (key.into(), json!(value))
+                    })
+                    .collect();
+                std::fs::write(
+                    &path,
+                    canonical_json(&json!({
+                        "schema_revision": super::super::writer_cli::RESOURCES_REVISION,
+                        "s_resources": limits,
+                    })),
+                )
+                .unwrap();
+                args.extend([
+                    "--resource-config".into(),
+                    path.to_string_lossy().into_owned(),
+                ]);
+            }
+            args
+        };
+        args
     }
 
     fn one_shot(f: &Fixture, request: &Value, epoch: &str) -> Result<Option<Value>, String> {
@@ -8496,8 +8922,9 @@ mod tests {
 
     /// 36M 完整台账双路径锁（#1647 cover39k）：同一真实 owner 序列（三根 + `b` 同坐标修订）分别
     /// 经 warm Driver 增量臂（steady delta，D2 出生轨迹为空）与独立完整审计模式臂（每代新开
-    /// owner、无来源缓存，full_lease 完整原件导出）生产；两臂 cover/raw 行逐行相同，修订赢家
-    /// seq 推进而旧 seq 保留。增量臂末步投一次改坐标修订：`raw_input` 以 IdentityConflict 拒收
+    /// owner、现场建完整候选，不交 raw 令牌给 Runtime，full_lease 完整原件导出）生产；
+    /// 两臂 cover/raw 行逐行相同，修订赢家 seq 推进而旧 seq 保留。增量臂末步投一次改坐标修订：
+    /// `raw_input` 以 IdentityConflict 拒收
     /// （同一业务身份不得换源位置），代号、raw、台账水位与 cover 均不动——生效坐标集随前缀
     /// 单调不减，full-lease 导出无需表达 Removed。
     #[cfg(feature = "s_incremental")]
@@ -8625,8 +9052,8 @@ mod tests {
             before
         };
 
-        // 完整原件臂：每代新开 owner、默认请求上下文（无来源缓存）＝独立完整审计模式，
-        // 与 prepared 完整台账锁同一生产入口；每代恰一次完整分支、车道 full_lease。
+        // 完整原件臂：每代新开 owner 并现场建完整候选；只在独立组件入口保留 full_lease，
+        // 不交 raw 令牌给 Runtime，每代仍恰一次完整分支，不代表正式 H1 生涯。
         let full_rows = {
             let mut f = prepared::tests::Fixture::new();
             let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
@@ -8649,13 +9076,17 @@ mod tests {
                     (id.as_str(), *seq, *open, *high, *low, *close),
                     step.revision.parse().unwrap(),
                 );
+                // #1481 S1U：新 owner 建新父账，旧 event_nodes/sequence 许可不得跨父复用；
+                // 清生成运行态而保留已提交旁账，每代仍独立走一次 full_lease。
+                runtime.discard();
                 let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let mut context = owner.p6_source_context_for_test();
                 let (published, events, _) = state::traced(false, || {
-                    owner.publish(
+                    owner.p6_publish_full_lease_for_test(
                         &mut runtime,
                         &token,
                         &envelope,
-                        &mut request_audit::RequestAuditContext::default(),
+                        &mut context,
                     )
                 });
                 let (_, ended) = published.unwrap();

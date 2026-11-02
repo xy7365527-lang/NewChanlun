@@ -60,6 +60,9 @@ struct Inner {
     lease: Arc<BudgetLease>,
     source: MeasuredDomain,
     accounting: RefCell<Option<FinishedAdmission>>,
+    // #1481：旁挂台账与主库/WAL共用原准入的每库存储帽。
+    #[cfg(feature = "s_incremental")]
+    max_store_bytes: u64,
     // #1527 M-02：原 Job 的未结预留错误不设 stopped；scope 必须保留首次收尾失败。
     startup_failure: RefCell<Option<String>>,
     // 资格必须与文件锁同寿命，控制 lease 的 Arc 不能单独授权开库。
@@ -168,6 +171,112 @@ impl WriterAdmission {
         }
     }
 }
+/// #1481：所有冷 SQLite 读取必须处于原只读 FD/VFS 阶段，不能用普通连接借账冒充实读计量。
+#[cfg(feature = "s_incremental")]
+impl WriterScope {
+    pub(super) fn require_cold_ledger_cache(&self) -> Result<(), String> {
+        self.require_admitted()?;
+        self.inner.source.verify_cold_ledger_cache()
+    }
+    pub(super) fn release_cold_ledger_cache(&self) -> Result<(), String> {
+        self.require_admitted()?;
+        self.inner.source.release_cold_ledger_cache()
+    }
+    pub(super) fn capture_cold_conversion(&self) -> Result<provider::ColdConvertedContent, String> {
+        self.require_admitted()?;
+        self.inner.source.capture_cold_conversion()
+    }
+    pub(super) fn require_cold_content(&self) -> Result<(), String> {
+        self.require_admitted()?;
+        self.inner.source.verify_cold_content()
+    }
+    pub(super) fn certify_cold<T>(
+        &self,
+        operation: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &dyn super::audit_budget::Budget,
+        ) -> Result<T, String>,
+    ) -> Result<T, String> {
+        self.require_cold_content()?;
+        let mut state = self
+            .inner
+            .accounting
+            .try_borrow_mut()
+            .map_err(|_| "admission_reentrant")?;
+        let finished = state.as_mut().ok_or("StartupAccountingFinished")?;
+        let mut account = finished.accounting();
+        let result =
+            super::admission_private::certify_cold(&self.inner.source, &mut account, operation)
+                .map_err(|e| format!("{e}；原准入账={:?}", account.snapshot()));
+        drop(account);
+        drop(state);
+        if let Err(error) = &result {
+            *self.inner.startup_failure.borrow_mut() = Some(error.clone());
+        }
+        result.and_then(|value| {
+            self.require_cold_content()?;
+            Ok(value)
+        })
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl WriterScope {
+    fn with_cold_account<T>(
+        &self,
+        operation: impl FnOnce(
+            &mut super::admission_anchor::AdmissionAccounting<'_>,
+        ) -> Result<T, newchan_rust::s_content::CodecError>,
+    ) -> Result<T, newchan_rust::s_content::CodecError> {
+        let mut state = self.inner.accounting.try_borrow_mut().map_err(|_| {
+            newchan_rust::s_content::CodecError::new("admission_reentrant", "冷认证原账重入")
+        })?;
+        let finished = state.as_mut().ok_or_else(|| {
+            newchan_rust::s_content::CodecError::new(
+                "admission_finished",
+                "冷认证不能借已结束启动账",
+            )
+        })?;
+        let result = operation(&mut finished.accounting());
+        if let Err(error) = &result {
+            *self.inner.startup_failure.borrow_mut() = Some(error.to_string());
+        }
+        result
+    }
+}
+#[cfg(feature = "s_incremental")]
+impl super::audit_budget::Budget for WriterScope {
+    fn precheck(&self) -> Result<(), newchan_rust::s_content::CodecError> {
+        self.with_cold_account(|a| a.pre_io_check())
+    }
+    fn prepare_node(&self) -> Result<(), newchan_rust::s_content::CodecError> {
+        self.precheck()?;
+        self.with_cold_account(|a| a.begin_first_read())
+    }
+    fn accept_prepared_frame(
+        &self,
+        frame: &newchan_rust::s_content::job::CheckedFrame,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
+        self.with_cold_account(|a| a.accept_checked_usage(frame.usage()).map(|_| ()))
+    }
+    fn node(
+        &self,
+        digest: &newchan_rust::s_content::NodeDigest,
+        tag: u8,
+        body: &[u8],
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
+        self.prepare_node()?;
+        let usage = newchan_rust::s_content::job::CheckedNodeUsage::checked(digest, tag, body)?;
+        self.with_cold_account(|a| a.accept_checked_usage(&usage).map(|_| ()))
+    }
+    fn record(&self) -> Result<(), newchan_rust::s_content::CodecError> {
+        self.with_cold_account(|a| a.charge_records(1))
+    }
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        Some(&self.inner.delta)
+    }
+}
+
 impl WriterScope {
     pub(crate) fn admit_legacy_serve(
         db: &Path,
@@ -194,6 +303,16 @@ impl WriterScope {
             super::admission_private::RejectionPrefix::None,
         )
     }
+    pub(crate) fn admit_legacy_write(
+        db: &Path,
+        prepared: PreparedAdmission,
+    ) -> Result<Self, String> {
+        Self::admit_prefix(
+            db,
+            prepared,
+            super::admission_private::RejectionPrefix::LegacyWrite,
+        )
+    }
     fn admit_prefix(
         db: &Path,
         prepared: PreparedAdmission,
@@ -214,6 +333,8 @@ impl WriterScope {
         consumed.check(Stage::E5).map_err(|e| e.to_string())?;
         let maintenance = maintenance_result.map_err(|e| consumed.failure(&e))?;
         let source = MeasuredDomain::measure(&consumed)?;
+        #[cfg(feature = "s_incremental")]
+        let max_store_bytes = consumed.limits().max_store_bytes;
         let mut started = consumed.into_job(source.existing).map_err(|e| {
             if mixed_resources {
                 record_mixed_failure(super::admission_anchor::terminal::FixedFailure::formatted(
@@ -291,6 +412,8 @@ impl WriterScope {
                 lease: Arc::clone(finished.lease()),
                 source,
                 accounting: RefCell::new(Some(finished)),
+                #[cfg(feature = "s_incremental")]
+                max_store_bytes,
                 startup_failure: RefCell::new(None),
                 writer,
                 maintenance,
@@ -300,6 +423,21 @@ impl WriterScope {
     }
     pub(crate) fn db_path(&self) -> &Path {
         self.inner.lease.db_path()
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn max_store_bytes(&self) -> u64 {
+        self.inner.max_store_bytes
+    }
+    /// #1481：冷认证使用同一本启动账的原期限，不重置首读 t0。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn first_read_deadline(&self) -> Result<std::time::Instant, String> {
+        let mut state = self.inner.accounting.borrow_mut();
+        let account = state.as_mut().ok_or("StartupAccountingFinished")?;
+        let deadline = account
+            .accounting()
+            .first_read_deadline()
+            .map_err(|error| error.to_string());
+        deadline
     }
     pub(crate) fn require_admitted(&self) -> Result<(), String> {
         self.inner.require(self.db_path())

@@ -426,13 +426,13 @@ pub(crate) fn effective<'a>(
 
 /// raw 的事务内 facade；所有前缀状态只持有稳定 seq ordinal 和完整身份文本。
 /// 原件资格由上层 owner 负责；取走 facts 不会保留 RawEventsView 或事务借用。
-pub(super) struct RawPrefixIndex<'raw> {
+pub(crate) struct RawPrefixIndex<'raw> {
     raw: RawEventsView<'raw>,
     facts: RawPrefixFacts,
     #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
 }
-pub(super) struct RawPrefixFacts {
+pub(crate) struct RawPrefixFacts {
     prefix: usize,
     winners: BusinessMap<NativeValue<String>, (i64, usize, i64)>,
     ordered: NativeTree<i64, usize>,
@@ -479,7 +479,7 @@ pub(crate) struct RawWinnerEdit {
     pub old: Option<RawWinner>,
     pub new: Option<RawWinner>,
 }
-pub(super) struct RawPrefixChanges {
+pub(crate) struct RawPrefixChanges {
     pub removed: sc::CodecVec<i64>,
     pub added: sc::CodecVec<(i64, usize)>,
     /// 按 identity 排序，每个 identity 只含最终赢家；消费时先撤全部 old 再加全部 new。
@@ -517,7 +517,7 @@ impl<'raw> RawPrefixFixture<'raw> {
 }
 
 impl<'raw> RawPrefixIndex<'raw> {
-    pub(super) fn new(raw: RawEventsView<'raw>) -> Self {
+    pub(crate) fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
             facts: RawPrefixFacts::default(),
@@ -586,7 +586,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
     }
-    pub(super) fn ordered(&self) -> impl Iterator<Item = (i64, usize)> + '_ {
+    pub(crate) fn ordered(&self) -> impl Iterator<Item = (i64, usize)> + '_ {
         self.ordered.iter().map(|(c, i)| (*c, *i))
     }
     #[cfg(test)]
@@ -621,7 +621,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     ) -> Result<RawPrefixChanges, String> {
         self.advance_measured(prefix, admission, None, None)
     }
-    pub(super) fn advance_measured(
+    pub(crate) fn advance_measured(
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
