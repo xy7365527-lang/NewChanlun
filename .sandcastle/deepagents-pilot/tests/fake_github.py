@@ -344,7 +344,7 @@ class FakeGitHub:
 
     def _create_status(self, request, body, sha):
         status = {"id": self._id(), "state": body["state"], "context": body["context"],
-                  "description": body["description"], "creator": {"login": self.bot}}
+                  "description": body["description"], "creator": {"login": self.bot, "type": "Bot"}}
         self.statuses.setdefault(sha, []).insert(0, status)
         return httpx.Response(201, json=status)
 

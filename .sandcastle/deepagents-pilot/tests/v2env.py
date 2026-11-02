@@ -71,6 +71,7 @@ class V2Env(Env):
 
     def executor(self, unit: WorkUnit, **kw) -> TicketExecutor:
         kw.setdefault("approvals", self.approvals)
+        kw.setdefault("status_locks", self.tmp / "status-locks")
         return TicketExecutor(unit, self.gateway(), claims=ClaimStore(self.claims_root, lock_timeout=10),
                               workers_log=self.workers_log, **kw)
 

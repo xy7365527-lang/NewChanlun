@@ -62,6 +62,7 @@ from .domain import (
     parse_key_name,
     parse_sha,
 )
+from .external_review import STATUS_LOCKS, head_status, latest_status
 from .github_app import WRITE_PERMISSIONS, AppIdentity, GitHubAppClient, IdentityError
 from .run import (
     Busy,
@@ -185,7 +186,7 @@ class TicketExecutor:
 
     def __init__(self, unit: WorkUnit, gateway: RepoGateway, *, claims: ClaimStore, workers_log: Path = WORKERS_LOG,
                  approvals: SignedApprovals | None = None, crash: Callable[[str], None] = _no_crash,
-                 cutover: CutoverStore | None = None):
+                 cutover: CutoverStore | None = None, status_locks: Path = STATUS_LOCKS):
         self.unit = unit
         self.gateway = gateway
         self.claims = claims
@@ -193,6 +194,7 @@ class TicketExecutor:
         self.approvals = approvals or SignedApprovals()
         self.crash = crash
         self.cutover = cutover or CutoverStore()
+        self.status_locks = status_locks
 
     def _marker(self, kind: str, run_id: str, generation: int, head: str) -> str:
         return marker(kind, ticket=self.unit.ticket, run_id=run_id, generation=generation, head=head)
@@ -527,12 +529,32 @@ class TicketExecutor:
         finally:
             os.close(fd)
 
-    def _status_probe(self, head: Sha) -> dict[str, Any] | None:
-        for status in self.gateway.statuses(head):
-            if (status.get("context") == STATUS_CONTEXT and status.get("state") == "success"
-                    and (status.get("creator") or {}).get("login") == self.gateway.bot):
-                return {"id": status.get("id"), "context": STATUS_CONTEXT, "sha": head}
+    def _own_success(self, latest: dict[str, Any] | None, head: Sha, description: str) -> dict[str, Any] | None:
+        if (latest is not None and latest.get("state") == "success" and latest.get("description") == description[:140]
+                and (latest.get("creator") or {}).get("login") == self.gateway.bot):
+            return {"id": latest.get("id"), "context": STATUS_CONTEXT, "sha": head}
         return None
+
+    def _publish_status(self, journal: Journal, head: Sha, description: str) -> None:
+        effect = f"status-{head}"
+        with head_status(self.status_locks, self.gateway.client.identity.repository_id, head) as ownership:
+            owner = ownership.owner()
+            latest = latest_status(self.gateway, head)
+            if latest is not None and latest.get("state") != "success":
+                raise Stale(f"status_latest:{latest.get('state')}")
+            if owner is not None and owner["run_id"] != self.unit.run_id:
+                if latest is not None and journal.done(effect):
+                    return
+                raise Stale(f"status_owner:{owner['run_id']}")
+            if latest is not None and self._own_success(latest, head, description) is None:
+                raise Stale("status_latest:foreign_success")
+            if owner is None:
+                ownership.take(self.unit.run_id, {"ticket": self.unit.ticket, "head_sha": head,
+                                                  "registered_at_ns": time.time_ns()})
+            journal.converge(
+                effect, lambda: self._own_success(latest_status(self.gateway, head), head, description),
+                lambda: self.gateway.create_status(head, STATUS_CONTEXT, description),
+                idempotent=False, what={"kind": "status", "sha": head, "context": STATUS_CONTEXT}, crash=self.crash)
 
     def publish(self, run: PilotRun) -> dict[str, Any]:
         """SPEC 6：只发布同 head 异家族 PASS 的冻结 SHA。远端任何其他 head（含后代）都 stale；
@@ -575,11 +597,8 @@ class TicketExecutor:
                 with self.action("status", run.dir, generation, pr_number=number, head=head) as boundary:
                     observed = self._checked(boundary, head, number)
                     if observed == "open":
-                        journal.converge(
-                            f"status-{head}", lambda: self._status_probe(head),
-                            lambda: self.gateway.create_status(head, STATUS_CONTEXT, f"异家族独审 PASS：作者 {spec.author_model}，独审 {spec.reviewer_model}"),
-                            idempotent=False, what={"kind": "status", "sha": head, "context": STATUS_CONTEXT},
-                            crash=self.crash)
+                        self._publish_status(journal, head,
+                                             f"异家族独审 PASS：作者 {spec.author_model}，独审 {spec.reviewer_model}")
             if observed == "open":
                 text = self._marker("deliver", spec.run_id, generation, head)
                 body = (f"[deepagents run={spec.run_id} gen={generation}]\n\n交付冻结 head `{head}` 到 "

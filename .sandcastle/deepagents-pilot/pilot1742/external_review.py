@@ -13,6 +13,7 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -28,6 +29,7 @@ POLICY = "external-pr-v1"
 CONTEXT = "deepagents/review"
 TOKEN_PERMISSIONS = {"metadata": "read", "contents": "read", "pull_requests": "read", "statuses": "write"}
 STATE_ROOT = DEFAULT_HOME / "external-review"
+STATUS_LOCKS = STATE_ROOT / "status-locks"
 CHECKOUT_ROOT = DEFAULT_HOME / "checkouts" / "external-review"
 SPACE_RESERVE = 256 * 1024 * 1024
 
@@ -112,6 +114,29 @@ def _lock(folder: Path):
         yield
     finally:
         os.close(fd)
+
+
+@dataclass(frozen=True)
+class HeadOwnership:
+    path: Path
+
+    def owner(self) -> dict | None:
+        return _read(self.path) if self.path.exists() else None
+
+    def take(self, run_id: str, target: dict) -> None:
+        _save(self.path, {"run_id": run_id, "target": target})
+
+
+@contextmanager
+def head_status(locks: Path, repository_id: int, head_sha: str) -> Iterator[HeadOwnership]:
+    folder = locks / f"r{repository_id}-{head_sha}"
+    with _lock(folder):
+        yield HeadOwnership(folder / "publisher.json")
+
+
+def latest_status(gateway: RepoGateway, sha: str) -> dict | None:
+    """GitHub 返回最新在前。"""
+    return next((s for s in gateway.statuses(sha) if s.get("context") == CONTEXT), None)
 
 
 def git_environment() -> dict[str, str]:
@@ -310,27 +335,24 @@ class StatusPublisher:
         target = self.target
         description = f"run={target.run_id} b={target.base_sha[:12]} h={target.head_sha[:12]} {state}"
         def probe() -> dict | None:
-            statuses = self.gateway.statuses(target.head_sha)
-            # GitHub 返回最新在前。先看 context 的最新状态，旧 PASS 不可覆盖新失败。
-            latest = next((s for s in statuses if s.get("context") == CONTEXT), None)
+            latest = latest_status(self.gateway, target.head_sha)
             if (latest and latest.get("state") == state and latest.get("description") == description
                     and (latest.get("creator") or {}).get("login") == self.gateway.bot
                     and (latest.get("creator") or {}).get("type") == "Bot"
                     and latest.get("sha", target.head_sha) == target.head_sha):
                 return {"id": latest["id"], "sha": target.head_sha, "state": state, "description": description}
             return None
-        with _lock(self.locks / f"r{target.repository_id}-{target.head_sha}"):
+        with head_status(self.locks, target.repository_id, target.head_sha) as ownership:
             self.check_current()
             journal = Journal(self.folder / "effects")
             effect = f"status-{state}"
-            ownership = self.locks / f"r{target.repository_id}-{target.head_sha}" / "publisher.json"
-            owner = _read(ownership) if ownership.exists() else None
+            owner = ownership.owner()
             if owner and owner["run_id"] != target.run_id:
                 if (state != "pending" or journal.load(effect) is not None
                         or owner["target"]["registered_at_ns"] >= target.registered_at_ns):
                     raise Stale("同一 head 已由更新的独审 run 接管，旧 run 不能覆盖其状态")
             if state == "pending" and (not owner or owner["run_id"] != target.run_id):
-                _save(ownership, {"run_id": target.run_id, "target": asdict(target)})
+                ownership.take(target.run_id, asdict(target))
             if journal.done(effect):
                 found = probe()
                 if found is None:

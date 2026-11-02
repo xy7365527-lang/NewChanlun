@@ -2459,7 +2459,7 @@ for (const scenario of ["block", "exhausted", "pass"] as const) {
       cli.calls.length = 0;
       const second = await processTicket(1531, d);
       console.log("A22 恢复证据", JSON.stringify({ scenario, moment, phase: second.phase, attempts: second.attempts, calls: cli.calls.map(c => c.role), verdicts: second.rounds?.map(r => r.verdict) }));
-      assert.equal(second.phase, scenario === "exhausted" ? "shadow_p" : "land_t", second.error);
+      assert.equal(second.phase, scenario === "exhausted" ? "shadow_p" : "land_t", second.error ?? "");
       assert.deepEqual(cli.calls.map(c => c.role), scenario === "block" ? ["draft", "review"] : []);
       assert.equal(second.attempts, scenario === "pass" ? 1 : 2);
       assert.deepEqual(second.rounds!.map(r => r.verdict), scenario === "exhausted" ? ["BLOCK", "BLOCK"] : scenario === "block" ? ["BLOCK", "PASS"] : ["PASS"]);
@@ -2493,7 +2493,7 @@ test("A22：轮次检查点提交失败不能发布已完成独审别名", async
   assert.equal(existsSync(join(dir, "review.attempt1.json")), false);
   cli.calls.length = 0;
   const second = await processTicket(1531, d);
-  assert.equal(second.phase, "land_t", second.error);
+  assert.equal(second.phase, "land_t", second.error ?? "");
   assert.deepEqual(cli.calls.map(c => c.role), ["review"]);
   assert.equal(second.attempts, 1);
 });
