@@ -43,6 +43,9 @@ pub mod json_writer;
 pub mod raw_materials;
 mod ref_owner;
 pub mod sqlite_audit;
+// #1419 M8A：先在当前累计 capture 上对拍接口；生产调用与原件持有保持原样。
+#[cfg(all(test, feature = "s_incremental"))]
+mod step_reader;
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkBudget, WorkMap, WorkSet, WorkVec};
 use closed::CodecContext;

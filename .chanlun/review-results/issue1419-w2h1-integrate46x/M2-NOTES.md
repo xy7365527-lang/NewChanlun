@@ -2053,3 +2053,44 @@ M7D §7 已据此收敛 §4 的首拒归因，并给出 i 的 `2Q=3693600 B + D_
 - `git diff --check` 退出0；差异清单仅 M7D-DESIGN.md 与本笔记，全部为追加，暂存区为空。不改Rust/ci.yml，不git add/commit，不回退其他改动。
 
 本阶段 status=ready 只指 M7E 文档交付，不表示原两锁已通过或有界原件方案已实施。
+
+
+## M8A
+
+本节绑定 #1419 受管阶段 M8A，只交方案 ii 的片 1。开工分支 `sandcastle/issue-1419`，HEAD `d29d9c7172ca0fad5c4350ff8fd58a204eb27775`，工作区干净。已全文读取 [M7D-DESIGN.md](M7D-DESIGN.md)、本笔记 M7C/M7D/M7E 与非作者设计独审 `/Volumes/AgentStorage/m7d-design-review48x/REPORT.md`。授权来自本轮同票实施指令，不另开票、不改已批合同。
+
+交付指针：[M8A-SLICE1.md](M8A-SLICE1.md) 的 §2 是持正文/借用者及其他 owner 全史状态的分账清单，§3 是逐读取/比较调用族的 k/h/工作窗与实际字节式，§4 登记未证明项，§5 对齐私有接口。原实现引用按开工基线取证，新模块行号按工作区。新文件均为本票工作草稿/测试实现，不是教义或架构新正本。
+
+私有接口在 `rust/src/s_content/step_reader.rs`，仅由 `s_content.rs` 的 `#[cfg(all(test, feature = "s_incremental"))] mod step_reader` 引入。`CaptureStep` 封闭同一不可变 capture 与活动 WorkScope；构造只读核实际正文/索引许可的同父身份，不要求旧载荷 origin 等于新请求 origin。完整 RefView/Mode 经既有 `verify_owner_refview` 核，再由 `CodecContext::OwnerCapture::read` 借出根正文；根 Flavor 为 Value，内部 JsonInner 沿原核派生。失败原样传播并撤销 owner 成功能力，不换源重试。ReadLease 借用不能越过本步，drop 只结束借用，累计 capture 的正文/许可仍在。本片构造器的全表检查及整 capture 借用均不是未来有界 adapter，真实 SQL 事务、读前许可与生涯夹持适配留后片。
+
+生产零行为变化依据是唯一生产源码差异只有上述测试模块声明，`test=false` 时整份新模块不可达；既有读取/核验核和全部生产调用点逐字保留。未启用淘汰/回收；NativeNode、finish、j.cap/usize::MAX 两入口、J/R、角色收费、effects、证书/资格、deadline、W2 串、ordinary full_some 冻结轨迹与 ci.yml 均未改。新锁验证测试接缝的 F/reads/peak/事件相等，不把尚未执行的 Rust 锁或静态差异检查写成生产运行实测。禁串清单只由既有生成器同步新增测试字面，不手改生成器。
+
+新锁共 7 条，完整前缀为 `s_content::step_reader::tests::`：
+
+- `m8a_step_reader_body_context_and_permit_events_match_capture`
+- `m8a_step_reader_full_reference_mode_and_json_flavor_keep_first_errors`
+- `m8a_step_reader_missing_corrupt_and_partial_success_revoke_without_retry`
+- `m8a_step_reader_budget_and_origin_failures_preserve_typed_source_and_release`
+- `m8a_step_reader_managed_backing_same_parent_new_origin_and_role_charge`
+- `m8a_step_reader_foreign_parent_rejects_and_keeps_original_permits`
+- `m8a_step_reader_duplicate_actual_original_compare_revokes_owner_success`
+
+两条独立臂分别直接执行现有验证后读根正文、经新接口执行同序列，比较 tag/body、完整引用/上下文、CodecError 类别/文本、F/reads/peak、reserve/release/close 的字节/种类/origin 有序事件及 FailureTrace 分类。CodecError::PartialEq 不比较 FailureOrigin；资源错误另核真实 trace 桥与原错误传播，两个独立 trace 的原始 capture ID 不宣称相等。真实 backing、SourceClaim、旧/新 origin 释放、foreign 父拒绝和同 digest 实际异原件插入撤销另有靶向锁，不以摘要列表代正文比较。
+
+运行步骤自然落在 `.github/workflows/ci.yml:455-460` 的 native 组“cargo test — s_capture_native_testonly 特性新增的测试（#1394）”：`test-feature-delta.sh s_capture_native_testonly` 对 lib 与 bin 分别取测试清单差集并逐名 `--exact` 执行。`rust/Cargo.toml:87` 的该特性包含 s_incremental，而 base s_session 不含它，故这 7 条库测试进入 lib 新增集合。owned 的 h1_ 步和 s_session bin shard 不覆盖这些库锁，不能把它们记为执行步骤；不改 CI。差集的实际编译、枚举及执行结果待 CI。
+
+未证明项没有在本片签为有界：Verifier/memo 与跨步成功表、Counts 三闭包及 ledger、字段/标量/身份缓存、三组/发展批成员与坐标集合、changed object/多路 edits/输出材料、SQL 临时行和页缓存的读前归属、真实调用嵌套后的容量峰，以及冷折叠不重攒全史正文的生命周期。局部导航 k/h 证明不消除这些工作窗；按活 backing 实际 capacity 和聚合 Layout 计字节，4096 槽只保留为 M7D 敏感性情景。NativeSourceState、AuditedState/raw、Q、ExactRows 等仍按全史状态独立收费，不声称整个 owner 内存与历史无关。
+
+原 M3 四锁、admission 六代、certified/qualified、effects、少 1B/首错来源、ordinary full_some 和原具名完整历史/性能/恢复门全部保留。C/D g23、E/F g26 的原失败未由本片修复，不宣称原完整验收已通过；后续片仍依赖本片非作者独审及 CI 有效收据。
+
+追加前本笔记 249965 字节，SHA-256 `36de75c472e07e4cf6ed1a2039fb1ecb958ded04599b0294153309caa48c9f66`；原 M7C/M7D/M7E 逐字保留。最终本机检查与独审收据在下方追加。**Rust 未验证，待 CI。** 本机不执行 cargo/rustc，不 git add/commit，不回退其他代理改动。
+
+最终实际检查收据：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/s_content.rs rust/src/s_content/step_reader.rs` 退出 0。
+- 禁串生成器自动同步后，`PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check` 退出 0，输出清单与源码一致。清单只新增“应由原同摘要异原件核拒绝”“新步不得恢复被撤销能力”“租约对拍不应破坏父账”三行；首次检查发现新增测试字面未同步，按生成器修正后重检通过。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py` 退出 0，3 项通过；已核该锁只调用 Python 临时 stub，不间接启动 Rust。
+- `git diff --check` 退出 0；两份新文件另做 no-index 空白检查，无诊断。Python 核 M2 原 249965 字节前缀及上述 SHA-256 与 HEAD 一致；去掉 s_content.rs 新增 3 行测试模块声明后，全文与 HEAD 逐字相同。M7D、ci.yml、Cargo.toml、特性差集脚本均未改，7 条锁名全部在本节登记，暂存区为空。
+- 非作者独立进程只读评审最终 PASS，范围限本片静态设计、接口与对拍锁；已核非空 STRING 40 字节加 SEQ_EMPTY 的真实 backing、角色额 `(2,234)`、旧/新 origin 同父释放、首错原样传播与资源桥、借用寿命、未证明项及 CI 自然覆盖。评审本机也实际执行格式、禁串与差异检查，未运行 cargo/rustc。该 PASS 不替代 CI 编译、7 锁执行或原完整验收。
+
+本阶段 status=ready 仅指片 1 交付可供 CI 与下游验收；方案 ii 的 SQL 受管回读、持有者/证书迁移、回收和冷恢复均未启用。**Rust 未验证，待 CI。**
