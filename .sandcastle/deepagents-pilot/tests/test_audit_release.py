@@ -215,7 +215,7 @@ def test_live_or_unobservable_resources_refuse(env, monkeypatch, bad):
         old = audit._command
         source = str(env.checkout.parent if bad == 'container_parent_mount' else env.checkout)
         container = {'id': 'c1', 'name': '/issue-1240' if bad == 'container_name' else '/other',
-                     'running': True, 'mounts': [] if bad == 'container_name' else [{'Source': source}]}
+                     'running': True, 'mounts': [] if bad == 'container_name' else [{'Type': 'bind', 'Source': source}]}
         def command(args):
             env.commands.append(args)
             if args[:2] == ['docker', 'ps']:
@@ -257,7 +257,7 @@ def test_unrelated_container_is_not_a_global_block(env, monkeypatch):
             return 'c1'
         if args[:2] == ['docker', 'inspect']:
             return json.dumps({'id': 'c1', 'name': '/unrelated', 'running': True,
-                               'mounts': [{'Source': '/elsewhere'}]})
+                               'mounts': [{'Type': 'bind', 'Source': '/elsewhere'}]})
         return original(args)
     monkeypatch.setattr(audit, '_command', command)
     assert release(env)['release']['observed']['container_count'] == 1
@@ -538,3 +538,37 @@ def test_actual_managed_runner_classifier_blocks_audit(env, monkeypatch):
     with pytest.raises(CutoverError, match='legacy control process still alive'):
         release(env)
     assert env.log.read_bytes() == original
+
+
+@pytest.mark.parametrize('mount', [{'Type': 'tmpfs'}, {'Type': 'tmpfs', 'Source': ''}])
+def test_audit_accepts_unrelated_tmpfs(env, monkeypatch, mount):
+    original = audit._command
+    def command(args):
+        if args[:2] == ['docker', 'ps']:
+            return 'c1'
+        if args[:2] == ['docker', 'inspect']:
+            return json.dumps({'id': 'c1', 'name': '/unrelated', 'running': True, 'mounts': [mount]})
+        return original(args)
+    monkeypatch.setattr(audit, '_command', command)
+    assert release(env)['release']['observed']['container_count'] == 1
+
+
+@pytest.mark.parametrize('output,blocked', [
+    ('88 Mon Nov 2 01:02:03 2026 S\n', True),
+    ('88 Mon Nov 2 01:02:03 2026 Z\n', True),
+    ('88 Mon Nov 2 01:02:04 2026 S\n', False),
+    ('', True), ('malformed', True),
+    ('0 Mon Nov 2 01:02:03 2026 S\n', True),
+    ('1 Mon Nov 2 01:02:03 2026 S\n1 Mon Nov 2 01:02:04 2026 S\n', True),
+])
+def test_audit_snapshot_identity_uses_complete_inventory(env, output, blocked):
+    snap, request = env.fresh()
+    snap = replace(snap, legacy_snapshot=(LegacyProcess(88, 'Mon Nov 2 01:02:03 2026', 'old-child'),))
+    env.output['ps'] = output
+    original = env.log.read_bytes()
+    if blocked:
+        with pytest.raises(CutoverError):
+            release(env, snap, request)
+        assert env.log.read_bytes() == original
+    else:
+        assert release(env, snap, request)['release']['observed']['process_count'] == 1

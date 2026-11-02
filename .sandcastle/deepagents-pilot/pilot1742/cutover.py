@@ -85,14 +85,37 @@ def container_inventory(command: Callable[[list[str]], str] = observation_comman
             if (type(row['running']) is not bool or not isinstance(row['name'], str)
                     or not isinstance(row['mounts'], list)):
                 raise ValueError()
-            sources = [mount['Source'] for mount in row['mounts']]
-            if not all(isinstance(source, str) and Path(source).is_absolute() for source in sources):
-                raise ValueError()
+            sources = []
+            for mount in row['mounts']:
+                kind = mount['Type']
+                if kind == 'tmpfs':
+                    if mount.get('Source', '') != '':
+                        raise ValueError()
+                    continue
+                if kind not in ('bind', 'volume'):
+                    raise ValueError()
+                source = mount['Source']
+                if not isinstance(source, str) or not Path(source).is_absolute():
+                    raise ValueError()
+                sources.append(source)
             containers.append(ContainerObservation(row['id'], row['name'], row['running'],
                                                    tuple(Path(source).resolve() for source in sources)))
         return tuple(containers)
     except (KeyError, TypeError, ValueError, OSError, RuntimeError):
         raise CutoverError('invalid container inventory') from None
+
+
+def all_process_start_identities(command: Callable[[list[str]], str] = observation_command) -> dict[int, str]:
+    identities: dict[int, str] = {}
+    for line in command(['ps', '-axo', 'pid=,lstart=,stat=']).splitlines():
+        parts = line.split()
+        if (len(parts) != 7 or not parts[0].isdigit() or int(parts[0]) < 1
+                or int(parts[0]) in identities):
+            raise CutoverError('invalid process inventory')
+        identities[int(parts[0])] = ' '.join(parts[1:6])
+    if not identities:
+        raise CutoverError('empty process inventory')
+    return identities
 
 
 @dataclass(frozen=True)
@@ -319,7 +342,7 @@ class CutoverStore:
             raise CutoverError('snapshot workers_log_path mismatch')
         if self.generation() != snapshot.drain_generation:
             raise CutoverError('drain generation mismatch')
-        if {(p.pid, p.start_id) for p in snapshot.legacy_snapshot} & {(p.pid, p.start_id) for p in processes}:
+        if {(p.pid, p.start_id) for p in snapshot.legacy_snapshot} & set(all_process_start_identities().items()):
             raise CutoverError('snapshot process still alive')
         if processes:
             raise CutoverError('legacy writer still alive after frozen snapshot')

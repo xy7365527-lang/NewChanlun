@@ -20,6 +20,7 @@ from .cutover import (
     CutoverStore,
     FrozenSnapshot,
     LegacyProcess,
+    all_process_start_identities,
     container_inventory,
     legacy_processes,
     remote_barrier,
@@ -168,19 +169,10 @@ def observe(store: CutoverStore, rows: list[dict[str, Any]], request: dict[str, 
             or set(remote.legacy_services_unloaded) != set(LEGACY_SERVICES)
             or remote.variable_source != 'user-token-readonly'):
         raise CutoverError('remote jobs, freeze variable or legacy services not drained')
-    process_rows = _command(['ps', '-axo', 'pid=,lstart=,stat=']).splitlines()
-    live_pids, identities = set(), set()
-    for line in process_rows:
-        parts = line.split()
-        if len(parts) != 7 or not parts[0].isdigit():
-            raise CutoverError('invalid process inventory')
-        # 即使是 zombie 仍保留在 PID 清单，不能凭其年龄认定已释放。
-        live_pids.add(int(parts[0]))
-        identities.add((int(parts[0]), ' '.join(parts[1:6])))
-    if identities & {(p.pid, p.start_id) for p in snapshot.legacy_snapshot}:
+    identities = all_process_start_identities(_command)
+    live_pids = set(identities)
+    if set(identities.items()) & {(p.pid, p.start_id) for p in snapshot.legacy_snapshot}:
         raise CutoverError('snapshot process still alive')
-    if not live_pids:
-        raise CutoverError('empty process inventory')
     if pids & live_pids:
         raise CutoverError('original worker pid still present')
 

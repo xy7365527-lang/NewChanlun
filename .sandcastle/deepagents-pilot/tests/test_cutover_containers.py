@@ -1,12 +1,18 @@
 import json
 import subprocess
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 import pytest
 
 from pilot1742 import cutover, executor
-from pilot1742.cutover import CutoverError, CutoverStore, FrozenSnapshot, RemoteBarrier
+from pilot1742.cutover import (
+    CutoverError,
+    CutoverStore,
+    FrozenSnapshot,
+    LegacyProcess,
+    RemoteBarrier,
+)
 
 
 @pytest.fixture
@@ -38,10 +44,19 @@ def container_barrier(tmp_path, monkeypatch):
             pass
 
     monkeypatch.setattr(executor, "_client", lambda _: Client())
-    state = SimpleNamespace(rows=[], commands=[], failure=None, output=None)
+    state = SimpleNamespace(rows=[], commands=[], failure=None, output=None,
+                            ps='1 Mon Nov 2 01:02:03 2026 S\n', ps_failure=None,
+                            snapshot_path=snapshot)
     original = subprocess.run
 
     def command(args, **kwargs):
+        if args == ['ps', '-axo', 'pid=,lstart=,stat=']:
+            if state.ps_failure == 'missing':
+                raise FileNotFoundError('private path')
+            if state.ps_failure == 'timeout':
+                raise subprocess.TimeoutExpired(args, 30)
+            return SimpleNamespace(returncode=1 if state.ps_failure == 'exit' else 0,
+                                   stdout=state.ps, stderr='private stderr' if state.ps_failure == 'stderr' else '')
         if args[0] == "docker":
             state.commands.append(args)
             if state.failure == "missing":
@@ -72,7 +87,7 @@ def container_barrier(tmp_path, monkeypatch):
 
 def container(source, *, name="/unlogged-author", running=True, writable=True):
     return {"id": "c" * 64, "name": name, "running": running,
-            "mounts": [{"Source": str(source), "RW": writable}]}
+            "mounts": [{"Type": "bind", "Source": str(source), "RW": writable}]}
 
 
 @pytest.mark.parametrize("operation", ["verify", "record"])
@@ -147,3 +162,77 @@ def test_store_verify_owns_container_guard(container_barrier):
     env.rows = [container(env.legacy)]
     with pytest.raises(CutoverError, match="legacy worker container still present"):
         env.store.verify(env.snap, env.remote, (), "a" * 40)
+
+
+@pytest.mark.parametrize("operation", ["verify", "record"])
+@pytest.mark.parametrize("mount", [{"Type": "tmpfs"}, {"Type": "tmpfs", "Source": ""}])
+def test_unrelated_tmpfs_does_not_block_cutover(container_barrier, operation, mount):
+    env = container_barrier
+    env.rows = [container('/unrelated')]
+    env.rows[0]['mounts'].append(mount)
+    assert env.cli(operation) == 0
+
+
+@pytest.mark.parametrize('operation', ['verify', 'record'])
+@pytest.mark.parametrize('stat', ['S', 'Z'])
+def test_snapshot_identity_blocks_cli_without_classified_writer(container_barrier, operation, stat, capsys):
+    env = container_barrier
+    snap = replace(env.snap, legacy_snapshot=(LegacyProcess(88, 'Mon Nov 2 01:02:03 2026', 'old-child'),))
+    env.snapshot_path.write_text(json.dumps(asdict(snap)))
+    env.ps = f'88 Mon Nov 2 01:02:03 2026 {stat}\n'
+    assert env.cli(operation) != 0
+    assert 'snapshot process still alive' in capsys.readouterr().err
+    assert not env.store.path.exists()
+
+
+def test_reused_pid_passes_verify_but_original_identity_blocks_record(container_barrier, capsys):
+    env = container_barrier
+    snap = replace(env.snap, legacy_snapshot=(LegacyProcess(88, 'Mon Nov 2 01:02:03 2026', 'old-child'),))
+    env.snapshot_path.write_text(json.dumps(asdict(snap)))
+    env.ps = '88 Mon Nov 2 01:02:04 2026 S\n'
+    assert env.cli('verify') == 0
+    env.ps = '88 Mon Nov 2 01:02:03 2026 S\n'
+    assert env.cli('record') != 0
+    assert 'snapshot process still alive' in capsys.readouterr().err
+    assert not env.store.path.exists()
+
+
+@pytest.mark.parametrize('failure', ['missing', 'timeout', 'exit', 'stderr'])
+def test_process_sampling_failure_blocks_record(container_barrier, capsys, failure):
+    env = container_barrier
+    env.ps_failure = failure
+    assert env.cli('record') != 0
+    assert not env.store.path.exists()
+    assert 'private' not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('output', ['', 'garbled', '0 Mon Nov 2 01:02:03 2026 S\n',
+    '1 Mon Nov 2 01:02:03 2026 S\n1 Mon Nov 2 01:02:04 2026 S\n'])
+def test_invalid_process_inventory_blocks_record(container_barrier, output):
+    env = container_barrier
+    env.ps = output
+    assert env.cli('record') != 0
+    assert not env.store.path.exists()
+
+
+@pytest.mark.parametrize('mount', [
+    {'Type': 'bind'}, {'Type': 'bind', 'Source': ''}, {'Type': 'volume', 'Source': 'relative'},
+    {'Source': '/unrelated'}, {'Type': 'future', 'Source': '/unrelated'},
+    {'Type': 'tmpfs', 'Source': '/unexpected'}, {'Type': 'tmpfs', 'Source': None},
+])
+def test_tmpfs_does_not_hide_invalid_neighbor_mount(container_barrier, mount):
+    env = container_barrier
+    env.rows = [container('/unrelated')]
+    env.rows[0]['mounts'] = [{'Type': 'tmpfs'}, mount]
+    assert env.cli('record') != 0
+    assert not env.store.path.exists()
+
+
+@pytest.mark.parametrize('kind', ['bind', 'volume'])
+def test_tmpfs_does_not_hide_host_mount(container_barrier, kind):
+    env = container_barrier
+    env.rows = [container(env.legacy)]
+    env.rows[0]['mounts'][0]['Type'] = kind
+    env.rows[0]['mounts'].insert(0, {'Type': 'tmpfs'})
+    assert env.cli('record') != 0
+    assert not env.store.path.exists()

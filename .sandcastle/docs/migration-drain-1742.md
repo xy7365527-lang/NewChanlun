@@ -81,7 +81,9 @@ executor cutover record --workers-log "$WORKERS_LOG" --private-key "$PEM"
 
 `verify` 只读核对冻结代次、快照进程退出且当下无旧写者、旧宿主挂载的 Docker 活容器、旧工作的当前生命周期终态、快照后无新增 claim、App 读取的全部 `agent-*` job 已完成，以及 claimer 和 harvest 的 launchd 服务已卸载。日志按票和 branch 归约：历史重复 claim 不当场永久报错，但仍保留 pending，直到同一生命周期出现 `sandbox/closed` 或 `claim/rolled_back`。独立 reviewer/merger 沿用各自已有的终态。另一 branch 的关闭不能消除本 branch 的未决工作；缺 branch 的历史记录也不猜测归属。
 
-Docker 核查与审计释放共用采样器，只读取容器 Id、Name、Running 和 Mounts。运行中容器的挂载来源规范化后，只要与固定旧宿主路径存在任一方向的包含关系，就阻止 verify 与 record，即使没有对应 workers 事件或宿主进程。祖先目录、旧宿主自身和子目录挂载均阻断，只读与可写挂载同样阻断。仅字符串前缀相似但无路径包含关系的挂载不阻断。容器名为 `sandcastle-` 不构成阻断理由，新执行面和无关测试容器可继续运行。Docker 或 Colima 不可用、采样失败或响应无法完整解析时拒绝放行；成功采样且没有运行中容器才可记为空。
+快照 PID + 启动标识由 verify/record 和审计释放共用的全量进程采样器核对，不受 cwd、命令或父子关系筛选影响。快照子进程换 cwd、父进程退出后被 PID 1 收养，仍须等其身份消失；zombie 也保留在身份清单中。相同 PID 但启动标识不同不算快照进程。完整进程表采样失败、空表或格式错误时拒绝。
+
+Docker 核查与审计释放共用采样器，只读取容器 Id、Name、Running 和 Mounts。运行中容器的挂载来源规范化后，只要与固定旧宿主路径存在任一方向的包含关系，就阻止 verify 与 record，即使没有对应 workers 事件或宿主进程。祖先目录、旧宿主自身和子目录挂载均阻断，只读与可写挂载同样阻断。仅字符串前缀相似但无路径包含关系的挂载不阻断。容器名为 `sandcastle-` 不构成阻断理由，新执行面和无关测试容器可继续运行。挂载按 Type 解析：bind/volume 必须有绝对 Source；tmpfs 的 Source 缺失或空字符串表示无宿主路径，不参与路径包含判定，但不豁免同容器的其他挂载。未知类型、异常 Source 或缺少 Type 都拒绝。Docker 或 Colima 不可用、采样失败或响应无法完整解析时拒绝放行；成功采样且没有运行中容器才可记为空。
 
 已知两条 `correction/error_record_*` 只保留审计，不打开或关闭工作；`implementer/failed` 和 `implementer/recovery_returned` 都不是排空终态。未知事件、无法读全分页、日志截断、仍未收尾的旧工作都拒绝。快照进程退出与日志终态是两份独立证据；日志不增长、PID 已消失、交接文字或实现完成都不能单独替代生命周期终态。缺失的历史关闭事件由部署 owner 对照原 owner 的运行存储，在生产处置获批后使用下节的审计释放入口；它记录当下处置，不补造历史成功或 sandbox/closed，也不新增逐票真人签批。
 

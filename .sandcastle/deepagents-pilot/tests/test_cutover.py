@@ -419,13 +419,14 @@ def legacy_inventory(monkeypatch):
     from types import SimpleNamespace
     responses = {}
     def populate(rows):
+        responses['identities'] = ''.join(f'{pid} Mon Nov 2 01:02:03 2026 S\n' for pid, _, _, _ in rows)
         responses['ps'] = ''.join(f'{pid} {ppid} Mon Nov 2 01:02:03 2026 S {cmd}\n'
                                   for pid, ppid, cmd, _ in rows)
         responses['lsof'] = ''.join(f'p{pid}\nfcwd\nn{cwd}\n' for pid, _, _, cwd in rows)
         return responses
     def command(args, **kwargs):
         assert args[0] in ('ps', 'lsof')
-        return SimpleNamespace(stdout=responses[args[0]], stderr='', returncode=0)
+        return SimpleNamespace(stdout=responses['identities' if args == ['ps', '-axo', 'pid=,lstart=,stat='] else args[0]], stderr='', returncode=0)
     monkeypatch.setattr('pilot1742.cutover.subprocess.run', command)
     return populate
 
@@ -568,3 +569,17 @@ def test_resume_tail_blocks_cutover_and_ticket_until_exact_close(barrier, resume
     store.check_ticket(9999, record)
     with pytest.raises(CutoverError, match='after snapshot'):
         store.check_ticket(1419, record)
+
+
+def test_snapshot_orphan_outside_host_still_blocks(barrier, legacy_inventory):
+    from pilot1742.cutover import LEGACY_HOST_REPO, legacy_processes
+    store, _, remote = barrier
+    legacy_inventory([(99999, 1, 'python worker.py', str(LEGACY_HOST_REPO)),
+                      (99998, 99999, 'python child.py', '/unrelated')])
+    snap = store.snapshot()
+    assert {p.pid for p in snap.legacy_snapshot} == {99999, 99998}
+    legacy_inventory([(99998, 1, 'python child.py', '/elsewhere')])
+    assert legacy_processes() == ()
+    with pytest.raises(CutoverError, match='snapshot process still alive'):
+        store.verify(snap, remote, legacy_processes(), 'a' * 40)
+    assert not store.path.exists()

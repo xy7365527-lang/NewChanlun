@@ -696,6 +696,7 @@ class BoatExecution(WorkerExecution):
 
     def _decode(self, checkout: Path, files: list) -> dict[str, tuple[bytes | None, str]]:
         artifact: dict[str, tuple[bytes | None, str]] = {}
+        checkout_root = checkout.resolve()
         total = 0
         for entry in files:
             path = str(safe_path(entry["path"]))
@@ -708,8 +709,8 @@ class BoatExecution(WorkerExecution):
             if len(data) > MAX_FILE_BYTES or total > 64 * 1024 * 1024:
                 raise ExecutionUnknown("远端产物超过文件或批次界限")
             destination = checkout / path
-            if destination.is_symlink() or not destination.resolve().is_relative_to(checkout.resolve()):
-                raise ExecutionUnknown("本地收集路径含逃逸链接")
+            if destination.is_symlink() or destination.resolve() != checkout_root / path:
+                raise ExecutionUnknown("本地收集路径与声明路径不一致或含链接")
             artifact[path] = (None if entry["mode"] == "deleted" else data, entry["mode"])
         return artifact
 
