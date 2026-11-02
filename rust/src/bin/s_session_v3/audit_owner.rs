@@ -5669,6 +5669,10 @@ pub(super) mod construction_tests {
     #[cfg(unix)]
     include!("audit_owner/admission_tests.rs");
     #[cfg(unix)]
+    include!("audit_owner/w2_h1_structure_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/w2_h1_window_tests.rs");
+    #[cfg(unix)]
     include!("audit_owner/legacy_admission_tests.rs");
 
     #[derive(Clone, Debug)]

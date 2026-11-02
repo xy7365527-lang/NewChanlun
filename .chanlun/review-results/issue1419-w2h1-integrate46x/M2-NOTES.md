@@ -851,3 +851,68 @@ VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-
 - `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_check_prod_no_test_hooks*.py'`：20 项通过。
 - 正本禁串生成器重建及 `--check` 均退出 0，最终 1757 项。
 - Rust 未验证，待 CI。未运行 cargo/rustc、Rust 测试、编译负例门或产物构建；静态检查不证明实际编译/行为通过。本轮可交付 ready，供 CI 继续揭示后续错误。
+
+
+## M3
+
+本节绑定 #1419，开工 HEAD `045a478d2da16be6126f6ddf8bf807b7d3e9b1b5`，分支 `sandcastle/issue-1419`，开工工作区干净。已完整阅读本文件 853 行，包括 M3 对象表与 M2C。沿用户指定工位实施，不切基线、不暂存、不提交；本机不运行 cargo/rustc。新增测试属于现役准入入口的测试锁，本节仍是绑定 #1419 的工作草稿。
+
+### 冷恢复静态分析
+
+结论是现有冷恢复链具备这些对象的语义状态来源，本轮未发现确证遗漏，未修改生产恢复实现。缓存为空会多做计算，不能据此认定语义缺失。以下均为静态结论，实际类型检查与冷往返结果待 CI。
+
+共同入口 `audit_owner.rs:666` 至 `:689` 用认证 candidate 的 raw 与末代 generated_state 冷种；`:844` 至 `:875` 在 owner 交接后带走同一 audited 索引。`generation.rs:484` 的 `seed_cold` 恢复 raw/effective sequence、DeltaLane、producer source 与 ContentBi 坐标缓存。其余对象的 prior 每代从已认证原件选取，不以进程 memo 为权威。
+
+| 对象 | 已认证原件与续写消费链 | 冷后状态是否足够 |
+|---|---|---|
+| C/D 段、段版本与 second cursor | `prepared.rs:1005` 从 `audited.objects` 经 `object_index.rs:2550` 的 `structure_prior_records` 取活动 `CC-013.segment` 和 `CC-056.segment_version`；`content_structure.rs:404` 从版本原件 `scan_cursors` 恢复 SecondFoldStore，`generation.rs:873` 交同一 parser。`content_structure.rs:361` 核段 revision/result/version。 | 足够。cursor 的正本是段版本原件，fresh Runtime 不需接续旧进程 second store。 |
+| E/F seed、center、roles、assignment、position、pair 与双版本 | 同一 prior 选择器取 E/F 全族及 center/pair version；`content_structure.rs:1785` 核 prior 并建 `(kind,entity)` 索引；`:1390` 的 revision/same_fields/keep_known/revise 辅助核延续已知时点与版本。 | 足够。已认证 payload 提供上一版语义，不由空 runtime 缓存另作判定。 |
+| W 未定 prior | `object_index.rs:2604` 选活动 `CC-004.undetermined_raw`，`generation.rs:1078` 经 `read_w_prior`、`content_bi.rs:986` 核身份并取 `pending_since_cut`；`content_producer.rs:1602` 用同一 fact_key/input_refs 判定沿用 since 或本 cut。 | 足够。等待起点与来源版本均由活动原件恢复。 |
+| bounded2 分型历史 | `content_producer.rs:2317` 缺历史 memo 时从 empty 重算，`:2390` 用同一核生成全部 bar/relations/source_ref 单元及前缀根；缓存键为 references/end，缓存不含 cut/generation/出生。`:2511` 的 bounded 分型身份绑定 shape 与基础来源。 | 足够。memo 仅省重算；重算仍绑定当前八字段 source_ref。 |
+| bounded2 开发批与窗口序 | `generation.rs:908` 按 wins 窗口序分类，`:977` 同序收 developments；`:2689` 缺 prior range 时将当前全区标 dirty，`:2738` 按同一 developments 顺序重建当前全部 batch，BTreeMap 保持 bar 坐标序。 | 足够。entries 认当前窗口序；已消失 batch 由历史 object index 的差集撤回，不依赖 memo 留存。 |
+| 对象出生、修订、撤回历史 | `content_producer.rs:1176` 投当代 gen/cut；`object_index.rs:1640` 的 `plan_from_candidates` 按同 ID 匹配旧 Entry、保留 birth_wire/life，仅向 changes.births 追加新对象。 | 足够。生命周期从已认证旧索引续写，不取重算 memo 的时点。 |
+
+上表行号锚定本轮开工源码。ADR 0054 与 ADR 0037 P2 的当前口径也要求 entries 按当前窗口序，unit 不含代、cut 或生命周期。本轮没有增加第二份恢复判据、失败后全审计兜底或测试写者规则，没有修改 spec、资源帽、隔离或准入语义。
+
+
+### 夹具、冷点与非空证明
+
+新增文件由 `audit_owner.rs` 的 `construction_tests` 在 `test+s_incremental+unix` 下 include，与既有 H1 admission 锁同域。共享夹具自行建立临时目录、时钟、生产 `init_v3` 与正式 `Driver::open_with_request_and_mode_retention`；不借用内部带规则包装的旧 Fixture，不调用 `with_test_writer_rule`。初始化后逐字断言库规则为完整生产 W2 串。
+
+| 测试名 | 输入与最终代 | 冷点 k | 对象存在与变化断言 |
+|---|---|---|---|
+| `w2_h1_cold_cd_second_cursor_continuation_matches_online` | `s_session/tests/fixtures/tb02d/raw-ledger.json` 的独立手算 `second_open_up` 40 根；raw37 极值 +1 的 revision 2、恢复 revision 3、末尾追加，N=43。 | 27、33、40、41、42 | 真正发出 SECOND feature_sequence、segment_version；第40代按最大 `construction.start_stroke` 选末活动段，第41代必须是该同 entity 的 revision 递增，随后取冷点。每代核生产 `scan_budget.policy`、`round_strokes=0`、`scan_cursors=[]`。非空 cursor 的冷往返锁为条件义务，见下节。 |
+| `w2_h1_cold_ef_seed_pair_qualification_and_canonical_matches_online` | 逐字复用 `financial_session_tests.rs` 的 `q3_w_bars` 104 根 PIVOTS 输入配方；2120 顶小幅 +1 修订、复原、尾追加，N=107。 | seed 成立的56；首次实际 center members 或 resume_anchor 改变的代动态取点；pair 建立104、pair 修订105、恢复106。 | 第56代有 center 及 seed→center；首次实际成员/锚变化单独冷开，不把 settled 状态变化充作延伸。第104代至少2个 center，roles/assignment/position/center version/pair version 非空且 pair 真成立。第105代同 pair entity 的 revision 递增、previous 非空、inputs 实际改变。中心 data 不含价，不强行要求小幅改价一定改变 a/b_revision。 |
+| `w2_h1_cold_w_undetermined_prior_revision_matches_online` | 复用 `pending_source_ordered_same_ohlc`，等待期 a 同价 revision 2 后 d 使方向成立，N=5；另复用 `pending_source_earlier_revision` 四行后追加 d，N=5。 | 第一场1、2、3、4；第二场1、3、4。 | 等待期真实未定原件与待定组请求非空；第一场第4代 a 新身份/since=cut4，b/c 仍沿用 cut2/cut3。方向成立后全部 W 未定原件撤回且 pending 组请求消失。第二场覆盖成立→修订再未定→再成立。 |
+| `w2_h1_cold_bounded2_shape_development_window_matches_online` | 复用 `tb02b_oracle_rows` 的14根独立 oracle；沿 `bounded2_revision_restore_preserves_archived_cuts` 对第11根 +1 修订再复原；另将 b1 改为 H20/L1 包含左右后复原，N=18。 | 3、4、5、14、15、17。 | 第3代真实出生 `[0,10,20]` 分型；第4代右组包含使身份改变并有历史撤回；第5代起有真实开发批及增长；第15代源修订撤回旧 batch、产生新身份。第17代活窗口实际消失/移窗且历史分型撤回，第18代恢复原几何窗。逐代核三组来源、entries 严格窗口序、单元 source_ref、完整发展数组根与正计数。 |
+
+共享 helper 先以同一个不中断 Driver 跑全部 N 代，每代保存完整 canonical 到夹具临时目录；每个冷点通过独立只读 SQLite 连接 `VACUUM main INTO` 保存已提交前缀。全部参照写完并 drop 在线 Driver 后才冷开各副本。冷副本不继承 owner、Runtime、生成器或台账，必须实际逐 cut 获得 H1 资格；从 k 冷状态一直比到 N，每次续写前后 `state::full_audit_calls_for_test()` 严格不增加，冷认证自身也有同样计数断言。
+
+对拍保留全部业务表每格实际类型与完整值，NULL/整数/文本/Blob 原值、REAL 的位模式都进入 canonical；同时保留 owner 的完整 `h1_canonical`（所有 cut 的四根、snapshot、delta、请求与开发批以及完整对象/辅助事实历史），渲染全部对象出生 public wire 并附当前撤回状态。没有用哈希、计数或 raw/bi 缓存替代载荷。
+
+唯一不作全表相等的是 `s_content_nodes` 的不可达编码 memo。现有 `prepared.rs:3762` 的 `runtime_root_tables(...,false)` 和 `:3809` 的可达原件对拍已采用该口径；生产 eager store 会留不可达编码缓存，其有无不是业务结果。本轮另循相同全部持久根及 tag/子边配方，逐代对拍可达节点的完整 digest/tag/body 与各自 SQLite typeof。其余业务表无过滤。未借此排除任何可达发布原件、历史版本或对象载荷。
+
+### 条件义务：非空 second cursor 的 H1 冷往返锁
+
+本轮交付状态为 **ready**。#1419 集成 owner 46X 裁定：非空 second cursor 在当前生产预算下不可达的判断正确，但不构成本集成的阻断。生产可达域内 cursor 只有空值，已落地的 C/D 锁覆盖空 checkpoint 连续性与段版本 revision 递增；四个具名锁供 CI 验证，不将其称作非空 second cursor 的冷恢复证明。
+
+静态证据链：`driver.rs:503` 至 `:507` 的正式入口固定使用 `ThetaConfig::for_s_structure_writer`；`theta_v0/config.rs:804` 与 `run_records.rs:544` 走 active records，`config.rs:113` 至 `:120` 读取已签预算。`rust/src/theta_v0/policy_records/second-seq-scan-budget.json` 的 `second_seq_window.value=0`，该记录明确写“改值即新版本”；`parser/second_fold.rs:731` 至 `:739` 的 `checkpoint_cursors` 在预算0时恒为空。已有 `research_override_second_seq_window` 同时切换 ResearchOverride，不能当生产证据。
+
+条件义务：任何把 `second_seq_window` 改为非零的新版本预算记录，必须同时提交非空 cursor 的 H1 冷往返锁。在该条件触发之前，此锁不构成本集成的未完成项。预算记录变更属于政策/资源记录变更，不在本票授权内；本轮没有修改预算，也没有为测试注入研究预算。其余对象静态恢复分析未发现遗漏，实际 Rust 编译、对象变化断言与逐代冷对拍仍待 CI。
+
+### 独立复核与检查范围
+
+实装与只读复核分离。复核修正了首段修订冒充末段、仅 settled 变化冒充延伸、小幅改价强行要求中心 revision 变化、冷副本路径/inode 导致额外台账身份不可比等测试问题；没有因此放宽生产判据或资源帽。最终 C/D 按实际末段 entity 核修订，E/F 按实际成员/锚变化选冷点，pair 核同实体 revision/previous/inputs。
+
+另用 Python 的 SQLite 进行了 WAL 靶向检查：保持源写连接在线，通过独立 mode=ro 连接参数化执行 `VACUUM main INTO ?`，复制已提交行成功，源写连接 data_version 不变。这只验证复制工具语义，不是 Rust Driver 实证。Python 静态整数几何核对也确认 b1 包络修订使原 `[0,10,20]` 等窗口变为 `[0,60,70]` 等新窗口；这不是 Rust 测试执行。
+
+
+本轮实际检查：
+
+- 3 个 Rust 改动文件执行 `rustfmt --edition 2021 --config skip_children=true --check`，全部退出0。只证明格式/解析接受，不等于 Rust 类型检查或测试通过。
+- Python 静态检查通过：四个 `#[test]` 定义各唯一、四名各一次进入 H1 owned 逐名清单、所有既有清单名字保留；`h1_` 过滤包含 `w2_h1_`，三层 test/feature/unix 门一致；新夹具无测试规则包装和旧 Fixture 调用。
+- 正本禁串生成器实际重建后仍为1757项，文件无差异；随后 `--check` 退出0。未手改清单或生成器。当前生成器按现有 `mod` 图遍历，不额外扩展其对 `include!` 文件的收录口径。
+- `check-prod-no-test-hooks.py` 退出0、`violations=0`；现有相关 Python 单测20项通过。
+- SQLite WAL 在线源的只读 `VACUUM INTO` 靶向检查通过，原 Blob 值/typeof 一致且源 data_version 不变。
+- `git diff --check` 退出0；`git diff --cached --name-only` 为空。未暂存、提交或回退任何改动，最终生产逻辑仅新增测试 include 门，无恢复实现变更。
+- Rust 未验证，待 CI。未运行 cargo/rustc、Rust 测试、编译负例或会间接调用 cargo 的检查。阶段为 ready，实际 Rust 编译与冷对拍待 CI，不能把上述静态检查称作四条冷往返锁通过。

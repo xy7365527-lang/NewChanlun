@@ -482,6 +482,10 @@ jobs:
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
           for test in \
             h1_admission_cold_prefixes_match_full_canonical \
+            w2_h1_cold_cd_second_cursor_continuation_matches_online \
+            w2_h1_cold_ef_seed_pair_qualification_and_canonical_matches_online \
+            w2_h1_cold_w_undetermined_prior_revision_matches_online \
+            w2_h1_cold_bounded2_shape_development_window_matches_online \
             h1_admission_cold_negative_classes_match_full_oracle \
             h1_admission_online_own_commits_match_full_canonical \
             h1_admission_foreign_sqlite_changes_retire_writer \
