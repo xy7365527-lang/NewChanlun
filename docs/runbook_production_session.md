@@ -111,11 +111,11 @@ cd rust && cargo build --release --features production_session \
 ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1
 ```
 
-增量构建的 v3 `recover` / `advance` 必须显式传 `--resource-config`。允许参数表见 [`writer_cli.rs:82-93` 的 ADVANCE_FLAGS](../rust/src/bin/s_session_v3/writer_cli.rs#L82) 与 [`:104-113` 的 RECOVER_FLAGS](../rust/src/bin/s_session_v3/writer_cli.rs#L104)，必填检查分别在同文件 [`:464-468`](../rust/src/bin/s_session_v3/writer_cli.rs#L464) 与 [`:530-534`](../rust/src/bin/s_session_v3/writer_cli.rs#L530)。
+增量构建的 v3 `serve` / `advance` / `recover` 必须显式传 `--resource-config`。`serve` 的必填检查见 [`writer_cli.rs:426-429`](../rust/src/bin/s_session_v3/writer_cli.rs#L426-L429)，`s-launcher/4` 由 [`start-s` 传入](../s_session/s_service_control.py#L733)。`advance` / `recover` 的允许参数表见 [`writer_cli.rs:82-93` 的 ADVANCE_FLAGS](../rust/src/bin/s_session_v3/writer_cli.rs#L82) 与 [`:104-113` 的 RECOVER_FLAGS](../rust/src/bin/s_session_v3/writer_cli.rs#L104)，必填检查分别在同文件 [`:464-468`](../rust/src/bin/s_session_v3/writer_cli.rs#L464) 与 [`:530-534`](../rust/src/bin/s_session_v3/writer_cli.rs#L530)。
 
 `s-launcher/4` 的 `recover` 由 [`s_session/s_service_control.py:845-847`](../s_session/s_service_control.py#L845) 先确认原 S 已停止，再从该 `start-s` 进程记录的冻结 `resource_identity` 取路径，传入 `--resource-config` 并核验身份，见同文件 [`:862-868`](../s_session/s_service_control.py#L862)。`start-s` 冻结资源、传参并登记身份的位置分别是同文件 [`:725`](../s_session/s_service_control.py#L725)、[`:733`](../s_session/s_service_control.py#L733)、[`:744`](../s_session/s_service_control.py#L744)。不得另造资源档或改用当前配置的替代文件。
 
-仅 `s_session` 的构建仍走原完整审计，不产生 H1 冷认证证据，不能作为 H1 验收。依据 `/Volumes/AgentStorage/h1-downstream46s/REPORT.md`，现有 [#1419 g77](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 与 [#1673 全 95 harness](https://github.com/xy7365527-lang/NewChanlun/issues/1673) 都只编译 `s_session`，原样重跑不会走 H1。两处 harness 的增量构建与资源档迁移由独立后续单元承担，本节仅保留指针。
+仅 `s_session` 的构建仍走原完整审计，不产生 H1 冷认证证据，不能作为 H1 验收。只换 feature 的重跑不证明 H1 被消费：H1 只经正式写者入口（`serve` / `advance` / `recover`，即 [`driver::Driver`](../rust/src/bin/s_session_v3/driver.rs#L84) 与 [`audit_owner::PublishPhase`](../rust/src/bin/s_session_v3/audit_owner.rs#L286-L318) 的正式发布路径）生效；测试专用的 [`Runtime::commit`](../rust/src/bin/s_session_v3/prepared.rs#L464-L478) 一类不带 [`bound_audit`](../rust/src/bin/s_session_v3/prepared.rs#L542) 的路径绕过 H1，不能作为 H1 验收。正式写者入口的接入与下游消费，由 [#1419（g77）](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 和 [#1673（全 95）](https://github.com/xy7365527-lang/NewChanlun/issues/1673) 各自承接，本节只留指针。
 
 ## H1 写入完整性 fail-stop
 
@@ -154,7 +154,7 @@ Clamp 与迁移后 `data_version` 连续性复核还会以 `HistoricalAuditStale
 
 ### 停机与证据保全
 
-1. 使用同一配置和控制目录执行 README 已有的 status/stop，再查 status。下面逐字复用 [README:74-75](../s_session/README.md#L74) 与 [README:107-111](../s_session/README.md#L107) 的命令，路径须对应故障实例。
+1. 使用同一配置和控制目录执行 README 已有的 status/stop，再查 status。下面逐字复用 [README:74-75](../s_session/README.md#L74) 与 [README:107-108](../s_session/README.md#L107-L108) 的命令，路径须对应故障实例。
 
    ```bash
    ./s_session/launch_s.sh service status \
