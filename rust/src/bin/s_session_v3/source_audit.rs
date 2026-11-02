@@ -2160,7 +2160,7 @@ fn audit_development_unit_coord(
     unit: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     source_bound: bool,
-) -> Result<i64, PublishError> {
+) -> Result<(i64, RefValue), PublishError> {
     exact(unit, Kind::Object, if source_bound { 3 } else { 2 })?;
     let bar = field(s, unit, "bar")?;
     exact(&bar, Kind::Object, 5)?;
@@ -2178,7 +2178,7 @@ fn audit_development_unit_coord(
             return Err(err("CC007单元source_ref不是同cut完整八字段原件"));
         }
     }
-    Ok(coord)
+    Ok((coord, bar))
 }
 
 fn audit_development_batch(
@@ -2210,11 +2210,11 @@ fn audit_development_batch_inner(
         if let Some(memo) = memo.as_deref_mut() {
             memo.stats.current_full += 1;
         }
-        let coord = audit_development_unit_coord(s, &unit, raw, true)?;
+        let (coord, unit_bar) = audit_development_unit_coord(s, &unit, raw, true)?;
         if let Some(memo) = memo.as_deref_mut() {
             memo.save(&unit, coord);
         }
-        if field(s, &unit, "bar")? != bar {
+        if unit_bar != bar {
             return Err(err("CC007单元bar与批记录不同"));
         }
         let development = field(s, &entry, "development")?;
@@ -2226,7 +2226,7 @@ fn audit_development_batch_inner(
         }
         exact(&prefix, Kind::Array, count as u64)?;
         let units = elements(s, &prefix)?;
-        for previous in &units {
+        for (index, previous) in units.iter().enumerate() {
             if let Some(memo) = memo.as_deref_mut() {
                 if let Some(coord) = memo.lookup(previous) {
                     sc::audit_verify_refview_headers(s.generic_source(), [previous.view()])
@@ -2237,9 +2237,14 @@ fn audit_development_batch_inner(
                 }
                 memo.stats.misses += 1;
                 memo.stats.previous_full += 1;
-                let coord = audit_development_unit_coord(s, previous, raw, true)?;
+                let (coord, _) = audit_development_unit_coord(s, previous, raw, true)?;
                 memo.save(previous, coord);
             } else {
+                // #1419 M4：末项与刚完整审过的本单元同引用时免重审；非末项仍逐项审。
+                // memo 分支保留既有命中核验与统计，末项相等判据仍在循环后执行。
+                if index + 1 == units.len() && previous == &unit {
+                    continue;
+                }
                 audit_development_unit(s, previous, raw, true)?;
             }
         }
@@ -5576,6 +5581,14 @@ mod tests {
         // 对象数不变。该段也未逐节点分解，不将任一段净差全部计作十条新增对象的费用。
         // 以下按这两段实测净差追加冻结，完整摘要取该 CI 的 Some full 行；旧 W 规则摘要为
         // read 0dfe6b80…、budget 9236f017…，本机未运行 Rust 重测。
+        // #1419 M4 归因订正（保留上文历史记录）：+30267 来自 W2 链 411db603→ab2bfac7 内
+        // 4004c7cded（bounded-layout/2 发展批来源绑定核），集成段净增 0；ab2bfac7 与集成候选
+        // 读序列逐行相同（run 41401964388 vs 41401952562）。逐读分桶来源：
+        // /Volumes/AgentStorage/cost-diag46z/REPORT.md；重复 18858 = 1a 17640 + 1c 1218，
+        // 必需 11409 = 1b 4263 + 1d 7079 + 闭包 67。
+        // 本轮零新增分配：仅无 memo 路径免除前缀末项对本单元的重审 29×147=4263 读，
+        // 两条路径均复用已读 unit.bar，免除 1c 的 1218 读。以下为前值 − 4263 − 1218：
+        // reads 232828→227347、F 254341→248860；两个摘要保留前值，待 CI 实测重冻。
         assert_eq!(
             (
                 counts.objects,
@@ -5589,12 +5602,12 @@ mod tests {
         );
         assert_eq!(
             roots.len(),
-            151351 + 13016 + 120 + 37928 + 146 + 30267,
+            (151351 + 13016 + 120 + 37928 + 146 + 30267) - 4263 - 1218,
             "r3完整Some读取轨迹"
         );
         assert_eq!(
             frames,
-            170797 + 14276 + 120 + 38245 + 636 + 30267,
+            (170797 + 14276 + 120 + 38245 + 636 + 30267) - 4263 - 1218,
             "r3完整Some F次数"
         );
         assert_eq!(

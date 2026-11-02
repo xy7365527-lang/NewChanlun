@@ -947,6 +947,15 @@ Some full: counts=Counts { objects: 91, groups: 13, windows: 11, effective: 14, 
 
 两段 reads/F 净变化均**未逐节点分解**；不能将整段净差全归给十个新增对象。完整 read_hash/budget_hash 按上述 045a CI 原文重冻，不使用 PR1793 的摘要替代。
 
+M4 追加订正：上表及上一段保留为历史记录，其中“PR1793→045a 集成净变化 +30267”的归因已被逐读诊断推翻。正确归因是 **W2 链 `411db603→ab2bfac7` 内由 `4004c7cded`（bounded-layout/2 发展批来源绑定核）带入；集成段净增 0**。`ab2bfac7` 与集成候选 `de4fd36a` 的读序列逐行相同，运行对照为 [41401964388](https://github.com/xy7365527-lang/NewChanlun/actions/runs/41401964388) 与 [41401952562](https://github.com/xy7365527-lang/NewChanlun/actions/runs/41401952562)。订正依据为 `/Volumes/AgentStorage/cost-diag46z/REPORT.md:5-43` 与同目录 `final-buckets.txt`，不是新的本机 Rust 测量。
+
+| 项 | PR1793 `411db603` | 后续 W2 链至 `ab2bfac7` | `ab2bfac7`→集成候选 | M4 修复前实测 |
+|---|---:|---:|---:|---:|
+| reads | 202561 | +30267 | 0 | 232828 |
+| F | 224074 | +30267 | 0 | 254341 |
+
+新增 30267 的逐读分桶为：重复 18858，其中 1a 已审单元重审 17640，拆为前缀 15876、条目 1764，1c 重读 `unit.bar` 1218；必需 11409，其中 1b 不同单元首次绑定核 4263、1d 批/条目结构遍历 7079、公共根闭包核验 67。原文“未逐节点分解”也由这份诊断补齐。M4 仅消除前缀末项自重复 4263 与 1c 的 1218；读数预期、待 CI 重冻范围与剩余重复的设计差异见文末 M4。
+
 ### 2．请求前缀稳定性：补齐六消息时钟
 
 `ci-045a478d/job-125104867177.txt:2294` 至 `:2297` 报 `w_requests_published_prior_prefix_stability` 在 `prepared.rs:2155` 解包失败：`MissingDependency：clock事件 input-5`；PR1793 `job-123737814511.txt:2922` 至 `:2925` 是同一错误，属于 W2 继承夹具缺陷。
@@ -1045,3 +1054,76 @@ Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试。
 - `git diff --check`：退出 0。源码差异仅两处路径替换与必要换行，本笔记仅追加 M3D；未暂存、提交或回退任何改动。
 
 Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试。
+
+## M4
+
+本节绑定 #1419，执行用户授权的零新增分配修复及归因订正。开工分支 `sandcastle/issue-1419`，HEAD `de4fd36a540cd1f8174275dadfaf3c84e595a66a`，开工工作区干净。先完整阅读 `/Volumes/AgentStorage/cost-diag46z/REPORT.md`、`final-buckets.txt` 和本文件 M2D 第 1 节；报告行号均按该外部原件核对。本阶段只改 `source_audit.rs` 与本笔记，不新增 memo、表、跨审计资格，不改生产写者规则、判据或资源帽，不暂存、提交或回退改动。
+
+### 1．零新增分配的两处修复
+
+`audit_development_unit_coord` 返回 `(i64, RefValue)`，把本来已读的 `bar` 所有权连同 coord 移交调用者，没有 clone、重新构造引用或容器分配。`git grep -n audit_development_unit_coord` 穷举定义外三处调用：`source_audit.rs:2156` 的 unit wrapper 原样丢弃返回值，`:2213` 的当前条目解构并复用 `unit_bar` 比较，`:2240` 的 memo miss 解构 coord 并丢弃 bar。当前条目两条分支都免去原 `:2217` 的第二次字段读取，来源绑定、relations、source_ref 及 bar 相等判断保留。
+
+无 memo 的前缀循环仅在 `index + 1 == units.len() && previous == &unit` 时免除重审，循环后 `units.last() != Some(&unit)` 的校验保留。这里的相等沿用 `RefValue::PartialEq`，比较 format/root/kind/extent，见 `audit_store.rs:1261`，不按指针地址或仅部分摘要放行。该末项指向本条目刚完整审核过的相同节点，因此没有新增资格或宽松判据。
+
+非末项等于本条目 unit 的情况在现有审计判据下可能出现。局部核只要求 count 为正、前缀 Array/extent 一致、各 unit 合法及末项相等，没有前缀去重或坐标单调要求。例如 `[unit, unit]` 可满足现有判据。因此本轮没有把所有 `previous == &unit` 都跳过，非末项继续完整审核，没有新增拒绝条件。
+
+memo 分支包括 `Some(memo)` 但表已禁用/空槽的情况都保留原控制流，不加入末项跳过；lookup、实际头部核验、`raw.get`、save 和 hits/misses/current_full/previous_full 计数保持。若把末项跳过也用于该分支，会改变 33W/P2 已冻结的工作量证据。两分支仍判相同单元合法性及末项相等，差别只在复用已审核节点与读数，不是 #799/#804 所禁的宽严两档或判据失败后的兜底。
+
+### 2．归因订正与本轮冻结边界
+
+原测试注释和 M2D 第 1 节表格均保留，分别追加订正。+30267 由 W2 链 `411db603→ab2bfac7` 内 `4004c7cded` 的 bounded-layout/2 发展批来源绑定核带入；集成段净增 0，`ab2bfac7` 与集成候选读序列逐行相同，运行对照 41401964388 vs 41401952562。证据为 `REPORT.md:5-23`、`:29-43` 与 `final-buckets.txt:1-17`。
+
+| 分桶 | M4 修复前读数 | 本阶段处理 |
+|---|---:|---|
+| 重复 1a | 17640 = 前缀 15876 + 条目 1764 | 仅免前缀末项自重复 29×147 = 4263，其余 13377 留待裁定 |
+| 重复 1c | 1218 | 复用已读 bar，全部免除 |
+| 必需 1b | 4263 | 29 个不同单元各一次来源绑定核，保留 |
+| 必需 1d | 7079 | 批/条目结构遍历，保留 |
+| 必需闭包 | 67 | 公共根闭包核验，保留 |
+
+修复前重复共 18858、必需共 11409，总计 30267。本轮预期免除 5481，剩余重复 13377；这些是报告分桶与修复范围的算术推导，不是本机 Rust 重测。
+
+`full_some_audit_keeps_frozen_read_and_budget_trace` 仅把 reads/F 断言改成括号内完整前值减 `4263` 再减 `1218`，保留原累计来源表达式。reads 预期为 `232828 − 4263 − 1218 = 227347`，F 预期为 `254341 − 4263 − 1218 = 248860`。read_hash 仍为 `54375e9815ef8078d68d213e0a077f0b814ad7ce7a22432854441f1747eedfac`，budget_hash 仍为 `6dea88d382928c12c511d19a2acd7ce03c5e0b3ff4273408b1b66df1c92290a4`，测试注释明确“待 CI 实测重冻”。本阶段没有猜测或替换摘要，故尚不能称该 Rust 冻结测试通过；下一阶段由 CI 输出实测值统一重冻。
+
+### 3．其他冻结与观测的逐项核对，均不改数值
+
+以下按调用路径及现有断言静态区分数值冻结、动态对照和日志。没有执行 Rust，不能将“应保持”写成实跑通过。除上一节的完整 Some 外，扫描 `rust/src/bin/s_session_v3` 的 reads/F/hash、Native 与 proof/material 计数断言，未找到第二项确定需要重冻的硬编码完整审计 reads/F/hash；如 CI 报其他受影响冻结，下一阶段按实测统一处理，本阶段不预填。
+
+| 文件与精确测试/载体 | 已冻结项及 M4 影响 |
+|---|---|
+| `source_audit_development_tests.rs:82` `development_previous_only_repeated_prefix_and_disabled_paths_match_frozen` | current_full=3；disabled previous_full=6、hits=0；enabled hits=6、previous_full=0。因整个 memo 分支保留，应保持；不改数字。 |
+| 同文件 `:617` `development_measurement_totals_include_success_and_error_release` | current_full=4、previous_full=6/0、hits=0/6、capacity、分配与释放统计均应保持；bar 移动不新增分配。 |
+| 同文件 `:331` `development_hit_rechecks_actual_header_and_f_and_releases_after_fault` | good hits=2，首 previous 头部故障 hits=0 应保持。F 仅要求为正，没有硬冻结总数；实际读取/F 由 CI 观察。 |
+| 同文件 `:214` `development_sqlite_production_entry_hits_and_next_audit_has_fresh_raw_binding` | 结果、current_full 相等与 previous_full 减少为动态对照；F/material/proof 是日志，bar 复用会改变读/F 观测，不沿用旧读数。 |
+| 同文件 `:417` `development_exclusion_budget_stop_at_ordinary_native_and_owned` | enabled/disabled 比较结果、SQL、F、预算事件和停止点，两臂均走无 memo 并获得同一修复；轨迹会变，无固定全读数可重冻，待 CI 对拍。 |
+| 同文件 `:110` `development_first_errors_match_frozen_without_reordering_barriers` | 结果与首错冻结，不冻结读取序列；保留全部既有断言，待 CI。 |
+| `sqlite_base_tests.rs:136` `sqlite_base_real_audit_matches_frozen_baseline_and_first_errors` | legacy S4 邻接锁，固定 Ok(1)、结果一致、proof hits>0、新 logical_reads<旧、slab_capacity 相等及持久表不变；没有固定完整 reads/F，不改。 |
+| `.github/scripts/issue1419-g77-ab.py:75-84` `validate_work` | P2 两臂 current_full 相等、old.previous_full=new.previous_full+new.hits、两臂 misses=previous_full；memo 分支完整保留，不改合同。其 `validate_resources` 的 3 MiB proof 合计与 32 MiB 材料帽保留。 |
+| `.github/scripts/test_issue1419_g77_ab.py:26-35` 合成夹具 | current29、previous120/12、hits0/108、misses120/12、proof 峰 2,953,712 B 是脚本测试数据；并非本轮 Rust 实测，不改。 |
+| `financial_session_tests.rs:2428` `w2_pending_cost_probe` | F、logical_reads、SQL、work/events 为探针观测，会受 bar 复用影响，没有完整读取数硬冻结。 |
+
+`sqlite_base_two_readers_overlay_clear_and_fresh_obey_domain`、`sqlite_base_actual_allocation_and_incremental_exclusion` 及 Native frame/field memo 的底层固定计数锁直接操作独立 reader/base/helper，不运行发展批，本轮不触及。`source_audit.rs` 的 local subset SQL/F 固定值同样只测字段读取助手，不进入发展批。Native 全审计与 deadline 路径确实少读，不能用这些底层锁推断其历史观测保持不变。
+
+### 4．剩余 13377 次重复的设计差异，交主控裁定
+
+本轮没有实施审计内单元表。若后续要减少跨条目、跨批记录的剩余 1a，表应在 `audit_generated_in_store` 已取得 `allocation` 后，与 `checked_refs` 同作用域创建，跨本次对象循环共享，并随成功返回、首错或截止退出一并析构。不能放进持久 NativeSourceAudit、OrdinaryProofs、state 或跨 cut 的缓存，也不能沿用上次审计的 raw 绑定资格。
+
+候选键值为通过完整单元核后保存的完整摘要到 coord，键须维持现有 `DevelopmentTable::key` 的 format/kind/extent 防护。命中沿用原 `:2232-2236`、现 `:2232-2236` 的语义：对实际引用执行 `audit_verify_refview_headers`，再对本审计 raw 做 `raw.get(&coord)`，成功后才计命中；不得把缓存命中本身当来源存在或帧合格证明。当前条目仍完整审核，前缀 count、遍历及末项相等判据不变。命中头部读取本身仍有成本，13377 不是未来表可净省的读数承诺。
+
+分配必须接现有合同，不能把 SQLite `DevelopmentTable` 的 std Vec 直接搬进所有路径。沿 `source_audit.rs:879` 的 `source_allocation` 与 `business_json.rs:327` 的 `bj::new_map(allocation.as_ref())` 创建受管表；Native 插入前须调用 `s.native_map_room`，其经 `audit_store.rs:227` 接 `BusinessMap::try_reserve_native` 的 WorkScope 许可。该实现计实际桶容量、控制区及扩容时新旧块共存费用，失败直接传播；Owned 原型则由现有 OwnedBudget 记账，不退回未计费 std。表的固定元数据、峰值与成功/失败释放也需计入现有 allocation/工作域证据，不能新增旁路额度、抬资源帽或吞掉分配错误。
+
+这会触及 `NativeSourceAudit::audit` 的 measure budget/deadline 路径及带 deadline 的 `audit_generated_for_audit`。减少读取会改变 budget 事件/F/截止采样位置；增加表还可能提前触发既有内存预算拒绝，因此不是本轮“零新增分配”的等价扩展。后续实施须明确每次查表、插入、扩容的 deadline 检查边界，核失败停止顺序与释放；不能为复用绕开 HashReader 的门，也不能靠补虚假预算事件维持旧账本。保持资源帽的同时是否接受这些受管成本变化，交主控裁定后再实施并实测重冻。
+
+`git show -s --format=fuller 88f3a35309` 的提交说明只有 `perf(#1419): reuse previous development units within one SQL audit`，没有更长的预算排除论证。限制的明确依据是 [#1419 issuecomment-6526264864](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6526264864) 的 P2 口径：仅同次真实 SqliteBase 审计，current 完整核，原 3 MiB proof 合计与 32 MiB 材料帽，不扩 Owned/Closed、fresh 或预算域；[issuecomment-6527788241](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6527788241) 登记 previous_full 120→12、hits 108、current 29 不变及 proof 合计峰值 2,953,712 B。配套设计原件 `/Volumes/AgentStorage/review1419-development34z/REPORT.md` 第 2 至 4 节要求 Some 保原 SQL/F/预算事件，不向预算路径补虚假事件，memo 与 closure 合计不超 3,145,728 B，不能挪用 32 MiB 材料池或跨 cut。
+
+当前代码据此在 `audit_generated_in_store` 要求 ordinary/budget/deadline 均为空、Bounded2 且 `eligible_sqlite_base()`；`history.rs:3876` 还排除 Native/Owned 工作域、非 Ordinary policy、render 上限、overlay/fresh 和 s_incremental 等非真实 SQL 基源。现有会话的 Vec 租用的是 SqliteBase 共享 proof 许可，不持上述 Native 工作域/Owned allocation 的分配合同，不能直接解除 eligibility 门。M4 只按本阶段新授权免除可证明重复读取，没有放宽该门。
+
+### 5．实际检查与交棒
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/source_audit.rs` 退出 0，仅检查格式，不代表编译通过。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check` 退出 0，报告 `.github/prod-banned-literals.txt 与源码一致`。未增删测试字面量，禁串未受影响，无需重建；没有手改清单或生成器。
+- 完整阅读 `test_tb01c_r4_anchor_lock.py`，复核 Rust `test_prepare` 唯一定义及其 cfg、调用点前文 cfg 判据、生产 Python 入口隔离与无锚 CLI 拒绝语义。实际执行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，3 项通过；该检查不调用 cargo/rustc。
+- 独立非作者评审分别核需求轴与规范轴，均无发现；核对全部三处 helper 调用、无 memo 的末项限制与 memo 计数路径，确认返回既有 RefValue 为所有权移动，没有新分配语句。
+- 独审用纯 Python 核对原笔记全部行及原测试历史注释按原顺序保留、两个摘要和生产写者规则串未改。`git diff --check` 退出 0，暂存区为空，HEAD 保持开工值；工作区全部改动仅为本笔记与 `source_audit.rs`。
+
+本阶段 ready。Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试，未暂存或提交。下一阶段按 CI 实测统一重冻完整 Some 的两个摘要及任何实际报出的其他受影响冻结；本阶段预期值不冒充实测。
