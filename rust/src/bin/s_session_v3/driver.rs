@@ -82,7 +82,8 @@ pub(super) struct VenueProfileTag {
 }
 
 pub(super) struct Driver {
-    conn: super::audit_owner::AuditConnection,
+    // #1419 M7B：owner 内联状态不再扩大 Driver 的开库/返回槽；资源计费布局保持原样。
+    conn: Box<super::audit_owner::AuditConnection>,
     /// 启动前冻结的互斥私有模式；Owned 与 Runtime 同账，不保留 capture/审计结果。
     mode: s_allocation::Mode,
     runtime: prepared::Runtime,
@@ -571,38 +572,15 @@ impl Driver {
         let mut runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
         #[cfg(not(all(feature = "s_incremental", unix)))]
         let runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
-        #[cfg(feature = "s_incremental")]
-        let conn = if startup_context
-            .as_deref()
-            .is_some_and(|c| c.source_cache_enabled())
-        {
-            #[cfg(unix)]
-            {
-                let mut rebuilt = None;
-                super::audit_owner::AuditConnection::open_rebuilt_history_into(
-                    db,
-                    startup_context
-                        .as_deref()
-                        .unwrap()
-                        .complete_workspace_limit(),
-                    Some(scope.first_read_deadline()?),
-                    startup_context.as_deref_mut().unwrap(),
-                    &mut runtime,
-                    scope.max_store_bytes(),
-                    &scope,
-                    &mut rebuilt,
-                )?;
-                rebuilt.expect("冷交接成功后必有owner")
-            }
-            #[cfg(not(unix))]
-            {
-                return Err("H1准入需要Unix文件身份与只读FD/VFS".into());
-            }
-        } else {
-            super::audit_owner::AuditConnection::open(db)?
-        };
-        #[cfg(not(feature = "s_incremental"))]
-        let conn = super::audit_owner::AuditConnection::open(db)?;
+        let conn = Self::open_connection(
+            db,
+            #[cfg(feature = "s_incremental")]
+            startup_context.as_deref_mut(),
+            #[cfg(all(feature = "s_incremental", unix))]
+            &mut runtime,
+            #[cfg(all(feature = "s_incremental", unix))]
+            &scope,
+        )?;
         #[cfg(feature = "s_incremental")]
         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
             && super::audit_owner::pager_enabled();
@@ -646,6 +624,43 @@ impl Driver {
         }
         driver.resume_pending(startup_context)?;
         Ok(driver)
+    }
+
+    // #1419 M7B：按值 owner 的构造/返回槽局限于本帧，调用方只承接 Box。
+    #[inline(never)]
+    fn open_connection(
+        db: &Path,
+        #[cfg(feature = "s_incremental")] startup_context: Option<
+            &mut request_audit::RequestAuditContext,
+        >,
+        #[cfg(all(feature = "s_incremental", unix))] runtime: &mut prepared::Runtime,
+        #[cfg(all(feature = "s_incremental", unix))] scope: &super::admission::WriterScope,
+    ) -> Result<Box<super::audit_owner::AuditConnection>, String> {
+        #[cfg(feature = "s_incremental")]
+        if startup_context
+            .as_deref()
+            .is_some_and(|c| c.source_cache_enabled())
+        {
+            #[cfg(unix)]
+            {
+                let limit = startup_context
+                    .as_deref()
+                    .unwrap()
+                    .complete_workspace_limit();
+                return open_rebuilt_connection(
+                    scope,
+                    startup_context.unwrap(),
+                    runtime,
+                    limit,
+                    "冷交接成功后必有owner",
+                );
+            }
+            #[cfg(not(unix))]
+            {
+                return Err("H1准入需要Unix文件身份与只读FD/VFS".into());
+            }
+        }
+        super::audit_owner::AuditConnection::open(db).map(Box::new)
     }
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
@@ -832,6 +847,30 @@ impl Driver {
     }
 }
 
+// #1419 M7B：只拆 owner 的固定构造槽；context/runtime 的生涯仍由原调用方覆盖。
+#[cfg(all(feature = "s_incremental", unix))]
+#[inline(never)]
+fn open_rebuilt_connection(
+    scope: &super::admission::WriterScope,
+    context: &mut request_audit::RequestAuditContext,
+    runtime: &mut prepared::Runtime,
+    limit: usize,
+    owner_expected: &'static str,
+) -> Result<Box<super::audit_owner::AuditConnection>, String> {
+    let mut rebuilt = None;
+    super::audit_owner::AuditConnection::open_rebuilt_history_into(
+        scope.db_path(),
+        limit,
+        Some(scope.first_read_deadline()?),
+        context,
+        runtime,
+        scope.max_store_bytes(),
+        scope,
+        &mut rebuilt,
+    )?;
+    Ok(Box::new(rebuilt.expect(owner_expected)))
+}
+
 /// #1481：监督器新生涯先冷重建完整台账，完成 H1 资格消费后才允许 Recover 写入。
 #[cfg(feature = "s_incremental")]
 pub(super) fn recover_scoped_with_retention(
@@ -882,18 +921,13 @@ fn recover_rebuilt_history(
         newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
             .map_err(|e| e.to_string())?,
     );
-    let mut rebuilt = None;
-    super::audit_owner::AuditConnection::open_rebuilt_history_into(
-        scope.db_path(),
-        retention,
-        Some(scope.first_read_deadline()?),
+    let conn = open_rebuilt_connection(
+        scope,
         &mut context,
         &mut runtime,
-        scope.max_store_bytes(),
-        scope,
-        &mut rebuilt,
+        retention,
+        "冷恢复交接成功后必有owner",
     )?;
-    let conn = rebuilt.expect("冷恢复交接成功后必有owner");
     #[cfg(test)]
     {
         let marker = 0_u8;

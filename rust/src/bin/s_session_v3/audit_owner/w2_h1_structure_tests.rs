@@ -66,7 +66,8 @@ impl W2H1Fixture {
         }
     }
     #[cfg(test)]
-    fn open(&self, db: &Path) -> driver::Driver {
+    #[inline(never)]
+    fn open(&self, db: &Path) -> Box<driver::Driver> {
         h1_admission_assert_clean_close(db);
         driver::Driver::open_with_request_and_mode_retention(
             db,
@@ -79,6 +80,7 @@ impl W2H1Fixture {
             true,
             super::super::admission_anchor::test_prepare(db).into(),
         )
+        .map(Box::new)
         .unwrap()
     }
 }

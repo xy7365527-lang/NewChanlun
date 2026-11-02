@@ -1781,3 +1781,102 @@ Some full: counts=Counts { objects: 91, groups: 13, windows: 11, effective: 14, 
 Python 反向对拍确认 source_audit.rs 除两个期望与指定注释外和开工 HEAD 逐字相同；计算原公式仍得 reads=227347、F=248860。笔记开工前缀共 201108 字节，SHA-256 为 `64d7d79e43a8252e834f6dd2e945d16b94b35e49a5f6d2a89d3751197b3d54d1`，追加后逐字前缀对拍通过，M6F/M6G 均保留。工作区全部改动仅本笔记和 source_audit.rs；生产代码、其他测试和 ci.yml 未改，暂存区为空，HEAD 与分支未变。未 git add/commit，未回退任何改动。
 
 本阶段 status=ready。本机未运行 cargo/rustc；Rust 未验证，待 CI。
+
+
+## M7B
+
+本节绑定 #1419，开工分支 `sandcastle/issue-1419`，HEAD `388c8a2e465dd06018e43bc88d115e1554c877e4`，工作区干净。已读本笔记 M2/M2C typed 合同、M5/M5B、M6 的预算与 Box 拆帧记录，以及 `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md` 的 S1R/S1S。题面将拆帧记作 M6 第 4 项，正文实际在「第 5 项：未被 S1R 覆盖的 Driver 返回大帧」；第 4 项是 resolver 准备预算。本轮沿原授权修复，不开新票。状态 **ready，Rust 未验证，待 CI**。
+
+### 原件与证据边界
+
+实际通过 GitHub jobs logs API 读取 run `41414959715` / native job `125176458766`，原件临时存 `/private/tmp/issue1419-m7b-native-job.log`，未入仓。`gh run view --log` 因 run 仍在运行而拒绝；改读已经结束的 job 日志成功。原件物理行 `:1539–1540`、时刻 `2026-11-02T09:39:26.5208333Z` 明写目标线程 4500 overflow / fatal abort。`:862` 明写 bin 的 base=964、with_feature=1535、delta=571、removed=0。`:1544` 保留完整 `--exact` 启动名单，debug binary 为 `s_structure_session-ffdf887457b646bf`。features 入口为 `s_session,s_capture_native_testonly`；`rust/Cargo.toml:87` 表明后者依赖 `s_incremental`，没有遗漏增量条件。
+
+从该行解析 571 个唯一且按 C 字典序排列的名字，目标是第 86 项，字典序后续 485 项。完整名单逐名换行并以末尾换行结束的 SHA-256 为 `6a421f34c891b04d74b766df5d7e8a8f0049c94f85f4ac1ba8c71971bb3784e1`。libtest 并发运行，后续项 `h1_admission_foreign_sqlite_changes_retire_writer` 已在日志 `:1502` 先完成，不能把后 485 项全称为未运行；准确说法是 abort 后没有剩余完整运行收据。H1 `bea93e19` 的同名 native 锁通过依据为用户实测与 H1 REPORT S1U（`:2845`，526 passed / 6 failed / 9 ignored，无 overflow）的完整运行记录，不以当前源码检查替代该收据。
+
+源码定位可确认**第一处新增的大按值类型来源及其进入开库链的帧**，不能确认实际撞 guard 的指令、哪一次冷开或峰值字节。诊断代理的最小通过栈、逐阶段 H1_STACK_PROBE 读数不在本轮可得范围。以下尺寸全部是 64 位字段估算，未运行 size_of、cargo 或 rustc；不以估算值小于默认栈阈值签通过。
+
+### H1 ↔ 集成差异表与字段来源
+
+行号相对当前源码；Rust 路径以 `rust/src/` 为根。
+
+| 类型／位置 | H1 bea93e19 → 集成 HEAD | 由来与栈影响 |
+|---|---|---|
+| `bin/s_session_v3/audit_owner/admission_tests.rs:512/:567/:601/:610` | 整文件逐字相同；S1R 的 `Result<Box<Driver>,String>`、cold Box、非内联 helper、薄入口/body 均完整保留 | 不能重复把测试局部装箱当作本轮新增修复。helper 内仍要承接生产 API 的按值 `Driver`。 |
+| `bin/s_session_v3/source_contributions.rs:508–512` | 新增 `structure_dependents: Map<TextValue,Tree<Handle>>`、`structure_entities: Map<TextValue,Handle>`、`structure_entity_dependents: Map<TextValue,Tree<Handle>>`、`structure_versions: Map<TextValue,Handle>`、`structure_changes: Tree<Handle>` | `028796ba080463e73532e7d6ab94493808dee70d`，W2 重组提交；不是 H1 增补。 |
+| 同文件 `:537–540` | 新增 `w_init: Option<Handle>`、`w_raws: Map<i64,Handle>`、`w_raw_handles: Map<Handle,i64>`、`w_requests: Map<Handle,i64>` | `12bea702b1178c28d7f284d7bc15deda68aee25b`，W 初始化/未定原件来源贡献接线。上述合计九字段。 |
+| 同文件 `:133/:243` 的 `Map/Tree` | 新增字段不是裸堆指针；每个 Map/Tree 内联持 `NativeTree/NativeSet` 和 `bytes:usize` | `s_content/capture_allocation/native_tree.rs:6` 内联 `BTreeMap`、`high_water:usize`、`CodecVec<NativeReservation>`；`work.rs:163/:168` 的 CodecVec 内联 Plain/Owned 存储枚举及许可。九字段为七个 Map、一个 Tree、一个 Option<usize>，外壳增量约 1 KiB，**估算**；容器内元素另在堆上，不把历史条数乘进调用深度。 |
+| `theta_v0/parser/inclusion.rs:627–637` | 新增 `initial_evidence`、`initial_node`、`pending_raw`、`established_at`、`replayed_from_zero`、`record_steps`、`full_steps` 七字段 | 同为 `028796ba08`；经 `s_session_v2/s_fact_cache.rs:234 DeltaLane.state` 内联传播。证据值含两份 Bar 与坐标集合外壳，其余是 Rc/Vec/标量；没有巨型数组。 |
+| `bin/s_session_v2/tb02a_facts.rs:795` | `FactCache.initialization: Option<(usize,usize,String)>` | 同为 `028796ba08`，经 `DeltaLane.facts` 传播；与上一行合计为数百字节增量，**估算**。 |
+| `bin/s_session_v3/generation.rs:371` / `prepared.rs:121` / `driver.rs:84` | GenerationRuntime、Runtime、Driver 的字段声明本身在两侧相同，嵌套字段类型变大 | Runtime 的 `generator:Option<GenerationRuntime>` → `delta_lane:Option<DeltaLane>` 含上述 parser/fact 增量。Driver.runtime 仍按值，属第二条较小增长支路，本轮未改其布局。 |
+| `s_content.rs:186` 的 `ContextError`（PublishError） | H1 内部 String 变 typed，M2 又闭合 H1 冷链 | 源提交 `b21fe10984`，M2 传播记录见本笔记前文。字段仅 `message:String` 与 `proof:Option<BridgeProof>`；`scratch.rs:564–573` 的 proof 为两个 u64 origin、一个 u64 bridged、ScratchFailure 枚举。64 位约 56 B，**估算**，比 String 约增 32 B；大量 Result 槽会累积，但无大错误载荷证据，不据此改错误表示或擦除 proof。 |
+| `bin/s_session_v3/history.rs:3311` 的 HashReader | 新增 SqliteBase 读取分支、typed 传播 | SqliteBase 持借用，不内嵌整库；不支持「整个数据库被装进错误/reader」假说。 |
+
+`NativeSourceState` 原有 root/raw_binding/raw_prefix/rule、raw/ordinals/order、objects/order/sequence/ids、groups/indices/gaps、shapes/slots/missing、raw_objects/group_shapes/shape_witnesses、witnesses/order/sequence、slots/observations/sequence、计数、steps/coords/handles/subjects/knowledge、pending/members/overlaps/coverage/cover_dirty、requests/order/sequence/keys/bound/subjects/step_requests/missing_requests/work 均保留。大的是这些容器的**内联外壳总和**，不是堆内元素被逐个复制到每层栈。
+
+### 第一处来源与调用帧
+
+**选定修复对象是新增来源状态把 owner/Driver 按值返回槽放大，而非猜测 typed 错误或节点线性递归。** 最早可指出的持有链如下，首个空库 open 也会为这些 Option 的完整载荷预留类型尺寸，不要求它们当时为 Some：
+
+1. `source_contributions.rs:496 NativeSourceState` 的九字段 → `construction_state.rs:246 CommittedRawState.source` → `audit_owner.rs:322 AuditConnection.construction` → 开工 `driver.rs:85 Driver.conn`。`PendingRawState.source:476` 在事务阶段也含同一状态。
+2. 目标 `admission_tests.rs:604 → :610 body → :615 h1_admission_driver`，共享 helper `:512` 内调用 `Driver::open_with_request_and_mode_retention`。生产 `driver.rs:490` 外壳既承接 `Result<Self,String>`，又持局部 driver 后再返回；`open_with_request_and_mode_context:534` 原来同时保留 Runtime、`rebuilt:Option<AuditConnection>`、分支产出的 owner、组装出的 Self 以及返回/移动槽。S1R 只缩减 helper 外的测试槽，未缩减这些生产槽。debug 是否合并/复用具体槽由编译器决定，不把源码槽个数直接冒称精确帧尺寸。
+3. 冷入口 `audit_owner.rs:581 open_rebuilt_history_into` 进入冷认证/交接；`state.rs:1910 cold_for_request_inner → :1960 cold_captured → history.rs:551 fold_certified_history → :942 read_indexed_history_inner → :1250 audit_one_published_cut`。M2 在这些内部帧保留 typed 来源并于原 String 出口转换，没有另加判据。
+4. `state.rs:1290 ColdHistoricalSourceFold.cold_source` 仍按值持该状态；`:1355 advance_cold_sources` 以 `take()` 送入 `source_contributions.rs:2508 audit_source_step`，后者的 previous 入参、`:2545 state` match 与 `Result<(Counts,NativeSourceState,SourceExports),PublishError>` 返回槽再次按值含它。这是更深的固定帧压力，不因一次冷开完成而叠加六轮递归。
+5. 监督 recover 原 `driver.rs:880` 的 Runtime 与 `:885 rebuilt` 同帧持有至 owner.recover；本轮一起去掉外层 owner 构造/移动槽。Runtime/context 仍覆盖真正 Recover 和 owner 的显式析构。
+
+递归复核沿用并回查 S1R 的具体对象：`construction_set.rs:68/:108` 是显式 Vec 前沿；source_order 的 AVL 父引用是 Weak，其两侧差异是 typed 返回和测试适配；fixed_radix、native_tree 两侧无差异；sequence 的 concat/split 仍按规范分拆随树高递归，新增 CodecContext 委托没有逐代 owning 链；history prefix/effective 的循环/平衡子树未变成按原件条数递归。W2 新增来源字段是容器，新增结构/W 阶段按差分迭代；未找到本路径新增 O(n) 调用或析构链的源码证据。没有据未成立的假说修改 Drop。
+
+### 修复与语义中立论证
+
+只改两份 Rust 文件。
+
+- `driver.rs:86` 将 **Driver.conn 字段**改为 `Box<AuditConnection>`；`AuditConnection`、NativeSourceState、Committed/PendingRawState、完整候选、错误类型本身都不改。`Driver::open_connection:631` 标 `#[inline(never)]`，承接原 startup_context 分支并仅返回 `Result<Box<AuditConnection>,String>`。普通开库在这个 helper 内 `.map(Box::new)`，上层开库包装链只搬连接指针。
+- `driver.rs:853 open_rebuilt_connection` 为第二个非内联 helper，内部保留原 `rebuilt:Option<AuditConnection>` 和原 expect，成功后返回 Box。Driver 冷开与 `recover_rebuilt_history:906` 内的 `:924` 调用共用它。它仍调用同一个 `open_rebuilt_history_into`，按原顺序传同一个 db、limit、first_read_deadline、context、runtime、max_store_bytes、scope、输出槽。构造临时仍可能在 helper 内占栈，不能声称全部大帧已消失。
+- 无增量构建只传 db；增量非 Unix 保留 context 与原 Unix 拒绝文本；增量 Unix 才传可变 Runtime/scope。调用处的 Runtime mut cfg 与参数门一致。原 `db` 在调用前已经取 `scope.db_path()`，抽取后再次用该路径是同值；没有新路径解析或准入重判。
+- pager、startup、Driver 组装、保留预算设置、resume_pending、identity 等原顺序不动。recover 的 context/runtime 仍由原外层帧持有，owner.recover 的前后探针及 `drop(conn)` 原序保持；Box 先析构同一个 owner，再释放外壳分配。Driver 字段析构次序、`into_output` 先 drop(conn) 再交还 scope 的顺序保持。
+- 全仓实际 `git grep` 核 Driver 定义、构造、字段访问、模式匹配及尺寸计费：唯一 Self 构造在 open；唯一拆构在 into_output；其余 conn 消费是方法调用或借用，无将 owner 按值移出的消费者。Box→AuditConnection→Connection 的 Deref/DerefMut 适配这些调用，未修改方法签名或错误类型。另逐项核 `open_rebuilt_history_into`、`recover_rebuilt_history`、两个新 helper 的调用者。
+- **为何不直接装箱来源状态**：`construction_state.rs:355/:463/:519`、`audit_owner.rs:2840/:2852/:2858` 按 Committed/PendingRawState 的 size_of reserve/split/保留计费。修改其内联字段会改变资源读数。本轮保持这些类型逐字不变；独立全仓搜索未见按 Driver 或 AuditConnection 尺寸计费，故移动外层 owner 不改变原业务账。新增物理成本是每个 Driver 或 recover 的一个全局 allocator Box 分配及指针外壳；它不是 Native codec 许可，也不伪报为零分配。原 Native 内联费、容器费、保留费与许可释放点均保持。
+- `audit_owner/w2_h1_structure_tests.rs:69–84` 的 W2H1Fixture::open 原来返回 Driver，selected 的 `:287 online`、`:323 traced`、`:324 cold` 又保留多个按值槽。按 S1R 增 `#[inline(never)]`、返回 `Box<Driver>`、成功结果 `.map(Box::new)`；两处调用经 Deref 借用同一 Driver，`:320/:357` 的显式 drop 顺序保持。四条既有 W2 锁共用此 helper，所有场景与断言不动。
+
+完整 W2 规则串、所有错误文案、预算和资源帽、观察点、effects、资格/证书消费均未改；没有增加 #799/#804 所禁的另一套判据或失败兜底。未改 workflow/ci.yml、栈设置、测试名、ignore、原测试场景与断言。Driver 测试模块与 HEAD 逐字相同；W2 文件逆向还原上述三种栈形状改动后与 HEAD 全文逐字相同。
+
+### 同路径后续 native 项预检
+
+范围为 construction_tests 的主文件与六个 include，实际按值开库/Runtime 调用及共享 helper 全部检索，再与本次 571 名单对照。以下是源码预检，不等于栈帧实测或运行 PASS。`admission_tests.rs`、`history_clamp_tests.rs` 与 `audit_owner.rs` 本轮未改，表内其行号不漂；W2 行号为修后。同名测试实际经 `audit_owner.rs:5742/:5749` 的 construction_tests/include 编译，仓内没有实体 `construction_tests.rs`。
+
+| 文件与位置 | 检出的大值槽／处理 |
+|---|---|
+| `admission_tests.rs:512/:567/:601/:610`；调用 `:164/:224/:434/:465/:495/:575/:615/:717/:824/:951/:1233/:1251/:1369`，`legacy_admission_tests.rs:8` | 原 S1R Box/薄入口完整；生产 owner Box 使其底层 Driver 返回槽同步变小。 |
+| `admission_tests.rs:758/:844` | cold 原节点/记录门、真实 wire 短门的失败 Result<Driver>；两测试字典序在目标之前，不能冒作未运行尾段。生产修复同步缩减其 owner 返回槽。 |
+| `admission_tests.rs:901/:995/:1082/:1162/:1192/:1305` | prepolicy、临时 seed 失败子进程、正常退出子进程、Ordinary 拒绝/成功、hot journal，均在目标后名单，仍有单个 Driver 或失败 Result；共用修后的生产构造。`:1016` 为该子进程的显式 drop，不是另一处构造。 |
+| `admission_tests.rs:54 runtime` 与 `:68 open` | Runtime/组件 owner 按值 helper；所有调用分别为 `:281/:324/:357/:744/:797` 与 `:283/:326/:359/:746/:799`。foreign 已有 ok 原件，online 在后续名单；另几个在目标之前或为共享准备。直接组件单 owner/Runtime 构造与多层 Driver 返回槽不同，本轮只登记，不改其合同。 |
+| `w2_h1_structure_tests.rs:70/:285/:287/:323/:324` | 多次 Driver/traced/遮蔽槽，同因修成 Box；CD `:379 → :436`、EF `:521 → :557`，及 `w2_h1_window_tests.rs:96 → :111/:161` 的两场 W 未定、`:207 → :232` 的 bounded2 锁，四原名测试均在目标后实际名单。 |
+| `history_clamp_tests.rs:2 h1_owner` | 组件 owner 按值 helper；调用 `:16/:26/:51/:72/:81/:91/:101/:114/:132/:140/:145/:157/:218/:322/:365`。另 `:230` 直接普通开库；certified helper `:394–395`、qualified helper `:775–780` 及失败/直接 component 调用 `:561/:581/:946/:1264` 均按值返回 owner/Result。未改组件接口；它们没有经过 Driver 包装链，不能声称被本轮生产 Box 全部覆盖。 |
+| `history_clamp_tests.rs:833/:883/:922/:939/:978/:1103/:1177/:1324` | qualified helper 的 traced、冷开、失败、重开调用，含 owner/Result 槽；后续名单包含各 qualified 锁。本轮未改，保留为 CI 重点观察项。 |
+| `history_clamp_tests.rs:27/:60/:268/:287/:310/:425/:467/:503/:641/:769/:897/:913/:1241` | 直接 Runtime 构造；`:767 h1_qualified_runtime` 的调用为 `:831/:896/:936/:1101/:1175/:1322`。`:893` 的资格负控同时持 empty/partial/none 三份 Runtime；这属于已列第二条 parser/runtime 增长支路，不为未经实测的失败另改生成器布局或计费。 |
+| `audit_owner.rs` construction_tests 内 `:5858/:6004/:6005/:6018/:6277/:6310/:6491/:6533/:6621/:6700/:6742/:6766/:6887/:6935/:7018/:7105/:7185/:7241/:7311/:7348/:7377/:7399/:7418/:7438/:7455/:7487` | 直接组件 owner/普通开库槽，包含 warm/cold、外来连接和重开；保留。warm/cold helper 可由后续 `h1_request_closure_real_owner_multicut_reuses_resolved_roots` 与 `p6_native_source_context_preserves_real_owner_multicut_contract` 进入，不能仅按 helper 名 b2 判定在目标之前。 |
+| 同文件 `:6278/:6311–6312/:6492/:6534–6535/:6623/:6701/:6744/:6767/:6888/:6936/:7020/:7136/:7263` | 组件并存 Runtime；后三处分别是 set_publish_case、cross_request_publication_case、publication_scope_case 共享准备，后续 owner/publication 锁可达。与上一行单组件槽及第二增长支路一起登记，未泛化改测试。 |
+| `b2_source_fault_tests.rs:495–496` | 直接 owner + Runtime；`legacy_admission_tests.rs` 仅用既有 Box Driver；两个 W2 include 除上述共享 open 无其他 Driver 构造。 |
+
+本轮消除的是**Driver 包装链及 recover 外层重复承接变大 owner**，并修 W2 夹具的多次 Driver 返回同因；保留单组件槽、Runtime 支路和冷来源核自身的固定大局部。没有证据声称这些残余都会溢出，也没有证据声称它们已经栈安全。故不为“还有一个按值变量”就扩散修改所有组件或改变原收费类型。
+
+### 实际检查、独立复核与待 CI
+
+本轮实际执行并退出 0：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/driver.rs rust/src/bin/s_session_v3/audit_owner/w2_h1_structure_tests.rs`。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`，产物与源码一致，未重写或手改禁串清单。
+- 已完整读 anchor_lock 脚本后执行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，3 项通过；该脚本不调用 cargo/rustc。
+- `git diff --check`；Python 核 Driver 原测试模块逐字不变、三个原拒绝/expect 文案各保留一次、W2 文件逆向还原逐字对拍通过。
+
+非作者只读独审分别核两份 Rust diff、全仓使用者、三类 cfg 参数、Deref 适配、所有传参/错误文本、scope 与 drop 次序、sizeof 收费布局，未发现阻塞。独审没有 Rust 编译或运行收据。
+
+追加前笔记为 205827 字节，SHA-256 `b14c2b1245920ed62eea89afb5a43b425c3937ecbd6c6d809ee815f68734f51f`；本轮只在末尾追加，不追溯改写 M2–M7 记录。未 git add/commit、回退改动或运行 cargo/rustc。
+
+待 CI 必须以封包精确 head 验证：
+
+1. 原 `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` 在 native **debug 默认测试线程栈**下完成全部原断言，包括冷3/冷5、真实 recover、epoch2 pending 第六代、台账 bitwise 与最终冷6；不得靠增大栈或资源帽通过。
+2. 原 native delta 完整名单继续执行，不再 fatal abort；重点是上述 normal_exit/seed_failure/Ordinary、组件 qualified 与四条 W2 冷往返后续项。运行失败须逐项报告，不能把不再 abort 当作业务断言全过。
+3. 三类 cfg 的 Rust 类型检查与既有 Native/Ordinary 对拍、资源账、effects/证书锁保持；本机格式/anchor 检查不能证明它们已通过。
+4. 诊断读数回来后，对比两侧 `driver_open/cold_open/cold_source/source_step/recover_open/codec_read_peak/complete` 与最小通过栈；具体失败帧如仍在冷来源核或 Runtime 支路，应据该阶段读数继续修，不能把本轮结构估算当运行定位结论。
+
+本阶段 status=ready；Rust 未验证，待 CI。
