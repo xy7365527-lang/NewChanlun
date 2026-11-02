@@ -2025,3 +2025,31 @@ M4的13377是特定full Some夹具、发展批前缀跨条目重审的**读取�
 - `git diff --check` 与新文件 `git diff --no-index --check -- /dev/null .chanlun/review-results/issue1419-w2h1-integrate46x/M7D-DESIGN.md` 均退出0。
 - 追加前笔记245211字节，SHA-256 `dfc512b40ecf029af946903ecf0dc53b58db69b909617f66dde262b8629bb3b2`；Python前缀逐字对拍通过。M7C原19942字节，SHA-256 `a96ae3b05bc704f361f4fda519657e881abbc5a7631bf0a18353c10dcf1da5c8`，逐字保留。
 - 改动仅本笔记追加与设计新文件；HEAD/分支不变、暂存区为空。不运行cargo/rustc，不改Rust/ci.yml，不git add/commit。
+
+
+## M7E
+
+本节绑定 #1419，将独立诊断的首次资源拒绝收据并入 [M7D-DESIGN.md §7](M7D-DESIGN.md#7-首拒收据与方案适用性)。诊断分支 `codex/1419-budget-diag46z2@a578cca32e6679002cb1fd3af41f08290d24c800`，[run 41434824853](https://github.com/xy7365527-lang/NewChanlun/actions/runs/41434824853)，原件为 `/Volumes/AgentStorage/budget-diag46z2/REPORT.md`、`per-request-table.txt`、`instrumentation.diff` 及两锁完整名称日志。插桩不改判定、帽、断言或代数，复现原 owned 结果。本机只读取收据并追加文档。
+
+M7C 原文保持不变，按新增实测订正如下。前三项补齐 M7C 的入口、失败代和 J 缺证，第四项明确槽宽计量。
+
+| M7C 的待测或易误读口径 | M7E 实测订正 |
+|---|---|
+| effects 来源准备入口未定位具体分支，不能按 `:1470` Plain 入口归因 | 实际是 `audit_owner/effects.rs:1477-1484` 的 `(body, Some(fee))` codec 分支，调用 `s_content.rs:3507` 的 `append_original_codec_for_owner(.., j.cap, ..)`。 |
+| g22/g25 是最后可见读数，原日志不足以定位失败代 | 新逐请求收据确认 g22/g25 已提交；C/D 首次失败为 n=23/43，即 g23，E/F 为 n=26/107，即 g26。M7C 的末条读数不改写为失败代。 |
+| `J≤67108864 B`，只有理论上界 | 实际 J 分别为 `52612123 / 52145259 B`，约52.6M/52.1M，远低于上界。对应 `P=420896990 / 417162076`，`J=floor(P/8)`；不能用67,108,864冒充实值。 |
+| 历史布局估算 W=225 B，尚无本次 size_of 收据 | 本次实测 `size_of::<(NodeDigest,NativeNode)>()=224 B`，增长式用 `W=size_of+1=225 B`。原 G 算式数值成立，但225不是裸 size_of。 |
+
+两锁实测均在 `len=capacity=114688 → C'=229376` 时申请 `G=103222800 B`。父 `reserve_native(G)` 成功，随后 `growth>J` 短路，未执行 `try_reserve`，记录 Allocation；FailureTrace 为 budget 0 / allocation 2 / ledger 0 / semantic 0 / bridged 1。父 remaining/live 是同请求扩容前 journal_cap 时点读数，不是扩容瞬间单独采样值。全程父 remaining/总帽拒绝为0，失败在 prepare，未到 validate_effects 或 `audit_owner.rs:4075/:4083/:4100/:4153`，不将未执行写成通过。
+
+M7D §7 已据此收敛 §4 的首拒归因，并给出 i 的 `2Q=3693600 B + D_path` 对 g23/g26 原 J 的条件估算。新布局会改 J，仍须实测；i 仍常驻全部原件，推荐 ii 保持。bounded2 的18代、最多101481节点与 J 随代下降的对照，以及 j.cap/usize::MAX 两入口的不对称均已登记；229376档落在尾部入口的结果仍是未测推断，不作为修复手段。M4 的13377独立议题不变。
+
+
+本轮实际检查已完成：
+
+- 已逐行核对两锁原始日志 `:243-277` / `:267-302`，并读取报告和逐请求表；本机未执行 cargo/rustc 或 Rust 构建、测试。
+- Python 复算 G、Q、2Q、P/8、L0+A、叶数界和两份目录路径余量，全部通过。估算仍按条件标注，没有用估算签发通过收据。
+- Python 对拍追加前快照与 HEAD，再核两份当前文件的原字节前缀。M7D 原31875字节，SHA-256 `cbadb05cc5d67f52e59a9a2073bdccf6be2dfea6a4e5bd07c55bb62d138ab932`；M2 原246336字节，SHA-256 `c9c8c7f359d6d3fb41f7c4319dc14f9b57c9eb2d49d5891b105482a61b87cf8d`，均逐字保留，M7C原文未改。
+- `git diff --check` 退出0；差异清单仅 M7D-DESIGN.md 与本笔记，全部为追加，暂存区为空。不改Rust/ci.yml，不git add/commit，不回退其他改动。
+
+本阶段 status=ready 只指 M7E 文档交付，不表示原两锁已通过或有界原件方案已实施。
