@@ -41,6 +41,47 @@ fn h1_real_own_accept_begin_publish_continues_same_life() {
     }
 }
 #[test]
+fn h1_effects_close_flushes_pager_before_observation_and_suffix_reads() {
+    fn spills(connection: &Connection) -> i32 {
+        let (mut current, mut highwater) = (0, 0);
+        // SAFETY：只在本线程同步借用有效连接与两个栈内输出，不保存 handle。
+        let rc = unsafe {
+            rusqlite::ffi::sqlite3_db_status(
+                connection.handle(),
+                rusqlite::ffi::SQLITE_DBSTATUS_CACHE_SPILL,
+                &mut current,
+                &mut highwater,
+                0,
+            )
+        };
+        assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+        current
+    }
+    // #1419：只缩小测试连接的建议页缓存，强制真实固定写口经历 pager spill；
+    // 不改 Native 父帽、规则、effects、物理观测或完整历史对拍。
+    for cache_pages in [8, 32, 128] {
+        let f = fixture();
+        let owner = h1_owner(&f);
+        owner
+            .connection
+            .pragma_update(None, "cache_size", cache_pages)
+            .unwrap();
+        owner
+            .connection
+            .pragma_update(None, "cache_spill", true)
+            .unwrap();
+        let before = spills(&owner.connection);
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut c = context();
+        for n in 2..=3 {
+            h1_publish_round(&owner, &mut runtime, &mut c, n);
+            owner.assert_complete_matches_cold();
+            assert!(!owner.retired.get());
+        }
+        assert!(spills(&owner.connection) > before);
+    }
+}
+#[test]
 fn h1_other_connection_commit_is_sticky_stale() {
     let f = fixture();
     let owner = h1_owner(&f);

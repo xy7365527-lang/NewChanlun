@@ -8146,8 +8146,36 @@ mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    #[inline(never)]
     fn audit_owner_incremental_normal_writes_full_oracle_and_suffix() {
+        audit_owner_incremental_normal_writes_full_oracle_and_suffix_body();
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[inline(never)]
+    fn audit_owner_incremental_normal_writes_full_oracle_and_suffix_body() {
         use super::super::audit_owner::allocation_probe::Window;
+        // #1419 M6：沿 #1481 S1R 将大 Driver 返回槽隔离在不可内联的开库帧内；
+        // 主体与 traced 请求只持 Box，仍走原来的正式入口和 Ordinary 对照臂。
+        #[cfg(test)]
+        #[inline(never)]
+        fn open_native(f: &Fixture, epoch: &str) -> Box<Driver> {
+            Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                epoch,
+                f.clock.clone(),
+                536_870_912,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .map(Box::new)
+            .unwrap()
+        }
+        #[inline(never)]
+        fn open_ordinary(f: &Fixture) -> Box<Driver> {
+            f.open("1").map(Box::new).unwrap()
+        }
         fn context(d: &mut Driver) -> request_audit::RequestAuditContext {
             let total = d.audit_cache_source_bytes.unwrap_or(536_870_912);
             let keeper = d
@@ -8241,8 +8269,8 @@ mod tests {
         }
         let f = Fixture::with_clock(plan.clone());
         let o = Fixture::with_clock(plan);
-        let mut native = complete_driver(&f);
-        let mut ordinary = o.open("1").unwrap();
+        let mut native = open_native(&f, "1");
+        let mut ordinary = open_ordinary(&o);
         let ready = envelope("establish-q", json!({"op":"ready"}));
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
@@ -8430,16 +8458,7 @@ mod tests {
         let memory = Window::start();
         drop(native);
         let memory = memory.finish();
-        let mut reopened = Driver::open_for_serve_with_mode(
-            &f.db,
-            &f.profile,
-            "2",
-            f.clock.clone(),
-            536_870_912,
-            s_allocation::Mode::CapturedNative,
-            crate::v3::admission_anchor::test_prepare(&f.db).into(),
-        )
-        .unwrap();
+        let mut reopened = open_native(&f, "2");
         assert_eq!(reopened.conn.complete_retained_bytes(), 0);
         assert_eq!(
             reopened.handle(receipt_request(&revision)).unwrap(),

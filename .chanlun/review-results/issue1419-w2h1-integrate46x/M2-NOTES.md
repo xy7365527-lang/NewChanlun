@@ -1330,3 +1330,163 @@ Rust 未验证，待 CI。上述格式、Python 锁与静态核查不证明 Rust
 - `git diff --check` 退出 0；未运行 cargo/rustc，未暂存、提交或回退改动。
 
 本阶段 ready。Rust 未验证，待 CI。冻结数值与摘要沿用 M4 现状，由下一阶段依据 CI 实测更新。
+
+
+## M6
+
+本节绑定 #1419，开工分支 `sandcastle/issue-1419`，HEAD `653b051ee64935d66ba653bc19461c841dee4442`，工作区干净。已完整读取本文件原有 1332 行，包括 M3 四锁设计、M4/M4B、M5/M5B。按用户授权比较 W2 `ab2bfac7`、H1 `bea93e19` 与当前 HEAD，读取 `/Volumes/AgentStorage/w2-h1-integrate46x/ci-dde4cd4b/owned-48g.log` 的失败原文。原日志对应 `de4fd36a`，早于 M5，不能直接把旧失败算作当前 HEAD 的运行收据。
+
+本阶段 **status=blocked，仅第 3 项需要新设计**。第 1/2 项共用生产物理写时序修复，第 4 项修测试准备额度，第 5 项按 S1R 方法拆帧；全部交付待 CI。第 3 项已定位，现役生成状态机缺少历史初始化版本，单独屏蔽非法 kind 会制造后续失败，故未提交半修。阻断不妨碍其余改动交付。未运行 cargo/rustc，未暂存、提交或回退任何改动。
+
+### 第 1 项：逻辑 effects 已覆盖，pager 物理写尚未闭合
+
+原文 `owned-48g.log:2081-2082/:2098-2099/:2117-2118`：三条 `w2_h1_cold_bounded2_shape_development_window_matches_online`、`w2_h1_cold_cd_second_cursor_continuation_matches_online`、`w2_h1_cold_ef_seed_pair_qualification_and_canonical_matches_online` 均在 `w2_h1_structure_tests.rs:292` 的在线 `online.handle(envelope).unwrap()` 报 `HistoricalAuditStale：effects闭合后出现未声明变化`。stdout 最后一条候选后缀日志分别为 g6、g6、g7；该日志先于最终 COMMIT，不能据此声称这些代已经提交，也不能把失败归为还未开始的冷恢复。
+
+第一处出错的边界在 `audit_owner.rs:4508-4534`：原实现先 `Recording::finish` 结束逻辑效果，再 `Clamp::candidate` 拍物理快照，随后才 `validate_effects`。后者 `audit_owner.rs:4039-4059` 经 `history.rs:8958 append_owner_cut` 读取历史内容、构造并核验本代后缀；`history_clamp.rs:231-254` 的 `observe` 本身也会读 domain 与两个控制表。逻辑 SELECT 并不保证 SQLite pager 不写文件。
+
+物理写的来源为 **同一个 owner 连接、同一个未提交 Publish/固定写事务此前写脏的页**。`s_session_v2/content_store.rs:995-1001` 的 `TxStore::put_before_write_inner` 已执行 `INSERT INTO s_content_nodes(digest,tag,body)`，紧接着 `:1005` 已交 `note_persisted_node`，逻辑新增行处于原 Node journal/effects 覆盖内；相关内容表及索引脏页不必在 execute 返回时落盘。后续扫描旧页，在页缓存压力下把尚未落盘的可驱逐脏页写成 WAL 的未提交 frame。它不是闭合后新发出的 INSERT，也不是另一个连接或 audit ledger sidecar 写入。
+
+已对照 Cargo.lock 锁定的 `libsqlite3-sys 0.38.2/sqlite3/sqlite3.c`：`getPageNormal:65140/65160` 的读页 miss 可进入 `sqlite3PcacheFetchStress:57161`，该函数挑未引用脏页调用 `pagerStress:64214`；WAL 分支 `:64250-64254` 调 `pagerWalFrames(...,0,0)`。该路径不增加 SQL total_changes，却改变 WAL 长度/mtime/ctime。HEAD 的 `history_clamp.rs:353` 会因此正确地拒绝新旧候选观察值不同。原 CI 未记录具体被驱逐的页号/表页归属，不能把某一个 WAL frame 伪报为 CI 已确认的 s_content_nodes 页；源码定位到节点/索引写脏与后续 pager 写帧的边界，已足以修复遗漏的物理闭合动作。
+
+W 未定锁两场最多五代，主要保持未定对象/请求，随后成立，未触发旧日志里的较大历史扫描工作集。CD/EF/bounded2 的窗口、分型发展批、段/中心对象由 `generation.rs:908-977/:1275`、`content_structure.rs` 构造，最终仍经同一 TxStore 持久化。失败前累计节点分别为 16002、16529、15589，工作集变大后读旧页更易触发 spill；EF 甚至尚未到最终 center/pair 冷点就失败。因此不能把“这些对象在最终夹具中存在”误当成“失败时它们已全部出生”，也不能给这三类对象另造 effects 例外。W 通过只说明该短夹具未触发同一时序缺陷，不构成另一套准入语义。H1 本身已经有 bounded1 开发批，不能把 CC-007.development_batch 整族写成 W2 才新增；W2 的 bounded2 来源绑定等编码差异与持续历史工作集暴露了同一边界遗漏。
+
+**改法**在 `audit_owner.rs:4510-4517`：只在现有 Unix H1 history_strict 域，对同一 active transaction 执行 `cache_flush().map_err(publish_err)?`，然后才 `recording.finish`。这把可刷出的自身脏页写入提前到 effects 仍活跃且候选尚未拍照的时点。`Recording::finish`、total_changes 覆盖、controls.verify_effects、own_files、observe 的前后 stat、check_candidate 的逐位比较、COMMIT/checkpoint 收据及 data_version 均未改；flush 失败沿原错误清理/回滚/候选失效路径返回，不重新审计或切宽判据。
+
+`rusqlite 0.40.2/src/lib.rs:1070` 已提供该 API，未加依赖。SQLite API 明确只刷未被引用的脏页，跳过 page1 与活跃游标页，不能称“flush 全部脏页”。正常发布帧在 `audit_owner.rs:1641` 返回，pending 于 `:1671` drop 后才进 finish；TxStore 的 execute 已完成并 reset，读取 helper 的 rows 在返回前 reset，不跨此边界保留游标。page1 恒在用，不会成为后续读可驱逐的页。未来若仍有残余物理变化，原比较继续拒绝。
+
+COMMIT 监视器仍由 `commit_as` 在提交前 arm；提前 spill 的未提交 frame 被真正 COMMIT 返回的累计 WAL frames 及 `history_clamp.rs:367-422` 的长度/回填前沿核验覆盖，不需要伪造提交回调或更新 baseline。认证只读 FD/WAL VFS 已在 `admission.certify_cold` 结束时关闭；交接后的 writer 经根 `s_structure_session.rs:426-434` 的普通 PRIVATE_CACHE 连接打开。新 flush 不进入只读认证 VFS，也没有撤销后再借用 SQL 授权。
+
+M5 覆盖：H1 S1R `29326e4d43` 只改栈形状及探针，S1S `ae46a1273b`、S1T `0940e55734` 改夹具/前缀对照；未加入 pager flush。`history_clamp.rs` 与 H1 bea93e19 整文件相同，原 finish→candidate→validate 顺序仍在，故 M5 未覆盖。H1 原分支的小工作集通过不证明这个物理闭合边界完整，W2 原分支没有 H1 Clamp，物理 spill 不会触发该新比较；修复同时保留 W2 真实持久化与 H1 严格观测。
+
+### 物理写原型及压力锁
+
+本机实际运行 Python 自带 SQLite 3.53.4 的 C API 小原型，不构建或执行 Rust。旧 history 512 页、cache_size=32、写入 25 个新节点页后，仅 SELECT 使 WAL 从 0 变 4152 字节；30 页时从 16512 变 24752 字节；两场 SQL total_changes、main stat 均不变。闭合前 `sqlite3_db_cacheflush` 后，1/5/10/15/20/25/30/40/50 页九场后续 SELECT 的 WAL stat 均不变。主控独立重跑退出0。原型证明机制，不能冒充当前 Rust 三锁已转绿，也不能从随机页原型推出旧 CI 的具体页号。
+
+新增 `history_clamp_tests.rs:44 h1_effects_close_flushes_pager_before_observation_and_suffix_reads`：对 8/32/128 页三档各自建立独立真实 fixture/owner，开启该测试连接的 cache_spill，跑原 H1 Accept/Begin/Publish 两代，核完整冷输出、owner 未退休及 SQLITE_DBSTATUS_CACHE_SPILL 正增长。只改测试连接建议缓存，不改生产缓存配置或 Native 父帽。`.github/workflows/ci.yml:485` 加入 owned 的逐名成功收据，原 h1_ 执行过滤会实际运行它，原有名单全保留。
+
+此新增锁是压力锁，未证明删除 flush 后一定变红；可能有些缓存配置在写阶段已 spill。已有 M3 三条真实失败锁才是原症状回归判据，CI 须同时跑 W 未定对照与全部外写/main/WAL/commit-hook 负控，不能用新增压力锁代替它们。
+
+#799/#804 核对：只移动同一连接的物理写时点，同一严格判定与级别输入均不变，没有比较删除、失败兜底、第二套宽松证书或效果豁免。
+
+### M6 第 2、4、5 项：冷恢复边界、真实预算来源锁与测试栈帧
+
+本组完整阅读 M2-NOTES（含 M3 冷往返设计、M4/M4B 与 M5/S1R/S1S/S1T），对照 W2 `ab2bfac7`、H1 `bea93e19`、HEAD `653b051ee6`。只编辑 `rust/src/bin/s_session_v3/history.rs` 与 `rust/src/bin/s_session_v3/driver.rs`；第 2 项与 effects 修复组协调，不编辑其生产文件。未运行 cargo/rustc，未暂存、提交或回退改动。
+
+#### 第 2 项：M5 没有覆盖锁内文件变化
+
+原文 `owned-48g.log:2051-2052`：`h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` 在旧 `admission_tests.rs:701` 报 `HistoricalAuditStale：锁内观测期间文件变化`。stdout 已完成 g1..g5 的真实提交；失败点不是此前冷重建台账或正式 recover，而是换 epoch 后重开 Driver、自动续接 pending 第六代：旧 `:701` 对应当前 `admission_tests.rs:718` 的 `driver.unwrap()`，其上一行 `state::traced(... h1_admission_driver(&f, "2"))` 覆盖冷认证及自动续写。
+
+M5 覆盖证据须分开写：
+
+- H1 S1R `29326e4d43a202a519a5dd7cbb1ce646b9ed17e1` 只将 `h1_admission_driver` 返回值改为 Box（当前 `admission_tests.rs:512-528`）、将 cold helper 返回值改为 Box（`:567-597`）、增加薄测试入口/独立 body（`:601-612`）及水位探针。`git diff 42a3f959 bea93e19 -- admission_tests.rs` 只有这三组栈形状变化，无观测/effects/SQLite 写入改动。
+- H1 S1S `ae46a1273b6bb3babfcf958a3f2d970c83784280` 根本不改 admission_tests.rs；其 driver/prepared 夹具改动没有覆盖这里的 observe/effects 边界。S1T `0940e55734` 仅改 driver identity/schema 对照和报告，同样不覆盖。
+- Python 逐字确认 HEAD admission_tests.rs 整文件与 H1 bea93e19 相同。因此只能说 M5 保留 S1R 栈修复，不能以 S1S 已合入声称本 stale 已修。
+
+第一处显式失败为 `history_clamp.rs:231-254`：先取 main/WAL stat，随后读 domain/controls，末尾再取 stat并比较。与 effects 组协调的根因是同一 owner 写事务的脏页在后续读旧页时被 SQLite cache spill 写到 WAL；这不是另一个逻辑 SQL 写、不是台账 sidecar 混入监视范围。pending 第六代发布已经有脏内容页，控制读扫描足以把它们淘汰，因而锁内 stat 改变。生产修复与第 1 项共用：在记录中的自身效果仍未闭合时使同连接脏页落盘，然后才拍候选/观测快照。该判断以源码和父组 Python SQLite 探针为证，不把当前 Rust 路径称作已复现通过。最终生产行号及 probe 结果由 effects 组填入其小节；本组没有改比较、断言或控制门。
+
+CI 需执行此原名锁，重点必须到达 g6 自动续写、资格事件 `[1,2,3,4,5,6]`、最终 g6 台账 bitwise 对拍与再冷开；无 full_audit 次数增加断言继续保留。
+
+#### 第 4 项：8 MiB 是测试预演的人工额度，不是生产资源合同
+
+原文 `owned-48g.log:1302-1304`：旧 `history.rs:7421` 的 `unwrap()` 收到 `ContextError { message: "PublicationInvalid：prototype_capture_owned_payload_limit: codec 工作域分配失败", proof: Some(BridgeProof { origin: FailureOrigin { capture: 113, born: 2 }, bridged: 3, failure: Budget }) }`。该组实际 `79 passed; 1 failed; 1 ignored`。
+
+第一处错误在测试准备段：第一个 `resolve_native_dual_templates_pending_view` 原本应成功，再用 `scope.reserve_native(budget.remaining())` 压满余额，第二次同消费者才是本锁要证明的真实 Budget 失败。CI 停在第一次成功预演解包，尚未创建 ballast，故它没有测试到原来的 BridgeProof/最终 publication 判决断言。
+
+源码预算分项不是只有新对象载荷：
+
+- `history.rs:7401-7425` 中同一个 Native 父账先持 codec 元数据、aux index、history objects、manifest/roots 和 NativeCutProjection 数组；这些对象跨预演继续存活。
+- `s_session_v2/content_publication.rs:468-565` 的真实双模板消费者依次核 scope、核两棵 Template 原件闭包、取字段、分配 values、构造模板 overlay，再替换 `index_frontier` 和 `catalog_evidence.batch_id`。`audit_store.rs:304-391` 在 work scope 下通过原始 capture 每次核验真实帧，复制 body 前 `reserve_native`；字段/数组/模板编码用同 scope 的 Layout 分配，`history.rs:4070` 起 NodeSink 将结果留在 overlay。
+- `native.rs:1565-1609` 对 Native、Layout、Metadata 统一先扣 remaining 再核 total_limit；不能给各分项另开额度。CI 的 `failure=Budget` 与这条额度拒绝一致；现有日志没有打印内部具体第几次分配或各分项峰值，本组不编造精确分项字节或声称已知失败在 resolver 中哪一条 reserve。
+
+反证默认“集成引入生产分配超原合同”：该锁由 W2 `4207f5f7fd` 首次加入，H1 bea93e19 中完全没有此测试。Python 提取完整函数，证明 W2 ab2bfac7 与 HEAD 的目标测试逐字相同；两侧对应 Native Budget 和 scratch 核未变（native.rs 差异只有只读 Permit::bytes）；native_cut_projection/dual resolver 也未增加分配语义。Fixture 建库、accept_begin 单行输入未被 H1 改变。故没有证据把这项改判为 H1 引入的生产额外分配；“W2 链其他测试通过”不能证明这条新锁真实跑过。
+
+改法仅 `history.rs:7397-7401`：将本测试人工父账从 8 MiB 调至 64 MiB；依据同文件 `r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication`（`:7027`）及 `aux_index.rs:2793` 的 `r12_cold_object_aux_shared_scope_matches_complete_plain_outputs`，两者均以 64 MiB 运行真实 Native 索引/投影/发布受管工作域。64 MiB 是同类测试的准备额度，没有改任一生产资源记录、配置或帽。成功预演是保证到达锁目标；额度大小本来不是该测试断言。第二次调用前仍精确占满全部 remaining，不靠一个固定 ballast 数字制造失败，因而增大准备额度并未放宽目标失败条件。
+
+Python 验证当前函数去掉新增注释、将64恢复8后与 HEAD 完整逐字相同：两次真实调用、同一 scope、ballast、returned 克隆、only_resource、WorkError::Resource(Budget)、BridgeProof 消费及最终 publication_degrade_verdict 的全部原断言保留。S1R/S1S/S1T 不改该锁，所以 M5 没覆盖。是否 64 MiB 足以完成当前集成候选的预演须由 CI 实测；本机检查不代替它。
+
+CI 需先完成真实索引/双投影与首个 resolver，再证明 ballast 后第二个 resolver 返回 Budget、trace 只有资源错误且最终 publication 判决接受该真实来源，不能只看函数返回或组计数。
+
+#### 第 5 项：未被 S1R 覆盖的 Driver 返回大帧
+
+原文 `owned-48g.log:2205-2207`：`audit_owner_incremental_normal_writes_full_oracle_and_suffix` 在线程 5700 栈溢出，随后进程 SIGABRT。日志没有完整回溯，本组不声称定位到运行中的某个最低层栈帧。
+
+源码第一处可修的大帧是目标测试自身：旧 `driver.rs:8149` 的长函数同时分配 Native Driver、Ordinary Driver，并保留 epoch2 reopen 的按值 Driver 返回槽；带这些返回槽的测试帧再进入真实 handle/traced/codec 深调用。W2 ab2bfac7 原测试、H1 bea93e19 原测试及 HEAD 都保留三处按值开库。H1 S1R `29326e4d` 的已验证修法是 Box + `#[inline(never)]` helper + 薄测试入口，其适用位置是 admission cold 测试；该提交对 driver 的改动仅 recover 水位探针。另两处 driver 局部开库的 Box 化属于 S1S `ae46a127`（native_delta 与 native_bootstrap 测试）。这两提交均未改到本函数；S1T同样没有 Box 化本锁。因此 M5 不能消除本锁的大帧风险。
+
+改 `driver.rs:8149-8178`：原测试名保留，测试入口只调用不可内联独立 body；body 内两个不可内联开库 helper 分别沿原正式 Native 和 Ordinary 入口生成 Box；主体 `:8272/:8273/:8461` 的 Native 首开、Ordinary 首开、Native epoch2 reopen 全部只保留 Box 指针。原资源值 `536_870_912`、模式、epoch、profile/clock/anchor、请求顺序、台账分区、source keeper 交接、对象/业务表/回执/事件和全部断言保持。没有增加线程或调栈大小，未改生产 Driver 构造或业务代码。
+
+Python 将三个开库表达式还原并去掉新 helper 后，证明独立 body 与 HEAD 原函数逐字相同；故没有删比较/断言、绕过 source/epoch 门或删场景。借用调用依靠 Box 的 DerefMut，与 H1 S1R 同一方法。没有实际栈水位测量，CI需在默认测试线程栈下跑原名锁，完成 normal append、Accept R>F、Begin、recover、重试、revision、repost、historical insert 及释放后 reopen 全流程，随后 delta 组剩余三条过期 receipt 锁必须继续执行，确认不再 abort。
+
+#### #799/#804 与实际检查
+
+本组只改变测试持有位置和准备预算；生产仍跑完整 W2 规则串，未加 test_writer_rule，没有同一判断宽严两档，没有判据失败后切另一套判据，亦未增加级别差异。保留冷/在线、Native/Ordinary 的原对象与结果对拍；第2项生产效果边界修复由 effects 组按同判定同效果提交。
+
+实际检查：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/history.rs rust/src/bin/s_session_v3/driver.rs`：退出0，仅格式检查。
+- `git diff --check --` 上述两文件：退出0。
+- Python 完整函数对拍：第4除注释/人工预算逐字相同；第5除三处开库槽/薄入口逐字相同；W2/H1/HEAD覆盖判定与 admission_tests 整文件一致性检查通过。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`：退出0，报告与源码一致，未改清单或生成器。
+- 完整读 anchor_lock 脚本，确认不运行 cargo/rustc；`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`：3项通过。
+- Rust 未验证，待 CI。上述格式/Python检查不证明编译、运行、真实峰值或栈用量。
+
+
+### M6 第 3 项：非 W 历史夹具误产 W 事实，设计阻断（未修改源码）
+
+原文：`h1_certified_online_consumes_source_receipt_and_matches_cold` 在 `history_clamp_tests.rs:382`、`h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch` 在 `:942` 报 `SourceAuditInvalid：未声明typed事实种类`。两处均在初始 `Fixture::publish(...).unwrap()`，还未进入测试所要验证的 certified online / 错资格拒绝分支；规则分别为 V3 与 V3+bounded-layout/1，已有 with_test_writer_rule 保持原样。
+
+第一处错误是 `generation.rs:1076–1085`：无规则门调用 `producer.build_initialization`；`content_producer.rs:57–58` 的新增种类为 `CC-004.initialization` 与 `CC-004.undetermined_raw`，`:1552–1562` 总是生成前者，`:1585–1624` 为等待原件生成后者。两测试的首代只有一根 raw，现役 parser 处于等待期，所以二者都存在。`generation.rs:1275` 后 `:1292` 与 `:1606–1617` 按 (kind,fact_key,id) 排序，initialization 在 undetermined_raw 前；首个被拒的 kind 因而为 **CC-004.initialization**，后者也不合法。这是源码顺序推导，原 CI 错误只显示通用文案，未输出 kind，本机未运行 Rust。
+
+`source_audit.rs:2329–2337` 只在现有 `source_pending::is_w_rule(rule)` 成立时接受二者；该核在 `source_pending.rs:424–426` 直接使用 `crate::w_revision(rule).is_some()`，V3 两历史规则均为 false。因此白名单正确；没有合并丢项。比较 `git show ab2bfac7:...generation.rs` 与 HEAD，W 初始化段均无规则门；H1 `bea93e19` 的 `generation.rs:1027–1068` 没有初始化对象段，直接遍历全部 state.step_count；H1 source_audit:1922–1932 也只列旧通用/新笔种类。问题为 W2 新写生成核与 H1 历史规则测试组合的不兼容，不是 H1 白名单漏并。
+
+**不能只补一行 is_w_rule 门**，否则仍会在后续原检查拒绝，原因已逐条核实：
+
+1. `inclusion.rs:621` 的现役 IncrFactsState 没有初始化版本参数；`:878–905` 首根记 action=waiting、acc_after=None、groups/merged 为空，`:907` 建方向时从 raw0 重折。H1 同文件 `bea93e19:767–790` 首根立即记 seed 且创建一组。`generation.rs:1120` 现役等待期不发步骤；即使改为发步骤，`source_pending.rs:455–459` 仍严格要求首步为 seed 且 acc_after=incoming。建立后现役 seed 带初始化方向证据，非 W 核 `source_pending.rs:474–479` 又明确要求 direction/evidence 为 Null。故门控后会变成 CC004 覆盖或 seed 首错，无法满足两侧。
+2. `content_producer.rs:3137–3179` 的 group_payload_value 无条件增加 initialization_policy_revision 和 initial_direction_evidence，传 None 也仍多这两字段，不能恢复 H1 旧载荷。该函数有 generation 与 producer 内部 build_group 两个调用路径，不能只改单一调用者。
+3. `content_producer.rs:1673–1695` 的 build_knowledge_state 无条件增加 W 初始化字段且写 W_CONTRACT.knowledge_domain=`raw_adjacent_W_initialization`。`tb02b.rs:24–26/:35–48` 已登记 V3 绑定 CURRENT_CONTRACT 的旧知识域=`established_direction_with_extreme_root_sets`；`source_audit.rs:2435–2440` 仍按具体规则合同严格比较，正确地会拒绝。
+4. `generation.rs:1078–1080` 的 read_w_prior 与 `content_bi.rs:984` 的 read_prior_undetermined 只读 W 未定原件；恢复非 W 构造时必须同门排除，不能让历史规则读/认证 W prior。C/D/E/F 已由 `structure_enabled` 门隔离，不是此次首错来源。
+
+**现成入口穷举**：检索 IncrFactsState 全部构造/公开方法，现役只有 empty/default 与同一 append_with_changes，无历史初始化模式；Lane/DeltaLane 均使用该状态。`process_inclusion_with_facts_flat` 的 `inclusion.rs:575–582` 注释明确旧初始化已删除，当前调用同一 W 核。`generation.rs:7025` 的 A7 `layout1_historical_draft_nodes_remain_readable` 只从归档 nodes 读旧原件，注释明确“候选不再等于这些根”；没有历史续写生成入口。`git show bea93e19` 可以取回旧实现，但不是当前已存在的可接入核。
+
+**所需最小设计面**：显式历史初始化版本作为规则值输入同一状态机；该值须贯穿 Lane、DeltaLane、cold_seed/冷恢复绑定，保证初始化版本不能跨缓存/资格复用。再按同一个合同门控 W 初始化对象/prior/请求、恢复历史 seed/waiting 与来源前缀、按版本恢复 group 与 knowledge 字段/知识域；需要同输入版本化全量/增量/冷恢复对拍。旧内核在 git 历史可取回，但恢复状态机版本及冷恢复身份是新设计，不能靠只包对象产出或拷贝一份测试专属宽松核完成。依用户“需要新设计则 blocked”规定，本项 **blocked，未改源码**，也不把首错诊断称作修复。
+
+M5 覆盖核查：`git log 42a3f959..bea93e19` 只有 `29326e4d43`、`ae46a1273b`、`0940e55734`、`bea93e1919`；对 generation/source_audit/content_producer/inclusion 运行同范围路径 log 无提交。这四文件在 H1 S1R/S1S/S1T 中均未改，不能宣称 M5 已覆盖。HEAD 的 source_audit 除既有 M4/M4B 读数/持有期修复仍保留上述严格白名单。
+
+#799/#804：当前白名单、prefix/seed、知识域核都应保留；不得按首次失败切 W 或扩白名单。将来采用按冻结规则值分派初始化语义本身是已登记历史合同的版本输入，不是严格失败后的宽松兜底；但须把全量/增量/冷链统一输入并以对拍证明，不能在 generation 临时复制第二套宽松判据。
+
+CI 待验证：两原名历史锁保持原断言与原规则；设计完成后分别在 V3、V3+bounded-layout/1 验完整来源/在线/冷资格链；W2 四冷锁及 W 初始化/请求语义锁需保持完整生产 W2 串。现阶段两历史锁仍预期失败。本机未运行 cargo/rustc；本子项无源码改动。
+
+
+### M6 独立复核、最终实际检查与交棒
+
+非作者分别只读复核 effects/物理写时序与夹具/栈帧改动，无具体打回项。复核指出并已在本文保留两项限制：cache_flush 不保证刷出在用页；新压力锁未做 Rust 先红后绿证明。第二轮按 Cargo.lock 的 0.38.2/0.40.2 依赖及最终三档压力锁、owned 逐名清单复核，结论不变。第 4 项 64 MiB 只是现有同类测试准备额度先例，未声称实测峰值或已足够；第 5 项未声称已测栈水位。
+
+主控实际检查：
+
+- 四个 Rust 改动文件执行 `rustfmt --edition 2021 --config skip_children=true --check`，退出0。仅格式检查。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check` 退出0，报告 `.github/prod-banned-literals.txt 与源码一致`。未改/重建清单或生成器。
+- 完整阅读 anchor_lock 脚本，执行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，3项通过，不调用 cargo/rustc。
+- Python 核对所有旧具名测试保留；audit_owner/history_clamp_tests 的测试数 34→35，其余三文件数量不变。Clamp 整文件与开工 HEAD 逐字相同；新增压力锁在 owned 清单唯一。夹具组还原对拍确认预算之外原锁正文、三处开库之外原测试主体逐字保留。
+- 本笔记开工1332行前缀的 SHA-256 为 `1d994cc335b18af960bfe8f0c04055b5aa86fea017d9a489ea6467b2051a9778`，追加 M6 前逐字核同 HEAD，原记录不追溯改写。
+- `git diff --check` 退出0，暂存区为空，HEAD 未变。未运行 cargo/rustc、Rust 构建/测试或会间接调用它们的脚本。
+
+生产写者仍保持完整 W2 串：
+
+```text
+s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2
+```
+
+未新增 test_writer_rule，现有两条历史规则锁中的原用法保持；未改准入语义、资源帽、冻结原件或教义判据。第 3 项在完成显式历史初始化版本及冷恢复绑定设计前仍会失败，不能把本次交付称作 owned 全绿。其余项先交 CI 验证：三条 M3 原失败锁及 W 未定对照、恢复 pending g6 台账逐位锁、真实预算来源锁、默认线程栈上的 delta 原名锁与 abort 后剩余锁，另跑 H1 物理篡改全部负控。Rust 未验证，待 CI。
+
+本工位全部改动文件：
+
+- `.github/workflows/ci.yml`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_session_v3/audit_owner/history_clamp_tests.rs`
+- `rust/src/bin/s_session_v3/driver.rs`
+- `rust/src/bin/s_session_v3/history.rs`
+- `.chanlun/review-results/issue1419-w2h1-integrate46x/M2-NOTES.md`
+
+
+### M6 封包口径
+
+按 #1419 集成 owner 46X 裁定，第 1、2、4、5 项已完成并可交 CI，本封包以 **ready** 交付。第 3 项诊断清楚但需裁定，登记为**待裁定开放项**，不在本封包内解决；分析见本节「M6 第 3 项：非 W 历史夹具误产 W 事实，设计阻断（未修改源码）」。两条 H1 历史规则锁 `h1_certified_online_consumes_source_receipt_and_matches_cold`（V3）与 `h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch`（V3+bounded-layout/1）在当前 head 的写者下仍预期因 W 初始化事实被拒而失败，不能把本封包称为 owned 全绿；其余项待 CI 验证。Rust 未验证，待 CI。

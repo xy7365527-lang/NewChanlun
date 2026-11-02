@@ -4508,6 +4508,13 @@ impl AuditTxn<'_> {
                 .ok_or_else(|| publish_err("效果日志缺候选"))?;
             let limit = self.effect_limit.get();
             let recording_cap = limit;
+            #[cfg(unix)]
+            if history_strict {
+                // #1419：本连接的脏页须在 effects 闭合前写入 WAL；否则后续只读
+                // 观测/后缀核验也能触发 pager spill，晚于历史候选的物理快照。
+                // 不在 observe/check_candidate 刷新，闭合后的任何变化仍须拒绝。
+                self.tx().cache_flush().map_err(publish_err)?;
+            }
             let Some(mut effects) =
                 recording.finish(self.tx(), &mut candidate.originals, recording_cap)?
             else {

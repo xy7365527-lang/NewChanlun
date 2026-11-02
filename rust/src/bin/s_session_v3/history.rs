@@ -7394,7 +7394,11 @@ pub(super) mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        // #1419 M6：本锁测真实资源错误的来源保真，不冻结成功预演的 8 MiB 门槛。
+        // 沿 r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication 的
+        // 64 MiB 测试父账，先完成相同真实载荷的索引/双投影；随后仍用 ballast
+        // 精确占满全部余额，目标消费者必须原样返回 Budget 及 BridgeProof。
+        let budget = super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
         let work = budget.codec_work().unwrap();
         let mut returned = None;
         let (run, trace) = failure_trace::capture(|| {
