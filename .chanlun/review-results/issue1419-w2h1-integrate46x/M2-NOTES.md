@@ -1613,3 +1613,16 @@ cargo test --locked --features s_session,s_incremental --bin s_structure_session
 - `git diff --check` 退出 0；工位改动仅本笔记、上述两份测试源码与 ci.yml，暂存区为空，HEAD 未变。未 git add/commit，未回退其他代理改动。
 
 本阶段 **status=ready**，测试证明力与准备值依据已按独审返修。未运行 cargo/rustc，没有当前候选的 Rust 编译/执行收据或遥测实测值；Rust 未验证，待 CI。
+
+
+### M6E
+
+本节绑定 #1419 受管阶段 M6E。开工分支 `sandcastle/issue-1419`，HEAD `69e73e290903863a75e0741d82e19ded955fef80`，工作区干净。已读 M6D 末段；本阶段只让 owned 组成功测试的捕获输出进入 CI 日志。
+
+`.github/workflows/ci.yml:467` 的 owned 生产增量构建步骤，仅在 `--` 之后、既有 `publication_` 过滤串之后追加 libtest 参数 `--show-output`。过滤串、`--jobs 1`、feature、包装脚本、其余步骤及名单逐字保留。
+
+已完整阅读 `.github/scripts/run-cargo-with-telemetry.sh`。脚本以 `readonly -a command_argv=("$@")` 保存全部参数，再由 `("${command_argv[@]}")` 原样执行，libtest 参数不经改写。脚本不捕获或解析测试输出；判定取命令退出码、资源采样和边界快照状态，磁盘准入解析的是 `df` 输出。增加成功测试输出不会改变这些判定或解析，因此无需修改脚本。
+
+CI 执行后，在 owned 步骤日志中核对原名 `publication_native_cut_scope_real_budget_preserves_origin ... ok`，并执行 `grep -F '[budget-telemetry 1419-M6D]' <日志>`，确认首次成功预演后的既有预算读数可见。此处仅记录待执行取证，未取得遥测实测值。
+
+实际检查：Python `yaml.safe_load` 解析 ci.yml 通过；逐字对拍确认 ci.yml 相对开工 HEAD 仅追加这一处 ` --show-output`，本笔记原前缀逐字保留，包装脚本和所有 Rust 源码未改；`git diff --check` 通过。未运行 cargo/rustc，未 git add/commit。CI 待执行。
