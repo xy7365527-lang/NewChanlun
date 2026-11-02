@@ -2199,3 +2199,67 @@ Python 探针验证 SQLite 生命周期机制；依赖原件验证 bundled 的�
 
 - `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
 - `rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`
+
+## S1O
+
+> 状态：ready，仅文档候选。基线 `sandcastle/issue-1481` / `da6d27043ee38e15bb13a805966269b22d38ba49`，开工工作区干净。沿 #1481 本阶段明确授权补 46Q P2-A，不改生产代码、Python、workflow 或测试，不扩大代码层 PASS 的含义。
+
+已读取 `/Volumes/AgentStorage/h1-delta46q/REPORT.md` 全文、上文 S1K 失败分类表、ADR 0042、README 恢复段与当前代码。本节追加历史报告，不追改 S1K 的恢复主张。根目录没有另一份 REPORT.md，本文件是实际工位报告。
+
+### 新增位置与恢复结论
+
+- `docs/runbook_production_session.md:98-183` 新增「H1 写入完整性 fail-stop」；`:102` 触发类别，`:133` 停机保全，`:177` 人工恢复门。
+- `s_session/README.md:123` 在既有恢复示例之后加一行指针；原 `:111-120` 的合同与命令未改。
+- **保全后停在 #1481 人工恢复门。** ADR 0042 `docs/adr/0042-s-writer-incremental-production-path.md:38-42` 只批准监督器 recover → 增量持久态重建；README `:111-120` 只给既有停止、recover、start-s 合同，具体示例限冻结 op95/epoch 2/`recover-001`。两者均未批准完整性拒绝后以普通 SQLite 连接正常关闭清旁挂，故没有编造或列出该恢复命令。运维负责人携原件/日志/元数据与停机证据交 #1481 主控，由主控提交用户/恢复合同裁定人决定介质恢复、可信原件和恢复事件；批准前保持停写。runbook 明写「禁止手工删除 -shm/-wal」，并说明若以后批准普通连接清理，会把 WAL 检查点进主库，之后仍须 recover/start-s 完整 H1 冷认证。
+
+### 逐项类别出处
+
+下表 Rust 路径相对 `rust/src/bin/`；runbook 表格使用完整仓库相对路径。
+
+| 类别 | 分类器与原件判据 |
+|---|---|
+| `SourceIdentityChanged` | `s_structure_session.rs:409`；`s_session_v3/admission_provider.rs:75-86` |
+| `SourcePathLost` | `s_structure_session.rs:410`；同 provider `:77` |
+| `SourceFdLost` | `s_structure_session.rs:411`；同 provider `:76` |
+| `SourceMetadataUnavailable` | `s_structure_session.rs:412`；同 provider `:50`、`:64` |
+| `SourceWalChanged` | `s_structure_session.rs:413`；同 provider `:141-149`、`:400-402` |
+| `SourceTypeOrHardlinkUnsupported` | `s_structure_session.rs:414`；同 provider `:50-52` |
+| `SourceChangedDuringPin` | `s_structure_session.rs:415`；同 provider `:64-66` |
+| `ColdConversionMediumUnsupported` | `s_structure_session.rs:416`；同 provider `:388-390` |
+
+Clamp 的 `HistoricalAuditStale：` 前缀由 `s_session_v3/audit_owner/history_clamp.rs:14-15` 生成；实际完整性置位分支在 `:45-65` 的主库/WAL 打开或 stat 失证及「路径与持有文件身份/stat不一致」，`:144-149` 的「H1组件要求既有WAL域，不自动改变journal_mode」，`:203-221` 的 WAL 头读取失证及「文件观测期间发生变化」，`:229-254` 的「锁内观测期间文件变化」，`:258-263` 的「私有认证交接期间发生外部SQLite提交」，`:266-270` 的「版本、文件、控制原件、写计数或连接域改变」。底层 I/O 错误没有固定子类，须保留动态原文。
+
+`s_session_v3/audit_owner.rs:879-896` 在迁移后失败收口复核 `data_version`，不等报同名外部 SQLite 提交，读失败报「失败后源连续性失证：{error}」，均置完整性标记。runbook 按实际置位判据逐项写，没有把所有 `HistoricalAuditStale` 一概归完整性，资源错误同前缀见 `history_clamp.rs:422-425`。
+
+自身失败与完整性失败的区别依据 `s_structure_session.rs:402-430`、`audit_owner.rs:873-903`：未发现完整性问题且连续性复核通过才恢复正常关闭，原错误仍报；关闭恢复本身失败则附加关闭错误。`SourcePinFailed` 明确走自身失败；当前 `SourceWalMetadataFailed` 未在八类中。拒启条件逐字取 `admission_provider.rs:231-232` 的 `shm || (journal && wal_index.is_some())`，没有误写成单独 WAL 存在即拒。
+
+### 命令与保全清单出处
+
+- runbook `:138-143` 的 `service status → service stop → service status` 逐字复用 README `:74-75` 与 `:107-108`；README `:111` 明确 stop 按 Q→S、只操作登记且匹配的进程、超时不自动升级信号。另须人工确认所有外部进程与连接已停，不能把 status 当作外部连接不存在的证明。本轮未对任何服务执行这些运维命令。
+- runbook `:154-173` 是本阶段获准新增的文件保全示例，只有参数检查、建全新证据目录与 `cp -RPp` 复制，没有恢复操作。子 shell `set -eu` 保证复制失败不继续。主库旁挂 `-wal/-shm/-journal` 与四个 audit-ledger 名称对齐 `admission_provider.rs:117-123`；其余控制/写锁/owner 原件和整个原控制目录一并复制。原件不移动、不删除，符号链接与悬空链接也保全；设备号/inode、大小、mtime 单独登记，复制后复核原件与副本。
+- 写者 stdout/stderr 同写 `s.log` 的出处是 `s_session/s_service_control.py:550-553`；`s.process.json/q.process.json` 的出处是同文件 `:329-330`。外部 stderr、配置、冻结资源若在目录外，逐份复制并记路径映射。未提供普通 SQLite 连接、手工检查点或改日志模式命令。
+
+### 代码注释与后续记录
+
+`rust/src/bin/s_session_v3/audit_owner.rs:783-788` 的现注释，特别是 `:785-787`，写了“普通连接正常关闭完成介质恢复；核无 SHM 后 service recover → start-s”，并援引 ADR 0042/README。普通连接清旁挂这一步在所引两份已批准合同里没有依据，超出本轮能确认的授权；本 runbook 因而停人工门。S1K `:1228` 的同类文字也是历史主张，不能补足批准依据。本阶段按要求只登记分歧，不改代码注释或历史报告，交 #1481 主控随恢复合同裁定收口。
+
+46Q 的以下 P3 均仅登记为 **#1481 后续**，不在 S1O 实施、不新建票。独立只读代理已用 `gh issue view 1481` 确认本票仍 OPEN，职责含 U-A 夹持、冷认证和对拍锁，适合承接三项。
+
+| 46Q 项 | 在案事实与建议归属 |
+|---|---|
+| P3-B | `admission_provider.rs:153` 的 `SourceWalMetadataFailed` 丢失 errno，但未列入完整性类；与 `SourceMetadataUnavailable` 的保守分类口径不齐。挂 #1481 原件失证分类后续，不改现状。 |
+| P3-C | `audit_owner/history_physical.rs:23-40` 的 CommitMonitor 复制 Clamp 时新建独立 Cell，提交观察置位不回传主 Clamp。当前冷交接第二锁只读，不经过 CommitMonitor，之后已恢复正常关闭，本轮关闭策略影响面为零。挂 #1481 夹持状态一致性观察。 |
+| P3-D | `s_session_v2/mod.rs:4798-4805` 的旧测试直接用 `WriterScope::admit`/None 模拟 recover，未代表现役 `LegacyWrite` 入口。挂 #1481 入口回归锁整理，不改测试。 |
+
+### 自检与边界
+
+- 新增 Markdown 相对链接、H1 标题锚、源码行号和错误原文逐项核对；八类与分类器集合一致，六个 Clamp 固定文本与源文件一致。README status/stop 命令逐字比对通过；两块新增 shell 示例经 `bash -n` 通过，仅解析未执行。
+- 非作者独立代理只读核对代码判据、合同授权与文档差异，确认人工门及出处准确；采纳其符号链接保全意见，复制使用 `-RPp`，存在性同时检查 `-e/-L`。
+- `git diff --check` 通过。`.github/prod-banned-literals.txt` 只用于 Rust 测试字面抽取及生产二进制检查，不覆盖 Markdown，依据 `.github/scripts/gen-prod-banned-literals.py:4-9`、`:22` 和 `.github/scripts/check-prod-artifact-hooks.sh:1-5`；仍额外运行 `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，结果“与源码一致”，未改禁串表。
+- 差异仅下列三份 Markdown，本报告原 2201 行前缀逐字保留。没有运行 Rust/Python 测试、构建、CI、生产恢复或重型窗口，没有 git add/commit/push，也未写 Git metadata。本轮 ready 只交文档增量审，不宣称人工恢复方案已经批准或 #1481 整票验收完成。
+
+### S1O 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `docs/runbook_production_session.md`
+- `s_session/README.md`
