@@ -834,9 +834,9 @@ def main(argv: list[str] | None = None) -> int:
                 data["legacy_snapshot"] = tuple(LegacyProcess(**p) for p in data["legacy_snapshot"])
                 if args.operation == "audit-release":
                     from .audit_release import audit_release
-                    record = audit_release(cutover_store, FrozenSnapshot(**data),
-                                           json.loads(args.request.read_text()), gateway)
-                    print(json.dumps(record, ensure_ascii=False, indent=2))
+                    audit_record = audit_release(cutover_store, FrozenSnapshot(**data),
+                                                 json.loads(args.request.read_text()), gateway)
+                    print(json.dumps(audit_record, ensure_ascii=False, indent=2))
                     return 0
                 head = subprocess.run(["git", "-C", str(source_repo), "rev-parse", "HEAD"], check=True,
                                       capture_output=True, text=True).stdout.strip()
