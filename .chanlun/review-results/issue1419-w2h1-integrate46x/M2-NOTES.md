@@ -2112,3 +2112,21 @@ M7D §7 已据此收敛 §4 的首拒归因，并给出 i 的 `2Q=3693600 B + D_
 本节追加前笔记 256960 字节，SHA-256 `b6b3603ca114b2c5b3c018b1cb3e27b24b8ee228680fe5246e0b978a8752b86b`；前文保留为历史记录。C/D g23、E/F g26 原失败与原完整验收义务不变。
 
 封包非作者独立静态评审 PASS，无剩余 BLOCK；报告 `/private/tmp/issue1419-m8b-independent-review.md`，SHA-256 `b2b56e2ac069c8b657b0c09e0dec24f7f44f8347679fec8643726e1ae61596e0`。主控已全文读回并核报告七份 Rust 哈希与最终源码一致，评审后仅追加本收据。该 PASS 限测试后端及静态核查，Rust 编译/16 锁执行、warnings、原完整验收均待 CI；八项证明与第 4 片门仍开放。
+
+
+## M8C
+
+本节绑定 #1419 受管阶段 M8C，开工基线 `sandcastle/issue-1419@c744de09213aff923bfdcdb4345ac64acb678c1d`。交付指针为 [M8C-SHARDING.md](M8C-SHARDING.md)，登记原取消收据、8 片依据、完整分片规则、四条 W2 重锁去向、机器核验、原入口保留及风险。本阶段仅改 `.github/scripts/test-feature-delta.sh` 和 `.github/workflows/ci.yml` 的 native delta 编排及两份文档，不改 Rust、debug 覆盖、测试 profile、线程栈、特性或断言。
+
+native 改为 0 至 7 共 8 片，四条重锁按完整 bin 名独占 0 至 3，其余 target/name 按 C 排序后轮转 4 至 7。每片先生成全部清单，核并集等于原 lib/bin delta 且重复为空，再执行本片。removed 与空全集继续拒门；非空全集中的合法空片成功跳过。脚本增加三参数和独立核验入口，保留原单参数执行路径。原 native 唯一 cargo 步按片覆盖，checkout/setup 与枚举可能重复；content、economic、owned、release-locks 保持，max-parallel=1、ubuntu-latest、timeout-minutes=60 保持。
+
+原 run 41434766679 的 212 条 ok 经日志实核为 lib 60 加 bin 152，bin delta 为 571；四条 W2 冷锁均无完成收据，12:54:13.4842816 明确取消。四锁各约 10 至 20 分钟为主控背景估计，此 run 未完测，不据此签单片耗时。按旧 631 项全集计算普通项为 627，新 CI 实际清单仍须重新枚举。
+
+本机实际检查收据：
+
+- `bash -n` 与 shellcheck 检查特性差集脚本均通过；Python `yaml.safe_load` 解析 ci.yml 与独立深比较均通过，其他 job/非 native 步骤逐值不变，native 原唯一测试步改为 8 片。主控另核 `list_tests` 与 `total=0` 起原循环和 HEAD 字节全等。
+- 独立执行 `bash /tmp/issue1419-m8c-mock/verify.sh`，16 个纯 shell mock 检查组全部通过。合成 lib13/bin17 共30项验证8片执行并集/互斥、四锁独占、同名跨target保留、反序确定、旧入口stdout/stderr/cargo序列逐字相同、合法空片、lib/bin removed、空全集、四种list失败、非法参数，以及临时副本漏项/跨片重复的机器拒门。mock未调用真实cargo/rustc，文件仅留/tmp。
+- `python3 /tmp/issue1419-m8c-mock/verify-ci.py` 通过；详细收据见 `/tmp/issue1419-m8c-mock/receipt.log` 与 M8C-SHARDING §5。`git diff --check`、新文档尾部空白核对和本笔记历史前缀核对通过。
+- 追加前本笔记 260990 字节，SHA-256 `3a01f2974feb6f1d64dd08acc2dbfa17afd3f89bf2d758c8c5b8dc31a39e3e30`，原字节前缀逐字保留。本机未运行 cargo/rustc，未 git add/commit，未回退其他代理改动。
+
+本阶段 status=ready 只指 CI 编排修复可供执行。真实 Rust 编译、当前 delta 全集、8 片测试结果和60分钟门内完成情况均待CI；原完整验收及八项有界证明仍不由本阶段结清。

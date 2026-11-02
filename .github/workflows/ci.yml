@@ -373,13 +373,37 @@ jobs:
 
   # #1722：extras 串行累计触顶 60 分钟；按独立输入拆组，各组仍有 60 分钟截止。
   #   max-parallel=1 保持原 extras 同时最多一个 runner；失败不取消后续组。
+  # #1419 M8C：run 41434766679 native debug 触顶，lib 60 + bin 571 项中共 212 ok（lib 60/bin 152）/0 败；
+  #   四条 W2 冷锁各约 10–20 分钟为用户背景估计，本 run 未见其完成，故分别独占 0..3 片；
+  #   其余（含 lib）排序轮转到 4..7，共取 8 片，仍须 CI 复验耗时。
+  #   每片执行前核验全部清单并集/互斥；checkout/setup 重复，原 native 唯一测试步按片完整覆盖。
   rust-test-s-session-extra-groups:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
-        group: [content, economic, native, owned, release-locks]
+        include:
+          - group: content
+          - group: economic
+          - group: native-0
+            shard: 0
+          - group: native-1
+            shard: 1
+          - group: native-2
+            shard: 2
+          - group: native-3
+            shard: 3
+          - group: native-4
+            shard: 4
+          - group: native-5
+            shard: 5
+          - group: native-6
+            shard: 6
+          - group: native-7
+            shard: 7
+          - group: owned
+          - group: release-locks
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -454,9 +478,9 @@ jobs:
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
       #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
-      - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
-        if: ${{ !cancelled() && matrix.group == 'native' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+      - name: cargo test — s_capture_native_testonly 特性新增的测试分片（#1394/#1419 M8C）
+        if: ${{ !cancelled() && startsWith(matrix.group, 'native-') }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly ${{ matrix.shard }} 8
 
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
       #   D-A：pager_probe 锁在此步设缓存实验输入执行，生产构建须不读、不生效（requested_cache_kib 为 null）。
