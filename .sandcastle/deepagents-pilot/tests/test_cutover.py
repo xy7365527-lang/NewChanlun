@@ -21,7 +21,8 @@ from pilot1742.cutover import (
 
 
 @pytest.fixture
-def barrier(tmp_path):
+def barrier(tmp_path, monkeypatch):
+    monkeypatch.setattr('pilot1742.cutover.container_inventory', lambda: ())
     drain = tmp_path / 'drain'
     drain.mkdir()
     (drain / 'state.json').write_text(json.dumps({'v': 1, 'mode': 'draining', 'generation': 1}))

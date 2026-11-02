@@ -56,6 +56,7 @@ def env(tmp_path, monkeypatch):
         commands.append(args)
         return output[args[0]]
     monkeypatch.setattr(audit, '_command', command)
+    monkeypatch.setattr('pilot1742.cutover.container_inventory', lambda: audit.container_inventory(audit._command))
     monkeypatch.setattr(audit, 'LEGACY_HOST_REPO', repo)
     monkeypatch.setattr(audit, 'legacy_processes', lambda: ())
     monkeypatch.setattr(audit, 'remote_barrier', lambda _: remote)
@@ -410,7 +411,7 @@ def test_actual_git_inventory_and_ps_parser_inside_container(env, monkeypatch, t
 def test_external_probe_fails_closed_without_echoing_output(monkeypatch):
     def failed(*args, **kwargs):
         return SimpleNamespace(returncode=1, stdout='private-stdout', stderr='private-stderr')
-    monkeypatch.setattr(audit.subprocess, 'run', failed)
+    monkeypatch.setattr('pilot1742.cutover.subprocess.run', failed)
     with pytest.raises(CutoverError) as error:
         audit._command(['lsof', '-nP', '-d', 'cwd', '-Fpn'])
     assert str(error.value) == 'audit observation failed: lsof'

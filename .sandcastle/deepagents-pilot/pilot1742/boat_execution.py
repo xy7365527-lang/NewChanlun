@@ -654,20 +654,42 @@ class BoatExecution(WorkerExecution):
                 raise ExecutionUnknown("恢复收集的清单或其他写者状态漂移")
         elif dirty:
             raise ExecutionUnknown("收集前checkout不干净")
+        remove_directories, expanded = _removable_and_expanding_directories(checkout, key.target_head, artifact, recovering)
         for path, (data, mode) in artifact.items():
-            if not _at_base(checkout, key.target_head, path) and not (recovering and _matches(checkout / path, data, mode)):
+            destination = checkout / path
+            if destination.is_dir() and path in remove_directories | expanded:
+                continue
+            if recovering and path in remove_directories and not destination.exists():
+                continue
+            if not _at_base(checkout, key.target_head, path) and not (recovering and _matches(destination, data, mode)):
                 raise ExecutionUnknown("收集路径存在不属于本产物的并发内容或模式")
         save(intent_path, intent)
         if record["status"] == "completed":
-            for path, (data, mode) in artifact.items():
+            deletions = sorted((path for path, (data, _) in artifact.items() if data is None),
+                               key=lambda path: (-len(Path(path).parts), path))
+            for path in deletions:
                 destination = checkout / path
-                if data is None:
-                    destination.unlink(missing_ok=True)
+                if (path in expanded and destination.is_dir()) or _matches(destination, None, "deleted"):
                     continue
+                if not _at_base(checkout, key.target_head, path):
+                    raise ExecutionUnknown("收集删除前路径发生并发修改")
+                destination.unlink()
+            for path in sorted(remove_directories, key=lambda path: (-len(Path(path).parts), path)):
+                destination = checkout / path
+                if destination.is_dir() and not destination.is_symlink():
+                    destination.rmdir()
+            for path, (data, mode) in artifact.items():
+                if data is None:
+                    continue
+                destination = checkout / path
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 temporary = self._path(key, ".collect-content.tmp")
                 temporary.write_bytes(data)
                 temporary.chmod(0o755 if mode == "100755" else 0o644)
+                if not ((path in remove_directories and not destination.exists())
+                        or _at_base(checkout, key.target_head, path)
+                        or (recovering and _matches(destination, data, mode))):
+                    raise ExecutionUnknown("收集写入前路径发生并发修改")
                 os.replace(temporary, destination)
         save(result_path, record)
         self._store(key, replace(binding, submission="collected"))
@@ -736,9 +758,63 @@ class BoatExecution(WorkerExecution):
             return EffectUnknown("远端终态已取回并停止 VM，取消入口不收集业务产物")
 
 
+def _removable_and_expanding_directories(checkout: Path, head: str, artifact: dict[str, tuple[bytes | None, str]],
+                            recovering: bool) -> tuple[set[str], set[str]]:
+    writes = {path for path, (data, _) in artifact.items() if data is not None}
+    if any(str(parent) in writes for path in writes for parent in Path(path).parents):
+        raise ExecutionUnknown("产物文件不能同时作为其他产物文件的目录")
+    remove_directories: set[str] = set()
+    expanded = {path for path, (data, _) in artifact.items()
+                if data is None and any(write.startswith(path + "/") for write in writes)}
+    for path in writes:
+        rows = git(checkout, "ls-tree", "-r", "-t", "-z", head, "--", path).decode().split("\0")
+        entries = {name: metadata.split()[1] for row in rows if row
+                   for metadata, name in [row.split("\t", 1)]
+                   if name == path or name.startswith(path + "/")}
+        if entries.get(path) != "tree":
+            continue
+        directories = {name for name, kind in entries.items() if kind == "tree"}
+        children = set(entries) - directories
+        if any(name not in artifact or artifact[name][0] is not None for name in children):
+            raise ExecutionUnknown("目录改为文件必须在同一产物中删除全部跟踪子文件")
+        remove_directories.update(directories)
+        if (checkout / path).is_dir():
+            _check_collection_tree(checkout, path, directories, children, artifact, completed_files=False)
+    for path in expanded:
+        if not (checkout / path).is_dir():
+            continue
+        if not recovering:
+            raise ExecutionUnknown("文件改为目录前路径已有其他写者内容")
+        children = {write for write in writes if write.startswith(path + "/")}
+        directories = {str(parent) for write in children for parent in Path(write).parents
+                       if str(parent) == path or str(parent).startswith(path + "/")}
+        _check_collection_tree(checkout, path, directories, children, artifact, completed_files=True)
+    return remove_directories, expanded
+
+
+def _check_collection_tree(checkout: Path, root: str, directories: set[str], files: set[str],
+                           artifact: dict[str, tuple[bytes | None, str]], *, completed_files: bool) -> None:
+    pending = [checkout / root]
+    while pending:
+        for child in pending.pop().iterdir():
+            name = str(child.relative_to(checkout))
+            if child.is_symlink():
+                raise ExecutionUnknown("收集目录包含未授权链接")
+            if child.is_dir():
+                if name not in directories:
+                    raise ExecutionUnknown("收集目录包含未授权子目录")
+                pending.append(child)
+            elif name not in files or not child.is_file():
+                raise ExecutionUnknown("收集目录包含未授权文件")
+            elif completed_files and not _matches(child, *artifact[name]):
+                raise ExecutionUnknown("恢复收集的目录包含并发内容或模式")
+
+
 def _matches(path: Path, data: bytes | None, mode: str) -> bool:
+    if path.is_symlink():
+        return False
     if not path.is_file():
-        return data is None
+        return data is None and not path.exists()
     current_mode = "100755" if path.stat().st_mode & 0o111 else "100644"
     return data is not None and path.read_bytes() == data and current_mode == mode
 
@@ -747,4 +823,7 @@ def _at_base(checkout: Path, head: str, path: str) -> bool:
     tree = git(checkout, "ls-tree", head, "--", path).decode()
     if not tree:
         return _matches(checkout / path, None, "deleted")
+    if tree.split()[0] == "040000":
+        return ((checkout / path).is_dir() and not (checkout / path).is_symlink()
+                and not git(checkout, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", path))
     return _matches(checkout / path, git(checkout, "show", head + ":" + path), tree.split()[0])

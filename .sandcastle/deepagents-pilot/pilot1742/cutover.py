@@ -9,7 +9,7 @@ import re
 import shlex
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -47,6 +47,52 @@ WORKER_EVENTS = {
 
 class CutoverError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class ContainerObservation:
+    id: str
+    name: str
+    running: bool
+    mount_sources: tuple[Path, ...]
+
+
+def observation_command(args: list[str]) -> str:
+    try:
+        result = subprocess.run(args, check=False, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        raise CutoverError(f'audit observation timed out: {args[0]}') from None
+    except OSError:
+        raise CutoverError(f'audit observation unavailable: {args[0]}') from None
+    if result.returncode != 0 or result.stderr.strip():
+        raise CutoverError(f'audit observation failed: {args[0]}')
+    return result.stdout
+
+
+def container_inventory(command: Callable[[list[str]], str] = observation_command) -> tuple[ContainerObservation, ...]:
+    ids = command(['docker', 'ps', '-q', '--no-trunc']).split()
+    if not ids:
+        return ()
+    template = '{"id":{{json .Id}},"name":{{json .Name}},"running":{{json .State.Running}},"mounts":{{json .Mounts}}}'
+    output = command(['docker', 'inspect', '--format', template, *ids])
+    try:
+        rows = [json.loads(line) for line in output.splitlines()]
+        if (len(set(ids)) != len(ids) or len(rows) != len(ids)
+                or {row['id'] for row in rows} != set(ids)):
+            raise ValueError()
+        containers = []
+        for row in rows:
+            if (type(row['running']) is not bool or not isinstance(row['name'], str)
+                    or not isinstance(row['mounts'], list)):
+                raise ValueError()
+            sources = [mount['Source'] for mount in row['mounts']]
+            if not all(isinstance(source, str) and Path(source).is_absolute() for source in sources):
+                raise ValueError()
+            containers.append(ContainerObservation(row['id'], row['name'], row['running'],
+                                                   tuple(Path(source).resolve() for source in sources)))
+        return tuple(containers)
+    except (KeyError, TypeError, ValueError, OSError, RuntimeError):
+        raise CutoverError('invalid container inventory') from None
 
 
 @dataclass(frozen=True)
@@ -277,6 +323,11 @@ class CutoverStore:
             raise CutoverError('snapshot process still alive')
         if processes:
             raise CutoverError('legacy writer still alive after frozen snapshot')
+        legacy_root = LEGACY_HOST_REPO.resolve()
+        if any(container.running and any(source == legacy_root or legacy_root in source.parents
+                                         for source in container.mount_sources)
+               for container in container_inventory()):
+            raise CutoverError('legacy worker container still present')
         try:
             raw = self.workers_log.read_bytes()
         except OSError as error:

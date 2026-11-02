@@ -17,6 +17,7 @@ SPEC = 1340
 
 @pytest.fixture
 def queued(tmp_path, monkeypatch):
+    monkeypatch.setattr('pilot1742.cutover.container_inventory', lambda: ())
     v2 = V2Env(tmp_path)
     v2.workers_log.write_text('')
     drain = tmp_path / 'drain'

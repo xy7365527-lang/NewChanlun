@@ -8,7 +8,6 @@ import os
 import pwd
 import re
 import socket
-import subprocess
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,11 +20,15 @@ from .cutover import (
     CutoverStore,
     FrozenSnapshot,
     LegacyProcess,
+    container_inventory,
     legacy_processes,
     remote_barrier,
     worker_key,
     worker_lifecycles,
     worker_rows,
+)
+from .cutover import (
+    observation_command as _command,
 )
 
 DISPOSITIONS = ('returned', 'terminated', 'abandoned_no_exit')
@@ -121,17 +124,6 @@ def pending_releases(store: CutoverStore) -> list[dict[str, Any]]:
             for key, source in sorted(worker_lifecycles(worker_rows(store.workers_log.read_bytes())).items())]
 
 
-def _command(args: list[str]) -> str:
-    try:
-        result = subprocess.run(args, check=False, capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired:
-        raise CutoverError(f'audit observation timed out: {args[0]}') from None
-    # 探针失败时不输出可能含私密进程参数的 stdout/stderr。
-    if result.returncode != 0 or result.stderr.strip():
-        raise CutoverError(f'audit observation failed: {args[0]}')
-    return result.stdout
-
-
 def lifecycle_targets(store: CutoverStore, rows: list[dict[str, Any]],
                       request: dict[str, Any]) -> tuple[list[str], set[int]]:
     source, key = request['source'], (request['ticket'], request['branch'])
@@ -204,32 +196,11 @@ def observe(store: CutoverStore, rows: list[dict[str, Any]], request: dict[str, 
             for target in targets) for cwd in cwds):
         raise CutoverError('worker checkout has a live cwd handle')
 
-    ids = _command(['docker', 'ps', '-q', '--no-trunc']).split()
-    containers = []
-    if ids:
-        # 只请求必要字段，绝不读取或记录 Docker Env/模型凭据。
-        template = '{"id":{{json .Id}},"name":{{json .Name}},"running":{{json .State.Running}},"mounts":{{json .Mounts}}}'
-        output = _command(['docker', 'inspect', '--format', template, *ids])
-        try:
-            containers = [json.loads(line) for line in output.splitlines()]
-            if len(containers) != len(ids) or {c['id'] for c in containers} != set(ids):
-                raise ValueError()
-            for container in containers:
-                if type(container['running']) is not bool or not isinstance(container['name'], str):
-                    raise ValueError()
-                if not isinstance(container['mounts'], list):
-                    raise TypeError()
-                sources = [m['Source'] for m in container['mounts']]
-                if not all(_absolute(s) for s in sources):
-                    raise ValueError()
-                ticket_name = re.search(r'(?<![0-9])' + re.escape(request['ticket']) + r'(?![0-9])',
-                                        container['name'])
-                if ticket_name or any(overlaps(s, t) for s in sources for t in targets):
-                    raise CutoverError('worker container still present')
-        except (KeyError, TypeError, ValueError) as error:
-            if isinstance(error, CutoverError):
-                raise
-            raise CutoverError('invalid container inventory') from None
+    containers = container_inventory(_command)
+    for container in containers:
+        ticket_name = re.search(r'(?<![0-9])' + re.escape(request['ticket']) + r'(?![0-9])', container.name)
+        if ticket_name or any(overlaps(str(source), target) for source in container.mount_sources for target in targets):
+            raise CutoverError('worker container still present')
     return {'at': datetime.now(UTC).isoformat(), 'targets': targets,
             'process_count': len(live_pids), 'container_count': len(containers), 'cwd_count': len(cwds),
             'legacy_processes': [], 'matched_pids': [], 'matched_cwds': [], 'matched_containers': [],
