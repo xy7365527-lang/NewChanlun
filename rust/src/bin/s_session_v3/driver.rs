@@ -871,6 +871,11 @@ fn recover_rebuilt_history(
     clock: &v2::ClockPlan,
     clock_event: &str,
 ) -> Result<Value, String> {
+    #[cfg(test)]
+    {
+        let marker = 0_u8;
+        super::audit_owner::h1_stack_probe::record("recover_open", None, &marker);
+    }
     let mut context = Driver::cold_context(retention)?;
     let mut runtime = prepared::Runtime::with_config(
         s_allocation::Mode::CapturedNative,
@@ -889,7 +894,17 @@ fn recover_rebuilt_history(
         &mut rebuilt,
     )?;
     let conn = rebuilt.expect("冷恢复交接成功后必有owner");
+    #[cfg(test)]
+    {
+        let marker = 0_u8;
+        super::audit_owner::h1_stack_probe::record("recover_before_write", None, &marker);
+    }
     let result = conn.recover(new_epoch, clock, clock_event)?;
+    #[cfg(test)]
+    {
+        let marker = 0_u8;
+        super::audit_owner::h1_stack_probe::record("recover_after_write", None, &marker);
+    }
     drop(conn);
     Ok(result)
 }

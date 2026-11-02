@@ -1335,6 +1335,15 @@ impl ColdHistoricalSourceFold<'_, '_, '_> {
         ),
         String,
     > {
+        #[cfg(all(test, unix))]
+        {
+            let marker = 0_u8;
+            super::audit_owner::h1_stack_probe::record(
+                "cold_source",
+                Some(cut.metadata.generation),
+                &marker,
+            );
+        }
         let (_, parent) = self.ledger.as_ref().expect("冷来源步必须持台账");
         let prefix = cut.metadata.input_frontier as usize + 1;
         let raw = self.sources.raw.prefix(prefix)?;

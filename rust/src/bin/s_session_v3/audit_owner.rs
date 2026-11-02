@@ -9,6 +9,58 @@ use rusqlite::Transaction;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+// #1481 S1R：仅测试线程自报水位；地址由调用帧提供，不把探针自己的帧计入。
+#[cfg(all(test, feature = "s_incremental", unix))]
+pub(crate) mod h1_stack_probe {
+    thread_local! {
+        static ENTRY: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+        static CODEC_PEAK: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+    }
+
+    pub(crate) struct Entry;
+    impl Drop for Entry {
+        fn drop(&mut self) {
+            CODEC_PEAK.with(|peak| {
+                let (used, samples) = peak.get();
+                eprintln!("H1_STACK_PROBE codec_read_peak used={used} samples={samples}");
+            });
+            ENTRY.with(|entry| entry.set(None));
+        }
+    }
+    pub(crate) fn enter(marker: &u8) -> Entry {
+        CODEC_PEAK.with(|peak| peak.set((0, 0)));
+        ENTRY.with(|entry| {
+            entry.set(Some(std::hint::black_box(marker) as *const u8 as usize));
+        });
+        record("entry", None, marker);
+        Entry
+    }
+    pub(crate) fn sample_codec(marker: &u8) {
+        ENTRY.with(|entry| {
+            if let Some(base) = entry.get() {
+                let used = base.abs_diff(std::hint::black_box(marker) as *const u8 as usize);
+                CODEC_PEAK.with(|peak| {
+                    let (previous, samples) = peak.get();
+                    peak.set((previous.max(used), samples.saturating_add(1)));
+                });
+            }
+        });
+    }
+    pub(crate) fn record(point: &str, generation: Option<i64>, marker: &u8) {
+        ENTRY.with(|entry| {
+            if let Some(base) = entry.get() {
+                let used = base.abs_diff(std::hint::black_box(marker) as *const u8 as usize);
+                match generation {
+                    Some(generation) => {
+                        eprintln!("H1_STACK_PROBE {point}.g{generation} used={used}");
+                    }
+                    None => eprintln!("H1_STACK_PROBE {point} used={used}"),
+                }
+            }
+        });
+    }
+}
+
 #[cfg(feature = "s_incremental")]
 #[path = "sqlite_pager_probe.rs"]
 mod sqlite_pager_probe;
@@ -534,6 +586,11 @@ impl AuditConnection {
         output: &mut Option<Self>,
     ) -> Result<std::time::Duration, String> {
         use std::os::unix::fs::MetadataExt;
+        #[cfg(test)]
+        {
+            let marker = 0_u8;
+            h1_stack_probe::record("cold_open", None, &marker);
+        }
         let started = std::time::Instant::now();
         history::check_deadline(deadline)?;
         if !context.source_cache_enabled() {
@@ -685,6 +742,11 @@ impl AuditConnection {
                         deadline,
                         budget,
                     );
+                    #[cfg(test)]
+                    {
+                        let marker = 0_u8;
+                        h1_stack_probe::record("cold_seed_return", None, &marker);
+                    }
                     if let Err(error) = seeded {
                         // #1481：与原局部 construction 相同，在只读业务返回错误前退还许可。
                         construction_out = None;
@@ -753,6 +815,11 @@ impl AuditConnection {
         output: &mut Option<Self>,
         started: std::time::Instant,
     ) -> Result<std::time::Duration, String> {
+        #[cfg(test)]
+        {
+            let marker = 0_u8;
+            h1_stack_probe::record("cold_handoff", None, &marker);
+        }
         // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
         #[cfg(test)]
         if let Some(hook) = COLD_AFTER_CERTIFICATION.with(Cell::take) {
@@ -867,6 +934,11 @@ impl AuditConnection {
                 actual_binding,
                 actual_prefix,
             )?;
+            #[cfg(test)]
+            {
+                let marker = 0_u8;
+                h1_stack_probe::record("cold_adopt_return", None, &marker);
+            }
             crate::h1_normal_close(&owner.connection)?;
             Ok(())
         })();

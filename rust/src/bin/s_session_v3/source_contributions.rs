@@ -1987,6 +1987,15 @@ pub(crate) fn audit_source_step(
     ),
     String,
 > {
+    #[cfg(all(test, unix))]
+    {
+        let marker = 0_u8;
+        super::super::audit_owner::h1_stack_probe::record(
+            "source_step",
+            i64::try_from(raw.current_prefix()).ok(),
+            &marker,
+        );
+    }
     #[cfg(test)]
     let before_calls = source_call_stats();
     if profile != tb02a::PROFILE {

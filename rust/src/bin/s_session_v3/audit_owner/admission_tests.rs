@@ -508,7 +508,10 @@ fn h1_admission_formal_accept_begin_prepare_recover_never_full_audit() {
 }
 
 #[cfg(test)]
-fn h1_admission_driver(f: &H1AdmissionFixture, epoch: &str) -> Result<driver::Driver, String> {
+#[inline(never)]
+fn h1_admission_driver(f: &H1AdmissionFixture, epoch: &str) -> Result<Box<driver::Driver>, String> {
+    let marker = 0_u8;
+    h1_stack_probe::record("driver_open", None, &marker);
     h1_admission_assert_clean_close(&f.db);
     driver::Driver::open_with_request_and_mode_retention(
         &f.db,
@@ -521,6 +524,7 @@ fn h1_admission_driver(f: &H1AdmissionFixture, epoch: &str) -> Result<driver::Dr
         true,
         super::super::admission_anchor::test_prepare(&f.db).into(),
     )
+    .map(Box::new)
 }
 fn h1_admission_ledger_path(db: &Path) -> PathBuf {
     let mut name = db.as_os_str().to_os_string();
@@ -559,13 +563,14 @@ fn h1_admission_driver_commit(
         "Driver 第 {n} 代正式提交不得旧审计"
     );
 }
+#[inline(never)]
 fn h1_admission_driver_cold(
     f: &H1AdmissionFixture,
     epoch: &str,
     through: i64,
     expected_ledger: &[String],
     expected_historical: &str,
-) -> driver::Driver {
+) -> Box<driver::Driver> {
     let before = state::full_audit_calls_for_test();
     let (cold, events, _) = state::traced(false, || h1_admission_driver(f, epoch));
     let cold = cold.unwrap();
@@ -592,7 +597,19 @@ fn h1_admission_driver_cold(
 
 #[cfg(test)]
 #[test]
+#[inline(never)]
 fn h1_admission_driver_cold_recover_rebuilds_ledger_bitwise() {
+    let marker = 0_u8;
+    let _entry = h1_stack_probe::enter(&marker);
+    h1_admission_driver_cold_recover_rebuilds_ledger_bitwise_body();
+    h1_stack_probe::record("complete", None, &marker);
+}
+
+// 大 Driver 只在共享 helper 内构造，循环冷开及 traced 的调用方只保留 Box 指针。
+#[inline(never)]
+fn h1_admission_driver_cold_recover_rebuilds_ledger_bitwise_body() {
+    let marker = 0_u8;
+    h1_stack_probe::record("test_body", None, &marker);
     let f = H1AdmissionFixture::new();
     let before = state::full_audit_calls_for_test();
     let mut driver = h1_admission_driver(&f, "1").unwrap();
