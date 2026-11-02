@@ -1,0 +1,36 @@
+name: Issue 1419 cost diag 46x
+on:
+  push:
+    branches: ['codex/1419-cost-diag46x-b*']
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Build s_session test binary
+        run: cargo test --locked --features s_session --bin s_structure_session --no-run --jobs 2
+      - name: Run exact cost trace test
+        env:
+          NEWCHAN_COST_TRACE_OUT: ${{ github.workspace }}/cost-trace.jsonl
+          NEWCHAN_COST_TRACE_BT_EVERY: '61'
+        run: |
+          set -o pipefail
+          cargo test --locked --features s_session --bin s_structure_session -- --exact v3::source_audit::tests::full_some_audit_keeps_frozen_read_and_budget_trace --test-threads 1 --nocapture 2>&1 | tee ../cost-trace.log || echo "TEST_EXIT_NONZERO" | tee -a ../cost-trace.log
+          ls -la ../cost-trace.jsonl
+          gzip -k ../cost-trace.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cost-trace-${{ github.sha }}
+          path: |
+            cost-trace.log
+            cost-trace.jsonl.gz
+          if-no-files-found: warn
