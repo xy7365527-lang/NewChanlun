@@ -1813,7 +1813,18 @@ mod tests {
                     );
                     assert_eq!((context.cold, context.hits), (0, 0));
                     assert!(context.take().is_none(), "最终拒绝不得留下历史 slot");
+                    assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+                    assert_eq!(std::fs::read(&f.db).unwrap(), bytes);
                     // 实际 startup 对照臂仍须先核业务，再核 epoch/rule。
+                    // #1481：旧规则 owner 是只读 WAL 连接；夹具以无写 RW 连接作最后关闭者。
+                    let cleanup = rusqlite::Connection::open_with_flags(
+                        &f.db,
+                        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE,
+                    )
+                    .unwrap();
+                    let _: i64 = cleanup
+                        .query_row("SELECT COUNT(*) FROM meta", [], |row| row.get(0))
+                        .unwrap();
                     let owner = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
                     let startup_error = owner
                         .startup(
@@ -1829,6 +1840,7 @@ mod tests {
                     assert_eq!(startup_error, expected);
                     drop(owner);
                     drop(context.take());
+                    drop(cleanup);
                     assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
                     assert_eq!(std::fs::read(&f.db).unwrap(), bytes);
                 }
@@ -1901,7 +1913,15 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn native_prefix_context_rechecks_real_connection_current_material() {
-        for change in ["same", "append", "bad_node", "epoch", "identity", "version"] {
+        for (change, expected_counts) in [
+            ("same", Some((1, 1))),
+            ("append", Some((2, 0))),
+            ("bad_node", None),
+            ("epoch", None),
+            // #1481：meta.session_generation 不是控制身份；新增行合法，但完整材料绑定已变。
+            ("identity", Some((2, 0))),
+            ("version", None),
+        ] {
             let f = Fixture::new();
             let mut initial = f.open("1").unwrap();
             initial.handle(Fixture::ingest(1)).unwrap();
@@ -1982,14 +2002,13 @@ mod tests {
             match expected {
                 Ok(()) => {
                     actual.unwrap();
-                    let expected_counts = match change {
-                        "same" => (1, 1),
-                        "append" => (2, 0),
-                        _ => unreachable!(),
-                    };
+                    let expected_counts =
+                        expected_counts.unwrap_or_else(|| panic!("{change} 必须拒绝"));
                     assert_eq!((context.cold, context.hits), expected_counts, "{change}");
+                    assert!(context.has_slot(), "{change}");
                 }
                 Err(expected) => {
+                    assert!(expected_counts.is_none(), "{change} 必须接纳");
                     assert_eq!(actual.err().unwrap(), expected, "{change}");
                     assert!(!context.has_slot());
                 }
@@ -5478,7 +5497,8 @@ mod tests {
         assert_eq!(phase_count(&events, "h1_qualified_cut"), 1);
         assert_eq!(phase_count(&events, "request_history_cold"), 0);
         assert_eq!(phase_count(&events, "request_history_hit"), 0);
-        assert_eq!(phase_count(&events, "owner_complete_hit"), 2);
+        // startup、resume_pending 的 pending_originals、bootstrap identity 各绑定一次。
+        assert_eq!(phase_count(&events, "owner_complete_hit"), 3);
         assert_eq!(phase_count(&events, "request_history_context_released"), 1);
         assert_eq!(
             events.last().unwrap()["phase"],
@@ -9411,6 +9431,9 @@ mod tests {
                     (id.as_str(), *seq, *open, *high, *low, *close),
                     step.revision.parse().unwrap(),
                 );
+                // #1481 S1U：新 owner 建新父账，旧 event_nodes/sequence 许可不得跨父复用；
+                // 清生成运行态而保留已提交旁账，每代仍独立走一次 full_lease。
+                runtime.discard();
                 let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
                 let mut context = owner.p6_source_context_for_test();
                 let (published, events, _) = state::traced(false, || {
