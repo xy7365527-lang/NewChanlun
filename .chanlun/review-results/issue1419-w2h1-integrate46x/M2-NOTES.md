@@ -1880,3 +1880,148 @@ Python 反向对拍确认 source_audit.rs 除两个期望与指定注释外和�
 4. 诊断读数回来后，对比两侧 `driver_open/cold_open/cold_source/source_step/recover_open/codec_read_peak/complete` 与最小通过栈；具体失败帧如仍在冷来源核或 Runtime 支路，应据该阶段读数继续修，不能把本轮结构估算当运行定位结论。
 
 本阶段 status=ready；Rust 未验证，待 CI。
+
+
+## M7C
+
+本节绑定 #1419 受管阶段 M7C。开工 HEAD `2c6cb4e335bf6ce8888499b6de870b6d27f0c6a9`，分支 `sandcastle/issue-1419`，工作区干净。已读 M3 四锁、M4 去重/cost_diag/13377 的待裁定边界和 M6 pager flush。M7B 栈修复已在基线，本轮不改栈。**status=blocked，仅追加本节，不改 Rust。** 原件能支持一个与节点阈值吻合的具体扩容预算候选，但不足以唯一识别本次首次拒绝的内层分支或实际申请字节；也未证明集成回归。不能把候选推导签成已完成根因定位，更不能据此改帽、改夹具或实施新设计。
+
+### 原件、最后可见代与读数口径
+
+实际执行题面命令取得 run `41414959715` / owned job `125176459422` 日志，保存 `/tmp/issue1419-m7c-owned.log`，3117 物理行，SHA-256 `6c7f0f80da41dd472b4285d5d6c9344d298c3abd659250e96f83544968c96150`；临时原件未入仓。原件 `:1654` 是 release、`s_session,s_incremental`、`h1_` 过滤、单测试线程、`--show-output`；`:2668` 为 78 passed / 4 failed。两个 typed-kind 失败不在本题，M6C 已处理；本轮没有重跑或重签它们。bounded2 与 W 未定锁在 `:1780/:1783` 通过，C/D 与 E/F 在 `:1781/:1782` 失败；后两者 `:2603-2604/:2658-2659` 均为在线 `online.handle(envelope).unwrap()`，不是冷副本开库失败。
+
+下表逐项摘自同一 stdout 分段。`nodes` 是候选累计原件计数，不是本代新增节点数；`native_live` 是 Native 分项当前存活，两个 peak 是各自高水位。B 表示字节。
+
+| 场景/最后可见代 | 日志行 | nodes | native_live B | native_peak B | total_peak B |
+|---|---|---:|---:|---:|---:|
+| C/D g1 | 2558-2559 | 2946 | 4451279 | 7571502 | 8508486 |
+| C/D g5 | 2566-2567 | 13668 | 15994017 | 26322524 | 28267325 |
+| C/D g10 | 2576-2577 | 33538 | 47132113 | 71573281 | 75237691 |
+| C/D g15 | 2586-2587 | 62148 | 89668175 | 133322155 | 139388259 |
+| C/D g20 | 2596-2597 | 98306 | 108737203 | 175058686 | 185444200 |
+| C/D g21 | 2598-2599 | 103815 | 110491786 | 179985720 | 187117044 |
+| C/D g22 | 2600-2601 | 109677 | 112674716 | 185768224 | 195024666 |
+| E/F g1 | 2607-2608 | 2946 | 4482564 | 8817285 | 10003835 |
+| E/F g5 | 2615-2616 | 10792 | 13933213 | 22465056 | 24387142 |
+| E/F g10 | 2625-2626 | 24999 | 28975375 | 46867550 | 50257220 |
+| E/F g15 | 2635-2636 | 46090 | 54287601 | 86589233 | 91569115 |
+| E/F g20 | 2645-2646 | 75863 | 98132772 | 149645586 | 157010360 |
+| E/F g24 | 2653-2654 | 103810 | 112272258 | 181151806 | 190668500 |
+| E/F g25 | 2655-2656 | 112896 | 117281429 | 190851405 | 200371967 |
+| bounded2 首轮在线 g18 | 2286-2287 | 101481 | 109281600 | 185294089 | 194506608 |
+| bounded2 冷点续写后的 g18 | 2386-2387 | 101481 | 171725731 | 246752052 | 258585775 |
+
+必须保留两个限制：
+
+1. `audit_owner.rs:4031` 在调用 append_cut 前打印 suffix，`:4061` 在 append_cut **返回后、判断结果前**打印 codec。故末条 g22/g25 既不是该代提交收据，也不是失败代收据。可能是该代 append_cut 返回资源错误，也可能该代完成后下一代在首条 suffix 之前失败。不能把失败代直接写成 g22/g25，或 g23/g26。
+2. `audit_owner/native.rs:518/:983` 解释 Native 与 scratch 元组；`:900-903` 明写换冻结域不重置 Ledger.live/peak 及分项高水位，`:926` 的 request_peak 才按当请求 allowance 与 low_water 计算。`live_peak_meta=(0,25861024,96,192)` 的 0 是当时 scratch live，25861024 是历史 scratch peak，96/192 是工作域元数据当前值/高水位。各峰可能发生在不同时间，不能相加，不能当作本次失败申请值或从中反推 A/J。native_live 增长有当前存活证据；total_peak 单调本身不证明每代工作量线性增长，也不是 RSS。
+
+### 预算闭环与最强候选
+
+以下路径、公式以当前 HEAD 为准，Rust 路径前缀为 `rust/src/`。
+
+| 层次 | 来源与公式 | 本锁已知值/未知值 |
+|---|---|---|
+| 第八门 R | `bin/s_session_v3/audit_owner/w2_h1_structure_tests.rs:86` 的正式 open 参数；`driver.rs:523-524` 保存 retention，legacy 第七门为 usize::MAX | R = 536870912 B，即 512 MiB；是既有夹具准备额，本轮不改 |
+| 请求冻结 A | `driver.rs:692-708` 令 T=legacy+R；`request_audit.rs:498-508` 令 A=T−legacy−O−U=R−O−U | O 是旧池合同额，U 是未覆盖物理费用；本日志未输出失败请求 O、U 或 A。非负分区给出 A≤R |
+| 具体父账 | `audit_owner.rs:2702` 签发 PublicationResources，`:7796-7800` 从该候选父账签 codec_work；`native.rs:650-663` 冻结总帽 L0+A、remaining=A；`:966-979` 工作域限额用当前 A | 同一候选的父 Arc/冻结域，不是独立额外预算。失败时 L0/remaining 未记录 |
+| journal 分额 J | `audit_owner.rs:4372-4375` 的 P=min(A,parent.remaining())；`:4409` 传 P/8 给 `effects::Recording::start_on`；`effects.rs:574` 存 Journal.cap | J=floor(P/8)≤floor(R/8)=67108864 B。67,108,864 是理论上界，不是失败时 J 实测；O/U/已用余额会使实际值更低 |
+| 索引扩容需求 G | `s_content.rs:3558-3564` 满表时 C'=max(2C,4)，G=(2C'+16)×(size_of<(NodeDigest,NativeNode)>+1) | C≥2 时 G=(4C+16)×W，W 是实际槽宽。整块新索引先申请，旧 index_permit 仍在，成功后才替换释放 |
+| 两道不同的拒绝门 | `s_content.rs:3564` 先 work.reserve_native(G)；`:3565-3568` 再核 G>cap 或真实 HashMap.try_reserve 失败 | 前一道可报父 Budget；后一处为 ScratchFailure::Allocation。`native.rs:1551` 将 Budget/Allocation 都映为 BudgetExceeded，最终错误不保留这一区分 |
+
+局部 cap 传递有两个入口，不能混写：`audit_owner/effects.rs:1462-1486` 的来源材料准备遍历本事务 j.nodes，回读原件后调用 append，并传 **j.cap=J**；`audit_owner.rs:3911-3913` 的尾部原件补入则传 **usize::MAX**，仍由同一父账收费。因此“累计表跨阈值必然撞 J”还要求跨档扩容实际发生在前一个入口；原件没有记录这一点。
+
+仓内既有布局实测 `.chanlun/review-results/1488-acceptance/receipts/20261021-040601-cdd1f8690f.md:15` 的 `R14_P2B_DROP` 给 W=225 B、slot_before_p2a=241 B。它是历史布局读数，**不是本次 CI 的 size_of 实测**。本轮静态比较当前 NativeNode 与 H1 原件一致，详见下节。在该槽宽下，可复核算式为：
+
+```
+C = 57344:   G = (4×57344 +16)×225 =  51613200 B
+C = 114688:  G = (4×114688+16)×225 = 103222800 B
+J ≤ 67108864 B
+103222800 > 67108864
+```
+
+常见当前 HashMap 的 7/8 有效容量档为 57344、114688、229376；这里按该容量模型推导，当前失败实例的 `.capacity()` 没有日志收据。C/D 最后 nodes=109677，距114688还5011；E/F=112896，还1792；bounded2 最大101481，还13207。前两场比 bounded2 更接近下一容量档。只要后续在 j.cap 入口满到114688，按上述槽宽就要申请103222800 B，即使总父账仍有空间也会被 J 拒绝。这解释了为什么较小 total_peak 的场景可能先失败、较大 total_peak 的 bounded2 仍能通过。前一档51613200 B可能获准，后一档103222800 B不可能过J，阈值是按累计节点容量跳变，而不是固定 total_peak。
+
+这是一条有文件、帽来源和需求公式的**最强候选**，不是本次首次 Budget 的唯一定位：实际失败时的代号、入口、len/capacity、槽宽、G、J、剩余增量和失败分类全部缺测。不能把103222800 B写成本次实际需求，更不能写出一个未测的实际J。尤其父 reserve 在局部 cap 比较之前，故即便同一扩容最终必越J，也可能首先在父 remaining/总帽处被拒。
+
+父账真实条件在 `audit_owner/native.rs:1575-1584`：申请r须同时满足 r≤remaining 与 live+r≤L0+A；失败预留不进入peak，故日志峰值小于帽不能反证父预算失败。工作域还会在本 scope 追踪失败并于退出时结账，不能只读总父峰忽略工作域限额。
+
+### 为什么现有统一错误不能再细分
+
+`audit_owner.rs:7798` 的 codec_work 签发失败可以直接返回None；`:7815-7864` 的闭包、关域或父健康失败，经 `publication_degrade_verdict`（`:7900`）仅在类型化记录全为 Budget/Allocation 且错误来源匹配时返回None。H1 的 `:1543-1547` 将其统一为“认证发布资源不足；禁止无候选重试或完整审计兜底”。stdout 没有 FailureTrace、失败申请或分支编号。因此该错误足以锁定纯资源失败类，不能区分 Budget 与 Allocation，也不能点名容器。
+
+末条 codec 之后还存在 `:4075` 历史保留增量应用、`:4083` 资格票reserve、`:4100` 非节点SQL originals更新、`:4153` 总保留终检。后者需求为 `node_source_and_certificates + node_capacity + historical_and_raw_capacity + current_sql_capacity + q_capacity + inline + Budget元数据`，对照父总帽，而非日志total_peak；精确分项本日志也未给。**不能把所有返回None的门都当作本次同文的来源**：validate_effects 的None在 `:4561-4563` 经 missing() 变成effects未闭合，仍须检查外层类型化资源记录与桥，不能按错误文字猜测。
+
+若主控接续定位，最小缺证集合是：原两锁首次资源拒绝时的请求消息/代、阶段与入口、失败种类、requested、scope limit/live、parent remaining/live/L0+A；若是索引则补nodes.len/capacity、W、G、J和父reserve是否已成功。应由独立诊断构建/既有预算普查取得，只跑原锁并保留原帽与原断言；诊断读数再与原生产路径对照。**本阶段没有插入任何新日志或改变观测语义，也未触发远端跑批。** 在这些读数回来前，第1项“失败那次首次尝试的具体预算及实际需求”仍未闭合。
+
+### 累积存活的成因、H1 对照与合同边界
+
+现有实现确有随历史增长的持有结构，但没有发现把整个前代运行态逐代复制、未释放的集成证据。
+
+- `effects.rs:1462-1493` 对本事务真实 j.nodes 回读并追加已有 capture；`s_content.rs:3548-3554` 遇同digest先核正文相等直接返回，`:3586` 仅插入新digest。这是一份累计唯一原件表，不是重复read就保存一份副本。`:3591-3614 finish_owner_step` 清本步 proof/dirty链与 memo，保留节点正文/索引；未对历史节点做可达性回收。历史捕获及容量因此随累计发布原件增长，索引有阶梯扩容。
+- `history.rs:8973-9004` 的 append_owner_cut 只接管旧状态再消费本代实际 object/aux 行；`:9070` 附近的SQL是 `WHERE p.generation=?1`；`:9123` 向cuts追加一代。原文注释明写“本轮只消费新变更”。没有每次从g1重新遍历所有cut的控制流。roots当前闭包、当前窗口发展记录本身的大小仍会增长，不能把“只核一代”误写成所有字节工作恒定。
+- `state.rs:3844` 以self接管AuditedState；`:3876` 的 NativeRc::try_unwrap 移出共享历史，解包失败即拒。`audit_owner.rs:3826-3854 detach_slot` take capture并实际drop旧result/binding/source_pending，`:4197` 的continue_with替换complete；`source_contributions.rs:2544` 接管previous state，`:980-1031` 清理撤回对象的结构反向索引。W2新来源索引会保存活跃依赖，但没有发现额外持一套完整前代状态的证据。不能把无泄漏证据签成所有容器均已实测释放。
+
+实际对 `git show bea93e19:rust/src/s_content.rs` 与当前源码作Python字节比较：NativeNode声明11行逐字相同（H1 `:2125`、当前`:2286`），满表扩容块17行逐字相同（H1增长式`:3399`、当前`:3560`）。`capture_allocation/work.rs`、`capture_allocation/native_owned.rs`、`s_content/job.rs` 三文件与该H1原件全文相同；NativeReservation字段未改，scratch差异为错误来源追踪。effects传j.cap的路径在H1已存在，typed传播未改变这个参数或增长式。故“typed错误让NativeNode槽宽增长、制造这档扩容失败”没有源码依据；历史捕获累积和这条局部cap耦合也不是本次集成新引入。
+
+H1 admission同类6代锁 `audit_owner/admission_tests.rs:610` 的 driver_cold_recover_rebuilds_ledger_bitwise 共6代（g1-5、epoch2 pending g6，含多次真实冷开与recover）。当前owned原件`:1898-2002`有其逐代输出且`:1729`为ok：
+
+| 代 | nodes | native_live B | total_peak B |
+|---|---:|---:|---:|
+| 1 | 2943 | 4433281 | 7922105 |
+| 2 | 5043 | 7463124 | 12637523 |
+| 3 | 7834 | 12598058 | 16863110 |
+| 4 | 10878 | 14754843 | 24292875 |
+| 5 | 13099 | 15193193 | 26653484 |
+| 6 | 15809 | 22389762 | 35878494 |
+
+这证明同一集成构建的既有H1锁也有累积存活，6代成功不覆盖22/25代的节点容量档；**它不是纯H1原件的性能实测**。另实际读取 `/Volumes/AgentStorage/h1-recover45c/ci-bea93e19/125154371398.log`：`:1565` 确认H1原分支的同名6代锁通过，但成功stdout未保存其逐代读数，不能补造。该原件`:3558-3565` 的另一失败锁 `p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths` 的增量臂有g1→g4：nodes1848→7823、native_live3456769→11937391、total_peak5035511→16064588。其失败不作为通过收据，只用于证明H1原实现已有同类小规模累积；它不提供本次容量档的H1成功反例。
+
+**合同并不要求每代全史重读或常驻全部原件。** 本轮实际从GitHub取得 [#1481票面](https://github.com/xy7365527-lang/NewChanlun/issues/1481) 到 `/tmp/issue1419-m7c-h1-ticket.json`：目标句要求单条成本只随本代新增量；“Δ步实现”要求“新代只核本代新增节点与变化对象”“不常驻全部原件”；“判据单一”禁止资源不足回旧审计。已批准 `.chanlun/review-results/issue1644-p6-audit-ledger-20261021/AMENDMENT.md:9/:39/:45/:121` 分别规定重启从原件全史认证、台账在盘且每请求仅Δ行、冷从g1用同一个Δ步、“写前不再重读全部旧原件”。ADR0042“恢复与冷启动”同样要求持久态重建，未授权每条在线发布全史重审。
+
+因此应区分：冷认证全史线性读取有合同依据；当前在线累计capture/cuts/index有既有实现证据；每代全史重审没有该合同依据。H1 REPORT原合同映射`:33`留资源/3等后续，阶段实现不能替代最终验收。**本轮结论为“既有实现累积成本及局部预算耦合的设计缺口候选，W2更多节点使其提前暴露；需裁定”**，不能写成“已批准合同本身必需的线性成本”，也不能据此宣判“集成回归已证实”。日志只给存活/高水位，没有逐代请求读取次数或工作分桶，故本轮不签每代工作量的精确增长阶。
+
+### 与 M4 的13377次重复关系
+
+M4的13377是特定full Some夹具、发展批前缀跨条目重审的**读取次数**，不是当前capture新增唯一digest数或Native存活字节。M4已查明+30267由W2链的bounded-layout/2来源绑定核带入，集成段净增0；本轮没有改写这一历史结论。
+
+在线实际链是 `prepared.rs:1094-1114 → audit_owner/effects.rs:1523 → source_contributions.rs:2469/:2508`；object_phase只调度added/dirty（`:1189-1206`），`:1237-1251` 的audit_object_record_with_slots仍传development=None。因而同族重复审计仍可能发生，但不是每代完整来源审计。来源材料读取 `effects.rs:1378-1394` 委托ActualRead/TxStore，`:1401-1412` 的NodeSink拒写；capture追加只来自前述j.nodes。重复重读不会直接给累计capture索引新增一份节点，不能把13377称作索引扩容的直接来源。它会增加本代SQL/codec核验及临时工作，日志没有其分项字节，不能声称它的峰值贡献为零或等于13377。
+
+`source_audit.rs:2882-2889` 的session门和 `history.rs:3876-3898` 的eligible_sqlite_base继续排除Native/Owned、工作域、预算/截止、overlay/fresh和s_incremental。M4引用的[#1419 P2批准](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6526264864)限定同次真实SqliteBase审计及原proof/材料帽，不允许直接把该表挪进Native在线发布。因此补审计内受管单元表仍须主控裁定，且不能承诺它会修复累计capture索引扩容。
+
+### 结论、修复门与交主控的选项
+
+本阶段没有符合授权条件的语义中立最小修复：H1已存在的表/扩容式未变，未证前代状态泄漏或重复持有；新表、容器替换、原件淘汰均会触及分配/峰值/观测，不能直接实施。未改任何判据、帽/准备额、原锁代数/场景/断言、错误文案、effects、证书或观测；未启用无候选重试、完整审计兜底或第二档判据。M7B/M6改动全部保留。
+
+交主控的独立选项与代价如下，均不是本阶段已实施方案：
+
+1. **先补首次拒绝的精确收据。** 按上节最小缺证集合，在独立诊断构建中取原两锁的首次失败字段；保留既有锁、预算和断言，与原生产构建结果对照。代价是一次受控诊断与CI窗口；收益是确认局部J、父剩余额度或另一个容器哪一门先拒。现有日志不能替代此步。
+2. **确认累计索引扩容为因后，裁定有界原件持有设计。** 候选方向是分段/可持续的受管索引，或让在线Δ消费持久原件并只持有有界必需前沿，与“不常驻全部原件”对齐。须证明同位置/同摘要继承、缺失/篡改首错、同父许可、冷/在线证书和全部effects合同保持；容器替换会改变容量与峰值观测，原件淘汰还可能影响当前引用存活和认证语义，均需单独设计评审，不能宣称只是删缓存。不得以放宽J或R作为本票修复。
+3. **M4重复成本单独裁。** 可暂保现有memo排除，接受已知重复读；或授权一次Δ来源步内受管单元表，保current完整核、实际头部和本raw绑定、完整format/kind/extent键、前缀结构判据与统一释放。新增表改变受管容量、F/SQL/预算事件、deadline采样及可能的首个内存拒绝位置，必须实测重冻并独审；不能按本轮“观测语义不变”的门实施，也不能替代选项1/2。
+
+### 实际检查
+
+以下检查收据在本节末补记；本机不运行cargo/rustc，也不执行会间接启动它们的脚本。追加前原笔记225267字节，SHA-256 `dea0611ce98eed4b60f8108d2ead9879628af49a520ffebad4f31c670cf2aeee`，前文逐字保留。本轮只写M7C，不git add/commit，不回退任何他人改动。
+
+实际执行并退出0：
+
+- `rustfmt --edition 2021 --config skip_children=true --check`，覆盖 s_content.rs、audit_owner.rs、audit_owner/effects.rs、audit_owner/native.rs、history.rs、request_audit.rs、audit_owner/w2_h1_structure_tests.rs 七个相关Rust文件；本轮这些文件均无改动，检查仅证明格式可接受。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`，输出清单与源码一致；未重建或手改清单。
+- 已读完整anchor_lock脚本后执行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`，3项通过；其CLI负控仅用临时Python stub，未调用Rust工具链。
+- Python核原笔记225267字节前缀与HEAD逐字相同；提取H1/当前NativeNode及扩容块逐字相同，三个底层文件全文相同；按日志物理行复核上表读数、节点距阈值与两档G算式。
+- `git diff --check`，暂存区为空；改动清单仅本笔记。独立非作者只读复核未发现预算公式、原件读数、合同或M4归因的阻塞错误，保留本次实际首错缺测这一限制。
+
+**Rust未验证，待CI。** 本机未运行cargo/rustc、Rust测试或构建；本阶段未修复原两锁，不能声称它们已通过。结论为blocked，附上述诊断缺证与设计选项交主控裁定。
+
+
+## M7D
+
+设计指针：[M7D-DESIGN.md](M7D-DESIGN.md)，绑定 #1419；本阶段 status=ready 仅指设计包交付，首次拒绝诊断仍待主控收据，不代表原两锁已通过。
+
+实际检查收据：
+
+- 已 live 执行 `env -u GH_TOKEN -u GITHUB_TOKEN gh issue view 1481 --comments` 及同命令的 `1644`，均退出0；核对 AMENDMENT、ADR0042 与 H1 当前源码。合同与源码两位非作者只读复核最终均 PASS。
+- Python复算设计的8行估算与扩容公式通过，16个Rust引用文件存在；估算没有作为实测收据。
+- `git diff --check` 与新文件 `git diff --no-index --check -- /dev/null .chanlun/review-results/issue1419-w2h1-integrate46x/M7D-DESIGN.md` 均退出0。
+- 追加前笔记245211字节，SHA-256 `dfc512b40ecf029af946903ecf0dc53b58db69b909617f66dde262b8629bb3b2`；Python前缀逐字对拍通过。M7C原19942字节，SHA-256 `a96ae3b05bc704f361f4fda519657e881abbc5a7631bf0a18353c10dcf1da5c8`，逐字保留。
+- 改动仅本笔记追加与设计新文件；HEAD/分支不变、暂存区为空。不运行cargo/rustc，不改Rust/ci.yml，不git add/commit。
