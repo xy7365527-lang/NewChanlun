@@ -5119,12 +5119,52 @@ mod tests {
     }
     #[test]
     fn full_some_audit_keeps_frozen_read_and_budget_trace() {
+        struct CostTrace<'a> {
+            source: &'a mut dyn NodeSource,
+            meter: &'a Meter,
+            every: usize,
+            rows: Vec<(NodeDigest, &'static str, usize, Option<std::backtrace::Backtrace>)>,
+        }
+        impl CostTrace<'_> {
+            fn note(&mut self, d: &NodeDigest, kind: &'static str) {
+                let seq = self.rows.len();
+                let bt = (self.every > 0 && seq % self.every == 0)
+                    .then(std::backtrace::Backtrace::force_capture);
+                self.rows
+                    .push((*d, kind, self.meter.events.borrow().len(), bt));
+            }
+        }
+        impl NodeSource for CostTrace<'_> {
+            fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                self.note(d, "read");
+                self.source.read(d)
+            }
+            fn checked_read(
+                &mut self,
+                d: &NodeDigest,
+            ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+                self.note(d, "checked");
+                self.source.checked_read(d)
+            }
+        }
+        let trace_out = std::env::var_os("NEWCHAN_COST_TRACE_OUT");
+        let every = std::env::var("NEWCHAN_COST_TRACE_BT_EVERY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|_| trace_out.is_some())
+            .unwrap_or(0);
         let (mut nodes, state, raw, rule) = fixture();
-        let mut reads = Reads {
+        let meter = Meter::default();
+        let mut trace = CostTrace {
             source: &mut nodes,
+            meter: &meter,
+            every,
+            rows: vec![],
+        };
+        let mut reads = Reads {
+            source: &mut trace,
             digests: vec![],
         };
-        let meter = Meter::default();
         let frames = sc::frame_calls_on_thread();
         let mut reader =
             super::super::history::HashReader::metered(&mut reads, None, None, Some(&meter));
@@ -5145,10 +5185,51 @@ mod tests {
             .iter()
             .map(sc::root_string)
             .collect::<Vec<_>>();
+        let trace_rows = std::mem::take(&mut trace.rows);
+        let meter_events = meter.events.borrow().clone();
         let read_hash = crate::sha256_hex(canonical_json(&json!(roots)).as_bytes());
         let budget_hash =
             crate::sha256_hex(canonical_json(&json!(meter.events.into_inner())).as_bytes());
         eprintln!("Some full: counts={counts:?}, reads={}, F={frames}, read_hash={read_hash}, budget_hash={budget_hash}", roots.len());
+        if let Some(out) = &trace_out {
+            use std::io::Write;
+            let mut w = std::io::BufWriter::new(std::fs::File::create(out).unwrap());
+            writeln!(
+                w,
+                "{}",
+                json!({"header": true, "reads": roots.len(), "trace_rows": trace_rows.len(),
+                    "F": frames, "read_hash": read_hash, "budget_hash": budget_hash,
+                    "objects": counts.objects, "meter_events": meter_events.len(), "bt_every": every})
+            )
+            .unwrap();
+            let mut seen = std::collections::BTreeSet::new();
+            for (seq, (d, kind, m, bt)) in trace_rows.iter().enumerate() {
+                let node = nodes.get(d);
+                if seen.insert(*d) {
+                    let (tag, body) = node.map(|(t, b)| (Some(t), b)).unwrap_or((None, &[][..]));
+                    let head = body.iter().take(160).map(|b| format!("{b:02x}")).collect::<String>();
+                    writeln!(
+                        w,
+                        "{}",
+                        json!({"node": sc::root_string(d), "tag": tag, "len": body.len(), "head": head})
+                    )
+                    .unwrap();
+                }
+                writeln!(
+                    w,
+                    "{}",
+                    json!({"seq": seq, "digest": sc::root_string(d), "tag": node.map(|(t, _)| t),
+                        "kind": kind, "meter_event_index": m,
+                        "bt": bt.as_ref().map(|b| b.to_string())})
+                )
+                .unwrap();
+            }
+            for (i, e) in meter_events.iter().enumerate() {
+                writeln!(w, "{}", json!({"meter": i, "event": e})).unwrap();
+            }
+            w.flush().unwrap();
+            eprintln!("cost trace written: rows={}, meter={}", trace_rows.len(), meter_events.len());
+        }
         // #1394 r3：相同原 fixture 新增 CC004/CC054 绑定及 raw bar 投影费用。
         // dc425df7 旧轨迹为 151351 reads / 170797 F；本次未缩减原访问，
         // 新轨迹增加 13016 reads / 14276 F，固定以下实测计数和完整有序摘要。
