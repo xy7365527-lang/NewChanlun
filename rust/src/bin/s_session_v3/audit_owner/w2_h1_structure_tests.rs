@@ -190,7 +190,7 @@ fn w2_h1_reachable_nodes(conn: &Connection) -> Value {
             let value = strict_json(raw.as_bytes()).unwrap();
             if value != json!({}) {
                 todo.push(
-                    sc::TransportRef::from_json_view((&value).into())
+                    newchan_rust::s_content::TransportRef::from_json_view((&value).into())
                         .unwrap()
                         .digest()
                         .unwrap()
@@ -232,7 +232,8 @@ fn w2_h1_snapshot(driver: &driver::Driver) -> Value {
     let mut objects = Vec::new();
     for entry in &historical_owner.objects {
         let mut bytes = Vec::new();
-        sc::render_refview(&mut source, entry.birth_wire.view(), &mut bytes).unwrap();
+        newchan_rust::s_content::render_refview(&mut source, entry.birth_wire.view(), &mut bytes)
+            .unwrap();
         let mut object: Value = serde_json::from_slice(&bytes).unwrap();
         for (wire, encoded) in [
             ("payload", "payload_json"),

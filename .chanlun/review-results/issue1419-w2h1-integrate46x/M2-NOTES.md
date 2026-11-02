@@ -1028,3 +1028,20 @@ Traceback (most recent call last):
 - `git diff --check`：退出 0。核对源码相对 HEAD 仅新增上述属性；本笔记仅追加 M3C，未暂存、提交或回退任何改动。
 
 Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试。
+
+## M3D
+
+本节绑定 #1419，修复 PR #1855@dde4cd4b 的 rust-check job 125128761231 所报两处 E0433。开工分支为 `sandcastle/issue-1419`，HEAD 为 `0a2b34040d08eb5d9e83b3fe2b7cad47403ebb8a`，工作区干净。
+
+`w2_h1_structure_tests.rs` 原第 193、235 行的 `sc::TransportRef::from_json_view` 与 `sc::render_refview` 改用 `newchan_rust::s_content` 完整路径。已核 `s_content.rs:52` 的公开导出与 `:8158` 的公开函数；不新增共享模块别名，不改变测试逻辑。
+
+用 `git grep -n -E '[[:alpha:]_][[:alnum:]_]*::'` 枚举 `w2_h1_structure_tests.rs` 与 `w2_h1_window_tests.rs` 的路径引用，逐项对照作用域。`audit_owner.rs:5663` 的 `construction_tests` 经 `use super::*` 导入 owner，owner 与 `s_session_v3/mod.rs` 也各有 `use super::*`。`v2`、`content_store`、`content_producer` 来自根 `s_structure_session.rs`；`driver`、`s_allocation`、`state` 在 `s_session_v3/mod.rs` 声明；`Ordering` 由 owner 导入，`Sql` 在使用处局部导入，其余为标准库、外部 crate、类型或显式 `crate`/`super` 路径。未发现其他缺失别名，window 文件无需修改。修改后两文件的 `git grep -n 'sc::'` 无命中，退出 1。
+
+实际检查：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner/w2_h1_structure_tests.rs`：退出 0。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`：退出 0，报告 `.github/prod-banned-literals.txt 与源码一致`；禁串清单未受影响，无需重建。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py -k test_rust_test_prepare_exists_only_under_cfg_test`：退出 0，1 项通过，cfg 判据无回退。已核目标方法仅扫描源码，不调用 cargo/rustc。
+- `git diff --check`：退出 0。源码差异仅两处路径替换与必要换行，本笔记仅追加 M3D；未暂存、提交或回退任何改动。
+
+Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试。
