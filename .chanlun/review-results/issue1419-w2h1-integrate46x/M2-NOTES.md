@@ -1541,3 +1541,75 @@ s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-bud
 - `git diff --check` 通过；M2-NOTES 原前缀保留，暂存区为空，HEAD 未变。未 git add/commit，未回退其他代理改动。
 
 没有生产代码、完整 W2 写者串、历史冻结原件、资源帽或 8→64 MiB 准备值变更，没有新增宽严两档或失败兜底。本节解除的是 M6 第 3 项的夹具阻断，不宣称 owned 全绿。CI 须实际运行两条原名锁，证明 W2 六代 online/ordinary/cold 全部对拍，以及规则精确错误和 identity/root/unit 各负控。Rust 未验证，待 CI。
+
+### M6D
+
+本节绑定 #1419 受管阶段 M6D。开工分支 `sandcastle/issue-1419`，HEAD `362eac3474a5e6cbe7f25a5e4ccc7b7d0f060557`，工作区干净。已读 M6 各项、M6 封包口径与 M6C；按主控采纳的独审 §2(a) 订正测试证明力并补预算准备值依据。本节追加记录，前文逐字保留。生产 `cache_flush` 时序、Driver Box 拆帧与 M6C 合同/身份负控修复保持原样。
+
+#### 小缓存锁降为冒烟，订正 SPILL 读数的证明力
+
+M6「物理写原型及压力锁」记载的 `SQLITE_DBSTATUS_CACHE_SPILL` 正增长，不能用来确认缓存压力造成了真实 spill。按主控摘录的独审源码核查，锁定依赖 `libsqlite3-sys 0.38.2/sqlite3/sqlite3.c:64248` 在 `pagerStress` 入口递增 `aStat[PAGER_STAT_SPILL]`；`sqlite3PagerFlush` 在 `:64297-64300` 对未引用脏页调用同一个 `pagerStress`。新增 `cache_flush` 自身就能增加该计数，计数无法区分显式 flush 与缓存压力 spill。因此撤销旧记录中将该读数视作压力 spill 确认的口径；也没有该新增锁删除 flush 后变红的证据。
+
+测试改名为 `h1_small_cache_publish_two_generations_matches_cold_smoke`，删除其局部 `spills` 辅助、前值读取和增长断言。保留建议缓存 8/32/128 页、`cache_spill=true`、每档独立真实夹具/owner、g2/g3 发布、发布回执代号、完整历史与冷 oracle 对拍、owner 不退休等行为断言。注释明确它是小缓存冒烟锁，不作为 flush 回归证据。`.github/workflows/ci.yml:485` owned 逐名收据仅替换此名称，其余名单和执行参数不变。
+
+本缺陷的回归证据归以下四条既有锁的真实红→绿：
+
+- `w2_h1_cold_cd_second_cursor_continuation_matches_online`。
+- `w2_h1_cold_ef_seed_pair_qualification_and_canonical_matches_online`。
+- `w2_h1_cold_bounded2_shape_development_window_matches_online`。
+- `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise`。
+
+四锁及其断言均未修改。本节没有新增 Rust 执行收据；当前候选的红→绿须由 CI 实跑提供，冒烟锁通过不能替代它们。
+
+#### P57 的 8 MiB 成功反证与 V3→W 首代工作集差异
+
+宿主已核实的反证为 P57 提交 `239f8afdd50737648510bca48f09677eb10441de`、workflow「P57 projection origin repair」[run 41041552050](https://github.com/xy7365527-lang/NewChanlun/actions/runs/41041552050)。2026-10-30T10:34:20Z 的日志为 `test v3::history::tests::publication_native_cut_scope_real_budget_preserves_origin ... ok`，执行命令如下，本机未重跑 Rust：
+
+```sh
+cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_native_cut_scope_real_budget_preserves_origin
+```
+
+本轮用只读 `git show` 核对该提交，`history.rs:6755-6769` 确实是同名测试、相同 `Fixture::new()+accept_begin(1, ("a", 0, 6, 12, 3, 7), 1)` 首代，父账为 `8 * 1024 * 1024`。所以不能推断「该锁从未真实跑过」；M6 旧段关于仅凭其他 W2 测试通过不能证明此锁执行的逻辑限制仍成立，但 P57 这份具名成功收据已补足实际执行证据。
+
+本轮核到的规则与首代差异如下，历史行号均属于 P57 提交，不与当前行号混用：
+
+- P57 `rust/src/bin/s_session_v3/mod.rs:175-191` 的 `require_current_writer_rule` 在 `:188-189` 要求 `V3_RULE_REVISION`，`:618` 的 init 写入该串；`:1835` 的测试明确断言 V3 可写。当前 `mod.rs:175-188` 的同一写者门在 `:185-186` 要求 `W_STRUCTURE_RULE_REVISION`，`:605` 的 init 写入完整 W 串，`:1051` 的测试断言 W 可写。没有更改这些生产规则。
+- P57 `rust/src/theta_v0/parser/inclusion.rs:1084-1119` 首根立即建立 merged/group 并记 `seed`；`generation.rs:965-1057` 直接发布 inclusion step/group。当前 `inclusion.rs:870-897` 首根处于 `waiting`，尚未建立方向；当前 `generation.rs:1075-1117` 调 `build_initialization` 产出 W 对象，`:1118-1125` 等待期不发布 inclusion step。两边首代的对象类别因此发生替换和增加，不能把相同 raw 输入当成相同持久化载荷。
+- 当前 `rust/src/bin/s_session_v2/content_producer.rs:57-58` 声明 `CC-004.initialization` 与 `CC-004.undetermined_raw`，`:1552-1571` 构造初始化对象及其知识请求，`:1572-1582` 构造等待期 group pending 请求，`:1585-1630` 为每个 pending raw 构造未定对象及其请求。单根首代已包含这两类 W 事实及对应请求。它们不是本轮为预算测试添加的夹具对象。
+- 目标测试在同一 scope 下加载 aux/object 索引，再构建 NativeCutProjection。当前 `history.rs:165-199` 读取对象双投影、snapshot/delta 成员并构造投影数组；`s_session_v2/content_publication.rs:477-488` 的消费者核验两棵模板原件闭包并读取 snapshot/delta。W 首代对象/请求带来的索引、模板及双投影工作集扩大，与 M6 日志中的 `failure=Budget` 一致。这是规则与源码解释，未测得 V3/W 的字节差、具体失败 reserve 或最低足够预算，不能据此报精确增量。
+
+64 MiB 继续作为已接受的测试准备额；未恢复为 8 MiB，未改变生产资源合同。ballast 仍用全部 `budget.remaining()`，原两次真实消费者调用、Budget 分类、trace、BridgeProof 及最终 publication 判决断言均保留。
+
+#### 首次成功预演后的既有预算遥测
+
+在 `history.rs:7436-7446`，第一次 `resolve_native_dual_templates_pending_view(...).unwrap()` 成功返回后、`scope.reserve_native(budget.remaining())` 之前，只读现有读数并 `eprintln!`。稳定前缀为 `[budget-telemetry 1419-M6D]`，阶段字段为 `phase=pre-ballast`，所有字节字段单位为 bytes：
+
+| 日志字段 | 现有读数与如实含义 |
+|---|---|
+| `parent_remaining_bytes` | `Budget::remaining()`，采样时该父账当前域的可用余额 |
+| `parent_sampled_occupancy_bytes` | `Budget::live()`，采样时父账的账面占用，包含父账元数据及其管理的 Native/Layout/工作域元数据；不是峰值 |
+| `parent_peak_bytes` | `Budget::peak()`，父账自出生至采样点的已有账面占用高水位，包含预演期间已释放的临时占用；不是 RSS/总堆峰值 |
+| `scope_layout_sampled_occupancy_bytes` | `WorkScope::snapshot().live`，采样时此工作域的 Layout 计账占用 |
+| `scope_layout_peak_bytes` | 同一次 snapshot 的 `peak`，此工作域至采样点的已有 Layout 高水位；不包含经 `reserve_native` 计入父账的 Native 预留或工作域元数据 |
+
+读数依据为 `audit_owner/native.rs:917-933/:960-965` 的 remaining/request_peak/live/peak、`:1565-1609` 的父账扣款与高水位更新，以及 `s_content/capture_allocation/scratch.rs:281-330/:487-493` 的 Layout 计数与 snapshot。`reserve_native` 在同文件 `:205-218` 只向父账计 Native，故 scope 字段明确标 Layout。已有 `request_peak()` 是当前域的 allowance 减余额低水位，本测试 fresh 父账无 handoff，不额外打印重复口径；snapshot 的 `attempts` 是分配计数，不是字节用量，也不打印。
+
+本轮没有使用 `64 MiB - remaining()` 冒称峰值，没有给生产类型加字段或 API，也没有为测量新增 reserve/释放。打印的是预算账本读数，不能推导操作系统内存峰值或各对象类别的独立峰值；本机没有 Rust 实测数值，具体值待 CI。
+
+CI 收据须同时看原名预算锁 `...preserves_origin ... ok` 与 `grep -F '[budget-telemetry 1419-M6D]' <日志>`。现有 owned 的 `publication_` 步没有传 `--show-output`，默认会捕获成功测试输出；因此需在 CI 的靶向取证运行中显式带该参数，保留成功预演读数。本轮 ci.yml 按范围只改冒烟锁收据名称，不扩大其他配置改动。CI 待执行命令如下：
+
+```sh
+cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_native_cut_scope_real_budget_preserves_origin -- --show-output
+```
+
+#### 实际检查
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner/history_clamp_tests.rs rust/src/bin/s_session_v3/history.rs`：退出 0，仅格式检查。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`：退出 0，报告 `.github/prod-banned-literals.txt 与源码一致`；未改生成器、清单或白名单。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`：退出 0，3 项通过，不调用 cargo/rustc。
+- Python `yaml.safe_load` 解析 `.github/workflows/ci.yml` 通过；逐字对拍确认此文件仅替换一个收据名。
+- Python 源码对拍确认小缓存循环除两处计数语句外逐字相同，目标函数外的 `history_clamp_tests.rs` 与开工 HEAD 相同，因此 M6C 两锁保持不动；`history.rs` 去掉唯一遥测插入块后与开工 HEAD 逐字相同，64 MiB、ballast 及全部原断言保持。
+- Python 核对 `audit_owner.rs`、`driver.rs`、M3 C/D、E/F、bounded2 与恢复锁所在文件和 HEAD 逐字相同；M2-NOTES 原前缀逐字保留。没有生产代码或回归锁修改。
+- `git diff --check` 退出 0；工位改动仅本笔记、上述两份测试源码与 ci.yml，暂存区为空，HEAD 未变。未 git add/commit，未回退其他代理改动。
+
+本阶段 **status=ready**，测试证明力与准备值依据已按独审返修。未运行 cargo/rustc，没有当前候选的 Rust 编译/执行收据或遥测实测值；Rust 未验证，待 CI。

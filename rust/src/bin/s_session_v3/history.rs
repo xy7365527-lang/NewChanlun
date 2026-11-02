@@ -7433,6 +7433,17 @@ pub(super) mod tests {
                     &projection,
                 )
                 .unwrap();
+                // #1419 M6D：首次成功预演后、ballast 前只读既有预算遥测。
+                // scope 的 live/peak 仅计 Layout；Native 与元数据计入父账。
+                let scope_usage = scope.snapshot();
+                eprintln!(
+                    "[budget-telemetry 1419-M6D] phase=pre-ballast parent_remaining_bytes={} parent_sampled_occupancy_bytes={} parent_peak_bytes={} scope_layout_sampled_occupancy_bytes={} scope_layout_peak_bytes={}",
+                    budget.remaining(),
+                    budget.live(),
+                    budget.peak(),
+                    scope_usage.live,
+                    scope_usage.peak,
+                );
                 let ballast = scope.reserve_native(budget.remaining()).unwrap();
                 let result = content_publication::resolve_native_dual_templates_pending_view(
                     &tx,

@@ -41,24 +41,11 @@ fn h1_real_own_accept_begin_publish_continues_same_life() {
     }
 }
 #[test]
-fn h1_effects_close_flushes_pager_before_observation_and_suffix_reads() {
-    fn spills(connection: &Connection) -> i32 {
-        let (mut current, mut highwater) = (0, 0);
-        // SAFETY：只在本线程同步借用有效连接与两个栈内输出，不保存 handle。
-        let rc = unsafe {
-            rusqlite::ffi::sqlite3_db_status(
-                connection.handle(),
-                rusqlite::ffi::SQLITE_DBSTATUS_CACHE_SPILL,
-                &mut current,
-                &mut highwater,
-                0,
-            )
-        };
-        assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
-        current
-    }
-    // #1419：只缩小测试连接的建议页缓存，强制真实固定写口经历 pager spill；
-    // 不改 Native 父帽、规则、effects、物理观测或完整历史对拍。
+fn h1_small_cache_publish_two_generations_matches_cold_smoke() {
+    // #1419 M6D：小缓存下两代发布、完整冷对拍与 owner 生涯的冒烟锁，
+    // 不证明压力 spill 已发生，也不作为 cache_flush 的回归证据。
+    // 真实红→绿回归证据归 M3 的 C/D、E/F、bounded2 三锁及
+    // h1_admission_driver_cold_recover_rebuilds_ledger_bitwise。
     for cache_pages in [8, 32, 128] {
         let f = fixture();
         let owner = h1_owner(&f);
@@ -70,7 +57,6 @@ fn h1_effects_close_flushes_pager_before_observation_and_suffix_reads() {
             .connection
             .pragma_update(None, "cache_spill", true)
             .unwrap();
-        let before = spills(&owner.connection);
         let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
         let mut c = context();
         for n in 2..=3 {
@@ -78,7 +64,6 @@ fn h1_effects_close_flushes_pager_before_observation_and_suffix_reads() {
             owner.assert_complete_matches_cold();
             assert!(!owner.retired.get());
         }
-        assert!(spills(&owner.connection) > before);
     }
 }
 #[test]
