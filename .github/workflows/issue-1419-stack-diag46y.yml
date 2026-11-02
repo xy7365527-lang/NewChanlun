@@ -165,7 +165,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: stack-diag46y-${{ github.ref_name }}
+          name: stack-diag46y-${{ github.sha }}
           path: ${{ runner.temp }}/diag
           if-no-files-found: error
           retention-days: 14
