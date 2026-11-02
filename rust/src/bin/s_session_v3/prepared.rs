@@ -2251,7 +2251,7 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_incremental")]
     fn source_partitions_real_owner(admitted: bool) {
-        let mut f = Fixture::build(5, 5, None);
+        let mut f = Fixture::build(5, 5, &[], None);
         let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
         let db = f.db_path();
         let path = db.with_file_name("source-partitions.sqlite");
@@ -3039,7 +3039,7 @@ pub(crate) mod tests {
         ];
         let mut dumps = Vec::new();
         for round in 0..2 {
-            let mut f = Fixture::build(5, 5, None);
+            let mut f = Fixture::build(5, 5, &[], None);
             let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
             let db = f.db_path();
             let name = format!("complete-{round}.sqlite");

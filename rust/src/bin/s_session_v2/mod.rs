@@ -3455,7 +3455,10 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
 }
 
 // init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
-#[cfg(feature = "s_v2_seed_testonly")]
+#[cfg(any(
+    all(test, feature = "s_incremental", unix),
+    feature = "s_v2_seed_testonly"
+))]
 pub enum LegacyWriteGuard {
     Initialization(
         #[allow(
@@ -3466,7 +3469,10 @@ pub enum LegacyWriteGuard {
     ),
     Existing(crate::v3::admission::WriterScope),
 }
-#[cfg(feature = "s_v2_seed_testonly")]
+#[cfg(any(
+    all(test, feature = "s_incremental", unix),
+    feature = "s_v2_seed_testonly"
+))]
 impl LegacyWriteGuard {
     pub(crate) fn enter(&self) -> Result<Option<crate::v3::admission::OpenGuard>, String> {
         match self {
@@ -3482,7 +3488,10 @@ impl LegacyWriteGuard {
     }
 }
 
-#[cfg(feature = "s_v2_seed_testonly")]
+#[cfg(any(
+    all(test, feature = "s_incremental", unix),
+    feature = "s_v2_seed_testonly"
+))]
 pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {
     let command = args.get(1).map(String::as_str);
     if matches!(command, Some("accept" | "advance" | "recover")) {

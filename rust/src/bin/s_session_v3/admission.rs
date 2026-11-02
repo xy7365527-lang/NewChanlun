@@ -310,6 +310,7 @@ impl WriterScope {
             super::admission_private::RejectionPrefix::None,
         )
     }
+    #[cfg(any(test, feature = "s_v2_seed_testonly"))]
     pub(crate) fn admit_legacy_write(
         db: &Path,
         prepared: PreparedAdmission,

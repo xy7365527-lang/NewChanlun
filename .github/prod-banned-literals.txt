@@ -261,6 +261,7 @@ V5要求完整候选HEAD
 V5要求导出路径
 V5要求新的Q3_REAL_EXPORT路径
 Value证书不得复用JsonInner判定
+VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-session/3
 W cut 不得发旧串域
 W 夹具索引槽数
 W 对象带请求

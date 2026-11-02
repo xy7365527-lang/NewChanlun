@@ -119,6 +119,12 @@ fn h1_legacy_assert_write_rejected(f: &H1AdmissionFixture, command: &str, clock_
     } else {
         assert!(!v2::dispatch_fixture(&args).unwrap());
         v2::legacy_write_lock(&args)
+            .inspect(|guard| {
+                if let Some(guard) = guard {
+                    guard.require_admitted().unwrap();
+                    drop(guard.enter().unwrap());
+                }
+            })
             .err()
             .expect("v1 写入口必须在只读前缀拒绝 v3")
     };

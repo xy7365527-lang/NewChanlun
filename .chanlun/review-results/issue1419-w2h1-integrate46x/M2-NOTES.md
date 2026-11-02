@@ -771,3 +771,83 @@ W2 冷往返证明按本文前部对象表交棒 M3，表内对象、建议测�
 - `rust/src/bin/s_session_v3/source_receipt.rs`
 - `rust/src/bin/s_session_v3/state.rs`
 - `.chanlun/review-results/issue1419-w2h1-integrate46x/M2-NOTES.md`
+
+## M2C
+
+本节绑定 #1419，按 PR #1855 首轮 CI 修复。开工 HEAD `d4002d145667c4ddbd98fa451245a3a58f8551ca`，分支 `sandcastle/issue-1419`，工作区干净。先读 `/Volumes/AgentStorage/w2-h1-integrate46x/ci-d4002d14/rc.txt`、全部失败 job 的错误诊断及 `prodsess-fail.txt`，并核 M1/M2 取舍记录。本轮仅修改工作区，不暂存、不提交、不运行 cargo/rustc。
+
+### 重复定义与 stats 接口
+
+| 对象 | W2 `ab2bfac7` / H1 `42a3f959` 逐行比对 | 本轮取舍 |
+|---|---|---|
+| `s_content.rs` 的 `verified_public_subroots_tests` | W2 原 `:9443`、H1 原 `:9378` 的完整模块均为 135 行，与集成原 `:9540`、`:9677` 两份逐字相同；均含 2 个测试、6 个 assert。 | 保留 `rust/src/s_content.rs:9540` 首份，删除完全相同的第二份；夹具和断言没有损失。 |
+| `ordinary_material_readonly_owner_and_some_gates_match_uncached_source` | 两侧各 95 行，差异只有 payload 的 `repeat(20)` / `repeat(200)`，以及末两处 `pool.stats()` / `pool.stats`。其余夹具、Meter、fail_at、结果/事件轨迹及 SQL 读数断言逐字相同。 | `ordinary_materials_tests.rs:245` 合成一个测试，`:284` 对 `[20, 200]` 分别建立完整独立夹具、执行全部原有 5 个断言；访问统一为现有 `stats()` 方法。没有只选一侧 payload。 |
+| `ordinary_material_pool_actual_heap_released_after_readonly_scope` | 增量预检发现原 `:343`、`:462` 也重复，CI JSON 同样报 E0428/E0609/E0615。两侧差异仅 `stats().slab_capacity` / `slab.capacity()` 与 stats 方法/字段写法。 | 保留当前 `ordinary_materials_tests.rs:345` 的一份，3 个断言全保留。`ordinary_materials.rs:48` 的 `stats()` 转发 `raw.stats()`；`s_content/raw_materials.rs:127` 将真实 `self.slab.capacity()` 填入 `stats.slab_capacity`，两侧检查等义。 |
+
+Python 实际逐字比较了完整模块；独立实装组另将合并测试按 20/200 展开、归一 stats 访问后，逐字对回两侧原测试，并对 heap 测试归一访问后逐字对回两侧。三个符号在全 `rust/` 的 `git grep` 中各只剩一个定义，无残留 `pool.stats.` / `pool.slab`。没有修改签名。
+
+### LegacyWrite 与写入口同门
+
+根因是 H1 新拒绝入口仍在生产构建，W2 已把它保护的旧写入口门控为 `any(test, feature = "s_v2_seed_testonly")`，导致 `-D warnings` 下方法/变体不可达。按同一个门覆盖：
+
+- `rust/src/bin/s_session_v3/admission.rs:313` 的 `WriterScope::admit_legacy_write`；
+- `admission_private/mod.rs:379` 的 `RejectionPrefix::LegacyWrite`、`:457` 的增量拒绝及 `:511` 的 match arm；增量拒绝原有 `s_incremental` 前提保留；
+- `admission_private/mixed.rs:20` 的 match arm，从原合并模式拆成两个同义 arm，只给 LegacyWrite 加门。
+
+没有删除拒绝逻辑，没有新增 `allow(dead_code)`。方法直接调用者只有 `s_session_v2/mod.rs:3442` 的 `dispatch_with_policy` 和 `:3505` 的 `legacy_write_lock`；前者原本就与拒绝路径同门。
+
+后续增量编译另有已记录的 E0425：`audit_owner/legacy_admission_tests.rs:121` 调用的 `legacy_write_lock` 原来仅 seed feature 可见。现将 `s_session_v2/mod.rs:3458`、`:3472`、`:3491` 的 Guard、impl、函数三个门统一为 `any(all(test, feature = "s_incremental", unix), feature = "s_v2_seed_testonly")`。这精确覆盖种子入口和 H1 测试两个真实调用域，不在无增量的普通 test 构建引入无调用项。拒绝路径本身仍按要求使用较完整的 `any(test, seed)` 门，覆盖所有旧写入口。
+
+H1 测试的 include 门仍为 `test+s_incremental+unix`，所有既有 assert 逐字不变。`legacy_admission_tests.rs:122` 增加 `Result::inspect`，让测试与根种子分派一样消费成功 guard 的 `require_admitted/enter` API，避免只编入返回类型而留下无调用方法。`inspect` 不改变 Result：Err 原样进入原来的 VersionMismatch 和提示断言；任何 Ok 要么在 guard 检查处失败，要么仍在原 `.err().expect(...)` 处失败，不能把错误放行变成通过。根 `s_structure_session.rs:6214` 的 seed 分派不变。
+
+全 `rust/` 穷举 `LegacyWrite`、`admit_legacy_write`、`legacy_write_lock`、Guard 及方法调用；Python 穷举 test/seed/incremental/unix 的 16 组真值，所有活调用均有定义，所有 guard 构建都有拒绝路径。独立只读复核发现并促成本轮采用精确测试门，末次复核没有剩余具体问题。上述仅是静态核对，H1 测试实际编译和执行待 CI。
+
+### 第 4 项 E0308 的诊断订正：保留刻意编译负例
+
+`rust/src/bin/s_session_v2/content_store.rs:3285` 不是漏改的正常测试调用，而是 `#[cfg(all(test, issue1394_capture_callback_refusal))]` 下的刻意编译负例 `capture_callback_must_not_compile`。因此本轮没有把它改成可编译引用，也没有改变函数签名或取消类型。
+
+实际执行 `git log -S CaptureCancellation` 追到 `23c3188ecef3dc9e9d5cb0deeb299cb9fb1098b9`，提交 `test(#1394): close capture cancellation callback capability`，2026-10-02。它在同一提交中把任意 `FnMut` 改为 `&CaptureCancellation`，并新增这个旧闭包负例。W2/H1/当前三份的取消类型、完整捕获函数、完整负例均逐字相同，Python 比对通过。所要求的“第 n+1 次检查把 body 置零”正是这个负例试图注入、应被类型边界拒绝的能力；不能把拒绝这项能力误修成允许它。
+
+直接证据是 `.github/scripts/check-compile-negatives-1394.sh:2-6` 与 `:20-46`：负例必须编译失败，全部错误必须是负例块内的 E0308；若改为可编译引用，该脚本会明确失败并报“负例编译通过，类型边界不再拒绝旧写法”。`job-125097986384.txt` 原文同样明报“出现 E0308 以外的错误，不能证明是负例本身被拒”，混入的是本轮已修的 E0428/E0615。CI 启用该 cfg 的唯一入口就是这个负例脚本，普通构建不启用它。修无关错误后，应由 CI 重新证明仅剩预期 E0308。
+
+`git grep` 全 `rust/` 共 17 个捕获调用：content_store 内 11 个正常测试、1 个刻意闭包负例，外部 catalog_evidence/object_index/projection/state 共 5 个调用。16 个正常调用全部传 `&CaptureCancellation`；`never/at_check` 与其调用处同在 test 门内，`state.rs:555` 的非 test 调用与 `until` 都在 `s_allocation_json_testonly` 门内。`s_incremental` 不启用该负例 cfg。未运行会启动 cargo 的负例脚本。
+
+### 行为失败：补齐夹具，不放宽错误断言
+
+CI 原文只显示 `.contains("InvalidDomain")` 断言失败，未输出 `out.stderr`，因此不能声称已读取实际 stderr。静态路径明确指向缺锚：原测试 `s_init_v3(None)` 后没有调用 `anchor`，manifest 还指向不存在的 `space/limits.json`；资源文件则由 `launcher_manifest` 正常生成。`writer_cli.rs:269` 先执行 `admission_anchor::from_args_for_db`，其 `load_for_db` 在 `admission_anchor.rs:1324` 读取缺失的 `<db>.control-owner.json`，返回 `AnchorMissing/E1`，Display 文本为 `R4准入拒绝：AnchorMissing；阶段=E1…`。这发生在 `writer_cli.rs:845` / `Driver::check_structure_source` 的域核对之前，是静态归因，待 CI 取证确认。
+
+两侧核对也解释了为何 H1 通过而集成新增尾部用例失败：W2 的原名是 `production_session_refuses_s_db_without_source_declaration`，夹具缺锚；H1 同名用例已改用完整 `structure_source_fixture("missing")` 和 `assert_launcher_source_failure`。M1 为保留两侧把 W2 体改名后追加到文件尾部，缺锚随之保留；`42a3f959` 中不存在集成尾部的新名字。H1 的已通过用例不能证明这份缺锚夹具正确。
+
+`rust/tests/production_session_entry.rs:1083` 现在调用既有 `anchor(&s_db)` 并把返回路径传给 manifest，沿完整 W2 v3 初始化路径，不改生产规则、域检查顺序或准入语义。原 `InvalidDomain` 和 raw 行数前后相等断言保留；增加 stderr 失败诊断、无 socket 断言，改用已有的有界 `run_refusal`，清除该测试不需要的凭据/诊断环境键。任何门失效均不会无限挂起。补齐锚后应到达现有缺结构源的 InvalidDomain 路径；本机未运行 Rust，是否通过待 CI，未用另一个拒绝原因替换原断言。
+
+### 后续 feature 组合的静态预检
+
+实际 workflow 是 `.github/workflows/ci.yml`。rust-check 在 `s_session` 已停止，后两项为 `s_session,s_incremental` 和 `s_session,s_capture_native_testonly`，后者通过 Cargo feature 依赖包含增量。另核 allocation JSON testonly 和 seed 构建相关引用，没有把首轮 s_session 通过当作所有组合通过。
+
+JSON 诊断 `job-125097986410.txt` 还给出了以下被普通错误文本遮住的确定接口缺口，已一并修复：
+
+- `history.rs:3858` 的 `HashReader::sqlite_base` 漏初始化只在 incremental 下存在的 `request_verifier`，报 E0063。现与其他 ordinary 构造器一致，按 `#[cfg(feature = "s_incremental")]` 设 `None`。没有修改签名或引入宽松验证；无 captured owner 的 ordinary 构造器不携带请求捕获器。全 `rust/` 穷举 `HashReader::sqlite_base`，history/state/source_audit_development_tests/sqlite_base_tests 调用均无需改参。
+- `prepared.rs:2254`、`:3042` 的 H1 增量测试仍传三参 `Fixture::build(5, 5, None)`，报 E0061；W2 已在第三参加入 `recover_events: &[(&str, i64)]`。两处现在传 `&[]`，保持原夹具不创建恢复事件的意图，原 `None` 规则参数保留，不使用测试写者规则放行。`git grep` 全 `rust/` 两处具体 `Fixture::build` 均已适配，定义与 `Self::build/with_clock_plan/build_at` 路径另逐一核对，签名不改。
+- 增量 duplicate heap 测试、旧 `pool.slab/stats` 访问和旧写锁 E0425，已在前两节逐项结清。
+
+本轮未改变任何函数签名。生产写者规则仍是完整 W2 串 `s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2`。没有改冻结库、资源帽、生成/结构判据、准入语义，没有新增 `test_writer_rule` 或严格失败后的兜底路径。M3 冷往返证明义务仍按本文已有对象表交棒。
+
+### 禁串重建与实际检查
+
+先运行生成器 `--check` 确认受 cfg 变更影响，再运行 `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py` 重建。清单由 1756 项变为 1757 项，仅新增一条：
+
+```text
+VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-session/3
+```
+
+来源是现在与 LegacyWrite 一起门控的只读拒绝文本；无删除项。随后 `--check` 实际退出 0、报告与源码一致，没有修改生成器或手改清单。
+
+实际完成：
+
+- 10 个 Rust 改动文件 `rustfmt --edition 2021 --check --config skip_children=true` 退出 0；额外未修改的 content_store 同样格式检查通过。初次 production 测试格式差异已按 rustfmt 修正，末次全部通过。
+- `git diff --check` 退出 0；改动 Rust 文件冲突标记 0；`git diff --cached --name-only` 为空。未新增工作产物文件，未改其他代理的改动。
+- Python 静态检查：重复项唯一、两侧模块/捕获类型/函数/负例逐字保留、16 组 cfg 真值、H1 原 assert 逐字保留、增量字段/参数完整及 production 负控域/raw 断言保留，全部通过。逐行比对和独立只读复核见各节。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/check-prod-no-test-hooks.py` 退出 0，`violations=0`。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_check_prod_no_test_hooks*.py'`：20 项通过。
+- 正本禁串生成器重建及 `--check` 均退出 0，最终 1757 项。
+- Rust 未验证，待 CI。未运行 cargo/rustc、Rust 测试、编译负例门或产物构建；静态检查不证明实际编译/行为通过。本轮可交付 ready，供 CI 继续揭示后续错误。

@@ -3863,6 +3863,8 @@ impl<'a> HashReader<'a> {
             work: None,
             #[cfg(feature = "s_incremental")]
             native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
             deadline: None,
             max_render_bytes: None,
             budget: None,
