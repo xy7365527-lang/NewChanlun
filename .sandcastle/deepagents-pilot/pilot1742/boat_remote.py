@@ -142,18 +142,21 @@ def run(request: dict, request_path: Path, deadline: float) -> dict:
 def cancel(request: dict, request_path: Path) -> dict:
     root = Path(request["root"])
     claim = root / "claim"
-    if not claim.exists() and claim_atomically(root, "receipt.json", {
-            **identity(request), "state": "unknown", "exit_code": 143, "reason": "取消先于监督器认领；模型任务未启动"}):
+    try:
+        if not claim.exists() and claim_atomically(root, "receipt.json", {
+                **identity(request), "state": "unknown", "exit_code": 143, "reason": "取消先于监督器认领；模型任务未启动"}):
+            return observe(request, request_path)
+        if (claim / "receipt.json").exists():
+            return observe(request, request_path)
+        with launch_lock(claim):
+            (claim / "cancelled").touch(exist_ok=True)
+            child = claim / "child.json"
+            if child.exists() and same_process(record := json.loads(child.read_text())):
+                with suppress(ProcessLookupError):
+                    os.killpg(record["pid"], signal.SIGTERM)
         return observe(request, request_path)
-    if (claim / "receipt.json").exists():
-        return observe(request, request_path)
-    with launch_lock(claim):
-        (claim / "cancelled").touch(exist_ok=True)
-        child = claim / "child.json"
-        if child.exists() and same_process(record := json.loads(child.read_text())):
-            with suppress(ProcessLookupError):
-                os.killpg(record["pid"], signal.SIGTERM)
-    return observe(request, request_path)
+    finally:
+        (root.parent / "private/model-key").unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

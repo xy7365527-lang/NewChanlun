@@ -32,7 +32,7 @@
 }
 ```
 
-`endpoint` 必须是 HTTPS `/v1` 入口。`image` 必须是完整 `sha256:` 身份，且基底 VM 内有该镜像。模型能力经受管 SSH 管道从网关 VM 流到工蜂 VM，不进入运行包、提示或日志；网关 VM 由其 owner 显式管理，adapter 不启动它。工蜂读取 key 后立即删除文件，监督器结束时再删一次，收集后控制端在停 VM 前确认删除。
+`endpoint` 必须是 HTTPS `/v1` 入口。`image` 必须是完整 `sha256:` 身份，且基底 VM 内有该镜像。模型能力经受管 SSH 管道从网关 VM 流到工蜂 VM，不进入运行包、提示或日志；网关 VM 由其 owner 显式管理，adapter 不启动它。工蜂读取 key 后立即删除文件，监督器结束和取消返回前都会再删一次；控制端取回回执后，在停 VM 前确认删除并持久化 `key_erased=true`。
 
 fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使用 Boat CLI。控制端通过 `BOAT_API_KEY` 或 `PILOT_BOAT_API_KEY_FILE` 提供官方 scoped key。文件须位于运行时源码仓库外，由当前用户持有，且是没有 group/other 权限的普通文件，建议设置为 0600。符号链接不被接受。控制端从同一个已打开的文件描述符核对类型、属主和权限后读取，不读取 CLI 私有凭据。只授 `sandbox.fork`，设置有限 TTL，不使用 admin key。该 key 不进入配置、运行包、提示或云工蜂。官方创建与 scope 规则见 [Create and list keys](https://docs.boat.dev/api-keys/create-and-list) 和 [Scopes](https://docs.boat.dev/api-keys/scopes)。
 
@@ -43,9 +43,9 @@ fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使
 - `creating`：请求前冻结并落盘 `fork_intent`，含账户唯一的幂等键、源 VM、完整请求体和首次请求时间。官方 API 把标签与 fork 同时创建。响应丢失且尚未改名时，重开使用原键和原请求体取得同一 VM，先保存 ID，再改名、等待磁盘恢复和上传。`409 idempotency_in_progress` 短暂重试同一请求，`409 idempotency_key_reused` 拒绝。24 小时保留期过后不再请求创建。旧绑定没有幂等 intent 时只收养已有唯一同名 VM，不补建。远端已有认领时拒绝覆盖运行包。
 - `prepared`：派工前读 `archiveAfter`。剩余寿命不足 15 分钟加 2 分钟收尾余量时拒绝派工，不自动续期。监督器拿到绝对截止时间（自动停止前 2 分钟），镜像核对、依赖安装和工蜂都受它约束，到点写失败回执。
 - `submitting`：提交响应丢失时，先看远端认领；没有认领再查 `boat history`。没有任何提交记录才补提交一次，远端排他认领保证模型任务最多一次。
-- `submitted` 之后，只有取到远端终态回执才收集。回执和 session 取回本地后，控制端删除 key 并请求停止该 VM；确认 VM 为 `stopped` / `archived` 后才记录 `stop_id` 并收集。仅受理停止请求或仍为 `stopping` / `archiving` 时返回 `EffectUnknown`，保留队列占位，再次对账沿原绑定确认停止。
+- `submitted` 之后，只有取到远端终态回执才收集。回执和 session 取回本地后，控制端删除 key、核实文件不存在并保存 `key_erased=true`，再请求停止该 VM；确认 VM 为 `stopped` / `archived` 后才记录 `stop_id` 并收集。仅受理停止请求或仍为 `stopping` / `archiving` 时返回 `EffectUnknown`，保留队列占位，再次对账沿原绑定确认停止。
 
-停止的 VM 只会让观察结果成为 `EffectUnknown`，提示显式恢复，不会自动续费或重派。恢复后先按原认领和监督进程对账：进程仍在就继续等，已结束且无回执就保持未知。
+VM 已停止且缺回执或缺 `key_erased=true` 删除证据时，观察返回 `EffectUnknown`，提示显式恢复同一 VM，不自动续费或重派。回执已缓存且删除证据已落盘时，沿原绑定确认停止即可完成收尾，无须恢复 VM。恢复后先按原认领和监督进程对账：进程仍在就继续等，已结束且无回执就保持未知。
 
 ## 启动、观察和恢复
 
@@ -85,16 +85,16 @@ v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ...
 
 ### 取消后释放队列槽或换代
 
-尚未提交的工蜂在取消入口和只读排空检查中，按上述 key 删除与 VM 停止证据返回 `NotStarted`，不生成业务回执。恢复原工蜂时返回带取消原因的 `EffectUnknown`，驱动写入 `halted` 轨迹，不重新派工；已排空的槽仍可释放或换代。已提交工蜂的手工换代与队列共享只读排空判定。原绑定已确认 VM 为 `stopped` / `archived` 并记录 `stop_id` 与 `stop_confirmed=true`（仅有停止请求 ID 不算），缓存回执的 run、角色、head、generation 和 package 全部匹配，且退出码为明确整数时，再按回执来源检查：
+尚未提交的工蜂在取消入口和只读排空检查中，按上述 key 删除与 VM 停止证据返回 `NotStarted`，不生成业务回执。恢复原工蜂时返回带取消原因的 `EffectUnknown`，驱动写入 `halted` 轨迹，不重新派工；已排空的槽仍可释放或换代。已提交工蜂的手工换代与队列共享只读排空判定。原绑定已记录 `key_erased=true`，并确认 VM 为 `stopped` / `archived` 并记录 `stop_id` 与 `stop_confirmed=true`（仅有停止请求 ID 不算），缓存回执的 run、角色、head、generation 和 package 全部匹配，且退出码为明确整数时，再按回执来源检查：
 
 - 工蜂回执必须是 `terminal`，业务状态为 `failed` 或 `cancelled`，`record.process_exit.code` 也是明确整数且与退出码相同；允许两者为 0。进程正常退出后，写集检查等业务校验仍可能判为失败。
 - 监督器取消或非零退出的回执不含 `record`，沿用监督器的 `state=unknown` 格式；明确非零退出码与停止记录共同证明它已排空。只有 `unknown`、没有明确退出码仍不能排空。
 
-符合这些条件后，队列可用该槽处理其他票；已释放的原票可登记新 run，并在原票级锁内取得下一代次。没有 `stop_id`、缺回执、身份不符、`process_exit=null`、运行中或退出不明时继续占槽。成功回执仍由原控制入口收集，不走失败排空路径。
+符合这些条件后，队列可用该槽处理其他票；已释放的原票可登记新 run，并在原票级锁内取得下一代次。缺少 key 删除证据、没有 `stop_id`、缺回执、身份不符、`process_exit=null`、运行中或退出不明时继续占槽。成功回执仍由原控制入口收集，不走失败排空路径。
 
-旧绑定缺少 `stop_confirmed` 时，即使已有 `stop_id` 也继续占槽。已提交绑定由原控制入口对账补确认；已取消的准备阶段绑定须再次调用原 `cancel-worker` 入口，确认 VM 已停止后补记标志。这些入口不自动恢复 VM、续费或重派。
+旧绑定缺少 `key_erased=true` 时，即使已有停止确认和回执也继续占槽；须显式恢复同一 VM，再由原控制入口核实删除。旧绑定缺少 `stop_confirmed` 时，即使已有 `stop_id` 也继续占槽。已提交绑定由原控制入口对账补确认；已取消的准备阶段绑定须再次调用原 `cancel-worker` 入口，确认 VM 已停止后补记标志。这些入口不自动恢复 VM、续费或重派。
 
-本版本写出 Boat 绑定后，不支持直接回滚到不认识 `stop_confirmed` 的旧 Boat 代码：旧版会拒读并保留占位，应保留本版本读取与排空判据并向前修复。不得删除确认字段迁就旧版，否则旧版会重新把未确认的 `stop_id` 当作排空证据。
+回滚必须保留本版本同时检查 `key_erased` 和 `stop_confirmed` 的读取与排空判据。只检查停止、不检查 key 删除的旧版会错误释放占位；不认识 `stop_confirmed` 的更早版本会拒读绑定。应向前修复，不得删除确认字段迁就旧版。
 
 排空检查只读本地记录，不访问 Boat，不改原回执，不导入产物。`collect` 仍拒收非零退出或产物清单不完整的回执；排空不会把原 run 判为成功，也不会授予新 run 的准入或发布资格。
 

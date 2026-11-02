@@ -30,7 +30,8 @@ def stopped_worker(run, monkeypatch):
     run.execution = BoatExecution(run, cli)
     key = WorkerKey(run.spec.run_id, 'author', run.spec.base)
     binding = BoatBinding(run.execution._identity(key), 'vm', 'p1', '/home/user/x/p1',
-                          'submitted', sandbox_id='bx_abc', stop_id='stop-original', stop_confirmed=True)
+                          'submitted', sandbox_id='bx_abc', stop_id='stop-original', stop_confirmed=True,
+                          key_erased=True)
     run.execution._store(key, binding)
     return run.execution, key, binding, cli
 
@@ -52,7 +53,7 @@ def failure_receipt(binding, exit_code, kind='worker'):
 def test_submitted_failure_keeps_slot_until_stop_is_confirmed(env, monkeypatch, entry, pending, final):
     run = env.create()
     engine, key, binding, cli = stopped_worker(run, monkeypatch)
-    binding = replace(binding, stop_id=None)
+    binding = replace(binding, stop_id=None, stop_confirmed=False, key_erased=False)
     engine._store(key, binding)
     receipt = failure_receipt(binding, 7)
     engine._path(key, '.remote.json').write_text(json.dumps(receipt))
@@ -105,7 +106,7 @@ def test_legacy_stop_id_requires_explicit_reconciliation(env, monkeypatch, submi
 
 
 CASES = [
-    'worker', 'cancelled', 'supervisor', 'missing_stop', 'missing_receipt', 'identity', 'package',
+    'worker', 'cancelled', 'supervisor', 'missing_erasure', 'missing_stop', 'missing_receipt', 'identity', 'package',
     'missing_exit', 'exit_mismatch', 'bool_exit', 'process_exit_null', 'process_exit_missing',
     'process_exit_mismatch', 'process_exit_bool', 'completed', 'running', 'unknown', 'bad_binding',
 ]
@@ -116,6 +117,8 @@ def stage_evidence(engine, key, binding, case, exit_code):
     receipt = failure_receipt(binding, exit_code, 'supervisor' if case == 'supervisor' else 'worker')
     if case == 'missing_stop':
         engine._store(key, replace(binding, stop_id=None))
+    elif case == 'missing_erasure':
+        engine._store(key, replace(binding, key_erased=False))
     elif case == 'identity':
         receipt['identity']['generation'] += 1
     elif case == 'package':

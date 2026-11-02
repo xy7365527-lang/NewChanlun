@@ -730,7 +730,7 @@ def test_cancel_never_relaunches_unclaimed_submission(env):
 
 def test_cancel_keeps_completed_receipt_without_importing_artifacts(env):
     run, engine, key, binding = adapter(env)
-    engine._store(key, replace(binding, stop_id='already-stopped', stop_confirmed=True))
+    engine._store(key, replace(binding, stop_id='already-stopped', stop_confirmed=True, key_erased=True))
     save(engine._path(key, '.remote.json'), payload(run, engine, key,
          [dict(path='demo/not-imported', mode='100644', content='YQ==')]))
     assert isinstance(engine.cancel(key), EffectUnknown)

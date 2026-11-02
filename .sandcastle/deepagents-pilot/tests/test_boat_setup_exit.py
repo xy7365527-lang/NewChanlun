@@ -96,7 +96,7 @@ def test_setup_receipt_requires_reclaim_before_queue_release(queued, tmp_path, m
     run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit),
                       MODELS, launcher=FAKE, source_repo=v2.source)
     engine, key, binding, cli = stopped_worker(run, monkeypatch)
-    binding = replace(binding, stop_id=None)
+    binding = replace(binding, stop_id=None, stop_confirmed=False, key_erased=False)
     engine._store(key, binding)
     _, _, _, _, receipt = setup_receipt(tmp_path, monkeypatch, case, binding)
     engine._path(key, '.remote.json').write_text(json.dumps(receipt))

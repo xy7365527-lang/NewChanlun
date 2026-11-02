@@ -513,7 +513,7 @@ class BoatExecution(WorkerExecution):
                         or (binding.submission == "creating" and not binding.sandbox_id
                             and not binding.create_requested and binding.fork_intent is None))
         if (binding.submission not in ("submitting", "submitted") or binding.stop_confirmed is not True
-                or not isinstance(binding.stop_id, str) or not binding.stop_id):
+                or not isinstance(binding.stop_id, str) or not binding.stop_id or not binding.key_erased):
             return False
         cache = self._path(key, ".remote.json")
         if not cache.exists():
@@ -597,21 +597,20 @@ class BoatExecution(WorkerExecution):
             return Running()
         raise ExecutionUnknown("监督命令已结束但远端没有认领；模型任务未启动，需主控处置")
 
-    def _reclaim(self, key: WorkerKey, binding: BoatBinding, *, require_key_erasure: bool = False) -> None:
-        if binding.stop_id and binding.stop_confirmed is True and (not require_key_erasure or binding.key_erased):
+    def _reclaim(self, key: WorkerKey, binding: BoatBinding) -> None:
+        if binding.stop_id and binding.stop_confirmed is True and binding.key_erased:
             return
         info = self.cli.info(cast(str, binding.sandbox_id))
         if info.get("state") in STOPPED_STATES:
             if info["state"] not in ("stopped", "archived"):
                 raise ExecutionUnknown("Boat停止请求已受理但VM停止未确认，保留排空占位")
-            if require_key_erasure and not binding.key_erased:
+            if not binding.key_erased:
                 raise ExecutionUnknown("Boat VM已停止但模型key删除未确认；须显式恢复同一VM后清理")
             stop = (info.get("stop") or {}).get("id") or info["state"]
         else:
             key_file = shlex.quote(binding.key_file)
             self.cli.exec(cast(str, binding.sandbox_id), f"rm -f {key_file} && test ! -e {key_file} && printf '{{}}'")
-            if require_key_erasure:
-                binding = self._store(key, replace(binding, key_erased=True))
+            binding = self._store(key, replace(binding, key_erased=True))
             stop = self.cli.call("stop", cast(str, binding.sandbox_id))[-1]["operation"]["id"]
             if self.cli.info(cast(str, binding.sandbox_id)).get("state") not in ("stopped", "archived"):
                 raise ExecutionUnknown("Boat停止请求已受理但VM停止未确认，保留排空占位")
@@ -728,7 +727,7 @@ class BoatExecution(WorkerExecution):
             if len(matches) != 1 or not re.fullmatch(r"bx_[a-z0-9]+", str(matches[0].get("id", ""))):
                 raise ExecutionUnknown("取消未能唯一确认原Boat VM，保留fork intent；不创建新资源")
             binding = self._store(key, replace(binding, sandbox_id=matches[0]["id"]))
-        self._reclaim(key, binding, require_key_erasure=True)
+        self._reclaim(key, binding)
         return NotStarted()
 
     def cancel(self, key: WorkerKey) -> WorkerFact:
