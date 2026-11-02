@@ -414,59 +414,64 @@ fn h1_certified_owner(
 fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
     use super::super::history::tests::LAYOUT_MULTICUT_INPUTS;
     use super::super::prepared::tests::{runtime_root_tables, Fixture};
-    let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-    for rule in [crate::V3_RULE_REVISION, bounded_rule.as_str()] {
-        let mut f = Fixture::with_rule(rule);
-        let mut ordinary = Fixture::with_rule(rule);
-        let (n, row, revision) = LAYOUT_MULTICUT_INPUTS[0];
-        let (envelope, token) = f.accept_begin(n, row, revision);
-        f.publish(&envelope, &token).unwrap();
-        let (envelope, token) = ordinary.accept_begin(n, row, revision);
-        ordinary.publish(&envelope, &token).unwrap();
-        super::super::with_test_writer_rule(Some(rule), || {
-            let mut c = context();
-            let (owner, events, _) = state::traced(false, || h1_certified_owner(&f, &mut c));
+    // #1419 M6C：现役 init_v3 写完整 W2；旧规则库不再经测试注入恢复写者。
+    // 与原两臂相同，保留六代、六个时钟事件，覆盖跨代修订与撤回。
+    let mut f = Fixture::with_clock_events(6, 6);
+    let mut ordinary = Fixture::with_clock_events(6, 6);
+    for library in [&f, &ordinary] {
+        assert_eq!(
+            meta_get_opt(&library.conn, "rule_revision")
+                .unwrap()
+                .as_deref(),
+            Some(super::super::W_STRUCTURE_RULE_REVISION)
+        );
+    }
+    let (n, row, revision) = LAYOUT_MULTICUT_INPUTS[0];
+    let (envelope, token) = f.accept_begin(n, row, revision);
+    f.publish(&envelope, &token).unwrap();
+    let (envelope, token) = ordinary.accept_begin(n, row, revision);
+    ordinary.publish(&envelope, &token).unwrap();
+    let mut c = context();
+    let (owner, events, _) = state::traced(false, || h1_certified_owner(&f, &mut c));
+    assert!(events
+        .iter()
+        .any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == 1));
+    h1_compare_complete_history(&owner);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    construction_set::with_source_context_negatives_for_test(|| {
+        for (n, row, revision) in LAYOUT_MULTICUT_INPUTS.into_iter().skip(1) {
+            let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
+            let (token, accept_events, _) =
+                state::traced(false, || b2_accept_begin(&owner, &envelope, &mut c));
+            h1_assert_raw_suffix_reads(&accept_events, true);
+            h1_compare_complete_history(&owner);
+            source_audit::reset_source_call_stats();
+            let (result, events, _) = state::traced(false, || {
+                owner.publish(&mut runtime, &token, &envelope, &mut c)
+            });
+            let (receipt, ended) = result.unwrap();
+            h1_assert_raw_suffix_reads(&events, false);
+            assert_eq!(receipt.generation, n);
+            assert_eq!(
+                source_audit::source_call_stats(),
+                source_audit::SourceCallStats::default(),
+                "认证在线不得完整来源重审"
+            );
             assert!(events
                 .iter()
-                .any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == 1));
+                .any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
+            owner.continue_with(ended).unwrap();
             h1_compare_complete_history(&owner);
-            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
-            construction_set::with_source_context_negatives_for_test(|| {
-                for (n, row, revision) in LAYOUT_MULTICUT_INPUTS.into_iter().skip(1) {
-                    let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
-                    let (token, accept_events, _) =
-                        state::traced(false, || b2_accept_begin(&owner, &envelope, &mut c));
-                    h1_assert_raw_suffix_reads(&accept_events, true);
-                    h1_compare_complete_history(&owner);
-                    source_audit::reset_source_call_stats();
-                    let (result, events, _) = state::traced(false, || {
-                        owner.publish(&mut runtime, &token, &envelope, &mut c)
-                    });
-                    let (receipt, ended) = result.unwrap();
-                    h1_assert_raw_suffix_reads(&events, false);
-                    assert_eq!(receipt.generation, n);
-                    assert_eq!(
-                        source_audit::source_call_stats(),
-                        source_audit::SourceCallStats::default(),
-                        "认证在线不得完整来源重审"
-                    );
-                    assert!(events
-                        .iter()
-                        .any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
-                    owner.continue_with(ended).unwrap();
-                    h1_compare_complete_history(&owner);
-                    let expected = ordinary.publish(&envelope, &plain_token).unwrap();
-                    assert_eq!(receipt.snapshot, expected.snapshot);
-                    assert_eq!(receipt.delta, expected.delta);
-                    assert_eq!(
-                        runtime_root_tables(&f.conn, true),
-                        runtime_root_tables(&ordinary.conn, true)
-                    );
-                    assert!(!owner.retired.get());
-                }
-            });
-        });
-    }
+            let expected = ordinary.publish(&envelope, &plain_token).unwrap();
+            assert_eq!(receipt.snapshot, expected.snapshot);
+            assert_eq!(receipt.delta, expected.delta);
+            assert_eq!(
+                runtime_root_tables(&f.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+            assert!(!owner.retired.get());
+        }
+    });
 }
 
 #[test]
@@ -939,6 +944,10 @@ fn h1_qualified_cold_rejects_missing_partial_or_foreign_qualification() {
 #[test]
 fn h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch() {
     let f = prepared::tests::Fixture::new();
+    assert_eq!(
+        meta_get_opt(&f.conn, "rule_revision").unwrap().as_deref(),
+        Some(super::super::W_STRUCTURE_RULE_REVISION)
+    );
     let mut runtime = h1_qualified_runtime(&f, "h1-identity.sqlite");
     {
         let mut c = context();
@@ -976,28 +985,99 @@ fn h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch() {
         },
         "规则/内容库/二进制身份与本写者不符",
     );
-    // 另一写者规则的库不得消费本台账资格：规则取库 meta，不取调用方声明。
-    let bounded = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-    let mut other = prepared::tests::Fixture::with_rule(&bounded);
-    let (e, t) = other.accept_begin(1, ("owner-raw", 0, 6, 12, 3, 7), 1);
-    other.publish(&e, &t).unwrap();
-    super::super::with_test_writer_rule(Some(&bounded), || {
+    // #1419 M6C：只篡改冷候选安装资格时的规则值，不写旧规则库或改台账 meta。
+    // install_cold_qualification 与真实冷恢复共用 fold/read_qualification；同规则先成功，
+    // 再保持 runtime、内容/二进制身份、完整候选与四根不变，直达 H1 规则比较。
+    {
         let mut c = context();
-        let error = AuditConnection::open_certified_history_component(
-            &other.db_path(),
-            1 << 20,
-            None,
-            &mut c,
-            Some(h1_qualified_source(&runtime)),
-        )
-        .err()
-        .unwrap();
-        assert!(
-            error.contains("规则/内容库/二进制身份与本写者不符"),
-            "{error}"
+        let owner = h1_qualified_owner(&f, &mut c, &runtime).unwrap();
+        let parent = owner.complete_budget_for_test();
+        let qualified = runtime.audit_qualification().unwrap();
+        assert_eq!(
+            qualified.rule_revision,
+            super::super::W_STRUCTURE_RULE_REVISION
         );
+        assert_eq!(qualified.content_identity, "TestOnly-same-content");
+        assert_eq!(qualified.binary_commit, "test-only");
+        let before = owner
+            .complete
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .audited
+            .h1_canonical();
+        owner
+            .complete
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
+            .audited
+            .install_cold_qualification(
+                h1_qualified_source(&runtime),
+                &parent,
+                super::super::W_STRUCTURE_RULE_REVISION,
+            )
+            .unwrap();
+        assert_eq!(h1_qualified_frontier(&owner), Some(qualified.clone()));
+        // 同长度改一个字节，保证预留上界不变，不能由 qualification_bounded 提前拒绝。
+        let mut wrong_rule = super::super::W_STRUCTURE_RULE_REVISION.to_owned();
+        assert_eq!(wrong_rule.pop(), Some('2'));
+        wrong_rule.push('3');
+        assert_eq!(wrong_rule.len(), qualified.rule_revision.len());
+        assert_ne!(wrong_rule, qualified.rule_revision);
+        let baseline = parent.live();
+        let error = owner
+            .complete
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
+            .audited
+            .install_cold_qualification(h1_qualified_source(&runtime), &parent, &wrong_rule)
+            .unwrap_err();
+        assert_eq!(
+            error.strip_prefix("S3StateInvalid："),
+            Some("完整资格的规则/内容库/二进制身份与本写者不符")
+        );
+        assert_eq!(runtime.audit_qualification().unwrap(), qualified);
+        assert_eq!(h1_qualified_frontier(&owner), Some(qualified.clone()));
+        assert_eq!(
+            owner
+                .complete
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .audited
+                .h1_canonical(),
+            before
+        );
+        // 错规则不改任何 cut、四根或原件事实，比较许可在拒绝后全数释放。
+        assert_eq!(parent.live(), baseline);
         assert!(!c.has_slot());
-    });
+        owner
+            .complete
+            .borrow_mut()
+            .as_mut()
+            .unwrap()
+            .audited
+            .install_cold_qualification(
+                h1_qualified_source(&runtime),
+                &parent,
+                super::super::W_STRUCTURE_RULE_REVISION,
+            )
+            .unwrap();
+        assert_eq!(h1_qualified_frontier(&owner), Some(qualified));
+        assert_eq!(
+            owner
+                .complete
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .audited
+                .h1_canonical(),
+            before
+        );
+        h1_compare_complete_history(&owner);
+    }
     // 外写：台账 cert 四根被改，末代四根对拍拒绝；node 行被删，根单位点查拒绝。
     let ledger = f.db_path().with_file_name("h1-identity.sqlite");
     let external = Connection::open(&ledger).unwrap();

@@ -1490,3 +1490,54 @@ s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-bud
 ### M6 封包口径
 
 按 #1419 集成 owner 46X 裁定，第 1、2、4、5 项已完成并可交 CI，本封包以 **ready** 交付。第 3 项诊断清楚但需裁定，登记为**待裁定开放项**，不在本封包内解决；分析见本节「M6 第 3 项：非 W 历史夹具误产 W 事实，设计阻断（未修改源码）」。两条 H1 历史规则锁 `h1_certified_online_consumes_source_receipt_and_matches_cold`（V3）与 `h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch`（V3+bounded-layout/1）在当前 head 的写者下仍预期因 W 初始化事实被拒而失败，不能把本封包称为 owned 全绿；其余项待 CI 验证。Rust 未验证，待 CI。
+
+
+### M6C
+
+本轮按 #1419 主控裁定 A 处理 M6 第 3 项。开工 HEAD 为 `48ffac48c0b17317575fe0377f46f943716484cc`，工作区干净；先读上述诊断和封包口径，再由夹具实施、合同追溯、非作者只读评审分别核对。结论为 **ready**，只改两条测试及本节笔记，Rust 未验证，待 CI。上节是当时封包记录，本节记录后续裁定及实施，不追溯改写旧记录。
+
+#### 原 H1 合同对照
+
+实际分别执行 `git log -S h1_certified_online_consumes_source_receipt_and_matches_cold bea93e19 -- rust` 和 `git log -S h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch bea93e19 -- rust`，读来源提交正文与测试原文；另用 `env -u GH_TOKEN -u GITHUB_TOKEN gh` 读取 #1481、#1647、#1816 及 PR #1809 的正文、评论，并追查 history36h 前身提交。
+
+- online 锁来源为 `38256274f3785c1117d89501c3e62276921c5c38`（#1809），提交名为 `feat: land verified H1 cold audit and P6 raw ledger components`。PR #1809 的组件范围原文为「H1 真实冷认证入口、控制载荷同父账、raw 后缀直接读取」；[#1481 评论 6533718168](https://github.com/xy7365527-lang/NewChanlun/issues/1481#issuecomment-6533718168) 原文为「覆盖U-A生涯夹持、历史cert语义认证和同核冷/在线对拍」。
+- 继续沿 `origin/codex/issue1481-closure38h` 用 `git log -L` 追前身：`d10c7aac1ef3932df854a73484c6133afe1fcce5`「接入 H1 认证在线的同请求来源资格」首次加入测试时即有 V3 与 V3+bounded-layout/1 的动态建库、在线发布循环；`f02bdb4b2e8597f04341b778cd1fe464bd987009`「建立 H1 从原件冷认证的显式组件入口」将人工安装 certificate 换成真实 cold open；`ef71183a304f2658c3a6f84f3c4e56d91011c990` 增加真实 raw 后缀读量断言，`b39a2dcb246b2863a5902dd28739affc3d75265b` 只格式化。两规则循环并非为历史只读兼容另加，而是当时合法写者的在线/冷测试矩阵。
+- qualified 锁来源为 `71df2ae749664714e6bff10f8f71d9e15cc4c815`（#1816），提交说明原文为 `Deliver H1 qualification consumption with persisted-rule checks and write-before-budget admission.`。#1816 正文明确「缺资格、部分账、规则/内容库/二进制/verifier 不符、cert 四根或 node 行被外写、台账 COMMIT 失败均拒绝并 stale」。原作者 `/Volumes/AgentStorage/issue1481-consume39p/REPORT.md:31` 将本锁列作「bounded-layout 规则库消费 V3 台账」，`:38` 说明 `QualifiedSource` 不带 `rule_revision`，规则从库 `meta.rule_revision` 读，调用方声明不是事实。因此必须保留的是资格与候选实际规则的绑定及各类拒绝，不能只留一个任意 `is_err`。
+
+逐条对照：online 原锁核 g1 冷认证事件、Accept/Publish 两阶段 raw 后缀、每阶段完整历史、在线零完整来源重审、代号与认证事件、snapshot/delta、全部 runtime 根表、owner 不退休。这些断言全部保留。qualified 原锁的 content identity、binary identity、规则、末代四根、根单位五个场景及无 slot、父账归还、代号不变均保留；规则场景改为下述单字段候选篡改。
+
+裁定范围内的合同结论：未发现这两条具名锁另承担永久的「退役 V3 / bounded-layout/1 冻结库只读兼容」义务，故不以恢复历史 writer 或新增历史锁作为本阶段前置。此结论只针对两锁，不撤销 #1481 的 bounded-layout/1 重型验收、#1647 的旧新二进制回退验收或读取核的历史兼容合同。[#1647 评论 6534406162](https://github.com/xy7365527-lang/NewChanlun/issues/1647#issuecomment-6534406162) 所述「旧 rule 下的 seed 组与 pending、新 rule 下的未定原件，均按各自已批准原件和判据认证，不借台账转换初始化政策」仍成立。
+
+只读资产也已核查：`generation.rs:6961` 的 `issue1419_history()` 解包并校验 62 项 SHA；`rust/tests/fixtures/issue1419_history_5123/export.tar.gz` 内有 `historical-published-layout1.sqlite`，Python 只读核出 `s-session/3`、generation=4、规则为 V3，主库 SHA-256 为 `a8c49718a6ab2949c309dc7489de88dd6faab88126c7658735041269a4bc77b6`，与冻结清单一致。未找到 bounded-layout/1 的完整冻结库；归档 JSON 的规则只有 `r` 与 V3。现有 `generation.rs:7025 layout1_historical_draft_nodes_remain_readable` 保留逐节点/规范渲染，`q_runtime.rs:1143 historical_layout1_published_session_asknown_q` 保留同一冻结库四代 AsKnown 对拍。本轮未动这些覆盖，也不将其称为 H1 完整冷认证已执行。本轮不新增只读覆盖的依据是前述合同追溯，不是夹具是否可用。
+
+#### 夹具与期望值变化
+
+`audit_owner/history_clamp_tests.rs:414` 的 online 锁改用两个 `Fixture::with_clock_events(6, 6)`。原 `Fixture::with_rule` 固定保留六代、六个时钟事件，新入口保持同样参数，经 `prepared.rs:2024/2080` 的默认建库路径调用 `init_v3`；`mod.rs:605` 写入完整 `W_STRUCTURE_RULE_REVISION`。两库均直接读 `meta.rule_revision` 并断言该常量，不传测试写者规则，不手改 meta。原 ordinary 与 certified online 两侧、初次冷认证和后续全量冷对拍全部保留。
+
+`audit_owner/history_clamp_tests.rs:945` 的 qualified 锁首库原本就是 `Fixture::new()`，本轮增加 W2 meta 断言；删除仅为规则负控而新写的 bounded-layout/1 第二库及其写者注入。两测试内均无 `Fixture::with_rule` 或 `with_test_writer_rule` 调用。共用 Fixture 内部的 `with_test_writer_rule(None, ...)` 只清空注入并走生产默认，不恢复旧写者，未修改该 helper。
+
+变化只有合法写入规则矩阵收为生产完整 W2、补规则断言，以及规则负控的构造方式。原测试没有硬编码的对象数或具体根字面量，本轮未修改此类期望；W2 新事实及根由真实写者产出，仍逐次与 ordinary 和完整 cold oracle 比较 snapshot、delta、根表和全部 canonical。原六代输入、修订/撤回、保留代数、时钟、资源值与错误期望全部保留。
+
+#### 四类负控的实际检查位置
+
+| 负控 | 构造与断言 | 生产检查位置 |
+|---|---|---|
+| identity | 只将 `QualifiedSource.content_identity` 改为 other-content，另一次只改 binary_commit 为 other-binary；保持真实 W2 库与 runtime，原 cold open 拒绝闭包继续核具体错误、无 slot、父账回到基线 | `state.rs:1696-1700 QualifiedCertification::read_qualification`，分别由 content_identity / binary_commit 比较拒绝 |
+| rule | 先用 W2 成功安装同一真实资格，再对候选安装规则复制完整 W2 串，末字节 `2` 改为 `3`，断言等长且不等；仅该参数变化，再调用现成 `AuditedState::install_cold_qualification` | `state.rs:1811-1823` 调 `QualifiedCertification::fold`，后者 `:1623` 调 `read_qualification`；`:1696` 的 q.rule_revision 比较触发 `:1700`，测试 `history_clamp_tests.rs:1037-1040` 精确断言 `S3StateInvalid：完整资格的规则/内容库/二进制身份与本写者不符` |
+| root | 只将真实台账 cert.roots 改为 `[]`，原 cold open 断言「末代四根与完整资格四根不符」，随后恢复原 roots | `state.rs:1751-1752 QualifiedCertification::step`，在根单位点查后逐字比较实际四根与资格四根 |
+| unit | roots 恢复后只删 scope 对应 `flavor=value, mode=public` 的一行 node，断言恰删一行；原 cold open 断言「根单位不在已认证单位集」 | `state.rs:1739-1740` 调 `runtime.contains_qualified_unit` 并拒绝 false；底层仍先核资格与已提交台账相符 |
+
+规则负控用的不是第二个非法库或版本选择器入口，而是生产冷恢复也使用的资格安装核，直接隔离原 H1 规则比较。相同长度使 `Qualification::retained_bound` 和预留上界与 W2 正控相同，不依赖四根缓冲余量，不会因短规则导致资格读取先触发 cap。测试前后完整比较 `runtime.audit_qualification()` 的全部字段及候选 `h1_canonical()`、前沿 Qualification，保证 through、roots、fold_digest、verifier、真实规则、内容/二进制身份和所有 cuts 未变；父账 live 回到基线、无 slot，再用 W2 安装成功并完整冷对拍。精确错误断言排除了 identity、root、schema、版本选择器、准入或预算先拒而造成的伪覆盖。后一个 W2 正控是测试独立调用，不是生产失败后的兜底通道。
+
+#### 独审与实际验证
+
+非作者只读评审核对两锁起源、票面、当前源码及调用链；未发现打回项。额外指出本轮不得宣称全项目历史兼容义务撤销，已在本节明确保留。源文件除两条授权函数外与开工 HEAD 逐字相同；online 主循环逐 token 保留，qualified 的原 reject 闭包、两个 identity 调用及 root/unit 尾段逐字保留。两原名不变，当前 `ci.yml` owned 通过 `h1_` 过滤运行全部 H1 release 锁，两名字未列入其额外逐名清单，本轮不改 CI。
+
+实际检查：
+
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner/history_clamp_tests.rs`：退出 0，仅格式检查。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check`：退出 0，清单与源码一致；生成器、白名单及清单均未改。
+- 完整阅读 anchor_lock 脚本后执行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py`：3 项通过，不调用 cargo/rustc。
+- `git diff --check` 通过；M2-NOTES 原前缀保留，暂存区为空，HEAD 未变。未 git add/commit，未回退其他代理改动。
+
+没有生产代码、完整 W2 写者串、历史冻结原件、资源帽或 8→64 MiB 准备值变更，没有新增宽严两档或失败兜底。本节解除的是 M6 第 3 项的夹具阻断，不宣称 owned 全绿。CI 须实际运行两条原名锁，证明 W2 六代 online/ordinary/cold 全部对拍，以及规则精确错误和 identity/root/unit 各负控。Rust 未验证，待 CI。
