@@ -2263,3 +2263,27 @@ Clamp 的 `HistoricalAuditStale：` 前缀由 `s_session_v3/audit_owner/history_
 - `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
 - `docs/runbook_production_session.md`
 - `s_session/README.md`
+
+## S1P
+
+> 状态：ready，仅文档候选。基线 `sandcastle/issue-1481` / `956569d94619f2196c97f9291866e979696babca`，开工工作区干净。按 `/Volumes/AgentStorage/h1-managed43r/S1O-ADDENDUM.md` 与 `/Volumes/AgentStorage/h1-downstream46s/REPORT.md` 补 H1 生效条件，不改 S1O 的完整性拒绝恢复合同。
+
+### 新增内容与出处
+
+- `docs/runbook_production_session.md:98-119` 新增「H1 生效条件」，位于原 fail-stop 节之前。现有构建节 `:9-11` 的命令逐字引用；该命令仅启用 `production_session`，依赖 `s_session`，不含 `s_incremental`，依据 `rust/Cargo.toml:81-91`。H1 写者构建命令逐字取 `.github/workflows/ci.yml:563`，包含 `--features s_session,s_incremental` 及原 telemetry 包装，明确在 `rust/` 目录执行。
+- 增量 v3 `advance` / `recover` 的 `--resource-config` 参数表分别取 `rust/src/bin/s_session_v3/writer_cli.rs:82-93` / `:104-113`；必填检查为 `:464-468` / `:530-534`。
+- `s-launcher/4` 的恢复先由 `s_session/s_service_control.py:845-847` 确认原 S 已停，再由 `:862-868` 取进程记录的冻结 `resource_identity`、传资源路径并核身份。`start-s` 的冻结、传参和身份登记分别在 `:725`、`:733`、`:744`。保留不得另造或替换冻结资源的要求。
+- 依 46S 报告写明仅 `s_session` 仍走原完整审计，不产生 H1 冷认证证据，不能作为 H1 验收。#1419 g77 与 #1673 全 95 harness 当前都只编译 `s_session`，原样重跑不会走 H1；仅保留两票指针，迁移交独立后续单元。
+
+### 实际自检与边界
+
+- 12 个新增本地链接的目标与行号锚、两条 GitHub 链接的票号及 46S 报告路径已核对；CLI flags、必填检查与 launcher 关键行另以源码逐行断言复核。未发起网络请求探测 GitHub 链接。
+- 两块构建示例分别与原构建节、CI 第 563 行逐字比对，并经 `bash -n` 解析通过；只解析，未执行命令。
+- Python 字节比对确认原构建节及「H1 写入完整性 fail-stop」至文件末尾逐字保留，原 fail-stop 节现从 `:120` 起。触发类别、证据保全、人工恢复门及禁止手工删除 `-shm/-wal` 均未改；本报告原有历史前缀逐字保留。
+- `git diff --check` 通过；`python3 -B .github/scripts/gen-prod-banned-literals.py --check .` 返回 `.github/prod-banned-literals.txt 与源码一致`，未改禁串表。
+- 改动仅下列两份 Markdown。没有改 Rust、Python、workflow、测试、README 或两处下游 harness；没有运行构建、测试、CI、生产恢复或重型窗口，没有 git add/commit/push。本轮 ready 仅交文档候选，不宣称 H1 下游验收或 #1481 整票完成。
+
+### S1P 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `docs/runbook_production_session.md`

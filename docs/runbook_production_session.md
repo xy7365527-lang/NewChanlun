@@ -95,6 +95,28 @@ launcher 日志写 stderr，每行 `production_session {json}`，经 `redact` �
 private key / secret / password / token / credential / api key（不以 `_env` 结尾）的值整体遮蔽；
 24 位以上纯 `[A-Za-z0-9_-]` 字符串遮蔽。
 
+## H1 生效条件
+
+只有以 `s_session,s_incremental` 构建的 S 写者才启用 H1 准入。本手册[构建节](runbook_production_session.md#L9)的现有命令是 `docs/runbook_production_session.md:9-11`：
+
+```bash
+cd rust && cargo build --release --features production_session \
+  --bin production_session --bin x_execution_session \
+  --bin s_structure_session --bin e_economic_session --bin b_chong_session
+```
+
+该命令只启用 `production_session`，其依赖为 `s_session`，不含 `s_incremental`，因此不会启用 H1。feature 定义见 [`rust/Cargo.toml:81-91`](../rust/Cargo.toml#L81)。H1 写者构建沿用 [CI 的生产增量构建命令](../.github/workflows/ci.yml#L563)，出处 `.github/workflows/ci.yml:563`，在 `rust/` 目录执行：
+
+```bash
+../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1
+```
+
+增量构建的 v3 `recover` / `advance` 必须显式传 `--resource-config`。允许参数表见 [`writer_cli.rs:82-93` 的 ADVANCE_FLAGS](../rust/src/bin/s_session_v3/writer_cli.rs#L82) 与 [`:104-113` 的 RECOVER_FLAGS](../rust/src/bin/s_session_v3/writer_cli.rs#L104)，必填检查分别在同文件 [`:464-468`](../rust/src/bin/s_session_v3/writer_cli.rs#L464) 与 [`:530-534`](../rust/src/bin/s_session_v3/writer_cli.rs#L530)。
+
+`s-launcher/4` 的 `recover` 由 [`s_session/s_service_control.py:845-847`](../s_session/s_service_control.py#L845) 先确认原 S 已停止，再从该 `start-s` 进程记录的冻结 `resource_identity` 取路径，传入 `--resource-config` 并核验身份，见同文件 [`:862-868`](../s_session/s_service_control.py#L862)。`start-s` 冻结资源、传参并登记身份的位置分别是同文件 [`:725`](../s_session/s_service_control.py#L725)、[`:733`](../s_session/s_service_control.py#L733)、[`:744`](../s_session/s_service_control.py#L744)。不得另造资源档或改用当前配置的替代文件。
+
+仅 `s_session` 的构建仍走原完整审计，不产生 H1 冷认证证据，不能作为 H1 验收。依据 `/Volumes/AgentStorage/h1-downstream46s/REPORT.md`，现有 [#1419 g77](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 与 [#1673 全 95 harness](https://github.com/xy7365527-lang/NewChanlun/issues/1673) 都只编译 `s_session`，原样重跑不会走 H1。两处 harness 的增量构建与资源档迁移由独立后续单元承担，本节仅保留指针。
+
 ## H1 写入完整性 fail-stop
 
 本节是 [#1481](https://github.com/xy7365527-lang/NewChanlun/issues/1481) 的 H1 冷认证到写者交接失败处置合同，适用于 Unix 上的 `s_incremental` 写者。完整性拒绝会保留 `NO_CKPT_ON_CLOSE=true`，刻意保留现场可能存在的 `-wal/-shm`，避免失败关闭时检查点改写主库/WAL。遇到下列拒绝，先停机保全，再交人工恢复门。
