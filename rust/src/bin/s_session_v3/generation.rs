@@ -462,6 +462,67 @@ impl GenerationRuntime {
         self.development_ranges.clear();
     }
 
+    /// #1481：只在认证冷阶段恢复生成器必要缓存；读取的根/前缀均已由同核认证。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn seed_cold(
+        &mut self,
+        store: &mut super::history::HashReader<'_>,
+        raw: RawEventsView<'_>,
+        cold: &super::audit_owner::ColdRawState,
+        root: Option<sc::RefView<'_>>,
+        deadline: Option<std::time::Instant>,
+        budget: &dyn super::audit_budget::Budget,
+    ) -> Result<(), String> {
+        let (binding, prefix) = cold.generation_binding();
+        if self.delta_lane.is_some() || self.raw_events_seq.bound || self.effective_events_seq.bound
+        {
+            return Err("GenError：冷缓存只允许初始化fresh生成器".into());
+        }
+        let lane =
+            s_fact_cache::DeltaLane::cold_seed(raw, prefix, binding, store, deadline, budget)?;
+        match root {
+            Some(root) => {
+                let r = store
+                    .lookup_field_ref(root, "raw_events")
+                    .map_err(codec_error)?;
+                self.raw_events_seq.seed_cold(store, r.view(), prefix)?;
+                let r = store
+                    .lookup_field_ref(root, "effective_events")
+                    .map_err(codec_error)?;
+                self.effective_events_seq
+                    .seed_cold(store, r.view(), lane.rows().len())?;
+            }
+            None if prefix == 0 && lane.rows().is_empty() => {}
+            None => return Err("GenError：冷生成前缀缺已核末代根".into()),
+        }
+        self.producer
+            .seed_cold_delta(store, raw, lane.rows(), binding)
+            .map_err(producer_error)?;
+        self.bi
+            .seed_cold_delta(store, &mut self.producer, lane.rows(), binding)
+            .map_err(|error| format!("GenError：TB-02-B冷缓存构造失败：{error}"))?;
+        self.delta_lane = Some(lane);
+        Ok(())
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn rebind_cold_owner(
+        &mut self,
+        old: super::audit_owner::RawAdvanceBinding,
+        current: super::audit_owner::RawAdvanceBinding,
+        prefix: usize,
+    ) -> Result<(), String> {
+        if self.raw_events_seq.keys.as_slice().len() != prefix {
+            return Err("GenError：冷生成器交接前沿不符".into());
+        }
+        self.delta_lane
+            .as_mut()
+            .ok_or("GenError：冷生成器缺车道")?
+            .rebind_cold_owner(old, current, prefix)?;
+        self.producer.rebind_cold_delta(old, current)?;
+        self.bi.rebind_cold_delta(old, current)
+    }
+
     /// #1488 原账片：消费 owner 当前资格，只构造新 raw 尾与生效账受影响后缀。
     /// 这是完整 generate_delta 的内部前段，不发布 Generated，不替代六阶段接线/验收。
     pub(super) fn advance_raw_bound(
@@ -494,7 +555,7 @@ impl GenerationRuntime {
         }
         let raw = bound.raw();
         let lane = self.delta_lane.as_mut().expect("刚建立");
-        let changes = lane.advance_owner_bound(bound)?;
+        let changes = lane.advance_owner_bound_with_work(bound, store.codec_work())?;
         let budget = raw.budget();
         let mut appended = sc::CodecVec::new_with_allocation(budget);
         let append_ordinals = bound.append_ordinals();
@@ -1548,6 +1609,33 @@ pub(super) struct SequenceMemo {
 }
 
 impl SequenceMemo {
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn seed_cold(
+        &mut self,
+        store: &mut super::history::HashReader<'_>,
+        root: sc::RefView<'_>,
+        length: usize,
+    ) -> Result<(), String> {
+        if self.bound || root.kind() != Kind::Array || root.extent() != Some(length as u64) {
+            return Err("GenError：冷序列形状/前沿不符".into());
+        }
+        let seq = sc::path::array_sequence_refview(store, root).map_err(codec_error)?;
+        self.keys.reserve_admitted(store, length)?;
+        let mut cursor = store
+            .array_cursor(root)
+            .map_err(codec_error)?
+            .ok_or("GenError：冷序列缺Native游标")?;
+        for _ in 0..length {
+            let reference = store.next_array_member(&mut cursor).map_err(codec_error)?;
+            self.keys.splice_reserved(
+                self.keys.as_slice().len(),
+                &[reference.view().digest().map_err(codec_error)?],
+            )?;
+        }
+        self.seq = Some(seq);
+        self.bound = true;
+        Ok(())
+    }
     #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(
         &self,

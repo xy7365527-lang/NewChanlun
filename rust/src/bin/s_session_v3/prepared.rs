@@ -249,8 +249,101 @@ impl Runtime {
         self.last_stage_report.as_ref()
     }
 
-    /// #1647 组件接口。完整折叠与 Δ 生产者由后续接线提供；不默认启用台账准入。
-    #[allow(dead_code)]
+    /// #1481：未通过私有只读收尾的台账只能留在这份临时 Runtime 内。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn cold_audit_runtime(&self) -> Self {
+        Self::with_config(self.mode.clone(), self.theta_config.clone())
+    }
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn seed_cold_generation(
+        &mut self,
+        tx: &Transaction<'_>,
+        db: &Path,
+        store: &mut history::HashReader<'_>,
+        raw: business_json::RawEventsView<'_>,
+        cold: &super::audit_owner::ColdRawState,
+        root: Option<sc::RefView<'_>>,
+        deadline: Option<std::time::Instant>,
+        budget: &dyn super::audit_budget::Budget,
+    ) -> Result<(), String> {
+        if self.generator.is_some() || self.binding.is_some() {
+            return Err("GenError：冷生成只能初始化fresh Runtime".into());
+        }
+        let (session_id, session_generation, _) = v2::protocol_identity(tx)?;
+        let mut binding = vec![
+            db.to_string_lossy().into_owned(),
+            session_id,
+            session_generation,
+        ];
+        for name in [
+            "profile_id",
+            "profile_hash",
+            "rule_revision",
+            "catalog_revision",
+        ] {
+            history::check_deadline(deadline)?;
+            budget.precheck().map_err(err)?;
+            binding.push(meta_get_opt(tx, name)?.ok_or_else(|| err(format!("冷生成缺{name}")))?);
+        }
+        let lane_key = s_fact_cache::lane_key(
+            db,
+            &binding[1],
+            &binding[2],
+            &binding[5],
+            &binding[3],
+            &binding[6],
+        );
+        self.initialize_cold_generator(lane_key, &binding);
+        let seeded = self
+            .generator
+            .as_mut()
+            .expect("冷生成器已初始化")
+            .seed_cold(store, raw, cold, root, deadline, budget);
+        if let Err(error) = seeded {
+            // #1481：与原局部生成器失败时析构一致，不在 fresh Runtime 留下半成品。
+            self.generator = None;
+            return Err(error);
+        }
+        self.binding = Some(binding);
+        Ok(())
+    }
+    // #1481：数 KiB 生成器构造返回槽与 seed_cold 的 codec 调用链分帧。
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn initialize_cold_generator(&mut self, lane_key: String, binding: &[String]) {
+        self.generator = Some(GenerationRuntime::with_config(
+            lane_key,
+            &binding[3],
+            &binding[5],
+            self.theta_config.clone(),
+        ));
+    }
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn adopt_cold_audit_runtime(
+        &mut self,
+        cold: &mut Self,
+        old: super::audit_owner::RawAdvanceBinding,
+        current: super::audit_owner::RawAdvanceBinding,
+        prefix: usize,
+    ) -> Result<(), String> {
+        if self.generator.is_some() || self.binding.is_some() || self.audit_ledger.is_some() {
+            return Err("GenError：冷缓存不能覆盖运行中Runtime".into());
+        }
+        cold.generator
+            .as_mut()
+            .ok_or("GenError：冷Runtime缺生成缓存")?
+            .rebind_cold_owner(old, current, prefix)?;
+        self.install_audit_ledger(
+            cold.audit_ledger
+                .take()
+                .ok_or("AuditLedgerStale：冷认证缺台账")?,
+        )?;
+        self.binding = cold.binding.take();
+        self.generator = cold.generator.take();
+        Ok(())
+    }
+
+    /// #1481：冷认证完成后安装本进程 fresh 完整台账；同生涯不得换账。
+    #[cfg_attr(not(feature = "s_incremental"), allow(dead_code))]
     pub(super) fn install_audit_ledger(
         &mut self,
         ledger: audit_ledger::Ledger,
@@ -730,7 +823,18 @@ impl Runtime {
         let workspace_budget = context
             .as_deref()
             .and_then(request_audit::RequestAuditContext::manifest_workspace_budget);
-        // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
+        // #1481：正式完整台账生涯只接受 owner 已绑 H1 结果，缺资格立即停写。
+        #[cfg(feature = "s_incremental")]
+        if self
+            .audit_ledger
+            .as_ref()
+            .is_some_and(|ledger| !ledger.is_partial())
+            && bound_audit.is_none()
+        {
+            self.invalidate_audit_ledger();
+            return Err("StaleWriter：正式Prepare缺H1绑定，禁止旧审计重判".into());
+        }
+        // #1481：下列完整审计只供未安装正式台账的对照臂；不参与正式准入。
         #[cfg(not(feature = "s_incremental"))]
         let bound_audit: Option<&state::AuditedState> = None;
         let fresh;
@@ -2589,14 +2693,10 @@ pub(crate) mod tests {
             let owner =
                 super::super::audit_owner::AuditConnection::open(&baseline.db_path()).unwrap();
             let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut context = owner.p6_source_context_for_test();
             content_manifest::take_assemble_call_reads_for_test();
             let (_, ended) = owner
-                .publish(
-                    &mut runtime,
-                    &token,
-                    &envelope,
-                    &mut request_audit::RequestAuditContext::default(),
-                )
+                .publish(&mut runtime, &token, &envelope, &mut context)
                 .unwrap();
             owner.continue_with(ended).unwrap();
             content_manifest::take_assemble_call_reads_for_test().len()
@@ -2609,15 +2709,11 @@ pub(crate) mod tests {
         let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime.install_audit_ledger(ledger).unwrap();
+        let mut context = owner.p6_source_context_for_test();
         let invented = [1u8; 32];
         content_manifest::take_assemble_call_reads_for_test();
         let (receipt, ended) = owner
-            .publish(
-                &mut runtime,
-                &token,
-                &envelope,
-                &mut request_audit::RequestAuditContext::default(),
-            )
+            .publish(&mut runtime, &token, &envelope, &mut context)
             .unwrap();
         assert_eq!(receipt.generation, 1);
         assert!(runtime.queued_audit_facts.is_none());
@@ -2814,14 +2910,13 @@ pub(crate) mod tests {
                 let g = i as i64 + 1;
                 let (envelope, token) =
                     f.accept_begin(g, (key, at, open, high, low, close), revision);
+                // #1481 S1U：每代新 owner 从 prefix=0 签 raw 资格，生成缓存须同步冷起；
+                // discard 只清运行态，已提交旁账及其水位跨代保留。
+                runtime.discard();
                 let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+                let mut context = owner.p6_source_context_for_test();
                 let (_, ended) = owner
-                    .publish(
-                        &mut runtime,
-                        &token,
-                        &envelope,
-                        &mut request_audit::RequestAuditContext::default(),
-                    )
+                    .publish(&mut runtime, &token, &envelope, &mut context)
                     .unwrap();
                 owner.continue_with(ended).unwrap();
                 let ledger = runtime.audit_ledger.as_ref().unwrap();
@@ -2905,14 +3000,12 @@ pub(crate) mod tests {
         {
             let g = i as i64 + 1;
             let (envelope, token) = f.accept_begin(g, (key, at, open, high, low, close), 1);
+            // #1481 S1U：新 owner 的前代 prefix 为 0，不续用上一 owner 的生成前沿。
+            runtime.discard();
             let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+            let mut context = owner.p6_source_context_for_test();
             let (_, ended) = owner
-                .publish(
-                    &mut runtime,
-                    &token,
-                    &envelope,
-                    &mut request_audit::RequestAuditContext::default(),
-                )
+                .publish(&mut runtime, &token, &envelope, &mut context)
                 .unwrap();
             owner.continue_with(ended).unwrap();
             let saved = Connection::open(&path).unwrap();
@@ -2946,14 +3039,13 @@ pub(crate) mod tests {
                 "TestOnly-other-rule",
             ))
             .unwrap();
-        assert!(owner
-            .publish(
-                &mut runtime,
-                &token,
-                &envelope,
-                &mut request_audit::RequestAuditContext::default()
-            )
-            .is_err());
+        let mut context = owner.p6_source_context_for_test();
+        let result = owner.publish(&mut runtime, &token, &envelope, &mut context);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap(),
+            "AuditLedgerStale：台账请求、规则或代号不一致"
+        );
         assert!(runtime.queued_audit_facts.is_none());
         assert!(runtime.audit_qualification().is_err());
         assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
@@ -2983,14 +3075,13 @@ pub(crate) mod tests {
             .unwrap();
         let mut invalid = envelope;
         invalid["payload"] = serde_json::json!({});
-        assert!(owner
-            .publish(
-                &mut runtime,
-                &token,
-                &invalid,
-                &mut request_audit::RequestAuditContext::default()
-            )
-            .is_err());
+        let mut context = owner.p6_source_context_for_test();
+        let result = owner.publish(&mut runtime, &token, &invalid, &mut context);
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap(),
+            "S3PrepareInvalid：Commit原件与已接纳消息不同"
+        );
         assert!(runtime.queued_audit_facts.is_none());
         assert!(runtime
             .audit_ledger
@@ -3034,7 +3125,7 @@ pub(crate) mod tests {
         let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
         let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
         runtime.install_audit_ledger(ledger).unwrap();
-        let mut context = request_audit::RequestAuditContext::default();
+        let mut context = owner.p6_source_context_for_test();
         let error = owner
             .publish(&mut runtime, &token, &envelope, &mut context)
             .err()

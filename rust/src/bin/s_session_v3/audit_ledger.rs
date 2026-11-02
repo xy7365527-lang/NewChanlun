@@ -136,6 +136,13 @@ impl QueuedFacts {
         receipt: &super::source_audit::source_receipt::RawReceipt,
         metadata: &content_manifest::ManifestMetadata,
     ) -> Result<Self, String> {
+        Self::from_receipt_view(receipt, metadata.view())
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn from_receipt_view(
+        receipt: &super::source_audit::source_receipt::RawReceipt,
+        metadata: content_manifest::MetadataView<'_>,
+    ) -> Result<Self, String> {
         let business = receipt.business_rows()?;
         let exports = receipt.cover();
         let mut raw = BTreeMap::new();
@@ -199,7 +206,7 @@ impl QueuedFacts {
         }
         Ok(Self {
             generation: metadata.generation,
-            rule_revision: metadata.rule_revision.clone(),
+            rule_revision: metadata.rule_revision.to_owned(),
             raw,
             objects,
             witnesses: related(&business.witnesses),
@@ -218,6 +225,13 @@ impl QueuedFacts {
         metadata: &content_manifest::ManifestMetadata,
         roots: &impl content_manifest::ManifestRootSource,
     ) -> Result<GenerationDelta, String> {
+        self.bind_view(metadata.view(), roots.view())
+    }
+    pub(super) fn bind_view(
+        self,
+        metadata: content_manifest::MetadataView<'_>,
+        roots: content_manifest::RootsView<'_>,
+    ) -> Result<GenerationDelta, String> {
         if self.generation != metadata.generation || self.rule_revision != metadata.rule_revision {
             return Err(error("排队事实与实际prepare代号或规则不匹配"));
         }
@@ -227,11 +241,10 @@ impl QueuedFacts {
             kind: r.kind(),
             extent: r.extent(),
         };
-        let roots = roots.view();
         Ok(GenerationDelta {
             generation: self.generation,
             roots: [
-                copy((&metadata.scope).into()),
+                copy(metadata.scope),
                 copy(roots.generated_state),
                 copy(roots.publication_template),
                 copy(roots.delta_template),
@@ -1104,9 +1117,16 @@ impl Ledger {
         m: &content_manifest::ManifestMetadata,
         roots: &impl content_manifest::ManifestRootSource,
     ) -> Result<(), String> {
-        let v = roots.view();
+        self.bind_view(token, m.view(), roots.view())
+    }
+    pub(super) fn bind_view(
+        &mut self,
+        token: &str,
+        m: content_manifest::MetadataView<'_>,
+        v: content_manifest::RootsView<'_>,
+    ) -> Result<(), String> {
         let expected: [RefView<'_>; 4] = [
-            (&m.scope).into(),
+            m.scope,
             v.generated_state,
             v.publication_template,
             v.delta_template,

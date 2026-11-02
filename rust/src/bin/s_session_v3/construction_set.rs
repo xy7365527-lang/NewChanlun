@@ -1,5 +1,5 @@
-//! #1488 C2：owner 私有完整有序材料差异。当前接线仅在旧来源审计成功后调用。
-//! 这不是 B2 增量业务审计；完整来源/投影判据仍由现有审计器执行。
+//! #1488 C2 / #1481：在线 owner 与冷历史认证共用的完整有序材料差异。
+//! 差分不签发来源判据；在线 Seed 授权与冷只读材料分别保留自己的权限边界。
 //! 两端均有同域 Public 完整闭包资格时才跳过共享 M 子树，绝不接生成器 changes。
 use super::super::audit_retention::vec_bytes;
 use super::super::audit_store::CodecRead;
@@ -216,6 +216,45 @@ pub(super) struct CommittedSet {
     pub(super) root: Declaration,
     raw: RawAdvanceBinding,
     knowledge: Option<Knowledge>,
+}
+impl CommittedSet {
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn rebind_cold_owner(
+        &mut self,
+        old: RawAdvanceBinding,
+        current: RawAdvanceBinding,
+    ) -> Result<(), String> {
+        if old.owner_life() != 0 || self.raw != old || current.owner_life() == 0 {
+            return Err(stale("冷集合重绑域不符"));
+        }
+        self.raw = current;
+        Ok(())
+    }
+    /// #1481：只有冷认证 owner 从末代已核根与同核贡献态建立前身，下一代不可重走bootstrap。
+    #[cfg(unix)]
+    pub(super) fn cold(
+        s: &mut (impl CodecRead + ?Sized),
+        root: sc::RefView<'_>,
+        raw: RawAdvanceBinding,
+        source: &super::super::source_audit::NativeSourceState,
+    ) -> Result<Self, String> {
+        let knowledge = match source.cold_knowledge_ordinal()? {
+            Some(ordinal) => {
+                let (objects, _) = array(s, root, "objects")?;
+                let objects = objects.reference(s)?;
+                Some(
+                    knowledge_at(s, objects.view(), ordinal)?
+                        .ok_or_else(|| stale("冷末代知识定位不是CC054"))?,
+                )
+            }
+            None => None,
+        };
+        Ok(Self {
+            root: Declaration::read(root)?,
+            raw,
+            knowledge,
+        })
+    }
 }
 pub(super) struct Seed {
     pub(super) raw: RawAdvanceBinding,
@@ -653,7 +692,11 @@ impl SourceArray {
     }
 }
 pub(super) struct LazySet {
-    seed: Seed,
+    // #1481：冷历史只读材料没有 owner 写资格；finish 必须实际持有在线 Seed。
+    seed: Option<Seed>,
+    previous: Option<Declaration>,
+    previous_knowledge: Option<Knowledge>,
+    bootstrap: bool,
     current: Declaration,
     arrays: [Option<SequenceDelta>; 3],
     members: [Option<Declaration>; 3],
@@ -670,7 +713,51 @@ impl LazySet {
             seed.bootstrap = true;
         }
         Ok(Self {
-            seed,
+            previous: seed.previous,
+            previous_knowledge: seed.knowledge,
+            bootstrap: seed.bootstrap,
+            seed: Some(seed),
+            current: Declaration::read(current)?,
+            arrays: [None, None, None],
+            members: [None, None, None],
+            requests: None,
+            knowledge: None,
+        })
+    }
+    /// #1481：已认证冷历史的只读差分入口，不构造 RawAdvanceBinding/SnapshotSeal。
+    /// 前代知识位置来自同一个来源贡献状态，只点查那份原件，不扫描旧对象全集。
+    pub(super) fn cold(
+        s: &mut (impl CodecRead + ?Sized),
+        previous_root: Option<sc::RefView<'_>>,
+        current: sc::RefView<'_>,
+        previous_state: Option<&super::super::source_audit::NativeSourceState>,
+    ) -> Result<Self, String> {
+        if previous_state.is_some() && previous_root.is_none() {
+            return Err(stale("冷来源前代贡献缺对应已认证根"));
+        }
+        let previous = previous_root.map(Declaration::read).transpose()?;
+        let previous_knowledge = match previous_state {
+            Some(state) => match state.cold_knowledge_ordinal()? {
+                Some(ordinal) => {
+                    let root = previous
+                        .ok_or_else(|| stale("冷知识定位缺前代根"))?
+                        .reference(s)?;
+                    let (objects, _) = array(s, root.view(), "objects")?;
+                    let objects = objects.reference(s)?;
+                    Some(
+                        knowledge_at(s, objects.view(), ordinal)?
+                            .ok_or_else(|| stale("冷前代知识定位不是 CC054"))?,
+                    )
+                }
+                None => None,
+            },
+            None => None,
+        };
+        Ok(Self {
+            seed: None,
+            previous,
+            previous_knowledge,
+            bootstrap: previous_state.is_none(),
             current: Declaration::read(current)?,
             arrays: [None, None, None],
             members: [None, None, None],
@@ -689,11 +776,10 @@ impl LazySet {
             let current = self.current.reference(s)?;
             let (declaration, sequence) = array(s, current.view(), which.key())?;
             // 没有前次来源贡献时必须冷建，不能跳过语义上尚未知的共享材料。
-            let old = if self.seed.bootstrap {
+            let old = if self.bootstrap {
                 None
             } else {
-                self.seed
-                    .previous
+                self.previous
                     .map(|prior| {
                         let r = prior.reference(s)?;
                         array(s, r.view(), which.key()).map(|(_, seq)| seq)
@@ -736,11 +822,10 @@ impl LazySet {
             let r = found.requests.reference(s)?;
             let current = sc::path::array_sequence_refview(s.generic_source(), r.view())
                 .map_err(|e| stale(&e.to_string()))?;
-            let old = if self.seed.bootstrap {
+            let old = if self.bootstrap {
                 None
             } else {
-                self.seed
-                    .knowledge
+                self.previous_knowledge
                     .map(|prior| {
                         let r = prior.requests.reference(s)?;
                         sc::path::array_sequence_refview(s.generic_source(), r.view())
@@ -771,12 +856,15 @@ impl LazySet {
         counts: super::super::source_audit::Counts,
         raw_prefix: usize,
     ) -> Result<PendingSet, String> {
+        let seed = self
+            .seed
+            .ok_or_else(|| stale("冷只读材料不能签发 owner 写资格"))?;
         let [objects, witnesses, observations] = self.arrays;
         Ok(PendingSet {
-            previous: self.seed.previous,
+            previous: seed.previous,
             current: self.current,
-            raw: self.seed.raw,
-            seal: self.seed.seal,
+            raw: seed.raw,
+            seal: seed.seal,
             material_epoch,
             arrays: [
                 objects.ok_or_else(|| stale("来源核缺objects阶段"))?,

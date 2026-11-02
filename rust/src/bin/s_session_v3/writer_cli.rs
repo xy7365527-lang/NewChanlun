@@ -68,6 +68,7 @@ const SERVE_FLAGS: [&str; 9] = [
     "--socket",
     "--resource-config",
 ];
+#[cfg(not(feature = "s_incremental"))]
 const ADVANCE_FLAGS: [&str; 8] = [
     "--admission-job-limits",
     "--protocol-revision",
@@ -78,6 +79,19 @@ const ADVANCE_FLAGS: [&str; 8] = [
     "--input",
     "--max-input-bytes",
 ];
+#[cfg(feature = "s_incremental")]
+const ADVANCE_FLAGS: [&str; 9] = [
+    "--admission-job-limits",
+    "--protocol-revision",
+    "--db",
+    "--profile",
+    "--writer-epoch",
+    "--clock-plan",
+    "--input",
+    "--max-input-bytes",
+    "--resource-config",
+];
+#[cfg(not(feature = "s_incremental"))]
 const RECOVER_FLAGS: [&str; 6] = [
     "--admission-job-limits",
     "--protocol-revision",
@@ -85,6 +99,17 @@ const RECOVER_FLAGS: [&str; 6] = [
     "--new-epoch",
     "--clock-plan",
     "--clock-event-id",
+];
+
+#[cfg(feature = "s_incremental")]
+const RECOVER_FLAGS: [&str; 7] = [
+    "--admission-job-limits",
+    "--protocol-revision",
+    "--db",
+    "--new-epoch",
+    "--clock-plan",
+    "--clock-event-id",
+    "--resource-config",
 ];
 
 /// 已核验并冻结的资源档：七个旧门字段全部显式、全部为正整数文本，规范字节与其 SHA256 一并保存。
@@ -210,12 +235,16 @@ struct AdvanceOptions {
     clock: PathBuf,
     input: Option<PathBuf>,
     max_input_bytes: Option<usize>,
+    #[cfg(feature = "s_incremental")]
+    resources: PathBuf,
 }
 struct RecoverOptions {
     db: PathBuf,
     new_epoch: String,
     clock: PathBuf,
     clock_event: String,
+    #[cfg(feature = "s_incremental")]
+    resources: PathBuf,
 }
 
 /// 命令分派：`Ok(Some(value))` 为要打印的命令结果，`Ok(None)` 为无结果（服务正常退出）。
@@ -432,11 +461,17 @@ impl AdvanceOptions {
             )?,
             input,
             max_input_bytes,
+            #[cfg(feature = "s_incremental")]
+            resources: existing_file(
+                required(&values, "advance", "--resource-config")?,
+                "--resource-config",
+            )?,
         })
     }
 }
 
-/// 只读预检现有库身份；Driver 持排他锁后仍完整复核，竞态不会借此放行。
+/// 只读预检现有库身份；Driver 持排他锁后完成认证，竞态不会借此放行。
+/// #1481：增量路径只在此核身份/请求，H1 冷认证完成后 Driver 才允许推进 pending。
 /// 非法 input 在本步骤之前不会触发 Driver::open 的 pending 自动推进。
 fn preflight_input(
     options: &AdvanceOptions,
@@ -449,6 +484,7 @@ fn preflight_input(
     let conn = Connection::open_with_flags(scope.db_path(), OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(err)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
+    #[cfg(not(feature = "s_incremental"))]
     state::audit(&tx)?;
     verify_writer_epoch(&tx, &options.epoch)?;
     let control = control::S3Control::attach(&tx, clock)?;
@@ -491,6 +527,11 @@ impl RecoverOptions {
                 "--clock-plan",
             )?,
             clock_event: required(&values, "recover", "--clock-event-id")?.to_string(),
+            #[cfg(feature = "s_incremental")]
+            resources: existing_file(
+                required(&values, "recover", "--resource-config")?,
+                "--resource-config",
+            )?,
         })
     }
 }
@@ -861,6 +902,10 @@ fn advance_with_policy(
     production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_environment_mode()?;
+    #[cfg(feature = "s_incremental")]
+    let resources =
+        SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
+            .map_err(|e| admission.diagnostic(e))?;
     let clock = v2::ClockPlan::parse(
         strict_json(&admission.read_file(&options.clock, None)?)
             .map_err(|e| admission.diagnostic(e))?,
@@ -884,6 +929,19 @@ fn advance_with_policy(
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope, &scope, &frozen_profile)?;
     }
+    #[cfg(feature = "s_incremental")]
+    let mut driver = Driver::open_with_request_and_mode_retention(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        input.as_ref(),
+        mode,
+        resources.limit("incremental_retention_bytes"),
+        production,
+        scope.into(),
+    )?;
+    #[cfg(not(feature = "s_incremental"))]
     let mut driver = if production {
         Driver::open_production_with_request_and_mode(
             &options.db,
@@ -923,11 +981,25 @@ fn recover(
     options: RecoverOptions,
     mut admission: super::admission_anchor::PreparedAdmission,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
+    #[cfg(feature = "s_incremental")]
+    let resources =
+        SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
+            .map_err(|e| admission.diagnostic(e))?;
     let clock = v2::ClockPlan::parse(
         strict_json(&admission.read_file(&options.clock, None)?)
             .map_err(|e| admission.diagnostic(e))?,
     )
     .map_err(|e| admission.diagnostic(e))?;
+    #[cfg(feature = "s_incremental")]
+    let (out, scope) = driver::recover_scoped_with_retention(
+        &options.db,
+        &options.new_epoch,
+        &clock,
+        &options.clock_event,
+        resources.limit("incremental_retention_bytes"),
+        admission.into(),
+    )?;
+    #[cfg(not(feature = "s_incremental"))]
     let (out, scope) = driver::recover_scoped(
         &options.db,
         &options.new_epoch,
@@ -941,6 +1013,59 @@ fn recover(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1481：一次性入口与 serve 共用显式第八门，缺资源文件不得悄用默认预算。
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_admission_one_shot_requires_explicit_retention_resource_file() {
+        let existing = std::env::current_exe().unwrap();
+        let path = existing.to_str().unwrap();
+        for (command, fields) in [
+            (
+                "advance",
+                vec![
+                    ("--db", path),
+                    ("--profile", path),
+                    ("--writer-epoch", "1"),
+                    ("--clock-plan", path),
+                ],
+            ),
+            (
+                "recover",
+                vec![
+                    ("--db", path),
+                    ("--new-epoch", "2"),
+                    ("--clock-plan", path),
+                    ("--clock-event-id", "recover-1"),
+                ],
+            ),
+        ] {
+            let mut args = vec![
+                "s_session".to_string(),
+                command.to_string(),
+                "--protocol-revision".to_string(),
+                PROTOCOL_REVISION.to_string(),
+            ];
+            for (key, value) in fields {
+                args.extend([key.to_string(), value.to_string()]);
+            }
+            let refused = match command {
+                "advance" => AdvanceOptions::parse(&args).err().unwrap(),
+                "recover" => RecoverOptions::parse(&args).err().unwrap(),
+                _ => unreachable!(),
+            };
+            assert!(
+                refused.contains("缺必填参数 --resource-config"),
+                "{refused}"
+            );
+            args.extend(["--resource-config".to_string(), path.to_string()]);
+            match command {
+                "advance" => assert_eq!(AdvanceOptions::parse(&args).unwrap().resources, existing),
+                "recover" => assert_eq!(RecoverOptions::parse(&args).unwrap().resources, existing),
+                _ => unreachable!(),
+            }
+        }
+    }
 
     /// #1769：生产构建（不含 production_session_testonly）遇 TestOnly 诊断 theta 开关即拒绝；
     /// 未设开关走正式路径；只认取值 1。
