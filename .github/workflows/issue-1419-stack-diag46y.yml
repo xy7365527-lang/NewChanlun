@@ -1,0 +1,106 @@
+# #1419 W2×H1 集成线只测量诊断（stack_diag46y）：定位
+#   v3::audit_owner::construction_tests::h1_admission_driver_cold_recover_rebuilds_ledger_bitwise
+#   在 debug（features s_session,s_capture_native_testonly）下栈溢出的增长来源。
+#   只在 codex/1419-stack-diag46y* 诊断分支上运行；不改 ci.yml、不改 Rust 源码。
+#   RUST_MIN_STACK 只作测量。
+name: issue-1419-stack-diag46y-gdb
+
+on:
+  push:
+    branches: ['codex/1419-stack-diag46y**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: "0"
+      FEATURES: s_session,s_capture_native_testonly
+      TEST_NAME: v3::audit_owner::construction_tests::h1_admission_driver_cold_recover_rebuilds_ledger_bitwise
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
+
+      - name: Build debug test binary (same features/profile as failing step)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/diag"
+          echo "head=$(git rev-parse HEAD) parent=$(git rev-parse HEAD^)" | tee "$RUNNER_TEMP/diag/head.txt"
+          cargo test --locked --features "$FEATURES" --bin s_structure_session --jobs 2 --no-run \
+            --message-format=json-render-diagnostics >"$RUNNER_TEMP/diag/build.json"
+          bin=$(python3 - "$RUNNER_TEMP/diag/build.json" <<'PY'
+          import json, sys
+          exe = None
+          for line in open(sys.argv[1]):
+              try:
+                  m = json.loads(line)
+              except Exception:
+                  continue
+              if m.get("reason") == "compiler-artifact" and m.get("target", {}).get("name") == "s_structure_session" \
+                      and m.get("profile", {}).get("test") and m.get("executable"):
+                  exe = m["executable"]
+          print(exe)
+          PY
+          )
+          echo "BIN=$bin" | tee -a "$GITHUB_ENV" "$RUNNER_TEMP/diag/head.txt"
+          ls -l "$bin"
+          "$bin" --list --exact "$TEST_NAME" | tee "$RUNNER_TEMP/diag/list.txt"
+          grep -Fx "$TEST_NAME: test" "$RUNNER_TEMP/diag/list.txt"
+
+      - name: gdb backtrace at overflow (per-frame sp deltas)
+        run: |
+          set +e
+          command -v gdb || { sudo apt-get update -qq && sudo apt-get install -y -qq gdb; }
+          gdb --version | head -1
+          cat >"$RUNNER_TEMP/bt.py" <<'PY'
+          import gdb, os
+          out = os.environ["BT_OUT"]
+          f = gdb.newest_frame()
+          rows = []
+          while f is not None:
+              try:
+                  sp = int(f.read_register("rsp"))
+              except Exception:
+                  sp = 0
+              name = f.name() or "??"
+              try:
+                  sal = f.find_sal()
+                  loc = (sal.symtab.filename if sal.symtab else "?") + ":" + str(sal.line)
+              except Exception:
+                  loc = "?"
+              rows.append((sp, name, loc))
+              f = f.older()
+          with open(out, "w") as o:
+              o.write("depth\tsp\tframe_bytes\tfunction\tlocation\n")
+              for i, (sp, name, loc) in enumerate(rows):
+                  nxt = rows[i + 1][0] if i + 1 < len(rows) else sp
+                  o.write("%d\t%d\t%d\t%s\t%s\n" % (i, sp, (nxt - sp) if sp and nxt else 0, name, loc))
+          print("frames", len(rows), "span", (rows[-1][0] - rows[0][0]) if rows else 0)
+          PY
+          for s in 1572864 1966080 2097152; do
+            export BT_OUT="$RUNNER_TEMP/diag/bt-$s.tsv"
+            RUST_MIN_STACK=$s timeout 2400 gdb -batch -nx \
+              -ex 'set pagination off' -ex 'set confirm off' -ex 'handle SIGSEGV stop nopass print' \
+              -ex 'run' -ex 'info threads' -ex "source $RUNNER_TEMP/bt.py" \
+              --args "$BIN" --exact "$TEST_NAME" --test-threads 1 --nocapture >"$RUNNER_TEMP/diag/gdb-$s.log" 2>&1
+            echo "stack=$s rc=$?"; grep -E '^frames |SIGSEGV|exited' "$RUNNER_TEMP/diag/gdb-$s.log" | head -5
+            grep -o 'H1_STACK_PROBE [^ ]* used=[0-9]*' "$RUNNER_TEMP/diag/gdb-$s.log" | tail -n 1
+          done
+          exit 0
+
+      - name: Upload diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-diag46y-gdb-${{ github.sha }}
+          path: ${{ runner.temp }}/diag
+          if-no-files-found: error
+          retention-days: 14
