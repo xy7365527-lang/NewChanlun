@@ -4,7 +4,7 @@
 > 最后裁定：#1818（2026-11-01，T 类，依 #1323 Notes N-1 预授权判定）
 > 受影响代码清单：`rust/src/bin/production_session.rs:125`（`load_manifest`，拒绝检查落点）；`rust/tests/production_session_entry.rs`（验收测试）；`docs/runbook_production_session.md:35`、`:40`、`:53`、`:59`（runbook 订正）。实施归 #1781。
 
-**状态**：T 类裁定。原裁定经两轮审查，第二轮 PASS。发布审查（PR #1826）四轮发现并发写足迹漏判：库文件的符号链接、锁文件的符号链接、E/B 服务期 bind 的 socket、该 socket 的最终链接。Q2、Q4、Q8 与裁定第 1、3、4、6、8、9 条及验收 9–21 已据此订正，订正部分待独立审查。本 ADR 只定规则与判据；实现与运行证据归 #1781，不以本 ADR 声称实现完成。
+**状态**：T 类裁定。原裁定经两轮审查，第二轮 PASS。发布审查（PR #1826）四轮发现并发写足迹漏判：库文件的符号链接、锁文件的符号链接、E/B 服务期 bind 的 socket、该 socket 的最终链接。Q2、Q4、Q8 与裁定第 1、3、4、6、8、9 条及验收 9–21 已据此订正，订正部分经第五轮非作者增量独审（41W，精确 head `8ce09b7b`）PASS，评审链存于 `.chanlun/review-results/issue1818-decision-20261101/`。本 ADR 只定规则与判据；实现与运行证据归 #1781，不以本 ADR 声称实现完成。
 
 ## 问题
 

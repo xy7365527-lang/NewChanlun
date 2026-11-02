@@ -23,7 +23,7 @@ cd rust && cargo build --release --features production_session \
 | Bᵢ | `b_chong_session serve --chong <id>` | `economic.b[i].db` | 同上 | 同上 |
 | X | `x_execution_session serve` | `x.db` | 同上 | `x_meta.writer_epoch` |
 
-launcher 不打开任何域的写连接；各域进程自行持锁与 epoch。S/E/B 任一退出 → 回收全部、退出码 1；
+launcher 不打开任何域库；各域进程自行持锁与 epoch。S/E/B 任一退出 → 回收全部、退出码 1；
 X 退出只记日志，S/E/B 继续。SIGTERM/SIGINT → 向全部子进程发 SIGTERM，10 秒宽限后 SIGKILL，全部 wait 后退出码 0。
 
 ## manifest（`production-session-manifest/1`）
@@ -50,9 +50,14 @@ X 退出只记日志，S/E/B 继续。SIGTERM/SIGINT → 向全部子进程发 S
 - `category` 只认 `UsEquityStockLineTick`、`TestOnlyStructure`（ADR 0020:151-154、ADR 0023:9-34）。
 - `namespaces` 与 `execution_capabilities.namespaces` 相交即 `InvalidDomain`，在拉起 S、创建 S 库之前退出——
   HL 行情即使与美股 bar 同形、类别标成个股线也不进 S。
+- launcher 每次启动在拉起域之前，把 manifest 的规范声明写到 `<state_dir>/structure-source.json`（#1845）。
 - S 库不存在：launcher 以 `init --protocol-revision s-session/3 ... --structure-source <state_dir>/structure-source.json` 建库，
   声明作为库固定属性落 `meta.structure_source`。
-- S 库已存在：不带声明或声明与 manifest 不一致 → `InvalidDomain`，不改任何行。
+- launcher 每次调用 S `serve --protocol-revision s-session/3` 都传同一文件的 `--structure-source`。
+  S 在取得自身写锁、完成原 admission 后，读取文件并与 `meta.structure_source` 的规范文本逐字比较。
+  缺声明、文件不可读或损坏、库中声明损坏或不一致时，S 非零退出，不监听 socket；不一致错误点名两侧规范声明。
+  launcher 按现有监督合同记录 S critical `exit`，最终 `stopped.failed=true`、退出码 1；S 错误文本写 S stderr。
+- standalone S v3 `serve` 的 `--structure-source` 可选；不传时保持既有合同，不额外核声明。
 - S.AcceptInput（`raw_input::accept_events`，v1/S2/S3 共用）对声明之外的 `source_namespace` 返回 `InvalidDomain`，
   不落行。不带声明的既有 TestOnly 库行为不变（但进不了 production_session）。
 

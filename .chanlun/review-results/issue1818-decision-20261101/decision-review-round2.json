@@ -1,0 +1,57 @@
+{
+  "ticket": 1818,
+  "attempt": 2,
+  "mode": "redo",
+  "drafter": "claude-opus-5-5",
+  "reviewer": "claude-opus-5-5",
+  "klass": "T",
+  "verdict": "PASS",
+  "parseError": false,
+  "retried": false,
+  "items": [
+    {
+      "rule": "R1",
+      "verdict": "PASS",
+      "basis": "草稿末尾有「引用自证」表且不为空。正文、权威依据、候选、裁定、受影响票各段的引用都能在表里找到对应条目。唯一小瑕疵：考古对照 Q12 一行的 production_session.rs:156 没有单独列行，但表中 production_session.rs:124-125 一行的核实命令 sed -n 110,245p 已覆盖这一行；我复核 :156 是 \"s.admission_job_limits\"，与描述一致，不算漏引。我亲自重跑了远多于三条：production_session.rs:124-125（『完整校验 manifest；此阶段不创建任何域文件』+ fn load_manifest）、:147、:172、:179-184、:204-207、:300-302、:320-323、:455/:467/:490（spawn S/E/X）；admission_provider.rs:74-88（strict 模式下 Stamp 相等，否则 SourceIdentityChanged）、:216-254（族条目判定、8 项白名单、『state 恰为 parent 时仍须枚举其全部子项』）、:342（SourceMembershipChanged）、:347-348（verify_runtime）；admission_anchor.rs:30、:32、:1293-1294、:1327-1342；writer_cli.rs:357-359、:393、:725、:802；session_transport.rs:634-635；production_session_entry.rs:71-80、:192-195、:348-357；ci.yml:500、:517、:523；runbook:21-24、:35、:40、:51、:53、:59（:59 才是 state/s-admission 那一行，草稿订正考古 :58 是对的）；ADR 0028:46、0046:20-21、0041:11/:13、0050:44、0056:53、0039:300；CONTEXT.md:393；AGENTS.md:46-48；graph-engineering.md:23；最大 ADR 编号 0057；1773 独审文件存在，:49/:51/:55/:84/:88 逐字相符；#1323 body:74 N-1 相符。评论 id 用 gh api 逐个核过：6261281111（#1323，xy7365527-lang，2026-10-19，含用户原话）、6267636964（#1567，首行『P 类影子模式，待用户批复』）、6310847303（用户批复『不重要你自己定吧』）、6311316288（resolution 正本 ADR 0046）、6315085658（关票，squash 1879c6a632）、6550327210、6550407378、6550474840（#1818，内容相符）。依赖边相符：#1781 blocked_by 为 1769、1818；#1818 blocking 1781，blocked_by 为空。"
+    },
+    {
+      "rule": "R2",
+      "verdict": "PASS",
+      "basis": "候选 A（启动前 InvalidDomain）与 launcher 既有拒启模式（production_session.rs:147/172/179-184）以及 ADR 0056:53 同型。排除候选 B 有已裁依据：ADR 0028:46 把 DB 路径变更列为失效触发；ADR 0046:20-21 写明不存在运行时自动接管、换库即拒；代码上 admission_anchor.rs:1337-1342 要求 owner 原件 db 等于 canonical db。B 违反已裁推论，不是被错杀的合法候选。C 只记为不采用并留档，D 保留为未来候选，都没有当作错误排除。不设『放行冲突布局』字段符合 ADR 0041:11/:13 判别句：放行冲突布局是同一判断的宽松档，由 #799 管辖。launcher 的静态布局判定（canon 超集，只多拒不多放）与 S 打开窗口内的 stamp 核验是两个不同的判断，不构成宽严两档，也没有让失败转给另一档兜底。Q12 不重复 S E1 的后缀核验，正好避免了同一判据的两份实现。本票不涉及缠论原文语义。"
+    },
+    {
+      "rule": "R3",
+      "verdict": "PASS",
+      "basis": "18 条验收都可执行，判据二值。测试项 1-13 以 rust-test-production-session job 中 ci.yml:517 step 逐行出现 `test <名> ... ok`、两条 step 都以 `test result: ok.` 结束为判据。每条测试的布局、预期退出方式和 stderr 必含的字段都写明了。第 14 条是 ls|grep -c 输出 1；第 15、16 条是 rg -c 命中数 ≥1 或退出码 1；第 17 条是 gh api 查 state=closed、blocked_by 仍含 1769；第 18 条核 resolution 首行。小瑕疵（不阻断）：第 15 条的 rg 命令没写文件参数，但已限定在『该 ADR 中』，文件又由第 14 条唯一确定；第 13 条的『等』由总判据（:517 step 全部 ok）兜住。"
+    },
+    {
+      "rule": "R4",
+      "verdict": "PASS",
+      "basis": "正本落 docs/adr/NNNN-production-session-layout-contract.md，在允许范围内。runbook 订正属于实施附带的文档改动，不是正本。裁定第 13 条写明不改资金、隔离、恢复帽、admission 判据，不签 P0，不改 Destination。全文只裁启动前路径校验、owner 落点、测试锁和文档订正，都在 graph-engineering.md:23 列出的 T 类范围内，没有夹带 P 类取舍。"
+    },
+    {
+      "rule": "R5",
+      "verdict": "PASS",
+      "basis": "规则只有一档（第 4 条），裁定第 10 条明确不设可调字段、不设放行开关。launcher 判定与 S 核验不在同一个 if-else 上，也不互相兜底。Q12 不在 launcher 里重复 S 的后缀核验，没有形成同一判据的两份实现。启动排序（C）没有作为失败后的回退路径引入。"
+    },
+    {
+      "rule": "R6",
+      "verdict": "PASS",
+      "basis": "受影响票逐张列出：#1818 关票后自然解除对 #1781 的边；#1781 保留 blocked_by #1769/#1818 并更新实施范围（它正文验收 1『或按既定布局自动分目录，二选一须经裁定』已核到）；#1769→#1781 不变；#1538 已关，只订正措辞；#1823 不加边，与其正文第 34 行『不接 blocked_by #1818』一致，并附 SourceTypeUnsupported 叙述订正（正文第 10、17 行已核到）；#1340 父票不变；#1323 Notes 索引；#1527、#1567 不改；L-2 另开实施票。边的现状都用 gh api 核过。没有遗漏的 blocking 边。"
+    },
+    {
+      "rule": "R7",
+      "verdict": "PASS",
+      "basis": "T 类结论成立。本票裁的是 launcher 启动前校验的 seam、owner 落点（load_manifest）、测试锁和恢复语义，正是 graph-engineering.md:23 列出的 T 类范围。可援引的在案先例有：1773 独审 M-2/L-2、launcher 既有 InvalidDomain 先例、ADR 0056:53、ADR 0028:46/0046:20-21。不涉资金、场所、隔离放宽、关图或 Destination。分级理由里说『无 C 类 decision 缺口』与考古不符（Q12 被标为 C decision），但按 graph-engineering.md:42，只有 research/probe 缺口才会让 T 转 P；C decision 依 :56 只需列为待决并附推荐答案，草稿也是这样做的。所以这处表述误差不改变 T 类结论。"
+    },
+    {
+      "rule": "R8",
+      "verdict": "PASS",
+      "basis": "复跑考古查询，结果与表述一致。rg InvalidDomain 命中 10；分目录系列命中 0；测量域命中 1（ADR 0044:27，与本题无关，计数相符）；decision-claimer.mts:36 为 DEFAULT_MAPS=[1323,1340]，:1486-1489 有 grilling、无 assignee、无 blocker 三道过滤；tracker \"InvalidDomain\" 命中 6 张票（含 #1818、#1769、#1538）；Q2 的 admission_provider.rs:216-254、Q3/Q12 的 admission_anchor.rs:1327-1342、Q4 的 writer_cli.rs:357-359/session_transport.rs:634-635、Q9 的夹具布局都已核实。针对 Q1/Q2 换说法复搜：仓内 rg『同一目录|同目录|库目录|父目录』，命中只有与布局无关的 ADR 引文；tracker 搜 \"同目录\" 只出现 #1781（本票后续）以及几张无关票，没有更早或相冲突的布局先例。草稿处置也合规：A 类（Q6、Q7）直接沿用，没有列为待决；B 类都写成默认值并附出处，交确认或否决；唯一的 C decision（Q12）列为真正待决，附推荐答案和推导；考古对照表 Q1-Q12 一个不漏；没有 research/probe 缺口被交给用户；本票不是 P 类，也不涉数值。草稿还订正了考古里的几处误差：6267636964 是被取代的草稿，改引 ADR 0046；runbook 行号 :58 改为 :59；FU-16 措辞过期。小瑕疵：受影响票段写『考古各点都是 A/B 类或代码事实』，与自己把 Q12 归为 C decision 有出入，但同句已限定为『没有事实缺口』，不构成 BLOCK。"
+    }
+  ],
+  "problems": [],
+  "draftMissingSections": [],
+  "durationMs": 136245,
+  "raw": "```json\n{\"R1\":{\"verdict\":\"PASS\",\"basis\":\"草稿末尾有「引用自证」表且不为空。正文、权威依据、候选、裁定、受影响票各段的引用都能在表里找到对应条目。唯一小瑕疵：考古对照 Q12 一行的 production_session.rs:156 没有单独列行，但表中 production_session.rs:124-125 一行的核实命令 sed -n 110,245p 已覆盖这一行；我复核 :156 是 \\\"s.admission_job_limits\\\"，与描述一致，不算漏引。我亲自重跑了远多于三条：production_session.rs:124-125（『完整校验 manifest；此阶段不创建任何域文件』+ fn load_manifest）、:147、:172、:179-184、:204-207、:300-302、:320-323、:455/:467/:490（spawn S/E/X）；admission_provider.rs:74-88（strict 模式下 Stamp 相等，否则 SourceIdentityChanged）、:216-254（族条目判定、8 项白名单、『state 恰为 parent 时仍须枚举其全部子项』）、:342（SourceMembershipChanged）、:347-348（verify_runtime）；admission_anchor.rs:30、:32、:1293-1294、:1327-1342；writer_cli.rs:357-359、:393、:725、:802；session_transport.rs:634-635；production_session_entry.rs:71-80、:192-195、:348-357；ci.yml:500、:517、:523；runbook:21-24、:35、:40、:51、:53、:59（:59 才是 state/s-admission 那一行，草稿订正考古 :58 是对的）；ADR 0028:46、0046:20-21、0041:11/:13、0050:44、0056:53、0039:300；CONTEXT.md:393；AGENTS.md:46-48；graph-engineering.md:23；最大 ADR 编号 0057；1773 独审文件存在，:49/:51/:55/:84/:88 逐字相符；#1323 body:74 N-1 相符。评论 id 用 gh api 逐个核过：6261281111（#1323，xy7365527-lang，2026-10-19，含用户原话）、6267636964（#1567，首行『P 类影子模式，待用户批复』）、6310847303（用户批复『不重要你自己定吧』）、6311316288（resolution 正本 ADR 0046）、6315085658（关票，squash 1879c6a632）、6550327210、6550407378、6550474840（#1818，内容相符）。依赖边相符：#1781 blocked_by 为 1769、1818；#1818 blocking 1781，blocked_by 为空。\"},\n\"R2\":{\"verdict\":\"PASS\",\"basis\":\"候选 A（启动前 InvalidDomain）与 launcher 既有拒启模式（production_session.rs:147/172/179-184）以及 ADR 0056:53 同型。排除候选 B 有已裁依据：ADR 0028:46 把 DB 路径变更列为失效触发；ADR 0046:20-21 写明不存在运行时自动接管、换库即拒；代码上 admission_anchor.rs:1337-1342 要求 owner 原件 db 等于 canonical db。B 违反已裁推论，不是被错杀的合法候选。C 只记为不采用并留档，D 保留为未来候选，都没有当作错误排除。不设『放行冲突布局』字段符合 ADR 0041:11/:13 判别句：放行冲突布局是同一判断的宽松档，由 #799 管辖。launcher 的静态布局判定（canon 超集，只多拒不多放）与 S 打开窗口内的 stamp 核验是两个不同的判断，不构成宽严两档，也没有让失败转给另一档兜底。Q12 不重复 S E1 的后缀核验，正好避免了同一判据的两份实现。本票不涉及缠论原文语义。\"},\n\"R3\":{\"verdict\":\"PASS\",\"basis\":\"18 条验收都可执行，判据二值。测试项 1-13 以 rust-test-production-session job 中 ci.yml:517 step 逐行出现 `test <名> ... ok`、两条 step 都以 `test result: ok.` 结束为判据。每条测试的布局、预期退出方式和 stderr 必含的字段都写明了。第 14 条是 ls|grep -c 输出 1；第 15、16 条是 rg -c 命中数 ≥1 或退出码 1；第 17 条是 gh api 查 state=closed、blocked_by 仍含 1769；第 18 条核 resolution 首行。小瑕疵（不阻断）：第 15 条的 rg 命令没写文件参数，但已限定在『该 ADR 中』，文件又由第 14 条唯一确定；第 13 条的『等』由总判据（:517 step 全部 ok）兜住。\"},\n\"R4\":{\"verdict\":\"PASS\",\"basis\":\"正本落 docs/adr/NNNN-production-session-layout-contract.md，在允许范围内。runbook 订正属于实施附带的文档改动，不是正本。裁定第 13 条写明不改资金、隔离、恢复帽、admission 判据，不签 P0，不改 Destination。全文只裁启动前路径校验、owner 落点、测试锁和文档订正，都在 graph-engineering.md:23 列出的 T 类范围内，没有夹带 P 类取舍。\"},\n\"R5\":{\"verdict\":\"PASS\",\"basis\":\"规则只有一档（第 4 条），裁定第 10 条明确不设可调字段、不设放行开关。launcher 判定与 S 核验不在同一个 if-else 上，也不互相兜底。Q12 不在 launcher 里重复 S 的后缀核验，没有形成同一判据的两份实现。启动排序（C）没有作为失败后的回退路径引入。\"},\n\"R6\":{\"verdict\":\"PASS\",\"basis\":\"受影响票逐张列出：#1818 关票后自然解除对 #1781 的边；#1781 保留 blocked_by #1769/#1818 并更新实施范围（它正文验收 1『或按既定布局自动分目录，二选一须经裁定』已核到）；#1769→#1781 不变；#1538 已关，只订正措辞；#1823 不加边，与其正文第 34 行『不接 blocked_by #1818』一致，并附 SourceTypeUnsupported 叙述订正（正文第 10、17 行已核到）；#1340 父票不变；#1323 Notes 索引；#1527、#1567 不改；L-2 另开实施票。边的现状都用 gh api 核过。没有遗漏的 blocking 边。\"},\n\"R7\":{\"verdict\":\"PASS\",\"basis\":\"T 类结论成立。本票裁的是 launcher 启动前校验的 seam、owner 落点（load_manifest）、测试锁和恢复语义，正是 graph-engineering.md:23 列出的 T 类范围。可援引的在案先例有：1773 独审 M-2/L-2、launcher 既有 InvalidDomain 先例、ADR 0056:53、ADR 0028:46/0046:20-21。不涉资金、场所、隔离放宽、关图或 Destination。分级理由里说『无 C 类 decision 缺口』与考古不符（Q12 被标为 C decision），但按 graph-engineering.md:42，只有 research/probe 缺口才会让 T 转 P；C decision 依 :56 只需列为待决并附推荐答案，草稿也是这样做的。所以这处表述误差不改变 T 类结论。\"},\n\"R8\":{\"verdict\":\"PASS\",\"basis\":\"复跑考古查询，结果与表述一致。rg InvalidDomain 命中 10；分目录系列命中 0；测量域命中 1（ADR 0044:27，与本题无关，计数相符）；decision-claimer.mts:36 为 DEFAULT_MAPS=[1323,1340]，:1486-1489 有 grilling、无 assignee、无 blocker 三道过滤；tracker \\\"InvalidDomain\\\" 命中 6 张票（含 #1818、#1769、#1538）；Q2 的 admission_provider.rs:216-254、Q3/Q12 的 admission_anchor.rs:1327-1342、Q4 的 writer_cli.rs:357-359/session_transport.rs:634-635、Q9 的夹具布局都已核实。针对 Q1/Q2 换说法复搜：仓内 rg『同一目录|同目录|库目录|父目录』，命中只有与布局无关的 ADR 引文；tracker 搜 \\\"同目录\\\" 只出现 #1781（本票后续）以及几张无关票，没有更早或相冲突的布局先例。草稿处置也合规：A 类（Q6、Q7）直接沿用，没有列为待决；B 类都写成默认值并附出处，交确认或否决；唯一的 C decision（Q12）列为真正待决，附推荐答案和推导；考古对照表 Q1-Q12 一个不漏；没有 research/probe 缺口被交给用户；本票不是 P 类，也不涉数值。草稿还订正了考古里的几处误差：6267636964 是被取代的草稿，改引 ADR 0046；runbook 行号 :58 改为 :59；FU-16 措辞过期。小瑕疵：受影响票段写『考古各点都是 A/B 类或代码事实』，与自己把 Q12 归为 C decision 有出入，但同句已限定为『没有事实缺口』，不构成 BLOCK。\"}}\n```"
+}
