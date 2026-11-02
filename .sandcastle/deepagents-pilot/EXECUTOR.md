@@ -60,6 +60,8 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 
 退出码 75 表示这个 run 已有控制进程。控制进程被杀后直接重跑同一命令，工蜂按原键收养，已做的外部写入先读回再决定。受控故障注入用 `--crash-at`，取值为 `after_label_before_receipt`、`after_claim_before_receipt`、`after_push_before_receipt`、`after_pr_before_receipt`、`after_status_before_receipt`、`after_deliver_before_receipt`，进程在该点被 SIGKILL。
 
+明确决定撤销人工中断并继续运行时才加 `--resume`。恢复 Boat 在途工蜂时也一样：它会清除人工中断，不是只读对账选项；只查看本地事实用 `executor status`。
+
 **查看。** 只读本机，不访问 GitHub。
 
 ```sh
@@ -157,7 +159,7 @@ executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/wor
 
 队列登记先完整写入并同步临时文件，再排他发布 `units/<run>.json`。旧版本遗留的损坏单元保留原件，在状态页按票显示路径和错误，不重建或覆盖该票。没有在途工蜂的坏单元不阻挡其他票；该票仍有运行中或未知工蜂时继续占槽。
 
-状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。人工中断不会被队列自动清除，须使用显式 `executor run --resume`。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
+状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。队列子进程使用 `executor run --recheck-approval` 重读权威签批链。即使人工中断发生在队列检查之后，它也只恢复批准核验，不清除中断请求，本轮状态仍为 `awaiting_human`。CLI 中只有显式 `executor run --resume` 清除人工中断请求，再按权威签批链恢复同一 run。普通 `executor run` 不清除人工中断。Studio 的人工 Continue 入口保持不变。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
 
 launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。部署 owner 把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 全部替换为已核对的绝对路径后安装。后两个占位符分别设置 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。配置和控制端 key 文件的要求见 [Boat 受管配置](BOAT.md#受管配置)。
 

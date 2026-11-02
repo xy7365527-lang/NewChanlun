@@ -283,7 +283,9 @@ class QueueIntake:
                     requests = sorted((run_dir / 'approvals').glob('*.status.json'))
                     pending = [json.loads(p.read_text()) for p in requests]
                     waiting = [d for d in pending if d.get('status') != 'approved']
-                    if waiting:
+                    if (run_dir / 'interrupt.request').exists():
+                        phase, reason = 'awaiting_human', 'operator interrupt; executor run --resume is required'
+                    elif waiting:
                         phase, reason = 'awaiting_human', waiting[-1]
                     elif code == 75 or code < 0:
                         phase, reason = 'active', f'child exit {code}; same run resumes next round'

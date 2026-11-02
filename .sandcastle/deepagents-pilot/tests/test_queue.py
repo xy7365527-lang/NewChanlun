@@ -588,3 +588,104 @@ def test_existing_boat_worker_keeps_slot_across_skip_paths(queued, monkeypatch, 
     assert rows[TICKET + 1]['phase'] == 'queued'
     assert run.execution.load(key) == binding
     assert sorted(p.stem for p in (v2.home / 'units').glob('*.json')) == [unit.run_id]
+
+
+@pytest.mark.parametrize('interrupt_at', [None, 'child_start', 'model_setup'])
+def test_background_approval_recheck_preserves_operator_interrupt(queued, monkeypatch, interrupt_at):
+    import sqlite3
+    import subprocess
+
+    from conftest import FAKE, MODELS
+    from langchain_core.messages import AIMessage
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    from test_agent import call, scripted
+
+    from pilot1742 import agent as model_module
+    from pilot1742 import executor as cli
+    from pilot1742 import run as run_module
+
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    task = cli.load_unit(v2.home, unit.run_id)[1]
+    pilot = cli.open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS,
+                            launcher=FAKE, source_repo=v2.source)
+    v2.github.issues[SPEC]['body'] += 'changed\n'
+    v2.control({'author': {'write': {'demo/a.py': 'x = 1\n'}}})
+    connection = sqlite3.connect(pilot.dir / 'graph.sqlite', check_same_thread=False)
+    graph = model_module.build_agent(pilot, SqliteSaver(connection), scripted(
+        call('run_worker', role='author', brief='实现'), AIMessage('完')))
+    config = {'configurable': {'thread_id': unit.run_id}}
+    try:
+        graph.invoke({'messages': [('user', '开始')]}, config, durability='sync')
+        assert graph.get_state(config).tasks[0].interrupts
+        assert v2.claims() == []
+    finally:
+        pilot.release()
+        connection.close()
+    signer.publish(pilot.dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+    models_path = v2.tmp / 'pstack-models.md'
+    models_path.write_text(MODELS)
+    monkeypatch.setattr(run_module, 'PSTACK_MODELS', models_path)
+    monkeypatch.setattr(model_module, 'PSTACK_MODELS', models_path)
+    monkeypatch.setattr(cli, '__file__', str(v2.source / '.sandcastle/deepagents-pilot/pilot1742/executor.py'))
+    monkeypatch.setattr(cli, 'ClaimStore', lambda: ClaimStore(v2.claims_root))
+    monkeypatch.setattr(cli, 'SignedApprovals', lambda: v2.approvals)
+    monkeypatch.setattr(cli, '_client', lambda _: v2.gateway().client)
+    original_open = cli.open_v2_run
+    opened = []
+
+    def open_run(*args):
+        result = original_open(*args, launcher=FAKE, source_repo=v2.source)
+        opened.append(result)
+        return result
+
+    monkeypatch.setattr(cli, 'open_v2_run', open_run)
+    pending_interrupt = interrupt_at
+
+    def build_model(_model):
+        nonlocal pending_interrupt
+        if pending_interrupt == 'model_setup':
+            pilot.request_interrupt('pytest-operator')
+            pending_interrupt = None
+        return scripted(AIMessage('完'))
+
+    monkeypatch.setattr(model_module, 'build_model', build_model)
+    common = ['--state-root', str(v2.home), '--drain-root', str(cutover.drain_root)]
+    resources = ['--workers-log', str(v2.workers_log), '--private-key', str(v2.identity.private_key_path)]
+
+    def invoke(args):
+        try:
+            return cli.main(args)
+        finally:
+            while opened:
+                opened.pop().release()
+
+    original_subprocess = subprocess.run
+    children = []
+
+    def child(command, *args, **kwargs):
+        if command[1:3] != ['-m', 'pilot1742.executor']:
+            return original_subprocess(command, *args, **kwargs)
+        children.append(unit.run_id)
+        if interrupt_at == 'child_start':
+            pilot.request_interrupt('pytest-operator')
+        return subprocess.CompletedProcess(command, invoke(command[3:]))
+
+    monkeypatch.setattr(subprocess, 'run', child)
+    writes_before = v2.writes()
+    assert invoke(common + ['serve', '--once'] + resources) == 0
+    assert children == [unit.run_id]
+    if interrupt_at is not None:
+        assert pilot.interrupt_requested() is not None, 'background approval recheck erased the operator interrupt'
+        assert v2.claims() == [] and v2.writes() == writes_before
+        status = json.loads((v2.home / 'queue-status.json').read_text())[str(TICKET)]
+        assert status['phase'] == 'awaiting_human' and 'operator interrupt' in status['reason']
+        assert invoke(common + ['run', '--run-id', unit.run_id] + resources) == 0
+        assert pilot.interrupt_requested() is not None and v2.claims() == []
+        assert invoke(common + ['run', '--run-id', unit.run_id, '--resume'] + resources) == 0
+        assert pilot.interrupt_requested() is None
+    assert v2.claims() == [f'author-{v2.base}']
+    assert invoke(common + ['run', '--run-id', unit.run_id, '--resume'] + resources) == 0
+    assert v2.claims() == [f'author-{v2.base}']
+    assert v2.claim_record()['run_id'] == unit.run_id

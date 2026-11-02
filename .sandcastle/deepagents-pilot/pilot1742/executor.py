@@ -745,8 +745,11 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
     run_parser.add_argument("--private-key", type=Path, required=True)
     run_parser.add_argument("--crash-at", choices=V2_CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
-    run_parser.add_argument("--resume", action="store_true",
-                     help="停在中断处时恢复：清除操作员中断请求，按权威签批链重新判定，恢复载荷不作批准")
+    continuation = run_parser.add_mutually_exclusive_group()
+    continuation.add_argument("--resume", action="store_true",
+                     help="显式恢复：清除操作员中断请求，按权威签批链重新判定，恢复载荷不作批准")
+    continuation.add_argument("--recheck-approval", action="store_true",
+                     help="后台重核签批并恢复等待，不清除操作员中断请求")
     serve = sub.add_parser("serve", help="读取引擎放行队列，逐票运行或恢复")
     modes = serve.add_mutually_exclusive_group(required=True)
     modes.add_argument("--once", action="store_true")
@@ -853,7 +856,8 @@ def main(argv: list[str] | None = None) -> int:
                 def child(unit: WorkUnit) -> int:
                     command = [sys.executable, "-m", "pilot1742.executor", "--state-root", str(args.state_root),
                                "--drain-root", str(args.drain_root), "run", "--run-id", unit.run_id,
-                               "--workers-log", str(args.workers_log), "--private-key", str(args.private_key), "--resume"]
+                               "--workers-log", str(args.workers_log), "--private-key", str(args.private_key),
+                               "--recheck-approval"]
                     return subprocess.run(command, check=False).returncode
                 while True:
                     try:
@@ -890,7 +894,9 @@ def main(argv: list[str] | None = None) -> int:
             except Busy as error:
                 print(str(error), file=sys.stderr)
                 return EXIT_BUSY
-            return drive(pilot, recheck_approval=args.resume)
+            if args.resume:
+                pilot.clear_interrupt()
+            return drive(pilot, recheck_approval=args.resume or args.recheck_approval)
     except ApprovalRequired as required:
         print(json.dumps({"phase": "awaiting_human", "approval": decision_json(required.decision)}, ensure_ascii=False))
         return 0
