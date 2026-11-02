@@ -70,21 +70,28 @@ def container_barrier(tmp_path, monkeypatch):
     return state
 
 
-def container(source, *, name="/unlogged-author", running=True):
-    return {"id": "c" * 64, "name": name, "running": running, "mounts": [{"Source": str(source)}]}
+def container(source, *, name="/unlogged-author", running=True, writable=True):
+    return {"id": "c" * 64, "name": name, "running": running,
+            "mounts": [{"Source": str(source), "RW": writable}]}
 
 
 @pytest.mark.parametrize("operation", ["verify", "record"])
-@pytest.mark.parametrize("mount", ["root", "worktree", "alias"])
-def test_unlogged_container_blocks_cutover(container_barrier, tmp_path, operation, mount):
+@pytest.mark.parametrize("mount", ["root", "worktree", "alias", "ancestor", "ancestor-alias", "filesystem-root"])
+@pytest.mark.parametrize("writable", [True, False])
+def test_unlogged_container_blocks_cutover(container_barrier, tmp_path, operation, mount, writable):
     env = container_barrier
     source = env.legacy
     if mount == "worktree":
         source = source / ".sandcastle/worktrees/issue-1"
-    elif mount == "alias":
+    elif mount in ("alias", "ancestor-alias"):
         source = tmp_path / "alias"
-        source.symlink_to(env.legacy, target_is_directory=True)
-    env.rows = [container(source)]
+        target = env.legacy if mount == "alias" else env.legacy.parent
+        source.symlink_to(target, target_is_directory=True)
+    elif mount == "ancestor":
+        source = env.legacy.parent
+    elif mount == "filesystem-root":
+        source = env.legacy.parents[-1]
+    env.rows = [container(source, writable=writable)]
     assert env.cli(operation) != 0
     assert not env.store.path.exists()
     assert env.store.workers_log.read_text() == ""
@@ -93,9 +100,11 @@ def test_unlogged_container_blocks_cutover(container_barrier, tmp_path, operatio
 
 
 @pytest.mark.parametrize("name", ["/sandcastle-new-review", "/a9-repair1742"])
-def test_unrelated_container_name_does_not_block(container_barrier, tmp_path, name):
+@pytest.mark.parametrize("source_name", ["new-execution", "legacy-host-backup", "legacy"])
+@pytest.mark.parametrize("writable", [True, False])
+def test_unrelated_container_name_does_not_block(container_barrier, tmp_path, name, source_name, writable):
     env = container_barrier
-    env.rows = [container(tmp_path / "new-execution", name=name)]
+    env.rows = [container(tmp_path / source_name, name=name, writable=writable)]
     assert env.cli("record") == 0
     assert env.store.load().engine_head == "a" * 40
 

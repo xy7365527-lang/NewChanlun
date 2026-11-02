@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
 import tarfile
+import tempfile
 from pathlib import Path, PurePosixPath
 
 EXCLUDED = {"node_modules", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git", ".venv"}
@@ -19,6 +21,24 @@ MAX_FILE_BYTES = 32 * 1024 * 1024
 def git(repo: Path, *args: str, input: bytes | None = None) -> bytes:
     return subprocess.run(["git", "--no-replace-objects", "-C", str(repo), *args], input=input,
                           check=True, capture_output=True).stdout
+
+
+def isolated_git(repo: Path, *args: str, input: bytes | None = None) -> bytes:
+    env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TMPDIR") if key in os.environ}
+    env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0",
+               GIT_OPTIONAL_LOCKS="0")
+    return subprocess.run(["git", "--no-replace-objects", "-c", "core.hooksPath=/dev/null",
+                           "-c", "core.fsmonitor=false", "-C", str(repo), *args], env=env, input=input,
+                          check=True, capture_output=True).stdout
+
+
+def isolated_archive(repo: Path, head: str, *paths: str) -> bytes:
+    objects = isolated_git(repo, "rev-parse", "--path-format=absolute", "--git-path", "objects").decode().strip()
+    with tempfile.TemporaryDirectory(prefix="pilot1742-archive-") as temporary:
+        clean = Path(temporary)
+        isolated_git(clean, "init", "--bare", "-q", "--template=")
+        (clean / "objects/info/alternates").write_text(json.dumps(objects, ensure_ascii=False) + "\n")
+        return isolated_git(clean, "archive", "--format=tar", head, "--", *paths)
 
 
 def safe_path(raw: str) -> PurePosixPath:
@@ -75,7 +95,7 @@ def export_repository(repo: Path, head: str, destination: Path) -> None:
     if not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("源码身份需要完整SHA")
     destination.mkdir(parents=True)
-    archive = git(repo, "archive", "--format=tar", head)
+    archive = isolated_archive(repo, head)
     with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
         for member in tar.getmembers():
             path = PurePosixPath(member.name)
@@ -86,18 +106,18 @@ def export_repository(repo: Path, head: str, destination: Path) -> None:
                 if not target.resolve().is_relative_to(destination.resolve()):
                     raise ValueError("源码符号链接逃出运行包")
         tar.extractall(destination, filter="data")
-    git(destination, "init", "-q", "--template=")
-    parents = git(repo, "show", "-s", "--format=%P", head).decode().split()
-    trees = git(repo, "rev-list", "--objects", "--no-object-names", *(item + "^{tree}" for item in [head, *parents])).decode().split()
+    isolated_git(destination, "init", "-q", "--template=")
+    parents = isolated_git(repo, "show", "-s", "--format=%P", head).decode().split()
+    trees = isolated_git(repo, "rev-list", "--objects", "--no-object-names", *(item + "^{tree}" for item in [head, *parents])).decode().split()
     objects = "\n".join(dict.fromkeys([head, *parents, *trees])) + "\n"
-    pack = git(repo, "pack-objects", "--stdout", input=objects.encode())
-    git(destination, "index-pack", "--stdin", input=pack)
+    pack = isolated_git(repo, "pack-objects", "--stdout", input=objects.encode())
+    isolated_git(destination, "index-pack", "--stdin", input=pack)
     if parents:
         (destination / ".git/shallow").write_text("\n".join(parents) + "\n")
-    git(destination, "symbolic-ref", "HEAD", "refs/heads/codex/cloud-worker")
-    git(destination, "update-ref", "HEAD", head)
-    git(destination, "read-tree", head)
-    if git(destination, "rev-parse", "HEAD").decode().strip() != head:
+    isolated_git(destination, "symbolic-ref", "HEAD", "refs/heads/codex/cloud-worker")
+    isolated_git(destination, "update-ref", "HEAD", head)
+    isolated_git(destination, "read-tree", head)
+    if isolated_git(destination, "rev-parse", "HEAD").decode().strip() != head:
         raise ValueError("源码包HEAD不符")
 
 
@@ -192,11 +212,11 @@ def copy_project_skills(snapshot: Path, destination: Path, repo: Path, pstack: P
 def build_project_context(repo: Path, head: str, destination: Path, pstack: Path, models: Path) -> dict:
     destination.mkdir(parents=True)
     paths = ("AGENTS.md", "CONTEXT.md", "docs/agents", ".sandcastle/docs", ".agents/skills")
-    present = [path for path in paths if git(repo, "ls-tree", head, "--", path)]
+    present = [path for path in paths if isolated_git(repo, "ls-tree", head, "--", path)]
     snapshot = destination / "repo"
     snapshot.mkdir()
     if present:
-        archive = git(repo, "archive", "--format=tar", head, "--", *present)
+        archive = isolated_archive(repo, head, *present)
         with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
             for member in tar.getmembers():
                 path = PurePosixPath(member.name)

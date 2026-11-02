@@ -325,7 +325,7 @@ class CutoverStore:
             raise CutoverError('legacy writer still alive after frozen snapshot')
         legacy_root = LEGACY_HOST_REPO.resolve()
         if any(container.running and any(source == legacy_root or legacy_root in source.parents
-                                         for source in container.mount_sources)
+                                         or source in legacy_root.parents for source in container.mount_sources)
                for container in container_inventory()):
             raise CutoverError('legacy worker container still present')
         try:
