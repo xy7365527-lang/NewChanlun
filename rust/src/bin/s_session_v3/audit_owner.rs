@@ -52,6 +52,30 @@ fn cold_failure(error: native::Failure) -> String {
     }
 }
 
+// #1481：16 KiB 读缓冲只在哈希阶段存活，不与后续冷折叠/生成调用链共帧。
+#[cfg(all(feature = "s_incremental", unix))]
+fn cold_binary_commit(
+    deadline: Option<std::time::Instant>,
+    admission: &super::admission::WriterScope,
+) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut executable =
+        std::fs::File::open(std::env::current_exe().map_err(invalid)?).map_err(invalid)?;
+    let mut hash = Sha256::new();
+    let mut block = [0_u8; 16384];
+    loop {
+        history::check_deadline(deadline)?;
+        super::audit_budget::Budget::precheck(admission).map_err(invalid)?;
+        let n = executable.read(&mut block).map_err(invalid)?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&block[..n]);
+    }
+    Ok(format!("sha256:{:x}", hash.finalize()))
+}
+
 #[cfg(all(test, feature = "s_incremental", unix))]
 thread_local! {
     static COLD_AFTER_CERTIFICATION: Cell<Option<fn(&Path) -> Result<(), String>>> = const { Cell::new(None) };
@@ -484,8 +508,6 @@ impl AuditConnection {
         max_store_bytes: u64,
         admission: &super::admission::WriterScope,
     ) -> Result<(Self, std::time::Duration), String> {
-        use sha2::{Digest, Sha256};
-        use std::io::Read;
         use std::os::unix::fs::MetadataExt;
         let started = std::time::Instant::now();
         history::check_deadline(deadline)?;
@@ -498,20 +520,7 @@ impl AuditConnection {
         let canonical = db.canonicalize().map_err(invalid)?;
         let meta = std::fs::metadata(&canonical).map_err(invalid)?;
         let content_identity = format!("{}:{}:{}", canonical.display(), meta.dev(), meta.ino());
-        let mut executable =
-            std::fs::File::open(std::env::current_exe().map_err(invalid)?).map_err(invalid)?;
-        let mut hash = Sha256::new();
-        let mut block = [0_u8; 16384];
-        loop {
-            history::check_deadline(deadline)?;
-            super::audit_budget::Budget::precheck(admission).map_err(invalid)?;
-            let n = executable.read(&mut block).map_err(invalid)?;
-            if n == 0 {
-                break;
-            }
-            hash.update(&block[..n]);
-        }
-        let binary_commit = format!("sha256:{:x}", hash.finalize());
+        let binary_commit = cold_binary_commit(deadline, admission)?;
         let mut path = canonical.as_os_str().to_os_string();
         path.push(".audit-ledger.sqlite");
         let path = std::path::PathBuf::from(path);
@@ -536,6 +545,9 @@ impl AuditConnection {
             .ok_or_else(|| invalid("冷准入缺父账"))?;
         let mut cold_runtime = runtime.cold_audit_runtime();
         // 私有连接完整折叠、捕获 SQL/Q；返回值在 rollback/close/撤销 VFS/结预留/期限全部通过后才可见。
+        // #1481：载荷只借用写入外槽；FD/VFS 收尾链只返回 ()，避免 debug 复制冷状态。
+        let mut candidate_out = None;
+        let mut construction_out = None;
         let cold = admission.certify_cold(|tx, budget| {
             let rule =
                 meta_get_opt(tx, "rule_revision")?.ok_or_else(|| invalid("缺rule_revision"))?;
@@ -549,20 +561,21 @@ impl AuditConnection {
                 },
                 max_store_bytes.min(64 * 1024 * 1024 * 1024),
             )?;
-            parent
+            let result = parent
                 .codec_work()
                 .map_err(cold_failure)?
                 .run(|work| {
-                    let (mut audited, source) =
-                        state::HistoricalCertificate::cold_for_request_rebuilding(
-                            tx,
-                            deadline,
-                            work,
-                            context,
-                            &mut ledger,
-                            &parent,
-                            budget,
-                        )?;
+                    let mut source = None;
+                    let mut audited = state::HistoricalCertificate::cold_for_request_rebuilding(
+                        tx,
+                        deadline,
+                        work,
+                        context,
+                        &mut ledger,
+                        &parent,
+                        budget,
+                        &mut source,
+                    )?;
                     cold_runtime.install_audit_ledger(ledger)?;
                     audited.install_cold_qualification(
                         state::QualifiedSource {
@@ -619,10 +632,10 @@ impl AuditConnection {
                         .with_audit_gate(Some(budget), deadline)
                         .with_native_scope(Some(work))
                         .map_err(invalid)?;
-                    let construction = construction_state::CommittedRawState::cold_seed(
+                    construction_state::CommittedRawState::cold_seed(
                         candidate.audited.raw.view(),
                         prefix,
-                        source,
+                        &mut source,
                         &mut store,
                         candidate
                             .audited
@@ -631,13 +644,14 @@ impl AuditConnection {
                             .map(|c| c.roots.generated_state.view()),
                         &parent,
                         epoch,
+                        &mut construction_out,
                     )?;
-                    cold_runtime.seed_cold_generation(
+                    let seeded = cold_runtime.seed_cold_generation(
                         tx,
                         &canonical,
                         &mut store,
                         candidate.audited.raw.view(),
-                        &construction,
+                        construction_out.as_ref().expect("cold_seed成功后必有载荷"),
                         candidate
                             .audited
                             .cuts
@@ -645,23 +659,37 @@ impl AuditConnection {
                             .map(|c| c.roots.generated_state.view()),
                         deadline,
                         budget,
-                    )?;
+                    );
+                    if let Err(error) = seeded {
+                        // #1481：与原局部 construction 相同，在只读业务返回错误前退还许可。
+                        construction_out = None;
+                        return Err(error);
+                    }
                     drop(store);
-                    Ok((candidate, construction))
+                    candidate_out = Some(candidate);
+                    Ok(())
                 })
                 .map_err(
                     |error: newchan_rust::s_content::capture_allocation::scratch::WorkError<
                         String,
                     >| { cold_failure(native::Failure::from(error)) },
-                )
-        });
-        let (candidate, construction) = match cold {
-            Ok(cold) => cold,
-            Err(error) => {
-                drop(context.take());
-                return Err(error);
+                );
+            if result.is_err() {
+                // #1481：run 的父账后验失败同样在业务返回前析构原 tuple 的两份载荷。
+                candidate_out = None;
+                construction_out = None;
             }
-        };
+            result
+        });
+        if let Err(error) = cold {
+            drop(candidate_out);
+            drop(construction_out);
+            drop(context.take());
+            return Err(error);
+        }
+        // 只有原认证门及 rollback/close/撤销 VFS/结账/期限全部成功，才消费外槽。
+        let candidate = candidate_out.expect("冷认证成功后必有完整候选");
+        let construction = construction_out.expect("冷认证成功后必有构造载荷");
         let (cold_generation_binding, cold_generation_prefix) = construction.generation_binding();
         // 至此源库只经过只读 FD；完整认证失败不可能触发 open_db 的 WAL设置或 #1602迁移。
         #[cfg(test)]
@@ -730,7 +758,7 @@ impl AuditConnection {
             return Err(invalid("冷生成缓存与实际owner前沿不符"));
         }
         runtime.adopt_cold_audit_runtime(
-            cold_runtime,
+            &mut cold_runtime,
             cold_generation_binding,
             actual_binding,
             actual_prefix,

@@ -1321,6 +1321,102 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
     }
 }
 
+// #1481：来源状态移动与收据/台账闭合分帧，避免 debug 下二者的大局部量叠栈。
+#[cfg(feature = "s_incremental")]
+impl ColdHistoricalSourceFold<'_, '_, '_> {
+    fn advance_cold_sources(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+    ) -> Result<
+        (
+            source_audit::Counts,
+            source_audit::source_receipt::source_facts::SourceExports,
+        ),
+        String,
+    > {
+        let (_, parent) = self.ledger.as_ref().expect("冷来源步必须持台账");
+        let prefix = cut.metadata.input_frontier as usize + 1;
+        let raw = self.sources.raw.prefix(prefix)?;
+        let edits = self.cold_raw.advance_admitted(prefix, store)?;
+        let previous_ref = self.cold_root.as_ref().map(sc::Built::content_ref);
+        let mut material = super::audit_owner::cold_source::ColdSource::new(
+            store,
+            parent,
+            previous_ref.as_ref().map(Into::into),
+            cut.roots.generated_state.view(),
+            self.cold_source.as_ref(),
+        )?;
+        let input = source_audit::SourceRaw {
+            raw,
+            previous_prefix: (self.sources.previous + 1) as usize,
+            winner_edits: &edits.winner_edits,
+        };
+        let (counts, source, exports) = source_audit::audit_source_step(
+            self.cold_source.take(),
+            &mut material,
+            &input,
+            cut.metadata.profile_id.as_str(),
+            cut.metadata.rule_revision.as_str(),
+            true,
+        )?;
+        drop(material);
+        self.cold_source = Some(source);
+        self.cold_root = Some(sc::Built {
+            digest: cut.roots.generated_state.digest().map_err(err)?,
+            kind: cut.roots.generated_state.kind(),
+            extent: cut.roots.generated_state.extent(),
+        });
+        Ok((counts, exports))
+    }
+
+    fn commit_cold_sources(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        auxiliary: &aux_index::Index,
+        counts: source_audit::Counts,
+        exports: source_audit::source_receipt::source_facts::SourceExports,
+    ) -> Result<(), String> {
+        let (ledger, _) = self.ledger.as_mut().expect("冷收据必须持台账");
+        let raw = self
+            .sources
+            .raw
+            .prefix(cut.metadata.input_frontier as usize + 1)?;
+        let token = cut.batch_id.as_str();
+        let mut receipt = source_audit::source_receipt::receipt_from_cold_step(
+            store,
+            token,
+            cut.metadata.view(),
+            cut.roots.generated_state.view(),
+            raw,
+            (self.sources.previous + 1) as usize,
+            counts,
+            exports,
+            self.sources.deadline,
+        )?;
+        receipt.export_history_business(store, objects, auxiliary)?;
+        let delta =
+            super::audit_ledger::QueuedFacts::from_receipt_view(&receipt, cut.metadata.view())?
+                .bind_view(cut.metadata.view(), cut.roots.view())?;
+        let verified = sc::closure_delta::verify_four_roots(
+            store,
+            [
+                cut.metadata.scope.view(),
+                cut.roots.generated_state.view(),
+                cut.roots.publication_template.view(),
+                cut.roots.delta_template.view(),
+            ],
+        )
+        .map_err(err)?;
+        ledger.stage_verified(token, &delta, &verified, store.native_work_scope(), None)?;
+        ledger.bind_view(token, cut.metadata.view(), cut.roots.view())?;
+        ledger.content_committed()?;
+        Ok(())
+    }
+}
+
 #[cfg(feature = "s_incremental")]
 impl history::CutSourceVerifier for ColdHistoricalSourceFold<'_, '_, '_> {
     fn verify(
@@ -1332,70 +1428,14 @@ impl history::CutSourceVerifier for ColdHistoricalSourceFold<'_, '_, '_> {
         auxiliary: &aux_index::Index,
     ) -> Result<(), String> {
         self.sources.require_next_cut(cut)?;
-        let mut cold_counts = None;
-        if let Some((ledger, parent)) = self.ledger.as_mut() {
-            let prefix = cut.metadata.input_frontier as usize + 1;
-            let raw = self.sources.raw.prefix(prefix)?;
-            let edits = self.cold_raw.advance_admitted(prefix, store)?;
-            let previous_ref = self.cold_root.as_ref().map(sc::Built::content_ref);
-            let mut material = super::audit_owner::cold_source::ColdSource::new(
-                store,
-                parent,
-                previous_ref.as_ref().map(Into::into),
-                cut.roots.generated_state.view(),
-                self.cold_source.as_ref(),
-            )?;
-            let input = source_audit::SourceRaw {
-                raw,
-                previous_prefix: (self.sources.previous + 1) as usize,
-                winner_edits: &edits.winner_edits,
-            };
-            let (counts, source, exports) = source_audit::audit_source_step(
-                self.cold_source.take(),
-                &mut material,
-                &input,
-                cut.metadata.profile_id.as_str(),
-                cut.metadata.rule_revision.as_str(),
-                true,
-            )?;
-            drop(material);
-            self.cold_source = Some(source);
-            self.cold_root = Some(sc::Built {
-                digest: cut.roots.generated_state.digest().map_err(err)?,
-                kind: cut.roots.generated_state.kind(),
-                extent: cut.roots.generated_state.extent(),
-            });
-            cold_counts = Some(counts.clone());
-            let token = cut.batch_id.as_str();
-            let mut receipt = source_audit::source_receipt::receipt_from_cold_step(
-                store,
-                token,
-                cut.metadata.view(),
-                cut.roots.generated_state.view(),
-                raw,
-                (self.sources.previous + 1) as usize,
-                counts,
-                exports,
-                self.sources.deadline,
-            )?;
-            receipt.export_history_business(store, objects, auxiliary)?;
-            let delta =
-                super::audit_ledger::QueuedFacts::from_receipt_view(&receipt, cut.metadata.view())?
-                    .bind_view(cut.metadata.view(), cut.roots.view())?;
-            let verified = sc::closure_delta::verify_four_roots(
-                store,
-                [
-                    cut.metadata.scope.view(),
-                    cut.roots.generated_state.view(),
-                    cut.roots.publication_template.view(),
-                    cut.roots.delta_template.view(),
-                ],
-            )
-            .map_err(err)?;
-            ledger.stage_verified(token, &delta, &verified, store.native_work_scope(), None)?;
-            ledger.bind_view(token, cut.metadata.view(), cut.roots.view())?;
-            ledger.content_committed()?;
-        }
+        let cold_counts = if self.ledger.is_some() {
+            let (counts, exports) = self.advance_cold_sources(cut, store)?;
+            let cold_counts = counts.clone();
+            self.commit_cold_sources(cut, store, objects, auxiliary, counts, exports)?;
+            Some(cold_counts)
+        } else {
+            None
+        };
         self.sources
             .verify_sources(cut, store, objects, sweep, cold_counts)
     }
@@ -1814,19 +1854,18 @@ impl HistoricalCertificate {
         ledger: &mut super::audit_ledger::Ledger,
         parent: &super::audit_owner::native::Budget,
         admission: &dyn audit_budget::Budget,
-    ) -> Result<(AuditedState, Option<source_audit::NativeSourceState>), String> {
-        let mut source = None;
-        let audited = Self::cold_for_request_inner(
+        source_out: &mut Option<source_audit::NativeSourceState>,
+    ) -> Result<AuditedState, String> {
+        Self::cold_for_request_inner(
             tx,
             deadline,
             work,
             context,
             None,
             Some((ledger, parent)),
-            Some(&mut source),
+            Some(source_out),
             Some(admission),
-        )?;
-        Ok((audited, source))
+        )
     }
 
     fn cold_for_request_inner(
@@ -1967,7 +2006,7 @@ impl HistoricalCertificate {
             .take()
             .map(source_audit::NativeSourceAudit::into_raw_facts);
         if let Some(out) = source_out {
-            *out = cold_sources.cold_source.take();
+            std::mem::swap(out, &mut cold_sources.cold_source);
         }
         drop(cold_sources);
         drop(sources);

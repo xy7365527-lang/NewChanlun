@@ -415,6 +415,16 @@ fn audit_legacy_serve_prefix(
     })
 }
 
+// #1481：完整审计结果只在本分支独立栈帧内析构；H1 schema 前缀不背负其 debug 返回槽。
+fn audit_complete_prefix(
+    tx: &rusqlite::Transaction<'_>,
+    account: &dyn Budget,
+    deadline: std::time::Instant,
+) -> Result<(), String> {
+    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
+    Ok(())
+}
+
 /// #1527 N1：业务审计核只借调用者事务；不另开事务、不提交、不撤下回调。
 /// D1 与 N1 使用同一分派和首错顺序；旧域缺费用适配仍拒绝签发准入。
 pub(super) fn audit_core(
@@ -443,7 +453,7 @@ pub(super) fn audit_core(
                 ) {
                     // #1481：Ordinary 诊断臂保持完整审计先于 open_db 迁移；
                     // #1527 N1 独立组件保持完整审计计费合同；H1 Native 前缀不借其兜底。
-                    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
+                    audit_complete_prefix(tx, account, deadline)?;
                 } else {
                     let work = match prefix {
                         RejectionPrefix::NativeStartup { work, .. } => *work,
@@ -477,7 +487,7 @@ pub(super) fn audit_core(
                     }
                 }
                 _ => {
-                    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
+                    audit_complete_prefix(tx, account, deadline)?;
                 }
             }
             match prefix {

@@ -308,12 +308,13 @@ impl CommittedRawState {
     pub(super) fn cold_seed(
         raw: RawEventsView<'_>,
         prefix: usize,
-        mut source: Option<super::super::source_audit::NativeSourceState>,
+        source: &mut Option<super::super::source_audit::NativeSourceState>,
         admission: &mut (impl super::super::audit_store::CodecRead + ?Sized),
         root: Option<sc::RefView<'_>>,
         parent: &super::native::Budget,
         writer_epoch: Option<i64>,
-    ) -> Result<ColdRawState, String> {
+        output: &mut Option<ColdRawState>,
+    ) -> Result<(), String> {
         let seal = SnapshotSeal {
             life: 0,
             transaction_id: 0,
@@ -348,18 +349,19 @@ impl CommittedRawState {
         let stamp = parent
             .handoff_stamp()
             .map_err(|_| stale("冷状态块缺父账戳"))?;
-        Ok(ColdRawState(Self {
+        *output = Some(ColdRawState(Self {
             seal,
             binding,
             facts,
             writer_epoch,
             set,
             retained,
-            source,
+            source: source.take(),
             source_bytes,
             fee: Some(fee),
             parent: Some(stamp),
-        }))
+        }));
+        Ok(())
     }
     #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn source_work(&self) -> Option<super::super::source_audit::SourceWork> {

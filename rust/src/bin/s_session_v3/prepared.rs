@@ -293,21 +293,34 @@ impl Runtime {
             &binding[3],
             &binding[6],
         );
-        let mut generator = GenerationRuntime::with_config(
+        self.initialize_cold_generator(lane_key, &binding);
+        let seeded = self
+            .generator
+            .as_mut()
+            .expect("冷生成器已初始化")
+            .seed_cold(store, raw, cold, root, deadline, budget);
+        if let Err(error) = seeded {
+            // #1481：与原局部生成器失败时析构一致，不在 fresh Runtime 留下半成品。
+            self.generator = None;
+            return Err(error);
+        }
+        self.binding = Some(binding);
+        Ok(())
+    }
+    // #1481：数 KiB 生成器构造返回槽与 seed_cold 的 codec 调用链分帧。
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn initialize_cold_generator(&mut self, lane_key: String, binding: &[String]) {
+        self.generator = Some(GenerationRuntime::with_config(
             lane_key,
             &binding[3],
             &binding[5],
             self.theta_config.clone(),
-        );
-        generator.seed_cold(store, raw, cold, root, deadline, budget)?;
-        self.binding = Some(binding);
-        self.generator = Some(generator);
-        Ok(())
+        ));
     }
     #[cfg(all(feature = "s_incremental", unix))]
     pub(super) fn adopt_cold_audit_runtime(
         &mut self,
-        mut cold: Self,
+        cold: &mut Self,
         old: super::audit_owner::RawAdvanceBinding,
         current: super::audit_owner::RawAdvanceBinding,
         prefix: usize,

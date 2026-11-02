@@ -950,3 +950,253 @@ BSP 的精确语义核对：`content_producer.rs:3404` 的 `raw_bar_at` 返回 `
 
 - `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
 - `rust/src/bin/s_session_v3/driver.rs`
+
+
+## S1J
+
+> 状态：ready，交主控封包取 debug CI。基线为 `sandcastle/issue-1481` / `7a170a103387ce2217cc9d7495e12b2d046b802a`，开工工作区干净。本节记录源码返修与静态检查；**Rust 未验证，待 CI**。实际机器帧尺寸、撞 guard 的指令和修复后具名测试结果均未在本机测得。
+
+### 原始日志与证据边界
+
+已读 S1D 提示及其引用的 S1/S1B/S1C 范围、禁止项、43K 简报与 44G BLOCK，S1E–S1I 提示，以及本报告 S1D–S1I，特别是 S1G 的在线/冷帧隔离。本轮沿 #1481 已有实施授权，不另开票。下面日志位置均为 `/Volumes/AgentStorage/h1-recover45c/ci-41360454221/125009585993.log` 原件物理行；源码除标记“基线”外均为最终工作区，相对 `rust/src/bin/`。
+
+- run `41360454221`，job `125009585993`；任务给定精确 head `fb06cf4d`，当前 S1I 基线仅增加 recover 的 cfg，不改变本条冷链。
+- `:470–471`：`run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly`。`rust/Cargo.toml:87` 的 testonly feature 隐含 `s_incremental`，后者隐含 `s_session`。
+- `:890/893`：`Finished test profile [unoptimized + debuginfo]`；`:896` 为 `running 535 tests`。这是 debug 运行，不是 history36h 的 release 收据。
+- `:1183`：`h1_admission_cold_negative_classes_match_full_oracle ... ok`。任务所写前一成功测试位置近似为 :1191；原件实际在 :1183，:1184–1190 是 telemetry，:1191 为空。
+- `:1192–1193`：`thread 'v3::audit_owner::construction_tests::h1_admission_cold_handoff_foreign_sqlite_commit_rejects' (4195) has overflowed its stack`；`fatal runtime error: stack overflow, aborting`。
+- `:1197`：同一个 `target/debug/deps/s_structure_session-ffdf887457b646bf --exact ...` 进程 SIGABRT，包含下列 110 个关注测试。命令没有 `--test-threads 1`，不能把“同进程”写成“单线程”。
+
+原日志没有冷认证内部逐步骤栈回溯，故不能指定溢出发生于某一条机器指令、断言外写 hook 已执行或编造 `size_of` 读数。下面按 S1G 方法，以新增调用边、类型外壳和 debug 返回槽证明固定栈负担；任务给定的 release 通过只用作对照，不能替代修复后的 debug 验证。
+
+### 根因：真实冷链多层携带大值，叠加冷专用局部槽
+
+故障测试 `s_session_v3/audit_owner/admission_tests.rs:333` 先用 `h1_admission_seed_three` 写三代，再在 `:377` 经正式 Driver 冷开；成功认证后才会运行外连接 COMMIT hook。其生产调用链为：
+
+1. `s_session_v3/driver.rs:520/568` → `audit_owner.rs:502 open_rebuilt_history`。外层持临时冷 Runtime、候选和 ColdRawState，基线 `audit_owner.rs:504` 还把 `[u8;16384]` 哈希缓冲放在这个长寿命 debug 帧。
+2. `audit_owner.rs:551` → `admission.rs:193 WriterScope::certify_cold<T>` → `admission_private/mod.rs:628 certify_cold<T>` → `:672 read_session<T>`。基线业务闭包返回 **`(CompleteCandidate, ColdRawState)`**，所以包装层的 `Result<T,String>`、`Option<T>`、`Result<(T,DeltaShape),String>` 以及 `map`/`and_then`/闭包移动槽都必须能容纳同一大载荷；值尚未实际返回并不能使 debug 帧的类型槽变小。`Work::run` 当时也携带同一个 tuple。
+3. 冷认证在原私有 FD/VFS 事务中，经 `state.rs:1849 cold_for_request_rebuilding` → `:1871 cold_for_request_inner` → `:1920 cold_captured` → `history::fold_certified_history` → 冷 `CutSourceVerifier::verify`。基线 rebuilding 另按值返回 `(AuditedState, Option<NativeSourceState>)`，基线 `construction_state.rs:308 cold_seed` 又按值接 source、返回 ColdRawState，两段都增加同型槽。
+4. 冷 fold 经 `state.rs:1327 advance_cold_sources` 调在线同一个 `source_contributions.rs:1975 audit_source_step`。基线冷 verify 将 source/tuple、RawReceipt、台账 delta、四根闭包校验结果全部放在同一个函数体；来源步的深层 codec 运行时也背负后面阶段尚未执行的槽。S1G 只把这段从**在线** HistoricalSourceFold 拆走，没有缩小真实**冷** fold 的帧。
+5. 后续 `audit_owner.rs:635` → `CommittedRawState::cold_seed`，`:649` → `prepared.rs:258 seed_cold_generation` → `generation.rs:467 seed_cold` → `s_fact_cache.rs:401 DeltaLane::cold_seed`、`content_producer.rs:1633 seed_cold_delta`、`content_bi.rs:1133 seed_cold_delta`。基线 prepared 的局部 generator 构造与 seed 深链共帧，adopt 又按值接整份 Runtime，均是同类固定外壳叠加。
+
+尺寸模型沿 S1G 的 64 位常见布局，未运行 Rust：
+
+| 载荷 | 源码与估算 |
+|---|---|
+| `NativeSourceState` | `source_contributions.rs:493–543` 实数为 **23 Map、11 Tree、3 Order**。按 Map/Tree≈136 B、Order≈160 B，单容器壳小计 `(23+11)×136+3×160=5104 B`；加 Built、binding、TextValue、4 个 Option<SequenceRef>、标量与 SourceWork，约 **5672 B**。Python 已从最终源码重新计数。 |
+| `ColdRawState` | `construction_state.rs:222/259` 包装 CommittedRawState，内嵌上述可选来源态以及 RawPrefixFacts、约152 B 的 CommittedSet、seal/许可/父账戳，约 **6–7 KiB**。`None` 仍须容纳完整变体；原认证 tuple 还另带 CompleteCandidate，绝非几个指针。 |
+| `SourceExports` / 收据 | `source_facts.rs:33` 的 3 个 CodecVec 加 usize，按 CodecVec≈96 B 为 **296 B**；`source_receipt.rs:17` 的 RawReceipt 另有 rows、BusinessRows、NativeValue 与 metadata 壳。vector 内容在堆上，不按历史条数计入栈；仍应与5.7 KiB来源状态的移动槽分帧。 |
+| Runtime / generator | `generation.rs:354` 的 GenerationRuntime 约3–4 KiB，`prepared.rs:120` 的 Runtime 约4–5 KiB；auxiliary 另含8份 SequenceMemo。`fixed_radix.rs:197` 只内嵌 root/len/Ownership，`:57` 的 Block 是指针及许可，**不把 radix 树堆节点误算为内联数组**。此估算是数量级，不是 ABI 测量。 |
+| 哈希缓冲 | `[u8;16384]` 精确 **16 KiB**，原来与冷认证/生成 seed 共帧，修后只在短哈希调用内存活。 |
+
+不能把上表简单相加成“实测总栈”：编译器是否合并移动槽、各槽是否共享空间，须由 CI/反汇编验证。但大载荷在多层泛型函数和冷阶段帧中按值传播的结构是可由源码直接证实的本分支新增负担。
+
+无界递归假说不成立于新增冷链：逐 cut/逐 raw/逐赢家均为循环；新增 seed、rebind、认证门面和来源适配器没有自调用或互调环。`ColdSource`/在线 SourceMaterial 的 trait 转发显式落到固有读取方法，没有递归重入 Driver 或冷认证。codec/sequence/radix/AVL 原有树遍历深度受结构高度约束，本轮未改。这里修的是**有界调用链固定大帧**，不是把三代历史解释成无界递归。
+
+### 修法与收尾合同
+
+| 最终文件:行 | 修改与保留的合同 |
+|---|---|
+| `audit_owner.rs:57/521` | 将可执行文件哈希移到 `cold_binary_commit`，原每次 read 前的 deadline、原准入预算 precheck、16 KiB分块与SHA-256配方不变；哈希返回后缓冲帧已退出。 |
+| `audit_owner.rs:549–550/670/684–692` | candidate/construction 留在借用的外槽，业务闭包及 `codec_work.run` 返回 `()`；因此 certify_cold/read_session 实例 **T=()**。原 FD/VFS 包装源码完全未动；仅全部 rollback、close、registration、reconcile、期限、源连续性门成功后才取槽并走正式开库。失败先丢两槽，再清 context。没有提前公开载荷。 |
+| `state.rs:1849/2009` | rebuilding 以借用 source_out 移交来源态，取消携带来源态的返回 tuple；cold_captured 用 swap 移交给唯一传入空槽的调用者，减少 take/赋值移动槽。raw facts 先提取、cold source 后移交的 S1G 次序保留。 |
+| `construction_state.rs:308/349` | cold_seed 借用来源态、写入借用 output，返回 `()`，成功末端才 take 来源。原 `size_of::<Self>()` 许可仍对同一个未改类型计费；fresh/binding、已发布F、来源/根配对、Set与父账戳判据不变。 |
+| `audit_owner.rs:649/663–667` | cold generation seed 失败在业务闭包内清 construction 槽，按原局部变量失败路径及时退许可，不额外保活到只读收尾。candidate 只在全部业务成功末端写槽。 |
+| `audit_owner.rs:565/677–682` | `CodecWork::run` 还可能在业务成功后因scope/parent健康后验拒绝，见 `rust/src/s_content/capture_allocation/scratch.rs:428–450`。将run结果存为小型Result，任何Err均在业务operation返回前按candidate→construction清槽，保持原tuple在run失败时的析构时机；不把大tuple重新带回返回链。 |
+| `state.rs:1327/1373/1421` | 冷 verify 拆为顺序的来源推进及收据/台账闭合，返回 verify 的只是 counts/小型 exports；来源大槽不再与后半段大局部共帧。顺序仍为代号门→同核来源Δ→receipt/business→四根闭包→stage/bind/台账commit→共同来源核→期限/前沿更新。在线 HistoricalSourceFold 的字段及实现不变，共同 audit_source_step 不变。 |
+| `prepared.rs:258/312/321`、`audit_owner.rs:760` | generator 构造槽放独立初始化函数；seed只借用临时 cold Runtime 内的生成器，失败清None，成功后才装binding。adopt借用 cold Runtime，仍先严格rebind，再 take 台账/binding/generator；不用整份Runtime按值参数。临时Runtime一直独占且不逃逸。 |
+| `admission_private/mod.rs:419/456/490` | `audit_complete_prefix` 独帧丢弃完整 AuditedState，隔离共用 audit_core 里未执行分支的返回槽；增量Ordinary/NativeComponent及非增量原完整分支仍调用同一审计、同一预算。所有prefix分流、epoch/rule、旧协议审后拒绝及N1事务边界不变。 |
+
+没有 Box 或新分配/费用合同，没有测试钩子、allow/expect lint豁免、环境开关或两档判据。新增 `.expect(...)` 是唯一成功赋槽和ledger存在的内部不变量断言，不是 lint `#[expect(...)]`；调用前置在同一私有路径内建立。
+
+### native-testonly 分支核对
+
+`Cargo.toml:84/87` 使本次三feature共享同一增量冷核；`state`、冷source、prepared、generation并无一套 native-testonly 冷算法。`s_allocation.rs:153–226` 的区别是生产增量固定Native，而testonly保留环境选择；`driver.rs:219/248` 的VenueProfile/诊断fixture仅用于对应诊断入口。故障 `admission_tests.rs:450` helper **显式 CapturedNative**，不经过这些选择分支，不能把feature名当作已证实的动态根因。
+
+仅testonly编入的 `admission_tests.rs:971 h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration` 仍经过 audit_core 的完整 Ordinary 判据，先审后迁保持；它在 :1197 的15个admission测试中。相邻Native正式前缀的schema门也保持，失败不转Ordinary/组件重判。`audit_complete_prefix` 专门隔离二者共享帧上的完整结果槽，不改变选择。其余 native-only 观测/故障注入锁没有进入本条正式冷核的调用边。
+
+### S1以来新增或加大冷帧穷举
+
+以完整 `git diff 784bc6d7 HEAD -- rust/` 的32文件差异为输入，枚举冷声明、局部及其实际调用边，再加本轮5文件；未仅grep故障测试名。下表全部覆盖 test/非test 和显式三feature配置，风险结论限源码。
+
+| 文件/路径与本轮最终入口 | 栈上对象/递归与处理 |
+|---|---|
+| `admission_provider.rs` 的 measure、verify_cold_ledger_cache、`:375 release`、`:388 capture_cold_conversion`、`:459 verify_cold_content`；admission.rs `:177–225` 门面/with_cold_account | Vec、BTreeSet、固定stamp/FD/引用壳，遍历迭代，未内嵌文件字节。通用certify的T传播已由调用实例改unit；其他cold门面返回小型stamp/标量，保留。 |
+| `admission_private/mod.rs:430/628/672` audit_core/certify/read_session | 完整结果槽分帧；冷T=unit。SharedAccounting、首错记录、VFS注册/连接/回滚/关闭及原首读时钟不变。 |
+| `audit_owner.rs:502/1744/3089/3140` open、seed_rebuilt_history、候选迁移、重绑 | 修hash与认证载荷传播；seed_rebuilt接收已核载荷仍按原封闭交接一次消费。迁移/重绑用游标、Vec/ExactRows壳与逐行循环，没有额外历史内联数组；源连续性、两把IMMEDIATE锁及拒绝顺序不动。 |
+| `audit_owner/cold_source.rs:17` / `construction_set.rs:729 LazySet::cold` | LazySet含3个Option<SequenceDelta>及声明壳，约KiB量级；仅借用store和parent，按实际差分迭代。来源推进已与receipt阶段隔离，未改读取判据。 |
+| `construction_set.rs:222/235` rebind/cold；`construction_state.rs:265/308` into_owner/cold_seed | Set约152B；ColdRawState6–7KiB。大source输入及cold载荷Result输出改借用；已有实际owner状态不改变类型、不新增Box或预算，不放宽rebind。 |
+| `prepared.rs:254/258/312/321` cold_runtime/seed/初始化/adopt | 冷Runtime固定壳在冷入口持有；generator大构造与seed分帧，adopt改引用。其余Runtime构造在深层冷fold开始前已结束，无新增递归；失败恢复fresh。 |
+| `generation.rs:467/509/1613` seed/rebind/SequenceMemo::seed_cold | 只借用生成器；lane及键序列为容器壳。末代根、raw/effective序列、F、前代binding按原严格门核验；sequence遍历为原结构有界遍历。 |
+| `s_session_v2/s_fact_cache.rs:401/443` DeltaLane冷seed/rebind | lane约KiB固定壳；赢家索引和rows在堆，逐赢家append。无历史条数大小栈数组，未发现本轮需再改的新增大返回链；与generator构造槽叠加已解除。 |
+| `s_session_v2/content_producer.rs:1633/1676` seed/rebind | Vec外壳24B及RawRefSpec/摘要固定局部；逐winner恢复源缓存，非递归。没有完整NativeSourceState或Runtime按值返回，保留。 |
+| `s_session_v2/content_bi.rs:1133/1185` seed/rebind | 3×Vec外壳加2×SequenceRef，百字节量级；leaf内容在堆。用相同coord_text_leaf/source_root/sequence核恢复，循环严格升序；旧sync_delta严格门不变。 |
+| `state.rs` cold/cold_for_request/inner/captured与冷fold | 大source tuple改借用；冷verify拆两阶段，S1G在线/冷隔离保留。ledger=None组件不执行冷来源步，但类型仍是同一冷wrapper，亦经本轮薄verify。 |
+| `source_contributions.rs:1975` / `source_receipt.rs:227` / `source_facts.rs:33/174/202` 同核来源、冷收据、business导出；audit_ledger from_receipt_view/bind_view | 共同来源步按值状态的实现是原在线核，本轮不改其签名/判据；新增冷调用者已拆后续大槽。Exports约296B、BusinessRows4个CodecVec；receipt/delta壳固定，payload在堆。receipt/ledger阶段不再与来源状态移动帧并存。 |
+| `driver.rs` cold_context、retention open/recover；`s_structure_session.rs` H1开库/转换/迁移 | 小型参数、配置/Path/事务引用及固定 stamp；按正式同一冷入口认证，未另建递归路径。真正源写入仍在认证及全部只读收尾成功之后。 |
+
+另穷举差异新增固定数组：生产大数组仅旧hash的16KiB；domain `[0;6]`为48B，flag/suffix清单为常量。provider测试里的4KiB文件块是各自独立物理门测试局部，不在来源深链。原sequence/radix/AVL的栈深不是S1新增递归，本轮不重写。
+
+### 原日志 :1197 的110项精确清单与覆盖映射
+
+从原始process命令提取完整测试名并核全部唯一、全部能在Rust源码找到唯一函数定义：**69 h1、11 b2_native、30 p6，共110**。这里列的是实选集合，不能用源码中整个族的测试数代替。
+
+| 实选模块/数量 | 共同路径与本轮覆盖 |
+|---|---|
+| provider/control_lock_tests 4 | 缓存精确登记、换件/bytes/转换stamp；物理门即可拒绝，不进入冷source深链。 |
+| audit_ledger/tests 3 | 低层完整资格/分区/闭包delta，固定投影壳；无新Runtime seed。 |
+| audit_owner/construction_tests 62＝50 h1+11 b2_native+1 p6 | 其中admission文件实选15条走正式Driver冷认证/重启/交接或对应拒门；其他真实owner写入、冷重开及oracle同核，覆盖在线S1G隔离及本轮冷fold隔离。先成功写再做负例的锁也计入。 |
+| driver/tests 1、prepared/tests 16 | 真owner生成、ledger、recover/冷重建以及失败清理；经过同核来源/收据投影，正式冷路径消费本轮seed/adopt修复。 |
+| history/effective_sequence_tests 4、request_closure_tests 5、history/tests 2 | RawPrefix/请求闭包/历史cut直接路径，调用相同源容器/codec，通常不进入正式Runtime冷seed；核新增壳与有界遍历，无额外修复。 |
+| source_audit/source_receipt/tests 9 | 原始收据有效期、四根/请求替换、费用释放；核exports与导出代码，不构造正式coldRuntime。 |
+| state/h1_certificate_tests 3 | 组件直接cold_captured，ledger=None；薄冷verify及同核来源判据保持，不引入正式认证outslot。 |
+| writer_cli/tests 1 | retention资源档显式配置门，不进入来源冷fold。 |
+
+下列完整名均原样保留，测试体/断言无改动，未添加ignore或改CI过滤：
+
+```text
+v3::admission_provider::control_lock_tests::h1_ledger_cache_conversion_stamp_rejects_changed_main_or_wal_frames
+v3::admission_provider::control_lock_tests::h1_ledger_cache_discard_releases_only_cache_pins_before_rebuild
+v3::admission_provider::control_lock_tests::h1_ledger_cache_replacement_or_new_member_is_rejected_before_discard
+v3::admission_provider::control_lock_tests::h1_ledger_cache_uses_original_store_cap_before_discard
+v3::audit_ledger::tests::p6_raw_partition_cannot_reopen_or_append_to_complete_certified_ledger
+v3::audit_ledger::tests::p6_two_object_generations_commit_disjoint_closure_deltas
+v3::audit_ledger::tests::p6_verified_units_difference_keeps_mode_and_first_generation
+v3::audit_owner::construction_tests::b2_native_carry_budget_rejects_without_losing_committed_frontier
+v3::audit_owner::construction_tests::b2_native_formal_failure_rollback_and_commit_failure_revoke_all_state
+v3::audit_owner::construction_tests::b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild
+v3::audit_owner::construction_tests::b2_native_owner_restore_wrong_library_layout_rejects_in_append_owner_cut
+v3::audit_owner::construction_tests::b2_native_source_future_duplicates_preserve_earlier_actual_fault
+v3::audit_owner::construction_tests::b2_native_source_global_dependencies_match_full_oracle_and_rollback
+v3::audit_owner::construction_tests::b2_native_source_phase_errors_precede_later_bad_material
+v3::audit_owner::construction_tests::b2_native_source_unsettled_rechecks_added_nonzero_group_before_partition
+v3::audit_owner::construction_tests::b2_native_two_nonempty_formal_rounds_match_full_oracle_at_every_commit
+v3::audit_owner::construction_tests::b2_native_warm_cold_and_ordinary_match_all_rows_nodes_roots_receipts_and_counts
+v3::audit_owner::construction_tests::b2_native_warm_missing_or_stale_originals_reject_before_full_source
+v3::audit_owner::construction_tests::h1_admission_cold_handoff_foreign_sqlite_commit_rejects
+v3::audit_owner::construction_tests::h1_admission_cold_negative_classes_match_full_oracle
+v3::audit_owner::construction_tests::h1_admission_cold_prefixes_match_full_canonical
+v3::audit_owner::construction_tests::h1_admission_cold_real_wire_short_budget_rejects_before_write
+v3::audit_owner::construction_tests::h1_admission_driver_cold_preserves_original_node_record_gates
+v3::audit_owner::construction_tests::h1_admission_driver_cold_recover_rebuilds_ledger_bitwise
+v3::audit_owner::construction_tests::h1_admission_foreign_sqlite_changes_retire_writer
+v3::audit_owner::construction_tests::h1_admission_formal_accept_begin_prepare_recover_never_full_audit
+v3::audit_owner::construction_tests::h1_admission_hot_rollback_journal_rejects_before_rw_open
+v3::audit_owner::construction_tests::h1_admission_mainonly_nonwal_prepolicy_preserves_domain
+v3::audit_owner::construction_tests::h1_admission_nonwal_conversion_handoff_foreign_commit_rejects
+v3::audit_owner::construction_tests::h1_admission_normal_exit_same_database_new_process_restarts
+v3::audit_owner::construction_tests::h1_admission_online_own_commits_match_full_canonical
+v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration
+v3::audit_owner::construction_tests::h1_admission_prepolicy_bad_history_rejected_before_migration
+v3::audit_owner::construction_tests::h1_certified_commit_failure_releases_controls_before_return
+v3::audit_owner::construction_tests::h1_certified_missing_candidate_and_mode_switch_are_sticky_stale
+v3::audit_owner::construction_tests::h1_certified_online_consumes_source_receipt_and_matches_cold
+v3::audit_owner::construction_tests::h1_certified_online_without_source_receipt_rejects_without_full_fallback
+v3::audit_owner::construction_tests::h1_certified_open_empty_and_reopen_from_originals
+v3::audit_owner::construction_tests::h1_certified_open_failures_leave_no_candidate_or_write
+v3::audit_owner::construction_tests::h1_complete_canonical_empty_history_is_deterministic
+v3::audit_owner::construction_tests::h1_control_bytes_change_in_same_connection_is_stale
+v3::audit_owner::construction_tests::h1_control_observation_budget_failure_retires_without_writing
+v3::audit_owner::construction_tests::h1_control_originals_are_retained_on_the_same_parent_and_released
+v3::audit_owner::construction_tests::h1_control_parent_rebind_precedes_warm_request_observation
+v3::audit_owner::construction_tests::h1_external_checkpoint_is_not_own_effect
+v3::audit_owner::construction_tests::h1_main_identity_replacement_is_stale
+v3::audit_owner::construction_tests::h1_missing_commit_receipt_retires_after_real_commit
+v3::audit_owner::construction_tests::h1_other_connection_commit_is_sticky_stale
+v3::audit_owner::construction_tests::h1_own_checkpoint_and_wal_reset_preserve_full_history
+v3::audit_owner::construction_tests::h1_partial_checkpoint_waits_for_reader_then_resets
+v3::audit_owner::construction_tests::h1_qualified_cold_rejects_identity_rule_root_and_unit_mismatch
+v3::audit_owner::construction_tests::h1_qualified_cold_rejects_missing_partial_or_foreign_qualification
+v3::audit_owner::construction_tests::h1_qualified_ledger_commit_failure_and_external_identity_write_are_stale
+v3::audit_owner::construction_tests::h1_qualified_online_consumes_real_ledger_and_cold_rebuild_matches
+v3::audit_owner::construction_tests::h1_qualified_stage_rejects_externally_rewritten_fold_digest_or_rule_revision
+v3::audit_owner::construction_tests::h1_qualified_transition_short_budget_rejects_before_write_and_releases
+v3::audit_owner::construction_tests::h1_raw_suffix_probe_detects_linear_skip_regression
+v3::audit_owner::construction_tests::h1_real_own_accept_begin_publish_continues_same_life
+v3::audit_owner::construction_tests::h1_real_write_does_not_explain_external_main_change_before_checkpoint
+v3::audit_owner::construction_tests::h1_request_closure_real_owner_multicut_reuses_resolved_roots
+v3::audit_owner::construction_tests::h1_roots_json_matches_real_cert_roots
+v3::audit_owner::construction_tests::h1_schema_and_domain_changes_are_stale
+v3::audit_owner::construction_tests::h1_sqlite_commit_failure_does_not_advance_clamp
+v3::audit_owner::construction_tests::h1_unchanged_snapshot_survives_read_end
+v3::audit_owner::construction_tests::h1_undeclared_write_rejected_before_sql_and_commit
+v3::audit_owner::construction_tests::h1_unexplained_main_stat_is_stale
+v3::audit_owner::construction_tests::h1_wal_identity_replacement_is_stale
+v3::audit_owner::construction_tests::h1_zero_autocheckpoint_keeps_main_and_wal_round
+v3::audit_owner::construction_tests::p6_native_source_context_preserves_real_owner_multicut_contract
+v3::driver::tests::p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths
+v3::history::effective_sequence_tests::h1_effective_blocks_match_independent_array_each_cut
+v3::history::effective_sequence_tests::h1_effective_final_winner_edits_and_coordinate_swaps
+v3::history::effective_sequence_tests::h1_effective_native_parent_exact_peak_rejection_and_release
+v3::history::effective_sequence_tests::h1_effective_revision_work_tracks_height_then_append_reuses_blocks
+v3::history::request_closure_tests::h1_request_closure_native_exact_peak_reject_and_release
+v3::history::request_closure_tests::h1_request_closure_overlay_conflict_and_failure_do_not_escape_revocation
+v3::history::request_closure_tests::h1_request_closure_rechecks_all_root_fields_and_revokes_both_modes
+v3::history::request_closure_tests::h1_request_closure_shares_only_same_request_mode_and_keeps_canonical
+v3::history::request_closure_tests::h1_request_closure_template_and_readset_negatives_match_full_oracle
+v3::history::tests::h1_native_history_prefix_real_multicut_roots_and_linear_leaf_visits
+v3::history::tests::h1_owner_retained_prefix_normal_append_and_revision_matches_oracle
+v3::prepared::tests::p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild
+v3::prepared::tests::p6_complete_ledger_real_owner_records_pending_without_group
+v3::prepared::tests::p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit
+v3::prepared::tests::p6_native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime
+v3::prepared::tests::p6_production_manifest_source_receipt_consumed_without_third_assembly
+v3::prepared::tests::p6_production_manifest_source_receipt_rejects_request_substitution
+v3::prepared::tests::p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries
+v3::prepared::tests::p6_queued_units_prepare_failure_discards_facts_and_stales
+v3::prepared::tests::p6_queued_units_real_owner_commits_only_verified_complete_keys
+v3::prepared::tests::p6_raw_partition_real_owner_keeps_revisions_without_full_certificate
+v3::prepared::tests::p6_raw_partition_sidecar_commit_failure_keeps_content_and_stales
+v3::prepared::tests::p6_real_prepare_closure_probe_stages_and_rolls_back_without_certification
+v3::prepared::tests::p6_real_prepare_raw_receipt_keeps_old_revision_and_binds_request
+v3::prepared::tests::p6_source_partitions_fees_release_after_refusal_commit_and_binding_failure
+v3::prepared::tests::p6_source_partitions_real_owner_matches_originals_and_withdrawals
+v3::prepared::tests::p6_source_partitions_sidecar_commit_failure_keeps_content_and_stales
+v3::source_audit::source_receipt::tests::p6_business_source_coordinates_release_native_fees_on_success_and_refusal
+v3::source_audit::source_receipt::tests::p6_raw_partition_borrows_original_payload_and_releases_pending_parent_fees
+v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget
+v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_consumption_releases_budget
+v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_during_closure_releases_budget
+v3::source_audit::source_receipt::tests::p6_raw_receipt_fourth_root_failure_issues_no_prepared_receipt
+v3::source_audit::source_receipt::tests::p6_raw_receipt_preserves_full_event_and_only_requested_suffix
+v3::source_audit::source_receipt::tests::p6_raw_receipt_rejects_request_and_four_root_substitution
+v3::source_audit::source_receipt::tests::p6_raw_receipt_source_failure_issues_nothing
+v3::state::h1_certificate_tests::h1_cert_cold_empty_revision_winner_and_unpublished_tail
+v3::state::h1_certificate_tests::h1_cert_deadline_and_scratch_failure_release
+v3::state::h1_certificate_tests::h1_cert_rejects_control_manifest_current_sql_and_missing_original
+v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file
+```
+
+### cfg、告警、实际检查与保持项
+
+| feature档 | 非test源码核查 | test源码核查 |
+|---|---|---|
+| `s_session` | 冷helper/签名调用整体按原inc+unix门排除；audit_complete_prefix常驻且有非增量完整分支调用，不新增unused/dead_code。 | 原Ordinary完整判据及测试不动；无冷类型泄漏。 |
+| `s_session,s_incremental` | source_out/output/adopt引用的定义与唯一调用均inc+unix；冷fold两helper均inc且由verify调用。可见性未扩大；SourceExports及其模块原已有crate内可见性。 | 同一生产核，原test hook仍仅test，原test_prepare外层cfg保留。 |
+| `s_session,s_incremental,s_capture_native_testonly` | inc冷核同上；Ordinary/组件/Native仍按prefix分派。新helper不依赖testonly类型或钩子。 | native-only Ordinary先审后迁锁保留；精确110项及其原断言/故障注入门不动。 |
+
+另核rust-check实际五档：默认与backtest_bin不编入S bin；上表三档由`--all-targets`覆盖test/非test。非Unix保持冷入口原门控配对，不宣称基线整体支持非Unix。没有新增allow/expect lint豁免、未使用导入或需要泛化推断的错误转换。原WorkError<String>标注保留；外槽类型由唯一赋值和消费确定，闭包捕获为借用；seed输出后才借construction，store退出后才移candidate；run后验失败也先清槽再交只读收尾。以上仅是 **`-D warnings`风险源码穷举，不是已通过编译**。
+
+实际执行：
+
+- `rustfmt --edition 2021 --check --config skip_children=true rust/src/bin/s_session_v3/admission_private/mod.rs rust/src/bin/s_session_v3/audit_owner.rs rust/src/bin/s_session_v3/construction_state.rs rust/src/bin/s_session_v3/prepared.rs rust/src/bin/s_session_v3/state.rs`，5文件通过；skip_children仅限制隐式递归。
+- `git diff --check`，通过。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3 tests通过，原Python锁未改。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，禁串与源码一致，未改禁串表。
+- `python3 -B /private/tmp/issue1481-s1h-bsp-scan.py`，读取现行BSP原正则及WHITELIST复现原grep：hits=23、whitelist=23、stray=[]、stale=[]。静态复现，不冒充Rust测试运行。
+- 独立Python重新核NativeSourceState的23/11/3字段数，抽取原日志110实选测试及唯一源码定义；对拍原所有具名测试体、workflow/telemetry/scripts、原认证收尾实现、在线fold、共同来源步、RawCoords严格门与HEAD均未变。历史REPORT前缀逐字保留，只追加本节。
+- 非作者独立代理只读审查全部5个Rust文件，重点复核outslot失败析构/预算生涯、冷fold步骤与首错顺序、借用、cfg/告警及保持项；未发现确定阻断，独立复跑rustfmt与diff检查通过。另一只读代理独立做32文件冷帧及110项调用组排查。
+
+没有运行cargo/rustc、Rust测试、重型窗口或新CI；没有修改workflow/telemetry、设置RUST_MIN_STACK、另开大栈线程、改release、跳过或ignore。未git add/commit/push、未写Git metadata。
+
+MainOnly/非WAL合法域与旧open_db合同、热RollbackJournal写前拒绝、坏历史迁移前拒绝、外写交接拒绝、成功后正常关闭/同库新进程可重启、台账四文件精确登记/真实字节/64GiB帽、真正未知旁挂拒绝、TestOnly Ordinary先审后迁、原全部锁与CI逐名清单、E6/N1及FU16均保持。资源/3、scrub、launcher/5、Python服务控制、ADR及整票关票不在本轮范围。主控须在新精确head运行现行native debug列表，并取全部h1/b2_native/p6具名结果；现有失败锁承担真实生产调用栈回归，不另造浅层替代锁。
+
+### S1J实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v3/admission_private/mod.rs`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_session_v3/construction_state.rs`
+- `rust/src/bin/s_session_v3/prepared.rs`
+- `rust/src/bin/s_session_v3/state.rs`
