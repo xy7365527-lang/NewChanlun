@@ -6,7 +6,7 @@
  *   每票 MAIN 会话（#1742 F4，main-session.mts）：分级+考古（主控模型，判 T/P，并两路搜、逐点 A/B/C）
  *   → 宿主校验后同一会话续接起草 → 独审（与实际起草者异家族，新的无状态进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
- *   其他 BLOCK：同一 MAIN 会话一次以 Opus 5.5 升档带审查意见重做；仍 BLOCK：转 P 类。
+ *   其他 BLOCK：同一 MAIN 会话由本轮实际作者模型带审查意见重做一次；仍 BLOCK：转 P 类。
  *
  *   只有 R1 引用类 BLOCK：同一会话一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
  * 模式：默认 --dry-run，只写 /Volumes/AgentStorage/decisions/<票号>/，不写 GitHub。
@@ -333,9 +333,9 @@ export function renumberDraft(draft: string, from: string, a: AdrAllocation): st
 // ───────────────────────── 状态转移 ─────────────────────────
 
 export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error" | "skipped";
-/** 起草/审查总轮次上限（含升档重做与只改引用的修订轮）。 */
+/** 起草/审查总轮次上限（含重做与只改引用的修订轮）。 */
 export const MAX_ROUNDS = scheduler.decisionMaxRounds;
-/** 起草方式：首稿、升档重做、只改引用的修订。 */
+/** 起草方式：首稿、重做、只改引用的修订。 */
 export type DraftMode = "initial" | "redo" | "revise";
 export interface RunState {
   phase: Phase;
@@ -344,12 +344,13 @@ export interface RunState {
   drafterModel: string;
   convertedToP: boolean;
   draftMode: DraftMode;
+  /** 兼容既有状态字段：表示已用过一次重做，不表示切换模型。 */
   upgraded: boolean;
   revised: boolean;
   reviewFeedback?: string;
 }
 
-/** 首稿由 MAIN 会话当前模型写（F4）；升档重做与引用专修仍指定 Opus，在同一会话里切模型。 */
+/** 首稿由 MAIN 会话当前模型写（F4）；重做与引用专修沿用该轮实际作者模型。 */
 export function initialState(klass: Klass, drafter: string = MODEL_MAIN): RunState {
   return { phase: "draft", klass, attempt: 1, drafterModel: drafter, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
 }
@@ -365,14 +366,14 @@ export function isCitationOnlyBlock(r: Review): boolean {
 }
 
 /**
- * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮（Opus）；
- * 其他 BLOCK→一次以 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
+ * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮；
+ * 其他 BLOCK→一次重做，均沿用实际作者模型；修订与重做都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
  */
 export function nextAfterReview(s: RunState, r: Review): RunState {
   if (r.verdict === "PASS") return { ...s, phase: s.klass === "T" ? "land_t" : "shadow_p" };
   const toP: RunState = { ...s, phase: "shadow_p", convertedToP: s.convertedToP || s.klass === "T", klass: "P" };
   if (s.attempt >= MAX_ROUNDS) return toP;
-  const next = { ...s, phase: "draft" as const, attempt: s.attempt + 1, drafterModel: MODEL_OPUS, reviewFeedback: formatFeedback(r) };
+  const next = { ...s, phase: "draft" as const, attempt: s.attempt + 1, reviewFeedback: formatFeedback(r) };
   if (isCitationOnlyBlock(r) && !s.revised) return { ...next, draftMode: "revise", revised: true };
   if (!s.upgraded) return { ...next, draftMode: "redo", upgraded: true };
   return toP;
@@ -476,8 +477,8 @@ export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitc
 }
 
 /**
- * 独审模型（#1785）：默认主控模型。起草本应 Opus、因安全拦截实际由主控模型写成时，独审改用 Opus，
- * 保证该轮起草与独审不在同一家族；升档重做轮（计划即 Opus）维持原设计。
+ * 独审模型（#1785、#1742 F4）：按实际作者选择另一家族；Claude 写则 GPT 审，GPT 写则 Opus 审。
+ * 重做与引用专修也按该轮实际作者选择，不依赖计划模型。
  */
 export function reviewerModel(drafterPlanned: string, drafterUsed: string): string {
   return drafterUsed.startsWith("claude-") ? MODEL_REVIEW : MODEL_DRAFTER;
@@ -850,7 +851,7 @@ export function archaeologyAsks(a: Archaeology): string {
 
 /**
  * 分级+考古联合提示（#1742 M1）：同一模型一次调用交分级与考古。fixed 给出时本次不再分级，只交考古：
- * 已定分级的重跑（机械校验不过、升档重做、旧断点续考古）沿用该分级；"none" 用于 --archaeology-only。
+ * 已定分级的重跑（机械校验不过、重做、旧断点续考古）沿用该分级；"none" 用于 --archaeology-only。
  */
 export function triagePrompt(t: TicketContext, o: { feedback?: string; fixed?: Classification | "none" } = {}): string {
   const fixed = o.fixed;
@@ -1428,7 +1429,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     postClassify();
     let ar = tr.ar;
 
-    // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
+    // 2–3. 起草 / 独审，至多 MAX_ROUNDS 轮。分级由分级器定，起草者只能提改判建议。
     s = { ...initialState(cls.klass, main.model() ?? MODEL_MAIN), convertedToP: !!effP && cls.klass === "P" && cls.reason === effP.reason };
     let effCls: Classification = cls;
     // 运行中转 P 即落盘有效分级；classify.json 原件不动。
@@ -1543,7 +1544,8 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         summary.error = "审查输出两次均无法解析为 R1–R8 JSON（review_parse_error），未计入 BLOCK";
         break;
       }
-      s = nextAfterReview(s, review);
+      // 回执模型可能与计划不同：重做/引用专修续用实际作者，而非重新选择模型。
+      s = nextAfterReview({ ...s, drafterModel: drafterUsed }, review);
     }
     summary.klass = s.klass;
     summary.convertedToP = s.convertedToP;

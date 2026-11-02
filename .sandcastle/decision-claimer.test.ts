@@ -102,7 +102,7 @@ test("草稿七段与正本落点校验", () => {
   assert.equal(landingTarget("正本落点：docs/adr/../../etc"), null);
 });
 
-test("状态转移：PASS 落地；BLOCK 升档 Opus 重做；再 BLOCK 转 P", () => {
+test("状态转移：PASS 落地；BLOCK 同模型重做；再 BLOCK 转 P", () => {
   const passR = parseReview(fence(pass()));
   const blockR = parseReview(fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } }));
   const t = initialState("T");
@@ -113,7 +113,7 @@ test("状态转移：PASS 落地；BLOCK 升档 Opus 重做；再 BLOCK 转 P", 
   const t2 = nextAfterReview(t, blockR);
   assert.equal(t2.phase, "draft");
   assert.equal(t2.attempt, 2);
-  assert.equal(t2.drafterModel, MODEL_OPUS);
+  assert.equal(t2.drafterModel, MODEL_MAIN);
   assert.match(t2.reviewFeedback ?? "", /R3 BLOCK：验收项不可执行/);
 
   const t3 = nextAfterReview(t2, blockR);
@@ -233,14 +233,15 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   assert.ok(s.plannedWrites.some((w) => w.startsWith("分支 decision/1531")));
 });
 
-test("dry-run 两轮 BLOCK：第二稿由 Opus 起草并带审查意见，最终转 P，仍不写 GitHub", async () => {
+test("dry-run 两轮 BLOCK：第二稿由同模型带审查意见重做，最终转 P，仍不写 GitHub", async () => {
   const block = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号漂移" }, R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
   const { d, ghCalls, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, block, goodDraft, block]);
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "shadow_p");
   assert.equal(s.klass, "P");
   assert.equal(s.convertedToP, true);
-  assert.equal(modelCalls[3].model, MODEL_OPUS);
+  assert.equal(modelCalls[3].model, MODEL_MAIN);
+  assert.deepEqual(s.rounds!.map((r) => [r.drafter, r.reviewer]), [[MODEL_MAIN, MODEL_OPUS], [MODEL_MAIN, MODEL_OPUS]]);
   assert.match(modelCalls[3].prompt, /R1 BLOCK：行号漂移/);
   assert.equal(ghCalls.filter(isWrite).length, 0);
   assert.ok(existsSync(join(d.outRoot, "1531", "review.attempt1.json")));
@@ -337,7 +338,7 @@ test("审查解析：无 JSON 记 parseError，与真 BLOCK 分开", () => {
   assert.equal(real.verdict, "BLOCK");
 });
 
-test("dry-run：审查首次解析失败重试一次，仍失败记 review_parse_error 不升档", async () => {
+test("dry-run：审查首次解析失败重试一次，仍失败记 review_parse_error 不重做", async () => {
   const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, "抱歉无法完成", "还是没有"]);
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "review_parse_error");
@@ -481,23 +482,23 @@ test("isCitationOnlyBlock：只有 R1 且依据指向具体引用才算", () => 
   assert.equal(isCitationOnlyBlock(parseReview(r1Block("行号差一行"), ["授权引用"])), false);
 });
 
-test("状态转移：R1 引用 BLOCK 进修订轮，其他 BLOCK 升档，总轮次上限 3", () => {
+test("状态转移：R1 引用 BLOCK 进修订轮，其他 BLOCK 重做，总轮次上限 3", () => {
   const cite = parseReview(r1Block("x.md:12 行号差一行"));
   const other = parseReview(r3Block);
   let s = nextAfterReview(initialState("T"), cite);
-  assert.deepEqual([s.phase, s.attempt, s.draftMode, s.drafterModel], ["draft", 2, "revise", MODEL_OPUS]);
+  assert.deepEqual([s.phase, s.attempt, s.draftMode, s.drafterModel], ["draft", 2, "revise", MODEL_MAIN]);
   s = nextAfterReview(s, other);
   assert.deepEqual([s.phase, s.attempt, s.draftMode], ["draft", 3, "redo"]);
   assert.equal(nextAfterReview(s, cite).phase, "shadow_p");
   assert.equal(MAX_ROUNDS, 3);
-  // 升档后剩 R1 引用 BLOCK：第三轮修订；修订后仍 BLOCK 转 P
+  // 重做后剩 R1 引用 BLOCK：第三轮修订；修订后仍 BLOCK 转 P
   let u = nextAfterReview(initialState("T"), other);
   assert.equal(u.draftMode, "redo");
   u = nextAfterReview(u, cite);
   assert.deepEqual([u.attempt, u.draftMode], [3, "revise"]);
   const end = nextAfterReview(u, cite);
   assert.deepEqual([end.phase, end.klass, end.convertedToP], ["shadow_p", "P", true]);
-  // 修订用过后再遇 R1 引用 BLOCK 不再修订，走升档
+  // 修订用过后再遇 R1 引用 BLOCK 不再修订，走重做
   const v = nextAfterReview(nextAfterReview(initialState("T"), cite), cite);
   assert.equal(v.draftMode, "redo");
 });
@@ -508,14 +509,14 @@ test("dry-run 修订轮：只拿上一稿与引用意见，不改裁定，再审
   assert.equal(s.phase, "land_t");
   assert.equal(s.attempts, 2);
   const rev = modelCalls[3];
-  assert.equal(rev.model, MODEL_OPUS);
+  assert.equal(rev.model, MODEL_MAIN);
   assert.match(rev.prompt, /只改引用」的修订轮/);
   assert.match(rev.prompt, /===== 上一稿开始 =====/);
   assert.match(rev.prompt, /R1 BLOCK：AGENTS\.md:1 行号差一行/);
   assert.deepEqual(s.rounds!.map((r) => [r.mode, r.verdict]), [["initial", "BLOCK"], ["revise", "PASS"]]);
 });
 
-test("dry-run 三轮仍 BLOCK 转 P：首稿 R3→升档→R1 引用→修订→仍 BLOCK", async () => {
+test("dry-run 三轮仍 BLOCK 转 P：首稿 R3→重做→R1 引用→修订→仍 BLOCK", async () => {
   const cite = r1Block("x.md:3 转述多出内容");
   const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, cite, goodDraft, cite]);
   const s = await processTicket(8, d);
@@ -1002,7 +1003,7 @@ test("考古不合格：带问题重跑一次；仍不合格则问题交审查�
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.attempt1.json"), "utf8"));
   assert.equal(rv.verdict, "BLOCK");
   assert.ok(rv.problems.some((x: string) => /^考古：Q3/.test(x)));
-  assert.equal(archCalls.length, 4, "升档重做时重跑考古");
+  assert.equal(archCalls.length, 4, "重做时重跑考古");
   assert.match(archCalls[2].prompt, /上一次考古产物没过机械校验[\s\S]*Q3：C 类须列出至少两个/, "重跑首次即带上轮问题");
   assert.equal(archCalls[2].model, MODEL_MAIN, "工具步骤始终走主控模型");
   assert.notEqual(s.phase, "land_t");
@@ -1081,7 +1082,7 @@ test("考古有 research/probe 事实缺口：T 类不自动落地，转 P 起�
   assert.doesNotMatch(body.split("\n")[0], /审查仍 BLOCK/);
 });
 
-test("升档重跑考古后新出现事实缺口：T 类同样转 P，不落地", async () => {
+test("重做重跑考古后新出现事实缺口：T 类同样转 P，不落地", async () => {
   const noGap = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
   noGap.points[2].gap = "";
   const probe = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
@@ -1489,7 +1490,7 @@ test("M1 联合调用不改变独审异家族与有效 BLOCK：起草 Opus、独
   assert.equal(triageCalls(modelCalls).length, 1);
 });
 
-test("M1 转 P 不回退：先 T、起草建议转 P、升档重做考古两次解析不出 → 下一轮沿用 P，不得 land_t；classify.json 原件不改", async () => {
+test("M1 转 P 不回退：先 T、起草建议转 P、重做考古两次解析不出 → 下一轮沿用 P，不得 land_t；classify.json 原件不改", async () => {
   const badArch = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
   const { d } = fakeDeps("dry-run", []);
   const block = fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
@@ -1970,11 +1971,11 @@ test("F4：分级后同一 MAIN 会话起草、引用专修、重做；独审每
   assert.ok(id);
   const main = cli.calls.filter((c) => c.role !== "review");
   assert.deepEqual(main.map((c) => [c.role, c.model, c.session?.kind]), [
-    ["triage", MODEL_MAIN, "start"], ["draft", MODEL_MAIN, "resume"], ["draft", MODEL_OPUS, "resume"], ["draft", MODEL_OPUS, "resume"],
+    ["triage", MODEL_MAIN, "start"], ["draft", MODEL_MAIN, "resume"], ["draft", MODEL_MAIN, "resume"], ["draft", MODEL_MAIN, "resume"],
   ]);
   assert.ok(main.slice(1).every((c) => c.session?.kind === "resume" && c.session.id === id));
   assert.deepEqual(s.rounds!.map((r) => [r.mode, r.drafter, r.reviewer, r.drafterSession]), [
-    ["initial", MODEL_MAIN, MODEL_OPUS, id], ["revise", MODEL_OPUS, MODEL_MAIN, id], ["redo", MODEL_OPUS, MODEL_MAIN, id],
+    ["initial", MODEL_MAIN, MODEL_OPUS, id], ["revise", MODEL_MAIN, MODEL_OPUS, id], ["redo", MODEL_MAIN, MODEL_OPUS, id],
   ]);
   const reviews = cli.calls.filter((c) => c.role === "review");
   assert.equal(reviews.length, 3);
@@ -1989,6 +1990,29 @@ test("F4：分级后同一 MAIN 会话起草、引用专修、重做；独审每
   assert.equal(rec.sourceCommit, d.git(d.srcDir, ["rev-parse", "HEAD"]).trim());
   assert.deepEqual(rec.turns.map((t: { role: string; model: string; ref: string }) => [t.role, t.model, t.ref]), main.map((c) => [c.role, c.model, c.session!.kind]));
   assert.match(main[1].prompt, new RegExp(MAIN_CONTINUE_LINE.slice(0, 20)));
+});
+
+test("F4：重做与引用专修保留实际作者模型，不回到计划模型，独审始终异家族", async () => {
+  for (const actual of [MODEL_OPUS, "gpt-6-astra"]) {
+    for (const block of [r3Block, citeBlock]) {
+      const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, block, goodDraft, fence(pass())]);
+      const raw = d.model;
+      let drafts = 0;
+      d.model = async (c) => {
+        const r = await raw(c);
+        return c.role === "draft" && ++drafts === 1 ? { ...r, model: actual } : r;
+      };
+      const s = await processTicket(1531, d);
+      assert.equal(s.phase, "land_t", s.error ?? "");
+      const ds = modelCalls.filter((c) => c.role === "draft");
+      assert.deepEqual(ds.map((c) => c.model), [MODEL_MAIN, actual]);
+      assert.deepEqual(ds[1].session, ds[0].session, "重做续接同一 MAIN 会话");
+      const reviewer = reviewerModel(MODEL_MAIN, actual);
+      assert.deepEqual(s.rounds!.map((r) => [r.drafter, r.reviewer]), [[actual, reviewer], [actual, reviewer]]);
+      for (const r of s.rounds!) assert.notEqual(modelFamily(r.drafter), modelFamily(r.reviewer!));
+      assert.ok(modelCalls.filter((c) => c.role === "review").every((c) => c.session === undefined));
+    }
+  }
 });
 
 test("F4：并发两票各开各的会话，历史不串", async () => {
@@ -2039,6 +2063,33 @@ test("F4：起草中断后重入，同一会话续接、不重跑分级；取证
       assert.equal(second.mainSession!.sourceCommit, d.git(d.srcDir, ["rev-parse", "HEAD"]).trim());
     }
   }
+});
+
+test("F4：实际作者重做时中断，重入沿用原模型与会话，不重复分级", async () => {
+  const actual = "gpt-6-astra";
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, fence(pass())]);
+  const raw = d.model;
+  const drafts: ModelCall[] = [];
+  d.model = async (c) => {
+    if (c.role === "draft") {
+      drafts.push(c);
+      if (drafts.length === 2) throw new Error("claude 子进程超时（1800s timed out）");
+    }
+    const r = await raw(c);
+    return c.role === "draft" && drafts.length === 1 ? { ...r, model: actual } : r;
+  };
+  const first = await processTicket(1531, d);
+  assert.equal(first.phase, "error");
+  const before = JSON.parse(readFileSync(join(d.outRoot, "1531", MAIN_SESSION_FILE), "utf8"));
+  assert.equal(before.turns.at(-1).model, actual);
+  assert.deepEqual(drafts.map((c) => c.model), [MODEL_MAIN, actual]);
+  modelCalls.length = 0;
+  const second = await processTicket(1531, d);
+  assert.equal(second.phase, "land_t", second.error ?? "");
+  assert.equal(second.resumedFrom, "main_session");
+  assert.equal(second.mainSession!.sessionId, before.sessionId);
+  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["draft", actual], ["review", MODEL_OPUS]]);
+  assert.deepEqual(modelCalls[0].session, { kind: "resume", id: before.sessionId });
 });
 
 test("F4：运行中取证检出被换，拒绝在旧会话上起草；通道不回报会话身份同样拒绝", async () => {

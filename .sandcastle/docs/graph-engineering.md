@@ -41,9 +41,9 @@
 
 决定等事实（`/wayfinder` Ticket Types：research 票「surface a fact a decision waits on」）：考古有 `research`/`probe` 缺口的 T 类票转 P，不自动落地；缺口票由 `/graph-approve` 开。
 
-机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向、C 类 `decision` 缺推荐答案，都带问题重跑一次（升档重做时仍用主控模型重跑）；仍不过的问题交审查，草稿因此 BLOCK。
+机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向、C 类 `decision` 缺推荐答案，都带问题重跑一次（重做时仍用主控模型重跑）；仍不过的问题交审查，草稿因此 BLOCK。
 
-分级与考古由主控模型一次联合调用完成（#1742 M1，角色 `triage`），输出同一 JSON 里的 `class`/`reason` 与 `points`，仍分别落 `classify.json` 与 `archaeology.json`；分级判据与「拿不准一律判 P」不变。考古重跑（机械校验不过、升档重做）沿用已得分级，不再分级。上次已分级而考古未完成（含旧两段式中断）时，下一轮在 MAIN 会话仍有效时读回 `classify.json` 只补考古；没有 MAIN 记录的旧两段式断点保留原恢复方式。分级评论票上已有即不重发，认领在自己名下不重复认领。
+分级与考古由主控模型一次联合调用完成（#1742 M1，角色 `triage`），输出同一 JSON 里的 `class`/`reason` 与 `points`，仍分别落 `classify.json` 与 `archaeology.json`；分级判据与「拿不准一律判 P」不变。考古重跑（机械校验不过、重做）沿用已得分级，不再分级。上次已分级而考古未完成（含旧两段式中断）时，下一轮在 MAIN 会话仍有效时读回 `classify.json` 只补考古；没有 MAIN 记录的旧两段式断点保留原恢复方式。分级评论票上已有即不重发，认领在自己名下不重复认领。
 
 完成标准：`/Volumes/AgentStorage/decisions/<票号>/archaeology.md` 与 `archaeology.json` 落盘，每个待决点有查询词、命令、命中与归类。只验考古：`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket <号> --out <目录>`（不看票是否已关，不写 GitHub）。
 
@@ -90,7 +90,7 @@
 7. R7 分级正确。
 8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对任一 B/C 点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
 
-完成标准：`review.json` 落盘，八项各有结论与依据，并保存与 `summary.json` 一致的 `canonicalPlan`。BLOCK 时同一 MAIN 会话切到 `claude-opus-5-5` 带审查意见重做一次，引用专修同样在该会话里；再 BLOCK 转 P 类。
+完成标准：`review.json` 落盘，八项各有结论与依据，并保存与 `summary.json` 一致的 `canonicalPlan`。BLOCK 时在同一 MAIN 会话保留本轮实际作者模型并带上审查意见。只有 R1 引用类 BLOCK 且尚未专修时，下一轮只改引用；否则尚未重做时，重做一次。重做和引用专修各至多一次，连同首稿合计至多 `decisionMaxRounds` 轮（默认 3）；两种机会都用过或总轮次已满仍 BLOCK，转 P 类。每轮独审仍按实际作者选择异家族。
 
 ### 5. 落地
 
@@ -127,7 +127,7 @@ ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
 claude -p --bare --model gpt-6.1-sol --output-format json --no-session-persistence
 ```
 
-2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与首稿使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`（同一 MAIN 会话，#1742 F4），重做与引用专修在该会话切 `claude-opus-5-5`，独审取实际起草者的另一家族。#1742 F2 将落地改为宿主执行获审精确编辑，不再使用模型。429 按退避重试，打回重做不换模型；安全拦截按本文件上方的异家族改派与 FAIL-loud 规则执行。真实 `--bare` 冒烟见该票验收记录。
+2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与首稿使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`；评审打回后由同模型带具体意见重做，保留轮次与转 P 规则。#1742 F4 将分级、考古、起草、重做与引用专修接入同一 MAIN 会话；重做与引用专修保留本轮回执记录的实际作者模型，独审取实际作者的另一家族。#1742 F2 将落地改为宿主执行获审精确编辑，不再使用模型。429 按退避重试；安全拦截的改派与异家族 FAIL-loud 规则保持不变。真实 `--bare` 冒烟见该票验收记录。
 
 执行面 `main.mts` 与 `main-swarm.mts` 使用 Sandcastle `codex` provider，走同一模型配置。noSandbox 用 `127.0.0.1:8318`；Docker 保留隔离并用 `host.docker.internal:8318`，镜像安装 Codex CLI（Claude 仅供显式 legacy），Codex 客户端密钥只从进程/launchctl 的 `CLIPROXY_LOCAL_KEY` 经运行时 env 进入；main-swarm 在领票前做容器连通性硬检查，失败不换模型、不认领（#1617）。
 

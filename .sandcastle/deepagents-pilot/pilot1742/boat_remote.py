@@ -109,18 +109,18 @@ def run(request: dict, request_path: Path, deadline: float) -> dict:
     runtime = root / "runtime"
     failure = {**identity(request), "state": "unknown", "exit_code": None}
     try:
-        if stage(claim, request_path, ["sh", "-c", CHECK_IMAGE, "check-image", request["image"]], runtime, "image.log", deadline):
-            raise subprocess.CalledProcessError(1, "frozen docker image missing")
-        if stage(claim, request_path, ["npm", "ci", "--ignore-scripts"], runtime, "setup.log", deadline):
-            raise subprocess.CalledProcessError(1, "npm ci")
+        if code := stage(claim, request_path, ["sh", "-c", CHECK_IMAGE, "check-image", request["image"]], runtime, "image.log", deadline):
+            raise subprocess.CalledProcessError(code, "frozen docker image missing")
+        if code := stage(claim, request_path, ["npm", "ci", "--ignore-scripts"], runtime, "setup.log", deadline):
+            raise subprocess.CalledProcessError(code, "npm ci")
         for manifest in sorted((root / "pstack").rglob("package.json")):
             if "node_modules" in manifest.parts:
                 continue
             if not (manifest.parent / "bun.lock").is_file():
                 raise OSError("pstack script manifest has no frozen bun lock")
-            if stage(claim, request_path, ["bun", "install", "--frozen-lockfile", "--ignore-scripts"], manifest.parent,
-                     "skills-install.log", deadline):
-                raise subprocess.CalledProcessError(1, "bun install")
+            if code := stage(claim, request_path, ["bun", "install", "--frozen-lockfile", "--ignore-scripts"], manifest.parent,
+                             "skills-install.log", deadline):
+                raise subprocess.CalledProcessError(code, "bun install")
         code = stage(claim, request_path, ["node", "--import", "tsx", ".sandcastle/boat-worker.mts", str(request_path)],
                      runtime, "runner.log", deadline)
         failure.update(exit_code=code, reason="工蜂执行未交业务回执，保留日志不重派")
@@ -129,6 +129,8 @@ def run(request: dict, request_path: Path, deadline: float) -> dict:
     except DeadlineReached:
         failure.update(exit_code=143, timed_out=True, reason="到达VM自动停止前的监督截止；未产生成功业务回执")
     except (OSError, subprocess.SubprocessError) as error:
+        if isinstance(error, subprocess.CalledProcessError):
+            failure["exit_code"] = error.returncode
         failure.update(reason=f"远端准备或监督失败，保留认领不重派：{type(error).__name__}")
     finally:
         (root.parent / "private/model-key").unlink(missing_ok=True)
