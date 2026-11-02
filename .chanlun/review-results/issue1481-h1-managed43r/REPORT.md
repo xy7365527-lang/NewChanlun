@@ -2287,3 +2287,14 @@ Clamp 的 `HistoricalAuditStale：` 前缀由 `s_session_v3/audit_owner/history_
 
 - `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
 - `docs/runbook_production_session.md`
+
+
+## S1Q
+
+> 状态：ready，仅文档候选。基线 `sandcastle/issue-1481` / `2dff0d59a9feed999c98f5d050730fbc09405fb2`；按 `/Volumes/AgentStorage/h1-runbook-review46w/REPORT.md` 修复 R1，并采纳 N3、N2，不新增验证门、不改其他结论。
+
+- R1（runbook `:118`）：保留仅 `s_session` 构建不能作为 H1 验收；明确只换 feature 不证明 H1 被消费，正式 `serve` / `advance` / `recover` 经 `driver::Driver` 与 `audit_owner::PublishPhase` 生效，测试专用 `Runtime::commit` 的无 `bound_audit` 路径绕过 H1。真实符号与绑定依据分别是 `rust/src/bin/s_session_v3/driver.rs:84`、`audit_owner.rs:286-318`、`prepared.rs:464-478,542`。正式台账缺绑定会直接拒绝，见 `prepared.rs:826-835`，不存在以测试路径降级放行的主张。移除本段外盘 46S 报告依据及「增量构建与资源档迁移」清单，正式入口接入与下游消费仅留 #1419（g77）、#1673（全 95）各自承接的指针。
+- N3（runbook `:114`）：将 `serve` 与 `advance` / `recover` 并列为必须显式传 `--resource-config`。已核 `rust/src/bin/s_session_v3/writer_cli.rs:426-429` 的必填检查与 `s_session/s_service_control.py:733` 的 `start-s` 传参。
+- N2（runbook `:157`）：核实 README 停机命令仅占 `s_session/README.md:107-108`，收紧引用范围及链接锚至 `#L107-L108`。
+- 实际检查：源码逐行核对上述符号与 `bound_audit=None`，README 停机命令与 runbook 逐字比对；修改行内全部本地链接目标和行号锚已核，GitHub 两票 URL 与票号已核，未请求网络。Python 字节比较确认 runbook 仅第 `114`、`118`、`157` 行变化，其余逐字保留；本报告原有前缀逐字保留。`git diff --check` 通过；`python3 -B .github/scripts/gen-prod-banned-literals.py --check .` 返回 `.github/prod-banned-literals.txt 与源码一致`。
+- 改动仅 `docs/runbook_production_session.md` 与本报告追加节。未运行构建、测试、CI 或生产恢复，未改代码、README、下游 harness 或历史报告，未执行 git add/commit/push。本轮 ready 仅交文档候选，不代表 H1 下游验收或 #1481 整票完成。
