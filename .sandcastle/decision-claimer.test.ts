@@ -2058,6 +2058,7 @@ test("F4：起草中断后重入，同一会话续接、不重跑分级；取证
     } else {
       assert.match(second.mainSession!.retired ?? "", /取证提交已从/);
       assert.ok(existsSync(join(dir, "main-session.retired-1.json")));
+      assert.ok(existsSync(join(dir, "main-rounds.retired-1.json")), "旧轮次账本随会话退役");
       assert.deepEqual(cli.calls.map((c) => [c.role, c.session?.kind]), [["triage", "start"], ["draft", "resume"], ["review", undefined]]);
       assert.notEqual(second.mainSession!.sessionId, before.sessionId);
       assert.equal(second.mainSession!.sourceCommit, d.git(d.srcDir, ["rev-parse", "HEAD"]).trim());
@@ -2090,6 +2091,142 @@ test("F4：实际作者重做时中断，重入沿用原模型与会话，不重
   assert.equal(second.mainSession!.sessionId, before.sessionId);
   assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["draft", actual], ["review", MODEL_OPUS]]);
   assert.deepEqual(modelCalls[0].session, { kind: "resume", id: before.sessionId });
+  assert.equal(second.attempts, 2, "重入不重新发放首稿轮次");
+  assert.deepEqual(second.rounds!.map((r) => [r.attempt, r.mode, r.verdict]), [[1, "initial", "BLOCK"], [2, "redo", "PASS"]]);
+  assert.match(modelCalls[0].prompt, /R3 BLOCK/);
+  const firstReview = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.attempt1.json"), "utf8"));
+  assert.equal(firstReview.verdict, "BLOCK", "首轮独审原件不能被重入覆盖");
+});
+
+test("F4：重做与引用专修各一次，中断重入不重发额度，三轮 BLOCK 转 P", async () => {
+  const cite = r1Block("x.md:3 引文不符");
+  const { d, modelCalls } = fakeDeps("dry-run", [
+    fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, cite, goodDraft, cite,
+  ]);
+  const raw = d.model;
+  let drafts = 0;
+  d.model = async (c) => {
+    if (c.role === "draft" && ++drafts === 3) throw new Error("claude 子进程超时（1800s timed out）");
+    return raw(c);
+  };
+  const first = await processTicket(1531, d);
+  assert.equal(first.phase, "error");
+  const dir = join(d.outRoot, "1531");
+  const original = readFileSync(join(dir, "review.attempt1.json"), "utf8");
+  modelCalls.length = 0;
+  const second = await processTicket(1531, d);
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.equal(second.attempts, 3);
+  assert.deepEqual(second.rounds!.map((r) => [r.attempt, r.mode]), [[1, "initial"], [2, "redo"], [3, "revise"]]);
+  assert.deepEqual(modelCalls.map((c) => c.role), ["draft", "review"]);
+  assert.match(modelCalls[0].prompt, /只改引用|引用专修/);
+  assert.equal(readFileSync(join(dir, "review.attempt1.json"), "utf8"), original);
+});
+
+test("F4：独审中断与解析失败均续审原稿、不耗 BLOCK 额度", async () => {
+  for (const failure of ["crash", "parse"]) {
+    const replies = [fence({ class: "T", reason: "接口" }), goodDraft,
+      ...(failure === "parse" ? ["无 JSON", "仍无 JSON"] : []), fence(pass())];
+    const { d, modelCalls } = fakeDeps("dry-run", replies);
+    const raw = d.model;
+    let interrupted = false;
+    d.model = async (c) => {
+      if (c.role === "review" && failure === "crash" && !interrupted) {
+        interrupted = true;
+        throw new Error("claude 子进程超时（1800s timed out）");
+      }
+      return raw(c);
+    };
+    const first = await processTicket(1531, d);
+    assert.equal(first.phase, failure === "crash" ? "error" : "review_parse_error");
+    const dir = join(d.outRoot, "1531");
+    const original = readFileSync(join(dir, "draft.attempt1.md"), "utf8");
+    modelCalls.length = 0;
+    const second = await processTicket(1531, d);
+    assert.equal(second.phase, "land_t", second.error ?? "");
+    assert.equal(second.attempts, 1);
+    assert.deepEqual(modelCalls.map((c) => c.role), ["review"]);
+    assert.deepEqual(second.rounds!.map((r) => r.verdict), ["PASS"]);
+    assert.equal(second.reviewCounts!.block, 0);
+    assert.equal(second.reviewCounts!.parseError, failure === "parse" ? 1 : 0);
+    assert.equal(readFileSync(join(dir, "draft.attempt1.md"), "utf8"), original);
+  }
+});
+
+test("F4：旧 MAIN 缺轮次检查点连续重入均保留旧额度，逐轮原件可由检查点补回", async () => {
+  for (const missing of ["checkpoint", "checkpoint-and-summary", "review"]) {
+    const { d, modelCalls } = fakeDeps("dry-run",
+      [fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, fence(pass())]);
+    const raw = d.model;
+    let drafts = 0;
+    d.model = async (c) => {
+      if (c.role === "draft" && ++drafts === 2) throw new Error("claude 子进程超时（1800s timed out）");
+      return raw(c);
+    };
+    await processTicket(1531, d);
+    const dir = join(d.outRoot, "1531");
+    const original = readFileSync(join(dir, "review.attempt1.json"), "utf8");
+    fs.rmSync(join(dir, missing === "review" ? "review.attempt1.json" : "main-rounds.json"));
+    if (missing === "checkpoint-and-summary") writeFileSync(join(dir, "summary.json"), JSON.stringify({ phase: "error" }));
+    modelCalls.length = 0;
+    const next = await processTicket(1531, d);
+    if (missing !== "review") {
+      assert.equal(next.phase, "error");
+      assert.match(next.error ?? "", /旧 MAIN 已有独审轮次但无轮次检查点/);
+      assert.equal((await processTicket(1531, d)).phase, "error");
+      assert.equal(modelCalls.length, 0);
+      if (missing === "checkpoint") assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).rounds.length, 1);
+    } else {
+      assert.equal(next.phase, "land_t", next.error ?? "");
+      assert.equal(next.attempts, 2);
+      assert.equal(readFileSync(join(dir, "review.attempt1.json"), "utf8"), original);
+    }
+  }
+});
+
+test("F4：坏轮次或分级证据不抹旧 summary，随后清理坏文件也不能重发额度", async () => {
+  for (const broken of ["main-rounds.json", "classify.json"]) {
+    const { d, modelCalls } = fakeDeps("dry-run",
+      [fence({ class: "T", reason: "接口" }), goodDraft, r3Block]);
+    const raw = d.model;
+    let drafts = 0;
+    d.model = async (c) => {
+      if (c.role === "draft" && ++drafts === 2) throw new Error("claude 子进程超时（1800s timed out）");
+      return raw(c);
+    };
+    await processTicket(1531, d);
+    const dir = join(d.outRoot, "1531");
+    const original = readFileSync(join(dir, "summary.json"), "utf8");
+    const damaged = join(dir, broken);
+    const saved = readFileSync(damaged, "utf8");
+    writeFileSync(damaged, "{}");
+    modelCalls.length = 0;
+    assert.equal((await processTicket(1531, d)).phase, "error");
+    assert.equal(readFileSync(join(dir, "summary.json"), "utf8"), original);
+    if (broken === "classify.json") writeFileSync(damaged, saved);
+    fs.rmSync(join(dir, "main-rounds.json"));
+    assert.equal((await processTicket(1531, d)).phase, "error");
+    assert.equal(modelCalls.length, 0);
+  }
+});
+
+test("F4：轮次检查点身份不符不重新起草", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" })]);
+  const raw = d.model;
+  d.model = async (c) => {
+    if (c.role === "draft") throw new Error("claude 子进程超时（1800s timed out）");
+    return raw(c);
+  };
+  await processTicket(1531, d);
+  const path = join(d.outRoot, "1531", "main-rounds.json");
+  const record = JSON.parse(readFileSync(path, "utf8"));
+  record.sessionId = "not-this-main";
+  writeFileSync(path, JSON.stringify(record));
+  modelCalls.length = 0;
+  const result = await processTicket(1531, d);
+  assert.equal(result.phase, "error");
+  assert.match(result.error ?? "", /轮次检查点损坏或不属于本会话/);
+  assert.equal(modelCalls.length, 0);
 });
 
 test("F4：运行中取证检出被换，拒绝在旧会话上起草；通道不回报会话身份同样拒绝", async () => {

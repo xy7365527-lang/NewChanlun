@@ -1087,8 +1087,8 @@ export function resumeStaleBecauseReopen(
   return false;
 }
 
-/** 上次 summary.json（只取水印）；缺失或坏文件按无水印。 */
-function prevSummary(dir: string): Pick<Summary, "commentsSeen"> {
+/** 上次 summary.json 的水印与旧轮次；缺失或坏文件按无记录。 */
+function prevSummary(dir: string): Pick<Summary, "commentsSeen" | "rounds"> {
   try { return JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")) as Summary; } catch { return {}; }
 }
 
@@ -1113,9 +1113,41 @@ function fallbackRunner(n: number, run: ModelRunner, record: (sw: ModelSwitch) =
 export interface ArchRun { arch: Archaeology; md: string; problems: string[] }
 export interface TriageRun { cls: Classification; ar: ArchRun }
 
-/** 先移走分类，再移走考古；中断时也不留下可被误当完成断点的跨代组合（#1742 D5）。 */
+/** MAIN 的轮次账本随会话保存；模型历史不是重做/专修额度的来源。 */
+const ROUND_CHECKPOINT = "main-rounds.json";
+interface RoundCheckpoint {
+  version: 1;
+  sessionId: string;
+  state: RunState;
+  draft: string;
+  review?: Review;
+  reviewRecord?: Record<string, unknown>;
+  reviewInput?: { drafter: string; drafterSession?: string; missing: string[]; extra: string[] };
+  progress: Pick<Summary, "attempts" | "klass" | "convertedToP" | "durationsMs" | "reviewCounts" | "rounds" |
+    "reclassNotes" | "landingRedrafts" | "canonicalPlan" | "landing" | "factGapNote" | "modelSwitches">;
+}
+
+function loadRoundCheckpoint(dir: string, sessionId: string): RoundCheckpoint | null {
+  const path = join(dir, ROUND_CHECKPOINT);
+  if (!existsSync(path)) return null;
+  const value = JSON.parse(readFileSync(path, "utf8")) as RoundCheckpoint;
+  if (value.version !== 1 || value.sessionId !== sessionId || !value.state ||
+      !["draft", "review", "land_t", "shadow_p"].includes(value.state.phase) ||
+      !Number.isSafeInteger(value.state.attempt) || value.state.attempt < 1 || value.state.attempt > MAX_ROUNDS ||
+      typeof value.draft !== "string" || !Array.isArray(value.progress?.rounds) ||
+      (value.state.phase === "review" && !value.reviewInput)) {
+    throw new Error("MAIN 轮次检查点损坏或不属于本会话，保留原件待恢复");
+  }
+  return value;
+}
+
+/** 分类、考古与轮次一起退役，不让新 MAIN 会话取得旧额度或轨迹（#1742 D5）。 */
 function retireTriage(dir: string): void {
-  const files = [["classify", "json"], ["archaeology", "json"], ["archaeology", "md"]] as const;
+  const files: Array<[string, string]> = [["classify", "json"], ["archaeology", "json"], ["archaeology", "md"], ["main-rounds", "json"]];
+  for (const f of readdirSync(dir)) {
+    const m = /^(draft\.attempt\d+|review\.attempt\d+)\.(md|json)$/.exec(f);
+    if (m) files.push([m[1], m[2]]);
+  }
   const generations = readdirSync(dir).flatMap(f => {
     const m = /^(?:classify|archaeology)\.retired-(\d+)\.(?:json|md)$/.exec(f);
     return m ? [Number(m[1])] : [];
@@ -1412,7 +1444,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     syncMain(loaded.prior);
     const main = openMainSession({ dir, ticket: n, sourceCommit, commentsSeen: t.comments.length, head, run: d.model, prior: loaded.prior, onSave: syncMain });
     const md: Deps = { ...d, model: main.run };
+    skipPersist = true; // 恢复证据校验失败时保留旧 summary；错误记录不能擦除旧额度。
+    const checkpoint = loaded.prior ? loadRoundCheckpoint(dir, loaded.prior.sessionId) : null;
     const done = loaded.prior && !triaged ? loadTriageDone(dir) : null;
+    if (checkpoint && !done && !triaged) throw new Error("MAIN 轮次存在但分级原件不可恢复，保留检查点待恢复");
+    if (loaded.prior && !checkpoint && (prevSummary(dir).rounds?.length || loaded.prior.turns.some((turn) => turn.role === "draft"))) {
+      throw new Error("旧 MAIN 已有独审轮次但无轮次检查点，保留原件待迁移；不重置额度");
+    }
+    skipPersist = false;
     if (done) {
       log(`#${n} 续接 MAIN 会话 ${loaded.prior!.sessionId}，沿用已校验分级 ${done.cls.klass} 与考古`);
       const c = (k: ArchClass) => done.ar.arch.points.filter((p) => p.klass === k).length;
@@ -1450,64 +1489,108 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       markP();
       write(`评论 #${n}：${note}`, ["issue", "comment", String(n), "--body-file", "-"], note);
     };
-    gapGate();
     summary.rounds = [];
     summary.landingRedrafts = [];
-    while (s.phase === "draft") {
+    let reviewInput: RoundCheckpoint["reviewInput"];
+    let reviewRecord: RoundCheckpoint["reviewRecord"];
+    if (checkpoint) {
+      const newDurations = summary.durationsMs;
+      const newSwitches = summary.modelSwitches ?? [];
+      Object.assign(summary, checkpoint.progress);
+      summary.durationsMs = { ...summary.durationsMs, ...newDurations };
+      summary.modelSwitches = [...(summary.modelSwitches ?? []), ...newSwitches];
+      delete summary.durationsMs.total;
+      s = checkpoint.state;
+      if (cls.klass === "P" && s.klass === "T") s = { ...s, klass: "P", convertedToP: true };
+      draft = checkpoint.draft;
+      review = checkpoint.review;
+      reviewInput = checkpoint.reviewInput;
+      reviewRecord = checkpoint.reviewRecord;
+      if (reviewRecord) {
+        writeJson(join(dir, "review.json"), reviewRecord);
+        writeJson(join(dir, `review.attempt${reviewRecord.attempt}.json`), reviewRecord);
+      }
+      Object.assign(counts, checkpoint.progress.reviewCounts);
+      summary.reviewCounts = counts;
+      effCls = { ...cls, klass: s.klass };
+      // 检查点先于可读原件发布；中断重入时补齐别名，不重新发放轮次。
+      if (draft) writeFileSync(join(dir, "draft.md"), draft);
+    }
+    gapGate();
+    const saveRound = () => {
+      const ms = main.current();
+      if (!ms) throw new Error("MAIN 轮次缺会话身份");
+      const progress: RoundCheckpoint["progress"] = {
+        attempts: summary.attempts, klass: s.klass, convertedToP: s.convertedToP,
+        durationsMs: summary.durationsMs, reviewCounts: counts, rounds: summary.rounds,
+        reclassNotes: summary.reclassNotes, landingRedrafts: summary.landingRedrafts,
+        canonicalPlan: summary.canonicalPlan, landing: summary.landing, factGapNote: summary.factGapNote,
+        modelSwitches: summary.modelSwitches,
+      };
+      writeJson(join(dir, ROUND_CHECKPOINT), { version: 1, sessionId: ms.sessionId, state: s, draft, review, reviewRecord, reviewInput, progress });
+    };
+    saveRound();
+    while (s.phase === "draft" || s.phase === "review") {
       summary.attempts = s.attempt;
-      if (s.draftMode === "redo" && ar.problems.length) {
-        ar = (await runTriage(t, md, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), fixed: effCls, round: s.attempt })).ar;
-        gapGate();
-      }
-      const prompt = (fb?: string) =>
-        s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "", ar.md) : draftPrompt(t, effCls, fb ?? s.reviewFeedback, ar.md);
-      let dr = await md.model({ model: s.drafterModel, prompt: prompt(), cwd: d.srcDir, role: "draft" });
-      let next = dr.text.trim() + "\n";
-      summary.durationsMs[`draft${s.attempt}`] = dr.durationMs;
-      // 落点硬检查：越界或缺失立即退回起草者重写一次。
-      const lp = landingProblem(next);
-      if (lp) {
-        writeFileSync(join(dir, `draft.attempt${s.attempt}.landing-rejected.md`), next);
-        summary.landingRedrafts.push(`第 ${s.attempt} 轮：${lp}`);
-        const fb = [s.reviewFeedback, `- 正本落点退回：${lp}。「裁定」段单独一行写纯文本 \`正本落点：<路径>\`，路径只能在 ${LANDING_ROOTS.join("、")} 内。`].filter(Boolean).join("\n");
-        dr = await md.model({ model: s.drafterModel, prompt: prompt(fb), cwd: d.srcDir, role: "draft" });
-        next = dr.text.trim() + "\n";
-        summary.durationsMs[`draft${s.attempt}_landing`] = dr.durationMs;
-      }
-      let plan: CanonicalPlan | undefined;
-      let editProblem: string | undefined;
-      try {
-        const target = landingTarget(next);
-        if (!target || landingProblem(next)) throw new Error(landingProblem(next) ?? "非法正本落点");
-        parseCanonicalEdit(next, target);
-        const alloc = await allocateAdr(target, n, { adrDir: join(d.srcDir, "docs/adr"), stateDir: d.stateDir ?? d.outRoot, reserve: d.mode === "live" });
-        next = renumberDraft(next, target, alloc);
-        plan = prepareCanonicalPlan(next, alloc.path, d);
-        summary.landing = alloc.path;
-      } catch (e) { editProblem = e instanceof Error ? e.message : String(e); }
-      summary.canonicalPlan = plan;
-      draft = next;
-      if (s.attempt > 1 && existsSync(join(dir, "draft.md"))) renameSync(join(dir, "draft.md"), join(dir, `draft.attempt${s.attempt - 1}.md`));
-      writeFileSync(join(dir, "draft.md"), draft);
+      if (s.phase === "draft") {
+        if (s.draftMode === "redo" && ar.problems.length) {
+          ar = (await runTriage(t, md, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), fixed: effCls, round: s.attempt })).ar;
+          gapGate();
+        }
+        const prompt = (fb?: string) =>
+          s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "", ar.md) : draftPrompt(t, effCls, fb ?? s.reviewFeedback, ar.md);
+        let dr = await md.model({ model: s.drafterModel, prompt: prompt(), cwd: d.srcDir, role: "draft" });
+        let next = dr.text.trim() + "\n";
+        summary.durationsMs[`draft${s.attempt}`] = dr.durationMs;
+        // 落点硬检查：越界或缺失立即退回起草者重写一次。
+        const lp = landingProblem(next);
+        if (lp) {
+          writeFileSync(join(dir, `draft.attempt${s.attempt}.landing-rejected.md`), next);
+          summary.landingRedrafts.push(`第 ${s.attempt} 轮：${lp}`);
+          const fb = [s.reviewFeedback, `- 正本落点退回：${lp}。「裁定」段单独一行写纯文本 \`正本落点：<路径>\`，路径只能在 ${LANDING_ROOTS.join("、")} 内。`].filter(Boolean).join("\n");
+          dr = await md.model({ model: s.drafterModel, prompt: prompt(fb), cwd: d.srcDir, role: "draft" });
+          next = dr.text.trim() + "\n";
+          summary.durationsMs[`draft${s.attempt}_landing`] = dr.durationMs;
+        }
+        let plan: CanonicalPlan | undefined;
+        let editProblem: string | undefined;
+        try {
+          const target = landingTarget(next);
+          if (!target || landingProblem(next)) throw new Error(landingProblem(next) ?? "非法正本落点");
+          parseCanonicalEdit(next, target);
+          const alloc = await allocateAdr(target, n, { adrDir: join(d.srcDir, "docs/adr"), stateDir: d.stateDir ?? d.outRoot, reserve: d.mode === "live" });
+          next = renumberDraft(next, target, alloc);
+          plan = prepareCanonicalPlan(next, alloc.path, d);
+          summary.landing = alloc.path;
+        } catch (e) { editProblem = e instanceof Error ? e.message : String(e); }
+        summary.canonicalPlan = plan;
+        draft = next;
+        writeFileSync(join(dir, `draft.attempt${s.attempt}.md`), draft);
+        writeFileSync(join(dir, "draft.md"), draft);
 
-      const rc = applyReclass(s.klass, reclassSuggestion(draft));
-      if (rc.note) summary.reclassNotes.push(`第 ${s.attempt} 稿：${rc.note}`);
-      if (rc.converted) {
-        s = { ...s, klass: "P", convertedToP: true };
-        effCls = { ...cls, klass: "P", reason: `${cls.reason}（${rc.note}）` };
-        markP();
-      }
+        const rc = applyReclass(s.klass, reclassSuggestion(draft));
+        if (rc.note) summary.reclassNotes.push(`第 ${s.attempt} 稿：${rc.note}`);
+        if (rc.converted) {
+          s = { ...s, klass: "P", convertedToP: true };
+          effCls = { ...cls, klass: "P", reason: `${cls.reason}（${rc.note}）` };
+          markP();
+        }
 
-      const missing = [...missingDraftSections(draft), ...(hasCitationTable(draft) ? [] : [CITATION_SECTION])];
-      const extra = [
-        ...draftClassProblems(draft, s.klass),
-        ...(editProblem ? [`正本编辑合同：${editProblem}`] : []),
-        ...ar.problems.map((x) => `考古：${x}`),
-        ...archaeologyCoverageProblems(draft, ar.arch),
-      ];
+        const missing = [...missingDraftSections(draft), ...(hasCitationTable(draft) ? [] : [CITATION_SECTION])];
+        const extra = [
+          ...draftClassProblems(draft, s.klass),
+          ...(editProblem ? [`正本编辑合同：${editProblem}`] : []),
+          ...ar.problems.map((x) => `考古：${x}`),
+          ...archaeologyCoverageProblems(draft, ar.arch),
+        ];
+        reviewInput = { drafter: dr.model ?? s.drafterModel, drafterSession: dr.sessionId, missing, extra };
+        s = { ...s, phase: "review", drafterModel: reviewInput.drafter };
+        saveRound();
+      }
+      const { drafter: drafterUsed, drafterSession, missing, extra } = reviewInput!;
+      const plan = summary.canonicalPlan;
       const basePrompt = reviewPrompt(t, effCls, draft, ar.md, plan);
-      // 独审另起无状态调用（不带 session），不接 MAIN 历史；按实际起草者家族选异家族（reviewerModel）。
-      const drafterUsed = dr.model ?? s.drafterModel;
+      // 独审另起无状态调用；中断后只续审这份已完成草稿，不重复起草或重置轮次。
       const reviewer = reviewerModel(s.drafterModel, drafterUsed);
       let rr = await d.model({ model: reviewer, prompt: basePrompt, cwd: d.srcDir, role: "review" });
       review = parseReview(rr.text, missing);
@@ -1524,28 +1607,33 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
       const reviewerUsed = rr.model ?? reviewer;
       // 起草被安全拦截后可改派主控模型；若独审也被拦截且只能回到同家族，必须 FAIL-loud。
-      if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
-      summary.rounds.push({
-        attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, drafterSession: dr.sessionId, reviewer: reviewerUsed,
+      const round = {
+        attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, drafterSession, reviewer: reviewerUsed,
         verdict: review.parseError ? "review_parse_error" : review.verdict,
         blocked: review.parseError ? [] : review.items.filter((i) => i.verdict === "BLOCK").map((i) => i.rule),
         problems: review.problems,
-      });
+      };
       const reviewSwitches = (summary.modelSwitches ?? []).filter((x) => x.role === "review");
-      writeJson(join(dir, "review.json"), {
-        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, drafterSession: dr.sessionId, reviewer: reviewerUsed, klass: s.klass,
+      const record = {
+        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, drafterSession, reviewer: reviewerUsed, klass: s.klass,
         verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         canonicalPlan: plan, durationMs: rr.durationMs, ...(reviewSwitches.length ? { modelSwitches: reviewSwitches } : {}), raw: rr.text,
-      });
+      };
+      writeJson(join(dir, "review.json"), record);
       assertDifferentModelFamilies(drafterUsed, reviewerUsed);
       if (review.parseError) {
+        saveRound(); // 解析失败只保留待审草稿，不耗用或重发重做额度。
         s = { ...s, phase: "review_parse_error" };
         summary.error = "审查输出两次均无法解析为 R1–R8 JSON（review_parse_error），未计入 BLOCK";
         break;
       }
       // 回执模型可能与计划不同：重做/引用专修续用实际作者，而非重新选择模型。
+      summary.rounds.push(round);
+      reviewRecord = record;
       s = nextAfterReview({ ...s, drafterModel: drafterUsed }, review);
+      saveRound(); // 先提交轮次账本，重入可补齐逐轮原件而不重新独审。
+      writeJson(join(dir, `review.attempt${record.attempt}.json`), record);
     }
     summary.klass = s.klass;
     summary.convertedToP = s.convertedToP;

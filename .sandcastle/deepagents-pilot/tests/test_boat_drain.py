@@ -30,7 +30,7 @@ def stopped_worker(run, monkeypatch):
     run.execution = BoatExecution(run, cli)
     key = WorkerKey(run.spec.run_id, 'author', run.spec.base)
     binding = BoatBinding(run.execution._identity(key), 'vm', 'p1', '/home/user/x/p1',
-                          'submitted', sandbox_id='bx_abc', stop_id='stop-original')
+                          'submitted', sandbox_id='bx_abc', stop_id='stop-original', stop_confirmed=True)
     run.execution._store(key, binding)
     return run.execution, key, binding, cli
 
@@ -44,6 +44,64 @@ def failure_receipt(binding, exit_code, kind='worker'):
         receipt.pop('record')
         receipt.update(state='unknown', reason='管理者取消；未产生成功业务回执')
     return receipt
+
+
+@pytest.mark.parametrize('entry', ['observe', 'cancel'])
+@pytest.mark.parametrize('pending', ['running', 'stopping', 'archiving'])
+@pytest.mark.parametrize('final', ['stopped', 'archived'])
+def test_submitted_failure_keeps_slot_until_stop_is_confirmed(env, monkeypatch, entry, pending, final):
+    run = env.create()
+    engine, key, binding, cli = stopped_worker(run, monkeypatch)
+    binding = replace(binding, stop_id=None)
+    engine._store(key, binding)
+    receipt = failure_receipt(binding, 7)
+    engine._path(key, '.remote.json').write_text(json.dumps(receipt))
+    states = iter([{'state': 'running'}, {'state': pending}])
+    cli.handlers.update(info=lambda: next(states), exec={},
+                        stop=[{'operation': {'id': 'stop-pending'}}])
+    fact = getattr(engine, entry)(key)
+    assert isinstance(fact, EffectUnknown)
+    assert engine.load(key).stop_id is None
+    assert not engine.is_drained(key)
+    assert json.loads(engine._path(key, '.remote.json').read_text()) == receipt
+    cli.handlers['info'] = {'state': 'stopping', 'stop': {'id': 'stop-pending'}}
+    assert isinstance(getattr(engine, entry)(key), EffectUnknown)
+    assert engine.load(key).stop_id is None and not engine.is_drained(key)
+    assert sum(call[0] == 'stop' for call in cli.calls) == 1
+    cli.handlers['info'] = {'state': final, 'stop': {'id': 'stop-pending'}}
+    assert isinstance(getattr(engine, entry)(key), EffectUnknown)
+    assert engine.load(key).stop_id == 'stop-pending'
+    assert engine.is_drained(key)
+    cli.calls.clear()
+    assert_no_collection(run, key, cli)
+
+
+@pytest.mark.parametrize('submission', ['prepared', 'submitted'])
+@pytest.mark.parametrize('old_stop', ['stop-request-only', 'stopping'])
+def test_legacy_stop_id_requires_explicit_reconciliation(env, monkeypatch, submission, old_stop):
+    run = env.create()
+    engine, key, binding, cli = stopped_worker(run, monkeypatch)
+    binding = replace(binding, submission=submission, stop_id=old_stop, key_erased=True)
+    engine._store(key, binding)
+    path = engine._path(key, '.json')
+    raw = json.loads(path.read_text())
+    raw.pop('stop_confirmed')
+    path.write_text(json.dumps(raw))
+    engine._path(key, '.remote.json').write_text(json.dumps(failure_receipt(binding, 7)))
+    assert not engine.load(key).stop_confirmed
+    assert not engine.is_drained(key) and cli.calls == []
+    cli.handlers['info'] = {'state': 'stopping', 'stop': {'id': 'stop-original'}}
+    engine.cancel(key)
+    assert not engine.is_drained(key)
+    assert engine.load(key).stop_id == old_stop
+    cli.handlers['info'] = {'state': 'stopped', 'stop': {'id': 'stop-original'}}
+    engine.cancel(key)
+    assert engine.load(key).stop_confirmed
+    assert engine.load(key).stop_id == 'stop-original'
+    assert engine.is_drained(key)
+    assert all(call[0] == 'info' for call in cli.calls)
+    cli.calls.clear()
+    assert_no_collection(run, key, cli)
 
 
 CASES = [

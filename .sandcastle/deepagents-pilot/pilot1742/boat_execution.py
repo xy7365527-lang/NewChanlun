@@ -197,6 +197,7 @@ class BoatBinding:
     cancel_requested: bool = False
     create_requested: bool = False
     fork_intent: ForkIntent | None = None
+    stop_confirmed: bool = False  # 旧 stop_id 可能只是异步受理，不能据此放行。
 
     @property
     def request(self) -> str:
@@ -508,10 +509,10 @@ class BoatExecution(WorkerExecution):
         if binding is None:
             return True
         if binding.submission in ("creating", "prepared"):
-            return bool((binding.stop_id and binding.key_erased)
+            return bool((binding.stop_id and binding.stop_confirmed is True and binding.key_erased)
                         or (binding.submission == "creating" and not binding.sandbox_id
                             and not binding.create_requested and binding.fork_intent is None))
-        if (binding.submission not in ("submitting", "submitted")
+        if (binding.submission not in ("submitting", "submitted") or binding.stop_confirmed is not True
                 or not isinstance(binding.stop_id, str) or not binding.stop_id):
             return False
         cache = self._path(key, ".remote.json")
@@ -597,11 +598,11 @@ class BoatExecution(WorkerExecution):
         raise ExecutionUnknown("监督命令已结束但远端没有认领；模型任务未启动，需主控处置")
 
     def _reclaim(self, key: WorkerKey, binding: BoatBinding, *, require_key_erasure: bool = False) -> None:
-        if binding.stop_id and (not require_key_erasure or binding.key_erased):
+        if binding.stop_id and binding.stop_confirmed is True and (not require_key_erasure or binding.key_erased):
             return
         info = self.cli.info(cast(str, binding.sandbox_id))
         if info.get("state") in STOPPED_STATES:
-            if require_key_erasure and info["state"] not in ("stopped", "archived"):
+            if info["state"] not in ("stopped", "archived"):
                 raise ExecutionUnknown("Boat停止请求已受理但VM停止未确认，保留排空占位")
             if require_key_erasure and not binding.key_erased:
                 raise ExecutionUnknown("Boat VM已停止但模型key删除未确认；须显式恢复同一VM后清理")
@@ -612,10 +613,9 @@ class BoatExecution(WorkerExecution):
             if require_key_erasure:
                 binding = self._store(key, replace(binding, key_erased=True))
             stop = self.cli.call("stop", cast(str, binding.sandbox_id))[-1]["operation"]["id"]
-            if (require_key_erasure
-                    and self.cli.info(cast(str, binding.sandbox_id)).get("state") not in ("stopped", "archived")):
+            if self.cli.info(cast(str, binding.sandbox_id)).get("state") not in ("stopped", "archived"):
                 raise ExecutionUnknown("Boat停止请求已受理但VM停止未确认，保留排空占位")
-        self._store(key, replace(binding, stop_id=stop))
+        self._store(key, replace(binding, stop_id=stop, stop_confirmed=True))
 
     def collect(self, key: WorkerKey, receipt: dict) -> None:
         binding = self.load(key)
@@ -694,7 +694,7 @@ class BoatExecution(WorkerExecution):
     def _cancel_prelaunch(self, key: WorkerKey, binding: BoatBinding) -> WorkerFact:
         if not binding.cancel_requested:
             binding = self._store(key, replace(binding, cancel_requested=True))
-        if binding.stop_id and binding.key_erased:
+        if binding.stop_id and binding.stop_confirmed is True and binding.key_erased:
             return NotStarted()
         if binding.sandbox_id is None:
             if binding.submission == "creating" and not binding.create_requested and binding.fork_intent is None:

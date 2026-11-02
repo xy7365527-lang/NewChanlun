@@ -119,8 +119,18 @@ def test_setup_receipt_requires_reclaim_before_queue_release(queued, tmp_path, m
     assert not engine.is_drained(key) and engine.load(key).stop_id is None
     assert all(call[0] != 'stop' for call in cli.calls)
     cli.handlers.update(exec={}, stop=[{'operation': {'id': 'stop-confirmed'}}])
-    engine._reclaim(key, binding)
-    assert [call[0] for call in cli.calls][-3:] == ['info', 'exec', 'stop']
+    with pytest.raises(ExecutionUnknown, match='停止未确认'):
+        engine._reclaim(key, binding)
+    assert engine.load(key).stop_id is None
+    assert not engine.is_drained(key)
+    cli.handlers['info'] = {'state': 'stopping', 'stop': {'id': 'stop-confirmed'}}
+    with pytest.raises(ExecutionUnknown, match='停止未确认'):
+        engine._reclaim(key, engine.load(key))
+    assert not engine.is_drained(key)
+    intake.once(lambda item: seen.append(item.ticket) or 0)
+    assert seen == []
+    cli.handlers['info'] = {'state': 'stopped', 'stop': {'id': 'stop-confirmed'}}
+    engine._reclaim(key, engine.load(key))
     assert engine.is_drained(key) is (case == 'npm')
     cli.calls.clear()
     with pytest.raises(ExecutionUnknown):

@@ -466,7 +466,8 @@ def test_terminal_receipt_is_cached_vm_reclaimed_then_collected(env, monkeypatch
     def scp(source, target):
         Path(target).write_text(json.dumps(receipt))
         return []
-    engine.cli = FakeBoat(info={'state': 'running'}, scp=scp, stop=lambda *a: stops.append(a) or [{'operation': {'id': 'stop_1'}}],
+    engine.cli = FakeBoat(info=lambda: {'state': 'stopped' if stops else 'running'},
+                          scp=scp, stop=lambda *a: stops.append(a) or [{'operation': {'id': 'stop_1'}}],
                           exec=lambda command: {} if command.startswith('rm -f') else
                           {'identity': binding.identity, 'package_id': 'p1', 'state': 'receipt'})
     assert isinstance(engine.observe(key), Terminal)
@@ -729,7 +730,7 @@ def test_cancel_never_relaunches_unclaimed_submission(env):
 
 def test_cancel_keeps_completed_receipt_without_importing_artifacts(env):
     run, engine, key, binding = adapter(env)
-    engine._store(key, replace(binding, stop_id='already-stopped'))
+    engine._store(key, replace(binding, stop_id='already-stopped', stop_confirmed=True))
     save(engine._path(key, '.remote.json'), payload(run, engine, key,
          [dict(path='demo/not-imported', mode='100644', content='YQ==')]))
     assert isinstance(engine.cancel(key), EffectUnknown)

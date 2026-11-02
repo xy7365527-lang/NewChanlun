@@ -262,6 +262,11 @@ def test_agent_status_resumes_preparation_through_dispatch_without_new_vm(env, m
             Path(target).write_text(json.dumps(receipt))
         return []
 
+    def stop(*args):
+        cli.handlers["info"] = {"state": "stopped"}
+        return [{"operation": {"id": "stop_resumed"}}]
+
+    cli.handlers["stop"] = stop
     cli.handlers["scp"] = scp
     tools = {tool.name: tool for tool in build_tools(resumed)}
     before = list(cli.calls)
@@ -291,7 +296,7 @@ def stage_prelaunch_resources(run, monkeypatch, submission, case):
     if case in ("cancel_pending", "cleaned"):
         binding = replace(binding, cancel_requested=True)
     if case == "cleaned":
-        binding = replace(binding, stop_id="stop_original", key_erased=True)
+        binding = replace(binding, stop_id="stop_original", stop_confirmed=True, key_erased=True)
     engine._store(key, binding)
     return engine, key, cli
 
