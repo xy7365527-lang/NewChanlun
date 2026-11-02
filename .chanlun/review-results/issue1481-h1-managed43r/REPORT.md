@@ -2024,3 +2024,85 @@ MainOnly/非 WAL 合法输入域、热 journal 写前拒绝、完整性拒绝源
 - `rust/src/bin/s_session_v3/audit_owner/admission_tests.rs`
 - `rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`
 - `rust/src/bin/s_session_v3/driver.rs`
+
+## S1M
+
+> 状态：ready，供主控封包后取 CI。基线为 `sandcastle/issue-1481` / `97cc94eea9ccbeac3763e5e6624aeec6801f65b5`，开工工作区干净。仅修 S1L 测试取参编译错误并核查同类引用；**Rust 未验证，待 CI**。
+
+### 原始证据与修法
+
+已读本报告 S1L、S1D–S1L 提示及所引 S1/S1B/S1C 范围与禁止项，并直接读取 `/Volumes/AgentStorage/h1-recover45c/ci-97cc94ee/125057523022.log`、`125057418479.log` 原日志。以下日志位置为原件物理行；源码行号为本轮候选，Rust 简称相对 `rust/src/bin/`。
+
+| 原日志 | 首错与证据边界 |
+|---|---|
+| `125057523022.log:780,792,795–813`，rust-check | `cargo check --all-targets --features s_session,s_incremental`，`RUSTFLAGS=-D warnings`，报 `legacy_admission_tests.rs:163:39` E0425，最终只有 1 个编译错误。`:549/:718/:770` 分别是 default、backtest_bin、s_session 档完成；后续 native-testonly 档尚未执行。checkout `:167` 是合成 merge `ec5079b`，由 `97cc94ee` 合入 `eab5dd10`，不是把工位 HEAD 当作 CI checkout。 |
+| `125057418479.log:428–429,496–514`，history36h | release、`s_session,s_incremental`、`--bin s_structure_session h1_` 的 test 构建报同一 E0425。测试尚未执行，不能据此记任何 H1 PASS。 |
+
+根因是测试把取参函数写成 `crate::arg`，根模块没有该项；日志列出的 `s_session_v2/mod.rs:3247` 是 v2 私有函数，不能从测试跨模块调用。`legacy_admission_tests.rs:163–168` 改为在本测试分支内用 `args.windows(2).find(|pair| pair[0] == "--db").map(|pair| pair[1].as_str()).unwrap()` 取值，再构造拥有路径的 PathBuf。参数由同文件 `:55` 的夹具生成，`--db` 与路径相邻且唯一，随子进程环境序列化传入；保留原来取值失败即 unwrap 的行为。借用只用于构造 PathBuf，不逃逸。
+
+没有提升 `v2::arg` 可见性，没有改生产函数、导入、cfg、测试名或断言。字节对照确认 legacy 全文件仅此一条语句替换；S1L 另一个改写测试所在 `admission_tests.rs` 全文件与 HEAD 逐字相同。
+
+### 显式路径与私有项穷举
+
+范围由 `git diff 614823a0b2 97cc94ee -- rust/` 确定：S1L 新测试面是 legacy 全文件和 `admission_tests.rs:157` 的冷前缀测试体。其余改动为生产代码及 include 接线，没有第三份新增测试。原错误路径消除后，legacy 剩余 `crate::` / `super::` 共 6 处，逐一如下。
+
+| legacy 引用位置 | 定义与可达性 |
+|---|---|
+| `:22/:179`，`crate::policy_records_missing` | 根 `s_structure_session.rs:521` 私有函数；调用者是根模块后代，可达。 |
+| `:57`，`super::super::admission_anchor::test_prepare` | 两级 super 回到 v3；模块在 `s_session_v3/mod.rs:47` 为 pub(crate)，函数 `admission_anchor.rs:1641` 为 pub(crate)、`:1640` 限 cfg(test)。调用项 `:54` 也显式 cfg(test)。 |
+| `:114/:171`，`super::super::dispatch_fixture` | `s_session_v3/mod.rs:203` 为 pub(super)，可见范围为根，`:202` 限 cfg(test)，覆盖本测试。 |
+| `:199`，`super::super::writer_cli::GATE_FIELDS` | writer_cli 私有模块 `s_session_v3/mod.rs:110` 对 v3 后代可见；`writer_cli.rs:41` 常量 pub(super)，范围为 v3，`:40` 限 s_incremental，正好与 include 配对。 |
+
+以下包括通过 glob 导入或同作用域使用的受限项，不把“没写 crate/super”当作已核可达。
+
+| legacy 调用或访问位置 | 定义与可达性 |
+|---|---|
+| `:116/:120` v2::dispatch_fixture；`:121` v2::legacy_write_lock | `s_session_v2/mod.rs:3273` pub fn（`:3272` cfg(test)）、`:3395` pub fn；根的私有 v2 模块对根后代可见。 |
+| `:112/:127/:170/:173` state::full_audit_calls_for_test；`:171` state::traced | `state.rs:154` pub(super)、cfg(test+s_incremental)；`:2252` pub(super)、cfg(test)。可见范围均为 v3，门控覆盖调用。 |
+| `:180` meta_i64；`:85/:205/:209` canonical_json；`:85/:209` b2_envelope | meta_i64 为根 `s_structure_session.rs:1226` 私有函数；canonical_json 由根 `:86` 导入；b2_envelope 为 `audit_owner.rs:5964` 同一 construction_tests 模块私有函数。 |
+| `:4/:5/:55/:79` H1AdmissionFixture 与 db/profile、new/conn | `admission_tests.rs:4` struct、`:6/:7` 字段、`:10` impl、`:11/:51` 方法；include 后与 legacy 同作用域，私有项可达。 |
+| `:6/:8/:9/:15/:176/:245/:175` 共享 helper | seed_three→`admission_tests.rs:779`；driver→`:511`（cfg(test)）；ledger_path→`:525`；assert_clean_close→`:947`；qualified_cuts→`history_clamp_tests.rs:783`。均在同一个 include 作用域。 |
+| 本文件全部私有 helper 调用 | prepolicy_mainonly `:74/:187`→`:4`；assert_prepolicy_delete `:16/:129/:169`→`:20`；all_source_bytes `:108/:128/:130`→`:29`；cli_args `:80/:197`→`:55`；write_rejects_before_migration `:136/:142/:148/:154`→`:73`；assert_write_rejected `:75/:195`→`:79`。后三项有显式 cfg(test)，均有实际测试调用。CHILD 是同函数 `:160` 的局部常量。 |
+
+`admission_tests.rs:157–243` 的 S1L 冷前缀测试体没有 `crate::` 或 `super::`，其全部受限引用及共享 helper 继续核到定义：
+
+| 调用或访问位置 | 定义与可达性 |
+|---|---|
+| `:161/:164/:223` fixture::new、h1_admission_driver；`:168/:181` 两种 envelope | 同文件 `:11/:511/:530`，b2_envelope 在 `audit_owner.rs:5964`；均同 construction_tests 作用域。revision_envelope 的 `:537` `crate::tests::located_ohlc_input` 定义在根 `s_structure_session.rs:6694`，pub(super) 范围为根，tests 模块 `:6084` 受 `:6083` cfg(test) 限制；driver helper `:523` 的 test_prepare 与上表相同。 |
+| `:183/:186/:222/:226` state 计数；`:223` state::traced；`:187` meta_i64 | 定义及门控同 legacy 表，均可达。 |
+| `:184` driver.handle；`:218/:237` driver.h1_owner_for_test | `driver.rs:651/:528` 均 pub(super)，范围 v3；owner 方法 `:527` 限 test+s_incremental+unix，与 include 一致。 |
+| `:187/:190/:216` fixture.db/conn/full_canonical | 同文件 `:6/:51/:82` 私有项，同模块可达。full_canonical 的 state::audit_native_current 在 `state.rs:183` 为 pub(super)，其 h1_canonical 在 `:4111` 为 pub(super)、cfg(test+s_incremental)。 |
+| `:218/:237` h1_admission_canonical；`:232` h1_qualified_cuts | 同文件 `:98` 与 history_clamp_tests `:783`。canonical helper 访问 owner.complete（`audit_owner.rs:270`）及 complete.audited（`:3214`），均为定义模块后代，私有字段可达。 |
+| fixture 的既有构造依赖 | prepared::tests `prepared.rs:1876`、Fixture `:1944`、new `:1956`、db_path `:2009` 均 pub(crate)，模块 cfg(test)；v2::ClockPlan `v2/mod.rs:78` 为 pub struct、parse `:83` 为 pub(super)，init_v3 `v3/mod.rs:492` 为 pub(super)。均覆盖调用。 |
+
+导入链为 `audit_owner.rs:5632 use super::*` → `audit_owner.rs:6 use super::*` → `s_session_v3/mod.rs:32 use super::*` → 根 `s_structure_session.rs:82` Path/PathBuf、`:86` canonical_json、`:93` Connection、`:94` json/Value 及根模块声明。两个测试面没有新增 use；std、rusqlite、serde_json 的显式路径及其迭代器、路径、连接和进程方法均为公开 API。
+
+### 三档 cfg 与告警风险
+
+父 `construction_tests` 在 `audit_owner.rs:5630` 限 test+s_incremental；`:5635–5640` 对 history_clamp_tests、admission_tests、legacy_admission_tests 三个 include 同加 unix。三份 include 展开在同一个模块，文件分拆不形成私有 sibling 边界。
+
+| features | 非 test | test |
+|---|---|---|
+| s_session | 父模块排除，无测试路径或导入进入生产。 | 缺 s_incremental，父模块及两个测试面排除。 |
+| s_session,s_incremental | 缺 test，父模块排除。 | Unix 下三个 include 同时存在；state 计数/trace、Driver owner 查询及所有 fixture 均同门或更宽，无悬空引用。 |
+| s_session,s_incremental,s_capture_native_testonly | 同上，测试代码排除。 | 同一可达性；legacy `:233/:234` 只给已构造的 child 追加 native 环境。child 在两档都用 args/env 的可变方法，不产生 unused_mut。 |
+
+非 Unix 时，三个 unix include 同时排除；不据此声称整个既有 bin 已支持非 Unix。Cargo `required-features=["s_session"]` 保持，default/backtest_bin 不编入该 bin；native-testonly 在 Cargo.toml 中依赖 s_incremental，现行 CI 写 `s_session,s_capture_native_testonly` 与表中第三档等效。
+
+PathBuf 修改后仍使用，没有新增 helper、import、变量、allow/expect lint 豁免或生产可见性变更。取参闭包返回借用，PathBuf 随即复制路径内容，没有从借用移出 String、临时借用逃逸或错误类型推断分支。上述是 `-D warnings` 风险的源码穷举，不能替代编译收据。
+
+### 实际验证与保持项
+
+- `rustfmt --edition 2021 --check rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs rust/src/bin/s_session_v3/audit_owner/admission_tests.rs` 通过，未使用 skip_children。
+- `git diff --check` 通过。Python 对照 HEAD 确认 legacy 仅替换一条取参语句、全部断言及其他字节保持，admission_tests 全文件保持；本报告历史前缀保持，只追加 S1M。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3/3 通过。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，violations=0；`python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，清单与源码一致，未改清单。
+- 按现行 BSP 锁原 grep/WHITELIST 双向集合静态复现：hits=23、whitelist=23、stray=[]、stale=[]，未改锁。
+- 非作者子代理独立只读复核唯一代码差异、两个测试面的私有项/cfg/导入与断言保持，未发现确定阻断；该结论仅为源码评审。
+
+没有运行 cargo/rustc、Rust 测试、CI、生产构建或重型窗口，没有 git add/commit/push 或写 Git metadata。所有生产代码、workflow、资源帽、S1K 关闭分类与调用方迁移、S1L 旧入口拒门/冷 seed/拆帧保持。Rust 编译、三档 test/非 test 的 `-D warnings` 及 H1/native 运行结果待主控封包后精确新 head 的 CI；本轮 ready 只表示指定修复候选可交接，不表示 H1 或整票验收通过。
+
+### S1M 实际改动文件
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `rust/src/bin/s_session_v3/audit_owner/legacy_admission_tests.rs`

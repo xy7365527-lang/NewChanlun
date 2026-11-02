@@ -160,7 +160,12 @@ fn h1_admission_v3_selector_advance_prepolicy_mainonly_authenticates_before_migr
     const CHILD: &str = "H1_ADMISSION_LEGACY_SELECTOR_ARGS";
     if let Some(args) = std::env::var_os(CHILD) {
         let args: Vec<String> = serde_json::from_str(args.to_str().unwrap()).unwrap();
-        let db = PathBuf::from(crate::arg(&args, "--db").unwrap());
+        let db = PathBuf::from(
+            args.windows(2)
+                .find(|pair| pair[0] == "--db")
+                .map(|pair| pair[1].as_str())
+                .unwrap(),
+        );
         h1_legacy_assert_prepolicy_delete(&db);
         let before_calls = state::full_audit_calls_for_test();
         let (result, events, _) = state::traced(false, || super::super::dispatch_fixture(&args));
