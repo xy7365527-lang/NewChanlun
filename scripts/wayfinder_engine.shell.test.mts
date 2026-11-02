@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,6 +96,8 @@ test("无 node_modules：Node 原生类型剥离可 import engine 与主控模�
       // #1742 冻结准入门同样零依赖：engine 的 import 闭包含 drain-control，运行时由它拉起同目录的 .py 助手。
       [".sandcastle/drain-control.mts", ".sandcastle/drain-control.mts"],
       [".sandcastle/drain-control.py", ".sandcastle/drain-control.py"],
+      [".sandcastle/deepagents-cutover.mts", ".sandcastle/deepagents-cutover.mts"],
+      [".sandcastle/queue-policy.json", ".sandcastle/queue-policy.json"],
     ]) copyFileSync(join(repoRoot, source), join(dir, target));
     const result = spawnSync(process.execPath, [
       "--experimental-strip-types", "--input-type=module", "--eval",
@@ -108,4 +110,39 @@ test("无 node_modules：Node 原生类型剥离可 import engine 与主控模�
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("切流壳：draining 下引擎向假 gh 发出新队列标签，不经过旧准入", () => {
+  const root = mkdtempSync(join(tmpdir(), "wfe-cutover-shell-"));
+  try {
+    const state = join(root, "exec"), drain = join(root, "drain"), log = join(root, "writes");
+    mkdirSync(state); mkdirSync(drain);
+    writeFileSync(join(drain, "state.json"), JSON.stringify({ v: 1, mode: "draining", generation: 1 }));
+    writeFileSync(join(state, "cutover.json"), JSON.stringify({ v: 1, drain_generation: 1, frozen_at: "fixture",
+      legacy_snapshot: [], workers_log_length: 0, workers_log_path: "/fixture/workers.jsonl", open_claims: [], remote_jobs_idle: true, remote_freeze_var: "1",
+      variable_source: "user-token-readonly", release_label: "deepagents:queue", engine_head: "a".repeat(40),
+      legacy_services_unloaded: ["com.newchanlun.sandcastle-claimer", "com.newchanlun.sandcastle-harvest"] }));
+    writeFileSync(join(root, "gh"), `#!/usr/bin/env bash
+if [ "$1 $2" = "issue view" ]; then
+  echo '{"state":"OPEN","labels":[],"assignees":[]}'
+elif [ "$1 $2" = "issue edit" ]; then
+  printf '%s\\n' "$*" >> "$D6_FIXTURE_LOG"
+else
+  exit 71
+fi
+`, { mode: 0o755 });
+    const script = `import {execFileSync} from 'node:child_process';
+      const m = await import(process.argv[1]);
+      const roots = {stateRoot: process.argv[2], drainRoot: process.argv[3]};
+      const io = {read: args => execFileSync('gh', args.split(' '), {encoding:'utf8'}),
+                  write: args => execFileSync('gh', args.split(' '), {encoding:'utf8'})};
+      await m.withEngineAdmission(() => m.releaseTicket(99, io, m.releaseLabel(roots.stateRoot, roots.drainRoot)), roots);`;
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script,
+      new URL("./wayfinder_engine.mts", import.meta.url).href, state, drain], {
+      cwd: repoRoot, env: { ...process.env, PATH: `${root}:${process.env.PATH}`, D6_FIXTURE_LOG: log },
+      encoding: "utf8", timeout: 10_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(log, "utf8").trim(), "issue edit 99 --add-label deepagents:queue");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

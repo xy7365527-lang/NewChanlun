@@ -90,7 +90,8 @@ class FakeGitHub:
 
     def _issue_json(self, issue: dict[str, Any]) -> dict[str, Any]:
         data = {"number": issue["number"], "state": issue["state"], "title": issue["title"], "body": issue["body"],
-                "labels": [{"name": n} for n in issue["labels"]]}
+                "labels": [{"name": n} for n in issue["labels"]],
+                "assignees": issue.get("assignees", []), "issue_dependencies_summary": {"blocked_by": 0}}
         if issue["is_pr"]:
             data["pull_request"] = {"url": f"https://api.github.com/repos/{self.repo}/pulls/{issue['number']}"}
         return data
@@ -200,6 +201,7 @@ class FakeGitHub:
 
     def _routes(self):
         return [
+            (r"GET /issues", self._queue),
             (r"GET /issues/(\d+)", self._get_issue),
             (r"GET /issues/(\d+)/timeline", self._timeline),
             (r"GET /issues/(\d+)/parent", self._parent),
@@ -223,6 +225,11 @@ class FakeGitHub:
     def _issue(self, number: str) -> dict[str, Any] | None:
         return self.issues.get(int(number))
 
+    def _queue(self, request, body):
+        label = request.url.params["labels"]
+        return self._paged(request, [self._issue_json(issue) for issue in self.issues.values()
+                                    if issue["state"] == "open" and label in issue["labels"]])
+
     def _get_issue(self, request, body, number):
         issue = self._issue(number)
         return httpx.Response(200, json=self._issue_json(issue)) if issue else httpx.Response(404)
@@ -239,7 +246,10 @@ class FakeGitHub:
         return self._paged(request, self._issue(number)["timeline"])
 
     def _parent(self, request, body, number):
-        parent = self._issue(number)["parent"]
+        issue = self._issue(number)
+        if issue is None:
+            return httpx.Response(404)
+        parent = issue["parent"]
         return httpx.Response(404) if parent is None else httpx.Response(200, json={"number": parent})
 
     def _comments(self, request, body, number):

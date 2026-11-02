@@ -130,14 +130,15 @@ function inside(path: string, root: string): boolean {
   return suffix === "" || (!isAbsolute(suffix) && suffix !== ".." && !suffix.startsWith(".." + sep));
 }
 
-function git(root: string, args: string[]): string {
-  return execFileSync("git", [
+function git(root: string, args: string[], trim = true): string {
+  const output = execFileSync("git", [
     "--no-replace-objects", "-c", "core.filemode=true", "-c", "diff.ignoreSubmodules=none",
     "-C", root, ...args,
   ], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
     env: gitEnvironment(),
-  }).trim();
+  });
+  return trim ? output.trim() : output.replace(/\n$/, "");
 }
 
 export function snapshotCheckout(checkout: string): CheckoutSnapshot {
@@ -151,7 +152,8 @@ export function snapshotCheckout(checkout: string): CheckoutSnapshot {
     root,
     branch: git(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]),
     head: git(root, ["rev-parse", "HEAD"]),
-    status: git(root, ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"]),
+    // Porcelain lines start with a status column; trimming would eat the first " M" and shift its path.
+    status: git(root, ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"], false),
   };
 }
 
@@ -291,6 +293,7 @@ export class CodexTranscript {
   finalText: string | null = null;
   turnCompleted = false;
   failure: string | null = null;
+  private reconnectPending = false;
   constructor(private readonly provider: AgentProvider) {}
 
   accept(line: string): void {
@@ -305,10 +308,19 @@ export class CodexTranscript {
       this.failure ??= "Codex stdout 不是有效的事件 JSONL";
       return;
     }
-    if (["error", "turn.failed", "turn.cancelled"].includes(event.type as string)) {
+    const reconnect = event.type === "error" && typeof event.message === "string"
+      ? /^Reconnecting\.\.\. ([1-9]\d*)\/([1-9]\d*) \(stream disconnected before completion(?:: [^\r\n]+)?\)$/.exec(event.message) : null;
+    if (reconnect && BigInt(reconnect[1]) <= BigInt(reconnect[2])) {
+      this.reconnectPending = true;
+      this.turnCompleted = false;
+      this.finalText = null;
+    } else if (["error", "turn.failed", "turn.cancelled"].includes(event.type as string)) {
       this.failure ??= `Codex 报告 ${event.type}`;
     }
-    if (event.type === "turn.completed") this.turnCompleted = true;
+    if (event.type === "turn.completed") {
+      this.turnCompleted = true;
+      this.reconnectPending = false;
+    }
     const item = event.item as Record<string, unknown> | undefined;
     if (event.type === "item.completed" && item?.type === "agent_message" && typeof item.text === "string") {
       this.finalText = item.text;
@@ -324,6 +336,7 @@ export class CodexTranscript {
 
   output(): WorkerOutput {
     if (this.failure) throw new Error(this.failure);
+    if (this.reconnectPending) throw new Error("Codex 重连后未完成");
     if (!this.sessionId || !this.turnCompleted || !this.finalText?.trim()) throw new Error("缺少 session_id、turn.completed 或最终结果");
     let value: unknown;
     try { value = JSON.parse(this.finalText); } catch { throw new Error("Codex 最终结果不是有效 JSON"); }

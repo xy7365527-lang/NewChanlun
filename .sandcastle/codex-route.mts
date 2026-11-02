@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installCargoGuard } from "./cargo-guard.mts";
 import { MAIN_MODEL } from "./main-model.mts";
-import { providerOverrides, providerEnvironment, type KeyLookup } from "./codex-child.ts";
+import { providerOverrides, providerEnvironment, type KeyLookup, type ChildModel, assertRoute } from "./codex-child.ts";
 import { DOCKER_INNER_SANDBOX } from "./docker-isolation.mts";
 
 const scheduler = useScheduler("codex-route", ["workerEffort"]);
@@ -17,8 +17,10 @@ export function codexRouteEnv(lookup?: KeyLookup): Record<string, string> {
   return { CLIPROXY_LOCAL_KEY: env.CLIPROXY_LOCAL_KEY };
 }
 
-export function codexWorker(options: { docker?: boolean; effort?: "low" | "medium" | "high" | "xhigh" } = {}): AgentProvider {
+export function codexWorker(options: { docker?: boolean; model?: ChildModel; effort?: "low" | "medium" | "high" | "xhigh" } = {}): AgentProvider {
   const docker = options.docker;
+  const model = options.model ?? MAIN_MODEL;
+  assertRoute(model);
   const home = mkdtempSync(join(tmpdir(), "sandcastle-codex-"));
   const workerHome = docker ? `/tmp/${home.split("/").at(-1)}` : home;
   const sessions = join(home, "sessions");
@@ -27,7 +29,7 @@ export function codexWorker(options: { docker?: boolean; effort?: "low" | "mediu
     // zsh -lc 会在 /etc/zprofile 重排 PATH；.zlogin 在其后重新前置垫片。
     for (const file of [".zshenv", ".zlogin"]) writeFileSync(join(home, file), `source ${quote(guard.envFile)}\n`);
   }
-  const provider = codex(MAIN_MODEL, {
+  const provider = codex(model, {
     effort: options.effort ?? scheduler.workerEffort,
     sessionStorage: { hostSessionsDir: sessions, sandboxSessionsDir: `${workerHome}/sessions` },
   });

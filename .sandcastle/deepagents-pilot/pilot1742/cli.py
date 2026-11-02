@@ -6,12 +6,14 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from .domain import parse_run_id, parse_sha
+from .boat_execution import BoatExecution, ExecutionUnknown
+from .domain import WorkerKey, parse_role, parse_run_id, parse_sha
 from .run import (
     CRASH_POINTS,
     DEFAULT_HOME,
@@ -19,6 +21,7 @@ from .run import (
     SOURCE_REPO,
     Busy,
     PilotRun,
+    _fact_json,
     parse_task,
 )
 
@@ -108,18 +111,48 @@ def _status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cancel_worker(run: PilotRun, role: str, head: str) -> int:
+    """Cancel one Boat binding under the run lock; the printed fact is what was observed afterwards."""
+    try:
+        run.acquire()
+    except Busy as error:
+        print(str(error), file=sys.stderr)
+        return EXIT_BUSY
+    try:
+        fact = cast(BoatExecution, run.execution).cancel(WorkerKey(run.spec.run_id, parse_role(role), parse_sha(head)))
+    except ExecutionUnknown as error:
+        print(f"ExecutionUnknown: {error}", file=sys.stderr)
+        return 2
+    finally:
+        run.release()
+    print(json.dumps(_fact_json(fact), ensure_ascii=False))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pilot1742")
     sub = parser.add_subparsers(dest="command", required=True)
-    run = sub.add_parser("run", help="首跑或恢复一个 run")
-    run.add_argument("--run-id", required=True)
-    run.add_argument("--task", help="新 run 的任务文件（--- 头含 title 与 allowed_prefixes）")
-    run.add_argument("--base", help="新 run 的基线提交，缺省为源工作区 HEAD")
-    run.add_argument("--home", default=str(DEFAULT_HOME))
-    run.add_argument("--crash-at", choices=CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
-    run.add_argument("--recheck-approval", action="store_true", help="停在 awaiting_approval 时重读批准账本")
+    run_parser = sub.add_parser("run", help="首跑或恢复一个 run")
+    run_parser.add_argument("--run-id", required=True)
+    run_parser.add_argument("--task", help="新 run 的任务文件（--- 头含 title 与 allowed_prefixes）")
+    run_parser.add_argument("--base", help="新 run 的基线提交，缺省为源工作区 HEAD")
+    run_parser.add_argument("--home", default=str(DEFAULT_HOME))
+    run_parser.add_argument("--crash-at", choices=CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
+    run_parser.add_argument("--recheck-approval", action="store_true", help="停在 awaiting_approval 时重读批准账本")
     status = sub.add_parser("status", help="只读状态，不启动模型或工蜂")
     status.add_argument("--run-id", required=True)
     status.add_argument("--home", default=str(DEFAULT_HOME))
+    cancel = sub.add_parser("cancel-worker", help="取消已有Boat绑定，不重派工蜂")
+    cancel.add_argument("--run-id", required=True)
+    cancel.add_argument("--home", default=str(DEFAULT_HOME))
+    cancel.add_argument("--role", required=True)
+    cancel.add_argument("--head", required=True)
     args = parser.parse_args(argv)
+    if args.command == "cancel-worker":
+        run = PilotRun.open(Path(args.home), parse_run_id(args.run_id))
+        if run.execution is None:
+            parser.error("该run不是Boat绑定，不能经此入口取消")
+        if run.spec.v == 2:
+            parser.error("v2 run 须经 python -m pilot1742.executor cancel-worker 在票级动作锁下取消")
+        return cancel_worker(run, args.role, args.head)
     return _run(args) if args.command == "run" else _status(args)

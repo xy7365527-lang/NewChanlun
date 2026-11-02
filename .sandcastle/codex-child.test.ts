@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
   assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
-  providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
+  providerOverrides, PROVIDER_KEY_ENV, runCodexChild, snapshotCheckout, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
 import { gitEnvironment } from "./git-environment.ts";
@@ -336,6 +336,25 @@ test("不会覆盖结果目录，失败预检也留结构化结果且不开进�
   } finally { f.clean(); }
 });
 
+const reconnectCases = JSON.parse(readFileSync(
+  join(__dirname, "deepagents-pilot/tests/fixtures/codex-reconnect.json"), "utf8",
+)) as { session_id: string; cases: { name: string; events: unknown[]; result: unknown; verdict: string; exit_code: number }[] };
+
+for (const scenario of reconnectCases.cases) test(`A9 共享协议：${scenario.name}`, async () => {
+  const f = fixture();
+  try {
+    assert.equal(reconnectCases.session_id, sessionId);
+    f.fake(`session(); for (const event of ${JSON.stringify(scenario.events)}) emit(event); process.exitCode = ${scenario.exit_code};`);
+    const result = await runCodexChild(f.options, { env: f.env });
+    assert.equal(result.status, scenario.verdict === "PASS" ? "completed" : "failed", result.failure_reason ?? "");
+    assert.deepEqual(result.result, scenario.verdict === "FAILED" ? null : scenario.result);
+    assert.deepEqual(result.process_exit, { code: scenario.exit_code, signal: null });
+    if (scenario.verdict !== "FAILED") {
+      assert.ok(result.external_session_log && existsSync(result.external_session_log));
+    }
+  } finally { f.clean(); }
+});
+
 for (const [name, body, expected] of [
   ["空输出 exit0", "", /缺少/],
   ["坏 JSONL 后还有完成结果", "process.stdout.write('invalid\\n'); session(); complete();", /事件 JSONL/],
@@ -656,4 +675,14 @@ test("预检 git 子进程拿不到 CLIProxy 密钥及其他凭据变量（#1588
     }
     f.clean();
   }
+});
+
+test("snapshotCheckout keeps the status column of the first porcelain line", () => {
+  const f = fixture();
+  writeFileSync(join(f.options.checkout, "source.txt"), "changed\n");
+  writeFileSync(join(f.options.checkout, "新 文件.md"), "x\n");
+  const status = snapshotCheckout(f.options.checkout).status;
+  assert.equal(status.split("\n")[0], " M source.txt");
+  assert.ok(status.endsWith('"\\346\\226\\260 \\346\\226\\207\\344\\273\\266.md"'));
+  f.clean();
 });

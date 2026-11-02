@@ -31,7 +31,7 @@ def wait_for(predicate, timeout=20):
 def test_block_rework_pass_then_gate_binds_exact_head(env):
     run = env.create()
     env.control({"author": {"write": DEMO},
-                 "review": {"summary": "VERDICT: BLOCK\n缺测试", "findings": ["缺测试"]}})
+                 "review": {"summary": "VERDICT: BLOCK\n缺测试", "findings": ["缺测试"], "validation": ["只核查本地候选"]}})
     assert run.run_worker("author", "实现").status == "completed"
     first = run.commit_candidate()
     assert first.intent.parent == env.base and not first.recovered
@@ -42,6 +42,10 @@ def test_block_rework_pass_then_gate_binds_exact_head(env):
     env.control({"author": {"write": {"demo/test_a.py": "assert True\n"}},
                  "review": {"summaries": {}, "summary": "VERDICT: PASS\n可以"}})
     run.run_worker("author", "按 findings 返修")
+    rework_prompt = (run.dir / "prompts" / f"author-{first.commit}.md").read_text()
+    assert "缺测试" in rework_prompt and "只核查本地候选" in rework_prompt
+    assert "未单独采集 confidence 与 caveats" in rework_prompt
+    assert "不直接与用户对话" in rework_prompt
     second = run.commit_candidate()
     assert second.intent.parent == first.commit
     run.run_worker("review", "复审")
@@ -199,8 +203,8 @@ def test_author_branch_switch_refuses_gate_and_commit(env):
     assert run.status()["observed_branch"] == "codex/someone-else"
 
 
-DESIGNS = {"design-a": {"summary": "设计包甲：正则加遮蔽", "findings": ["拒绝状态机"]},
-           "design-b": {"summary": "设计包乙：逐字符状态机", "findings": ["拒绝正则"]},
+DESIGNS = {"design-a": {"summary": "设计包甲：正则加遮蔽", "findings": ["拒绝状态机"], "validation": ["核查甲"]},
+           "design-b": {"summary": "设计包乙：逐字符状态机", "findings": ["拒绝正则"], "validation": ["核查乙"]},
            "judge": {"summary": "BASE: 候选 1\n更简单"}}
 
 
@@ -226,6 +230,10 @@ def test_design_arena_runs_two_fixed_readonly_slots_then_judge_before_author(env
     judge_prompt = (run.dir / "prompts" / f"judge-{env.base}.md").read_text()
     assert "设计包甲" in judge_prompt and "设计包乙" in judge_prompt and "rubric：简单、可测" in judge_prompt
     assert "claude-opus-5-5" not in judge_prompt and "gpt-6.1-sol" not in judge_prompt
+    assert "核查甲" in judge_prompt and "核查乙" in judge_prompt
+    assert "未单独采集 confidence 与 caveats" in judge_prompt
+    assert "不直接与用户对话" in judge_prompt
+    assert "fake-session" not in judge_prompt and "/workers/" not in judge_prompt
     with pytest.raises(ToolRefusal, match="BASE"):
         run.run_worker("author", "按合成设计实现")
     with pytest.raises(ToolRefusal, match="BASE"):

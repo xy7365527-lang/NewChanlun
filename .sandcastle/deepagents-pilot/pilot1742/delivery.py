@@ -152,6 +152,18 @@ class RepoGateway:
     def timeline(self, number: int) -> list[dict[str, Any]]:
         return self.client.paginate(self._p(f"/issues/{number}/timeline"))
 
+    def parent(self, number: int) -> int | None:
+        result = self.client.api("GET", self._p(f"/issues/{number}/parent"), tolerate=frozenset({404}))
+        if result.status == 404:
+            return None
+        parent_number = (result.data or {}).get("number")
+        if type(parent_number) is not int or parent_number <= 0:
+            raise IdentityError("父票读回不完整")
+        return parent_number
+
+    def queue(self, label: str) -> list[dict[str, Any]]:
+        return self.client.paginate(self._p("/issues"), {"labels": label, "state": "open"})
+
     def has_parent(self, number: int) -> bool:
         result = self.client.api("GET", self._p(f"/issues/{number}/parent"), tolerate=frozenset({404}))
         return result.status != 404
@@ -204,8 +216,18 @@ class RepoGateway:
         return self.client.paginate(self._p(f"/commits/{sha}/statuses"))
 
     def create_status(self, sha: str, context: str, description: str) -> None:
-        self.client.api("POST", self._p(f"/statuses/{sha}"), json={
-            "state": "success", "context": context, "description": description[:140]})
+        self.set_status(sha, context, "success", description)
+
+    def set_status(self, sha: str, context: str, state: str, description: str,
+                   target_url: str | None = None) -> None:
+        if state not in ("pending", "success", "failure", "error"):
+            raise ValueError("commit status state 无效")
+        payload = {"state": state, "context": context, "description": description[:140]}
+        if target_url is not None:
+            if not target_url.startswith("https://"):
+                raise ValueError("target_url 必须是可访问的 HTTPS URL")
+            payload["target_url"] = target_url
+        self.client.api("POST", self._p(f"/statuses/{sha}"), json=payload)
 
 
 def _git_bytes(checkout: Path, *args: str) -> bytes:

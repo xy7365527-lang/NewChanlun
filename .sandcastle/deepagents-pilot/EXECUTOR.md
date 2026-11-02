@@ -1,8 +1,8 @@
 # 用新执行器交付一张首证专用票
 
-新执行器把一张登记过的专用票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。合入 main 由人在 GitHub 上完成。
+新执行器把专用票或切流后的引擎放行票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。合入 main 由人在 GitHub 上完成。
 
-本入口只接首证专用票（SPEC 第 7.2 节）。接管旧 owner 手里的票一律拒绝，人批核验缺省关闭。
+`register` 保留首证专用票入口。`serve` 接收切流后的引擎放行队列，见文末。接管旧 owner 手里的票仍一律拒绝。
 
 ## 准备专用票与任务文件
 
@@ -34,6 +34,8 @@ require_design: false
 cd /Users/silencehan/.codex/worktrees/deepagents-pilot-1742/NewChanlun
 VENV=/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/venv
 PEM=/Users/silencehan/Downloads/newchanlun-deepagents-1742.2026-10-26.private-key.pem
+export PILOT_BOAT_CONFIG=/绝对路径/boat-config.json
+export PILOT_BOAT_API_KEY_FILE=/仓外绝对路径/boat-controller.key
 executor() { PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
 git fetch origin <已推送的分支>
 BASE=$(git rev-parse origin/<已推送的分支>)
@@ -64,7 +66,7 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 executor status --run-id t<票号>-1
 ```
 
-**释放。** 主控退回一张票。释放会等正在执行的那一个外部写入做完，旧控制进程之后的任何动作都会停下。重新持有要登记新的 run id，代次加一。
+**释放。** 主控退回一张票。释放会等正在执行的那一个外部写入做完，旧控制进程之后的派工、提交与发布都会停下，原工蜂仍可经 `cancel-worker` 取消。释放本身不代表远端工蜂已退出。重新持有要登记新的 run id；票级锁内确认旧控制锁、本机工蜂和所有旧 Boat 绑定均已排空后，代次才加一。`Running`、`EffectUnknown` 或不可读的 Boat 绑定通常阻止换代。唯一的失败排空路径要求原绑定已有 `stop_id`、回执身份完全匹配且明确证明失败退出或取消，详见 [取消后释放队列槽或换代](BOAT.md#取消后释放队列槽或换代)。手工入口与队列共享这一判定。检查只读本地冻结记录，不访问 Boat、不补提交，也不收集旧产物。
 
 ```sh
 executor release --ticket <票号> --run-id t<票号>-1 --reason "主控退回：……"
@@ -110,7 +112,7 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 
 ## 身份与发布方式
 
-执行器只用 App installation token，权限为 metadata 读，contents、issues、pull_requests、statuses 写，限定到本仓库。token 只在控制进程内存，工蜂的环境是白名单，不含任何 GitHub 凭据。执行器不调用 gh、git 凭据、SSH 或 keychain。
+执行器只用 App installation token，权限为 metadata 读，contents、issues、pull_requests、statuses 写，限定到本仓库。token 只在控制进程内存，工蜂的环境是白名单，不含任何 GitHub 凭据。队列、准入和发布不调用 gh、git 凭据、SSH 或 keychain。`cutover verify/record` 的运维屏障单独调用只读 `gh variable get` 核对冻结变量，记录来源为 `user-token-readonly`，不生成批准、不执行 GitHub 写，也不在 App 失败时改用用户身份。
 
 推送不走 `git push`。执行器经 GitHub git 数据 API 逐个重建 `base..h` 的 blob、tree 与 commit，每个返回的 SHA 必须等于本地 SHA，全部对上才非强推地创建分支 ref。v2 的本地提交用 UTC 时间且不签名，以便原样重建。重建对不上时不创建任何 ref，报 `Unpublishable`。
 
@@ -119,3 +121,44 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 ## 与 v1 的关系
 
 `python -m pilot1742` 的 v1 CLI、`real3`、`real4` 与 `pilot_acceptance` 账本不变。v2 run 只能经本入口推进；用 v1 CLI 打开 v2 run 做任何副作用都会被拒。
+
+## 接收引擎放行队列
+
+#1742 D6 的队列入口只在全局 `cutover.json` 有效且旧入口保持同代次 `draining` 时工作。切流准备与回退见 [冻结旧入口并让在飞任务收尾](../docs/migration-drain-1742.md)。切流不改变专用票准入，也不打开 `Takeover`。
+
+引擎只给合资格实装票挂 `deepagents:queue`。队列允许 `ready-for-agent` 和 `wayfinder:impl`，拒绝 `sandcastle`、`agent:*`、`wayfinder:grilling`、所有人闸标签、有负责人、有 blocker 或 SPEC 不在票的祖先链上，也不与票同属实际 map的票。旧日志的未知事件和未收尾 claim 也会阻止准入。
+
+所属 SPEC 正文必须声明写集。多个目录用空格分隔：
+
+```text
+deepagents-scope: rust/src/example/ rust/tests/example/
+```
+
+队列只从受 SPEC 签名绑定的正文读取写集。切流记录同时绑定日志绝对路径与字节位置，所有队列动作都读取这份日志，包括 Studio 打开的新队列 run。实装票自己新增的 scope 行不授予权限。缺少声明时，状态页显示 `awaiting_human` 和 `deepagents-scope`，不会扩大到整个仓库。补正文会改变 SPEC 摘要，因此需要对新正文签批。登记时冻结 main 的当前 SHA、写集和任务，缺少该本地提交对象时要求先部署或 fetch，不在后台擅自更新源检出。
+
+### 为新队列 run 提供 SPEC 授权
+
+D8 的请求绑定 `ticket`、`run_id`、`claim_generation`、`spec_authorization` 与 SPEC 正文原始字节。已有同绑定、同正文且未过期的已发布签批直接复用。历史评论关键词批准和另一个 run 的签批不能复制到新 run。它们的历史批准记录不改写。
+
+首次 `serve --once` 会登记 `t<票号>-1`，在任何票面写入前生成 `runs/<run>/approvals/spec_authorization.request`。状态页列出请求路径及签批命令。由批准人在受管签批工具中核对、签名并发布该请求，再运行下一轮。签名未发布、拒绝或已过期时保持等待。每个动作都重读权威决定链和 SPEC 正文。正文变化时暂停并生成新请求，模型恢复载荷不算批准。
+
+这条要求只作用于新的 `Queued` 准入。v1 账本、已持有 `DedicatedPilot` run 与原来的专用票交付条件不变。队列默认不要求 `candidate_head` 签批。它只交付到 `awaiting_merge(h)`，不合 main。
+
+### 运行队列
+
+```sh
+executor serve --once --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
+executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
+```
+
+`serve` 沿用旧 claim-loop 单票在飞的上限。票级 ClaimStore 和全局 serve 锁防止两个控制进程重复持有。返回 75 或被 SIGKILL 的子进程在下一轮恢复同一 run 和代次；返回 0 或 2 也不代表工蜂结束。队列在派下一票前只读原 run 的工蜂事实，也枚举没有 intent 的 Boat 绑定。`Running`、`EffectUnknown` 或无法读取的工蜂状态继续占槽，包括已中断、halted、released 或已摘队列标签的票；已满足 [失败排空条件](BOAT.md#取消后释放队列槽或换代) 的绑定可释放槽位。队列的检查不访问 Boat，不收集或重派工蜂；原控制入口负责恢复和收集。完成的 run 不重新派工，发布沿用逐效果 Journal 的读回去重。
+
+旧 claim 已 `released` 且工蜂已排空时，仍在队列内的票登记或收养下一个 run；旧 run 的终态不阻止新 run 进入票级锁内的排空核验和换代。新 run 仍须取得绑定新 run 与代次的 SPEC 签批，之后才增加持有代次。未排空的旧 run 继续占槽，不登记下一代。
+
+队列登记先完整写入并同步临时文件，再排他发布 `units/<run>.json`。旧版本遗留的损坏单元保留原件，在状态页按票显示路径和错误，不重建或覆盖该票。没有在途工蜂的坏单元不阻挡其他票；该票仍有运行中或未知工蜂时继续占槽。
+
+状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。人工中断不会被队列自动清除，须使用显式 `executor run --resume`。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
+
+launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。部署 owner 把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 全部替换为已核对的绝对路径后安装。后两个占位符分别设置 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。配置和控制端 key 文件的要求见 [Boat 受管配置](BOAT.md#受管配置)。
+
+使用模板的 `PATH` 执行 `command -v boat`，确认服务能找到已登录的 CLI。模板默认包含 `/Users/silencehan/.local/bin`。App 私钥路径在参数中，Boat key 文件路径在环境中，两种密钥的内容都不进入 plist。

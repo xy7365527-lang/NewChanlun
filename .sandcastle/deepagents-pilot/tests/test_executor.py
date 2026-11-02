@@ -678,3 +678,82 @@ def test_registration_is_idempotent_and_frozen(v2):
     with pytest.raises(AdmissionRefused, match="不同的 WorkUnit"):
         v2.register()
     assert V2_TASK.allowed_prefixes == first.allowed_prefixes
+
+
+@pytest.mark.parametrize('remote_state', ['submitted', 'submitting', 'receipt', 'bad_identity'])
+def test_new_generation_refuses_previous_boat_worker(v2, monkeypatch, remote_state):
+    from test_boat import FakeBoat, config
+
+    from pilot1742 import boat_execution
+    from pilot1742.boat_execution import BoatBinding
+    from pilot1742.domain import WorkerKey
+
+    unit = v2.register()
+    run = v2.run(unit)
+    run.release()
+    spec = json.loads((run.dir / 'run.json').read_text())
+    spec['execution'] = {'backend': 'boat', 'config': config(), 'runtime_head': v2.base}
+    (run.dir / 'run.json').write_text(json.dumps(spec))
+    cli = FakeBoat()
+    monkeypatch.setattr(boat_execution, 'BoatCLI', lambda: cli)
+    old = PilotRun.open(v2.home, unit.run_id, source_repo=v2.source)
+    key = WorkerKey(unit.run_id, 'author', v2.base)
+    identity = old.execution._identity(key)
+    if remote_state == 'bad_identity':
+        identity['generation'] += 1
+    old.execution._store(key, BoatBinding(identity, 'vm', 'p1', '/home/user/x/p1',
+                                         'submitting' if remote_state == 'submitting' else 'submitted',
+                                         sandbox_id='bx_abc'))
+    if remote_state == 'receipt':
+        old.execution._path(key, '.remote.json').write_text('{}')
+    release_claim(ClaimStore(v2.claims_root), TICKET, unit.run_id, 'controller exited')
+    second = v2.register(f't{TICKET}-2')
+    before = v2.writes()
+    with pytest.raises(ClaimRefused, match='Boat'):
+        v2.run(second)
+    assert v2.claim_record()['generation'] == 1
+    assert v2.claim_record()['state'] == 'released'
+    assert v2.writes() == before
+    assert cli.calls == [], 'generation admission must not launch or reconcile the previous worker'
+
+
+@pytest.mark.parametrize('field,value', [('generation', 2), ('run_id', 'other-run'), ('run_dir', '/other'),
+                                         ('ticket', 99), ('repo', 'other/repo')])
+def test_cancel_action_rejects_another_claim_identity(v2, field, value):
+    from dataclasses import replace
+
+    unit = v2.register()
+    run = v2.run(unit)
+    run.release()
+    with ClaimStore(v2.claims_root).locked(TICKET) as txn:
+        txn.write(replace(txn.record, **{field: value}, state='released'))
+    with pytest.raises(Fenced, match='取消身份不符'):
+        with run._fence('cancel'):
+            pytest.fail('foreign identity reached cancellation body')
+
+
+def test_new_generation_accepts_collected_boat_worker_without_remote_calls(v2, monkeypatch):
+    from test_boat import FakeBoat, config, payload
+
+    from pilot1742 import boat_execution
+    from pilot1742.boat_execution import BoatBinding
+    from pilot1742.domain import WorkerKey
+
+    unit = v2.register()
+    run = v2.run(unit)
+    run.release()
+    spec = json.loads((run.dir / 'run.json').read_text())
+    spec['execution'] = {'backend': 'boat', 'config': config(), 'runtime_head': v2.base}
+    (run.dir / 'run.json').write_text(json.dumps(spec))
+    cli = FakeBoat()
+    monkeypatch.setattr(boat_execution, 'BoatCLI', lambda: cli)
+    old = PilotRun.open(v2.home, unit.run_id, source_repo=v2.source)
+    key = WorkerKey(unit.run_id, 'author', v2.base)
+    old.execution._store(key, BoatBinding(old.execution._identity(key), 'vm', 'p1', '/home/user/x/p1',
+                                         'submitted', sandbox_id='bx_abc'))
+    old.execution.collect(key, payload(old, old.execution, key, []))
+    release_claim(ClaimStore(v2.claims_root), TICKET, unit.run_id, 'worker finished')
+    second = v2.run(v2.register(f't{TICKET}-2'))
+    assert second.generation == 2
+    assert cli.calls == []
+    second.release()
