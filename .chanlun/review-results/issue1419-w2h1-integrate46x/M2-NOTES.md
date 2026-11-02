@@ -1127,3 +1127,186 @@ memo 分支包括 `Some(memo)` 但表已禁用/空槽的情况都保留原控制
 - 独审用纯 Python 核对原笔记全部行及原测试历史注释按原顺序保留、两个摘要和生产写者规则串未改。`git diff --check` 退出 0，暂存区为空，HEAD 保持开工值；工作区全部改动仅为本笔记与 `source_audit.rs`。
 
 本阶段 ready。Rust 未验证，待 CI。本机未运行 cargo/rustc、Rust 编译或测试，未暂存或提交。下一阶段按 CI 实测统一重冻完整 Some 的两个摘要及任何实际报出的其他受影响冻结；本阶段预期值不冒充实测。
+
+
+## M5
+
+# #1419 M5：并入 H1 bea93e19 的冲突处理
+
+本笔记是绑定 #1419 的阶段工作草稿，按用户要求留在工位外供宿主搬运。
+
+阶段状态为 ready，仅表示冲突文件已处理。非冲突源码发现三处确定的 typed 接口适配缺口，按本阶段边界列入下一阶段，见下文。Rust 未验证，待 CI。
+
+## 开工状态与范围
+
+- 分支为 `sandcastle/issue-1419`。
+- HEAD 为 `b1f5a9d7241ddd7616ae86d6d9a1b0dbef313668`。
+- MERGE_HEAD 为 `bea93e191971af3b7e4a607d3acb7669359fd642`。
+- 开工 `git diff --name-only --diff-filter=U` 仅有 `.github/prod-banned-literals.txt`。
+- 只修改上述冲突文件。非冲突文件的自动合并内容与暂存区均保留开工状态。
+- 阅读工位 M2-NOTES 的接口与禁串裁定、M2C/M2D/M3/M4 记录，复核 H1 `42a3f959..bea93e19` 四个提交的差异及外盘 S1D-REPORT 末尾检查点。另派非作者工蜂只读复核全部笔记、增量、改签名函数与调用者。
+
+## 唯一冲突文件：.github/prod-banned-literals.txt
+
+HEAD 是 W2 × H1 经 M1–M4 整合后的 1756 项生成清单，包含 W2 结构对象的测试字面和此前夹具、格式串处理结果。H1 新增 S1S/S1T 合同夹具后清单为 1647 项；它新增 P6 对照臂、identity 和 schema 前缀检查字面，同时删除已被新断言替换的旧字面。
+
+实际冲突位于 `startup不得沿用旧请求缓存` 后。HEAD 一侧有以下四项，H1 一侧为空：
+
+```text
+startup原件不能跨着恢复请求保留
+subject 悬空须判出
+subject 指向另一实际对象须判出
+subject_id 非文本
+```
+
+按 M2-NOTES:7–16、:683–739 的 owner 裁定，清单是原生成器的精确输出，不采用手工并集。执行现有 `.github/scripts/gen-prod-banned-literals.py` 重建，未修改生成器、checker 或其规则。
+
+- 三项 subject 字面全部保留，当前源分别在 `rust/src/bin/s_session_v3/generation.rs:7422`、`:7414`、`:7237`，保留 W2 的悬空、错对象、字段类型检查覆盖。
+- 删除 `startup原件不能跨着恢复请求保留`。H1 已改为核对发布前 slot 的 generation、identity 重建后的当前 generation、完整审计次数和后续命中次数，旧字面在合并后全 rust 搜索无命中。新字面 `对照臂仍持有发布前原件` 与 `identity 必须重建当前发布前沿的原件` 均入清单。
+- 同步接受已自动合并的 H1 新字面。最终相对 HEAD 新增 11 项、删除 3 项，为 `1756 + 11 - 3 = 1764` 项。其余 W2 字面逐项保留。
+- 另外两项删除为 `内层已完整成功并retain后，epoch才拒绝` 和 `期限门之前业务核已完成retain`。两项均已从当前 Rust 源码消失，被 H1 的 schema-only 前缀断言及独立实际 startup 对照覆盖。没有删除测试或检查。
+- 清单保留原两行头、按生成器排序，无重复，无冲突标记。
+
+该文件不含函数，无改名或改签名。全仓 `git grep -n -F prod-banned-literals.txt -- .github/scripts` 核对生成器、检查脚本、产物消费者及单测；生成器仍为唯一产物源，消费者仍逐字节匹配，未缩减扫描规则。
+
+## 两侧源码保留与调用者核对
+
+所有自动合并 Rust 文件均未修改。对开工时已自动合并的文件逐一计算 SHA-256，与结束状态对拍相同；`git ls-files --stage` 全量字符串也与开工一致。
+
+因此 HEAD 的 PublishError 接口、M2C/M2D/M3/M4 的锁、去重修复与完整 W2 写者规则保持；H1 S1R 的 Box 返回、`#[inline(never)]`、薄测试入口与独立 body、测试水位探针，以及 S1S/S1T 的夹具改动均保留。没有重新设计栈修复，没有使用 test_writer_rule，没有改资源帽或增加判据失败后的兜底路径。
+
+完整生产规则仍为：
+
+```text
+s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2
+```
+
+S1R 的原始 `Box<Driver>`、inline 属性及 probe 改动已与 `git diff 29326e4d^ 29326e4d` 核对。非作者复核从该提交提取 18 个连续新增段，当前源码全部逐字保留，admission_tests.rs 整文件与 bea93e19 逐字相同。外盘检查点 22 记录 H1 原分支目标测试已 ok；该收据不能代替当前 W2 集成候选的 Rust 验证。检查点 23/24 的 S1S/S1T 断言修正随非冲突文件保留。
+
+以下均已逐名实际执行全仓 `git grep`，未按 cfg 过滤，同名符号再按模块和局部作用域筛出真实调用。路径省略前缀 `rust/src/bin/s_session_v3/`。
+
+| 新增或改签名函数 | 当前调用者核对 |
+|---|---|
+| `admission_tests.rs:512` 的 `h1_admission_driver`，返回 `Result<Box<Driver>, String>` | 同文件 :164/:224/:434/:465/:495/:575/:615/:717/:824/:951/:1233/:1251/:1369，另 `audit_owner/legacy_admission_tests.rs:8`。均为借用、方法调用或 drop；`h1_admission_driver_commit(&mut Driver)` 由 DerefMut 适配，没有按值 Driver 消费。 |
+| `admission_tests.rs:567` 的 `h1_admission_driver_cold`，返回 `Box<Driver>` | 同文件 :638/:650/:737，均适配 Box。 |
+| `admission_tests.rs:610` 的目标测试 body | 唯一调用 :604；原测试名与薄入口保留。 |
+| `driver.rs:2308` 的局部 `open`，返回 `Box<Driver>` | 本测试中 :2337/:2339 及 epoch2 重开的 :2380/:2382，全部沿新 helper。全仓同名函数按局部作用域排除。 |
+| `driver.rs:5432` 的局部 `open`，返回 `Result<(Box<Driver>, identity), String>` | :5463/:5469/:5526。局部 `ordinary` 定义 :5451，唯一调用 :5455。 |
+| `audit_owner.rs:7594` 的 `p6_publish_full_lease_for_test` | 唯一真调用 `driver.rs:9398`。定义与调用保持 H1 对照臂语义，但有下文 typed 缺口。 |
+| `audit_owner.rs:7663` 的既有 `p6_source_context_for_test` | `driver.rs:9396` 与 `prepared.rs:2291/:2566/:2832/:2848/:3050/:3137/:3173/:3209/:3259`，签名未改。 |
+| 新 probe 的 `enter` / `sample_codec` / `record` | enter 在 `admission_tests.rs:603`；sample_codec 在 `history.rs:3932/:3983`；record 在 `audit_owner.rs:595/:753/:826/:945`、`admission_tests.rs:514/:605/:612`、`driver.rs:877/:900/:906`、`source_contributions.rs:2526`、`state.rs:1369`，另 probe 模块 enter 内部 :36。测试、增量、Unix 门控匹配。 |
+
+另核 HEAD 的完整规则常量 `rust/src/bin/s_structure_session.rs:139`、生产规则文件、policy records 与 M4 `source_audit.rs` 相对 HEAD 无差异。ColdHistoricalSourceFold 与 audit_source_step 的 typed 返回保留，H1 probe 仅前插，不替换原核。
+
+## 非冲突文件：下一阶段必须适配的 typed 缺口
+
+以下全部位于未获准修改的 `rust/src/bin/s_session_v3/audit_owner.rs`，均在 H1 新增的 `p6_publish_full_lease_for_test` 中，定义为 `:7594`，外层返回 `String`，codec 闭包在 `:7641` 显式标成 `Ok::<_, String>`。
+
+| 调用位置 | 被调函数与当前定义 | 确定缺口 |
+|---|---|---|
+| `rust/src/bin/s_session_v3/audit_owner.rs:7613` | 同文件 `before_fixed_write`，`:4279`，返回 `Result<(), PublishError>` | 新 helper 用 `?` 直接传播到 String 闭包，缺 typed 适配。 |
+| `rust/src/bin/s_session_v3/audit_owner.rs:7636` | `rust/src/bin/s_session_v3/prepared.rs:524` 的 `Runtime::publish_in_owner`，返回 `Result<CommitReceipt, PublishError>` | codec 闭包显式 String，直接 `?` 不匹配。 |
+| `rust/src/bin/s_session_v3/audit_owner.rs:7638` | 同文件 `finish_fixed_write_in_publication`，`:4473`，返回 `Result<(), PublishError>` | 同一个 String codec 闭包直接 `?` 不匹配。 |
+
+全仓 grep 确认新 helper 的唯一调用是 `rust/src/bin/s_session_v3/driver.rs:9398`，在独立 full_lease 测试对照臂中。后续应保留 HEAD 的 PublishError 合同，让新 helper 内部及 codec 工作闭包使用 typed 错误，只在既有 String 外边界调用 `into_message`。不得把生产核退回 String，不得删前后写入检查或以另一条准入路径绕过。
+
+这些是静态可证的错误类型不一致，不是本机编译诊断；本阶段 ready 不表示集成候选可编译。下一阶段需修复并由 CI 验证。
+
+新增错误相等断言另行核过，未发现同类确定缺口。prepared.rs:3176/:3212 的结果来自 String 入口 `AuditConnection::publish`，不是 typed 的 `PublishPhase::publish`；前缀 oracle 的 schema、epoch、rule 验证入口也均为 String。
+
+## 实际检查
+
+- `python3 -B .github/scripts/gen-prod-banned-literals.py .`，退出 0，生成 1764 项。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py --check .`，退出 0，与源码一致。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，退出 0，`violations=0`。
+- `rustfmt --edition 2021 --config skip_children=true --check` 显式覆盖自动合并的七个 Rust 文件，退出 0：audit_owner.rs、audit_owner/admission_tests.rs、driver.rs、history.rs、prepared.rs、source_contributions.rs、state.rs。仅为格式检查。
+- 重建后 `git diff --check`，退出 0。
+- Python 检查清单 1764 项排序、唯一性、冲突标记清零，全部通过。
+- Python 校验开工已暂存的非冲突文件 SHA-256 全部相同、完整 index stage 列表不变，全部通过。未暂存差异仅有原冲突文件。
+- 未执行 cargo/rustc、Rust 编译或测试，未执行需 Rust 产物的检查。Rust 未验证，待 CI。
+- 未执行 git add/commit。因用户禁止 git add，index 仍保留该文件的冲突三阶段，`git diff --name-only --diff-filter=U` 仍列它；工作文件内容已无冲突标记，留给宿主验收并暂存。
+
+
+## M5B
+
+本节绑定 #1419，按用户授权适配 M5 合并后 H1 新 helper 的 typed 接口。开工分支为 `sandcastle/issue-1419`，HEAD 为 `b3f2c358f9631991a31aced1059692308fddcc30`，工作区干净。先完整阅读 `/Volumes/AgentStorage/w2-h1-integrate46x/M5-MERGE-NOTES.md`，并复核本文 M2/M2C typed 合同。沿用本票，不另开票；本阶段未运行 cargo/rustc，未暂存、提交或回退改动。
+
+### helper 接口适配
+
+只改 `rust/src/bin/s_session_v3/audit_owner.rs:7594` 的 `p6_publish_full_lease_for_test`，外层仍返回 `Result<(commit::CommitReceipt, Ended), String>`。完整执行闭包显式返回 `PublishError`，codec 闭包的 `Ok::<_, String>` 改为 `Ok::<_, PublishError>`。`before_fixed_write`、`Runtime::publish_in_owner`、`finish_fixed_write_in_publication` 三个 typed 调用继续直接用 `?`，不改被调用函数签名，也不在这些调用之间擦除错误来源。
+
+native 失败归一闭包改收 `native::Failure<PublishError>`。`codec_work` 仍返回既有 `Failure<String>`，经 `native.rs:28` 的现有转换上提；`run` 的 `WorkError<PublishError>` 经 `native.rs:1553` 的泛型转换处理，`Operation(PublishError)` 保持原 typed 错误，`Invalid(error)` 直接返回原错误。预算失败文案保持不变，只转入 typed 返回。既有 String helper 的结果由 `ContextError::From<String>` 上提，最终在原 helper 的 String 出口调用一次 `result.map_err(PublishError::into_message)`。
+
+helper 唯一调用者仍是 `rust/src/bin/s_session_v3/driver.rs:9398` 的 full_lease 测试对照臂，无需改调用者。保留 raw/capture/source 为 None 的对照方式、写入前后检查、事务及旁挂台账提交顺序、错误后的 retired/候选清理/台账失效/runtime 丢弃/context 释放。没有增删测试、修改断言、生产规则、资源帽或准入判据。
+
+### 笔记搬运与实际检查
+
+- 将外盘 M5 笔记全文原样并入上面的 `M5` 小节，原件 9653 字节，SHA-256 为 `2fdbcdcb4259c057588bafe8c04269f2f8fcc7850e4b5b750c21a520ee9b4704`。本阶段开工笔记的 104452 字节前缀完整保留，其 SHA-256 为 `5ec02a818663980f56ae2872f1a02579a639d5b5fb44f4dc87d6ac53157ebd94`。
+- `rustfmt --edition 2021 --config skip_children=true --check rust/src/bin/s_session_v3/audit_owner.rs` 实际退出 0，仅验证格式。
+- `PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/gen-prod-banned-literals.py --check .` 实际退出 0，报告 `.github/prod-banned-literals.txt 与源码一致`。helper 字面量及 cfg 均未改变，禁串清单不受影响，无需重建；未改生成器或手改清单。
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest s_session/tests/test_tb01c_r4_anchor_lock.py` 实际退出 0，3 项通过。已读完整脚本，确认本命令不调用 cargo/rustc。
+- Python 静态比对 HEAD 与工作树：helper 外源码逐字相同；helper 的字符串字面量、写入检查、提交和失败清理调用次数、full_lease 的 None 字段全部保持。完整文件的函数名顺序与 `#[test]` 数量不变；helper 内只有最终出口一次 `into_message`。
+- `git diff --check` 实际退出 0。未暂存、提交或回退；最终工位改动为本笔记与 `audit_owner.rs`。
+
+Rust 未验证，待 CI。上述格式、Python 锁与静态核查不证明 Rust 编译或测试通过；本阶段 ready 仅指已完成本轮接口适配及指定本机检查。
+
+
+### M5B 独立只读静态核查
+
+本核查绑定 #1419，基线为 `git diff b1f5a9d7 HEAD -- rust`，当前 HEAD 为 M5 合并结果 `b3f2c358f9631991a31aced1059692308fddcc30`。已完整阅读外盘 M5-MERGE-NOTES，并阅读 M2 类型传播与终界及 M2C feature 组合合同。仅写工位外 `/tmp` 报告，未编辑仓内文件、未运行 cargo/rustc、未暂存或提交。
+
+对 7 个 Rust 差异文件按新增/删除行与函数词法范围相交枚举，共 35 个新增/改动函数、34 个不同名字；两个局部 `open` 单独记行。逐名实际执行 `git grep -n -w -F NAME -- rust`，不按 cfg 排除；原始结果为 `/tmp/issue1419-m5b-grep.txt`，范围及完整 HEAD 函数正文为 `/tmp/issue1419-m5b-functions.json`。一般同名函数另按模块、具体接收者及局部作用域排除，测试函数仅定义命中时由 Rust 测试入口消费。该枚举也覆盖仅改函数体、局部函数、闭包所在外层函数与 probe `Drop`，没有把“改签名函数”误作完整范围。
+
+下表路径均省略 `rust/src/bin/s_session_v3/`。`T` = `test`，`I` = `s_incremental`，`U` = `unix`；表中 cfg 为相对 v3 模块的生效门。新增 probe 的调用统一落在 `T+I+U`；`source_contributions` 的 I 来自 `source_audit.rs:32` 的模块门，`advance_cold_sources` 的 I 来自 impl 门。`s_capture_native_testonly` 在 `rust/Cargo.toml:87` 明确依赖 I，已在同一份不删 cfg 的源码中核查，没有因当前本机 feature 状态跳过这些路径。
+
+| 文件:HEAD 行 | 新增/改动函数 | 生效 cfg、返回值及真实调用核对 |
+|---|---|---|
+| `audit_owner.rs:23` | `drop` | T+I+U；返回 ()。Entry 的 Drop 实现，由 admission_tests:603 的 `_entry` 离开测试帧时调用；不是全仓其他类型的 drop。只报告水位并清空 ENTRY，无错误传播。 |
+| `audit_owner.rs:31` | `enter` | T+I+U；返回 Entry。唯一外部调用 admission_tests:603；内部 record 位于 owner:36；无 Result/问号。 |
+| `audit_owner.rs:39` | `sample_codec` | T+I+U；返回 ()。history:3932/:3983 两处调用，均同门；无 Result/问号。 |
+| `audit_owner.rs:50` | `record` | T+I+U；返回 ()。owner:36/:595/:753/:826/:945，admission_tests:514/:605/:612，driver:877/:900/:906，source_contributions:2526，state:1369；全为水位旁观，不消费错误。 |
+| `audit_owner.rs:581` | `open_rebuilt_history_into` | I+U；Result<Duration, String>。driver:582/:886 两处外部调用；只新增返回 () 的 probe，原有 String 边界和内部 typed→String 处理不变。 |
+| `audit_owner.rs:807` | `finish_rebuilt_history` | I+U；Result<Duration, String>。唯一 owner:788 调用；只新增 probe，原有 String 核与闭包不变。 |
+| `audit_owner.rs:7594` | `p6_publish_full_lease_for_test` | T+I；外层 Result<(CommitReceipt, Ended), String>，修复后操作闭包与 codec 闭包均 PublishError。唯一外部调用 driver:9398，state::traced 透传 Result，随后 unwrap/continue_with；详见后文。 |
+| `audit_owner/admission_tests.rs:512` | `h1_admission_driver` | T+I+U；Result<Box<Driver>, String>。admission_tests:164/:224/:434/:465/:495/:575/:615/:717/:824/:951/:1233/:1251/:1369，legacy_admission_tests:8，共 14 调用；底层 open_with_request_and_mode_retention 为 String，map(Box::new) 不改错误。全部调用借用、方法调用或 drop，无按值 Driver 消费。 |
+| `audit_owner/admission_tests.rs:567` | `h1_admission_driver_cold` | T+I+U；Box<Driver>。admission_tests:638/:650/:737 三调用；内部 :575 traced 取 h1_admission_driver 的同一 String Result 并 unwrap；借用处经 DerefMut 适配。 |
+| `audit_owner/admission_tests.rs:601` | `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise` | T+I+U；返回 ()。测试入口，grep 仅定义；调用 probe enter、独立 body、probe record，无 Result/问号。 |
+| `audit_owner/admission_tests.rs:610` | `h1_admission_driver_cold_recover_rebuilds_ledger_bitwise_body` | T+I+U；返回 ()。唯一 admission_tests:604 调用；原测试主体保留，Box 被借用给 h1_admission_driver_commit(&mut Driver)，无 String/PublishError 传播。 |
+| `driver.rs:867` | `recover_rebuilt_history` | I+U；Result<Value, String>。唯一 driver:859 调用；新增 probe 全返回 ()，其余 cold_context/open_rebuilt_history_into/recover 原调用和错误处理不变。 |
+| `driver.rs:1756` | `native_prefix_preserves_business_epoch_rule_order_and_clears_context` | T+I；测试入口 ()，无显式调用者。新增 prefix_expected 的 schema/epoch/rule/meta 四入口均为 String，and_then 内 meta_get_opt? 与 String 相合；新增 startup 对照亦 String，.err/unwrap 相合。 |
+| `driver.rs:1841` | `native_prefix_populated_capture_type_error_precedes_frame_and_epoch` | T+I；测试入口 ()。新增 schema/epoch 两段 and_then 均 String；实际 startup 对照错误也是 String；新增断言无 typed 值比较问题。 |
+| `driver.rs:1903` | `native_prefix_context_rechecks_real_connection_current_material` | T+I；测试入口 ()。新增 startup(...).unwrap() 消费既有 String 边界；same/append/拒绝断言只核现有业务结果，没有 typed 闭包。 |
+| `driver.rs:2002` | `native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool` | T+I；测试入口 ()。verify_writer_epoch、admit_prefix、Driver open 的错误均 String；audit_native_in_request 只 unwrap，不向 String 直接问号传播。 |
+| `driver.rs:2116` | `native_prefix_final_deadline_preserves_business_and_clears_retained_context` | T+I；测试入口 ()。run/clock/test_with_clock_account 内层闭包分别返回元组、Instant、元组，无新增错误问号；新增独立 startup 对照为既有 String 外口。 |
+| `driver.rs:2305` | `native_delta_explicit_policy_sql_receipt_and_failed_commit_retry` | T+I；测试入口 ()。四处改用下行局部 open 返回 Box；原失败注入闭包、native.handle String Result 未换错误类型，traced 原样透传。 |
+| `driver.rs:2308` | `open` | T+I，属于上行测试局部作用域；Box<Driver>。driver:2337/:2339/:2380/:2382 四调用。Driver::open_with_request_and_mode_context 原返回 String，map(Box::new).unwrap() 类型一致。 |
+| `driver.rs:5429` | `native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged` | T+I；测试入口 ()。覆盖下面两个局部 helper；ordinary 对照 traced 闭包仍 Ok::<_, String>，其中 open_with_request_and_mode_context 与 identity 均 String，map(Box::new) 仅改成功值。 |
+| `driver.rs:5432` | `open` | T+I，属于上行 bootstrap 测试局部作用域；Result<(Box<Driver>, identity), String>。driver:5463/:5469/:5526 三调用；open_for_serve_with_identity 原 String，map 闭包仅 Box 包装。 |
+| `driver.rs:5451` | `ordinary` | T+I，属于同一 bootstrap 局部作用域；Result<Box<Driver>, String>。唯一 driver:5455 调用，Fixture::open 原 String，map(Box::new) 不变错误。 |
+| `driver.rs:5551` | `native_bootstrap_pending_drops_startup_slot_before_resume_then_identity_cold_matches_current_frontier` | T+I；测试入口 ()。只改计数/slot 与 identity 对拍，新增两次 identity_in_bootstrap 均 unwrap；没有新增 typed→String 传播。 |
+| `driver.rs:5638` | `native_bootstrap_two_transactions_reject_current_damage_or_sql_error_without_old_proof` | T+I；测试入口 ()。只增加/调整审计次数和 context 计数断言；原 SQLite hook、identity 错误不变。 |
+| `driver.rs:9248` | `p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths` | T+I；测试入口 ()。driver:9396 新请求上下文，:9398 调用 full_lease helper；traced/unwrap 不约束为 PublishError；原 full_lease 车道、每代一次完整分支和逐行台账对拍保留。 |
+| `history.rs:3928` | `read_scoped` | HashReader 的 NodeSource 方法；Result<ScopedNodeRead, CodecError>，新增 probe 为 T+I+U。history:3926 的 read、cold_source:58 的 trait 转发、effects:1465 显式 map_err(publish_err)、泛型 NodeSource 消费者共同沿 CodecError 合同；完整 28 个同名命中按接收者排除其他实现，未改错误/trait 签名。 |
+| `history.rs:3976` | `checked_read_scoped` | HashReader 的 NodeSource 方法；Result<Option<ScopedFrame>, CodecError>，新增 probe 为 T+I+U。history:3973 checked_read、cold_source:70 与 effects:1211/:1393 的 trait 转发，以及泛型 NodeSource 消费者沿 CodecError 合同；完整 55 个同名命中按接收者排除其他实现，未改错误/trait 签名。 |
+| `prepared.rs:2825` | `p6_queued_units_real_owner_commits_only_verified_complete_keys` | T+I；测试入口 ()。prepared:2832/:2848 两个上下文改 p6_source_context_for_test；owner.publish 仍 String 并 unwrap，没有 typed 闭包或签名变动。 |
+| `prepared.rs:3024` | `p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild` | T+I；测试入口 ()。prepared:3050 上下文更换，owner.publish 仍 String/unwrap；台账及重建检查不改。 |
+| `prepared.rs:3112` | `p6_complete_ledger_real_owner_records_pending_without_group` | T+I；测试入口 ()。prepared:3137 上下文更换，owner.publish 仍 String/unwrap；pending 与 cover 对拍不改。 |
+| `prepared.rs:3160` | `p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit` | T+I；测试入口 ()。prepared:3173 新上下文、:3174 owner.publish 返回 String，:3176 起新增错误逐字相等断言比较 String 与字符串字面；不是 PublishPhase::publish 的 typed 返回。 |
+| `prepared.rs:3197` | `p6_queued_units_prepare_failure_discards_facts_and_stales` | T+I；测试入口 ()。prepared:3209 新上下文、:3210 owner.publish 返回 String，:3212 起逐字错误断言相合；没有 typed 值与字面直接比较。 |
+| `prepared.rs:3242` | `p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries` | T+I；测试入口 ()。prepared:3259 上下文更换，owner.publish 的错误沿 String，contains 原断言适配；提交与不重试语义保持。 |
+| `source_contributions.rs:2508` | `audit_source_step` | I；Result<(Counts, NativeSourceState, SourceExports), PublishError>。source_contributions:2491 audit_native_bound 与 state:1392 advance_cold_sources 两真调用均 PublishError；source_audit:42 仅重导出。新增 T+U probe 叠加模块 I 后同定义门。 |
+| `state.rs:1355` | `advance_cold_sources` | I；Result<(Counts, SourceExports), PublishError>。唯一 state:1469 ColdHistoricalSourceFold::verify 调用同为 PublishError；新增 T+U probe 叠加 impl I 后同定义门。 |
+
+补充调用者核对：`p6_source_context_for_test` 自身不是本次 H1 差异中的改动函数，仍逐名实际 git grep，定义在 owner:7663，所有 10 个调用为 driver:9396 和 prepared:2291/:2566/:2832/:2848/:3050/:3137/:3173/:3209/:3259；均直接取 RequestAuditContext，无 Result。`h1_admission_driver_commit` 也另行逐名 git grep：参数仍 `&mut Driver`，新 Box 调用通过 DerefMut 借用，未新增按值 Driver 消费。全仓 probe 的 `record`/`enter` 同名命中分别有大量其他业务标识，表中只列实际 h1_stack_probe 接收者；Entry::drop 属语言析构入口，不把无关类型 drop 算作其调用者。
+
+### 对本轮 full_lease 修复的独立复核
+
+原来的三处确定缺口均在 `p6_publish_full_lease_for_test`：owner:7613 `before_fixed_write`、:7636 `Runtime::publish_in_owner`、:7638 `finish_fixed_write_in_publication` 都返回 PublishError，原操作帧/codec 闭包为 String。本轮只把这两个内部帧统一为 PublishError，未修改上述生产函数签名。
+
+- `native::Failure<PublishError>` 的 `Invalid(error)` 原样返回 typed 错误，BudgetExceeded 仍生成原来的 `P6完整对照臂父预算不足` 文本并转入 PublishError。
+- `Budget::codec_work` 在 native.rs:966 仍返回 `Failure<String>`，通过 native.rs:28 的专用 `From<Failure> for Failure<PublishError>` 接入 typed failure 回调；其预算与 Invalid 两分支均显式保留。`CodecWork::run` 在 scratch.rs:428 泛型返回 `WorkError<E>`，此处 E 由 `Ok::<_, PublishError>` 锁定。native.rs:1553 的 `From<WorkError<O>> for Failure<E>` 与 :23 的 PublishError→Failure<PublishError> 完整接住资源错误和操作错误；无错误文本化或吞错。
+- 原 String 子入口通过既有 `ContextError::from(String)`（s_content.rs:237）进入同一 typed 帧；候选缺失显式 Err 同样使用 `.into()`。全部前/后写检查、construction seal/transition/run、publication commit、ledger commit 仍按原顺序执行；错误发生后 retired、clear_candidates、invalidate_audit_ledger、discard、context.take 清理仍全部保留。
+- 外部签名仍为 String；唯一 `PublishError::into_message` 在最后 `result.map_err(...)`，位于错误清理之后。没有添加 `From<PublishError> for String`，没有中途降级或失败兜底。
+- `PublishPhase` 的 audited 候选、publication 父域、`raw: None`、`capture: None`、`source: None` 及唯一调用者不变，独立 full_lease 对照臂语义保持；没有删除测试或写入检查。
+
+结论：除已知 helper 的这三处外，在上述 35 个 H1 新增/改动函数及其全仓调用者中，未发现另一处静态可证的 String/PublishError 不一致。本报告为源码/类型合同核查，Rust 未验证，待 CI。

@@ -7598,15 +7598,15 @@ impl AuditConnection {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(commit::CommitReceipt, Ended), String> {
-        let failure = |error: native::Failure| match error {
-            native::Failure::BudgetExceeded => invalid("P6完整对照臂父预算不足"),
+        let failure = |error: native::Failure<PublishError>| match error {
+            native::Failure::BudgetExceeded => invalid("P6完整对照臂父预算不足").into(),
             native::Failure::Invalid(error) => error,
         };
-        let result = (|| {
+        let result = (|| -> Result<_, PublishError> {
             let mut active =
                 self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
             if !active.bind_existing(Some(context))? {
-                return Err(invalid("P6完整对照臂缺同快照完整候选"));
+                return Err(invalid("P6完整对照臂缺同快照完整候选").into());
             }
             active.with_bound_raw_advance(context, |raw| raw.ensure_current())?;
             let resources = active.issue_publication_resources(context)?;
@@ -7614,7 +7614,7 @@ impl AuditConnection {
             let (receipt, after) = resources
                 .budget
                 .codec_work()
-                .map_err(&failure)?
+                .map_err(|error| failure(error.into()))?
                 .run(|work| {
                     let parent = PublicationScope {
                         resources: &resources,
@@ -7638,7 +7638,7 @@ impl AuditConnection {
                     active.finish_fixed_write_in_publication(Some(&parent))?;
                     let after = active.construction_seal()?;
                     active.check_publication_transition(resources.before, after)?;
-                    Ok::<_, String>((receipt, after))
+                    Ok::<_, PublishError>((receipt, after))
                 })
                 .map_err(|error| failure(native::Failure::from(error)))?;
             active.check_publication_run(ConstructionRun {
@@ -7657,7 +7657,7 @@ impl AuditConnection {
             runtime.discard();
             drop(context.take());
         }
-        result
+        result.map_err(PublishError::into_message)
     }
 
     pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
