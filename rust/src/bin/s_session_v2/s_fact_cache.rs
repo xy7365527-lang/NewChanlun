@@ -396,6 +396,71 @@ pub(super) struct ParserChanges {
 }
 
 impl DeltaLane {
+    /// #1481：只在冷认证内从已核发布前缀建立进程缓存；不签发原账或历史资格。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn cold_seed(
+        raw: bj::RawEventsView<'_>,
+        prefix: usize,
+        binding: crate::v3::audit_owner::RawAdvanceBinding,
+        admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: &dyn crate::v3::audit_budget::Budget,
+    ) -> Result<Self, String> {
+        if !binding.is_unbound_cold() || prefix > raw.len() || raw.budget().is_some() {
+            return Err("GenError：冷车道必须来自未绑定的已核发布前缀".into());
+        }
+        let mut winners = bj::RawPrefixIndex::new(raw);
+        winners.advance_measured(prefix, admission, deadline, Some(budget))?;
+        let mut lane = Self::new(None)?;
+        if let Some(work) = admission.codec_work() {
+            lane.rows
+                .try_reserve_native(work, winners.ordered().count())
+                .map_err(|e| e.to_string())?;
+        } else {
+            return Err("GenError：冷车道缺原生工作域".into());
+        }
+        for (_, ordinal) in winners.ordered() {
+            crate::v3::check_deadline(deadline)?;
+            budget.precheck().map_err(|e| e.to_string())?;
+            let bar = bar_of(raw.get(ordinal).ok_or("GenError：冷winner原行缺失")?)?;
+            let change = lane.state.append_with_changes(bar);
+            if !change.shared_available() {
+                return Err("GenError：冷winner非严格升序".into());
+            }
+            lane.rows
+                .try_push_native(
+                    DeltaRawRow { ordinal, bar },
+                    admission.codec_work().ok_or("GenError：冷车道缺工作域")?,
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        lane.prefix = prefix;
+        lane.binding = Some(binding);
+        Ok(lane)
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn rebind_cold_owner(
+        &mut self,
+        old: crate::v3::audit_owner::RawAdvanceBinding,
+        current: crate::v3::audit_owner::RawAdvanceBinding,
+        prefix: usize,
+    ) -> Result<(), String> {
+        if !old.is_unbound_cold()
+            || current.is_unbound_cold()
+            || !current.is_initial()
+            || self.binding != Some(old)
+            || self.prefix != prefix
+            || self.poisoned
+            || self.view_qualified
+            || self.unqualified_history
+        {
+            return Err("GenError：冷车道交接域或前沿不符".into());
+        }
+        self.binding = Some(current);
+        Ok(())
+    }
+
     pub(super) fn new(
         budget: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
     ) -> Result<Self, String> {
@@ -452,9 +517,18 @@ impl DeltaLane {
 
     /// 可签借用视图的唯一推进口：bar 只从当前 bound 的真实原行按原配方解析。
     /// 通用 parse 回调口仍供 A1 测试/内部工作描述使用，但不能取得 prepared 资格。
+    #[cfg(test)]
     pub(super) fn advance_owner_bound(
         &mut self,
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<ParserChanges, String> {
+        self.advance_owner_bound_with_work(bound, None)
+    }
+
+    pub(super) fn advance_owner_bound_with_work(
+        &mut self,
+        bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
+        work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<ParserChanges, String> {
         if self.unqualified_history {
             bound.invalidate_after_consumer_failure();
@@ -464,12 +538,16 @@ impl DeltaLane {
             return Err("GenError：通用解析历史不可升格为 owner 原账资格，须新建车道".into());
         }
         let raw = bound.raw();
-        let changes = self.advance_bound_checked(bound, |ordinal| {
-            let event = raw
-                .get(ordinal)
-                .ok_or_else(|| "GenError：新 winner 原账缺失".to_string())?;
-            bar_of(event)
-        })?;
+        let changes = self.advance_bound_checked(
+            bound,
+            |ordinal| {
+                let event = raw
+                    .get(ordinal)
+                    .ok_or_else(|| "GenError：新 winner 原账缺失".to_string())?;
+                bar_of(event)
+            },
+            work,
+        )?;
         self.view_qualified = true;
         Ok(changes)
     }
@@ -484,16 +562,23 @@ impl DeltaLane {
         parse: impl FnMut(usize) -> Result<Bar, String>,
     ) -> Result<ParserChanges, String> {
         self.unqualified_history = true;
-        self.advance_bound_checked(bound, parse)
+        self.advance_bound_checked(bound, parse, None)
     }
 
     fn advance_bound_checked(
         &mut self,
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
         mut parse: impl FnMut(usize) -> Result<Bar, String>,
+        work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<ParserChanges, String> {
         self.view_qualified = false;
-        let result = self.advance_bound_inner(bound, &mut parse);
+        // 旧 Plain 车道保留原分配合同；只有冷阶段已绑定 Native 的 rows 需要活 work。
+        let work = if self.rows.is_native_bound() {
+            work
+        } else {
+            None
+        };
+        let result = self.advance_bound_inner(bound, &mut parse, work);
         if result.is_err() {
             bound.invalidate_after_consumer_failure();
             self.binding = None;
@@ -506,8 +591,12 @@ impl DeltaLane {
         &mut self,
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
         parse: &mut impl FnMut(usize) -> Result<Bar, String>,
+        work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<ParserChanges, String> {
         bound.ensure_current()?;
+        if self.rows.is_native_bound() && work.is_none() {
+            return Err("GenError：冷Native车道推进缺当前工作域".into());
+        }
         if self.poisoned
             || self.prefix != bound.previous_prefix()
             || match self.binding {
@@ -620,9 +709,12 @@ impl DeltaLane {
             .checked_sub(removed)
             .and_then(|n| n.checked_add(added))
             .ok_or_else(|| "GenError：delta lane winner 数量不一致".to_string())?;
-        self.rows
-            .try_reserve_exact(new_len.saturating_sub(old_len))
-            .map_err(|e| e.to_string())?;
+        let additional = new_len.saturating_sub(old_len);
+        match work {
+            Some(work) => self.rows.try_reserve_native(work, additional),
+            None => self.rows.try_reserve_exact(additional),
+        }
+        .map_err(|e| e.to_string())?;
         // 坐标变化的旧 winner 先全部移除；不能按 identity 边删边加而误拒合法坐标互换。
         for edit in edits.iter().filter(|edit| !edit.same_coord) {
             if let Some(old) = edit.old {
@@ -647,7 +739,11 @@ impl DeltaLane {
                     let rank = rank.map_or_else(Ok, |_| {
                         Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".to_string())
                     })?;
-                    self.rows.try_push(new).map_err(|e| e.to_string())?;
+                    match work {
+                        Some(work) => self.rows.try_push_native(new, work),
+                        None => self.rows.try_push(new),
+                    }
+                    .map_err(|e| e.to_string())?;
                     self.rows[rank..].rotate_right(1);
                 }
             }

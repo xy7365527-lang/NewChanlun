@@ -201,6 +201,7 @@ pub(super) trait CutSourceVerifier {
         store: &mut HashReader<'_>,
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
+        auxiliary: &aux_index::Index,
     ) -> Result<(), String>;
 }
 
@@ -1859,7 +1860,13 @@ fn audit_one_published_cut<'capture>(
         delta,
     };
     if let Some(certify) = certify.as_deref_mut() {
-        certify.verify(&cut, store, objects.entries(), object_sweep.as_ref())?;
+        certify.verify(
+            &cut,
+            store,
+            objects.entries(),
+            object_sweep.as_ref(),
+            auxiliary,
+        )?;
     }
     Ok(cut)
 }
@@ -3714,7 +3721,7 @@ impl HashReader<'_> {
         self.audit_full_arrays = true;
     }
 }
-pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
+pub(crate) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
     crate::check_read_deadline(deadline)
 }
 

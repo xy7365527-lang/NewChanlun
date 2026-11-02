@@ -120,6 +120,8 @@ PY
 ./s_session/launch_s.sh service start-s --writer-epoch 2 --config "$S_CONFIG" --state-dir "$S_STATE"
 ```
 
+H1 写入完整性 fail-stop 须先停止全部 S/Q 与外部连接、保全原件，再停在 #1481 人工恢复门；见 [运行手册的完整性处置合同](../docs/runbook_production_session.md#h1-写入完整性-fail-stop)。上述 op95 恢复示例不授权清理完整性拒绝留下的旁挂。
+
 ## 冻结 fixture、完整运行与比较
 
 `tests/fixtures/tb01c/` 的 `MANIFEST.json` 绑定原始输入，`RUNTIME-MANIFEST.json` 绑定 runtime plan、完整 `messages.jsonl`、profile、clock plan 和 Q 资源原字节。其 `NOT_RUN`/`FROZEN_INPUT_BEFORE_EXECUTION_NOT_ACCEPTANCE` 是输入的名分，不是运行结果。正式 driver 开始前再次核长度/SHA，复制候选源码、二进制、配置与输入原件，结束时检查源未变化。

@@ -334,6 +334,7 @@ fresh verifier释放实际工作集，overlay固定布局仍在
 fresh 保持完整核验 oracle
 generation 是整数
 generation与独立依据不同
+h1_cold_seed: injected temporary failure
 handle 的审计结果与 capture 已释放
 high不是文本
 hit仍逐次读取、OHLC、validate、raw hash、RawWire
@@ -653,6 +654,7 @@ writer/recover闭合后无SHM
 历史插入须开新代际对象
 历史规则只读审计
 历史规则库字节须不变
+历史认证组件要求已冻结的Native请求域
 原Pool配方逐storage-class及完整字节计费；不导出原行正文
 原S7=1不创建keeper
 原internal record核对不能由generated视图替代
@@ -827,6 +829,7 @@ writer/recover闭合后无SHM
 完整整数预检先于任何节点写出
 完整核验的实际memo与栈仍计量
 完整正文 memo 保持真实 put 次数
+完整行与顺序不能被授权修复改变
 完整闭包应得到实际codec复用
 实测无同额来源物理许可
 实际 Vec/String capacity 加树/散列表保守槽位上界；非RSS
@@ -1437,6 +1440,7 @@ writer/recover闭合后无SHM
 缺字段必须拒绝
 缺当前候选原件
 缺当前形态原件
+缺必填参数 --resource-config
 缺源前写入门序相同
 缺选择器值不得创建库
 耗尽游标须进检查点

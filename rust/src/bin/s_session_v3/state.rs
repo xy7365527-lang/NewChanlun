@@ -145,7 +145,19 @@ pub(super) fn check_audit_source_retention_bytes(
     Ok(())
 }
 
-/// 只读完整状态审计：提交口与只读入口共用这一份判据。
+// #1481：仅测试记录旧审计核的真实调用；生产构建不含计数器或查询入口。
+#[cfg(all(test, feature = "s_incremental"))]
+thread_local! {
+    static FULL_AUDIT_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn full_audit_calls_for_test() -> usize {
+    FULL_AUDIT_CALLS.with(std::cell::Cell::get)
+}
+
+/// #1481：对照臂，不参与增量写者准入；退场条件：三层对拍锁在 CI 实际执行且
+/// 9011 双跑通过后，只留离线入口。非 s_incremental 的 Ordinary 仍用原完整判据。
+
 pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
     audit_until(tx, None)
 }
@@ -177,6 +189,8 @@ pub(super) fn audit_native_current_measured(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn audit_budget::Budget>,
 ) -> Result<AuditedState, String> {
+    #[cfg(all(test, feature = "s_incremental"))]
+    FULL_AUDIT_CALLS.with(|calls| calls.set(calls.get() + 1));
     #[cfg(feature = "s_incremental")]
     {
         let measure = audit_budget::NativeMeasure { budget, deadline };
@@ -241,6 +255,8 @@ pub(super) fn audit_native_in_request_measured(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn audit_budget::Budget>,
 ) -> Result<AuditedState, String> {
+    #[cfg(all(test, feature = "s_incremental"))]
+    FULL_AUDIT_CALLS.with(|calls| calls.set(calls.get() + 1));
     #[cfg(feature = "s_incremental")]
     {
         let measure = audit_budget::NativeMeasure { budget, deadline };
@@ -649,6 +665,8 @@ fn audit_with_capture_impl(
     enable_prototype_capture: bool,
     #[cfg(test)] owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<(AuditedState, Option<Value>), String> {
+    #[cfg(all(test, feature = "s_incremental"))]
+    FULL_AUDIT_CALLS.with(|calls| calls.set(calls.get() + 1));
     audit_core(
         tx,
         deadline,
@@ -773,6 +791,8 @@ fn audit_core_fresh_with_policy(
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     policy: history::SourcePolicy,
 ) -> Result<(AuditedState, Option<Value>), String> {
+    #[cfg(all(test, feature = "s_incremental"))]
+    FULL_AUDIT_CALLS.with(|calls| calls.set(calls.get() + 1));
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
     let capture_started = std::time::Instant::now();
@@ -1009,6 +1029,8 @@ fn audit_core_fresh_with_policy(
                     None,
                     #[cfg(feature = "s_incremental")]
                     false,
+                    #[cfg(feature = "s_incremental")]
+                    None,
                 )
             };
         if let Some(session) = ordinary_source.as_mut() {
@@ -1104,6 +1126,7 @@ fn audit_one_cut_sources(
     >,
     #[cfg(feature = "s_incremental")] owner_source: Option<&super::audit_owner::OwnerSourceCheck>,
     #[cfg(feature = "s_incremental")] certified: bool,
+    #[cfg(feature = "s_incremental")] cold_counts: Option<source_audit::Counts>,
 ) -> Result<(), String> {
     #[cfg(test)]
     trace_event("generated_sources", Some(cut.metadata.generation));
@@ -1111,18 +1134,24 @@ fn audit_one_cut_sources(
     let prefix = raw.prefix(cut.metadata.input_frontier as usize + 1)?;
     // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
     #[cfg(feature = "s_incremental")]
-    let cached_counts = match owner_source {
-        Some(source) if certified => Some(source.counts_for_cut(
-            cut.metadata.view(),
-            cut.roots.generated_state.view(),
-            prefix.len(),
-            deadline,
-        )?),
-        Some(source) => Some(source.counts_for(cut.roots.generated_state.view(), prefix.len())?),
-        None if certified => return Err(err("历史认证在线缺同请求来源收据")),
-        None => source_cache
-            .as_deref_mut()
-            .and_then(|cache| cache.lookup(cut)),
+    let cached_counts = if cold_counts.is_some() {
+        cold_counts
+    } else {
+        match owner_source {
+            Some(source) if certified => Some(source.counts_for_cut(
+                cut.metadata.view(),
+                cut.roots.generated_state.view(),
+                prefix.len(),
+                deadline,
+            )?),
+            Some(source) => {
+                Some(source.counts_for(cut.roots.generated_state.view(), prefix.len())?)
+            }
+            None if certified => return Err(err("历史认证在线缺同请求来源收据")),
+            None => source_cache
+                .as_deref_mut()
+                .and_then(|cache| cache.lookup(cut)),
+        }
     };
     #[cfg(not(feature = "s_incremental"))]
     let cached_counts: Option<source_audit::Counts> = None;
@@ -1221,18 +1250,37 @@ struct HistoricalSourceFold<'a> {
     certified_online: bool,
 }
 
+// #1481：冷台账状态只在冷折叠入口出生，借用共同来源核；在线后缀不内嵌它，
+// 也不进入含冷收据/来源状态按值临时量的 debug 栈帧。
 #[cfg(feature = "s_incremental")]
-impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
-    fn verify(
+struct ColdHistoricalSourceFold<'borrow, 'audit, 'ledger> {
+    sources: &'borrow mut HistoricalSourceFold<'audit>,
+    ledger: Option<(
+        &'ledger mut super::audit_ledger::Ledger,
+        &'ledger super::audit_owner::native::Budget,
+    )>,
+    cold_source: Option<source_audit::NativeSourceState>,
+    cold_raw: super::business_json::RawPrefixIndex<'audit>,
+    cold_root: Option<sc::Built>,
+}
+
+#[cfg(feature = "s_incremental")]
+impl HistoricalSourceFold<'_> {
+    fn require_next_cut(&self, cut: &history::PublishedCut) -> Result<(), String> {
+        if cut.metadata.generation != self.generation + 1 {
+            return Err(err("历史认证代号不连续"));
+        }
+        Ok(())
+    }
+
+    fn verify_sources(
         &mut self,
         cut: &history::PublishedCut,
         store: &mut history::HashReader<'_>,
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
+        cold_counts: Option<source_audit::Counts>,
     ) -> Result<(), String> {
-        if cut.metadata.generation != self.generation + 1 {
-            return Err(err("历史认证代号不连续"));
-        }
         audit_one_cut_sources(
             cut,
             self.raw,
@@ -1247,6 +1295,7 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
             None,
             self.owner_source,
             self.certified_online,
+            cold_counts,
         )?;
         history::check_deadline(self.deadline)?;
         self.generation = cut.metadata.generation;
@@ -1258,10 +1307,141 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
 }
 
 #[cfg(feature = "s_incremental")]
-#[cfg_attr(
-    not(test),
-    allow(dead_code, reason = "#1481：历史认证组件，正式入口待 #1645/#1491")
-)]
+impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
+    fn verify(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        sweep: Option<&object_index::HistorySweep>,
+        _auxiliary: &aux_index::Index,
+    ) -> Result<(), String> {
+        self.require_next_cut(cut)?;
+        self.verify_sources(cut, store, objects, sweep, None)
+    }
+}
+
+// #1481：来源状态移动与收据/台账闭合分帧，避免 debug 下二者的大局部量叠栈。
+#[cfg(feature = "s_incremental")]
+impl ColdHistoricalSourceFold<'_, '_, '_> {
+    fn advance_cold_sources(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+    ) -> Result<
+        (
+            source_audit::Counts,
+            source_audit::source_receipt::source_facts::SourceExports,
+        ),
+        String,
+    > {
+        let (_, parent) = self.ledger.as_ref().expect("冷来源步必须持台账");
+        let prefix = cut.metadata.input_frontier as usize + 1;
+        let raw = self.sources.raw.prefix(prefix)?;
+        let edits = self.cold_raw.advance_admitted(prefix, store)?;
+        let previous_ref = self.cold_root.as_ref().map(sc::Built::content_ref);
+        let mut material = super::audit_owner::cold_source::ColdSource::new(
+            store,
+            parent,
+            previous_ref.as_ref().map(Into::into),
+            cut.roots.generated_state.view(),
+            self.cold_source.as_ref(),
+        )?;
+        let input = source_audit::SourceRaw {
+            raw,
+            previous_prefix: (self.sources.previous + 1) as usize,
+            winner_edits: &edits.winner_edits,
+        };
+        let (counts, source, exports) = source_audit::audit_source_step(
+            self.cold_source.take(),
+            &mut material,
+            &input,
+            cut.metadata.profile_id.as_str(),
+            cut.metadata.rule_revision.as_str(),
+            true,
+        )?;
+        drop(material);
+        self.cold_source = Some(source);
+        self.cold_root = Some(sc::Built {
+            digest: cut.roots.generated_state.digest().map_err(err)?,
+            kind: cut.roots.generated_state.kind(),
+            extent: cut.roots.generated_state.extent(),
+        });
+        Ok((counts, exports))
+    }
+
+    fn commit_cold_sources(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        auxiliary: &aux_index::Index,
+        counts: source_audit::Counts,
+        exports: source_audit::source_receipt::source_facts::SourceExports,
+    ) -> Result<(), String> {
+        let (ledger, _) = self.ledger.as_mut().expect("冷收据必须持台账");
+        let raw = self
+            .sources
+            .raw
+            .prefix(cut.metadata.input_frontier as usize + 1)?;
+        let token = cut.batch_id.as_str();
+        let mut receipt = source_audit::source_receipt::receipt_from_cold_step(
+            store,
+            token,
+            cut.metadata.view(),
+            cut.roots.generated_state.view(),
+            raw,
+            (self.sources.previous + 1) as usize,
+            counts,
+            exports,
+            self.sources.deadline,
+        )?;
+        receipt.export_history_business(store, objects, auxiliary)?;
+        let delta =
+            super::audit_ledger::QueuedFacts::from_receipt_view(&receipt, cut.metadata.view())?
+                .bind_view(cut.metadata.view(), cut.roots.view())?;
+        let verified = sc::closure_delta::verify_four_roots(
+            store,
+            [
+                cut.metadata.scope.view(),
+                cut.roots.generated_state.view(),
+                cut.roots.publication_template.view(),
+                cut.roots.delta_template.view(),
+            ],
+        )
+        .map_err(err)?;
+        ledger.stage_verified(token, &delta, &verified, store.native_work_scope(), None)?;
+        ledger.bind_view(token, cut.metadata.view(), cut.roots.view())?;
+        ledger.content_committed()?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+impl history::CutSourceVerifier for ColdHistoricalSourceFold<'_, '_, '_> {
+    fn verify(
+        &mut self,
+        cut: &history::PublishedCut,
+        store: &mut history::HashReader<'_>,
+        objects: &[object_index::Entry],
+        sweep: Option<&object_index::HistorySweep>,
+        auxiliary: &aux_index::Index,
+    ) -> Result<(), String> {
+        self.sources.require_next_cut(cut)?;
+        let cold_counts = if self.ledger.is_some() {
+            let (counts, exports) = self.advance_cold_sources(cut, store)?;
+            let cold_counts = counts.clone();
+            self.commit_cold_sources(cut, store, objects, auxiliary, counts, exports)?;
+            Some(cold_counts)
+        } else {
+            None
+        };
+        self.sources
+            .verify_sources(cut, store, objects, sweep, cold_counts)
+    }
+}
+
+#[cfg(feature = "s_incremental")]
 pub(super) struct HistoricalCertificate {
     audited: AuditedState,
 }
@@ -1590,6 +1770,27 @@ impl AuditedState {
         qualified.advance(runtime, cut, permit)
     }
 
+    /// #1481：同次冷捕获已经用在线同核建完 fresh 台账后，从 g1 消费完整资格。
+    pub(super) fn install_cold_qualification(
+        &mut self,
+        source: QualifiedSource<'_>,
+        parent: &super::audit_owner::native::Budget,
+        rule: &str,
+    ) -> Result<(), String> {
+        let qualified = QualifiedCertification::fold(
+            QualifiedSeed {
+                source,
+                budget: parent,
+            },
+            rule,
+            &self.cuts,
+        )?;
+        self.certification = Some(HistoricalCertification {
+            qualified: Some(qualified),
+        });
+        Ok(())
+    }
+
     /// 资格组件下一次交接的持久上界；候选在费用终检前据此持票并入账。
     pub(super) fn qualified_transition_bound(&self) -> Option<usize> {
         self.certification
@@ -1622,20 +1823,18 @@ impl AuditedState {
 }
 
 #[cfg(feature = "s_incremental")]
-#[cfg_attr(
-    not(test),
-    allow(dead_code, reason = "#1481：历史认证组件，正式入口待 #1645/#1491")
-)]
 impl HistoricalCertificate {
+    #[cfg(test)]
     pub(super) fn cold(
         tx: &Transaction<'_>,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::cold_captured(tx, deadline, budget, work, None).map(|(cert, _, _)| cert)
+        Self::cold_captured(tx, deadline, budget, work, None, None, None).map(|(cert, _, _)| cert)
     }
 
+    #[cfg(test)]
     pub(super) fn cold_for_request(
         tx: &Transaction<'_>,
         deadline: Option<std::time::Instant>,
@@ -1643,9 +1842,55 @@ impl HistoricalCertificate {
         context: &mut super::request_audit::RequestAuditContext,
         qualified: Option<QualifiedSeed<'_>>,
     ) -> Result<AuditedState, String> {
+        Self::cold_for_request_inner(tx, deadline, work, context, qualified, None, None, None)
+    }
+
+    #[cfg(unix)]
+    pub(super) fn cold_for_request_rebuilding(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        work: &sc::capture_allocation::scratch::WorkScope,
+        context: &mut super::request_audit::RequestAuditContext,
+        ledger: &mut super::audit_ledger::Ledger,
+        parent: &super::audit_owner::native::Budget,
+        admission: &dyn audit_budget::Budget,
+        source_out: &mut Option<source_audit::NativeSourceState>,
+    ) -> Result<AuditedState, String> {
+        Self::cold_for_request_inner(
+            tx,
+            deadline,
+            work,
+            context,
+            None,
+            Some((ledger, parent)),
+            Some(source_out),
+            Some(admission),
+        )
+    }
+
+    fn cold_for_request_inner(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        work: &sc::capture_allocation::scratch::WorkScope,
+        context: &mut super::request_audit::RequestAuditContext,
+        qualified: Option<QualifiedSeed<'_>>,
+        ledger: Option<(
+            &mut super::audit_ledger::Ledger,
+            &super::audit_owner::native::Budget,
+        )>,
+        source_out: Option<&mut Option<source_audit::NativeSourceState>>,
+        admission: Option<&dyn audit_budget::Budget>,
+    ) -> Result<AuditedState, String> {
         drop(context.take());
-        let (cert, capture, node_count) =
-            Self::cold_captured(tx, deadline, None, Some(work), qualified)?;
+        let (cert, capture, node_count) = Self::cold_captured(
+            tx,
+            deadline,
+            admission,
+            Some(work),
+            qualified,
+            ledger,
+            source_out,
+        )?;
         let AuditedState {
             raw,
             budget,
@@ -1678,6 +1923,11 @@ impl HistoricalCertificate {
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
         qualified: Option<QualifiedSeed<'_>>,
+        ledger: Option<(
+            &mut super::audit_ledger::Ledger,
+            &super::audit_owner::native::Budget,
+        )>,
+        source_out: Option<&mut Option<source_audit::NativeSourceState>>,
     ) -> Result<(Self, sc::AuditCapture, usize), String> {
         history::check_deadline(deadline)?;
         if let Some(budget) = budget {
@@ -1721,6 +1971,13 @@ impl HistoricalCertificate {
             owner_source: None,
             certified_online: false,
         };
+        let mut cold_sources = ColdHistoricalSourceFold {
+            sources: &mut sources,
+            ledger,
+            cold_source: None,
+            cold_raw: super::business_json::RawPrefixIndex::new(raw.view()),
+            cold_root: None,
+        };
         let indexed = history::fold_certified_history(
             tx,
             raw.view(),
@@ -1729,7 +1986,7 @@ impl HistoricalCertificate {
             work,
             deadline,
             budget,
-            &mut sources,
+            &mut cold_sources,
         )?;
         verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), None, work)?;
         let mut store = history::HashReader::captured_for_audit(&capture, None)
@@ -1743,10 +2000,15 @@ impl HistoricalCertificate {
             catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
         }
         history::check_deadline(deadline)?;
-        let raw_sources = sources
+        let raw_sources = cold_sources
+            .sources
             .source
             .take()
             .map(source_audit::NativeSourceAudit::into_raw_facts);
+        if let Some(out) = source_out {
+            std::mem::swap(out, &mut cold_sources.cold_source);
+        }
+        drop(cold_sources);
         drop(sources);
         let history::IndexedHistory {
             control_facts,
@@ -1801,6 +2063,7 @@ impl HistoricalCertificate {
         ))
     }
 
+    #[cfg(test)]
     pub(super) fn historical(&self) -> &ImmutableHistoricalAudit {
         &self.audited
     }

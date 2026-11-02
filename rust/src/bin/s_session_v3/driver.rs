@@ -279,7 +279,7 @@ impl Driver {
         } else {
             newchan_rust::theta_v0::config::ThetaConfig::default()
         };
-        let mut context = request_audit::RequestAuditContext::default();
+        let mut context = Self::cold_context(incremental_retention_bytes)?;
         let mut driver = Self::open_with_request_and_mode_context(
             db,
             profile,
@@ -475,6 +475,60 @@ impl Driver {
         )
     }
 
+    #[cfg(feature = "s_incremental")]
+    fn cold_context(retention: usize) -> Result<request_audit::RequestAuditContext, String> {
+        state::check_audit_source_retention(retention)?;
+        let mut context = request_audit::RequestAuditContext::default();
+        context.freeze_manifest_workspace_budget(retention, 0, 0)?;
+        context.attach_source_keeper(super::cross_request_source_cache::Keeper::new(retention));
+        Ok(context)
+    }
+
+    /// #1481：正式一次性入口在任何接纳/Begin 前完成冷资格；资源沿用 /2 显式第八门。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn open_with_request_and_mode_retention(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+        retention: usize,
+        production: bool,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        if !matches!(mode, s_allocation::Mode::CapturedNative) {
+            return Err("S3WriterResourcesInvalid：增量正式入口要求Native".into());
+        }
+        let theta_config = if production {
+            newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+                .map_err(|e| e.to_string())?
+        } else {
+            newchan_rust::theta_v0::config::ThetaConfig::default()
+        };
+        let mut context = Self::cold_context(retention)?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            Some(&mut context),
+            theta_config,
+            production,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(usize::MAX);
+        driver.incremental_retention_bytes = Some(retention);
+        Ok(driver)
+    }
+
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    pub(super) fn h1_owner_for_test(&self) -> &super::audit_owner::AuditConnection {
+        &self.conn
+    }
+
     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
     fn open_with_request_and_mode_context(
         db: &Path,
@@ -513,6 +567,41 @@ impl Driver {
         let _open_guard = scope.enter()?;
         let db = scope.db_path();
         scope.require_admitted()?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        let mut runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        let runtime = prepared::Runtime::with_config(mode.clone(), theta_config.clone());
+        #[cfg(feature = "s_incremental")]
+        let conn = if startup_context
+            .as_deref()
+            .is_some_and(|c| c.source_cache_enabled())
+        {
+            #[cfg(unix)]
+            {
+                let mut rebuilt = None;
+                super::audit_owner::AuditConnection::open_rebuilt_history_into(
+                    db,
+                    startup_context
+                        .as_deref()
+                        .unwrap()
+                        .complete_workspace_limit(),
+                    Some(scope.first_read_deadline()?),
+                    startup_context.as_deref_mut().unwrap(),
+                    &mut runtime,
+                    scope.max_store_bytes(),
+                    &scope,
+                    &mut rebuilt,
+                )?;
+                rebuilt.expect("冷交接成功后必有owner")
+            }
+            #[cfg(not(unix))]
+            {
+                return Err("H1准入需要Unix文件身份与只读FD/VFS".into());
+            }
+        } else {
+            super::audit_owner::AuditConnection::open(db)?
+        };
+        #[cfg(not(feature = "s_incremental"))]
         let conn = super::audit_owner::AuditConnection::open(db)?;
         #[cfg(feature = "s_incremental")]
         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
@@ -531,7 +620,7 @@ impl Driver {
         )?;
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::with_config(mode.clone(), theta_config.clone()),
+            runtime,
             mode,
             clock,
             epoch: epoch.into(),
@@ -548,6 +637,13 @@ impl Driver {
             #[cfg(test)]
             stop_after: None,
         };
+        #[cfg(feature = "s_incremental")]
+        if let Some(context) = startup_context.as_deref() {
+            if context.source_cache_enabled() {
+                driver.incremental_retention_bytes = Some(context.complete_workspace_limit());
+                driver.audit_cache_source_bytes = Some(usize::MAX);
+            }
+        }
         driver.resume_pending(startup_context)?;
         Ok(driver)
     }
@@ -713,19 +809,94 @@ impl Driver {
             );
         }
         for raw in originals {
-            // #1394：bootstrap slot不得跨入恢复请求；idle无pending才可复用到identity。
-            if let Some(context) = bootstrap_context.as_deref_mut() {
-                drop(context.take());
+            #[cfg(not(feature = "s_incremental"))]
+            {
+                if let Some(context) = bootstrap_context.as_deref_mut() {
+                    drop(context.take());
+                }
+                let mut request_audit = request_audit::RequestAuditContext::default();
+                self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
             }
-            let mut request_audit = request_audit::RequestAuditContext::default();
-            self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
+            // #1481：冷资格与同父域必须连续保留到 pending 发布；禁止丢槽后完整重审。
+            #[cfg(feature = "s_incremental")]
+            if let Some(context) = bootstrap_context.as_deref_mut() {
+                let (_, ended) = self.advance(&strict_json(raw.as_bytes())?, context)?;
+                self.conn.continue_with(ended)?;
+            } else {
+                let mut request_audit = request_audit::RequestAuditContext::default();
+                let (_, ended) = self.advance(&strict_json(raw.as_bytes())?, &mut request_audit)?;
+                self.conn.continue_with(ended)?;
+            }
         }
         Ok(())
     }
 }
 
+/// #1481：监督器新生涯先冷重建完整台账，完成 H1 资格消费后才允许 Recover 写入。
+#[cfg(feature = "s_incremental")]
+pub(super) fn recover_scoped_with_retention(
+    db: &Path,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+    retention: usize,
+    admission: super::admission::WriterAdmission,
+) -> Result<(Value, super::admission::WriterScope), String> {
+    #[cfg(not(unix))]
+    {
+        let _ = (db, new_epoch, clock, clock_event, retention, admission);
+        Err("H1恢复需要Unix文件身份与只读FD/VFS".into())
+    }
+    #[cfg(unix)]
+    {
+        parse_writer_epoch(new_epoch, "new writer_epoch")?;
+        let scope = admission.admit_prefix(
+            db,
+            super::admission_private::RejectionPrefix::UnboundRecover,
+        )?;
+        let _guard = scope.enter()?;
+        scope.require_admitted()?;
+        let result = recover_rebuilt_history(&scope, retention, new_epoch, clock, clock_event)?;
+        Ok((result, scope))
+    }
+}
+
+// #1481：recover 的冷构造放独立帧，只经借用槽取得 owner；不按值传播 owner 的 Result。
+// Runtime/context 仍覆盖真正 Recover 与 conn 析构，保持冷台账及父账原存活次序。
+#[cfg(all(feature = "s_incremental", unix))]
+fn recover_rebuilt_history(
+    scope: &super::admission::WriterScope,
+    retention: usize,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+) -> Result<Value, String> {
+    let mut context = Driver::cold_context(retention)?;
+    let mut runtime = prepared::Runtime::with_config(
+        s_allocation::Mode::CapturedNative,
+        newchan_rust::theta_v0::config::ThetaConfig::for_s_structure_writer()
+            .map_err(|e| e.to_string())?,
+    );
+    let mut rebuilt = None;
+    super::audit_owner::AuditConnection::open_rebuilt_history_into(
+        scope.db_path(),
+        retention,
+        Some(scope.first_read_deadline()?),
+        &mut context,
+        &mut runtime,
+        scope.max_store_bytes(),
+        scope,
+        &mut rebuilt,
+    )?;
+    let conn = rebuilt.expect("冷恢复交接成功后必有owner");
+    let result = conn.recover(new_epoch, clock, clock_event)?;
+    drop(conn);
+    Ok(result)
+}
+
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。
 /// 尚未接CLI；换代事务提交后，由新Driver开门继续持久pending原件。
+#[cfg(any(test, not(feature = "s_incremental")))]
 pub(super) fn recover_scoped(
     db: &Path,
     new_epoch: &str,
@@ -6559,7 +6730,7 @@ mod tests {
             &std::fs::read(format!("{}.control-owner.json", f.db.display())).unwrap(),
         )
         .unwrap();
-        [
+        let args = [
             "s_structure_session".into(),
             command.into(),
             "--protocol-revision".into(),
@@ -6573,7 +6744,39 @@ mod tests {
             "--admission-job-limits".into(),
             owner["admission"]["path"].as_str().unwrap().to_owned(),
         ]
-        .to_vec()
+        .to_vec();
+        #[cfg(feature = "s_incremental")]
+        let args = {
+            let mut args = args;
+            if matches!(command, "advance" | "recover") {
+                let path = f.path.join("one-shot-s-resources.json");
+                let limits: serde_json::Map<String, Value> = super::super::writer_cli::GATE_FIELDS
+                    .into_iter()
+                    .map(|key| {
+                        let value = if key == "incremental_retention_bytes" {
+                            "536870912"
+                        } else {
+                            "1"
+                        };
+                        (key.into(), json!(value))
+                    })
+                    .collect();
+                std::fs::write(
+                    &path,
+                    canonical_json(&json!({
+                        "schema_revision": super::super::writer_cli::RESOURCES_REVISION,
+                        "s_resources": limits,
+                    })),
+                )
+                .unwrap();
+                args.extend([
+                    "--resource-config".into(),
+                    path.to_string_lossy().into_owned(),
+                ]);
+            }
+            args
+        };
+        args
     }
 
     fn one_shot(f: &Fixture, request: &Value, epoch: &str) -> Result<Option<Value>, String> {

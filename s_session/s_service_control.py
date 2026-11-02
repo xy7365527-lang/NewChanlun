@@ -842,7 +842,8 @@ class Controller:
     def recover(self, new_epoch, clock_event_id):
         deadline = self.admission_deadline
         self._action_stage = "recover_status"
-        if self.status("s", deadline=deadline)["state"] != "stopped":
+        record = self.status("s", deadline=deadline)
+        if record["state"] != "stopped":
             raise ValueError("须有本控制器记录且已确认原 S 停止，才可恢复换代")
         positive(new_epoch, "new_epoch")
         config = self.config
@@ -858,6 +859,13 @@ class Controller:
                    "--admission-job-limits", self.admission.limits_path]
         if is_s3(config):
             command += ["--protocol-revision", "s-session/3"]
+        if launcher_revision(config) == "s-launcher/4":
+            # #1481：recover 沿用已停止 start-s 的冻结原件，不能另造或采用当前配置的替代文件。
+            resource_identity = record.get("resource_identity")
+            if resource_identity is None:
+                raise ValueError("S3 进程记录缺少本次资源冻结身份")
+            command += ["--resource-config", resource_identity["path"]]
+            self.validate_resource_identity(resource_identity, command, deadline)
         self.admission.revalidate()
         recovery = subprocess.run(command,
                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))

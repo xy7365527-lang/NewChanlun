@@ -36,6 +36,8 @@ impl CommitMonitor {
                 control_limit: 0,
                 checkpoint_threshold: clamp.checkpoint_threshold,
                 progress: clamp.progress,
+                integrity_refusal: std::cell::Cell::new(clamp.integrity_refusal.get()),
+                inherited_data_version: None,
             },
             result: None,
         }));

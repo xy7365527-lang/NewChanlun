@@ -15,7 +15,7 @@ impl SealedPrefix {
     }
     pub(in crate::v3) fn require(&self, prefix: &RejectionPrefix<'_>) -> Result<(), FixedFailure> {
         match prefix {
-            RejectionPrefix::None => Ok(()),
+            RejectionPrefix::None | RejectionPrefix::LegacyWrite => Ok(()),
             _ => Err(FixedFailure::new(
                 "MixedProtocolMismatch",
                 "business",

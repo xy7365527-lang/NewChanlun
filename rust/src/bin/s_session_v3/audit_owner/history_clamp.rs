@@ -42,16 +42,25 @@ struct WatchedFile {
     file: File,
 }
 impl WatchedFile {
-    fn open(path: &Path) -> Result<Self, String> {
+    fn open(path: &Path, integrity_refusal: &std::cell::Cell<bool>) -> Result<Self, String> {
         Ok(Self {
             path: path.to_owned(),
-            file: File::open(path).map_err(stale)?,
+            file: File::open(path).map_err(|error| {
+                integrity_refusal.set(true);
+                stale(error)
+            })?,
         })
     }
-    fn stamp(&self) -> Result<Stamp, String> {
-        let held = Stamp::read(self.file.metadata().map_err(stale)?);
-        let named = Stamp::read(std::fs::metadata(&self.path).map_err(stale)?);
+    fn stamp(&self, integrity_refusal: &std::cell::Cell<bool>) -> Result<Stamp, String> {
+        // #1481：路径/持有FD元数据失证无法与外部删除/替换区分，保守fail-stop保全证据。
+        let source_error = |error| {
+            integrity_refusal.set(true);
+            stale(error)
+        };
+        let held = Stamp::read(self.file.metadata().map_err(source_error)?);
+        let named = Stamp::read(std::fs::metadata(&self.path).map_err(source_error)?);
         if held != named {
+            integrity_refusal.set(true);
             return Err(stale("路径与持有文件身份/stat不一致"));
         }
         Ok(held)
@@ -90,8 +99,12 @@ pub(super) struct Clamp {
     control_limit: usize,
     checkpoint_threshold: i32,
     progress: physical::Progress,
+    // #1481：同样的 stale 外观也可能来自资源失败；关闭策略认完整性比较或原件身份失证。
+    integrity_refusal: std::cell::Cell<bool>,
+    inherited_data_version: Option<i64>,
 }
 impl Clamp {
+    #[cfg(test)]
     pub(super) fn open(
         connection: &Connection,
         path: &Path,
@@ -99,11 +112,29 @@ impl Clamp {
     ) -> Result<Self, String> {
         Self::open_in_parent(connection, path, control_limit, None)
     }
+    #[cfg(test)]
     pub(super) fn open_in_parent(
         connection: &Connection,
         path: &Path,
         control_limit: usize,
         parent: Option<native::Budget>,
+    ) -> Result<Self, String> {
+        Self::open_in_parent_with_refusal(
+            connection,
+            path,
+            control_limit,
+            parent,
+            &std::cell::Cell::new(false),
+            None,
+        )
+    }
+    pub(super) fn open_in_parent_with_refusal(
+        connection: &Connection,
+        path: &Path,
+        control_limit: usize,
+        parent: Option<native::Budget>,
+        integrity_refusal: &std::cell::Cell<bool>,
+        inherited_data_version: Option<i64>,
     ) -> Result<Self, String> {
         if let Some(parent) = &parent {
             parent
@@ -114,6 +145,7 @@ impl Clamp {
             .query_row("PRAGMA main.journal_mode", [], |r| r.get(0))
             .map_err(stale)?;
         if mode != "wal" {
+            integrity_refusal.set(true);
             return Err(stale("H1组件要求既有WAL域，不自动改变journal_mode"));
         }
         let mut wal = path.as_os_str().to_os_string();
@@ -123,16 +155,21 @@ impl Clamp {
             .query_row("PRAGMA wal_autocheckpoint", [], |r| r.get(0))
             .map_err(stale)?;
         let result = Self {
-            main: WatchedFile::open(path)?,
-            wal: WatchedFile::open(&wal)?,
+            main: WatchedFile::open(path, integrity_refusal)?,
+            wal: WatchedFile::open(&wal, integrity_refusal)?,
             baseline: None,
             parent,
             control_limit,
             checkpoint_threshold,
             progress: physical::initial_progress(connection)?,
+            integrity_refusal: std::cell::Cell::new(false),
+            inherited_data_version,
         };
         connection.wal_hook(Some(physical::observe_commit));
         Ok(result)
+    }
+    pub(super) fn integrity_refusal(&self) -> bool {
+        self.integrity_refusal.get()
     }
     pub(super) fn rebind_parent(&mut self, parent: &native::Budget) -> Result<(), String> {
         let old = self
@@ -165,13 +202,22 @@ impl Clamp {
     }
     fn files(&self) -> Result<Files, String> {
         use std::os::unix::fs::FileExt;
-        let main = self.main.stamp()?;
-        let wal = self.wal.stamp()?;
+        let main = self.main.stamp(&self.integrity_refusal)?;
+        let wal = self.wal.stamp(&self.integrity_refusal)?;
         let mut header = vec![0; (wal.len.min(32)) as usize];
         if !header.is_empty() {
-            self.wal.file.read_exact_at(&mut header, 0).map_err(stale)?;
+            self.wal
+                .file
+                .read_exact_at(&mut header, 0)
+                .map_err(|error| {
+                    self.integrity_refusal.set(true);
+                    stale(error)
+                })?;
         }
-        if main != self.main.stamp()? || wal != self.wal.stamp()? {
+        if main != self.main.stamp(&self.integrity_refusal)?
+            || wal != self.wal.stamp(&self.integrity_refusal)?
+        {
+            self.integrity_refusal.set(true);
             return Err(stale("文件观测期间发生变化"));
         }
         Ok(Files {
@@ -204,14 +250,23 @@ impl Clamp {
             files: self.files()?,
         };
         if before != out.files {
+            self.integrity_refusal.set(true);
             return Err(stale("锁内观测期间文件变化"));
         }
         Ok(out)
     }
     pub(super) fn check(&mut self, active: &AuditTxn<'_>) -> Result<(), String> {
+        // #1481：先核两把锁之间的外部提交；不得让后续控制读的暂时资源失败掩盖它。
+        if let Some(inherited) = self.inherited_data_version.take() {
+            if active.data_version != inherited {
+                self.integrity_refusal.set(true);
+                return Err(stale("私有认证交接期间发生外部SQLite提交"));
+            }
+        }
         let now = self.observe(active)?;
         if let Some(previous) = &self.baseline {
             if previous != &now {
+                self.integrity_refusal.set(true);
                 return Err(stale("版本、文件、控制原件、写计数或连接域改变"));
             }
         } else {

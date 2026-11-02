@@ -12,7 +12,64 @@ mod source_order;
 use source_order::{Handle, Order};
 use source_pending::{RequestSlots, StepLookup, StepView};
 
-impl SourceFieldStore for SourceMaterial<'_, '_, '_, '_> {}
+/// #1481：在线材料与已核冷历史共享唯一来源贡献步；trait 不授予写能力或原件资格。
+pub(crate) trait SourceInput: CodecStore {
+    fn root(&self) -> Built;
+    fn sequence_delta(
+        &mut self,
+        which: SourceArray,
+    ) -> Result<&super::super::audit_owner::SequenceDelta, String>;
+    fn request_delta(
+        &mut self,
+        ordinal: u64,
+    ) -> Result<&super::super::audit_owner::SequenceDelta, String>;
+    fn array_member(&mut self, which: SourceArray, ordinal: u64) -> Result<RefValue, String>;
+    fn request_member(&mut self, knowledge: u64, ordinal: u64) -> Result<RefValue, String>;
+}
+impl<T: SourceInput> SourceFieldStore for T {}
+impl SourceInput for SourceMaterial<'_, '_, '_, '_> {
+    fn root(&self) -> Built {
+        SourceMaterial::root(self)
+    }
+    fn sequence_delta(
+        &mut self,
+        which: SourceArray,
+    ) -> Result<&super::super::audit_owner::SequenceDelta, String> {
+        SourceMaterial::sequence_delta(self, which)
+    }
+    fn request_delta(
+        &mut self,
+        ordinal: u64,
+    ) -> Result<&super::super::audit_owner::SequenceDelta, String> {
+        SourceMaterial::request_delta(self, ordinal)
+    }
+    fn array_member(&mut self, which: SourceArray, ordinal: u64) -> Result<RefValue, String> {
+        SourceMaterial::array_member(self, which, ordinal)
+    }
+    fn request_member(&mut self, knowledge: u64, ordinal: u64) -> Result<RefValue, String> {
+        SourceMaterial::request_member(self, knowledge, ordinal)
+    }
+}
+
+pub(crate) struct SourceRaw<'a> {
+    pub raw: RawEventsView<'a>,
+    pub previous_prefix: usize,
+    pub winner_edits: &'a [super::super::business_json::RawWinnerEdit],
+}
+impl SourceRaw<'_> {
+    fn raw(&self) -> RawEventsView<'_> {
+        self.raw
+    }
+    fn previous_prefix(&self) -> usize {
+        self.previous_prefix
+    }
+    fn current_prefix(&self) -> usize {
+        self.raw.len()
+    }
+    fn winner_edits(&self) -> &[super::super::business_json::RawWinnerEdit] {
+        self.winner_edits
+    }
+}
 
 fn fields_bytes(fields: &SourceFields<'_>, _names: &[&str]) -> usize {
     match &fields.0 {
@@ -435,7 +492,7 @@ pub(crate) struct SourceWork {
 }
 pub(crate) struct NativeSourceState {
     root: Built,
-    raw_binding: RawAdvanceBinding,
+    raw_binding: Option<RawAdvanceBinding>,
     raw_prefix: usize,
     rule: TextValue,
     raw: Map<i64, Source>,
@@ -486,9 +543,34 @@ pub(crate) struct NativeSourceState {
     pub(crate) work: SourceWork,
 }
 impl NativeSourceState {
+    #[cfg(unix)]
+    pub(crate) fn rebind_cold_owner(
+        &mut self,
+        old: RawAdvanceBinding,
+        current: RawAdvanceBinding,
+    ) -> Result<(), String> {
+        if !old.is_unbound_cold() || self.raw_binding != Some(old) || current.is_unbound_cold() {
+            return Err(err("冷来源贡献重绑域不符"));
+        }
+        self.raw_binding = Some(current);
+        Ok(())
+    }
+    /// #1481：私有冷认证只固定已核发布前缀；无owner域须经一次受控交接才取得本生涯租约。
+    #[cfg(unix)]
+    pub(crate) fn bind_cold_owner(
+        &mut self,
+        binding: RawAdvanceBinding,
+        prefix: usize,
+    ) -> Result<(), String> {
+        if self.raw_binding.is_some() || self.raw_prefix != prefix {
+            return Err(err("冷来源前沿重绑不符"));
+        }
+        self.raw_binding = Some(binding);
+        Ok(())
+    }
     fn empty(
         s: &(impl CodecRead + ?Sized),
-        raw: &BoundRawAdvance<'_>,
+        raw: &SourceRaw<'_>,
         root: Built,
         rule: &str,
     ) -> Result<Self, String> {
@@ -497,7 +579,7 @@ impl NativeSourceState {
         }
         Ok(Self {
             root,
-            raw_binding: raw.previous_binding(),
+            raw_binding: None,
             raw_prefix: 0,
             rule: owned(s, rule)?,
             raw: Map::default(),
@@ -547,6 +629,14 @@ impl NativeSourceState {
             work: SourceWork::default(),
         })
     }
+    pub(crate) fn cold_knowledge_ordinal(&self) -> Result<Option<u64>, String> {
+        self.knowledge
+            .map(|handle| {
+                u64::try_from(self.object_order.rank(handle)?).map_err(|_| err("冷知识位置溢出"))
+            })
+            .transpose()
+    }
+
     pub(crate) fn retained_bytes(&self) -> usize {
         retention::sum([
             self.rule.capacity(),
@@ -628,7 +718,7 @@ enum Stream {
     Requests(u64),
 }
 fn delta<'a>(
-    s: &'a mut SourceMaterial<'_, '_, '_, '_>,
+    s: &'a mut impl SourceInput,
     stream: Stream,
 ) -> Result<&'a super::super::audit_owner::SequenceDelta, String> {
     match stream {
@@ -636,11 +726,7 @@ fn delta<'a>(
         Stream::Requests(at) => s.request_delta(at),
     }
 }
-fn member(
-    s: &mut SourceMaterial<'_, '_, '_, '_>,
-    stream: Stream,
-    ordinal: usize,
-) -> Result<RefValue, String> {
+fn member(s: &mut impl SourceInput, stream: Stream, ordinal: usize) -> Result<RefValue, String> {
     let ordinal = u64::try_from(ordinal).map_err(|_| err("来源成员位置溢出"))?;
     match stream {
         Stream::Array(a) => s.array_member(a, ordinal),
@@ -652,7 +738,7 @@ struct Changes {
     added: sc::CodecVec<Handle>,
 }
 fn apply_order(
-    s: &mut SourceMaterial<'_, '_, '_, '_>,
+    s: &mut impl SourceInput,
     stream: Stream,
     sequence: &mut Option<sc::SequenceRef>,
     order: &mut Order,
@@ -876,12 +962,11 @@ impl NativeSourceState {
     }
     fn raw_advance(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
-        raw: &BoundRawAdvance<'_>,
+        s: &mut impl SourceInput,
+        raw: &SourceRaw<'_>,
         dirty_objects: &mut Tree<Handle>,
     ) -> Result<Option<i64>, String> {
-        raw.ensure_current()?;
-        if self.raw_binding != raw.previous_binding() || self.raw_prefix != raw.previous_prefix() {
+        if self.raw_prefix != raw.previous_prefix() {
             return Err(err("来源raw发布前沿不连续"));
         }
         let mut touched = Tree::default();
@@ -986,7 +1071,7 @@ impl ObjectSlots for ObjectKeys<'_> {
 impl NativeSourceState {
     fn object_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         producer: &Cc004Producer,
         prefix: usize,
         mut dirty: Tree<Handle>,
@@ -1130,7 +1215,7 @@ impl NativeSourceState {
     }
     fn pending_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         changed: &Tree<Handle>,
         raw_membership: Option<i64>,
         dirty_groups: &Tree<i64>,
@@ -1364,7 +1449,7 @@ impl NativeSourceState {
     }
     fn request_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         knowledge: usize,
         mut dirty: Tree<Handle>,
     ) -> Result<(), String> {
@@ -1505,7 +1590,7 @@ impl NativeSourceState {
     /// 分区核通过后导出本代 cover 增量；每个触及坐标要么仍生效（组 object_id 或 Pending），要么已失效。
     fn cover_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         exports: &mut source_receipt::source_facts::SourceExports,
     ) -> Result<(), String> {
         let dirty = std::mem::take(&mut self.cover_dirty);
@@ -1554,7 +1639,7 @@ impl NativeSourceState {
     }
     fn shape_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         producer: &Cc004Producer,
         prefix: usize,
         dirty_groups: &Tree<i64>,
@@ -1652,7 +1737,7 @@ impl NativeSourceState {
     }
     fn witness_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         mut dirty: Tree<Handle>,
     ) -> Result<(), String> {
         let changes = apply_order(
@@ -1726,7 +1811,7 @@ impl NativeSourceState {
     }
     fn observation_phase(
         &mut self,
-        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        s: &mut impl SourceInput,
         mut exports: Option<&mut source_receipt::source_facts::SourceExports>,
     ) -> Result<(), String> {
         let stream = Stream::Array(SourceArray::Observations);
@@ -1856,109 +1941,26 @@ pub(crate) fn audit_native_bound(
     rule: &str,
     export_sources: bool,
 ) -> Result<NativeSourceVerdict, String> {
-    #[cfg(test)]
-    let before_calls = source_call_stats();
     let result = (|| {
-        // MaterialSource 的构造已在原 closure 阶段完整核定资格；此函数不能自行补签。
         raw.ensure_current()?;
-        if profile != tb02a::PROFILE {
-            return Err(err(
-                "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
-            ));
-        }
-        if material.allocation_budget().is_some() || raw.raw().budget().is_some() {
-            return Err(err("Native来源增量不接Owned账"));
-        }
-        if material.codec_work().is_none() {
-            return Err(err("Native来源增量缺原父工作账"));
-        }
-        let mut state = match previous {
-            Some(state) => state,
-            None => NativeSourceState::empty(material, raw, material.root(), rule)?,
-        };
-        if state.rule != rule {
-            return Err(err("来源贡献规则域改变"));
-        }
-        let old_path_visits = state.object_order.visits.get()
-            + state.witness_order.visits.get()
-            + state.request_order.visits.get();
-        state.work = SourceWork::default();
-        let _producer_fee = material
-            .native_reservation(
-                profile
-                    .len()
-                    .checked_add(rule.len())
-                    .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
-                    .ok_or_else(|| err(material.native_overflow()))?,
-            )
-            .map_err(err)?;
-        let producer = Cc004Producer::new(profile, rule);
-        let mut dirty_objects = Tree::default();
-        let mut dirty_groups = Tree::default();
-        let mut dirty_shapes = Tree::default();
-        let mut dirty_witness = Tree::default();
-        let mut pending_changed = Tree::default();
-        let membership = state.raw_advance(material, raw, &mut dirty_objects)?;
-        #[cfg(test)]
-        super::super::state::trace_event("source_objects", None);
-        state.object_phase(
-            material,
-            &producer,
-            raw.current_prefix(),
-            dirty_objects,
-            &mut dirty_groups,
-            &mut dirty_shapes,
-            &mut dirty_witness,
-            &mut pending_changed,
-        )?;
-        state.pending_phase(material, &pending_changed, membership, &dirty_groups)?;
-        state.partition_phase()?;
-        let mut exports = source_receipt::source_facts::SourceExports::default();
-        if export_sources {
-            state.cover_phase(material, &mut exports)?;
-        } else {
-            drop(std::mem::take(&mut state.cover_dirty));
-        }
-        #[cfg(test)]
-        super::super::state::trace_event("source_shapes", None);
-        state.shape_phase(
-            material,
-            &producer,
-            raw.current_prefix(),
-            &dirty_groups,
-            dirty_shapes,
-            &mut dirty_witness,
-        )?;
-        #[cfg(test)]
-        super::super::state::trace_event("source_witnesses", None);
-        state.witness_phase(material, dirty_witness)?;
-        #[cfg(test)]
-        super::super::state::trace_event("source_observations", None);
-        state.observation_phase(material, export_sources.then_some(&mut exports))?;
-        exports.finish();
-        raw.ensure_current()?;
-        state.work.order_path_visits = state.object_order.visits.get()
-            + state.witness_order.visits.get()
-            + state.request_order.visits.get()
-            - old_path_visits;
-        state.root = material.root();
-        state.raw_binding = raw.current_binding();
-        state.raw_prefix = raw.current_prefix();
-        if state.retained_bytes() == usize::MAX {
-            return Err(err("来源总保留费溢出"));
-        }
-        #[cfg(test)]
+        if previous
+            .as_ref()
+            .is_some_and(|state| state.raw_binding != Some(raw.previous_binding()))
         {
-            let after = source_call_stats();
-            state.work.full_source_calls = after.full_source_calls - before_calls.full_source_calls;
-            state.work.full_pending_calls =
-                after.full_pending_calls - before_calls.full_pending_calls;
-            state.work.full_members_enumerations =
-                after.full_members_enumerations - before_calls.full_members_enumerations;
+            return Err(err("来源raw发布前沿不连续"));
         }
+        let input = SourceRaw {
+            raw: raw.raw(),
+            previous_prefix: raw.previous_prefix(),
+            winner_edits: raw.winner_edits(),
+        };
+        let (counts, mut state, exports) =
+            audit_source_step(previous, material, &input, profile, rule, export_sources)?;
+        raw.ensure_current()?;
+        state.raw_binding = Some(raw.current_binding());
         Ok(NativeSourceVerdict {
             binding: material.binding(),
-            counts: state.counts(),
+            counts,
             state,
             exports,
         })
@@ -1967,6 +1969,119 @@ pub(crate) fn audit_native_bound(
         raw.invalidate_after_consumer_failure();
     }
     result
+}
+
+/// #1481：冷/在线唯一 Δ 来源贡献步；在线租约/绑定由 audit_native_bound 外壳检查。
+pub(crate) fn audit_source_step(
+    previous: Option<NativeSourceState>,
+    material: &mut impl SourceInput,
+    raw: &SourceRaw<'_>,
+    profile: &str,
+    rule: &str,
+    export_sources: bool,
+) -> Result<
+    (
+        Counts,
+        NativeSourceState,
+        source_receipt::source_facts::SourceExports,
+    ),
+    String,
+> {
+    #[cfg(test)]
+    let before_calls = source_call_stats();
+    if profile != tb02a::PROFILE {
+        return Err(err(
+            "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
+        ));
+    }
+    if material.allocation_budget().is_some() || raw.raw().budget().is_some() {
+        return Err(err("Native来源增量不接Owned账"));
+    }
+    if material.codec_work().is_none() {
+        return Err(err("Native来源增量缺原父工作账"));
+    }
+    let mut state = match previous {
+        Some(state) => state,
+        None => NativeSourceState::empty(material, raw, material.root(), rule)?,
+    };
+    if state.rule != rule {
+        return Err(err("来源贡献规则域改变"));
+    }
+    let old_path_visits = state.object_order.visits.get()
+        + state.witness_order.visits.get()
+        + state.request_order.visits.get();
+    state.work = SourceWork::default();
+    let _producer_fee = material
+        .native_reservation(
+            profile
+                .len()
+                .checked_add(rule.len())
+                .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
+                .ok_or_else(|| err(material.native_overflow()))?,
+        )
+        .map_err(err)?;
+    let producer = Cc004Producer::new(profile, rule);
+    let mut dirty_objects = Tree::default();
+    let mut dirty_groups = Tree::default();
+    let mut dirty_shapes = Tree::default();
+    let mut dirty_witness = Tree::default();
+    let mut pending_changed = Tree::default();
+    let membership = state.raw_advance(material, raw, &mut dirty_objects)?;
+    #[cfg(test)]
+    super::super::state::trace_event("source_objects", None);
+    state.object_phase(
+        material,
+        &producer,
+        raw.current_prefix(),
+        dirty_objects,
+        &mut dirty_groups,
+        &mut dirty_shapes,
+        &mut dirty_witness,
+        &mut pending_changed,
+    )?;
+    state.pending_phase(material, &pending_changed, membership, &dirty_groups)?;
+    state.partition_phase()?;
+    let mut exports = source_receipt::source_facts::SourceExports::default();
+    if export_sources {
+        state.cover_phase(material, &mut exports)?;
+    } else {
+        drop(std::mem::take(&mut state.cover_dirty));
+    }
+    #[cfg(test)]
+    super::super::state::trace_event("source_shapes", None);
+    state.shape_phase(
+        material,
+        &producer,
+        raw.current_prefix(),
+        &dirty_groups,
+        dirty_shapes,
+        &mut dirty_witness,
+    )?;
+    #[cfg(test)]
+    super::super::state::trace_event("source_witnesses", None);
+    state.witness_phase(material, dirty_witness)?;
+    #[cfg(test)]
+    super::super::state::trace_event("source_observations", None);
+    state.observation_phase(material, export_sources.then_some(&mut exports))?;
+    exports.finish();
+    state.work.order_path_visits = state.object_order.visits.get()
+        + state.witness_order.visits.get()
+        + state.request_order.visits.get()
+        - old_path_visits;
+    state.root = material.root();
+    state.raw_prefix = raw.current_prefix();
+    if state.retained_bytes() == usize::MAX {
+        return Err(err("来源总保留费溢出"));
+    }
+    #[cfg(test)]
+    {
+        let after = source_call_stats();
+        state.work.full_source_calls = after.full_source_calls - before_calls.full_source_calls;
+        state.work.full_pending_calls = after.full_pending_calls - before_calls.full_pending_calls;
+        state.work.full_members_enumerations =
+            after.full_members_enumerations - before_calls.full_members_enumerations;
+    }
+    Ok((state.counts(), state, exports))
 }
 
 #[cfg(test)]

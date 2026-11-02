@@ -438,6 +438,108 @@ jobs:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
         run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
+      - name: H1 私有 FD/WAL 授权边界锁（#1481 S1D）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
+          grep -Fx "test v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
+          grep -Fx "test v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
+
+      - name: H1 正式准入三层对拍与调用路径锁（#1481 S1）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          # #1481 S1K：接替 history36h 的全部 h1_ release 锁，保留正式准入逐名收据。
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
+          for test in \
+            h1_admission_cold_prefixes_match_full_canonical \
+            h1_admission_cold_negative_classes_match_full_oracle \
+            h1_admission_online_own_commits_match_full_canonical \
+            h1_admission_foreign_sqlite_changes_retire_writer \
+            h1_admission_cold_handoff_foreign_sqlite_commit_rejects \
+            h1_admission_formal_accept_begin_prepare_recover_never_full_audit \
+            h1_admission_driver_cold_recover_rebuilds_ledger_bitwise \
+            h1_admission_driver_cold_preserves_original_node_record_gates \
+            h1_admission_cold_real_wire_short_budget_rejects_before_write \
+            h1_admission_prepolicy_bad_history_rejected_before_migration \
+            h1_admission_normal_exit_same_database_new_process_restarts \
+            h1_admission_temporary_seed_failure_same_database_new_process_restarts \
+            h1_admission_mainonly_nonwal_prepolicy_preserves_domain \
+            h1_admission_legacy_v1_recover_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_legacy_v1_accept_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_legacy_v1_advance_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_legacy_v2_clock_recover_prepolicy_mainonly_rejects_unchanged \
+            h1_admission_v3_selector_advance_prepolicy_mainonly_authenticates_before_migration \
+            h1_admission_hot_rollback_journal_rejects_before_rw_open \
+            h1_admission_nonwal_conversion_handoff_foreign_commit_rejects
+          do
+            grep -Fx "test v3::audit_owner::construction_tests::$test ... ok" "$RUNNER_TEMP/1481-admission.log"
+          done
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ledger_cache_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ledger.log"
+          for test in \
+            h1_ledger_cache_sidecars_are_pinned_and_physically_counted \
+            h1_ledger_cache_registration_still_rejects_unknown_sidecars \
+            h1_ledger_cache_substitutes_are_rejected \
+            h1_ledger_cache_uses_original_store_cap_before_discard \
+            h1_ledger_cache_replacement_or_new_member_is_rejected_before_discard \
+            h1_ledger_cache_discard_releases_only_cache_pins_before_rebuild \
+            h1_ledger_cache_conversion_stamp_rejects_changed_main_or_wal_frames
+          do
+            grep -Fx "test v3::admission_provider::control_lock_tests::$test ... ok" "$RUNNER_TEMP/1481-ledger.log"
+          done
+          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs 4 h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
+          grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
+          grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
+          grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
+          grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job ... ok" "$RUNNER_TEMP/1481-e6.log"
+
+      # #1481 S1K：临时分支 push 触发移除后，PR CI 保留 history36h 的同 feature/profile 覆盖。
+      - name: H1 SQLite commit failure locks（#1481 S1K）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs 4 -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
+          for test in \
+            v3::audit_owner::construction_tests::h1_sqlite_commit_failure_does_not_advance_clamp \
+            v3::commit::tests::prepared_commit_sqlite_commit_failure_returns_no_receipt_and_rolls_back \
+            v3::prepared::tests::sqlite_commit_failure_cannot_return_a_receipt_or_keep_real_prepared_state \
+            v3::prepared::tests::native_capture_sqlite_commit_failure_retries_with_new_current_capture
+          do
+            grep -Fx "test $test ... ok" "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
+          done
+
+      - name: H1 Native debug source suffix and receipt expiry locks（#1481 S1K）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        run: |
+          set -o pipefail
+          cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --test-threads 1 --show-output --format pretty --color never v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_ 2>&1 | tee "$RUNNER_TEMP/1481-native-debug.log"
+          for test in \
+            v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix \
+            v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget \
+            v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_during_closure_releases_budget \
+            v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_consumption_releases_budget
+          do
+            grep -Fx "test $test ... ok" "$RUNNER_TEMP/1481-native-debug.log"
+          done
+
+      - name: 上传 H1 正式准入逐名日志（#1481 S1）
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: h1-admission-S1
+          path: |
+            ${{ runner.temp }}/1481-admission.log
+            ${{ runner.temp }}/1481-ledger.log
+            ${{ runner.temp }}/1481-ordinary.log
+            ${{ runner.temp }}/1481-fd-wal.log
+            ${{ runner.temp }}/1481-e6.log
+            ${{ runner.temp }}/1481-sqlite-commit-failure.log
+            ${{ runner.temp }}/1481-native-debug.log
+          if-no-files-found: error
+          overwrite: true
+
       # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
       - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）

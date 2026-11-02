@@ -1628,6 +1628,68 @@ impl Cc004Producer {
         })
     }
 
+    /// #1481：认证冷前缀的进程缓存，不授予生产原账资格；仅接受 life=0 的冷域。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn seed_cold_delta(
+        &mut self,
+        store: &mut dyn NodeStore,
+        raw: crate::v3::business_json::RawEventsView<'_>,
+        rows: &[super::s_fact_cache::DeltaRawRow],
+        binding: crate::v3::audit_owner::RawAdvanceBinding,
+    ) -> Result<(), ProducerError> {
+        if !binding.is_unbound_cold()
+            || self.delta_binding.is_some()
+            || !self.sources.is_empty()
+            || !self.prepared_raw_keys.is_empty()
+        {
+            return Err(ProducerError::MissingSource(-1));
+        }
+        let mut keys = Vec::with_capacity(rows.len());
+        for row in rows {
+            if let Some(work) = store.codec_work() {
+                work.check_current()?;
+            }
+            let event = raw
+                .get(row.ordinal)
+                .ok_or(ProducerError::MissingSource(row.bar.source_index as i64))?;
+            let spec = RawRefSpec::from_event(event).map_err(|detail| ProducerError::Type {
+                what: "冷来源",
+                detail,
+            })?;
+            let key = fractal_unit_key(
+                row.bar.source_index as i64,
+                spec.revision,
+                &spec.input_revision,
+                &row.bar,
+            )?;
+            self.bind_source(store, row.bar.source_index as i64, spec)?;
+            keys.push((row.bar.source_index, key));
+        }
+        self.prepared_raw_keys = keys;
+        self.unprepared_floor = None;
+        self.delta_binding = Some(binding);
+        self.delta_epoch = Some(self.source_epoch);
+        Ok(())
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn rebind_cold_delta(
+        &mut self,
+        old: crate::v3::audit_owner::RawAdvanceBinding,
+        current: crate::v3::audit_owner::RawAdvanceBinding,
+    ) -> Result<(), String> {
+        if !old.is_unbound_cold()
+            || current.is_unbound_cold()
+            || !current.is_initial()
+            || self.delta_binding != Some(old)
+            || self.delta_epoch != Some(self.source_epoch)
+        {
+            return Err("GenError：冷producer交接域不符".into());
+        }
+        self.delta_binding = Some(current);
+        Ok(())
+    }
+
     /// #1488：来源更新与 prepare 是同一次 bound 消费；无调用者自报 dirty/prefix 入口。
     pub(super) fn prepare_raw_history_delta<'a>(
         &mut self,
@@ -3344,10 +3406,10 @@ fn raw_bar_at<'a>(
     coord: usize,
 ) -> Result<&'a Bar, ProducerError> {
     let index = raw_bars.partition_point(|bar| bar.source_index < coord);
-    raw_bars
-        .get(index)
-        .filter(|bar| bar.source_index == coord)
-        .ok_or(ProducerError::MissingSource(coord as i64))
+    match raw_bars.get(index) {
+        Some(bar) if bar.source_index == coord => Ok(bar),
+        _ => Err(ProducerError::MissingSource(coord as i64)),
+    }
 }
 
 /// CC-007 比较单元的精确内容键（与全量配方 `unit_content_key` 同字段同型）。

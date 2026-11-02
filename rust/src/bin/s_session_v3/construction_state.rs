@@ -38,6 +38,10 @@ impl RawAdvanceBinding {
     pub(crate) fn domain(self) -> RawDomain {
         self.domain
     }
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(crate) fn is_unbound_cold(self) -> bool {
+        self.domain.life == 0 && self.step == 0
+    }
     pub(crate) fn is_initial(self) -> bool {
         self.step == 0
     }
@@ -250,7 +254,115 @@ pub(super) struct CommittedRawState {
     #[cfg(feature = "s_incremental")]
     parent: Option<super::audit_owner::native::BudgetStamp>,
 }
+/// #1481：私有冷认证完成的无 owner 载荷；只允许一次移入实际 owner，不可发布 raw token。
+#[cfg(all(feature = "s_incremental", unix))]
+pub(crate) struct ColdRawState(CommittedRawState);
+#[cfg(all(feature = "s_incremental", unix))]
+impl ColdRawState {
+    pub(crate) fn generation_binding(&self) -> (RawAdvanceBinding, usize) {
+        (self.0.binding, self.0.facts.prefix_len())
+    }
+    pub(super) fn into_owner(
+        mut self,
+        seal: SnapshotSeal,
+        lease: &Lease,
+        from: &super::native::Budget,
+        to: &super::native::Budget,
+    ) -> Result<CommittedRawState, String> {
+        if self.0.binding.owner_life() != 0 || seal.life == 0 || lease.stale.get() {
+            return Err(stale("冷载荷已绑定或实际 owner 租约失效"));
+        }
+        let parent = self
+            .0
+            .parent
+            .as_ref()
+            .and_then(|stamp| stamp.advance(from, to))
+            .ok_or_else(|| stale("冷载荷父账交接戳不符"))?;
+        let old = self.0.binding;
+        let binding = RawAdvanceBinding {
+            domain: RawDomain {
+                life: seal.life,
+                epoch: lease.serial.get(),
+            },
+            step: 0,
+        };
+        if let Some(source) = self.0.source.as_mut() {
+            source.rebind_cold_owner(old, binding)?;
+        }
+        if let Some(set) = self.0.set.as_mut() {
+            set.rebind_cold_owner(old, binding)?;
+        }
+        self.0.seal = seal;
+        self.0.binding = binding;
+        self.0.parent = Some(parent);
+        Ok(self.0)
+    }
+}
 impl CommittedRawState {
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn generation_binding(&self) -> (RawAdvanceBinding, usize) {
+        (self.binding, self.facts.prefix_len())
+    }
+    /// #1481：冷折叠完成后只继承最后已发布 F，raw 的 R>F 尾部留给下一次在线 Δ。
+    #[cfg(all(feature = "s_incremental", unix))]
+    pub(super) fn cold_seed(
+        raw: RawEventsView<'_>,
+        prefix: usize,
+        source: &mut Option<super::super::source_audit::NativeSourceState>,
+        admission: &mut (impl super::super::audit_store::CodecRead + ?Sized),
+        root: Option<sc::RefView<'_>>,
+        parent: &super::native::Budget,
+        writer_epoch: Option<i64>,
+        output: &mut Option<ColdRawState>,
+    ) -> Result<(), String> {
+        let seal = SnapshotSeal {
+            life: 0,
+            transaction_id: 0,
+            write_sequence: 0,
+            data_version: 0,
+            schema_version: 0,
+            domain: [0; 6],
+        };
+        let binding = RawAdvanceBinding {
+            domain: RawDomain { life: 0, epoch: 0 },
+            step: 0,
+        };
+        let mut index = bj::RawPrefixIndex::new(raw);
+        index.advance_admitted(prefix, admission)?;
+        let mut delta = super::super::audit_retention::RetainedDelta::default();
+        let facts = index.into_facts_retained(&mut delta);
+        let retained = delta.apply(0).map_err(|_| stale("冷raw保留账不闭合"))?;
+        if let Some(state) = source.as_mut() {
+            state.bind_cold_owner(binding, prefix)?;
+        }
+        let set = match (root, source.as_ref()) {
+            (Some(root), Some(source)) => Some(super::construction_set::CommittedSet::cold(
+                admission, root, binding, source,
+            )?),
+            (None, None) => None,
+            _ => return Err(stale("冷末代根与来源贡献态不配对")),
+        };
+        let source_bytes = source.as_ref().map_or(0, |state| state.retained_bytes());
+        let fee = parent
+            .reserve(std::mem::size_of::<Self>())
+            .map_err(|_| stale("冷状态块预算不足"))?;
+        let stamp = parent
+            .handoff_stamp()
+            .map_err(|_| stale("冷状态块缺父账戳"))?;
+        *output = Some(ColdRawState(Self {
+            seal,
+            binding,
+            facts,
+            writer_epoch,
+            set,
+            retained,
+            source: source.take(),
+            source_bytes,
+            fee: Some(fee),
+            parent: Some(stamp),
+        }));
+        Ok(())
+    }
     #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn source_work(&self) -> Option<super::super::source_audit::SourceWork> {
         self.source.as_ref().map(|s| s.work)

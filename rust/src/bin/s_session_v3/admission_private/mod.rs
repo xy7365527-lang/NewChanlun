@@ -19,6 +19,7 @@ pub(crate) mod s4_read_trace {
         bytes: [u64; 4],
         coverage: [u64; 2],
         last: Option<(&'static str, Option<i64>)>,
+        cold_start: Option<u128>,
     }
     thread_local! { static TRACE: RefCell<Trace> = RefCell::new(Trace::default()); }
     pub(crate) fn enable() {
@@ -138,9 +139,16 @@ pub(crate) mod s4_read_trace {
             if result.is_ok() { "ok" } else { "error" },
         );
     }
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn cold_start_wire() -> Option<u128> {
+        TRACE.with(|t| t.borrow().cold_start)
+    }
     pub(crate) fn snapshot(label: &str, bytes: u128) {
         TRACE.with(|t| {
             if t.borrow().enabled {
+                if label == "h1_cold_start" {
+                    t.borrow_mut().cold_start = Some(bytes);
+                }
                 eprintln!("S4_READ_ACCOUNT {} {}", label, bytes);
             }
         });
@@ -363,9 +371,14 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
     }
 }
 
-/// #1527 rejection-only 前缀；成功不携带可转移资格，实际连接仍完整重核。
+/// #1527 rejection-only 前缀；成功不携带可转移资格。
+/// #1481：增量实际连接仍须完成 H1 同核冷认证，前缀结果不得替代准入资格。
 pub(super) enum RejectionPrefix<'a> {
     None,
+    // #1481：真正的 v1/v2 写入口；v3 advance 的 None 不得借此拒绝。
+    LegacyWrite,
+    // #1527：N1 独立组件的完整审计；不替代 #1481 写者的 H1 冷认证。
+    NativeComponentAudit,
     OrdinaryStartup {
         epoch: &'a str,
     },
@@ -404,6 +417,16 @@ fn audit_legacy_serve_prefix(
     })
 }
 
+// #1481：完整审计结果只在本分支独立栈帧内析构；H1 schema 前缀不背负其 debug 返回槽。
+fn audit_complete_prefix(
+    tx: &rusqlite::Transaction<'_>,
+    account: &dyn Budget,
+    deadline: std::time::Instant,
+) -> Result<(), String> {
+    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
+    Ok(())
+}
+
 /// #1527 N1：业务审计核只借调用者事务；不另开事务、不提交、不撤下回调。
 /// D1 与 N1 使用同一分派和首错顺序；旧域缺费用适配仍拒绝签发准入。
 pub(super) fn audit_core(
@@ -421,6 +444,37 @@ pub(super) fn audit_core(
 ) -> Result<(), String> {
     match crate::meta_get_opt(tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
+            // #1481：旧入口在只读前缀拒绝，不能先记下 PrePolicyRecords 迁移授权。
+            #[cfg(feature = "s_incremental")]
+            if matches!(prefix, RejectionPrefix::LegacyWrite) {
+                return Err("VersionMismatch：s-session/3 写入口必须显式使用 --protocol-revision s-session/3".into());
+            }
+            // #1481：H1 前缀只核迁移前 schema；成功不代表历史已认证。
+            // H1 冷折叠在实际持锁连接开门前完成，失败不得回落旧审计；
+            // Ordinary 与 #1527 N1 独立组件保留各自的完整审计合同。
+            #[cfg(feature = "s_incremental")]
+            {
+                if matches!(
+                    prefix,
+                    RejectionPrefix::OrdinaryStartup { .. } | RejectionPrefix::NativeComponentAudit
+                ) {
+                    // #1481：Ordinary 诊断臂保持完整审计先于 open_db 迁移；
+                    // #1527 N1 独立组件保持完整审计计费合同；H1 Native 前缀不借其兜底。
+                    audit_complete_prefix(tx, account, deadline)?;
+                } else {
+                    let work = match prefix {
+                        RejectionPrefix::NativeStartup { work, .. } => *work,
+                        _ => None,
+                    };
+                    super::control_audit::verify_s3_schema_admitted(
+                        tx,
+                        None,
+                        work,
+                        account.before_write(),
+                    )?;
+                }
+            }
+            #[cfg(not(feature = "s_incremental"))]
             match prefix {
                 RejectionPrefix::NativeStartup { context, work, .. } => {
                     if let Some(context) = context.as_deref_mut() {
@@ -440,11 +494,13 @@ pub(super) fn audit_core(
                     }
                 }
                 _ => {
-                    super::state::audit_with_budget(tx, Some(deadline), None, Some(account))?;
+                    audit_complete_prefix(tx, account, deadline)?;
                 }
             }
             match prefix {
-                RejectionPrefix::None => Ok(()),
+                RejectionPrefix::None
+                | RejectionPrefix::LegacyWrite
+                | RejectionPrefix::NativeComponentAudit => Ok(()),
                 RejectionPrefix::LegacyServe {
                     db,
                     epoch,
@@ -570,6 +626,64 @@ fn validate_prefix_inner(
     account: &mut AdmissionAccounting<'_>,
     prefix: &mut RejectionPrefix<'_>,
 ) -> Result<crate::DeltaShape, String> {
+    read_session(source, account, true, |conn, shared| {
+        audit_business(conn, shared, prefix)
+    })
+    .map(|(_, delta)| delta)
+}
+
+/// #1481：冷折叠与拒绝前缀共用原 FD/VFS、原 Job 和收尾次序；成功载荷只在全部门结清后交出。
+#[cfg(feature = "s_incremental")]
+pub(super) fn certify_cold<T>(
+    source: &MeasuredDomain,
+    account: &mut AdmissionAccounting<'_>,
+    operation: impl FnOnce(&rusqlite::Transaction<'_>, &dyn Budget) -> Result<T, String>,
+) -> Result<T, String> {
+    #[cfg(test)]
+    {
+        s4_read_trace::snapshot("h1_cold_start", account.snapshot().wire_bytes);
+        s4_read_trace::phase(3);
+    }
+    read_session(source, account, false, |conn, shared| {
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let result = operation(&tx, shared);
+        let business = result.as_ref().map(|_| ()).map_err(Clone::clone);
+        shared
+            .errors
+            .borrow_mut()
+            .returned(ErrorPhase::Business, &business);
+        shared.errors.borrow_mut().phase = ErrorPhase::Rollback;
+        let disabled = conn
+            .progress_handler(0, None::<fn() -> bool>)
+            .map_err(|e| e.to_string());
+        shared
+            .errors
+            .borrow_mut()
+            .returned(ErrorPhase::Rollback, &disabled);
+        let ended = tx.rollback().map_err(|e| e.to_string());
+        shared
+            .errors
+            .borrow_mut()
+            .returned(ErrorPhase::Rollback, &ended);
+        shared.errors.borrow_mut().phase = ErrorPhase::Gate;
+        let gate = shared.precheck().map_err(|e| e.to_string());
+        shared.errors.borrow_mut().returned(ErrorPhase::Gate, &gate);
+        result.and_then(|value| {
+            disabled?;
+            ended?;
+            gate?;
+            Ok(value)
+        })
+    })
+    .map(|(value, _)| value)
+}
+
+fn read_session<T>(
+    source: &MeasuredDomain,
+    account: &mut AdmissionAccounting<'_>,
+    quick_check: bool,
+    operation: impl FnOnce(&rusqlite::Connection, &SharedAccounting<'_, '_>) -> Result<T, String>,
+) -> Result<(T, crate::DeltaShape), String> {
     #[cfg(test)]
     s4_read_trace::snapshot("prelude_start", account.snapshot().wire_bytes);
     account.pre_io_check().map_err(|e| e.to_string())?;
@@ -586,6 +700,7 @@ fn validate_prefix_inner(
     let grant = account.reserve_staged(0).map_err(|e| e.to_string())?;
     let errors = RefCell::new(ObservedErrors::new());
     let delta = std::cell::Cell::new(crate::DeltaShape::Current);
+    let mut output = None;
     let result = (|| {
         let main = source.main_fd()?;
         let wal = source.wal_fd()?;
@@ -602,7 +717,7 @@ fn validate_prefix_inner(
                 .connect(true)
                 .map_err(|_| "PrivateSqliteOpenFailed")?;
             #[cfg(test)]
-            {
+            if quick_check {
                 s4_read_trace::snapshot(
                     "quick_start",
                     shared.account.borrow().snapshot().wire_bytes,
@@ -610,26 +725,28 @@ fn validate_prefix_inner(
                 s4_read_trace::phase(1);
             }
             let check: Result<(), String> = (|| {
-                let mut stmt = session
-                    .connection()
-                    .prepare("PRAGMA quick_check")
-                    .map_err(|_| "PrivateSqliteCheckFailed")?;
-                let mut rows = stmt.query([]).map_err(|_| "PrivateSqliteCheckFailed")?;
-                let mut seen = false;
-                while let Some(row) = rows.next().map_err(|_| "PrivateSqliteCheckFailed")? {
-                    let text: String = row.get(0).map_err(|_| "PrivateSqliteCheckFailed")?;
-                    if text != "ok" || seen {
-                        return Err("PrivateSqliteIntegrityRejected".into());
+                if quick_check {
+                    let mut stmt = session
+                        .connection()
+                        .prepare("PRAGMA quick_check")
+                        .map_err(|_| "PrivateSqliteCheckFailed")?;
+                    let mut rows = stmt.query([]).map_err(|_| "PrivateSqliteCheckFailed")?;
+                    let mut seen = false;
+                    while let Some(row) = rows.next().map_err(|_| "PrivateSqliteCheckFailed")? {
+                        let text: String = row.get(0).map_err(|_| "PrivateSqliteCheckFailed")?;
+                        if text != "ok" || seen {
+                            return Err("PrivateSqliteIntegrityRejected".into());
+                        }
+                        seen = true;
                     }
-                    seen = true;
+                    if !seen {
+                        return Err("PrivateSqliteIntegrityEmpty".into());
+                    }
+                    drop(rows);
+                    drop(stmt);
                 }
-                if !seen {
-                    return Err("PrivateSqliteIntegrityEmpty".into());
-                }
-                drop(rows);
-                drop(stmt);
                 #[cfg(test)]
-                {
+                if quick_check {
                     s4_read_trace::snapshot(
                         "audit_start",
                         shared.account.borrow().snapshot().wire_bytes,
@@ -643,7 +760,9 @@ fn validate_prefix_inner(
                     "begin",
                     "pending",
                 );
-                let result = audit_business(session.connection(), &shared, prefix);
+                let result = operation(session.connection(), &shared).map(|value| {
+                    output = Some(value);
+                });
                 #[cfg(test)]
                 s4_read_trace::audit_window(
                     session.connection(),
@@ -686,7 +805,10 @@ fn validate_prefix_inner(
     errors.borrow_mut().phase = ErrorPhase::Deadline;
     let budget = account.check_deadline().map_err(|e| e.to_string());
     errors.borrow_mut().returned(ErrorPhase::Deadline, &budget);
-    errors.into_inner().finish().map(|()| delta.get())
+    errors.into_inner().finish()?;
+    output
+        .map(|value| (value, delta.get()))
+        .ok_or_else(|| "PrivateSqliteMissingResult".into())
 }
 
 #[cfg(test)]
