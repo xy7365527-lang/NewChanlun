@@ -2130,3 +2130,23 @@ native 改为 0 至 7 共 8 片，四条重锁按完整 bin 名独占 0 至 3，
 - 追加前本笔记 260990 字节，SHA-256 `3a01f2974feb6f1d64dd08acc2dbfa17afd3f89bf2d758c8c5b8dc31a39e3e30`，原字节前缀逐字保留。本机未运行 cargo/rustc，未 git add/commit，未回退其他代理改动。
 
 本阶段 status=ready 只指 CI 编排修复可供执行。真实 Rust 编译、当前 delta 全集、8 片测试结果和60分钟门内完成情况均待CI；原完整验收及八项有界证明仍不由本阶段结清。
+
+## M8D
+
+本节绑定 #1419 受管阶段 M8D，开工基线 `sandcastle/issue-1419@b99d8e3e71a49c146659f41afc273e44dc4a0020`，工作区干净。按本轮主控明确授权，只做已批方案 ii 第 3 片生产接线的准备，不另开票。交付指针：[M8D-SLICE3-PREP.md](M8D-SLICE3-PREP.md)。已读取本目录 M7D/M8A/M8B/M8C、本笔记 M7C 至 M8C、三份指定非作者独审和 `/Volumes/AgentStorage/budget-diag46z2/REPORT.md`；合同另 live 回查 #1481 正文与评论，未向 GitHub 写入内容。
+
+文档将四项生产前提落为具体形状与接口：owner 私有生涯/材料切面描述符，真实 Access 对照和 FD/WAL/stat 内建核；显式传原 j.cap 的追加/读回与费用流；完整 `(digest,Flavor,Mode)` 成功继承、位置结论与单位认证分层、核签发的增量收据及台账消费；SQLite 内部连接域归属与 Rust 正文/证明逐次许可、同一时间共存峰公式和只读 CI 取数。矩阵列源码、测试限定锁、真实生产差分、CI 读数和原验收保留项，规划 L1..L11 与 P1/P2/P4/P5/P6 共16个注册锁，P3仅为原C/D/E/F锁内诊断断言helper，不另加两条重放。实施按3A封印、3B继承/费用证据、3C首次生产接线、3D引用/资格消费迁移切分，每片独审与实际CI验收。
+
+本阶段没有签发上游 Rust/CI 通过收据。依本轮主控状态，2c6cb4e3 CI仍在跑，M8A/B/C尚无CI收据；双形态warnings、7/16条原锁与M8C实际清单/分区/耗时均列待CI前提。STRING 21次/BOOL 15次metadata仍是作者推导，不是实测阈值。原#1481:27比例/上界、五常数manifest、SQL/F及SQLite内部峰均待原运行域实测。
+
+交主控事项明确保留：SQLite B_sql尚无可填写的硬上界，若须新allocator机制/配置/资源政策不能自决；自身写后的phase观察必须复用原journal/effects/物理核，不能直接与写前baseline全等或刷新baseline吸收外写。无回收的第3片不宣称消除累计表首拒；完成ii消除整块翻倍后，C/D g23、E/F g26及完整43/107代预期通过仍由后续实际锁/CI证明。原四锁、admission六代、certified/qualified、effects、少1B/首错、ordinary full_some、预算及重型验收全部保留，第4片八项证明门未放行。
+
+实际检查收据：
+
+- `pwd`、`git status --short`、`git rev-parse HEAD` 核工位/干净起点/指定HEAD；全程不运行cargo/rustc，也不调用间接启动它们的脚本。
+- `env -u GH_TOKEN -u GITHUB_TOKEN gh issue view 1481 --repo xy7365527-lang/NewChanlun --json body,comments` 退出0；按正文splitlines回查:24/:27，临时原件只留 `/tmp/issue1419-m8d-1481.json`。AMENDMENT:25/:29/:60、真实owner/clamp/材料入口、台账/Verifier、CheckedStatement、锁版本rusqlite/SQLite机制均已源码核对。
+- Python静态检查通过：文档逐行无尾部空白、末尾换行，L1..L11/P1..P6及3A..3D矩阵齐全、要求的四条件/CI/原验收关键词齐全；14个完整既有源码路径存在，直接带行号引用未超文件长度，3个拟新增Rust文件路径明确标作计划项。
+- `git diff --check` 无诊断通过；新文档另做逐行空白检查。`git diff --no-index --check -- /dev/null M8D-SLICE3-PREP.md` 无空白诊断，退出1对应新增文件差异，不记为Rust检查。
+- 追加前本笔记263884字节，SHA-256 `a698b5a11e4967cee02df23ed63444c732317c8db8c5c9e3aba8aabbe467a629`，与HEAD及 `/tmp/issue1419-m8d-notes-before.bin` 逐字相同；最终复核保持此前全部字节。改动限本文追加和M8D新文件，不改Rust/ci.yml/脚本，不git add/commit，不回退其他代理改动。
+
+status=ready仅指生产接线准备与可交实施切片文档已交付，不表示四项生产条件已实现、原两锁已通过或已获回收放行。Rust未验证，待CI。
