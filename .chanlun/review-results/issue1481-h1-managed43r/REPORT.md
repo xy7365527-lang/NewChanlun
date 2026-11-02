@@ -2425,3 +2425,394 @@ MainOnly/非 WAL 域、写前拒绝、正常关闭与完整性保全分类、台
 - `rust/src/bin/s_session_v3/history.rs`
 - `rust/src/bin/s_session_v3/source_contributions.rs`
 - `rust/src/bin/s_session_v3/state.rs`
+
+
+## S1S
+
+> 状态：ready，交主控封包后取精确新 head 的 native debug CI。开工分支 `sandcastle/issue-1481`，HEAD `29326e4d43a202a519a5dd7cbb1ce646b9ed17e1`，工作区干净。下述为源码诊断、测试夹具返修与静态检查；**Rust 未验证，待 CI**，不宣称三项 FAILED 已转绿或栈溢出已实测消失。
+
+### 原件、边界与最终定位
+
+已读本报告 S1J、S1L、S1R，S1D–S1R 派单及其继承边界、43K 实施简报、44G 原件和 ADR 0042。报告实际路径为本文件；根目录没有另一份 REPORT.md。本轮沿 #1481 已授权返修，不新开票、不作新政策裁定。生产语句和现有 S1R 探针保持，仅修测试及同步生成禁串表。
+
+原件为 `/Volumes/AgentStorage/h1-recover45c/ci-29326e4d/125111448717.log`，主 CI run `41394052145` / job `125111448717`，精确 head `29326e4d`，三 feature 为 `s_session,s_incremental,s_capture_native_testonly`，debug。`:1395` 明写 S1R recover 目标 `... ok`；`:2044/:2052/:2053` 是三项 bootstrap FAILED；`:2079–2080` 为本轮 delta 目标 stack overflow / abort。没有 panic 汇总或机器栈回溯，因此以下根因是源码证明，不能冒称捕获到 panic 文本或撞 guard 的指令。`origin/main` 实际为 `67df861ee909efae902450b8f02b88e957f3a74c`；已逐项比较六文件的 `git diff origin/main..HEAD`，这四项不是新增测试。
+
+下面定位为本轮最终源码，相对 `rust/src/bin/s_session_v3/`；后文“基线”位置保留用于与原件核对。
+
+| 测试名 | 本轮位置 |
+|---|---|
+| `native_bootstrap_idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged` | `driver.rs:5088` |
+| `native_bootstrap_pending_drops_startup_slot_before_resume_then_identity_cold_matches_current_frontier` | `driver.rs:5210` |
+| `native_bootstrap_two_transactions_reject_current_damage_or_sql_error_without_old_proof` | `driver.rs:5297` |
+| `native_delta_explicit_policy_sql_receipt_and_failed_commit_retry` | `driver.rs:1972` |
+| `native_prefix_preserves_business_epoch_rule_order_and_clears_context` | `driver.rs:1432` |
+| `native_prefix_populated_capture_type_error_precedes_frame_and_epoch` | `driver.rs:1517` |
+| `native_prefix_context_rechecks_real_connection_current_material` | `driver.rs:1579` |
+| `native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool` | `driver.rs:1669` |
+| `native_prefix_final_deadline_preserves_business_and_clears_retained_context` | `driver.rs:1783` |
+
+### 三项 bootstrap FAILED：均选 (b)，H1 合法改变合同后更新锁
+
+基线原日志 `/Volumes/AgentStorage/h1-recover45c/ci-29326e4d/125111448717.log:2044/:2052/:2053` 只给 FAILED，`:2079` 栈溢出使 libtest 未输出 panic 汇总。以下是源码定位，不冒充捕获到的 panic。
+
+已比较 `git diff origin/main..HEAD -- rust/src/bin/s_session_v3/{driver.rs,admission_private/mod.rs,audit_owner.rs,state.rs,admission.rs,prepared.rs}`。实际改动仅 driver 测试区，没有修改生产路径。
+
+共同裁定依据：43K 原件 `/Volumes/AgentStorage/goal1323-resume-20261029/H1-IMPLEMENT-BRIEF43K.md:21` 明确“接纳/Begin/Prepare及identity/summary/recover使用H1资格结果；新进程与recover先从g1用在线同一Δ步认证折叠……增量准入中旧完整读法仅为测试oracle/离线入口”；44G 原件 `/Volumes/AgentStorage/h1-source-review44g/REPORT.md:9–12` 接受同原FD/VFS/Job冷认证及startup/identity/pending先bind_admitted_history，资源不足不做无候选重试。ADR0042 `:40/:58/:60` 规定同一增量路径冷重建、编译期单路径和显式第八门；`:36` 的生产签署门不被本轮夹具参数替代。ADR0055 D2 数值不改/预算不足不得以增费吸收U仍保持；本轮未碰其L3五锁或预算逻辑。
+
+| 原测试（省略 native_bootstrap_） | 根因、旧断言 | 新断言与覆盖保持 |
+|---|---|---|
+| idle_identity_hits_then_drops_and_ready_is_new_cold_default_paths_unchanged | main driver.rs:282 default context；本分支 driver.rs:282/479改为cold_context，freeze_manifest_workspace_budget(retention,0,0)+Keeper；原incremental_retention_bytes=1现在是真实冷认证父账额度。open_rebuilt_history_into audit_owner.rs:601调用prepare_parent(None)，request_audit.rs:2461–2480消费唯一BootstrapGrant；Budget::bootstrap真实元数据大于1B，返回精确 `S3WriterResourcesInvalid：cold父预算不足`，因此基线 `result.unwrap()` 先于旧phase断言失败。即便容量充足，原 bootstrap request_history(cold=1,hit=2)、Ready(cold=1,hit=0) 已不是正式H1合同。 | 保留1B精确具名拒绝负控；正控沿本仓h1_admission_driver等既有夹具值536870912 B，不改生产帽/默认值。原identity逐位比Ordinary；另保留Ready.kind并加整份Ready回复逐位比同一Ordinary夹具。正式bootstrap h1_certified_cut=1、h1_qualified_cut=1、owner_complete_hit=2（startup/identity）；旧request_history_cold/hit均0，full_audit_calls不增；Ready owner_complete_hit=1、新冷认证/qualified/旧request_history均0、full_audit_calls不增。原context释放恰1且最后事件释放、静态source保留=0、Ordinary无request_history事件、Owned两拒绝臂全保留。非内联helper承接大生产返回后Box化，traced tuple只含Box；首个Ordinary夹具也非内联Box；不改调用参数/顺序或drop时点。 |
+| pending_drops_startup_slot_before_resume_then_identity_cold_matches_current_frontier | 默认context未装Keeper：driver.rs:576–600不走正式H1；admission_private/mod.rs:454–475 NativeStartup仅schema，故不再由前缀预热slot；startup audit_owner.rs:1167–1175首次旧冷审。另 driver.rs:820–832 的增量resume_pending不再丢slot再新建上下文，而是同context继续Begin/Prepare（43K要求正式H1父账连续）。旧open后(cold,hits)=(1,1)且!has_slot，identity后(2,1)不再对应当前路径。 | open后精确(1,2)：startup冷一次，Begin及Prepare各重新绑定旧前沿一次；直接取/还slot检查末代=1，而库已generation2。identity必须冷重核后(2,2)，slot末代=2；再开一事务identity必须同回复并精确(2,3)，证明旧slot没有冒充新前沿证明，只有当前重核slot可命中。保持publication=2、clocks=6、generation=2、last_advance_frontier=1、index_frontier=batch、重复ingest原Committed回复与后续Ready逐位等于Ordinary。补旧入口计数锁：open总+4（startup entry+fresh各1，Begin/Prepare hit入口各1），identity冷+2、下一identity热+1。测试名沿用，不据名称声称当前路径还会drop旧slot。 |
+| two_transactions_reject_current_damage_or_sql_error_without_old_proof | 同schema-only前缀，default context startup从旧(1,1)变(1,0)；八损坏例子原先在旧命中数断言即失败。 | startup(1,0)，full_audit_calls+2（entry+fresh，排除前缀多一次旧审计）；八种损坏、错误返回、清slot、三表不写仍逐一保持，失败后(cold,hits)严格(1,0)无成功冷重试/命中旧证明。SQL首次step中断在begin_in_request main.meta COUNT处失败、尚未入state审计：旧计数不增，slot清且(1,0)；撤hook后下一次identity才真正冷审到(2,0)，旧入口计数+2。所有8条SQL、hook参数/清理、原三表计数均保持。 |
+
+核心计数证据：state.rs:259在audit_native_in_request_measured入口+1；`:795`在fresh核再+1，命中分支`:373`返回不进fresh核；request_audit.rs:652只在retain成功时cold/hits累加。pending Begin由audit_owner.rs:1394–1401调用同context审计，Prepare由prepared.rs:845–850调用同context；binding `request_audit.rs:1017–1022`排除正常Begin四meta字段，`:1083–1098`只读旧cut来源message/commit时钟，故Begin/Prepare可绑定旧g1；发布新节点/generation改变时state.rs:306–340发现当前节点/绑定不同，随后fresh到新g2，旧证明不命中。H1 cold则走state.rs:1858/1880/1920而非request_history入口，audit_owner.rs:672–693取slot封候选且detach；startup/identity通过bind_admitted_history (:994/1167/1220)，bind_existing (:4178/4234)仅在同快照与同父匹配后owner_complete_hit；Ready走driver.rs:669–714冻结同父+audit_admission(:2946/2984)命中同候选。上述phase计数均由源码推导，未执行Rust。
+
+S1R探针不影响这三项：audit_owner.rs:13整模块test+s_incremental+unix；record(:50)与sample_codec(:38)均先查线程局部ENTRY的Some，只有admission_tests.rs目标显式enter设置，drop清None。三项bootstrap没有enter，未改trace/counters/断言、未开线程。
+
+cfg源码核：所有改动在driver既有cfg(test)模块，三函数继续原cfg(s_incremental)，非test六格均不含新helper/Box/调用。s_session test排除这三函数，无悬空helper引用；增量与native-testonly test编相同局部helper和既有pub(super)的slot.result/cuts/restore_slot，闭包错误仍String，assert_eq借用expected_identity不会move，重复identity可复用。1B负控不更改生产预算。Rust编译和-Dwarnings待CI，本机未运行cargo/rustc。
+
+### native 尾段另查出的 5 项前缀合同陈旧断言
+
+依据：43K ACCEPTANCE 把增量正式准入的全历史 `state::audit*` 撤为 oracle/离线臂，要求新进程先同核冷折叠；44G「原两项 P1」接受 schema 前缀与后续私有冷认证结构，P2 只要求 Ordinary 恢复先完整审计后迁移；ADR 0042「恢复与冷启动」「迁移开关」要求增量自己冷建、不回落完整路径。故 NativeStartup prefix 不再签发历史 slot，是 (b) 合法合同变化；实际 startup 独立对照仍须保留原严格业务/类型错误覆盖，不能把原断言直接删去。
+
+| 目标（精确位置见本节首表） | S1R 原断言 | 新断言与原覆盖保留 |
+|---|---|---|
+| native_prefix_preserves_business_epoch_rule_order_and_clears_context | Native Driver前缀原全审错误先于epoch/rule，且拒绝清slot、字节/SHM不变 | Native前缀精确比较schema→epoch→rule结果，并断言cold/hit=(0,0)、slot空；同一物理损坏库交实际AuditConnection::startup，两context臂仍与原expected逐字比较，保留业务先于epoch/rule；字节/SHM门保持。 |
+| native_prefix_populated_capture_type_error_precedes_frame_and_epoch | Native前缀晚SQL类型错误先于早坏frame/epoch | 前缀精确schema→epoch错误且cold/hit=(0,0)；实际startup两context臂仍逐字等于原完整Native审计的expected（晚类型错误仍先于早坏frame/epoch）；SHM/slot门保持。 |
+| native_prefix_context_rechecks_real_connection_current_material | 前缀已retain，cold/hit=(1,0)，same startup命中(1,1)、append startup再冷(2,0) | 前缀slot空且(0,0)；same/append实际startup均首次冷(1,0)，再对同一当前材料startup命中(1,1)。6类当前材料全部保留与独立旧oracle接受/逐字拒绝对拍。 |
+| native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool | 前缀完整核成功retain后epoch拒绝，cold=1，slot及已消费pool均不得恢复 | 新增无slot旧pool臂：精确epoch错误、旧全审调用不增、cold/hit=(0,0)、pool保留字节不变。随后显式fixture审计准备已有slot并消费pool，再验证同Driver拒绝只撤销slot、旧全审调用不增、(1,0)且已消费pool不复活；原recover/Ready/SHM成功链保持。 |
+| native_prefix_final_deadline_preserves_business_and_clears_retained_context | 正常prefix有slot；晚期限前cold=1；records/wire均>0 | prefix正常/晚期限均无slot/cold/hit=(0,0)，records/nodes=(0,0)、wire>0；最后clock次数、原epoch首错+收尾期限、wire/records/nodes逐项相等不变。补实际startup成功后slot存在、(1,0)，将旧冷证明职责锁在实际入口。 |
+
+records/nodes=0的源码证据：schema前缀 `admission_private/mod.rs::audit_core` 只向 `verify_s3_schema_admitted` 传 `work` 与 before_write，不传 Budget；后者的DDL/列/实际存储类扫描到 `v2::verify_schema_read_admitted`（mod.rs:1070起）和 CheckedStatement，无 `Budget::record/node`；实际SQLite FD/VFS读取仍入wire。无测试钩子增加，无生产变化；rustfmt和git diff --check已通过；Rust未验证、待CI。
+
+
+### delta 栈溢出：先排随历史线性递归，再隔离夹具大返回槽
+
+目标只循环 n=1..2，`Fixture::ingest` 仅 a/b 两个 raw；重试提交同一条原件，不增长到上轮 recover 锁的六代或 12k 代。`construction_set.rs:68/:108/:135` 用 Vec 前沿显式做差；`s_content.rs:5422/:5601/:5710/:6068` 用 WorkVec/while；`s_content/sequence.rs:488–545` 的规范 concat/split 随树高递归；`history.rs:2690–2701` 的 EffectiveBlock 只有左右 owning Box、无 owning parent，这个夹具有效叶数至多二、树高至多一条边；`source_order.rs:9/:14` 为 AVL 且 parent=Weak；`fixed_radix.rs:17/:163` 受固定键宽限制。未发现“每个历史节点增加一层 native 调用”或逐代 owning 闭包链。本轮不为未成立的 O(n) 假说改 Drop。
+
+可直接证实的大帧负担在基线 `driver.rs:1833`：主体同时内联持有两个 Driver，四次开库又各承接 `Result<Driver>`、unwrap、赋值和移动槽。Driver `:84` 内联 AuditConnection（`audit_owner.rs:309` 起，含候选、construction、keeper）和 Runtime（`prepared.rs:120` 起，含生成器与辅助状态）。显式 drop 结束对象生涯，但不会释放该 debug 函数已预留的返回/移动槽。
+
+调用域也须分清：本目标四次开库显式传 `startup_context=None`，共用 `driver.rs:575` 条件为 false，实际走 `:602 AuditConnection::open`；两次 recover 走测试 wrapper `:941` → 旧 `recover_scoped:915` → `AuditConnection::open/recover:933–934`。**本目标没有执行 `open_rebuilt_history_into`、正式 recover、冷 seed 或 `HistoricalCertificate::cold_captured`**。不能把 S1R 的深冷调用图套在这个旧测试上，也不能声称 AuditConnection/AuditTxn 类型因本轮新增了字段。
+
+与 main 相比的 H1 共享差异在 `open_with_request_and_mode_context:533` 中提前构造 Runtime、以及 H1 分支的 `rebuilt: Option<AuditConnection>` 和移动槽；debug 可为未执行分支预留固定空间，源码不能量出真实帧。实际可达改动还包括 startup、pending_originals 的 `bind_admitted_history` 短返回 false 及 `continue_with(Ended)`，`resume_pending(None)` 的 `continue_with(ended)`，以及在线/旧 oracle 共用 `audit_one_cut_sources(..., None)` → `HistoricalSourceFold::verify_sources` 包装。这些是共享固定外壳/移动槽负担，非随历史增加调用深度的证据。本轮直接消除的是上层测试四次大返回槽与两份 Driver 内联保留；具体哪一个机器帧触发溢出仍未知。
+
+修法是在原测试内增加 `#[inline(never)]` 局部开库 helper，原四次 Native/Ordinary 调用等参移入 helper，以 `.map(Box::new).unwrap()` 返回指针。主体仅持两个 Box；helper 的按值构造槽退出后才进入后续发布、提交失败、恢复与重试。原全部配置、两次 epoch、commit_hook、SQL、receipt、root_tables、断言和显式 drop 顺序保持。Box 的析构仍在原 drop 时点析构同一 Driver，随后释放测试堆分配。没有改变生产类型、计费或资源帽。
+
+实际执行 `/private/tmp/issue1481-s1s-stack-semantics.py`：两次 Native、两次 Ordinary 的开库参数与原函数/Fixture::open_with_config 逐一核同；仅等价展开四处调用并归一化空白/尾逗号后，原主体逐字相同。该检查证明改动范围和语义对照，不测机器帧大小；不沿用 S1L 的静态模型作“栈安全”证明。修复是否消除 overflow 仍由同一 debug/native CI 裁定。
+
+
+### 尾段另六项 P6 完整台账夹具：补齐真实候选，保留目标拒门
+
+`prepared.rs:828` 在完整台账存在且 `bound_audit=None` 时精确拒绝 `StaleWriter：正式Prepare缺H1绑定，禁止旧审计重判`。六项旧测试先安装完整台账，却只 `AuditConnection::open` 加默认 context 直接 publish；main 没有此门。成功测试会被新增前置挡住，两个仅要求失败的负控还会假绿，原 ledger commit 失败测试也到不了内容 COMMIT。处理属于 (b)：43K/44G 要求正式 Prepare 使用已绑候选，不能为了旧夹具削弱生产门。
+
+六项改用已经存在的 `owner.p6_source_context_for_test()`（`audit_owner.rs:7566`）：同一 64 MiB 显式组件预算，真实 Deferred 事务中 audit_admission → read_end → continue_with，形成同父完整候选、workspace 和 source cache。它是 P6 独立组件对照臂的合法前置，不冒称正式 H1 FD/VFS 冷准入，不添加资格捷径。queued 的无台账 baseline 也同形补候选，并在组装计数清零之前完成，保证次数对拍沿同一前置。
+
+| prepared 测试 | 处理和原覆盖 |
+|---|---|
+| `p6_queued_units_real_owner_commits_only_verified_complete_keys`，`prepared.rs:2689` | 主臂和无台账 baseline 同形补 context；真实完整 keys、cert、verifier、invented 排除、组装次数断言全留。 |
+| `p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild`，`prepared.rs:2888` | 每轮每代 publish 前补 context；五代修订/撤回、赢家 seq≠coord、cover/raw/cert/qualification、两轮重建逐行相等全留。 |
+| `p6_complete_ledger_real_owner_records_pending_without_group`，`prepared.rs:2976` | 每代补 context；真实未定原件、pending 与无伪组、committed_through 原断言全留。 |
+| `p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit`，`prepared.rs:3024` | 补 context 使测试真正到台账规则门；原 is_err 与零写断言保持，并加精确 `AuditLedgerStale：台账请求、规则或代号不一致`。 |
+| `p6_queued_units_prepare_failure_discards_facts_and_stales`，`prepared.rs:3061` | 补 context；原 is_err、无 facts、无 cert、stale 与重试失败保持；加精确 `S3PrepareInvalid：Commit原件与已接纳消息不同`。 |
+| `p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries`，`prepared.rs:3106` | 补 context 后才到真实侧库 COMMIT 锁失败；原 AuditLedgerStale、内容 generation=1、cert=0、无 facts 与拒重试保持。 |
+
+wrong-rule 的精确拒绝来自 `audit_ledger.rs:1136–1151` 对请求、规则和代号的同一核；invalid envelope 来自 `prepared.rs:856–863` 的已接纳原件逐字比较及 `:1771` 的原错误包装。没有通过增加前置就满足任意 is_err。已遍历本文件十处测试 `install_audit_ledger`：其余 source-partitions 两处、raw-partition 一处、partial_sidecar_failure 一处都为 partial，新增完整台账门不适用，原代码保持。
+
+实际执行 `/private/tmp/issue1481-s1s-prepared-semantics.py`：生产前缀逐字相同，六测试加 queued baseline 除上述 context 替换及两处精确错误增强外，其他操作、断言与重试顺序归一化逐字相同。非作者独立只读复核了本表及五项前缀修复，未发现确定的语义/可见性/假绿问题；这不是 Rust 编译或运行 PASS。
+
+### 尾段第七项 P6 双路径锁：保留 full_lease 独立对照
+
+`driver.rs:8903` 的 `p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths` 原 full_rows 同样安装完整台账后用默认 context 直接 owner.publish，触发上述缺绑定门。不能照搬六项夹具的调用替换：带 source cache 的完整候选会在 `audit_owner.rs::publish_body` 签发 raw，`prepared.rs:965` 随后走 delta，原本“每代恰一次完整生成、full_lease 车道”的覆盖会消失。
+
+本项选 (b)，依据同一 43K/44G 的旧完整审计只留独立对照臂规则。每代新开组件 owner，先以既有 `p6_source_context_for_test` 现场建立严格审计候选；新增仅 test+s_incremental 可见的 `audit_owner.rs:7497` `p6_publish_full_lease_for_test`。它要求当前事务 bind_existing 真正成功，签发并核验真实 raw 施工许可，但显式不把 raw 令牌交给 Runtime，沿既有 set_publish_case 的独立 full_lease 对照模式传入当前 pending 的 audited。没有设置 require_historical_certificate，也没有伪造 HistoricalCertification 或放宽生产 Prepare 门。
+
+helper 保留真实 publication 父域、effects attach、固定写 finish、construction_seal/transition 与 run 两阶段尾检，再依次实际提交内容和旁挂台账；任何失败撤候选、退役、失效台账、discard Runtime 并清 context，不重试。为保留这些收口，helper 共约七十行，而不是只包装成功调用。driver full_rows 全部原断言保留，包括每代完整出生恰1、full_lease 车道、资格水位、raw 行数、修订赢家推进、最终 cover/raw 与 delta 臂逐行相等；delta 臂及改坐标拒绝负控不动。只改调用的前置和显式测试对照入口，没有把 full_lease 断言改成 delta。
+
+非作者已独立核验真实候选来源、借用/cfg、两阶段尾检、双提交与错误清理，并核原断言未删减。Rust 实际编译及运行仍待 CI。
+
+### 探针捕获与 cfg 边界
+
+S1R 的 `H1_STACK_PROBE` 使用 eprintln，`.github/scripts/test-feature-delta.sh:51` 启动 `--exact` 列表时没有 `--nocapture`/`--show-output`。libtest 捕获成功测试的输出；因此本轮 S1R 目标 `... ok` 只证明原目标运行完成，不能由“日志没有探针行”反推探针未运行，也不能据此填栈深字节。其 TLS 只有原目标显式 enter 后才为 Some，其他测试 record/sample_codec 均不输出或改业务状态；S1S 未增加探针或产物通道。
+
+若后续确需保留读数，可另行评估测试结束时通过现有 `std::io::stderr().lock()` 诊断写入路径输出，或接入已存在的诊断产物。它需要单独验证 CI 收集和 libtest 捕获边界，本轮不实施。当前重采样仍须由受管验证环境使用既有靶向 `--nocapture` 命令；本机不运行 Rust。
+
+| cfg | 非 test | test |
+|---|---|---|
+| s_session | driver/prepared 改动在既有 cfg(test) 模块内，owner helper 在既有 cfg(all(test, feature="s_incremental")) impl 内；生产文本逐字保持。 | 本轮函数各有既有 s_incremental 门，整函数及局部 helper 排除，无悬空引用。 |
+| s_session,s_incremental | 同上；Box/断言/计数器/局部 helper 不进生产。 | 三文件测试边界与slot.result/cuts/restore_slot、两个P6 helper同门；新增helper均有调用，无新增导入或lint allow/expect豁免。 |
+| s_session,s_incremental,s_capture_native_testonly | 同上，testonly feature 不等于 cfg(test)。 | 与上一行同一测试核，闭包错误仍 String，Box 的 Deref/DerefMut 借用同一 Driver；无新增 unix 限制或 non-unix 悬空调用。 |
+
+这是三档×test/非 test 的源码穷举。**六格 `-D warnings` 实际编译、生产产物和 native 测试均未在本机执行，待 CI**。
+
+### native abort 后 235 项逐项穷举
+
+从原件 `:2084` 的 `--exact` 命令重抽全 541 个名字，按目标之后截取 235 个唯一名字；独立 Python 对拍确认下表名字与原命令同序逐字相同。尾段名单按每名一行含末尾换行的 SHA-256 为 `34b11b26683078af4432413df6325a0e5942dae2717a8846b08663c7e329c928`。逐项核调用入口及断言，脚本只负责枚举/定位，不冒充 Rust 调用图或运行验证。
+
+来源：原日志 `125111448717.log` 退出命令（物理行 2084）；按命令 `--exact` 名单在 `native_delta_explicit_policy_sql_receipt_and_failed_commit_retry` 后截取，235 个唯一测试名；同序名单SHA256 `34b11b26683078af4432413df6325a0e5942dae2717a8846b08663c7e329c928`。下面逐项定位的是 S1S 最终源码行号。这些是源码结论，非运行 PASS；保留原 `#[ignore]` 观察项的既有属性，不声称它们已运行。对主干差异复核 `admission_private/mod.rs`、`driver.rs`、`audit_owner.rs`、`prepared.rs`、`state.rs` 与直接组件共享核；修改测试另见本轮旧/新断言对照。
+
+路径边界：`native_driver` 和 test-only `open_for_serve_with_mode` 开门传 `startup_context=None`；后者只在开门返回后赋来源保留帽，请求阶段才 attach keeper，因此它们经过 Native schema 前缀，但不进入 `open_rebuilt_history_into`、不创建正式 H1 冷认证生涯。`recover_lock_driver` 在该组件 owner 上直接 Recover，也不走 Driver 正式 recover 冷建。`Fixture::open` 使用 test Ordinary Driver。以下未把这些组件对照臂冒充正式 H1。
+
+| 测试名 | S1S 源文件:行（相对 s_session_v3） | 实际可达路径与 H1 边界 | 断言核对结论 |
+|---|---|---|---|
+| `v3::driver::tests::native_mode_is_frozen_before_pending_resume_captures_advance_and_prepare` | `driver.rs:6325` | `native_driver`→`open_with_request_and_mode(...CapturedNative,None)`→Native schema前缀→组件startup/resume_pending；无H1冷context | 捕获probe只观察resume的Advance/Prepare两次；schema前缀不经s_allocation::probe，原attempts/clocks精确断言保持。 |
+| `v3::driver::tests::native_prefix_context_rechecks_real_connection_current_material` | `driver.rs:1579` | 直接Native `admit_prefix`→组件`AuditConnection::startup`两次；当前材料在前缀与startup之间改变；不进正式H1冷开 | 已失效：schema-only 前缀不建 slot/cold；实际 startup 首次冷、次次命中并重核当前材料。S1S更新职责断言。 |
+| `v3::driver::tests::native_prefix_final_deadline_preserves_business_and_clears_retained_context` | `driver.rs:1783` | `test_with_clock_account`→`validate_prefix(NativeStartup)`；另真实scope下组件startup成功控制；无正式H1冷context | 已失效：前缀不 retain，records/nodes=0；保留最终期限、原首错、相同实际wire账，实际startup另锁冷证明。S1S修断言。 |
+| `v3::driver::tests::native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool` | `driver.rs:1669` | Native `admit_prefix`无slot控制→fixture显式state审计准备slot→Driver Native前缀epoch拒绝；后续test recover_scoped/Native Ready；不进retention正式冷开 | 已失效：epoch在旧池消费前拒绝；显式准备已有slot，再验证撤销/不恢复池/不新增全审。S1S修夹具。 |
+| `v3::driver::tests::native_prefix_populated_capture_type_error_precedes_frame_and_epoch` | `driver.rs:1517` | Native Driver schema前缀错误；另直接组件`AuditConnection::startup`核原类型错误优先；默认context没有source keeper，不进H1冷开 | 已失效：Native前缀只schema/epoch；原晚SQL类型错误优先于坏frame/epoch移实际startup精确对照，前缀精确核新首错。 |
+| `v3::driver::tests::native_prefix_preserves_business_epoch_rule_order_and_clears_context` | `driver.rs:1432` | Native Driver schema/epoch/rule前缀；另组件startup完整审计对照保留原业务首错；default/None context均不进H1冷开 | 已失效：Native前缀schema→epoch→rule；原业务优先在实际startup精确对照保留；拒绝slot/SHM/字节仍核。 |
+| `v3::driver::tests::native_prefix_success_keeps_actual_startup_validation` | `driver.rs:1893` | 直接`open_with_request_and_mode_context`，context=None/default两臂→Native schema前缀→组件startup；无source keeper故不进H1冷开 | 实际profile重核及identity仍在组件startup/identity运行；缺profile拒绝覆盖未被schema成功替代。 |
+| `v3::driver::tests::native_startup_full_audit_and_pending_resume_before_write_guards` | `driver.rs:5462` | 先直接`s_allocation::audit_startup`比较Ordinary/Native；再`native_driver`→Native schema前缀→组件startup/resume_pending；不进H1冷开 | 原完整状态fingerprint对拍与pending恢复后publication/clock计数仍由实际组件路径核；未依赖前缀cold计数。 |
+| `v3::driver::tests::native_startup_rejects_each_current_damage_before_pending_resume` | `driver.rs:5506` | Ordinary Driver造pending；损坏后直接Native `open_with_request_and_mode(...,None)`→schema前缀/组件startup；不进H1冷开 | 7种当前损坏仍在恢复写前拒绝；原pending、clock、publication、meta前后元组逐项相等；未依赖前缀历史slot。 |
+| `v3::driver::tests::native_startup_sql_errors_propagate_without_ordinary_fallback` | `driver.rs:5560` | 直接`s_allocation::audit_startup(CapturedNative)`→`state::audit_native_current`；未调用Driver或准入前缀 | 独立旧审计对照臂；实际SQL interrupt和缺表错误由原同核传播，不触发H1分派。 |
+| `v3::driver::tests::ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts` | `driver.rs:8631` | `complete_driver`造14代Native内容；采样臂`Fixture::open`→Ordinary Driver→OrdinaryStartup完整前缀；只切ordinary materials | H1保留Ordinary先完整审计合同；真实wire覆盖[14,42]、SQL减少与同一持久根对拍仍属原对照。 |
+| `v3::driver::tests::ordinary_proof_multicut_complete_outputs_match_frozen_oracle` | `driver.rs:8530` | 两臂均`Fixture::open`/`s4_cold_handle`→Ordinary Driver；`without_ordinary_proofs_for_test`仅关闭来源证明复用 | 无Native/H1冷开；原proof执行/命中、全部根/行/材料对拍仍属Ordinary完整审计合同。 |
+| `v3::driver::tests::p1_1_driver_warm_old_pool_partition_counts_l0_once` | `driver.rs:4447` | `complete_driver`→test `open_for_serve_with_mode(CapturedNative)`（开门context=None）；请求内候选/keeper→`old_pool_partition` | 仅开门经过H1新增schema前缀，不装正式H1台账；O/L0/同父分区及回复对拍原断言保持。 |
+| `v3::driver::tests::p24adj_cold_root_renewal_keeps_real_revocations` | `driver.rs:4739` | test `open_for_serve_with_mode(CapturedNative)`（startup context=None）→组件owner请求冷根；cold_root自然短预算/外写及前序rollback撤销 | H1仅改变Native schema前缀；无正式台账资格门，原冷根对照臂保留/续租/拒绝合同保持。 |
+| `v3::driver::tests::p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits` | `driver.rs:4615` | test `open_for_serve_with_mode(CapturedNative)`（startup context=None）→组件owner请求冷根；cold_root短预算后续租并提高cap到16MiB | H1仅改变Native schema前缀；无正式台账资格门，原冷根对照臂保留/续租/拒绝合同保持。 |
+| `v3::driver::tests::p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root` | `driver.rs:4499` | test `open_for_serve_with_mode(CapturedNative)`（startup context=None）→组件owner请求冷根；cold_root自然/注入audit失败残留归零 | H1仅改变Native schema前缀；无正式台账资格门，原冷根对照臂保留/续租/拒绝合同保持。 |
+| `v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected` | `driver.rs:4548` | test `open_for_serve_with_mode(CapturedNative)`（startup context=None）→组件owner请求冷根；cold_root残留0/4096两臂，核无票重跑/拒绝及后续Ready | H1仅改变Native schema前缀；无正式台账资格门，原冷根对照臂保留/续租/拒绝合同保持。 |
+| `v3::driver::tests::p6_complete_ledger_cover_matches_across_delta_and_full_lease_owner_paths` | `driver.rs:8903` | delta臂test Native Driver暖候选；full_lease臂直接`AuditConnection::open`+完整Ledger Runtime→真实P6候选→test-only `p6_publish_full_lease_for_test`→同父`PublishPhase(raw=None)`→Prepare完整分支 | 另查出的第7项P6夹具失效：full_lease臂default context无bound_audit；本轮以test-only full_lease helper绑定真实严格candidate与父域，再以raw=None进入同一Runtime；原cover/raw/full_lease车道及坐标修订拒绝断言全部保留。 |
+| `v3::driver::tests::pager_probe_configure_keeps_carry_lease_open` | `driver.rs:8318` | test `open_for_serve_with_mode(CapturedNative)`（startup context=None）→组件owner；再configure_pager_probe、3次handle；Ordinary Driver对照 | H1仅改变Native schema前缀；pager配置、Carry候选保留、回复/根表对拍不依赖前缀旧审计。 |
+| `v3::driver::tests::publication_candidate_budget_shortfall_degrades_and_keeps_admitting` | `driver.rs:8183` | `publication_candidate_shortfall_case`→test Native serve（context=None）→组件候选`publish_degradable`；Ordinary Driver对照 | 未创建正式H1冷context/台账；预算不足对照降级与真正尾检错误拒绝仍由原类型化分类核，原全部断言保持。 |
+| `v3::driver::tests::publication_ledger_after_budget_failure_rejects_without_degrade` | `driver.rs:8307` | `publication_candidate_shortfall_case`→test Native serve（context=None）→组件候选`publish_degradable`；Ordinary Driver对照 | 未创建正式H1冷context/台账；预算不足对照降级与真正尾检错误拒绝仍由原类型化分类核，原全部断言保持。 |
+| `v3::driver::tests::publication_prepare_wrapped_allocation_failure_degrades` | `driver.rs:8299` | `publication_candidate_shortfall_case`→test Native serve（context=None）→组件候选`publish_degradable`；Ordinary Driver对照 | 未创建正式H1冷context/台账；预算不足对照降级与真正尾检错误拒绝仍由原类型化分类核，原全部断言保持。 |
+| `v3::driver::tests::publication_real_error_after_budget_failure_rejects_without_degrade` | `driver.rs:8277` | `publication_candidate_shortfall_case`→test Native serve（context=None）→组件候选`publish_degradable`；Ordinary Driver对照 | 未创建正式H1冷context/台账；预算不足对照降级与真正尾检错误拒绝仍由原类型化分类核，原全部断言保持。 |
+| `v3::driver::tests::publication_real_tail_failure_still_rejects_without_degrade` | `driver.rs:8268` | `publication_candidate_shortfall_case`→test Native serve（context=None）→组件候选`publish_degradable`；Ordinary Driver对照 | 未创建正式H1冷context/台账；预算不足对照降级与真正尾检错误拒绝仍由原类型化分类核，原全部断言保持。 |
+| `v3::driver::tests::publication_source_append_allocation_failure_degrades` | `driver.rs:8290` | `publication_candidate_shortfall_case`→test Native serve（context=None）→组件候选`publish_degradable`；Ordinary Driver对照 | 未创建正式H1冷context/台账；预算不足对照降级与真正尾检错误拒绝仍由原类型化分类核，原全部断言保持。 |
+| `v3::driver::tests::recover_lock_budget_live_and_peak_continue_across_recover` | `driver.rs:3753` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；父账live/peak跨Recover连续 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_commit_failure_and_rollback_never_promote` | `driver.rs:3656` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；after_write错误及真实COMMIT hook拒绝 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_external_write_and_read_domain_change_still_revoke` | `driver.rs:3685` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；实际外写或read domain变更撤资格 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_fee_permit_moves_on_same_parent_ledger` | `driver.rs:3785` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；raw qualification fee在同父账迁移 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_handoff_failure_revokes` | `driver.rs:3738` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；Recover handoff注入失败撤资格 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger` | `driver.rs:4348` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；资格fee许可替换到foreign ledger | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_old_raw_token_and_begin_token_rejected_after_promotion` | `driver.rs:3867` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；旧raw/Begin token在epoch晋升后拒绝 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_promotes_after_duplicate_ingest_and_chained_rebinds` | `driver.rs:4287` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；duplicate ingest+多次rebind后Recover | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_promotes_after_new_request_readonly_rebind` | `driver.rs:4164` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；新请求只读rebind后Recover | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_promotes_after_new_request_receipt_rebind` | `driver.rs:4258` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；新请求receipt rebind后Recover | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record` | `driver.rs:4216` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；foreign/stale qualification parent rebind | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_confirm_epoch_mismatch` | `driver.rs:4015` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；Recover confirm epoch skew注入 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_foreign_ledger_budget_handoff` | `driver.rs:4034` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；Recover parent改到foreign budget | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_missing_candidate_or_parent_ledger` | `driver.rs:3835` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；丢complete或令其parent过期 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_missing_same_snapshot_complete` | `driver.rs:4329` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；same-snapshot miss注入 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_non_increasing_epoch` | `driver.rs:3593` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；non-increasing epoch严格上升门 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_qualification_recorded_on_other_parent_or_domain` | `driver.rs:4090` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；qualification记在其他parent/domain | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_qualification_without_parent_record` | `driver.rs:4195` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；清qualification parent record | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_stale_qualification_stamp` | `driver.rs:3987` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；资格epoch回写为旧stamp | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_rejects_unclosed_recover_effects` | `driver.rs:3628` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；Recover after_write遗留未闭effects | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease` | `driver.rs:3535` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；same owner晋升+旧epoch raw/Begin token/lease拒绝 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::recover_lock_schema_and_material_change_revoke` | `driver.rs:3925` | `recover_lock_driver`→`complete_driver`→test Native serve（startup context=None）；组件候选经Accept/Begin/Ready后直接`AuditConnection::recover`；schema或当前材料变更撤资格 | 不经Driver正式recover冷建；owner未require_historical_certificate，新增bind_admitted_history返回false，仍走原bind_existing与严格资格迁移核；本项原负控/晋升断言保持。 |
+| `v3::driver::tests::request_history_handler_sql_and_commit_failures_release_context` | `driver.rs:6217` | `native_driver`→Native schema前缀+组件startup（无keeper）；handle新默认context→原Handle/Advance/Prepare审计与SQL/COMMIT故障 | 未装正式H1台账；2次request_history_hit及context释放统计仍来自请求内旧审计对照核，原rollback行计数保持。 |
+| `v3::driver::tests::request_history_real_driver_three_stages_reuse_and_repost_starts_cold` | `driver.rs:6161` | `native_driver`→Native schema前缀+组件startup（无keeper）；每次handle默认context，Native审计对照Ordinary Driver | 无正式H1冷context；请求首冷1/后命中2、repost首冷1/命中0与完整根对拍仍有效。 |
+| `v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages` | `driver.rs:8854` | `s4_run`→test Native `open_for_serve_with_mode`（startup context=None）后请求attach keeper；cold臂`s4_cold_handle`→Ordinary Driver | Native开门只过schema前缀、无正式H1台账；6阶段delta/无full birth/回复全表对拍原断言保持。 |
+| `v3::driver::tests::s4_stage_measurement_from_bars` | `driver.rs:8873` | 读取S4_BARS→`s4_run`，Native test serve暖臂；S4_COLD=1时另Ordinary cold臂；无H1正式冷开 | 既有ignore观察项；本轮不执行。所比较的是组件delta/Ordinary状态，不是H1 bootstrap冷计数；资源参数未改。 |
+| `v3::driver::tests::s_system_clock_budget_degrade_reuses_first_commit_reading` | `driver.rs:2962` | test Native `open_for_serve_with_mode`（开门context=None）→组件候选publication预算降级；`cold_audit_commit_ns`直接读后验时钟 | 无正式H1生涯台账；旧对照臂预算放弃/重试允许，仍精确锁住Commit读数只取一次及6条持久clock。 |
+| `v3::driver::tests::source_keeper_driver_append_repost_restart_preserves_results_and_request_reuse` | `driver.rs:5901` | test Native `open_for_serve_with_mode`→无context组件startup；请求才以audit_cache_source_bytes attach keeper；重启同一test helper | 正式H1冷context未创建；startup无keeper、每请求cold1/hit2、repost和重启keeper(cold3,hit0)仍属原来源池对照合同。 |
+| `v3::driver::tests::source_keeper_driver_measured_cap_only_changes_retention` | `driver.rs:6113` | 同一test Native serve helper按cap/cap-1/1开门（context=None），请求阶段才attach keeper；另Ordinary Driver | 无正式H1台账；只改变可选保留，原回复相同、保留cap/0与budget=1无keeper断言保持。 |
+| `v3::driver::tests::source_keeper_driver_workspace_shares_s7_with_nonempty_old_pool_and_exact_rows` | `driver.rs:6009` | 两test Native serve Driver开门context=None；warm/cold仅manifest workspace开关不同；Ordinary Driver对照 | 请求keeper/完整候选共享S7，不装正式H1台账；原许可分区、3次workspace issued/rebound、完整根/材料对拍保持。 |
+| `v3::driver::tests::staged_next106_cold_driver_observation` | `driver.rs:5585` | 既有ignore外部105代观察项：直接Native `open_with_request_and_mode(...Some(request),None)`→schema前缀→组件startup；请求后才赋source cap | 不会创建正式H1 cold context；eager/staged原观察合同保持，本轮未运行重型105/106观察。 |
+| `v3::generation::tests::event_radix_memo_hit_requires_current_native_scope_and_keeps_root_recipe` | `generation.rs:2614` | GenerationRuntime现有generate/sequence/sort；H1 seed_cold未调用 | 无正式准入/冷开；原输出/许可/拒绝原子性合同保持。 |
+| `v3::generation::tests::finish_axes_resource_rejection_preserves_published_roots` | `generation.rs:2900` | GenerationRuntime现有generate/sequence/sort；H1 seed_cold未调用 | 无正式准入/冷开；原输出/许可/拒绝原子性合同保持。 |
+| `v3::generation::tests::native_generated_results_match_plain_and_keep_permits_until_drop` | `generation.rs:2813` | GenerationRuntime现有generate/sequence/sort；H1 seed_cold未调用 | 无正式准入/冷开；原输出/许可/拒绝原子性合同保持。 |
+| `v3::generation::tests::native_sequence_cross_generation_same_parent_foreign_refusal_and_discard` | `generation.rs:2742` | GenerationRuntime现有generate/sequence/sort；H1 seed_cold未调用 | 无正式准入/冷开；原输出/许可/拒绝原子性合同保持。 |
+| `v3::generation::tests::native_stable_sort_matches_old_equal_key_order_and_refuses_atomically` | `generation.rs:2697` | GenerationRuntime现有generate/sequence/sort；H1 seed_cold未调用 | 无正式准入/冷开；原输出/许可/拒绝原子性合同保持。 |
+| `v3::history::effective_sequence_tests::h1_effective_blocks_match_independent_array_each_cut` | `history.rs:9419` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::effective_sequence_tests::h1_effective_final_winner_edits_and_coordinate_swaps` | `history.rs:9468` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::effective_sequence_tests::h1_effective_native_parent_exact_peak_rejection_and_release` | `history.rs:9584` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::effective_sequence_tests::h1_effective_revision_work_tracks_height_then_append_reuses_blocks` | `history.rs:9503` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::native_reader_owner_tests::parsed_plain_owner_outlives_reader_and_scope_without_retaining_failed_parse` | `history.rs:8709` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::native_record_fields::tests::record_sidecar_failed_replacement_keeps_original_and_releases_temporaries` | `native_record_fields.rs:134` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::history::native_record_fields::tests::record_sidecar_shared_scope_seed_subset_matches_plain` | `native_record_fields.rs:27` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::history::native_record_fields::tests::record_sidecar_subset_outlives_scope_and_drops_its_own_permits` | `native_record_fields.rs:88` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::history::request_closure_tests::h1_request_closure_native_exact_peak_reject_and_release` | `history.rs:9823` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::request_closure_tests::h1_request_closure_overlay_conflict_and_failure_do_not_escape_revocation` | `history.rs:9761` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::request_closure_tests::h1_request_closure_rechecks_all_root_fields_and_revokes_both_modes` | `history.rs:9678` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::request_closure_tests::h1_request_closure_shares_only_same_request_mode_and_keeps_canonical` | `history.rs:9640` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::request_closure_tests::h1_request_closure_template_and_readset_negatives_match_full_oracle` | `history.rs:9715` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::h1_native_history_prefix_real_multicut_roots_and_linear_leaf_visits` | `history.rs:6735` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::h1_owner_retained_prefix_normal_append_and_revision_matches_oracle` | `history.rs:4448` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::history_layout_multicut_native_projection_equals_plain_audit` | `history.rs:6646` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage` | `history.rs:6980` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline_native_publication_fields` | `history.rs:4807` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_dual_actual_template_negative_matrix` | `history.rs:7208` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_dual_real_multicut_roots_and_scoped_projection` | `history.rs:7038` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_full_audit_duplicate_put_excludes_non_native_owned_bounded_and_gates` | `history.rs:4704` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_full_audit_duplicate_put_keeps_conflict_bad_f_missing_and_existing_overlay` | `history.rs:4589` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_full_audit_duplicate_put_keeps_current_source_vec_and_first_f` | `history.rs:4524` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_history_prefix_bad_cut_and_unpublished_future_material_still_reject` | `history.rs:6833` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_history_prefix_effective_topology_keeps_last_coord_overwrite` | `history.rs:4482` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::native_measured_reader_retains_source_role_and_actual_frame_observation` | `history.rs:4649` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::ordinary_material_whole_readonly_audit_heap_releases` | `history.rs:6160` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty` | `history.rs:6191` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::history::tests::r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication` | `history.rs:6675` | HashReader/历史折叠共同核；新增probe仅目标TLS激活 | 直接组件审计/原件与许可断言；无NativeStartup或正式冷开；共同核语义保持。 |
+| `v3::object_index::tests::cold_relation_index_sort_ties_keep_complete_projection_roots` | `object_index.rs:5642` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::history_public_coverage_ordinary_bound_births_preserves_record_budget_before_reuse` | `object_index.rs:5826` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_candidate_fields_component_exact_metadata_slot_and_late_null_gates` | `object_index.rs:4465` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_candidate_fields_internal_record_json_edge_gate_and_real_wire_sql_failure` | `object_index.rs:4592` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_candidate_union_real_generations_match_plan_and_reduce_sql_reads` | `object_index.rs:4796` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_candidate_union_second_root_errors_have_no_put_or_future_wire_repair_and_budget_refuses` | `object_index.rs:4686` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_changes_use_current_scope_and_return_owned_json_permits` | `object_index.rs:5316` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_cut_projection_endpoints_sort_ties_records_and_overlay_lifetime` | `object_index.rs:5716` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_cut_projection_life_checked_on_hits_and_first_failure_not_cached` | `object_index.rs:5874` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_cut_projection_missing_corrupt_or_overlay_only_closure_never_cached` | `object_index.rs:5911` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_cut_projection_real_generations_reuse_exact_wire_after_overlay_clear` | `object_index.rs:6008` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_event_cursors_admitted_cuts_match_scan_and_drop_to_baseline` | `object_index.rs:5382` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_event_failed_consuming_candidate_drops_cursor_and_all_permits` | `object_index.rs:5441` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_event_failed_wire_replacement_preserves_saved_owner` | `object_index.rs:5467` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_event_owners_share_once_and_release_after_last_scope_owner` | `object_index.rs:5346` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_history_projection_sweep_positive_real_generations_complete_roots_and_material` | `object_index.rs:6013` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_plan_capacity_refusal_preserves_input_and_budget` | `object_index.rs:5290` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_plan_late_missing_wire_releases_partial_plan_without_mutating_input` | `object_index.rs:5263` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_plan_owners_outlive_scope_and_match_independent_change_rows` | `object_index.rs:5167` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_shape_leaf_complete_declarations_error_clear_and_capture_owned_closure` | `object_index.rs:4084` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_shape_leaf_real_load_rejects_changed_projection_and_shared_entry_damage` | `object_index.rs:3992` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_index::tests::native_shape_leaf_real_load_reuses_across_distinct_births_and_excludes_gates` | `object_index.rs:3919` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_records::tests::native_wire_bad_early_record_precedes_bad_late_life_and_releases_all_owners` | `object_records.rs:2117` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_records::tests::native_wire_records_and_birth_reference_keep_permits_after_scope` | `object_records.rs:2065` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::object_records::tests::native_wire_valid_record_late_life_error_and_early_resource_keep_priority` | `object_records.rs:2165` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::ordinary_materials::tests::ordinary_material_pool_actual_heap_released_after_readonly_scope` | `ordinary_materials_tests.rs:445` | 原索引/原件/费用组件；夹具发布不装正式完整台账 | 未触发新Native前缀/正式H1绑定；原局部严格判据与输出合同保持。 |
+| `v3::prepared::tests::assemble_manifest_reads_beyond_closure_verify_stay_constant` | `prepared.rs:4087` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision` | `prepared.rs:3999` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::native_capture_sqlite_commit_failure_retries_with_new_current_capture` | `prepared.rs:4518` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::native_local_material_memo_cannot_publish_trigger_damaged_deep_key` | `prepared.rs:4358` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::native_manifest_roots_keep_three_permits_after_scope_until_owner_drop` | `prepared.rs:1883` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows` | `prepared.rs:4126` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_complete_ledger_real_owner_cover_tracks_revisions_and_rebuild` | `prepared.rs:2888` | 完整台账 Runtime→Prepare 新 H1 绑定门 | 已失效：组件 owner/default context 不产生 bound_audit；改为显式绑定组件既有严格审计结果，全部原台账/提交断言保留。 |
+| `v3::prepared::tests::p6_complete_ledger_real_owner_records_pending_without_group` | `prepared.rs:2976` | 完整台账 Runtime→Prepare 新 H1 绑定门 | 已失效：组件 owner/default context 不产生 bound_audit；改为显式绑定组件既有严格审计结果，全部原台账/提交断言保留。 |
+| `v3::prepared::tests::p6_complete_ledger_rejects_partial_and_wrong_rule_without_commit` | `prepared.rs:3024` | 完整台账 Runtime→Prepare 新 H1 绑定门 | 已修原负控前置：同一严格绑定后再验原错误，新增精确错误断言，防H1缺绑定早拒造成假绿。 |
+| `v3::prepared::tests::p6_native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime` | `prepared.rs:4321` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_production_manifest_source_receipt_consumed_without_third_assembly` | `prepared.rs:3151` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_production_manifest_source_receipt_rejects_request_substitution` | `prepared.rs:3165` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries` | `prepared.rs:3106` | 完整台账 Runtime→Prepare 新 H1 绑定门 | 已失效：组件 owner/default context 不产生 bound_audit；改为显式绑定组件既有严格审计结果，全部原台账/提交断言保留。 |
+| `v3::prepared::tests::p6_queued_units_prepare_failure_discards_facts_and_stales` | `prepared.rs:3061` | 完整台账 Runtime→Prepare 新 H1 绑定门 | 已修原负控前置：同一严格绑定后再验原错误，新增精确错误断言，防H1缺绑定早拒造成假绿。 |
+| `v3::prepared::tests::p6_queued_units_real_owner_commits_only_verified_complete_keys` | `prepared.rs:2689` | 完整台账 Runtime→Prepare 新 H1 绑定门 | 已失效：组件 owner/default context 不产生 bound_audit；改为显式绑定组件既有严格审计结果，全部原台账/提交断言保留。 |
+| `v3::prepared::tests::p6_raw_partition_real_owner_keeps_revisions_without_full_certificate` | `prepared.rs:2504` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_raw_partition_sidecar_commit_failure_keeps_content_and_stales` | `prepared.rs:2612` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_real_prepare_closure_probe_stages_and_rolls_back_without_certification` | `prepared.rs:3313` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_real_prepare_raw_receipt_keeps_old_revision_and_binds_request` | `prepared.rs:3232` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_source_partitions_fees_release_after_refusal_commit_and_binding_failure` | `prepared.rs:2364` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_source_partitions_real_owner_matches_originals_and_withdrawals` | `prepared.rs:2111` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::p6_source_partitions_sidecar_commit_failure_keeps_content_and_stales` | `prepared.rs:2618` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::r10_native_manifest_workspace_shared_scope_normal_commits_match_full_rows` | `prepared.rs:4131` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::runtime_roots_append_revision_error_observation` | `prepared.rs:3527` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::prepared::tests::staged_new_nodes_complete_commit_observation` | `prepared.rs:3415` | Fixture Runtime→Prepare；仅安装完整台账时新增H1绑定门 | 无完整台账，或仅partial台账；bound_audit=None仍合法独立对照臂；原输出/预算/SQL失败断言保持。 |
+| `v3::request_audit::handoff_domain_tests::bootstrap_grant_from_other_freeze_domain_is_rejected` | `request_audit.rs:3187` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::handoff_domain_tests::bootstrap_grant_is_consumed_exactly_once` | `request_audit.rs:3169` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::handoff_domain_tests::frozen_request_rejects_foreign_parent_and_expired_domain` | `request_audit.rs:3133` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::handoff_domain_tests::p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract` | `request_audit.rs:3222` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::handoff_domain_tests::p1_1_unmappable_old_pool_is_rejected_without_mutation` | `request_audit.rs:3335` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::handoff_domain_tests::used_foreign_cold_parent_cannot_be_replaced_by_handoff` | `request_audit.rs:3154` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::handoff_domain_tests::warm_prepare_binds_real_parent_and_voids_grant` | `request_audit.rs:3415` | 直接`RequestAuditContext`预算冻结/parent绑定/BootstrapGrant或`OldPoolPartition`结算；无Driver、无state历史审计、无H1冷开 | 原父账同域、grant一次消费及费用分区负控是独立组件合同；H1未改变这些纯预算操作。 |
+| `v3::request_audit::r_owner_move_tests::r_optional_bad_sql_precedes_scope_and_rejected_read_refunds` | `request_audit.rs:2991` | 直接`ExactRows::read*`/SqlCell从SQLite读取及许可移动；无Driver、无state审计、无H1分派 | SQL storage class/原字节/父账许可与失败退款仍由原ExactRows核验证；不涉及历史slot或冷认证。 |
+| `v3::request_audit::r_owner_move_tests::r_sql_row_pop_and_blob_move_keep_exact_parent_charge` | `request_audit.rs:2932` | 直接`ExactRows::read*`/SqlCell从SQLite读取及许可移动；无Driver、无state审计、无H1分派 | SQL storage class/原字节/父账许可与失败退款仍由原ExactRows核验证；不涉及历史slot或冷认证。 |
+| `v3::request_audit::tests::measured_capture_and_rebind_preserve_late_type_error_over_early_bad_frame` | `request_audit.rs:2340` | 直接`content_store::capture*`或`current_originals_equal_for_request*`扫描；不经Driver/正式H1冷开 | 现节点解码、真实SQL错误先后及原件扫描/借用计数仍属同一组件核；无前缀slot合同依赖。 |
+| `v3::request_audit::tests::measured_default_context_cold_hit_and_limit_clear_slot_without_parent` | `request_audit.rs:1593` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::measured_native_admitted_cold_hit_append_preserves_full_output_and_refunds` | `request_audit.rs:1403` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::r11_exact_rows_admitted_preserves_all_sql_cells_scope_and_empty_columns` | `request_audit.rs:1106` | 直接`ExactRows::read*`/SqlCell从SQLite读取及许可移动；无Driver、无state审计、无H1分派 | SQL storage class/原字节/父账许可与失败退款仍由原ExactRows核验证；不涉及历史slot或冷认证。 |
+| `v3::request_audit::tests::r11_request_native_shared_scope_cold_warm_append_full_output_equal` | `request_audit.rs:1398` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_actual_current_three_fresh_transactions_diagnostic` | `request_audit.rs:2091` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_binding_sql_interrupt_once_rejects_without_cold_retry` | `request_audit.rs:1921` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_current_control_and_exact_old_material_damage_never_reuses` | `request_audit.rs:1869` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_current_tail_damage_and_extra_ohlc_cannot_be_hidden_by_prefix_binding` | `request_audit.rs:2074` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_exact_cells_preserve_type_null_and_raw_bytes` | `request_audit.rs:2383` | 直接`ExactRows::read*`/SqlCell从SQLite读取及许可移动；无Driver、无state审计、无H1分派 | SQL storage class/原字节/父账许可与失败退款仍由原ExactRows核验证；不涉及历史slot或冷认证。 |
+| `v3::request_audit::tests::request_history_fresh_transactions_bind_exactly_and_drop_at_request_end` | `request_audit.rs:1726` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_legal_node_set_change_builds_fresh_then_rebinds` | `request_audit.rs:1802` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_node_error_precedes_current_control_error_and_clears_slot` | `request_audit.rs:1977` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_node_mismatch_does_not_hide_later_decode_or_sql_error` | `request_audit.rs:2290` | 直接`content_store::capture*`或`current_originals_equal_for_request*`扫描；不经Driver/正式H1冷开 | 现节点解码、真实SQL错误先后及原件扫描/借用计数仍属同一组件核；无前缀slot合同依赖。 |
+| `v3::request_audit::tests::request_history_node_rebind_complete_set_rejects_duplicate_digest_and_omission` | `request_audit.rs:2269` | 直接`content_store::capture*`或`current_originals_equal_for_request*`扫描；不经Driver/正式H1冷开 | 现节点解码、真实SQL错误先后及原件扫描/借用计数仍属同一组件核；无前缀slot合同依赖。 |
+| `v3::request_audit::tests::request_history_node_sql_interrupt_once_rejects_without_capture_retry` | `request_audit.rs:1946` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_one_capture_three_complete_current_node_scans` | `request_audit.rs:1741` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_ordinary_and_zero_generation_do_not_gain_shared_source` | `request_audit.rs:2012` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_original_tuple_comparison_in_bin_preserves_bytes_and_sets` | `request_audit.rs:2220` | 直接`AuditCapture::exact_original_tuples_equal`；无SQL、Driver或H1分派 | 逐tuple标签/原字节/完整集合比较合同保持。 |
+| `v3::request_audit::tests::request_history_rowid_reinsertion_is_material_change` | `request_audit.rs:1909` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_tail_and_normal_begin_keys_reuse_but_complete_raw_stays_fresh` | `request_audit.rs:1851` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_history_unknown_meta_changes_miss_even_if_original_gate_accepts` | `request_audit.rs:1835` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal` | `request_audit.rs:1393` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_native_scan_scratch_reuses_capacity_across_complete_transactions` | `request_audit.rs:1345` | 直接`state::audit_native_in_request*`（或本模块audit/scan_scratch helper）与当前捕获核；Fixture仅准备/publish组件材料；无正式Driver冷认证 | slot/cold/hit由原RequestAuditContext::retain维护；正式H1 schema前缀未介入本测试。当前材料/SQL/费用/释放各原断言仍在原审计对照臂执行。 |
+| `v3::request_audit::tests::request_native_three_capture_entries_borrow_digest_and_match_owned_sql_baseline` | `request_audit.rs:1259` | 直接`content_store::capture*`或`current_originals_equal_for_request*`扫描；不经Driver/正式H1冷开 | 现节点解码、真实SQL错误先后及原件扫描/借用计数仍属同一组件核；无前缀slot合同依赖。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_checked_refs_hit_registers_coord_after_preceding_object_withdraws` | `ordinary_source.rs:1033` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_complete_ref_and_profile_rule_are_not_digest_only_keys` | `ordinary_source.rs:1379` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_duplicate_global_effect_precedes_later_malformed_record` | `ordinary_source.rs:954` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_group_dependency_changes_invalidate_same_shape_root` | `ordinary_source.rs:1125` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_raw_wire_bar_and_original_changes_match_frozen_first_error` | `ordinary_source.rs:926` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_request_negative_subject_dependency_cannot_be_reused` | `ordinary_source.rs:1186` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_root_declaration_errors_match_independent_oracle` | `ordinary_source.rs:1358` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_step_bar_and_witness_shape_dependencies_match_old_local_kernel` | `ordinary_source.rs:1249` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::ordinary_source::tests::ordinary_proof_success_reuse_oracle_is_independent_and_two_frontiers_release` | `ordinary_source.rs:881` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::component_tests::b2_source_duplicate_key_is_reported_at_second_current_occurrence` | `source_contributions.rs:2151` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::component_tests::b2_source_nested_reverse_index_charges_each_member_and_clears_empty_root` | `source_contributions.rs:2129` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::component_tests::b2_source_retained_tree_uses_actual_string_capacity_and_symmetric_release` | `source_contributions.rs:2100` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::source_order::tests::b2_order_avl_stable_handles_survive_prefix_middle_and_reverse_edits` | `source_order.rs:383` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::source_order::tests::b2_order_rejects_wrong_original_and_stale_handle_before_reuse` | `source_order.rs:414` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::source_order::tests::native_order_admission_failure_preserves_avl_and_next_handle` | `source_order.rs:469` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::source_order::tests::native_order_reclaimed_node_and_weak_tail_keep_original_parent_charge` | `source_order.rs:429` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_contributions::source_order::tests::native_order_rotations_remove_reinsert_and_drop_release_all_nodes` | `source_order.rs:532` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_prefix::tests::cached_coords_preserve_order_lexemes_negative_and_domain_rules` | `source_prefix.rs:357` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_prefix::tests::future_invalid_or_colliding_raw_disables_only_reference_reuse` | `source_prefix.rs:325` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_prefix::tests::native_invalid_future_identity_drops_partial_certificate_owners` | `source_prefix.rs:143` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_prefix::tests::native_prefix_certificates_and_shared_coords_follow_actual_owners` | `source_prefix.rs:72` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_prefix::tests::references_hit_shared_coords_then_reject_same_price_revision_and_future_sources` | `source_prefix.rs:197` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_prefix::tests::winner_sweep_matches_every_effective_prefix_with_revisions_and_sparse_coords` | `source_prefix.rs:169` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_business_source_coordinates_release_native_fees_on_success_and_refusal` | `source_receipt.rs:666` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_partition_borrows_original_payload_and_releases_pending_parent_fees` | `source_receipt.rs:824` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget` | `source_receipt.rs:811` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_consumption_releases_budget` | `source_receipt.rs:819` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_during_closure_releases_budget` | `source_receipt.rs:815` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_fourth_root_failure_issues_no_prepared_receipt` | `source_receipt.rs:1032` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_preserves_full_event_and_only_requested_suffix` | `source_receipt.rs:928` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_rejects_request_and_four_root_substitution` | `source_receipt.rs:987` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::source_receipt::tests::p6_raw_receipt_source_failure_issues_nothing` | `source_receipt.rs:965` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view` | `source_audit.rs:3085` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::cold_source_normal_fixture_oracle` | `source_audit.rs:3239` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_field_memo_scoped_hit_copies_clear_and_drop_keep_original_permits` | `source_audit.rs:3675` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_fields_exact_headers_names_and_overlay_isolation` | `source_audit.rs:3584` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_fields_multi_cut_reuses_only_decoding_and_error_clears` | `source_audit.rs:3527` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_history_record_handoff_eliminates_both_source_field_lookups` | `source_audit.rs:3474` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_raw_facts_keep_original_bucket_permits_across_scope_and_move` | `source_audit.rs:3155` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_raw_ledger_incremental_winners_rewind_and_overlay_clear` | `source_audit.rs:3254` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_raw_ledger_invalid_source_only_checked_for_final_winner` | `source_audit.rs:3356` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_raw_ledger_jump_skips_invalid_transients_and_checks_final_collisions_first` | `source_audit.rs:3296` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_raw_ledger_measured_visits_hits_rewind_and_failure` | `source_audit.rs:2989` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_raw_ledger_real_multicut_matches_full_source_audit` | `source_audit.rs:3378` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_source_measured_preserves_fields_witness_and_failure_cleanup` | `source_audit.rs:3909` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_witness_identity_exact_inputs_and_success_only` | `source_audit.rs:3841` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_witness_identity_keeps_current_cut_faults` | `source_audit.rs:3987` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_witness_identity_requires_original_complete_closure` | `source_audit.rs:4130` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::native_witness_memo_scoped_hits_clear_and_drop_keep_original_permits` | `source_audit.rs:3772` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::source_audit::tests::source_identity_producer_outlives_scope_without_freeing_initial_strings` | `source_audit.rs:3196` | 来源共同核/原始收据与容器；H1冷fold仅新增调用者 | 直接组件/离线对照；未进入正式Native前缀或full-ledger缺绑定门；原来源/费用/首错断言保持。 |
+| `v3::state::audit_capture_gate_tests::cold_owned_facts_keep_unpublished_raw_separate_after_transaction_end` | `state.rs:3173` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::state::audit_capture_gate_tests::cold_relation_indexes_normal_multicut_full_state_parity` | `state.rs:3223` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::state::audit_capture_gate_tests::cold_relation_indexes_replay_message_keeps_raw_and_cuts` | `state.rs:3328` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::state::audit_capture_gate_tests::native_frame_reuse_opt_in_respects_render_and_budget_gates` | `state.rs:3371` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::state::h1_certificate_tests::h1_cert_cold_empty_revision_winner_and_unpublished_tail` | `state.rs:4187` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::state::h1_certificate_tests::h1_cert_deadline_and_scratch_failure_release` | `state.rs:4233` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::state::h1_certificate_tests::h1_cert_rejects_control_manifest_current_sql_and_missing_original` | `state.rs:4210` | state旧完整审计/既有HistoricalCertificate组件；不经Driver H1建账 | 新增全审计数不被本测试读取；相同严格核/规范状态/期限断言保持。 |
+| `v3::writer_cli::tests::diagnostic_fixture_switch_accepts_only_the_fixture_record_id` | `writer_cli.rs:1089` | 直接`parse_diagnostic_fixture`参数纯函数；无Driver/数据库/H1分派 | 仅核显式fixture record id；原错误精确约束保持。 |
+| `v3::writer_cli::tests::diagnostic_fixture_tags_only_ready_inside_hashed_payload` | `writer_cli.rs:1108` | 直接`owned_ready_request`/`tag_ready`与hash；无Driver/数据库/H1分派 | Ready标签只进hashed payload的纯变换合同保持。 |
+| `v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file` | `writer_cli.rs:1020` | 直接`AdvanceOptions::parse`/`RecoverOptions::parse`；无WriterAdmission/Driver执行 | 静态参数门正覆盖H1新增显式第八门；没有声称执行了H1冷开。 |
+
+
+### S1S 实际自检收据与交付文件
+
+本轮实际执行并通过：
+
+- `rustfmt --edition 2021 --check rust/src/bin/s_session_v3/audit_owner.rs rust/src/bin/s_session_v3/driver.rs rust/src/bin/s_session_v3/prepared.rs`，以及 `git diff --check`。
+- `python3 -B -m unittest s_session.tests.test_tb01c_r4_anchor_lock -v`，3/3 通过。
+- `python3 -B .github/scripts/check-prod-no-test-hooks.py`，`violations=0`。
+- `python3 -B .github/scripts/gen-prod-banned-literals.py .` 同步 1647 条，再执行 `--check .`，与源码一致。生成表的新增/移除均对应本轮测试字面量变化，没有手工加豁免。
+- 既有 BSP 扫描口径脚本，命中23、白名单23、`stray=[]`、`stale=[]`。
+- delta 栈目标语义对照脚本：四次开库逐项等参；除非内联Box承接之外，原主体、断言及drop顺序归一化逐字相同。
+- prepared 六项与queued baseline语义对照脚本：除补真实候选context和两项精确错误增强之外，原操作、断言和重试顺序归一化逐字相同。
+- P6 full_lease语义对照脚本：warm delta_rows逐字不变；full_rows限定context及组件发布入口替换后，所有原断言、操作和cover/raw对拍归一化逐字相同；helper真实pending/父域、双尾检、双提交及失败清理顺序锁通过。
+- 直接字节核验：audit_owner去掉唯一新增、位于既有test+s_incremental impl内的P6方法后与HEAD逐字相同；driver/prepared生产前缀逐字相同；原函数名及ignore数量全保留。REPORT保留HEAD原373266字节前缀，仅追加S1S。
+- 三档cfg×test/非test源码穷举见上表，新增局部helper及P6入口均有实际测试调用，无新增生产符号、导入、allow/expect豁免或unix限定。非作者独立源码复核通过，包含full_lease父域、两阶段尾检和双提交收口。
+- 从原日志2084的命令用shlex重抽541名，目标后235名与报告同序逐字相同，逐项最终fn物理行号核同；名单SHA与上文相同。
+
+本机没有执行cargo或rustc。**Rust未验证，待CI**，包括三档cfg的test/非test编译、`-D warnings`、三项FAILED/尾段各测试的运行结果及debug栈溢出的实际修效；本报告的源码PASS不能替代这些结果。未改workflow、资源帽、线程栈、ignore、S1R探针或生产语句；没有git add/commit/push或Git metadata写入。
+
+实际交付文件共五份，均为本轮工作区差异：
+
+- `.chanlun/review-results/issue1481-h1-managed43r/REPORT.md`
+- `.github/prod-banned-literals.txt`
+- `rust/src/bin/s_session_v3/audit_owner.rs`
+- `rust/src/bin/s_session_v3/driver.rs`
+- `rust/src/bin/s_session_v3/prepared.rs`

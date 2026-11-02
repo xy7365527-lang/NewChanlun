@@ -7492,6 +7492,77 @@ mod raw_native_move_ownership_tests {
 
 #[cfg(all(test, feature = "s_incremental"))]
 impl AuditConnection {
+    /// #1481 S1S：P6 独立 full_lease 对照臂；同 set_publish_case 签施工许可，
+    /// 但不把 raw 令牌交给 Runtime，保留完整生成/来源导出覆盖，不代表正式 H1 生涯。
+    pub(super) fn p6_publish_full_lease_for_test(
+        &self,
+        runtime: &mut prepared::Runtime,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<(commit::CommitReceipt, Ended), String> {
+        let failure = |error: native::Failure| match error {
+            native::Failure::BudgetExceeded => invalid("P6完整对照臂父预算不足"),
+            native::Failure::Invalid(error) => error,
+        };
+        let result = (|| {
+            let mut active =
+                self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
+            if !active.bind_existing(Some(context))? {
+                return Err(invalid("P6完整对照臂缺同快照完整候选"));
+            }
+            active.with_bound_raw_advance(context, |raw| raw.ensure_current())?;
+            let resources = active.issue_publication_resources(context)?;
+            active.before_fixed_write(FixedOperation::Publish, Some(context))?;
+            let (receipt, after) = resources
+                .budget
+                .codec_work()
+                .map_err(&failure)?
+                .run(|work| {
+                    let parent = PublicationScope {
+                        resources: &resources,
+                        work,
+                    };
+                    effects::attach_recording_resources(active.tx(), &parent)?;
+                    let pending = active.pending.borrow();
+                    let candidate = pending
+                        .as_ref()
+                        .ok_or_else(|| invalid("P6完整对照臂缺本事务pending候选"))?;
+                    let phase = PublishPhase {
+                        publication: Some(&parent),
+                        transaction: active.transaction.as_mut().unwrap(),
+                        audited: Some(&candidate.audited),
+                        raw: None,
+                        capture: None,
+                        source: None,
+                    };
+                    let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
+                    drop(pending);
+                    active.finish_fixed_write_in_publication(Some(&parent))?;
+                    let after = active.construction_seal()?;
+                    active.check_publication_transition(resources.before, after)?;
+                    Ok::<_, String>((receipt, after))
+                })
+                .map_err(|error| failure(native::Failure::from(error)))?;
+            active.check_publication_run(ConstructionRun {
+                value: (),
+                before: resources.before,
+                after,
+            })?;
+            let ended = active.commit_publication()?;
+            runtime.commit_audit_ledger()?;
+            Ok((receipt, ended))
+        })();
+        if result.is_err() {
+            self.retired.set(true);
+            self.clear_candidates();
+            runtime.invalidate_audit_ledger();
+            runtime.discard();
+            drop(context.take());
+        }
+        result
+    }
+
     pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
         let total = 64 * 1024 * 1024;
         let mut context = request_audit::RequestAuditContext::with_source_keeper(
