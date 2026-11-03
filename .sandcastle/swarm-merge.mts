@@ -232,6 +232,6 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
         }, frozenLock(round)));
       },
     });
-    return publishMergeResult(recheck(), run, state);
+    return publishMergeResult(round, run, state);
   }, { nonblock: true });
 }

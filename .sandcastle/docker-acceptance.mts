@@ -569,9 +569,9 @@ export function loadFrozenRound(sel: DeploymentSelection, ctx: RoundContext = {}
   if (id.dirty) throw new Error(".sandcastle 有未提交改动，代码不精确");
   if (id.head !== receipt.head) throw new Error(`执行代码 ${id.head.slice(0, 12)} 不是本轮部署 head`);
   if (receipt.contract !== contractDigest()) throw new Error("隔离合同已变化");
-  if ((ctx.now ?? new Date()).getTime() >= Date.parse(receipt.expiresAt)) throw new Error("冻结验收 receipt 已过期");
   if (realpathSync(ctx.repo ?? moduleRepo()) !== round.purpose.repo) throw new Error("执行仓库不是本轮绑定仓库");
   if (imageIdOf(ctx, receipt.image) !== receipt.imageId) throw new Error("镜像 Id 漂移");
+  if ((ctx.now ?? new Date()).getTime() >= Date.parse(receipt.expiresAt)) throw new Error("冻结验收 receipt 已过期");
   controlledDir(round.roundDir, { roots: ctx.roots });
   return round;
 }
