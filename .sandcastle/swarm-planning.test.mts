@@ -98,7 +98,6 @@ test("实际 main-swarm 空计划入口不启动 Docker 或 planner", () => {
     const calls = join(dir, "calls.jsonl");
     writeFileSync(join(dir, "gh"), `#!/usr/bin/env node\nconst fs = require('fs'); fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2))+'\\n'); console.log('[]');\n`, { mode: 0o755 });
     writeFileSync(join(dir, "docker"), `#!/bin/sh\necho docker >> ${JSON.stringify(calls)}\nexit 99\n`, { mode: 0o755 });
-    // #1867：main-swarm 读业务队列前须取 drain 准入；替身准入，避免触碰本机固定冻结根。
     const holds = join(dir, "holds");
     writeFileSync(join(dir, "python3"), `#!/bin/sh\necho "$*" >> ${JSON.stringify(holds)}\necho admitted\ncat >/dev/null\n`, { mode: 0o755 });
     const skill = readFileSync(resolve(".agents/skills/graph-run/SKILL.md"), "utf8");

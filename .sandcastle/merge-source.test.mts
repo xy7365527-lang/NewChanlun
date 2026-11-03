@@ -36,7 +36,6 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   mkdirSync(repo); mkdirSync(bin); mkdirSync(pilot);
   const calls = join(root, "calls");
   // python3 替身记入同一调用表：仅含 DeepAgents 来源的清单不申请旧入口冻结准入。
-  // 仓库初始化锁（drain-control.py lock，#1867）与冻结状态无关，替身直接准入且不记为冻结准入。
   for (const name of ["docker", "gh", "codex", "python3"]) {
     const path = join(bin, name);
     const lock = name === "python3" ? `if [ "$2" = lock ]; then echo admitted; cat >/dev/null; exit 0; fi\n` : "";

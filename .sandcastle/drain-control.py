@@ -61,11 +61,9 @@ def main() -> int:
     parser.add_argument('command', choices=['hold', 'freeze', 'resume', 'status', 'lock'])
     parser.add_argument('--root', type=Path, default=DEFAULT_ROOT)
     parser.add_argument('--generation', type=int)
-    # hold：冻结专用准入只认 draining 且代次一致；控制锁先于全局锁取得（唯一锁序）。
     parser.add_argument('--frozen-generation', type=int)
     parser.add_argument('--control', type=Path)
     parser.add_argument('--control-mode', choices=['sh', 'ex'], default='sh')
-    # lock：与 drain 状态无关的单一 flock（运行锁、仓库初始化锁、控制命令的排他控制锁）。
     parser.add_argument('--path', type=Path)
     parser.add_argument('--nonblock', action='store_true')
     args = parser.parse_args()

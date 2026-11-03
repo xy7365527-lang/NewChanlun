@@ -113,7 +113,6 @@ test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归�
   assert.equal(readFileSync(f.checkpoint, "utf8"), before);
   assert.deepEqual(f.called(), []);
   // 新归并在固定生产冻结根取一次准入；已存在的归并工位属已准入 run，重入不再申请。
-  // 另两次是仓库初始化锁（#1867：工位创建与 Sandcastle prune 串行），与冻结状态无关。
   const holds = f.drained().filter(l => / hold /.test(l));
   assert.equal(holds.length, 1);
   assert.match(holds[0]!, / hold --root \/Volumes\/AgentStorage\/newchanlun-legacy-drain$/);

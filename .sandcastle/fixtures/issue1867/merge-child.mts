@@ -1,4 +1,3 @@
-/** #1867 测试夹具：在独立进程里跑冻结验收第 15 行，冲突工蜂写入部分 WIP 后挂起，等父进程 SIGKILL。 */
 import { createBindMountSandboxProvider, type SandboxProvider } from "@ai-hero/sandcastle";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";

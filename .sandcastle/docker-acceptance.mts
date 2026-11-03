@@ -25,7 +25,6 @@ export const MAX_RESUMES = 5;
 export const MAX_CHECKPOINTS = 16;
 
 export const CONTRACT_ID = "1742-docker-plan-b-v4-frozen-deployment-v1";
-/** #1867：receipt purpose 区分普通受控与冻结部署验收；冻结轮的 run 准入/冲突消费两阶段与行恢复规则随版本进入摘要。 */
 export const BINDING_RULES = ["receipt-purpose-v1", "frozen-row13-fresh-branch-v1", "merge-plan-sealed-v1", "merge-run-admission-then-conflict-v1", "row-recovery-checkpoint-v1"] as const;
 /** 合同摘要：改任一项（受保护路径、内层沙箱模式、cap 上界、探针脚本、无 security 选项、容器 env 白名单、绑定规则版本）即新合同，旧 receipt 作废。 */
 export function contractDigest(): string {
@@ -63,9 +62,7 @@ const imageIdOf = (ctx: { imageIdOf?: ImageIdOf } | undefined, image: string): s
   return id;
 };
 
-/** 冻结验收的固定冲突伙伴：根主控核准的专用夹具，按精确 SHA、唯一父、独审与批准引用封定；不要求其父等于部署 head。 */
 export interface PartnerFixture { issue: number; branch: string; sha: string; parent: string; review: string; approval: string }
-/** 授权用途：普通 controlled 只供 open 状态的原受控调用；frozen-deployment 只供冻结验收专用入口，绑定代次、仓库与固定伙伴。 */
 export type ReceiptPurpose =
   | { kind: "controlled" }
   | { kind: "frozen-deployment"; generation: number; repo: string; partner: PartnerFixture };
@@ -75,7 +72,6 @@ export interface AcceptanceReceipt {
 }
 export interface UsedMarker { schema: 3; nonce: string; row: AcceptanceRow; head: string; contract: string; binding: string; at: string; pid: number }
 export interface CrossFamilyReview { file: string; head: string; model: string }
-/** 冻结轮登记快照：本轮候选与两行归并结果的精确 head；acceptedFor 重核宿主事实后逐字比较。 */
 export interface FrozenRoundSummary { candidate: string; merges: Record<MergeRow, { runId: string; instance: string; head: string }> }
 export interface AcceptedRecord {
   schema: 3; ticket: number; nonce: string; head: string; contract: string; image: string; imageId: string; approval: string;
@@ -134,7 +130,6 @@ const acceptedPath = (dir: string) => join(dir, "accepted.json");
 const usedPath = (dir: string, nonce: string, row: AcceptanceRow) => join(dir, `used-${nonce}-${row}.json`);
 const checkpointPath = (dir: string, nonce: string, row: AcceptanceRow, binding: string) => join(dir, `cp-${nonce}-${row}-${bindingHash(binding)}.json`);
 const resumePrefix = (nonce: string, row: AcceptanceRow, binding: string) => `resume-${nonce}-${row}-${bindingHash(binding)}-`;
-/** 退役/签发/封定与消费者共用的短控制锁：消费者共享、控制命令排他；锁序固定为 控制锁 → 全局 admission.lock → 仓库初始化锁。 */
 export const controlLockPath = (dir: string) => join(dir, "control.lock");
 
 /** 先写临时文件并 fsync，再用 link 原子发布：发布前最终名不可见，发布后内容必然完整；目标已存在即 EEXIST。 */
@@ -267,8 +262,6 @@ export function issueReceipt(o: IssueOptions): AcceptanceReceipt {
   return receipt;
 }
 
-/** 退役当前 receipt 与 accepted 记录（改名保留，不删历史）。持排他控制锁：等在飞准入完成“最后重核→消费→实际启动”后才改指针，
- * 之后的新准入读不到该 receipt；已启动的工蜂保留完成权。 */
 export async function retireReceipt(ctx: { dir?: string; roots?: readonly string[] } = {}): Promise<string | null> {
   const dir = resolveDir(ctx);
   return withFileLock(controlLockPath(dir), () => retireNow(dir));
@@ -353,7 +346,6 @@ export function recordAcceptance(o: RecordOptions): AcceptedRecord {
   }
   const crossFamily = readCrossFamilyReview(o.crossFamilyReview, receipt.head);
   if (receipt.head !== id.head) throw new Error("receipt.head 与当前执行代码不一致");
-  // 冻结轮：used 只证明占用；还须有本轮候选、封定计划、两行完成结果及其真实冲突绑定。
   const round = receipt.purpose.kind === "frozen-deployment" ? verifyFrozenRound(dir, receipt, bindings) : undefined;
   const record: AcceptedRecord = {
     schema: 3, ticket: ACCEPTANCE_TICKET, nonce: receipt.nonce, head: receipt.head, contract: receipt.contract, image: receipt.image, imageId: receipt.imageId, approval: receipt.approval,
@@ -403,7 +395,6 @@ export function acceptedFor(image: string, ctx: AdmissionContext = {}): Accepted
       if (!existsSync(record.evidence[row])) return null;
       live[row] = b;
     }
-    // 冻结轮登记后保留历史 scope：重核本轮结果事实，但不要求 drain 仍为 draining（按批准 resume 后不失效）。
     if (receipt.purpose.kind === "frozen-deployment" ? !isDeepStrictEqual(verifyFrozenRound(dir, receipt, live), record.round) : record.round !== undefined) return null;
     // 外部独审报告每次重读：VERDICT、异家族、HEAD 与 receipt.head、当前执行代码三者一致，且与登记快照一致。
     const review = readCrossFamilyReview(record.crossFamily.file, receipt.head);
@@ -439,12 +430,10 @@ export function checkControlledAdmission(image: string, ctx: AdmissionContext = 
   return admitRow(image, ctx, row!, ctx.binding!, "controlled");
 }
 
-/** 冻结验收专用入口的行核对与消费：行与绑定来自本轮封定选择，不读环境变量，不经 acceptedFor；只接受 frozen-deployment 用途的 receipt。 */
 export function frozenRowAdmission(image: string, ctx: AdmissionContext, row: AcceptanceRow, binding: string): Admission {
   return admitRow(image, ctx, row, binding, "frozen-deployment");
 }
 
-/** 两种用途共用同一份行判据；用途不同即拒绝，不互相兜底。 */
 function admitRow(image: string, ctx: AdmissionContext, row: AcceptanceRow, binding: string, purpose: ReceiptPurpose["kind"]): Admission {
   let dir: string, receipt: AcceptanceReceipt;
   try { dir = resolveDir(ctx); } catch (e) { return refuse(`验收目录不合格：${e instanceof Error ? e.message : String(e)}`); }
@@ -494,8 +483,6 @@ function admitRow(image: string, ctx: AdmissionContext, row: AcceptanceRow, bind
   } };
 }
 
-// ── 冻结部署验收轮（#1867）：专票 + 部署 head + nonce + 行，绑定代次、仓库与固定伙伴 ─────────────
-/** 调用者唯一的选择：哪一轮（专票/head/nonce）的哪一行。其余输入都从宿主封定事实派生。 */
 export interface DeploymentSelection { ticket: number; head: string; nonce: string; row: AcceptanceRow }
 export interface RoundIdentity { nonce: string; head: string; contract: string; imageId: string; swarmTicket: number; generation: number; expiresAt: string }
 type FrozenPurpose = Extract<ReceiptPurpose, { kind: "frozen-deployment" }>;
@@ -512,7 +499,6 @@ export const ROUND_FILES = {
 export const ticketBranch = (ticket: number) => `sandcastle/issue-${ticket}`;
 export const mergeRunId = (row: MergeRow, nonce: string) => `1742-acc-r${row}-${nonce}`;
 
-/** 不可信的 CLI 选择 → 领域对象；格式不符直接拒绝。 */
 export function parseSelection(raw: { ticket?: string; head?: string; nonce?: string; row?: string }): DeploymentSelection {
   const ticket = Number(raw.ticket);
   if (!raw.ticket || !Number.isSafeInteger(ticket) || ticket <= 0 || String(ticket) !== raw.ticket) throw new Error("--ticket 必须是正整数票号");
@@ -521,7 +507,6 @@ export function parseSelection(raw: { ticket?: string; head?: string; nonce?: st
   return { ticket, head: raw.head!, nonce: raw.nonce!, row: rowOf(raw.row) };
 }
 
-/** 本模块所在检出的仓根（真实路径）：冻结 receipt 绑定的就是执行该代码的仓库。 */
 export function moduleRepo(dir: string = dirname(fileURLToPath(import.meta.url))): string {
   return realpathSync(execFileSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim());
 }
@@ -530,7 +515,6 @@ export function branchExists(repo: string, branch: string): boolean {
   try { repoGit(repo, ["rev-parse", "--verify", "-q", `refs/heads/${branch}`]); return true; } catch { return false; }
 }
 
-/** 未创建路径的预绑定：从已存在的真实根出发，逐段只允许受限名字；已存在的段不得是符号链接或非目录。不 mkdir、不 realpath 不存在的末级。 */
 export function prebindPath(root: string, segments: readonly string[]): string {
   if (realpathSync(root) !== root) throw new Error(`预绑定根 ${root} 不是真实路径`);
   let cur = root;
@@ -544,7 +528,6 @@ export function prebindPath(root: string, segments: readonly string[]): string {
   }
   return cur;
 }
-/** 创建后复核：实际位置必须逐字等于预绑定路径。 */
 export function assertBoundPath(path: string): void {
   if (realpathSync(path) !== path) throw new Error(`实际位置 ${realpathSync(path)} 与预绑定 ${path} 不符`);
 }
@@ -560,14 +543,12 @@ function roundOf(dir: string, receipt: AcceptanceReceipt): FrozenRound {
   };
 }
 
-/** 只读查看：选择须逐项对上当前冻结 receipt，不核代码身份与有效期（status 用，不造成任何准入）。 */
 export function inspectFrozenRound(sel: Omit<DeploymentSelection, "row">, ctx: Pick<RoundContext, "dir" | "roots"> = {}): FrozenRound {
   const dir = resolveDir(ctx);
   const round = roundOf(dir, loadReceipt(dir));
   if (sel.nonce !== round.receipt.nonce || sel.ticket !== round.ticket || sel.head !== round.receipt.head) throw new Error("选择与当前冻结验收轮不符");
   return round;
 }
-/** 各行占用事实（只读）：used 锚点 + 检查点绑定 + 恢复次数。 */
 export function roundClaims(round: FrozenRound): Record<AcceptanceRow, { bindings: string[]; resumes: number } | null> {
   return Object.fromEntries(ACCEPTANCE_ROWS.map((row) => {
     const bindings = rowBindings(round.dir, round.receipt, row);
@@ -576,7 +557,6 @@ export function roundClaims(round: FrozenRound): Record<AcceptanceRow, { binding
   })) as Record<AcceptanceRow, { bindings: string[]; resumes: number } | null>;
 }
 
-/** 专用入口每次准入（含锁内最后重核）都调用：选择必须逐项等于当前冻结 receipt，代码精确、合同未变、未过期、仓库与镜像 Id 未漂移。 */
 export function loadFrozenRound(sel: DeploymentSelection, ctx: RoundContext = {}): FrozenRound {
   const dir = resolveDir(ctx);
   const round = roundOf(dir, loadReceipt(dir));
@@ -638,7 +618,6 @@ export function loadMergePlan(round: FrozenRound): FrozenMergePlan | null {
   return plan;
 }
 
-/** 首次 run 准入事实：在全局共享锁内、创建工位之前发布；只有同一事实才能恢复。 */
 export interface MergeRunAdmission { schema: 1; round: RoundIdentity; run: BoundMergeRun; at: string; pid: number }
 export function publishMergeAdmission(round: FrozenRound, run: BoundMergeRun): void {
   publishOnce(join(round.roundDir, ROUND_FILES.admission(run.row)), { schema: 1, round: round.identity, run, at: new Date().toISOString(), pid: process.pid } satisfies MergeRunAdmission);
@@ -653,7 +632,6 @@ export function loadMergeAdmission(round: FrozenRound, run: BoundMergeRun): bool
 }
 
 export const rowConsumed = (round: FrozenRound, row: AcceptanceRow): boolean => loadUsed(round.dir, round.receipt, row) !== null;
-/** 本行已占用的冲突绑定必须全部属于封定 run 与固定实例。 */
 function planBindings(round: FrozenRound, run: BoundMergeRun): string[] | null {
   const bindings = rowBindings(round.dir, round.receipt, run.row);
   for (const b of bindings ?? []) {
@@ -666,7 +644,6 @@ export interface MergeRowResult {
   schema: 1; round: RoundIdentity; row: MergeRow; runId: string; instance: string; head: string;
   entries: Array<{ sha: string; head: string; kind: string }>; bindings: string[]; at: string;
 }
-/** done 检查点 → 发布完成结果；没有真实冲突消费的行不算完成。 */
 export function publishMergeResult(round: FrozenRound, run: BoundMergeRun, state: MergeState): MergeRowResult {
   if (state.phase !== "done" || !isDeepStrictEqual(state.manifest, run.manifest)) throw new Error(`第 ${run.row} 行检查点不是本 run 的完成态`);
   const bindings = planBindings(round, run);
@@ -684,7 +661,6 @@ export function loadMergeResult(round: FrozenRound, row: MergeRow): MergeRowResu
   return raw as unknown as MergeRowResult;
 }
 
-/** official accept 与 acceptedFor 共用：本轮候选 → 封定计划 → 两行完成结果 → 当前行绑定，逐项对上才返回快照。 */
 function verifyFrozenRound(dir: string, receipt: AcceptanceReceipt, bindings: Record<AcceptanceRow, string[]>): FrozenRoundSummary {
   const round = roundOf(dir, receipt);
   const candidate = loadCandidate(round);
@@ -703,7 +679,6 @@ function verifyFrozenRound(dir: string, receipt: AcceptanceReceipt, bindings: Re
   return { candidate: candidate.head, merges };
 }
 
-/** 固定伙伴在本仓库可解析、唯一父与声明一致，原独审报告首行 PASS 且指向该精确 SHA。 */
 function verifyPartner(repo: string, p: PartnerFixture, ticket: number): void {
   if (p.issue === ticket) throw new Error("固定伙伴不能是本轮专票");
   let parents: string;
@@ -718,7 +693,6 @@ export interface FrozenIssueOptions {
   image: string; approval: string; swarmTicket: number; generation: number; partner: unknown; ttlHours?: number;
   dir?: string; roots?: readonly string[]; now?: Date; identity?: CodeIdentity; imageIdOf?: ImageIdOf; repo?: string; drainRoot?: string;
 }
-/** 冻结后为新部署签发专用验收 receipt：持排他控制锁与全局共享锁，只认 draining 且代次一致；不改 drain 状态。 */
 export async function issueFrozenReceipt(o: FrozenIssueOptions): Promise<AcceptanceReceipt> {
   const id = o.identity ?? codeIdentity();
   if (id.dirty) throw new Error(`.sandcastle 存在未提交改动，不能给不精确的代码签发 receipt：${id.dirty.slice(0, 200)}`);
@@ -748,7 +722,6 @@ export async function issueFrozenReceipt(o: FrozenIssueOptions): Promise<Accepta
   }, { generation: o.generation, control: controlLockPath(dir), controlMode: "ex", root: o.drainRoot });
 }
 
-/** 主控准入记录（机读三行，顺序固定）：VERDICT: ADMIT / HEAD: <候选 SHA> / NONCE: <本轮 nonce>。 */
 export function parseControllerAdmission(text: string, head: string, nonce: string): void {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
   if (lines[0] !== "VERDICT: ADMIT") throw new Error("主控准入记录首个非空行必须逐字等于 `VERDICT: ADMIT`");
@@ -762,8 +735,6 @@ export function parseControllerAdmission(text: string, head: string, nonce: stri
 }
 
 export interface BindOptions extends RoundContext { ticket: number; head: string; nonce: string; candidateReview: string; controllerAdmission: string }
-/** 根主控准入候选后一次性封定 rows14/15：清单从本轮候选、receipt 固定伙伴与部署 head 派生，固定顺序、不同 runId/工位、随机实例。
- * 相同输入重复登记读回原计划（不生成新实例）；输入不同即拒绝。 */
 export async function bindMerges(o: BindOptions): Promise<FrozenMergePlan> {
   const sel: DeploymentSelection = { ticket: o.ticket, head: o.head, nonce: o.nonce, row: "14" };
   const first = loadFrozenRound(sel, o);
@@ -784,7 +755,7 @@ export async function bindMerges(o: BindOptions): Promise<FrozenMergePlan> {
       { issue: round.ticket, branch: candidate.branch, sha: candidate.head, acceptance: { head: candidate.head, status: "accepted", reviewEvidence: review.file, verificationEvidence: `${verification}#head=${candidate.head}` } },
       { issue: partner.issue, branch: partner.branch, sha: partner.sha, acceptance: { head: partner.sha, status: "accepted", reviewEvidence: partner.review, verificationEvidence: partner.approval } },
     ];
-    // 真实冲突是该行完成的必要条件：候选与伙伴 merge-tree 必须冲突（只写对象库，不动 ref 与工作区）。
+    // git merge-tree --write-tree 有冲突时退出码为 1，只写对象库，不动 ref 与工作区。
     try { execFileSync("git", ["-C", repo, "merge-tree", "--write-tree", "--name-only", candidate.head, partner.sha], { stdio: "pipe" }); throw new Error("候选与固定伙伴不冲突，rows14/15 无法产生真实冲突"); }
     catch (e) { if ((e as { status?: number }).status !== 1) throw e; }
     const derive = (row: MergeRow, instance: string): BoundMergeRun => {

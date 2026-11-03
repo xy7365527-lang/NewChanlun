@@ -1,5 +1,3 @@
-/** #1867 冻结部署验收专用入口：真实 Git 仓、真实 flock（drain-control.py）、真实 Sandcastle createSandbox 与 runManagedMerge；
- * 只替换容器 provider、容器内 agent 与 GitHub 读取。断言退出结果、行记录、工位、容器启动计数与 tracker 调用。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
@@ -48,7 +46,6 @@ function spawnTracked(cmd: string, args: string[]) {
   return { child, done, exited: () => exited, output: () => out };
 }
 
-/** 一轮冻结验收的完整宿主现场：部署仓（head＝本轮部署 SHA）、固定伙伴 #1840（父是更早的提交，不等于部署 head）、0700 验收目录、临时 drain 根（已 freeze 到 gen1）。 */
 function world(t: { after: (fn: () => void) => void }, o: { candidatePath?: string } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "nc-1867-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -203,7 +200,6 @@ test("身份与授权负控：错 nonce/专票/head、脏代码、过期、仓�
   assert.throws(() => parseCli(["run", "--ticket", String(TICKET), "--head", w.head, "--nonce", r.nonce, "--row", "16"]), /验收行非法/);
   assert.throws(() => parseCli(["run", "--ticket", String(TICKET), "--head", w.head, "--nonce", r.nonce, "--row", "13", "--root", "/tmp"]), /不接受的参数 --root/);
   assert.throws(() => parseCli(["run", "--ticket", String(TICKET), "--head", w.head, "--nonce", r.nonce, "--row", "13", "--manifest", "x"]), /不接受的参数 --manifest/);
-  // 普通入口不能消费冻结用途 receipt：环境变量声明行也不行。
   assert.throws(() => checkControlledAdmission(IMAGE, { ...w.ctx, env: { [ROW_ENV]: "13" }, binding: swarmBinding(TICKET) }), /冻结部署验收用途，只能经 deployment-acceptance/);
   w.noSideEffects("普通受控入口");
 });
@@ -226,13 +222,13 @@ test("drain 负控：签发与运行只认 draining 且代次一致；open 或�
   drain(w.drainRoot, "resume", "--generation", "1");
   await assert.rejects(w.issue(), DrainFrozenError, "open 时不能签发冻结验收 receipt");
   assert.equal(existsSync(join(w.dir, "receipt.json")), false);
-  drain(w.drainRoot, "freeze"); // gen2
+  drain(w.drainRoot, "freeze");
   await assert.rejects(w.issue(), DrainFrozenError, "代次不符");
   const r = await w.issue({ generation: 2 });
   drain(w.drainRoot, "resume", "--generation", "2");
   await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps()), DrainFrozenError);
   w.noSideEffects("open");
-  drain(w.drainRoot, "freeze"); // gen3 ≠ receipt gen2
+  drain(w.drainRoot, "freeze");
   await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps()), DrainFrozenError);
   w.noSideEffects("代次漂移");
   assert.deepEqual(w.events, [], "冻结拒绝在探针之前");
@@ -304,7 +300,7 @@ test("resume 竞争：专用准入持锁时 resume 等到消费并取得容器 h
     barrier: (p) => (p === "row13-before-consume" ? b.wait() : undefined),
     runAgent: async (sb, role) => {
       if (role === "implementer") {
-        statusWhileAgent = drain(w.drainRoot, "status"); // status 取排他锁：能返回即证明全局锁已释放
+        statusWhileAgent = drain(w.drainRoot, "status");
         writeFileSync(join(sb.worktreePath, PROBE.split("/").pop()!), "x\n");
         return { stdout: report([PROBE.split("/").pop()!]), iterations: [] };
       }
@@ -379,13 +375,13 @@ test("归并恢复边界：准入事实已写而工位未建可续建；无准�
   w.git("branch", plan.runs["15"].manifest.branch, w.head);
   await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "15"), w.deps()), /没有 run 准入事实却已有/);
   w.git("branch", "-D", plan.runs["15"].manifest.branch);
-  publishMergeAdmission(round, plan.runs["14"]); // 模拟：准入事实已发布、建工位前崩溃
+  publishMergeAdmission(round, plan.runs["14"]);
   const creates = w.creates.length;
   const done = await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps());
   assert.equal(done.state, "merge_done");
   assert.equal(w.creates.length, creates + 1);
   const resultPath = join(round.roundDir, ROUND_FILES.result("14"));
-  renameSync(resultPath, `${resultPath}.lost`); // 模拟：done 检查点已写、结果发布前崩溃
+  renameSync(resultPath, `${resultPath}.lost`);
   const claims = w.claims();
   const again = await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps());
   assert.equal(again.head, done.head);

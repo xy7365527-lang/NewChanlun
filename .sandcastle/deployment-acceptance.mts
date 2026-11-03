@@ -1,5 +1,4 @@
-/** #1867：冻结后新部署的 Docker 13–15 验收专用入口。调用者只给专票、部署 head、nonce 与行号；
- * 授权、计划、锁、消费与恢复都由宿主封定事实决定。普通业务入口继续冻结。
+/** #1867 冻结部署验收专用入口。
  *
  *   npx --no-install tsx .sandcastle/deployment-acceptance.mts run --ticket N --head <部署 SHA> --nonce <本轮 nonce> --row 13|14|15
  *   npx --no-install tsx .sandcastle/deployment-acceptance.mts status --ticket N --head <部署 SHA> --nonce <本轮 nonce>
@@ -28,7 +27,6 @@ export type DeploymentOutcome =
   | { row: "13"; state: "candidate_pending"; head: string; evidence: string }
   | { row: MergeRow; state: "merge_done"; head: string; evidence: string };
 
-/** 执行接线（非授权）：生产全部缺省；进程内测试可替换容器、agent 与 GitHub 读取，并在锁内关键点暂停。正式 CLI 不接受这些字段。 */
 export interface DeploymentDeps extends Omit<DeploymentMergeDeps, "logWorker" | "provider" | "barrier"> {
   provider?: (imageId: string) => SandboxProvider;
   mergeProvider?: DeploymentMergeDeps["provider"];
@@ -40,7 +38,6 @@ export interface DeploymentDeps extends Omit<DeploymentMergeDeps, "logWorker" | 
 }
 
 const GH_ENV = { ...process.env, NO_COLOR: "1", CLICOLOR: "0", FORCE_COLOR: "0", CLICOLOR_FORCE: "0", GH_REPO: "xy7365527-lang/NewChanlun" };
-/** 只读本轮专票：任何其它 gh 调用（含写操作、别的票）一律拒绝。 */
 function ticketOnlyGh(ticket: number, gh: HostGh = hostGh(GH_ENV)): HostGh {
   return (args) => {
     if (args[0] !== "issue" || args[1] !== "view" || args[2] !== String(ticket)) throw new Error(`[FAIL-loud #1867] 冻结验收只允许读取专票 #${ticket}，拒绝 gh ${args.slice(0, 3).join(" ")}`);
@@ -58,8 +55,6 @@ function roundChannels(round: FrozenRound) {
   };
 }
 
-/** 第 13 行：专票一次性单票执行。锁序：行运行锁 → 控制锁(共享) → 全局 admission.lock(共享, draining+代次) → 仓库初始化锁；
- * 锁内依次 精确重核 → 孤儿/新工位检查 → 隔离探针 → 模型预检 → 最后重核 → 消费 used-13 → createSandbox 取得运行中容器，之后释放。 */
 async function runRow13(sel: DeploymentSelection, d: DeploymentDeps): Promise<DeploymentOutcome> {
   const ctx = d.ctx ?? {};
   const round = loadFrozenRound(sel, ctx);
@@ -81,17 +76,17 @@ async function runRow13(sel: DeploymentSelection, d: DeploymentDeps): Promise<De
       issue: ticket, branch, baseRef: round.receipt.head, reviewBase: () => round.receipt.head,
       launch: () => withFrozenAdmission(() => withFileLock(repoInitLock(repo), async () => {
         terminal(loadFrozenRound(sel, ctx));
-        assertInitClean({ repo, branch, fresh: cwd }); // 孤儿/新工位检查在消费之前
+        assertInitClean({ repo, branch, fresh: cwd });
         await d.barrier?.("row13-after-verify");
         assertContainerIsolationContract(round.receipt.imageId, d.probe);
         (d.modelProbe ?? assertDockerCliProxyReachable)(round.receipt.imageId);
-        const last = loadFrozenRound(sel, ctx); // 预检之后、消费之前的最后重核（含有效期）
-        terminal(last);
+        const launchRound = loadFrozenRound(sel, ctx);
+        terminal(launchRound);
         await d.barrier?.("row13-before-consume");
-        frozenRowAdmission(last.receipt.image, ctx, "13", swarmBinding(ticket)).consume();
-        channels.logWorker({ ticket, branch, phase: "admission", status: "consumed", row: "13", head: last.receipt.head });
+        frozenRowAdmission(launchRound.receipt.image, ctx, "13", swarmBinding(ticket)).consume();
+        channels.logWorker({ ticket, branch, phase: "admission", status: "consumed", row: "13", head: launchRound.receipt.head });
         await d.barrier?.("row13-after-consume");
-        const sandbox = await createSwarmSandboxLocked({ repo, branch, baseBranch: last.receipt.head, provider: (d.provider ?? swarmSandbox)(last.receipt.imageId), fresh: cwd });
+        const sandbox = await createSwarmSandboxLocked({ repo, branch, baseBranch: launchRound.receipt.head, provider: (d.provider ?? swarmSandbox)(launchRound.receipt.imageId), fresh: cwd });
         if (realpathSync(sandbox.worktreePath) !== cwd) throw new Error(`实际工位 ${sandbox.worktreePath} 不是预绑定 ${cwd}`);
         return sandbox;
       }), { generation: round.purpose.generation, control: round.control, root: d.drainRoot }),
@@ -118,7 +113,6 @@ export async function runDeploymentAcceptance(sel: DeploymentSelection, d: Deplo
   return { row, state: "merge_done", head: result.head, evidence: join(round.roundDir, ROUND_FILES.result(row)) };
 }
 
-/** 只读：本轮各行事实与证据位置；不准入、不恢复、不写文件。 */
 export function deploymentStatus(sel: Omit<DeploymentSelection, "row">, ctx: Pick<RoundContext, "dir" | "roots"> = {}) {
   const round = inspectFrozenRound(sel, ctx);
   const plan = loadMergePlan(round);
@@ -135,7 +129,6 @@ export function deploymentStatus(sel: Omit<DeploymentSelection, "row">, ctx: Pic
   };
 }
 
-/** 正式 CLI：只接受 --ticket/--head/--nonce/--row；任何其它参数（root、manifest、bypass 等）直接拒绝。 */
 export function parseCli(argv: readonly string[]): { cmd: "run" | "status"; sel: DeploymentSelection } {
   const [cmd, ...rest] = argv;
   if (cmd !== "run" && cmd !== "status") throw new UsageError("命令：run | status");

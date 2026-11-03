@@ -1,5 +1,3 @@
-/** #1867 正式 CLI 组合（固定生产路径）：只在专用测试机上、以独立 UID 拥有固定 drain 根并放置 fixture 标记时运行。
- * 用真实的 drain-control.py、真实 receipt 目录（passwd 主目录）、真实模块检出身份；docker/gh 是记录调用的替身。 */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -35,7 +33,6 @@ test("正式 CLI 组合：签发只认 draining；专用 run 参数白名单、�
   const called = () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean) : []);
   const acc = acceptanceRoot();
   const claims = () => (existsSync(acc) ? readdirSync(acc).filter((f) => /^(used|resume|cp)-/.test(f)) : []);
-  // fixture 伙伴：在更早的提交上只新增探针文档的独立分支（父不等于部署 head）。
   const partnerTree = join(root, "partner");
   git("worktree", "add", "-q", "-b", "sandcastle/issue-1840", partnerTree, "HEAD~1");
   execFileSync("mkdir", ["-p", join(partnerTree, "docs/agents")]);
@@ -43,7 +40,7 @@ test("正式 CLI 组合：签发只认 draining；专用 run 参数白名单、�
   execFileSync("git", ["-C", partnerTree, "add", "."]); execFileSync("git", ["-C", partnerTree, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "partner"]);
   const partnerSha = execFileSync("git", ["-C", partnerTree, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   git("worktree", "remove", partnerTree);
-  t.after(() => { tsx("docker-acceptance.mts", ["retire"]); try { git("branch", "-D", "sandcastle/issue-1840"); } catch { /* 已删除 */ } rmSync(root, { recursive: true, force: true }); writeFileSync(join(DRAIN_ROOT, "state.json"), JSON.stringify({ v: 1, mode: "open", generation: 0 }) + "\n"); });
+  t.after(() => { tsx("docker-acceptance.mts", ["retire"]); try { git("branch", "-D", "sandcastle/issue-1840"); } catch {} rmSync(root, { recursive: true, force: true }); writeFileSync(join(DRAIN_ROOT, "state.json"), JSON.stringify({ v: 1, mode: "open", generation: 0 }) + "\n"); });
   const review = join(root, "partner-review.md"); writeFileSync(review, `VERDICT: PASS\n${partnerSha}\n`);
   const partnerInput = join(root, "partner.json");
   writeFileSync(partnerInput, JSON.stringify({ issue: 1840, branch: "sandcastle/issue-1840", sha: partnerSha, parent: git("rev-parse", "HEAD~2"), review, approval: "fixture-approval" }));
@@ -68,7 +65,7 @@ test("正式 CLI 组合：签发只认 draining；专用 run 参数白名单、�
   assert.equal(wrongNonce.status, 1); assert.match(wrongNonce.stderr, /不是当前冻结验收轮/);
   assert.deepEqual(claims(), []);
 
-  const issueCalls = called().length; // 签发本身解析镜像 Id（docker image inspect）
+  const issueCalls = called().length;
   const legacy = tsx("main-swarm.mts", [], { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: "13", SANDCASTLE_DOCKER_ACCEPTANCE_TICKET: String(TICKET), CLIPROXY_LOCAL_KEY: "fixture-no-network" });
   assert.equal(legacy.status, 75, legacy.stderr + legacy.stdout);
   assert.deepEqual(claims(), [], "普通旧调用冻结时零消费");

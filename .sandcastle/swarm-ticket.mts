@@ -1,7 +1,5 @@
-/** #1867：单票完整生命周期（普通 swarm 与冻结验收第 13 行共用）与仓库共享工位初始化。
- * 工位初始化在仓库级短锁内：Sandcastle createSandbox 会 prune 未登记的 .sandcastle/worktrees 目录，初始化失败还会
- * `git worktree remove --force` 新工位；本模块先拒绝存在孤儿目录的仓库，再在 provider 初始化失败且工位有未知写入时
- * 用 `git worktree lock` 保留现场（单个 --force 不移除已锁工位）。 */
+/** Sandcastle 0.12.0 createSandbox 会 prune 未登记的 .sandcastle/worktrees 目录，初始化失败会 `git worktree remove --force` 新工位；
+ * 单个 --force 不移除已 `git worktree lock` 的工位。 */
 import * as sandcastle from "@ai-hero/sandcastle";
 import type { BindMountCreateOptions, BindMountSandboxHandle, SandboxProvider } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
@@ -19,7 +17,6 @@ import type { verifyManagedRust } from "./managed-commit.mts";
 export type SwarmSandbox = Awaited<ReturnType<typeof sandcastle.createSandbox>>;
 const git = (cwd: string, args: string[]) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
-/** 同一仓库（含全部 linked worktree）共用的初始化锁：放在 git common dir，任何检出建工位都排到同一把锁上。 */
 export function repoInitLock(repo: string): string {
   const common = git(repo, ["rev-parse", "--git-common-dir"]);
   return join(isAbsolute(common) ? common : resolve(repo, common), "sandcastle-worktree-init.lock");
@@ -46,7 +43,6 @@ export function wrapBindMountCreate(provider: SandboxProvider, wrap: (create: ()
   return { ...shape, create: (options: BindMountCreateOptions) => wrap(() => shape.create.call(shape, options), options) } as unknown as SandboxProvider;
 }
 
-/** provider 初始化失败：工位里出现任何未知写入（含 untracked/ignored）或无法判定时，加 worktree lock 再抛出原错误；干净的新工位照常由库清理。 */
 export function preserveFailedInit(provider: SandboxProvider): SandboxProvider {
   return wrapBindMountCreate(provider, async (create, options) => {
       try { return await create(); }
@@ -63,7 +59,6 @@ export function preserveFailedInit(provider: SandboxProvider): SandboxProvider {
 }
 
 export interface SandboxInit { repo: string; branch: string; baseBranch: string; provider: SandboxProvider; fresh?: string }
-/** 初始化前置检查（须在仓库初始化锁内）：无孤儿目录；fresh＝预绑定工位路径时，分支与工位都必须不存在，杜绝复用别轮现场。 */
 export function assertInitClean(o: Pick<SandboxInit, "repo" | "branch" | "fresh">): void {
   const orphans = orphanWorktrees(o.repo);
   if (orphans.length) throw new Error(`[FAIL-loud #1867] ${o.repo}/.sandcastle/worktrees 有未登记目录，Sandcastle 会自动删除，拒绝初始化并保留：${orphans.join(", ")}`);
@@ -73,7 +68,6 @@ export function assertInitClean(o: Pick<SandboxInit, "repo" | "branch" | "fresh"
     if (exists || existsSync(o.fresh)) throw new Error(`[FAIL-loud #1867] 分支 ${o.branch} 或工位 ${o.fresh} 已存在，拒绝复用`);
   }
 }
-/** 调用方已持仓库初始化锁时使用。 */
 export async function createSwarmSandboxLocked(o: SandboxInit): Promise<SwarmSandbox> {
   assertInitClean(o);
   return sandcastle.createSandbox({ cwd: o.repo, branch: o.branch, baseBranch: o.baseBranch, sandbox: preserveFailedInit(o.provider) });
@@ -86,17 +80,14 @@ export type AgentRole = "implementer" | "reviewer";
 export interface AgentRun { name: string; maxIterations: number; prompt: string; resumeSession?: string }
 export type AgentRunner = (sandbox: SwarmSandbox, role: AgentRole, o: AgentRun) => Promise<{ stdout: string; iterations: Array<{ sessionId?: string }> }>;
 export interface TicketChannels extends ReviewFailureChannels {
-  /** 读取该票正文（实施 prompt 用）；冻结验收只读专票。 */
   gh: HostGh;
   fetchIssue: IssueFetcher;
   verify?: typeof verifyManagedRust;
-  /** 仅测试：替代容器内 agent 执行；生产缺省为 sandbox.run + 每角色独立 swarmAgent。 */
   runAgent?: AgentRunner;
 }
 export interface SwarmTicket { issue: number; branch: string; baseRef: string; reviewBase: (git: GitRunner) => string; launch: () => Promise<SwarmSandbox> }
 const REVIEW_TEMPLATE = fileURLToPath(new URL("./codex-review-prompt.md", import.meta.url));
 
-/** 启动（由调用方在正确锁内完成）→ 独立作者 → 宿主封包 → 精确 head 验证 → 独立 reviewer → finally close。 */
 export async function runSingleSwarmTicket(t: SwarmTicket, channels: TicketChannels) {
   const sandbox = await t.launch();
   try {

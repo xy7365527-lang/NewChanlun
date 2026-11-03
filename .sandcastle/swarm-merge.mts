@@ -52,7 +52,6 @@ function admittedBefore(path: string, fact: unknown): boolean {
   catch { return false; }
 }
 
-/** 冲突工蜂执行：给定已在正确准入下包装的 provider 与 prompt，返回工蜂 stdout。生产＝head 策略 sandcastle.run（只挂已有工位，不建、不清理）。 */
 export type ConflictAgentRunner = (o: { cwd: string; sandbox: SandboxProvider; prompt: string }) => Promise<string>;
 const runConflictWorker: ConflictAgentRunner = async ({ cwd, sandbox, prompt }) =>
   (await sandcastle.run({ cwd, branchStrategy: { type: "head" }, name: "merger-conflict", maxIterations: 1, agent: swarmAgent(), sandbox, prompt })).stdout;
@@ -62,22 +61,17 @@ interface MergeExecution {
   logWorker: (e: Record<string, unknown>) => void; docker?: DockerCli;
   instance: () => string;
   admitInput: (input: MergeInput) => void;
-  /** 当前真实冲突的绑定 → 已在该入口准入规则下包装好的冲突工蜂 provider；准入失败即抛，现场与检查点保留。 */
   conflictSandbox: (binding: string, identityEnv: Record<string, string>) => Promise<SandboxProvider>;
   runConflictAgent?: ConflictAgentRunner;
 }
-/** 普通与冻结验收两入口共用的归并执行：同一 runManagedMerge 状态机、孤儿回收、冲突 prompt 与冻结路径边界。 */
 async function executeMerge(o: MergeExecution): Promise<MergeState> {
   const { manifest, cwd } = o;
   return runManagedMerge({
     cwd, manifest, checkpoint: o.checkpoint, checkId: MERGE_CHECK_ID,
-    // SIGKILL 后零人工收敛：锁持有者已死且停在冲突阶段时，先自动回收本 run 实例遗留的孤儿工蜂容器，再接管锁（#1742）。
     reclaimOrphans: () => { reclaimOrphanContainers({ cwd, image: o.image, runId: manifest.runId, instance: o.instance(), evidenceDir: o.evidenceDir, docker: o.docker }); },
     verify: (head, files) => verifyCombination(cwd, manifest, head, files),
     admit: o.admitInput,
     resolveConflict: async ({ head, incoming, files }) => {
-      // #1617：仅冲突需要 Docker；此时 MERGE_HEAD 与检查点已保存，失败保留现场。
-      // 14/15：每个冲突检查点都过一次门禁，绑定各自的 run+基线+实例+HEAD+入站 SHA；SIGKILL 后重入得到相同绑定，按恢复放行。
       const instance = o.instance();
       const binding = mergeBinding({ runId: manifest.runId, base: manifest.base, instance, head, incoming });
       const sandbox = await o.conflictSandbox(binding, { [MERGE_RUN_ENV]: manifest.runId, [MERGE_INSTANCE_ENV]: instance });
@@ -88,7 +82,7 @@ async function executeMerge(o: MergeExecution): Promise<MergeState> {
         `只输出一个 <sandcastle-result>{"status":"ready","files":["实际编辑路径"],"verification":[]}</sandcastle-result>；` +
         `无法在路径边界内解决时 status=blocked。最后附 <promise>COMPLETE</promise>。`,
         manifest.base, { issue: manifest.inputs[0]!.issue, branch: manifest.branch },
-        { logWorker: o.logWorker, notify: () => { /* 归并不是单张票，失败由宿主归并记录交主控。 */ } },
+        { logWorker: o.logWorker, notify: () => {} },
       );
       // head 策略仅挂已有工位；容器随调用回收，宿主工位/冲突现场不自动清理。
       return (o.runConflictAgent ?? runConflictWorker)({ cwd, sandbox, prompt: final.prompt });
@@ -112,7 +106,6 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
   // 仅含 DeepAgents 来源的清单属于新执行器，不受旧入口冻结约束。
   const admissionPath = join(evidenceDir, "admission.json");
   const fact = { v: 1, repo, cwd, checkId: MERGE_CHECK_ID, manifest };
-  // 工位创建与 Sandcastle createSandbox 的 prune 共用仓库初始化锁（#1867）。
   const start = () => withFileLock(repoInitLock(repo), () => {
     mkdirSync(evidenceDir, { recursive: true });
     if (!existsSync(cwd)) {
@@ -135,7 +128,6 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
     instance: () => mergeInstance(evidenceDir, manifest.runId, manifest.base),
     admitInput: input => admitMergeInput(repo, input, facts),
     conflictSandbox: async (binding, identityEnv) => {
-      // 同一检查点在本进程内只过一次门禁；别的 run 或基线被拒绝。
       if (!readiedCheckpoints.has(binding)) {
         const admittedId = assertSwarmExecutionReady(image, { rows: ["14", "15"], binding, acceptance: options.acceptance,
           // 占用 used-14/15 / 检查点之前预检；同一进程内成功一次即可
@@ -150,26 +142,21 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
   return result;
 }
 
-// ── 冻结部署验收 rows14/15（#1867）──────────────────────────────────────────────
 export interface DeploymentMergeDeps {
   ctx?: RoundContext;
-  /** 仅测试：drain 根；生产固定 DRAIN_ROOT。 */
   drainRoot?: string;
   logWorker: (e: Record<string, unknown>) => void;
   probe?: (image: string) => IsolationObservation;
   modelProbe?: (imageId: string) => void;
-  /** 仅测试：替代真实 Docker provider / 冲突工蜂 / 孤儿回收用 docker CLI；准入包装仍由本模块施加。 */
   provider?: (imageId: string, identityEnv: Record<string, string>) => SandboxProvider;
   runConflictAgent?: ConflictAgentRunner;
   docker?: DockerCli;
-  /** 仅测试：在锁内关键点暂停，制造确定性竞争。 */
   barrier?: (point: "merge-run-before-admission" | "merge-before-consume" | "merge-after-consume") => Promise<void> | void;
 }
 
 const gitIn = (cwd: string, args: string[]) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const optionalRefIn = (cwd: string, ref: string) => { try { return gitIn(cwd, ["rev-parse", "--verify", "-q", ref]); } catch { return ""; } };
 
-/** 冻结验收第 14/15 行：只执行本轮封定计划的 run。首次 run 准入（锁内）→ 建工位 → 原状态机 → 真实冲突时锁内消费并启动 → 完成结果。 */
 export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: MergeRow }, d: DeploymentMergeDeps): Promise<MergeRowResult> {
   const ctx = d.ctx ?? {};
   const round0 = loadFrozenRound(sel, ctx);
@@ -183,7 +170,6 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
   }
   if (prebindPath(repo, [".sandcastle", "worktrees", run.manifest.branch.replaceAll("/", "-")]) !== run.cwd) throw new Error("归并工位预绑定路径漂移");
   const frozenLock = (round: FrozenRound) => ({ generation: round.purpose.generation, control: round.control, root: d.drainRoot });
-  // 当前选择、计划与 run 准入事实在每次锁内重核时都必须保持不变。
   const recheck = (): FrozenRound => {
     const round = loadFrozenRound(sel, ctx);
     if (!isDeepStrictEqual(loadMergePlan(round), plan0)) throw new Error("本轮归并计划已变化，拒绝");
@@ -219,13 +205,12 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
     assertBoundPath(run.cwd);
     const state = await executeMerge({
       manifest: run.manifest, cwd: run.cwd, evidenceDir: run.evidenceDir, checkpoint: run.checkpoint, image: round.receipt.image, logWorker: d.logWorker, docker: d.docker,
-      instance: () => run.instance, // 固定实例来自封定计划，不由工位目录临时生成
-      admitInput: () => undefined, // 输入来源已在 bind-merges 时对本轮候选与固定伙伴核定
+      instance: () => run.instance,
+      admitInput: () => undefined,
       runConflictAgent: d.runConflictAgent,
       conflictSandbox: async (binding, identityEnv) => {
         if (probedImage === undefined) await withFrozenAdmission(() => probeAll(recheck()), frozenLock(round));
         const inner = (d.provider ?? ((id, env) => swarmSandbox(id, { ...dockerCliProxyEnv(), ...env })))(round.receipt.imageId, identityEnv);
-        // 包住 provider.create：准入核对、行消费与 inner.create 在同一把锁内完成，取得运行中容器 handle 后释放；agent 长运行在锁外。
         return wrapBindMountCreate(inner, (create, { worktreePath }) => withFrozenAdmission(async () => {
           const r = recheck();
           if (!loadMergeAdmission(r, run)) throw new Error("run 准入事实缺失");
