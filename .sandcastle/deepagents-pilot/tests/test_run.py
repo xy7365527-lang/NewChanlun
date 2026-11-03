@@ -6,8 +6,18 @@ import time
 import pytest
 from conftest import DESIGN_TASK, MODELS, git
 
-from pilot1742.domain import Approved, Awaiting, Refused
-from pilot1742.run import Busy, Halted, ToolRefusal, _ps_rows, supervisor_alive
+from pilot1742.domain import Approved, Awaiting, Refused, WorkerKey
+from pilot1742.run import (
+    Busy,
+    Halted,
+    RolePlan,
+    RunSpec,
+    ToolRefusal,
+    _ps_rows,
+    parse_result,
+    plan_roles,
+    supervisor_alive,
+)
 
 DEMO = {"demo/a.py": "def f():\n    return 1\n"}
 
@@ -272,3 +282,44 @@ def test_controller_sigkill_during_design_fan_out_adopts_both_runners(env):
     receipts = env.reopen().run_design("恢复后再次请求")
     assert [r.status for r in receipts] == ["completed", "completed"]
     assert sorted(env.claims()) == [f"design-a-{env.base}", f"design-b-{env.base}"]
+
+
+ASTRA_MODELS = MODELS.replace("gpt-6.1-sol", "gpt-6-astra")
+
+
+def test_astra_role_plan_uses_configured_models():
+    assert plan_roles(ASTRA_MODELS) == RolePlan(
+        "gpt-6-astra", "claude-opus-5-5", "claude-opus-5-5",
+        ("claude-opus-5-5", "gpt-6-astra"), "gpt-6-astra",
+    )
+
+
+def test_astra_and_sol_cannot_review_each_other():
+    models = ASTRA_MODELS.replace("judgment and prose: claude-opus-5-5",
+                                  "judgment and prose: gpt-6.1-sol")
+    with pytest.raises(ValueError, match="同一家族"):
+        plan_roles(models)
+
+
+def test_astra_run_spec_stays_frozen_after_model_config_changes(env):
+    run = env.create(models=ASTRA_MODELS, task=DESIGN_TASK)
+    frozen = run.spec.to_json()
+    assert RunSpec.from_json(json.loads(json.dumps(frozen))) == run.spec
+    run.release()
+    resumed = env.create(models=MODELS, task=DESIGN_TASK)
+    assert resumed.spec.to_json() == frozen
+    assert resumed.spec.author_model == resumed.spec.judge_model == "gpt-6-astra"
+    assert resumed.spec.design_models == ("claude-opus-5-5", "gpt-6-astra")
+    resumed.release()
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-sol", "gpt-6-astra"])
+def test_parse_result_preserves_supported_model(tmp_path, model):
+    key = WorkerKey("r1", "author", "a" * 40)
+    data = dict(ticket=1742, status="completed", expected_head=key.target_head,
+                model=model, mode="execute", run_id="child1",
+                checkout_after={"head": key.target_head, "status": ""},
+                result={"summary": "done", "findings": [], "validation": []})
+    parsed = parse_result(key, data, tmp_path)
+    assert parsed.model == model
+    assert parsed.key == key and parsed.status == "completed"

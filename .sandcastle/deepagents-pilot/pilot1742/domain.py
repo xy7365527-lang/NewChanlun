@@ -25,8 +25,8 @@ def parse_run_id(raw: str) -> RunId:
     return RunId(raw)
 
 
-ModelSlug = Literal["gpt-6.1-sol", "claude-opus-5-5"]
-MODEL_FAMILY: dict[str, str] = {"gpt-6.1-sol": "gpt", "claude-opus-5-5": "claude"}
+ModelSlug = Literal["gpt-6.1-sol", "gpt-6-astra", "claude-opus-5-5"]
+MODEL_FAMILY: dict[str, str] = {"gpt-6.1-sol": "gpt", "gpt-6-astra": "gpt", "claude-opus-5-5": "claude"}
 
 
 def parse_model(raw: object) -> ModelSlug:

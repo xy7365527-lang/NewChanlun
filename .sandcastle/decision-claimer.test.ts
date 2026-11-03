@@ -13,7 +13,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, modelFamily, assertDifferentModelFamilies, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, loadEffectiveP, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn,
+  runTriage, triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, loadEffectiveP, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn,
   claudeArgs, MAIN_CONTINUE_LINE, loadTriageDone,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
@@ -68,6 +68,48 @@ test("分级解析：合法 T/P 照收，坏输出与缺理由一律判 P", () =
   assert.equal(parseClassification("我觉得是 T").klass, "P");
   assert.equal(parseClassification(fence({ class: "T" })).klass, "P");
   assert.equal(parseClassification(fence({ class: "X", reason: "?" })).parsed, false);
+});
+
+test("#1742 原始 C2 分级与考古 JSON：保留字符串中的未配对花括号", async () => {
+  const raw = readFileSync(join(process.cwd(), ".sandcastle", "fixtures/issue1742/triage-1565-unpaired-brace.json"), "utf8");
+  const expected = JSON.parse(raw);
+  assert.deepEqual(extractJson(raw), expected);
+  assert.deepEqual(parseClassification(raw), { klass: "P", reason: expected.reason, parsed: true });
+  const arch = parseArchaeology(raw);
+  assert.equal(arch?.points.length, 4);
+  assert.equal(arch?.points[2].hits[2].excerpt, 'if add(worst, others)? > number(&image["book"], "fixed_q")? {');
+  const dir = mkdtempSync(join(tmpdir(), "triage-json-1742-"));
+  try {
+    let calls = 0;
+    const result = await runTriage(
+      { number: 1565, title: "原始 C2 回归", body: "", labels: [], assignees: [], comments: [], blockers: [] },
+      { srcDir: dir, model: async () => { calls++; return { text: raw, durationMs: 1, attempts: 1 }; } },
+      dir,
+    );
+    assert.equal(calls, 1, "合法原例不应额外调用模型");
+    assert.deepEqual(result.cls, { klass: "P", reason: expected.reason, parsed: true });
+    assert.equal(result.ar.arch.points.length, 4);
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).raw, raw);
+    assert.equal(JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")).parsed, true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("#1742 JSON 提取：字符串转义、嵌套及说明文字不改变对象", () => {
+  for (const value of ["{", "}", '引号 " {', "末尾\\", '反斜杠和引号 \\" }', "\\\\", "{}"]) {
+    const expected = { value, nested: { values: [value, { end: value }] } };
+    assert.deepEqual(extractJson("前言\n" + JSON.stringify(expected) + "\n后记"), expected);
+  }
+  assert.deepEqual(extractJson('{"old":1}\n说明\n{"new":"{"}'), { new: "{" });
+  assert.deepEqual(extractJson(fence({ preferred: "{" }) + '{"later":1}'), { preferred: "{" });
+  assert.deepEqual(extractJson(fence({ first: 1 }) + fence({ last: "}" })), { last: "}" });
+  assert.deepEqual(extractJson(fence({ valid: 1 }) + "\n\`\`\`json\n{bad}\n\`\`\`"), { valid: 1 });
+  for (const invalid of ['{"value":"unterminated}', '{"value":}', '{"value":"\\q"}', "只有说明文字"]) {
+    assert.equal(extractJson(invalid), undefined);
+    assert.equal(parseClassification(invalid).parsed, false);
+  }
+  assert.equal(parseReview(JSON.stringify(pass("if (x) {"))).verdict, "PASS");
 });
 
 test("审查解析：八项全 PASS 才 PASS；缺项、缺依据、草稿缺段都 BLOCK", () => {

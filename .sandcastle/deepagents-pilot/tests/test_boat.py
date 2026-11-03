@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
 import pytest
-from conftest import git
+from conftest import MODELS, git
 
 from pilot1742.boat_execution import (
     BoatBinding,
@@ -196,8 +196,8 @@ class FakeBoat:
         return self._handle('info')
 
 
-def adapter(env, cli=None, submission='submitted'):
-    run = env.create()
+def adapter(env, cli=None, submission='submitted', models=MODELS):
+    run = env.create(models=models)
     object.__setattr__(run.spec, 'execution', parse_execution({'backend': 'boat', 'config': config(), 'runtime_head': env.base}))
     engine = BoatExecution(run, cli or FakeBoat())
     run.execution = engine
@@ -217,8 +217,9 @@ def payload(run, engine, key, files, status=None):
                             result={'summary': 'done', 'findings': [], 'validation': []}))
 
 
-def test_collect_twice_preserves_binary_and_mode(env):
-    run, engine, key, _ = adapter(env)
+@pytest.mark.parametrize('model', ['gpt-6.1-sol', 'gpt-6-astra'])
+def test_collect_twice_preserves_binary_and_mode(env, model):
+    run, engine, key, _ = adapter(env, models=MODELS.replace('gpt-6.1-sol', model))
     files = [dict(path='demo/new', mode='100755', content=base64.b64encode(b'\x00binary').decode())]
     data = payload(run, engine, key, files)
     engine.collect(key, data)
@@ -750,4 +751,20 @@ def test_cancel_rejects_foreign_remote_before_any_stop(env, cached):
         engine.cli.handlers['exec'] = foreign
     assert isinstance(engine.cancel(key), EffectUnknown)
     assert not any(c[0] == 'stop' or (c[0] == 'exec' and ' cancel ' in c[1]) for c in engine.cli.calls)
+    run.release()
+
+
+@pytest.mark.parametrize("model,actual", [
+    ("gpt-6-astra", "gpt-6.1-sol"),
+    ("gpt-6.1-sol", "gpt-6-astra"),
+    ("gpt-6-astra", None),
+])
+def test_collect_rejects_actual_model_drift_before_writing(env, model, actual):
+    run, engine, key, _ = adapter(env, models=MODELS.replace("gpt-6.1-sol", model))
+    data = payload(run, engine, key, [dict(path="demo/a", mode="100644", content="YQ==")])
+    data["record"]["actual_model"] = actual
+    with pytest.raises(ExecutionUnknown, match="模型"):
+        engine.collect(key, data)
+    assert not (Path(run.spec.author_checkout) / "demo/a").exists()
+    assert not (run.dir / "workers" / key.name / "result.json").exists()
     run.release()
