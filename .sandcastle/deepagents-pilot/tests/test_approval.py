@@ -39,9 +39,12 @@ def check(desk, target=CANDIDATE, generation=1, now=NOW, scope=Scope.CANDIDATE_H
     return desk.check(scope, generation, target, now=now)
 
 
-def test_without_trust_or_protected_root_nothing_releases(tmp_path, signer):
+def test_without_trust_or_protected_root_nothing_releases(tmp_path, signer, monkeypatch):
     real = ApprovalDesk(tmp_path / "a", 4242, "t4242-1", SignedApprovals(tmp_path / "missing-trust.json"))
     assert check(real) == Pending("not_configured", str(real.path(Scope.CANDIDATE_HEAD)), check(real).reason)
+    def missing_trust(_path):
+        raise FileNotFoundError("isolated absent trust")
+    monkeypatch.setattr("approval_signing.decision.load_trust", missing_trust)
     default = check(ApprovalDesk(tmp_path / "b", 4242, "t4242-1"))
     assert isinstance(default, Pending) and default.status == "not_configured"
 

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.newchanlun.deepagents-executor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__VENV__/bin/python</string>
+        <string>-m</string><string>pilot1742.executor</string>
+        <string>serve</string><string>--loop</string>
+        <string>--private-key</string><string>__PRIVATE_KEY_PATH__</string>
+        <string>--workers-log</string><string>__REPO__/.sandcastle/logs/workers.jsonl</string>
+    </array>
+    <key>WorkingDirectory</key><string>__REPO__</string>
+    <key>KeepAlive</key><true/>
+    <key>RunAtLoad</key><true/>
+    <key>ThrottleInterval</key><integer>10</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key><string>__REPO__/.sandcastle/deepagents-pilot</string>
+        <key>PILOT_BOAT_CONFIG</key><string>__BOAT_CONFIG__</string>
+        <key>PILOT_BOAT_API_KEY_FILE</key><string>__BOAT_API_KEY_FILE__</string>
+        <key>PATH</key><string>/Users/silencehan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>LANGSMITH_TRACING</key><string>false</string>
+        <key>LANGCHAIN_TRACING_V2</key><string>false</string>
+        <key>OTEL_SDK_DISABLED</key><string>true</string>
+    </dict>
+    <key>StandardOutPath</key><string>__REPO__/.sandcastle/logs/deepagents-executor.stdout.log</string>
+    <key>StandardErrorPath</key><string>__REPO__/.sandcastle/logs/deepagents-executor.stderr.log</string>
+</dict>
+</plist>

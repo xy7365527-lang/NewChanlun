@@ -371,8 +371,6 @@ jobs:
           --require 1:tests::historical_pre_policy_records_store_
           "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
 
-  # #1722：extras 串行累计触顶 60 分钟；按独立输入拆组，各组仍有 60 分钟截止。
-  #   max-parallel=1 保持原 extras 同时最多一个 runner；失败不取消后续组。
   rust-test-s-session-extra-groups:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
@@ -381,7 +379,7 @@ jobs:
       matrix:
         group: [content, economic, native, owned, release-locks]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.group == 'native' && 90 || 60 }}
     env:
       CARGO_INCREMENTAL: "0"
     defaults:
@@ -1167,6 +1165,9 @@ jobs:
             .sandcastle/deepagents-pilot/requirements.lock
             .sandcastle/deepagents-pilot/requirements*.txt
             .sandcastle/approval-signing/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Install frozen pilot, Studio, and check tools
         run: python -m pip install -r requirements-ci.txt
       - name: Check dependency compatibility

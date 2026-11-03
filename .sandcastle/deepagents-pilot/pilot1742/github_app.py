@@ -104,6 +104,7 @@ class GitHubAppClient:
                for name, level in self._permissions.items()):
             raise IdentityError("请求的 token 权限超出 App 安装权限")
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        tls.minimum_version = ssl.TLSVersion.TLSv1_2
         tls.load_verify_locations(cafile=certifi.where())
         self._http = httpx.Client(
             base_url=API, trust_env=False, follow_redirects=False, timeout=20,

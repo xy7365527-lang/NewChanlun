@@ -14,7 +14,14 @@ disable-model-invocation: true
 
 3. **查放行**。对每张该放没放的票，对照 `.sandcastle/logs/wayfinder-status.md` 与 `scripts/wayfinder_engine.mts` 的 `classifyTicket`，指出卡在哪一条：open blocker、assignee、票型、spec 批准。真阻塞留着；缺 blocking 边、缺决策票、FU 未建的当场补，建票前先搜重（`gh issue list --search "<词>" --state all` 加 `grep -rn` 推论层）。已有负责人在做的票保留 assignee，不挂 `sandcastle`。完成标准：每张未放行票一个原因。
 
-4. **派工**。决策票：确认 decision-claimer 在跑（`launchctl list | grep decision-claimer`），未跑就在宿主前台跑 `node --import tsx .sandcastle/decision-claimer.mts --ticket <号>`（默认 dry-run）。实施票：确认 claim-loop 在跑、frontier 非空。主控自己的整理工作派子代理（Opus 5.5），写清文件归属与验收。完成标准：frontier 上每张票有在跑的处理者，或写明为何不派。
+4. **派工**。决策票仍走 decision-claimer。先确认服务在跑，未跑就在宿主前台跑 `node --import tsx .sandcastle/decision-claimer.mts --ticket <号>`，默认 dry-run。实施票先区分持有者。D6 的 `deepagents:queue` 队列沿用 `pilot1742 executor serve` 与 ClaimStore，不转交旧 swarm。已有 claim-loop 或 main-swarm 在消费 `sandcastle` 队列时，只登记在跑，不重复认领。
+
+   本轮可派的普通 Sandcastle swarm 默认由你在当前主循环选票，不再另派 planner。按下面两步消费现有入口。
+
+   1. 在仓库根运行 `node --import tsx .sandcastle/swarm-plan.mts > <仓外快照.json>`。读该文件的 `queue` 和 `prompt` 全文。结合本图对账结果、正文依赖、待批决策和写集重叠自行判断，只选择这份队列中可同时执行的票。全部受阻或队列为空就选空数组，不能按旧模板的“候选最弱”句子放行受阻票。
+   2. 保持 `queue` 逐字不变，另写仓外计划 JSON `{"queue": [...], "issues": [{"id": "票号", "title": "标题", "branch": "sandcastle/issue-票号"}]}`。运行 `SANDCASTLE_SWARM_PLAN=<仓外计划.json> node --import tsx .sandcastle/main-swarm.mts`。该入口重新取完整队列并整单校验，再经 drain 门认领并启动原有容器作者和独审，只执行这一批。快照变化时重新取快照并判断，不能直接重试旧计划。空计划零认领、零工蜂。
+
+   不设置 `SANDCASTLE_SWARM_PLAN` 的无人值守入口仍兼容旧 planner，不能把它用于本轮折叠路径。主控自己的整理工作派子代理，写清归属与验收。完成标准仍是每张 frontier 票有在跑的处理者，或写明不派原因。
 
 5. **验收**。查完成的封包（`/Volumes/AgentStorage/issue*-*/`、`sandcastle/issue-*` 与 `decision/*` 分支），按 `docs/agents/delivery-discipline.md` 关票门逐子句核。合格的开 PR 列给用户批合入；不合格的把缺项写回对应票。
 

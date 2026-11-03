@@ -85,3 +85,11 @@ def isolated_skill_source(tmp_path, monkeypatch):
     skill.write_text("---\nname: pstack-upstream-poteto-mode\ndescription: CI fixture\n---\n# Poteto mode\n")
     monkeypatch.setattr(agent, "SKILLS_ROOT", str(root) + "/")
     monkeypatch.setattr(agent, "POTETO_MODE", str(skill))
+
+
+@pytest.fixture(autouse=True)
+def local_execution_fixture(monkeypatch):
+    from pilot1742 import run
+    from pilot1742.boat_execution import HistoricalLocal
+
+    monkeypatch.setattr(run, "new_execution", lambda **kwargs: HistoricalLocal())

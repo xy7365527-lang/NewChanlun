@@ -17,7 +17,11 @@ export function drainRequested(root = DRAIN_ROOT): boolean {
 }
 
 export async function withLegacyAdmission<T>(action: () => T | Promise<T>, root = DRAIN_ROOT): Promise<T> {
-  const child = spawn("python3", [HELPER, "hold", "--root", root], { stdio: ["pipe", "pipe", "pipe"] });
+  return withAdmission(action, [HELPER, "hold", "--root", root]);
+}
+
+export async function withAdmission<T>(action: () => T | Promise<T>, args: string[]): Promise<T> {
+  const child = spawn("python3", args, { stdio: ["pipe", "pipe", "pipe"] });
   let errors = "";
   child.stderr.on("data", (data) => { errors += String(data); });
   const ended = new Promise<number | null>((resolve, reject) => {
