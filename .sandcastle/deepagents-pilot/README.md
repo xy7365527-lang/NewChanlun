@@ -39,13 +39,15 @@ npm ci   # codex-child.mts 需要仓库根的 node_modules
 
 run 创建时从 `~/.agents/pstack-models.md` 冻结六个角色的模型：
 
-| 角色 | 取自 | 本机当前值 |
-|---|---|---|
-| Deep Agent 主控 | `hardest tasks` | claude-opus-5-5 |
-| 作者 | `feature, refactoring` | gpt-6.1-sol |
-| 独审 | `judgment and prose` | claude-opus-5-5 |
-| 设计候选 `design-a`、`design-b` | `architect runners` 前两个 | claude-opus-5-5、gpt-6.1-sol |
-| 交叉裁判 `judge` | `arena cross-judge pool` 中第一个与主控不同家族的 | gpt-6.1-sol |
+| 角色 | 取自 |
+|---|---|
+| Deep Agent 主控 | `hardest tasks` |
+| 作者 | `feature, refactoring` |
+| 独审 | `judgment and prose` |
+| 设计候选 `design-a`、`design-b` | `architect runners` 前两个 |
+| 交叉裁判 `judge` | `arena cross-judge pool` 中第一个与主控不同家族的 |
+
+模型白名单接受 `gpt-6-astra`、`gpt-6.1-sol` 与 `claude-opus-5-5`。Astra 与 Sol 同属 `gpt` 家族，Opus 属 `claude` 家族。已创建的 run 继续使用冻结模型。
 
 作者与独审同家族、两个设计候选同家族，或裁判池里没有与主控不同家族的模型时，run 拒绝创建。
 
