@@ -14,7 +14,7 @@ import {
 import { runDeploymentAcceptance, parseCli, deploymentStatus, type DeploymentDeps, type DeploymentOutcome } from "./deployment-acceptance.mts";
 import { DrainFrozenError, LockBusyError, withFileLock } from "./drain-control.mts";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
-import { createSwarmSandbox, preserveFailedInit } from "./worktree-init.mts";
+import { createSwarmSandbox, preserveFailedInit, repoInitLock } from "./worktree-init.mts";
 
 const HELPER = fileURLToPath(new URL("./drain-control.py", import.meta.url));
 const ACCEPTANCE_CLI = fileURLToPath(new URL("./docker-acceptance.mts", import.meta.url));
@@ -510,4 +510,57 @@ test("main.mts 两处建工位都走共用初始化锁；none provider 初始化
   const orphan = join(w.repo, ".sandcastle/worktrees/other"); mkdirSync(orphan); writeFileSync(join(orphan, "WIP"), "z");
   await assert.rejects(createSwarmSandbox({ repo: w.repo, branch: "sandcastle/issue-80", baseBranch: "main", provider: noSandbox() }), /未登记目录/);
   assert.equal(readFileSync(join(orphan, "WIP"), "utf8"), "z");
+});
+
+test("来源最后重核在阻塞检查之后：冲突工蜂最后一次镜像解析期间撤回独审 → 不消费、不启动", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  const plan = await w.bind(r.nonce, c.head);
+  const review = readFileSync(plan.candidate.review.file, "utf8");
+  let armed = false;
+  w.ctx.imageIdOf = () => { if (armed) writeFileSync(plan.candidate.review.file, review.replace("VERDICT: PASS", "VERDICT: FAIL")); return IMG_ID; };
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({ barrier: (p) => { if (p === "merge-before-consume") armed = true; } })), /候选来源证据当前无效/);
+  assert.equal(w.creates.length, 1);
+  assert.deepEqual(w.claims().filter((f) => f.endsWith("-14.json") || f.includes("-14-")), []);
+});
+
+test("首次 run 准入：模型预检期间撤回独审 → 不发布准入、不建工位、不消费", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  const plan = await w.bind(r.nonce, c.head);
+  const review = readFileSync(plan.candidate.review.file, "utf8");
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({
+    modelProbe: () => { writeFileSync(plan.candidate.review.file, review.replace("VERDICT: PASS", "VERDICT: FAIL")); },
+  })), /候选来源证据当前无效/);
+  const round = inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx);
+  assert.equal(existsSync(join(round.roundDir, ROUND_FILES.admission("14"))), false);
+  assert.equal(existsSync(plan.runs["14"].cwd), false);
+  assert.equal(w.branchOf(plan.runs["14"].manifest.branch), "");
+  assert.deepEqual(w.claims().filter((f) => f.includes("-14")), []);
+  assert.equal(w.creates.length, 1);
+});
+
+test("首次 run 准入：等待仓库初始化锁期间撤回主控准入 → 不发布准入、不建工位、不消费；恢复后同命令完成", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  const plan = await w.bind(r.nonce, c.head);
+  const admission = readFileSync(plan.candidate.controllerAdmission, "utf8");
+  let release!: () => void; const held = new Promise<void>((res) => { release = res; });
+  let locked!: () => void; const holding = new Promise<void>((res) => { locked = res; });
+  const holder = withFileLock(repoInitLock(w.repo), async () => { locked(); await held; });
+  await holding;
+  let probed = false;
+  const running = runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({ modelProbe: () => { probed = true; } }));
+  for (let i = 0; i < 100 && !probed; i++) await delay(50);
+  assert.equal(probed, true);
+  await delay(300);
+  writeFileSync(plan.candidate.controllerAdmission, admission.replace(r.nonce, "00000000-0000-4000-8000-000000000000"));
+  release(); await holder;
+  await assert.rejects(running, /候选来源证据当前无效.*NONCE/);
+  const round = inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx);
+  assert.equal(existsSync(join(round.roundDir, ROUND_FILES.admission("14"))), false);
+  assert.equal(existsSync(plan.runs["14"].cwd), false);
+  assert.deepEqual(w.claims().filter((f) => f.includes("-14")), []);
+  writeFileSync(plan.candidate.controllerAdmission, admission);
+  assert.equal((await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps())).state, "merge_done");
 });

@@ -195,8 +195,11 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
         const r = recheck();
         verifyPlanSource(r, plan0);
         await d.barrier?.("merge-run-before-admission");
-        if (!loadMergeAdmission(r, run)) { probeAll(r); recheck(); publishMergeAdmission(r, run); }
+        if (!loadMergeAdmission(r, run)) probeAll(r);
         await withFileLock(repoInitLock(repo), () => {
+          const fresh = recheck();
+          verifyPlanSource(fresh, plan0);
+          if (!loadMergeAdmission(fresh, run)) publishMergeAdmission(fresh, run);
           if (branchExists(repo, run.manifest.branch) || existsSync(run.cwd)) throw new Error("归并工位在准入后被他人占用，拒绝");
           execFileSync("git", ["worktree", "add", "-b", run.manifest.branch, run.cwd, run.manifest.base], { cwd: repo, stdio: "pipe" });
           assertBoundPath(run.cwd);
@@ -222,6 +225,7 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
           if (cp.phase !== "conflict" || b !== binding || gitIn(run.cwd, ["rev-parse", "HEAD"]) !== cp.before || optionalRefIn(run.cwd, "MERGE_HEAD") !== cp.input) throw new Error("当前检查点/HEAD/MERGE_HEAD 不是本次冲突绑定");
           await d.barrier?.("merge-before-consume");
           const admission = frozenRowAdmission(r.receipt.image, ctx, sel.row, binding);
+          verifyPlanSource(r, plan0);
           admission.consume();
           await d.barrier?.("merge-after-consume");
           return create();
