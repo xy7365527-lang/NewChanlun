@@ -98,6 +98,8 @@ test("实际 main-swarm 空计划入口不启动 Docker 或 planner", () => {
     const calls = join(dir, "calls.jsonl");
     writeFileSync(join(dir, "gh"), `#!/usr/bin/env node\nconst fs = require('fs'); fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2))+'\\n'); console.log('[]');\n`, { mode: 0o755 });
     writeFileSync(join(dir, "docker"), `#!/bin/sh\necho docker >> ${JSON.stringify(calls)}\nexit 99\n`, { mode: 0o755 });
+    const holds = join(dir, "holds");
+    writeFileSync(join(dir, "python3"), `#!/bin/sh\necho "$*" >> ${JSON.stringify(holds)}\necho admitted\ncat >/dev/null\n`, { mode: 0o755 });
     const skill = readFileSync(resolve(".agents/skills/graph-run/SKILL.md"), "utf8");
     assert.match(skill, /node --import tsx \.sandcastle\/swarm-plan\.mts/);
     assert.match(skill, /SANDCASTLE_SWARM_PLAN=<仓外计划\.json> node --import tsx \.sandcastle\/main-swarm\.mts/);
@@ -117,6 +119,7 @@ test("实际 main-swarm 空计划入口不启动 Docker 或 planner", () => {
     });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /无认领、无工蜂/);
+    assert.match(readFileSync(holds, "utf8"), / hold --root \/Volumes\/AgentStorage\/newchanlun-legacy-drain/, "空计划也在 drain 准入内读取队列");
     assert.deepEqual(readFileSync(calls, "utf8").trim().split("\n").map(s => JSON.parse(s)).map(a => a.slice(0, 2)), [["issue", "list"], ["issue", "list"]]);
     writeFileSync(plan, JSON.stringify({ queue: rows.map(r => ({ ...r, labels: ["sandcastle"] })), issues: [issue("11")] }));
     const stale = spawnSync(process.execPath, ["--import", "tsx", resolve(".sandcastle/main-swarm.mts")], {

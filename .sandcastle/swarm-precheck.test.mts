@@ -46,13 +46,13 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false, runId
   const worktree = join(repo, `.sandcastle/worktrees/sandcastle-merge-${runId}`);
   const checkpoint = join(repo, `.sandcastle/logs/merges/${runId}/checkpoint.json`);
   const acceptance = join(root, "accept"); // 进程内注入的验收目录（生产路径固定在账号主目录，子进程 HOME 重定向会被拒绝）
-  const run = (accepted = true, namespaceReady = false, frozen = false, row?: "13" | "14" | "15") => spawnSync(process.execPath, ["--import", loader, entry], {
+  const run = (accepted = true, namespaceReady = false, frozen = false, row?: "13" | "14" | "15", extra: Record<string, string> = {}) => spawnSync(process.execPath, ["--import", loader, entry], {
     cwd: repo, encoding: "utf8", timeout: 30_000,
     env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, PROBE_CALLS: calls,
       PROBE_DRAIN: drainCalls, PROBE_FROZEN: frozen ? "1" : "0",
       PROBE_NAMESPACE_OK: namespaceReady ? "1" : "0", CLIPROXY_LOCAL_KEY: "fixture-no-network",
       ...(row ? { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: row } : {}),
-      ...(accepted ? { SANDCASTLE_SWARM_MERGE_MANIFEST: path } : {}) },
+      ...(accepted ? { SANDCASTLE_SWARM_MERGE_MANIFEST: path } : {}), ...extra },
   });
   const called = () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
   const drained = () => existsSync(drainCalls) ? readFileSync(drainCalls, "utf8").trim().split("\n") : [];
@@ -69,8 +69,31 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false, runId
     finally { process.chdir(keep.cwd); process.exitCode = keep.exitCode; for (const k of Object.keys(process.env)) if (!(k in keep.env)) delete process.env[k]; Object.assign(process.env, keep.env); }
   };
   const issue = () => issueReceipt({ imageIdOf: () => IMG_ID, dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval", swarmTicket: 4242 });
-  return { repo, git, base, inputs, manifest, run, merge, called, drained, checkpoint, worktree, issue, acceptance };
+  return { root, repo, git, base, inputs, manifest, run, merge, called, drained, checkpoint, worktree, issue, acceptance };
 }
+
+test("#1867 公共 CLI：冻结时普通 swarm 与旧受控第 13 行调用都以 75 退出，在读队列、planner、预检、消费、gh 之前停止", t => {
+  const cases: Record<string, string>[] = [{}, { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: "13", SANDCASTLE_DOCKER_ACCEPTANCE_TICKET: "4242" }];
+  for (const extra of cases) {
+    const f = fixture(t);
+    const result = f.run(false, true, true, undefined, extra);
+    assert.equal(result.status, 75, result.stderr);
+    assert.match(result.stdout + result.stderr, /冻结拒绝/);
+    assert.doesNotMatch(result.stdout, /All done/);
+    assert.deepEqual(f.called(), [], "没有 docker/gh/codex 调用");
+    assert.deepEqual(f.drained().filter(l => / hold /.test(l)).length, 1);
+    assert.equal(existsSync(join(f.root, ".sandcastle-host")), false, "没有验收状态写入");
+    assert.equal(f.git("worktree", "list", "--porcelain").match(/^worktree /gm)?.length, 1);
+  }
+});
+
+test("#1867 公共 CLI：冻结时空主控计划也以 75 退出，不读队列不认领", t => {
+  const f = fixture(t);
+  const plan = join(f.root, "plan.json"); writeFileSync(plan, JSON.stringify({ queue: [], issues: [] }));
+  const result = f.run(false, false, true, undefined, { SANDCASTLE_SWARM_PLAN: plan });
+  assert.equal(result.status, 75, result.stderr);
+  assert.deepEqual(f.called(), [], "冻结时不读业务队列");
+});
 
 test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归并及幂等重入", t => {
   const f = fixture(t);
@@ -90,8 +113,10 @@ test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归�
   assert.equal(readFileSync(f.checkpoint, "utf8"), before);
   assert.deepEqual(f.called(), []);
   // 新归并在固定生产冻结根取一次准入；已存在的归并工位属已准入 run，重入不再申请。
-  assert.equal(f.drained().length, 1);
-  assert.match(f.drained()[0]!, / hold --root \/Volumes\/AgentStorage\/newchanlun-legacy-drain$/);
+  const holds = f.drained().filter(l => / hold /.test(l));
+  assert.equal(holds.length, 1);
+  assert.match(holds[0]!, / hold --root \/Volumes\/AgentStorage\/newchanlun-legacy-drain$/);
+  assert.ok(f.drained().filter(l => !/ hold /.test(l)).every(l => / lock --path \S+\/sandcastle-worktree-init\.lock$/.test(l)));
 });
 
 test("公共 CLI：旧入口已冻结时新 accepted 清单退出 75，不建归并工位、检查点或分支", t => {

@@ -9,21 +9,20 @@
 
 import { useScheduler } from "./scheduler-config.mts";
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
-import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { claimIssue, fetchQueue, hostGh, queueToJson, renderPlanPrompt, runImplementer, validatePlan } from "./swarm-prompts.mts";
 import { assertControlledBase, controlledSwarmTicket, swarmBases, swarmBinding } from "./swarm-controlled.mts";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { consumeSwarmPlan, fetchPlanningQueue, parseFoldedPlan, validateFoldedPlan } from "./swarm-planning.mts";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { runAcceptedSwarmMerge } from "./swarm-merge.mts";
-import { runManagedSwarmTicket } from "./swarm-managed.mts";
+import { runSingleSwarmTicket } from "./swarm-ticket.mts";
+import { createSwarmSandbox } from "./worktree-init.mts";
 import {
   ghIssueFetcher,
   ghIssueNotifier,
   hostGit,
-  readReviewTemplate,
   resolveReviewBase,
   ReviewPromptTooLargeError,
 } from "./review-context.mts";
@@ -72,6 +71,14 @@ function claim(issue: string) {
   claimIssue(hostGh(GH_CLEAN_ENV), issue);
 }
 
+function handleDrainFailure(error: unknown): null {
+  if (!(error instanceof DrainFrozenError)) throw error;
+  console.error(error.message);
+  process.exitCode = 75;
+  return null;
+}
+const REPO = realpathSync(process.cwd());
+
 const acceptedManifest = process.env.SANDCASTLE_SWARM_MERGE_MANIFEST;
 const foldedPlanPath = process.env.SANDCASTLE_SWARM_PLAN;
 if (acceptedManifest && foldedPlanPath) throw new Error("归并清单与主控计划不能同时提交");
@@ -80,47 +87,45 @@ const foldedPlan = foldedPlanPath ? parseFoldedPlan(JSON.parse(readFileSync(fold
 if (acceptedManifest) {
   try {
     await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
-  } catch (error) {
-    if (!(error instanceof DrainFrozenError)) throw error;
-    console.error(error.message);
-    process.exitCode = 75;
-  }
+  } catch (error) { handleDrainFailure(error); }
 } else if (foldedPlan && foldedPlan.issues.length === 0) {
-  await consumeSwarmPlan(foldedPlan, hostGh(GH_CLEAN_ENV), withLegacyAdmission);
-  console.log("主控计划为空，无认领、无工蜂。");
+  try {
+    await withLegacyAdmission(() => consumeSwarmPlan(foldedPlan, hostGh(GH_CLEAN_ENV), async (claim) => claim()));
+    console.log("主控计划为空，无认领、无工蜂。");
+  } catch (error) { handleDrainFailure(error); }
 } else {
 // 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
 // 受控验收（SANDCASTLE_DOCKER_ACCEPTANCE_ROW=13）只处理 receipt 绑定的专用验收票：不读线上 sandcastle 队列、不认领任何票。
 const controlledTicket = controlledSwarmTicket();
-if (foldedPlan) validateFoldedPlan(foldedPlan, fetchPlanningQueue(hostGh(GH_CLEAN_ENV)));
 // 受控第 13 行以 receipt.head 为工蜂基线（不是会漂移的本地 main），核对发生在占用验收行、认领和启动工蜂之前。
 let baseRef = "main";
-const IMAGE_ID_ADMITTED = assertSwarmExecutionReady(IMAGE, {
-  rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined,
-  verify: controlledTicket ? (admission) => { baseRef = assertControlledBase(admission, controlledTicket); } : undefined,
-  modelProbe: (id) => assertDockerCliProxyReachable(id), // 占用 used-13 之前
-});
+const IMAGE_ID_ADMITTED = await withLegacyAdmission(() => {
+  if (foldedPlan) validateFoldedPlan(foldedPlan, fetchPlanningQueue(hostGh(GH_CLEAN_ENV)));
+  return assertSwarmExecutionReady(IMAGE, {
+    rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined,
+    verify: controlledTicket ? (admission) => { baseRef = assertControlledBase(admission, controlledTicket); } : undefined,
+    modelProbe: (id) => assertDockerCliProxyReachable(id),
+  });
+}).catch(handleDrainFailure);
+if (IMAGE_ID_ADMITTED !== null) {
 
 /** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
 async function planAndClaim(): Promise<Array<{ id: string; title: string; branch: string }> | null> {
   if (foldedPlan) {
     try {
       return await consumeSwarmPlan(foldedPlan, hostGh(GH_CLEAN_ENV), withLegacyAdmission);
-    } catch (error) {
-      if (!(error instanceof DrainFrozenError)) throw error;
-      console.log(error.message);
-      return null;
-    }
+    } catch (error) { return handleDrainFailure(error); }
   }
   // 用 createSandbox 而非顶层 run()：顶层 run（merge-to-head）在本仓 clone/多远端
   // 环境下实测 agent 进程 ~11s 被 SIGKILL（exit 137，在案未决怪癖，见 #1009）；
   // createSandbox 路径两段式全程验证过。planner 无产出，分支随关随弃。
-  const queue = fetchQueue(hostGh(GH_CLEAN_ENV)); // 宿主本轮实际取到的队列：planner 输出只能是它的子集
-  const planSandbox = await sandcastle.createSandbox({
-    branch: `sandcastle/plan-${Date.now()}`,
-    baseBranch: "main",
-    sandbox: swarmSandbox(IMAGE_ID_ADMITTED),
-  });
+  const started = await withLegacyAdmission(async () => {
+    const queue = fetchQueue(hostGh(GH_CLEAN_ENV));
+    const sandbox = await createSwarmSandbox({ repo: REPO, branch: `sandcastle/plan-${Date.now()}`, baseBranch: "main", provider: swarmSandbox(IMAGE_ID_ADMITTED!) });
+    return { queue, sandbox };
+  }).catch(handleDrainFailure);
+  if (!started) return null;
+  const { queue, sandbox: planSandbox } = started;
   let planned: Array<{ id: string; title: string; branch: string }>;
   try {
     // 注：sandbox.run 不支持 Output.object（顶层 run 才支持），手动从 stdout 解析 <plan>。
@@ -148,16 +153,12 @@ async function planAndClaim(): Promise<Array<{ id: string; title: string; branch
   // host 侧认领（扇出前一次性完成）
   try {
     await withLegacyAdmission(() => { for (const i of planned) claim(i.id); });
-  } catch (error) {
-    if (!(error instanceof DrainFrozenError)) throw error;
-    console.log(error.message);
-    return null;
-  }
+  } catch (error) { return handleDrainFailure(error); }
   return planned;
 }
 
 for (let iteration = 1; iteration <= (controlledTicket || foldedPlan ? 1 : MAX_ITERATIONS); iteration++) {
-  if (drainRequested()) break;
+  if (iteration > 1 && drainRequested()) { handleDrainFailure(new DrainFrozenError("旧入口已冻结，停止新一轮")); break; }
   console.log(`\n=== Iteration ${iteration}/${controlledTicket || foldedPlan ? 1 : MAX_ITERATIONS} ===\n`);
 
   // Phase 1: Plan（受控验收：输入就是 receipt 绑定的专用验收票，其余票一律不碰；工蜂基线=receipt.head，不写回 main）
@@ -170,43 +171,11 @@ for (let iteration = 1; iteration <= (controlledTicket || foldedPlan ? 1 : MAX_I
   const withLimit = semaphore(MAX_PARALLEL);
   const settled = await Promise.allSettled(
     issues.map((issue) =>
-      withLimit(async () => {
-        const sandbox = await sandcastle.createSandbox({
-          branch: issue.branch,
-          baseBranch: baseRef, // 普通 swarm=main（与检出分支解耦，#1003）；受控第 13 行=receipt.head
-          sandbox: swarmSandbox(IMAGE_ID_ADMITTED),
-        });
-        try {
-          const git = hostGit(sandbox.worktreePath);
-          // 作者与评审各持有独立 provider；评审修复轮只续自己的 session。
-          const implementer = swarmAgent();
-          const reviewer = swarmAgent();
-          let reviewSession: string | undefined;
-          return await runManagedSwarmTicket({
-            cwd: sandbox.worktreePath, branch: issue.branch, issue: Number(issue.id),
-            implement: () => runImplementer(issue.id, {
-              gh: hostGh(GH_CLEAN_ENV), agent: implementer, notify: ghIssueNotifier(GH_CLEAN_ENV),
-              run: (o) => sandbox.run(o as Parameters<typeof sandbox.run>[0]),
-            }),
-            review: async (prompt) => {
-              const result = await sandbox.run({
-                name: "reviewer", maxIterations: 1, agent: reviewer, prompt,
-                ...(reviewSession ? { resumeSession: reviewSession } : {}),
-              });
-              reviewSession = result.iterations.at(-1)?.sessionId;
-              return result.stdout;
-            },
-            reviewOptions: {
-              template: readReviewTemplate("./.sandcastle/codex-review-prompt.md"),
-              target: baseRef, resolveBase: () => swarmBases({ controlled: !!controlledTicket, baseRef, reviewBase: () => resolveReviewBase(git), mainSha: () => "" }).reviewBase(), git,
-              fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
-            },
-            channels: { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
-          });
-        } finally {
-          await sandbox.close();
-        }
-      }),
+      withLimit(() => runSingleSwarmTicket({
+        issue: Number(issue.id), branch: issue.branch, baseRef,
+        reviewBase: (git) => swarmBases({ controlled: !!controlledTicket, baseRef, reviewBase: () => resolveReviewBase(git), mainSha: () => "" }).reviewBase(),
+        launch: () => createSwarmSandbox({ repo: REPO, branch: issue.branch, baseBranch: baseRef, provider: swarmSandbox(IMAGE_ID_ADMITTED!) }),
+      }, { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV), gh: hostGh(GH_CLEAN_ENV), fetchIssue: ghIssueFetcher(GH_CLEAN_ENV) })),
     ),
   );
 
@@ -220,7 +189,7 @@ for (let iteration = 1; iteration <= (controlledTicket || foldedPlan ? 1 : MAX_I
   const completed = settled
     .map((outcome, i) => ({ outcome, issue: issues[i]! }))
     .filter((e) => e.outcome.status === "fulfilled" && (e.outcome as PromiseFulfilledResult<{ commits: unknown[] }>).value.commits.length > 0)
-    .map((e) => ({ ...e.issue, result: (e.outcome as PromiseFulfilledResult<Awaited<ReturnType<typeof runManagedSwarmTicket>>>).value }));
+    .map((e) => ({ ...e.issue, result: (e.outcome as PromiseFulfilledResult<Awaited<ReturnType<typeof runSingleSwarmTicket>>>).value }));
 
   console.log(`\n执行完成，${completed.length} 条分支有产出。`);
   if (completed.length === 0) continue;
@@ -242,5 +211,6 @@ for (let iteration = 1; iteration <= (controlledTicket || foldedPlan ? 1 : MAX_I
   console.log(`单票候选清单：${draftPath}；主控核验后形成 accepted 清单，再以 SANDCASTLE_SWARM_MERGE_MANIFEST 指向它执行/恢复归并。`);
 }
 }
+}
 
-console.log("\nAll done.");
+console.log(process.exitCode === 75 ? "\n冻结拒绝：未新增业务动作。" : "\nAll done.");

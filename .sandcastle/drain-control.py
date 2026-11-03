@@ -37,14 +37,46 @@ def write_state(root: Path, state: dict) -> None:
             os.unlink(name)
 
 
+def open_lock(path: Path):
+    if path is None:
+        raise ValueError('--path is required')
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    return os.fdopen(fd, 'r+')
+
+
+def hold_file(path: Path, nonblock: bool) -> int:
+    with open_lock(path) as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblock else 0))
+        except BlockingIOError:
+            print('busy', flush=True)
+            return 75
+        print('admitted', flush=True)
+        sys.stdin.buffer.read()
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['hold', 'freeze', 'resume', 'status'])
+    parser.add_argument('command', choices=['hold', 'freeze', 'resume', 'status', 'lock'])
     parser.add_argument('--root', type=Path, default=DEFAULT_ROOT)
     parser.add_argument('--generation', type=int)
+    parser.add_argument('--frozen-generation', type=int)
+    parser.add_argument('--control', type=Path)
+    parser.add_argument('--control-mode', choices=['sh', 'ex'], default='sh')
+    parser.add_argument('--path', type=Path)
+    parser.add_argument('--nonblock', action='store_true')
     args = parser.parse_args()
+    if args.command == 'lock':
+        return hold_file(args.path, args.nonblock)
     root = args.root
     root.mkdir(parents=True, exist_ok=True)
+    control = None
+    if args.control is not None:
+        if args.command != 'hold':
+            raise ValueError('--control only applies to hold')
+        control = open_lock(args.control)
+        fcntl.flock(control, fcntl.LOCK_EX if args.control_mode == 'ex' else fcntl.LOCK_SH)
     with (root / 'admission.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_SH if args.command == 'hold' else fcntl.LOCK_EX)
         state = read_state(root)
@@ -59,8 +91,13 @@ def main() -> int:
                 state = {**state, 'mode': 'open'}
                 write_state(root, state)
         elif args.command == 'hold':
-            if state['mode'] != 'open':
+            if args.frozen_generation is None:
+                admitted = state['mode'] == 'open'
+            else:
+                admitted = state['mode'] == 'draining' and state['generation'] == args.frozen_generation
+            if not admitted:
                 print('frozen', flush=True)
+                print(f"旧入口已冻结或代次不符（drain {state['mode']}/gen{state['generation']}），未新增动作", file=sys.stderr, flush=True)
                 return 75
             print('admitted', flush=True)
             sys.stdin.buffer.read()

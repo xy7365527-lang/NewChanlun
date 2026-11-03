@@ -41,7 +41,7 @@ test("main-swarm 的 planner 与 implementer 都传 inline prompt，不再有 pr
   const src = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
   assert.doesNotMatch(src, /promptFile/); assert.doesNotMatch(src, /promptArgs/);
   assert.match(src, /prompt: renderPlanPrompt\(queueToJson\(queue\)\)/);
-  assert.match(src, /runImplementer\(issue\.id/);
+  assert.match(readFileSync(new URL("./swarm-ticket.mts", import.meta.url), "utf8"), /runImplementer\(String\(t\.issue\)/);
 });
 
 test("implementer：宿主取票面并 inline 渲染，包含票面内容；票面里的 {{…}}/!` 字面不被再次展开", () => {
@@ -128,7 +128,8 @@ test("main-swarm 接线：校验先于认领；notify 与 gh 都带 GH_CLEAN_ENV
   assert.ok(src.indexOf("validatePlan(planned, queue)") > 0 && src.indexOf("validatePlan(planned, queue)") < src.indexOf("withLegacyAdmission(() => { for (const i of planned) claim(i.id)"));
   assert.match(src, /fetchQueue\(hostGh\(GH_CLEAN_ENV\)\)/);
   assert.match(src, /claimIssue\(hostGh\(GH_CLEAN_ENV\), issue\)/);
-  assert.match(src, /gh: hostGh\(GH_CLEAN_ENV\), agent: implementer, notify: ghIssueNotifier\(GH_CLEAN_ENV\)/);
+  assert.match(src, /notify: ghIssueNotifier\(GH_CLEAN_ENV\), gh: hostGh\(GH_CLEAN_ENV\), fetchIssue: ghIssueFetcher\(GH_CLEAN_ENV\)/);
+  assert.match(readFileSync(new URL("./swarm-ticket.mts", import.meta.url), "utf8"), /gh: channels\.gh, agent: undefined, notify: channels\.notify/, "单票生命周期沿用调用方的 gh 与通知通道");
   assert.match(src, /GH_REPO: "xy7365527-lang\/NewChanlun"/);
   assert.doesNotMatch(src, /notify: \(\) =>\s*\{/);
   assert.match(src, /notify: ghIssueNotifier\(GH_CLEAN_ENV\)/);

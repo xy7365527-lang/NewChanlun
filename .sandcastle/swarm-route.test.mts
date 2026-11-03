@@ -37,9 +37,10 @@ test("main-swarm 不再实例化 prime-agent/k3，planner/单票沙盒统一走�
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
   assert.ok(!source.includes("primeAgent("));
   assert.ok(!source.includes('"k3"'));
-  assert.equal(source.match(/swarmSandbox\(IMAGE_ID_ADMITTED\)/g)?.length, 2, "容器以准入返回的 Id 启动，不用 tag");
+  assert.equal(source.match(/swarmSandbox\(IMAGE_ID_ADMITTED!\)/g)?.length, 2, "容器以准入返回的 Id 启动，不用 tag");
   assert.doesNotMatch(source, /swarmSandbox\(IMAGE\)/);
-  assert.equal(source.match(/swarmAgent\(\)/g)?.length, 3);
+  assert.equal(source.match(/swarmAgent\(\)/g)?.length, 1, "planner");
+  assert.equal(readFileSync(new URL("./swarm-ticket.mts", import.meta.url), "utf8").match(/swarmAgent\(\)/g)?.length, 2, "单票作者与评审各自独立");
 });
 
 test("main-swarm 领票前验证 Docker 路由，失败时不回退旧模型", () => {

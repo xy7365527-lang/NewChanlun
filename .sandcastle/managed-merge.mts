@@ -9,6 +9,7 @@ import { assertHostPackagingSafe } from "./docker-isolation.mts";
 import { validateMergeInputSource, type MergeInput } from "./merge-source.mts";
 
 export type { MergeInput } from "./merge-source.mts";
+export const MERGE_CHECK_ID = "combination-v1:git-diff-check,cargo-check-locked,tsc-noEmit";
 export interface MergeManifest { runId: string; branch: string; base: string; inputs: MergeInput[] }
 export interface MergeCheck { head: string; checkId: string; status: "passed" | "failed"; evidence: unknown }
 interface Snapshot { head: string; mergeHead: string; index: string; diff: string; status: string; files: Record<string, string> }

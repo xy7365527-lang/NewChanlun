@@ -130,7 +130,9 @@ test("并发重入已回收：stop/rm 失败但容器已不存在，视为成功
 
 test("swarm-merge 接线：冲突工蜂容器带身份 env（无密钥）；回收只在锁持有者已死且停在冲突阶段后、接管前发生", () => {
   const src = readFileSync(new URL("./swarm-merge.mts", import.meta.url), "utf8");
-  assert.match(src, /\[MERGE_RUN_ENV\]: manifest\.runId, \[MERGE_INSTANCE_ENV\]: mergeInstance\(/);
+  assert.match(src, /\[MERGE_RUN_ENV\]: manifest\.runId, \[MERGE_INSTANCE_ENV\]: instance \}/);
+  assert.match(src, /instance: \(\) => mergeInstance\(evidenceDir, manifest\.runId, manifest\.base\)/, "普通入口实例仍来自该 run 证据目录");
+  assert.match(src, /instance: \(\) => run\.instance/, "冻结验收实例来自封定计划");
   assert.match(src, /reclaimOrphans: \(\) => \{ reclaimOrphanContainers\(/);
   const mm = readFileSync(new URL("./managed-merge.mts", import.meta.url), "utf8");
   assert.match(mm, /acquireLock\(lock, o\.cwd, o\.lockEnv, \(\) => \{/);
