@@ -7,7 +7,17 @@ import pytest
 from conftest import DESIGN_TASK, MODELS, git
 
 from pilot1742.domain import Approved, Awaiting, Refused, WorkerKey
-from pilot1742.run import Busy, Halted, RolePlan, RunSpec, ToolRefusal, _ps_rows, parse_result, plan_roles, supervisor_alive
+from pilot1742.run import (
+    Busy,
+    Halted,
+    RolePlan,
+    RunSpec,
+    ToolRefusal,
+    _ps_rows,
+    parse_result,
+    plan_roles,
+    supervisor_alive,
+)
 
 DEMO = {"demo/a.py": "def f():\n    return 1\n"}
 
