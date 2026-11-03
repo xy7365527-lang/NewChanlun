@@ -1,3 +1,5 @@
+import pytest
+
 from pilot1742.domain import (
     CheckoutState,
     CommitIntent,
@@ -19,6 +21,7 @@ from pilot1742.domain import (
     declared_base,
     derive_phase,
     dispatch_refusal,
+    parse_model,
     parse_sha,
     parse_verdict,
     reconcile_commit,
@@ -163,3 +166,27 @@ def test_declared_base_needs_exactly_one_legal_line():
     assert declared_base("BASE: 候选 1\nBASE: 候选 2") is None
     assert declared_base("BASE: 候选 3") is None
     assert declared_base("选 BASE: 候选 1") is None
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-sol", "gpt-6-astra", "claude-opus-5-5"])
+def test_parse_model_accepts_supported_models(model):
+    assert parse_model(model) == model
+
+
+@pytest.mark.parametrize("model", ["gpt-6-astra-x", "gpt-unknown", "claude-unknown"])
+def test_parse_model_rejects_unknown_models(model):
+    with pytest.raises(ValueError):
+        parse_model(model)
+
+
+@pytest.mark.parametrize("verdict", ["PASS", "BLOCK"])
+@pytest.mark.parametrize("author,reviewer", [
+    ("gpt-6-astra", "claude-opus-5-5"),
+    ("claude-opus-5-5", "gpt-6-astra"),
+    ("gpt-6-astra", "gpt-6.1-sol"),
+    ("gpt-6.1-sol", "gpt-6-astra"),
+])
+def test_astra_review_obeys_family_boundary(author, reviewer, verdict):
+    review = receipt("review", H1, model=reviewer, summary=f"VERDICT: {verdict}")
+    expected = verdict if "claude-opus-5-5" in (author, reviewer) else "VERIFIER_BLOCKED"
+    assert parse_verdict(review, author).kind == expected
