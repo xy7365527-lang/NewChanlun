@@ -56,6 +56,36 @@ node --import tsx --test .sandcastle/drain-control.test.mts
 
 测试仅用临时根，覆盖 freeze/claim 竞争、已准入收尾、冻结后无新增副作用、半写状态、代次恢复、并发开放准入及真实 SIGKILL 后内核释放锁。decision-claimer 相邻测试用独立临时根，覆盖 T 类断点、P 类 pDone 在冻结下保留，以及解冻后不重复评论或提交。真实部署、旧消费者排空和远端变量启用仍未执行。
 
+## 冻结后新部署的 Docker 13–15 验收（#1867）
+
+冻结期间普通入口一律以 75 退出：`main-swarm.mts`（含旧的 `SANDCASTLE_DOCKER_ACCEPTANCE_ROW=13` 调用、主控计划、多轮循环）在读业务队列、起 planner、预检和消费 used 之前停止。新部署 SHA 的 13–15 只走专用入口，业务继续冻结。所有命令在根主控发布的部署检出执行，`$HEAD` 是该检出的完整 SHA。
+
+```sh
+# 1. 主控签发（持排他控制锁与全局共享锁；只认 draining 且 --generation 等于当前代次；不改 drain 状态）
+npx --no-install tsx .sandcastle/docker-acceptance.mts issue-frozen --image sandcastle:newchanlun \
+  --swarm-ticket "$TICKET" --generation 1 --approval "$APPROVAL_URL" --partner-input "$PARTNER_JSON"
+# 2. 第 13 行：专票一次性单票执行，返回 candidate_pending 与候选 SHA
+npx --no-install tsx .sandcastle/deployment-acceptance.mts run --ticket "$TICKET" --head "$HEAD" --nonce "$NONCE" --row 13
+# 3. 主控核候选的精确 head 异家族独审后封定两行归并计划（清单由工具派生：[本轮候选, 固定伙伴]，base=receipt.head）
+npx --no-install tsx .sandcastle/docker-acceptance.mts bind-merges --ticket "$TICKET" --head "$HEAD" --nonce "$NONCE" \
+  --candidate-review "$EXACT_CANDIDATE_REVIEW" --controller-admission "$CONTROLLER_ADMISSION"
+# 4. 第 14、15 行；中断后用完全相同的命令恢复原 run
+npx --no-install tsx .sandcastle/deployment-acceptance.mts run --ticket "$TICKET" --head "$HEAD" --nonce "$NONCE" --row 14
+npx --no-install tsx .sandcastle/deployment-acceptance.mts run --ticket "$TICKET" --head "$HEAD" --nonce "$NONCE" --row 15
+# 只读查看本轮事实与证据路径
+npx --no-install tsx .sandcastle/deployment-acceptance.mts status --ticket "$TICKET" --head "$HEAD" --nonce "$NONCE"
+```
+
+`$PARTNER_JSON` 是根主控核准的固定夹具：`{"issue","branch":"sandcastle/issue-<issue>","sha","parent","review","approval"}`。签发核该 SHA 在本仓可解析、唯一父等于 `parent`、`review` 首行 `VERDICT: PASS` 且含该 SHA；不要求伙伴的父等于部署 head。专票分支或工位已存在时签发与运行都拒绝，先按原证据归档处置。主控准入记录是三行机读：`VERDICT: ADMIT`、`HEAD: <候选 SHA>`、`NONCE: <本轮 nonce>`。
+
+专用 `run` 只接受 `--ticket --head --nonce --row`，其它参数退出 64；drain 不是 draining 或代次不符退出 75；其余拒绝退出 1。它不读业务队列、不 claim、不 push、不合 main、不关票，gh 只允许 `issue view <专票>`；日志与通知写在宿主验收目录 `rounds/<nonce>/`，不进业务 `workers.jsonl`，harvest 看不到。普通 `checkControlledAdmission` 遇到冻结用途 receipt 直接拒绝，冻结验收也不经 `acceptedFor`。
+
+锁序固定为：行运行锁（非阻塞，活持有者在即拒绝）→ 控制锁 `control.lock`（消费者共享，issue-frozen/bind-merges/retire 排他）→ 全局 `admission.lock`（共享）→ 仓库初始化锁（git common dir 下 `sandcastle-worktree-init.lock`）。第 13 行在这串锁内依次做精确重核、孤儿与新工位检查、隔离探针、模型预检、最后重核（含有效期）、消费 used-13、`createSandbox` 取得运行中容器 handle，然后放锁，作者与独审在锁外运行。第 14/15 行首次 run 准入在锁内发布并建工位；真实冲突出现后，在 provider.create 外的同一组锁内重核检查点/HEAD/MERGE_HEAD 与封定实例、消费 used/cp/resume、取得容器 handle。退役因此只能落在一次准入完整结束之后，已启动的工蜂保留完成权。
+
+Sandcastle 0.12.0 的 `createSandbox` 会删除 `.sandcastle/worktrees` 下未登记目录，并在 provider 初始化失败时 `git worktree remove --force` 新工位。所有 createSandbox 调用（普通 planner/单票与冻结第 13 行）在仓库初始化锁内先拒绝存在孤儿目录的仓库；provider 初始化失败且工位有任何写入时加 `git worktree lock` 保留现场，库的单个 `--force` 不再移除它。
+
+恢复规则：第 13 行消费后启动失败保留 used-13，不可重跑，由主控退役重签。第 14/15 行没有 run 准入事实却已有工位、分支、检查点或消费即拒绝；已消费冲突后检查点缺失即拒绝，不从基线重建；检查点已 done 而结果未发布时只补发布结果，不启动、不新写消费；完整结果存在后 `run` 拒绝，用 `status` 查看。`accept` 对冻结用途额外核本轮候选、封定计划、两行完成结果与真实冲突绑定；登记后按批准 resume 不使 accepted 失效。旧 receipt（schema 2）不迁移，失败 nonce `71047bbf-d925-4357-8d74-697fefbfd01d` 与其 used-13 原样保留。
+
 ## 将引擎放行交给新执行器
 
 `bash .sandcastle/cutover-runbook.sh` 只打印命令和核对点，不冻结、不写 GitHub、不卸载服务。参数依次为部署检出、venv、App 私钥、Boat 配置和 Boat 控制端 key 文件的绝对路径。预览中的执行器命令显式携带 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。例如：
