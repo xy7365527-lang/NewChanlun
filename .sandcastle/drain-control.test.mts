@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { drainRequested, DrainFrozenError, withLegacyAdmission } from "./drain-control.mts";
+import { drainRequested, DrainFrozenError, LockBusyError, withFileLock, withFrozenAdmission, withLegacyAdmission } from "./drain-control.mts";
 
 const helper = fileURLToPath(new URL("./drain-control.py", import.meta.url));
 const temp = () => mkdtempSync(join(tmpdir(), "nc-drain-"));
@@ -122,4 +122,39 @@ test("开放准入可并发，freeze 等全部持有者收尾后阻止后续准�
     await Promise.all([first, second]);
     await freezing;
   }
+});
+
+test("#1867 冻结专用准入：只认 draining 且代次一致，open/错代次/未知状态拒绝，且从不改写 state", async () => {
+  const root = temp(); const control = join(root, "control.lock");
+  const frozen = (generation: number) => withFrozenAdmission(() => "admitted", { generation, control, root });
+  await assert.rejects(frozen(1), DrainFrozenError, "open 时专用入口拒绝");
+  cli(root, "freeze");
+  assert.equal(await frozen(1), "admitted");
+  await assert.rejects(frozen(2), DrainFrozenError, "代次不符");
+  await assert.rejects(withLegacyAdmission(() => assert.fail("普通入口冻结"), root), DrainFrozenError);
+  assert.deepEqual(cli(root, "status"), { v: 1, mode: "draining", generation: 1 });
+  writeFileSync(join(root, "state.json"), "{");
+  await assert.rejects(frozen(1), DrainFrozenError, "未知状态失败关闭");
+});
+
+test("#1867 控制锁：消费者共享持有期间排他控制命令等待；控制命令持锁期间新准入等待；运行锁非阻塞被占即 LockBusyError", async () => {
+  const root = temp(); const control = join(root, "control.lock"); cli(root, "freeze");
+  let release!: () => void; const held = new Promise<void>((r) => { release = r; });
+  let entered!: () => void; const inside = new Promise<void>((r) => { entered = r; });
+  const consumer = withFrozenAdmission(async () => { entered(); await held; }, { generation: 1, control, root });
+  await inside;
+  let retired = false;
+  const retire = withFileLock(control, () => { retired = true; });
+  await delay(200);
+  assert.equal(retired, false, "退役等在飞准入");
+  release(); await consumer; await retire;
+  assert.equal(retired, true);
+  assert.equal(await withFrozenAdmission(() => "next", { generation: 1, control, root }), "next", "控制命令释放后新准入可进入");
+  const run = join(root, "row13.lock");
+  let unlock!: () => void; const busyHold = new Promise<void>((r) => { unlock = r; });
+  let got!: () => void; const holding = new Promise<void>((r) => { got = r; });
+  const first = withFileLock(run, async () => { got(); await busyHold; }, { nonblock: true });
+  await holding;
+  await assert.rejects(withFileLock(run, () => assert.fail("不能并行"), { nonblock: true }), LockBusyError);
+  unlock(); await first;
 });

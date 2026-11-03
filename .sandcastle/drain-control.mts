@@ -6,6 +6,8 @@ export const DRAIN_ROOT = "/Volumes/AgentStorage/newchanlun-legacy-drain";
 const HELPER = fileURLToPath(new URL("./drain-control.py", import.meta.url));
 
 export class DrainFrozenError extends Error {}
+/** 非阻塞运行锁已被另一活进程持有：拒绝，不排队、不强抢。 */
+export class LockBusyError extends Error {}
 
 export function drainRequested(root = DRAIN_ROOT): boolean {
   try {
@@ -20,6 +22,18 @@ export async function withLegacyAdmission<T>(action: () => T | Promise<T>, root 
   return withAdmission(action, [HELPER, "hold", "--root", root]);
 }
 
+/** 冻结专用验收准入：先取本轮控制锁（消费者共享、控制命令排他），再取全局 admission.lock 共享锁，
+ * 只认 draining 且代次等于 receipt 绑定代次；不写 state，不接受 open。 */
+export async function withFrozenAdmission<T>(action: () => T | Promise<T>, o: { generation: number; control: string; controlMode?: "sh" | "ex"; root?: string }): Promise<T> {
+  if (!Number.isSafeInteger(o.generation) || o.generation <= 0) throw new DrainFrozenError("冻结代次无效");
+  return withAdmission(action, [HELPER, "hold", "--root", o.root ?? DRAIN_ROOT, "--frozen-generation", String(o.generation), "--control", o.control, "--control-mode", o.controlMode ?? "sh"]);
+}
+
+/** 与 drain 状态无关的单把 flock：持有到 action 结束；进程被杀即由内核释放。nonblock 时被占用抛 LockBusyError。 */
+export async function withFileLock<T>(path: string, action: () => T | Promise<T>, o: { nonblock?: boolean } = {}): Promise<T> {
+  return withAdmission(action, [HELPER, "lock", "--path", path, ...(o.nonblock ? ["--nonblock"] : [])]);
+}
+
 export async function withAdmission<T>(action: () => T | Promise<T>, args: string[]): Promise<T> {
   const child = spawn("python3", args, { stdio: ["pipe", "pipe", "pipe"] });
   let errors = "";
@@ -29,16 +43,17 @@ export async function withAdmission<T>(action: () => T | Promise<T>, args: strin
     child.once("exit", resolve);
   });
   try {
-    const admitted = await new Promise<boolean>((resolve, reject) => {
+    const first = await new Promise<string>((resolve, reject) => {
       let output = "";
       child.stdout.on("data", (data) => {
         output += String(data);
-        if (output.includes("\n")) resolve(output.trim() === "admitted");
+        if (output.includes("\n")) resolve(output.slice(0, output.indexOf("\n")).trim());
       });
       child.once("error", reject);
-      child.once("exit", () => resolve(false));
+      child.once("exit", () => resolve(""));
     });
-    if (!admitted) throw new DrainFrozenError(errors.trim() || "旧入口已冻结，未新增动作");
+    if (first === "busy") throw new LockBusyError("运行锁正被另一活进程持有，拒绝");
+    if (first !== "admitted") { child.stdin.end(); await ended; throw new DrainFrozenError(errors.trim() || "旧入口已冻结，未新增动作"); }
     return await action();
   } finally {
     child.stdin.end();
