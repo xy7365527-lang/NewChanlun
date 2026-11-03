@@ -51,7 +51,7 @@ run 创建时从 `~/.agents/pstack-models.md` 冻结六个角色的模型：
 
 作者与独审同家族、两个设计候选同家族，或裁判池里没有与主控不同家族的模型时，run 拒绝创建。
 
-主控推理档是 `high`，单次输出上限 64000 tokens。poteto-mode 规定判断角色比 xhigh 预算低一档；首轮实测 xhigh 把 CLIProxy 缺省的 32000 输出上限全部用于思考，回复为空，图随之结束。工蜂推理档仍由 codex-child 固定为 xhigh。
+主控推理档是 `high`，单次输出上限 64000 tokens。poteto-mode 规定判断角色比 xhigh 预算低一档；首轮实测 xhigh 把 CLIProxy 缺省的 32000 输出上限全部用于思考，回复为空，图随之结束。Boat 工蜂当前使用 `high`，历史本机路径的 codex-child 使用 `xhigh`；实际推理档以执行回执为准。
 
 ## 启动一个 run
 
