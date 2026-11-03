@@ -125,7 +125,14 @@ export function extractJson(text: string): unknown {
   }
   for (let end = text.lastIndexOf("}"); end >= 0; end = text.lastIndexOf("}", end - 1)) {
     let depth = 0;
+    let inString = false;
     for (let s = end; s >= 0; s--) {
+      if (text[s] === '"') {
+        let backslashes = 0;
+        for (let p = s - 1; p >= 0 && text[p] === "\\"; p--) backslashes++;
+        if (backslashes % 2 === 0) inString = !inString;
+      }
+      if (inString) continue;
       if (text[s] === "}") depth++;
       else if (text[s] === "{" && --depth === 0) {
         try {
