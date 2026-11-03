@@ -15,6 +15,7 @@ import { runDeploymentAcceptance, parseCli, deploymentStatus, type DeploymentDep
 import { DrainFrozenError, LockBusyError, withFileLock } from "./drain-control.mts";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import { createSwarmSandbox, preserveFailedInit, repoInitLock } from "./worktree-init.mts";
+import { runDeploymentSwarmMerge } from "./swarm-merge.mts";
 
 const HELPER = fileURLToPath(new URL("./drain-control.py", import.meta.url));
 const ACCEPTANCE_CLI = fileURLToPath(new URL("./docker-acceptance.mts", import.meta.url));
@@ -563,4 +564,54 @@ test("首次 run 准入：等待仓库初始化锁期间撤回主控准入 → �
   assert.deepEqual(w.claims().filter((f) => f.includes("-14")), []);
   writeFileSync(plan.candidate.controllerAdmission, admission);
   assert.equal((await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps())).state, "merge_done");
+});
+
+/** row14 真实冲突解决后停在 prepared 检查点（宿主尚未提交），进程正常退出；之后的恢复只有宿主提交，不再建 provider。 */
+async function stopRow14AtPrepared(t: { after: (fn: () => void) => void }) {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  const plan = await w.bind(r.nonce, c.head);
+  const d = w.deps();
+  await assert.rejects(runDeploymentSwarmMerge({ ...w.sel(r.nonce, "14"), row: "14" }, {
+    ctx: d.ctx, drainRoot: d.drainRoot, probe: d.probe, modelProbe: d.modelProbe, provider: d.mergeProvider, runConflictAgent: d.runConflictAgent, docker: d.docker,
+    logWorker: (e) => { if (e.status === "prepared" && e.position === 1) throw new Error("stop-at-prepared"); },
+  }), /stop-at-prepared/);
+  const run = plan.runs["14"];
+  assert.equal(JSON.parse(readFileSync(run.checkpoint, "utf8")).phase, "prepared");
+  return { w, r, run, head: w.git("rev-parse", run.manifest.branch), creates: w.creates.length };
+}
+
+test("专用 run 恢复（prepared，无新 provider）：同代次 draining 正常完成宿主提交", async (t) => {
+  const { w, r, run, head, creates } = await stopRow14AtPrepared(t);
+  assert.equal((await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps())).state, "merge_done");
+  assert.notEqual(w.git("rev-parse", run.manifest.branch), head);
+  assert.equal(w.creates.length, creates, "恢复不建新 provider");
+});
+
+test("专用 run 恢复：旧入口已 resume 或进入新冻结代次时 DrainFrozenError，在宿主提交与补发布结果之前拒绝", async (t) => {
+  const { w, r, run, head, creates } = await stopRow14AtPrepared(t);
+  drain(w.drainRoot, "resume", "--generation", "1");
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), DrainFrozenError);
+  assert.equal(w.git("rev-parse", run.manifest.branch), head, "open：无宿主提交");
+  assert.equal(JSON.parse(readFileSync(run.checkpoint, "utf8")).phase, "prepared");
+  drain(w.drainRoot, "freeze");
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), DrainFrozenError);
+  assert.equal(w.git("rev-parse", run.manifest.branch), head, "新代次：无宿主提交");
+  assert.equal(w.creates.length, creates);
+  const round = inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx);
+  assert.equal(existsSync(join(round.roundDir, ROUND_FILES.result("14"))), false, "不补发布完成结果");
+});
+
+test("专用 run 恢复：done 未发布结果时，代次已变则不补发布", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  await w.bind(r.nonce, c.head);
+  await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps());
+  const round = inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx);
+  const resultPath = join(round.roundDir, ROUND_FILES.result("14"));
+  renameSync(resultPath, `${resultPath}.lost`);
+  drain(w.drainRoot, "resume", "--generation", "1");
+  drain(w.drainRoot, "freeze");
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), DrainFrozenError);
+  assert.equal(existsSync(resultPath), false);
 });

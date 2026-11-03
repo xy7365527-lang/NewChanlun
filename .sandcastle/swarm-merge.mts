@@ -205,7 +205,7 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
           assertBoundPath(run.cwd);
         });
       }, frozenLock(round));
-    }
+    } else await withFrozenAdmission(() => { recheck(); }, frozenLock(round));
     assertBoundPath(run.cwd);
     const state = await executeMerge({
       manifest: run.manifest, cwd: run.cwd, evidenceDir: run.evidenceDir, checkpoint: run.checkpoint, image: round.receipt.image, logWorker: d.logWorker, docker: d.docker,
