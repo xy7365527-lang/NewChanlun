@@ -9,7 +9,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { createBindMountSandboxProvider, type SandboxProvider } from "@ai-hero/sandcastle";
 import {
   ROUND_FILES, acceptedFor, bindMerges, checkControlledAdmission, inspectFrozenRound, issueFrozenReceipt, issueReceipt, loadMergePlan, publishMergeAdmission,
-  mergeBinding, recordAcceptance, swarmBinding, ROW_ENV, type AcceptanceRow, type DeploymentSelection,
+  mergeBinding, roundDirOf, recordAcceptance, swarmBinding, ROW_ENV, type AcceptanceRow, type DeploymentSelection,
 } from "./docker-acceptance.mts";
 import { runDeploymentAcceptance, parseCli, deploymentStatus, type DeploymentDeps, type DeploymentOutcome } from "./deployment-acceptance.mts";
 import { DrainFrozenError, LockBusyError, withFileLock } from "./drain-control.mts";
@@ -614,4 +614,61 @@ test("专用 run 恢复：done 未发布结果时，代次已变则不补发布"
   drain(w.drainRoot, "freeze");
   await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), DrainFrozenError);
   assert.equal(existsSync(resultPath), false);
+});
+
+const evidenceFiles = (root: string) => Object.fromEntries((["13", "14", "15"] as const).map((row) => { const p = join(root, `ev-${row}`); writeFileSync(p, row); return [row, p]; })) as Record<AcceptanceRow, string>;
+
+for (const end of ["retire", "expiry"] as const) {
+  test(`已启动的同一 run 保留完成权（${end}）：冲突工蜂收尾后 scope 结束仍留存原绑定结果；新启动与 accept 拒绝`, async (t) => {
+    const w = world(t); const r = await w.issue();
+    const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+    const plan = await w.bind(r.nonce, c.head);
+    const worker = w.deps().runConflictAgent!;
+    const out = await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({ runConflictAgent: async (o) => {
+      const stdout = await worker(o);
+      if (end === "retire") {
+        const retire = spawnTracked(process.execPath, ["--import", "tsx", ACCEPTANCE_CLI, "retire", "--dir", w.dir]);
+        assert.equal(await retire.done, 0, retire.output());
+      } else Object.assign(w.ctx, { now: new Date(Date.parse(r.expiresAt) + 1000) });
+      return stdout;
+    } }));
+    assert.equal(out.state, "merge_done");
+    const result = JSON.parse(readFileSync(join(roundDirOf(w.dir, r.nonce), ROUND_FILES.result("14")), "utf8"));
+    assert.equal(result.round.nonce, r.nonce);
+    assert.equal(result.head, w.git("rev-parse", plan.runs["14"].manifest.branch));
+    assert.equal(result.bindings.length, 1);
+    const refused = end === "retire" ? /receipt 缺失/ : /已过期/;
+    const claims = w.claims(); const creates = w.creates.length;
+    await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "15"), w.deps()), refused);
+    assert.equal(w.branchOf(plan.runs["15"].manifest.branch), "");
+    assert.equal(existsSync(plan.runs["15"].cwd), false);
+    assert.deepEqual(w.claims(), claims); assert.equal(w.creates.length, creates);
+    assert.throws(() => recordAcceptance({ ...w.ctx, image: IMAGE, evidence: evidenceFiles(w.root), crossFamilyReview: w.reviewFile(w.head) }), refused);
+  });
+}
+
+test("prepared 后 scope 结束：重入恢复拒绝（过期、退役），无宿主提交、不补发布", async (t) => {
+  const { w, r, run, head } = await stopRow14AtPrepared(t);
+  const expired = { ...w.ctx, now: new Date(Date.parse(r.expiresAt) + 1000) };
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({ ctx: expired })), /已过期/);
+  const retire = spawnTracked(process.execPath, ["--import", "tsx", ACCEPTANCE_CLI, "retire", "--dir", w.dir]);
+  assert.equal(await retire.done, 0, retire.output());
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), /receipt 缺失/);
+  assert.equal(w.git("rev-parse", run.manifest.branch), head);
+  assert.equal(JSON.parse(readFileSync(run.checkpoint, "utf8")).phase, "prepared");
+  assert.equal(existsSync(join(roundDirOf(w.dir, r.nonce), ROUND_FILES.result("14"))), false);
+});
+
+test("首次 run 准入：最后一次镜像解析期间到期 → 准入事实、工位、分支、宿主提交与消费全部为零", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  const plan = await w.bind(r.nonce, c.head);
+  let armed = false;
+  w.ctx.imageIdOf = () => { if (armed) Object.assign(w.ctx, { now: new Date(Date.parse(r.expiresAt) + 1000) }); return IMG_ID; };
+  const claims = w.claims(); const creates = w.creates.length;
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({ modelProbe: () => { armed = true; } })), /已过期/);
+  assert.equal(existsSync(join(roundDirOf(w.dir, r.nonce), ROUND_FILES.admission("14"))), false);
+  assert.equal(existsSync(plan.runs["14"].cwd), false);
+  assert.equal(w.branchOf(plan.runs["14"].manifest.branch), "");
+  assert.deepEqual(w.claims(), claims); assert.equal(w.creates.length, creates);
 });
