@@ -133,7 +133,7 @@ test("容器挂载不得暴露验收目录或其祖先（如整个主目录）",
 
 test("伪造 accepted.json 无效：无 receipt / 无 used / nonce、批准、有效期、快照被替换都放行失败", () => {
   const d = dir(); const r = issue(d);
-  const forged = { schema: 2, ticket: 1742, nonce: r.nonce, head: HEAD, contract: contractDigest(), image: IMAGE, imageId: IMG_ID, approval: r.approval, issuedAt: r.issuedAt, expiresAt: r.expiresAt, acceptedAt: r.issuedAt, evidence: evidence(d), crossFamily: { file: review(d), head: HEAD, model: "claude-opus-5-5" }, bindings: { "13": [B13], "14": [B14], "15": [B15] } };
+  const forged = { schema: 3, ticket: 1742, nonce: r.nonce, head: HEAD, contract: contractDigest(), image: IMAGE, imageId: IMG_ID, approval: r.approval, issuedAt: r.issuedAt, expiresAt: r.expiresAt, acceptedAt: r.issuedAt, evidence: evidence(d), crossFamily: { file: review(d), head: HEAD, model: "claude-opus-5-5" }, bindings: { "13": [B13], "14": [B14], "15": [B15] } };
   write(d, "accepted.json", forged);
   assert.equal(acceptedFor(IMAGE, ctx(d)), null, "没有 used 记录");
   assert.throws(() => checkAdmission(IMAGE, ctx(d)), /未声明受控验收行/);
@@ -269,10 +269,10 @@ test("mergeBinding 可解析、规范编码；mergeInstance 在宿主证据目�
   assert.notEqual(mergeInstance(ev2, "run-a", "b".repeat(40)), id, "新证据目录（重置后重跑）得到新实例");
 });
 
-test("同一 checkout 不允许重复签发，须先退役保留历史；退役同时作废 accepted", () => {
+test("同一 checkout 不允许重复签发，须先退役保留历史；退役同时作废 accepted", async () => {
   const d = dir(); accepted(d);
   assert.throws(() => issue(d), /EEXIST|file already exists/);
-  const moved = retireReceipt({ dir: d });
+  const moved = (await retireReceipt({ dir: d }))!;
   assert.ok(moved && existsSync(moved) && !existsSync(join(d, "receipt.json")) && !existsSync(join(d, "accepted.json")));
   assert.equal(acceptedFor(IMAGE, ctx(d)), null);
   issue(d);
@@ -372,8 +372,9 @@ test("合同摘要含容器 env 白名单与 Id 绑定：改白名单即改摘�
   const iso = await import("./docker-isolation.mts");
   assert.deepEqual([...iso.CONTAINER_ENV_ALLOW], ["CLIPROXY_BASE_URL", "CLIPROXY_LOCAL_KEY", "SANDCASTLE_MERGE_INSTANCE", "SANDCASTLE_MERGE_RUN"]);
   const canonical = (allow: readonly string[]) => createHash("sha256").update(JSON.stringify({
-    id: "1742-docker-plan-b-v3", protectedSubpaths: iso.PROTECTED_SUBPATHS, innerSandbox: iso.DOCKER_INNER_SANDBOX,
+    id: "1742-docker-plan-b-v4-frozen-deployment-v1", protectedSubpaths: iso.PROTECTED_SUBPATHS, innerSandbox: iso.DOCKER_INNER_SANDBOX,
     capMask: iso.DEFAULT_CAP_MASK.toString(16), securityOpts: [], containerEnvAllow: allow, imageIdBound: true, probe: iso.PROBE_SCRIPT,
+    receiptSchema: 3, bindingRules: ["receipt-purpose-v1", "frozen-row13-fresh-branch-v1", "merge-plan-sealed-v1", "merge-run-admission-then-conflict-v1", "row-recovery-checkpoint-v1"],
   })).digest("hex");
   assert.equal(contractDigest(), canonical(iso.CONTAINER_ENV_ALLOW), "摘要正文含白名单与 Id 绑定");
   assert.notEqual(contractDigest(), canonical([...iso.CONTAINER_ENV_ALLOW, "KIMI_API_KEY"]), "白名单变化即摘要变化");

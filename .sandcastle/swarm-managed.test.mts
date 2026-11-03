@@ -91,5 +91,6 @@ test("归并入口与自动领票分离，候选不自动变成 accepted", () =>
   assert.ok(source.includes("SANDCASTLE_SWARM_MERGE_MANIFEST"));
   assert.ok(source.includes('status: "pending"'));
   assert.ok(!source.includes("merge-prompt.md"));
-  assert.ok(source.includes("runManagedSwarmTicket"));
+  assert.ok(source.includes("runSingleSwarmTicket"));
+  assert.ok(readFileSync(new URL("./swarm-ticket.mts", import.meta.url), "utf8").includes("return await runManagedSwarmTicket({"));
 });

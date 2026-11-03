@@ -101,7 +101,9 @@ test("受控第 13 行：评审摘要与候选清单基线都是 receipt.head，
   const normal = swarmBases({ controlled: false, baseRef: "main", reviewBase: () => "REVIEW", mainSha: () => "MAIN" });
   assert.equal(normal.reviewBase(), "REVIEW"); assert.equal(normal.candidateBase(), "MAIN");
   const src = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
-  assert.match(src, /target: baseRef, resolveBase: \(\) => swarmBases\(\{ controlled: !!controlledTicket/);
+  assert.match(src, /issue: Number\(issue\.id\), branch: issue\.branch, baseRef,/);
+  assert.match(src, /reviewBase: \(git\) => swarmBases\(\{ controlled: !!controlledTicket/);
+  assert.match(readFileSync(new URL("./swarm-ticket.mts", import.meta.url), "utf8"), /target: t\.baseRef, resolveBase: \(\) => t\.reviewBase\(git\)/);
   assert.match(src, /candidateBase\(\)/);
   assert.doesNotMatch(src, /target: "main"/);
 });
