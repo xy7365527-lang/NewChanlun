@@ -661,12 +661,25 @@ export function loadMergeResult(round: FrozenRound, row: MergeRow): MergeRowResu
   return raw as unknown as MergeRowResult;
 }
 
+/** 不快照：每次读取当前文件。 */
+export function currentCandidateSource(round: FrozenRound, c: { head: string; reviewFile: string; controllerAdmission: string }): CrossFamilyReview {
+  try {
+    const review = readCrossFamilyReview(c.reviewFile, c.head);
+    if (!existsSync(c.controllerAdmission)) throw new Error("缺少主控准入记录");
+    parseControllerAdmission(readFileSync(c.controllerAdmission, "utf8"), c.head, round.receipt.nonce);
+    return review;
+  } catch (e) { throw new Error(`候选来源证据当前无效：${e instanceof Error ? e.message : String(e)}`); }
+}
+export const verifyPlanSource = (round: FrozenRound, plan: FrozenMergePlan): CrossFamilyReview =>
+  currentCandidateSource(round, { head: plan.candidate.head, reviewFile: plan.candidate.review.file, controllerAdmission: plan.candidate.controllerAdmission });
+
 function verifyFrozenRound(dir: string, receipt: AcceptanceReceipt, bindings: Record<AcceptanceRow, string[]>): FrozenRoundSummary {
   const round = roundOf(dir, receipt);
   const candidate = loadCandidate(round);
   if (!candidate) throw new Error("本轮第 13 行没有已发布的候选结果");
   const plan = loadMergePlan(round);
   if (!plan || plan.candidate.head !== candidate.head) throw new Error("本轮归并计划缺失或不是基于本轮候选");
+  verifyPlanSource(round, plan);
   if (!isDeepStrictEqual(bindings["13"], [swarmBinding(round.ticket)])) throw new Error("第 13 行绑定不是本轮专票");
   const merges = {} as FrozenRoundSummary["merges"];
   for (const row of MERGE_ROWS) {
@@ -745,9 +758,7 @@ export async function bindMerges(o: BindOptions): Promise<FrozenMergePlan> {
     if (!candidate) throw new Error("本轮第 13 行尚无已发布候选（candidate_pending），不能封定归并");
     if (repoGit(repo, ["rev-parse", "--verify", "-q", `refs/heads/${candidate.branch}`]) !== candidate.head) throw new Error("候选分支已不在本轮候选 SHA");
     try { repoGit(repo, ["merge-base", "--is-ancestor", round.receipt.head, candidate.head]); } catch { throw new Error("候选不是从本轮部署 head 派生"); }
-    const review = readCrossFamilyReview(o.candidateReview, candidate.head);
-    if (!existsSync(o.controllerAdmission)) throw new Error("缺少主控准入记录");
-    parseControllerAdmission(readFileSync(o.controllerAdmission, "utf8"), candidate.head, round.receipt.nonce);
+    const review = currentCandidateSource(round, { head: candidate.head, reviewFile: o.candidateReview, controllerAdmission: o.controllerAdmission });
     const partner = round.purpose.partner;
     verifyPartner(repo, partner, round.ticket);
     const verification = join(round.roundDir, ROUND_FILES.candidate);

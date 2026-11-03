@@ -6,14 +6,14 @@
 
 import { useScheduler } from "./scheduler-config.mts";
 import { withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
-import * as sandcastle from "@ai-hero/sandcastle";
 // #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
 // Codex workspace-write 保留 Git metadata 只读；宿主受管步骤封包提交（#1617）。
 // Docker namespace 工具执行尚未验收，镜像构建或 API 连通不构成切回条件。
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, realpathSync } from "node:fs";
+import { createSwarmSandbox } from "./worktree-init.mts";
 import { cargoGuardEnv, installCargoGuard } from "./cargo-guard.mts";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
 import { beginManagedStage, finishManagedStage, verifyManagedRust, runManagedReview, verificationPrompt, type RustVerification } from "./managed-commit.mts";
@@ -106,6 +106,7 @@ function resolveSandboxGithubEnv(): Record<string, string> {
 // #1588 ④：本机 cargo 垫片（固定目录 $TMPDIR/nc-cargo-guard，每次运行原地刷新），前置到工蜂 PATH；
 // Rust 验证走 nc-remote / CI。
 const CARGO_GUARD = installCargoGuard();
+const REPO = realpathSync(process.cwd());
 
 function sandboxProvider() {
   // 路由变量走沙盒后端 env（理由见 claude-route.mts claudeWorker 注释）。
@@ -175,10 +176,11 @@ async function rollbackClaim(issue: number, branch: string): Promise<void> {
 async function createSandboxWithWorktreeRetry(opts: { branch: string }): Promise<Sandbox> {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await sandcastle.createSandbox({
+      return await createSwarmSandbox({
+        repo: REPO,
         branch: opts.branch,
         baseBranch: "main", // 与检出分支解耦（#1003：并行会话共存）
-        sandbox: sandboxProvider(),
+        provider: sandboxProvider(),
       });
     } catch (e) {
       if (attempt < WORKTREE_TIMEOUT_MAX_ATTEMPTS && isWorktreeTimeoutError(e)) {
@@ -316,10 +318,11 @@ if (REVIEW_ONLY) {
   }
   const issue = Number(roIssue);
   const branch = roBranch;
-  const sandbox = await withLegacyAdmission(() => sandcastle.createSandbox({
+  const sandbox = await withLegacyAdmission(() => createSwarmSandbox({
+    repo: REPO,
     branch,
     baseBranch: "main",
-    sandbox: sandboxProvider(),
+    provider: sandboxProvider(),
   }));
   try {
     await runReviewer(sandbox, issue, branch);

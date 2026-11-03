@@ -12,8 +12,9 @@ import {
   mergeBinding, recordAcceptance, swarmBinding, ROW_ENV, type AcceptanceRow, type DeploymentSelection,
 } from "./docker-acceptance.mts";
 import { runDeploymentAcceptance, parseCli, deploymentStatus, type DeploymentDeps, type DeploymentOutcome } from "./deployment-acceptance.mts";
-import { DrainFrozenError, LockBusyError } from "./drain-control.mts";
-import { createSwarmSandbox, preserveFailedInit } from "./swarm-ticket.mts";
+import { DrainFrozenError, LockBusyError, withFileLock } from "./drain-control.mts";
+import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
+import { createSwarmSandbox, preserveFailedInit } from "./worktree-init.mts";
 
 const HELPER = fileURLToPath(new URL("./drain-control.py", import.meta.url));
 const ACCEPTANCE_CLI = fileURLToPath(new URL("./docker-acceptance.mts", import.meta.url));
@@ -30,6 +31,13 @@ const OBS = {
 };
 const report = (files: string[], status = "ready") => `<sandcastle-result>${JSON.stringify({ status, files, verification: [] })}</sandcastle-result>`;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function untilFree(path: string) {
+  for (let i = 0; i < 50; i++) {
+    try { await withFileLock(path, () => undefined, { nonblock: true }); return; }
+    catch (e) { if (!(e instanceof LockBusyError)) throw e; await delay(100); }
+  }
+  throw new Error(`${path} 未释放`);
+}
 const drain = (root: string, ...args: string[]) => execFileSync("python3", [HELPER, ...args, "--root", root], { encoding: "utf8" });
 
 function barrier() {
@@ -400,11 +408,22 @@ test("row15 真实中断：冲突工蜂写 WIP 时 controller 被 SIGKILL，同�
   const child = spawnTracked(process.execPath, ["--import", "tsx", CHILD, JSON.stringify({ sel: w.sel(r.nonce, "15"), dir: w.dir, repo: w.repo, head: w.head, imageId: IMG_ID, drainRoot: w.drainRoot, marker, probe: PROBE })]);
   for (let i = 0; i < 300 && !existsSync(marker); i++) await delay(100);
   assert.ok(existsSync(marker), child.output());
+  const claimsWhileLive = w.claims();
+  const startedAt = Date.now();
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "15"), w.deps()), LockBusyError, "活持有者在时立即拒绝");
+  assert.ok(Date.now() - startedAt < 5000);
+  assert.deepEqual(w.claims(), claimsWhileLive); assert.equal(w.creates.length, 1);
   child.child.kill("SIGKILL"); await child.done;
   const run = plan.runs["15"];
+  await untilFree(join(inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx).roundDir, ROUND_FILES.runLock("15")));
   assert.equal(JSON.parse(readFileSync(run.checkpoint, "utf8")).phase, "conflict");
   assert.ok(existsSync(`${run.checkpoint}.lock`), "SIGKILL 留下持有者已死的锁");
   assert.equal(w.claims().filter((f) => f.startsWith("used-") && f.endsWith("-15.json")).length, 1);
+  const admission = readFileSync(plan.candidate.controllerAdmission, "utf8");
+  writeFileSync(plan.candidate.controllerAdmission, admission.replace(r.nonce, "00000000-0000-4000-8000-000000000000"));
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "15"), w.deps()), /候选来源证据当前无效.*NONCE/, "恢复时新冲突工蜂须重核当前主控准入");
+  assert.equal(w.claims().filter((f) => f.startsWith("resume-")).length, 0); assert.equal(w.creates.length, 1);
+  writeFileSync(plan.candidate.controllerAdmission, admission);
   const out = await runDeploymentAcceptance(w.sel(r.nonce, "15"), w.deps());
   assert.equal(out.state, "merge_done");
   assert.equal(w.claims().filter((f) => f.startsWith("resume-") && f.includes("-15-")).length, 1, "同一检查点恢复留痕");
@@ -428,4 +447,67 @@ test("Sandcastle 依赖行为：库本身会删除未登记孤儿目录、会 fo
   assert.equal(readFileSync(join(w.repo, ".sandcastle/worktrees/sandcastle-probe-kept/sentinel"), "utf8"), "y", "worktree lock 后单个 --force 不再移除");
   await assert.rejects(sandcastle.createSandbox({ cwd: w.repo, branch: "sandcastle/probe-clean", baseBranch: w.head, sandbox: preserveFailedInit(failing(false)) }), /init failed/);
   assert.equal(existsSync(join(w.repo, ".sandcastle/worktrees/sandcastle-probe-clean")), false, "干净的新工位照常清理");
+});
+
+test("rows14 活持锁重入：首个停在消费前时第二个立即 LockBusyError，无消费无 provider；首个照常完成", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  await w.bind(r.nonce, c.head);
+  const b = barrier();
+  const first = runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps({ barrier: (p) => (p === "merge-before-consume" ? b.wait() : undefined) }));
+  await b.reached;
+  const claims = w.claims(); const creates = w.creates.length;
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), LockBusyError);
+  assert.deepEqual(w.claims(), claims); assert.equal(w.creates.length, creates);
+  b.open();
+  assert.equal((await first).state, "merge_done");
+});
+
+test("来源证据当前有效性：候选独审撤回则新归并拒绝且零副作用，恢复后同一封定计划可执行；登记与 acceptedFor 随证据失效", async (t) => {
+  const w = world(t); const r = await w.issue();
+  const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
+  const plan = await w.bind(r.nonce, c.head);
+  const review = readFileSync(plan.candidate.review.file, "utf8");
+  writeFileSync(plan.candidate.review.file, review.replace("VERDICT: PASS", "VERDICT: FAIL"));
+  await assert.rejects(runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps()), /候选来源证据当前无效/);
+  assert.equal(w.creates.length, 1); assert.deepEqual(w.claims().filter((f) => f.endsWith("-14.json")), []);
+  assert.equal(existsSync(plan.runs["14"].cwd), false, "未建归并工位");
+  writeFileSync(plan.candidate.review.file, review);
+  await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps());
+  await runDeploymentAcceptance(w.sel(r.nonce, "15"), w.deps());
+  assert.deepEqual(loadMergePlan(inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx)), plan, "封定计划未被改写");
+  const evidence = Object.fromEntries((["13", "14", "15"] as const).map((row) => { const p = join(w.root, `ev-${row}`); writeFileSync(p, row); return [row, p]; })) as Record<AcceptanceRow, string>;
+  const accept = () => recordAcceptance({ ...w.ctx, image: IMAGE, evidence, crossFamilyReview: w.reviewFile(w.head) });
+  renameSync(plan.candidate.controllerAdmission, `${plan.candidate.controllerAdmission}.gone`);
+  assert.throws(accept, /候选来源证据当前无效.*缺少主控准入记录/);
+  renameSync(`${plan.candidate.controllerAdmission}.gone`, plan.candidate.controllerAdmission);
+  accept();
+  assert.ok(acceptedFor(IMAGE, w.ctx));
+  writeFileSync(plan.candidate.review.file, review.replace(c.head, w.head));
+  assert.equal(acceptedFor(IMAGE, w.ctx), null, "独审 HEAD 漂移后 accepted 失效");
+  writeFileSync(plan.candidate.review.file, review);
+  assert.ok(acceptedFor(IMAGE, w.ctx), "证据恢复有效后重新成立");
+});
+
+test("main.mts 两处建工位都走共用初始化锁；none provider 初始化失败保留带写入现场，isolated 原样；既有分支（REVIEW_ONLY）可复用", async (t) => {
+  const src = readFileSync(new URL("./main.mts", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /sandcastle\.createSandbox\(/);
+  assert.equal(src.match(/createSwarmSandbox\(\{\n\s+repo: REPO,/g)?.length, 2);
+  assert.match(src, /withLegacyAdmission\(\(\) => createSwarmSandbox\(\{/, "REVIEW_ONLY 仍在 drain 准入内建工位");
+  assert.match(src, /return await createSwarmSandbox\(\{[\s\S]{0,200}\} catch \(e\) \{\n\s+if \(attempt < WORKTREE_TIMEOUT_MAX_ATTEMPTS && isWorktreeTimeoutError\(e\)\)/, "超时重试仍包在外层");
+  const w = world(t);
+  const none = (write: boolean) => ({ tag: "none", name: "fixture", env: {}, create: async (o: { worktreePath: string }) => { if (write) writeFileSync(join(o.worktreePath, "sentinel"), "y"); throw new Error("init failed"); } }) as unknown as SandboxProvider;
+  await assert.rejects(createSwarmSandbox({ repo: w.repo, branch: "sandcastle/issue-77", baseBranch: "main", provider: none(true) }), /init failed/);
+  assert.equal(readFileSync(join(w.repo, ".sandcastle/worktrees/sandcastle-issue-77/sentinel"), "utf8"), "y");
+  await assert.rejects(createSwarmSandbox({ repo: w.repo, branch: "sandcastle/issue-78", baseBranch: "main", provider: none(false) }), /init failed/);
+  assert.equal(existsSync(join(w.repo, ".sandcastle/worktrees/sandcastle-issue-78")), false);
+  const isolated = { tag: "isolated", name: "fixture", env: {}, create: async () => { throw new Error("x"); } } as unknown as SandboxProvider;
+  assert.equal(preserveFailedInit(isolated), isolated);
+  w.git("branch", "sandcastle/issue-79", w.head);
+  const sb = await createSwarmSandbox({ repo: w.repo, branch: "sandcastle/issue-79", baseBranch: "main", provider: noSandbox() });
+  assert.equal(execFileSync("git", ["-C", sb.worktreePath, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), w.head, "既有分支复用，不按 baseBranch 重建");
+  await sb.close();
+  const orphan = join(w.repo, ".sandcastle/worktrees/other"); mkdirSync(orphan); writeFileSync(join(orphan, "WIP"), "z");
+  await assert.rejects(createSwarmSandbox({ repo: w.repo, branch: "sandcastle/issue-80", baseBranch: "main", provider: noSandbox() }), /未登记目录/);
+  assert.equal(readFileSync(join(orphan, "WIP"), "utf8"), "z");
 });

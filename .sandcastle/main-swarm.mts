@@ -17,7 +17,8 @@ import { consumeSwarmPlan, fetchPlanningQueue, parseFoldedPlan, validateFoldedPl
 import { z } from "zod";
 import { resolve } from "node:path";
 import { runAcceptedSwarmMerge } from "./swarm-merge.mts";
-import { createSwarmSandbox, runSingleSwarmTicket } from "./swarm-ticket.mts";
+import { runSingleSwarmTicket } from "./swarm-ticket.mts";
+import { createSwarmSandbox } from "./worktree-init.mts";
 import {
   ghIssueFetcher,
   ghIssueNotifier,

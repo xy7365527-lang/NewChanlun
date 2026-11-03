@@ -11,13 +11,13 @@ import { verifyManagedRust } from "./managed-commit.mts";
 import { prepareFinalReviewPrompt } from "./review-context.mts";
 import {
   ROUND_FILES, assertBoundPath, branchExists, frozenRowAdmission, loadFrozenRound, loadMergeAdmission, loadMergePlan, loadMergeResult, mergeBinding, mergeInstance,
-  prebindPath, publishMergeAdmission, publishMergeResult, rowConsumed, type DeploymentSelection, type FrozenRound, type MergeRow, type MergeRowResult, type RoundContext,
+  prebindPath, publishMergeAdmission, publishMergeResult, rowConsumed, verifyPlanSource, type DeploymentSelection, type FrozenRound, type MergeRow, type MergeRowResult, type RoundContext,
 } from "./docker-acceptance.mts";
 import { type DockerCli, MERGE_INSTANCE_ENV, MERGE_RUN_ENV, reclaimOrphanContainers } from "./orphan-container.mts";
 import { dockerCliProxyEnv, assertSwarmExecutionReady, type ReadyOptions, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { withFileLock, withFrozenAdmission, withLegacyAdmission } from "./drain-control.mts";
 import { assertContainerIsolationContract, type IsolationObservation } from "./docker-isolation.mts";
-import { repoInitLock, wrapBindMountCreate } from "./swarm-ticket.mts";
+import { repoInitLock, wrapBindMountCreate } from "./worktree-init.mts";
 
 export { MERGE_CHECK_ID };
 
@@ -193,6 +193,7 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
     if (!admitted || !existsSync(run.cwd)) {
       await withFrozenAdmission(async () => {
         const r = recheck();
+        verifyPlanSource(r, plan0);
         await d.barrier?.("merge-run-before-admission");
         if (!loadMergeAdmission(r, run)) { probeAll(r); recheck(); publishMergeAdmission(r, run); }
         await withFileLock(repoInitLock(repo), () => {
@@ -214,6 +215,7 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
         return wrapBindMountCreate(inner, (create, { worktreePath }) => withFrozenAdmission(async () => {
           const r = recheck();
           if (!loadMergeAdmission(r, run)) throw new Error("run 准入事实缺失");
+          verifyPlanSource(r, plan0);
           if (realpathSync(worktreePath) !== run.cwd) throw new Error(`冲突工蜂挂载 ${worktreePath} 不是封定工位`);
           const cp = JSON.parse(readFileSync(run.checkpoint, "utf8")) as MergeState;
           const b = mergeBinding({ runId: run.manifest.runId, base: run.manifest.base, instance: run.instance, head: cp.before ?? "", incoming: cp.input ?? "" });
@@ -227,5 +229,5 @@ export async function runDeploymentSwarmMerge(sel: DeploymentSelection & { row: 
       },
     });
     return publishMergeResult(recheck(), run, state);
-  });
+  }, { nonblock: true });
 }

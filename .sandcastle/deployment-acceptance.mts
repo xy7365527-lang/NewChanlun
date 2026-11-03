@@ -17,7 +17,8 @@ import {
 import { DrainFrozenError, withFileLock, withFrozenAdmission } from "./drain-control.mts";
 import { assertContainerIsolationContract } from "./docker-isolation.mts";
 import { assertDockerCliProxyReachable, swarmSandbox } from "./swarm-route.mts";
-import { assertInitClean, createSwarmSandboxLocked, repoInitLock, runSingleSwarmTicket, type AgentRunner } from "./swarm-ticket.mts";
+import { runSingleSwarmTicket, type AgentRunner } from "./swarm-ticket.mts";
+import { assertInitClean, createSwarmSandboxLocked, repoInitLock } from "./worktree-init.mts";
 import { runDeploymentSwarmMerge, type DeploymentMergeDeps } from "./swarm-merge.mts";
 import { hostGh, type HostGh } from "./swarm-prompts.mts";
 import type { verifyManagedRust } from "./managed-commit.mts";
