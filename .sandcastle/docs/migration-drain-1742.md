@@ -78,11 +78,13 @@ npx --no-install tsx .sandcastle/deployment-acceptance.mts status --ticket "$TIC
 
 `$PARTNER_JSON` 是根主控核准的固定夹具：`{"issue","branch":"sandcastle/issue-<issue>","sha","parent","review","approval"}`。签发核该 SHA 在本仓可解析、唯一父等于 `parent`、`review` 首行 `VERDICT: PASS` 且含该 SHA；不要求伙伴的父等于部署 head。专票分支或工位已存在时签发与运行都拒绝，先按原证据归档处置。主控准入记录是三行机读：`VERDICT: ADMIT`、`HEAD: <候选 SHA>`、`NONCE: <本轮 nonce>`。
 
+封定计划固定输入身份、顺序与这两份来源文件的路径，不快照它们的有效性。候选独审与主控准入原件必须一直留在 bind-merges 时给出的路径。第 14/15 行每次首次 run 准入或建工位、每个新冲突工蜂启动前，以及 `accept` 与 `acceptedFor`，都重读这两份文件：独审须为候选精确 HEAD 的异家族 `VERDICT: PASS`，主控记录须为同一 HEAD 加本轮 NONCE 的 `VERDICT: ADMIT`。文件被撤回、丢失或 HEAD/NONCE 漂移时，新的准入、新工蜂与 accepted 放行一律拒绝；已启动的工蜂可以收尾。证据恢复有效后，同一计划和同一命令可继续。
+
 专用 `run` 只接受 `--ticket --head --nonce --row`，其它参数退出 64；drain 不是 draining 或代次不符退出 75；其余拒绝退出 1。它不读业务队列、不 claim、不 push、不合 main、不关票，gh 只允许 `issue view <专票>`；日志与通知写在宿主验收目录 `rounds/<nonce>/`，不进业务 `workers.jsonl`，harvest 看不到。普通 `checkControlledAdmission` 遇到冻结用途 receipt 直接拒绝，冻结验收也不经 `acceptedFor`。
 
 锁序固定为：行运行锁（非阻塞，活持有者在即拒绝）→ 控制锁 `control.lock`（消费者共享，issue-frozen/bind-merges/retire 排他）→ 全局 `admission.lock`（共享）→ 仓库初始化锁（git common dir 下 `sandcastle-worktree-init.lock`）。第 13 行在这串锁内依次做精确重核、孤儿与新工位检查、隔离探针、模型预检、最后重核（含有效期）、消费 used-13、`createSandbox` 取得运行中容器 handle，然后放锁，作者与独审在锁外运行。第 14/15 行首次 run 准入在锁内发布并建工位；真实冲突出现后，在 provider.create 外的同一组锁内重核检查点/HEAD/MERGE_HEAD 与封定实例、消费 used/cp/resume、取得容器 handle。退役因此只能落在一次准入完整结束之后，已启动的工蜂保留完成权。
 
-Sandcastle 0.12.0 的 `createSandbox` 会删除 `.sandcastle/worktrees` 下未登记目录，并在 provider 初始化失败时 `git worktree remove --force` 新工位。所有 createSandbox 调用（普通 planner/单票与冻结第 13 行）在仓库初始化锁内先拒绝存在孤儿目录的仓库；provider 初始化失败且工位有任何写入时加 `git worktree lock` 保留现场，库的单个 `--force` 不再移除它。
+Sandcastle 0.12.0 的 `createSandbox` 会删除 `.sandcastle/worktrees` 下未登记目录，并在 provider 初始化失败时 `git worktree remove --force` 新工位。所有 createSandbox 调用（`main.mts` 普通取票与 REVIEW_ONLY、`main-swarm.mts` planner 与单票、冻结第 13 行）在仓库初始化锁内先拒绝存在孤儿目录的仓库。bind-mount 与 none provider 初始化失败且工位有任何写入时，加 `git worktree lock` 保留现场，库的单个 `--force` 不再移除它；isolated provider 的 create 拿不到宿主工位路径，不做这项保护。
 
 恢复规则：第 13 行消费后启动失败保留 used-13，不可重跑，由主控退役重签。第 14/15 行没有 run 准入事实却已有工位、分支、检查点或消费即拒绝；已消费冲突后检查点缺失即拒绝，不从基线重建；检查点已 done 而结果未发布时只补发布结果，不启动、不新写消费；完整结果存在后 `run` 拒绝，用 `status` 查看。`accept` 对冻结用途额外核本轮候选、封定计划、两行完成结果与真实冲突绑定；登记后按批准 resume 不使 accepted 失效。旧 receipt（schema 2）不迁移，失败 nonce `71047bbf-d925-4357-8d74-697fefbfd01d` 与其 used-13 原样保留。
 
