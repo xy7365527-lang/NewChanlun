@@ -237,7 +237,7 @@ def test_sol_on_third_party_codex_route_blocks(env, capsys):
 def test_proxy_down_blocks_without_waiting_out_the_log_window(env, capsys):
     start = time.monotonic()
     # 后给的 --proxy-url 覆盖 fixture 的假 proxy，指向无人监听的端口。
-    code, report, *_ = env(capsys=capsys, extra=("--proxy-url", "http://127.0.0.1:9"))
+    code, report, *_ = env(capsys=capsys, extra=("--proxy-url", "http://127.0.0.1:9"))  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
     assert time.monotonic() - start < 2
 
