@@ -21,6 +21,10 @@ concurrency:
 #   20 并发池，所以 extras 五组不再需要 max-parallel 串行（#1723 设它只为不扩大托管 runner 占用）。
 #   对 fsync 时延敏感的 s-observer / sandcastle-ts（Boat 新机首次写盘 fsync p50 约 0.3 s）与轻量作业留在
 #   ubuntu-latest；Boat 每个作业占一次每日启动配额（box_100：840/天）。
+#   Boat CI 对公开仓库只放行 xy7365527-lang（运行作者与触发者都须在名单上，其余作业被拒并在 GitHub
+#   上无限排队，run 41914528227 实测）。所以这些作业按发起者选 runner：actor、triggering_actor 与
+#   PR 作者都是 xy7365527-lang 时用 Boat，否则（App/bot 开的 PR、他人重跑）退回 ubuntu-latest；
+#   作业名不变，必需检查名不变。
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -161,7 +165,7 @@ jobs:
   # PR run 39382771454 落在 EPYC 9V45，tb02w 1755s、job 31 分钟；PR run 39386754336 落在 EPYC 7763，tb02w 3877s、job 67 分钟。
   # 拆前 timeout 150（7e914f1e55，容纳单 job 全程）；拆后按各 job 实测分别设上限，仍兼作 #1406 挂死保护。
   rust-check:
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # #1406 防遥测采样进程挂死的上限；本 job 拆后只剩检查类步骤，正常约 3 分钟。
     timeout-minutes: 30
     env:
@@ -270,7 +274,7 @@ jobs:
   # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
   # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
   rust-test-default:
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 拆前本步约 8.8 分钟（run 39358379553）。
     timeout-minutes: 45
     env:
@@ -300,7 +304,7 @@ jobs:
   #   表外新测试取中位数权重照常入片。改片数须同时改 matrix.shard 与 S_SESSION_SHARDS。
   rust-test-s-session:
     name: rust-test-s-session (shard ${{ matrix.shard }})
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 最慢那片只含 tb02w 一条长测试：独占 runner 实测 31 分钟（EPYC 9V45）到 67 分钟（EPYC 7763，已见最慢机型），含编译。
     # 上限只作挂死保护，按最慢机型读数留约 40% 余量（「有余量」看实测时长，不看本值）。
     timeout-minutes: 110
@@ -381,9 +385,11 @@ jobs:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
+      # Boat 上五组同时开工；退回 ubuntu-latest 时取 3（单次 CI 峰值 19 个托管作业，不超过 20，见 #1875 R1）。
+      max-parallel: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 3 }}
       matrix:
         group: [content, economic, native, owned, release-locks]
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.group == 'native' && 90 || 60 }}
     env:
       CARGO_INCREMENTAL: "0"
@@ -616,7 +622,7 @@ jobs:
 
   # #1769（ADR 0039 迁移步骤 1，C-L 验收第 4 项）：唯一生产 launcher 与 X 骨架入口测试。
   rust-test-production-session:
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
@@ -641,7 +647,7 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs 1 -- --test-threads 1
 
   rust-test-backtest-bin:
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 拆前本步约 9.3 分钟（run 39358379553）。
     timeout-minutes: 45
     env:
@@ -666,7 +672,7 @@ jobs:
   # 依赖预取单列为联网步骤；后续 --offline 只约束测试阶段，不代表全程离线。
   s-sequence-1488:
     name: "#1488 序列与真实 memo (${{ matrix.mode }})"
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -902,7 +908,7 @@ jobs:
   # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
   s-fields-native-1488:
     name: "#1488 固定字段共享核 (Native)"
-    runs-on: boat-large/from=hc-gate-base
+    runs-on: ${{ (github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # #1588 约定：同上，Native 组编译 + 精确锁。
     timeout-minutes: 60
     env:
