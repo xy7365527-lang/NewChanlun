@@ -186,8 +186,30 @@ def request_log_enabled(config: Path) -> bool | None:
     return None
 
 
-def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) -> list[tuple[str, str]] | None:
-    """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机。"""
+def served_models(text: str) -> set[str]:
+    """从各 API RESPONSE 段读上游实际服务的模型：Anthropic message_start.message.model、Responses response.model。"""
+    served = set()
+    for section in text.split("=== API RESPONSE ")[1:]:
+        section = section.split("\n=== RESPONSE ===", 1)[0]
+        for line in section.splitlines():
+            line = line.strip().removeprefix("data:").strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            kind = event.get("type", "") if isinstance(event, dict) else ""
+            if kind == "message_start" and isinstance(event.get("message"), dict):
+                served.add(event["message"].get("model"))
+            elif kind.startswith("response.") and isinstance(event.get("response"), dict) and event["response"].get("model"):
+                served.add(event["response"]["model"])
+    served.discard(None)
+    return served
+
+
+def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) -> tuple[list[tuple[str, str]], set[str]] | None:
+    """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机，以及实际服务模型。"""
     deadline = time.monotonic() + wait
     while True:
         for path in sorted(log_dir.glob("v1-responses-*.log"), key=lambda q: q.stat().st_mtime, reverse=True):
@@ -199,7 +221,8 @@ def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) 
             providers = re.findall(r"^Auth: provider=([\w.-]+)", text, re.M)
             hosts = re.findall(r"^Upstream URL: https?://([^/:?\s]+)", text, re.M)
             # 行数不齐说明日志形状变了，返回空表让路由检查判失败，不截断猜测。
-            return list(zip(providers, hosts, strict=True)) if len(providers) == len(hosts) else []
+            attempts = list(zip(providers, hosts, strict=True)) if len(providers) == len(hosts) else []
+            return attempts, served_models(text)
         if time.monotonic() > deadline:
             return None
         time.sleep(0.25)
@@ -219,12 +242,16 @@ def probe_model(args, model: str, key: str | None) -> list[dict]:
                             "error": "CLIProxy observability.logs.request-log=false，无法核实实际路由"}},
                 {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
     # 实测 proxy 在响应结束后 14–85ms 写日志；成功时等 2 秒（约 23 倍余量），往返已失败时日志只作诊断，等 0.3 秒。
-    attempts = _route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
+    found = _route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
+    attempts, served = found if found is not None else (None, set())
     provider, host = ROUTES[model]
     routed = bool(attempts) and all(a == (provider, host) for a in attempts)
+    # proxy 会给 Claude 请求注入 fallbacks（如 claude-opus-4-8）；实际服务模型与请求不符即拦。日志无响应体时记为未核实。
     return [{"name": f"route:{model}", "class": "route", "ok": routed,
              "detail": {"expected": f"{provider}@{host}", "actual": [f"{p}@{h}" for p, h in attempts or []],
-                        "log_found": attempts is not None, "session": session}},
+                        "log_found": found is not None, "session": session}},
+            {"name": f"identity:{model}", "class": "identity", "ok": served <= {model},
+             "detail": {"requested": model, "served": sorted(served), "verified": bool(served)}},
             {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
 
 

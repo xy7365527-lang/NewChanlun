@@ -40,7 +40,7 @@ def repo(tmp_path):
 class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
-    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0):
+    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None):
         self.requests = []
         proxy = self
 
@@ -61,7 +61,11 @@ class FakeProxy:
                 if write_log:
                     path = log_dir / f"v1-responses-{time.time_ns()}.log"
                     text = (f"=== HEADERS ===\nSession-Id: {self.headers['Session-Id']}\n\n=== API REQUEST 1 ===\n"
-                            f"Upstream URL: {upstream}\nAuth: provider={provider}, auth_id=x, label=x, type=oauth\n")
+                            f"Upstream URL: {upstream}\nAuth: provider={provider}, auth_id=x, label=x, type=oauth\n"
+                            "\n=== API RESPONSE 1 ===\nStatus: 200\n")
+                    model_served = (served or {}).get(body["model"])
+                    if model_served:
+                        text += 'data: {"type":"message_start","message":{"model":"%s"}}\n' % model_served
                     if log_delay:
                         threading.Timer(log_delay, path.write_text, args=(text,)).start()
                     else:
@@ -263,3 +267,26 @@ def test_request_log_setting_is_read_from_its_own_section(tmp_path, text, expect
     config.write_text(text)
     assert preflight.request_log_enabled(config) is expected
     assert preflight.request_log_enabled(tmp_path / "missing.yaml") is None
+
+
+def test_opus_silently_served_by_fallback_model_blocks(env, capsys):
+    """proxy 给 Claude 请求注入 fallbacks:[claude-opus-4-8]；上游实际由 4.8 服务时必须拦。"""
+    code, report, *_ = env(served={OPUS: "claude-opus-4-8", SOL: SOL}, capsys=capsys)
+    assert code == 2 and failing(report) == {f"identity:{OPUS}"}
+    identity = next(c for c in report["checks"] if c["name"] == f"identity:{OPUS}")
+    assert identity["detail"] == {"requested": OPUS, "served": ["claude-opus-4-8"], "verified": True}
+
+
+def test_served_model_matching_request_passes_and_is_marked_verified(env, capsys):
+    code, report, *_ = env(served={OPUS: OPUS, SOL: SOL}, capsys=capsys)
+    assert code == 0
+    assert all(c["detail"]["verified"] for c in report["checks"] if c["class"] == "identity")
+
+
+def test_served_models_reads_both_stream_shapes():
+    text = ("=== API RESPONSE 1 ===\nStatus: 200\n"
+            'data: {"type":"message_start","message":{"model":"claude-opus-5-5"}}\n'
+            'data: {"type":"response.created","response":{"model":"gpt-6.1-sol","tools":[{"model":"gpt-image-2-codex"}]}}\n'
+            "\n=== RESPONSE ===\n"
+            'data: {"type":"response.completed","response":{"model":"client-side-echo"}}\n')
+    assert preflight.served_models(text) == {"claude-opus-5-5", "gpt-6.1-sol"}
