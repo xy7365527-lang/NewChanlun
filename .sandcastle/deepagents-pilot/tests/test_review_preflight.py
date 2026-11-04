@@ -416,3 +416,16 @@ def test_snapshot_bytes_match_controller_with_replace_refs(repo, tmp_path, monke
         external_review.prepare_review(target, root, tmp_path / "checkout")
     required = int(re.search(r"需要 (\d+) bytes", str(error.value)).group(1))
     assert preflight.snapshot_bytes(root, base, head, base) == required
+
+
+def test_space_failure_reports_bytes_held_by_vm_deleted_files(env, capsys, monkeypatch, tmp_path):
+    bin_dir = tmp_path / "bin"
+    (bin_dir / "pgrep").write_text("#!/bin/sh\necho 4242\n")
+    # 同一 inode 被两个 fd 打开只算一次
+    (bin_dir / "lsof").write_text("#!/bin/sh\nprintf 'p4242\\nf10\\ns1000\\ni7\\nf11\\ns1000\\ni7\\nf12\\ns500\\ni8\\n'\n")
+    for name in ("pgrep", "lsof"):
+        (bin_dir / name).chmod(0o755)
+    monkeypatch.setattr(preflight.shutil, "disk_usage", lambda _: Usage(0, 0, 1))
+    code, report, *_ = env(capsys=capsys)
+    space = next(c for c in report["checks"] if c["name"] == "checkout_root_free_space")
+    assert code == 2 and space["detail"]["vm_deleted_open_bytes"] == 1500 and space["detail"]["vm_deleted_open_files"] == 2

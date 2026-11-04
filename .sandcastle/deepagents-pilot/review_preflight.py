@@ -84,8 +84,37 @@ def check_space(args) -> dict:
                 "detail": {"needs_source_sync": missing, "source": args.source}}
     need = per * len(MODELS)
     free = shutil.disk_usage(_existing(Path(args.checkout_root))).free
-    return {"name": "checkout_root_free_space", "class": "space", "ok": free >= need,
-            "detail": {"required_bytes": need, "per_snapshot_bytes": per, "snapshots": len(MODELS), "free_bytes": free}}
+    detail = {"required_bytes": need, "per_snapshot_bytes": per, "snapshots": len(MODELS), "free_bytes": free}
+    if free < need:
+        detail.update(vm_deleted_open_bytes())
+    return {"name": "checkout_root_free_space", "class": "space", "ok": free >= need, "detail": detail}
+
+
+def vm_deleted_open_bytes() -> dict:
+    """空间不足时的诊断：colima/lima 的 VM 进程常持有已删除快照与 worktree 的 inode，空间要等 VM 重启才回收。"""
+    pids = subprocess.run(["pgrep", "-x", "com.apple.Virtualization.VirtualMachine"],
+                          capture_output=True, text=True).stdout.split()
+    held, files = 0, 0
+    for pid in pids:
+        try:
+            out = subprocess.run(["lsof", "-nP", "+L1", "-p", pid, "-Fsin"], capture_output=True, text=True,
+                                 timeout=10).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        seen, size = set(), None
+        for line in out.splitlines():
+            if line[:1] == "f":
+                size = None
+            elif line[:1] == "s":
+                size = int(line[1:])
+            elif line[:1] == "i" and size is not None and line[1:] not in seen:
+                seen.add(line[1:])
+                held += size
+        files += len(seen)
+    if not held:
+        return {}
+    return {"vm_deleted_open_bytes": held, "vm_deleted_open_files": files,
+            "hint": "VM 进程仍持有已删除文件；先停掉其中运行的容器，再重启 colima 才能回收这部分空间"}
 
 
 def _reclaim(probe: Path, container: str) -> None:
