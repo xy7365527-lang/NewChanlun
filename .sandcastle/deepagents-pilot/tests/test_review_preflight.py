@@ -127,7 +127,10 @@ def env(tmp_path, monkeypatch, repo):
         d.mkdir()
     docker = bin_dir / "docker"
     docker.write_text("#!/bin/sh\n"
+                      "[ \"$1\" = rm ] && exit 0\n"
+                      "[ \"$1\" = ps ] && exit 0\n"
                       "src=$(printf '%s\\n' \"$@\" | sed -n 's/^type=bind,src=\\(.*\\),dst=\\/checkouts,readonly$/\\1/p')\n"
+                      "case \"$src\" in /*) ;; *) echo 'mount path must be absolute' >&2; exit 125;; esac\n"
                       "[ -n \"$FAKE_DOCKER_EMPTY\" ] && src=/nonexistent\n"
                       "for last; do :; done\n"
                       "exec cat \"$src${last#/checkouts}\"\n")
@@ -150,10 +153,10 @@ def env(tmp_path, monkeypatch, repo):
         proxies.append(proxy)
         config = codex / "config.toml"
         previous = [f"{p.url}/v1" for p in proxies[:-1]] + ["http://127.0.0.1:8318/v1"]  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-        text = config.read_text()
+        data = config.read_bytes()  # 按字节替换：有的用例故意写入非 UTF-8 配置
         for old_url in previous:
-            text = text.replace(old_url, f"{proxy.url}/v1")
-        config.write_text(text)  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+            data = data.replace(old_url.encode(), f"{proxy.url}/v1".encode())
+        config.write_bytes(data)  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
         code = preflight.main(["--source", str(root), "--base", base, "--head", head, "--merge-base", base,
                                "--checkout-root", str(checkouts), "--proxy-url", proxy.url,
                                "--proxy-log-dir", str(logs), "--codex-home", str(codex),
@@ -610,3 +613,145 @@ def test_unverifiable_served_model_blocks(env, capsys):
     code, report, *_ = env(terminal=bare, capsys=capsys)
     assert code == 2 and failing(report) == {f"identity:{SOL}", f"identity:{OPUS}"}
     assert all(not c["detail"]["verified"] for c in report["checks"] if c["class"] == "identity")
+
+
+# ---------------- 跨族边界独审（gemini）反例 ----------------
+
+def test_key_with_inner_control_char_is_rejected_without_leaking(env, capsys, monkeypatch):
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "abc\ndef-secret-tail")
+    code, report, out, proxy = env(capsys=capsys)
+    worker = next(c for c in report["checks"] if c["name"] == "credential:review-worker")
+    assert code == 2 and not worker["ok"] and "控制字符" in worker["detail"]["error"]
+    assert "def-secret-tail" not in out and proxy.requests == []
+
+
+def test_key_with_trailing_newline_is_stripped_like_a_header_value(env, capsys, monkeypatch):
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY + "\n")
+    code, report, out, _ = env(capsys=capsys)
+    assert code == 0 and KEY not in out
+
+
+@pytest.mark.parametrize("secrets, text", [
+    (["subkey", "host-secret-subkey-99999"], "err host-secret-subkey-99999"),
+    (['"secret-key-5'], 'bad "secret-key-5 end'),
+    (["it's-a-secret-key"], str({"m": "it's-a-secret-key"})),
+])
+def test_sanitize_hides_every_form_and_keeps_valid_json(secrets, text):
+    out = json.dumps(preflight.sanitize({"detail": text}, secrets), ensure_ascii=False)
+    json.loads(out)
+    assert all(s not in out for s in secrets)
+    assert "host-secret-" not in out and "99999" not in out
+
+
+def test_redact_drops_key_prefix_left_at_any_cut():
+    key = "secret-key-" + "a" * 190
+    text = (key * 20)[:4000]
+    assert key[:20] not in preflight.redact(text, [key], 300)
+    assert key[:20] not in preflight.redact("prefix " + key[:150], [key])
+
+
+def test_log_with_non_utf8_byte_is_still_read(tmp_path):
+    session = "preflight-utf"
+    (tmp_path / "v1-responses-1.log").write_bytes(
+        f"=== HEADERS ===\nSession-Id: {session}\n\n=== API REQUEST 1 ===\n"
+        "Upstream URL: https://chatgpt.com/backend-api/codex/responses\nAuth: provider=codex, auth_id=x\n\n"
+        '=== API RESPONSE 1 ===\nStatus: 200\ndata: {"type":"response.created","response":{"model":"gpt-6.1-sol"}}\n'.encode()
+        + b"# byte \xff\n\n=== RESPONSE ===\nStatus: 200\n")
+    assert preflight._route_from_log(tmp_path, session, time.time() - 5, wait=0.5) == (
+        [("codex", "chatgpt.com")], {"gpt-6.1-sol"})
+
+
+def test_unreadable_log_dir_does_not_crash(env, capsys, tmp_path, monkeypatch):
+    monkeypatch.setattr(preflight.Path, "glob", lambda self, pattern: (_ for _ in ()).throw(PermissionError(13, "denied")))
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and {f"route:{SOL}", f"route:{OPUS}"} <= failing(report)
+
+
+def test_relative_checkout_root_is_mounted_as_absolute(env, capsys, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    code, report, *_ = env(capsys=capsys, extra=("--checkout-root", "checkouts"))
+    assert code == 0 and failing(report) == set()
+
+
+@pytest.mark.parametrize("flag, value", [("--base", "--all"), ("--merge-base", "--max-count=0"), ("--head", "not-a-sha")])
+def test_non_sha_arguments_are_usage_errors(flag, value, capsys):
+    argv = ["--source", ".", "--base", "a" * 40, "--head", "b" * 40, "--merge-base", "a" * 40, "--checkout-root", "."]
+    argv[argv.index(flag) + 1] = value
+    with pytest.raises(SystemExit) as exit_info:
+        preflight.main(argv)
+    assert exit_info.value.code == 3
+
+
+def test_blob_given_as_commit_is_not_accepted(env, capsys, repo):
+    root, base, head = repo
+    blob = git(root, "rev-parse", f"{head}:a.txt")
+    code, report, *_ = env(capsys=capsys, extra=("--base", blob, "--merge-base", blob))
+    source = next(c for c in report["checks"] if c["class"] == "source")
+    assert code == 2 and source["detail"]["needs_source_sync"] == [blob]
+
+
+@pytest.mark.parametrize("config", [b"\xff\xfe", b'[model_providers]\ncliproxy-local = 3\n',
+                                    b'[model_providers.cliproxy-local]\nbase_url = "http://localhost:bad/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                                    b'experimental_bearer_token = "local-test-key-must-not-leak"\n'])
+def test_broken_codex_config_never_crashes_the_report(env, capsys, tmp_path, config):
+    (tmp_path / "codex/config.toml").write_bytes(config)
+    code, report, out, _ = env(capsys=capsys)
+    assert code == 2 and report["kind"] == "review-preflight" and KEY not in out
+
+
+def _cli(tmp_path, repo, docker_script: str, deadline: str, codex_text: str):
+    import subprocess
+    import sys
+    root, base, head = repo
+    bin_dir = tmp_path / "bin2"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "docker").write_text(docker_script)
+    (bin_dir / "docker").chmod(0o755)
+    for name in ("launchctl", "pgrep"):
+        (bin_dir / name).write_text("#!/bin/sh\nexit 0\n")
+        (bin_dir / name).chmod(0o755)
+    codex = tmp_path / "codex2"
+    codex.mkdir(exist_ok=True)
+    (codex / "config.toml").write_text(codex_text)
+    result = subprocess.run(
+        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
+         "--merge-base", base, "--checkout-root", str(tmp_path / "chk"), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+         "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
+         "--codex-home", str(codex), "--deadline", deadline],
+        capture_output=True, text=True, timeout=20,
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path), "CLIPROXY_LOCAL_KEY": "key12345"})
+    return result.returncode, json.loads(result.stdout)
+
+
+def test_no_probe_dir_is_created_after_the_deadline_is_spent(tmp_path, repo):
+    """gemini 3·1：凭据阶段耗尽时限后，不能再建探针目录并在退出时遗留。"""
+    slow = ('[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+            '[model_providers.cliproxy-local.auth]\ncommand = "/bin/sh"\nargs = ["-c", "sleep 2; echo key12345"]\n')
+    code, report = _cli(tmp_path, repo, "#!/bin/sh\nexit 0\n", "1", slow)
+    assert code == 2
+    assert not (tmp_path / "chk").exists() or list((tmp_path / "chk").iterdir()) == []
+
+
+def test_in_flight_docker_run_is_killed_before_rm(tmp_path, repo):
+    """gemini 3·2：docker run 在途时回收要先杀掉它，不能让它在 rm 之后才把容器建出来。"""
+    created = tmp_path / "containers"
+    created.mkdir()
+    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then sleep 1.5; touch "{created}/$4"; exit 0; fi\n'
+              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
+              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
+    code, report = _cli(tmp_path, repo, docker, "1",
+                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                        'experimental_bearer_token = "key12345"\n')
+    time.sleep(2)
+    assert code == 2 and list(created.iterdir()) == []
+    assert not (tmp_path / "chk").exists() or list((tmp_path / "chk").iterdir()) == []
+
+
+def test_failed_docker_run_container_is_removed(env, capsys, tmp_path):
+    """gemini 3·3：docker run 非 0 退出时容器可能已建，--rm 不会清，须 rm -f。"""
+    calls = tmp_path / "docker-calls"
+    script = tmp_path / "bin" / "docker"
+    script.write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = ps ] && exit 0\n[ "$1" = rm ] && exit 0\nexit 125\n')
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and any(line.startswith("rm -f preflight-") for line in calls.read_text().splitlines())
+    assert "probe_cleanup" not in failing(report)
