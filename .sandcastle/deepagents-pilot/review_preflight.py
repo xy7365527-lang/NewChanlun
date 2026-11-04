@@ -58,7 +58,17 @@ def _existing(path: Path) -> Path:
 
 
 def check_space(args) -> dict:
-    per = snapshot_bytes(Path(args.source), args.base, args.head, args.merge_base)
+    try:
+        per = snapshot_bytes(Path(args.source), args.base, args.head, args.merge_base)
+    except subprocess.CalledProcessError:
+        # 只在失败时诊断：与 prepare_review 相同，SHA 不在 source 对象库是 needs_source_sync，不是空间问题。
+        shas = sorted({args.base, args.head, args.merge_base})
+        out = _git(Path(args.source), "cat-file", "--batch-check", data="".join(f"{s}^{{commit}}\n" for s in shas).encode())
+        missing = [sha for sha, line in zip(shas, out.decode().splitlines(), strict=True) if line.endswith("missing")]
+        if not missing:
+            raise
+        return {"name": "source_objects", "class": "source", "ok": False,
+                "detail": {"needs_source_sync": missing, "source": args.source}}
     need = per * len(MODELS)
     free = shutil.disk_usage(_existing(Path(args.checkout_root))).free
     return {"name": "checkout_root_free_space", "class": "space", "ok": free >= need,

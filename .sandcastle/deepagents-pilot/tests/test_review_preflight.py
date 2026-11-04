@@ -290,3 +290,12 @@ def test_served_models_reads_both_stream_shapes():
             "\n=== RESPONSE ===\n"
             'data: {"type":"response.completed","response":{"model":"client-side-echo"}}\n')
     assert preflight.served_models(text) == {"claude-opus-5-5", "gpt-6.1-sol"}
+
+
+def test_target_missing_from_source_reports_needs_source_sync(env, capsys, repo):
+    root, base, head = repo
+    absent = "1" * 40
+    code, report, *_ = env(capsys=capsys, extra=("--head", absent))
+    assert code == 2 and "source_objects" in failing(report)
+    source = next(c for c in report["checks"] if c["name"] == "source_objects")
+    assert source["class"] == "source" and source["detail"]["needs_source_sync"] == [absent]
