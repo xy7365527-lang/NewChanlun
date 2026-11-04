@@ -9313,6 +9313,17 @@ mod tests {
         let files = TestFiles::new();
         let db = files.0.join("旧规则 hot-journal.sqlite");
         let image = files.0.join("旧规则 hot-journal 现场.sqlite");
+        // 同进程另一文件连接预热页缓存：SQLITE_ENABLE_MEMORY_MANAGEMENT 下页缓存按 PGroup 共享，
+        // 本连接 cache_size=1 不保证改页溢写，-journal 头可能仍为全 0。现场须由下方 cache_flush 保证。
+        let interference = Connection::open(files.0.join("pager-interference.sqlite")).unwrap();
+        interference
+            .execute_batch(
+                "PRAGMA cache_size=100000;
+                 CREATE TABLE o(x BLOB);
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<30000)
+                   INSERT INTO o SELECT randomblob(500) FROM n;",
+            )
+            .unwrap();
         let diag;
         {
             let writer = Connection::open(&db).unwrap();
@@ -9353,9 +9364,11 @@ mod tests {
                 writer.is_autocommit(),
                 files.0.display()
             );
+            writer.cache_flush().unwrap();
             tb1405_crash_image(&db, &image);
             writer.execute_batch("ROLLBACK;").unwrap();
         }
+        drop(interference);
         let before = tb1405_file_bytes(&image);
         let journal = before[1].1.as_ref().expect("现场须带 -journal");
         assert_eq!(
