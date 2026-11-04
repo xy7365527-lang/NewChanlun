@@ -30,8 +30,9 @@ from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
 from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_validator
 
+from .approval import spec_section
 from .boat_execution import ExecutionUnknown
-from .cloud_package import PROJECT_TARGET, PSTACK_TARGET, RULES_TARGET
+from .cloud_package import MANUALS_DIR, PROJECT_TARGET, PSTACK_TARGET, RULES_TARGET
 from .domain import Awaiting, CommitReceipt, WorkerReceipt
 from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
 
@@ -43,7 +44,7 @@ def _tool_errors(run: PilotRun) -> tuple[type[Exception], ...]:
         return TOOL_ERRORS
     from .executor import EXECUTOR_ERRORS
 
-    return (*TOOL_ERRORS, *EXECUTOR_ERRORS)
+    return (ToolRefusal, Halted, *EXECUTOR_ERRORS)
 
 POTETO_MODE = SKILLS_ROOT + "poteto-mode/SKILL.md"
 CLIPROXY_BASE_URL = "http://127.0.0.1:8318/v1"
@@ -257,12 +258,16 @@ def build_tools(run: PilotRun) -> list:
 
 
 def operator_pausable(run: PilotRun, wrapped: Any) -> Any:
-    """操作员中断：每次工具调用前若有中断请求，图在此 checkpoint 处停下。已派出的工蜂不被杀，恢复时按回执收养。
-    恢复载荷的内容一律不用；中断请求由恢复入口清除后才放行。"""
+    """人工停点：每次工具调用前若有停点记录，图在此 checkpoint 处停下。已派出的工蜂不被杀，恢复时按回执收养。
+    ExecutionUnknown 也落停点并停在本次调用处，显式恢复后同一调用重跑。
+    恢复载荷的内容一律不用；停点只由显式恢复入口清除后才放行。"""
 
-    def call(*args: Any, **kwargs: Any) -> str:
+    def wait_for_human() -> None:
         while run.interrupt_requested() is not None:
             interrupt({"ticket": run.spec.ticket, "operator_interrupt": run.interrupt_requested()})
+
+    def call(*args: Any, **kwargs: Any) -> str:
+        wait_for_human()
         from .approval import decision_json
         from .executor import ApprovalRequired
 
@@ -272,6 +277,9 @@ def operator_pausable(run: PilotRun, wrapped: Any) -> Any:
                     return wrapped.func(*args, **kwargs)
             except ApprovalRequired as required:
                 interrupt({"ticket": run.spec.ticket, "awaiting_approval": decision_json(required.decision)})
+            except ExecutionUnknown as error:
+                run.request_interrupt("execution_unknown", reason=str(error))
+                wait_for_human()
 
     return StructuredTool.from_function(call, name=wrapped.name, description=wrapped.description,
                                         args_schema=wrapped.args_schema)
@@ -321,10 +329,15 @@ def system_prompt(run: PilotRun) -> str:
         skills_root, poteto_mode = SKILLS_ROOT, POTETO_MODE
     task = run.spec.task
     ending = V1_ENDING if run.spec.v == 1 else _v2_ending(run)
+    spec = run.signed_spec()
+    signed = "\n" + spec_section(spec) if spec is not None else (
+        f"\n宿主尚未取得已签 SPEC #{run.spec_issue} 正文；不要凭链接推测其内容。\n" if run.spec_issue is not None else "")
+    manuals = (f"冻结基线的 {MANUALS_DIR}/ 手册（EXECUTOR.md、BOAT.md 等）在 /project/{MANUALS_DIR}/。"
+               if run.execution is not None else "")
     role = "#1742 Deep Agents 试点" if run.spec.v == 1 else f"#{run.spec.ticket} Deep Agents 新执行器 run"
     return f"""你是 {role}的主控，本线程收到了 $pstack-upstream-poteto-mode。
 
-先用 read_file 读取 /project/AGENTS.md、/project/CONTEXT.md 和任务相关纪律，再完整读取 {poteto_mode}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {skills_root}，项目技能根目录是 {project_skills_root(run)}。其中相对引用以各技能目录为基准。
+先用 read_file 读取 /project/AGENTS.md、/project/CONTEXT.md 和任务相关纪律。{manuals}再完整读取 {poteto_mode}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {skills_root}，项目技能根目录是 {project_skills_root(run)}。其中相对引用以各技能目录为基准。
 
 本 harness 的映射：
 {design_mapping(run)}- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
@@ -340,7 +353,7 @@ def system_prompt(run: PilotRun) -> str:
 写集：{", ".join(task.allowed_prefixes)}
 需求原文：
 {task.requirement}
-"""
+{signed}"""
 
 
 def initial_message(run: PilotRun) -> str:
@@ -363,6 +376,7 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
         skills_root = PSTACK_TARGET + "/installed/skills/"
         skills_dir = bundle / "pstack/installed/skills"
         rules_root, rules_dir = RULES_TARGET + "/", bundle / "rules"
+        manuals = run.execution.controller_manuals() / "repo" / MANUALS_DIR
     else:
         rules_dir = run.dir / "read-only-rules"
         rules_dir.mkdir(exist_ok=True)
@@ -391,6 +405,7 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
     }
     if run.execution is not None:
         routes[PSTACK_TARGET + "/"] = FilesystemBackend(root_dir=str(bundle / "pstack"), virtual_mode=True)
+        routes[f"/project/{MANUALS_DIR}/"] = FilesystemBackend(root_dir=str(manuals), virtual_mode=True)
     backend = CompositeBackend(default=StateBackend(), routes=routes)
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
         FilesystemMiddleware(backend=backend, tools=READ_ONLY_FS_TOOLS), TodoListMiddleware()]

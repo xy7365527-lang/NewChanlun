@@ -15,6 +15,7 @@ EXCLUDED = {"node_modules", "__pycache__", ".pytest_cache", ".ruff_cache", ".myp
 PSTACK_TARGET = "/opt/newchanlun/pstack"
 PROJECT_TARGET = "/workspace/repo"
 RULES_TARGET = "/opt/newchanlun/rules"
+MANUALS_DIR = ".sandcastle/deepagents-pilot"
 MAX_FILE_BYTES = 32 * 1024 * 1024
 
 
@@ -215,16 +216,36 @@ def build_project_context(repo: Path, head: str, destination: Path, pstack: Path
     present = [path for path in paths if isolated_git(repo, "ls-tree", head, "--", path)]
     snapshot = destination / "repo"
     snapshot.mkdir()
-    if present:
-        archive = isolated_archive(repo, head, *present)
-        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-            for member in tar.getmembers():
-                path = PurePosixPath(member.name)
-                if path.is_absolute() or ".." in path.parts or member.isdev() or member.islnk():
-                    raise ValueError("项目快照含不安全成员")
-                if member.issym() and not ((snapshot / member.name).parent / member.linkname).resolve().is_relative_to(snapshot.resolve()):
-                    raise ValueError("项目快照符号链接越界")
-            tar.extractall(snapshot, filter="data")
+    extract_paths(repo, head, present, snapshot)
     manifest = {"head": head, **copy_project_skills(snapshot, destination / "project-skills", repo, pstack, models)}
     (destination / "context.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    return manifest
+
+
+def extract_paths(repo: Path, head: str, paths: list[str], snapshot: Path) -> None:
+    if not paths:
+        return
+    archive = isolated_archive(repo, head, *paths)
+    with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+        for member in tar.getmembers():
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or ".." in path.parts or member.isdev() or member.islnk():
+                raise ValueError("项目快照含不安全成员")
+            if member.issym() and not ((snapshot / member.name).parent / member.linkname).resolve().is_relative_to(snapshot.resolve()):
+                raise ValueError("项目快照符号链接越界")
+        tar.extractall(snapshot, filter="data")
+
+
+def build_controller_manuals(repo: Path, head: str, destination: Path) -> dict:
+    """冻结基线 MANUALS_DIR 顶层的 .md 手册，给主控只读；先在临时目录建好再改名，不留半成品。"""
+    names = isolated_git(repo, "ls-tree", "--name-only", head, "--", MANUALS_DIR + "/").decode().splitlines()
+    paths = [name for name in names if name.endswith(".md")]
+    staging = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
+    if staging.exists():
+        shutil.rmtree(staging)
+    (staging / "repo" / MANUALS_DIR).mkdir(parents=True)
+    extract_paths(repo, head, paths, staging / "repo")
+    manifest = {"head": head, "paths": paths}
+    (staging / "manuals.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    os.rename(staging, destination)
     return manifest

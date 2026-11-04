@@ -93,6 +93,17 @@ def prove_queue(gateway: RepoGateway, ticket: int, cutover: CutoverStore, expect
     return proof
 
 
+def _stop_reason(run_dir: Path) -> str:
+    try:
+        request = json.loads((run_dir / 'interrupt.request').read_text())
+    except (OSError, ValueError):
+        request = {}
+    by = request.get('by') if isinstance(request, dict) else None
+    if by in ('execution_unknown', 'brain_stopped_early'):
+        return f"{by}: {request.get('reason', '')}; executor run --resume is required"
+    return 'operator interrupt; executor run --resume is required'
+
+
 @dataclass
 class QueueIntake:
     state_root: Path
@@ -274,7 +285,7 @@ class QueueIntake:
                         continue
                     if (run_dir / 'interrupt.request').exists():
                         results[ticket] = {'phase': 'awaiting_human', 'run_id': unit.run_id,
-                                           'reason': 'operator interrupt; executor run --resume is required'}
+                                           'reason': _stop_reason(run_dir)}
                         continue
                     code = run(unit)
                     state = delivery_status(run_dir)
@@ -284,7 +295,7 @@ class QueueIntake:
                     pending = [json.loads(p.read_text()) for p in requests]
                     waiting = [d for d in pending if d.get('status') != 'approved']
                     if (run_dir / 'interrupt.request').exists():
-                        phase, reason = 'awaiting_human', 'operator interrupt; executor run --resume is required'
+                        phase, reason = 'awaiting_human', _stop_reason(run_dir)
                     elif waiting:
                         phase, reason = 'awaiting_human', waiting[-1]
                     elif code == 75 or code < 0:
@@ -304,7 +315,8 @@ class QueueIntake:
                     if activity is not None:
                         occupied[ticket] = activity
                         previous = results[ticket].get('reason')
-                        results[ticket].update(phase='active', reason=f'{previous}; {activity}' if previous else activity)
+                        phase = 'awaiting_human' if results[ticket].get('phase') == 'awaiting_human' else 'active'
+                        results[ticket].update(phase=phase, reason=f'{previous}; {activity}' if previous else activity)
                     else:
                         occupied.pop(ticket, None)
             return self._status(results)

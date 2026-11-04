@@ -14,14 +14,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from approval_signing.protocol import CommitTarget, Scope
+from approval_signing.protocol import CommitTarget, Scope, spec_target
 
 from .approval import (
     ApprovalDesk,
     Pending,
     SignedApprovals,
     decision_json,
-    spec_body_target,
+    freeze_signed_spec,
+    spec_body,
 )
 from .boat_execution import ExecutionUnknown
 from .claims import (
@@ -57,6 +58,7 @@ from .domain import (
     RunFacts,
     Running,
     Sha,
+    WorkerKey,
     candidate_conflict,
     current_head,
     parse_key_name,
@@ -108,6 +110,10 @@ class ApprovalRequired(Exception):
     def __init__(self, decision: Pending):
         super().__init__(f"{decision.status}：{decision.reason}；请求 {decision.request_path}")
         self.decision = decision
+
+
+class ReviewSpecMismatch(Exception):
+    """放行用的同 head 独审是在另一份 SPEC 下封包的；不发布，原包、回执与候选保留。"""
 
 
 class PullRequestRefused(Exception):
@@ -206,8 +212,10 @@ class TicketExecutor:
         """需要 SPEC 授权的准入：目标是 SPEC 票此刻正文的原始字节摘要，正文一变就换请求。"""
         admission = self.unit.admission
         assert not isinstance(admission, DedicatedPilot)
-        target = spec_body_target(admission.spec_auth.spec_issue, self.gateway.issue(admission.spec_auth.spec_issue))
-        decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, target)
+        issue = admission.spec_auth.spec_issue
+        body = spec_body(self.gateway.issue(issue))
+        decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, spec_target(issue, body))
+        freeze_signed_spec(run_dir, issue, body, decision, generation)
         return decision if isinstance(decision, Pending) else None
 
     def candidate_approval(self, run_dir: Path, generation: int, head: Sha) -> Pending | None:
@@ -420,6 +428,18 @@ class TicketExecutor:
                     raise ApprovalRequired(pending)
             yield boundary
 
+    def _require_review_spec(self, run: PilotRun, head: Sha) -> None:
+        """放行判据的一部分：同 head 独审 PASS 的封包 SPEC 必须是当前签批目标。每个发布动作锁内、
+        _boundary_problem 重核并冻结当前签批之后调用。本机测试后端不封包 SPEC，不适用。"""
+        if run.execution is None or run.spec_issue is None:
+            return
+        spec = run.signed_spec()
+        binding = run.execution.load(WorkerKey(run.spec.run_id, "review", head))
+        packaged = run.execution.packaged_spec(binding) if binding is not None else None
+        if spec is None or packaged != spec.target:
+            raise ReviewSpecMismatch(f"独审 review@{head} 封包 SPEC {packaged}，当前签批目标 "
+                                     f"{spec.target if spec else None}")
+
     def _assert_frozen(self, run: PilotRun, head: Sha, chain: set[str]) -> None:
         checkout = run.spec.checkout_for("author")
         tip = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"], check=True, capture_output=True,
@@ -572,6 +592,7 @@ class TicketExecutor:
         branch = self.unit.branch
         try:
             with self.action("push", run.dir, generation, head=head):
+                self._require_review_spec(run, head)
                 self._assert_frozen(run, head, chain)
                 checkout = run.spec.checkout_for("author")
                 journal.converge(f"push-{head}", lambda: self._ref_probe(head),
@@ -580,6 +601,7 @@ class TicketExecutor:
                                  prepare=lambda: ExactUpload(self.gateway, checkout, self.unit.base).upload(head),
                                  crash=self.crash)
             with self.action("pr", run.dir, generation, head=head) as boundary:
+                self._require_review_spec(run, head)
                 try:
                     if not journal.done(f"pr-{head}"):
                         self._require_ref(head)
@@ -595,6 +617,7 @@ class TicketExecutor:
                     raise boundary.halt(f"pr:{refused}") from None
             if observed == "open":
                 with self.action("status", run.dir, generation, pr_number=number, head=head) as boundary:
+                    self._require_review_spec(run, head)
                     observed = self._checked(boundary, head, number)
                     if observed == "open":
                         self._publish_status(journal, head,
@@ -604,6 +627,7 @@ class TicketExecutor:
                 body = (f"[deepagents run={spec.run_id} gen={generation}]\n\n交付冻结 head `{head}` 到 "
                         f"`{branch}`，PR {pr.get('url')}，等待人合入。\n\n{text}")
                 with self.action("deliver", run.dir, generation, pr_number=number, head=head) as boundary:
+                    self._require_review_spec(run, head)
                     observed = self._checked(boundary, head, number)
                     if observed == "open":
                         journal.converge(f"deliver-{head}", lambda: self.gateway.find_marker(self.unit.ticket, text),
@@ -611,6 +635,10 @@ class TicketExecutor:
                                          what={"kind": "comment", "issue": self.unit.ticket, "marker": text},
                                          crash=self.crash)
                         observed = self._checked(boundary, head, number)
+        except ReviewSpecMismatch as mismatch:
+            run.trail("publish_refused", head=head, reason="review_spec_mismatch", detail=str(mismatch))
+            return {"ok": False, "decision": "refused", "head": head, "reasons": ["review_spec_mismatch"],
+                    "detail": str(mismatch)}
         except ApprovalRequired as required:
             run.trail("publish_awaiting_approval", head=head, **decision_json(required.decision))
             return {"ok": False, "decision": "awaiting_approval", "head": head,
@@ -721,6 +749,8 @@ def open_v2_run(state_root: Path, unit: WorkUnit, task: TaskSpec, executor: Tick
         try:
             run.bind_claim()
             run.ensure_checkouts()
+            if run.execution is not None:
+                run.execution.audit_controller()
         except BaseException:
             run.release()
             raise
@@ -915,7 +945,7 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_BUSY
             if args.resume:
                 pilot.clear_interrupt()
-            return drive(pilot, recheck_approval=args.resume or args.recheck_approval)
+            return drive(pilot, recheck_approval=args.resume or args.recheck_approval, resume=args.resume)
     except ApprovalRequired as required:
         print(json.dumps({"phase": "awaiting_human", "approval": decision_json(required.decision)}, ensure_ascii=False))
         return 0
