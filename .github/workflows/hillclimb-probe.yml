@@ -1,0 +1,20 @@
+name: hillclimb runner probe (#1875)
+on:
+  push:
+    branches: ['hillclimb/probe-*']
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [blacksmith-4vcpu-ubuntu-2404, boat]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Describe runner
+        run: |
+          set -x
+          nproc; lscpu | grep -E 'Model name|^CPU\(s\)'; free -g; df -h /
+          command -v rustc && rustc -vV; command -v cargo && cargo -V; command -v rustup && rustup show active-toolchain
+          python3 -V; command -v node && node -v; command -v gh && gh --version | head -1
+          cat /etc/os-release | head -3
