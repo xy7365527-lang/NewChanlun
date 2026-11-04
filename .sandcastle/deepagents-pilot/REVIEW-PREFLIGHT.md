@@ -38,7 +38,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 
 - 预检是某一时刻的快照。CLIProxy 是 fill-first + 会话亲和，正式 attempt 的新会话仍可能在几秒后被选到别的凭据；路由的根治在共享 proxy 配置（当前已用 `oauth-excluded-models.antigravity` 排除两个 Claude 模型），预检只负责发现回归。
 - JSON 围栏类失败需要真实模型完整输出才能复现，预检不覆盖。
-- 双快照阈值约 5.20GB（随 PR 变化）。HOME 剩余空间常被其他线程挤占；拦下时先查 colima 是否持有已删除文件。
+- 双快照阈值约 5.20GB（随 PR 变化）。空间不足时报告会附 `vm_deleted_open_bytes`：colima/lima 的 VM 进程仍打开着的已删除文件字节数（2026-11-05 实测 142.67GB，是 HOME 耗尽的主因）。这部分要先停掉 VM 里的容器再重启 colima 才能回收；colima 是共用的，重启前确认其他线程没有在跑的容器。
 
 ## 测量
 
