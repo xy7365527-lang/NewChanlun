@@ -3656,9 +3656,23 @@ pub(crate) mod tests {
             })
             .collect()
     }
+    /// One side of [`runtime_root_compare_reachable_bytes`]: every stored node and every root, read
+    /// from one connection, so the two sides can be read on different threads.
+    #[cfg(feature = "s_incremental")]
+    pub(crate) struct ReachableSide {
+        nodes: std::collections::BTreeMap<Vec<u8>, (u8, Vec<u8>)>,
+        roots: Vec<Vec<u8>>,
+    }
     #[cfg(feature = "s_incremental")]
     pub(crate) fn runtime_root_compare_reachable_bytes(left: &Connection, right: &Connection) {
-        use std::collections::{BTreeMap, BTreeSet};
+        runtime_root_compare_reachable_sides(
+            runtime_root_reachable_side(left),
+            runtime_root_reachable_side(right),
+        );
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn runtime_root_reachable_side(c: &Connection) -> ReachableSide {
+        use std::collections::BTreeMap;
         let nodes = |c: &Connection| {
             c.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
                 .unwrap()
@@ -3729,10 +3743,18 @@ pub(crate) mod tests {
             }
             roots
         };
-        let a = nodes(left);
-        let b = nodes(right);
-        let mut todo = roots(left);
-        assert_eq!(todo, roots(right));
+        ReachableSide {
+            nodes: nodes(c),
+            roots: roots(c),
+        }
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn runtime_root_compare_reachable_sides(left: ReachableSide, right: ReachableSide) {
+        use std::collections::BTreeSet;
+        let a = left.nodes;
+        let b = right.nodes;
+        let mut todo = left.roots;
+        assert_eq!(todo, right.roots);
         let mut seen = BTreeSet::new();
         while let Some(root) = todo.pop() {
             if !seen.insert(root.clone()) {

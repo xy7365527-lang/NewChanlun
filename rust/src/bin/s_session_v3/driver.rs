@@ -8733,7 +8733,6 @@ mod tests {
     fn s4_run(steps: &[S4Step], cold: bool) -> Vec<Value> {
         let plan = s4_clock(steps.len());
         let f = Fixture::with_clock(plan.clone());
-        let o = Fixture::with_clock(plan);
         // complete_driver 的 512 MiB 源保留预算在本序列第 25 代（约 11.2 万节点）报
         // 「publication父工作域尾检失败」(BudgetExceeded)；S4 只测对拍与读量，预算放宽为
         // S4_CACHE_BYTES（缺省 4 GiB），预算随 N 增长本身记入 REPORT 交 S5/#1491。
@@ -8760,108 +8759,179 @@ mod tests {
         };
         let ready = envelope("establish-q", json!({"op":"ready"}));
         let ready_reply = native.handle(ready.clone()).unwrap();
-        if cold {
-            let mut ordinary = o.open("1").unwrap();
-            assert_eq!(ordinary.handle(ready).unwrap(), ready_reply);
-        }
-        let mut prior = s4_reachable(&native.conn);
-        let mut rows = Vec::new();
-        for (index, step) in steps.iter().enumerate() {
-            let k = index + 1;
-            let e = s4_message(k, step);
-            let nodes_before = count(&native.conn, "s_content_nodes");
-            let probe = native.conn.sql_read_probe();
-            let (actual, events, work) = state::traced(true, || native.handle(e.clone()));
-            drop(probe);
-            let actual = actual.unwrap();
-            let generation = meta_i64(&native.conn, "generation").unwrap();
-            assert_eq!(generation, k as i64, "每步须恰好新发布一代：{actual}");
-            let delta = state::stage_rows(&events);
-            assert_eq!(
-                delta["paths"],
-                json!(["-", "delta"]),
-                "warm owner 第{k}代必须走 delta 增量车道：{delta}"
-            );
-            // #1640 路径断言：s_incremental 构建的增量臂稳态代不得进入完整分支（出生锁 D2）。
-            assert!(
-                full_births(&events).is_empty(),
-                "第{k}代增量臂调用了完整分支：{:?}",
-                full_births(&events)
-            );
-            for name in state::S4_STAGES {
+        std::thread::scope(|scope| {
+            // The cold arm only reads its own Fixture and the step list, so it runs one generation
+            // ahead on its own thread (its thread-local lanes/oracle stay its own, as a fresh
+            // Runtime's would); every assertion below still runs here, in the original order.
+            let cold_gens = cold.then(|| {
+                let (tx, rx) = std::sync::mpsc::sync_channel::<S4ColdGen>(1);
+                let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel::<Value>(1);
+                let ready = ready.clone();
+                std::thread::Builder::new()
+                    .name("s4-cold-arm".into())
+                    .stack_size(64 << 20)
+                    .spawn_scoped(scope, move || s4_cold_arm(plan, steps, ready, ready_tx, tx))
+                    .unwrap();
+                assert_eq!(ready_rx.recv().unwrap(), ready_reply);
+                rx
+            });
+            let mut prior = s4_reachable(&native.conn);
+            let mut rows = Vec::new();
+            for (index, step) in steps.iter().enumerate() {
+                let k = index + 1;
+                let e = s4_message(k, step);
+                let nodes_before = count(&native.conn, "s_content_nodes");
+                let probe = native.conn.sql_read_probe();
+                let (actual, events, work) = state::traced(true, || native.handle(e.clone()));
+                drop(probe);
+                let actual = actual.unwrap();
+                let generation = meta_i64(&native.conn, "generation").unwrap();
+                assert_eq!(generation, k as i64, "每步须恰好新发布一代：{actual}");
+                let delta = state::stage_rows(&events);
                 assert_eq!(
-                    delta["stages"][name]["segments"], 1,
-                    "第{k}代阶段{name}缺标记：{delta}"
+                    delta["paths"],
+                    json!(["-", "delta"]),
+                    "warm owner 第{k}代必须走 delta 增量车道：{delta}"
                 );
-            }
-            let reachable = s4_reachable(&native.conn);
-            let delta_r = reachable.difference(&prior).count();
-            let new_nodes = count(&native.conn, "s_content_nodes") - nodes_before;
-            let workspace = events.iter().any(|e| e["phase"] == "s4_manifest_workspace");
-            let mut row = json!({"generation":generation,"kind":step.kind,"bars_in_message":step.rows.len(),
+                // #1640 路径断言：s_incremental 构建的增量臂稳态代不得进入完整分支（出生锁 D2）。
+                assert!(
+                    full_births(&events).is_empty(),
+                    "第{k}代增量臂调用了完整分支：{:?}",
+                    full_births(&events)
+                );
+                for name in state::S4_STAGES {
+                    assert_eq!(
+                        delta["stages"][name]["segments"], 1,
+                        "第{k}代阶段{name}缺标记：{delta}"
+                    );
+                }
+                let reachable = s4_reachable(&native.conn);
+                let delta_r = reachable.difference(&prior).count();
+                let new_nodes = count(&native.conn, "s_content_nodes") - nodes_before;
+                let workspace = events.iter().any(|e| e["phase"] == "s4_manifest_workspace");
+                let mut row = json!({"generation":generation,"kind":step.kind,"bars_in_message":step.rows.len(),
                 "manifest_workspace":workspace,
                 "raw_events":count(&native.conn, "raw_events"),"delta_r":delta_r,"reachable":reachable.len(),
                 "new_stored_nodes":new_nodes,"delta":delta,"work":work});
-            if cold {
-                let (mut reader, expected, cold_events) = s4_cold_handle(&o, &e);
-                // 回复、回执、全表（含全部节点）逐位相同；owner complete 与冷审计一致。
-                assert_eq!(actual, expected, "第{k}代回复分叉");
-                let full = state::stage_rows(&cold_events);
-                assert_eq!(full["paths"], json!(["-", "full"]), "冷臂须走完整路径");
-                // 冷臂每代新 Runtime：恰一次完整分支，入口为 startup。
-                assert_eq!(
-                    full_births(&cold_events),
-                    [json!("startup")],
-                    "第{k}代冷臂完整分支入口"
-                );
-                native.conn.assert_complete_matches_cold();
-                // 来源审计跨代增量状态不进入产物，单独与独立全量来源审计 Counts 六字段对拍。
-                let counts = super::super::audit_owner::construction_tests::b2_assert_counts_match_independent_full_source(
+                if let Some(cold_gens) = &cold_gens {
+                    // the cold arm used to run here, on this thread; keep its lane reset here too
+                    s_fact_cache::warm_lane_reset();
+                    let S4ColdGen {
+                        expected,
+                        cold_events,
+                        reader_receipt,
+                        tables,
+                        reachable_side,
+                        cold_nodes,
+                        cold_reachable,
+                    } = cold_gens.recv().expect("冷臂线程提前结束");
+                    // 回复、回执、全表（含全部节点）逐位相同；owner complete 与冷审计一致。
+                    assert_eq!(actual, expected, "第{k}代回复分叉");
+                    let full = state::stage_rows(&cold_events);
+                    assert_eq!(full["paths"], json!(["-", "full"]), "冷臂须走完整路径");
+                    // 冷臂每代新 Runtime：恰一次完整分支，入口为 startup。
+                    assert_eq!(
+                        full_births(&cold_events),
+                        [json!("startup")],
+                        "第{k}代冷臂完整分支入口"
+                    );
+                    native.conn.assert_complete_matches_cold();
+                    // 来源审计跨代增量状态不进入产物，单独与独立全量来源审计 Counts 六字段对拍。
+                    let counts = super::super::audit_owner::construction_tests::b2_assert_counts_match_independent_full_source(
                     &native.conn,
                 );
-                assert_eq!(
-                    native.handle(receipt_request(&e)).unwrap(),
-                    reader.handle(receipt_request(&e)).unwrap(),
-                    "第{k}代回执分叉"
-                );
-                // 非节点表逐表逐位；节点表按公共根可达闭包逐位（存储了但不可达的节点
-                // 不是产物，只记差集计数供诊断）。
-                let tables = prepared::tests::runtime_root_tables(&reader.conn, false);
-                for (left, right) in prepared::tests::runtime_root_tables(&native.conn, false)
-                    .iter()
-                    .zip(&tables)
-                {
-                    assert_eq!(left.0, right.0, "第{k}代表集分叉");
-                    assert!(
-                        left == right,
-                        "第{k}代({})表{}增量≠冷全量",
-                        step.kind,
-                        left.0
+                    assert_eq!(
+                        native.handle(receipt_request(&e)).unwrap(),
+                        reader_receipt,
+                        "第{k}代回执分叉"
                     );
+                    // 非节点表逐表逐位；节点表按公共根可达闭包逐位（存储了但不可达的节点
+                    // 不是产物，只记差集计数供诊断）。
+                    for (left, right) in prepared::tests::runtime_root_tables(&native.conn, false)
+                        .iter()
+                        .zip(&tables)
+                    {
+                        assert_eq!(left.0, right.0, "第{k}代表集分叉");
+                        assert!(
+                            left == right,
+                            "第{k}代({})表{}增量≠冷全量",
+                            step.kind,
+                            left.0
+                        );
+                    }
+                    prepared::tests::runtime_root_compare_reachable_sides(
+                        prepared::tests::runtime_root_reachable_side(&native.conn),
+                        reachable_side,
+                    );
+                    let delta_nodes = s4_stored_digests(&native.conn);
+                    assert_eq!(reachable, cold_reachable, "第{k}代可达节点集分叉");
+                    row["stored_only_delta"] = json!(delta_nodes.difference(&cold_nodes).count());
+                    row["stored_only_cold"] = json!(cold_nodes.difference(&delta_nodes).count());
+                    row["source_counts"] = json!(format!("{counts:?}"));
+                    row["full"] = full;
                 }
-                prepared::tests::runtime_root_compare_reachable_bytes(&native.conn, &reader.conn);
-                let stored = |c: &Connection| {
-                    c.prepare("SELECT digest FROM s_content_nodes")
-                        .unwrap()
-                        .query_map([], |r| r.get::<_, Vec<u8>>(0))
-                        .unwrap()
-                        .collect::<Result<std::collections::BTreeSet<_>, _>>()
-                        .unwrap()
-                };
-                let (delta_nodes, cold_nodes) = (stored(&native.conn), stored(&reader.conn));
-                let cold_reachable = s4_reachable(&reader.conn);
-                assert_eq!(reachable, cold_reachable, "第{k}代可达节点集分叉");
-                row["stored_only_delta"] = json!(delta_nodes.difference(&cold_nodes).count());
-                row["stored_only_cold"] = json!(cold_nodes.difference(&delta_nodes).count());
-                row["source_counts"] = json!(format!("{counts:?}"));
-                drop(reader);
-                row["full"] = full;
+                prior = reachable;
+                eprintln!("S4_STAGE_ROW {row}");
+                rows.push(row);
             }
-            prior = reachable;
-            eprintln!("S4_STAGE_ROW {row}");
-            rows.push(row);
+            rows
+        })
+    }
+    /// Everything the per-generation assertions need from the cold reader, computed on the cold
+    /// arm's thread right after the cold generation, in the order the reader used to be queried.
+    #[cfg(feature = "s_incremental")]
+    struct S4ColdGen {
+        expected: Value,
+        cold_events: Vec<Value>,
+        reader_receipt: Value,
+        tables: Vec<(String, Vec<Vec<prepared::tests::RuntimeRootCell>>)>,
+        reachable_side: prepared::tests::ReachableSide,
+        cold_nodes: std::collections::BTreeSet<Vec<u8>>,
+        cold_reachable: std::collections::BTreeSet<Vec<u8>>,
+    }
+    #[cfg(feature = "s_incremental")]
+    fn s4_cold_arm(
+        plan: Value,
+        steps: &[S4Step],
+        ready: Value,
+        ready_tx: std::sync::mpsc::SyncSender<Value>,
+        tx: std::sync::mpsc::SyncSender<S4ColdGen>,
+    ) {
+        let o = Fixture::with_clock(plan);
+        let mut ordinary = o.open("1").unwrap();
+        ready_tx.send(ordinary.handle(ready).unwrap()).unwrap();
+        drop(ordinary);
+        for (index, step) in steps.iter().enumerate() {
+            let e = s4_message(index + 1, step);
+            let (mut reader, expected, cold_events) = s4_cold_handle(&o, &e);
+            let reader_receipt = reader.handle(receipt_request(&e)).unwrap();
+            let tables = prepared::tests::runtime_root_tables(&reader.conn, false);
+            let reachable_side = prepared::tests::runtime_root_reachable_side(&reader.conn);
+            let cold_nodes = s4_stored_digests(&reader.conn);
+            let cold_reachable = s4_reachable(&reader.conn);
+            drop(reader);
+            let gen = S4ColdGen {
+                expected,
+                cold_events,
+                reader_receipt,
+                tables,
+                reachable_side,
+                cold_nodes,
+                cold_reachable,
+            };
+            if tx.send(gen).is_err() {
+                return; // the native arm already failed; its panic is the report
+            }
         }
-        rows
+    }
+    #[cfg(feature = "s_incremental")]
+    fn s4_stored_digests(c: &Connection) -> std::collections::BTreeSet<Vec<u8>> {
+        c.prepare("SELECT digest FROM s_content_nodes")
+            .unwrap()
+            .query_map([], |r| r.get::<_, Vec<u8>>(0))
+            .unwrap()
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()
+            .unwrap()
     }
     #[cfg(feature = "s_incremental")]
     fn s4_write_rows(rows: &[Value]) {
