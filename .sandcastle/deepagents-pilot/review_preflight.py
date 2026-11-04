@@ -212,7 +212,7 @@ def _round_trip(url: str, key: str, model: str, session: str) -> dict:
     deadline = time.monotonic() + PROBE_TIMEOUT
     try:
         with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
-            terminal, detail = None, "流在终态事件前结束"
+            terminal, detail, status = None, "流在终态事件前结束", None
             for raw in response:
                 if time.monotonic() > deadline:
                     detail = f"超过 {PROBE_TIMEOUT}s 仍无终态事件"
@@ -222,11 +222,15 @@ def _round_trip(url: str, key: str, model: str, session: str) -> dict:
                     event = json.loads(line[5:]) if line[5:].strip().startswith("{") else {}
                     if event.get("type") in ("response.completed", "response.incomplete", "response.failed", "error"):
                         terminal = event.get("type")
-                        detail = (event.get("response") or {}).get("error") or event.get("error") or event.get("message")
+                        inner = event.get("response") if isinstance(event.get("response"), dict) else {}
+                        status = inner.get("status")
+                        detail = inner.get("error") or event.get("error") or event.get("message")
                         break
-            return {"http_status": response.status, "terminal": terminal,
-                    "ok": terminal in ("response.completed", "response.incomplete"),
-                    "error": None if terminal in ("response.completed", "response.incomplete") else str(detail)[:300]}
+            # 事件名成功还不够：响应体自报 failed/cancelled 或带 error 也算失败。
+            ok = (terminal in ("response.completed", "response.incomplete") and not detail
+                  and status not in ("failed", "cancelled"))
+            return {"http_status": response.status, "terminal": terminal, "status": status, "ok": ok,
+                    "error": None if ok else str(detail or f"status={status}")[:300]}
     except urllib.error.HTTPError as error:
         return {"http_status": error.code, "terminal": None, "ok": False, "error": error.read().decode("utf-8", "replace")[:300]}
     except (urllib.error.URLError, TimeoutError, OSError) as error:
@@ -278,21 +282,33 @@ def served_models(text: str) -> set[str]:
 def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) -> tuple[list[tuple[str, str]], set[str]] | None:
     """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机，以及实际服务模型。"""
     deadline = time.monotonic() + wait
+    partial = None
     while True:
-        for path in sorted(log_dir.glob("v1-responses-*.log"), key=lambda q: q.stat().st_mtime, reverse=True):
-            if path.stat().st_mtime < since - 1:
+        entries = []
+        for path in log_dir.glob("v1-responses-*.log"):
+            try:  # 其他会话的日志可能在 glob 与 stat 之间被轮转删除
+                entries.append((path.stat().st_mtime, path))
+            except OSError:
+                continue
+        for mtime, path in sorted(entries, reverse=True):
+            if mtime < since - 1:
                 break
-            text = path.read_text(errors="replace")
+            try:
+                text = path.read_text(errors="replace")
+            except OSError:
+                continue
             if f"Session-Id: {session}" not in text:
                 continue
             providers = re.findall(r"^Auth: provider=([\w.-]+)", text, re.M)
             hosts = re.findall(r"^Upstream URL: https?://([^/:?\s]+)", text, re.M)
-            # 行数不齐说明日志形状变了，返回空表让路由检查判失败，不截断猜测。
-            attempts = list(zip(providers, hosts, strict=True)) if len(providers) == len(hosts) else []
-            return attempts, served_models(text)
+            if providers and len(providers) == len(hosts):
+                return list(zip(providers, hosts, strict=True)), served_models(text)
+            # 日志可能还没写完：先记下，等到窗口结束仍不完整再按“形状不对”判失败。
+            partial = ([], served_models(text))
+            break
         if time.monotonic() > deadline:
-            return None
-        time.sleep(0.25)
+            return partial
+        time.sleep(0.05)
 
 
 def probe_model(args, model: str, key: str | None) -> list[dict]:

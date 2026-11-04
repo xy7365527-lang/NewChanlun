@@ -41,7 +41,7 @@ class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
     def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None,
-                 echo_auth=False):
+                 echo_auth=False, terminal=None, header_first=0.0):
         self.requests = []
         proxy = self
 
@@ -67,7 +67,11 @@ class FakeProxy:
                     model_served = (served or {}).get(body["model"])
                     if model_served:
                         text += 'data: {"type":"message_start","message":{"model":"%s"}}\n' % model_served
-                    if log_delay:
+                    if header_first:
+                        # 先只落盘会话头，过一会儿再补全上游段（分段写入）
+                        path.write_text(text.split("\n\n=== API REQUEST")[0] + "\n")
+                        threading.Timer(header_first, path.write_text, args=(text,)).start()
+                    elif log_delay:
                         threading.Timer(log_delay, path.write_text, args=(text,)).start()
                     else:
                         path.write_text(text)
@@ -83,7 +87,7 @@ class FakeProxy:
                 elif code != 200:
                     payload = b'{"error":{"message":"tool_choice: type \\"tool\\" and \\"any\\" are not supported"}}'
                 else:
-                    payload = b'event: response.completed\ndata: {"type":"response.completed","response":{}}\n\n'
+                    payload = (terminal or b'event: response.completed\ndata: {"type":"response.completed","response":{}}\n\n')
                 self.send_response(code)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
@@ -363,3 +367,32 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
     lines = calls.read_text().splitlines()
     name = next(a.split()[a.split().index("--name") + 1] for a in lines if a.startswith("run "))
     assert f"rm -f {name}" in lines
+
+
+def test_completed_event_with_failed_status_is_not_success(env, capsys):
+    bad = b'data: {"type":"response.completed","response":{"status":"failed","error":{"message":"overloaded"}}}\n\n'
+    code, report, *_ = env(terminal=bad, capsys=capsys)
+    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+
+
+def test_incomplete_without_error_still_passes(env, capsys):
+    ok = b'data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}\n\n'
+    code, report, *_ = env(terminal=ok, capsys=capsys)
+    assert code == 0
+
+
+def test_log_written_in_two_steps_is_not_misread(env, capsys):
+    code, report, *_ = env(header_first=0.3, capsys=capsys)
+    assert code == 0 and failing(report) == set()
+
+
+def test_unrelated_log_vanishing_mid_scan_does_not_block(env, capsys, tmp_path, monkeypatch):
+    original = preflight.Path.stat
+    def flaky(self, *a, **k):
+        if self.name.startswith("v1-responses-gone"):
+            raise FileNotFoundError(self)
+        return original(self, *a, **k)
+    (tmp_path / "logs" / "v1-responses-gone.log").write_text("x")
+    monkeypatch.setattr(preflight.Path, "stat", flaky)
+    code, report, *_ = env(capsys=capsys)
+    assert code == 0 and failing(report) == set()
