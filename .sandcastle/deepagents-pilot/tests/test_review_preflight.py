@@ -42,7 +42,7 @@ class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
     def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None,
-                 echo_auth=False, terminal=None, header_first=0.0):
+                 echo_auth=False, terminal=None, header_first=0.0, split_at=None, error_body=None):
         self.requests = []
         proxy = self
 
@@ -74,7 +74,12 @@ class FakeProxy:
                     model_served = (served or {}).get(body["model"])
                     if model_served:
                         text += 'data: {"type":"message_start","message":{"model":"%s"}}\n' % model_served
-                    if header_first:
+                    text += "\n=== RESPONSE ===\nStatus: 200\n"
+                    if split_at and split_at in text:
+                        # 分段写入：先落盘到 split_at 之前（可能截在一行中间），0.3 秒后补全
+                        path.write_text(text[:text.index(split_at)])
+                        threading.Timer(0.3, path.write_text, args=(text,)).start()
+                    elif header_first:
                         # 先只落盘会话头，过一会儿再补全上游段（分段写入）
                         path.write_text(text.split("\n\n=== API REQUEST")[0] + "\n")
                         threading.Timer(header_first, path.write_text, args=(text,)).start()
@@ -89,7 +94,9 @@ class FakeProxy:
                     self.wfile.flush()
                     time.sleep(4)
                     return
-                if code != 200 and echo_auth:
+                if code != 200 and error_body is not None:
+                    payload = error_body(self.headers["Authorization"]).encode()
+                elif code != 200 and echo_auth:
                     payload = json.dumps({"error": {"message": f"bad header {self.headers['Authorization']}"}}).encode()
                 elif code != 200:
                     payload = b'{"error":{"message":"tool_choice: type \\"tool\\" and \\"any\\" are not supported"}}'
@@ -360,7 +367,7 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
     root, base, head = repo
     bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
     bin_dir.mkdir()
-    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nsleep 3\n')
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nsleep 5\n')
     (bin_dir / "docker").chmod(0o755)
     (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")  # 不碰本机真实 launchctl
     (bin_dir / "launchctl").chmod(0o755)
@@ -371,7 +378,7 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
         [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
          "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",
          "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
-         "--codex-home", str(codex), "--deadline", "0.5"],
+         "--codex-home", str(codex), "--deadline", "2"],
         capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
     assert result.returncode == 2
     assert [p.name for p in checkouts.iterdir()] == []
@@ -475,3 +482,54 @@ def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):
     (tmp_path / "key.txt").write_text("revoked-key\n")
     code, report, *_ = env(capsys=capsys)
     assert code == 2 and failing(report) == {"credential:codex-host"}
+
+
+def test_key_crossing_the_truncation_point_leaves_no_prefix(env, capsys):
+    """独审二·1：先截断后脱敏会留下 key 前缀。"""
+    def body(auth: str) -> str:
+        head = json.dumps({"error": {"message": ""}})[:-3]  # 到 message 值开头为止
+        pad = 290 - len(head) - len("Bearer ")  # 让 key 从第 290 个字符开始，跨过 300 的截断点
+        return head + "x" * pad + auth + ' tail"}}'
+    assert body(f"Bearer {KEY}").index(KEY) == 290
+    code, report, out, _ = env(status={OPUS: 400}, error_body=body, capsys=capsys)
+    assert code == 2 and KEY[:8] not in out
+
+
+def test_provider_line_written_halfway_is_not_misread(env, capsys):
+    """独审二·2：日志截在 provider=clau 时不能判失败。"""
+    code, report, *_ = env(split_at="ude, auth_id", capsys=capsys)
+    assert code == 0 and failing(report) == set()
+
+
+def test_served_model_appended_later_is_still_checked(env, capsys):
+    """独审二·2：路由头先写完、实际服务模型后补，fallback 仍须拦。"""
+    code, report, *_ = env(served={OPUS: "claude-opus-4-8", SOL: SOL}, split_at='data: {"type":"message_start"', capsys=capsys)
+    assert code == 2 and f"identity:{OPUS}" in failing(report)
+
+
+def test_cleanup_stays_within_deadline_and_reports_failure(tmp_path, repo):
+    """独审二·3/4：docker rm 卡住时目录仍删除、失败要报告，且总耗时不超总时限。"""
+    import subprocess
+    import sys
+    root, base, head = repo
+    bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
+    bin_dir.mkdir()
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\nsleep 5\n')
+    (bin_dir / "docker").chmod(0o755)
+    (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")
+    (bin_dir / "launchctl").chmod(0o755)
+    codex = tmp_path / "codex"
+    codex.mkdir()
+    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nexperimental_bearer_token = "x"\n')
+    start = time.monotonic()
+    result = subprocess.run(
+        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
+         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",
+         "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
+         "--codex-home", str(codex), "--deadline", "1.0"],
+        capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
+    elapsed = time.monotonic() - start
+    report = json.loads(result.stdout)
+    assert result.returncode == 2 and elapsed < 1.6
+    assert [p.name for p in checkouts.iterdir()] == []
+    assert "probe_cleanup" in {c["name"] for c in report["checks"] if not c["ok"]}

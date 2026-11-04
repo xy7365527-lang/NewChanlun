@@ -117,20 +117,35 @@ def vm_deleted_open_bytes() -> dict:
             "hint": "VM 进程仍持有已删除文件；先停掉其中运行的容器，再重启 colima 才能回收这部分空间"}
 
 
-def _reclaim(probe: Path, container: str) -> None:
-    subprocess.run(["docker", "rm", "-f", container], capture_output=True, timeout=10)
-    shutil.rmtree(probe, ignore_errors=True)
+def _reclaim(probe: Path, container: str, timeout: float) -> str | None:
+    """回收一个挂载探针；目录删除总会执行。返回失败说明，成功返回 None。"""
+    error = None
+    try:
+        result = subprocess.run(["docker", "rm", "-f", container], capture_output=True, text=True,
+                                timeout=max(0.1, timeout))
+        if result.returncode and "No such container" not in result.stderr:
+            error = f"docker rm -f {container} 退出 {result.returncode}"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        error = f"docker rm -f {container} {type(exc).__name__}"
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+    if probe.exists():
+        error = f"{error + '；' if error else ''}探针目录 {probe} 未删净"
+    return error
 
 
-def reclaim_pending() -> None:
+def reclaim_pending(budget: float) -> list[str]:
+    """总时限到时回收仍登记的探针，耗时不超过 budget（留在总时限之内）。"""
+    end = time.monotonic() + budget
     with _CLEANUP_LOCK:
         pending = list(_PENDING_CLEANUP.values())
         _PENDING_CLEANUP.clear()
+    failures = []
     for probe, container in pending:
-        try:
-            _reclaim(probe, container)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+        error = _reclaim(probe, container, end - time.monotonic())
+        if error:
+            failures.append(error)
+    return failures
 
 
 def check_mount(args) -> dict:
@@ -152,8 +167,10 @@ def check_mount(args) -> dict:
             result = subprocess.run(command, capture_output=True, text=True,
                                     timeout=max(1.0, min(30.0, _DEADLINE_AT - time.monotonic())))
         except subprocess.TimeoutExpired:
-            _reclaim(probe, container)
-            raise
+            error = _reclaim(probe, container, 3.0)
+            with _CLEANUP_LOCK:
+                _PENDING_CLEANUP.pop(container, None)
+            raise TimeoutError(f"docker run 超时{'；' + error if error else ''}") from None
     finally:
         with _CLEANUP_LOCK:
             owned = _PENDING_CLEANUP.pop(container, None)
@@ -265,6 +282,13 @@ def redact(text: str, secret: str | None) -> str:
 
 
 def _round_trip(url: str, key: str, model: str, session: str) -> dict:
+    trip = _round_trip_raw(url, key, model, session)
+    if trip.get("error"):
+        trip["error"] = redact(trip["error"], key)[:300]  # 先脱敏再截断，key 跨截断点也不留前缀
+    return trip
+
+
+def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
     """一次最小往返，请求形状对齐正式独审：responses + tools + tool_choice=auto + JSON 输出格式。"""
     # 只在探测线程里导入，与 docker/git 等待重叠，不占启动关键路径。
     import urllib.error
@@ -304,11 +328,11 @@ def _round_trip(url: str, key: str, model: str, session: str) -> dict:
             ok = (terminal in ("response.completed", "response.incomplete") and not detail
                   and status not in ("failed", "cancelled"))
             return {"http_status": response.status, "terminal": terminal, "status": status, "ok": ok,
-                    "error": None if ok else str(detail or f"status={status}")[:300]}
+                    "error": None if ok else str(detail or f"status={status}")[:4000]}
     except urllib.error.HTTPError as error:
-        return {"http_status": error.code, "terminal": None, "ok": False, "error": error.read().decode("utf-8", "replace")[:300]}
+        return {"http_status": error.code, "terminal": None, "ok": False, "error": error.read(4000).decode("utf-8", "replace")}
     except (urllib.error.URLError, TimeoutError, OSError) as error:
-        return {"http_status": None, "terminal": None, "ok": False, "error": f"{type(error).__name__}: {error}"[:300]}
+        return {"http_status": None, "terminal": None, "ok": False, "error": f"{type(error).__name__}: {error}"[:4000]}
 
 
 def request_log_enabled(config: Path) -> bool | None:
@@ -354,17 +378,21 @@ def served_models(text: str) -> set[str]:
 
 
 def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) -> tuple[list[tuple[str, str]], set[str]] | None:
-    """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机，以及实际服务模型。"""
+    """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机，以及实际服务模型。
+
+    proxy 的日志以 `=== RESPONSE ===` 段收尾（实测 92/92）。只在该段已出现、且相邻两次轮询文件大小不变时解析，
+    避免把写到一半的 `provider=clau` 或尚未写入的实际服务模型当成定论。"""
     deadline = time.monotonic() + wait
-    partial = None
+    partial, sizes = None, {}
     while True:
         entries = []
         for path in log_dir.glob("v1-responses-*.log"):
             try:  # 其他会话的日志可能在 glob 与 stat 之间被轮转删除
-                entries.append((path.stat().st_mtime, path))
+                stat = path.stat()
             except OSError:
                 continue
-        for mtime, path in sorted(entries, reverse=True):
+            entries.append((stat.st_mtime, stat.st_size, path))
+        for mtime, size, path in sorted(entries, reverse=True):
             if mtime < since - 1:
                 break
             try:
@@ -373,12 +401,14 @@ def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) 
                 continue
             if f"Session-Id: {session}" not in text:
                 continue
-            providers = re.findall(r"^Auth: provider=([\w.-]+)", text, re.M)
-            hosts = re.findall(r"^Upstream URL: https?://([^/:?\s]+)", text, re.M)
-            if providers and len(providers) == len(hosts):
-                return list(zip(providers, hosts, strict=True)), served_models(text)
-            # 日志可能还没写完：先记下，等到窗口结束仍不完整再按“形状不对”判失败。
-            partial = ([], served_models(text))
+            stable = sizes.get(path) == size == len(text.encode("utf-8", "replace"))
+            sizes[path] = size
+            if "\n=== RESPONSE ===" in text and stable:
+                providers = re.findall(r"^Auth: provider=([\w.-]+)(?=,|\s*$)", text, re.M)
+                hosts = re.findall(r"^Upstream URL: https?://([^/:?\s]+)", text, re.M)
+                attempts = list(zip(providers, hosts, strict=True)) if providers and len(providers) == len(hosts) else []
+                return attempts, served_models(text)
+            partial = ([], set())  # 找到了但还没写完；窗口结束仍未完成即按“无法核实”判失败
             break
         if time.monotonic() > deadline:
             return partial
@@ -444,8 +474,9 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     global _DEADLINE_AT
     t0 = time.monotonic()
-    _DEADLINE_AT = t0 + args.deadline
-    credential, host_key = check_credential(args, budget=args.deadline)
+    reserve = min(3.0, args.deadline / 2)  # 回收探针的预算留在总时限之内
+    _DEADLINE_AT = t0 + args.deadline - reserve
+    credential, host_key = check_credential(args, budget=args.deadline - reserve)
     credential["name"] = "credential:codex-host"
     worker_check, key = check_worker_credential()
     if host_key is not None:
@@ -471,9 +502,11 @@ def main(argv=None) -> int:
     for thread in threads.values():
         thread.start()
     for thread in threads.values():
-        thread.join(max(0.0, args.deadline - (time.monotonic() - t0)))
-    reclaim_pending()
+        thread.join(max(0.0, _DEADLINE_AT - time.monotonic()))
+    cleanup_failures = reclaim_pending(max(0.0, t0 + args.deadline - time.monotonic()))
     checks = [credential, worker_check]
+    if cleanup_failures:
+        checks.append({"name": "probe_cleanup", "class": "cleanup", "ok": False, "detail": cleanup_failures})
     for name, kind in jobs:
         status, value = results.get((name, kind), ("timeout", None))
         if status == "ok":
