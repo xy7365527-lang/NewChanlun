@@ -32,6 +32,9 @@ from .cloud_package import (
 from .domain import EffectUnknown, NotStarted, Running, Terminal, WorkerFact, WorkerKey
 
 ADMISSION_SECONDS = 900
+CONTROL_EXEC_SECONDS = 30
+# 600 是 boat exec 不切换为流式输出的最大有界 timeout。
+UNPACK_EXEC_SECONDS = 600
 STOP_MARGIN_SECONDS = 120
 STOPPED_STATES = {"stopping", "stopped", "archiving", "archived"}
 Submission = Literal["creating", "prepared", "submitting", "submitted", "collected"]
@@ -238,8 +241,8 @@ class BoatCLI:
             raise ExecutionUnknown(f"Boat {args[0]}返回{result.returncode}，须按原绑定对账")
         return rows
 
-    def exec(self, sandbox: str, command: str) -> dict:
-        row = self.call("exec", sandbox, "--timeout", "30", "--", "bash", "-lc", command)[-1]
+    def exec(self, sandbox: str, command: str, *, timeout: int = CONTROL_EXEC_SECONDS) -> dict:
+        row = self.call("exec", sandbox, "--timeout", str(timeout), "--", "bash", "-lc", command)[-1]
         if row.get("stdoutTruncated") or row.get("stderrTruncated") or row.get("exitCode") != 0 or row.get("timedOut") or row.get("signal"):
             raise ExecutionUnknown("远端命令输出不完整或执行非成功")
         output = row.get("stdout", "")
@@ -477,7 +480,7 @@ class BoatExecution(WorkerExecution):
         # `boat push` omits .git; the archive carries the exported credential-free Git metadata.
         self.cli.call("scp", str(archive), cast(str, binding.sandbox_id) + ":" + binding.remote_root + "/package.tar.gz")
         self.cli.exec(cast(str, binding.sandbox_id), f"set -e; test ! -e {remote}/claim; tar -xzf {remote}/package.tar.gz -C {remote}; "
-                                          f"rm {remote}/package.tar.gz; printf '{{}}'")
+                                          f"rm {remote}/package.tar.gz; printf '{{}}'", timeout=UNPACK_EXEC_SECONDS)
 
     def _admit(self, sandbox: str) -> float:
         info = self.cli.info(sandbox)

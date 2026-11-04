@@ -189,7 +189,7 @@ class FakeBoat:
     def call(self, *args):
         return self._handle('detach' if args[0] == 'exec' and '--detach' in args else args[0], *args[1:])
 
-    def exec(self, sandbox, command):
+    def exec(self, sandbox, command, *, timeout=30):
         return self._handle('exec', command)
 
     def info(self, sandbox):
@@ -375,6 +375,56 @@ def test_upload_failure_stops_before_key_or_worker(env, monkeypatch):
     assert ('rename', 'bx_new', binding.sandbox_name) in cli.calls
     assert all(command.startswith('set -e; test ! -e') for command in commands)
     assert provisioned == [] and not any(call[0] == 'exec' and '--detach' in call for call in cli.calls)
+    run.release()
+
+
+def test_package_unpack_gets_bounded_long_timeout_and_timed_out_unpack_replays_same_package(env, monkeypatch):
+    from pilot1742 import boat_execution
+
+    argv, unpack_codes = [], [143, 0]
+    stop_at = stamp(1700)
+
+    real_run = boat_execution.subprocess.run
+
+    def boat(command, *args, **kwargs):
+        if command[0] != 'boat':
+            return real_run(command, *args, **kwargs)
+        argv.append(command)
+        args = command[2:]
+        if args[0] == 'scp':
+            return SimpleNamespace(returncode=0, stdout='', stderr='')
+        if args[0] == 'info':
+            row = {'sandbox': {'state': 'running', 'hydrated': True, 'archiveAfter': stop_at}}
+            return SimpleNamespace(returncode=0, stdout=json.dumps(row), stderr='')
+        if '--detach' in args:
+            return SimpleNamespace(returncode=0, stdout=json.dumps({'commandId': 'cmd_x', 'processId': 7}), stderr='')
+        code = unpack_codes.pop(0) if 'tar -xzf' in args[-1] else 0
+        row = {'exitCode': code, 'stdout': '{}', 'signal': 'SIGTERM' if code else None,
+               'status': 'timed_out' if code else 'exited'}
+        return SimpleNamespace(returncode=code, stdout=json.dumps(row), stderr='')
+
+    monkeypatch.setattr(boat_execution.subprocess, 'run', boat)
+    run, engine, key, provisioned = prepared_engine(env, monkeypatch, BoatCLI(), sandbox_id='bx_abc')
+    engine.fork_api = SimpleNamespace(fork=lambda intent: pytest.fail('upload replay must not fork again'))
+
+    def timeouts():
+        return [(c[c.index('--timeout') + 1], c[-1]) for c in argv if c[2] == 'exec' and '--detach' not in c]
+
+    with pytest.raises(ExecutionUnknown, match='143'):
+        engine.submit(key)
+    first = timeouts()
+    assert [t for t, _ in first] == ['30', '600']
+    assert 'mkdir -p' in first[0][1] and 'tar -xzf' in first[1][1]
+    assert all('test ! -e ' in command and '/claim;' in command for _, command in first)
+    assert engine.load(key).submission == 'creating' and provisioned == []
+    assert not any('--detach' in c for c in argv)
+
+    engine.submit(key)
+    replay = timeouts()[len(first):]
+    assert [t for t, _ in replay] == ['30', '600'] and replay == first
+    assert engine.load(key).submission == 'submitted' and provisioned == ['bx_abc']
+    assert sum('--detach' in c for c in argv) == 1
+    assert all(timeout == '30' for timeout, command in timeouts() if 'tar -xzf' not in command)
     run.release()
 
 
