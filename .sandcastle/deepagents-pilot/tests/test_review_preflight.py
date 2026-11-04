@@ -1059,3 +1059,17 @@ def test_vm_diagnosis_counts_only_the_vm_process(tmp_path, monkeypatch):
     result = preflight.vm_deleted_open_bytes()
     lsof = next(c for c in calls if c[0] == "lsof")
     assert "-a" in lsof and result["vm_deleted_open_bytes"] == 1000
+
+
+def test_background_child_of_an_exited_docker_wrapper_is_killed(tmp_path, repo):
+    """独审九：包装脚本起后台子进程后立即退出（子进程仍占着 stdout），回收要杀整个进程组，不以父进程存活为前提。"""
+    created = tmp_path / "containers"
+    created.mkdir()
+    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then (sleep 2.5; touch "{created}/$4") & exit 0; fi\n'
+              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
+              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
+    code, report = _cli(tmp_path, repo, docker, "2",
+                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                        'experimental_bearer_token = "key12345"\n')
+    time.sleep(3)
+    assert code == 2 and list(created.iterdir()) == []

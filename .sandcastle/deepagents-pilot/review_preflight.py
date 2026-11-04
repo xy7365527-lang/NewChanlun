@@ -211,19 +211,26 @@ def _reclaim(entry: dict, container: str, budget: float) -> str | None:
     end = time.monotonic() + budget
     errors = []
     proc = entry.get("proc")
-    if proc is not None and proc.poll() is None:
+    if proc is not None:
+        # 不以父进程是否存活为前提：包装脚本可能已退出、却留下后台子进程继续建容器（独审九）。
+        # start_new_session=True 使 pgid == 父 pid；组内已无成员时 killpg 报 ProcessLookupError，属正常。
+        # 残余风险：组内全部成员退出后的数秒内，该 pgid 恰被无关进程组复用——概率极低，接受。
         try:
             if proc.pid <= 1:
                 raise ProcessLookupError(proc.pid)
-            os.killpg(proc.pid, signal.SIGKILL)  # start_new_session=True：包装脚本派生的子进程一并结束
-        except (OSError, ProcessLookupError):
-            proc.kill()
-        left = min(1.0, end - time.monotonic())
-        if left > 0:
-            try:
-                proc.wait(timeout=left)
-            except subprocess.TimeoutExpired:
-                pass
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            pass
+        if proc.poll() is None:
+            proc.kill()  # 父进程仍在（或进程组信号不可用）时直接结束它
+            left = min(1.0, end - time.monotonic())
+            if left > 0:
+                try:
+                    proc.wait(timeout=left)
+                except subprocess.TimeoutExpired:
+                    pass
         if proc.poll() is None:
             errors.append(f"docker run 进程未退出，容器 {container} 可能仍会被创建")
     # 先删宿主侧探针目录：不依赖容器是否已删（容器只读挂载它）；限时执行，文件系统卡住也不拖过总时限
