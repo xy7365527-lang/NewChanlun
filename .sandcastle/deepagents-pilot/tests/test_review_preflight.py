@@ -337,7 +337,7 @@ def test_auth_command_combined_with_env_key_blocks_like_codex(env, capsys, tmp_p
 
 def _auth_command(tmp_path, command: str, args: list[str], timeout_ms: int = 5000) -> None:
     (tmp_path / "codex/config.toml").write_text(
-        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:8318/v1"\n'
+        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:8318/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
         f'[model_providers.cliproxy-local.auth]\ncommand = "{command}"\nargs = {json.dumps(args)}\ntimeout_ms = {timeout_ms}\n')
 
 
@@ -376,7 +376,7 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
     (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nexperimental_bearer_token = "x"\n')
     result = subprocess.run(
         [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
-         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",
+         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
          "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
          "--codex-home", str(codex), "--deadline", "2"],
         capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
@@ -524,7 +524,7 @@ def test_cleanup_stays_within_deadline_and_reports_failure(tmp_path, repo):
     start = time.monotonic()
     result = subprocess.run(
         [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
-         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",
+         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
          "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
          "--codex-home", str(codex), "--deadline", "1.0"],
         capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
