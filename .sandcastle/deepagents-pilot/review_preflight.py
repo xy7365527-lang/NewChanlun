@@ -166,9 +166,29 @@ def _round_trip(url: str, key: str, model: str, session: str) -> dict:
         return {"http_status": None, "terminal": None, "ok": False, "error": f"{type(error).__name__}: {error}"[:300]}
 
 
-def _route_from_log(log_dir: Path, session: str, since: float) -> list[tuple[str, str]] | None:
+def request_log_enabled(config: Path) -> bool | None:
+    """只读 CLIProxy 配置 observability.logs.request-log；读不到返回 None（按开启处理）。"""
+    try:
+        lines = config.read_text().splitlines()
+    except OSError:
+        return None
+    path, want = [], ("observability", "logs", "request-log")
+    for raw in lines:
+        if not raw.strip() or raw.lstrip().startswith("#") or ":" not in raw:
+            continue
+        indent = len(raw) - len(raw.lstrip())
+        key, _, value = raw.strip().partition(":")
+        while path and path[-1][0] >= indent:
+            path.pop()
+        path.append((indent, key))
+        if tuple(k for _, k in path) == want:
+            return value.split("#")[0].strip().lower() not in ("false", "no", "off", "0")
+    return None
+
+
+def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) -> list[tuple[str, str]] | None:
     """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机。"""
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + wait
     while True:
         for path in sorted(log_dir.glob("v1-responses-*.log"), key=lambda q: q.stat().st_mtime, reverse=True):
             if path.stat().st_mtime < since - 1:
@@ -192,7 +212,14 @@ def probe_model(args, model: str, key: str | None) -> list[dict]:
     session = f"preflight-{uuid.uuid4()}"
     since = time.time()
     trip = _round_trip(args.proxy_url, key, model, session)
-    attempts = _route_from_log(Path(args.proxy_log_dir), session, since)
+    if request_log_enabled(Path(args.proxy_config)) is False:
+        provider, host = ROUTES[model]
+        return [{"name": f"route:{model}", "class": "route", "ok": False,
+                 "detail": {"expected": f"{provider}@{host}", "actual": [], "log_found": False,
+                            "error": "CLIProxy observability.logs.request-log=false，无法核实实际路由"}},
+                {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
+    # 实测 proxy 在响应结束后 14–85ms 写日志；成功时等 2 秒（约 23 倍余量），往返已失败时日志只作诊断，等 0.3 秒。
+    attempts = _route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
     provider, host = ROUTES[model]
     routed = bool(attempts) and all(a == (provider, host) for a in attempts)
     return [{"name": f"route:{model}", "class": "route", "ok": routed,
@@ -224,7 +251,8 @@ def main(argv=None) -> int:
     ap.add_argument("--merge-base", required=True)
     ap.add_argument("--checkout-root", required=True, help="正式 attempt 将传给 ExternalReview 的 checkout_root")
     ap.add_argument("--image", default="sandcastle:newchanlun", help="与 external-review-worker.mts REVIEW_IMAGE 相同")
-    ap.add_argument("--proxy-url", default="http://127.0.0.1:8318")  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ap.add_argument("--proxy-url", default="http://127.0.0.1:8318")
+    ap.add_argument("--proxy-config", default=str(CLIPROXY_HOME / "config.yaml"), help="只读，用于确认 request-log 已开启")
     ap.add_argument("--proxy-log-dir", default=str(CLIPROXY_HOME / "auth/logs"))
     ap.add_argument("--codex-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
                     help="宿主 Codex 配置目录；按其 model_providers.cliproxy-local 取 key")

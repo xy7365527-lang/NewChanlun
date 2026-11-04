@@ -40,7 +40,7 @@ def repo(tmp_path):
 class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
-    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False):
+    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0):
         self.requests = []
         proxy = self
 
@@ -59,9 +59,13 @@ class FakeProxy:
                 provider, upstream = routes[body["model"]]
                 code = (status or {}).get(body["model"], 200)
                 if write_log:
-                    (log_dir / f"v1-responses-{time.time_ns()}.log").write_text(
-                        f"=== HEADERS ===\nSession-Id: {self.headers['Session-Id']}\n\n=== API REQUEST 1 ===\n"
-                        f"Upstream URL: {upstream}\nAuth: provider={provider}, auth_id=x, label=x, type=oauth\n")
+                    path = log_dir / f"v1-responses-{time.time_ns()}.log"
+                    text = (f"=== HEADERS ===\nSession-Id: {self.headers['Session-Id']}\n\n=== API REQUEST 1 ===\n"
+                            f"Upstream URL: {upstream}\nAuth: provider={provider}, auth_id=x, label=x, type=oauth\n")
+                    if log_delay:
+                        threading.Timer(log_delay, path.write_text, args=(text,)).start()
+                    else:
+                        path.write_text(text)
                 if hang:
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream")
@@ -117,7 +121,8 @@ def env(tmp_path, monkeypatch, repo):
         proxies.append(proxy)
         code = preflight.main(["--source", str(root), "--base", base, "--head", head, "--merge-base", base,
                                "--checkout-root", str(checkouts), "--proxy-url", proxy.url,
-                               "--proxy-log-dir", str(logs), "--codex-home", str(codex), *extra])
+                               "--proxy-log-dir", str(logs), "--codex-home", str(codex),
+                               "--proxy-config", str(tmp_path / "cliproxy-config.yaml"), *extra])
         out = capsys.readouterr().out
         return code, json.loads(out), out, proxy
 
@@ -214,3 +219,47 @@ def test_auth_command_failure_blocks(env, capsys, tmp_path):
     (tmp_path / "key.txt").unlink()
     code, report, *_ = env(capsys=capsys)
     assert code == 2 and f"credential:{preflight.PROVIDER}" in failing(report)
+
+
+MODELFLARE = ("openai-compatible-modelflare-codex", "https://modelflare.dev/v1/responses")
+
+
+def test_sol_on_third_party_codex_route_blocks(env, capsys):
+    """main.log 出现过 gpt-6.1-sol 被选到 modelflare-codex 并 403 预扣额度失败。"""
+    code, report, *_ = env(routes={**OFFICIAL, SOL: MODELFLARE}, status={SOL: 403}, capsys=capsys)
+    assert code == 2 and failing(report) == {f"route:{SOL}", f"roundtrip:{SOL}"}
+
+
+def test_proxy_down_blocks_without_waiting_out_the_log_window(env, capsys):
+    start = time.monotonic()
+    # 后给的 --proxy-url 覆盖 fixture 的假 proxy，指向无人监听的端口。
+    code, report, *_ = env(capsys=capsys, extra=("--proxy-url", "http://127.0.0.1:9"))
+    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+    assert time.monotonic() - start < 2
+
+
+def test_request_log_written_one_second_late_still_passes(env, capsys):
+    code, report, *_ = env(log_delay=1.0, capsys=capsys)
+    assert code == 0 and failing(report) == set()
+
+
+def test_request_log_disabled_in_proxy_config_blocks_at_once(env, capsys, tmp_path):
+    (tmp_path / "cliproxy-config.yaml").write_text("observability:\n    logs:\n        request-log: false\n")
+    start = time.monotonic()
+    code, report, *_ = env(write_log=False, capsys=capsys)
+    assert time.monotonic() - start < 1.5
+    assert code == 2 and failing(report) == {f"route:{SOL}", f"route:{OPUS}"}
+    assert all("request-log=false" in c["detail"]["error"] for c in report["checks"] if c["name"].startswith("route:"))
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("observability:\n    logs:\n        request-log: true\n", True),
+    ("observability:\n    logs:\n        request-log: false  # off\n", False),
+    ("logs:\n  request-log: false\n", None),
+    ("observability:\n    pprof:\n        request-log: false\n", None),
+])
+def test_request_log_setting_is_read_from_its_own_section(tmp_path, text, expected):
+    config = tmp_path / "config.yaml"
+    config.write_text(text)
+    assert preflight.request_log_enabled(config) is expected
+    assert preflight.request_log_enabled(tmp_path / "missing.yaml") is None

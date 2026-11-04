@@ -15,7 +15,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 
 - `--checkout-root` 填正式 attempt 将传给 `ExternalReview(checkout_root=...)` 的同一路径。
 - 三个 SHA 与 attempt 的 target 相同；`--source` 是 controller 读候选对象的仓库。
-- 其余参数有默认值：`--image sandcastle:newchanlun`、`--proxy-url http://127.0.0.1:8318`、`--proxy-log-dir ~/Library/Application Support/CLIProxyLocal/auth/logs`、`--codex-home $CODEX_HOME 或 ~/.codex`、`--deadline 55`。
+- 其余参数有默认值：`--image sandcastle:newchanlun`、`--proxy-config ~/Library/Application Support/CLIProxyLocal/config.yaml`（只读）、`--proxy-url http://127.0.0.1:8318`、`--proxy-log-dir ~/Library/Application Support/CLIProxyLocal/auth/logs`、`--codex-home $CODEX_HOME 或 ~/.codex`、`--deadline 55`。
 
 退出码：`0` 可以启动；`2` 拦截（看 `checks` 里 `ok:false` 的项）；`3` 用法错误。标准输出是一行 JSON 报告，每项检查带 `elapsed_s`。
 
@@ -26,12 +26,12 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 | `credential:cliproxy-local` | #1323 宿主缺 `CLIPROXY_LOCAL_KEY`，回合在调模型前报 `Missing environment variable` | 去掉该环境变量后，按 `$CODEX_HOME/config.toml` 的 `model_providers.cliproxy-local` 取 key（`auth.command` / `env_key`）。取不到即拦，并且不发任何探测 |
 | `checkout_root_free_space` | PR1866 A1/A2、PR1868 A3（f9）：快照需 2.60GB，HOME 只剩 1.40–1.65GB | 逐字节复刻 `prepare_review` 的快照字节公式，要求 checkout_root 所在卷剩余 ≥ 2 份（两位 reviewer；colima 可能仍占着已删快照的 inode） |
 | `checkout_root_container_mount` | PR1868 A1：checkout 在未共享进 colima 的路径，容器里 `/review` 是 VM 本地空目录 | 在 checkout_root 写一次性 nonce，用审阅镜像 `--network none --read-only` 只读 bind 挂载 checkout_root 读回；读不到或不一致即拦。探针目录随即删除 |
-| `route:<model>` | PR1883 A1：claude-opus-5-5 新会话被选到 Antigravity | 按本次唯一 `Session-Id` 在 CLIProxy request-log 里读每次上游尝试的 `Auth: provider` 与上游主机；要求 Sol=`codex@chatgpt.com`，Opus=`claude@api.anthropic.com`。日志缺失或行数不齐也拦 |
+| `route:<model>` | PR1883 A1：claude-opus-5-5 新会话被选到 Antigravity | 按本次唯一 `Session-Id` 在 CLIProxy request-log 里读每次上游尝试的 `Auth: provider` 与上游主机；要求 Sol=`codex@chatgpt.com`，Opus=`claude@api.anthropic.com`。日志缺失或行数不齐也拦；CLIProxy 配置 `observability.logs.request-log` 为 false 时无法核路由，立即拦 |
 | `roundtrip:<model>` | 同上，上游 400 `tool_choice ... not supported` | 每家一次最小 `/v1/responses` 往返，带 tools、`tool_choice=auto`、JSON 输出格式、新会话，必须读到 `response.completed`/`incomplete` |
 
 模型探测每家只发一次、提示极短（effort=low），这是预检唯一的模型花费。全部检查并发，总时限 55 秒，超时的检查判失败。
 
-不要把 effort 降到 `minimal`：2026-11-05 实测 Sol 在 `minimal` 下返回 400（codex 后端注入的 `image_gen` 工具不能与 `minimal` 同用），预检会因此误报。真实环境单次墙钟约 4–5 秒，下限是 Sol 一次完整往返；路由要读 request-log，而 proxy 在响应完成后才写日志，所以不能提前截断流。
+不要把 effort 降到 `minimal`：2026-11-05 实测 Sol 在 `minimal` 下返回 400（codex 后端注入的 `image_gen` 工具不能与 `minimal` 同用），预检会因此误报。真实环境单次墙钟约 3–5 秒，下限是 Sol 一次完整往返；路由要读 request-log，而 proxy 在响应完成后才写日志，所以不能提前截断流。实测日志在响应结束后 14–85ms 落盘；预检在往返成功后最多等 2 秒找日志，往返已失败时只等 0.3 秒（日志仅作诊断）。
 
 ## 局限
 
