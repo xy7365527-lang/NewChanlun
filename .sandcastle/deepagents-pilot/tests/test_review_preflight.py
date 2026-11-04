@@ -117,6 +117,8 @@ def env(tmp_path, monkeypatch, repo):
                       "exec cat \"$src${last#/checkouts}\"\n")
     docker.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
+    # 测试不依赖宿主真实剩余空间；专测空间的用例自行覆盖。
+    monkeypatch.setattr(preflight.shutil, "disk_usage", lambda _: Usage(0, 0, 1 << 50))
     # 宿主 provider 按 auth.command 从文件取 key；进程环境里的 CLIPROXY_LOCAL_KEY 是错值，必须被忽略。
     monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "stale-env-value")
     codex = tmp_path / "codex"
@@ -396,3 +398,21 @@ def test_unrelated_log_vanishing_mid_scan_does_not_block(env, capsys, tmp_path, 
     monkeypatch.setattr(preflight.Path, "stat", flaky)
     code, report, *_ = env(capsys=capsys)
     assert code == 0 and failing(report) == set()
+
+
+def test_snapshot_bytes_match_controller_with_replace_refs(repo, tmp_path, monkeypatch):
+    """控制器不跟随 replace 引用；预检若跟随，同一输入字节数会不同（独审第 7 条）。"""
+    root, base, head = repo
+    (root / "big.txt").write_text("y" * 200000)
+    git(root, "add", "big.txt")
+    git(root, "commit", "-qm", "replacement")
+    replacement = git(root, "rev-parse", "HEAD")
+    git(root, "reset", "-q", "--hard", head)
+    git(root, "replace", head, replacement)
+    target = external_review.ReviewTarget(1, 7, 1, "main", base, 1, "topic", head, base, "run", 1,
+                                          external_review.POLICY, head, 0)
+    monkeypatch.setattr(external_review.shutil, "disk_usage", lambda _: Usage(0, 0, 0))
+    with pytest.raises(IdentityError) as error:
+        external_review.prepare_review(target, root, tmp_path / "checkout")
+    required = int(re.search(r"需要 (\d+) bytes", str(error.value)).group(1))
+    assert preflight.snapshot_bytes(root, base, head, base) == required

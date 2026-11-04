@@ -29,14 +29,24 @@ _DEADLINE_AT = float("inf")
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 
 
+def git_environment() -> dict[str, str]:
+    """与 external_review.git_environment 相同：不读系统/全局配置、不跟随 replace 引用。"""
+    env = {k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ}
+    env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0",
+               GIT_OPTIONAL_LOCKS="0", GIT_NO_REPLACE_OBJECTS="1")
+    return env
+
+
 def _git(source: Path, *args: str, data: bytes | None = None) -> bytes:
-    return subprocess.run(["git", "-C", str(source), *args], input=data, capture_output=True, check=True).stdout
+    return subprocess.run(["git", "-C", str(source), *args], input=data, capture_output=True, check=True,
+                          env=git_environment()).stdout
 
 
 def snapshot_bytes(source: Path, base: str, head: str, merge_base: str) -> int:
     """单个模型审阅快照的所需字节，逐项复刻 external_review.prepare_review 的公式。三条互不依赖的 git 读并发执行。"""
     def start(*args: str) -> subprocess.Popen:
-        return subprocess.Popen(["git", "-C", str(source), *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        return subprocess.Popen(["git", "-C", str(source), *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env=git_environment())
 
     def finish(proc: subprocess.Popen) -> bytes:
         out, _ = proc.communicate()
