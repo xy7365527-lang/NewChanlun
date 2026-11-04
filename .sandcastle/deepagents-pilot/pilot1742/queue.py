@@ -315,7 +315,8 @@ class QueueIntake:
                     if activity is not None:
                         occupied[ticket] = activity
                         previous = results[ticket].get('reason')
-                        results[ticket].update(phase='active', reason=f'{previous}; {activity}' if previous else activity)
+                        phase = 'awaiting_human' if results[ticket].get('phase') == 'awaiting_human' else 'active'
+                        results[ticket].update(phase=phase, reason=f'{previous}; {activity}' if previous else activity)
                     else:
                         occupied.pop(ticket, None)
             return self._status(results)

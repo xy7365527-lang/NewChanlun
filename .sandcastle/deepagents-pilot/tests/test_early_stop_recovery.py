@@ -673,3 +673,75 @@ def test_spec_freeze_interrupted_between_body_and_note_converges_on_the_next_app
     run = bench.open()
     spec = run.signed_spec()
     assert spec.body == SPEC_BODY.encode() and spec.target == target_a and body.read_bytes() == SPEC_BODY.encode()
+
+
+def queued_neighbour(bench):
+    bench.v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
+                              labels=('ready-for-agent', 'deepagents:queue'))
+
+
+def status_page_section(bench, ticket):
+    page = (bench.v2.source / '.sandcastle/logs/deepagents-status.md').read_text()
+    section = None
+    for line in page.splitlines():
+        if line.startswith('## '):
+            section = line[3:]
+        elif line.startswith(f'- #{ticket} '):
+            return section
+    return None
+
+
+@pytest.mark.parametrize('stop', ['execution_unknown', 'brain_stopped_early'])
+def test_queue_tick_reports_a_stopped_run_as_awaiting_human_and_keeps_its_slot(bench, stop):
+    if stop == 'execution_unknown':
+        author_submitted_under_spec_a(bench)
+    else:
+        bench.finished_graph_with_pending_binding()
+        bench.brain()
+        drive_with_baseline_signature_support(bench.run, recheck_approval=True)
+    assert bench.run.interrupt_requested()['by'] == stop
+    binding = bench.binding()
+    bench.release()
+    queued_neighbour(bench)
+    for _round in range(2):
+        rows = bench.intake.once(lambda unit: pytest.fail(f'{unit.run_id} dispatched while a human stop holds the slot'))
+        assert rows[TICKET]['phase'] == 'awaiting_human', rows[TICKET]
+        assert stop in rows[TICKET]['reason'] and 'worker slot retained' in rows[TICKET]['reason']
+        assert rows[TICKET + 1]['phase'] == 'queued'
+        assert status_page_section(bench, TICKET) == 'awaiting_human'
+        assert status_page_section(bench, TICKET + 1) == 'queued'
+    unlocked = PilotRun.open(bench.v2.home, bench.unit.run_id, source_repo=bench.v2.source)
+    assert unlocked.execution.load(bench.key) == binding and not (bench.v2.home / f'units/t{TICKET + 1}-1.json').exists()
+
+
+def test_queue_tick_keeps_a_live_worker_without_a_human_stop_active(bench):
+    author_submitted_under_spec_a(bench)
+    bench.run.clear_interrupt()
+    bench.release()
+    queued_neighbour(bench)
+    seen = []
+    rows = bench.intake.once(lambda unit: seen.append(unit.run_id) or 75)
+    assert seen == [bench.unit.run_id]
+    assert rows[TICKET]['phase'] == 'active' and 'worker slot retained' in rows[TICKET]['reason']
+    assert rows[TICKET + 1]['phase'] == 'queued' and status_page_section(bench, TICKET) == 'active'
+
+
+def test_controller_audit_records_every_adjacent_change_including_the_return_to_runtime(bench):
+    run = bench.run
+    spec_before = (run.dir / 'run.json').read_bytes()
+    runtime = run.spec.execution.runtime_head
+    source = bench.v2.source
+    bench.release()
+    (source / 'controller.txt').write_text('controller B\n')
+    git(source, 'add', '.')
+    git(source, 'commit', '-qm', 'controller B')
+    controller_b = git(source, 'rev-parse', 'HEAD')
+    for head in (runtime, controller_b, controller_b, runtime, runtime, controller_b, controller_b):
+        git(source, 'reset', '-q', '--hard', head)
+        bench.open()
+        bench.release()
+    records = bench.open().status()['execution']['controller_upgrades']
+    assert [(r['runtime_head'], r['controller_head']) for r in records] == [
+        (runtime, controller_b), (runtime, runtime), (runtime, controller_b)]
+    assert (run.dir / 'run.json').read_bytes() == spec_before and bench.run.spec.execution.runtime_head == runtime
+    assert bench.trail().count('controller_upgrade') == 3

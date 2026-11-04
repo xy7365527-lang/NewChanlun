@@ -365,10 +365,9 @@ class BoatExecution(WorkerExecution):
         return [json.loads(line) for line in path.read_text().splitlines() if line] if path.exists() else []
 
     def audit_controller(self) -> None:
-        """runtime_head 冻结工蜂运行时；控制器代码来自部署检出。两者不同时追加一条审计，同一控制器头只记一次。"""
         runtime, head = self.run.spec.execution.runtime_head, self._controller_head()
         upgrades = self.controller_upgrades()
-        if head == runtime or (upgrades and upgrades[-1]["controller_head"] == head):
+        if head == (upgrades[-1]["controller_head"] if upgrades else runtime):
             return
         record = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "run_id": self.run.spec.run_id,
                   "generation": self.generation, "runtime_head": runtime, "controller_head": head, "pid": os.getpid()}

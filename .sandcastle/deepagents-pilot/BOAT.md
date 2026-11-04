@@ -78,7 +78,7 @@ python -m pilot1742.executor run --run-id ORIGINAL_RUN --private-key /absolute/a
 
 ### 旧 run 在新控制器上恢复
 
-`run.json` 的 `runtime_head` 冻结工蜂运行时：`boat_remote.py`、`boat-worker.mts` 等仍从该提交 `git show` 封包，`package_id` 不变。控制端代码来自部署检出。部署 HEAD 与 `runtime_head` 不同时，打开 run 会向 `runs/<run>/controller-upgrades.jsonl` 追加一条 `runtime_head`、`controller_head`、代次与时间。只与上一条记录比较：控制器头连续不变时不重复记，A→B→A 会记三条。`executor status` 的 `execution.controller_upgrades` 列出全部记录，工蜂 request 也记 `controller_head`。冻结身份不改写。
+`run.json` 的 `runtime_head` 冻结工蜂运行时：`boat_remote.py`、`boat-worker.mts` 等仍从该提交 `git show` 封包，`package_id` 不变。控制端代码来自部署检出。打开 run 时，部署 HEAD 与上一控制器不同就向 `runs/<run>/controller-upgrades.jsonl` 追加一条 `runtime_head`、`controller_head`、代次与时间。上一控制器是最后一条记录的 `controller_head`，没有记录时是 `runtime_head`，初始状态由 `run.json` 表明，不另记。回到 `runtime_head` 也是一次变化，记为 `controller_head` 等于 `runtime_head` 的一条；同一控制器重复打开不重复记。例如 runtime→B→runtime→B 记三条。`executor status` 的 `execution.controller_upgrades` 列出全部记录，工蜂 request 也记 `controller_head`。冻结身份不改写。
 
 ## 取消
 
