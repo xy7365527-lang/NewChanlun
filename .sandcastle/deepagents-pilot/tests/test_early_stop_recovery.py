@@ -58,7 +58,7 @@ class ObservationsFailBoat:
     def info(self, sandbox):
         return self.call('info', sandbox)[-1]['sandbox']
 
-    def exec(self, sandbox, command):
+    def exec(self, sandbox, command, *, timeout=30):
         self.calls.append(('exec', command))
         if ' observe ' in command:
             if self.receipt is None:
