@@ -220,6 +220,41 @@ def check_credential(args, budget: float | None = None) -> tuple[dict, str | Non
             "detail": {"scrubbed_env": SCRUBBED_ENV, "error": message[:300]}}, None
 
 
+def worker_key() -> tuple[str | None, str]:
+    """与 codex-child.ts providerEnvironment 相同：先进程环境，再 launchctl getenv。正式 worker 只认这两处。"""
+    if os.environ.get(SCRUBBED_ENV):
+        return os.environ[SCRUBBED_ENV], "env"
+    try:
+        value = subprocess.run(["launchctl", "getenv", SCRUBBED_ENV], capture_output=True, text=True,
+                               timeout=5).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        value = ""
+    return (value, "launchctl") if value else (None, "missing")
+
+
+def check_worker_credential() -> tuple[dict, str | None]:
+    key, source = worker_key()
+    detail = {"source": source, "consumer": "external-review-worker (providerEnvironment)"}
+    if key is None:
+        detail["error"] = f"缺少 {SCRUBBED_ENV}：进程环境与 launchctl 均未提供，正式 worker 会在启动前失败"
+    return {"name": "credential:review-worker", "class": "credential", "ok": key is not None, "detail": detail}, key
+
+
+def _models_accept(url: str, key: str) -> tuple[bool, int | None]:
+    """不耗 token 的鉴权核对：GET /v1/models。"""
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(url.rstrip("/") + "/v1/models", headers={"Authorization": f"Bearer {key}"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status == 200, response.status
+    except urllib.error.HTTPError as error:
+        return False, error.code
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False, None
+
+
 def redact(text: str, secret: str | None) -> str:
     """报告出门前抹掉 key 的原文与 JSON 转义形态（错误正文可能回显 Authorization）。"""
     if not secret:
@@ -410,7 +445,16 @@ def main(argv=None) -> int:
     global _DEADLINE_AT
     t0 = time.monotonic()
     _DEADLINE_AT = t0 + args.deadline
-    credential, key = check_credential(args, budget=args.deadline)
+    credential, host_key = check_credential(args, budget=args.deadline)
+    credential["name"] = "credential:codex-host"
+    worker_check, key = check_worker_credential()
+    if host_key is not None:
+        if host_key == key:
+            credential["detail"]["same_key_as_worker"] = True  # 往返探测即覆盖宿主 key
+        else:
+            accepted, status = _models_accept(args.proxy_url, host_key)
+            credential["ok"] = accepted
+            credential["detail"].update(same_key_as_worker=False, models_status=status)
     # 键为该 job 超时或异常时上报的检查名与类别。
     jobs = {("checkout_root_free_space", "space"): lambda: [check_space(args)],
             ("checkout_root_container_mount", "mount"): lambda: [check_mount(args)],
@@ -429,7 +473,7 @@ def main(argv=None) -> int:
     for thread in threads.values():
         thread.join(max(0.0, args.deadline - (time.monotonic() - t0)))
     reclaim_pending()
-    checks = [credential]
+    checks = [credential, worker_check]
     for name, kind in jobs:
         status, value = results.get((name, kind), ("timeout", None))
         if status == "ok":
@@ -441,7 +485,7 @@ def main(argv=None) -> int:
     ready = all(c["ok"] for c in checks)
     report = {"kind": "review-preflight", "is_review_result": False, "ready": ready, "checks": checks,
               "wall_seconds": round(time.monotonic() - t0, 3)}
-    print(redact(json.dumps(report, ensure_ascii=False), key), flush=True)
+    print(redact(redact(json.dumps(report, ensure_ascii=False), key), host_key), flush=True)
     return 0 if ready else 2
 
 

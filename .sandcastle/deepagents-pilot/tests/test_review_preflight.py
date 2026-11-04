@@ -13,6 +13,7 @@ from pilot1742 import external_review
 from pilot1742.github_app import IdentityError
 
 KEY = "local-test-key-must-not-leak"
+OTHER_VALID = "second-accepted-client-key"
 SOL, OPUS = "gpt-6.1-sol", "claude-opus-5-5"
 OFFICIAL = {SOL: ("codex", "https://chatgpt.com/backend-api/codex/responses"),
             OPUS: ("claude", "https://api.anthropic.com/v1/messages")}
@@ -48,6 +49,12 @@ class FakeProxy:
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
                 pass
+
+            def do_GET(self):
+                code = 200 if self.headers.get("Authorization") in (f"Bearer {KEY}", f"Bearer {OTHER_VALID}") else 401
+                self.send_response(code)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
 
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
@@ -119,8 +126,8 @@ def env(tmp_path, monkeypatch, repo):
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     # 测试不依赖宿主真实剩余空间；专测空间的用例自行覆盖。
     monkeypatch.setattr(preflight.shutil, "disk_usage", lambda _: Usage(0, 0, 1 << 50))
-    # 宿主 provider 按 auth.command 从文件取 key；进程环境里的 CLIPROXY_LOCAL_KEY 是错值，必须被忽略。
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "stale-env-value")
+    # 正式 worker 从进程环境取 key（launcher 传入）；宿主 provider 按 auth.command 从文件取同一个 key。
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY)
     codex = tmp_path / "codex"
     codex.mkdir()
     (tmp_path / "key.txt").write_text(KEY + "\n")
@@ -222,16 +229,16 @@ def test_env_key_provider_without_variable_blocks_before_any_probe(env, capsys, 
         '[model_providers.cliproxy-local]\nbase_url = "http://127.0.0.1:8318/v1"\nenv_key = "CLIPROXY_LOCAL_KEY"\n')  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY)  # 预检进程里有也不算：宿主进程里没有
     code, report, out, proxy = env(capsys=capsys)
-    assert code == 2 and f"credential:{preflight.PROVIDER}" in failing(report)
-    credential = next(c for c in report["checks"] if c["class"] == "credential")
+    assert code == 2 and failing(report) == {"credential:codex-host"}
+    credential = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
     assert "Missing environment variable: CLIPROXY_LOCAL_KEY" in credential["detail"]["error"]
-    assert proxy.requests == [] and KEY not in out
+    assert KEY not in out
 
 
 def test_auth_command_failure_blocks(env, capsys, tmp_path):
     (tmp_path / "key.txt").unlink()
     code, report, *_ = env(capsys=capsys)
-    assert code == 2 and f"credential:{preflight.PROVIDER}" in failing(report)
+    assert code == 2 and "credential:codex-host" in failing(report)
 
 
 MODELFLARE = ("openai-compatible-modelflare-codex", "https://modelflare.dev/v1/responses")
@@ -316,8 +323,8 @@ def test_auth_command_combined_with_env_key_blocks_like_codex(env, capsys, tmp_p
     config.write_text(config.read_text().replace("[model_providers.cliproxy-local.auth]",
                                                  'env_key = "CLIPROXY_LOCAL_KEY"\n[model_providers.cliproxy-local.auth]'))
     code, report, _, proxy = env(capsys=capsys)
-    assert code == 2 and f"credential:{preflight.PROVIDER}" in failing(report) and proxy.requests == []
-    credential = next(c for c in report["checks"] if c["class"] == "credential")
+    assert code == 2 and failing(report) == {"credential:codex-host"}
+    credential = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
     assert "cannot be combined with env_key" in credential["detail"]["error"]
 
 
@@ -355,6 +362,8 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
     bin_dir.mkdir()
     (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nsleep 3\n')
     (bin_dir / "docker").chmod(0o755)
+    (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")  # 不碰本机真实 launchctl
+    (bin_dir / "launchctl").chmod(0o755)
     codex = tmp_path / "codex"
     codex.mkdir()
     (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nexperimental_bearer_token = "x"\n')
@@ -429,3 +438,40 @@ def test_space_failure_reports_bytes_held_by_vm_deleted_files(env, capsys, monke
     code, report, *_ = env(capsys=capsys)
     space = next(c for c in report["checks"] if c["name"] == "checkout_root_free_space")
     assert code == 2 and space["detail"]["vm_deleted_open_bytes"] == 1500 and space["detail"]["vm_deleted_open_files"] == 2
+
+
+def _fake_launchctl(tmp_path, value: str) -> None:
+    script = tmp_path / "bin" / "launchctl"
+    script.write_text(f"#!/bin/sh\n[ \"$1 $2\" = \"getenv CLIPROXY_LOCAL_KEY\" ] && printf '%s' '{value}'\n")
+    script.chmod(0o755)
+
+
+def test_worker_key_missing_from_env_and_launchctl_blocks_before_probes(env, capsys, tmp_path, monkeypatch):
+    """codex 机器人复核：宿主 auth.command 能取到 key 不代表正式 worker 有 key。"""
+    monkeypatch.delenv("CLIPROXY_LOCAL_KEY")
+    _fake_launchctl(tmp_path, "")
+    code, report, _, proxy = env(capsys=capsys)
+    assert code == 2 and "credential:review-worker" in failing(report) and proxy.requests == []
+    assert next(c for c in report["checks"] if c["name"] == "credential:codex-host")["ok"]
+
+
+def test_worker_key_falls_back_to_launchctl_like_provider_environment(env, capsys, tmp_path, monkeypatch):
+    monkeypatch.delenv("CLIPROXY_LOCAL_KEY")
+    _fake_launchctl(tmp_path, KEY)
+    code, report, _, proxy = env(capsys=capsys)
+    worker = next(c for c in report["checks"] if c["name"] == "credential:review-worker")
+    assert code == 0 and worker["detail"]["source"] == "launchctl" and len(proxy.requests) == 2
+
+
+def test_host_key_different_from_worker_is_checked_without_tokens(env, capsys, tmp_path):
+    (tmp_path / "key.txt").write_text(OTHER_VALID + "\n")
+    code, report, out, _ = env(capsys=capsys)
+    host = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
+    assert code == 0 and host["detail"]["same_key_as_worker"] is False and host["detail"]["models_status"] == 200
+    assert OTHER_VALID not in out
+
+
+def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):
+    (tmp_path / "key.txt").write_text("revoked-key\n")
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and failing(report) == {"credential:codex-host"}
