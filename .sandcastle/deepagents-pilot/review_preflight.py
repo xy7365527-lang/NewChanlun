@@ -4,16 +4,13 @@ import argparse
 import json
 import os
 import re
-import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
-import urllib.error
-import urllib.request
 import uuid
-from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 
 import tomllib
@@ -73,7 +70,7 @@ def check_mount(args) -> dict:
     root = Path(args.checkout_root)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     probe = Path(tempfile.mkdtemp(prefix="preflight-", dir=root))
-    nonce = secrets.token_hex(16)
+    nonce = os.urandom(16).hex()
     try:
         (probe / "nonce").write_text(nonce)
         command = ["docker", "run", "--rm", "--network", "none", "--read-only",
@@ -128,6 +125,10 @@ def check_credential(args) -> tuple[dict, str | None]:
 
 def _round_trip(url: str, key: str, model: str, session: str) -> dict:
     """一次最小往返，请求形状对齐正式独审：responses + tools + tool_choice=auto + JSON 输出格式。"""
+    # 只在探测线程里导入，与 docker/git 等待重叠，不占启动关键路径。
+    import urllib.error
+    import urllib.request
+
     body = {"model": model, "stream": True, "store": False, "reasoning": {"effort": "low"},
             "instructions": "Preflight connectivity check. Do not call tools.",
             "input": [{"role": "user", "content": [{"type": "input_text", "text": 'Return {"ok": true}.'}]}],
@@ -235,19 +236,28 @@ def main(argv=None) -> int:
     jobs = {("checkout_root_free_space", "space"): lambda: [check_space(args)],
             ("checkout_root_container_mount", "mount"): lambda: [check_mount(args)],
             **{(f"roundtrip:{model}", "roundtrip"): (lambda m=model: probe_model(args, m, key)) for model in MODELS}}
-    pool = ThreadPoolExecutor(len(jobs))
-    futures = {key: pool.submit(_timed, job) for key, job in jobs.items()}
-    wait(futures.values(), timeout=args.deadline)
-    checks = [credential]
-    for (name, kind), future in futures.items():
-        if not future.done():
-            checks.append({"name": name, "class": kind, "ok": False, "detail": f"超过 {args.deadline}s 总时限未完成"})
-            continue
+    results: dict = {}
+
+    def run(key, job) -> None:
         try:
-            checks.extend(future.result())
+            results[key] = ("ok", _timed(job))
         except Exception as error:  # 检查自身失败按未通过处理，不放行。
-            checks.append({"name": name, "class": kind, "ok": False, "detail": f"{type(error).__name__}: {error}"[:500]})
-    pool.shutdown(wait=False, cancel_futures=True)
+            results[key] = ("error", error)
+
+    threads = {key: threading.Thread(target=run, args=(key, job), daemon=True) for key, job in jobs.items()}
+    for thread in threads.values():
+        thread.start()
+    for thread in threads.values():
+        thread.join(max(0.0, args.deadline - (time.monotonic() - t0)))
+    checks = [credential]
+    for name, kind in jobs:
+        status, value = results.get((name, kind), ("timeout", None))
+        if status == "ok":
+            checks.extend(value)
+        elif status == "error":
+            checks.append({"name": name, "class": kind, "ok": False, "detail": f"{type(value).__name__}: {value}"[:500]})
+        else:
+            checks.append({"name": name, "class": kind, "ok": False, "detail": f"超过 {args.deadline}s 总时限未完成"})
     ready = all(c["ok"] for c in checks)
     report = {"kind": "review-preflight", "is_review_result": False, "ready": ready, "checks": checks,
               "wall_seconds": round(time.monotonic() - t0, 3)}
