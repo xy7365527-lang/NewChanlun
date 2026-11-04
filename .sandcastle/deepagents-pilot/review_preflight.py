@@ -34,12 +34,23 @@ def _git(source: Path, *args: str, data: bytes | None = None) -> bytes:
 
 
 def snapshot_bytes(source: Path, base: str, head: str, merge_base: str) -> int:
-    snapshots = (base, head, merge_base)
-    objects = {line.split(b" ", 1)[0] for line in _git(source, "rev-list", "--objects", "--no-walk", *snapshots).splitlines()}
-    objects.update(_git(source, "rev-list", base, head).splitlines())
-    sizes = _git(source, "cat-file", "--batch-check=%(objectsize)", data=b"\n".join(sorted(objects)) + b"\n").splitlines()
-    head_files = _git(source, "ls-tree", "-rl", head).splitlines()
-    worktree = sum(int(line.split(b"\t", 1)[0].split()[-1]) for line in head_files if line.split()[1] == b"blob")
+    """单个模型审阅快照的所需字节，逐项复刻 external_review.prepare_review 的公式。三条互不依赖的 git 读并发执行。"""
+    def start(*args: str) -> subprocess.Popen:
+        return subprocess.Popen(["git", "-C", str(source), *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    def finish(proc: subprocess.Popen) -> bytes:
+        out, _ = proc.communicate()
+        if proc.returncode:
+            raise subprocess.CalledProcessError(proc.returncode, proc.args)
+        return out
+
+    snapshot_objects = start("rev-list", "--objects", "--no-walk", base, head, merge_base)
+    commits = start("rev-list", base, head)
+    tree = start("ls-tree", "-rl", head)
+    objects = {line.split(b" ", 1)[0] for line in finish(snapshot_objects).splitlines()}
+    objects.update(finish(commits).splitlines())
+    sizes = _git(source, "cat-file", "--buffer", "--batch-check=%(objectsize)", data=b"\n".join(sorted(objects)) + b"\n").splitlines()
+    worktree = sum(int(line.split(b"\t", 1)[0].split()[-1]) for line in finish(tree).splitlines() if line.split()[1] == b"blob")
     return sum(int(size) for size in sizes) + worktree + SPACE_RESERVE
 
 
