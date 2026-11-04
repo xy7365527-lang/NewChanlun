@@ -2,9 +2,11 @@
 """#1742 正式独审 attempt 的启动前预检。只报告环境能否启动，不是审阅结果。"""
 import argparse
 import json
+import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -42,6 +44,26 @@ def check_space(args) -> dict:
             "detail": {"required_bytes": need, "per_snapshot_bytes": per, "snapshots": len(MODELS), "free_bytes": free}}
 
 
+def check_mount(args) -> dict:
+    """宿主写一次性 nonce，审阅镜像经同样的只读 bind 挂载 checkout_root 读回；读不到即容器看见的不是真实文件。"""
+    root = Path(args.checkout_root)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    probe = Path(tempfile.mkdtemp(prefix="preflight-", dir=root))
+    nonce = secrets.token_hex(16)
+    try:
+        (probe / "nonce").write_text(nonce)
+        command = ["docker", "run", "--rm", "--network", "none", "--read-only",
+                   "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
+                   "--entrypoint", "cat", args.image, f"/checkouts/{probe.name}/nonce"]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+    seen = result.stdout.strip()
+    return {"name": "checkout_root_container_mount", "class": "mount", "ok": result.returncode == 0 and seen == nonce,
+            "detail": {"checkout_root": str(root), "image": args.image, "docker_rc": result.returncode,
+                       "nonce_match": seen == nonce, "stderr": result.stderr.strip()[-300:]}}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--source", required=True)
@@ -49,12 +71,13 @@ def main(argv=None) -> int:
     ap.add_argument("--head", required=True)
     ap.add_argument("--merge-base", required=True)
     ap.add_argument("--checkout-root", required=True)
+    ap.add_argument("--image", default="sandcastle:newchanlun", help="与 external-review-worker.mts REVIEW_IMAGE 相同")
     ap.add_argument("--proxy-url")
     ap.add_argument("--proxy-log-dir")
     args = ap.parse_args(argv)
     t0 = time.monotonic()
     checks = []
-    for check in (check_space,):
+    for check in (check_space, check_mount):
         try:
             checks.append(check(args))
         except Exception as error:  # 检查自身失败按未通过处理，不放行。
