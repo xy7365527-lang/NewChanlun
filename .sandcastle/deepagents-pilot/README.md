@@ -59,7 +59,7 @@ run 创建时从 `~/.agents/pstack-models.md` 冻结六个角色的模型：
 
 ```bash
 cd /Users/silencehan/.codex/worktrees/deepagents-pilot-1742/NewChanlun
-PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
+PYTHONPATH=.sandcastle/approval-signing:.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 	--run-id r1 --task .sandcastle/deepagents-pilot/demo-task.md
 ```
 
