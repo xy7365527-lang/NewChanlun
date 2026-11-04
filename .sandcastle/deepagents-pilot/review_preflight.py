@@ -224,7 +224,7 @@ def main(argv=None) -> int:
     ap.add_argument("--merge-base", required=True)
     ap.add_argument("--checkout-root", required=True, help="正式 attempt 将传给 ExternalReview 的 checkout_root")
     ap.add_argument("--image", default="sandcastle:newchanlun", help="与 external-review-worker.mts REVIEW_IMAGE 相同")
-    ap.add_argument("--proxy-url", default="http://127.0.0.1:8318")
+    ap.add_argument("--proxy-url", default="http://127.0.0.1:8318")  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     ap.add_argument("--proxy-log-dir", default=str(CLIPROXY_HOME / "auth/logs"))
     ap.add_argument("--codex-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
                     help="宿主 Codex 配置目录；按其 model_providers.cliproxy-local 取 key")
