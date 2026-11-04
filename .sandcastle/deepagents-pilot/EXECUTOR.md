@@ -62,6 +62,18 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 
 明确决定撤销人工中断并继续运行时才加 `--resume`。恢复 Boat 在途工蜂时也一样：它会清除人工中断，不是只读对账选项；只查看本地事实用 `executor status`。
 
+**人工停点。** `runs/<run>/interrupt.request` 记录一次需要人决定的停止，`by` 字段写明来源：
+
+| `by` | 何时写入 | 图的位置 |
+|---|---|---|
+| 操作员（如 `studio`） | Studio 取消或操作员请求中断 | 停在下一次工具调用前的 checkpoint |
+| `execution_unknown` | v2 工具遇到 `ExecutionUnknown`（例如 Boat VM 等待 `hydrated` 超时） | 停在该工具调用的 checkpoint，`reason` 是原文 |
+| `brain_stopped_early` | 图已结束，业务相位不是 `gate`/`halted`/`awaiting_merge`/`merged`/`stale`/`conflict`，且当前 head 有已登记、未取消、未收集、未排空的 Boat 绑定 | 图已结束 |
+
+只有 `executor run --resume` 和 Studio 中断处的 Resume 清除停点。`--recheck-approval`、普通 `executor run` 和队列都不清除；队列看到停点即报 `awaiting_human`，不再起子进程。
+
+`--resume` 在 checkpoint 处重跑该工具调用，同角色同 head 的工蜂按原绑定收养，已有 VM 不再 fork。图已结束时，只有上表 `brain_stopped_early` 的条件成立才继续：宿主在同一 thread 追加一条固定恢复消息，主控从原历史接着走。条件不成立（正常结束、绑定已取消、已收集或已排空、候选 head 漂移）时 `--resume` 只读，不重开。签批、持有代次与 SPEC 正文漂移在打开 run 时先拒绝，到不了恢复。
+
 **查看。** 只读本机，不访问 GitHub。
 
 ```sh
@@ -141,6 +153,12 @@ deepagents-scope: rust/src/example/ rust/tests/example/
 ### 为新队列 run 提供 SPEC 授权
 
 D8 的请求绑定 `ticket`、`run_id`、`claim_generation`、`spec_authorization` 与 SPEC 正文原始字节。已有同绑定、同正文且未过期的已发布签批直接复用。历史评论关键词批准和另一个 run 的签批不能复制到新 run。它们的历史批准记录不改写。
+
+签批判定为 approved 后，宿主在同一次动作锁内把那份正文原始字节写入 `runs/<run>/spec/<SPEC 号>.md`，旁注 `spec/<SPEC 号>.json` 记签批目标与代次。主控的系统提示和每个 Boat 工蜂的 request 都附这份正文；读出时重算摘要，与签批目标不符即拒绝。它是数据，不是批准：放行仍只看每个动作边界的签批与正文复核。工蜂没有 GitHub 凭据，不读票面。
+
+宿主先完成旧 prompt 的路径映射，再原样附上这份正文，正文字节不改写。Boat 工蜂的封包在 `request.json` 的 `spec` 中记下所附正文的摘要。派工前（包括 `prepared` 续派和监督未认领时的补派）以及收集回执前，都在动作锁内核对它是否仍等于当前签批目标。不符时以 `ExecutionUnknown` 落 `execution_unknown` 停点，原包、绑定、VM 与 checkout 都保留，不重封包、不派工、不收集。处置走既有入口：按 [取消](BOAT.md#取消) 撤回该绑定，排空后换代。
+
+发布同样以此为判据：`publish_candidate` 在推送、PR、状态、交付四个动作锁内，等签批与正文重核之后，核对放行用的同 head 独审封包 `spec` 是否等于当前签批目标。不符时返回 `decision=refused`、`reasons=["review_spec_mismatch"]`，停在下一次写之前；已完成的写、原包、回执与候选都保留，日志重放时同样先核对。同 head 的独审键已收集，不能重派，要在新 SPEC 下取得独审须走 `release` 后换代。
 
 首次 `serve --once` 会登记 `t<票号>-1`，在任何票面写入前生成 `runs/<run>/approvals/spec_authorization.request`。状态页列出请求路径及签批命令。由批准人在受管签批工具中核对、签名并发布该请求，再运行下一轮。签名未发布、拒绝或已过期时保持等待。每个动作都重读权威决定链和 SPEC 正文。正文变化时暂停并生成新请求，模型恢复载荷不算批准。
 

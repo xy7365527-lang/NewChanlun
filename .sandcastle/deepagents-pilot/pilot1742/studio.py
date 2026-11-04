@@ -169,6 +169,12 @@ def continuation_problem(run: PilotRun, *, resume: bool, checkpoint: str | None)
     if not snapshot.values:
         return "run_not_started：首跑由执行器 CLI 发起，Studio 不创造任务"
     if not interrupts and not snapshot.next:
+        from .cli import early_stop
+
+        phase = early_stop(run, {"next": [], "interrupts": []}, run.status())
+        if phase is not None:
+            return (f"run_finished：图已结束但业务相位 {phase} 未完成、工蜂绑定待定；Studio 只读，"
+                    "用 python -m pilot1742.executor run --resume 显式恢复同一 run")
         return "run_finished：该 run 的图已结束，Studio 只读"
     current = snapshot.config["configurable"].get("checkpoint_id")
     if checkpoint is not None and checkpoint != current:

@@ -63,8 +63,32 @@ def _run(args: argparse.Namespace) -> int:
     return drive(run, recheck_approval=args.recheck_approval)
 
 
-def drive(run: PilotRun, *, recheck_approval: bool) -> int:
-    """在已持锁的 run 上首跑或恢复 Deep Agents 图；v1 CLI 与 v2 执行器共用。"""
+SETTLED_PHASES = frozenset({"gate", "halted", "awaiting_merge", "merged", "stale", "conflict"})
+
+
+def recovery_message(run: PilotRun, phase: str) -> str:
+    return (f"宿主恢复：本 run 的图在业务相位 {phase} 时已经结束，工蜂绑定仍待定。操作员用 executor run --resume 显式恢复同一 run，"
+            "这不是新的授权。先调用 run_status 核对事实，再按系统提示继续 playbook；同角色同 head 的工蜂会被收养，不会重派。")
+
+
+def early_stop(run: PilotRun, graph: dict, status: dict) -> str | None:
+    """返回可显式恢复的业务相位；只认 v2 图已结束、业务未终态、当前 head 有已登记未取消且仍待定的 Boat 绑定。"""
+    if run.spec.v != 2 or run.execution is None or graph["next"] or graph["interrupts"]:
+        return None
+    phase = status["phase"]
+    if phase in SETTLED_PHASES:
+        return None
+    head = status["recorded_head"]
+    for key in run._keys():
+        binding = run.execution.load(key) if key.target_head == head else None
+        if (binding is not None and not binding.cancel_requested and binding.submission != "collected"
+                and not run.execution.is_drained(key)):
+            return phase
+    return None
+
+
+def drive(run: PilotRun, *, recheck_approval: bool, resume: bool = False) -> int:
+    """在已持锁的 run 上首跑或恢复 Deep Agents 图；v1 CLI 与 v2 执行器共用。resume 只由显式 --resume 传入。"""
     from .agent import (
         TraceRecorder,
         build_agent,
@@ -91,14 +115,20 @@ def drive(run: PilotRun, *, recheck_approval: bool) -> int:
     elif graph["next"]:
         run.trail("graph_resume_after_crash", next=graph["next"])
         agent.invoke(None, config, durability="sync")
+    elif resume and (phase := early_stop(run, graph, run.status())) is not None:
+        run.trail("graph_resume_after_early_stop", phase=phase)
+        agent.invoke({"messages": [HumanMessage(recovery_message(run, phase))]}, config, durability="sync")
     else:
         run.trail("graph_already_finished")
     report = {"graph": _graph_state(agent, config), "status": run.status()}
-    if not report["graph"]["next"] and report["status"]["phase"] not in ("gate", "halted", "awaiting_merge", "stale"):
+    if not report["graph"]["next"] and report["status"]["phase"] not in SETTLED_PHASES:
         last = agent.get_state(config).values["messages"][-1]
         report["brain_stopped_early"] = {"finish_reason": last.response_metadata.get("finish_reason"),
                                          "text": str(last.content)[:2000]}
         run.trail("brain_stopped_early", **report["brain_stopped_early"])
+        if early_stop(run, report["graph"], report["status"]) is not None:
+            report["interrupt"] = run.request_interrupt(
+                "brain_stopped_early", reason=f"业务相位 {report['status']['phase']} 未完成；executor run --resume 显式恢复同一 run")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 

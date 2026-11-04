@@ -68,7 +68,18 @@ boat resume bx_WORKER_VM --ttl 1800
 python -m pilot1742.executor run --run-id ORIGINAL_RUN --private-key /absolute/app.pem --resume
 ```
 
-`EffectUnknown` 保留原身份和日志。不要换 run ID 规避未知副作用。退出码缺失、输出截断、timeout、旧 generation、模型不符和 head 漂移都不能成为成功。
+恢复前若 run 停在 `execution_unknown` 或 `brain_stopped_early` 停点，同一条 `--resume` 清除它并按 [人工停点](EXECUTOR.md#运行) 的条件继续；已有 `sandbox_id` 的绑定不再 fork。
+
+`EffectUnknown` 保留原身份和日志。不要换 run ID 规避未知副作用。
+
+### 主控读到的冻结资料
+
+主控的 `/project/` 是 run 基线的 `controller-context`（`AGENTS.md`、`CONTEXT.md`、`docs/agents`、`.sandcastle/docs`、`.agents/skills`）。基线 `.sandcastle/deepagents-pilot/` 顶层的 `*.md` 手册另导出到 `runs/<run>/controller-manuals/`，路由为 `/project/.sandcastle/deepagents-pilot/`，首次需要时一次生成，之后只读复用；已冻结的 `boat/controller-context` 与 `boat/skill-bundle` 不改。工蜂包导出整棵冻结源码树，本就含这些手册。
+
+### 旧 run 在新控制器上恢复
+
+`run.json` 的 `runtime_head` 冻结工蜂运行时：`boat_remote.py`、`boat-worker.mts` 等仍从该提交 `git show` 封包，`package_id` 不变。控制端代码来自部署检出。部署 HEAD 与 `runtime_head` 不同时，打开 run 会向 `runs/<run>/controller-upgrades.jsonl` 追加一条 `runtime_head`、`controller_head`、代次与时间，同一控制器头只记一次；`executor status` 的 `execution.controller_upgrades` 列出全部记录，工蜂 request 也记 `controller_head`。冻结身份不改写。
+退出码缺失、输出截断、timeout、旧 generation、模型不符和 head 漂移都不能成为成功。
 
 ## 取消
 

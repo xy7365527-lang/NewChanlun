@@ -14,10 +14,11 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
+from .approval import SignedSpec, signed_spec
 from .boat_execution import (
     BoatExecution,
     BoatRun,
@@ -531,18 +532,30 @@ class PilotRun:
         path = self.dir / "interrupt.request"
         return json.loads(path.read_text()) if path.exists() else None
 
-    def request_interrupt(self, by: str) -> dict:
-        """操作员中断请求：只写一个文件，控制循环在下一次工具调用前停在 checkpoint。不需要锁，也不杀工蜂。"""
-        request = self.interrupt_requested() or {"at": _now(), "by": by}
+    def request_interrupt(self, by: str, *, reason: str | None = None) -> dict:
+        """人工停点：只写一个文件，控制循环在下一次工具调用前停在 checkpoint。不需要锁，也不杀工蜂。
+        by 记来源（操作员、execution_unknown、brain_stopped_early）；只有显式恢复入口清除它。已有停点时保留原记录。"""
+        request = self.interrupt_requested() or {"at": _now(), "by": by, **({"reason": reason} if reason else {})}
         if not (self.dir / "interrupt.request").exists():
             _write_once(self.dir / "interrupt.request", request)
-            self.trail("operator_interrupt_requested", by=by)
+            self.trail("operator_interrupt_requested", by=by, **({"reason": reason} if reason else {}))
         return request
 
     def clear_interrupt(self) -> None:
         """只由持有 run 锁的恢复入口调用。"""
         assert self._lock_fd is not None
         (self.dir / "interrupt.request").unlink(missing_ok=True)
+
+    @property
+    def spec_issue(self) -> int | None:
+        if self.spec.v != 2:
+            return None
+        auth = getattr(self.spec.unit.admission, "spec_auth", None)
+        return None if auth is None else auth.spec_issue
+
+    def signed_spec(self) -> SignedSpec | None:
+        issue = self.spec_issue
+        return None if issue is None else signed_spec(self.dir, issue)
 
     def trail(self, event: str, **fields) -> None:
         with open(self.dir / "trail.jsonl", "a") as fh:
@@ -942,7 +955,9 @@ class PilotRun:
                          "recovered": c.recovered} for c in facts.commits],
             "verdicts": {h: v.kind for h, v in facts.verdicts.items()},
             "gate": gate_json(gate) if gate is not None else None, "ledger_problems": problems, **extra,
-            **({"execution": {"backend": "boat", "observation": "local_only", "bindings": self.execution.describe()}}
+            **({"execution": {"backend": "boat", "observation": "local_only", "bindings": self.execution.describe(),
+                              "runtime_head": cast(BoatRun, self.spec.execution).runtime_head,
+                              "controller_upgrades": self.execution.controller_upgrades()}}
                if self.execution is not None else {}),
         }
 

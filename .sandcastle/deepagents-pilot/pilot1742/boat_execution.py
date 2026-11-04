@@ -19,8 +19,10 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
+from .approval import spec_section
 from .cloud_package import (
     MAX_FILE_BYTES,
+    build_controller_manuals,
     build_package,
     build_project_context,
     build_skill_bundle,
@@ -316,6 +318,7 @@ class BoatExecution(WorkerExecution):
             self._wait_ready(cast(str, binding.sandbox_id))
             self._upload(key, binding)
             binding = self._store(key, replace(binding, submission="prepared"))
+        self._require_package_spec(binding)
         deadline = self._admit(cast(str, binding.sandbox_id))
         self._provision_key(binding)
         self._launch(key, self._store(key, replace(binding, submission="submitting", deadline=deadline)))
@@ -344,6 +347,36 @@ class BoatExecution(WorkerExecution):
             build_project_context(self.run.source_repo, self.run.spec.base, context,
                                   Path(self.config.pstack_source), Path(self.config.model_rules))
         return context
+
+    def controller_manuals(self) -> Path:
+        """主控只读的冻结基线手册；与 controller-context 分开，旧 run 的已冻结上下文不改。"""
+        manuals = self.run.dir / "controller-manuals"
+        if not (manuals / "manuals.json").exists():
+            if manuals.exists():
+                shutil.rmtree(manuals)
+            build_controller_manuals(self.run.source_repo, self.run.spec.base, manuals)
+        return manuals
+
+    def _controller_head(self) -> str:
+        return git(self.run.source_repo, "rev-parse", "HEAD").decode().strip()
+
+    def controller_upgrades(self) -> list[dict]:
+        path = self.run.dir / "controller-upgrades.jsonl"
+        return [json.loads(line) for line in path.read_text().splitlines() if line] if path.exists() else []
+
+    def audit_controller(self) -> None:
+        """runtime_head 冻结工蜂运行时；控制器代码来自部署检出。两者不同时追加一条审计，同一控制器头只记一次。"""
+        runtime, head = self.run.spec.execution.runtime_head, self._controller_head()
+        upgrades = self.controller_upgrades()
+        if head == runtime or (upgrades and upgrades[-1]["controller_head"] == head):
+            return
+        record = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "run_id": self.run.spec.run_id,
+                  "generation": self.generation, "runtime_head": runtime, "controller_head": head, "pid": os.getpid()}
+        with open(self.run.dir / "controller-upgrades.jsonl", "a") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        self.run.trail("controller_upgrade", runtime_head=runtime, controller_head=head)
 
     def _create_sandbox(self, key: WorkerKey, binding: BoatBinding) -> str:
         if binding.fork_intent is None:
@@ -414,13 +447,20 @@ class BoatExecution(WorkerExecution):
             for name, source in runtime_sources.items():
                 (staging / "runtime/.sandcastle" / name).write_bytes(source)
             intent = json.loads((self.run.dir / "intents" / f"{key.name}.json").read_text())
-            prompt = Path(intent["prompt_file"]).read_text().replace(self.config.pstack_source, "/opt/newchanlun/pstack")
+            prompt = (Path(intent["prompt_file"]).read_text().replace(self.config.pstack_source, "/opt/newchanlun/pstack")
+                      .replace(str(self.run.source_repo), "/workspace/repo"))
+            spec = self.run.signed_spec()
+            if self.run.spec_issue is not None and spec is None:
+                raise ExecutionUnknown(f"缺已签 SPEC #{self.run.spec_issue} 正文，不能封包派工")
+            if spec is not None:
+                prompt += "\n\n" + spec_section(spec)
             save(staging / "request.json", {
+                "spec": spec.target if spec is not None else None, "controller_head": self._controller_head(),
                 "identity": binding.identity, "package_id": binding.package_id, "root": binding.remote_root,
                 "ticket": self.run.spec.ticket, "model": intent["model"], "mode": intent["mode"],
                 "endpoint": self.config.endpoint, "image": self.config.image,
                 "allowed_prefixes": list(self.run.spec.task.allowed_prefixes),
-                "prompt": prompt.replace(str(self.run.source_repo), "/workspace/repo")})
+                "prompt": prompt})
             save(staging / ".complete.json", binding.identity)
             os.rename(staging, local)
             return local
@@ -469,7 +509,23 @@ class BoatExecution(WorkerExecution):
         if source.wait() or destination.returncode:
             raise ExecutionUnknown("模型能力受管传输失败，未启动工蜂")
 
+    def packaged_spec(self, binding: BoatBinding) -> str | None:
+        """该绑定持久封包所附的 SPEC 签批目标；派工、收集与发布都以它判定工蜂产物属于哪份 SPEC。"""
+        request = self.run.dir / "boat/packages" / binding.package_id / "request.json"
+        return json.loads(request.read_text()).get("spec") if request.exists() else None
+
+    def _require_package_spec(self, binding: BoatBinding) -> None:
+        """封包所附的 SPEC 摘要必须就是当前签批目标；只在 dispatch 动作锁内调用，此时目标已在锁内重核。"""
+        if self.run.spec_issue is None:
+            return
+        spec = self.run.signed_spec()
+        packaged = self.packaged_spec(binding)
+        if spec is None or packaged != spec.target:
+            raise ExecutionUnknown(f"封包 SPEC {packaged} 与当前签批目标 {spec.target if spec else None} 不符；"
+                                   "保留原包、绑定与 VM，不派工也不收集，由主控处置")
+
     def _launch(self, key: WorkerKey, binding: BoatBinding) -> None:
+        self._require_package_spec(binding)
         launch = self.cli.call("exec", cast(str, binding.sandbox_id), "--detach", "--", "bash", "-lc",
                                self._command(binding, "submit") + " " + str(int(cast(float, binding.deadline))))[-1]
         self.run._crash("after_boat_submit_before_record")
@@ -620,6 +676,7 @@ class BoatExecution(WorkerExecution):
         binding = self.load(key)
         if not binding or receipt["identity"] != self._identity(key) or receipt["package_id"] != binding.package_id:
             raise ExecutionUnknown("拒绝收集其他身份产物")
+        self._require_package_spec(binding)
         if receipt.get("exit_code") != 0 or not isinstance(receipt.get("record"), dict):
             raise ExecutionUnknown(receipt.get("reason") or "远端退出失败或未知，不能产生业务终态")
         record = receipt["record"]
