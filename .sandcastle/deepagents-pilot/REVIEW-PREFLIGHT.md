@@ -31,6 +31,8 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 
 模型探测每家只发一次、提示极短（effort=low），这是预检唯一的模型花费。全部检查并发，总时限 55 秒，超时的检查判失败。
 
+不要把 effort 降到 `minimal`：2026-11-05 实测 Sol 在 `minimal` 下返回 400（codex 后端注入的 `image_gen` 工具不能与 `minimal` 同用），预检会因此误报。真实环境单次墙钟约 4–5 秒，下限是 Sol 一次完整往返；路由要读 request-log，而 proxy 在响应完成后才写日志，所以不能提前截断流。
+
 ## 局限
 
 - 预检是某一时刻的快照。CLIProxy 是 fill-first + 会话亲和，正式 attempt 的新会话仍可能在几秒后被选到别的凭据；路由的根治在共享 proxy 配置（当前已用 `oauth-excluded-models.antigravity` 排除两个 Claude 模型），预检只负责发现回归。
