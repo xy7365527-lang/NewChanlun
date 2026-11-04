@@ -28,7 +28,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 | `checkout_root_free_space` | PR1866 A1/A2、PR1868 A3（f9）：快照需 2.60GB，HOME 只剩 1.40–1.65GB | 逐字节复刻 `prepare_review` 的快照字节公式，要求 checkout_root 所在卷剩余 ≥ 2 份（两位 reviewer；colima 可能仍占着已删快照的 inode） |
 | `checkout_root_container_mount` | PR1868 A1：checkout 在未共享进 colima 的路径，容器里 `/review` 是 VM 本地空目录 | 在 checkout_root 写一次性 nonce，用审阅镜像 `--network none --read-only` 只读 bind 挂载 checkout_root 读回；读不到或不一致即拦。探针目录随即删除 |
 | `route:<model>` | PR1883 A1：claude-opus-5-5 新会话被选到 Antigravity | 按本次唯一 `Session-Id` 在 CLIProxy request-log 里读每次上游尝试的 `Auth: provider` 与上游主机；要求 Sol=`codex@chatgpt.com`，Opus=`claude@api.anthropic.com`。日志缺失或行数不齐也拦；CLIProxy 配置 `observability.logs.request-log` 为 false 时无法核路由，立即拦 |
-| `identity:<model>` | 留出变体：proxy 给每个 Claude OAuth 请求注入 `fallbacks:[claude-opus-4-8]`，上游可能静默改由 4.8 服务 | 从同一份 request-log 的上游响应读实际服务模型（`message_start.message.model` / `response.model`），与请求不一致即拦；日志里没有响应体时记 `verified:false` 不拦 |
+| `identity:<model>` | 留出变体：proxy 给每个 Claude OAuth 请求注入 `fallbacks:[claude-opus-4-8]`，上游可能静默改由 4.8 服务 | 实际服务模型取两处证据之并：request-log 的上游响应（`message_start.message.model` / `response.model`）与探测收到的客户端流。必须至少有一处证据且全部等于请求的模型；两处都没有（`verified:false`）也拦 |
 | `roundtrip:<model>` | 同上，上游 400 `tool_choice ... not supported` | 每家一次最小 `/v1/responses` 往返，带 tools、`tool_choice=auto`、JSON 输出格式、新会话，必须读到 `response.completed`/`incomplete` |
 
 模型探测每家只发一次、提示极短（effort=low），这是预检唯一的模型花费。凭据检查先串行完成，其余检查随后并发；所有阶段共用同一个总时限（默认 55 秒，其中 min(3 秒, 总时限/2) 留给回收挂载探针），超时的检查判失败。

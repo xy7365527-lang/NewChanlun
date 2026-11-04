@@ -42,7 +42,8 @@ class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
     def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None,
-                 echo_auth=False, terminal=None, header_first=0.0, split_at=None, error_body=None):
+                 echo_auth=False, terminal=None, header_first=0.0, split_at=None, error_body=None,
+                 stream_model=None):
         self.requests = []
         proxy = self
 
@@ -101,7 +102,8 @@ class FakeProxy:
                 elif code != 200:
                     payload = b'{"error":{"message":"tool_choice: type \\"tool\\" and \\"any\\" are not supported"}}'
                 else:
-                    payload = (terminal or b'event: response.completed\ndata: {"type":"response.completed","response":{}}\n\n')
+                    payload = (terminal or b'event: response.completed\ndata: {"type":"response.completed","response":{"model":"{model}"}}\n\n')
+                    payload = payload.replace(b"{model}", (stream_model or {}).get(body["model"], body["model"]).encode())
                 self.send_response(code)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
@@ -212,7 +214,8 @@ def test_probe_leaves_no_files_in_checkout_root(env, capsys, tmp_path):
 
 def test_opus_on_antigravity_with_upstream_400_blocks(env, capsys):
     code, report, *_ = env(routes={**OFFICIAL, OPUS: ANTIGRAVITY}, status={OPUS: 400}, capsys=capsys)
-    assert code == 2 and failing(report) == {f"route:{OPUS}", f"roundtrip:{OPUS}"}
+    # 往返失败没有服务模型证据，identity 按无从核实一并拦（独审五）
+    assert code == 2 and failing(report) == {f"route:{OPUS}", f"roundtrip:{OPUS}", f"identity:{OPUS}"}
     route = next(c for c in report["checks"] if c["name"] == f"route:{OPUS}")
     assert route["detail"]["actual"] == ["antigravity@daily-cloudcode-pa.googleapis.com"]
 
@@ -260,7 +263,7 @@ MODELFLARE = ("openai-compatible-modelflare-codex", "https://modelflare.dev/v1/r
 def test_sol_on_third_party_codex_route_blocks(env, capsys):
     """main.log 出现过 gpt-6.1-sol 被选到 modelflare-codex 并 403 预扣额度失败。"""
     code, report, *_ = env(routes={**OFFICIAL, SOL: MODELFLARE}, status={SOL: 403}, capsys=capsys)
-    assert code == 2 and failing(report) == {f"route:{SOL}", f"roundtrip:{SOL}"}
+    assert code == 2 and failing(report) == {f"route:{SOL}", f"roundtrip:{SOL}", f"identity:{SOL}"}
 
 
 def test_proxy_down_blocks_without_waiting_out_the_log_window(env, capsys):
@@ -303,7 +306,7 @@ def test_opus_silently_served_by_fallback_model_blocks(env, capsys):
     code, report, *_ = env(served={OPUS: "claude-opus-4-8", SOL: SOL}, capsys=capsys)
     assert code == 2 and failing(report) == {f"identity:{OPUS}"}
     identity = next(c for c in report["checks"] if c["name"] == f"identity:{OPUS}")
-    assert identity["detail"] == {"requested": OPUS, "served": ["claude-opus-4-8"], "verified": True}
+    assert identity["detail"]["served"] == ["claude-opus-4-8", OPUS] and identity["detail"]["verified"]
 
 
 def test_served_model_matching_request_passes_and_is_marked_verified(env, capsys):
@@ -400,7 +403,7 @@ def test_completed_event_with_failed_status_is_not_success(env, capsys):
 
 
 def test_incomplete_without_error_still_passes(env, capsys):
-    ok = b'data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}\n\n'
+    ok = b'data: {"type":"response.incomplete","response":{"model":"{model}","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}\n\n'
     code, report, *_ = env(terminal=ok, capsys=capsys)
     assert code == 0
 
@@ -592,3 +595,18 @@ def test_out_of_range_deadline_is_a_usage_error(value, capsys):
 def test_endpoint_equivalence_including_ipv6_loopback(a, b, same):
     """独审四·1：带端口的 IPv6 回环不能被误判为不同端点。"""
     assert (preflight._endpoint(a) == preflight._endpoint(b)) is same
+
+
+def test_stream_reporting_fallback_model_blocks_even_without_upstream_body(env, capsys):
+    """独审五：日志没有上游响应体、客户端流自报 claude-opus-4-8，不能放行。"""
+    code, report, *_ = env(stream_model={OPUS: "claude-opus-4-8"}, capsys=capsys)
+    identity = next(c for c in report["checks"] if c["name"] == f"identity:{OPUS}")
+    assert code == 2 and failing(report) == {f"identity:{OPUS}"} and identity["detail"]["served"] == ["claude-opus-4-8"]
+
+
+def test_unverifiable_served_model_blocks(env, capsys):
+    """独审五：两处都没有服务模型证据时按无从核实拦截，不算通过。"""
+    bare = b'data: {"type":"response.completed","response":{"status":"completed"}}\n\n'
+    code, report, *_ = env(terminal=bare, capsys=capsys)
+    assert code == 2 and failing(report) == {f"identity:{SOL}", f"identity:{OPUS}"}
+    assert all(not c["detail"]["verified"] for c in report["checks"] if c["class"] == "identity")

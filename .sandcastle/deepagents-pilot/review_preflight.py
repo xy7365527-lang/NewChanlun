@@ -313,7 +313,7 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
     deadline = time.monotonic() + PROBE_TIMEOUT
     try:
         with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
-            terminal, detail, status = None, "流在终态事件前结束", None
+            terminal, detail, status, streamed = None, "流在终态事件前结束", None, set()
             for raw in response:
                 if time.monotonic() > deadline:
                     detail = f"超过 {PROBE_TIMEOUT}s 仍无终态事件"
@@ -321,6 +321,10 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
                 line = raw.decode("utf-8", "replace").strip()
                 if line.startswith("data:"):
                     event = json.loads(line[5:]) if line[5:].strip().startswith("{") else {}
+                    # 客户端流里自报的服务模型（response.* 的 response.model / message_start 的 message.model）
+                    for holder in (event.get("response"), event.get("message")):
+                        if isinstance(holder, dict) and isinstance(holder.get("model"), str):
+                            streamed.add(holder["model"])
                     if event.get("type") in ("response.completed", "response.incomplete", "response.failed", "error"):
                         terminal = event.get("type")
                         inner = event.get("response") if isinstance(event.get("response"), dict) else {}
@@ -331,6 +335,7 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
             ok = (terminal in ("response.completed", "response.incomplete") and not detail
                   and status not in ("failed", "cancelled"))
             return {"http_status": response.status, "terminal": terminal, "status": status, "ok": ok,
+                    "streamed_models": sorted(streamed),
                     "error": None if ok else str(detail or f"status={status}")[:4000]}
     except urllib.error.HTTPError as error:
         return {"http_status": error.code, "terminal": None, "ok": False, "error": error.read(4000).decode("utf-8", "replace")}
@@ -436,11 +441,13 @@ def probe_model(args, model: str, key: str | None) -> list[dict]:
     attempts, served = found if found is not None else (None, set())
     provider, host = ROUTES[model]
     routed = bool(attempts) and all(a == (provider, host) for a in attempts)
-    # proxy 会给 Claude 请求注入 fallbacks（如 claude-opus-4-8）；实际服务模型与请求不符即拦。日志无响应体时记为未核实。
+    # proxy 会给 Claude 请求注入 fallbacks（如 claude-opus-4-8）。服务模型取上游日志与客户端流两处之并，
+    # 必须至少有一处证据且全部等于请求的模型；无从核实也算失败（独审五）。
+    served = served | set(trip.get("streamed_models", []))
     return [{"name": f"route:{model}", "class": "route", "ok": routed,
              "detail": {"expected": f"{provider}@{host}", "actual": [f"{p}@{h}" for p, h in attempts or []],
                         "log_found": found is not None, "session": session}},
-            {"name": f"identity:{model}", "class": "identity", "ok": served <= {model},
+            {"name": f"identity:{model}", "class": "identity", "ok": bool(served) and served <= {model},
              "detail": {"requested": model, "served": sorted(served), "verified": bool(served)}},
             {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
 
