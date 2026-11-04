@@ -287,10 +287,13 @@ impl ColdRawState {
             step: 0,
         };
         if let Some(source) = self.0.source.as_mut() {
-            source.rebind_cold_owner(old, binding)?;
+            source
+                .rebind_cold_owner(old, binding)
+                .map_err(sc::ContextError::into_message)?;
         }
         if let Some(set) = self.0.set.as_mut() {
-            set.rebind_cold_owner(old, binding)?;
+            set.rebind_cold_owner(old, binding)
+                .map_err(sc::ContextError::into_message)?;
         }
         self.0.seal = seal;
         self.0.binding = binding;
@@ -328,17 +331,22 @@ impl CommittedRawState {
             step: 0,
         };
         let mut index = bj::RawPrefixIndex::new(raw);
-        index.advance_admitted(prefix, admission)?;
+        index
+            .advance_admitted(prefix, admission)
+            .map_err(sc::ContextError::into_message)?;
         let mut delta = super::super::audit_retention::RetainedDelta::default();
         let facts = index.into_facts_retained(&mut delta);
         let retained = delta.apply(0).map_err(|_| stale("冷raw保留账不闭合"))?;
         if let Some(state) = source.as_mut() {
-            state.bind_cold_owner(binding, prefix)?;
+            state
+                .bind_cold_owner(binding, prefix)
+                .map_err(sc::ContextError::into_message)?;
         }
         let set = match (root, source.as_ref()) {
-            (Some(root), Some(source)) => Some(super::construction_set::CommittedSet::cold(
-                admission, root, binding, source,
-            )?),
+            (Some(root), Some(source)) => Some(
+                super::construction_set::CommittedSet::cold(admission, root, binding, source)
+                    .map_err(sc::ContextError::into_message)?,
+            ),
             (None, None) => None,
             _ => return Err(stale("冷末代根与来源贡献态不配对")),
         };
@@ -529,14 +537,12 @@ impl PendingRawState {
         bound: &super::BoundOriginals,
         lease: &'raw Lease,
         admission: &(impl super::super::audit_store::CodecRead + ?Sized),
-    ) -> Result<(Self, BoundRawAdvance<'raw>), String> {
+    ) -> Result<(Self, BoundRawAdvance<'raw>), sc::ContextError> {
         if lease.stale.get() {
-            return Err(stale("旧夹持已失效；必须显式重建 owner"));
+            return Err(stale("旧夹持已失效；必须显式重建 owner").into());
         }
         if raw.budget().is_some() {
-            return Err(stale(
-                "Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback",
-            ));
+            return Err(stale("Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback").into());
         }
         #[cfg(feature = "s_incremental")]
         let retained = previous.as_ref().map_or(0, |p| p.retained);
@@ -557,7 +563,7 @@ impl PendingRawState {
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
                 if !previous.seal.same_snapshot(&seal) {
-                    return Err(stale("连接、快照、读域或本连接写序变化"));
+                    return Err(stale("连接、快照、读域或本连接写序变化").into());
                 }
                 let prefix = previous.facts.prefix_len();
                 let index = bj::RawPrefixIndex::restore(raw, previous.facts, bound)?;
@@ -577,7 +583,7 @@ impl PendingRawState {
         };
         let changes = index.advance_admitted(raw.len(), admission)?;
         if changes.rewound || raw.len() < previous_prefix {
-            return Err(stale("raw 前缀倒退"));
+            return Err(stale("raw 前缀倒退").into());
         }
         let current = RawAdvanceBinding {
             domain: previous_binding.domain,
@@ -792,17 +798,18 @@ impl PendingRawState {
     pub(super) fn set_seed(
         &mut self,
         previous: Option<super::construction_set::Declaration>,
-    ) -> Result<super::construction_set::Seed, String> {
+    ) -> Result<super::construction_set::Seed, sc::ContextError> {
         super::construction_set::Seed::new(self.binding, self.seal, previous, self.set.take())
+            .map_err(Into::into)
     }
     #[cfg(feature = "s_incremental")]
     pub(super) fn close_set(
         &mut self,
         mut set: super::construction_set::PendingSet,
         actual_root: sc::RefView<'_>,
-    ) -> Result<(), String> {
+    ) -> Result<(), sc::ContextError> {
         if self.pending_set.is_some() {
-            return Err(stale("重复闭合集合effects"));
+            return Err(stale("重复闭合集合effects").into());
         }
         set.close_against_persisted(actual_root, self.binding)?;
         self.pending_set = Some(set);
@@ -837,21 +844,21 @@ impl PendingRawState {
         &self,
         seal: SnapshotSeal,
         total_changes: u64,
-    ) -> Result<(), String> {
+    ) -> Result<(), sc::ContextError> {
         if self.seal != seal || self.closed_total_changes != Some(total_changes) {
-            return Err(stale("未闭合效果或闭合后再次写入"));
+            return Err(stale("未闭合效果或闭合后再次写入").into());
         }
         if self
             .recover
             .as_ref()
             .is_some_and(|(_, confirmed)| !confirmed)
         {
-            return Err(stale("Recover迁移未确认持久epoch，不得晋升"));
+            return Err(stale("Recover迁移未确认持久epoch，不得晋升").into());
         }
         #[cfg(feature = "s_incremental")]
         if let Some(set) = &self.pending_set {
             if set.requires_source() && self.source.is_none() {
-                return Err(stale("来源成功结果未回交同owner状态"));
+                return Err(stale("来源成功结果未回交同owner状态").into());
             }
             set.check_commit(seal, total_changes)?;
         }

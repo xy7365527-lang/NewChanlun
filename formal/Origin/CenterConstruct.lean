@@ -18,14 +18,14 @@ Origin/CenterConstruct.lean — centersOf 构造层升级：退化平凡桩 → 
 - §6.3/§6.4（一级权威第17课答疑严格公式 + 知识库 + chan99 第八节）：
   · ZG = min(g₁,g₂,g₃)（**全三段**高点的最小者，中枢核心上沿，口径 B）
   · ZD = max(d₁,d₂,d₃)（**全三段**低点的最大者，中枢核心下沿，口径 B）
-  · GG = max(gₙ)（所有构成段最高高点，外缘上界）
-  · DD = min(dₙ)（所有构成段最低低点，外缘下界）
-  · 不变量：DD ≤ ZD ≤ ZG ≤ GG（外缘包含核心；口径 B 下核心与外缘同三段聚合）。
+  · GG = max(gₙ)（n 遍历中枢中所有 Zn——与 seed 首段同向的成员，外缘上界；★#1419 D-A/D-D）
+  · DD = min(dₙ)（同上，外缘下界）
+  · 不变量：DD ≤ ZD ≤ ZG ≤ GG（外缘包含核心；首段恒为 Zn，故 DD ≤ d₁ ≤ ZD、ZG ≤ g₁ ≤ GG）。
   · ★口径 A→B 迁移（637号）：误口径 A（前两段 min(g₁,g₂)/max(d₁,d₂)）已被一级权威第17课答疑
     严格公式 `(max(a2,b2,c2), min(a1,b1,c1))` 裁错——canonical = B 全三段。本文件 centersOf 路径
     已迁 B，与 § 5.5 ref_v1 路径（本就 B 全三段）**口径统一**。
 - §6.1（中枢定义）："走势中枢：某级别走势类型中，被至少三个连续次级别走势类型所重叠的部分。"
-  本文件用几何必要条件（ZD ≤ ZG）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
+  本文件用几何必要条件（ZD < ZG，#812 Z-2）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
   CenterComplete.lean）。
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -218,12 +218,12 @@ theorem witnessCenter_zd : witnessCenter.core.zd = 12 := by
 
 /-- ★GG 值机器验证（L0，由定义直接读）：gg = 22。 -/
 theorem witnessCenter_gg : witnessCenter.gg = 22 := by
-  unfold witnessCenter CenterFull.toOuter centerFromThree computeGG
+  unfold witnessCenter CenterFull.toOuter centerFromThree computeGG znMax isZn
   unfold tmax segHigh ovSeg1 ovSeg2 ovSeg3; decide
 
 /-- ★DD 值机器验证（L0，由定义直接读）：dd = 10。 -/
 theorem witnessCenter_dd : witnessCenter.dd = 10 := by
-  unfold witnessCenter CenterFull.toOuter centerFromThree computeDD
+  unfold witnessCenter CenterFull.toOuter centerFromThree computeDD znMin isZn
   unfold tmin segLow ovSeg1 ovSeg2 ovSeg3; decide
 
 /--
@@ -271,7 +271,7 @@ def witnessUpNext : CenterWithOuter :=
 theorem witnessCenter_upTrend :
     IsUpTrend witnessCenter witnessUpNext := by
   unfold IsUpTrend witnessUpNext witnessCenter CenterFull.toOuter centerFromThree
-  unfold computeGG tmax segHigh ovSeg1 ovSeg2 ovSeg3
+  unfold computeGG znMax isZn tmax segHigh ovSeg1 ovSeg2 ovSeg3
   decide
 
 /-! ═══════════════════════════════════════════════════════════════════════
@@ -311,7 +311,7 @@ theorem centersOfWithOuter_nontrivial :
   · exact witnessCenter_gg
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 5.5 reference v1 引擎语义（engine-audit 包 reference_chanlun.py 逐字直译）
+    § 5.5 reference v1 构造骨架（#812 C 续扫与 #1419 Zn 聚合已覆盖旧参考行为）
     ═══════════════════════════════════════════════════════════════════════
 
     ★工位定位（第Ⅱ类中枢 reference 语义，codex 裁决「全部必须形式化+实装+parity」）：
@@ -335,7 +335,8 @@ theorem centersOfWithOuter_nontrivial :
     ★认识论等级（formalization-validity-domain 231号，强制）：
       全部 **L0**——纯整数 max3/min3 + fuel-bounded 滑窗（终止机器检查）+ 弱接触延伸 +
       生命周期字段，不依赖经验数据。`lake env lean Origin/CenterConstruct.lean` 通过 =
-      reference v1 算法在定义层逐字忠实，**不是**任何「v1 中枢在真实行情上有效」的 L2 断言。
+      本节定义可由内核检查，**不是**任何「v1 中枢在真实行情上有效」的 L2 断言。
+      #1419 本轮未运行该命令，也不以旧参考或 donor 的验收认证此树。
 -/
 
 /--
@@ -346,8 +347,10 @@ theorem centersOfWithOuter_nontrivial :
   - `count`：构成段数 `end - start + 1`。
   - `settled`：是否已结算（`j < n`——延伸后仍有后续段离开核心则结算）。
   - `breakIndex`：结算时离开核心的段下标（未结算 = -1，用 `Int`）。
-  - `breakUp`：离开方向（reference `break_direction` "up"/"down" 的布尔编码，true=up）。
-  - `gg/dd`：外缘上下界（初始三段 + 弱接触延伸段聚合 `max/min`）。
+  - `breakUp`：离开方向（reference `break_direction` "up"/"down" 的布尔编码，true=up）。未结算时
+    离开方向未定义，本 reference 沿用占位编码 `true`，不带语义（#1419 根裁定 r2 R4：S 事实层对未结算
+    中枢发布 `breakUp=false` 且 `breakUp_defined=false`；§ 5.5.4 导出的夹具只对拍已结算中枢的 breakUp）。
+  - `gg/dd`：外缘上下界（seed 三段与弱接触延伸段中的 **Zn** 聚合 `max/min`；★#1419 S3）。
 -/
 structure RefZhongshu where
   zd : Tick
@@ -384,14 +387,26 @@ def breakDirectionUp (compHigh compLow zd zg : Tick) : Bool :=
   else decide (compHigh > zg)
 
 /--
-  **completed 段的 (high, low) 投影** —— 中枢算法只读区间端点（reference ComponentLike）。
+  **completed 段的 (high, low, 方向) 投影** —— 中枢算法读区间端点（reference ComponentLike）与方向。
   对齐 `CenterConstruction.segHigh/segLow`（向上段 hi=endPrice/向下段 lo=endPrice 已规约）。
+  ★#1419 D-A：带方向，供外缘只聚合 Zn（与 seed 首段同向）——不用位次奇偶，避免上级不交替输入上
+  Lean 与 Rust 分成两个判断（#804）。
 -/
-def segHL (s : Segment) : Tick × Tick := (segHigh s, segLow s)
+def segHL (s : Segment) : Tick × Tick × Direction := (segHigh s, segLow s, s.direction)
+
+/-- 外缘累积一步（★#1419 D-A/D-D）：方向 `d` 等于 seed 首段方向 `zdir`（Zn）才并入 `(h, l)`。 -/
+def znAgg (zdir d : Direction) (gg dd h l : Tick) : Tick × Tick :=
+  if decide (d = zdir) then (tmax gg h, tmin dd l) else (gg, dd)
+
+/-- #1419：非 Zn 不改外缘；是否成为成员仍单独由 weakOverlap 决定。 -/
+theorem znAgg_other_direction (zdir d : Direction) (gg dd h l : Tick) (hd : d ≠ zdir) :
+    znAgg zdir d gg dd h l = (gg, dd) := by
+  simp [znAgg, hd]
 
 /--
   **弱接触延伸内循环（reference_chanlun.py:129-134 的 `while j<n and weak_overlap`）** ——
-  从下标 `j` 起，对固定核心 `[zd,zg]` 逐段做弱接触延伸，聚合 gg/dd，返回 `(end, j', gg', dd')`。
+  从下标 `j` 起，对固定核心 `[zd,zg]` 逐段做弱接触延伸，返回 `(end, j', gg', dd')`。★#1419 S3：
+  延伸成员都进中枢（end 前进），gg/dd 只聚合与 seed 首段同向（`zdir`）的 Zn 成员（`znAgg`）。
   fuel = 剩余段数上界（保证 ≥ 实际可延伸段数，终止机器检查；reference while 由 `j<n` 终止）。
 
   返回 `(end, jOut, gg, dd)`：`end`=最后延伸到的段下标，`jOut`=首个不延伸（离开/越界）的段下标。
@@ -405,44 +420,55 @@ def segHL (s : Segment) : Tick × Tick := (segHigh s, segLow s)
   `theta_v0_center_parity` bit-exact 契约在 9+ 段输入上失效 ⟹ 本文件**暂不实装**，待三侧同步批次
   （Rust R6/R7/R8 + Python P13）同拍落地后再补本函数与 `refStep`/`refLoop` 的升级重切。
 -/
-def extendWeak (comps : List (Tick × Tick)) (zd zg : Tick) :
+def extendWeak (comps : List (Tick × Tick × Direction)) (zd zg : Tick) (zdir : Direction) :
     Nat → Nat → Nat → Tick → Tick → (Nat × Nat × Tick × Tick)
   | 0,        endAcc, j, gg, dd => (endAcc, j, gg, dd)  -- fuel 耗尽（不可达：fuel ≥ 剩余段数）
   | fuel + 1, endAcc, j, gg, dd =>
       match comps[j]? with
       | none => (endAcc, j, gg, dd)  -- j 越界（reference `j < n` 假）
-      | some (h, l) =>
+      | some (h, l, d) =>
           if weakOverlap h l zd zg then
-            -- 延伸：end=j，聚合 gg/dd，j+=1，fuel-1
-            extendWeak comps zd zg fuel j (j + 1) (tmax gg h) (tmin dd l)
+            -- 延伸：end=j，gg/dd 只并入 Zn（#1419 S3），j+=1，fuel-1
+            let (gg', dd') := znAgg zdir d gg dd h l
+            extendWeak comps zd zg zdir fuel j (j + 1) gg' dd'
           else
             (endAcc, j, gg, dd)  -- 段离开核心（reference while 条件假，settled 候选）
+
+/-- #1419：弱接触的非 Zn 仍推进成员边界，保持冻结核心与外缘，再处理下一单元。 -/
+theorem extendWeak_nonZn_member (comps : List (Tick × Tick × Direction))
+    (zd zg : Tick) (zdir d : Direction) (fuel endAcc j : Nat) (gg dd h l : Tick)
+    (hc : comps[j]? = some (h, l, d)) (hw : weakOverlap h l zd zg = true) (hd : d ≠ zdir) :
+    extendWeak comps zd zg zdir (fuel + 1) endAcc j gg dd =
+      extendWeak comps zd zg zdir fuel j (j + 1) gg dd := by
+  simp only [extendWeak, hc, hw, if_true, znAgg_other_direction zdir d gg dd h l hd]
 
 /--
   **reference 主滑窗（reference_chanlun.py:117-155 的 `while i+2 < n`）** ——
   从下标 `i` 起识别一个 v1 中枢，返回 `(中枢?, 下一个 i)`。fuel 保证终止（每步 i 严格增）。
 
-  逐字对齐 reference：
+  沿用 reference 的滑窗结构，按已裁规则适配：
   - 前三段 `zd=max3(lows)/zg=min3(highs)`（全三段核心，frozen v1）。
   - `zg <= zd`（核心空）⟹ 无中枢，`i+=1` 滑窗（reference:122-124）。
-  - 否则：gg/dd 初始三段，弱接触延伸（extendWeak），`settled = jOut < n`。
+  - 否则：gg/dd 初始取 seed 三段中的 Zn（首段恒为 Zn，第 2、3 段与首段同向才算；★#1419 S3），
+    弱接触延伸（extendWeak，同样只聚合 Zn），`settled = jOut < n`。
   - `settled` ⟹ 下一个 `i = end + 2`（★#812 Z-5 C 口径：跳过突破段 `jOut = end+1`，
     突破段不属于任何中枢；覆盖 reference:150-151 的 A 口径重叠回退 `max(jOut-2,end)`）；
     未结算 ⟹ 停止（reference:152-153 break，返回 i=n 终止外循环）。
 -/
-def refStep (comps : List (Tick × Tick)) (n : Nat) (i : Nat) :
+def refStep (comps : List (Tick × Tick × Direction)) (n : Nat) (i : Nat) :
     (Option RefZhongshu × Nat) :=
   match comps[i]?, comps[i+1]?, comps[i+2]? with
-  | some (h1, l1), some (h2, l2), some (h3, l3) =>
+  | some (h1, l1, d1), some (h2, l2, d2), some (h3, l3, d3) =>
       let zd := max3 l1 l2 l3
       let zg := min3 h1 h2 h3
       if decide (zg ≤ zd) then
         (none, i + 1)  -- 核心空：滑窗前进 1（reference:122-124）
       else
-        let gg0 := max3 h1 h2 h3
-        let dd0 := min3 l1 l2 l3
+        -- ★#1419 S3：seed 外缘只取 Zn（首段 d1 恒为 Zn，第 2、3 段与 d1 同向才并入）
+        let (gg12, dd12) := znAgg d1 d2 h1 l1 h2 l2
+        let (gg0, dd0) := znAgg d1 d3 gg12 dd12 h3 l3
         -- 弱接触延伸从 j=i+3 起（fuel = n 充分上界）
-        let (endE, jOut, gg, dd) := extendWeak comps zd zg n (i + 2) (i + 3) gg0 dd0
+        let (endE, jOut, gg, dd) := extendWeak comps zd zg d1 n (i + 2) (i + 3) gg0 dd0
         let settled := decide (jOut < n)
         let zs : RefZhongshu :=
           { zd := zd, zg := zg, start := i, «end» := endE, count := endE - i + 1,
@@ -450,7 +476,7 @@ def refStep (comps : List (Tick × Tick)) (n : Nat) (i : Nat) :
             breakIndex := if settled then (jOut : Int) else (-1 : Int),
             breakUp := if settled then
                          (match comps[jOut]? with
-                          | some (hb, lb) => breakDirectionUp hb lb zd zg
+                          | some (hb, lb, _) => breakDirectionUp hb lb zd zg
                           | none => true)
                        else true,
             gg := gg, dd := dd }
@@ -465,7 +491,7 @@ def refStep (comps : List (Tick × Tick)) (n : Nat) (i : Nat) :
   **reference 外循环（reference_chanlun.py:115-155 的 `while i+2 < n` 全体）** ——
   fuel-bounded 递归收集所有 v1 中枢。fuel = n（i 每步严格增 ⟹ 至多 n 步，终止机器检查）。
 -/
-def refLoop (comps : List (Tick × Tick)) (n : Nat) : Nat → Nat → List RefZhongshu
+def refLoop (comps : List (Tick × Tick × Direction)) (n : Nat) : Nat → Nat → List RefZhongshu
   | 0,        _ => []  -- fuel 耗尽（不可达：fuel = n ≥ 步数）
   | fuel + 1, i =>
       if decide (i + 2 < n) then
@@ -478,8 +504,8 @@ def refLoop (comps : List (Tick × Tick)) (n : Nat) : Nat → Nat → List RefZh
       else []
 
 /--
-  **★reference v1 中枢构造（reference_chanlun.py `zhongshus_from_components_ref`，逐字）** ——
-  `List Segment → List RefZhongshu`。完成态段 → (high,low) 投影 → v1 滑窗。
+  **★已裁中枢构造（reference_chanlun.py `zhongshus_from_components_ref` 的骨架）** ——
+  `List Segment → List RefZhongshu`。完成态段 → (high,low,方向) 投影 → Zn 外缘与 C 续扫。
 
   对齐 reference:96-155：`n = len(completed)`，`n < 3 ⟹ []`，否则 refLoop 收集。
   本函数不做 `completed_mask` 过滤（输入已是完成态段；mask 过滤在调用点，reference:158-160）。
@@ -602,6 +628,91 @@ theorem witness_ref_settled_break_up :
       (fun zs => (zs.settled, zs.breakUp, zs.breakIndex)) = some (true, true, (4 : Int)) := by
   native_decide
 
+/-! ──────────────────────────────────────────────────────────────────────
+    § 5.5.3b #1419 判别例（Zn 外缘 + C 口径续扫 + D-A 方向判据，L0）
+    ──────────────────────────────────────────────────────────────────────
+
+    #1419：输入与期待值承接固定 donor 634f62cddfaddf656a35ca9b9db20cb716b62bff 的本节。
+    donor 所称 S0 `.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json`
+    在当前树不存在，故本轮不声称独立生成过程已复核；静态模型核算不等于 Lean 运行。
+    根裁定 r2 R4 已定：S 事实层对未结算中枢发布 `breakUp=false` 且
+    `breakUp_defined=false`；本 reference 保留 refStep 的占位编码（未结算 ⟹ true），下列 witness 不锁
+    未结算中枢的 breakUp，§ 5.5.4 夹具在 `meta.break_up_scope` 里声明对拍只比已结算中枢的 breakUp。
+-/
+
+/-- 端点序列 → 相连段序列（`u_k = P_k → P_{k+1}`，方向由端点升降定；S0 工作例编码）。 -/
+def segsOfEndpointsFrom : Nat → List Tick → List Segment
+  | k, a :: b :: rest =>
+      { direction := if b > a then Direction.up else Direction.down,
+        startIndex := k, endIndex := k + 1, startPrice := a, endPrice := b }
+        :: segsOfEndpointsFrom (k + 1) (b :: rest)
+  | _, _ => []
+
+/-- 端点序列 → 相连段序列（下标自 0 起）。 -/
+def segsOfEndpoints (ps : List Tick) : List Segment := segsOfEndpointsFrom 0 ps
+
+/-- donor 工作例 UP 流 K12（u0..u12 完成）。 -/
+def e2UpEndpoints : List Tick := [10, 40, 20, 35, 30, 38, 21, 25, 5, 15, 2, 12, 4, 9]
+/-- donor 工作例 DOWN 流 = UP 的 `p' = 45 − p` 镜像。 -/
+def e2DownEndpoints : List Tick := e2UpEndpoints.map (fun p => 45 - p)
+/-- donor 工作例 E4 流 K10（u0..u10 完成）。 -/
+def e4Endpoints : List Tick := [10, 40, 20, 35, 5, 15, 2, 18, 15, 17, 1, 8]
+
+/-- D-A 判别段（方向不交替，几何上合法的中枢窗口）：上[10,40] 上[20,50] 下[0,30] 下[5,25] 上[15,60]。 -/
+def dirExtSegs : List Segment :=
+  [ { direction := Direction.up,   startIndex := 0, endIndex := 1, startPrice := 10, endPrice := 40 },
+    { direction := Direction.up,   startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 50 },
+    { direction := Direction.down, startIndex := 2, endIndex := 3, startPrice := 30, endPrice := 0 },
+    { direction := Direction.down, startIndex := 3, endIndex := 4, startPrice := 25, endPrice := 5 },
+    { direction := Direction.up,   startIndex := 4, endIndex := 5, startPrice := 15, endPrice := 60 } ]
+
+/-- 中枢摘要（起、止、ZD、ZG、DD、GG、是否结算）——判别例只锁这几个字段。 -/
+structure RefSummary where
+  start : Nat
+  stop : Nat
+  zd : Tick
+  zg : Tick
+  dd : Tick
+  gg : Tick
+  settled : Bool
+deriving DecidableEq, Repr
+
+/-- `RefZhongshu` → 摘要。 -/
+def refSummary (zs : RefZhongshu) : RefSummary :=
+  ⟨zs.start, zs.«end», zs.zd, zs.zg, zs.dd, zs.gg, zs.settled⟩
+
+/--
+  **★E2/E3（UP 流）**：A = u0..u7，u7 ↓[5,25] 进中枢但非 Zn ⟹ DD = 10（不是 5）；u8 突破，下一 seed
+  自 last+2 = u9 起 ⟹ B = u9..u12、核心 [4,12]（A 口径回退 `max(j-2,end)` 会从 u7 起得重叠中枢）。
+-/
+theorem witness_e2_up_zn_c_resume :
+    (refZhongshusFromComponents (segsOfEndpoints e2UpEndpoints)).map refSummary
+      = ([⟨0, 7, 20, 35, 10, 40, true⟩, ⟨9, 12, 4, 12, 2, 15, false⟩] : List RefSummary) := by
+  decide
+
+/-- **★E2/E3 DOWN 镜像**：A 的 GG = 35（不是 40）。 -/
+theorem witness_e2_down_zn_c_resume :
+    (refZhongshusFromComponents (segsOfEndpoints e2DownEndpoints)).map refSummary
+      = ([⟨0, 7, 10, 25, 5, 35, true⟩, ⟨9, 12, 33, 41, 30, 43, false⟩] : List RefSummary) := by
+  decide
+
+/--
+  **★E4**：A = u0..u3 结算于 u4；续扫锚 u5 的 seed ZD = ZG = 15 相切不成立（严格 #812 Z-2）⟹ +1；
+  B = u6..u9（u9 ↓[1,17] 非 Zn ⟹ DD = 2），结算于 u10。连接段 = u4、u5 两单元。
+-/
+theorem witness_e4_tangent_seed_two_unit_connector :
+    (refZhongshusFromComponents (segsOfEndpoints e4Endpoints)).map refSummary
+      = ([⟨0, 3, 20, 35, 10, 40, true⟩, ⟨6, 9, 15, 17, 2, 18, true⟩] : List RefSummary) := by
+  decide
+
+/--
+  **★D-A 方向判据**：Zn = 与首段同向（上）的第 1、2、5 段 ⟹ GG = 60、DD = 10；位次奇偶判据会取第
+  1、3、5 段得 DD = 0。
+-/
+theorem witness_zn_direction_not_parity :
+    (refZhongshusFromComponents dirExtSegs).map refSummary
+      = ([⟨0, 4, 20, 30, 10, 60, false⟩] : List RefSummary) := by decide
+
 /-! ═══════════════════════════════════════════════════════════════════════
     § 5.5.4 机器导出 parity fixture（#eval → JSON，rust include_str! 耦合）
     ═══════════════════════════════════════════════════════════════════════ -/
@@ -629,13 +740,23 @@ open Lean (Json) in
   - `four_extend`：加弱接触第四段 → count=4 延伸。
   - `five_settled_break`：加结算第五段 → settled + break up。
   - `v0_v1_interval`：v0/v1 核心区间对照（裁决 v0 错）。
+  - ★#1419 S3 判别例（§ 5.5.3b）：`e2_up_zn_c_resume` / `e2_down_zn_c_resume`（Zn 外缘 + last+2 续扫）、
+    `e4_tangent_seed_connector`（续扫锚 seed 相切 +1、两单元连接段）、`zn_direction_not_parity`（D-A）。
+
+  `break_up` 的对拍范围（#1419 根裁定 r2 R4）：只比 `settled = true` 的中枢。未结算中枢的 `break_up`
+  是 reference 占位编码（`true`），导出照实写出，但不参与对拍；`meta.break_up_scope = "settled_only"`
+  声明这一点。#1419 具名缺口 E_REFERENCE_FIXTURE_BINDING：545e 的 ref_v1.rs 仍为全成员外缘、
+  A 口径续扫，theta_v0_center_parity.json 也尚未有这四组新案例及 scope 元数据；不得声称当前
+  Rust 对拍已读取此字段。后续统一 source 须修复参考消费者并实际重导出，本轮不改 Rust/fixture。
 -/
 def refV1FixtureJson : Json :=
   Json.mkObj [
     ("meta", Json.mkObj [
       ("source", Json.str "formal/Origin/CenterConstruct.lean #eval refZhongshusFromComponents (machine-exported)"),
       ("epistemic_level", Json.str "L0"),
-      ("note", Json.str "reference v1 中枢语义 bit-exact Lean machine-checked; 非 L2 经验断言")
+      ("note", Json.str "reference v1 中枢语义 bit-exact Lean machine-checked; 非 L2 经验断言"),
+      ("break_up_scope", Json.str "settled_only"),
+      ("break_up_note", Json.str "未结算中枢的 break_up 是 reference 占位编码（true），不参与对拍；S 事实层对未结算中枢发布 breakUp=false 且 breakUp_defined=false（#1419 根裁定 r2 R4）")
     ]),
     ("three_unsettled", Json.arr
       ((refZhongshusFromComponents [refSeg0, refSeg1, refSeg2]).map refZhongshuJson).toArray),
@@ -643,6 +764,14 @@ def refV1FixtureJson : Json :=
       ((refZhongshusFromComponents [refSeg0, refSeg1, refSeg2, refSeg3Ext]).map refZhongshuJson).toArray),
     ("five_settled_break", Json.arr
       ((refZhongshusFromComponents [refSeg0, refSeg1, refSeg2, refSeg3Ext, refSeg4Break]).map refZhongshuJson).toArray),
+    ("e2_up_zn_c_resume", Json.arr
+      ((refZhongshusFromComponents (segsOfEndpoints e2UpEndpoints)).map refZhongshuJson).toArray),
+    ("e2_down_zn_c_resume", Json.arr
+      ((refZhongshusFromComponents (segsOfEndpoints e2DownEndpoints)).map refZhongshuJson).toArray),
+    ("e4_tangent_seed_connector", Json.arr
+      ((refZhongshusFromComponents (segsOfEndpoints e4Endpoints)).map refZhongshuJson).toArray),
+    ("zn_direction_not_parity", Json.arr
+      ((refZhongshusFromComponents dirExtSegs).map refZhongshuJson).toArray),
     ("v0_v1_interval", Json.mkObj [
       ("fixture", Json.str "s0=[10,20],s1=[12,15],s2=[11,18]"),
       ("v1_zd", Json.num (refV1Interval 10 20 12 15 11 18).1),
@@ -673,8 +802,8 @@ def refV1FixtureJson : Json :=
   ★定义依据（§6.3/§6.4 公式，口径 B 全三段，637号）：
     - ZG = min(g₁,g₂,g₃)：全三段高点最小者（中枢核心上沿）
     - ZD = max(d₁,d₂,d₃)：全三段低点最大者（中枢核心下沿）
-    - GG = max(gₙ)：三段高点最大值（外缘上界）
-    - DD = min(dₙ)：三段低点最小值（外缘下界）
+    - GG = max(gₙ)：seed 三段中 Zn 的高点最大值（外缘上界，★#1419 S3）
+    - DD = min(dₙ)：seed 三段中 Zn 的低点最小值（外缘下界，★#1419 S3）
     段高点/低点：segHigh = max(startPrice, endPrice)，segLow = min(startPrice, endPrice)。
     识别判据（几何必要条件）：ZD ≤ ZG（全三段核心区间非空，已含第三段贯穿）。
 

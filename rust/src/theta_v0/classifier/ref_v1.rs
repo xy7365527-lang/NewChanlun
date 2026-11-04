@@ -5,15 +5,17 @@
 //!
 //! - **核心区间（frozen v1，全三段）** ↔ `Origin.CenterConstruct.refV1Interval`
 //!   / `reference_chanlun.py:119-120`：`zd = max3(c1.low,c2.low,c3.low)`、
-//!   `zg = min3(c1.high,c2.high,c3.high)`。**注意**：这与 `center.rs` 的 chan99 §6.4 派生
-//!   口径 `compute_zd/compute_zg`（**前两段** `max(d₁,d₂)/min(g₁,g₂)`）是**不同口径**——
-//!   两口径在第三段贯穿核心时重合，第三段更窄时分叉（见谱系 中枢核心区间口径分离）。
+//!   `zg = min3(c1.high,c2.high,c3.high)`。与 `center.rs` 的 `compute_zd/compute_zg` 同为全三段
+//!   （637 号口径 A→B 迁移后；★#1419 订正：本段旧文称 `center.rs` 取「前两段」，那是迁移前的口径 A）。
 //! - **弱接触延伸** ↔ `Origin.CenterConstruct.weakOverlap` / `reference:78-85`：
 //!   `component.high >= zd && component.low <= zg`（边界相切算延伸，frozen 测试口径）。
 //! - **生命周期字段（gg/dd/settled/break）** ↔ `Origin.CenterConstruct.RefZhongshu` /
-//!   `reference:40-52`：外缘 gg/dd 随延伸聚合；`settled = j < n`（末中枢强制 unsettled）；
+//!   `reference:40-52`：外缘 gg/dd 只聚合 seed 与延伸成员中的 **Zn**（与 seed 首段同向，★#1419 S3，
+//!   经 [`super::center::is_zn`] 唯一判据）；`settled = j < n`（末中枢强制 unsettled）；
 //!   break_index/break_direction。
-//! - **结算后重叠回退** ↔ `reference:150-151`：`i = max(j-2, end)`。
+//! - **结算后续扫锚** ↔ Lean `refStep` 的 `endE + 2`（★#1419 S3，#812 Z-5 C 口径：跳过突破段，
+//!   突破段不属于任何中枢）。reference:150-151 的 A 口径重叠回退 `i = max(j-2, end)` 已被 Z-5 推翻，
+//!   本镜像此前停在 A 口径、与 Lean 漂移，本批同拍改正。
 //!
 //! ## v0/v1 反例裁决（已 native_decide 裁 v0 错，`legacy_v0_not_correct_for_v1_reference`）
 //!
@@ -34,14 +36,16 @@
 //!   `Origin.CenterConstruct` §5.5 的逐字对照实装，非主判据决策路径。
 //! - **对照什么**：`Origin.CenterConstruct.{refV1Interval,weakOverlap,RefZhongshu}` +
 //!   `reference_chanlun.py`（v1 中枢核心区间「全三段」口径）。
-//! - **与现役差在哪**：现役中枢核心区间口径在 [`super::center`]（chan99 §6.4 派生，
-//!   `compute_zd`/`compute_zg` 只取**前两段**）——两口径已 native_decide 裁定分叉
-//!   （`legacy_v0_not_correct_for_v1_reference` fixture），本文件承载「v1 正确语义」的
-//!   独立对照本体，全仓零生产调用者（仅自身 `#[cfg(test)]`）。
-//! - **禁回灌**：不得把本文件的 `RefZhongshu`/全三段口径回灌进 [`super::center`] 替换现役
-//!   chan99 §6.4 派生口径——两口径正交并置是已裁定的设计，不是待统一的分叉。
+//! - **与现役差在哪**（★#1419 订正，旧文「现役只取前两段」已过时）：核心全三段、外缘只聚合 Zn、
+//!   结算后自 `end + 2` 续扫三处与现役塔（[`super::center`] + `recursive_tower::detect_centers_windowed_resume`）
+//!   同口径；本文件不查方向交替、不做 ≥9 段升级重切，另带结算/离开方向等生命周期字段。被
+//!   `legacy_v0_not_correct_for_v1_reference` 裁错的是首尾段口径 v0，不是现役。本文件全仓零生产
+//!   调用者（仅自身 `#[cfg(test)]` 与 `rust/tests/theta_v0_center_parity.rs`）。
+//! - **禁回灌**：本文件是 Lean `refZhongshusFromComponents` 的镜像，不得被生产路径调用；现役判定只在
+//!   [`super::center`] 与共用扫描里改。
 
 use super::super::types::{Segment, Tick};
+use super::center::{compute_dd, compute_gg, is_zn, UnitRange};
 
 /// reference `RefZhongshu`（`reference_chanlun.py:40-52` 逐字镜像）—— v1 中枢生命周期。
 ///
@@ -62,11 +66,12 @@ pub struct RefZhongshu {
     pub settled: bool,
     /// 结算时离开核心的段下标（未结算 = -1）。
     pub break_index: i64,
-    /// 离开方向 true=up / false=down（未结算 = true，对齐 reference 默认 ""→防御 up）。
+    /// 离开方向 true=up / false=down（未结算 = true，对齐 reference 默认 ""→防御 up）。未结算时的值是
+    /// 占位、无语义：Lean 夹具对拍只比已结算中枢（#1419 根裁定 r2 R4）。
     pub break_up: bool,
-    /// 外缘上界 GG（初始三段 + 延伸段聚合 max）。
+    /// 外缘上界 GG（seed 三段与延伸段中的 Zn 聚合 max，★#1419 S3）。
     pub gg: Tick,
-    /// 外缘下界 DD（初始三段 + 延伸段聚合 min）。
+    /// 外缘下界 DD（seed 三段与延伸段中的 Zn 聚合 min，★#1419 S3）。
     pub dd: Tick,
 }
 
@@ -114,6 +119,18 @@ fn seg_hl(s: &Segment) -> (Tick, Tick) {
     }
 }
 
+/// 段 → 带方向的走势单元（Lean `segHL` 的 `(high, low, direction)`，★#1419 S3：Zn 判据要方向）。
+fn seg_unit(s: &Segment) -> UnitRange {
+    let (hi, lo) = seg_hl(s);
+    UnitRange {
+        start_index: s.start_index,
+        end_index: s.end_index,
+        direction: s.direction,
+        lo,
+        hi,
+    }
+}
+
 /// **★reference v1 中枢构造（`zhongshus_from_components_ref`，`reference_chanlun.py:96-155` 逐字）**
 /// —— 完成态段序列 → v1 中枢序列。
 ///
@@ -121,12 +138,12 @@ fn seg_hl(s: &Segment) -> (Tick, Tick) {
 ///
 /// 输入 `segments` 已是完成态段（`completed_mask` 过滤在调用点，reference:158-160）。
 /// `n < 3 ⟹ []`。否则滑窗：前三段定全三段核心；核心空（`zg<=zd`）滑窗前进1；否则弱接触延伸 +
-/// 生命周期字段，结算后重叠回退 `i=max(j-2,end)`，末中枢强制 unsettled 后停止。
+/// 生命周期字段（外缘只聚合 Zn），结算后自 `end + 2` 续扫（跳过突破段），末中枢强制 unsettled 后停止。
 ///
 /// 边界条件（结论翻转）：核心口径用全三段 max3/min3（非前两段——见模块级口径分离说明）；
 /// 延伸用弱相交（边界相切算延伸）；`settled` 由 `j<n` 决定（末中枢必 unsettled）。
 pub fn ref_zhongshus_from_components(segments: &[Segment]) -> Vec<RefZhongshu> {
-    let comps: Vec<(Tick, Tick)> = segments.iter().map(seg_hl).collect();
+    let comps: Vec<UnitRange> = segments.iter().map(seg_unit).collect();
     let n = comps.len();
     if n < 3 {
         return Vec::new();
@@ -135,11 +152,9 @@ pub fn ref_zhongshus_from_components(segments: &[Segment]) -> Vec<RefZhongshu> {
     let mut result: Vec<RefZhongshu> = Vec::new();
     let mut i = 0usize;
     while i + 2 < n {
-        let (h1, l1) = comps[i];
-        let (h2, l2) = comps[i + 1];
-        let (h3, l3) = comps[i + 2];
-        let zd = max3(l1, l2, l3);
-        let zg = min3(h1, h2, h3);
+        let (a, b, c) = (&comps[i], &comps[i + 1], &comps[i + 2]);
+        let zd = max3(a.lo, b.lo, c.lo);
+        let zg = min3(a.hi, b.hi, c.hi);
 
         if zg <= zd {
             // 核心空：滑窗前进 1（reference:122-124）。
@@ -147,21 +162,27 @@ pub fn ref_zhongshus_from_components(segments: &[Segment]) -> Vec<RefZhongshu> {
             continue;
         }
 
-        let mut gg = max3(h1, h2, h3);
-        let mut dd = min3(l1, l2, l3);
+        // ★#1419 S3：seed 外缘只取 Zn（与 Lean `refStep` 的 `znAgg` 同拍，公式取 center 唯一一份）。
+        let mut gg = compute_gg(a, b, c);
+        let mut dd = compute_dd(a, b, c);
         let mut end = i + 2;
-        // 弱接触延伸（reference:129-134）：从 j=i+3 起逐段吸收。
+        // 弱接触延伸（reference:129-134）：从 j=i+3 起逐段吸收；外缘只并入 Zn 成员。
         let mut j = i + 3;
-        while j < n && weak_overlap(comps[j].0, comps[j].1, zd, zg) {
+        while j < n && weak_overlap(comps[j].hi, comps[j].lo, zd, zg) {
             end = j;
-            gg = gg.max(comps[j].0);
-            dd = dd.min(comps[j].1);
+            if is_zn(&comps[j], a) {
+                gg = gg.max(comps[j].hi);
+                dd = dd.min(comps[j].lo);
+            }
             j += 1;
         }
 
         let settled = j < n;
         let (break_index, break_up) = if settled {
-            (j as i64, break_direction_up(comps[j].0, comps[j].1, zd, zg))
+            (
+                j as i64,
+                break_direction_up(comps[j].hi, comps[j].lo, zd, zg),
+            )
         } else {
             (-1, true)
         };
@@ -179,8 +200,8 @@ pub fn ref_zhongshus_from_components(segments: &[Segment]) -> Vec<RefZhongshu> {
         });
 
         if settled {
-            // 重叠回退（reference:150-151）：i = max(j-2, end)。
-            i = (j.saturating_sub(2)).max(end);
+            // ★#1419 S3（#812 Z-5 C 口径，Lean `refStep` 的 `endE + 2`）：跳过突破段 j = end + 1。
+            i = end + 2;
         } else {
             // 末中枢未结算：停止（reference:152-153 break）。
             break;

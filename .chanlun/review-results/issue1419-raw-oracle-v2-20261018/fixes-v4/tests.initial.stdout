@@ -1,0 +1,111 @@
+test_f1_conflicting_internal_fields (__main__.Tests.test_f1_conflicting_internal_fields) ... ok
+test_f1_public_positive_and_geometry (__main__.Tests.test_f1_public_positive_and_geometry) ... FAIL
+test_f2_collector_before_projection (__main__.Tests.test_f2_collector_before_projection) ... FAIL
+test_f2_empty_and_split (__main__.Tests.test_f2_empty_and_split) ... FAIL
+test_f2_graph_duplicate_and_expired (__main__.Tests.test_f2_graph_duplicate_and_expired) ... FAIL
+test_f2_real_content_loop_is_cumulative (__main__.Tests.test_f2_real_content_loop_is_cumulative) ... FAIL
+test_f3_public_complete_set (__main__.Tests.test_f3_public_complete_set) ... ok
+test_f5_all_headers (__main__.Tests.test_f5_all_headers) ... FAIL
+test_f8_cut_frontier_conflict (__main__.Tests.test_f8_cut_frontier_conflict) ... FAIL
+test_f8_identity_and_cross_epoch (__main__.Tests.test_f8_identity_and_cross_epoch) ... ERROR
+
+======================================================================
+ERROR: test_f8_identity_and_cross_epoch (__main__.Tests.test_f8_identity_and_cross_epoch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 202, in test_f8_identity_and_cross_epoch
+    self.assertEqual([b['accepted_cut']['input_frontier'] for b in bindings.values()],['139','204','269'])
+                      ~^^^^^^^^^^^^^^^^
+KeyError: 'accepted_cut'
+
+======================================================================
+FAIL: test_f1_public_positive_and_geometry (__main__.Tests.test_f1_public_positive_and_geometry)
+----------------------------------------------------------------------
+ValueError: 段.geometric_end不符
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 59, in test_f1_public_positive_and_geometry
+    with self.assertRaisesRegex(ValueError, key) as error:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: "price" does not match "段.geometric_end不符"
+
+======================================================================
+FAIL: test_f2_collector_before_projection (__main__.Tests.test_f2_collector_before_projection)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 127, in test_f2_collector_before_projection
+    collector.closed_snapshot(s['fixed_cut'], 2, max_nodes=100000, max_bytes=16*1024*1024, max_work=10)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py", line 26, in closed_snapshot
+    result=self.content(anchor,path,unit,1 if unit=='value' else page_size)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+AssertionError: 不应先取内容
+
+======================================================================
+FAIL: test_f2_empty_and_split (__main__.Tests.test_f2_empty_and_split)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 106, in test_f2_empty_and_split
+    with self.assertRaisesRegex(ValueError, '截止'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_f2_graph_duplicate_and_expired (__main__.Tests.test_f2_graph_duplicate_and_expired)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 95, in test_f2_graph_duplicate_and_expired
+    with self.assertRaisesRegex(ValueError, '工作量|截止') as error:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_f2_real_content_loop_is_cumulative (__main__.Tests.test_f2_real_content_loop_is_cumulative)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 142, in test_f2_real_content_loop_is_cumulative
+    collector.content({'many': list(range(100))}, [], 'items', 1)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 212, in content
+    page = self.call("/api/v3/content", payload)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+AssertionError: 预算应在call前耗尽
+
+======================================================================
+FAIL: test_f5_all_headers (__main__.Tests.test_f5_all_headers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 154, in test_f5_all_headers
+    with self.assertRaisesRegex(ValueError, '节点头|未知tag') as error:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_f8_cut_frontier_conflict (__main__.Tests.test_f8_cut_frontier_conflict)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 195, in test_f8_cut_frontier_conflict
+    with self.assertRaisesRegex(ValueError,'接纳切面.*input_frontier') as error:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 10 tests in 7.198s
+
+FAILED (failures=7, errors=1)

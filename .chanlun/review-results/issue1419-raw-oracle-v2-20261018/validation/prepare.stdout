@@ -1,0 +1,174 @@
+{
+  "domain": "Python纯定义模型",
+  "bars": 139,
+  "fractals": 35,
+  "strokes": 34,
+  "completed_segments": 10,
+  "case_two": [
+    "u0",
+    "u2",
+    "u4",
+    "u6"
+  ],
+  "centers": [
+    {
+      "id": "c0",
+      "seed": [
+        "u0",
+        "u1",
+        "u2"
+      ],
+      "ZD": 1120,
+      "ZG": 1600,
+      "roles": {
+        "DD": 800,
+        "D": 1440,
+        "G": 1600,
+        "GG": 2720
+      },
+      "members": [
+        "u0",
+        "u1",
+        "u2",
+        "u3",
+        "u4"
+      ],
+      "Zn": [
+        "u0",
+        "u2",
+        "u4"
+      ],
+      "contributors": {
+        "DD": [
+          "u0"
+        ],
+        "D": [
+          "u4"
+        ],
+        "G": [
+          "u0"
+        ],
+        "GG": [
+          "u4"
+        ]
+      },
+      "member_intersections": [
+        {
+          "unit": "u0",
+          "interval": [
+            1120,
+            1600
+          ]
+        },
+        {
+          "unit": "u1",
+          "interval": [
+            1120,
+            1600
+          ]
+        },
+        {
+          "unit": "u2",
+          "interval": [
+            1120,
+            1600
+          ]
+        },
+        {
+          "unit": "u3",
+          "interval": [
+            1440,
+            1600
+          ]
+        },
+        {
+          "unit": "u4",
+          "interval": [
+            1440,
+            1600
+          ]
+        }
+      ],
+      "first_known_input_count": 63,
+      "last_member": 4,
+      "resume": 6,
+      "reference": "CENTER_ROLES"
+    },
+    {
+      "id": "c6",
+      "seed": [
+        "u6",
+        "u7",
+        "u8"
+      ],
+      "ZD": 2720,
+      "ZG": 3200,
+      "roles": {
+        "DD": 2400,
+        "D": 2720,
+        "G": 3200,
+        "GG": 3520
+      },
+      "members": [
+        "u6",
+        "u7",
+        "u8",
+        "u9"
+      ],
+      "Zn": [
+        "u6",
+        "u8"
+      ],
+      "contributors": {
+        "DD": [
+          "u6"
+        ],
+        "D": [
+          "u8"
+        ],
+        "G": [
+          "u6"
+        ],
+        "GG": [
+          "u8"
+        ]
+      },
+      "member_intersections": [
+        {
+          "unit": "u6",
+          "interval": [
+            2720,
+            3200
+          ]
+        },
+        {
+          "unit": "u7",
+          "interval": [
+            2720,
+            3200
+          ]
+        },
+        {
+          "unit": "u8",
+          "interval": [
+            2720,
+            3200
+          ]
+        },
+        {
+          "unit": "u9",
+          "interval": [
+            2720,
+            3200
+          ]
+        }
+      ],
+      "first_known_input_count": 123,
+      "last_member": 9,
+      "resume": 11,
+      "reference": "CENTER_ROLES"
+    }
+  ],
+  "withdrawn_variant_centers": 1,
+  "product_run": "NOT_RUN"
+}

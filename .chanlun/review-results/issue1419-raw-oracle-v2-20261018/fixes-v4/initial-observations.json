@@ -1,0 +1,249 @@
+{
+  "tests": 10,
+  "failures": 7,
+  "errors": 1,
+  "observations": [
+    {
+      "case": "F1双字段冲突",
+      "public_bad": true,
+      "rejection": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1双字段冲突",
+      "public_bad": false,
+      "rejection": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1公共payload正控",
+      "result": {
+        "status": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED",
+        "segments": 10,
+        "centers": 2,
+        "pairs_compared": 1,
+        "product_run": "NOT_RUN",
+        "verified_subquantifiers": [
+          "有限域低级端点几何/笔formation及引用绑定",
+          "段端点/construction/strict/fact_vector/终结证书",
+          "seed五条件/核心/成员/Zn贡献/归属null及实体引用",
+          "相邻对连接成员及16格"
+        ],
+        "unverified": {
+          "first_visibility": "UNVERIFIED",
+          "known_at": "UNVERIFIED",
+          "AsKnown": "UNVERIFIED",
+          "entity_revision": "UNVERIFIED",
+          "raw_history": "UNVERIFIED",
+          "withdrawn_objects": "UNVERIFIED",
+          "lower_source_coords_and_sealing": "UNVERIFIED",
+          "lower_confirmation": "UNVERIFIED",
+          "feature_sequence_objects": "UNVERIFIED",
+          "full_catalog_axes": "UNVERIFIED",
+          "product_source_binding": "UNVERIFIED"
+        },
+        "logical_work_used": 28095,
+        "limitations": "只声明逐项静态子量词；真实前缀轨迹和生命周期输出未接入，禁止据此销项"
+      }
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    }
+  ],
+  "product_run": "NOT_RUN"
+}

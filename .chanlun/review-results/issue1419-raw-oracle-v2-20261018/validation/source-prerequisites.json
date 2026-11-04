@@ -1,0 +1,17 @@
+{
+  "baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "blockers": [
+    {
+      "number": 1414,
+      "state": "closed"
+    },
+    {
+      "number": 1359,
+      "state": "closed"
+    }
+  ],
+  "graph_tools": "当前工具表无search_graph等MCP接口；源码发现按不足结果回退rg",
+  "xerj": "curl http://127.0.0.1:19200/health；exit7，connection refused；未重装重索引",
+  "prior_tests": "sources/PRIOR-23-CHECKS.reference.stdout复用，未重跑原23项",
+  "product_run": "NOT_RUN"
+}

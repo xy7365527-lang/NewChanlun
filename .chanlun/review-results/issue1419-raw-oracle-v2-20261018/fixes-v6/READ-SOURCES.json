@@ -1,0 +1,52 @@
+{
+  "graph_tools_available": false,
+  "new_xerj_query": false,
+  "index_rebuilt": false,
+  "qualification": "复用既有响应，按授权回退到固定Git原件；未声称在线检索成功",
+  "reads": [
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/RAW-LIFECYCLE-CONTRACT.md",
+      "copy": "RAW-LIFECYCLE-CONTRACT.md.reference",
+      "bytes": 2594,
+      "sha256": "ef9dcf357ae737edf22c04b0519ba2e65b7ca3c89c62a5ed451961f50a88f956"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/RAW-LIFECYCLE-ENTRYPOINTS-46A.json",
+      "copy": "RAW-LIFECYCLE-ENTRYPOINTS-46A.json.reference",
+      "bytes": 18826,
+      "sha256": "755f15ef07c5397e0461e1668d1c99a3e8fa3da989b0a67e40a83c44601a7ac8"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/RAW-V5-INDEPENDENT-REVIEW.json",
+      "copy": "RAW-V5-INDEPENDENT-REVIEW.json.reference",
+      "bytes": 8493,
+      "sha256": "efbabd1f0453a2512d985d5e294664dfb9cf4c1b03287e0febbdf8ae9653792b"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/issue1419-live.json",
+      "copy": "issue1419-live.json.reference",
+      "bytes": 24930,
+      "sha256": "b3ce84e3f3839082e99c3ef63d390818864cda42b90dedbdcaff39b8804a7f4a"
+    },
+    {
+      "source": "fixes-v4/REFERENCE-SEARCH.reference.md",
+      "bytes": 4403,
+      "sha256": "1b7c90d06086e0aecb3bbae82e467891f5b3d41c72140d19c39c219e8e4504b2"
+    },
+    {
+      "source": "fixes-v4/XERJ-ATTEMPTS.reference.json",
+      "bytes": 1553,
+      "sha256": "836261b9189ddc977d281ecd62de833d08183c0fb6fa22c134ab5f4ca2d0f96d"
+    },
+    {
+      "source": "fixes-v4/REFERENCE-HITS.reference.json",
+      "bytes": 8074,
+      "sha256": "ed243437370852eaa58448a44dd63298740f90a439c3f5b61ead3f78ee2d73fc"
+    },
+    {
+      "source": "fixes-v5/STATIC-WIRE-SOURCES.json",
+      "bytes": 9626,
+      "sha256": "4af9f4aeec11e63630f2816ecb68ef2eac923557ce91b35e09c14eaab6d228f9"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ Origin/CenterConstruction.lean — centersOf 全自动构造（算 ZG/ZD/GG/DD�
 ═══════════════════════════════════════════════════════════════════════════
 中枢由 ≥3 个连续重叠次级别走势段构成。识别递归：
   - 取前 3 段，计算核心 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)（口径 B 全三段定核心，637号）+
-    外缘 GG/DD（三段聚合，与核心同三段）。
+    外缘 GG/DD（仅聚合与 seed 首段同向的 Zn，#1419）。
   - 若三段确有公共重叠区间（ZD < ZG，中枢成立，严格 #812 Z-2）⟹ 产出一个 CenterFull，消费 3 段递归。
   - 否则（无中枢）消费 1 段前进（滑窗）。
 **终止性**：每步消费 ≥1 段 ⟹ 剩余段数严格递减 ⟹ well-founded（`List.length`）。
@@ -30,7 +30,7 @@ GG/DD/ZG/ZD 用 if 显式构造（不用 min/max——Mathlib 缺失时无 simp 
 诚实标注（gatekeeper，no-patch-mentality）：
 ★ TerminationAndDeterminismOnly + OuterComputationConstructive ——
   本文件证 centersOf 的**终止性 + 唯一性**（构造层骨架）+ ZG/ZD/GG/DD 的**构造性计算**
-  （口径 B 全三段定核心 + 三段聚合外缘，§6.3/§6.4 公式直译，637号）。"三段是否构成中枢"的判据用
+  （口径 B 全三段定核心 + Zn 聚合外缘，#1419）。"三段是否构成中枢"的判据用
   "全三段核心区间非空（ZD < ZG，严格 #812 Z-2）"封装——这是中枢重叠的**必要**几何条件（口径 B 下已含第三段
   贯穿），良构且终止；但**不**等于完整缠论中枢识别（须次级别走势段方向交替，still-MISSING-B′）。
   把骨架冒充为完整识别 = 声明膨胀（禁止）。
@@ -99,13 +99,53 @@ def computeZG (s1 s2 s3 : Segment) : Tick := tmin (tmin (segHigh s1) (segHigh s2
 def computeZD (s1 s2 s3 : Segment) : Tick := tmax (tmax (segLow s1) (segLow s2)) (segLow s3)
 
 /--
-  **外缘上界 GG = max(g₁,g₂,g₃)（§6.4）** —— 三段高点的最大值。
+  **Zn 判定（★#1419 D-A）** —— 段 `s` 与 seed 首段 `first` **方向相等** ⟺ `s` 是 Zn。
+
+  原文 `docs/chanlun/text/blog/020-第20课.md:52`【正文】：
+  「GG=max(gn),G=min(gn),D=max(dn),DD=min(dn)，n遍历中枢中所有Zn」。
+  seed 首段方向作为中枢方向是 #1419 D-A 已批口径。L0 方向交替时即位次奇偶（第 1、3 段），
+  不交替输入上两者分歧，按 D-A 取方向（与 Rust `center::is_zn` 同一判据，#804）。
 -/
-def computeGG (s1 s2 s3 : Segment) : Tick := tmax (tmax (segHigh s1) (segHigh s2)) (segHigh s3)
+def isZn (s first : Segment) : Bool := decide (s.direction = first.direction)
+
+/-- 外缘上沿累积一步：`s` 是 Zn 才并入其高点，否则原样。 -/
+def znMax (first : Segment) (acc : Tick) (s : Segment) : Tick :=
+  if isZn s first then tmax acc (segHigh s) else acc
+
+/-- 外缘下沿累积一步：`s` 是 Zn 才并入其低点，否则原样。 -/
+def znMin (first : Segment) (acc : Tick) (s : Segment) : Tick :=
+  if isZn s first then tmin acc (segLow s) else acc
+
+theorem le_znMax (first : Segment) (acc : Tick) (s : Segment) : acc ≤ znMax first acc s := by
+  unfold znMax; split
+  · exact left_le_tmax _ _
+  · exact Int.le_refl _
+
+theorem znMin_le (first : Segment) (acc : Tick) (s : Segment) : znMin first acc s ≤ acc := by
+  unfold znMin; split
+  · exact tmin_le_left _ _
+  · exact Int.le_refl _
+
 /--
-  **外缘下界 DD = min(d₁,d₂,d₃)（§6.4）** —— 三段低点的最小值。
+  **外缘上界 GG = max(gₙ)，n 遍历 seed 三段中的 Zn（§6.4，★#1419 S3）** —— 首段恒为 Zn，第 2、3 段
+  经 `isZn` 判。L0 方向交替时 Zn = 第 1、3 段；端点相连时中间段两端点分别是第 1、3 段的端点，
+  与旧三段 max 恒等。
 -/
-def computeDD (s1 s2 s3 : Segment) : Tick := tmin (tmin (segLow s1) (segLow s2)) (segLow s3)
+def computeGG (s1 s2 s3 : Segment) : Tick := znMax s1 (znMax s1 (segHigh s1) s2) s3
+/--
+  **外缘下界 DD = min(dₙ)，n 遍历 seed 三段中的 Zn（§6.4，★#1419 S3）** —— 同 `computeGG`。
+-/
+def computeDD (s1 s2 s3 : Segment) : Tick := znMin s1 (znMin s1 (segLow s1) s2) s3
+
+/-- 首段高点不超过 GG（首段恒为 Zn）。 -/
+theorem segHigh_le_computeGG (s1 s2 s3 : Segment) : segHigh s1 ≤ computeGG s1 s2 s3 := by
+  unfold computeGG
+  exact Int.le_trans (le_znMax s1 _ s2) (le_znMax s1 _ s3)
+
+/-- DD 不超过首段低点（首段恒为 Zn）。 -/
+theorem computeDD_le_segLow (s1 s2 s3 : Segment) : computeDD s1 s2 s3 ≤ segLow s1 := by
+  unfold computeDD
+  exact Int.le_trans (znMin_le s1 _ s3) (znMin_le s1 _ s2)
 
 /--
   **中枢成立的几何必要条件** —— 核心**严格**非空：ZD < ZG（**全三段**有共同重叠区间且非单点，口径 B；
@@ -121,10 +161,9 @@ def centerHolds (s1 s2 s3 : Segment) : Bool := decide (computeZD s1 s2 s3 < comp
   携带所有不变量证明。前提 `h : ZD < ZG`（全三段核心严格非空，#812 Z-2）由调用点 centerHolds 保证。
 
   外缘包含核心证明（DD ≤ ZD ≤ ZG ≤ GG）：
-  - `outer_lo : DD ≤ ZD`：DD = min(d₁,d₂,d₃) ≤ d₁ ≤ max(d₁,d₂,d₃) = ZD（口径 B 同三段聚合，链）。
-  - `outer_hi : ZG ≤ GG`：ZG = min(g₁,g₂,g₃) ≤ g₁ ≤ max(g₁,g₂,g₃) = GG（链）。
-  ★口径 B 下核心与外缘用**同一三段聚合**：ZD=max3(lows) 同 DD 用同三段（DD≤ZD 因 min3≤max3）；
-  ZG=min3(highs) 同 GG 用同三段（ZG≤GG 因 min3≤max3）。
+  - `outer_lo : DD ≤ ZD`：DD = min(Zn 低点) ≤ d₁ ≤ max(d₁,d₂,d₃) = ZD（首段恒为 Zn，★#1419 S3）。
+  - `outer_hi : ZG ≤ GG`：ZG = min(g₁,g₂,g₃) ≤ g₁ ≤ max(Zn 高点) = GG（同上）。
+  ★#1419 S3：核心仍取全三段（口径 B），外缘只取 Zn；两者都含首段，不变量经首段传递。
 -/
 def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 s3 < computeZG s1 s2 s3) : CenterFull :=
   { core :=
@@ -136,25 +175,21 @@ def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 s3 < computeZG s1 
     dd := computeDD s1 s2 s3
     gg := computeGG s1 s2 s3
     outer_lo := by
-      -- DD = min3(lows) ≤ d1 ≤ max3(lows) = ZD（口径 B：核心下沿与外缘下界同三段聚合，min3≤max3）。
-      unfold computeDD computeZD
-      have h1 : tmin (tmin (segLow s1) (segLow s2)) (segLow s3) ≤ tmin (segLow s1) (segLow s2) :=
-        tmin_le_left _ _
-      have h2 : tmin (segLow s1) (segLow s2) ≤ segLow s1 := tmin_le_left _ _
+      -- DD = min(Zn lows) ≤ d1 ≤ max3(lows) = ZD（首段恒为 Zn，#1419 S3）。
+      have h1 := computeDD_le_segLow s1 s2 s3
+      unfold computeZD
       have h3 : segLow s1 ≤ tmax (segLow s1) (segLow s2) := left_le_tmax _ _
       have h4 : tmax (segLow s1) (segLow s2) ≤ tmax (tmax (segLow s1) (segLow s2)) (segLow s3) :=
         left_le_tmax _ _
       simp only [Tick] at *
       omega
     outer_hi := by
-      -- ZG = min3(highs) ≤ g1 ≤ max3(highs) = GG（口径 B：核心上沿与外缘上界同三段聚合，min3≤max3）。
-      unfold computeZG computeGG
+      -- ZG = min3(highs) ≤ g1 ≤ max(Zn highs) = GG（首段恒为 Zn，#1419 S3）。
+      have h4 := segHigh_le_computeGG s1 s2 s3
+      unfold computeZG
       have h1 : tmin (tmin (segHigh s1) (segHigh s2)) (segHigh s3) ≤ tmin (segHigh s1) (segHigh s2) :=
         tmin_le_left _ _
       have h2 : tmin (segHigh s1) (segHigh s2) ≤ segHigh s1 := tmin_le_left _ _
-      have h3 : segHigh s1 ≤ tmax (segHigh s1) (segHigh s2) := left_le_tmax _ _
-      have h4 : tmax (segHigh s1) (segHigh s2) ≤ tmax (tmax (segHigh s1) (segHigh s2)) (segHigh s3) :=
-        left_le_tmax _ _
       simp only [Tick] at *
       omega }
 
@@ -256,6 +291,22 @@ theorem witness_centersOf_separated_empty : centersOf [spSeg1, spSeg2, spSeg3] =
   rw [dif_neg separated_not_holds]
   -- 滑窗到 [spSeg2, spSeg3]（2 段）⟹ centersOf 的 [_,_] 分支返回 []
   rw [centersOf.eq_def]
+
+/-- ★#1419 D-A 判别段（方向不交替）：上[10,40]、上[20,50]、下[0,30]，核心 [20,30]。 -/
+def dirSeg1 : Segment := { direction := Direction.up,   startIndex := 0, endIndex := 1, startPrice := 10, endPrice := 40 }
+def dirSeg2 : Segment := { direction := Direction.up,   startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 50 }
+def dirSeg3 : Segment := { direction := Direction.down, startIndex := 2, endIndex := 3, startPrice := 30, endPrice := 0 }
+
+/-- ★Zn 按方向判（#1419 D-A）：Zn = {第1、2段}（同向上）⟹ GG = max(40,50) = 50；位次奇偶判据会取
+    第 1、3 段得 40。 -/
+theorem witness_zn_direction_gg : computeGG dirSeg1 dirSeg2 dirSeg3 = 50 := by
+  unfold computeGG znMax isZn tmax segHigh dirSeg1 dirSeg2 dirSeg3
+  decide
+
+/-- ★同上：DD = min(10,20) = 10；第 3 段（下）低点 0 非 Zn 不入外缘（旧三段口径得 0）。 -/
+theorem witness_zn_direction_dd : computeDD dirSeg1 dirSeg2 dirSeg3 = 10 := by
+  unfold computeDD znMin isZn tmin segLow dirSeg1 dirSeg2 dirSeg3
+  decide
 
 /-- ★反退化见证：< 3 段 ⟹ 无中枢（边界）。 -/
 theorem witness_centersOf_too_few : centersOf [] = [] := by

@@ -39,49 +39,31 @@ fn p52_frontier_diagnostics_are_level_scoped_and_resettable() {
 #[test]
 fn end_to_end_second_buy_via_l1_l2_geometric() {
     let cfg = ThetaConfig::default();
-    // 9 段 L0：三组（每组 → 一个 L1 走势）。★中枢延伸语义下的诚实重算（PDF §5，task #142）：
+    // 11 段 L0：三组（每组 → 一个 L1 走势）+ 组间两个连接段（#1419 R8）。★中枢延伸语义下的诚实重算（PDF §5，task #142）：
     // 组间首段必须与前组**冻结核心 [ZD,ZG]** 不相交（Step3 non-extension），否则整串被 Step2
     // 吸收为 1 个延伸中枢 ⟹ 塔不生长（旧全触及 fixture 的坍缩后果）。推导：
     // - 组A up-down-up：核心 K_A=[max(110,120,120),min(150,150,148)]=[120,148]，外缘 O_A=[110,150]。
     // - 组B down-up-down：首段 [80,115] hi=115 < ZD_A=120 ⟹ non-extension（组间分离）；
-    //   核心 K_B=[max(80,80,85),min(115,125,114)]=[85,114]，外缘 O_B=[80,125]。
+    //   核心 K_B=[max(80,80,85),min(115,125,114)]=[85,114]，中枢 Zn 外缘 [80,115]（#1419 S2），
+    //   走势区间 O_B=[80,125]（含非 Zn 的 ↑ 段高点，#1419 r2 第 1 条）。
     // - 组C up-down-up：首段 [115,148] lo=115 > ZG_B=114 ⟹ non-extension；
     //   核心 K_C=[max(115,112,112),min(148,148,147)]=[115,147]，外缘 O_C=[112,148]。
-    // L2 核心（几何路径，三 L1 外缘交）= [max(110,80,112), min(150,125,148)] = [112,125] 非空。
+    // L2 核心（几何路径，三 L1 走势区间交）= [max(110,80,112), min(150,125,148)] = [112,125] 非空。
     // B2 结构：L1[1].lo=80 < ZD2=112 深破 L2 核心下沿（第一类离开候选，Side::Long）；
     // L1[2] 回拉不创新低（lo=112 >= L1[1].lo=80）；L1[0]/L1[1] 外缘占位方向同 Down
     // （末子 hi < 首子 hi：148<150 / 114<115）⟹ 背驰可配对（closes 前大后小）。
-    let segments = vec![
-        // 组A（L1[0]）：up-down-up，核心 [120,148]，外缘 [110,150]
-        seg(Direction::Up, 0, 4, 110, 150),
-        seg(Direction::Down, 4, 8, 150, 120),
-        seg(Direction::Up, 8, 12, 120, 148),
-        // 组B（L1[1]）：down-up-down，首段 hi=115<ZD_A=120 non-ext，lo=80 深破 L2 核心下沿 112
-        seg(Direction::Down, 12, 16, 115, 80),
-        seg(Direction::Up, 16, 20, 80, 125),
-        seg(Direction::Down, 20, 24, 114, 85),
-        // 组C（L1[2]）：up-down-up，首段 lo=115>ZG_B=114 non-ext，回拉不创新低（lo=112 >= 80）
-        seg(Direction::Up, 24, 28, 115, 148),
-        seg(Direction::Down, 28, 32, 148, 112),
-        seg(Direction::Up, 32, 36, 112, 147),
-    ];
-    // closes 让 L1[1] 区间（source_index [12,24]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
+    // ★#1419 R8（#812 Z-5）：组间各插一个连接段（c1 [12,16]、c2 [28,32]），结算后被跳过、不进任何
+    // 中枢窗口；组内三段同上推导，组B 坐标 +4、组C +8。见 [`three_group_segments`]。
+    let segments = three_group_segments();
+    // closes 让 L1[1] 区间（source_index [16,28]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
     // 前段大幅波动（面积大），后段小幅（面积小）。
-    let mut closes: Vec<i64> = Vec::new();
-    for i in 0..12 {
-        closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
-    } // L1[0] 大幅
-    for i in 0..12 {
-        closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
-    } // L1[1] 小幅（背驰）
-    for i in 0..16 {
-        closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
-    } // L1[2] 更小
-      // ★#1228（#814 D-2 落地）：B2 背驰判据改走 div_cand 四条件，默认 ForceL 力度档消费 L0 笔
-      // 序列（strokes，source_index 域）。补 4 笔使 `L(L1[1]) < L(L1[0])`（教义 L=末笔速度−首笔速度）：
-      // - L1[0] 区间 [0,12]：s0(Up,0..4,100→125,v=+5)、s1(Down,6..10,135→100,v=+7) ⟹ L=+2；
-      // - L1[1] 区间 [12,24]：s2(Down,14..18,145→100,v=+9)、s3(Up,20..23,100→121,v=+5.25) ⟹ L=−3.75；
-      // L(C)=−3.75 < L(B)=+2 ⟹ 力度衰减（背驰），与 closes 的 MACD 面积口径（前大后小）同向。
+    // L1[0] 大幅；c1+L1[1] 小幅（背驰）；c2+L1[2] 更小（见 [`three_group_closes`]）。
+    let closes = three_group_closes();
+    // ★#1228（#814 D-2 落地）：B2 背驰判据改走 div_cand 四条件，默认 ForceL 力度档消费 L0 笔
+    // 序列（strokes，source_index 域）。补 4 笔使 `L(L1[1]) < L(L1[0])`（教义 L=末笔速度−首笔速度）：
+    // - L1[0] 区间 [0,12]：s0(Up,0..4,100→125,v=+5)、s1(Down,6..10,135→100,v=+7) ⟹ L=+2；
+    // - L1[1] 区间 [16,28]（#1419 R8 连接段后 +4）：s2(Down,18..22,145→100,v=+9)、s3(Up,24..27,100→121,v=+5.25) ⟹ L=−3.75；
+    // L(C)=−3.75 < L(B)=+2 ⟹ 力度衰减（背驰），与 closes 的 MACD 面积口径（前大后小）同向。
     let strokes = vec![
         Stroke {
             direction: Direction::Up,
@@ -99,15 +81,15 @@ fn end_to_end_second_buy_via_l1_l2_geometric() {
         },
         Stroke {
             direction: Direction::Down,
-            start_index: 14,
-            end_index: 18,
+            start_index: 18,
+            end_index: 22,
             start_price: 145,
             end_price: 100,
         },
         Stroke {
             direction: Direction::Up,
-            start_index: 20,
-            end_index: 23,
+            start_index: 24,
+            end_index: 27,
             start_price: 100,
             end_price: 121,
         },
@@ -138,9 +120,9 @@ fn end_to_end_second_buy_via_l1_l2_geometric() {
         "★升级后塔真产 B2（旧 UnitRange 塔产 0）"
     );
     let b2 = second_buys[0];
-    // B2 端点坐标由 source_index 侧车真映射（回拉走势 L1[2] 的 end_index=36）。
+    // B2 端点坐标由 source_index 侧车真映射（回拉走势 L1[2] 的 end_index=44；#1419 R8 连接段后 +8）。
     assert_eq!(
-        b2.source_index, 36,
+        b2.source_index, 44,
         "B2 source_index = 回拉走势 L1[2] 的原始 K 序（坐标侧车真映射）"
     );
     // 第二类止损 = 回拉低点（second_point = 回拉走势 m2.lo）——止损仍 pivot 非 center.zg/zd。
@@ -154,8 +136,8 @@ fn end_to_end_second_buy_via_l1_l2_geometric() {
     // 一类点）；止损仍 pivot（上条已锁，止损语义不变）。
     assert_eq!(
         b2.center,
-        Some(signal::OwnerRef::Type1Anchor(24)),
-        "二类点归属载体 = 该走势一类点锚（m1=L1[1] 终点坐标 24）"
+        Some(signal::OwnerRef::Type1Anchor(28)),
+        "二类点归属载体 = 该走势一类点锚（m1=L1[1] 终点坐标 28；#1419 R8 连接段后 +4）"
     );
     // 互斥语义：B2 端点不置 1/3 类 bit。
     assert!(!b2.bits.buy1 && !b2.bits.buy3, "第二类端点不置 1/3 类 bit");
@@ -204,55 +186,46 @@ fn l0_level_emits_no_second_class_window_bound() {
 /// `find_move_containing_index` / `segment_force_l` 全链路产证，坐标与手搓夹具同款口径。
 ///
 /// 夹具同 `end_to_end_second_buy_via_l1_l2_geometric`（三组 L0 → 3 个 L1 走势 → 1 个 L2 中枢）：
-/// 组B（`tower[1][1]`）= down-up-down，离开段 Down[12,16]（lo=80）→ 反弹 Up[16,20] → 回抽
-/// Down[20,24]（lo=85 不创新低）；笔速度离开段 v=6.67→10（L=+3.33）、回抽段 v=3.33→8.33
+/// 组B（`tower[1][1]`）= down-up-down，离开段 Down[16,20]（lo=80）→ 反弹 Up[20,24] → 回抽
+/// Down[24,28]（lo=85 不创新低）；笔速度离开段 v=6.67→10（L=+3.33）、回抽段 v=3.33→8.33
 /// （L=+5.0 ≥ +3.33 不背驰）⟹ 类第二类买点。
 #[test]
 fn quasi_second_probe_runs_on_production_tower() {
     let cfg = ThetaConfig::default();
-    let segments = vec![
-        seg(Direction::Up, 0, 4, 110, 150),
-        seg(Direction::Down, 4, 8, 150, 120),
-        seg(Direction::Up, 8, 12, 120, 148),
-        seg(Direction::Down, 12, 16, 115, 80),
-        seg(Direction::Up, 16, 20, 80, 125),
-        seg(Direction::Down, 20, 24, 114, 85),
-        seg(Direction::Up, 24, 28, 115, 148),
-        seg(Direction::Down, 28, 32, 148, 112),
-        seg(Direction::Up, 32, 36, 112, 147),
-    ];
+    // ★#1419 R8：组间各插一个连接段，见 [`three_group_segments`]（组B 坐标 +4）。
+    let segments = three_group_segments();
     // 笔只覆盖离开/回抽两段（其余段不参与 ForceL 比较）；速度如上注释。
     let strokes = vec![
         Stroke {
             direction: Direction::Down,
-            start_index: 12,
-            end_index: 14,
+            start_index: 16,
+            end_index: 18,
             start_price: 100,
             end_price: 80,
         },
         Stroke {
             direction: Direction::Down,
-            start_index: 14,
-            end_index: 16,
+            start_index: 18,
+            end_index: 20,
             start_price: 80,
             end_price: 50,
         },
         Stroke {
             direction: Direction::Down,
-            start_index: 20,
-            end_index: 22,
+            start_index: 24,
+            end_index: 26,
             start_price: 90,
             end_price: 80,
         },
         Stroke {
             direction: Direction::Down,
-            start_index: 22,
-            end_index: 24,
+            start_index: 26,
+            end_index: 28,
             start_price: 80,
             end_price: 55,
         },
     ];
-    let closes: Vec<i64> = (0..40).map(|i| 100 + (i % 4) * 10).collect();
+    let closes: Vec<i64> = (0..48).map(|i| 100 + (i % 4) * 10).collect();
     let layer = ParseLayer {
         segments: Rc::new(segments),
         merged_bars: Rc::new(bars_from_closes(&closes)),
@@ -263,10 +236,10 @@ fn quasi_second_probe_runs_on_production_tower() {
     assert!(out.tower.len() >= 2, "至少 L0→L1 塔");
     assert!(out.tower[1].len() >= 2, "至少 2 个 L1 走势");
 
-    // 组B = tower[1][1]（down-up-down）；类第一类点坐标 = 离开段终点 16。
+    // 组B = tower[1][1]（down-up-down）；类第一类点坐标 = 离开段终点 20（#1419 R8 连接段后 +4）。
     let parent = &out.tower[1][1];
     let quasi_first = signal::PanDivCert {
-        source_index: 16,
+        source_index: 20,
         side: Side::Long,
         center: crate::theta_v0::types::Center {
             zd: 0,
@@ -277,16 +250,16 @@ fn quasi_second_probe_runs_on_production_tower() {
             end_index: 0,
         },
         seg_a: (0, 0),
-        seg_c: (0, 16),
+        seg_c: (0, 20),
     };
     let got = signal::cert::judge_quasi_second(parent, &quasi_first, &layer.strokes);
     assert_eq!(
         got,
         Some(signal::QuasiSecondCert {
-            source_index: 24,
+            source_index: 28,
             side: Side::Long,
-            quasi_first_index: 16,
-            retrace: (20, 24),
+            quasi_first_index: 20,
+            retrace: (24, 28),
         }),
         "生产塔上 judge_quasi_second 产类第二类买点（不创新低 + 力度不背驰）"
     );
@@ -1685,32 +1658,37 @@ fn end_to_end_center_without_signal() {
 /// （否则域点仍零一类 bit，#607 D2 语义不变）。
 ///
 /// fixture（全管线 classify 真跑）：两依次向下中枢（C0[300,400] → C1[180,210]，外缘
-/// C1.gg=280 < C0.dd=290 ⟹ Trend(Down)）+ C 段 s6 破 C1 核心（端点 80 < zd=180）；s7 与 s6
+/// C1.gg=280 < C0.dd=290 ⟹ Trend(Down)）+ C 段 s7 破 C1 核心（端点 80 < zd=180）；s8 与 s7
 /// 同向（Down/Down），c 全窗无「离开+回试」对 ⟹ 后扫 `Missing`（无第三类买卖点对）。
-/// closes：A 段 [12,20] 急跌（hist 面积大）→ 回拉 → C 段 [24,28] 缓跌（面积小 ⟹ C<A 背驰）。
+/// closes：A 段 [16,24] 急跌（hist 面积大）→ 回拉 → C 段 [28,32] 缓跌（面积小 ⟹ C<A 背驰）。
+/// （#1419 R8：C0 与 C1 之间有连接段 s3 `[12,16]`，其后坐标较旧夹具 +4。）
 #[test]
 fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
     // #990：默认档已切 ForceL；本测试验收 #885 可查性（diverged 两域记录），
     // 非教义判据本身 ⟹ 显式 MacdArea 对照档（fixture 无 strokes，语义锁定旧面积口径）。
     let mut cfg = ThetaConfig::default();
     cfg.divergence_gauge = divergence::DivergenceGauge::MacdArea;
+    // ★#1419 R8（#812 Z-5，续扫自 last_member+2）：C0 与 C1 之间插连接段 c `[12,16]` Down [285,295]
+    // （hi=295 < C0 核心下沿 300 ⟹ non-extension，C0 的突破段），结算后被跳过；其后各段与 closes 整体 +4。
+    // 旧夹具让 C1 首段兼任 C0 突破段，只在旧 B 口径下成立。
     let segments = vec![
         seg(Direction::Up, 0, 4, 300, 400),
         seg(Direction::Down, 4, 8, 400, 290),
         seg(Direction::Up, 8, 12, 290, 410), // → C0 [300,400]（[0,12]，dd=290/gg=410）
-        seg(Direction::Down, 12, 16, 280, 180), // [180,280] 不触 C0 核心 ⟹ non-extension
-        seg(Direction::Up, 16, 20, 180, 210),
-        seg(Direction::Down, 20, 24, 210, 150), // → C1 [180,210]（[12,24]，dd=150/gg=280）
-        seg(Direction::Down, 24, 28, 170, 80),  // s6 C 段：破 C1 核心（80 < zd=180）
-        seg(Direction::Down, 28, 32, 80, 70),   // s7 与 s6 同向 ⟹ 后扫 Missing（无回试对）
+        seg(Direction::Down, 12, 16, 295, 285), // 连接段 c：不触 C0 核心 ⟹ non-extension
+        seg(Direction::Down, 16, 20, 280, 180), // [180,280]
+        seg(Direction::Up, 20, 24, 180, 210),
+        seg(Direction::Down, 24, 28, 210, 150), // → C1 [180,210]（[16,28]，dd=150/gg=280）
+        seg(Direction::Down, 28, 32, 170, 80),  // s7 C 段：破 C1 核心（80 < zd=180）
+        seg(Direction::Down, 32, 36, 80, 70),   // s8 与 s7 同向 ⟹ 后扫 Missing（无回试对）
     ];
     let closes: Vec<i64> = vec![
-        350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350,
-        350, // 0..12 预热（EMA 收敛）
-        340, 320, 290, 260, 230, 200, 170, 150, // 12..20 A 段急跌（hist 面积大）
-        160, 180, 200, 210, // 20..24 回拉（EMA 收敛）
-        205, 200, 195, 190, // 24..28 C 段缓跌（hist 面积小 ⟹ C<A）
-        188, 186, 184, 182, 180, // 28..33 缓跌延续
+        350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350,
+        350, // 0..16 预热（EMA 收敛；12..16 为连接段）
+        340, 320, 290, 260, 230, 200, 170, 150, // 16..24 A 段急跌（hist 面积大）
+        160, 180, 200, 210, // 24..28 回拉（EMA 收敛）
+        205, 200, 195, 190, // 28..32 C 段缓跌（hist 面积小 ⟹ C<A）
+        188, 186, 184, 182, 180, // 32..37 缓跌延续
     ];
     let layer = ParseLayer {
         segments: Rc::new(segments.clone()),
@@ -1729,26 +1707,26 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
     );
 
     // 1) 否则域点仍零一类 bit（#607 D2 语义不变——本票只建可查性，判据未动）。
-    let p28 = l0
+    let p32 = l0
         .bsp
         .iter()
-        .find(|p| p.source_index == 28)
+        .find(|p| p.source_index == 32)
         .expect("否则域候选点仍在 bsp 样本（零 bit 结构候选）");
     assert!(
-        !p28.bits.buy1 && !p28.bits.sell1,
+        !p32.bits.buy1 && !p32.bits.sell1,
         "否则域点零一类 bit（D2 语义不变）"
     );
 
-    // 2) **验收锁**：按 (level=0, source_index=28) 坐标查到否则域记录，字段逐位锁定。
+    // 2) **验收锁**：按 (level=0, source_index=32) 坐标查到否则域记录，字段逐位锁定（#1419 R8 后 +4）。
     let rec = cls
-        .otherwise_domain_at(0, 28)
+        .otherwise_domain_at(0, 32)
         .expect("否则域记录按坐标可查（#885 验收）");
     assert_eq!(rec.level, 0, "level 由装配方按真实级别盖章");
     assert_eq!(rec.side, Side::Long);
     assert_eq!(
         rec.grade,
         signal::T3InCScan::Missing,
-        "c 全窗 (s6 Down, s7 Down) 无离开/回试对 ⟹ 后扫 Missing"
+        "c 全窗 (s7 Down, s8 Down) 无离开/回试对 ⟹ 后扫 Missing"
     );
     assert_eq!(
         (
@@ -1757,25 +1735,25 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
             rec.center_zd,
             rec.center_zg
         ),
-        (12, 24, 180, 210),
+        (16, 28, 180, 210),
         "中枢身份 = 判定中枢 C1"
     );
 
-    // 3) LevelState 侧查询同 record；否则域迭代器覆盖全部 Missing 记录（含 s7 若 diverged）。
+    // 3) LevelState 侧查询同 record；否则域迭代器覆盖全部 Missing 记录（含 s8 若 diverged）。
     assert_eq!(
-        l0.first_class_grade_at(28),
+        l0.first_class_grade_at(32),
         Some(rec),
         "LevelState::first_class_grade_at 与 Classification::otherwise_domain_at 同源"
     );
     let otherwise: Vec<_> = l0.otherwise_domain_records().collect();
     // 前后对照的可测面数字（钉死 fixture 产出，防静默漂移）：本 fixture L0 两个 diverged
-    // 一类候选（s6/s7，C 段 episode 未回中枢 ⟹ 后扫同向无回试对）均落否则域 Missing，无
+    // 一类候选（s7/s8，C 段 episode 未回中枢 ⟹ 后扫同向无回试对）均落否则域 Missing，无
     // Present 记录 ⟹ 全部记录恰 2 条且全是否则域。改前同一 fixture 在 Classification 上的可查
     // 否则域数恒 0（无字段，只落 env 门控 sidecar）；改后 = 2（下界口径不变，可测面从 0 扩到 2）。
     assert_eq!(
         l0.first_class_grades.len(),
         2,
-        "fixture 钉死：L0 恰 2 条分级记录（s6/s7 两候选）"
+        "fixture 钉死：L0 恰 2 条分级记录（s7/s8 两候选）"
     );
     assert_eq!(
         otherwise.len(),
@@ -1787,17 +1765,17 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
         .all(|r| r.grade == signal::T3InCScan::Missing));
     assert_eq!(
         otherwise.iter().map(|r| r.source_index).collect::<Vec<_>>(),
-        vec![28, 32],
+        vec![32, 36],
         "记录按 source_index 升序（提取出口 canonical 排序）"
     );
 
     // 4) 负坐标/越界 level/非 Missing 坐标 ⟹ None。
     assert!(
-        cls.otherwise_domain_at(0, 24).is_none(),
+        cls.otherwise_domain_at(0, 28).is_none(),
         "无该坐标的记录 ⟹ None"
     );
     assert!(
-        cls.otherwise_domain_at(9, 28).is_none(),
+        cls.otherwise_domain_at(9, 32).is_none(),
         "越界 level ⟹ None"
     );
 
@@ -1824,7 +1802,7 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
     let inc_cls_final = __co3.classification;
     let _t = __co3.tower;
     let inc_rec = inc_cls_final
-        .otherwise_domain_at(0, 28)
+        .otherwise_domain_at(0, 32)
         .expect("增量路径同样按坐标可查");
     assert_eq!(inc_rec, rec, "增量/全量同一否则域记录");
 }

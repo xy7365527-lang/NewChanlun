@@ -9,6 +9,10 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from v2_seed import require_seed_binary  # noqa: E402  #1419 种子构建闸
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,6 +26,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--reader", type=Path, default=ROOT / "s_session/s_readonly_server.py")
     args = parser.parse_args()
+    require_seed_binary(args.binary.resolve())
     args.output.mkdir(parents=True, exist_ok=False)
     calls = []
     cases = []

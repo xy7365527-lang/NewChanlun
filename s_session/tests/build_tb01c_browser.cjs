@@ -11,6 +11,7 @@ const inputs = [
   "s-content-v3.js",
   "s-content-job-v3.js",
   "q3-values.js",
+  "q3-center.js",
   "q3-typed.js",
   "q3-consumer.js",
 ];

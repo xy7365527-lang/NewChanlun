@@ -1,0 +1,159 @@
+{
+  "assignees": [
+    {
+      "id": "U_kgDODTegtg",
+      "login": "xy7365527-lang",
+      "name": "逢亮",
+      "databaseId": 221749430
+    }
+  ],
+  "body": "Part of [TB-02 验收汇总：全部结构分类及构造子义务（SPEC #1340）](https://github.com/xy7365527-lang/NewChanlun/issues/1360)；[已批准SPEC #1340](https://github.com/xy7365527-lang/NewChanlun/issues/1340)，完整目标保持 #1323 六Destination。\n\n内部执行单元 `TB-02-E`。一票一实施会话，独立评审接回后再按交付门验收。\n\n## 要交付的外部行为\n\n真实次级单元经正式构造产生中枢、冻结核心、全成员 GG/G/D/DD、成员/连接/未归属尾部；同屏可查相互区别。\n\n## 验收条件\n\n- [ ] 三个连续次级单元的真实良构输入到 strict seed 的桥有见证，正式核心非退化。\n- [ ] 核心和全部动态外缘同时保留；后续成员变化只改其适用角色，连接与未归属尾部不偷吞。\n- [ ] 通过正式会话入口运行本片非真空输入；读取公共查询/变化并在浏览器核对新对象、变化和证据，不能仅直调内部函数或渲染假数据。\n- [ ] 以独立定义/裁定工作例或场所夹具独立账簿为 oracle；同输入新进程重放和所改持久边界恢复对拍，既有无关通过项不重复扩测。\n\n## Blocked by\n\n- [[impl] TB-02-D 已裁第二特征序列与带缺口终结（SPEC #1340）](https://github.com/xy7365527-lang/NewChanlun/issues/1414)\n- [TB-01 验收汇总：正式结构和只读观察（SPEC #1340）](https://github.com/xy7365527-lang/NewChanlun/issues/1359)\n\n依赖是完成本片必需成功结果的真实前置；只读备料和不消费该前置的准备可继续。自己的TB父票是验收汇总，不作为本片blocker。\n\n## 局部成功门\n\n无新增选择；按已批准合同完成本片所列实际成功路径。\n\n## 证明与销项范围\n\n当前已有构造级别的真实 seed/成员；全级递归及续扫归 TB02-H。；原父域交叉引用的经济/故障/观察条目只承担本片真实行为可给出的证据因子，完整条目按本文件parent_contribution_ledger留待所有原域共同完成。\n\n复用 TB01 已完成的身份/规范字节/切面/游标共同合同；本片只新增实际生产者或经济结果的绑定与差异验收，不另造同名类型。\n\n- 本片规划不证明当前已实装或可达；仅文档映射。\n- 某 A 或故事有多片/跨 TB 成功条款时，当前子义务通过不使原条目整项通过。\n- TestOnly 数量或受控场所顺序只证明具名协议试验域，不成为生产资金政策或完整历史经营模型。\n\n同父其余执行片、跨域实际消费/历史/场所/生产退役及最终独评仍按原 crosswalk 保留。\n\n## 已签来源与子义务映射\n\n下列ID只定位上文行为对应的子义务，完整定义、量词与跨域闭合仍由原SPEC/crosswalk持有。任何已裁/待证标签不自动生成排程边；正确拒绝、空实例、schema存在不能替代必需成功实例。\n\n- family：`AC-02, AC-03, CC-016, CC-017, CC-022, G-008, G-009, LC-03, OB-001, OB-002, OB-003, OB-004, OB-005, OB-006, OB-007, OB-008, OB-009, OB-010, OB-013, OB-015, OB-016, OB-017, OB-018, OB-019, OB-020, ST-011, ST-012, ST-016`\n- 细项验收：`A-CC-016-01, A-CC-016-02, A-CC-016-03, A-CC-016-04, A-CC-017-01, A-CC-017-02, A-CC-017-03, A-CC-017-04, A-CC-022-01, A-CC-022-02, A-CC-022-03, A-CC-022-04, A-LC-03-01, A-LC-03-02, A-OB-001-01, A-OB-002-01, A-OB-003-01, A-OB-004-01, A-OB-005-01, A-OB-006-01, A-OB-007-01, A-OB-008-01, A-OB-009-01, A-OB-010-01, A-OB-013-01, A-OB-015-01, A-OB-016-01, A-OB-017-01, A-OB-018-01, A-OB-019-01, A-OB-020-01, A-ST-011-01, A-ST-011-02, A-ST-012-01, A-ST-012-02, A-ST-016-01, A-ST-016-02`\n- 故事：`US-FG-001, US-FG-002, US-FG-003, US-FG-004, US-FG-005, US-FG-006, US-FG-007, US-FG-008, US-FG-009, US-FG-010, US-FG-011, US-FG-012, US-FG-013, US-FG-014, US-FG-015, US-FG-016, US-FG-017, US-FG-018, US-FG-019, US-FG-020, US-FG-021, US-FG-022, US-FG-023, US-FG-024, US-FG-025, US-FG-026, US-FG-027, US-FG-028, US-FG-029, US-FG-030, US-FG-031, US-FG-032, US-FG-033, US-FG-034, US-FG-035, US-ST-001, US-ST-002, US-ST-003, US-ST-004, US-ST-005, US-ST-006, US-ST-007, US-ST-008, US-ST-009, US-ST-010, US-ST-011, US-ST-012, US-ST-013, US-ST-014, US-ST-015, US-ST-016, US-ST-017, US-ST-018, US-ST-019, US-ST-020, US-ST-021, US-ST-022, US-ST-023, US-ST-024, US-ST-025, US-ST-026, US-ST-027, US-ST-028, US-ST-029, US-ST-030, US-ST-031, US-ST-032, US-ST-033, US-ST-034, US-ST-035, US-ST-036, US-ST-037, US-ST-038, US-ST-043, US-ST-044, US-ST-045, US-ST-046, US-ST-047, US-ST-048`\n- 验收组：`AT-01, AT-02, AT-03, AT-04, AT-05, AT-06, AT-07, AT-08, AT-09, AT-10, AT-11, AT-13, AT-14, AT-15, AT-16, AT-17, AT-18`\n\n[规范正文](https://github.com/xy7365527-lang/NewChanlun/blob/efc1ddc4d6c015f4f8c6d44f904d704a88308b46/.chanlun/review-results/issue1339-r2-spec-20260909/view/spec/SPEC.md)、[精确接口与持久合同](https://github.com/xy7365527-lang/NewChanlun/blob/efc1ddc4d6c015f4f8c6d44f904d704a88308b46/.chanlun/review-results/issue1339-r2-spec-20260909/view/spec/INTERFACE-CONTRACTS.md)、[生效合同及R2替代](https://github.com/xy7365527-lang/NewChanlun/blob/efc1ddc4d6c015f4f8c6d44f904d704a88308b46/.chanlun/review-results/issue1339-r2-spec-20260909/view/spec/EFFECTIVE-CONTRACTS.md)、[完整coverage及原始JSON](https://github.com/xy7365527-lang/NewChanlun/blob/efc1ddc4d6c015f4f8c6d44f904d704a88308b46/.chanlun/review-results/issue1339-r2-spec-20260909/view/spec/inputs/SPEC-COVERAGE-INPUT.md)、[逐故事/验收crosswalk](https://github.com/xy7365527-lang/NewChanlun/blob/efc1ddc4d6c015f4f8c6d44f904d704a88308b46/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/IMPLEMENTATION-CROSSWALK.json)、[最高测试缝](https://github.com/xy7365527-lang/NewChanlun/blob/efc1ddc4d6c015f4f8c6d44f904d704a88308b46/.chanlun/review-results/issue1339-r2-spec-20260909/view/spec/inputs/TEST-SEAMS.md)。\n\n规范清单SHA256 `38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260`。实现必须从该合同读取，不以历史未采纳候选补默认。\n\n## 执行与交付\n\nBOUNDED_CANDIDATE_AFTER_REAL_PREREQUISITES_NOT_RUNTIME_MEASURED\n\n正式输入→实际owner→本地持久边界→同源API/浏览器或报告为最高测试缝。输入/规则/政策/能力/构建/hash、实际负载、故障与调度、输出差异及独评绑定都可复核。TestOnly结构原始输入只证明声明受测域；TestOnly顺序或未批资金模型不能证明完整经营/场所能力。\n\n执行前重新核当前工作树/远端基线、真实调用者和本票原生open blockers，使用隔离分支；不自动进入旧基线的常驻sandcastle队列。实现和独立评审应是不同会话。完成后输出commit、适用检查及未验项；main合入和真实外效遵当前明确批准门。\n\n本票不授权发送订单、资金操作、账户变更、生产启用或默认cap/Q/投入额/费用/退出规则。不恢复旧暂停DAG或已取消实验。不关闭父TB、SPEC或整图，除非其全部义务另经核实成立。\n\n来源阅读约束：只读取本片behavior/局部claim对应的上游对象和精确子条款。下列family/A可跨片共享并含父域证据对账；数量不等本片需要从零实现的功能数，禁止据列表重扫全SPEC或自动添加依赖。\n\n内部实现范围：允许本叶补齐该外部行为必需的同一 R2 owner 支持；不按文件层横拆，不扩大到相邻未授权语义。\n\n详细A的原文/量词在effective coverage对应source_json_pointer；本片scope限制负责的实例域，原文不改，其他实例域由同family其他纵片和最终验收补齐。\n\n最高测试缝：`A01, A02, A03`。\n",
+  "comments": [
+    {
+      "id": "IC_kwDORJC4uM8AAAABbxpT2g",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "更正：L3 真实数据读数里「段数在 5k–30k 根停在 24」的成因判错了，应以 #1487 诊断为准。\n\nL3 切点阶梯（btc 尾 5 万根，start_offset=5，组合树 #1419 + #1405）在 5k、10k、20k、30k 四格都是 24 段，40k 才到 30 段。读数报告 `REALDATA-L3-v1.2.md` 当时推断为「一个第二种候选始终没有等到分型」，留待 #1420 合入后复测。#1487 诊断（`tb1487-diag/DIAG.md` §4）逐格复现了这张表（5k/10k/20k/30k/40k 五格段数与笔数全同），查明它是第一种情况下的吸收态 E1，与第二种候选无关：未封口段起于第 370 笔（raw 4,315，Down，起点 75,867.90），第三笔 372 被第一笔 370 包含，实现以「先试不合并」凑出分型，随后第 373 笔先越过起点到 76,179.91；此后 271 次段端尝试全部因顶>底门失败，CASE_ONE，无缺口，无第二序列。叠加 #1420 也不改变这一停点。38k–43k 的 30 段平台（第 3040 笔，raw 37,723）是同一机制，同属 E1。\n\n由此带来两处需要下游知道的后果。第一，约 36,965 根时价格回到起点下方才出段，出来的那条向下段（raw 4,315 起）标准化起点是 82,850.00，属于错划段；L3 尾窗读数里的段与中枢窗口包含这条错划段。本票的验收结论是塔与 oracle 的相对对拍（差异为 0），不受影响；但任何引用 L3 尾窗绝对段数或绝对窗口位置的地方，都要按「含一条错划段」读。第二，这条缺陷不在本票修，归 #1490（线段第一种情况确认时点、071:42 转折点两侧包含、段端门失败去向，grilling 进行中），裁后由新的 TB-02 实施叶片落码；L3 读数在该叶片合入后复测一次即可，本票不为此重做验收。\n",
+      "createdAt": "2026-10-14T01:39:41Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6158963674",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABbzz3Pw",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "S9 正式运行（根裁 D-E (B)，MIN12 前 43 根，二进制 `38c61eee…`）三轮结果：前两轮在首臂浏览器步同一点失败——页面取 cut 43 的第二个分页请求落到冷 Q worker，verify 用满 5 s 期限后 503 `QueryBudgetExceeded`（5.174 s／5.156 s）；第二轮已把背景负载降到 7.3–9.1、Spotlight 静止，读数不变，失败期间 Q 进程单核满载、无资源争用，根判为 Q 冷校验性能缺陷，开 #1497（Blocked by #1419），帽与期限不放宽。第三轮用只改测试脚本的延后开关（`07479fd501`，缺省路径与原版逐字节同判据）跑完四臂：总状态 `PASS_EXCEPT_BROWSER_DEFERRED`；min12_up/down × a/b 全部通过，每臂 43 条输入、133 次公共查询与回访逐值相同，5 个冻结切面与 Python/node 合同全过；a/b 对拍 236/236 条逐字节相同（up 1.86 GB、down 1.87 GB）；两用例第 27、43 条停机恢复前后完全相同；S 摄入最长 4.70 s（帽 10 s），公共查询最长 8.21 s（帽 30 s）。浏览器臂（T3 的浏览器核对）随 #1497 补齐，本票关票时写降级声明。证据：`/private/tmp/goal1323-native-20261012/tb1419-impl/s9-formal{,-r2,-r3}/`，大件在 `/Volumes/AgentStorage/issue1419-s9-formal-*`；小件将随交付报告入仓。",
+      "createdAt": "2026-10-14T04:57:26Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6161233727",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABcJT4HA",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "接续 #1419 的共享来源合同缺口 X1，保留原 S9 通过范围及全部正式验收要求。\n\n#1424 独审发现：`validate_sources` 按键名将所有 `members` 当作原始行情坐标；`CC-016.center.data.members` 实为段实体 ID，变化事件 before/after 也含同型中枢快照。现已核真实写者字段、公共 Q 调用链，并在轻量 WAL SQLite 合同模型经 `AuditReader.capture_verified` 无 mock 复现。模型未执行 S 写者，不冒充正式 S→Q 运行。\n\n旧 S9 四臂及 236 条轨迹对拍仍成立，但其冻结范围明确为无 seed/中枢前缀，未覆盖本路径。236 条轨迹不是 236 个中枢。\n\n在原干净 `tb1419-wip-wt` 接续，基线 `daac6d86616316a2c2cc7d55daf1a298de7cf0c1`，分支 `codex/1419-source-members-20261015`，工位 `/root/fix_1419_source_members`。限定修正类型/路径区分，保留原始坐标与实体成员各自的闭合检查，补正常与负例；不修改另一工作树的 #1424 关系门。候选完成后独审。\n\n外盘访问问题及内盘 15 GiB 停手线尚未解除，仅小文件和轻量测试，不启动 cargo 或正式性能/浏览器验收。#1394 合入前置、非真空正式验收、恢复与浏览器义务不变。\n",
+      "createdAt": "2026-10-15T03:32:56Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6183778332",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABcYFJ1A",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "续接既有认领，在隔离候选上推进真实 v3 非空中枢/关系纵片；当前不改变正式 blocking、ready 或验收状态。\n\n根已核接线包81件/53份Git原件，MANIFEST `4c96f9a81ff0f7f20673af10c3f78cace8d19cd5b53ff55a66832adb8e473385`。编码母线 `9160fc9deec9bb8870c6e757583424b272cf3d69`（尚无该SHA远端成功资格），三方审接 d5b9d018 的 C/D 与 c07e9830 的 E/F 已审语义，保留 B2 shared evidence/cache，禁止整树覆盖或复制旧 S2 全批 JSON builder到v3。\n\n第一工位仅核心语义合流及事实接口；后续内容适配、完整来源、22轴目录/Q与独立raw输入分开认领。StageOwner原10文件完全避让，driver测试由其唯一owner接。最小真实验收要求有限OHLC经正式S3/Q实际产生至少两个中心及一个中心对，保原13轴与各新轴delivered/deferred，带真实修订、两新进程对拍和受改边界恢复。\n\n旧43根无中心样本与条件U/D推论均不抵扣此成功门；raw/owner U/D仍0。资金、隔离、恢复、全部预算门、本机/外盘禁令以及生产恢复v4禁推禁并保持。新候选尚未编译、提交或推送，不关#1419/#1424/#1426/#1279。\n",
+      "createdAt": "2026-10-15T18:24:14Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6199265748",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABcwfTpg",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "续接既有认领，2026-10-17恢复核查：旧 `/private/tmp/goal1323-native-20261012` 已不存在，旧未提交修复与原始证据尚未证明恢复。保存的合流提交 `018c6542e5` 仍在，已恢复到独立持久工作树及 `codex/1419-resume-20261017` 分支，不覆盖旧分支。\n\n实查基线 `121949ee99959cf728408faa6b8478d9abc27935` 的 [CI 38854239929](https://github.com/xy7365527-lang/NewChanlun/actions/runs/38854239929) 为 completed/failure，包含16项 `s_structure_session` 编译错误和缺失真实fixture，不能描述为仅既有lib失败。合流HEAD仍需自己的检查；不挪用基线结果。\n\n现已核到 content_structure 使用不存在的codec API；正式codec本来提供 `Value::Bool`。修复将保持原JSON类型和错误语义，不采用 `__bool` 对象替代。该文件独立实施中，其余来源审计差异和真实fixture另核。尚未编译、运行或验收，不关闭本票，不改变 blocking/ready/合入与全部资金、资源、恢复要求。本机cargo/重型验证禁令保持，后续以实际可审源码和同SHA证据交付。\n",
+      "createdAt": "2026-10-16T21:16:49Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6224860070",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABdB2Zpw",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "# #1419 结构规则版本门增量独评\n\n日期2026-10-18，工作草稿；本票仍OPEN，归#1360 / SPEC #1340 / #1323。\n\n独立审查 audit_goal_graph：PASS_SCOPED_STATIC；Rust编译/执行NOT_RUN，本机cargo禁令保持。\n\n只修两处：content_structure.rs恢复cfg(test) Value导入；source_audit.rs移除三条无条件结构种类白名单，恢复统一rule×kind版本准入。没有更改领域中枢/递归判据。\n\n回归覆盖旧/1、/2 × 19 kinds × 两读取模式，断言精确“未声明typed事实种类”，不会因为前置字段数失败而假绿。工厂13→10投影与生产TYPED_SEALED_FIELDS逐项一致；新/3三家族version对象正控与错scope/未知kind负控经独评静态核验。\n\n相对接手WIP的补丁：/Volumes/AgentStorage/issue1419-version-gate-20261018/version-gate.patch。\nSHA256：148e167948806844c8a35e3d62655203f37e73c270d23e625ebde080d41a54b2。\ncontent_structure.rs after：3e7803272c1503ef9579ab812a81e7b69f5e26a9c4896bef71fd06520d50ca65。\nsource_audit.rs after：1d2d85ed50e6b5b103fe1ce1a2e118c6172d7ad11769e313480d95288ca4a182。\nsource_structure.rs未改：5dd619d794f97a06800d4b92210f253c7afc0ddad84ae80b83c3516685255111。\n\n原19文件封存的其余17文件复核一致。正在创建独立验证分支，source commit与仅两文件CI尾差分别封存后做三个具名测试；未dispatch。PR1515累计795文件/314提交，不作为本次小修直接合入的候选。\n\n边界：测试正控只覆盖版本门，不能代替非空OHLC→S3/Q、中枢对、上级递归/下钻/Chong、重放和持久恢复验收。未关闭本票或全图。\n",
+      "createdAt": "2026-10-17T23:27:42Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6243064231",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABdCN7OA",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "#1419 版本准入/codec 靶向验证进展（未关票、未合 main）：\n\n前轮 [39079723388](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39079723388) 的两条编译缺口已按既有语义补齐：StepContribution 回传已有 waiting_count，source_delta 向同一 pending audit 透传自身 rule。仅两源文件4行，独立静审通过。\n\n新源 `634f62cddfaddf656a35ca9b9db20cb716b62bff` / tree `ed2ea40d868e073b25df8e8d11988a2343736699`；CI两尾差 `1ea7769a6755bb483207a04aebc9cb387220b9d0`。实际 [run39080728253](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39080728253) success：Native s_structure_session 编译74.995秒exit0，原三项 structure_rule_rejects_new_kinds_under_legacy_rules / structure_rule_accepts_declared_versions_and_checks_payload / codec_bridge_preserves_json_types_and_number_domain 均逐名1 passed、0 ignored。\n\n作者已核630源码/fixture哈希、同一binary前后SHA、79件原件清单以及下载zip与API digest一致；binary SHA `f88fe91d4d97cdf7e11dd3cee51ad5ca7a282b15b56dec939fe6a63af8357093`。独立远端证据复核仍待安排，不将job绿等同完整验收。\n\n仅三锁范围；完整Classification/级别旁路/下钻/Chong逐bar、正式非空输入/查询/恢复/浏览器与Destination②仍欠，不能据本轮关#1419或#1279。原资金/资源/恢复门、本机cargo禁令不变。旧失败原件保留，没有原样盲重跑或扩大通用234回归。\n\n本机证据包：`/Volumes/AgentStorage/issue1419-interface-fix-20261018/`；工作草稿：`.chanlun/review-results/goal1323-resume-20261017/1419-targeted-ci-result-39080728253.md`。",
+      "createdAt": "2026-10-17T23:59:48Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6243449656",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABdCOrYw",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "两处编译接口缺口最小修复后，原三项专项已在新源上实际通过，并经主控独立复核封包：\n\n- source `634f62cddfaddf656a35ca9b9db20cb716b62bff` / tree `ed2ea40d868e073b25df8e8d11988a2343736699`。\n- CI `1ea7769a6755bb483207a04aebc9cb387220b9d0`；[run39080728253](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39080728253) success。相对source仅两CI发行文件。\n- Native `s_structure_session` 编译exit0，74.995秒；两个规则版本门锁及一个codec桥锁，逐项`--exact`，各1 passed/0 failed/0 ignored。\n- 主控独立核79件原件bytes/SHA、FILES封印、三项原stdout/回执，以及每项前后和最终source630hash/二进制身份一致；无取消/迟到/封存拒绝标记，最终unreaped为空。\n- binary SHA256 `f88fe91d4d97cdf7e11dd3cee51ad5ca7a282b15b56dec939fe6a63af8357093`。\n\n本次只接受这三项靶向锁及两接口修复的实际编译证据。首轮run39079723388失败证据保留。完整本票业务/真实S-Q、#1488跨基线合流、完整回放恢复与main门仍未完成；不关闭本票或总图。\n\n原件：`/Volumes/AgentStorage/issue1419-interface-fix-20261018/run-39080728253/`；主控复核草稿：`.chanlun/review-results/goal1323-resume-20261017/1419-run39080728253-root-check.json`。当前是开放票工作证据，未冒称报告已入main。同步IO硬截止/OS全局资源硬帽及实际EINTR/取消注入的原NOT_RUN/未资格化边界保留。\n",
+      "createdAt": "2026-10-18T00:01:09Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6243461987",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDORJC4uM8AAAABdD7mrg",
+      "author": {
+        "login": "xy7365527-lang"
+      },
+      "authorAssociation": "OWNER",
+      "body": "## 2026-10-18 主控续接核认\n\n当前resume-1419的630项源码/夹具与已验634f62cd逐项一致；四处规则门/接口修复及run39080728253三专项锁直接复用，不再重复修复或重跑。当前无已核活跃1419写者，通用claim-loop与滚报时间头不代表本票执行中；保留现有认领及WIP。\n\n下一步在独立工位按19文件来源做C/D/E/F语义三方合流到1488后继，保Native/CodecVec/租约/缓存合同，不复制覆盖整树。先出逐文件适配矩阵，再冻结新源另审。另一独立工作面准备真正raw→正式S3/Q至少两中心/一中心对及修订/双跑/恢复实例。现有EF SegUnit测试及BTC段层夹具不能冒充raw成功。\n\n1394同域Voice实际还缺正式terminal BSP、γ与完整K载体；C…F合流不代这些产物。按1426/1429/1431及实际终端路径续接，不凭优先级新加全部TB02 blocking边。\n\n交接报告：.chanlun/review-results/goal1323-resume-20261017/1419-current-owner-handoff-20261018.md，SHA256 a2b44ef9707cb8a84be00fd73f026b0a79d594de55c6d1d3c25373037b53a200。主仓及原resume工位不改，本机重型执行禁令/main门保留。#1419/#1424/#1323/#1279不关闭。\n",
+      "createdAt": "2026-10-18T03:35:38Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6245246638",
+      "viewerDidAuthor": true
+    }
+  ],
+  "labels": [
+    {
+      "id": "LA_kwDORJC4uM8AAAACwZn-jw",
+      "name": "wayfinder:impl",
+      "description": "",
+      "color": "ededed"
+    }
+  ],
+  "number": 1419,
+  "state": "OPEN",
+  "title": "[impl] TB-02-E 中枢 seed、核心、外缘与成员（SPEC #1340）"
+}

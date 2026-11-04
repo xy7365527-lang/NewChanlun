@@ -7,7 +7,9 @@ use super::super::{
     source_audit::{NativeSourceState, SourceInput},
 };
 use super::{construction_set, native};
-use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkScope};
+use newchan_rust::s_content::{
+    self as sc, capture_allocation::scratch::WorkScope, ContextError as PublishError,
+};
 
 pub(crate) struct ColdSource<'reader, 'source> {
     reader: &'reader mut HashReader<'source>,
@@ -22,11 +24,9 @@ impl<'reader, 'source> ColdSource<'reader, 'source> {
         previous_root: Option<sc::RefView<'_>>,
         current: sc::RefView<'_>,
         previous: Option<&NativeSourceState>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if reader.allocation_budget().is_some() || sc::NodeSource::codec_work(reader).is_none() {
-            return Err(super::construction_state::stale(
-                "冷来源要求真实 Native 工作账",
-            ));
+            return Err(super::construction_state::stale("冷来源要求真实 Native 工作账").into());
         }
         let root = construction_set::Declaration::read(current)?;
         let set = construction_set::LazySet::cold(reader, previous_root, current, previous)?;
@@ -77,7 +77,7 @@ impl CodecRead for ColdSource<'_, '_> {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::super::business_json::PlainJson, String> {
+    ) -> Result<super::super::business_json::PlainJson, PublishError> {
         self.reader.parse_rendered_plain(bytes)
     }
     fn generic_source(&mut self) -> &mut dyn sc::NodeSource {
@@ -107,20 +107,20 @@ impl SourceInput for ColdSource<'_, '_> {
     fn sequence_delta(
         &mut self,
         which: super::SourceArray,
-    ) -> Result<&super::SequenceDelta, String> {
+    ) -> Result<&super::SequenceDelta, PublishError> {
         self.set.delta(self.reader, self.budget, which)
     }
-    fn request_delta(&mut self, ordinal: u64) -> Result<&super::SequenceDelta, String> {
+    fn request_delta(&mut self, ordinal: u64) -> Result<&super::SequenceDelta, PublishError> {
         self.set.request_delta(self.reader, self.budget, ordinal)
     }
     fn array_member(
         &mut self,
         which: super::SourceArray,
         ordinal: u64,
-    ) -> Result<RefValue, String> {
+    ) -> Result<RefValue, PublishError> {
         self.set.member(self.reader, self.budget, which, ordinal)
     }
-    fn request_member(&mut self, knowledge: u64, ordinal: u64) -> Result<RefValue, String> {
+    fn request_member(&mut self, knowledge: u64, ordinal: u64) -> Result<RefValue, PublishError> {
         self.set
             .request_member(self.reader, self.budget, knowledge, ordinal)
     }

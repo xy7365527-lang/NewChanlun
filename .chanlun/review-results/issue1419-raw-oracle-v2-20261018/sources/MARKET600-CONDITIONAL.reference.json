@@ -1,0 +1,78 @@
+{
+  "qualification": "CONDITIONAL_INTERVAL_ARITHMETIC_NOT_RAW_ORACLE",
+  "attempts": [
+    {
+      "indices": [
+        0,
+        1,
+        2
+      ],
+      "ZD": 7762000000000,
+      "ZG": 7773905000000,
+      "alternating": true,
+      "strict": true
+    }
+  ],
+  "centers": [
+    {
+      "seed": [
+        "reference-u0",
+        "reference-u1",
+        "reference-u2"
+      ],
+      "ZD": 7762000000000,
+      "ZG": 7773905000000,
+      "members": [
+        "reference-u0",
+        "reference-u1",
+        "reference-u2",
+        "reference-u3",
+        "reference-u4"
+      ],
+      "Zn": [
+        "reference-u0",
+        "reference-u2",
+        "reference-u4"
+      ],
+      "roles": {
+        "DD": 7656433000000,
+        "D": 7762000000000,
+        "G": 7773905000000,
+        "GG": 7822000000000
+      },
+      "status": "CONDITIONAL_ONLY",
+      "last_member_index": 4
+    }
+  ],
+  "connectors": [
+    {
+      "unit": "reference-u5",
+      "left_center_index": 0,
+      "right_center_index": null
+    }
+  ],
+  "unassigned": [],
+  "pairs": [],
+  "input_source": {
+    "path": "sources/634f62cd/s_session/tests/fixtures/tb02e-real/btc-tail50k-first600.json",
+    "bytes": 14396,
+    "sha256": "0df2091a8723b040988527bcd05612c9643530f9724be68edb52acbcf77c108a"
+  },
+  "low_level_witnesses_independent": false,
+  "in_progress_reference": [
+    {
+      "entity_id": "segment:1:574",
+      "result": "NO_FIRST",
+      "construction": {
+        "start_stroke": "48",
+        "direction": "DOWN",
+        "stroke_indices": [
+          "48",
+          "49",
+          "50"
+        ]
+      }
+    }
+  ],
+  "warning": "算术按定义独立写；区间来自既有生产parser输出，只用于暴露夹具不足，绝不充当raw oracle"
+}

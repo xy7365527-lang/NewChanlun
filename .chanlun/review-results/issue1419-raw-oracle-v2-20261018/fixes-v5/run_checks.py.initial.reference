@@ -1,0 +1,41 @@
+"""只跑本轮选择的 Python 内存/fake；记录源 hash 和实际测试原输出。"""
+import hashlib
+import json
+from pathlib import Path
+import sys
+import unittest
+from unittest.mock import patch
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+sys.path.insert(0, str(HERE))
+import test_v5
+
+
+def identities():
+    paths = [*sorted((ROOT/'driver').glob('*.py')), *sorted(HERE.glob('*.py')),
+             ROOT/'fixes-v4/test_v4.py', ROOT/'fixes-v3/domain_fields.py',
+             ROOT/'fixes-v3/independent_fixture.py']
+    return {str(p.relative_to(ROOT)):dict(bytes=p.stat().st_size,
+             sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in paths}
+
+
+def main():
+    label = sys.argv[1]
+    target = HERE/(label+'-observations.json')
+    assert not target.exists(), '旧输出禁止覆盖'
+    before = identities()
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(test_v5.Tests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    assert identities() == before
+    output = dict(schema='issue1419-v5-targeted-observations/1', tests=result.testsRun,
+                  failures=len(result.failures), errors=len(result.errors), observations=test_v5.OBS,
+                  source_identity=before, authorization=False, product_run='NOT_RUN',
+                  qualification='实施工蜂定向内存/fake，非独立评审')
+    target.write_text(json.dumps(output, ensure_ascii=False, indent=2)+'\n')
+    print(json.dumps({k:output[k] for k in ('tests','failures','errors')}, ensure_ascii=False))
+    return int(not result.wasSuccessful())
+
+
+if __name__ == '__main__':
+    sys.exit(main())

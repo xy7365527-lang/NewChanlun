@@ -1,0 +1,14 @@
+test_closure_validates_six_families_and_qcut (test_v2.V2Tests.test_closure_validates_six_families_and_qcut) ... ok
+test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor (test_v2.V2Tests.test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor) ... ok
+test_codec_large_bytes_numbers_and_json_text (test_v2.V2Tests.test_codec_large_bytes_numbers_and_json_text) ... ok
+test_domain_adapter_positive_and_zn_mutation_negative (test_v2.V2Tests.test_domain_adapter_positive_and_zn_mutation_negative) ... ok
+test_domain_withdrawal_rejects_stale_pair (test_v2.V2Tests.test_domain_withdrawal_rejects_stale_pair) ... ok
+test_driver_collects_fixed_pages_and_full_content (test_v2.V2Tests.test_driver_collects_fixed_pages_and_full_content) ... ok
+test_live_is_unconditionally_denied (test_v2.V2Tests.test_live_is_unconditionally_denied) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 1.725s
+
+OK
+重复全图fake拒绝 {'calls': 46, 'work': 1000000, 'limit': 1000000}
+分块完整图fake通过 {'calls': 182, 'work': 593060, 'limit': 1000000}

@@ -1,0 +1,30 @@
+{
+  "status": "TARGETED_PASS_WITH_PRESERVED_INITIAL_TEST_FAILURE",
+  "unique_top_level_tests_with_passing_evidence": 20,
+  "initial_run": {
+    "tests": 14,
+    "failures": 0,
+    "output": "tests.initial.stdout",
+    "source_identity": "initial-run-sources.json"
+  },
+  "supplement_first_run": {
+    "tests": 6,
+    "passed": 5,
+    "failed": 1,
+    "output": "tests.supplement.stdout",
+    "cause": "F8测试误读初始消息文件末三条，实得1/1/1"
+  },
+  "supplement_recheck": {
+    "test": "test_f8_bind_frozen_named_messages",
+    "result": "PASS",
+    "output": "tests.f8-recheck.stdout",
+    "fix": "读冻结epoch2后缀末三条；未改变raw/expected/计数判据"
+  },
+  "field_mutation_negatives": 239,
+  "prior_validation_outputs": "全部字节保留；没有冒认新树结果",
+  "prior_23_tests": "未重跑",
+  "geometry_139_prefixes": "复用外部独审；未整套重算",
+  "product_run": "NOT_RUN",
+  "independent_review": "PENDING_MANAGER_REVIEW",
+  "source_tree": "PENDING_SOURCE"
+}

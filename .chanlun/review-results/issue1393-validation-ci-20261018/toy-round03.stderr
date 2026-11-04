@@ -1,0 +1,23 @@
+test_current_cargo_artifact_and_replacement_detection (test_issue1393_validate.BinaryTests.test_current_cargo_artifact_and_replacement_detection) ... ok
+test_list_missing_zero_duplicate_and_short_name_ambiguity_rejected (test_issue1393_validate.BinaryTests.test_list_missing_zero_duplicate_and_short_name_ambiguity_rejected) ... ok
+test_real_source_contains_all_nine_declared_tests (test_issue1393_validate.BinaryTests.test_real_source_contains_all_nine_declared_tests) ... ok
+test_stale_foreign_missing_and_duplicate_artifacts_rejected (test_issue1393_validate.BinaryTests.test_stale_foreign_missing_and_duplicate_artifacts_rejected) ... ok
+test_zero_test_exit_zero_and_ignored_are_not_passes (test_issue1393_validate.BinaryTests.test_zero_test_exit_zero_and_ignored_are_not_passes) ... ok
+test_false_main_never_starts_any_external_command (test_issue1393_validate.GateTests.test_false_main_never_starts_any_external_command) ... ok
+test_only_one_activation_change_allowed (test_issue1393_validate.GateTests.test_only_one_activation_change_allowed) ... ok
+test_product_digest_cannot_hide_product_change (test_issue1393_validate.GateTests.test_product_digest_cannot_hide_product_change) ... ok
+test_source_tree_and_hash_mismatch_stop_at_binding (test_issue1393_validate.GateTests.test_source_tree_and_hash_mismatch_stop_at_binding) ... ok
+test_unknown_or_unbound_identity_rejected_before_spawn (test_issue1393_validate.GateTests.test_unknown_or_unbound_identity_rejected_before_spawn) ... ok
+test_nonzero_exit_stops_following_work (test_issue1393_validate.SupervisionTests.test_nonzero_exit_stops_following_work) ... ok
+test_package_missing_evidence_and_zip_failure_are_errors (test_issue1393_validate.SupervisionTests.test_package_missing_evidence_and_zip_failure_are_errors) ... ok
+test_signal_is_recorded_and_later_work_not_run (test_issue1393_validate.SupervisionTests.test_signal_is_recorded_and_later_work_not_run) ... ok
+test_single_deadline_is_not_reset_after_success (test_issue1393_validate.SupervisionTests.test_single_deadline_is_not_reset_after_success) ... ok
+test_spawn_failure_and_cleanup_failure_remain_failures (test_issue1393_validate.SupervisionTests.test_spawn_failure_and_cleanup_failure_remain_failures) ... ok
+test_telemetry_and_fixture_keep_actual_exit_codes_separate (test_issue1393_validate.SupervisionTests.test_telemetry_and_fixture_keep_actual_exit_codes_separate) ... ok
+test_term_ignored_escalates_to_kill_and_is_reaped (test_issue1393_validate.SupervisionTests.test_term_ignored_escalates_to_kill_and_is_reaped) ... ok
+test_wall_clock_can_shorten_but_not_extend_monotonic_deadline (test_issue1393_validate.SupervisionTests.test_wall_clock_can_shorten_but_not_extend_monotonic_deadline) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 2.143s
+
+OK

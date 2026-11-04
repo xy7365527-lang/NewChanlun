@@ -1072,3 +1072,29 @@ fn production_launcher_does_not_forward_theta_diagnostic_switch() {
     assert_s_environ_lacks_theta_diagnostic(&kids);
     assert_eq!(stop(&mut launcher).code(), Some(0));
 }
+
+#[test]
+fn production_session_rejects_undeclared_s_without_writing_raw() {
+    let space = Space::new();
+    // #1419：v1 写入口在发布构建退役（issuecomment-6265726014），无声明 S 库改由 v3 init 不带
+    // --structure-source 构造；判据（launcher 拒绝且不写原始行）不变。S 未运行，读行数用离线只读。
+    let s_db = s_init_v3(&space, None);
+    // #1419 M2C：声明负控须先备齐准入锚，不能让 AnchorMissing 遮蔽结构源拒绝。
+    let limits = anchor(&s_db);
+    let before = raw_rows_offline(&s_db);
+    let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
+    let source = declaration("TestOnlyStructure", DECLARED_NS);
+    let manifest = launcher_manifest(&space, "simulation", &source, &s_db, &limits, &xp);
+    let out = run_refusal(
+        Command::new(launcher_bin())
+            .arg("--manifest")
+            .arg(&manifest)
+            .env_remove(CREDENTIAL_KEY)
+            .env_remove(THETA_DIAGNOSTIC.0),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "{stderr}");
+    assert!(stderr.contains("InvalidDomain"), "{stderr}");
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&s_db), before);
+}

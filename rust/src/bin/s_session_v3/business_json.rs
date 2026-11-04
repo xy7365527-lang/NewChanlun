@@ -5,6 +5,7 @@ use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
+use newchan_rust::s_content::ContextError as PublishError;
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
     allow(
@@ -70,7 +71,7 @@ impl RawEvents {
         &mut self,
         value: JsonView<'_>,
         work: &WorkScope,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let Self::Native(owner) = self else {
             return Err("prototype_audit_allocation_incomplete：Native追加要求原始账拥有者".into());
         };
@@ -613,12 +614,13 @@ impl<'raw> RawPrefixIndex<'raw> {
     )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     pub(super) fn advance_admitted(
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
-    ) -> Result<RawPrefixChanges, String> {
+    ) -> Result<RawPrefixChanges, PublishError> {
         self.advance_measured(prefix, admission, None, None)
     }
     pub(crate) fn advance_measured(
@@ -627,7 +629,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         admission: &(impl super::audit_store::CodecRead + ?Sized),
         deadline: Option<Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<RawPrefixChanges, String> {
+    ) -> Result<RawPrefixChanges, PublishError> {
         let result = self.advance_inner(prefix, admission, deadline, budget);
         if result.is_err() {
             self.clear();
@@ -640,7 +642,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         admission: &(impl super::audit_store::CodecRead + ?Sized),
         deadline: Option<Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<RawPrefixChanges, String> {
+    ) -> Result<RawPrefixChanges, PublishError> {
         if self.raw.budget().is_some() {
             return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
         }
@@ -657,7 +659,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             super::history::check_deadline(deadline)?;
             let event = raw.get(ordinal).expect("已截前缀");
             if let Some(budget) = budget {
-                budget.record().map_err(|e| e.to_string())?;
+                budget.record().map_err(PublishError::from)?;
             }
             let identity = field(event, "identity_key").as_str().unwrap_or("");
             let revision = field(event, "revision").as_i64().unwrap_or(0);
@@ -668,7 +670,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             if previous.is_none_or(|(r, i)| effective_precedence(revision, ordinal, r, i).is_lt()) {
                 changed
                     .insert_admitted(identity, (revision, ordinal), admission)
-                    .map_err(|e| e.to_string())?;
+                    .map_err(PublishError::from)?;
             }
         }
         let mut updates = RawPrefixChanges {
@@ -687,17 +689,17 @@ impl<'raw> RawPrefixIndex<'raw> {
                     super::history::check_deadline(deadline)?;
                     let event = self.raw.get(ordinal).expect("赢家原件");
                     if let Some(budget) = budget {
-                        budget.record().map_err(|e| e.to_string())?;
+                        budget.record().map_err(PublishError::from)?;
                     }
                     let c = coord(event)?;
                     #[cfg(feature = "s_incremental")]
                     let capacity = self.coordinates.capacity();
                     admission
                         .native_map_room(&mut self.facts.coordinates)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     self.coordinates
                         .insert(ordinal, c)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     #[cfg(feature = "s_incremental")]
                     self.retained
                         .hash_capacity::<usize, i64>(capacity, self.facts.coordinates.capacity());
@@ -709,17 +711,17 @@ impl<'raw> RawPrefixIndex<'raw> {
                 Some(winner) => Some(std::mem::replace(winner, (revision, ordinal, c))),
                 None => {
                     let key = NativeValue::<String>::try_from_str(identity, admission.codec_work())
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     #[cfg(feature = "s_incremental")]
                     let capacity = self.winners.capacity();
                     #[cfg(feature = "s_incremental")]
                     self.retained.add(&key);
                     admission
                         .native_map_room(&mut self.facts.winners)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     self.winners
                         .insert(key, (revision, ordinal, c))
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     #[cfg(feature = "s_incremental")]
                     self.retained
                         .hash_capacity::<NativeValue<String>, (i64, usize, i64)>(
@@ -731,14 +733,14 @@ impl<'raw> RawPrefixIndex<'raw> {
             };
             admission
                 .native_codec_room(&mut updates.winner_edits, 1)
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
             updates
                 .winner_edits
                 .try_push(RawWinnerEdit {
                     old: previous.map(|(_, ordinal, coord)| RawWinner { coord, ordinal }),
                     new: Some(RawWinner { coord: c, ordinal }),
                 })
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
             if let Some((_, _, old)) = previous {
                 #[cfg(feature = "s_incremental")]
                 let ordered_before = self.facts.ordered.allocation_bytes();
@@ -750,16 +752,16 @@ impl<'raw> RawPrefixIndex<'raw> {
                 self.ordered_retained(ordered_before);
                 admission
                     .native_codec_room(&mut updates.removed, 1)
-                    .map_err(|e| e.to_string())?;
-                updates.removed.try_push(old).map_err(|e| e.to_string())?;
+                    .map_err(PublishError::from)?;
+                updates.removed.try_push(old).map_err(PublishError::from)?;
             }
             admission
                 .native_codec_room(&mut updates.added, 1)
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
             updates
                 .added
                 .try_push((c, ordinal))
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
         }
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
@@ -768,7 +770,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             if self
                 .ordered
                 .insert_admitted(c, ordinal, admission)
-                .map_err(|e| e.to_string())?
+                .map_err(PublishError::from)?
                 .is_some()
             {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
@@ -1435,8 +1437,8 @@ impl TextValue {
         text: &str,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
-        Self::from_str_admitted_typed(text, owner, work).map_err(|e| e.to_string())
+    ) -> Result<Self, PublishError> {
+        Self::from_str_admitted_typed(text, owner, work).map_err(PublishError::from)
     }
     pub fn from_str_admitted_typed(
         text: &str,
@@ -1454,8 +1456,8 @@ impl TextValue {
         column: usize,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
-        let text = row.text(column).map_err(|e| e.to_string())?;
+    ) -> Result<Self, PublishError> {
+        let text = row.text(column).map_err(PublishError::from)?;
         Self::from_str_admitted(text, owner, work)
     }
     pub fn optional_sql_admitted(
@@ -1463,10 +1465,10 @@ impl TextValue {
         column: usize,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Option<Self>, String> {
-        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+    ) -> Result<Option<Self>, PublishError> {
+        check_native_owner(owner, work).map_err(PublishError::from)?;
         row.optional_text(column)
-            .map_err(|e| e.to_string())?
+            .map_err(PublishError::from)?
             .map(|text| Self::from_str_admitted(text, owner, work))
             .transpose()
     }
@@ -1481,16 +1483,16 @@ impl TextValue {
             }
         }
     }
-    pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
+    pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, PublishError> {
         if let Some(work) = work {
             if matches!(self, Self::Owned(_)) {
                 return Err(work
                     .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
-                    .to_string());
+                    .into());
             }
             return Self::from_str_admitted(self.as_str(), None, Some(work));
         }
-        self.try_clone()
+        self.try_clone().map_err(PublishError::from)
     }
     pub fn from_owned_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -1506,16 +1508,16 @@ impl TextValue {
         }
     }
     /// 存储选择来自传入真实Vec owner；Owned错误直接返回，不回普通分支。
-    pub fn from_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
+    pub fn from_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, sc::ContextError> {
         if bytes.allocation_budget().is_some() {
-            return Self::from_owned_bytes(bytes);
+            return Self::from_owned_bytes(bytes).map_err(Into::into);
         }
         // 保留原 String::from_utf8 的诊断文本；借用验证不拆所有权、不复制。
-        std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
+        std::str::from_utf8(&bytes).map_err(sc::ContextError::from)?;
         bytes
             .try_into_native_text()
             .map(Self::Plain)
-            .map_err(|e| e.to_string())
+            .map_err(sc::ContextError::from)
     }
     pub fn as_str(&self) -> &str {
         match self {
@@ -1937,10 +1939,10 @@ pub(crate) struct ScopedJsonArray<'work> {
 }
 impl<'work> ScopedJsonArray<'work> {
     /// 生产 Native 调用显式要求活动 scope；不接受 Option 形成缺省逃逸。
-    pub(crate) fn native(work: &'work WorkScope) -> Result<Self, String> {
+    pub(crate) fn native(work: &'work WorkScope) -> Result<Self, PublishError> {
         Self::new(None, Some(work))
     }
-    pub(crate) fn owned(allocation: &OwnedBudget) -> Result<Self, String> {
+    pub(crate) fn owned(allocation: &OwnedBudget) -> Result<Self, PublishError> {
         Self::new(Some(allocation), None)
     }
     /// 既有无 scope 兼容路径，不授予 Native 资格。
@@ -1953,10 +1955,10 @@ impl<'work> ScopedJsonArray<'work> {
     pub(crate) fn new(
         allocation: Option<&OwnedBudget>,
         work: Option<&'work WorkScope>,
-    ) -> Result<Self, String> {
-        check_native_owner(allocation, work).map_err(|e| e.to_string())?;
+    ) -> Result<Self, PublishError> {
+        check_native_owner(allocation, work).map_err(PublishError::from)?;
         let owner = if let Some(work) = work {
-            let permit = work.reserve_native(0).map_err(|e| e.to_string())?;
+            let permit = work.reserve_native(0).map_err(PublishError::from)?;
             JsonOwner::Plain(PlainJson::itemized_array(permit, Vec::new()))
         } else {
             #[cfg(not(feature = "s_allocation_json_testonly"))]
@@ -1968,9 +1970,9 @@ impl<'work> ScopedJsonArray<'work> {
         Ok(Self { owner, work })
     }
 
-    pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), String> {
+    pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), PublishError> {
         let Some(work) = self.work else {
-            return self.owner.push(value);
+            return self.owner.push(value).map_err(Into::into);
         };
         #[cfg_attr(
             not(feature = "s_allocation_json_testonly"),
@@ -1980,7 +1982,7 @@ impl<'work> ScopedJsonArray<'work> {
         else {
             return Err(work
                 .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
-                .to_string());
+                .into());
         };
         push_native_array(parent, value, work)
     }
@@ -1995,7 +1997,7 @@ fn push_native_array(
     parent: &mut PlainJson,
     value: JsonView<'_>,
     work: &WorkScope,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if parent.layout != NativeJsonLayout::ItemizedArray {
         return Err("prototype_audit_allocation_incomplete：追加不接受聚合Native数组许可".into());
     }
@@ -2007,21 +2009,20 @@ fn push_native_array(
         return Err("prototype_audit_allocation_incomplete：数组与追加域不是同父账".into());
     }
     // 父身份不等于操作资格；失败/失效work仍由原check_write拒绝。
-    let _operation = work.reserve_native(0).map_err(|e| e.to_string())?;
+    let _operation = work.reserve_native(0).map_err(PublishError::from)?;
     let rows = parent.value.as_array().expect("ScopedJsonArray只构造数组");
     let needed = rows
         .len()
         .checked_add(1)
-        .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?;
-    let grow = |capacity: usize| -> Result<usize, String> {
-        Ok(needed
-            .max(
-                capacity
-                    .checked_mul(2)
-                    .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?,
-            )
-            .max(4))
-    };
+        .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?;
+    let grow =
+        |capacity: usize| -> Result<usize, PublishError> {
+            Ok(needed
+                .max(capacity.checked_mul(2).ok_or_else(|| {
+                    PublishError::from(NativeAdmission(Some(work)).native_overflow())
+                })?)
+                .max(4))
+        };
 
     // 三个准备件各自持费。任何失败都只销毁准备件，父载荷/容量/原许可不变。
     // 新旧完整 buffer 同时持费；不能先给父 reserve 再遇 child 拒绝而留下增长。
@@ -2029,12 +2030,13 @@ fn push_native_array(
         let capacity = grow(rows.capacity())?;
         let bytes = capacity
             .checked_mul(std::mem::size_of::<Value>())
-            .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?;
-        let permit = work.reserve_native(bytes).map_err(|e| e.to_string())?;
+            .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?;
+        let permit = work.reserve_native(bytes).map_err(PublishError::from)?;
         let mut rows = Vec::new();
         rows.try_reserve_exact(capacity).map_err(|_| {
-            work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                .to_string()
+            PublishError::from(
+                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+            )
         })?;
         Some(PlainJson::itemized_array(permit, rows))
     } else {
@@ -2044,7 +2046,7 @@ fn push_native_array(
         let mut permits = sc::CodecVec::default();
         permits
             .try_reserve_native(work, grow(parent.child_permits.capacity())?)
-            .map_err(|e| e.to_string())?;
+            .map_err(PublishError::from)?;
         Some(permits)
     } else {
         None
@@ -2058,7 +2060,7 @@ fn push_native_array(
     else {
         return Err(work
             .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
-            .to_string());
+            .into());
     };
     // 只有上面的固定 NativeAdmission 能产生该 child，未导入任何外来 owner。
     debug_assert!(child.permit.is_some() && child.child_permits.is_empty());
@@ -2110,9 +2112,9 @@ pub(crate) fn json_from_view(
 pub(crate) fn json_from_view_admitted(
     s: &(impl super::audit_store::CodecRead + ?Sized),
     value: JsonView<'_>,
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, sc::ContextError> {
     if s.codec_work().is_none() {
-        return json_from_view(value, s.allocation_budget().as_ref());
+        return json_from_view(value, s.allocation_budget().as_ref()).map_err(Into::into);
     }
     fn bytes(value: JsonView<'_>) -> Option<usize> {
         if let Some(text) = value.as_str() {
@@ -2171,13 +2173,15 @@ pub(crate) fn json_from_view_admitted(
         }
         serde_json::to_value(value).map_err(|e| e.to_string())
     }
-    let amount = bytes(value).ok_or_else(|| s.native_overflow().to_string())?;
+    let amount = bytes(value).ok_or_else(|| sc::ContextError::from(s.native_overflow()))?;
     let permit = s
         .codec_work()
         .unwrap()
         .reserve_native(amount)
-        .map_err(|e| e.to_string())?;
-    plain(value).map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit))))
+        .map_err(sc::ContextError::from)?;
+    plain(value)
+        .map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit))))
+        .map_err(Into::into)
 }
 
 /// 旧 wire 整数投影的共同核：只转换整数，浮点/空值/文本保持原值。
@@ -2222,7 +2226,7 @@ pub(crate) fn project_wire_integers_with_owner(
 pub(crate) fn render_json(
     s: &mut (impl super::audit_store::CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, sc::ContextError> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = s.allocation_budget() {
         struct Out {
@@ -2249,12 +2253,12 @@ pub(crate) fn render_json(
         };
         let result = s.render_ref(r, &mut out);
         if let Some(e) = out.error {
-            return Err(e.to_string());
+            return Err(e.into());
         }
-        result.map_err(|e| e.to_string())?;
+        result.map_err(sc::ContextError::from)?;
         return aj::OwnedJson::parse(&out.bytes, &b)
             .map(JsonOwner::Owned)
-            .map_err(|e| e.to_string());
+            .map_err(sc::ContextError::from);
     }
     if let Some(work) = s.codec_work() {
         struct ScratchOut {
@@ -2281,20 +2285,20 @@ pub(crate) fn render_json(
         };
         let result = s.render_ref(r, &mut out);
         if let Some(e) = out.error {
-            return Err(e.to_string());
+            return Err(e.into());
         }
-        result.map_err(|e| e.to_string())?;
+        result.map_err(sc::ContextError::from)?;
         // 借用 scratch bytes 解析；不把 Owned 容器 try_into_plain 擦域。
         return s.parse_rendered_plain(&out.bytes).map(JsonOwner::Plain);
     }
     let mut out = Vec::new();
-    s.render_ref(r, &mut out).map_err(|e| e.to_string())?;
+    s.render_ref(r, &mut out).map_err(sc::ContextError::from)?;
     s.parse_rendered_plain(&out).map(JsonOwner::Plain)
 }
 pub(crate) fn read_text(
     s: &mut (impl super::audit_store::CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let value = render_json(s, r)?;
     let text = value
         .view()
@@ -2857,12 +2861,12 @@ pub(crate) fn strict_json_owner_admitted(
 pub(crate) fn strict_plain_json_admitted(
     bytes: &[u8],
     work: Option<&WorkScope>,
-) -> Result<PlainJson, String> {
+) -> Result<PlainJson, sc::ContextError> {
     let parsed = strict_json_owner_admitted(bytes, None, work).map_err(|error| match error {
-        StrictOwnerError::Syntax(e) => format!("SchemaUnsupported：{e}"),
-        StrictOwnerError::Allocation(e) => e.to_string(),
+        StrictOwnerError::Syntax(e) => sc::ContextError::from(e).context("SchemaUnsupported："),
+        StrictOwnerError::Allocation(e) => e.into(),
         #[cfg(feature = "s_allocation_json_testonly")]
-        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}"),
+        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}").into(),
     })?;
     match parsed {
         JsonOwner::Plain(value) => Ok(value),
@@ -2874,13 +2878,13 @@ pub(crate) fn legacy_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<JsonOwner, String> {
-    let permit = admit_json_parse(bytes, owner, work).map_err(|e| e.to_string())?;
+) -> Result<JsonOwner, sc::ContextError> {
+    let permit = admit_json_parse(bytes, owner, work).map_err(sc::ContextError::from)?;
     if let Some(owner) = owner {
         #[cfg(feature = "s_allocation_json_testonly")]
         return aj::OwnedJson::parse_legacy_shape(bytes, owner)
             .map(JsonOwner::Owned)
-            .map_err(|e| e.to_string());
+            .map_err(sc::ContextError::from);
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
             let _ = owner;
@@ -2889,7 +2893,7 @@ pub(crate) fn legacy_json_owner_admitted(
     }
     serde_json::from_slice(bytes)
         .map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, permit)))
-        .map_err(|e| e.to_string())
+        .map_err(sc::ContextError::from)
 }
 pub(crate) fn strict_json_owner(
     bytes: &[u8],
@@ -3253,7 +3257,9 @@ mod native_consumer_tests {
                 .unwrap()
                 .run(|work| {
                     let mut index = RawPrefixIndex::new((&raw).into());
-                    let changes = index.advance_admitted(3, &NativeAdmission(Some(work)))?;
+                    let changes = index
+                        .advance_admitted(3, &NativeAdmission(Some(work)))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     assert_eq!(index.ordered().collect::<Vec<_>>(), vec![(1, 1), (2, 2)]);
                     let edits = changes.winner_edits;
                     let mut delta = super::super::audit_retention::RetainedDelta::default();
@@ -3313,18 +3319,30 @@ mod native_consumer_tests {
             .run(|work| {
                 let strict = strict_json_owner_admitted(input, None, Some(work))
                     .unwrap_or_else(|_| panic!("正常strict JSON须解析成功"));
-                let legacy = legacy_json_owner_admitted(input, None, Some(work))?;
+                let legacy = legacy_json_owner_admitted(input, None, Some(work))
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(strict.view(), JsonView::Plain(&expected));
                 assert_eq!(legacy.view(), JsonView::Plain(&expected));
                 let mut stmt = CheckedStatement::prepare(&conn, c"SELECT '汉😀', NULL, '正常'")
                     .map_err(|e| e.to_string())?;
                 let mut row = stmt.next().map_err(|e| e.to_string())?.unwrap();
-                let text = TextValue::from_sql_admitted(&mut row, 0, None, Some(work))?;
+                let text = TextValue::from_sql_admitted(&mut row, 0, None, Some(work))
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(text.as_str(), "汉😀");
-                assert_eq!(text.try_clone_admitted(Some(work))?.as_str(), text.as_str());
-                assert!(TextValue::optional_sql_admitted(&mut row, 1, None, Some(work))?.is_none());
                 assert_eq!(
-                    TextValue::optional_sql_admitted(&mut row, 2, None, Some(work))?
+                    text.try_clone_admitted(Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .as_str(),
+                    text.as_str()
+                );
+                assert!(
+                    TextValue::optional_sql_admitted(&mut row, 1, None, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .is_none()
+                );
+                assert_eq!(
+                    TextValue::optional_sql_admitted(&mut row, 2, None, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
                         .unwrap()
                         .as_str(),
                     "正常"
@@ -3354,7 +3372,8 @@ mod native_consumer_tests {
             .unwrap()
             .run(|scope| {
                 let admission = super::super::audit_store::NativeAdmission(Some(scope));
-                let actual = json_from_view_admitted(&admission, (&value).into())?;
+                let actual = json_from_view_admitted(&admission, (&value).into())
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(actual.view(), JsonView::Plain(&value));
                 assert_eq!(
                     sha_json_admitted(&admission, (&value).into())?,
@@ -3394,14 +3413,16 @@ mod plain_raii_tests {
                 .unwrap()
                 .run(|work| {
                     let source = NativeAdmission(Some(work));
-                    let text = TextValue::from_str_admitted("persistent text", None, Some(work))?;
+                    let text = TextValue::from_str_admitted("persistent text", None, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     let built = sc::Built {
                         digest: [7; 32],
                         kind: sc::Kind::Array,
                         extent: Some(2),
                     };
                     let reference = source.native_built_ref(&built).map_err(|e| e.to_string())?;
-                    let json = strict_plain_json_admitted(input, Some(work))?;
+                    let json = strict_plain_json_admitted(input, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     Ok::<_, String>((text, reference, json))
                 })
                 .unwrap();
@@ -3449,7 +3470,7 @@ mod plain_raii_tests {
                     Ok::<_, String>(strict_plain_json_admitted(input, Some(work)).unwrap_err())
                 })
                 .unwrap();
-            assert_eq!(actual, expected);
+            assert_eq!(actual.to_string(), expected);
             assert_eq!(
                 budget.live(),
                 baseline,
@@ -3502,9 +3523,14 @@ mod scoped_json_array_tests {
                 .codec_work()
                 .unwrap()
                 .run(|work| {
-                    let mut array = ScopedJsonArray::native(work)?;
-                    array.push((&input).into())?;
-                    array.push((&input).into())?;
+                    let mut array = ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    array
+                        .push((&input).into())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    array
+                        .push((&input).into())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     Ok::<_, String>(array.finish())
                 })
                 .unwrap();
@@ -3541,14 +3567,19 @@ mod scoped_json_array_tests {
             .unwrap()
             .run(|work| {
                 let baseline = budget.live();
-                let mut array = ScopedJsonArray::native(work)?;
+                let mut array = ScopedJsonArray::native(work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 for _ in 0..4 {
-                    array.push(JsonView::Null)?;
+                    array
+                        .push(JsonView::Null)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 }
                 let before = budget.live();
                 let new_blocks =
                     8 * (std::mem::size_of::<Value>() + std::mem::size_of::<NativeReservation>());
-                array.push(JsonView::Null)?;
+                array
+                    .push(JsonView::Null)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert!(
                     budget.peak() >= before + new_blocks,
                     "两个旧buffer保留到两个新块同时准入完成"
@@ -3591,9 +3622,12 @@ mod scoped_json_array_tests {
             let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
             let initial = budget.live();
             let result = budget.codec_work().unwrap().run(|work| {
-                let mut array = ScopedJsonArray::native(work)?;
+                let mut array = ScopedJsonArray::native(work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 for _ in 0..4 {
-                    array.push(JsonView::Null)?;
+                    array
+                        .push(JsonView::Null)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 }
                 let held = budget.reserve(limit - budget.live() - available).unwrap();
                 let before = budget.live();
@@ -3611,7 +3645,7 @@ mod scoped_json_array_tests {
                 assert_eq!(value.child_permits.capacity(), 4);
                 assert_eq!(budget.live(), before, "失败不得改变父账live");
                 drop(held);
-                Err::<(), String>(error)
+                Err::<(), String>(error.to_string())
             });
             assert!(result.is_err(), "首次资源拒绝必须传播出work.run");
             assert_eq!(budget.live(), initial);
@@ -3632,7 +3666,13 @@ mod scoped_json_array_tests {
         let mut owner = budget
             .codec_work()
             .unwrap()
-            .run(|work| Ok::<_, String>(ScopedJsonArray::native(work)?.finish()))
+            .run(|work| {
+                Ok::<_, String>(
+                    ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .finish(),
+                )
+            })
             .unwrap();
         let held = budget.live();
         assert!(owner.push(JsonView::Null).is_err());
@@ -3659,7 +3699,13 @@ mod raw_events_native_append_tests {
         budget
             .codec_work()
             .unwrap()
-            .run(|work| RawEvents::from_json_owner(ScopedJsonArray::native(work)?.finish()))
+            .run(|work| {
+                RawEvents::from_json_owner(
+                    ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .finish(),
+                )
+            })
             .unwrap()
     }
 
@@ -3717,7 +3763,8 @@ mod raw_events_native_append_tests {
                 .unwrap()
                 .run(|work| {
                     for _ in 0..4 {
-                        raw.push_native(JsonView::Null, work)?;
+                        raw.push_native(JsonView::Null, work)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     }
                     Ok::<_, String>(())
                 })
@@ -3743,7 +3790,7 @@ mod raw_events_native_append_tests {
                 assert_eq!(budget.live(), blocked);
                 drop(blocker);
                 assert_eq!(budget.live(), before);
-                Err::<(), String>(error)
+                Err::<(), String>(error.to_string())
             });
             assert!(result.is_err());
             assert_eq!(budget.live(), held);
@@ -3776,8 +3823,10 @@ mod raw_events_layout_tests {
                                 Some(work),
                             )
                             .map(JsonOwner::Plain)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)
                         } else {
                             json_from_view_admitted(&NativeAdmission(Some(work)), (&input).into())
+                                .map_err(newchan_rust::s_content::ContextError::into_message)
                         }
                     };
                     let aggregate = make()?;
@@ -3796,7 +3845,7 @@ mod raw_events_layout_tests {
                     let mut bypass = RawEvents::Native(aggregate);
                     let held = budget.live();
                     let error = bypass.push_native(JsonView::Null, work).unwrap_err();
-                    assert!(error.contains("聚合Native数组许可"));
+                    assert!(error.to_string().contains("聚合Native数组许可"));
                     assert_eq!(budget.live(), held, "现存子树许可不得早退");
                     assert_eq!(bypass.view().get(0), Some((&input[0]).into()));
                     drop(bypass);
@@ -3815,7 +3864,13 @@ mod raw_events_layout_tests {
         let mut raw = budget
             .codec_work()
             .unwrap()
-            .run(|work| RawEvents::from_json_owner(ScopedJsonArray::native(work)?.finish()))
+            .run(|work| {
+                RawEvents::from_json_owner(
+                    ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .finish(),
+                )
+            })
             .unwrap();
         for n in 1..=17 {
             budget

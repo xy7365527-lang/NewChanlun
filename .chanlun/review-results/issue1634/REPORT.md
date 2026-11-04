@@ -1,0 +1,61 @@
+# #1634 诊断：全史 BTC 从文件首根起坍缩为单组
+
+## 结论
+
+成因是**实现违背正本**，不是数据缺陷。main 的包含状态（紧凑 `IncrFactsState::append` 与完整事实 `process_inclusion_with_facts`，`rust/src/theta_v0/parser/inclusion.rs` main `df6e680930` :628 与 :1027 各置一次未定标志）在**首对 raw 互含**时置 `initial_direction_unsettled = true`，此后每根都走 `waiting` 分支 `continue`，再也不检查相邻 raw 非包含严格对 ⟹ 整条序列只剩首根一个组（`merged=1 fractals=0 strokes=0`）。
+
+`.chanlun/definitions/baohan.md`「初始方向」（#1342，v1.5 起；版本号取自 main 的 v1.7，本分支基上为 v1.6，「初始方向」文字两版相同）要求：首个相邻 raw 非包含严格对出现的 cut，以其方向自序号 0 左折叠并发布；只有**始终等不到**该对才保持未定。BTC 全史在下标 1→2 就有严格对（Up），之后严格对遍布全序列，按正本绝不可能是单组。#1342 受影响代码清单早已点名此处（「紧凑状态的永久 unsettled（`:843` 遇包含即停）→ 非包含对出现即解锁并自起点重折」），归 #1393 TB-02-U。main 自己的批量核 `process_inclusion`（main `inclusion.rs:110-147`：先扫首个非包含严格对，再自 0 `fold_all`）本就符合正本，坍缩只出在紧凑与完整事实两个入口——main 三入口内部不一致，这是「实现违背正本」的直接旁证。#1393 的 W 实装（`raw-initialization-w/1`）已在 #1419 整合分支 `codex/1419-1393-cfw-integrate-20261019`（`356df5db72`）完成，**尚未进 main**。
+
+## 数据形态（首 141 根，`logs/head_shape.txt`，脚本 `head_shape.py`）
+
+2017-08-17 04:00 起；前 200 根时间戳单调、无重复、间隔全为 60 s；H/L 两列全史无空值（`oracle.py`）；首 104 根中 86 根 O=H=L=C（恒价），31 根零量。这是币安开盘初期的真实稀疏成交，不是坏数据：相等区间按正本属包含，不需清洗。
+
+## 坍缩判据：首对是否互含，与平盘段无关
+
+`ISSUE1588_WINDOW=W` 的起点 = 4,613,599 − W + 5。#1629 探针的 8 个窗口，坍缩当且仅当起点处首对 raw 互含（`logs/head_shape.txt` 末段）：
+
+| W | 起点 | 首对互含 | #1629 实测 |
+|---|---|---|---|
+| 4,613,599 | 5 | 是 | merged=1 |
+| 4,613,590 | 14 | 是 | merged=1 |
+| 4,613,500 | 104 | 否 | 3,037,848 |
+| 4,613,000 | 604 | 是 | merged=1 |
+| 4,610,005 | 3,599 | 是 | merged=1 |
+| 4,600,005 | 13,599 | 是 | merged=1 |
+| 4,400,005 | 213,599 | 是 | merged=1 |
+| 4,000,005 | 613,599 | 否 | 2,702,328 |
+
+起点 213,599 远离开盘平盘段仍坍缩，排除「数据首段缺陷」解释。从 main 代码可直接推出此判据对任意起点成立：首对互含即进永久 waiting；首对不互含则第 2 根就建立方向证据，未定门（`evidence.is_none()`）此后不再触发。
+
+口径订正：#1629 REPORT 把三个窗口起点记为 9 / 599 / 613,594，按探针源码（`all[len-W..]` 再取 `[5..]`）应为 14 / 604 / 613,599；票面「W=4,613,599 从文件首根起」实为从下标 5 起（下标 0 起同样坍缩，见下）。
+
+## 独立期望
+
+`oracle.py`：逐字按 baohan.md 写的 Python 折叠（首个相邻 raw 非包含严格对定方向、自 0 左折叠，`contains`/`strict_dir`/上下合并同正本），tick 1e-8 量化。起点 104 得 3,037,848 组，与 main 实测逐数相同——起点 104 首对即严格对，main 走普通折叠，故这只证明 oracle 的 contains/strict_dir/合并/量化原语与 Rust 在 4.6M 根上一致；未定前缀自 0 重折这一分支由正本逐句审读与 W 在起点 0/5 上的绿灯共同支撑。起点 0 得 3,037,868、起点 5 得 3,037,866（`logs/oracle.txt`）。
+
+## 复现与回归锁
+
+新增 `rust/src/theta_v0/parser/issue1634_tests.rs`：
+
+- `issue1634_btc_file_head_flat_prefix_does_not_collapse_to_one_group`：真实数据下标 5..=140 的 high/low 夹具（首对互含），紧凑 `parse_layer` 的合并序列须逐组等于 Python 期望的 24 组（组锚、high、low），并与批量 `process_inclusion`、完整事实入口、S 生产入口 `parse_layer_with_group_evidence` 逐字段一致。
+- `issue1634_full_history_from_file_head_matches_independent_oracle`（`#[ignore]`，需 `NC_BTC_FULL_JSON`）：全史起点 0/5/104 的组数等于 Python 期望，且等于 `process_inclusion`。
+
+| 基线 | 结果 | 日志 |
+|---|---|---|
+| main `df6e680930` + 本测试（本地临时提交，未推送） | 2 FAILED：夹具得 1 组；全史起点 0 得 merged=1 | `logs/main-red-7930c55937.txt`（本地临时提交 `7930c55937`） |
+| #1419 整合 `356df5db72` + 本测试（本分支） | 2 passed；起点 0/5/104 = 3,037,868 / 3,037,866 / 3,037,848 组，笔 388,172 / 388,170 / 388,166 | `logs/int-green-935571c7e7.txt` |
+
+远端 windows-5090 WSL，`nc-remote` 私有 target `issue1634-main` / `issue1634-int`，`set -o pipefail; cargo test --release --lib issue1634 -- --include-ignored`（收据 EXIT 为 cargo 真实退出码）。本机未跑 cargo。
+
+## 处置
+
+不在 main 另写一份解锁实现：#1393 W 是该正本的获准实装，再写一份即同一判断的第二实现（#799）。本 PR 以 #1419 整合分支为基，只加回归锁与证据；#1393/#1419 合入 main 时锁随之生效。数据侧无需处置。坍缩不构成按 ADR 0041 增设起点字段的理由；全史回放起点本身是否属 ADR 0041 自由度（W 下结果确实依赖起点：起点 0 / 104 的笔数 388,172 / 388,166），不在本票范围。
+
+Destination ④ 的含义：在 #1393/#1419 进 main 之前，main 上任何首对互含的起点（全史文件头即是）都会坍缩；全史回放须基于含 W 的代码。
+
+## 残余
+
+- **线段数差约 70 倍（非本票，需另核）**：起点 104 上 merged/fractals/strokes 两边逐数相同（3,037,848 / 1,369,309 / 388,166），但 main 系（#1629 探针，`degenerate-window-probe-af6976de06.txt`）`segments=51,740`，整合分支 `segments=732`。整合分支基 `4aea4f72ef` 落后 main，缺 #1582 TB-02-X（xianduan v2.4）等提交且带 #1419 自身线段改动。Destination ④ 全史回放在 #1419 rebase/合入前须先解释这一差。
+
+- 本锁在 main 上为红，直到 #1419 合入；PR 基分支为整合分支，非 main。
+- 完整事实入口在整合分支上仍是 #1628/#1629 之前的 Θ(n²) 形态，全史读数锁只跑紧凑入口与批量核；夹具锁覆盖全部四个入口。

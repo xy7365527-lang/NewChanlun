@@ -9,11 +9,14 @@ use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
 use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use std::ffi::CStr;
 use std::fmt;
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use std::fs::File;
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use std::time::Duration;
 #[cfg(test)]
 use std::time::Instant;
@@ -398,7 +401,8 @@ fn stored_control_clock_admitted(
     {
         return Err(err("clock计划/hash不一致"));
     }
-    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)?;
+    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     crate::v3::trace_request_clock(raw.as_str().len(), clock_start.elapsed());
     Ok(ControlClock { value, hash })
@@ -854,6 +858,13 @@ pub(super) fn record_recover_context(
     )
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 fn envelope(value: Value) -> Result<Value, String> {
     validate_envelope(value, "s-session/2")
 }
@@ -972,7 +983,8 @@ impl ControlSchema {
     ) -> Result<(), String> {
         control_native_owner(self.owner.as_ref(), work)?;
         ddl_table_entries(label, ddl, |name, stmt| {
-            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)?;
+            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let value = control_normalized_admitted(stmt, self.owner.as_ref(), work)?;
             control_insert(&mut self.tables, key, value, work).map_err(err)?;
             Ok(())
@@ -1384,21 +1396,39 @@ impl ControlFacts {
         _bound: &crate::v3::audit_owner::BoundOriginals,
         retained: &mut crate::v3::audit_retention::RetainedDelta,
         admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
-    ) -> Result<ControlHistory, String> {
+    ) -> Result<ControlHistory, newchan_rust::s_content::ContextError> {
         if generation != self.headers.len() as i64 + 1 {
-            return Err(err("owner 新控制头非连续尾"));
+            return Err(err("owner 新控制头非连续尾").into());
         }
-        let key = (generation, admission.native_text(batch).map_err(err)?);
+        let key = (
+            generation,
+            admission.native_text(batch).map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?,
+        );
         let header = ControlHeader {
-            commit_ns: admission.native_text(commit_ns).map_err(err)?,
+            commit_ns: admission.native_text(commit_ns).map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?,
             consumed: false,
         };
         retained.add(&key);
         retained.add(&header);
         let capacity = self.headers.capacity();
-        admission.native_map_room(&mut self.headers).map_err(err)?;
-        if self.headers.insert(key, header).map_err(err)?.is_some() {
-            return Err(err("重复发布控制头"));
+        admission
+            .native_map_room(&mut self.headers)
+            .map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?;
+        if self
+            .headers
+            .insert(key, header)
+            .map_err(|error| {
+                newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable：")
+            })?
+            .is_some()
+        {
+            return Err(err("重复发布控制头").into());
         }
         retained
             .hash_capacity::<(i64, TextValue), ControlHeader>(capacity, self.headers.capacity());
@@ -1622,7 +1652,8 @@ fn control_canonical_text_admitted(
     control_native_owner(owner, work)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(owner) = owner {
-        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?);
+        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?)
+            .map_err(newchan_rust::s_content::ContextError::into_message);
     }
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());
@@ -1879,9 +1910,12 @@ pub(super) fn validate_audit_message_admitted(
         &[ControlBind::Integer(seq)],
         |mut r| {
             Ok((
-                TextValue::from_sql_admitted(&mut r, 0, owner, work)?,
-                TextValue::from_sql_admitted(&mut r, 1, owner, work)?,
-                TextValue::from_sql_admitted(&mut r, 2, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 0, owner, work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                TextValue::from_sql_admitted(&mut r, 1, owner, work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                TextValue::from_sql_admitted(&mut r, 2, owner, work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 r.integer(3).map_err(|e| e.to_string())?,
             ))
         },
@@ -2062,10 +2096,14 @@ fn verify_control_catalog_admitted(
             &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
             |r| {
                 Ok((
-                    TextValue::from_sql_admitted(r, 0, owner, work)?,
-                    TextValue::from_sql_admitted(r, 1, owner, work)?,
-                    TextValue::from_sql_admitted(r, 2, owner, work)?,
-                    TextValue::from_sql_admitted(r, 3, owner, work)?,
+                    TextValue::from_sql_admitted(r, 0, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 ))
             },
         )?;
@@ -2140,7 +2178,7 @@ pub(super) fn validate_control_history_admitted(
     let clock = stored_control_clock_admitted(conn, owner, work)?;
     let system = newchan_rust::session_protocol::clock_source_view(clock.value.view())
         == newchan_rust::session_protocol::ClockSource::System;
-    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work)?)))?;
+    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,TextValue::from_sql_admitted(r,1,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?)))?;
     if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
@@ -2152,7 +2190,7 @@ pub(super) fn validate_control_history_admitted(
     let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
         .ok_or_else(|| err("缺session"))?;
     verify_control_catalog_admitted(conn, owner, work)?;
-    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
+    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,TextValue::from_sql_admitted(r,1,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,TextValue::from_sql_admitted(r,2,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
         .prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")
@@ -2740,9 +2778,11 @@ fn persisted_commit_ns(
     )
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn process_lock(db: &Path) -> Result<File, String> {
     session_transport::process_lock(db, "S")
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn init_v2(
     db: &Path,
     session: &str,
@@ -2880,6 +2920,13 @@ pub(super) fn lookup(
         json!({"ok":true,"kind":status,"original_message_id":id,"receipt_id":receipt,"accepted_seq":seq.to_string(),"publication":publication,"policy_records":policy_records}),
     )
 }
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 fn ready(conn: &Connection) -> Result<Value, String> {
     ready_for_protocol(conn, "s-session/2")
 }
@@ -2939,6 +2986,7 @@ pub(super) fn validate_ingest_view(e: JsonView<'_>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn handle_with_policy(
     db: &Path,
     profile: &Path,
@@ -2950,6 +2998,13 @@ fn handle_with_policy(
     handle_with_policy_and_config(db, profile, epoch, clock, e, production, None)
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 #[allow(clippy::too_many_arguments)]
 fn handle_with_policy_and_config(
     db: &Path,
@@ -3051,6 +3106,7 @@ fn handle_with_policy_and_config(
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn response(
     e: &Value,
     result: Result<Value, String>,
@@ -3086,6 +3142,7 @@ fn response(
     reply
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 #[derive(Clone)]
 struct Bounds {
     frame: usize,
@@ -3096,6 +3153,7 @@ struct Bounds {
     queue: usize,
     connections: usize,
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 impl Bounds {
     fn transport(&self) -> TransportBounds {
         TransportBounds {
@@ -3162,6 +3220,7 @@ fn handle_fixture_with_config(
     handle_with_policy_and_config(db, profile, epoch, clock, envelope, false, Some(config))
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn serve_with_policy(
     db: &Path,
     socket: &Path,
@@ -3244,9 +3303,34 @@ fn stale_begin_on_historical_rule(rule: Option<&str>, db: &Path) -> String {
     )
 }
 
+/// #1419 主控裁定②（issuecomment-6265209957）：v2 写入口（`init --session-generation…`、`serve`、
+/// 带时钟 `recover`）一律拒绝，新旧会话同拒；旧 v2 库只读（`retained_watch` 等读路径不变）。
+/// `s_structure_session::run_with` 已先行拦截，这里是第二道门：本分派不再进入任何 v2 写函数。
+pub fn dispatch(args: &[String]) -> Result<bool, String> {
+    let cmd = args.get(1).map(String::as_str).unwrap_or("");
+    let v2_init = cmd == "init"
+        && [
+            "--session-generation",
+            "--clock-plan",
+            "--delivery-retain-generations",
+        ]
+        .iter()
+        .any(|k| args.iter().any(|a| a == k));
+    let v2_recover = cmd == "recover"
+        && ["--clock-plan", "--clock-event-id"]
+            .iter()
+            .any(|k| args.iter().any(|a| a == k));
+    if v2_init || v2_recover || cmd == "serve" {
+        return Err(crate::V2_WRITER_RETIRED.to_string());
+    }
+    Ok(false)
+}
+
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 fn arg(args: &[String], key: &str) -> Result<String, String> {
     arg_value(args, key).ok_or_else(|| format!("缺 {key}"))
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
     positive(&arg(args, key)?, key)
 }
@@ -3265,7 +3349,10 @@ fn serve_fixture(
     )
 }
 
-pub fn dispatch(args: &[String]) -> Result<bool, String> {
+/// #1419 裁定（issuecomment-6265726014）：v2 种子写入口，只在 `s_v2_seed_testonly` 构建存在；
+/// 分派与退役前的 v2 写分派（main 的 `dispatch_with_policy(args, true)`）逐字相同。
+#[cfg(feature = "s_v2_seed_testonly")]
+pub fn seed_dispatch(args: &[String]) -> Result<bool, String> {
     dispatch_with_policy(args, true)
 }
 
@@ -3274,6 +3361,7 @@ pub fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
     dispatch_with_policy(args, false)
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     if cmd == "init"
@@ -3367,6 +3455,10 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
 }
 
 // init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
+#[cfg(any(
+    all(test, feature = "s_incremental", unix),
+    feature = "s_v2_seed_testonly"
+))]
 pub enum LegacyWriteGuard {
     Initialization(
         #[allow(
@@ -3377,6 +3469,10 @@ pub enum LegacyWriteGuard {
     ),
     Existing(crate::v3::admission::WriterScope),
 }
+#[cfg(any(
+    all(test, feature = "s_incremental", unix),
+    feature = "s_v2_seed_testonly"
+))]
 impl LegacyWriteGuard {
     pub(crate) fn enter(&self) -> Result<Option<crate::v3::admission::OpenGuard>, String> {
         match self {
@@ -3392,6 +3488,10 @@ impl LegacyWriteGuard {
     }
 }
 
+#[cfg(any(
+    all(test, feature = "s_incremental", unix),
+    feature = "s_v2_seed_testonly"
+))]
 pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {
     let command = args.get(1).map(String::as_str);
     if matches!(command, Some("accept" | "advance" | "recover")) {

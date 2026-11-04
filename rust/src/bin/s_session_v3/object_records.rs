@@ -187,12 +187,22 @@ const BATCH_ID_PREFIX: &str = "batch3-";
 pub(super) enum RecordError {
     /// 内容层编解码：缺节点、摘要不符、形状非法（含路径算子报出的非「缺字段」错误）。
     Codec(CodecError),
+    Context(newchan_rust::s_content::ContextError),
     /// producer 内部辅助记录与所调对象不符：缺字段／多字段／小字段值不匹配／边不同根。
-    Source { what: &'static str, detail: String },
+    Source {
+        what: &'static str,
+        detail: String,
+    },
     /// 独立索引给出的发布生命期不合法（见 [`validate_life`] 的逐条判据）。
-    Life { what: &'static str, detail: String },
+    Life {
+        what: &'static str,
+        detail: String,
+    },
     /// 跨 kind 混用：所调对象类型的字段面与其记录的 `kind` 不符。
-    Kind { what: &'static str, detail: String },
+    Kind {
+        what: &'static str,
+        detail: String,
+    },
 }
 
 impl From<CodecError> for RecordError {
@@ -205,6 +215,7 @@ impl fmt::Display for RecordError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RecordError::Codec(error) => write!(f, "内容编解码错误：{error}"),
+            RecordError::Context(error) => fmt::Display::fmt(error, f),
             RecordError::Source { what, detail } => write!(f, "{what} 与构造结果不符：{detail}"),
             RecordError::Life { what, detail } => write!(f, "发布生命期非法（{what}）：{detail}"),
             RecordError::Kind { what, detail } => write!(f, "跨 kind 拒绝（{what}）：{detail}"),
@@ -213,6 +224,15 @@ impl fmt::Display for RecordError {
 }
 
 impl std::error::Error for RecordError {}
+impl From<RecordError> for newchan_rust::s_content::ContextError {
+    fn from(error: RecordError) -> Self {
+        match error {
+            RecordError::Codec(error) => Self::from_codec(error, "内容编解码错误："),
+            RecordError::Context(error) => error,
+            error => error.to_string().into(),
+        }
+    }
+}
 
 /// 借用的内容对象：三型产物各自带公开边与内部辅助记录。
 ///
@@ -962,11 +982,13 @@ pub(crate) fn reproject_stored_wire_view(
     use sc::{capture_allocation::audit_json::JsonView as J, ValueView as B};
     let what = "持久对象 wire";
     let id_ref = store.lookup_ref(birth, &[PathStep::Field("object_id".into())])?;
-    let id = crate::v3::business_json::read_text(store, id_ref.view())
-        .map_err(|detail| RecordError::Source { what, detail })?;
+    let id = crate::v3::business_json::read_text(store, id_ref.view()).map_err(|detail| {
+        RecordError::Context(detail.context(&format!("{what} 与构造结果不符：")))
+    })?;
     let kind_ref = store.lookup_ref(birth, &[PathStep::Field("kind".into())])?;
-    let kind = crate::v3::business_json::read_text(store, kind_ref.view())
-        .map_err(|detail| RecordError::Source { what, detail })?;
+    let kind = crate::v3::business_json::read_text(store, kind_ref.view()).map_err(|detail| {
+        RecordError::Context(detail.context(&format!("{what} 与构造结果不符：")))
+    })?;
     validate_life_view(life, current_generation, id.as_str())?;
     let names: &[&str] = if kind.as_str() == CC006_SHAPE_KIND {
         &SHAPE_WIRE_FIELDS
@@ -1465,10 +1487,7 @@ fn render_canonical_text_view(
     })?;
     store
         .native_text(text)
-        .map_err(|detail| RecordError::Source {
-            what: "小固定结构",
-            detail,
-        })
+        .map_err(|detail| RecordError::Context(detail.context("小固定结构 与构造结果不符：")))
 }
 
 fn resolve_field(
@@ -1514,7 +1533,7 @@ fn read_text(
     })?;
     store
         .native_text(text)
-        .map_err(|detail| RecordError::Source { what, detail })
+        .map_err(|detail| RecordError::Context(detail.context(&format!("{what} 与构造结果不符："))))
 }
 
 /// 精确整数叶读取：只接受 `Number`（i64），拒绝浮点/布尔/null/文本。
@@ -2238,7 +2257,7 @@ mod tests {
     fn typed_generated_and_wire_match_sealed_row_and_public_projection() {
         let mut fixture = fixture();
         let facts = fixture.state.materialize_facts();
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], GENERATION, CUT, 0);
+        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
 
         let mut steps = 0usize;
         for index in 0..fixture.state.step_count() {
@@ -2308,7 +2327,8 @@ mod tests {
             shapes.push(row);
             shape_windows.push((start, shape));
         }
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, GENERATION, CUT, 0);
+        let (oracle, _) =
+            tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
 
         let mut fractals = 0usize;
         for (start, shape) in &shape_windows {
@@ -2873,9 +2893,20 @@ mod tests {
         // 内容寻址按值去重：记录自身的字段根可能与载荷子图里的同值节点共用一个 digest
         // （本夹具里 `source_coords = ["10"]` 与 `high_sources` 同值即一例）。判据是
         // 「除记录自身的字段节点外，载荷子图一个不读」，不是「与整个载荷闭包无交集」。
+        // 记录自身结构（对象节点、字段序列、键叶）按路径定位全部字段时读到的节点也按值与载荷共享
+        // （W seed 的载荷带 `direction_evidence.source_coords` 等同名键/同值数组）。
+        fixture.store.reads.clear();
         let mut allowed: BTreeSet<NodeDigest> =
             record_field_digests(&mut fixture.store, &object.record);
+        allowed.extend(fixture.store.reads.iter().copied());
         allowed.insert(object.record.digest);
+        // #1393 W：seed 步来源 = 建立前缀 raw[..=e]（多于一根），其坐标数组与载荷内方向证据的
+        // `source_coords` 同值同根；记录自身 `input_refs`/`source_coords` 两条公开边的整棵子树按值
+        // 与载荷共享，读它们不是展开载荷子图。只放行这两条记录自身边的闭包，载荷其余子图仍须零读。
+        for own in [&object.input_refs, &object.source_coords] {
+            let shared = closure_reads(&mut fixture.store, &own.content_ref());
+            allowed.extend(shared);
+        }
         let payload_beyond_record: BTreeSet<NodeDigest> =
             payload_inner.difference(&allowed).copied().collect();
 
@@ -2884,9 +2915,18 @@ mod tests {
         let generated =
             generated(&mut fixture.store, BorrowedObject::Typed(&object)).expect("生成态");
         let generated_reads: BTreeSet<NodeDigest> = fixture.store.reads.iter().copied().collect();
+        let leaked: Vec<String> = generated_reads
+            .intersection(&payload_beyond_record)
+            .map(|d| match NodeSource::read(&mut fixture.store.nodes, d) {
+                Ok(sc::NodeRead::Found { tag, body }) => {
+                    format!("tag={tag:#04x} body={}", String::from_utf8_lossy(&body))
+                }
+                other => format!("{other:?}"),
+            })
+            .collect();
         assert!(
-            generated_reads.is_disjoint(&payload_beyond_record),
-            "生成态装配不得读取载荷子图（记录自身字段根除外）"
+            leaked.is_empty(),
+            "生成态装配不得读取载荷子图（记录自身字段根除外）：{leaked:?}"
         );
         assert!(
             payload_beyond_record.len() > 8,

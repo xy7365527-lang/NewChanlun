@@ -1,0 +1,3 @@
+静态验证脚本 exit=1；产品命令 NOT_RUN。
+AST/py_compile/YAML/ci.yml 只追加检查已通过；最后 subprocess.run(check=True) 把 git diff --no-index --check 的退出1（存在文件差异且无空白诊断）误判成检查失败。
+修正静态脚本为同时核退出码与空诊断；保留此失败发生史。

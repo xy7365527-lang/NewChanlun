@@ -24,8 +24,8 @@ use super::*;
 ///
 /// 与 confirmed L1 单元的关系：`start_index` = 窗口首单元起点、`direction` = 窗口首单元方向
 /// （first-leaf 口径，与 `level_view::lower_legs_from` 的 `first_leaf_direction` 逐字同源）、
-/// `lo`/`hi` = 窗口聚合外缘（= 该窗若 compose 后的 `rmove.lo()/hi()`，见
-/// `recursive_tower::LeveledMove::envelope` 的投影契约）。一旦该窗口被塔 emit 为 `tower[1]`
+/// `lo`/`hi` = 窗口走势区间（窗口全部单元的极值 = 该窗若 compose 后的 `rmove.lo()/hi()`，见
+/// `recursive_tower::LeveledMove::envelope`；★#1419 r2 第 1 条：不是中枢 Zn 外缘）。一旦该窗口被塔 emit 为 `tower[1]`
 /// 的确认单元，本 frontier 即消失，由完成事件接手。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActiveWindowFrontier {
@@ -35,9 +35,9 @@ pub struct ActiveWindowFrontier {
     pub start_index: usize,
     /// 窗口末单元终点源坐标（= 行进中 L0 段的极值结构点；禁 as_of 冒充结构点）。
     pub end_index: usize,
-    /// 窗口聚合外缘下沿。
+    /// 窗口走势区间下沿（全部单元极值，#1419 r2 第 1 条）。
     pub lo: Tick,
-    /// 窗口聚合外缘上沿。
+    /// 窗口走势区间上沿（全部单元极值，#1419 r2 第 1 条）。
     pub hi: Tick,
 }
 
@@ -272,9 +272,9 @@ struct ActiveWindowScan {
     start_index: usize,
     /// 末窗末单元终点源坐标（= 虚拟追加单元的终点，见吸收判据）。
     end_index: usize,
-    /// 窗口聚合外缘下沿（`center.dd`）。
+    /// 窗口走势区间下沿（窗口全部单元 `lo` 的最小值，含虚拟单元）。
     lo: Tick,
-    /// 窗口聚合外缘上沿（`center.gg`）。
+    /// 窗口走势区间上沿（窗口全部单元 `hi` 的最大值，含虚拟单元）。
     hi: Tick,
 }
 
@@ -333,20 +333,22 @@ fn scan_active_window(
             }
         }));
     }
-    let Some((center, win)) = windowed.last().copied() else {
+    let Some((_center, win)) = windowed.last().copied() else {
         return Err(ActiveWindowOutcome::NoWindowFormed);
     };
     if win.1 + 1 != extended.len() {
         return Err(ActiveWindowOutcome::LowerFrontierNotAbsorbed);
     }
+    // ★#1419 根裁定 r2 第 1 条：行进中上级单元的区间 = 走势区间（窗口全部单元的极值），与该窗若
+    // compose 后 `rmove.lo()/hi()`、`LeveledMove::envelope()` 缓存及 `lower_legs_from` 同值。不取
+    // 中枢 `center.dd/gg`：中枢外缘只聚合 Zn（#1419 S2），非 Zn 末成员越出 Zn 极值时两者不同。
+    let members = &extended[win.0..=win.1];
     Ok(ActiveWindowScan {
         win_start: win.0,
         start_index: extended[win.0].start_index,
         end_index: extended[win.1].end_index,
-        // `center.dd/gg` = 窗口全单元外缘聚合（detect 的 seed 三段交 + 延伸 min/max），
-        // 与该窗若 compose 后的 `rmove.lo()/hi()` 逐值相等（`LeveledMove::envelope` 投影契约）。
-        lo: center.dd,
-        hi: center.gg,
+        lo: members.iter().map(|u| u.lo).min().expect("窗口非空"),
+        hi: members.iter().map(|u| u.hi).max().expect("窗口非空"),
     })
 }
 

@@ -1,0 +1,36 @@
+{
+  "baseline": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+  "prior_review": "RAW-V5-INDEPENDENT-REVIEW.json.reference",
+  "source": [
+    {
+      "path": "driver/content_closure.py",
+      "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+      "unchanged": "完整文件"
+    },
+    {
+      "path": "driver/driver_v2.py",
+      "symbol": "records",
+      "sha256": "4ced68e01ccf124b24db884d8270b8e602b3181bf601cc673b888d4ed5e14941",
+      "unchanged": true
+    },
+    {
+      "path": "driver/driver_v2.py",
+      "symbol": "validate_public_payload",
+      "sha256": "2cfcf1000995fe6140ee268cd5e20fd99a18e277453a5369c1910730b43fbeb6",
+      "unchanged": true
+    },
+    {
+      "path": "driver/driver_v2.py",
+      "symbol": "compare_domain",
+      "sha256": "266d3a19f326e143bb45a174ab38bd44aedcfd0aa2e9f5055b19f5099495b6c5",
+      "unchanged": true
+    },
+    {
+      "path": "driver/driver_v2.py",
+      "symbol": "plain",
+      "sha256": "add6e4922e627640ff5a7870fc0e1ab615579eec7528833f89faf8e5a25ec8dc",
+      "unchanged": true
+    }
+  ],
+  "scope": "复用F5头/Graph/引用元数据锁、既有raw几何与定义证据；F1原公共门未改，新增收据接线另经真实链测试。原帽完整保留。"
+}

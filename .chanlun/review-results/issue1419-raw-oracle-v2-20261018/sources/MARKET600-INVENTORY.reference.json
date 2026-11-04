@@ -1,0 +1,77 @@
+{
+  "schema": "issue1419-raw-inventory/1",
+  "execution_authorized": false,
+  "fixed_baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "donor": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+  "market_candidate": {
+    "extraction": {
+      "path": "raw/btc-tail50k-first600/extraction.json",
+      "bytes": 3478,
+      "sha256": "bf2b5ec49126528db0b7bd1bfdb5a2ca35541aa09f07c85e15c7445655715c5a"
+    },
+    "rows": {
+      "path": "raw/btc-tail50k-first600/rows.decimal.json",
+      "bytes": 130960,
+      "sha256": "3088f959f0ba76097219d606e7c908c0c345953b1254279d8049372af8cecc83"
+    },
+    "source_sha256": "16ea13d55f2ae7edcfc503f604a14961fd1a378227afd37c63f23386e894707b",
+    "source_bytes": 329485099,
+    "count": 600,
+    "source_indices_inclusive": [
+      4563599,
+      4564198
+    ],
+    "first_utc": "2026-04-27 06:40:00",
+    "last_utc": "2026-04-27 16:39:00",
+    "exact_market_archive_verification": "NOT_VERIFIED；只核本地缓存和下载脚本指针",
+    "selection_reason": "既有参考固定窗；未运行产品筛选窗口或改变长度",
+    "low_level_independent": false,
+    "two_centers_proved": false
+  },
+  "proposed_formal_input": [
+    {
+      "path": "raw/messages.priceonly.draft.jsonl",
+      "bytes": 722447,
+      "sha256": "47ed0be4b4c4aa790652adae0e632f045e4e5682ac6550e6938855196c4356ed"
+    },
+    {
+      "path": "raw/advance-0300.draft.json",
+      "bytes": 1202,
+      "sha256": "29f2e9ce81db7b63580b969184f99db1015cae43468c226e78678a1837f5f6a5"
+    },
+    {
+      "path": "raw/clock-plan.draft.json",
+      "bytes": 121443,
+      "sha256": "b6ef087a5a3c551b632c49460b4ffcf55c596cc9a59284377e2963796eb6ab00"
+    },
+    {
+      "path": "raw/TRANSFORMATION-CONTRACT.json",
+      "bytes": 1247,
+      "sha256": "7763d386446c5c8cea8d43a38cef5a6c6517af810a95012d62351b0cb44596ab"
+    }
+  ],
+  "references_not_formal_input": [
+    {
+      "artifact": {
+        "path": "sources/634f62cd/s_session/tests/fixtures/tb02e-real/btc-tail50k-first600.json",
+        "bytes": 14396,
+        "sha256": "0df2091a8723b040988527bcd05612c9643530f9724be68edb52acbcf77c108a"
+      },
+      "complete_units": 6,
+      "in_progress_units": 1,
+      "conditional_centers": 1,
+      "conditional_pairs": 0,
+      "producer": "本地组合树 #1419 9cd64da5cd + #1405 未合入头 199b820c9d 的生产 parser（parse_layer_with_inclusion_facts）与 tb02c::build、生产塔 l0_units；只截取输入合同读到的字段",
+      "defect": "来源是生产parser输出；原raw→同源合法单元见证缺失；hash仅能核本地字节"
+    },
+    {
+      "name": "MIN12前43根",
+      "status": "既有S9四臂不含seed/center，不能抵扣本次成功门"
+    },
+    {
+      "name": "9011",
+      "status": "现存TestOnly合成历史；本轮不复制/不执行/不认定有两中枢"
+    }
+  ],
+  "eligible_formal_success_input": null
+}

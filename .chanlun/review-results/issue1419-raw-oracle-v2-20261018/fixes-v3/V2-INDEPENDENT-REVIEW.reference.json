@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "run_id": "e2d4fd49-53e8-4d2d-92aa-7ef640455aca",
+  "ticket": 1419,
+  "parent_thread_id": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager_agent_id": "/root/manage_1419_sandcastle",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "review",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "read-only",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "7cc205c8a83a683fd0ce7c84dfe753a198c5dc92",
+  "checkout_before": {
+    "root": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree",
+    "branch": "codex/1419-raw-oracle-v2-20261018",
+    "head": "7cc205c8a83a683fd0ce7c84dfe753a198c5dc92",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree",
+    "branch": "codex/1419-raw-oracle-v2-20261018",
+    "head": "7cc205c8a83a683fd0ce7c84dfe753a198c5dc92",
+    "status": ""
+  },
+  "started_at": "2026-10-18T04:38:30.547Z",
+  "ended_at": "2026-10-18T04:47:34.913Z",
+  "process_pid": 27626,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a14d4d-ddae-7e30-ab34-1933824dc229",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/18/rollout-2026-10-18T12-38-36-01a14d4d-ddae-7e30-ab34-1933824dc229.jsonl",
+  "output_dir": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v2-review",
+  "stdout_log": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v2-review/codex.stdout.jsonl",
+  "stderr_log": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v2-review/codex.stderr.log",
+  "events_log": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v2-review/events.jsonl",
+  "prompt_sha256": "57f539c54339030cbb227fa6a0bbb99ebe77639866e592dfe0542c8fc9773075",
+  "result": {
+    "status": "completed",
+    "summary": "CHANGES_REQUIRED。已独立复核受控 raw 的完整几何链和全部 139 个前缀，报告中的主要数值成立；但离线 driver 存在假阳性、逻辑预算绕过及 supervisor 异常清理缺口。当前包不能作为完整局部验收锁。未批准产品运行、关票或合入。",
+    "findings": [
+      "F1｜高：领域比较遗漏关键事实。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py:81。比较只核 geometric_end.stroke_index 和 stroke_refs，未核几何端点价格／组锚、construction 条件、strict 证据及获知时点。实测把段 geometric_end.price、group_anchor 改为 0，并伪造 terminated_known_at，重建合法内容闭包后仍返回 OFFLINE_CLOSED_PROJECTION_MATCH。现有正控还没有独立分型／笔、seed_attempt 或真实历史记录。哈希闭包只能证明内容自洽，不能排除这些语义错误。最小修复：按已声明局部范围核完整条件、端点和见证绑定，增加逐字段负控；获知时点与生命周期未接入前单独标为未验证。",
+      "F2｜高：内容图转换绕过逻辑工作预算。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py:43。Graph.decode 使用缓存保留共享子图，plain 却递归复制每个引用，并在 records 第 51 行对全部六族先展开再过滤。实测一个合法的 16 层重复引用图仅有 51 个节点、2380 字节，Graph 在 max_work=1000 下消耗 166；plain 随后访问 131071 个值，预算计数仍为 166。增加深度可造成指数级分配。现有节点帽、字节帽和 Graph 工作帽均未覆盖此步骤；本次固定 raw 未触发。最小修复：保留共享结构或按需读取目标字段，将转换的访问、分配及截止检查纳入同一预算，并补共享子图负控。",
+      "F3｜中：缺 payload 的额外对象被静默丢弃。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py:55。records 对 payload_json 缺失或 null 的对象直接跳过，之后的数量检查只统计过滤后的集合。实测追加一个 kind=CC-020.center_pair、payload_json=null 的对象，六族计数和内容闭包完整，compare_domain 仍 MATCH。现有残留 pair 测试仅覆盖携带完整 payload 的旧对，不能排除此路径；上游产品校验可能拒绝，但本 driver 没有独立执行该控制。最小修复：先按 kind 统计原始对象，要求受测种类具有合法 payload/data，不能静默过滤。",
+      "F4｜中：悬空中心引用被当成 null。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py:116。center_map.get 同时把不存在的 ID 和空引用映射为 None。实测将 u10 的 center_id 从 null 改成 nonexistent-center，仍返回 MATCH，因而不能证明未归属尾部没有关联中心。闭包哈希不校实体引用。最小修复：预期为空时严格要求 wire 值为 null；非空时先要求 ID 存在，再比较目标，并对连接段两端使用同样规则。",
+      "F5｜中：snapshot 中 ContentRef 的 kind/extent 未与节点头核对。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py:213。Edge 编码只使用 root；close_projection 随后验证从节点头重新推导的引用，遗漏原 snapshot 引用元数据。实测保持 record.root 和所有节点不变，把 snapshot.rows[0].record 改成 kind=array、extent=999，closure_verified 仍为 true。现有 extent 负控改的是 anchor.projection_ref，未覆盖本路径。最小修复：建图后对 snapshot 的 catalog、catalog_evidence 和每个 record 原始引用逐个执行 graph.checked。",
+      "F6｜中：Popen 后初始化失败会漏掉清理。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/toy_supervisor.py:31。selector 创建、非阻塞设置、注册及日志文件打开都位于 try/finally 之前。用纯假进程注入日志 open 的 OSError，实际观察到 wait_calls=0、killpg_calls=0；真实 wait toy 在此路径可继续存活。已有六条正常／取消路径不覆盖初始化异常。最小修复：从子进程创建成功起立即进入清理保护，支持部分初始化状态，并独立保证 kill、wait、关闭句柄；补日志打开和 selector 注册失败测试。",
+      "F7｜中：有限域门未覆盖尚无严格分型的特征序列。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/raw_oracle.py:145。seq_proof 只在 strict 成立后调用；少于三个特征元素或始终无严格分型时，直接返回合格的 pending 账簿。实测构造 19 根无 raw 包含、异型分型交替的 OHLC，两个反向特征区间为 [1200,1600]、[1280,1520]，后者被包含，derive 仍返回 INDEPENDENT_TESTONLY_RAW_DEFINITION_EXAMPLE。故“特征包含域外直接失败”的声明不成立。本次四份固定输入未触发该问题。最小修复：在逐元素推进时检查所声明的无包含域，覆盖 pending／无终结分支，不能只在成功候选处检查。",
+      "F8｜中：watch 接受输入前沿回退。位置：/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py:229。代码正确选用 input_frontier，却没有校验其规范数值和单调性。纯假传输页保持 generation 连续、base_cut 链接和 next_cursor 一致，将同会话 last_seq 从 138 回退为 100，watch 实际接受并返回 100。现有测试证明了不用 affected seq_range，未排除前沿自身错误。最小修复：解析规范整数，要求同会话代际的输入前沿不回退，并与具名提交的接纳事件数核对。"
+    ],
+    "validation": [
+      "只读边界：开始和结束 HEAD 均为 7cc205c8a83a683fd0ce7c84dfe753a198c5dc92，工作区干净；适配树核到干净 HEAD 2694afcf147f3ba4114fde386470886c2428efc0。没有修改源码、报告、Git 或 tracker，没有开启其他工蜂。未读取凭据，未启动真实 toy、产品、服务、数据库、cargo/rustc、Lean 或浏览器。",
+      "来源与封包：读取 CLAUDE/AGENTS、ask-matt、wayfinder、交付纪律和所给完整票。90 个 MANIFEST 条目、91 个 SHA256SUMS 条目及目录文件集合一致；28 份来源副本与记录的原文件字节一致；10 个 Python 文件通过只读 AST 检查。票副本与管理者提供的 issue1419-live.json 一致。",
+      "定义依据：核对 28 条引文的实际行、逐字内容和整文件哈希，检查正文边界及行内编注排除；081:110 按第 100 行起续排博文正文处理。另回查 067:170、196 的答疑上下文，未把 strict 缺口封闭依据冒称正文。",
+      "独立几何检查没有调用作者 derive 或产品算法，也没有读取构造控制点作答案。由实际 OHLC 重新枚举相邻包含、三 K 分类、端点根集、双坐标笔间距及所有候选终结，得到 139 raw、35 分型、34 笔、10 完成段和 u10 尾部。四个 CASE_TWO 为 u0/u2/u4/u6；逐笔核实分型检查先于同笔越界，确认前没有更早越界。",
+      "全部 139 个前缀逐个检查：完成段数量首次变化为 39→2、63→4、87→6、111→8、123→9、135→10；u0…u9 首次见证条数为 39/39/63/63/87/87/111/111/123/135，对应全部见证笔确认条数为 43/43/67/67/91/91/115/115/127/139。七份保存前缀与独立结果一致。这些是定义可见前沿，不是实际产品 known_at。",
+      "中心与归属：c0 成员 u0…u4，Zn=u0/u2/u4，ZD/ZG=1120/1600，DD/D/G/GG=800/1440/1600/2720；c6 成员 u6…u9，Zn=u6/u8，ZD/ZG=2720/3200，DD/D/G/GG=2400/2720/3200/3520。u5 为连接，u10 未归属。u9.low=2080 不计入 DD。独立核完 16 格：前 GG 对后 DD 为 GT、对后 ZD 为 EQ，其余 LT，关系为 UP_EXPANSION。",
+      "修订原件：139 条初始消息加三次修订，共 142 消息、270 接纳事件，四步 input_frontier 为 138/139/204/269；raw121 revision 为 1→2→3→4，其余受改尾部为 1→2→3。恢复后有效价格与 base 一致，epoch2 后缀 31 条及 one-shot 首条一致。整尾撤回独立得到 19 分型、18 笔、4 完成段、u4 尾部、一个中心和零对；c0 动态值回到 DD/D/G/GG=800/1120/1600/1920。",
+      "生命周期仍未证：expected/restore-original.json 与 base 逐字节相同，表达的是重算几何值；TRANSITIONS 仅以文字保留历史义务。当前比较器不能验证 raw_history、withdrawn_objects、entity_revision 或真实 known_at 没有回填。现有价格恢复测试不能作为实体生命周期、AsKnown 保留或持久恢复锁。",
+      "当前 C…F 静态对照：适配器读取的主要笔引用、中心成员、角色和矩阵字段可在 2694afcf 中找到；但测试记录与最终输出的字段集合不一致。该树 content_structure.rs:864 发布 strict／fact_vector／construction，:1810 发布 seed 五条件，:1991 发布中心形成／结算时点，:2644 发布 pair 修订与连接信息，当前比较没有完整覆盖。没有编译或运行该树，也没有用它自签领域 oracle。",
+      "测试证据：核阅原 12 项、增补 2 项和 supervisor 重验原输出，合计 13 个不同测试；前 23 项只核原件，没有整套重跑。新增执行仅为本次疑点的纯 Python 内存反例、假传输及假进程注入。记录中的六个真实 toy 结果只能证明其具名路径；真实父进程死亡、异常子退出、产品后代追踪、同步 IO 硬截止和 OS 资源硬帽仍未证明。",
+      "AC 与输入域：37 条具名 A 的 required_result、JSON pointer 和源哈希逐项一致，AC-02/03 原量词保留。原 S7/Q21 资源文件字节未变，authorization/execution_authorized 均为 false，产品入口仍拒绝 --live。原 600 市场样本的一中心／零对及非独立 raw oracle 名分保留；市场认证、真实原量、完整历史、全级递归、下游消费、正式双跑／恢复／浏览器和整票完成均未获得证明。"
+    ]
+  },
+  "failure_reason": null
+}

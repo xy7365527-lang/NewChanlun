@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "#1419 v4候选与离线绑定合同",
+  "type": "object",
+  "required": [
+    "schema",
+    "authorization",
+    "execution_authorized",
+    "source_commit",
+    "source_tree",
+    "binary_sha256",
+    "product_run"
+  ],
+  "properties": {
+    "schema": {
+      "const": "issue1419-raw-driver-contract/4"
+    },
+    "authorization": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "source_commit": {
+      "const": "PENDING_SOURCE"
+    },
+    "source_tree": {
+      "const": "PENDING_SOURCE"
+    },
+    "binary_sha256": {
+      "const": "PENDING_SOURCE"
+    },
+    "product_run": {
+      "const": "NOT_RUN"
+    }
+  },
+  "$defs": {
+    "public_tested_object": {
+      "type": "object",
+      "required": [
+        "kind",
+        "payload"
+      ],
+      "not": {
+        "required": [
+          "payload_json"
+        ]
+      },
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "accepted_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "session_generation",
+        "message_id",
+        "source_epoch",
+        "accepted_events",
+        "accepted_cut"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "session_generation": {
+          "type": "string"
+        },
+        "message_id": {
+          "type": "string"
+        },
+        "source_epoch": {
+          "type": "string"
+        },
+        "accepted_events": {
+          "type": "string"
+        },
+        "accepted_cut": {
+          "type": "object",
+          "required": [
+            "session_id",
+            "session_generation",
+            "structure_cut",
+            "cut_generation",
+            "catalog_revision",
+            "index_frontier",
+            "profile_id",
+            "profile_hash",
+            "input_frontier",
+            "seq_range",
+            "catalog_run_status",
+            "catalog_evidence",
+            "scope",
+            "rule_revision",
+            "history_mode",
+            "as_of_generation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "session_id": {
+              "type": "string"
+            },
+            "session_generation": {
+              "type": "string"
+            },
+            "structure_cut": {
+              "type": "string"
+            },
+            "cut_generation": {
+              "type": "string"
+            },
+            "catalog_revision": {
+              "type": "string"
+            },
+            "index_frontier": {
+              "type": "string"
+            },
+            "profile_id": {
+              "type": "string"
+            },
+            "profile_hash": {
+              "type": "string"
+            },
+            "input_frontier": {
+              "type": "string"
+            },
+            "seq_range": {
+              "type": "object"
+            },
+            "catalog_run_status": {
+              "type": "string"
+            },
+            "catalog_evidence": {
+              "type": "object"
+            },
+            "scope": {
+              "type": "object"
+            },
+            "rule_revision": {
+              "type": "string"
+            },
+            "history_mode": {
+              "type": "string"
+            },
+            "as_of_generation": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

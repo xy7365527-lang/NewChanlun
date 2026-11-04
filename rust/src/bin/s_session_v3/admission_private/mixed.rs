@@ -15,7 +15,9 @@ impl SealedPrefix {
     }
     pub(in crate::v3) fn require(&self, prefix: &RejectionPrefix<'_>) -> Result<(), FixedFailure> {
         match prefix {
-            RejectionPrefix::None | RejectionPrefix::LegacyWrite => Ok(()),
+            RejectionPrefix::None => Ok(()),
+            #[cfg(any(test, feature = "s_v2_seed_testonly"))]
+            RejectionPrefix::LegacyWrite => Ok(()),
             _ => Err(FixedFailure::new(
                 "MixedProtocolMismatch",
                 "business",

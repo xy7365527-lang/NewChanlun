@@ -1,0 +1,68 @@
+test_current_cargo_artifact_and_replacement_detection (test_issue1393_validate.BinaryTests.test_current_cargo_artifact_and_replacement_detection) ... ok
+test_list_missing_zero_duplicate_and_short_name_ambiguity_rejected (test_issue1393_validate.BinaryTests.test_list_missing_zero_duplicate_and_short_name_ambiguity_rejected) ... ok
+test_real_source_contains_all_nine_declared_tests (test_issue1393_validate.BinaryTests.test_real_source_contains_all_nine_declared_tests) ... ok
+test_stale_foreign_missing_and_duplicate_artifacts_rejected (test_issue1393_validate.BinaryTests.test_stale_foreign_missing_and_duplicate_artifacts_rejected) ... ok
+test_zero_test_exit_zero_and_ignored_are_not_passes (test_issue1393_validate.BinaryTests.test_zero_test_exit_zero_and_ignored_are_not_passes) ... ok
+test_false_main_never_starts_any_external_command (test_issue1393_validate.GateTests.test_false_main_never_starts_any_external_command) ... ok
+test_only_one_activation_change_allowed (test_issue1393_validate.GateTests.test_only_one_activation_change_allowed) ... ok
+test_product_digest_cannot_hide_product_change (test_issue1393_validate.GateTests.test_product_digest_cannot_hide_product_change) ... ok
+test_unknown_or_unbound_identity_rejected_before_spawn (test_issue1393_validate.GateTests.test_unknown_or_unbound_identity_rejected_before_spawn) ... ok
+test_nonzero_exit_stops_following_work (test_issue1393_validate.SupervisionTests.test_nonzero_exit_stops_following_work) ... ok
+test_package_missing_evidence_and_zip_failure_are_errors (test_issue1393_validate.SupervisionTests.test_package_missing_evidence_and_zip_failure_are_errors) ... ok
+test_signal_is_recorded_and_later_work_not_run (test_issue1393_validate.SupervisionTests.test_signal_is_recorded_and_later_work_not_run) ... ERROR
+/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1139: ResourceWarning: subprocess 30910 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_single_deadline_is_not_reset_after_success (test_issue1393_validate.SupervisionTests.test_single_deadline_is_not_reset_after_success) ... ERROR
+/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1139: ResourceWarning: subprocess 30912 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_spawn_failure_and_cleanup_failure_remain_failures (test_issue1393_validate.SupervisionTests.test_spawn_failure_and_cleanup_failure_remain_failures) ... ok
+test_term_ignored_escalates_to_kill_and_is_reaped (test_issue1393_validate.SupervisionTests.test_term_ignored_escalates_to_kill_and_is_reaped) ... ok
+test_wall_clock_can_shorten_but_not_extend_monotonic_deadline (test_issue1393_validate.SupervisionTests.test_wall_clock_can_shorten_but_not_extend_monotonic_deadline) ... ok
+
+======================================================================
+ERROR: test_signal_is_recorded_and_later_work_not_run (test_issue1393_validate.SupervisionTests.test_signal_is_recorded_and_later_work_not_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/test_issue1393_validate.py", line 202, in test_signal_is_recorded_and_later_work_not_run
+    row = self.run_toy(supervisor, 'signal',
+                       'import os,signal,time; os.kill(os.getppid(), signal.SIGTERM); time.sleep(3)')
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/test_issue1393_validate.py", line 165, in run_toy
+    return supervisor.run(name, [sys.executable, '-c', code], self.root)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/issue1393_validate.py", line 223, in run
+    row['cleanup'], clean = self.cleanup(process)
+                            ~~~~~~~~~~~~^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/issue1393_validate.py", line 181, in cleanup
+    if not self._group_exists(process.pid):
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/issue1393_validate.py", line 151, in _group_exists
+    os.killpg(pgid, 0)
+    ~~~~~~~~~^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted
+
+======================================================================
+ERROR: test_single_deadline_is_not_reset_after_success (test_issue1393_validate.SupervisionTests.test_single_deadline_is_not_reset_after_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/test_issue1393_validate.py", line 180, in test_single_deadline_is_not_reset_after_success
+    second = self.run_toy(supervisor, 'second', 'import time; time.sleep(2)')
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/test_issue1393_validate.py", line 165, in run_toy
+    return supervisor.run(name, [sys.executable, '-c', code], self.root)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/issue1393_validate.py", line 223, in run
+    row['cleanup'], clean = self.cleanup(process)
+                            ~~~~~~~~~~~~^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/issue1393_validate.py", line 181, in cleanup
+    if not self._group_exists(process.pid):
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-validation-ci-20261018/.github/scripts/issue1393_validate.py", line 151, in _group_exists
+    os.killpg(pgid, 0)
+    ~~~~~~~~~^^^^^^^^^
+PermissionError: [Errno 1] Operation not permitted
+
+----------------------------------------------------------------------
+Ran 16 tests in 1.278s
+
+FAILED (errors=2)

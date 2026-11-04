@@ -1,0 +1,560 @@
+{
+  "source": ".chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+  "bytes": 1298462,
+  "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+  "leaf_ac": [
+    {
+      "id": "票面AC1",
+      "coverage": "两组真实raw定义推导的11111候选；正式核未运行"
+    },
+    {
+      "id": "票面AC2",
+      "coverage": "核心/角色/归属及非Zn修订expected完备；正式变化未运行"
+    },
+    {
+      "id": "票面AC3",
+      "coverage": "正式会话+公共查询+浏览器全NOT_RUN"
+    },
+    {
+      "id": "票面AC4",
+      "coverage": "独立定义oracle已备；产品双进程/持久恢复全NOT_RUN"
+    }
+  ],
+  "AC_02_03_original": [
+    {
+      "id": "AC-02",
+      "topic": "判据与边界",
+      "required_behavior": "每个结构分类轴有适用对象/级别/视角/输入域、正常分支、端点/退化反例和证据不足情形。同判断同完整输入在各级输出相同。",
+      "expected_evidence": "ST逐项情景及对应行为对拍，实际断言和执行结果绑定版本；已有锁可复用，但须核射程。",
+      "failure_or_limit": "不同轴可并存；只编译不执行或零命中grep不能证明#804行为不变式。",
+      "execution_status": "NOT_RUN",
+      "source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+        "json_pointer": "/requirements/1",
+        "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c"
+      },
+      "spec_sections": [
+        "C12"
+      ],
+      "r2_rule": "涉及旧共同故障停结构或单MayHaveSent之处，适用R2两边界/独立结构及RA；原完整ST/FG验收不削减。"
+    },
+    {
+      "id": "AC-03",
+      "topic": "完整结构构造与关系",
+      "required_behavior": "从基础结构直到相应级别走势、中枢发展与跨级关系，逐项有真实构造、必要组成/血缘及完成依据；高级中枢不以level_lift标记替代。",
+      "expected_evidence": "每个已列对象/关系的具体实例、反例、生产输出以及下游消费证据。",
+      "failure_or_limit": "三代表链只是覆盖集合内的实例；不以它们代替全ST表。",
+      "execution_status": "NOT_RUN",
+      "source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+        "json_pointer": "/requirements/2",
+        "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c"
+      },
+      "spec_sections": [
+        "C12"
+      ],
+      "r2_rule": "涉及旧共同故障停结构或单MayHaveSent之处，适用R2两边界/独立结构及RA；原完整ST/FG验收不削减。"
+    }
+  ],
+  "all_named_acceptances": [
+    {
+      "id": "A-CC-016-01",
+      "source_pointer": "/classification_axes/15/acceptance_points/0",
+      "required_result": "完整计算全部具名子轴：seed_condition_vector；core_order。 逐位核五条件；11111才生成正式中枢，几何后三支与strict位必须一致。 中枢+连接+中枢等真实构造成员路径全部保留，不将路径类型变成两套互相兜底准则。",
+      "allowed_input_domain": {
+        "unit": "一组给定身份的三个连续次级别候选走势单元",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "不足三单元不进本三元组判定域；完成、连续、级别、方向和几何值可核。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "给定同级候选三个连续次级别走势单元；最低正式基底取线段。"
+      },
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-016-02",
+      "source_pointer": "/classification_axes/15/acceptance_points/1",
+      "required_result": "seed_condition_vector：仅对该三元组，在[五个谓词可求值]中，其完整值落恰一(完成,连续,同级,交替,strict核心)∈Bool⁵；；core_order：仅对同一三元组算出的(ZD,ZG)，在[三个完整区间可计算]中，其完整值落恰一[\"ZD<ZG\", \"ZD=ZG\", \"ZD>ZG\"]； 五条件可同时真；向量与核心比较同时输出，角色/成员路径不one-hot。",
+      "allowed_input_domain": {
+        "unit": "一组给定身份的三个连续次级别候选走势单元",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "不足三单元不进本三元组判定域；完成、连续、级别、方向和几何值可核。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "给定同级候选三个连续次级别走势单元；最低正式基底取线段。"
+      },
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-016-03",
+      "source_pointer": "/classification_axes/15/acceptance_points/2",
+      "required_result": "固定一组给定身份的三个连续次级别候选走势单元及输入、规则、政策、读法/角色和版本后，重放得到同一完整结构化输出，包括所有适用值、集合成员、关系、顺序及见证；逐项身份/tie/Sel证据另核，不把值唯一推成对象唯一。",
+      "allowed_input_domain": {
+        "unit": "一组给定身份的三个连续次级别候选走势单元",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "不足三单元不进本三元组判定域；完成、连续、级别、方向和几何值可核。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "给定同级候选三个连续次级别走势单元；最低正式基底取线段。"
+      },
+      "candidate_coverage": "同raw定义重算与具名恢复价格expected已备；正式新进程/持久恢复NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-016-04",
+      "source_pointer": "/classification_axes/15/acceptance_points/3",
+      "required_result": "逐项实际产出并可由同源查询/变化/前端/历史读取：输出三个次级单元ID、级别/完成/方向/连续见证、ZD/ZG精确值及相切排除。 五条件可同时真；向量与核心比较同时输出，角色/成员路径不one-hot。",
+      "allowed_input_domain": {
+        "unit": "一组给定身份的三个连续次级别候选走势单元",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "不足三单元不进本三元组判定域；完成、连续、级别、方向和几何值可核。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "给定同级候选三个连续次级别走势单元；最低正式基底取线段。"
+      },
+      "candidate_coverage": "实际生产及浏览器可见链NOT_RUN；只有待比较expected",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-017-01",
+      "source_pointer": "/classification_axes/16/acceptance_points/0",
+      "required_result": "本项目没有对象级互斥叶义务，按完整角色/公式/关系/事件集合验收。 必须同时计算并输出CORE=(ZD,ZG)、OUTER=(DD,GG)、INNER_EXTREMA=(D,G)。 ZD=max(seed lows)、ZG=min(seed highs)形成后冻结；DD=min(all dn)、GG=max(all gn)、D=max(all dn)、G=min(all gn)按完整Zn更新。 核DD<=ZD<ZG<=GG；D/G独立且允许D>G；每个极值附完整贡献成员、同价见证及前后变化。",
+      "allowed_input_domain": {
+        "unit": "一个strict seed正式中枢及全部已纳入同向Zn的固定版本",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "seed成员与全部Zn同源，核心形成点和更新前沿已知。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "严格seed产生的正式中枢及全部已纳入同向Zn。"
+      },
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-017-02",
+      "source_pointer": "/classification_axes/16/acceptance_points/1",
+      "required_result": "不对源branches整体执行Σ1[P]=1；各具名角色、关系、公式或事件均按其真实身份完整保留。 三种角色同时存在且各含两个变量；数值偶然相等也不能合并角色身份。 不能从CORE/OUTER/INNER_EXTREMA只选一个、以D/G替核心或为角色造互斥叶。",
+      "allowed_input_domain": {
+        "unit": "一个strict seed正式中枢及全部已纳入同向Zn的固定版本",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "seed成员与全部Zn同源，核心形成点和更新前沿已知。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "严格seed产生的正式中枢及全部已纳入同向Zn。"
+      },
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-017-03",
+      "source_pointer": "/classification_axes/16/acceptance_points/2",
+      "required_result": "固定一个strict seed正式中枢及全部已纳入同向Zn的固定版本及输入、规则、政策、读法/角色和版本后，重放得到同一完整结构化输出，包括所有适用值、集合成员、关系、顺序及见证；逐项身份/tie/Sel证据另核，不把值唯一推成对象唯一。",
+      "allowed_input_domain": {
+        "unit": "一个strict seed正式中枢及全部已纳入同向Zn的固定版本",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "seed成员与全部Zn同源，核心形成点和更新前沿已知。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "严格seed产生的正式中枢及全部已纳入同向Zn。"
+      },
+      "candidate_coverage": "同raw定义重算与具名恢复价格expected已备；正式新进程/持久恢复NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-017-04",
+      "source_pointer": "/classification_axes/16/acceptance_points/3",
+      "required_result": "逐项实际产出并可由同源查询/变化/前端/历史读取：同时显示六变量及冻结/动态属性、成员贡献、上版差异和known_at。 三种角色同时存在且各含两个变量；数值偶然相等也不能合并角色身份。 不能从CORE/OUTER/INNER_EXTREMA只选一个、以D/G替核心或为角色造互斥叶。",
+      "allowed_input_domain": {
+        "unit": "一个strict seed正式中枢及全部已纳入同向Zn的固定版本",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "seed成员与全部Zn同源，核心形成点和更新前沿已知。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "严格seed产生的正式中枢及全部已纳入同向Zn。"
+      },
+      "candidate_coverage": "实际生产及浏览器可见链NOT_RUN；只有待比较expected",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-022-01",
+      "source_pointer": "/classification_axes/21/acceptance_points/0",
+      "required_result": "完整计算全部具名子轴：assignment_status。 返回成员边全集、连接两端及未分配尾部；连接段不能同时算其相邻两枢成员。 不得从单元状态只留一个center_id来强删有独立权威依据的多成员关系。",
+      "allowed_input_domain": {
+        "unit": "固定读法R下的每个同级单元u及其全部正式归属边",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "同一前缀、同一读法和候选单元身份；不同读法分开。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "一条已明确构造读法的同级有序单元流。"
+      },
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-022-02",
+      "source_pointer": "/classification_axes/21/acceptance_points/1",
+      "required_result": "assignment_status：仅对(R,u)在固定版本，在[本读法归属域完整且成员/连接互斥已证]中，其完整值落恰一[\"CENTER_MEMBER\", \"CONNECTOR\", \"NOT_YET_ASSIGNED\"]；若已有权威允许同单元多枢成员，本分区不限制member_of边数量，改按每条具名归属边保留并补域证明。 不同读法对同raw单元可有不同归属；所有获准member_of边与状态一起保留。",
+      "allowed_input_domain": {
+        "unit": "固定读法R下的每个同级单元u及其全部正式归属边",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "同一前缀、同一读法和候选单元身份；不同读法分开。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "一条已明确构造读法的同级有序单元流。"
+      },
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-022-03",
+      "source_pointer": "/classification_axes/21/acceptance_points/2",
+      "required_result": "固定固定读法R下的每个同级单元u及其全部正式归属边及输入、规则、政策、读法/角色和版本后，重放得到同一完整结构化输出，包括所有适用值、集合成员、关系、顺序及见证；逐项身份/tie/Sel证据另核，不把值唯一推成对象唯一。",
+      "allowed_input_domain": {
+        "unit": "固定读法R下的每个同级单元u及其全部正式归属边",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "同一前缀、同一读法和候选单元身份；不同读法分开。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "一条已明确构造读法的同级有序单元流。"
+      },
+      "candidate_coverage": "同raw定义重算与具名恢复价格expected已备；正式新进程/持久恢复NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-CC-022-04",
+      "source_pointer": "/classification_axes/21/acceptance_points/3",
+      "required_result": "逐项实际产出并可由同源查询/变化/前端/历史读取：前端可查每单元归属和续扫位置，明确未覆盖尾部，不能消失。 不同读法对同raw单元可有不同归属；所有获准member_of边与状态一起保留。",
+      "allowed_input_domain": {
+        "unit": "固定读法R下的每个同级单元u及其全部正式归属边",
+        "fixed_dimensions": [
+          "input_frontier",
+          "semantic_version",
+          "policy_version_when_applicable",
+          "view_or_role_context",
+          "object_or_request_identity"
+        ],
+        "additional_domain_guard": "同一前缀、同一读法和候选单元身份；不同读法分开。",
+        "domain_obligation": "此处给出验收量词与应证输入域；不声称原始市场投影已被证明。域前件缺失须准确报缺项并保留补证义务，不以新Other类补齐。",
+        "original_catalog_domain": "一条已明确构造读法的同级有序单元流。"
+      },
+      "candidate_coverage": "实际生产及浏览器可见链NOT_RUN；只有待比较expected",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-LC-03-01",
+      "source_pointer": "/legal_combination_contracts/2/acceptance_points/0",
+      "required_result": "正式center只有strict seed；核心冻结；单元离开、首回试三类/破坏、pair扩展、新生、九段处理分对象可同次更新并发出，九段优先级只作用其已裁互竞构造决策，不抹别的关系事实。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-LC-03-02",
+      "source_pointer": "/legal_combination_contracts/2/acceptance_points/1",
+      "required_result": "对声称合法且可达的联合状态给真实构造见证，对禁止组合给拒绝依据；跨对象正交事实不因展示或单优先级丢失。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-001-01",
+      "source_pointer": "/observation_contracts/0/acceptance_points/0",
+      "required_result": "同一标的的历史回放与实时观察同时打开，任何旧会话消息不能改写另一会话；切换视角不会串用旧对象。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-002-01",
+      "source_pointer": "/observation_contracts/1/acceptance_points/0",
+      "required_result": "同一结构供两个不同操作级别的重消费，UI能分清使用关系；Voice深度变化不改写结构级别。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-003-01",
+      "source_pointer": "/observation_contracts/2/acceptance_points/0",
+      "required_result": "同一个点同时具有正本允许的2B和3B，两个事实都保留；不满足完成域的走势不硬归入完成三分类。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-004-01",
+      "source_pointer": "/observation_contracts/3/acceptance_points/0",
+      "required_result": "相同对象修改几何或依据时按revision更新；重切产生新对象时可追溯被替代对象，跨代际不意外复活。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-005-01",
+      "source_pointer": "/observation_contracts/4/acceptance_points/0",
+      "required_result": "用户打开任一已列结构类型及变化，可看到其适用字段和依据；中心扩展同时可追踪关系与高级构造是否成立。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-006-01",
+      "source_pointer": "/observation_contracts/5/acceptance_points/0",
+      "required_result": "并发结构修订与经济成交发生时，每份宣称完整的快照能说明所用各域版本及依赖；同快照翻页不偷偷读取新头。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-007-01",
+      "source_pointer": "/observation_contracts/6/acceptance_points/0",
+      "required_result": "某一重或专题暂不可用，调用者能区分真实空集、暂未算出、源缺失和最近可信记录；恢复后再给完整结果。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-008-01",
+      "source_pointer": "/observation_contracts/7/acceptance_points/0",
+      "required_result": "重复投递、乱序和批间断档后，按合同处理结果等于同切面重取快照；漏任何已列语义字段变化都能被识别。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-009-01",
+      "source_pointer": "/observation_contracts/8/acceptance_points/0",
+      "required_result": "后续输入确认了较早区间的事实，回看较早时点不能提前显示为已确认；后续更正保留原获知记录。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-010-01",
+      "source_pointer": "/observation_contracts/9/acceptance_points/0",
+      "required_result": "小转大必要条件出现时只能显示其真实判定内容；点击可追到来源，不能把gate_pass改名为现象完成。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-013-01",
+      "source_pointer": "/observation_contracts/12/acceptance_points/0",
+      "required_result": "同样输入下诊断项可显示更多线索，但生产准入结论不被更改；未知不当拒绝或通过。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-015-01",
+      "source_pointer": "/observation_contracts/14/acceptance_points/0",
+      "required_result": "REST建立回放会话后，流式订阅绑定同一逻辑回放会话及一致输入切面；重建会话后旧连接消息被隔离。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-016-01",
+      "source_pointer": "/observation_contracts/15/acceptance_points/0",
+      "required_result": "断线跨越更新/撤回后重连，最终状态与同切面快照一致；过期游标不会悄悄丢变化。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-017-01",
+      "source_pointer": "/observation_contracts/16/acceptance_points/0",
+      "required_result": "逐步推进到确认前后，事实只在相应前沿出现；以同源输入双跑比较状态/关系/事件；经营恢复不能只靠bars猜钱。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-018-01",
+      "source_pointer": "/observation_contracts/17/acceptance_points/0",
+      "required_result": "用户过滤掉部分重或对象后仍知道这是子集；打开详情可恢复原始证据，不能因显示上限删后台对象。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-019-01",
+      "source_pointer": "/observation_contracts/18/acceptance_points/0",
+      "required_result": "对每个ST/FG项从后端结果到可见状态或详情形成可验证路径；鼠标点marker不是唯一可用入口。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-OB-020-01",
+      "source_pointer": "/observation_contracts/19/acceptance_points/0",
+      "required_result": "对每个验收项能指出哪个版本/场景/输入/输出证明；未运行项保持not-run，未读源码保持未复验。",
+      "allowed_input_domain": "按原条款对象/观察合同；TestOnly只覆盖本票声明结构子域",
+      "candidate_coverage": "固定切面/闭包toy只证明离线工具；本项实际公共观察、历史、前端均NOT_RUN",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-ST-011-01",
+      "source_pointer": "/requirements/10/acceptance_points/0",
+      "required_result": "三低最大等于三高最小：记录退化原因且无有效中枢；稍小则构成。",
+      "allowed_input_domain": "同一塔、同级三个连续次级别走势单元；最低层现行基底为线段",
+      "candidate_coverage": "正常strict分支两例；相切/倒置反例并未由本raw覆盖，不销整项",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-ST-011-02",
+      "source_pointer": "/requirements/10/acceptance_points/1",
+      "required_result": "由两个已有中枢和中间连接走势生成上级对象时须追到全部三成员。",
+      "allowed_input_domain": "同一塔、同级三个连续次级别走势单元；最低层现行基底为线段",
+      "candidate_coverage": "仅两中心+连接及关系输入；上级构造#1429未覆盖",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-ST-012-01",
+      "source_pointer": "/requirements/11/acceptance_points/0",
+      "required_result": "追加使 G 下降或 D 上升的 Zn，G/D 更新而 ZD/ZG 不变。",
+      "allowed_input_domain": "已构成中枢及其延伸，Zn 为与中枢方向一致的次级别走势",
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-ST-012-02",
+      "source_pointer": "/requirements/11/acceptance_points/1",
+      "required_result": "同一中枢 GG/DD 不等于 ZG/ZD 时两套轮廓均能查看；不能以动态核心改三买判据。",
+      "allowed_input_domain": "已构成中枢及其延伸，Zn 为与中枢方向一致的次级别走势",
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-ST-016-01",
+      "source_pointer": "/requirements/15/acceptance_points/0",
+      "required_result": "续扫从+1导致连接段复用的反例须被拒；+2 保持血缘。",
+      "allowed_input_domain": "首个中枢已成立，继续寻找后继中枢的确定性构造",
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    },
+    {
+      "id": "A-ST-016-02",
+      "source_pointer": "/requirements/15/acceptance_points/1",
+      "required_result": "成立后三段不得因等待若干段才公布；不足材料不得发布 candidate center。",
+      "allowed_input_domain": "首个中枢已成立，继续寻找后继中枢的确定性构造",
+      "candidate_coverage": "具名raw例的离线语义账；正式执行/公共观察/恢复未验",
+      "still_due_market_domain": "本候选无市场认证、无原量重放、无全图完整历史；真实市场域义务全部保留",
+      "product_status": "NOT_RUN"
+    }
+  ],
+  "allowed_testonly_basis": "issue1419-live.json票面“TestOnly结构原始输入只证明声明受测域”；不把该许可扩大为市场或完整业务验收",
+  "entire_ticket_complete": false,
+  "v3_repair_scope": {
+    "status": "PENDING_INDEPENDENT_REVIEW_OF_V3_DIFF",
+    "local_locks_only": true,
+    "entire_ticket_complete": false,
+    "original_quantifiers_unchanged": true,
+    "report": "fixes-v3/REPORT.md",
+    "unverified": [
+      "first_visibility",
+      "known_at",
+      "AsKnown",
+      "entity_revision",
+      "raw_history",
+      "withdrawn_objects",
+      "lower_source_coords_and_sealing",
+      "lower_confirmation",
+      "feature_sequence_objects",
+      "full_catalog_axes",
+      "product_source_binding"
+    ]
+  }
+}

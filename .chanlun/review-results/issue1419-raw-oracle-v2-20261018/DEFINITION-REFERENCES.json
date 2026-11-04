@@ -1,0 +1,324 @@
+{
+  "RAW_NO_INCLUSION": {
+    "definition": ".chanlun/definitions/bi.md:113-120,323-334",
+    "claim": "包含闭区间判定；本例每对两端同向严格变化，无一次合并，组与根集恒单根。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/062-第62课.md",
+        "line": 28,
+        "body_boundary_line": 36,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "当然，实际图形里，有些复杂的关系会出现，就是相邻两K线可以出现如图6这种包含关系，也就是一K线的高低点全在另一K线的范围里，这种情况下，可以这样处理，在向上时，把两K线的最高点当高点，而两K线低点中的较高者当成低点，这样就把两K线合并成一新的K线；反之，当向下时，把两K线的最低点当低点，而两K线高点中的较低者当成高点，这样就把两K线合并成一新的K线。经过这样的处理，所有K线图都可以处理成没有包含关系的图形。",
+        "whole_file_sha256": "289acd34caf0b502f2da409f1abdd2dd37d316769e6f61018dc35c334fed8c4a"
+      }
+    ]
+  },
+  "FRACTAL": {
+    "definition": ".chanlun/definitions/bi.md:288-319",
+    "claim": "high/low同时严格极值才分型；每个内部三K窗口完整分类。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/062-第62课.md",
+        "line": 22,
+        "body_boundary_line": 36,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "像图1这种，第二K线高点是相邻三K线高点中最高的，而低点也是相邻三K线低点中最高的，本ID给一个定义叫顶分型；图2这种叫底分型，第二K线低点是相邻三K线低点中最低的，而高点也是相邻三K线高点中最低的。看不明白定义的，看图就明白了，这么直观都不明白，那去和孔男人为伍吧。",
+        "whole_file_sha256": "289acd34caf0b502f2da409f1abdd2dd37d316769e6f61018dc35c334fed8c4a"
+      },
+      {
+        "file": "docs/chanlun/text/blog/062-第62课.md",
+        "line": 32,
+        "body_boundary_line": 36,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "而图7，就给出了经过以上处理，没有包含关系的图形中，三相邻K线之间可能组合的一个完全分类，其中的二、四，就是分别是顶分型和底分型，一可以叫上升K线，三可以叫下降K线。所以，上升的一笔，由结合律，就一定是底分型+上升K线+顶分型；下降的一笔，就是顶分型+下降K线+底分型。注意，这里的上升、下降K线，不一定都是3根，可以无数根，只要一直保持这定义就可以。当然，简单的，也可以是1、2根，这只要不违反结合律和定义就可以。",
+        "whole_file_sha256": "289acd34caf0b502f2da409f1abdd2dd37d316769e6f61018dc35c334fed8c4a"
+      }
+    ]
+  },
+  "BI": {
+    "definition": ".chanlun/definitions/bi.md:101-120,297-334",
+    "claim": "merged不共用；raw极值区至少3；交替、方向、末笔与确认分开。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/081-第81课.md",
+        "line": 110,
+        "body_boundary_line": 78,
+        "author": "缠中说禅",
+        "attribution": "续排《忽闻台风可休市》正文，标题100行",
+        "inline_editor_note_excluded": false,
+        "quote": "本ID想了想，计算了一下能量力度，觉得以后可以把笔的成立条件略微放松一下，就是一笔必须满足以下两个条件：1、顶分型与底分型经过包含处理后，不允许共用K线，也就是不能有一K线分别属于顶分型与底分型，这条件和原来是一样的，这一点绝对不能放松，因为这样，才能保证足够的能量力度；2、在满足1的前提下，顶分型中最高K线和底分型的最低K线之间（不包括这两K线），不考虑包含关系，至少有3根（包括3根）以上K线。显然，第二个条件，比原来分型间必须有独立K线的一条，要稍微放松了一点，这样，象今天绿箭头所指的地方，就是一笔了，相应那三笔下来就构成一段了，整个划分就不会出现比较古怪的线段。",
+        "whole_file_sha256": "18caff8a718f9cbccee454872e85350fcd99b051ebedda4b19578c341136d7b8"
+      },
+      {
+        "file": "docs/chanlun/text/blog/077-第77课.md",
+        "line": 54,
+        "body_boundary_line": 92,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "二、如果前后两分型是同一性质的，对于顶，前面的低于后面的，只保留后面的，前面那个可以X掉；对于底，前面的高于后面的，只保留后面的，前面那个可以X掉。不满足上面情况的，例如相等的，都可以先保留。",
+        "whole_file_sha256": "dbce65991f2997f171ddce1476fb1b4950c8e91d139c50f6c5273af125c3b62f"
+      },
+      {
+        "file": "docs/chanlun/text/blog/077-第77课.md",
+        "line": 58,
+        "body_boundary_line": 92,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "如果相邻的性质一样，那么必然有前顶不低于(高于）后顶，前底不高于（低于）后底，而在连续的顶后，必须会出现新的底，把这连续的顶中最先一个，和这新出现的底连在一起，就是新的一笔，而中间的那些顶，都X掉；在连续的底后，必须会出现新的顶，把这连续的底中最先一个，和这新出现的顶连在一起，就是新的一笔，而中间的那些底，都X掉。",
+        "whole_file_sha256": "dbce65991f2997f171ddce1476fb1b4950c8e91d139c50f6c5273af125c3b62f"
+      }
+    ]
+  },
+  "SEGMENT_TERMINATION": {
+    "definition": ".chanlun/definitions/xianduan.md:159-169,263-283,304-317,333-351",
+    "claim": "奇数≥3、首三笔非退化重叠；两类终结；首段最低起点；strict缺口封闭；无转折窗成员。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/067-第67课.md",
+        "line": 18,
+        "body_boundary_line": 62,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "定义：序列X1X2…Xn成为以向上笔开始线段的特征序列；序列S1S2…Sn成为以向下笔开始线段的特征序列。特征序列两相邻元素间没有重合区间，称为该序列的一个缺口。",
+        "whole_file_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+      },
+      {
+        "file": "docs/chanlun/text/blog/067-第67课.md",
+        "line": 20,
+        "body_boundary_line": 62,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": true,
+        "quote": "关于特征序列，把每一元素看成是一K线，那么，如同一般K线图中找分型的方法，也存在所谓的包含关系，也可以对此进行非包含处理。经过非包含处理的特征序列，成为标准特征序列。以后没有特别说明，特征序列都是指标准特征序列。",
+        "whole_file_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+      },
+      {
+        "file": "docs/chanlun/text/blog/067-第67课.md",
+        "line": 28,
+        "body_boundary_line": 62,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": true,
+        "quote": "特征序列的顶分型中，第一和第二元素间不存在特征序列的缺口，那么该线段在该顶分型的高点处结束，该高点是该线段的终点；特征序列的底分型中，第一和第二元素间不存在特征序列的缺口，那么该线段在该底分型的低点处结束，该低点是该线段的终点；",
+        "whole_file_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+      },
+      {
+        "file": "docs/chanlun/text/blog/071-第71课.md",
+        "line": 30,
+        "body_boundary_line": 46,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "从上面的分析就可以知道，从转折点开始，如果第一笔就破坏了前线段，进而该笔延伸出三笔来，其中第三笔破点第一笔的结束位置，那么，新的线段一定形成，前线段一定结束。",
+        "whole_file_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66"
+      },
+      {
+        "file": "docs/chanlun/text/blog/071-第71课.md",
+        "line": 32,
+        "body_boundary_line": 46,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "这种情况还有更复杂一点的情况，就是第三笔完全在第一笔的范围内，这样，这三笔就分不出是向上还是向下，这样也就定义不了什么特征序列，为什么？因为特征序列是和走势相反的，而走势连方向都没有，那怎么知道哪个元素属于特征序列？这种情况，无非两种最后的结果：1、最终还是先破了第一笔的结束位置，这时候，新的线段显然成立，旧线段还是被破坏了；2、最终，先破第一笔的开始位置，这样，旧线段只被一笔破坏，接着就延续原来的方向，那么，显然旧线段依然延续，新线段没有出现。",
+        "whole_file_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66"
+      },
+      {
+        "file": "docs/chanlun/text/blog/071-第71课.md",
+        "line": 40,
+        "body_boundary_line": 46,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "特征序列的分型中，第一元素就是以该假设转折点前线段的最后一个特征元素，第二个元素，就是从这转折点开始的第一笔，显然，这两者之间是同方向的，因此，如果这两者之间有缺口，那么就是第二种情况，否则就是第一种，然后根据定义来考察就可以。",
+        "whole_file_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66"
+      },
+      {
+        "file": "docs/chanlun/text/blog/071-第71课.md",
+        "line": 42,
+        "body_boundary_line": 46,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "这里还要强调一下包含的问题，上面的分析知道，在这假设的转折点前后那两元素，是不存在包含关系的。因为，这两者已经被假设不是同一性质的东西，不一定是同一特征序列的；但假设的转折点后的顶分型的元素，是可以应用包含关系的。为什么？因此，这些元素间，肯定是同一性质的东西，或者就是原线段的延续，那么就同是原线段的特征序列中，或者就是新线段的非特征序列中，反正都是同一类的东西，同一类的东西，当然可以考察包含关系。",
+        "whole_file_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66"
+      },
+      {
+        "file": "docs/chanlun/text/blog/077-第77课.md",
+        "line": 62,
+        "body_boundary_line": 92,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "有了笔以后，就是线段了。线段划分的最基本原则，就是线段必须至少有三笔，这是十分显然的，否则，一笔都能构成线段，那笔和线段又有什么区别？至于两笔为什么不能构成线段，这理由更简单，因为两笔，那么线段的两段的分型的性质肯定是一样的，和笔一样，一个完整线段的两段的分型不可能是同性质的。也就是说，和笔一样，线段也不可能从一个顶开始结束于一个顶，或者从一个底开始结束于一个底。由此可见，线段中包含笔的数目，都是单数的。",
+        "whole_file_sha256": "dbce65991f2997f171ddce1476fb1b4950c8e91d139c50f6c5273af125c3b62f"
+      },
+      {
+        "file": "docs/chanlun/text/blog/077-第77课.md",
+        "line": 64,
+        "body_boundary_line": 92,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "而且，线段开始的那三笔，必须有重合，开始三笔没有重合的，是构不成线段的。",
+        "whole_file_sha256": "dbce65991f2997f171ddce1476fb1b4950c8e91d139c50f6c5273af125c3b62f"
+      },
+      {
+        "file": "docs/chanlun/text/blog/078-第78课.md",
+        "line": 20,
+        "body_boundary_line": 64,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "同样，正如同一笔不可能出现顶低于底的情况，同一线段中，两端的一顶一底，顶肯定要高于底，如果你划出一个不符合这基本要求的线段，那肯定是划错了。",
+        "whole_file_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+      },
+      {
+        "file": "docs/chanlun/text/blog/078-第78课.md",
+        "line": 22,
+        "body_boundary_line": 64,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "由于图形不断延续，因此，除非是新股上市后最开始的一段，否则任何一段都是破坏前一段的，如果你的划分，不能保证前面每一段都是被后一段破坏，那么这划分肯定不对。线段的破坏是可以逆时间传递的，也就是说被后线段破坏的线段，一定破坏前线段，如果违反这个原则，那线段的划分一定有问题。",
+        "whole_file_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+      },
+      {
+        "file": "docs/chanlun/text/blog/078-第78课.md",
+        "line": 24,
+        "body_boundary_line": 64,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "当然，实际划分中没必要都从上市第一天开始，一般都是从图K线中近期的最高或最低点开始，例如，如果你今天才开始进行划分1分钟图，那么，就可以从昨天下午跳水的最低点5224点开始，但这样，肯定对大的走势不可能有正确认识，要对这波行情有明确的分析，即使不从7月6日的3563点开始，也要从8月17日的4646点开始。",
+        "whole_file_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+      }
+    ]
+  },
+  "SECOND_SEQUENCE": {
+    "definition": ".chanlun/definitions/xianduan.md:133-169,199-208",
+    "claim": "从b之后取原段同向笔；先包含/分型后严格越界；本例无包含并在越界之前或同笔先确认。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/067-第67课.md",
+        "line": 38,
+        "body_boundary_line": 62,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "特征序列的顶分型中，第一和第二元素间存在特征序列的缺口，如果从该分型最高点开始的向下一笔开始的序列的特征序列出现底分型，那么该线段在该顶分型的高点处结束，该高点是该线段的终点；特征序列的底分型中，第一和第二元素间存在特征序列的缺口，如果从该分型最低点开始的向上一笔开始的序列的特征序列出现顶分型，那么该线段在该底分型的低点处结束，该低点是该线段的终点；",
+        "whole_file_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+      },
+      {
+        "file": "docs/chanlun/text/blog/067-第67课.md",
+        "line": 46,
+        "body_boundary_line": 62,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "强调，在第二种情况下，后一特征序列不一定封闭前一特征序列相应的缺口，而且，第二个序列中的分型，不分第一二种情况，只要有分型就可以。",
+        "whole_file_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+      },
+      {
+        "file": "docs/chanlun/text/blog/078-第78课.md",
+        "line": 52,
+        "body_boundary_line": 64,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "从这个例子就知道，笔破坏与线段破坏的异同。对于线段破坏的第二种情况，例如线段B对线段A是第二种情况，而线段C没有形成第二特征序列的分型又直接新高或新低了，这时候，不能认为这是三个线段，线段A、B、C加起来只能算是一个线段。",
+        "whole_file_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+      },
+      {
+        "file": "docs/chanlun/text/blog/078-第78课.md",
+        "line": 54,
+        "body_boundary_line": 64,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "另外，一定要注意，对于第二种情况的第二特征序列的分型判断，必须严格按照包含关系的处理来，这里不存在第一种情况中的假设分界点两边不能进行包含关系处理的要求。为什么？因为在第一种情况中，如果分界点两边出现特征序列的包含关系，那证明对原线段转折的力度特别大，那当然不能用包含关系破坏这种力度的呈现。而在第二种情况的第二特征序列中，其方向是和原线段一致，包含关系的出现，就意味着原线段的能量充足，而第二种情况，本来就意味着对原线段转折的能量不足，这样一来，当然就必须按照包含关系来。",
+        "whole_file_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+      }
+    ]
+  },
+  "CENTER_SEED": {
+    "definition": ".chanlun/definitions/zhongshu.md:71-83,115-134",
+    "claim": "三个完成连续同级交替段；ZD=max低，ZG=min高，严格小于。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/020-第20课.md",
+        "line": 48,
+        "body_boundary_line": 94,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "有了上面的定理，就可以很精确地讨论走势中枢的问题了：根据走势中枢的数学表达式： A、B、C，分别的高、低点是a1\\a2,b1\\b2,c1\\c2，则中枢的区间就是[max（a2,b2,c2），min（a1,b1,c1）]。而中枢的形成无非两种，一种是回升形成的，一种是回调形成的。",
+        "whole_file_sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+      },
+      {
+        "file": "docs/chanlun/text/blog/020-第20课.md",
+        "line": 54,
+        "body_boundary_line": 94,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "特别地，再定义ZG= min(g1、g2),ZD=max(d1、d2)，显然，[ZD，ZG]就是缠中说禅走势中枢的区间，由此有了如下定理：",
+        "whole_file_sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+      }
+    ]
+  },
+  "CENTER_ROLES": {
+    "definition": ".chanlun/definitions/zhongshu.md:194-216,222-247;§6.1",
+    "claim": "核心冻结；四角色只数Zn；全单元延伸及last+2连接端点条款；完整16格相邻关系。",
+    "verified_quotes": [
+      {
+        "file": "docs/chanlun/text/blog/020-第20课.md",
+        "line": 52,
+        "body_boundary_line": 94,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "对于第一种有a1=b1,b2=c2；对第二种有a2=b2,b1=c1。但无论是哪种情况，中枢的公式都可以简化为[max（a2,c2），min（a1,c1）]。显然，A、C段，其方向与中枢形成的方向是一致的，由此可见，在中枢的形成与延伸中，由与中枢形成方向一致的次级别走势类型的区间重叠确定。例如，回升形成的中枢，由向上的次级别走势类型的区间重叠确定，反之依然。为方便起见，以后都把这些与中枢方向一致的次级别走势类型称为Z走势段，按中枢中的时间顺序，分别记为Zn等，而相应的高、低点分别记为gn、dn,定义四个指标：GG=max(gn),G=min(gn),D=max(dn),DD=min(dn)，n遍历中枢中所有Zn。",
+        "whole_file_sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+      },
+      {
+        "file": "docs/chanlun/text/blog/020-第20课.md",
+        "line": 54,
+        "body_boundary_line": 94,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "特别地，再定义ZG= min(g1、g2),ZD=max(d1、d2)，显然，[ZD，ZG]就是缠中说禅走势中枢的区间，由此有了如下定理：",
+        "whole_file_sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+      },
+      {
+        "file": "docs/chanlun/text/blog/020-第20课.md",
+        "line": 56,
+        "body_boundary_line": 94,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": true,
+        "quote": "缠中说禅走势中枢中心定理一：走势中枢的延伸等价于任意区间[dn，gn]与[ZD，ZG]有重叠。换言之，若有Zn，使得dn>ZG或gn<ZD，则必然产生高级别的走势中枢或趋势及延续。",
+        "whole_file_sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+      },
+      {
+        "file": "docs/chanlun/text/blog/020-第20课.md",
+        "line": 58,
+        "body_boundary_line": 94,
+        "author": "缠中说禅",
+        "attribution": "正文界前，无行首注",
+        "inline_editor_note_excluded": false,
+        "quote": "缠中说禅走势中枢中心定理二：前后同级别的两个缠中说禅走势中枢，后GG<前DD，等价于下跌及其延续；后DD>前GG等价于上涨及其延续。后ZG<前ZD且后GG>=前DD，或后ZD>前ZG且后DD=<前GG，则等价于形成高级别的走势中枢。",
+        "whole_file_sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+      }
+    ]
+  }
+}

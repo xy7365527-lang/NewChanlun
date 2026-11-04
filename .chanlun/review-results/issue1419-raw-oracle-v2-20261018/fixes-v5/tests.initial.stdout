@@ -1,0 +1,43 @@
+test_f1_json_text_data_rehashed (test_v5.Tests.test_f1_json_text_data_rehashed) ... FAIL
+test_f2_large_header_rejected_before_serialization (test_v5.Tests.test_f2_large_header_rejected_before_serialization) ... FAIL
+test_f8_split_profile_drift (test_v5.Tests.test_f8_split_profile_drift) ... FAIL
+
+======================================================================
+FAIL: test_f1_json_text_data_rehashed (test_v5.Tests.test_f1_json_text_data_rehashed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 79, in test_f1_json_text_data_rehashed
+    self.fail('非法公共JSONText被compare_domain放行')
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 非法公共JSONText被compare_domain放行
+
+======================================================================
+FAIL: test_f2_large_header_rejected_before_serialization (test_v5.Tests.test_f2_large_header_rejected_before_serialization)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 101, in test_f2_large_header_rejected_before_serialization
+    self.assertIsNotNone(error, '大header未准入却序列化/写出')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : 大header未准入却序列化/写出
+
+======================================================================
+FAIL: test_f8_split_profile_drift (test_v5.Tests.test_f8_split_profile_drift)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 124, in test_f8_split_profile_drift
+    self.assertEqual(accepted, [140])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [140, 141, 142] != [140]
+
+First list contains 2 additional elements.
+First extra element 1:
+141
+
+- [140, 141, 142]
++ [140]
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.347s
+
+FAILED (failures=3)
+{"tests": 3, "failures": 3, "errors": 0}

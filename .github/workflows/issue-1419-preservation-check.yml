@@ -1,0 +1,65 @@
+name: issue-1419 preservation cancellation check
+on:
+  push:
+    branches: [codex/1419-p2-clean32a]
+    paths:
+      - '.github/scripts/w2-runtime-process.py'
+      - '.github/scripts/test-w2-runtime-process.py'
+      - '.github/workflows/issue-1419-preservation-check.yml'
+permissions:
+  contents: read
+jobs:
+  cancellation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lifecycle regression locks and failure sentinel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/w2-runtime/a"
+          python3 .github/scripts/test-w2-runtime-process.py -v 2>&1 | tee "$RUNNER_TEMP/w2-runtime/locks.log"
+      - name: Exercise runner cancellation through the exact exec supervisor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/w2-runtime/a"
+          cat > "$RUNNER_TEMP/writer.py" <<'PY'
+          import sqlite3, sys, time
+          from pathlib import Path
+          path = Path(sys.argv[1])
+          path.parent.mkdir(parents=True)
+          conn = sqlite3.connect(path)
+          conn.execute('PRAGMA journal_mode=WAL')
+          conn.execute('CREATE TABLE writes (sequence INTEGER PRIMARY KEY)')
+          while True:
+              conn.execute('INSERT INTO writes DEFAULT VALUES')
+              conn.commit()
+              print('write committed', flush=True)
+              time.sleep(.1)
+          PY
+          exec python3 .github/scripts/w2-runtime-process.py run --state "$out/process.json" --log "$out/export.log" -- python3 "$RUNNER_TEMP/writer.py" "$out/w2.run/s.sqlite"
+      - name: B must not start after cancelled A
+        run: touch "$RUNNER_TEMP/w2-runtime/b-started"
+      - name: Package only after writers stop
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/w2-runtime-process.py package --directory "$RUNNER_TEMP/w2-runtime" --archive "$RUNNER_TEMP/w2-runtime.tgz" --state "$RUNNER_TEMP/preservation.json"
+          test ! -e "$RUNNER_TEMP/w2-runtime/b-started"
+      - name: Preserve cancellation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1419-preservation-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/w2-runtime.tgz
+            ${{ runner.temp }}/preservation.json
+            ${{ runner.temp }}/w2-runtime/*.stopped-originals.tgz
+            ${{ runner.temp }}/w2-runtime/*/process.json
+            ${{ runner.temp }}/w2-runtime/*/export.log
+            ${{ runner.temp }}/w2-runtime/locks.log
+          if-no-files-found: error
+          retention-days: 7
