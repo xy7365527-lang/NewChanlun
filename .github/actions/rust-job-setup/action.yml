@@ -74,6 +74,19 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cargo-registry-v1-
 
+    # #1875：只在 CI 里给第三方依赖开优化（本仓 crate 仍为 debug，debug-assertions/溢出检查不变；
+    #   release 档本就 opt-level 3，不受影响）。debug 测试的长单测（tb02w 单线程约 40–75 分钟）大量时间
+    #   耗在 -O0 的 bundled SQLite（C）、sha2、serde_json 上；同一提交实测 tb02w 75→46 分钟，全部指纹不变
+    #   （run 41829351939 对 41784385074）。写在 $CARGO_HOME，不改仓内 Cargo.toml；幂等且加锁，同一台机器
+    #   上多个作业共用 CARGO_HOME 时不会重复追加（重复的表会让 cargo 解析失败）。
+    - name: Optimize third-party dependencies in test builds (#1875)
+      shell: bash
+      run: |
+        cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
+        mkdir -p "$(dirname "$cfg")"
+        flock "$cfg.lock" bash -c 'grep -qF "[profile.dev.package.\"*\"]" "$1" 2>/dev/null || printf "[profile.dev.package.\"*\"]\nopt-level = 2\n" >> "$1"' _ "$cfg"
+        cat "$cfg"
+
     # 遥测包装器的边界快照对 `du target` 失败即判红；拆 job 后首个 cargo 步可能就是被包装的那一步，
     # 此时 target 尚不存在，故预先建空目录（不影响构建产物）。
     - name: Record cache result and post-cache resources (#1141)
