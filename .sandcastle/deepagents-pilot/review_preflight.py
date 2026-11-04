@@ -99,17 +99,28 @@ class CredentialError(RuntimeError):
     pass
 
 
-def provider_key(codex_home: Path, provider: str = PROVIDER) -> tuple[str, dict]:
+def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | None = None) -> tuple[str, dict]:
     """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
     config = tomllib.loads((codex_home / "config.toml").read_text())
     entry = (config.get("model_providers") or {}).get(provider)
     if entry is None:
         raise CredentialError(f"{codex_home}/config.toml 没有 model_providers.{provider}")
     env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
-    if isinstance(entry.get("auth"), dict) and entry["auth"].get("command"):
-        auth = entry["auth"]
-        result = subprocess.run([auth["command"], *auth.get("args", [])], env=env, capture_output=True, text=True,
-                                timeout=auth.get("timeout_ms", 5000) / 1000)
+    auth = entry.get("auth")
+    if isinstance(auth, dict) and auth.get("command"):
+        if entry.get("env_key"):
+            # Codex 离线校验：provider auth cannot be combined with env_key，宿主回合起不来。
+            raise CredentialError("provider auth cannot be combined with env_key")
+        timeout = auth.get("timeout_ms", 5000) / 1000
+        if budget is not None:
+            timeout = min(timeout, max(budget, 0.0))
+        try:
+            result = subprocess.run([auth["command"], *auth.get("args", [])], env=env, capture_output=True, text=True,
+                                    timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise CredentialError(f"auth.command 超过 {timeout:g}s 未返回") from None
+        except OSError as error:
+            raise CredentialError(f"auth.command 无法执行（{type(error).__name__}）") from None
         key = result.stdout.strip()
         if result.returncode != 0 or not key:
             raise CredentialError(f"auth.command 退出 {result.returncode} 或输出为空")
@@ -123,14 +134,29 @@ def provider_key(codex_home: Path, provider: str = PROVIDER) -> tuple[str, dict]
     raise CredentialError(f"model_providers.{provider} 未配置任何凭据来源")
 
 
-def check_credential(args) -> tuple[dict, str | None]:
+def check_credential(args, budget: float | None = None) -> tuple[dict, str | None]:
     try:
-        key, source = provider_key(Path(args.codex_home))
-    except (CredentialError, OSError, subprocess.TimeoutExpired, tomllib.TOMLDecodeError) as error:
-        return {"name": f"credential:{PROVIDER}", "class": "credential", "ok": False,
-                "detail": {"scrubbed_env": SCRUBBED_ENV, "error": f"{type(error).__name__}: {error}"[:300]}}, None
-    return {"name": f"credential:{PROVIDER}", "class": "credential", "ok": True,
-            "detail": {"scrubbed_env": SCRUBBED_ENV, **source}}, key
+        key, source = provider_key(Path(args.codex_home), budget=budget)
+    except CredentialError as error:
+        message = str(error)
+    except OSError as error:
+        message = f"读不到 Codex 配置（{type(error).__name__}）"
+    except tomllib.TOMLDecodeError:
+        message = "Codex config.toml 解析失败"
+    else:
+        return {"name": f"credential:{PROVIDER}", "class": "credential", "ok": True,
+                "detail": {"scrubbed_env": SCRUBBED_ENV, **source}}, key
+    return {"name": f"credential:{PROVIDER}", "class": "credential", "ok": False,
+            "detail": {"scrubbed_env": SCRUBBED_ENV, "error": message[:300]}}, None
+
+
+def redact(text: str, secret: str | None) -> str:
+    """报告出门前抹掉 key 的原文与 JSON 转义形态（错误正文可能回显 Authorization）。"""
+    if not secret:
+        return text
+    for form in {secret, json.dumps(secret, ensure_ascii=False)[1:-1], json.dumps(secret)[1:-1]}:
+        text = text.replace(form, "<redacted>")
+    return text
 
 
 def _round_trip(url: str, key: str, model: str, session: str) -> dict:
@@ -296,7 +322,7 @@ def main(argv=None) -> int:
     ap.add_argument("--deadline", type=float, default=55.0, help="总墙钟上限（秒），超时的检查判失败")
     args = ap.parse_args(argv)
     t0 = time.monotonic()
-    credential, key = check_credential(args)
+    credential, key = check_credential(args, budget=args.deadline)
     # 键为该 job 超时或异常时上报的检查名与类别。
     jobs = {("checkout_root_free_space", "space"): lambda: [check_space(args)],
             ("checkout_root_container_mount", "mount"): lambda: [check_mount(args)],
@@ -326,7 +352,7 @@ def main(argv=None) -> int:
     ready = all(c["ok"] for c in checks)
     report = {"kind": "review-preflight", "is_review_result": False, "ready": ready, "checks": checks,
               "wall_seconds": round(time.monotonic() - t0, 3)}
-    print(json.dumps(report, ensure_ascii=False), flush=True)
+    print(redact(json.dumps(report, ensure_ascii=False), key), flush=True)
     return 0 if ready else 2
 
 

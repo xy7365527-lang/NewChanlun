@@ -40,7 +40,8 @@ def repo(tmp_path):
 class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
-    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None):
+    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None,
+                 echo_auth=False):
         self.requests = []
         proxy = self
 
@@ -77,7 +78,9 @@ class FakeProxy:
                     self.wfile.flush()
                     time.sleep(4)
                     return
-                if code != 200:
+                if code != 200 and echo_auth:
+                    payload = json.dumps({"error": {"message": f"bad header {self.headers['Authorization']}"}}).encode()
+                elif code != 200:
                     payload = b'{"error":{"message":"tool_choice: type \\"tool\\" and \\"any\\" are not supported"}}'
                 else:
                     payload = b'event: response.completed\ndata: {"type":"response.completed","response":{}}\n\n'
@@ -299,3 +302,39 @@ def test_target_missing_from_source_reports_needs_source_sync(env, capsys, repo)
     assert code == 2 and "source_objects" in failing(report)
     source = next(c for c in report["checks"] if c["name"] == "source_objects")
     assert source["class"] == "source" and source["detail"]["needs_source_sync"] == [absent]
+
+
+def test_auth_command_combined_with_env_key_blocks_like_codex(env, capsys, tmp_path):
+    """Codex 拒绝 provider 同时配 auth 与 env_key；预检不能因 helper 能取到 key 就放行。"""
+    config = tmp_path / "codex/config.toml"
+    config.write_text(config.read_text().replace("[model_providers.cliproxy-local.auth]",
+                                                 'env_key = "CLIPROXY_LOCAL_KEY"\n[model_providers.cliproxy-local.auth]'))
+    code, report, _, proxy = env(capsys=capsys)
+    assert code == 2 and f"credential:{preflight.PROVIDER}" in failing(report) and proxy.requests == []
+    credential = next(c for c in report["checks"] if c["class"] == "credential")
+    assert "cannot be combined with env_key" in credential["detail"]["error"]
+
+
+def _auth_command(tmp_path, command: str, args: list[str], timeout_ms: int = 5000) -> None:
+    (tmp_path / "codex/config.toml").write_text(
+        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:8318/v1"\n'
+        f'[model_providers.cliproxy-local.auth]\ncommand = "{command}"\nargs = {json.dumps(args)}\ntimeout_ms = {timeout_ms}\n')
+
+
+def test_credential_helper_timeout_does_not_leak_its_arguments(env, capsys, tmp_path):
+    _auth_command(tmp_path, "/bin/sh", ["-c", f"sleep 5 # {KEY}"], timeout_ms=200)
+    code, report, out, _ = env(capsys=capsys)
+    assert code == 2 and KEY not in out
+    assert "未返回" in next(c for c in report["checks"] if c["class"] == "credential")["detail"]["error"]
+
+
+def test_credential_helper_respects_total_deadline(env, capsys, tmp_path):
+    _auth_command(tmp_path, "/bin/sh", ["-c", "sleep 3; echo key"], timeout_ms=120000)
+    start = time.monotonic()
+    code, report, *_ = env(capsys=capsys, extra=("--deadline", "0.5"))
+    assert time.monotonic() - start < 2 and code == 2
+
+
+def test_key_echoed_by_upstream_error_is_redacted(env, capsys):
+    code, report, out, _ = env(status={OPUS: 400}, echo_auth=True, capsys=capsys)
+    assert code == 2 and KEY not in out and "<redacted>" in out
