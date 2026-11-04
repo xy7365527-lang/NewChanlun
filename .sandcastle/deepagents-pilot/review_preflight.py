@@ -205,10 +205,15 @@ def reclaim_pending(budget: float) -> list[str]:
     """总时限到时回收仍登记的探针，耗时不超过 budget（留在总时限之内）。"""
     global _CLOSING
     end = time.monotonic() + budget
-    with _CLEANUP_LOCK:
+    # 限时取锁：探针线程可能正持锁做文件 I/O 或起容器；等不到就如实报告，不让主线程越过总时限（独审七）
+    if not _CLEANUP_LOCK.acquire(timeout=max(0.0, budget)):
+        return ["回收锁在时限内未取得：挂载探针仍在建立，探针目录或容器可能遗留，回收未能确认"]
+    try:
         _CLOSING = True  # 此后 check_mount 不再登记、建目录或起容器
         pending = list(_PENDING_CLEANUP.items())
         _PENDING_CLEANUP.clear()
+    finally:
+        _CLEANUP_LOCK.release()
     failures = []
     for container, entry in pending:
         error = _reclaim(entry, container, max(0.0, end - time.monotonic()))
@@ -231,11 +236,11 @@ def check_mount(args) -> dict:
                "--entrypoint", "cat", args.image, f"/checkouts/{probe.name}/nonce"]
     # 登记、建目录、起容器、发布进程句柄在同一把锁内完成，并以 closing 为准：
     # 主线程一旦开始回收，这里要么已整体登记可被回收，要么根本不建任何东西（独审六）。
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)  # checkout_root 本身不是探针产物，放在锁外
     with _CLEANUP_LOCK:
         if _CLOSING or _remaining() <= 0:
             raise TimeoutError("总时限已到，未启动挂载探针")
         _PENDING_CLEANUP[container] = entry
-        root.mkdir(parents=True, exist_ok=True, mode=0o700)
         probe.mkdir(mode=0o700)
         (probe / "nonce").write_text(nonce)
         entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -377,7 +382,7 @@ def _endpoint(url: str) -> tuple[str, str, int | None, str]:
     parts = urlsplit(url.strip().rstrip("/"))
     scheme = parts.scheme.lower()
     host = (parts.hostname or "").lower()
-    if host in ("localhost", "::1") or host.startswith("127."):  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    if host in ("localhost", "127.0.0.1", "::1"):  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
         host = "loopback"
     try:
         port = parts.port or {"http": 80, "https": 443}.get(scheme)
