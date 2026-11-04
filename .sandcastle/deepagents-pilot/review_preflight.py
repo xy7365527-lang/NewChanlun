@@ -176,6 +176,9 @@ def check_mount(args) -> dict:
             owned = _PENDING_CLEANUP.pop(container, None)
         if owned:
             shutil.rmtree(probe, ignore_errors=True)
+            if probe.exists():  # 删不掉就重新登记，由主线程回收并在报告里写明
+                with _CLEANUP_LOCK:
+                    _PENDING_CLEANUP[container] = owned
     seen = result.stdout.strip()
     return {"name": "checkout_root_container_mount", "class": "mount", "ok": result.returncode == 0 and seen == nonce,
             "detail": {"checkout_root": str(root), "image": args.image, "docker_rc": result.returncode,
@@ -211,13 +214,13 @@ def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | Non
         key = result.stdout.strip()
         if result.returncode != 0 or not key:
             raise CredentialError(f"auth.command 退出 {result.returncode} 或输出为空")
-        return key, {"source": "auth.command", "command": auth["command"]}
+        return key, {"source": "auth.command", "command": auth["command"], "base_url": entry.get("base_url")}
     if entry.get("experimental_bearer_token"):
-        return entry["experimental_bearer_token"], {"source": "experimental_bearer_token"}
+        return entry["experimental_bearer_token"], {"source": "experimental_bearer_token", "base_url": entry.get("base_url")}
     if entry.get("env_key"):
         if not env.get(entry["env_key"]):
             raise CredentialError(f"Missing environment variable: {entry['env_key']}")
-        return env[entry["env_key"]], {"source": "env_key", "env_key": entry["env_key"]}
+        return env[entry["env_key"]], {"source": "env_key", "env_key": entry["env_key"], "base_url": entry.get("base_url")}
     raise CredentialError(f"model_providers.{provider} 未配置任何凭据来源")
 
 
@@ -237,39 +240,34 @@ def check_credential(args, budget: float | None = None) -> tuple[dict, str | Non
             "detail": {"scrubbed_env": SCRUBBED_ENV, "error": message[:300]}}, None
 
 
-def worker_key() -> tuple[str | None, str]:
+def worker_key(budget: float = 5.0) -> tuple[str | None, str]:
     """与 codex-child.ts providerEnvironment 相同：先进程环境，再 launchctl getenv。正式 worker 只认这两处。"""
     if os.environ.get(SCRUBBED_ENV):
         return os.environ[SCRUBBED_ENV], "env"
     try:
         value = subprocess.run(["launchctl", "getenv", SCRUBBED_ENV], capture_output=True, text=True,
-                               timeout=5).stdout.strip()
+                               timeout=max(0.1, min(5.0, budget))).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         value = ""
     return (value, "launchctl") if value else (None, "missing")
 
 
-def check_worker_credential() -> tuple[dict, str | None]:
-    key, source = worker_key()
+def check_worker_credential(budget: float = 5.0) -> tuple[dict, str | None]:
+    key, source = worker_key(budget)
     detail = {"source": source, "consumer": "external-review-worker (providerEnvironment)"}
     if key is None:
         detail["error"] = f"缺少 {SCRUBBED_ENV}：进程环境与 launchctl 均未提供，正式 worker 会在启动前失败"
     return {"name": "credential:review-worker", "class": "credential", "ok": key is not None, "detail": detail}, key
 
 
-def _models_accept(url: str, key: str) -> tuple[bool, int | None]:
-    """不耗 token 的鉴权核对：GET /v1/models。"""
-    import urllib.error
-    import urllib.request
+def _endpoint(url: str) -> tuple[str, str, int | None, str]:
+    """把 base_url 归一成 (scheme, host, port, path)；localhost 与 127.0.0.1 视为同一回环。"""  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    from urllib.parse import urlsplit
 
-    request = urllib.request.Request(url.rstrip("/") + "/v1/models", headers={"Authorization": f"Bearer {key}"})
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return response.status == 200, response.status
-    except urllib.error.HTTPError as error:
-        return False, error.code
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return False, None
+    parts = urlsplit(url.rstrip("/"))
+    host = (parts.hostname or "").lower()
+    host = "127.0.0.1" if host in ("localhost", "::1") else host  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    return parts.scheme, host, parts.port, parts.path or ""
 
 
 def redact(text: str, secret: str | None) -> str:
@@ -476,20 +474,31 @@ def main(argv=None) -> int:
     t0 = time.monotonic()
     reserve = min(3.0, args.deadline / 2)  # 回收探针的预算留在总时限之内
     _DEADLINE_AT = t0 + args.deadline - reserve
-    credential, host_key = check_credential(args, budget=args.deadline - reserve)
+    remaining = lambda: max(0.0, _DEADLINE_AT - time.monotonic())  # noqa: E731  凭据各阶段共用同一截止时间
+    credential, host_key = check_credential(args, budget=remaining())
     credential["name"] = "credential:codex-host"
-    worker_check, key = check_worker_credential()
-    if host_key is not None:
-        if host_key == key:
-            credential["detail"]["same_key_as_worker"] = True  # 往返探测即覆盖宿主 key
+    worker_check, key = check_worker_credential(remaining())
+    probe_keys = {model: key for model in MODELS}
+    if key is None:
+        pass  # 正式 worker 缺 key，attempt 起不来，不再花 token 探测
+    elif host_key is not None:
+        host_url = credential["detail"].get("base_url") or ""
+        preflight_url = args.proxy_url.rstrip("/") + "/v1"
+        if _endpoint(host_url) != _endpoint(preflight_url):
+            # 宿主不经预检代理时，同一次探测证明不了宿主能完成往返
+            credential["ok"] = False
+            credential["detail"]["error"] = f"宿主 provider base_url={host_url or '未配置'}，与预检代理 {preflight_url} 不是同一端点"
+        elif host_key == key:
+            credential["detail"]["proven_by"] = "两家往返探测（与 worker 同一 key、同一端点）"
         else:
-            accepted, status = _models_accept(args.proxy_url, host_key)
-            credential["ok"] = accepted
-            credential["detail"].update(same_key_as_worker=False, models_status=status)
+            # key 不同：Sol 的那一次探测改用宿主 key，两把 key 各由一次真实往返证明，每家仍只探测一次
+            probe_keys["gpt-6.1-sol"] = host_key
+            credential["detail"]["proven_by"] = "roundtrip:gpt-6.1-sol（宿主 key）"
+            worker_check["detail"]["proven_by"] = "roundtrip:claude-opus-5-5（worker key）"
     # 键为该 job 超时或异常时上报的检查名与类别。
     jobs = {("checkout_root_free_space", "space"): lambda: [check_space(args)],
             ("checkout_root_container_mount", "mount"): lambda: [check_mount(args)],
-            **{(f"roundtrip:{model}", "roundtrip"): (lambda m=model: probe_model(args, m, key)) for model in MODELS}}
+            **{(f"roundtrip:{model}", "roundtrip"): (lambda m=model: probe_model(args, m, probe_keys[m])) for model in MODELS}}
     results: dict = {}
 
     def run(key, job) -> None:

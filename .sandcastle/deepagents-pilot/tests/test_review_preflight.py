@@ -59,7 +59,7 @@ class FakeProxy:
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 proxy.requests.append({"body": body, "auth": self.headers["Authorization"]})
-                if self.headers["Authorization"] != f"Bearer {KEY}":
+                if self.headers["Authorization"] not in (f"Bearer {KEY}", f"Bearer {OTHER_VALID}"):
                     self.send_response(401)
                     self.send_header("Content-Length", "0")
                     self.end_headers()
@@ -146,6 +146,12 @@ def env(tmp_path, monkeypatch, repo):
     def run(routes=None, capsys=None, extra=(), **proxy_options):
         proxy = FakeProxy(logs, routes or OFFICIAL, **proxy_options)
         proxies.append(proxy)
+        config = codex / "config.toml"
+        previous = [f"{p.url}/v1" for p in proxies[:-1]] + ["http://127.0.0.1:8318/v1"]  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+        text = config.read_text()
+        for old_url in previous:
+            text = text.replace(old_url, f"{proxy.url}/v1")
+        config.write_text(text)  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
         code = preflight.main(["--source", str(root), "--base", base, "--head", head, "--merge-base", base,
                                "--checkout-root", str(checkouts), "--proxy-url", proxy.url,
                                "--proxy-log-dir", str(logs), "--codex-home", str(codex),
@@ -470,18 +476,19 @@ def test_worker_key_falls_back_to_launchctl_like_provider_environment(env, capsy
     assert code == 0 and worker["detail"]["source"] == "launchctl" and len(proxy.requests) == 2
 
 
-def test_host_key_different_from_worker_is_checked_without_tokens(env, capsys, tmp_path):
+def test_host_key_different_from_worker_is_proven_by_its_own_round_trip(env, capsys, tmp_path):
+    """独审三·2：key 不同时 Sol 那一次探测走宿主 key，两把 key 各由一次真实往返证明，每家仍只探测一次。"""
     (tmp_path / "key.txt").write_text(OTHER_VALID + "\n")
-    code, report, out, _ = env(capsys=capsys)
-    host = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
-    assert code == 0 and host["detail"]["same_key_as_worker"] is False and host["detail"]["models_status"] == 200
+    code, report, out, proxy = env(capsys=capsys)
+    used = {r["body"]["model"]: r["auth"] for r in proxy.requests}
+    assert code == 0 and used == {SOL: f"Bearer {OTHER_VALID}", OPUS: f"Bearer {KEY}"}
     assert OTHER_VALID not in out
 
 
 def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):
     (tmp_path / "key.txt").write_text("revoked-key\n")
     code, report, *_ = env(capsys=capsys)
-    assert code == 2 and failing(report) == {"credential:codex-host"}
+    assert code == 2 and f"roundtrip:{SOL}" in failing(report) and f"roundtrip:{OPUS}" not in failing(report)
 
 
 def test_key_crossing_the_truncation_point_leaves_no_prefix(env, capsys):
@@ -533,3 +540,34 @@ def test_cleanup_stays_within_deadline_and_reports_failure(tmp_path, repo):
     assert result.returncode == 2 and elapsed < 1.6
     assert [p.name for p in checkouts.iterdir()] == []
     assert "probe_cleanup" in {c["name"] for c in report["checks"] if not c["ok"]}
+
+
+def test_host_provider_pointing_elsewhere_blocks(env, capsys, tmp_path):
+    """独审三·2：宿主 base_url 不是预检代理时，探测证明不了宿主能完成往返。"""
+    config = tmp_path / "codex/config.toml"
+    config.write_text(config.read_text().replace("http://127.0.0.1:8318/v1", "http://127.0.0.1:9/v1"))  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    code, report, *_ = env(capsys=capsys)
+    host = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
+    assert code == 2 and failing(report) == {"credential:codex-host"} and "不是同一端点" in host["detail"]["error"]
+
+
+def test_credential_stages_share_the_total_deadline(env, capsys, tmp_path, monkeypatch):
+    """独审三·1：helper、launchctl 各自的超时都不能叠加到总时限之外。"""
+    _auth_command(tmp_path, "/bin/sh", ["-c", "sleep 3; echo key"], timeout_ms=120000)
+    monkeypatch.delenv("CLIPROXY_LOCAL_KEY")
+    slow = tmp_path / "bin" / "launchctl"
+    slow.write_text("#!/bin/sh\nsleep 5\n")
+    slow.chmod(0o755)
+    start = time.monotonic()
+    code, report, *_ = env(capsys=capsys, extra=("--deadline", "1"))
+    assert code == 2 and time.monotonic() - start < 1.6
+
+
+def test_probe_dir_that_cannot_be_deleted_is_reported(env, capsys, tmp_path, monkeypatch):
+    """独审三·3：正常路径删目录失败时不能静默丢登记。"""
+    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: None)
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and "probe_cleanup" in failing(report)
+    for leftover in (tmp_path / "checkouts").iterdir():
+        (leftover / "nonce").unlink(missing_ok=True)
+        leftover.rmdir()
