@@ -6,7 +6,7 @@ key="${3:-/ABSOLUTE/PATH/TO/APP-PRIVATE-KEY.pem}"
 boat_config="${4:-/ABSOLUTE/PATH/TO/BOAT-CONFIG.json}"
 boat_key="${5:-/ABSOLUTE/PATH/TO/BOAT-CONTROLLER.key}"
 print_command() { printf '%q ' "$@"; printf '\n'; }
-executor=(env "PYTHONPATH=$repo/.sandcastle/deepagents-pilot"
+executor=(env "PYTHONPATH=$repo/.sandcastle/approval-signing:$repo/.sandcastle/deepagents-pilot"
   "PILOT_BOAT_CONFIG=$boat_config" "PILOT_BOAT_API_KEY_FILE=$boat_key"
   "$venv/bin/python" -m pilot1742.executor)
 printf '%s\n' '# #1742 D6 切流命令预览。本脚本只打印，不执行。' \
