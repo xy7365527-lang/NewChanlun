@@ -375,7 +375,11 @@ jobs:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
-      max-parallel: 1
+      # #1875：各组独占 runner、无跨组产物（产物名 h1-admission-S1 / release-only-locks-<run_id> 互不相同）。
+      #   原 max-parallel: 1（#1723）为不扩大同时 runner 占用，但五组串行排队 62–97 分钟、成为整次 CI 关键路径。
+      #   取 3：整次 CI 峰值 19 个 Linux 作业（公开仓库上限 20）；按 run 41784385074 实测，五组 65 分钟内跑完，
+      #   早于 s_session 分片 0 的 75 分钟，与全放开同效。
+      max-parallel: 3
       matrix:
         group: [content, economic, native, owned, release-locks]
     runs-on: ubuntu-latest
