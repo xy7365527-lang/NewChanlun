@@ -260,14 +260,19 @@ def check_worker_credential(budget: float = 5.0) -> tuple[dict, str | None]:
     return {"name": "credential:review-worker", "class": "credential", "ok": key is not None, "detail": detail}, key
 
 
-def _endpoint(url: str) -> tuple[str, str, str, str]:
-    """把 base_url 归一成 (scheme, host, port, path)；回环主机名与回环 IP 视为同一端点。不导入 urllib.parse，免占启动关键路径。"""
-    scheme, _, rest = url.strip().rstrip("/").partition("://")
-    netloc, slash, path = rest.partition("/")
-    host, _, port = netloc.rpartition(":") if netloc.count(":") == 1 else (netloc, "", "")
-    host = host.lower()
-    host = "127.0.0.1" if host in ("localhost", "[::1]") else host  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    return scheme.lower(), host, port or {"http": "80", "https": "443"}.get(scheme.lower(), ""), slash + path
+def _endpoint(url: str) -> tuple[str, str, int | None, str]:
+    """把 base_url 归一成 (scheme, host, port, path)；回环主机名、IPv4 与 IPv6 回环视为同一端点。"""
+    from urllib.parse import (
+        urlsplit,  # 用标准解析：手写切分会把带端口的 IPv6 字面量解析错（独审四）
+    )
+
+    parts = urlsplit(url.strip().rstrip("/"))
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").lower()
+    if host in ("localhost", "::1") or host.startswith("127."):  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+        host = "loopback"
+    port = parts.port or {"http": 80, "https": 443}.get(scheme)
+    return scheme, host, port, parts.path or ""
 
 
 def redact(text: str, secret: str | None) -> str:

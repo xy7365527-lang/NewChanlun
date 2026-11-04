@@ -23,7 +23,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 
 | 检查 | 拦下的历史故障 | 做法 |
 |---|---|---|
-| `credential:review-worker` | 正式 attempt 的 worker 缺 key（只认进程环境与 launchctl，见 `codex-child.ts` 的 `providerEnvironment`） | 先读进程环境，再读 `launchctl getenv CLIPROXY_LOCAL_KEY`。缺失即拦，且不发任何探测；两家往返探测都用这把 key |
+| `credential:review-worker` | 正式 attempt 的 worker 缺 key（只认进程环境与 launchctl，见 `codex-child.ts` 的 `providerEnvironment`） | 先读进程环境，再读 `launchctl getenv CLIPROXY_LOCAL_KEY`。缺失即拦，且不发任何探测。Opus 的探测总用这把 key；Sol 的探测在宿主 key 与它相同时也用它，不同时改用宿主 key（见下一行） |
 | `credential:codex-host` | #1323：宿主缺 `CLIPROXY_LOCAL_KEY`，回合在调模型前报 `Missing environment variable` | 去掉该环境变量后，按 `$CODEX_HOME/config.toml` 的 `model_providers.cliproxy-local` 取 key（`auth.command` / `env_key`），`auth` 与 `env_key` 并存也拦（Codex 拒绝启动）。宿主 `base_url` 必须就是预检代理（`localhost`/`127.0.0.1` 视为同一端点）。key 与 worker 相同时由两家探测一并证明；不同时 Sol 那一次探测改用宿主 key，两把 key 各由一次真实往返证明。宿主凭据失败不阻止探测 |
 | `checkout_root_free_space` | PR1866 A1/A2、PR1868 A3（f9）：快照需 2.60GB，HOME 只剩 1.40–1.65GB | 逐字节复刻 `prepare_review` 的快照字节公式，要求 checkout_root 所在卷剩余 ≥ 2 份（两位 reviewer；colima 可能仍占着已删快照的 inode） |
 | `checkout_root_container_mount` | PR1868 A1：checkout 在未共享进 colima 的路径，容器里 `/review` 是 VM 本地空目录 | 在 checkout_root 写一次性 nonce，用审阅镜像 `--network none --read-only` 只读 bind 挂载 checkout_root 读回；读不到或不一致即拦。探针目录随即删除 |

@@ -579,3 +579,16 @@ def test_out_of_range_deadline_is_a_usage_error(value, capsys):
         preflight.main(["--source", ".", "--base", "a", "--head", "b", "--merge-base", "a", "--checkout-root", ".",
                         "--deadline", value])
     assert exit_info.value.code == 3
+
+
+@pytest.mark.parametrize("a, b, same", [
+    ("http://[::1]:8318/v1", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("http://localhost:8318/v1/", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("http://LOCALHOST:8318/v1", "http://[::1]:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("http://127.0.0.1:9/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("https://127.0.0.1:8318/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("http://127.0.0.1:8318/v2", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+])
+def test_endpoint_equivalence_including_ipv6_loopback(a, b, same):
+    """独审四·1：带端口的 IPv6 回环不能被误判为不同端点。"""
+    assert (preflight._endpoint(a) == preflight._endpoint(b)) is same
