@@ -5587,6 +5587,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     pool.originals.native_index_layout_for_testonly().unwrap();
                 parent.census_arm();
                 let inventory = pool.native_permit_inventory().unwrap();
+                let rule_holders = pool.rule_revision_holders(crate::W_STRUCTURE_RULE_REVISION);
                 drop(pool);
                 let released = parent.census_take();
                 // P2-4：逐许可普查独立于下方live差额恒等式，核封存池无重复计费。
@@ -5671,7 +5672,24 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 let contract = crate::tb02b::CURRENT_CONTRACT;
                 let current_len =
                     contract_len(contract.schema, contract.policy, contract.knowledge_domain);
-                let sealed_before_p2a = sealed_before_p2a_for(current_len) + schema_growth;
+                // #1419 W 规则串增量（2026-11-05 主控按用户授权裁定，沿 #1488 裁定(b)）：B_W 冻结于
+                // c25c62d0952，当时 W 规则串 136B；4004c7cd 追加 `+bounded-layout/2` 后为 153B。
+                // 封存池对规则串恰有两个持有者（Binding meta 单元与 Proof Key.rule），各按串长计许可，
+                // 故 P2-A 前同夹具封存随串长差逐持有者增长；873,283 冻结测量不改。
+                const R14_FROZEN_W_RULE: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1";
+                assert_eq!(R14_FROZEN_W_RULE.len(), 136, "B_W 冻结时 W 规则串长");
+                let w_rule = crate::W_STRUCTURE_RULE_REVISION;
+                assert_eq!(
+                    rule_holders,
+                    [
+                        ("binding.cell", w_rule.len(), Some(w_rule.len())),
+                        ("proof.key.rule", w_rule.len(), Some(w_rule.len())),
+                    ],
+                    "规则串持有者恰为 Binding meta 与 Proof Key.rule 各一份，各按串长计许可"
+                );
+                let rule_growth = rule_holders.len() * (w_rule.len() - R14_FROZEN_W_RULE.len());
+                let sealed_before_p2a =
+                    sealed_before_p2a_for(current_len) + schema_growth + rule_growth;
                 assert_eq!(nodes, R14_NODES, "独立交叉核：来源节点数");
                 assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
                 let index_slots = index_bytes / slot_now;
@@ -5679,7 +5697,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 eprintln!(
                     "R14_P2B_DROP {}",
                     json!({"sealed_before_p2a":sealed_before_p2a,"sealed":sealed,
-                        "contract_len":current_len,"schema_growth":schema_growth,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
+                        "contract_len":current_len,"schema_growth":schema_growth,"rule_growth":rule_growth,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
                         "slot_now":slot_now,"slot_before_p2a":slot_before_p2a,"layout_drop":layout_drop})
                 );
                 assert_eq!(claims.1, expected_claims(current_len), "①来源合同额之和");
