@@ -9075,7 +9075,7 @@ pub(super) fn append_owner_cut(
     let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(publish_err)?)?;
     let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(publish_err)?)?;
     let delta = root_ref_bytes(&mut store, row.blob(4).map_err(publish_err)?)?;
-    // 本对象只活在当前事务的新一代 append 内，不能携带到下一请求。
+    // 本能力对象只活在当前事务的新一代 append 内；Native 成功单位并入 owner 生涯证明（#1481:26）。
     store.request_verifier =
         Some(sc::CapturedRequestVerifier::new(capture, work).map_err(publish_err)?);
     store
