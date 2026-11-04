@@ -1,0 +1,21 @@
+# #1875: dispatch ci.yml on a branch as github-actions[bot] (a non-owner actor) to see how
+# Boat-labelled jobs behave for actors Boat does not allow. Lives only on hillclimb/actor-probe.
+name: hillclimb actor probe (#1875)
+on:
+  push:
+    branches: ['hillclimb/actor-probe']
+permissions:
+  actions: write
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dispatch ci.yml as github-actions[bot]
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref=$(cat .github/hillclimb-probe-ref)
+          echo "actor=${{ github.actor }} dispatching ci.yml on $ref"
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$ref"
