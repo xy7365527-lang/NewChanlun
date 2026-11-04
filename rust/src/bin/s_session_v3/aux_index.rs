@@ -2862,7 +2862,7 @@ mod tests {
                 assert_eq!(aux.raw_revisions, expected_facts.raw_revisions);
                 for (delta, expected) in [false, true].into_iter().zip(&expected_sets) {
                     let (members, template) =
-                        native_cut_members(&index, &mut reader, Layout::Sorted, 4, delta, &batch)
+                        native_cut_members(&index, &mut reader, objects.layout(), 4, delta, &batch)
                             .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     for (actual, expected) in members.iter().zip(&expected.0) {
                         assert_eq!(&actual[..], &expected[..]);

@@ -414,23 +414,26 @@ fn m8b_sql_deadline_cancel_and_one_byte_short_keep_first_typed_origin() {
                 Ok(())
             }
         };
-        let result = CodecWork::new(bank.clone(), 32 << 20).unwrap().run(|work| {
-            let mut reader = ManagedSqlStep::new(&mut tx, work, &gate)?;
-            if reason == "budget" {
-                bank.remaining.store(39, Ordering::SeqCst);
-            }
-            let error = reader
-                .checked_read_scoped(&root.digest().unwrap())
-                .err()
-                .unwrap();
-            if reason == "budget" {
-                assert_eq!(error.scratch_failure(), Some(ScratchFailure::Budget));
-                assert!(error.origin.is_some());
-            } else {
-                assert_eq!(error.code(), reason);
-                assert_eq!(reader.reads, 0);
-            }
-            Err::<(), _>(error)
+        // typed origin 只在 failure_trace::capture 根内出生（同 row_copy 测试）；无根时 origin 恒 None。
+        let (result, _trace) = capture_allocation::scratch::failure_trace::capture(|| {
+            CodecWork::new(bank.clone(), 32 << 20).unwrap().run(|work| {
+                let mut reader = ManagedSqlStep::new(&mut tx, work, &gate)?;
+                if reason == "budget" {
+                    bank.remaining.store(39, Ordering::SeqCst);
+                }
+                let error = reader
+                    .checked_read_scoped(&root.digest().unwrap())
+                    .err()
+                    .unwrap();
+                if reason == "budget" {
+                    assert_eq!(error.scratch_failure(), Some(ScratchFailure::Budget));
+                    assert!(error.origin.is_some());
+                } else {
+                    assert_eq!(error.code(), reason);
+                    assert_eq!(reader.reads, 0);
+                }
+                Err::<(), _>(error)
+            })
         });
         assert!(result.is_err());
         assert_eq!(bank.live.load(Ordering::SeqCst), 0);

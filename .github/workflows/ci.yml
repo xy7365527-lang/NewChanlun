@@ -375,8 +375,9 @@ jobs:
   #   四条 W2 冷锁各约 10–20 分钟为用户背景估计，本 run 未见其完成，故分别独占 0..3 片；
   #   其余（含 lib）排序轮转到 4..7，共取 8 片，仍须 CI 复验耗时。
   #   每片执行前核验全部清单并集/互斥；checkout/setup 重复，原 native 唯一测试步按片完整覆盖。
-  #   #1722（main f76fa318）给原 native 组 90 分钟；拆片后 family=native 的每片沿用同一 90 分钟上限，其余组仍 60。
-  #   family 字段只为让 timeout/if 用 matrix.x == 'v' 形式表达（推送前 gate 的 gen_jobs 只认此形式），GitHub 语义不变。
+  #   #1722（main f76fa318）给原 native 组 90 分钟；拆片后 native='1' 的每片沿用同一 90 分钟上限，其余组仍 60。
+  #   native 字段只为让 timeout/if 用 matrix.x == 'v' 形式表达（推送前 gate 的 gen_jobs 只认此形式），GitHub 语义不变；
+  #   取单字符值是因 gate 以矩阵值拼工作目录名，长值会让测试 socket 路径越过 100 字节上限。
   rust-test-s-session-extra-groups:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
@@ -385,39 +386,39 @@ jobs:
       matrix:
         include:
           - group: content
-            family: content
+            native: '0'
           - group: economic
-            family: economic
+            native: '0'
           - group: native-0
-            family: native
+            native: '1'
             shard: 0
           - group: native-1
-            family: native
+            native: '1'
             shard: 1
           - group: native-2
-            family: native
+            native: '1'
             shard: 2
           - group: native-3
-            family: native
+            native: '1'
             shard: 3
           - group: native-4
-            family: native
+            native: '1'
             shard: 4
           - group: native-5
-            family: native
+            native: '1'
             shard: 5
           - group: native-6
-            family: native
+            native: '1'
             shard: 6
           - group: native-7
-            family: native
+            native: '1'
             shard: 7
           - group: owned
-            family: owned
+            native: '0'
           - group: release-locks
-            family: release-locks
+            native: '0'
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.family == 'native' && 90 || 60 }}
+    timeout-minutes: ${{ matrix.native == '1' && 90 || 60 }}
     env:
       CARGO_INCREMENTAL: "0"
     defaults:
@@ -491,7 +492,7 @@ jobs:
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
       #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
       - name: cargo test — s_capture_native_testonly 特性新增的测试分片（#1394/#1419 M8C）
-        if: ${{ !cancelled() && matrix.family == 'native' }}
+        if: ${{ !cancelled() && matrix.native == '1' }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly ${{ matrix.shard }} 8
 
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
