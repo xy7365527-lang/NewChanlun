@@ -338,3 +338,28 @@ def test_credential_helper_respects_total_deadline(env, capsys, tmp_path):
 def test_key_echoed_by_upstream_error_is_redacted(env, capsys):
     code, report, out, _ = env(status={OPUS: 400}, echo_auth=True, capsys=capsys)
     assert code == 2 and KEY not in out and "<redacted>" in out
+
+
+def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
+    """真实 CLI 退出路径（os._exit）：docker 卡住、总时限先到时，探针目录与容器都要回收。"""
+    import subprocess
+    import sys
+    root, base, head = repo
+    bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
+    bin_dir.mkdir()
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nsleep 3\n')
+    (bin_dir / "docker").chmod(0o755)
+    codex = tmp_path / "codex"
+    codex.mkdir()
+    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nexperimental_bearer_token = "x"\n')
+    result = subprocess.run(
+        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
+         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",
+         "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
+         "--codex-home", str(codex), "--deadline", "0.5"],
+        capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
+    assert result.returncode == 2
+    assert [p.name for p in checkouts.iterdir()] == []
+    lines = calls.read_text().splitlines()
+    name = next(a.split()[a.split().index("--name") + 1] for a in lines if a.startswith("run "))
+    assert f"rm -f {name}" in lines

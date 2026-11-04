@@ -7,7 +7,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import uuid
@@ -23,6 +22,10 @@ CLIPROXY_HOME = Path.home() / "Library/Application Support/CLIProxyLocal"
 ROUTES = {"gpt-6.1-sol": ("codex", "chatgpt.com"), "claude-opus-5-5": ("claude", "api.anthropic.com")}
 PROBE_TIMEOUT = 45
 PROVIDER = "cliproxy-local"
+# 未回收的挂载探针（目录、容器名）。总时限到时由主线程在退出前回收，os._exit 不会跑 daemon 线程的 finally。
+_PENDING_CLEANUP: dict[str, tuple[Path, str]] = {}
+_CLEANUP_LOCK = threading.Lock()
+_DEADLINE_AT = float("inf")
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 
 
@@ -75,20 +78,48 @@ def check_space(args) -> dict:
             "detail": {"required_bytes": need, "per_snapshot_bytes": per, "snapshots": len(MODELS), "free_bytes": free}}
 
 
+def _reclaim(probe: Path, container: str) -> None:
+    subprocess.run(["docker", "rm", "-f", container], capture_output=True, timeout=10)
+    shutil.rmtree(probe, ignore_errors=True)
+
+
+def reclaim_pending() -> None:
+    with _CLEANUP_LOCK:
+        pending = list(_PENDING_CLEANUP.values())
+        _PENDING_CLEANUP.clear()
+    for probe, container in pending:
+        try:
+            _reclaim(probe, container)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+
 def check_mount(args) -> dict:
     """宿主写一次性 nonce，审阅镜像经同样的只读 bind 挂载 checkout_root 读回；读不到即容器看见的不是真实文件。"""
     root = Path(args.checkout_root)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    probe = Path(tempfile.mkdtemp(prefix="preflight-", dir=root))
     nonce = os.urandom(16).hex()
+    container = f"preflight-{nonce[:16]}"
+    probe = root / container
+    probe.mkdir(mode=0o700)
+    with _CLEANUP_LOCK:
+        _PENDING_CLEANUP[container] = (probe, container)
     try:
         (probe / "nonce").write_text(nonce)
-        command = ["docker", "run", "--rm", "--network", "none", "--read-only",
+        command = ["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
                    "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
                    "--entrypoint", "cat", args.image, f"/checkouts/{probe.name}/nonce"]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        try:
+            result = subprocess.run(command, capture_output=True, text=True,
+                                    timeout=max(1.0, min(30.0, _DEADLINE_AT - time.monotonic())))
+        except subprocess.TimeoutExpired:
+            _reclaim(probe, container)
+            raise
     finally:
-        shutil.rmtree(probe, ignore_errors=True)
+        with _CLEANUP_LOCK:
+            owned = _PENDING_CLEANUP.pop(container, None)
+        if owned:
+            shutil.rmtree(probe, ignore_errors=True)
     seen = result.stdout.strip()
     return {"name": "checkout_root_container_mount", "class": "mount", "ok": result.returncode == 0 and seen == nonce,
             "detail": {"checkout_root": str(root), "image": args.image, "docker_rc": result.returncode,
@@ -321,7 +352,9 @@ def main(argv=None) -> int:
                     help="宿主 Codex 配置目录；按其 model_providers.cliproxy-local 取 key")
     ap.add_argument("--deadline", type=float, default=55.0, help="总墙钟上限（秒），超时的检查判失败")
     args = ap.parse_args(argv)
+    global _DEADLINE_AT
     t0 = time.monotonic()
+    _DEADLINE_AT = t0 + args.deadline
     credential, key = check_credential(args, budget=args.deadline)
     # 键为该 job 超时或异常时上报的检查名与类别。
     jobs = {("checkout_root_free_space", "space"): lambda: [check_space(args)],
@@ -340,6 +373,7 @@ def main(argv=None) -> int:
         thread.start()
     for thread in threads.values():
         thread.join(max(0.0, args.deadline - (time.monotonic() - t0)))
+    reclaim_pending()
     checks = [credential]
     for name, kind in jobs:
         status, value = results.get((name, kind), ("timeout", None))
