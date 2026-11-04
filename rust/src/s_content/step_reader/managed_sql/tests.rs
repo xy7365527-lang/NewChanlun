@@ -29,7 +29,7 @@ impl Bank {
 impl ScratchParent for Bank {
     fn reserve(&self, bytes: usize, _kind: ScratchCharge) -> Result<u64, ScratchFailure> {
         self.remaining
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(bytes))
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(bytes))
             .map_err(|_| ScratchFailure::Budget)?;
         self.live.fetch_add(bytes, Ordering::SeqCst);
         let origin = self.origin();
@@ -93,6 +93,7 @@ fn m8b_sql_first_reachable_missing_corrupt_and_complete_reference() {
                 .1
                 .push(0);
         }
+        let stored_tag = nodes.nodes.get(&root.digest().unwrap()).map(|node| node.0);
         let mut conn = database(&nodes);
         let mut tx = conn.transaction().unwrap();
         let bank = Bank::new();
@@ -106,6 +107,7 @@ fn m8b_sql_first_reachable_missing_corrupt_and_complete_reference() {
                         let lease = result?;
                         assert_eq!(lease.reference.kind(), Kind::String);
                         assert_eq!(lease.mode, Mode::Public);
+                        assert_eq!(Some(lease.tag), stored_tag);
                         assert_eq!(lease.len(), 40);
                     }
                     1 => assert_eq!(result.err().unwrap().code(), code::NODE_MISSING),

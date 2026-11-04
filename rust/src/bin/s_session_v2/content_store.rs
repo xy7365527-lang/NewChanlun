@@ -3274,6 +3274,7 @@ mod capture_allocation_tests {
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[path = "content_store/m8b_production_diff.rs"]
 mod m8b_production_diff;
 
 // #1394 编译负例：闭包在两遍间写同事务的旧调用必须被类型边界拒绝。
