@@ -22,6 +22,7 @@ from .approval import SignedSpec, signed_spec
 from .boat_execution import (
     BoatExecution,
     BoatRun,
+    ExecutionUnknown,
     HistoricalLocal,
     RunExecution,
     new_execution,
@@ -747,6 +748,9 @@ class PilotRun:
                 if isinstance(fact, Terminal):
                     done[key] = fact.receipt
                 elif isinstance(fact, EffectUnknown):
+                    if self.execution is not None and not self._proven_terminal(key):
+                        self.trail("execution_unknown", key=key.name, reason=fact.reason)
+                        raise ExecutionUnknown(f"{key.name}：{fact.reason}")
                     self.trail("halted", key=key.name, reason=fact.reason)
                     raise Halted(f"{key.name}：{fact.reason}")
                 elif isinstance(fact, NotStarted):
@@ -766,6 +770,13 @@ class PilotRun:
             for child in self._children.values():
                 child.poll()
             time.sleep(2 if self.execution is None else 15)
+
+    def _proven_terminal(self, key: WorkerKey) -> bool:
+        assert self.execution is not None
+        try:
+            return self.execution.is_drained(key)
+        except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError):
+            return False
 
     @property
     def _label(self) -> str:

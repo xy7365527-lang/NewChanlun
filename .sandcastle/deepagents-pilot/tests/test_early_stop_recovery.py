@@ -13,14 +13,14 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from test_agent import call, scripted
 from test_boat import config
 from test_queue import SPEC, authorize, executor
-from v2env import TICKET
+from v2env import TICKET, SimulatedCrash
 
 from pilot1742 import agent as agent_module
-from pilot1742 import boat_execution, cli
+from pilot1742 import approval, boat_execution, cli
 from pilot1742 import run as run_module
 from pilot1742.boat_execution import ExecutionUnknown, ForkIntent, new_execution
-from pilot1742.domain import WorkerKey
-from pilot1742.executor import ApprovalRequired, load_unit, open_v2_run
+from pilot1742.domain import EffectUnknown, WorkerKey
+from pilot1742.executor import ApprovalRequired, load_unit, open_v2_run, release_claim
 from pilot1742.run import Halted, PilotRun
 
 SPEC_BODY = '# SPEC\ndeepagents-scope: demo/\n\n## 行为依据\n依据 EXECUTOR.md 与 BOAT.md。\n'
@@ -36,7 +36,7 @@ class ObservationsFailBoat:
     executable = 'boat'
 
     def __init__(self):
-        self.calls, self.hydrated = [], False
+        self.calls, self.hydrated, self.receipt, self.stopped = [], False, None, False
 
     def names(self, name):
         return [c for c in self.calls if c[0] == name]
@@ -44,10 +44,16 @@ class ObservationsFailBoat:
     def call(self, *args):
         name = 'detach' if args[0] == 'exec' and '--detach' in args else args[0]
         self.calls.append((name, *args[1:]))
+        if name == 'scp' and self.receipt is not None and args[1].endswith('/claim/receipt.json'):
+            Path(args[2]).write_text(json.dumps(self.receipt))
+        if name == 'stop':
+            self.stopped = True
+            return [{'operation': {'id': 'stop_fixture'}}]
         stop_at = (datetime.now(timezone.utc) + timedelta(seconds=1700)).isoformat().replace('+00:00', 'Z')
+        state = 'stopped' if self.stopped else 'running'
         return {'limits': [{'canStart': True, 'creditUsedSeconds': 0}], 'rename': [{}], 'scp': [],
                 'detach': [{'commandId': 'cmd_1', 'processId': 7}],
-                'info': [{'sandbox': {'state': 'running', 'hydrated': self.hydrated, 'archiveAfter': stop_at}}]}[name]
+                'info': [{'sandbox': {'state': state, 'hydrated': self.hydrated, 'archiveAfter': stop_at}}]}[name]
 
     def info(self, sandbox):
         return self.call('info', sandbox)[-1]['sandbox']
@@ -55,8 +61,13 @@ class ObservationsFailBoat:
     def exec(self, sandbox, command):
         self.calls.append(('exec', command))
         if ' observe ' in command:
-            raise ExecutionUnknown('远端观察失败（夹具）')
+            if self.receipt is None:
+                raise ExecutionUnknown('远端观察失败（夹具）')
+            return {'identity': self.receipt['identity'], 'package_id': self.receipt['package_id'], 'state': 'receipt'}
         return {}
+
+    def stage_receipt(self, receipt):
+        self.receipt = receipt
 
 
 class CountingFork:
@@ -224,12 +235,14 @@ def test_hydration_timeout_is_a_formal_stop_and_explicit_resume_forks_once(bench
     assert 'execution_unknown' in rows[TICKET]['reason']
 
     bench.boat.hydrated = True
-    bench.brain(AIMessage('作者工蜂远端观察失败，停下汇报。'))
+    bench.brain()
     explicit_resume(bench)
     assert len(bench.forks.intents) == 1, 'same key must reuse the forked VM'
     assert len(bench.boat.names('detach')) == 1 and bench.binding().submission == 'submitted'
     assert bench.binding().fork_intent.idempotency_key == bench.forks.intents[0]
-    assert bench.run.interrupt_requested()['by'] == 'brain_stopped_early'
+    stop = bench.run.interrupt_requested()
+    assert stop['by'] == 'execution_unknown' and '远端观察失败' in stop['reason'] and bench.graph()['interrupts']
+    assert 'halted' not in bench.trail()
 
 
 def test_legacy_early_stop_resumes_the_same_run_only_through_explicit_resume(bench):
@@ -259,10 +272,11 @@ def test_legacy_early_stop_resumes_the_same_run_only_through_explicit_resume(ben
     seen = []
     model = bench.brain(
         lambda messages: seen.append(messages) or call('read_file', file_path='/project/.sandcastle/deepagents-pilot/EXECUTOR.md'),
-        call('run_worker', role='author', brief='实现'), AIMessage('远端观察失败，停下。'))
+        call('run_worker', role='author', brief='实现'))
     explicit_resume(bench)
     run = bench.run
-    assert model.script == []
+    assert model.script == [] and run.interrupt_requested()['by'] == 'execution_unknown'
+    assert bench.graph()['interrupts']
     assert 'graph_resume_after_early_stop' in bench.trail()
     assert bench.forks.intents == [] and len(bench.boat.names('detach')) == 1
     assert bench.binding().sandbox_id == 'bx_worker' and bench.binding().fork_intent.idempotency_key == 'legacy-key'
@@ -560,3 +574,102 @@ def test_spec_resigned_between_publish_effects_stops_before_the_next_write(bench
     replay = run.publish_candidate()
     assert replay['ok'] is False and replay['reasons'] == ['review_spec_mismatch']
     assert publish_writes(bench, replay_before) == [], 'journal replay must re-check the review SPEC'
+
+
+def completed_author_receipt(bench):
+    binding, model = bench.binding(), str(bench.run.spec.author_model)
+    return {'identity': binding.identity, 'package_id': binding.package_id, 'state': 'terminal', 'exit_code': 0,
+            'files': [{'path': 'demo/a.py', 'mode': '100644', 'content': 'eA=='}],
+            'record': {'ticket': TICKET, 'status': 'completed', 'expected_head': bench.key.target_head,
+                       'model': model, 'actual_model': model, 'mode': 'execute', 'run_id': 'child',
+                       'process_exit': {'code': 0, 'signal': None},
+                       'checkout_after': {'head': bench.key.target_head, 'status': '?? demo/a.py'},
+                       'result': {'summary': '完成', 'findings': [], 'validation': []}}}
+
+
+def author_submitted_under_spec_a(bench):
+    bench.boat.hydrated = True
+    bench.brain(call('run_worker', role='author', brief='实现'))
+    drive_with_baseline_signature_support(bench.run, recheck_approval=False)
+    stop = bench.run.interrupt_requested()
+    assert bench.binding().submission == 'submitted' and len(bench.boat.names('detach')) == 1
+    assert stop['by'] == 'execution_unknown' and '远端观察失败' in stop['reason'] and bench.graph()['interrupts']
+    bench.boat.stage_receipt(completed_author_receipt(bench))
+
+
+def test_same_spec_receipt_is_collected_once_through_the_tool_chain(bench):
+    author_submitted_under_spec_a(bench)
+    bench.release()
+    bench.brain(AIMessage('作者完成'))
+    explicit_resume(bench)
+    run = bench.run
+    assert run.execution.load(bench.key).submission == 'collected' and run.interrupt_requested() is None
+    assert (Path(run.spec.author_checkout) / 'demo/a.py').read_text() == 'x'
+    first, again = run.commit_candidate(), run.commit_candidate()
+    assert first.commit == again.commit and [c.commit for c in run.facts().commits] == [first.commit]
+    assert len(bench.forks.intents) == 1 and len(bench.boat.names('detach')) == 1
+
+
+def test_older_spec_receipt_stops_formally_then_cancel_drains_for_the_next_generation(bench):
+    author_submitted_under_spec_a(bench)
+    approve_changed_spec(bench, SPEC_BODY + '\n必须新增业务要求 B。\n')
+    bench.brain()
+    explicit_resume(bench)
+    run, key = bench.run, bench.key
+    stop = run.interrupt_requested()
+    assert stop['by'] == 'execution_unknown' and '封包 SPEC' in stop['reason'] and bench.graph()['interrupts']
+    assert 'halted' not in bench.trail()
+    binding = bench.binding()
+    assert binding.submission == 'submitted' and binding.stop_confirmed and binding.key_erased
+    cache = run.dir / 'boat' / f'{key.name}.remote.json'
+    receipt = cache.read_bytes()
+    assert not (Path(run.spec.author_checkout) / 'demo/a.py').exists() and not run._key_dir(key).exists()
+    assert not run.execution.is_drained(key)
+    bench.release()
+    assert 'worker slot retained' in bench.intake._worker_activity({bench.dir})
+
+    owner = PilotRun.open(bench.v2.home, bench.unit.run_id, executor=executor(bench.v2, bench.cutover, bench.unit),
+                          launcher=FAKE, source_repo=bench.v2.source)
+    assert cli.cancel_worker(owner, 'author', key.target_head) == 0
+    abandoned = owner.execution.load(key)
+    assert abandoned.cancel_requested and abandoned.submission == 'submitted' and cache.read_bytes() == receipt
+    assert owner.execution.is_drained(key)
+    fact = owner.execution.observe(key)
+    assert isinstance(fact, EffectUnknown) and '废弃' in fact.reason and not owner._key_dir(key).exists()
+    assert owner.status()['workers'][key.name]['fact'] == 'effect_unknown' and owner.status()['verdicts'] == {}
+    assert bench.intake._worker_activity({bench.dir}) is None
+    owner.acquire()
+    try:
+        with pytest.raises(Halted, match='废弃'):
+            owner.run_worker('author', '旧回执不得复活')
+    finally:
+        owner.release()
+    record = release_claim(bench.intake.claims, TICKET, bench.unit.run_id, '旧 SPEC 产物已废弃，换代')
+    executor(bench.v2, bench.cutover, bench.unit)._previous_run_quiet(record)
+    assert cache.read_bytes() == receipt and not (Path(owner.spec.author_checkout) / 'demo/a.py').exists()
+
+
+def test_spec_freeze_interrupted_between_body_and_note_converges_on_the_next_approval(bench, monkeypatch):
+    note, body = bench.dir / f'spec/{SPEC}.json', bench.dir / f'spec/{SPEC}.md'
+    target_a = json.loads(note.read_text())['target']
+    replace_bytes = approval._replace_bytes
+
+    def killed_before_note(path, data):
+        if path == note:
+            raise SimulatedCrash('freeze')
+        return replace_bytes(path, data)
+
+    bench.release()
+    bench.v2.github.issues[SPEC]['body'] = SPEC_BODY + 'B\n'
+    with pytest.raises(ApprovalRequired):
+        bench.open()
+    bench.signer.publish(bench.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+    monkeypatch.setattr(approval, '_replace_bytes', killed_before_note)
+    with pytest.raises(SimulatedCrash):
+        bench.open()
+    monkeypatch.setattr(approval, '_replace_bytes', replace_bytes)
+    assert body.read_bytes() == (SPEC_BODY + 'B\n').encode() and json.loads(note.read_text())['target'] == target_a
+    approve_changed_spec(bench, SPEC_BODY)
+    run = bench.open()
+    spec = run.signed_spec()
+    assert spec.body == SPEC_BODY.encode() and spec.target == target_a and body.read_bytes() == SPEC_BODY.encode()

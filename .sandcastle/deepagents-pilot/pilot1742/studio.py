@@ -136,7 +136,8 @@ async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
         problem = continuation_problem(run, resume=bool(expect.get("resume")), checkpoint=expect.get("checkpoint"))
         if problem:
             raise ToolRefusal(problem)
-        run.clear_interrupt()
+        if expect.get("resume"):
+            run.clear_interrupt()
         run.trail("studio_official_run", thread_id=str(configurable.get("thread_id")))
         return build_agent(run, None, EXECUTION_MODEL)
 

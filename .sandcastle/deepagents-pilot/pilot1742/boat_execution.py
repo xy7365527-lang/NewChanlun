@@ -514,15 +514,21 @@ class BoatExecution(WorkerExecution):
         request = self.run.dir / "boat/packages" / binding.package_id / "request.json"
         return json.loads(request.read_text()).get("spec") if request.exists() else None
 
-    def _require_package_spec(self, binding: BoatBinding) -> None:
-        """封包所附的 SPEC 摘要必须就是当前签批目标；只在 dispatch 动作锁内调用，此时目标已在锁内重核。"""
+    def _package_spec_problem(self, binding: BoatBinding) -> str | None:
         if self.run.spec_issue is None:
-            return
+            return None
         spec = self.run.signed_spec()
         packaged = self.packaged_spec(binding)
         if spec is None or packaged != spec.target:
-            raise ExecutionUnknown(f"封包 SPEC {packaged} 与当前签批目标 {spec.target if spec else None} 不符；"
-                                   "保留原包、绑定与 VM，不派工也不收集，由主控处置")
+            return (f"封包 SPEC {packaged} 与当前签批目标 {spec.target if spec else None} 不符；"
+                    "保留原包、回执与绑定，不派工也不收集，经 cancel-worker 废弃后排空换代")
+        return None
+
+    def _require_package_spec(self, binding: BoatBinding) -> None:
+        """封包所附的 SPEC 摘要必须就是当前签批目标；只在 dispatch 动作锁内调用，此时目标已在锁内重核。"""
+        problem = self._package_spec_problem(binding)
+        if problem is not None:
+            raise ExecutionUnknown(problem)
 
     def _launch(self, key: WorkerKey, binding: BoatBinding) -> None:
         self._require_package_spec(binding)
@@ -544,6 +550,8 @@ class BoatExecution(WorkerExecution):
             return NotStarted()
         if binding.submission == "collected":
             return self._terminal(key)
+        if binding.cancel_requested:
+            return EffectUnknown("Boat工蜂已经取消废弃；回执保留，不收集、不重派，排空后换代")
         cache = self._path(key, ".remote.json")
         if not reconcile:
             return EffectUnknown("远端终态已取回，待控制端收集") if cache.exists() else Running()
@@ -586,8 +594,8 @@ class BoatExecution(WorkerExecution):
             # boat_remote 的监督失败/取消回执沿用 unknown，非零退出码才证明监督已终止。
             return receipt.get("state") == "unknown" and code != 0
         record = receipt["record"]
-        if (receipt.get("state") != "terminal" or not isinstance(record, dict)
-                or record.get("status") not in ("failed", "cancelled")):
+        statuses = ("failed", "cancelled", "completed") if binding.cancel_requested else ("failed", "cancelled")
+        if receipt.get("state") != "terminal" or not isinstance(record, dict) or record.get("status") not in statuses:
             return False
         process_exit = record.get("process_exit")
         return (isinstance(process_exit, dict) and type(process_exit.get("code")) is int
@@ -809,6 +817,14 @@ class BoatExecution(WorkerExecution):
                 if receipt.get("identity") != binding.identity or receipt.get("package_id") != binding.package_id:
                     raise ExecutionUnknown("取消回收前 Boat 回执身份或 package 不符")
                 self._reclaim(key, cast(BoatBinding, self.load(key)))
+                binding = cast(BoatBinding, self.load(key))
+                record = receipt.get("record")
+                problem = self._package_spec_problem(binding)
+                if (problem is not None and receipt.get("exit_code") == 0 and isinstance(record, dict)
+                        and record.get("status") == "completed"):
+                    self._store(key, replace(binding, cancel_requested=True))
+                    self.run.trail("boat_receipt_abandoned", key=key.name, reason=problem)
+                    return EffectUnknown("旧 SPEC 的完成回执已废弃：原回执保留，不收集、不记成功；排空后换代")
             except (ExecutionUnknown, ValueError, KeyError, TypeError, OSError) as error:
                 return EffectUnknown(str(error))
             # 取消不准把已撤销准入的产物导入 checkout；回执保留给原控制入口对账。

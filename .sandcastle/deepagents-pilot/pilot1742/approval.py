@@ -171,17 +171,19 @@ class SignedSpec:
 
 def freeze_signed_spec(run_dir: Path, spec_issue: int, body: bytes, decision: ApprovalDecision,
                        generation: int, now: datetime | None = None) -> None:
-    """只在动作锁内、判定 approved 之后调用；正文变化才替换。"""
+    """只在动作锁内、判定 approved 之后调用。"""
     if not isinstance(decision, Approved):
         return
     target = spec_target(spec_issue, body).encode()
     folder = run_dir / "spec"
     note = folder / f"{spec_issue}.json"
-    if note.exists() and json.loads(note.read_text()).get("target") == target:
+    body_path = folder / f"{spec_issue}.md"
+    if (note.exists() and json.loads(note.read_text()).get("target") == target and body_path.exists()
+            and spec_target(spec_issue, body_path.read_bytes()).encode() == target):
         return
     folder.mkdir(parents=True, exist_ok=True)
     request = json.loads((run_dir / "approvals" / f"{Scope.SPEC_AUTHORIZATION.value}.status.json").read_text())
-    _replace_bytes(folder / f"{spec_issue}.md", body)
+    _replace_bytes(body_path, body)
     _replace_bytes(note, (json.dumps({
         "spec_issue": spec_issue, "target": target, "claim_generation": generation,
         "request_nonce": request.get("request_nonce"),

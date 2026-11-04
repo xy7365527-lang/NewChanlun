@@ -70,7 +70,7 @@ python -m pilot1742.executor run --run-id ORIGINAL_RUN --private-key /absolute/a
 
 恢复前若 run 停在 `execution_unknown` 或 `brain_stopped_early` 停点，同一条 `--resume` 清除它并按 [人工停点](EXECUTOR.md#运行) 的条件继续；已有 `sandbox_id` 的绑定不再 fork。
 
-`EffectUnknown` 保留原身份和日志。不要换 run ID 规避未知副作用。
+`EffectUnknown` 保留原身份和日志。不要换 run ID 规避未知副作用。退出码缺失、输出截断、timeout、旧 generation、模型不符和 head 漂移都不能成为成功。
 
 ### 主控读到的冻结资料
 
@@ -78,8 +78,7 @@ python -m pilot1742.executor run --run-id ORIGINAL_RUN --private-key /absolute/a
 
 ### 旧 run 在新控制器上恢复
 
-`run.json` 的 `runtime_head` 冻结工蜂运行时：`boat_remote.py`、`boat-worker.mts` 等仍从该提交 `git show` 封包，`package_id` 不变。控制端代码来自部署检出。部署 HEAD 与 `runtime_head` 不同时，打开 run 会向 `runs/<run>/controller-upgrades.jsonl` 追加一条 `runtime_head`、`controller_head`、代次与时间，同一控制器头只记一次；`executor status` 的 `execution.controller_upgrades` 列出全部记录，工蜂 request 也记 `controller_head`。冻结身份不改写。
-退出码缺失、输出截断、timeout、旧 generation、模型不符和 head 漂移都不能成为成功。
+`run.json` 的 `runtime_head` 冻结工蜂运行时：`boat_remote.py`、`boat-worker.mts` 等仍从该提交 `git show` 封包，`package_id` 不变。控制端代码来自部署检出。部署 HEAD 与 `runtime_head` 不同时，打开 run 会向 `runs/<run>/controller-upgrades.jsonl` 追加一条 `runtime_head`、`controller_head`、代次与时间。只与上一条记录比较：控制器头连续不变时不重复记，A→B→A 会记三条。`executor status` 的 `execution.controller_upgrades` 列出全部记录，工蜂 request 也记 `controller_head`。冻结身份不改写。
 
 ## 取消
 
@@ -100,8 +99,9 @@ v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ...
 
 - 工蜂回执必须是 `terminal`，业务状态为 `failed` 或 `cancelled`，`record.process_exit.code` 也是明确整数且与退出码相同；允许两者为 0。进程正常退出后，写集检查等业务校验仍可能判为失败。
 - 监督器取消或非零退出的回执不含 `record`，沿用监督器的 `state=unknown` 格式；明确非零退出码与停止记录共同证明它已排空。只有 `unknown`、没有明确退出码仍不能排空。
+- 业务状态为 `completed` 的回执，只有在绑定已记 `cancel_requested` 时才算排空。`cancel-worker` 只在回执封包的 SPEC 不是当前签批目标时才记这个标志，回执原样保留，此后观察返回 `EffectUnknown`，不再收集，也不记成功。
 
-符合这些条件后，队列可用该槽处理其他票；已释放的原票可登记新 run，并在原票级锁内取得下一代次。缺少 key 删除证据、没有 `stop_id`、缺回执、身份不符、`process_exit=null`、运行中或退出不明时继续占槽。成功回执仍由原控制入口收集，不走失败排空路径。
+符合这些条件后，队列可用该槽处理其他票；已释放的原票可登记新 run，并在原票级锁内取得下一代次。缺少 key 删除证据、没有 `stop_id`、缺回执、身份不符、`process_exit=null`、运行中或退出不明时继续占槽。与当前签批同 SPEC 的成功回执仍由原控制入口收集，不走排空路径。
 
 旧绑定缺少 `key_erased=true` 时，即使已有停止确认和回执也继续占槽；须显式恢复同一 VM，再由原控制入口核实删除。旧绑定缺少 `stop_confirmed` 时，即使已有 `stop_id` 也继续占槽。已提交绑定由原控制入口对账补确认；已取消的准备阶段绑定须再次调用原 `cancel-worker` 入口，确认 VM 已停止后补记标志。这些入口不自动恢复 VM、续费或重派。
 
