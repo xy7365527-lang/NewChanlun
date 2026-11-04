@@ -588,9 +588,9 @@ def test_out_of_range_deadline_is_a_usage_error(value, capsys):
 
 
 @pytest.mark.parametrize("a, b, same", [
-    ("http://[::1]:8318/v1", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("http://[::1]:8318/v1", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092,DS137138 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     ("http://localhost:8318/v1/", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("http://LOCALHOST:8318/v1", "http://[::1]:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    ("http://LOCALHOST:8318/v1", "http://[::1]:8318/v1", True),  # DevSkim: ignore DS162092,DS137138 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     ("http://127.0.0.1:9/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     ("https://127.0.0.1:8318/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     ("http://127.0.0.1:8318/v2", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
