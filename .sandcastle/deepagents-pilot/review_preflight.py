@@ -448,6 +448,13 @@ def _timed(job) -> list[dict]:
     return checks
 
 
+def _deadline(text: str) -> float:
+    value = float(text)
+    if not 0 < value <= 60:  # 承诺单次墙钟 ≤60 秒；0 或负数只会让所有检查超时
+        raise argparse.ArgumentTypeError("必须满足 0 < deadline ≤ 60")
+    return value
+
+
 class _Parser(argparse.ArgumentParser):
     def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3。
         self.print_usage(sys.stderr)
@@ -468,7 +475,7 @@ def main(argv=None) -> int:
     ap.add_argument("--proxy-log-dir", default=str(CLIPROXY_HOME / "auth/logs"))
     ap.add_argument("--codex-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
                     help="宿主 Codex 配置目录；按其 model_providers.cliproxy-local 取 key")
-    ap.add_argument("--deadline", type=float, default=55.0, help="总墙钟上限（秒），超时的检查判失败")
+    ap.add_argument("--deadline", type=_deadline, default=55.0, help="总墙钟上限（秒，0 < x ≤ 60），超时的检查判失败")
     args = ap.parse_args(argv)
     global _DEADLINE_AT
     t0 = time.monotonic()

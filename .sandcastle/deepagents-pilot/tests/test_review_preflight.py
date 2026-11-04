@@ -571,3 +571,11 @@ def test_probe_dir_that_cannot_be_deleted_is_reported(env, capsys, tmp_path, mon
     for leftover in (tmp_path / "checkouts").iterdir():
         (leftover / "nonce").unlink(missing_ok=True)
         leftover.rmdir()
+
+
+@pytest.mark.parametrize("value", ["0", "-5", "61", "1e9", "nan"])
+def test_out_of_range_deadline_is_a_usage_error(value, capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        preflight.main(["--source", ".", "--base", "a", "--head", "b", "--merge-base", "a", "--checkout-root", ".",
+                        "--deadline", value])
+    assert exit_info.value.code == 3
