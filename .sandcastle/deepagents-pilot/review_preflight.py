@@ -26,12 +26,18 @@ PROVIDER = "cliproxy-local"
 _PENDING_CLEANUP: dict[str, dict] = {}  # 容器名 -> {"probe": Path, "proc": Popen | None}
 _CLEANUP_LOCK = threading.Lock()
 _DEADLINE_AT = float("inf")
+_TOTAL_END = float("inf")  # 总时限（含回收预留）的绝对时刻
+_CLOSING = False  # 主线程开始回收后置位；之后不再建探针、不再起容器（在 _CLEANUP_LOCK 下读写）
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 
 def _remaining() -> float:
     return max(0.0, _DEADLINE_AT - time.monotonic())
+
+
+def _total_left() -> float:
+    return max(0.0, _TOTAL_END - time.monotonic())
 
 
 class SourceError(RuntimeError):
@@ -163,10 +169,12 @@ def _reclaim(entry: dict, container: str, budget: float) -> str | None:
     proc = entry.get("proc")
     if proc is not None and proc.poll() is None:
         proc.kill()
-        try:
-            proc.wait(timeout=max(0.01, min(1.0, end - time.monotonic())))
-        except subprocess.TimeoutExpired:
-            pass
+        left = min(1.0, end - time.monotonic())
+        if left > 0:
+            try:
+                proc.wait(timeout=left)
+            except subprocess.TimeoutExpired:
+                pass
     error = None
     try:
         if end - time.monotonic() <= 0:
@@ -178,9 +186,10 @@ def _reclaim(entry: dict, container: str, budget: float) -> str | None:
             except (OSError, subprocess.TimeoutExpired) as exc:
                 error = f"docker rm -f {container} {type(exc).__name__}"
             if error is None:
-                present = _container_present(container, max(0.01, end - time.monotonic()))
+                left = end - time.monotonic()
+                present = _container_present(container, left) if left > 0 else None
                 if present is not False:
-                    error = f"容器 {container} {'仍存在' if present else '状态无法确认'}"
+                    error = f"容器 {container} {'仍存在' if present else '状态无法确认（回收预算耗尽）' if left <= 0 else '状态无法确认'}"
     finally:
         shutil.rmtree(entry["probe"], ignore_errors=True)
     try:
@@ -194,8 +203,10 @@ def _reclaim(entry: dict, container: str, budget: float) -> str | None:
 
 def reclaim_pending(budget: float) -> list[str]:
     """总时限到时回收仍登记的探针，耗时不超过 budget（留在总时限之内）。"""
+    global _CLOSING
     end = time.monotonic() + budget
     with _CLEANUP_LOCK:
+        _CLOSING = True  # 此后 check_mount 不再登记、建目录或起容器
         pending = list(_PENDING_CLEANUP.items())
         _PENDING_CLEANUP.clear()
     failures = []
@@ -215,27 +226,30 @@ def check_mount(args) -> dict:
     container = f"preflight-{nonce[:16]}"
     probe = root / container
     entry = {"probe": probe, "proc": None}
-    with _CLEANUP_LOCK:  # 先登记再建目录：任何时刻退出都能由主线程回收
-        _PENDING_CLEANUP[container] = entry
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    probe.mkdir(mode=0o700)
-    (probe / "nonce").write_text(nonce)
     command = ["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
                "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
                "--entrypoint", "cat", args.image, f"/checkouts/{probe.name}/nonce"]
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    entry["proc"] = proc
+    # 登记、建目录、起容器、发布进程句柄在同一把锁内完成，并以 closing 为准：
+    # 主线程一旦开始回收，这里要么已整体登记可被回收，要么根本不建任何东西（独审六）。
+    with _CLEANUP_LOCK:
+        if _CLOSING or _remaining() <= 0:
+            raise TimeoutError("总时限已到，未启动挂载探针")
+        _PENDING_CLEANUP[container] = entry
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        probe.mkdir(mode=0o700)
+        (probe / "nonce").write_text(nonce)
+        entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        out, err = proc.communicate(timeout=max(0.01, min(30.0, _remaining())))
+        out, err = proc.communicate(timeout=min(30.0, _remaining()) or 0.001)
     except subprocess.TimeoutExpired:
-        error = _reclaim(entry, container, min(3.0, max(0.5, _remaining())))
+        error = _reclaim(entry, container, min(3.0, _total_left()))
         if error is None:
             with _CLEANUP_LOCK:
                 _PENDING_CLEANUP.pop(container, None)
         raise TimeoutError(f"docker run 超时{'；' + error if error else ''}") from None
     # 非 0 退出时容器可能已建但未启动，--rm 不会清理：一并 rm -f
     if proc.returncode != 0:
-        error = _reclaim(entry, container, min(3.0, max(0.5, _remaining())))
+        error = _reclaim(entry, container, min(3.0, _total_left()))
     else:
         shutil.rmtree(probe, ignore_errors=True)
         error = None if not probe.exists() else f"探针目录 {probe} 未删净"
@@ -411,10 +425,8 @@ def sanitize(value, secrets, limit: int = 500):
 
 
 def _round_trip(url: str, key: str, model: str, session: str) -> dict:
-    trip = _round_trip_raw(url, key, model, session)
-    if trip.get("error"):
-        trip["error"] = redact(trip["error"], key, 300)  # 先脱敏再截断，key 跨截断点也不留前缀
-    return trip
+    # 不在这里按单把 key 脱敏或截断：两把 key 互为子串时会互相拆坏。统一由报告出门前的 sanitize 用完整 secret 集合处理（独审六）。
+    return _round_trip_raw(url, key, model, session)
 
 
 def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
@@ -560,6 +572,8 @@ def probe_model(args, model: str, key: str | None) -> list[dict]:
     if key is None:
         return [{"name": f"roundtrip:{model}", "class": "roundtrip", "ok": False,
                  "detail": "provider 凭据不可用，未发探测"}]
+    if _remaining() <= 0:
+        return [{"name": f"roundtrip:{model}", "class": "roundtrip", "ok": False, "detail": "总时限已到，未发探测"}]
     session = f"preflight-{uuid.uuid4()}"
     since = time.time()
     trip = _round_trip(args.proxy_url, key, model, session)
@@ -644,7 +658,12 @@ def main(argv=None) -> int:
 def _run(args, t0: float, secrets: list) -> int:
     global _DEADLINE_AT
     reserve = min(3.0, args.deadline / 2)  # 回收探针的预算留在总时限之内
+    global _TOTAL_END, _CLOSING
+    with _CLEANUP_LOCK:  # 同一进程内多次调用 main()（测试）时重置回收状态
+        _CLOSING = False
+        _PENDING_CLEANUP.clear()
     _DEADLINE_AT = t0 + args.deadline - reserve
+    _TOTAL_END = t0 + args.deadline
     remaining = lambda: max(0.0, _DEADLINE_AT - time.monotonic())  # noqa: E731  凭据各阶段共用同一截止时间
     credential, host_key = check_credential(args, budget=remaining())
     credential["name"] = "credential:codex-host"

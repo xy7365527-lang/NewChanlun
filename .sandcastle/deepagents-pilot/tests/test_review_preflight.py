@@ -13,7 +13,7 @@ from pilot1742 import external_review
 from pilot1742.github_app import IdentityError
 
 KEY = "local-test-key-must-not-leak"
-OTHER_VALID = "second-accepted-client-key"
+OTHER_VALID = f"outer-{KEY}-tail"  # 含 KEY：两把 key 互为子串（独审六·1）
 SOL, OPUS = "gpt-6.1-sol", "claude-opus-5-5"
 OFFICIAL = {SOL: ("codex", "https://chatgpt.com/backend-api/codex/responses"),
             OPUS: ("claude", "https://api.anthropic.com/v1/messages")}
@@ -379,7 +379,7 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
     root, base, head = repo
     bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
     bin_dir.mkdir()
-    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nsleep 5\n')
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\n[ "$1" = ps ] && exit 0\nsleep 30\n')
     (bin_dir / "docker").chmod(0o755)
     (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")  # 不碰本机真实 launchctl
     (bin_dir / "launchctl").chmod(0o755)
@@ -390,11 +390,11 @@ def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
         [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
          "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
          "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
-         "--codex-home", str(codex), "--deadline", "2"],
+         "--codex-home", str(codex), "--deadline", "4"],
         capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
-    assert result.returncode == 2
-    assert [p.name for p in checkouts.iterdir()] == []
     lines = calls.read_text().splitlines()
+    assert result.returncode == 2 and any(line.startswith("run ") for line in lines)  # 确实走到了时限内起容器的路径
+    assert [p.name for p in checkouts.iterdir()] == []
     name = next(a.split()[a.split().index("--name") + 1] for a in lines if a.startswith("run "))
     assert f"rm -f {name}" in lines
 
@@ -527,7 +527,7 @@ def test_cleanup_stays_within_deadline_and_reports_failure(tmp_path, repo):
     root, base, head = repo
     bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
     bin_dir.mkdir()
-    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\nsleep 5\n')
+    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\nsleep 30\n')
     (bin_dir / "docker").chmod(0o755)
     (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")
     (bin_dir / "launchctl").chmod(0o755)
@@ -539,11 +539,12 @@ def test_cleanup_stays_within_deadline_and_reports_failure(tmp_path, repo):
         [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
          "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
          "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
-         "--codex-home", str(codex), "--deadline", "1.0"],
+         "--codex-home", str(codex), "--deadline", "4"],
         capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
     elapsed = time.monotonic() - start
     report = json.loads(result.stdout)
-    assert result.returncode == 2 and elapsed < 1.6
+    assert result.returncode == 2 and elapsed < 4.6
+    assert any(line.startswith("run ") for line in calls.read_text().splitlines())
     assert [p.name for p in checkouts.iterdir()] == []
     assert "probe_cleanup" in {c["name"] for c in report["checks"] if not c["ok"]}
 
@@ -755,3 +756,50 @@ def test_failed_docker_run_container_is_removed(env, capsys, tmp_path):
     code, report, *_ = env(capsys=capsys)
     assert code == 2 and any(line.startswith("rm -f preflight-") for line in calls.read_text().splitlines())
     assert "probe_cleanup" not in failing(report)
+
+
+# ---------------- 独审六 反例 ----------------
+
+def test_nested_keys_echoed_by_upstream_never_split_each_other(env, capsys, tmp_path, monkeypatch):
+    """独审六·1：本次请求用短 key（宿主），错误正文却回显长 key（worker）；只按本次 key 先脱敏会把长 key 拆开。"""
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", OTHER_VALID)  # worker：长 key，含宿主 key
+    body = lambda auth: json.dumps({"error": {"message": f"other credential {OTHER_VALID} rejected"}})  # noqa: E731
+    code, report, out, _ = env(status={SOL: 400}, error_body=body, capsys=capsys)  # Sol 用宿主短 key=KEY
+    assert code == 2 and KEY not in out and "outer-" not in out and "-tail" not in out
+
+
+def test_mount_probe_creates_nothing_once_reclaim_has_started(tmp_path, monkeypatch):
+    """回收开始（closing）之后，挂载探针不再登记、建目录或起容器。"""
+    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 30)
+    monkeypatch.setattr(preflight, "_CLOSING", True)
+    popen_calls = []
+    monkeypatch.setattr(preflight.subprocess, "Popen", lambda *a, **k: popen_calls.append(a))
+    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
+    with pytest.raises(TimeoutError):
+        preflight.check_mount(args)
+    assert popen_calls == [] and not (tmp_path / "chk").exists() and preflight._PENDING_CLEANUP == {}
+
+
+def test_no_probe_is_sent_after_the_work_deadline(env, capsys, monkeypatch):
+    monkeypatch.setattr(preflight, "_remaining", lambda: 0.0)
+    args = type("A", (), {"proxy_url": "http://localhost:9"})()  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    checks = preflight.probe_model(args, SOL, KEY)
+    assert [c["name"] for c in checks] == [f"roundtrip:{SOL}"] and "未发探测" in checks[0]["detail"]
+
+
+def test_reclaim_stops_once_rm_has_used_up_the_budget(tmp_path, monkeypatch):
+    """独审六·4：rm 用完回收预算后不能再以最小超时起 ps。"""
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd[1])
+        time.sleep(0.08)  # 比预算长：rm 结束时预算已耗尽
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(preflight.subprocess, "run", fake_run)
+    probe = tmp_path / "preflight-x"
+    probe.mkdir()
+    start = time.monotonic()
+    error = preflight._reclaim({"probe": probe, "proc": None}, "preflight-x", 0.05)
+    assert calls == ["rm"] and "预算耗尽" in error and not probe.exists()
+    assert time.monotonic() - start < 0.12
