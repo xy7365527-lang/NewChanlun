@@ -17,7 +17,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 - 三个 SHA 与 attempt 的 target 相同；`--source` 是 controller 读候选对象的仓库。
 - 其余参数有默认值：`--image sandcastle:newchanlun`、`--proxy-config ~/Library/Application Support/CLIProxyLocal/config.yaml`（只读）、`--proxy-url http://127.0.0.1:8318`、`--proxy-log-dir ~/Library/Application Support/CLIProxyLocal/auth/logs`、`--codex-home $CODEX_HOME 或 ~/.codex`、`--deadline 55`。
 
-退出码：`0` 可以启动；`2` 拦截（看 `checks` 里 `ok:false` 的项）；`3` 用法错误。标准输出是一行 JSON 报告；并发执行的检查（空间、挂载、两家探测）带 `elapsed_s`，两项凭据检查在它们之前串行完成。
+退出码：`0` 可以启动；`2` 拦截（看 `checks` 里 `ok:false` 的项）；`3` 用法错误。任何退出路径（含用法错误与 `--help`）stdout 都是一行 ASCII JSON；并发执行的检查（空间、挂载、两家探测）带 `elapsed_s`，两项凭据检查在它们之前串行完成。上游错误正文不进报告，只给 HTTP 状态、终态、固定词表分类（如 `tool_choice_unsupported`、`quota`、`auth`）、长度与 sha256 前 12 位，以免回显的 key 经各种转义漏出。
 
 ## 检查什么
 
@@ -39,7 +39,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 
 - 预检是某一时刻的快照。CLIProxy 是 fill-first + 会话亲和，正式 attempt 的新会话仍可能在几秒后被选到别的凭据；路由的根治在共享 proxy 配置（当前已用 `oauth-excluded-models.antigravity` 排除两个 Claude 模型），预检只负责发现回归。
 - JSON 围栏类失败需要真实模型完整输出才能复现，预检不覆盖。
-- 双快照阈值约 5.20GB（随 PR 变化）。空间不足时报告会附 `vm_deleted_open_bytes`：colima/lima 的 VM 进程仍打开着的已删除文件字节数（2026-11-05 实测 142.67GB，是 HOME 耗尽的主因）。这部分要先停掉 VM 里的容器再重启 colima 才能回收；colima 是共用的，重启前确认其他线程没有在跑的容器。
+- 双快照阈值约 5.20GB（随 PR 变化）。空间不足时报告附 `vm_deleted_open_bytes`：colima/lima 的 VM 进程自身仍打开着的已删除文件字节数（`lsof -a +L1 -p <VM pid>`；2026-11-05 实测约 11GB。不加 `-a` 会把全系统其它进程的已删除文件也算进来，曾误报为 142GB）。这部分要先停掉 VM 里的容器再重启 colima 才能回收；colima 是共用的，重启前确认其他线程没有在跑的容器。
 
 ## 测量
 

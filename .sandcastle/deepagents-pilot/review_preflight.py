@@ -28,6 +28,14 @@ _CLEANUP_LOCK = threading.Lock()
 _DEADLINE_AT = float("inf")
 _TOTAL_END = float("inf")  # 总时限（含回收预留）的绝对时刻
 _CLOSING = False  # 主线程开始回收后置位；之后不再建探针、不再起容器（在 _CLEANUP_LOCK 下读写）
+_CLEANUP_FAILURES: list[str] = []  # 任一线程回收失败都记在这里，主线程汇总成 probe_cleanup
+_RECLAIMING: set[str] = set()  # 已被探针线程认领、正在回收的容器；主线程退出前限时等它们做完
+_RECLAIM_DONE = threading.Condition(_CLEANUP_LOCK)
+# 上游错误只按固定词表分类，不把原文抄进报告（原文可能回显 key，且转义形态无法穷举）
+ERROR_CLASSES = (("tool_choice", "tool_choice_unsupported"), ("预扣额度", "quota"), ("quota", "quota"),
+                 ("insufficient", "quota"), ("invalid api key", "auth"), ("invalid bearer", "auth"), ("unauthorized", "auth"),
+                 ("authentication", "auth"), ("rate limit", "rate_limit"), ("overloaded", "overloaded"),
+                 ("model_not_found", "model_not_found"), ("not supported", "unsupported"))
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 
@@ -134,7 +142,8 @@ def vm_deleted_open_bytes() -> dict:
     held, files = 0, 0
     for pid in pids:
         try:
-            out = subprocess.run(["lsof", "-nP", "+L1", "-p", pid, "-Fsin"], capture_output=True, text=True,
+            # -a：选择条件取交集。缺了它 lsof 会把其它进程的已删除文件也算进来（实测 144GB vs VM 自身 11GB）
+            out = subprocess.run(["lsof", "-nP", "-a", "+L1", "-p", pid, "-Fsin"], capture_output=True, text=True,
                                  timeout=max(0.01, min(10.0, _remaining()))).stdout
         except (OSError, subprocess.TimeoutExpired):
             continue
@@ -154,6 +163,38 @@ def vm_deleted_open_bytes() -> dict:
             "hint": "VM 进程仍持有已删除文件；先停掉其中运行的容器，再重启 colima 才能回收这部分空间"}
 
 
+def _bounded(fn, timeout: float):
+    """在守护线程里跑可能卡住的文件系统操作，最多等 timeout 秒；超时返回 (False, None)，主线程不被拖住。"""
+    box: dict = {}
+
+    def run() -> None:
+        try:
+            box["value"] = fn()
+        except OSError as error:
+            box["error"] = error
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(max(0.0, timeout))
+    if worker.is_alive():
+        return False, None
+    return True, box.get("value", box.get("error"))
+
+
+def _remove_probe_dir(probe: Path, timeout: float) -> str | None:
+    """限时删除探针目录并确认已不存在；超时或删不净都返回失败说明。"""
+    def remove() -> bool:
+        shutil.rmtree(probe, ignore_errors=True)
+        return probe.exists()
+
+    done, leftover = _bounded(remove, timeout)
+    if not done:
+        return f"探针目录 {probe} 删除在时限内未完成"
+    if leftover is not False:
+        return f"探针目录 {probe} 未删净"
+    return None
+
+
 def _container_present(container: str, timeout: float) -> bool | None:
     try:
         result = subprocess.run(["docker", "ps", "-aq", "--filter", f"name=^/{container}$"], capture_output=True,
@@ -164,45 +205,74 @@ def _container_present(container: str, timeout: float) -> bool | None:
 
 
 def _reclaim(entry: dict, container: str, budget: float) -> str | None:
-    """回收一个挂载探针：先杀掉在途的 docker run，再 rm -f 并确认容器已不存在；目录总会删。返回失败说明。"""
+    """回收一个挂载探针：先杀掉 docker run 的整个进程组，再 rm -f 并确认容器已不存在；目录总会删。返回失败说明。"""
+    import signal
+
     end = time.monotonic() + budget
+    errors = []
     proc = entry.get("proc")
     if proc is not None and proc.poll() is None:
-        proc.kill()
+        try:
+            if proc.pid <= 1:
+                raise ProcessLookupError(proc.pid)
+            os.killpg(proc.pid, signal.SIGKILL)  # start_new_session=True：包装脚本派生的子进程一并结束
+        except (OSError, ProcessLookupError):
+            proc.kill()
         left = min(1.0, end - time.monotonic())
         if left > 0:
             try:
                 proc.wait(timeout=left)
             except subprocess.TimeoutExpired:
                 pass
-    error = None
-    try:
-        if end - time.monotonic() <= 0:
-            error = f"回收预算耗尽，未能确认容器 {container} 已删除"
+        if proc.poll() is None:
+            errors.append(f"docker run 进程未退出，容器 {container} 可能仍会被创建")
+    # 先删宿主侧探针目录：不依赖容器是否已删（容器只读挂载它）；限时执行，文件系统卡住也不拖过总时限
+    dir_error = _remove_probe_dir(entry["probe"], max(0.0, min(1.0, end - time.monotonic())))
+    if end - time.monotonic() <= 0:
+        errors.append(f"回收预算耗尽，未能确认容器 {container} 已删除")
+    else:
+        try:
+            subprocess.run(["docker", "rm", "-f", container], capture_output=True, text=True,
+                           timeout=end - time.monotonic())
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            errors.append(f"docker rm -f {container} {type(exc).__name__}")
         else:
-            try:
-                subprocess.run(["docker", "rm", "-f", container], capture_output=True, text=True,
-                               timeout=end - time.monotonic())
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                error = f"docker rm -f {container} {type(exc).__name__}"
-            if error is None:
-                left = end - time.monotonic()
-                present = _container_present(container, left) if left > 0 else None
+            left = end - time.monotonic()
+            if left <= 0:
+                errors.append(f"回收预算耗尽，未能确认容器 {container} 已删除")
+            else:
+                present = _container_present(container, left)
                 if present is not False:
-                    error = f"容器 {container} {'仍存在' if present else '状态无法确认（回收预算耗尽）' if left <= 0 else '状态无法确认'}"
-    finally:
-        shutil.rmtree(entry["probe"], ignore_errors=True)
-    try:
-        leftover = entry["probe"].exists()
-    except OSError:
-        leftover = True
-    if leftover:
-        error = f"{error + '；' if error else ''}探针目录 {entry['probe']} 未删净"
-    return error
+                    errors.append(f"容器 {container} {'仍存在' if present else '状态无法确认'}")
+    if dir_error:
+        errors.append(dir_error)
+    return "；".join(errors) or None
+
+
+def _claim(container: str) -> dict | None:
+    """回收所有权：谁从登记里取走条目，谁负责回收；同一探针只会被回收一次（独审·gemini2）。
+    认领后记入 _RECLAIMING，做完调用 _release；主线程退出前会限时等这些在途回收结束。"""
+    with _CLEANUP_LOCK:
+        entry = _PENDING_CLEANUP.pop(container, None)
+        if entry is not None:
+            _RECLAIMING.add(container)
+        return entry
+
+
+def _release(container: str) -> None:
+    with _CLEANUP_LOCK:
+        _RECLAIMING.discard(container)
+        _RECLAIM_DONE.notify_all()
+
+
+def _record_failure(error: str | None) -> None:
+    if error:
+        with _CLEANUP_LOCK:
+            _CLEANUP_FAILURES.append(error)
 
 
 def reclaim_pending(budget: float) -> list[str]:
-    """总时限到时回收仍登记的探针，耗时不超过 budget（留在总时限之内）。"""
+    """总时限到时回收仍登记的探针，耗时不超过 budget（留在总时限之内）。返回本次与此前登记的全部回收失败。"""
     global _CLOSING
     end = time.monotonic() + budget
     # 限时取锁：探针线程可能正持锁做文件 I/O 或起容器；等不到就如实报告，不让主线程越过总时限（独审七）
@@ -214,12 +284,18 @@ def reclaim_pending(budget: float) -> list[str]:
         _PENDING_CLEANUP.clear()
     finally:
         _CLEANUP_LOCK.release()
-    failures = []
     for container, entry in pending:
-        error = _reclaim(entry, container, max(0.0, end - time.monotonic()))
-        if error:
-            failures.append(error)
-    return failures
+        _record_failure(_reclaim(entry, container, max(0.0, end - time.monotonic())))
+    # 探针线程已认领、仍在回收的条目：限时等它们做完，避免 os._exit 把回收掐在半路
+    if not _CLEANUP_LOCK.acquire(timeout=max(0.0, end - time.monotonic())):
+        return ["回收锁在时限内未取得：在途回收未能确认"]
+    try:
+        _RECLAIM_DONE.wait_for(lambda: not _RECLAIMING, timeout=max(0.0, end - time.monotonic()))
+        failures = list(_CLEANUP_FAILURES)
+        failures += [f"容器 {c} 的回收在时限内未完成，探针目录或容器可能遗留" for c in sorted(_RECLAIMING)]
+        return failures
+    finally:
+        _CLEANUP_LOCK.release()
 
 
 def check_mount(args) -> dict:
@@ -241,30 +317,42 @@ def check_mount(args) -> dict:
         if _CLOSING or _remaining() <= 0:
             raise TimeoutError("总时限已到，未启动挂载探针")
         _PENDING_CLEANUP[container] = entry
-        probe.mkdir(mode=0o700)
-        (probe / "nonce").write_text(nonce)
-        entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            probe.mkdir(mode=0o700)
+            (probe / "nonce").write_text(nonce)
+        except OSError:
+            _PENDING_CLEANUP.pop(container, None)  # 没建成就不登记，免得误报“未删净”
+            shutil.rmtree(probe, ignore_errors=True)
+            raise
+        if _CLOSING or _remaining() <= 0:  # 慢 I/O 后再查一次：时限已过就不起容器
+            _PENDING_CLEANUP.pop(container, None)
+            shutil.rmtree(probe, ignore_errors=True)
+            raise TimeoutError("总时限已到，未启动挂载容器")
+        entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                                start_new_session=True)
     try:
         out, err = proc.communicate(timeout=min(30.0, _remaining()) or 0.001)
     except subprocess.TimeoutExpired:
-        error = _reclaim(entry, container, min(3.0, _total_left()))
-        if error is None:
-            with _CLEANUP_LOCK:
-                _PENDING_CLEANUP.pop(container, None)
-        raise TimeoutError(f"docker run 超时{'；' + error if error else ''}") from None
-    # 非 0 退出时容器可能已建但未启动，--rm 不会清理：一并 rm -f
-    if proc.returncode != 0:
-        error = _reclaim(entry, container, min(3.0, _total_left()))
-    else:
-        shutil.rmtree(probe, ignore_errors=True)
-        error = None if not probe.exists() else f"探针目录 {probe} 未删净"
-    if error is None:  # 确认回收成功后才注销登记，否则留给主线程回收并报告
-        with _CLEANUP_LOCK:
-            _PENDING_CLEANUP.pop(container, None)
+        owned = _claim(container)
+        if owned is not None:
+            try:
+                _record_failure(_reclaim(owned, container, min(3.0, max(0.0, _total_left() - 0.1))))
+            finally:
+                _release(container)
+        raise TimeoutError("docker run 超时") from None
+    owned = _claim(container)
+    if owned is not None:
+        try:
+            if proc.returncode != 0:  # 容器可能已建但未启动，--rm 不会清理：一并 rm -f
+                _record_failure(_reclaim(owned, container, min(3.0, max(0.0, _total_left() - 0.1))))
+            else:
+                _record_failure(_remove_probe_dir(probe, min(1.0, max(0.0, _total_left() - 0.1))))
+        finally:
+            _release(container)
     seen = out.strip()
     return {"name": "checkout_root_container_mount", "class": "mount", "ok": proc.returncode == 0 and seen == nonce,
             "detail": {"checkout_root": str(root), "image": args.image, "docker_rc": proc.returncode,
-                       "nonce_match": seen == nonce, "stderr": err.strip()[-2000:]}}
+                       "nonce_match": seen == nonce, "stderr": err.strip()}}
 
 
 class CredentialError(RuntimeError):
@@ -272,14 +360,14 @@ class CredentialError(RuntimeError):
 
 
 def _clean_key(value, source: str) -> str:
-    """去掉首尾空白；中间仍有空白或控制字符的 key 不能放进 HTTP 头，按凭据无效处理（不回显值）。"""
+    """去掉首尾空白；只接受可见 ASCII（0x21–0x7E）且至少 8 个字符的 key（HTTP 头安全，脱敏可靠）。不回显值。"""
     if not isinstance(value, str):
         raise CredentialError(f"{source} 的 key 不是字符串")
     key = value.strip()
     if not key:
         raise CredentialError(f"{source} 的 key 为空")
-    if any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in key):
-        raise CredentialError(f"{source} 的 key 含空白或控制字符")
+    if len(key) < 8 or any(not 0x21 <= ord(ch) <= 0x7E for ch in key):
+        raise CredentialError(f"{source} 的 key 含非可见 ASCII 字符或少于 8 个字符")
     return key
 
 
@@ -290,6 +378,8 @@ def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | Non
     entry = providers.get(provider) if isinstance(providers, dict) else None
     if not isinstance(entry, dict):
         raise CredentialError(f"{codex_home}/config.toml 没有 model_providers.{provider}")
+    if entry.get("base_url") is not None and not isinstance(entry.get("base_url"), str):
+        raise CredentialError(f"model_providers.{provider}.base_url 不是字符串")
     env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
     auth = entry.get("auth")
     if isinstance(auth, dict) and auth.get("command"):
@@ -402,7 +492,7 @@ def _secret_forms(secrets) -> list[str]:
 
 
 def redact(text: str, secrets, limit: int | None = None) -> str:
-    """抹掉 key 的各种形态（原文、JSON/repr 转义），长者优先；再截断，并清掉截断处残留的 key 前缀。"""
+    """抹掉 key 的各种形态（原文、JSON/repr 转义），长者优先；再截断，并清掉两端残留的 key 片段（防御纵深）。"""
     if isinstance(secrets, str) or secrets is None:
         secrets = [secrets]
     forms = _secret_forms(secrets)
@@ -410,11 +500,12 @@ def redact(text: str, secrets, limit: int | None = None) -> str:
         text = text.replace(form, "<redacted>")
     if limit is not None and len(text) > limit:
         text = text[:limit]
-    for form in forms:  # 截断点（或源头读取上限）把 key 切成前缀时也不留
-        for k in range(len(form) - 1, 3, -1):
-            if text.endswith(form[:k]):
-                text = text[:-k] + "<redacted>"
-                break
+    tail = max((k for form in forms for k in range(len(form) - 1, 3, -1) if text.endswith(form[:k])), default=0)
+    if tail:
+        text = text[:-tail] + "<redacted>"
+    head = max((k for form in forms for k in range(len(form) - 1, 3, -1) if text.startswith(form[-k:])), default=0)
+    if head:
+        text = "<redacted>" + text[head:]
     return text
 
 
@@ -453,6 +544,10 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                                               "Accept": "text/event-stream", "Session-Id": session,
                                               "X-Client-Request-Id": session})
+    # 在真正发送的边界再查一次（独审八）：入口检查之后还有导入、构造请求与线程调度。检查与系统调用之间
+    # 剩下的几条指令之内若越过截止，这次探测也不会延长总墙钟（探测线程是 daemon，退出时被放弃），也不留下产物。
+    if _remaining() <= 0 or _CLOSING:
+        return {"http_status": None, "terminal": None, "ok": False, "error": {"not_sent": "总时限已到"}}
     deadline = time.monotonic() + PROBE_TIMEOUT
     try:
         with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
@@ -477,21 +572,31 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
             # 事件名成功还不够：响应体自报 failed/cancelled 或带 error 也算失败。
             ok = (terminal in ("response.completed", "response.incomplete") and not detail
                   and status not in ("failed", "cancelled"))
+            body = detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False) if detail else ""
             return {"http_status": response.status, "terminal": terminal, "status": status, "ok": ok,
-                    "streamed_models": sorted(streamed),
-                    "error": None if ok else (detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False))
-                    if detail else (None if ok else f"status={status}")}
+                    "streamed_models": sorted(streamed), "error": None if ok else _error_info(body)}
     except urllib.error.HTTPError as error:
         return {"http_status": error.code, "terminal": None, "ok": False,
-                "error": error.read(65536).decode("utf-8", "replace")}
-    except Exception as error:  # 请求构造（非法头）、连接、协议等任何异常都只作失败，不让异常串带出 key
-        return {"http_status": None, "terminal": None, "ok": False, "error": f"{type(error).__name__}: {error}"}
+                "error": _error_info(error.read(65536).decode("utf-8", "replace"))}
+    except Exception as error:  # 请求构造、连接、协议等任何异常都只记类型与 errno，不带异常原文
+        reason = getattr(error, "reason", None)
+        return {"http_status": None, "terminal": None, "ok": False,
+                "error": {"exception": type(error).__name__, "errno": getattr(reason, "errno", getattr(error, "errno", None))}}
+
+
+def _error_info(body: str) -> dict:
+    """上游错误正文只给长度、sha256 前 12 位与固定词表分类，不抄原文。"""
+    import hashlib
+
+    lowered = body.lower()
+    kind = next((label for needle, label in ERROR_CLASSES if needle in lowered), "unclassified")
+    return {"class": kind, "length": len(body), "sha256_12": hashlib.sha256(body.encode("utf-8", "replace")).hexdigest()[:12]}
 
 
 def request_log_enabled(config: Path) -> bool | None:
     """只读 CLIProxy 配置 observability.logs.request-log；读不到返回 None（按开启处理）。"""
     try:
-        lines = config.read_text().splitlines()
+        lines = config.read_bytes().decode("utf-8", "replace").splitlines()
     except OSError:
         return None
     path, want = [], ("observability", "logs", "request-log")
@@ -619,11 +724,19 @@ def _deadline(text: str) -> float:
     return value
 
 
+def _emit(report: dict, secrets=()) -> None:
+    # ensure_ascii：孤立代理项、surrogateescape 参数都转成 \uXXXX，stdout 永远是合法 ASCII JSON
+    print(json.dumps(sanitize(report, list(secrets)), ensure_ascii=True), flush=True)
+
+
 class _Parser(argparse.ArgumentParser):
-    def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3。
-        self.print_usage(sys.stderr)
+    def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3；stdout 仍给 JSON
         print(f"review_preflight: {message}", file=sys.stderr)
+        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "usage_error": message})
         sys.exit(3)
+
+    def print_help(self, file=None):
+        _emit({"kind": "review-preflight-help", "is_review_result": False, "usage": self.format_help()})
 
 
 def _sha(text: str) -> str:
@@ -651,12 +764,16 @@ def main(argv=None) -> int:
     t0 = time.monotonic()
     try:
         return _run(args, t0, secrets)
-    except Exception as error:  # 主流程意外异常也要给出合法报告，退出码仍是 2，不变成 1
-        report = {"kind": "review-preflight", "is_review_result": False, "ready": False,
-                  "checks": [{"name": "preflight_internal", "class": "tool", "ok": False,
-                              "detail": f"{type(error).__name__}: {error}"}],
-                  "wall_seconds": round(time.monotonic() - t0, 3)}
-        print(json.dumps(sanitize(report, secrets), ensure_ascii=False), flush=True)
+    except Exception as error:  # 主流程意外异常也要给出合法报告，退出码仍是 2，不变成 1；并照样回收探针
+        checks = [{"name": "preflight_internal", "class": "tool", "ok": False, "detail": type(error).__name__}]
+        try:
+            failures = reclaim_pending(_total_left())
+        except Exception as cleanup_error:
+            failures = [f"回收本身失败：{type(cleanup_error).__name__}"]
+        if failures:
+            checks.append({"name": "probe_cleanup", "class": "cleanup", "ok": False, "detail": failures})
+        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "checks": checks,
+               "wall_seconds": round(time.monotonic() - t0, 3)}, secrets)
         return 2
 
 
@@ -667,6 +784,8 @@ def _run(args, t0: float, secrets: list) -> int:
     with _CLEANUP_LOCK:  # 同一进程内多次调用 main()（测试）时重置回收状态
         _CLOSING = False
         _PENDING_CLEANUP.clear()
+        _CLEANUP_FAILURES.clear()
+        _RECLAIMING.clear()
     _DEADLINE_AT = t0 + args.deadline - reserve
     _TOTAL_END = t0 + args.deadline
     remaining = lambda: max(0.0, _DEADLINE_AT - time.monotonic())  # noqa: E731  凭据各阶段共用同一截止时间
@@ -723,7 +842,7 @@ def _run(args, t0: float, secrets: list) -> int:
     ready = all(c["ok"] for c in checks)
     report = {"kind": "review-preflight", "is_review_result": False, "ready": ready, "checks": checks,
               "wall_seconds": round(time.monotonic() - t0, 3)}
-    print(json.dumps(sanitize(report, secrets), ensure_ascii=False), flush=True)
+    _emit(report, secrets)
     return 0 if ready else 2
 
 
