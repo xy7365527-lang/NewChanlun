@@ -388,10 +388,12 @@ jobs:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
-      # Boat 上五组同时开工；退回 ubuntu-latest 时取 3（单次 CI 峰值 19 个托管作业，不超过 20，见 #1875 R1）。
-      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 3 }}
+      # Boat 上五组同时开工；退回 ubuntu-latest 时取 4（#1875 R12：3 槽时 release-locks 要排队约 19 分钟，任何顺序下界都约 48 分钟；
+      #   4 槽按实测时长模拟约 40 分钟，单次 CI 托管 Linux 作业峰值 20，不超过 20，见 run 42019882083）。
+      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 4 }}
       matrix:
-        group: [content, economic, native, owned, release-locks]
+        # 按托管路径实测时长从长到短排，空出的槽先给长的（#1875 R12）。
+        group: [native, release-locks, owned, economic, content]
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.group == 'native' && 90 || 60 }}
     env:
