@@ -478,13 +478,17 @@ def test_auth_command_failure_blocks(env, capsys, tmp_path):
     assert code == 2 and "credential:codex-host" in failing(report)
 
 
-def test_auth_command_combined_with_env_key_blocks_like_codex(env, capsys, tmp_path):
-    """Codex 拒绝 provider 同时配 auth 与 env_key；预检不能因 helper 能取到 key 就放行。"""
+@pytest.mark.parametrize("field, line", [("env_key", 'env_key = "CLIPROXY_LOCAL_KEY"'),
+                                         ("experimental_bearer_token", 'experimental_bearer_token = "fixture-static"'),
+                                         ("requires_openai_auth", "requires_openai_auth = true")])
+def test_auth_command_combined_with_a_conflicting_field_blocks_like_codex(env, capsys, tmp_path, field, line):
+    """Codex 拒绝 provider 同时配 auth 与这些字段（独审十九）；预检不能因 helper 能取到 key 就放行。"""
     config = tmp_path / "codex/config.toml"
     config.write_text(config.read_text().replace("[model_providers.cliproxy-local.auth]",
-                                                 'env_key = "CLIPROXY_LOCAL_KEY"\n[model_providers.cliproxy-local.auth]'))
-    code, report, *_ = env(capsys=capsys)
-    assert code == 2 and "cannot be combined with env_key" in check(report, "credential:codex-host")["detail"]["error"]
+                                                 f"{line}\n[model_providers.cliproxy-local.auth]"))
+    code, report, _, proxy = env(capsys=capsys)
+    assert code == 2 and f"cannot be combined with {field}" in check(report, "credential:codex-host")["detail"]["error"]
+    assert proxy.requests == []
 
 
 def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):

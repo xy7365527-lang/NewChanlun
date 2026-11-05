@@ -197,8 +197,10 @@ def provider_key(codex_home: Path, deadline: Deadline) -> tuple[str, str]:
     env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
     auth = entry.get("auth")
     if isinstance(auth, dict) and auth.get("command"):
-        if entry.get("env_key"):  # Codex 离线校验：provider auth cannot be combined with env_key，宿主回合起不来
-            raise CredentialError("provider auth cannot be combined with env_key")
+        # Codex 离线校验：auth 与这些字段并存时宿主直接退出（codex-cli 0.166 实测），回合起不来
+        for field in ("env_key", "experimental_bearer_token", "requires_openai_auth"):
+            if entry.get(field):
+                raise CredentialError(f"provider auth cannot be combined with {field}")
         command, args, timeout_ms = auth["command"], auth.get("args", []), auth.get("timeout_ms", 5000)
         if (not isinstance(command, str) or not isinstance(args, list) or not all(isinstance(a, str) for a in args)
                 or isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int | float) or timeout_ms <= 0):
