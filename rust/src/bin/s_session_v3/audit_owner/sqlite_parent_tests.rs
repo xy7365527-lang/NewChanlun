@@ -39,6 +39,13 @@ fn nomem(error: &rusqlite::Error) -> bool {
     error.sqlite_error_code() == Some(ErrorCode::OutOfMemory)
 }
 
+/// 小语句的 VM 落在连接打开时已收费的 lookaside 里，不新增堆块；
+/// 长 IN 列表使 VM 操作数组超出 lookaside 槽，prepare 必须申请新的堆块。
+fn heap_query(head: &str) -> String {
+    let list: Vec<String> = (0..400).map(|i| i.to_string()).collect();
+    format!("{head} AND 0 NOT IN ({})", list.join(","))
+}
+
 #[test]
 #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
 fn sqlite_parent_charges_same_parent_before_allocation() {
@@ -98,11 +105,18 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     unsafe { ffi::sqlite3_free(block) };
     assert_eq!(d.current.live(), before);
 
-    // prepare：零额度域内被拒，首个拒绝是 Budget，账不残留。
+    // lookaside：打开连接时已整体收费；零额度域内的小 prepare 只用它，不新增费用。
+    let prepaid = d.next(0);
+    let live = d.current.live();
+    drop(main.prepare("SELECT body FROM t WHERE id = 2").unwrap());
+    assert_eq!(prepaid.refusal(), None);
+    assert_eq!(d.current.live(), live);
+
+    // prepare：需要新堆块时在零额度域内被拒，首个拒绝是 Budget，账不残留。
     let prepare = d.next(0);
     let live = d.current.live();
     let error = main
-        .prepare("SELECT body FROM t WHERE id = 2")
+        .prepare(&heap_query("SELECT body FROM t WHERE id = 2"))
         .expect_err("prepare refused");
     assert!(nomem(&error), "{error}");
     assert_eq!(prepare.refusal(), Some(ScratchFailure::Budget));
@@ -117,7 +131,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert!(d.current.remaining() >= charged_bytes(16).unwrap());
     assert!(unsafe { ffi::sqlite3_malloc(16) }.is_null());
     let error = ledger
-        .prepare("SELECT EXISTS(SELECT 1 FROM k WHERE key = ?1)")
+        .prepare(&heap_query("SELECT EXISTS(SELECT 1 FROM k WHERE key = ?1)"))
         .expect_err("no SELECT after the first refusal");
     assert!(nomem(&error), "{error}");
     assert_eq!(d.current.live(), live);
@@ -166,7 +180,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     // 台账点查与新开连接同样在原父账内被拒。
     let point = d.next(0);
     let error = ledger
-        .prepare("SELECT EXISTS(SELECT 1 FROM k WHERE key = ?1)")
+        .prepare(&heap_query("SELECT EXISTS(SELECT 1 FROM k WHERE key = ?1)"))
         .expect_err("ledger lookup refused");
     assert!(nomem(&error), "{error}");
     assert_eq!(point.refusal(), Some(ScratchFailure::Budget));
