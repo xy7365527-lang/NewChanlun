@@ -6,10 +6,24 @@
 //! 代号与 origin，释放按原 origin 返还。未绑定、绑定过期、父账破损或预留被拒一律返回空指针，
 //! 从不旁路到未计费的 malloc。回调只做短锁记账与系统 alloc/copy/free，不重入 SQLite，
 //! 不分配 Rust 容器。
+//!
+//! 操作域：收费只能挡住新分配，lookaside 与已物化的值不再申请内存，所以连接归属与首拒后零
+//! SQL 由执行边界保证。
+//! - 连接只能经 [`SqliteBinding::open`] 开出，终身归属开它的父账（[`ChargedConnection`]
+//!   不暴露裸连接）；只能经 [`SqliteBinding::run`] / [`SqliteBinding::close`] 使用。
+//! - `run` 进入前核：本绑定为当前绑定、连接归属本父账、本父账本冻结域（origin）尚无拒绝；
+//!   任一不符则不执行任何 SQL。同一时刻只有一个 `run`，期间禁止换绑与再入。
+//! - 只有正处于 `run` 中的线程能让 allocator 收费，其他线程或域外的分配一律按未知归属拒绝。
+//! - 首个拒绝按（父账、origin）记，同父同 origin 重绑不清除；只有换到新冻结域才开新记录。
+//! - 每条连接另装 SQLite 进度回调（每 1 条 VM 指令计数），在循环底部、每次返回行和语句结束
+//!   前核对归属与首拒，不符即以 `SQLITE_INTERRUPT` 中止，覆盖不经新分配的行与写。
+//! - realloc 只在块的原父账为当前绑定时进行；跨父 realloc 在收费前拒绝。
 use super::scratch::ScratchFailure;
 use rusqlite::ffi;
 use std::alloc::{alloc, dealloc, Layout};
+use std::cell::Cell;
 use std::ffi::c_void;
+use std::path::Path;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -43,12 +57,19 @@ struct Slot {
     generation: u32,
     live: usize,
     blocks: usize,
+    /// 本父账某冻结域（origin）的首个收费拒绝；只在换到另一 origin 后被新拒绝取代。
+    refusal: Option<(u64, ScratchFailure)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Owner {
+    slot: usize,
+    generation: u32,
 }
 
 #[derive(Clone, Copy)]
 struct Binding {
-    slot: usize,
-    generation: u32,
+    owner: Owner,
     origin: u64,
     epoch: u64,
 }
@@ -59,7 +80,6 @@ struct State {
     slots: [Slot; SLOTS],
     current: Option<Binding>,
     epoch: u64,
-    refusal: Option<(u64, ScratchFailure)>,
     unattributed: usize,
 }
 
@@ -68,6 +88,7 @@ const EMPTY: Slot = Slot {
     generation: 0,
     live: 0,
     blocks: 0,
+    refusal: None,
 };
 static STATE: Mutex<State> = Mutex::new(State {
     installed: false,
@@ -75,13 +96,22 @@ static STATE: Mutex<State> = Mutex::new(State {
     slots: [EMPTY; SLOTS],
     current: None,
     epoch: 0,
-    refusal: None,
     unattributed: 0,
 });
 static INSTALLING: AtomicBool = AtomicBool::new(false);
+/// 某个 `run` 正在执行；期间拒绝换绑与再入。
+static RUNNING: AtomicBool = AtomicBool::new(false);
+thread_local! {
+    /// 本线程正处于 `run`；只有它的 SQLite 分配可以收费。
+    static IN_RUN: Cell<bool> = const { Cell::new(false) };
+}
 
 fn state() -> Option<MutexGuard<'static, State>> {
     STATE.lock().ok()
+}
+
+fn in_run() -> bool {
+    IN_RUN.try_with(Cell::get).unwrap_or(false)
 }
 
 fn block_layout(payload: usize) -> Option<Layout> {
@@ -103,16 +133,31 @@ fn parent_key(parent: &Arc<dyn SqliteParent>) -> *const () {
 }
 
 impl State {
-    fn latch(&mut self, epoch: u64, failure: ScratchFailure) {
-        if self.refusal.is_none_or(|(e, _)| e != epoch) {
-            self.refusal = Some((epoch, failure));
+    fn first_refusal(&self, b: Binding) -> Option<ScratchFailure> {
+        self.slots[b.owner.slot]
+            .refusal
+            .filter(|(origin, _)| *origin == b.origin)
+            .map(|(_, f)| f)
+    }
+    /// `owner` 的连接此刻可执行：父账为当前绑定、该冻结域无拒绝、allocator 未破损。
+    fn admits(&self, owner: Owner) -> bool {
+        !self.broken
+            && self
+                .current
+                .is_some_and(|b| b.owner == owner && self.first_refusal(b).is_none())
+    }
+    fn latch(&mut self, b: Binding, failure: ScratchFailure) {
+        let slot = &mut self.slots[b.owner.slot];
+        if slot.refusal.is_none_or(|(origin, _)| origin != b.origin) {
+            slot.refusal = Some((b.origin, failure));
         }
     }
     /// 未绑定且已无存活块的槽交还父句柄；调用方在解锁后析构返回值。
     fn retire(&mut self, slot: usize) -> Option<Arc<dyn SqliteParent>> {
-        let bound = self.current.is_some_and(|b| b.slot == slot);
+        let bound = self.current.is_some_and(|b| b.owner.slot == slot);
         let s = &mut self.slots[slot];
         if !bound && s.blocks == 0 {
+            s.refusal = None;
             s.parent.take()
         } else {
             None
@@ -124,6 +169,20 @@ unsafe extern "C" fn malloc(n: i32) -> *mut c_void {
     unsafe { allocate(n) }
 }
 
+/// 当前绑定且处于 `run` 线程时返回绑定；否则按未知归属记数并拒绝。
+fn attributed(s: &mut State) -> Option<Binding> {
+    if s.broken {
+        return None;
+    }
+    match s.current {
+        Some(b) if in_run() => Some(b),
+        _ => {
+            s.unattributed = s.unattributed.saturating_add(1);
+            None
+        }
+    }
+}
+
 unsafe fn allocate(n: i32) -> *mut c_void {
     if n <= 0 {
         return ptr::null_mut();
@@ -131,24 +190,24 @@ unsafe fn allocate(n: i32) -> *mut c_void {
     let Some(mut s) = state() else {
         return ptr::null_mut();
     };
-    if s.broken {
-        return ptr::null_mut();
-    }
-    let Some(b) = s.current else {
-        s.unattributed = s.unattributed.saturating_add(1);
+    let Some(b) = attributed(&mut s) else {
         return ptr::null_mut();
     };
-    if s.refusal.is_some_and(|(e, _)| e == b.epoch) {
+    unsafe { allocate_for(&mut s, b, n as usize) }
+}
+
+unsafe fn allocate_for(s: &mut State, b: Binding, payload: usize) -> *mut c_void {
+    if s.first_refusal(b).is_some() {
         return ptr::null_mut();
     }
-    let payload = n as usize;
     let Some(layout) = block_layout(payload) else {
-        s.latch(b.epoch, ScratchFailure::Ledger);
+        s.latch(b, ScratchFailure::Ledger);
         return ptr::null_mut();
     };
     let total = layout.size();
-    let reserved = match s.slots[b.slot].parent.as_deref() {
-        Some(parent) if s.slots[b.slot].generation == b.generation => {
+    let slot = b.owner.slot;
+    let reserved = match s.slots[slot].parent.as_deref() {
+        Some(parent) if s.slots[slot].generation == b.owner.generation => {
             match parent.reserve_sqlite(total, b.origin) {
                 Ok(origin) if origin == b.origin => Ok(()),
                 Ok(origin) => {
@@ -161,44 +220,43 @@ unsafe fn allocate(n: i32) -> *mut c_void {
         _ => Err(ScratchFailure::Ledger),
     };
     if let Err(failure) = reserved {
-        s.latch(b.epoch, failure);
+        s.latch(b, failure);
         return ptr::null_mut();
     }
     // SAFETY: valid non-zero Layout; the full block is already charged to the parent.
     let base = unsafe { alloc(layout) };
     if base.is_null() {
-        let released = s.slots[b.slot]
+        let released = s.slots[slot]
             .parent
             .as_deref()
             .map(|parent| parent.release_sqlite(total, b.origin));
         if !matches!(released, Some(Ok(()))) {
             s.broken = true;
         }
-        s.latch(b.epoch, ScratchFailure::Allocation);
+        s.latch(b, ScratchFailure::Allocation);
         return ptr::null_mut();
     }
-    let slot = &mut s.slots[b.slot];
-    let (Some(live), Some(blocks)) = (slot.live.checked_add(total), slot.blocks.checked_add(1))
-    else {
+    let sl = &mut s.slots[slot];
+    let (Some(live), Some(blocks)) = (sl.live.checked_add(total), sl.blocks.checked_add(1)) else {
         // SAFETY: base was just allocated with this layout and never handed out.
         unsafe { dealloc(base, layout) };
-        if let Some(parent) = slot.parent.as_deref() {
+        if let Some(parent) = sl.parent.as_deref() {
             let _ = parent.release_sqlite(total, b.origin);
             parent.invalidate_sqlite();
         }
         s.broken = true;
         return ptr::null_mut();
     };
-    slot.live = live;
-    slot.blocks = blocks;
+    sl.live = live;
+    sl.blocks = blocks;
     // SAFETY: base is aligned for Header and the block is large enough for it.
     unsafe {
         base.cast::<Header>().write(Header {
             payload,
             total,
             origin: b.origin,
-            slot: b.slot as u32,
-            generation: b.generation,
+            slot: slot as u32,
+            generation: b.owner.generation,
             magic: MAGIC,
         });
         base.add(std::mem::size_of::<Header>()).cast()
@@ -265,14 +323,24 @@ unsafe extern "C" fn realloc(p: *mut c_void, n: i32) -> *mut c_void {
         unsafe { free(p) };
         return ptr::null_mut();
     }
-    let Some((_, h, _)) = (unsafe { header(p) }) else {
-        if let Some(mut s) = state() {
-            s.broken = true;
-        }
+    let Some(mut s) = state() else {
         return ptr::null_mut();
     };
+    let Some((_, h, _)) = (unsafe { header(p) }) else {
+        s.broken = true;
+        return ptr::null_mut();
+    };
+    let Some(b) = attributed(&mut s) else {
+        return ptr::null_mut();
+    };
+    // 跨父 realloc 在任何收费之前拒绝：块属于别的父账（或已退役的同槽旧代）。
+    if b.owner.slot != h.slot as usize || b.owner.generation != h.generation {
+        s.latch(b, ScratchFailure::Ledger);
+        return ptr::null_mut();
+    }
     // 新块在旧块仍存活时完整预留；失败时旧块与其收费都保持不变。
-    let grown = unsafe { allocate(n) };
+    let grown = unsafe { allocate_for(&mut s, b, n as usize) };
+    drop(s);
     if grown.is_null() {
         return ptr::null_mut();
     }
@@ -351,15 +419,19 @@ impl SqliteParentAllocator {
         }
     }
 
-    /// 把此后的 SQLite 分配绑定到 `parent` 的 `origin` 冻结域，取代先前的绑定。
-    /// 先前绑定已收费的块仍按各自 origin 返还原父账。
+    /// 把此后的 SQLite 操作域绑定到 `parent` 的 `origin` 冻结域，取代先前的绑定。
+    /// 先前绑定已收费的块仍按各自 origin 返还原父账。`run` 执行中拒绝换绑。
+    /// 同父同 origin 重绑沿用该冻结域的首个拒绝，不清除。
     pub fn bind(
         &self,
         parent: Arc<dyn SqliteParent>,
         origin: u64,
     ) -> Result<SqliteBinding, ScratchFailure> {
+        if RUNNING.load(Ordering::Acquire) {
+            return Err(ScratchFailure::Ledger);
+        }
         let mut s = state().ok_or(ScratchFailure::Ledger)?;
-        if !s.installed || s.broken {
+        if !s.installed || s.broken || RUNNING.load(Ordering::Acquire) {
             return Err(ScratchFailure::Ledger);
         }
         let key = parent_key(&parent);
@@ -378,32 +450,34 @@ impl SqliteParentAllocator {
                 let sl = &mut s.slots[slot];
                 sl.generation = sl.generation.checked_add(1).ok_or(ScratchFailure::Ledger)?;
                 sl.parent = Some(parent);
+                sl.refusal = None;
                 slot
             }
         };
         let epoch = s.epoch.checked_add(1).ok_or(ScratchFailure::Ledger)?;
-        let generation = s.slots[slot].generation;
-        let previous = s.current.replace(Binding {
+        let owner = Owner {
             slot,
-            generation,
+            generation: s.slots[slot].generation,
+        };
+        let previous = s.current.replace(Binding {
+            owner,
             origin,
             epoch,
         });
         s.epoch = epoch;
         let retired = previous
-            .filter(|p| p.slot != slot)
-            .and_then(|p| s.retire(p.slot));
-        let binding = SqliteBinding {
-            epoch,
-            slot,
-            generation,
-        };
+            .filter(|p| p.owner.slot != slot)
+            .and_then(|p| s.retire(p.owner.slot));
         drop(s);
         drop(retired);
-        Ok(binding)
+        Ok(SqliteBinding {
+            epoch,
+            owner,
+            origin,
+        })
     }
 
-    /// 无绑定时被拒的 SQLite 分配次数（未知归属）。
+    /// 无归属（未绑定、不在 `run` 线程）时被拒的 SQLite 分配次数。
     pub fn unattributed_refusals(&self) -> usize {
         state().map_or(usize::MAX, |s| s.unattributed)
     }
@@ -417,20 +491,24 @@ impl SqliteParentAllocator {
 /// 当前收费绑定。析构时若仍为当前绑定则解除，此后的分配因无归属而被拒。
 pub struct SqliteBinding {
     epoch: u64,
-    slot: usize,
-    generation: u32,
+    owner: Owner,
+    origin: u64,
 }
 
 impl SqliteBinding {
-    /// 本绑定首个收费拒绝。一旦拒绝，本绑定此后的全部分配均被拒，直至换绑。
+    /// 本父账本冻结域的首个收费拒绝。一旦拒绝，此域内一切分配与 SQL 执行均被拒，换绑同域不清除。
     pub fn refusal(&self) -> Option<ScratchFailure> {
-        state()?
-            .refusal
-            .filter(|(e, _)| *e == self.epoch)
+        let s = state()?;
+        let sl = &s.slots[self.owner.slot];
+        if sl.parent.is_none() || sl.generation != self.owner.generation {
+            return None;
+        }
+        sl.refusal
+            .filter(|(origin, _)| *origin == self.origin)
             .map(|(_, f)| f)
     }
 
-    /// SQLite 报 `SQLITE_NOMEM` 且本绑定已记收费拒绝时，返回该首个拒绝。
+    /// SQLite 报 `SQLITE_NOMEM` 且本域已记收费拒绝时，返回该首个拒绝。
     pub fn refusal_of(&self, error: &rusqlite::Error) -> Option<ScratchFailure> {
         if error.sqlite_error_code() == Some(rusqlite::ErrorCode::OutOfMemory) {
             self.refusal()
@@ -450,8 +528,95 @@ impl SqliteBinding {
     }
 
     fn slot_of<'a>(&self, s: &'a State) -> Option<&'a Slot> {
-        let sl = &s.slots[self.slot];
-        (sl.parent.is_some() && sl.generation == self.generation).then_some(sl)
+        let sl = &s.slots[self.owner.slot];
+        (sl.parent.is_some() && sl.generation == self.owner.generation).then_some(sl)
+    }
+
+    /// 进入操作域：独占 `run`，核本绑定为当前、本域无拒绝、连接归属本父账。
+    fn enter(&self, conn: Option<&ChargedConnection>) -> Result<Running, SqlGate> {
+        if RUNNING
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Err(SqlGate::Refused(ScratchFailure::Ledger));
+        }
+        let running = Running(());
+        {
+            let s = state().ok_or(SqlGate::Refused(ScratchFailure::Ledger))?;
+            let current = s.current.filter(|b| b.epoch == self.epoch);
+            let Some(b) = current.filter(|_| !s.broken) else {
+                return Err(SqlGate::Refused(ScratchFailure::Ledger));
+            };
+            if let Some(first) = s.first_refusal(b) {
+                return Err(SqlGate::Refused(first));
+            }
+            if conn.is_some_and(|c| c.owner != self.owner) {
+                return Err(SqlGate::WrongParent);
+            }
+        }
+        IN_RUN.with(|r| r.set(true));
+        Ok(running)
+    }
+
+    /// 首拒优先：本域执行中已记收费拒绝时，一律报该首个拒绝（即使 SQLite 层吞掉了错误）。
+    fn settle<R>(&self, result: rusqlite::Result<R>) -> Result<R, SqlGate> {
+        if let Some(first) = self.refusal() {
+            return Err(SqlGate::Refused(first));
+        }
+        result.map_err(SqlGate::Sqlite)
+    }
+
+    /// 在本父账名下打开连接；连接终身归属本父账，并装执行边界的进度回调。
+    pub fn open(&self, path: impl AsRef<Path>) -> Result<ChargedConnection, SqlGate> {
+        self.open_with(|| rusqlite::Connection::open(path))
+    }
+
+    /// 同 [`Self::open`]，内存库。
+    pub fn open_in_memory(&self) -> Result<ChargedConnection, SqlGate> {
+        self.open_with(rusqlite::Connection::open_in_memory)
+    }
+
+    fn open_with(
+        &self,
+        open: impl FnOnce() -> rusqlite::Result<rusqlite::Connection>,
+    ) -> Result<ChargedConnection, SqlGate> {
+        let running = self.enter(None)?;
+        let owner = self.owner;
+        let opened = open().and_then(|conn| {
+            conn.progress_handler(1, Some(move || state().is_none_or(|s| !s.admits(owner))))?;
+            Ok(conn)
+        });
+        drop(running);
+        self.settle(opened)
+            .map(|conn| ChargedConnection { conn, owner })
+    }
+
+    /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行。
+    /// 执行中首个收费拒绝之后，SQLite 不再返回行或继续写（`SQLITE_INTERRUPT`），结果报首拒。
+    pub fn run<R>(
+        &self,
+        conn: &ChargedConnection,
+        f: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<R>,
+    ) -> Result<R, SqlGate> {
+        let running = self.enter(Some(conn))?;
+        let result = f(&conn.conn);
+        drop(running);
+        self.settle(result)
+    }
+
+    /// 在本操作域关闭归属本父账的连接；不符时原样交回连接。
+    pub fn close(&self, conn: ChargedConnection) -> Result<(), (ChargedConnection, SqlGate)> {
+        let running = match self.enter(Some(&conn)) {
+            Ok(running) => running,
+            Err(e) => return Err((conn, e)),
+        };
+        let owner = conn.owner;
+        let result = conn.conn.close();
+        drop(running);
+        match result {
+            Ok(()) => Ok(()),
+            Err((conn, e)) => Err((ChargedConnection { conn, owner }, SqlGate::Sqlite(e))),
+        }
     }
 }
 
@@ -462,9 +627,37 @@ impl Drop for SqliteBinding {
         };
         if s.current.is_some_and(|b| b.epoch == self.epoch) {
             s.current = None;
-            let retired = s.retire(self.slot);
+            let retired = s.retire(self.owner.slot);
             drop(s);
             drop(retired);
         }
     }
+}
+
+struct Running(());
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        let _ = IN_RUN.try_with(|r| r.set(false));
+        RUNNING.store(false, Ordering::Release);
+    }
+}
+
+/// 操作域边界的拒绝。`Refused` 携本域首个收费拒绝；绑定非当前、已有 `run` 在执行或
+/// allocator 破损时为 `Refused(Ledger)`。
+#[derive(Debug)]
+pub enum SqlGate {
+    Refused(ScratchFailure),
+    /// 连接归属另一父账，未执行任何 SQL。
+    WrongParent,
+    Sqlite(rusqlite::Error),
+}
+
+/// 归属开它的父账的 SQLite 连接，不暴露裸连接；只能经 [`SqliteBinding::run`] 使用。
+/// 未经 [`SqliteBinding::close`] 直接析构时仍关闭连接，块按各自块头返还原父账，
+/// 关闭期间的新分配因不在操作域而被拒。
+#[derive(Debug)]
+pub struct ChargedConnection {
+    conn: rusqlite::Connection,
+    owner: Owner,
 }
