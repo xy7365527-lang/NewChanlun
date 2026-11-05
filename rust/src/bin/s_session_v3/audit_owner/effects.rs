@@ -1586,7 +1586,7 @@ pub(super) fn audit_native_source(
             // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
             for digest in j.nodes.keys() {
                 #[cfg(test)]
-                let cap = super::source_append_cap_for_test(capture, digest, j.cap);
+                let cap = super::source_append_cap_for_test(capture, digest, j.cap, access.work);
                 #[cfg(not(test))]
                 let cap = j.cap;
                 // #1488：活动域读取签发的正文许可随正文移入 owner，不再走 Plain 早退。
