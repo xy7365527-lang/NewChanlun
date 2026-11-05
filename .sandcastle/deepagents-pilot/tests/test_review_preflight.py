@@ -885,13 +885,13 @@ def test_docker_stderr_is_summarised_and_never_carries_the_key(env, capsys, tmp_
     assert code == 2 and set(stderr) == {"class", "length", "sha256_12"} and "1742" not in out
 
 
-def test_env_key_that_is_not_a_variable_name_is_not_echoed(env, capsys, tmp_path):
-    """env_key 误填成 key 本身时，错误信息不回显它。"""
-    (tmp_path / "codex/config.toml").write_text(
-        '[model_providers.cliproxy-local]\nenv_key = "sk-\\"double\\"-1742"\n')
+@pytest.mark.parametrize("env_key", ['sk-\\"double\\"-1742', "TokenSecret1742abc"])
+def test_env_key_misfilled_with_the_key_itself_is_not_echoed(env, capsys, tmp_path, env_key):
+    """env_key 误填成 key 本身时，错误信息不回显它——含符合变量名语法的 key（正式 a2 Sol P2）。"""
+    (tmp_path / "codex/config.toml").write_text(f'[model_providers.cliproxy-local]\nenv_key = "{env_key}"\n')
     code, report, out, _ = env(capsys=capsys)
     assert code == 2 and "1742" not in out
-    assert "<非变量名>" in check(report, "credential:codex-host")["detail"]["error"]
+    assert "Missing environment variable" in check(report, "credential:codex-host")["detail"]["error"]
 
 
 def test_auth_command_sees_the_checked_codex_home(env, capsys, tmp_path, monkeypatch):

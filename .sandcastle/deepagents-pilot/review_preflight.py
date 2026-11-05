@@ -36,7 +36,6 @@ KNOWN_ROUTES = {*ROUTES.values(), ("antigravity", "daily-cloudcode-pa.googleapis
 PROVIDER = "cliproxy-local"
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
-ENV_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 RESPONSE_STATUSES = ("completed", "incomplete", "failed", "cancelled", "in_progress", "queued")
 CLEANUP_RESERVE = 3.0  # 总时限里留给回收与输出报告的秒数
 OUTPUT_MARGIN = 0.5  # 回收之后杀进程组、删目录、输出报告所留的秒数（机器忙时也够）
@@ -239,7 +238,8 @@ def provider_key(codex_home: Path, deadline: Deadline, codex_bin: str = "codex")
         return _clean_key(entry["experimental_bearer_token"], "experimental_bearer_token"), "experimental_bearer_token"
     if entry.get("env_key"):
         if not isinstance(entry["env_key"], str) or not env.get(entry["env_key"]):
-            name = entry["env_key"] if isinstance(entry["env_key"], str) and ENV_NAME_RE.fullmatch(entry["env_key"]) else "<非变量名>"
+            # 只回显已知变量名：误填的 key 本身也可能长得像变量名
+            name = SCRUBBED_ENV if entry["env_key"] == SCRUBBED_ENV else "<配置的 env_key，不回显>"
             raise CredentialError(f"Missing environment variable: {name}")
         return _clean_key(env[entry["env_key"]], "env_key"), "env_key"
     raise CredentialError(f"model_providers.{PROVIDER} 未配置任何凭据来源")
