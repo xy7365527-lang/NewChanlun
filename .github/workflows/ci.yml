@@ -577,11 +577,11 @@ jobs:
           fail=0
           : > ../locks.tsv
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --list --format terse --ignored > ../list-release.txt 2>&1
-          # #1875 R5：产物机检的 bin 构建（单线程，约 3 分钟）与单线程的锁并行：等锁的测试进程起来（cargo 此时已放开
+          # #1875 R5：产物机检的 bin 构建（固定 --jobs 1，约 3 分钟；R5b：已被锁的时长盖住，多核只会与锁争 CPU）与单线程的锁并行：等锁的测试进程起来（cargo 此时已放开
           #   target 目录锁）再在同一 rust/target 后台构建，结论由下一步「产物无测试钩子」收取并决定成败。
           rm -f ../artifact.rc
           setsid nohup bash -c 'for _ in $(seq 120); do pgrep -f "deps/s_structure_session-[0-9a-f]+ --ignored --exact" >/dev/null && break; sleep 1; done
-            ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}" \
+            ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 \
               && ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
             echo $? > ../artifact.rc.tmp && mv ../artifact.rc.tmp ../artifact.rc' > ../artifact.log 2>&1 < /dev/null &
           total=0
