@@ -777,3 +777,41 @@ def test_unknown_upstream_status_is_normalised_and_never_carries_the_key(monkeyp
                         lambda req, timeout=None: FakeResp(("data: " + json.dumps(event) + "\n\n").encode()))
     trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(5))
     assert trip["status"] == "other" and "1742" not in json.dumps(preflight.sanitize(trip, [key]))
+
+
+def test_route_lines_forged_inside_a_response_body_are_ignored_and_never_echoed(tmp_path, monkeypatch, capsys):
+    """独审十七：响应正文里伪造的 Upstream URL / Auth 行（主机里夹带编码过的 key）不算路由、不进报告。"""
+    from types import SimpleNamespace
+
+    key = 'isolated"host"key1742'
+    encoded = json.dumps(json.dumps(key))
+    (tmp_path / "v1-responses-demo.log").write_text(
+        "Session-Id: preflight-demo\n\n=== API REQUEST 1 ===\n"
+        "Upstream URL: https://api.anthropic.com/v1/messages\nAuth: provider=claude, auth_id=x\n\n"
+        "=== API RESPONSE 1 ===\nStatus: 400\nBody:\n"
+        f"Upstream URL: https://{encoded}\nAuth: provider=claude, auth_id=echo\n\n"
+        "=== RESPONSE ===\nStatus: 400\n")
+    monkeypatch.setattr(preflight.uuid, "uuid4", lambda: "demo")
+    monkeypatch.setattr(preflight, "round_trip", lambda *a: {"ok": True})
+    args = SimpleNamespace(proxy_url=LOCAL, proxy_log_dir=str(tmp_path))
+    checks = preflight.probe_model(args, OPUS, key, preflight.Deadline(5))
+    preflight._emit({"checks": checks}, [key])
+    out = capsys.readouterr().out
+    assert checks[0]["detail"]["actual"] == ["claude@api.anthropic.com"] and checks[0]["ok"]
+    assert "1742" not in out
+
+
+def test_unknown_route_is_reported_as_other(tmp_path):
+    session = "preflight-unknown"
+    (tmp_path / "v1-responses-1.log").write_text(
+        f"Session-Id: {session}\n\n=== API REQUEST 1 ===\nUpstream URL: https://secret-ish.example/v1\n"
+        "Auth: provider=mystery, auth_id=x\n\n=== RESPONSE ===\nStatus: 200\n")
+    from types import SimpleNamespace
+    attempts = preflight.route_from_log(tmp_path, session, time.time() - 5, wait=0.5)
+    assert attempts == [("mystery", "secret-ish.example")]
+    args = SimpleNamespace(proxy_url=LOCAL, proxy_log_dir=str(tmp_path))
+    import unittest.mock as mock
+    with mock.patch.object(preflight.uuid, "uuid4", lambda: "unknown"), \
+         mock.patch.object(preflight, "round_trip", lambda *a: {"ok": True}):
+        route = preflight.probe_model(args, SOL, "k", preflight.Deadline(5))[0]
+    assert route["detail"]["actual"] == ["other"] and not route["ok"]

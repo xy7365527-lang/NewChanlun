@@ -31,6 +31,8 @@ MODELS = ("gpt-6.1-sol", "claude-opus-5-5")
 CLIPROXY_LOG_DIR = Path.home() / "Library/Application Support/CLIProxyLocal/auth/logs"
 # 正式路线：Sol 走 Codex OAuth（chatgpt.com），Opus 走 Claude OAuth（api.anthropic.com）。
 ROUTES = {"gpt-6.1-sol": ("codex", "chatgpt.com"), "claude-opus-5-5": ("claude", "api.anthropic.com")}
+# 报告里只回显这些已知路由，其余记作 "other"：日志字段来自上游，不能原样进报告
+KNOWN_ROUTES = {*ROUTES.values(), ("antigravity", "daily-cloudcode-pa.googleapis.com")}
 PROBE_TIMEOUT = 45
 PROVIDER = "cliproxy-local"
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
@@ -362,9 +364,16 @@ def route_from_log(log_dir: Path, session: str, since: float, wait: float) -> li
             stable = sizes.get(path) == len(raw)
             sizes[path] = len(raw)
             if "\n=== RESPONSE ===" in text and stable:
-                providers = re.findall(r"^Auth: provider=([\w.-]+)(?=,|\s*$)", text, re.M)
-                hosts = re.findall(r"^Upstream URL: https?://([^/:?\s]+)", text, re.M)
-                return list(zip(providers, hosts, strict=True)) if providers and len(providers) == len(hosts) else []
+                # 只读各 API REQUEST 段（到下一个 === 段头为止）：响应正文里伪造的同名行不算路由
+                requests = re.findall(r"^=== API REQUEST \d+ ===\n(.*?)(?=^=== )", text, re.M | re.S)
+                attempts = []
+                for section in requests:
+                    provider = re.search(r"^Auth: provider=([\w.-]+)(?=,|\s*$)", section, re.M)
+                    host = re.search(r"^Upstream URL: https?://([^/:?\s]+)", section, re.M)
+                    if not (provider and host):
+                        return []
+                    attempts.append((provider.group(1), host.group(1)))
+                return attempts
             break
         time.sleep(0.05)
     return None
@@ -378,7 +387,7 @@ def probe_model(args, model: str, key: str, deadline: Deadline) -> list[dict]:
     attempts = route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
     expected = ROUTES[model]
     return [{"name": f"route:{model}", "class": "route", "ok": bool(attempts) and all(a == expected for a in attempts),
-             "detail": {"expected": "@".join(expected), "actual": [f"{p}@{h}" for p, h in attempts or []],
+             "detail": {"expected": "@".join(expected), "actual": [f"{p}@{h}" if (p, h) in KNOWN_ROUTES else "other" for p, h in attempts or []],
                         "log_found": attempts is not None, "session": session}},
             {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
 
