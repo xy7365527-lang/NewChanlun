@@ -2238,8 +2238,9 @@ impl AuditMemo {
         }
     }
 }
-/// #1481：一次历史请求内的闭包证明，只绑定这一份不可变捕获与工作域。
-/// Public/Template 各用原 Verifier 的 memo；根四字段每次重核，不签持久资格。
+/// #1481：一次历史请求的闭包核验能力，只绑定这一份捕获与工作域。
+/// Native owner 捕获的成功单位并入同生涯 owner codec 证明（#1481:26 止步）；其他捕获用
+/// 请求内 Public/Template memo。根四字段每次重核，不签来源或业务资格。
 #[cfg(feature = "s_incremental")]
 pub struct CapturedRequestVerifier<'a> {
     capture: &'a AuditCapture,
@@ -2284,6 +2285,16 @@ impl<'a> CapturedRequestVerifier<'a> {
         if let Err(error) = self.check_current() {
             self.invalidate();
             return Err(error);
+        }
+        // #1481:26 / AMENDMENT:60：Native owner 已认证的 (摘要, Flavor, Mode) 单位止步，
+        // 只核本请求新增单位；根四字段仍每次真实读取。成功并入同一 owner 生涯的 codec 证明，
+        // 失败撤销该证明与本请求能力。非 Native 捕获无 owner 生涯，保持请求内 memo。
+        if matches!(&self.capture.nodes, CaptureNodes::Native(_)) {
+            let result = self.capture.verify_owner_refview(reference, mode, self.work);
+            if result.is_err() {
+                self.invalidate();
+            }
+            return result;
         }
         let slot = match mode {
             Mode::Public => &mut self.public,
@@ -9118,6 +9129,79 @@ mod native_owner_codec_bridge_tests {
         assert_eq!(tree_snapshot(&tree), old);
         assert_eq!(refused.live.load(Ordering::SeqCst), retained);
         assert_eq!(tree.retained_layout_bytes(), retained);
+    }
+
+    /// #1419/#1481:26：Native owner 的请求闭包只核本请求新增单位，已认证单位跨请求止步；
+    /// 根头每次真实读取，模式不互借，失败撤销请求能力与 owner 证明。
+    #[test]
+    fn h1_request_closure_native_owner_stops_at_certified_units_across_requests() {
+        let mut nodes = MemoryNodes::new();
+        let child = write_value(
+            &mut nodes,
+            &Value::Array((0..32).map(|i| Value::string(format!("c-{i}"))).collect()),
+        )
+        .unwrap();
+        let first = write_value(
+            &mut nodes,
+            &Value::Object(vec![("items".into(), Value::Edge(child.digest))]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut capture = native(nodes);
+        let request = |capture: &AuditCapture, root: &ContentRef, mode: Mode| {
+            let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes());
+            run(&parent, |work| {
+                let before = capture.reads.get();
+                let mut r = CapturedRequestVerifier::new(capture, work)?;
+                r.verify_refview(root.into(), mode)?;
+                Ok(capture.reads.get() - before)
+            })
+        };
+        let cold = request(&capture, &first, Mode::Public).unwrap();
+        assert!(cold > 32, "首个请求完整核闭包");
+        let retained = capture.owner_codec_retained_bytes();
+        assert!(retained > 0, "成功单位并入 owner 证明并计保留");
+        capture = capture.finish_owner_step().unwrap();
+        assert_eq!(
+            request(&capture, &first, Mode::Public).unwrap(),
+            1,
+            "新请求对已认证根只重读根头"
+        );
+        assert_eq!(
+            request(&capture, &first, Mode::Template).unwrap(),
+            cold,
+            "Template 不借 Public 单位"
+        );
+        // 本请求新增根：共享的旧子树止步，只核新增节点与根头。
+        let mut more = MemoryNodes::new();
+        let second = write_value(
+            &mut more,
+            &Value::Object(vec![
+                ("items".into(), Value::Edge(child.digest)),
+                ("n".into(), Value::string("new")),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        append(&mut capture, more);
+        capture = capture.finish_owner_step().unwrap();
+        let delta = request(&capture, &second, Mode::Public).unwrap();
+        assert!(delta < cold, "旧子树单位止步：{delta} < {cold}");
+        // 根头四字段每次重核：错误 kind 拒绝，并撤销 owner 证明（后续 warm 也拒绝）。
+        let mut bad = first.clone();
+        bad.kind = Kind::Array;
+        assert_eq!(
+            operation_error(
+                request(&capture, &bad, Mode::Public).map(|_| ())
+            )
+            .code(),
+            code::KIND
+        );
+        assert!(capture.owner_codec.borrow().revoked);
+        assert_eq!(
+            operation_error(request(&capture, &first, Mode::Public).map(|_| ())).code(),
+            code::SOURCE
+        );
     }
 
     #[test]

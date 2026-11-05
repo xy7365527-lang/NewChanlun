@@ -325,6 +325,13 @@ pub(crate) trait CodecRead: NodeSource {
         let Some(scope) = self.codec_work() else {
             return capture.verify_refview_observed(reference, mode, observer);
         };
+        // #1419/#1481:26 / AMENDMENT:60：Native owner 捕获的闭包核验并入同生涯 owner codec
+        // 证明，已认证 (摘要, Flavor, Mode) 单位止步，根四字段仍每次真实读取；失败撤销该证明。
+        // 与请求闭包（CapturedRequestVerifier）同一判据。计量观察者的预算轨迹不改，仍走原核。
+        #[cfg(feature = "s_incremental")]
+        if observer.is_none() && capture.native_frame_reuse_active() {
+            return capture.verify_owner_refview(reference, mode, scope);
+        }
         struct Current<'a> {
             capture: &'a sc::AuditCapture,
             scope: &'a sc::capture_allocation::scratch::WorkScope,

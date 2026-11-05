@@ -1021,6 +1021,12 @@ impl HistoryObjects<'_> {
                     active: sweep.active,
                     withdrawn: sweep.withdrawn,
                     previous_cut: sweep.previous_cut,
+                    // 未被构造消费的入出记录说明本游标停在半途：不带走序列备忘。
+                    seq_memo: if sweep.touched.is_empty() {
+                        sweep.seq_memo
+                    } else {
+                        None
+                    },
                     #[cfg(test)]
                     visits: sweep.visits,
                 });
@@ -1093,12 +1099,40 @@ impl HistoryObjects<'_> {
             native.sweep = Some(ProjectionSweep::new_admitted(&self.entries, s)?);
         }
         let sweep = native.sweep.as_mut().unwrap();
+        // #1419/#1481:26：累计数组按「同位置同摘要」续接上一次成功构造的规范序列。
+        // 只有本游标自上次构造以来实际入出集合的成员（加 Template 形态变化的出生项）决定
+        // 首个变化位置；其前的前缀子树按摘要继承，不重写、不重读其叶。备忘在 seek 前取出，
+        // 只在三数组全部成功后放回：任一步失败（含 seek 半途）下次都从空序列冷构造。
+        let mut memo = sweep.seq_memo.take();
+        if !sweep.touched.is_empty() {
+            memo = None;
+        }
+        sweep.touched = sc::CodecVec::default();
         sweep.seek_admitted(g, self.layout, &self.entries, s)?;
+        let touched = std::mem::take(&mut sweep.touched);
+        let lows = match &memo {
+            Some(memo) => Some(projection_lows(
+                sweep,
+                memo.cut,
+                g,
+                self.layout,
+                &self.entries,
+                &touched,
+                s,
+            )?),
+            None => None,
+        };
+        drop(touched);
         // #1394：先为真实 Vec 容量取得许可，避免 collect 的最小扩容超出元素数上界。
         let mut active = sc::CodecVec::default();
         s.native_codec_room(&mut active, sweep.active.len())
             .map_err(publish_err)?;
-        for (_, i) in sweep.active.keys() {
+        let (mut active_keep_t, mut active_keep_p) = (0, 0);
+        for (position, (key, i)) in sweep.active.keys().enumerate() {
+            if let Some(lows) = &lows {
+                advance_keep(&mut active_keep_t, position, (key, *i), lows.active_template.as_ref());
+                advance_keep(&mut active_keep_p, position, (key, *i), lows.active_public.as_ref());
+            }
             active
                 .try_push((*i, &self.entries[*i]))
                 .map_err(publish_err)?;
@@ -1106,10 +1140,16 @@ impl HistoryObjects<'_> {
         let mut dead = sc::CodecVec::default();
         s.native_codec_room(&mut dead, sweep.withdrawn.len())
             .map_err(publish_err)?;
-        for (_, i) in sweep.withdrawn.keys() {
+        let (mut dead_keep_t, mut dead_keep_p) = (0, 0);
+        for (position, (key, i)) in sweep.withdrawn.keys().enumerate() {
+            if let Some(lows) = &lows {
+                advance_keep(&mut dead_keep_t, position, (key, *i), lows.dead_template.as_ref());
+                advance_keep(&mut dead_keep_p, position, (key, *i), lows.dead_public.as_ref());
+            }
             dead.try_push((*i, &self.entries[*i]))
                 .map_err(publish_err)?;
         }
+        drop(lows);
         let born = sweep
             .events
             .births
@@ -1128,85 +1168,131 @@ impl HistoryObjects<'_> {
         {
             sweep.visits.output_entries += active.len() + dead.len() + births.len();
         }
+        let (active_prior, dead_prior) = match memo {
+            Some(memo) => (Some(memo.active), Some(memo.dead)),
+            None => (None, None),
+        };
         // 仅当前cut的新生对象在active/dead与upserts重复；旧对象复用既有两phase wire。
         // 派生Template不进入持久Public槽，pair表只保存本代出生项。
         let mut pairs = NativeTree::<usize, (RefValue, RefValue)>::default();
-        let mut collect =
-            |items: sc::CodecVec<(usize, &Entry)>| -> Result<(Built, Built), PublishError> {
-                let mut template = sc::CodecVec::default();
-                let mut public = sc::CodecVec::default();
-                for (ordinal, e) in items {
-                    if e.life.published_generation > g {
-                        return Err(publish_err("对象出生后发布代号被改写"));
+        let mut collect = |items: sc::CodecVec<(usize, &Entry)>,
+                           prior: Option<SeqPair>,
+                           keep_t: usize,
+                           keep_p: usize|
+         -> Result<((Built, Built), SeqPair), PublishError> {
+            let (keep_t, keep_p) = if prior.is_some() {
+                (keep_t, keep_p)
+            } else {
+                (0, 0)
+            };
+            let from = keep_t.min(keep_p);
+            let mut template = sc::CodecVec::default();
+            let mut public = sc::CodecVec::default();
+            for (position, (ordinal, e)) in items.into_iter().enumerate() {
+                if e.life.published_generation > g {
+                    return Err(publish_err("对象出生后发布代号被改写"));
+                }
+                let saved = match e.life.view().batch {
+                    BatchView::Existing(v) => v,
+                    BatchView::CurrentBatch => {
+                        return Err(publish_err("历史索引未绑定实际出生batch"))
                     }
-                    let saved = match e.life.view().batch {
-                        BatchView::Existing(v) => v,
-                        BatchView::CurrentBatch => {
-                            return Err(publish_err("历史索引未绑定实际出生batch"))
-                        }
-                    };
-                    if (e.life.first_known_generation == g) != (saved == batch) {
-                        return Err(publish_err("出生/旧代batch与当前cut不符"));
-                    }
-                    let pair = if e.life.first_known_generation == g {
-                        if let Some(pair) = pairs.get(&ordinal) {
-                            (
-                                s.native_ref_clone(&pair.0).map_err(publish_err)?,
-                                s.native_ref_clone(&pair.1).map_err(publish_err)?,
-                            )
-                        } else {
-                            let life = effective_life(e, g)?;
-                            object_records::validate_life_view(life, g, e.id.as_str())
-                                .map_err(publish_err)?;
-                            let phase = usize::from(life.withdrawn_generation.is_some());
-                            #[cfg(test)]
-                            WIRE_PROJECTIONS.with(|v| v.set(v.get() + 1));
-                            let b = object_records::reproject_stored_wire_view(
-                                s,
-                                e.birth_wire.view(),
-                                life,
-                                g,
-                            )
-                            .map_err(publish_err)?;
-                            let template = built_ref(s, &b)?;
-                            let public = replace_batch_field(s, template.view(), saved)?;
-                            s.native_verify_original(
-                                native.capture,
-                                public.view(),
-                                sc::Mode::Public,
-                            )
-                            .map_err(publish_err)?;
-                            native.remember_wire(s, ordinal, phase, &public)?;
-                            let pair = (template, public);
-                            pairs
-                                .insert_admitted(
-                                    ordinal,
-                                    (
-                                        s.native_ref_clone(&pair.0).map_err(publish_err)?,
-                                        s.native_ref_clone(&pair.1).map_err(publish_err)?,
-                                    ),
-                                    s,
-                                )
-                                .map_err(publish_err)?;
-                            pair
-                        }
+                };
+                if (e.life.first_known_generation == g) != (saved == batch) {
+                    return Err(publish_err("出生/旧代batch与当前cut不符"));
+                }
+                if position < from {
+                    // 继承前缀：逐对象生命周期判据照本cut跑；其wire摘要已在继承子树内。
+                    let life = effective_life(e, g)?;
+                    object_records::validate_life_view(life, g, e.id.as_str())
+                        .map_err(publish_err)?;
+                    continue;
+                }
+                let pair = if e.life.first_known_generation == g {
+                    if let Some(pair) = pairs.get(&ordinal) {
+                        (
+                            s.native_ref_clone(&pair.0).map_err(publish_err)?,
+                            s.native_ref_clone(&pair.1).map_err(publish_err)?,
+                        )
                     } else {
-                        // 保留旧双投影的逐对象生命周期检查；memo仍按本cut再核。
                         let life = effective_life(e, g)?;
                         object_records::validate_life_view(life, g, e.id.as_str())
                             .map_err(publish_err)?;
-                        let public = native.wire(s, e, ordinal, g)?;
-                        (s.native_ref_clone(&public).map_err(publish_err)?, public)
-                    };
-                    let (a, b) = pair;
+                        let phase = usize::from(life.withdrawn_generation.is_some());
+                        #[cfg(test)]
+                        WIRE_PROJECTIONS.with(|v| v.set(v.get() + 1));
+                        let b = object_records::reproject_stored_wire_view(
+                            s,
+                            e.birth_wire.view(),
+                            life,
+                            g,
+                        )
+                        .map_err(publish_err)?;
+                        let template = built_ref(s, &b)?;
+                        let public = replace_batch_field(s, template.view(), saved)?;
+                        s.native_verify_original(
+                            native.capture,
+                            public.view(),
+                            sc::Mode::Public,
+                        )
+                        .map_err(publish_err)?;
+                        native.remember_wire(s, ordinal, phase, &public)?;
+                        let pair = (template, public);
+                        pairs
+                            .insert_admitted(
+                                ordinal,
+                                (
+                                    s.native_ref_clone(&pair.0).map_err(publish_err)?,
+                                    s.native_ref_clone(&pair.1).map_err(publish_err)?,
+                                ),
+                                s,
+                            )
+                            .map_err(publish_err)?;
+                        pair
+                    }
+                } else {
+                    // 保留旧双投影的逐对象生命周期检查；memo仍按本cut再核。
+                    let life = effective_life(e, g)?;
+                    object_records::validate_life_view(life, g, e.id.as_str())
+                        .map_err(publish_err)?;
+                    let public = native.wire(s, e, ordinal, g)?;
+                    (s.native_ref_clone(&public).map_err(publish_err)?, public)
+                };
+                let (a, b) = pair;
+                if position >= keep_t {
                     s.native_codec_room(&mut template, 1).map_err(publish_err)?;
-                    s.native_codec_room(&mut public, 1).map_err(publish_err)?;
                     template.try_push(a).map_err(publish_err)?;
+                }
+                if position >= keep_p {
+                    s.native_codec_room(&mut public, 1).map_err(publish_err)?;
                     public.try_push(b).map_err(publish_err)?;
                 }
-                Ok((array(s, &template)?, array(s, &public)?))
-            };
-        Ok([collect(active)?, collect(dead)?, collect(births)?])
+            }
+            let prior = prior.unwrap_or(SeqPair {
+                template: sc::SequenceRef::empty(),
+                public: sc::SequenceRef::empty(),
+            });
+            let template = continue_array(s, &prior.template, keep_t, &template)?;
+            let public = continue_array(s, &prior.public, keep_p, &public)?;
+            Ok((
+                (template.0, public.0),
+                SeqPair {
+                    template: template.1,
+                    public: public.1,
+                },
+            ))
+        };
+        let (active_out, active_seq) = collect(active, active_prior, active_keep_t, active_keep_p)?;
+        let (dead_out, dead_seq) = collect(dead, dead_prior, dead_keep_t, dead_keep_p)?;
+        let (births_out, _) = collect(births, None, 0, 0)?;
+        if let Some(sweep) = native.sweep.as_mut() {
+            sweep.seq_memo = Some(ProjectionSeqMemo {
+                cut: g,
+                active: active_seq,
+                dead: dead_seq,
+            });
+        }
+        Ok([active_out, dead_out, births_out])
     }
 }
 
@@ -1322,6 +1408,138 @@ impl HistoryObjects<'_> {
     }
 }
 
+/// #1419：一张累计数组上次成功构造的 Template/Public 规范序列（根＋叶数，不持叶）。
+#[derive(Clone, Copy)]
+struct SeqPair {
+    template: sc::SequenceRef,
+    public: sc::SequenceRef,
+}
+/// #1419：投影游标上次成功构造的cut与活动/撤回两数组的序列；常数大小，随游标同生同灭。
+#[derive(Clone, Copy)]
+struct ProjectionSeqMemo {
+    cut: i64,
+    active: SeqPair,
+    dead: SeqPair,
+}
+/// 自上次构造以来首个可能变化的公开主序键（含）；`None` ＝ 该数组无变化，整段继承。
+type SetKey = (PublicRank, usize);
+struct ProjectionLows {
+    active_template: Option<SetKey>,
+    active_public: Option<SetKey>,
+    dead_template: Option<SetKey>,
+    dead_public: Option<SetKey>,
+}
+fn min_key(slot: &mut Option<SetKey>, key: SetKey) {
+    if slot.as_ref().is_none_or(|current| key < *current) {
+        *slot = Some(key);
+    }
+}
+/// 首个变化位置：入出集合的成员键取最小；Template 另含上次与本次出生项（其 Template 元素
+/// 带批次占位，非出生代即为 Public 形态）。键与 seek 入出时同由 [`native_rank`] 当场取。
+fn projection_lows(
+    sweep: &ProjectionSweep,
+    memo_cut: i64,
+    g: i64,
+    layout: Layout,
+    index: &[Entry],
+    touched: &[(usize, bool)],
+    store: &(impl CodecRead + ?Sized),
+) -> Result<ProjectionLows, PublishError> {
+    let mut lows = ProjectionLows {
+        active_template: None,
+        active_public: None,
+        dead_template: None,
+        dead_public: None,
+    };
+    for &(i, withdrawn) in touched {
+        // Public 与 Template 各取一份当场键（同一 native_rank 判据），不另设键克隆路径。
+        let public = (native_rank(layout, &index[i], withdrawn, store)?, i);
+        let template = (native_rank(layout, &index[i], withdrawn, store)?, i);
+        if withdrawn {
+            min_key(&mut lows.dead_public, public);
+            min_key(&mut lows.dead_template, template);
+        } else {
+            min_key(&mut lows.active_public, public);
+            min_key(&mut lows.active_template, template);
+        }
+    }
+    if memo_cut != g {
+        for cut in [memo_cut, g] {
+            for &i in sweep.events.births.get(&cut).map(|b| &b[..]).unwrap_or(&[]) {
+                let e = &index[i];
+                if e.life.first_known_generation > g {
+                    continue;
+                }
+                // 本cut所在集合与 seek 同一生命周期判据：撤回代 ≤ g 才入撤回集。
+                let withdrawn = e.life.withdrawn_generation.is_some_and(|d| d <= g);
+                let key = (native_rank(layout, e, withdrawn, store)?, i);
+                let (set, slot) = if withdrawn {
+                    (&sweep.withdrawn, &mut lows.dead_template)
+                } else {
+                    (&sweep.active, &mut lows.active_template)
+                };
+                if !set.contains_key(&key) {
+                    return Err(publish_err("出生项不在本cut投影集合"));
+                }
+                min_key(slot, key);
+            }
+        }
+    }
+    Ok(lows)
+}
+/// 有序遍历中：位置 `position` 的键严格小于变化下界且此前全部继承，则继承长度推进到其后。
+fn advance_keep(keep: &mut usize, position: usize, key: (&PublicRank, usize), low: Option<&SetKey>) {
+    if *keep != position {
+        return;
+    }
+    let inherited = match low {
+        None => true,
+        Some((rank, i)) => (key.0, key.1) < (rank, *i),
+    };
+    if inherited {
+        *keep = position + 1;
+    }
+}
+/// 规范序列续接：保留 `prior` 前 `keep` 叶，接 `tail` 元素，再写 `0x05` 数组节点
+/// （body＝`U64(n) || M根`，与 [`array`] 同一帧配方、同一规范分解，故逐位同根）。
+fn continue_array(
+    s: &mut (impl CodecStore + ?Sized),
+    prior: &sc::SequenceRef,
+    keep: usize,
+    tail: &[RefValue],
+) -> Result<(Built, sc::SequenceRef), PublishError> {
+    let allocation = s.allocation_budget();
+    let mut leaves = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut leaves, tail.len())
+        .map_err(publish_err)?;
+    for r in tail {
+        leaves
+            .try_push(r.digest().map_err(publish_err)?)
+            .map_err(publish_err)?;
+    }
+    let keep = u64::try_from(keep).map_err(|_| publish_err("继承前缀长度溢出"))?;
+    let seq = s
+        .rebuild_sequence_suffix(prior, keep, &leaves, allocation.as_ref())
+        .map_err(publish_err)?;
+    let count = seq.count();
+    if count == 0 {
+        s.put(seq.root(), sc::tag::SEQ_EMPTY, &[])
+            .map_err(publish_err)?;
+    }
+    let mut body = [0u8; 40];
+    body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
+    body[8..].copy_from_slice(&seq.root());
+    let digest = sc::frame(sc::tag::ARRAY, &body);
+    s.put(digest, sc::tag::ARRAY, &body).map_err(publish_err)?;
+    Ok((
+        Built {
+            digest,
+            kind: Kind::Array,
+            extent: Some(count),
+        },
+        seq,
+    ))
+}
 fn array(s: &mut (impl CodecStore + ?Sized), refs: &[RefValue]) -> Result<Built, PublishError> {
     let allocation = s.allocation_budget();
     let mut views = bj::new_work(allocation.as_ref());
@@ -2475,6 +2693,8 @@ pub(super) fn restore_for_owner<'a>(
                 active: saved.active,
                 withdrawn: saved.withdrawn,
                 previous_cut: saved.previous_cut,
+                seq_memo: saved.seq_memo,
+                touched: sc::CodecVec::default(),
                 retained: Default::default(),
                 #[cfg(test)]
                 visits: saved.visits,
@@ -2959,6 +3179,18 @@ type NativeRank = OrderKey<NativeValue<String>>;
 /// 与写者 diff 及 changes 同序。
 type PublicRank = (i64, NativeRank);
 type RankSet = NativeTree<(PublicRank, usize), ()>;
+/// #1419：记一次入出集合（Δ 规模）；构造时据此定首个变化位置。
+fn touch(
+    touched: &mut sc::CodecVec<(usize, bool)>,
+    ordinal: usize,
+    withdrawn: bool,
+    store: &(impl CodecRead + ?Sized),
+) -> Result<(), PublishError> {
+    store
+        .native_codec_room(touched, 1)
+        .map_err(publish_err)?;
+    touched.try_push((ordinal, withdrawn)).map_err(publish_err)
+}
 fn native_rank(
     layout: Layout,
     e: &Entry,
@@ -3209,6 +3441,7 @@ struct OwnerProjection {
     active: RankSet,
     withdrawn: RankSet,
     previous_cut: Option<i64>,
+    seq_memo: Option<ProjectionSeqMemo>,
     #[cfg(test)]
     visits: ProjectionVisits,
 }
@@ -3218,6 +3451,10 @@ struct ProjectionSweep {
     active: RankSet,
     withdrawn: RankSet,
     previous_cut: Option<i64>,
+    /// #1419：上次成功构造的累计数组序列（常数大小）；与游标同生同灭。
+    seq_memo: Option<ProjectionSeqMemo>,
+    /// #1419：自上次构造以来入出集合的（序号，是否撤回集）；构造时取走，Δ 规模。
+    touched: sc::CodecVec<(usize, bool)>,
     #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
@@ -3258,6 +3495,7 @@ impl ProjectionSweep {
                         #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
+                    touch(&mut self.touched, *i, false, store)?;
                     #[cfg(test)]
                     {
                         self.visits.births += 1;
@@ -3273,6 +3511,7 @@ impl ProjectionSweep {
                         #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
+                    touch(&mut self.touched, *i, false, store)?;
                     insert_rank(
                         &mut self.withdrawn,
                         native_rank(layout, &index[*i], true, store)?,
@@ -3281,6 +3520,7 @@ impl ProjectionSweep {
                         #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
+                    touch(&mut self.touched, *i, true, store)?;
                     #[cfg(test)]
                     {
                         self.visits.deaths += 1;
@@ -3299,6 +3539,7 @@ impl ProjectionSweep {
                         #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
+                    touch(&mut self.touched, *i, true, store)?;
                     insert_rank(
                         &mut self.active,
                         native_rank(layout, &index[*i], false, store)?,
@@ -3307,6 +3548,7 @@ impl ProjectionSweep {
                         #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
+                    touch(&mut self.touched, *i, false, store)?;
                     #[cfg(test)]
                     {
                         self.visits.deaths += 1;
@@ -3322,6 +3564,7 @@ impl ProjectionSweep {
                         #[cfg(feature = "s_incremental")]
                         &mut self.retained,
                     )?;
+                    touch(&mut self.touched, *i, false, store)?;
                     #[cfg(test)]
                     {
                         self.visits.births += 1;
@@ -3355,6 +3598,8 @@ impl ProjectionSweep {
             active: Default::default(),
             withdrawn: Default::default(),
             previous_cut: None,
+            seq_memo: None,
+            touched: sc::CodecVec::default(),
             #[cfg(feature = "s_incremental")]
             retained: Default::default(),
             #[cfg(test)]
@@ -7482,6 +7727,7 @@ mod owner_retention {
                 active,
                 withdrawn,
                 previous_cut: _,
+                seq_memo: _,
                 #[cfg(test)]
                     visits: _,
             } = self;
@@ -7570,7 +7816,7 @@ impl HistorySweep {
         let mut by_id = by_id.iter().map(|(k, v)| json!([k, v])).collect::<Vec<_>>();
         by_id.sort_by_key(crate::canonical_json);
         let projection = projection.as_ref().map(|p| {
-            let OwnerProjection { wires, active, withdrawn, previous_cut, visits: _ } = p;
+            let OwnerProjection { wires, active, withdrawn, previous_cut, seq_memo: _, visits: _ } = p;
             json!({"wires":wires.as_ref(),"active":set(active),"withdrawn":set(withdrawn),"previous_cut":previous_cut})
         });
         json!({"events":{"by_id":by_id,"births":births.iter().map(|(g,v)|json!([g,v.as_ref()])).collect::<Vec<_>>(),

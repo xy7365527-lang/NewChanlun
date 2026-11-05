@@ -245,6 +245,7 @@ TB1717_S_EXPORT 未设置
 TOP 窗口应产对象
 TOP/BOTTOM 窗口应产对象
 TOP/BOTTOM 窗口必产 CC007
+Template 不借 Public 单位
 Template 不消费 Public seen
 Template损坏必须拒绝
 TestOnly real S3 W-rule multi-cut export (init_v3 + real accept/Begin/commit, file WAL)
@@ -1037,6 +1038,7 @@ writer/recover闭合后无SHM
 成功memo仍持账
 成功memo布局持续活到capture Drop
 成功与两类失败均恢复inner角色
+成功单位并入 owner 证明并计保留
 成功或拒绝均不泄漏请求证据
 成功种子仍逐根严格读取当前header
 成功链保留原来源池
@@ -1122,6 +1124,7 @@ writer/recover闭合后无SHM
 新的外部旧epoch仍拒绝
 新规则 hot-wal.sqlite
 新请求不能继承旧 seen
+新请求对已认证根只重读根头
 新请求须经重绑点换到本请求冻结域
 新载荷是合法 JSON
 无 Owned 构建不调用该分支
@@ -1762,6 +1765,7 @@ writer/recover闭合后无SHM
 额度在实际复制/读取前拒绝
 首个previous的实际header失败不得发布命中成功
 首个入口没有旧池，之后旧池为完整候选
+首个请求完整核闭包
 首代不得凭新生成产品签发旧历史资格
 首代半途失败后坐标车道必须仍是失败前的空整根
 首代拒写恢复
