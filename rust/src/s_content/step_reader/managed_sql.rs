@@ -4,17 +4,52 @@ use capture_allocation::scratch::{NativeReservation, ScratchFailure};
 use rusqlite::Transaction;
 use std::cell::Cell;
 
+/// #1419 M8D 3A：签发方提供的生涯门。`check_live` 在每次域核（节点 SELECT 前）以本 reader
+/// 独占的同一事务调用，由 owner 核其私有连接、快照/文件观测、材料与父身份；`sample` 只采样
+/// 原绝对期限/取消。library 不构造生涯，也不接受“已认证”标志；判定全由签发方的真实核给出。
+#[cfg(feature = "s_capture_native_testonly")]
+pub trait LiveGate {
+    fn check_live(&self, tx: &Transaction<'_>) -> Result<(), CodecError>;
+    fn sample(&self) -> Result<(), CodecError>;
+}
+
+/// 签发方在同一调用位次上只有一个门：M8B 测试差分沿用原期限回调（外生涯由其调用方 sample
+/// 门负责），owner 签发的 reader 只用 `LiveGate`。两者不在同一 if-else 上互为兜底。
+#[derive(Clone, Copy)]
+enum Gate<'w> {
+    Sample(&'w dyn Fn() -> Result<(), CodecError>),
+    #[cfg(feature = "s_capture_native_testonly")]
+    Live(&'w dyn LiveGate),
+}
+impl Gate<'_> {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(unused_variables))]
+    fn live(&self, tx: &Transaction<'_>) -> Result<(), CodecError> {
+        match self {
+            Gate::Sample(sample) => sample(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Gate::Live(gate) => gate.check_live(tx),
+        }
+    }
+    fn sample(&self) -> Result<(), CodecError> {
+        match self {
+            Gate::Sample(sample) => sample(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Gate::Live(gate) => gate.sample(),
+        }
+    }
+}
+
 /// 独占事务借用（#1419 R1-01 返修，回到 M8B 原合同）：reader 存活期内任何 Rust 调用方都拿不到
 /// 同一 Transaction 的另一借用，不能 Commit、换事务或执行事务控制 SQL；读者自身也不暴露 tx。
 /// 事务能力的封闭来自所有权而不是统计观测：底层 Connection 的别名只能由签发方排除，
 /// 生产签发方是持私有连接的 owner（M8D §1.2 生涯封印，3A），非测试调用点在 3C 之前不接。
 /// total_changes/schema/隔离夹持只拒测试内部经本 reader 注入的同事务变化。
-/// 外连接身份/生涯夹持由原 sample 门负责；原父许可只作 O(1) 域身份封印。
-/// sample 必须借本请求原绝对 deadline/取消门，不能在这里重新起算期限。
+/// 外连接身份/生涯夹持由签发方的门负责（M8B 回调或 3A owner `LiveGate`）；原父许可只作 O(1)
+/// 域身份封印。门必须借本请求原绝对 deadline/取消，不能在这里重新起算期限。
 pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
     tx: &'tx mut Transaction<'conn>,
     work: &'work WorkScope,
-    sample: &'work dyn Fn() -> Result<(), CodecError>,
+    gate: Gate<'work>,
     identity: NativeReservation,
     live: Cell<bool>,
     changes: u64,
@@ -31,7 +66,24 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         work: &'work WorkScope,
         sample: &'work dyn Fn() -> Result<(), CodecError>,
     ) -> Result<Self, CodecError> {
-        sample()?;
+        Self::issue(tx, work, Gate::Sample(sample))
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn with_gate(
+        tx: &'tx mut Transaction<'conn>,
+        work: &'work WorkScope,
+        gate: &'work dyn LiveGate,
+    ) -> Result<Self, CodecError> {
+        Self::issue(tx, work, Gate::Live(gate))
+    }
+
+    fn issue(
+        tx: &'tx mut Transaction<'conn>,
+        work: &'work WorkScope,
+        gate: Gate<'work>,
+    ) -> Result<Self, CodecError> {
+        gate.live(tx)?;
         work.check_current()?;
         if tx.is_autocommit() {
             return Err(work.reject(ScratchFailure::Ledger));
@@ -46,7 +98,7 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         Ok(Self {
             tx,
             work,
-            sample,
+            gate,
             identity,
             live: Cell::new(true),
             changes,
@@ -83,7 +135,7 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         {
             return Err(work.reject(ScratchFailure::Ledger));
         }
-        (self.sample)()?;
+        self.gate.live(self.tx)?;
         let (read_uncommitted, main_schema, temp_schema) =
             sql_identity(self.tx, &self.metadata_reads)?;
         if read_uncommitted != 0 || (main_schema, temp_schema) != self.schema {
@@ -206,7 +258,7 @@ impl ManagedSqlStep<'_, '_, '_> {
                 let bytes = row.blob(1).map_err(storage_error)?;
                 // 读前许可：首次 Rust 行正文 allocation 之前沿原 work/origin 预留。
                 // CheckedFrame/CheckedNodeUsage 内联在栈和租约中，不另开 heap 证明表。
-                (self.sample)()?;
+                self.gate.sample()?;
                 let permit = self.work.reserve_native(bytes.len())?;
                 let mut body = Vec::new();
                 body.try_reserve_exact(bytes.len())
@@ -226,7 +278,7 @@ impl ManagedSqlStep<'_, '_, '_> {
             })
             .transpose()?;
         // F 后采样原绝对门，失败直接丢弃本次 allocation，不换源或重试。
-        (self.sample)()?;
+        self.gate.sample()?;
         Ok(result)
     }
 }
@@ -303,6 +355,51 @@ pub(crate) fn with_sql_root<T>(
     let mut reader = ManagedSqlStep::new(tx, work, sample)?;
     let lease = reader.read_checked(reference, mode)?;
     Ok(f(lease.tag, &lease))
+}
+
+/// #1419 M8D 3A：owner 工厂签发的受管 SQL reader。只能由持有 `&mut Transaction` 的签发方
+/// 构造，门由签发方给出；不暴露 tx/Connection，不提供 Clone、跨步句柄或正文 into。
+#[cfg(feature = "s_capture_native_testonly")]
+pub struct GatedSqlReader<'tx, 'conn, 'work> {
+    inner: ManagedSqlStep<'tx, 'conn, 'work>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl<'tx, 'conn, 'work> GatedSqlReader<'tx, 'conn, 'work> {
+    pub fn new(
+        tx: &'tx mut Transaction<'conn>,
+        work: &'work WorkScope,
+        gate: &'work dyn LiveGate,
+    ) -> Result<Self, CodecError> {
+        Ok(Self {
+            inner: ManagedSqlStep::with_gate(tx, work, gate)?,
+        })
+    }
+    /// 单帧点查：先过签发方生涯门，再同事务 SELECT、读前许可与 F；首错保持，失活后零 SELECT。
+    pub fn frame<T>(
+        &mut self,
+        digest: &NodeDigest,
+        f: impl FnOnce(u8, &[u8]) -> T,
+    ) -> Result<Option<T>, CodecError> {
+        self.inner
+            .checked_read_scoped(digest)
+            .map(|frame| frame.map(|frame| f(frame.tag(), frame.body())))
+    }
+    /// 根租约：原 Verifier 完整核后交付；正文只在回调借用期内可见。
+    pub fn root<T>(
+        &mut self,
+        reference: RefView<'_>,
+        mode: Mode,
+        f: impl FnOnce(u8, &[u8]) -> T,
+    ) -> Result<T, CodecError> {
+        let lease = self.inner.read_checked(reference, mode)?;
+        Ok(f(lease.tag, &lease))
+    }
+    pub fn node_selects(&self) -> u64 {
+        self.inner.reads
+    }
+    pub fn metadata_reads(&self) -> u64 {
+        self.inner.metadata_reads.get()
+    }
 }
 
 #[cfg(test)]

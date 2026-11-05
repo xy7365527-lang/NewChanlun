@@ -56,6 +56,7 @@ mod step_reader;
 #[doc(hidden)]
 pub mod m8b_testonly {
     use super::*;
+    pub use step_reader::managed_sql::{GatedSqlReader, LiveGate};
 
     pub fn sql_reads_on_thread() -> u64 {
         step_reader::managed_sql::sql_reads_on_thread()

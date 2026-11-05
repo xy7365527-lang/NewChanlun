@@ -3,7 +3,7 @@
 use super::{effects, native, request_audit::SqlCell, AuditTxn};
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{capture_allocation::scratch::WorkScope, CodecVec};
-use rusqlite::{types::ValueRef, Connection};
+use rusqlite::{types::ValueRef, Connection, Transaction};
 use std::{cell::RefCell, rc::Rc};
 use std::{
     fs::{File, Metadata},
@@ -88,6 +88,9 @@ struct Observation {
 pub(super) struct WriteCandidate {
     observation: Observation,
 }
+/// 本切面观测见证；字段私有，只能由 `Clamp::phase` 构造。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) struct Phase(Observation);
 #[path = "history_physical.rs"]
 mod physical;
 pub(super) use physical::CommitMonitor;
@@ -227,25 +230,26 @@ impl Clamp {
         })
     }
     fn observe(&self, active: &AuditTxn<'_>) -> Result<Observation, String> {
+        self.observe_tx(active.tx())
+    }
+    fn observe_tx(&self, tx: &Transaction<'_>) -> Result<Observation, String> {
         let before = self.files()?;
         let out = Observation {
-            data_version: active
-                .tx()
+            data_version: tx
                 .query_row("PRAGMA main.data_version", [], |r| r.get(0))
                 .map_err(stale)?,
-            schema_version: active
-                .tx()
+            schema_version: tx
                 .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
                 .map_err(stale)?,
-            domain: active.read_domain().map_err(stale)?,
-            total_changes: active.tx().total_changes(),
+            domain: super::read_domain_of(tx).map_err(stale)?,
+            total_changes: tx.total_changes(),
             controls: match &self.parent {
                 Some(parent) => parent
                     .codec_work()
                     .map_err(resource_failure)?
-                    .run(|work| Controls::read(active.tx(), self.control_limit, Some(work)))
+                    .run(|work| Controls::read(tx, self.control_limit, Some(work)))
                     .map_err(|error| resource_failure(native::Failure::from(error)))?,
-                None => Controls::read(active.tx(), self.control_limit, None)?,
+                None => Controls::read(tx, self.control_limit, None)?,
             },
             files: self.files()?,
         };
@@ -338,6 +342,22 @@ impl Clamp {
             {
                 return Err(stale("WAL追加不是完整frame"));
             }
+        }
+        Ok(())
+    }
+    /// #1419 M8D 3A：本切面观测。只在签发方已用原 `check` 或 `check_candidate`
+    /// 解释本事务全部自身写之后取得；它不是 `WriteCandidate`，不推进生涯基线，也无提交资格。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn phase(&self, active: &AuditTxn<'_>) -> Result<Phase, String> {
+        Ok(Phase(self.observe(active)?))
+    }
+    /// reader 生涯内事务由读者独占且连接写入被拒，任何变化都不能由自身 effects 解释，
+    /// 因而与本切面逐项全等；同一 `observe` 判据，不另立宽松核。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn check_phase(&self, tx: &Transaction<'_>, phase: &Phase) -> Result<(), String> {
+        if self.observe_tx(tx)? != phase.0 {
+            self.integrity_refusal.set(true);
+            return Err(stale("读期间版本、文件、控制原件、写计数或连接域改变"));
         }
         Ok(())
     }

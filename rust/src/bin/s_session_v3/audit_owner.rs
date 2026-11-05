@@ -87,8 +87,11 @@ pub(crate) mod cold_source;
 pub(super) mod effects;
 #[cfg(all(feature = "s_incremental", unix))]
 mod history_clamp;
+// #1419 M8D 3A：owner 生涯封印签发的受管 SQL reader；只在测试驱动，非测试调用点归 3C。
 #[cfg(feature = "s_incremental")]
 pub(crate) mod native;
+#[cfg(all(test, feature = "s_capture_native_testonly", unix))]
+mod step_reader;
 /// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
 #[cfg(feature = "s_incremental")]
 type ColdRoot = native::Budget;
@@ -3171,64 +3174,64 @@ impl AuditTxn<'_> {
     }
 
     fn read_domain(&self) -> Result<[i64; 6], String> {
-        // main 快照/version 已在 begin 中取得；TEMP 和连接设置不由 main version 覆盖。
-        let temp: i64 = self
-            .tx()
-            .query_row("SELECT count(*) FROM temp.sqlite_schema", [], |r| r.get(0))
-            .map_err(invalid)?;
-        let databases: i64 = self
-            .tx()
-            .query_row(
-                "SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main','temp')",
-                [],
-                |r| r.get(0),
+        read_domain_of(self.tx())
+    }
+}
+
+/// #1419 M8D 3A：连接域读取只依赖实际事务；AuditTxn 与 owner 生涯门共用这一份判据。
+fn read_domain_of(tx: &Transaction<'_>) -> Result<[i64; 6], String> {
+    // main 快照/version 已在 begin 中取得；TEMP 和连接设置不由 main version 覆盖。
+    let temp: i64 = tx
+        .query_row("SELECT count(*) FROM temp.sqlite_schema", [], |r| r.get(0))
+        .map_err(invalid)?;
+    let databases: i64 = tx
+        .query_row(
+            "SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main','temp')",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(invalid)?;
+    if temp != 0 || databases != 0 {
+        return Err(invalid("完整候选不允许 TEMP 对象或附加数据库"));
+    }
+    let mut out = [0; 6];
+    for (i, sql) in [
+        "PRAGMA read_uncommitted",
+        "PRAGMA foreign_keys",
+        "PRAGMA recursive_triggers",
+        "PRAGMA trusted_schema",
+        "PRAGMA query_only",
+        "PRAGMA main.encoding",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if i == 5 {
+            let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                tx,
+                c"PRAGMA main.encoding",
             )
             .map_err(invalid)?;
-        if temp != 0 || databases != 0 {
-            return Err(invalid("完整候选不允许 TEMP 对象或附加数据库"));
+            let mut row = stmt
+                .next()
+                .map_err(invalid)?
+                .ok_or_else(|| invalid("编码域缺行"))?;
+            out[i] = match row.text(0).map_err(invalid)? {
+                "UTF-8" => 1,
+                "UTF-16le" => 2,
+                "UTF-16be" => 3,
+                _ => return Err(invalid("未知编码域")),
+            };
+            drop(row);
+            stmt.finalize().map_err(invalid)?;
+        } else {
+            out[i] = tx.query_row(sql, [], |r| r.get(0)).map_err(invalid)?;
         }
-        let mut out = [0; 6];
-        for (i, sql) in [
-            "PRAGMA read_uncommitted",
-            "PRAGMA foreign_keys",
-            "PRAGMA recursive_triggers",
-            "PRAGMA trusted_schema",
-            "PRAGMA query_only",
-            "PRAGMA main.encoding",
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            if i == 5 {
-                let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
-                    self.tx(),
-                    c"PRAGMA main.encoding",
-                )
-                .map_err(invalid)?;
-                let mut row = stmt
-                    .next()
-                    .map_err(invalid)?
-                    .ok_or_else(|| invalid("编码域缺行"))?;
-                out[i] = match row.text(0).map_err(invalid)? {
-                    "UTF-8" => 1,
-                    "UTF-16le" => 2,
-                    "UTF-16be" => 3,
-                    _ => return Err(invalid("未知编码域")),
-                };
-                drop(row);
-                stmt.finalize().map_err(invalid)?;
-            } else {
-                out[i] = self
-                    .tx()
-                    .query_row(sql, [], |r| r.get(0))
-                    .map_err(invalid)?;
-            }
-        }
-        if out[0] != 0 {
-            return Err(invalid("完整候选不允许 read_uncommitted"));
-        }
-        Ok(out)
     }
+    if out[0] != 0 {
+        return Err(invalid("完整候选不允许 read_uncommitted"));
+    }
+    Ok(out)
 }
 
 /// #1488 Recover 锁：同事务签发后离开事务的旧 raw token（不透明）。
@@ -5753,6 +5756,8 @@ pub(super) mod construction_tests {
     include!("audit_owner/w2_h1_window_tests.rs");
     #[cfg(unix)]
     include!("audit_owner/legacy_admission_tests.rs");
+    #[cfg(all(unix, feature = "s_capture_native_testonly"))]
+    include!("audit_owner/step_reader_tests.rs");
 
     #[derive(Clone, Debug)]
     struct RawObservation {
