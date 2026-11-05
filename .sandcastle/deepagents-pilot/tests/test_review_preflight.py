@@ -262,7 +262,15 @@ def test_failed_docker_run_container_is_removed(env, capsys, tmp_path):
     (tmp_path / "bin" / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nexit 125\n')
     code, report, *_ = env(capsys=capsys)
     assert code == 2 and any(line.startswith("rm -f preflight-") for line in calls.read_text().splitlines())
-    assert "probe_cleanup" not in failing(report)
+    # docker 自身出错（125）时 daemon 可能稍后才建出容器，rm -f 成功也只能报回收未确认（独审十五）
+    assert any("daemon" in item for item in check(report, "probe_cleanup")["detail"])
+
+
+def test_container_command_failing_inside_a_finished_container_is_not_a_cleanup_failure(env, capsys, tmp_path):
+    """容器里的命令非 0 退出（如 PR1868 A1 空挂载时 cat 失败）：容器已跑完、--rm 已删，不报回收失败。"""
+    (tmp_path / "bin" / "docker").write_text('#!/bin/sh\n[ "$1" = rm ] && exit 0\nexit 1\n')
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and failing(report) == {"checkout_root_container_mount"}
 
 
 def test_probe_dir_that_cannot_be_deleted_is_reported(env, capsys, tmp_path, monkeypatch):
@@ -727,3 +735,20 @@ def test_timed_out_docker_run_reports_cleanup_unconfirmed_even_if_rm_succeeds(tm
     code, report, _ = _cli(tmp_path, repo, docker, "2")
     cleanup = next(c for c in report["checks"] if c["name"] == "probe_cleanup")
     assert code == 2 and any("daemon" in item for item in cleanup["detail"])
+
+
+def test_container_created_by_the_daemon_after_a_failed_client_and_rm_is_reported(tmp_path, repo):
+    """独审十五：独立会话里的假 daemon 在客户端以 125 退出、rm -f 已返回之后才建出容器；报告必须写明回收未确认。"""
+    created = tmp_path / "containers"
+    created.mkdir()
+    ready = tmp_path / "daemon-ready"
+    daemon = (f"import os, sys, time; os.setsid(); open('{ready}', 'w').close(); "
+              "time.sleep(0.6); open(sys.argv[1], 'w').close()")
+    # 客户端等假 daemon 脱离进程组（已收下创建请求）后才以 125 退出
+    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then python3 -c "{daemon}" "{created}/$4" >/dev/null 2>&1 & '
+              f'while [ ! -e "{ready}" ]; do sleep 0.02; done; exit 125; fi\n'
+              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
+    code, report, _ = _cli(tmp_path, repo, docker, "4")
+    time.sleep(1)
+    assert list(created.iterdir())  # 容器确实在 rm -f 之后出现：killpg 与 rm -f 都管不到 daemon
+    assert code == 2 and any("daemon" in item for item in check(report, "probe_cleanup")["detail"])

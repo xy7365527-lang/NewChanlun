@@ -124,23 +124,24 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
     container = f"preflight-{nonce[:16]}"
     probe = root / container
     detail: dict = {"checkout_root": str(root), "image": args.image}
-    ok, cleanup = False, []
+    ok, cleanup, docker_called, container_done = False, [], False, False
     try:
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         probe.mkdir(mode=0o700)
         (probe / "nonce").write_text(nonce)
+        docker_called = True
         result = run_bounded(["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
                               "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
                               "--entrypoint", "cat", args.image, f"/checkouts/{container}/nonce"],
                              min(30.0, deadline.work_left()))
         seen = result.stdout.decode("utf-8", "replace").strip()
+        # docker 约定：125 是 docker 自身出错（容器可能没跑完）；其余退出码来自容器里的命令，容器已跑完、--rm 已删
+        container_done = result.returncode >= 0 and result.returncode != 125
         ok = result.returncode == 0 and seen == nonce
         detail.update(docker_rc=result.returncode, nonce_match=seen == nonce,
                       stderr=result.stderr.decode("utf-8", "replace").strip())
     except subprocess.TimeoutExpired:
         detail["error"] = "docker run 超时"
-        # 杀掉客户端撤不回 daemon 已收下的创建请求，之后的 rm -f 证明不了容器不会稍后出现
-        cleanup.append(f"docker run 超时被杀，daemon 可能稍后仍建出容器 {container}；请稍后 docker rm -f {container} 确认")
     except Exception as error:
         detail["error"] = type(error).__name__
     finally:
@@ -151,6 +152,9 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
                 cleanup.append(f"docker rm -f {container} 退出 {removed.returncode}")
         except (OSError, subprocess.TimeoutExpired) as error:
             cleanup.append(f"docker rm -f {container} {type(error).__name__}")
+        if docker_called and not container_done:
+            # 客户端超时被杀或 docker 自身出错时，daemon 可能已收下创建请求并在 rm -f 之后才建出容器：如实报未确认
+            cleanup.append(f"docker run 未正常结束，daemon 可能稍后仍建出容器 {container}；请稍后 docker rm -f {container} 确认")
         shutil.rmtree(probe, ignore_errors=True)
         if probe.exists():
             cleanup.append(f"探针目录 {probe} 未删净")
