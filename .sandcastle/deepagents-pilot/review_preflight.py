@@ -37,6 +37,7 @@ SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 RESPONSE_STATUSES = ("completed", "incomplete", "failed", "cancelled", "in_progress", "queued")
 CLEANUP_RESERVE = 3.0  # 总时限里留给回收与输出报告的秒数
+OUTPUT_MARGIN = 0.5  # 回收之后杀进程组、删目录、输出报告所留的秒数（机器忙时也够）
 # 上游错误只按固定词表分类，不把原文抄进报告（原文可能回显 key，且转义形态无法穷举）
 ERROR_CLASSES = (("tool_choice", "tool_choice_unsupported"), ("预扣额度", "quota"), ("quota", "quota"),
                  ("insufficient", "quota"), ("invalid api key", "auth"), ("invalid bearer", "auth"), ("unauthorized", "auth"),
@@ -148,7 +149,7 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
     finally:
         # docker run 被杀或非 0 退出时容器可能已建，--rm 不会清：总是 rm -f（容器不存在时也返回 0）。
         try:
-            removed = run_bounded(["docker", "rm", "-f", container], min(5.0, deadline.total_left() - 0.2))
+            removed = run_bounded(["docker", "rm", "-f", container], min(5.0, deadline.total_left() - OUTPUT_MARGIN))
             if removed.returncode:
                 cleanup.append(f"docker rm -f {container} 退出 {removed.returncode}")
         except (OSError, subprocess.TimeoutExpired) as error:
