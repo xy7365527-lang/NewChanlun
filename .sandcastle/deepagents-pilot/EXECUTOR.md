@@ -36,7 +36,7 @@ VENV=/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/venv
 PEM=/Users/silencehan/Downloads/newchanlun-deepagents-1742.2026-10-26.private-key.pem
 export PILOT_BOAT_CONFIG=/绝对路径/boat-config.json
 export PILOT_BOAT_API_KEY_FILE=/仓外绝对路径/boat-controller.key
-executor() { PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
+executor() { PYTHONPATH=.sandcastle/approval-signing:.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
 git fetch origin <已推送的分支>
 BASE=$(git rev-parse origin/<已推送的分支>)
 ```
