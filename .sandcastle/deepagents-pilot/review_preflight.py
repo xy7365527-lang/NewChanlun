@@ -391,8 +391,10 @@ def _clean_key(value, source: str) -> str:
 
 def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | None = None) -> tuple[str, dict]:
     """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
+    # 读配置与跑 auth.command 共用同一个绝对截止时间（独审十二·1）
+    end = time.monotonic() + (5.0 if budget is None else max(0.0, budget))
     done, text = _bounded(lambda: (codex_home / "config.toml").read_text(encoding="utf-8"),
-                          5.0 if budget is None else max(0.0, budget))
+                          max(0.0, end - time.monotonic()))
     if not done:
         raise CredentialError("读取 Codex config.toml 超时")
     if isinstance(text, Exception):
@@ -415,9 +417,7 @@ def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | Non
         if (not isinstance(auth["command"], str) or not isinstance(args, list) or not all(isinstance(a, str) for a in args)
                 or isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int | float) or timeout_ms <= 0):
             raise CredentialError("model_providers.auth 的 command/args/timeout_ms 类型无效")
-        timeout = timeout_ms / 1000
-        if budget is not None:
-            timeout = min(timeout, max(budget, 0.0))
+        timeout = min(timeout_ms / 1000, max(0.0, end - time.monotonic()))
         if timeout <= 0:
             raise CredentialError("总时限已到，未执行 auth.command")
         try:
@@ -769,7 +769,8 @@ def _emit(report: dict, secrets=()) -> None:
 
 class _Parser(argparse.ArgumentParser):
     def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3；stdout 仍给 JSON
-        print(f"review_preflight: {message}", file=sys.stderr)
+        # stderr 同样脱敏：参数值可能被误填成 key（独审十二·3）
+        print(redact(f"review_preflight: {message}", [os.environ.get(SCRUBBED_ENV)]), file=sys.stderr)
         _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "usage_error": message},
               [os.environ.get(SCRUBBED_ENV)])
         sys.exit(3)

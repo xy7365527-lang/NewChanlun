@@ -1209,7 +1209,8 @@ def test_usage_error_redacts_the_environment_key(capsys, monkeypatch):
     monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "MySecretKey-must-not-leak")
     with pytest.raises(SystemExit):
         preflight.main(["--deadline", "MySecretKey-must-not-leak"])
-    assert "MySecretKey" not in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "MySecretKey" not in captured.out and "MySecretKey" not in captured.err  # 独审十二·3：stderr 也不能漏
 
 
 def test_complete_log_first_seen_at_window_end_is_rechecked(tmp_path):
@@ -1254,3 +1255,60 @@ def test_aborted_setup_cleanup_is_awaited_by_reclaim(tmp_path, monkeypatch):
     failures = preflight.reclaim_pending(1.0)
     worker.join(2)
     assert any("探针目录" in f for f in failures)  # 等到了它的结果（rmtree 是空操作，目录仍在 -> 报告）
+
+
+# ---------------- 独审十二 ----------------
+
+def test_config_read_and_auth_command_share_one_deadline(tmp_path, monkeypatch):
+    """独审十二·1：读配置耗掉的时间要从 auth.command 的预算里扣除，两段合计不超过给定预算。"""
+    codex = tmp_path / "codex"
+    codex.mkdir()
+    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                                       '[model_providers.cliproxy-local.auth]\ncommand = "/bin/sh"\n'
+                                       'args = ["-c", "sleep 5; echo key12345"]\ntimeout_ms = 120000\n')
+    real_read = preflight.Path.read_text
+    monkeypatch.setattr(preflight.Path, "read_text", lambda self, *a, **k: (time.sleep(0.4), real_read(self, *a, **k))[1])
+    start = time.monotonic()
+    with pytest.raises(preflight.CredentialError):
+        preflight.provider_key(codex, budget=0.6)
+    assert time.monotonic() - start < 0.9
+
+
+def test_aborted_setup_in_cli_is_reported_not_silently_left(tmp_path, repo):
+    """独审十二·2：放弃建探针、锁外删目录被截断时，报告要写明回收未完成，而不是静默遗留。"""
+    import subprocess
+    import sys
+    root, base, head = repo
+    script = tmp_path / "slow_preflight.py"
+    script.write_text(
+        "import sys, time, pathlib\n"
+        f"sys.path.insert(0, {str(pathlib_dir())!r})\n"
+        "import review_preflight as p\n"
+        "real_write = p.Path.write_text\n"
+        "p.Path.write_text = lambda self, *a, **k: (time.sleep(1.1) if self.name == 'nonce' else None, real_write(self, *a, **k))[1]\n"
+        "p.shutil.rmtree = lambda *a, **k: time.sleep(30)\n"
+        "p.os._exit(p.main(sys.argv[1:]))\n")
+    codex = tmp_path / "codex2"
+    codex.mkdir()
+    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                                       'experimental_bearer_token = "key12345"\n')
+    bin_dir = tmp_path / "bin3"
+    bin_dir.mkdir()
+    for name in ("docker", "launchctl", "pgrep"):
+        (bin_dir / name).write_text("#!/bin/sh\nexit 0\n")
+        (bin_dir / name).chmod(0o755)
+    result = subprocess.run(
+        [sys.executable, "-I", str(script), "--source", str(root), "--base", base, "--head", head, "--merge-base", base,
+         "--checkout-root", str(tmp_path / "chk"), "--proxy-url", "http://localhost:9", "--proxy-log-dir", str(tmp_path),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+         "--proxy-config", str(tmp_path / "none.yaml"), "--codex-home", str(codex), "--deadline", "2"],
+        capture_output=True, text=True, timeout=20,
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path), "CLIPROXY_LOCAL_KEY": "key12345"})
+    report = json.loads(result.stdout)
+    leftovers = list((tmp_path / "chk").iterdir()) if (tmp_path / "chk").exists() else []
+    if leftovers:
+        assert "probe_cleanup" in {c["name"] for c in report["checks"] if not c["ok"]}
+
+
+def pathlib_dir():
+    from pathlib import Path
+    return Path(preflight.__file__).resolve().parent
