@@ -870,4 +870,76 @@ mod tests {
             assert_eq!(parent.live.load(Ordering::SeqCst), 0);
         }
     }
+
+    /// R1-01：共享句柄结束原 SQL 事务再 BEGIN，Rust 对象、autocommit、total_changes、
+    /// schema、read_uncommitted 全不变；旧 reader 的下一次 miss 仍须在节点 SELECT 前拒绝，
+    /// 首错保持。READ/WRITE 两种签发态都锁。
+    #[test]
+    fn r1_alias_commit_or_rollback_then_begin_rejects_next_miss_without_select() {
+        let sequences = [
+            "COMMIT; BEGIN",
+            "ROLLBACK; BEGIN",
+            "COMMIT; BEGIN IMMEDIATE",
+            "ROLLBACK; BEGIN IMMEDIATE",
+        ];
+        for written in [false, true] {
+            for sequence in sequences {
+                let (resident, stored, a, b) = resident_and_sql_only();
+                let capture = AuditCapture::new(resident)
+                    .enable_native_frame_reuse()
+                    .unwrap();
+                let mut conn = sql_database(&stored);
+                let tx = conn.transaction().unwrap();
+                if written {
+                    // 签发前已有自身写：事务处于 WRITE。
+                    tx.execute(
+                        "INSERT INTO s_content_nodes VALUES(?1,0,?2)",
+                        rusqlite::params![&[5u8; 32][..], &b""[..]],
+                    )
+                    .unwrap();
+                }
+                let parent = Parent::new();
+                let result = CodecWork::new(parent.clone(), 32 << 20)
+                    .unwrap()
+                    .run(|scope| {
+                        let sql = managed_sql::ManagedSqlStep::new(&tx, scope, &|| Ok(()))?;
+                        let mut reader = StepReader::with_sql(&capture, scope, sql)?;
+                        drop(reader.read_frame(&b)?);
+                        assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
+                        let pragma =
+                            |sql: &str| -> i64 { tx.query_row(sql, [], |row| row.get(0)).unwrap() };
+                        let before = (
+                            tx.total_changes(),
+                            pragma("PRAGMA main.schema_version"),
+                            pragma("PRAGMA temp.schema_version"),
+                            pragma("PRAGMA read_uncommitted"),
+                        );
+                        tx.execute_batch(sequence).unwrap();
+                        assert!(!tx.is_autocommit(), "{sequence}");
+                        let first = reader.read_frame(&b).err().unwrap();
+                        assert_eq!(
+                            first.scratch_failure(),
+                            Some(ScratchFailure::Ledger),
+                            "{sequence}"
+                        );
+                        // 拒绝之后再取统计：三夹持确实未变，拒绝只能来自事务 epoch。
+                        let after = (
+                            tx.total_changes(),
+                            pragma("PRAGMA main.schema_version"),
+                            pragma("PRAGMA temp.schema_version"),
+                            pragma("PRAGMA read_uncommitted"),
+                        );
+                        assert_eq!(after, before, "{sequence}");
+                        let again = reader.read_frame(&b).err().unwrap();
+                        assert_eq!(again, first);
+                        assert_eq!(reader.sql.as_ref().unwrap().reads, 1, "{sequence}");
+                        assert!(reader.read_frame(&a).is_err());
+                        Err::<(), _>(first)
+                    });
+                assert!(result.is_err(), "{sequence}");
+                drop(capture);
+                assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+            }
+        }
+    }
 }

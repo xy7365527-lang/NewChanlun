@@ -124,8 +124,6 @@ fn m8b_sql_first_reachable_missing_corrupt_and_complete_reference() {
 fn m8b_sql_foreign_stale_and_same_transaction_mutation_are_not_retried() {
     let mut conn = database(&MemoryNodes::new());
     let mut tx = conn.transaction().unwrap();
-    let mut other = database(&MemoryNodes::new());
-    let foreign_tx = other.transaction().unwrap();
     for fault in 0..3 {
         let bank = Bank::new();
         let foreign = Bank::new();
@@ -135,7 +133,7 @@ fn m8b_sql_foreign_stale_and_same_transaction_mutation_are_not_retried() {
                 0 => {
                     let rejected = CodecWork::new(foreign.clone(), 32 << 20)
                         .unwrap()
-                        .run(|foreign_work| reader.check_domain(&foreign_tx, foreign_work));
+                        .run(|foreign_work| reader.check_domain(foreign_work));
                     assert!(matches!(
                         rejected,
                         Err(capture_allocation::scratch::WorkError::Resource(
@@ -538,6 +536,45 @@ fn m8b_sql_real_foreign_wal_commit_hits_original_stale_gate_without_retry() {
         let again = reader.checked_read_scoped(&[1; 32]).err().unwrap();
         assert_eq!(again, error);
         assert_eq!(again.origin, error.origin);
+        assert_eq!(reader.reads, reads);
+        Err::<(), _>(error)
+    });
+    assert!(result.is_err());
+    assert_eq!(bank.live.load(Ordering::SeqCst), 0);
+}
+
+/// R1-01 加强反例：同一共享句柄 COMMIT，外连接在两事务之间提交合法新节点，再 BEGIN 并重读开新
+/// 快照（txn_state 回到 READ，三夹持不变）；不借外部 sample 门，旧 reader 的下一次 miss 也必须
+/// 在节点 SELECT 前拒绝，新节点不可见。
+#[test]
+fn m8b_sql_alias_commit_foreign_commit_and_reread_rejects_before_select() {
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let mut conn = rusqlite::Connection::open(file.path()).unwrap();
+    conn.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL);").unwrap();
+    let foreign = rusqlite::Connection::open(file.path()).unwrap();
+    let tx = conn.transaction().unwrap();
+    let bank = Bank::new();
+    let result = CodecWork::new(bank.clone(), 32 << 20).unwrap().run(|work| {
+        let mut reader = ManagedSqlStep::new(&tx, work, &|| Ok(()))?;
+        assert!(reader.checked_read_scoped(&[1; 32])?.is_none());
+        let reads = reader.reads;
+        let changes = tx.total_changes();
+        tx.execute_batch("COMMIT").unwrap();
+        foreign
+            .execute(
+                "INSERT INTO s_content_nodes VALUES(?1,?2,?3)",
+                rusqlite::params![&[1u8; 32][..], 0, &b""[..]],
+            )
+            .unwrap();
+        tx.execute_batch("BEGIN; SELECT count(*) FROM s_content_nodes")
+            .unwrap();
+        assert!(!tx.is_autocommit());
+        assert_eq!(tx.total_changes(), changes);
+        let error = reader.checked_read_scoped(&[1; 32]).err().unwrap();
+        assert_eq!(error.scratch_failure(), Some(ScratchFailure::Ledger));
+        assert_eq!(reader.reads, reads);
+        let again = reader.checked_read_scoped(&[1; 32]).err().unwrap();
+        assert_eq!(again, error);
         assert_eq!(reader.reads, reads);
         Err::<(), _>(error)
     });
