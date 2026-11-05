@@ -445,7 +445,6 @@ def test_incomplete_without_error_still_passes(env, capsys):
 
 
 def test_hanging_upstream_is_cut_at_deadline(env, capsys, monkeypatch):
-    monkeypatch.setattr(preflight, "PROBE_TIMEOUT", 3)
     start = time.monotonic()
     code, report, *_ = env(hang=True, extra=("--deadline", "2"), capsys=capsys)
     assert time.monotonic() - start < 4
@@ -893,3 +892,39 @@ def test_env_key_that_is_not_a_variable_name_is_not_echoed(env, capsys, tmp_path
     code, report, out, _ = env(capsys=capsys)
     assert code == 2 and "1742" not in out
     assert "<非变量名>" in check(report, "credential:codex-host")["detail"]["error"]
+
+
+def test_auth_command_sees_the_checked_codex_home(env, capsys, tmp_path, monkeypatch):
+    """独审二十一 B-1：helper 按 $CODEX_HOME 找 key 时，--codex-home 覆盖也要生效（与 codex 校验同一环境）。"""
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    (tmp_path / "codex/key.txt").write_text(KEY + "\n")
+    (tmp_path / "codex/config.toml").write_text(
+        '[model_providers.cliproxy-local]\n'
+        '[model_providers.cliproxy-local.auth]\ncommand = "/bin/sh"\nargs = ["-c", "cat \\"$CODEX_HOME/key.txt\\""]\n')
+    code, report, *_ = env(capsys=capsys)
+    assert code == 0 and failing(report) == set()
+
+
+def test_slow_but_successful_round_trip_within_the_work_deadline_passes(monkeypatch):
+    """独审二十一 B-2：往返只受总工作时限约束；比旧的固定 45 秒更慢但在时限内完成的往返不误报。"""
+    import io
+    import urllib.request
+
+    seen = {}
+
+    class FakeResp(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def urlopen(req, timeout=None):
+        seen["timeout"] = timeout
+        return FakeResp(b'data: {"type":"response.completed","response":{"status":"completed"}}\n\n')
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    trip = preflight.round_trip(LOCAL, KEY, SOL, "s", preflight.Deadline(60))
+    assert trip["ok"] and seen["timeout"] > 50

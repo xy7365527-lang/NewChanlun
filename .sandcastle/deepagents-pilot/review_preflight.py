@@ -33,7 +33,6 @@ CLIPROXY_LOG_DIR = Path.home() / "Library/Application Support/CLIProxyLocal/auth
 ROUTES = {"gpt-6.1-sol": ("codex", "chatgpt.com"), "claude-opus-5-5": ("claude", "api.anthropic.com")}
 # 报告里只回显这些已知路由，其余记作 "other"：日志字段来自上游，不能原样进报告
 KNOWN_ROUTES = {*ROUTES.values(), ("antigravity", "daily-cloudcode-pa.googleapis.com")}
-PROBE_TIMEOUT = 45
 PROVIDER = "cliproxy-local"
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
@@ -188,8 +187,7 @@ def codex_accepts_config(codex_bin: str, codex_home: Path, env: dict, deadline: 
     """让宿主自己的 codex 离线加载这份配置（`codex features list`，约 50ms、不发请求）：
     provider/auth 字段组合与取值以 Codex 为准，预检不再自己抄一份校验规则。"""
     try:
-        result = run_bounded([codex_bin, "features", "list"], min(10.0, deadline.work_left()),
-                             env={**env, "CODEX_HOME": str(codex_home)})
+        result = run_bounded([codex_bin, "features", "list"], min(10.0, deadline.work_left()), env=env)
     except subprocess.TimeoutExpired:
         raise CredentialError("codex 加载配置超时") from None
     except OSError as error:
@@ -204,7 +202,8 @@ def codex_accepts_config(codex_bin: str, codex_home: Path, env: dict, deadline: 
 
 def provider_key(codex_home: Path, deadline: Deadline, codex_bin: str = "codex") -> tuple[str, str]:
     """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
-    env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
+    # 校验与 auth.command 用同一个环境：去掉 CLIPROXY_LOCAL_KEY、CODEX_HOME 指向被检查的配置目录
+    env = {**{k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}, "CODEX_HOME": str(codex_home)}
     codex_accepts_config(codex_bin, codex_home, env, deadline)
     path = codex_home / "config.toml"
     if not path.is_file():  # FIFO 等特殊文件读起来会无界阻塞
@@ -321,7 +320,7 @@ def round_trip(url: str, key: str, model: str, session: str, deadline: Deadline)
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                                               "Accept": "text/event-stream", "Session-Id": session,
                                               "X-Client-Request-Id": session})
-    timeout = min(PROBE_TIMEOUT, deadline.work_left())
+    timeout = deadline.work_left()  # 只受总工作时限约束，不另设更短的固定上限
     if timeout <= 0:
         return {"http_status": None, "terminal": None, "ok": False, "error": {"not_sent": "总时限已到"}}
     try:
