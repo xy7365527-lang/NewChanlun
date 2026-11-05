@@ -580,6 +580,11 @@ jobs:
           # #1875 R5：产物机检的 bin 构建（固定 --jobs 1，约 3 分钟；R5b：已被锁的时长盖住，多核只会与锁争 CPU）与单线程的锁并行：等锁的测试进程起来（cargo 此时已放开
           #   target 目录锁）再在同一 rust/target 后台构建，结论由下一步「产物无测试钩子」收取并决定成败。
           rm -f ../artifact.rc
+          # #1875 R11：Boat 磁盘 fsync 慢（新盘 p50 约 0.3 s），S4 的测试库放 tmpfs（gate 同此口径）；S4 不验掉电持久性。
+          #   与 S4 冷臂独立线程（H1）一起才有收益：两臂在磁盘上会在 fsync 上串行（探针 42047848217：731.6 s vs 889 s）。
+          s4tmp="${TMPDIR:-/tmp}"
+          if [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ] && [ -d /dev/shm ]; then s4tmp=$(mktemp -d /dev/shm/s4lock.XXXXXX); fi
+          echo "s4_tmpdir=$s4tmp"
           setsid nohup bash -c 'for _ in $(seq 120); do pgrep -f "deps/s_structure_session-[0-9a-f]+ --ignored --exact" >/dev/null && break; sleep 1; done
             ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 \
               && ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
@@ -591,7 +596,7 @@ jobs:
             total=$((total + 1))
             log="../out-release-$(echo $t | tr ':/' '__').log"
             if ! grep -qx "$t: test" ../list-release.txt; then echo -e "$t\tNOT_LISTED_RELEASE" >> ../locks.tsv; fail=1; continue; fi
-            timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
+            TMPDIR=$s4tmp timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
             rc=$?
             cat "$log"
             if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "$log"; then echo -e "$t\tPASS_RELEASE" >> ../locks.tsv; else echo -e "$t\tFAIL_RELEASE($rc)" >> ../locks.tsv; fail=1; fi
