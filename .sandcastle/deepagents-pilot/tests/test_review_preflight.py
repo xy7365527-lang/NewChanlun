@@ -688,3 +688,42 @@ def test_usage_error_and_help_print_json(capsys):
     with pytest.raises(SystemExit) as exit_info:
         preflight.main(["--help"])
     assert exit_info.value.code == 0 and "usage" in json.loads(capsys.readouterr().out)
+
+
+# ---------------- 独审（缩审查面后）----------------
+
+def test_upstream_status_object_keyed_by_the_key_never_reaches_the_report(monkeypatch, capsys):
+    """上游把 key 放进 response.status 字典的键里：status 只收字符串，报告的键也脱敏。"""
+    import io
+    import urllib.request
+
+    key = "isolated-fake-host-key"
+    event = {"type": "response.completed", "response": {"status": {key: "diagnostic"}}}
+
+    class FakeResp(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda req, timeout=None: FakeResp(("data: " + json.dumps(event) + "\n\n").encode()))
+    trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(5))
+    preflight._emit(trip, [key])
+    assert key not in capsys.readouterr().out and trip["status"] is None
+
+
+def test_sanitize_redacts_dict_keys_too():
+    out = json.dumps(preflight.sanitize({"local-secret-key-1": {"inner-local-secret-key-1": 1}}, ["local-secret-key-1"]))
+    assert "local-secret-key-1" not in out
+
+
+def test_timed_out_docker_run_reports_cleanup_unconfirmed_even_if_rm_succeeds(tmp_path, repo):
+    """杀掉 docker 客户端撤不回 daemon 已收的创建请求；rm -f 成功也不能报告无遗留。"""
+    docker = '#!/bin/sh\n[ "$1" = rm ] && exit 0\nsleep 30\n'
+    code, report, _ = _cli(tmp_path, repo, docker, "2")
+    cleanup = next(c for c in report["checks"] if c["name"] == "probe_cleanup")
+    assert code == 2 and any("daemon" in item for item in cleanup["detail"])

@@ -139,6 +139,8 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
                       stderr=result.stderr.decode("utf-8", "replace").strip())
     except subprocess.TimeoutExpired:
         detail["error"] = "docker run 超时"
+        # 杀掉客户端撤不回 daemon 已收下的创建请求，之后的 rm -f 证明不了容器不会稍后出现
+        cleanup.append(f"docker run 超时被杀，daemon 可能稍后仍建出容器 {container}；请稍后 docker rm -f {container} 确认")
     except Exception as error:
         detail["error"] = type(error).__name__
     finally:
@@ -258,7 +260,7 @@ def redact(text: str, secrets, limit: int | None = None) -> str:
 def sanitize(value, secrets, limit: int = 500):
     """对报告逐字段脱敏后截断；在序列化之前做，保证输出仍是合法 JSON。"""
     if isinstance(value, dict):
-        return {k: sanitize(v, secrets, limit) for k, v in value.items()}
+        return {redact(str(k), secrets, limit): sanitize(v, secrets, limit) for k, v in value.items()}
     if isinstance(value, list):
         return [sanitize(v, secrets, limit) for v in value]
     if isinstance(value, str):
@@ -304,7 +306,8 @@ def round_trip(url: str, key: str, model: str, session: str, deadline: Deadline)
                     if event.get("type") in ("response.completed", "response.incomplete", "response.failed", "error"):
                         terminal = event.get("type")
                         inner = event.get("response") if isinstance(event.get("response"), dict) else {}
-                        status = inner.get("status")
+                        # 只收字符串：上游任意对象（含以 key 为键的字典）不进报告
+                        status = inner.get("status") if isinstance(inner.get("status"), str) else None
                         detail = inner.get("error") or event.get("error") or event.get("message")
                         break
             # 事件名成功还不够：响应体自报 failed/cancelled 或带 error 也算失败。
