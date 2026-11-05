@@ -11,8 +11,11 @@
 //! SQL 由执行边界保证。
 //! - 连接只能经 [`SqliteBinding::open`] 开出，终身归属开它的父账（[`ChargedConnection`]
 //!   不暴露裸连接）；只能经 [`SqliteBinding::run`] / [`SqliteBinding::close`] 使用。
-//! - `run` 进入前核：本绑定为当前绑定、连接归属本父账、本父账本冻结域（origin）尚无拒绝；
-//!   任一不符则不执行任何 SQL。同一时刻只有一个 `run`，期间禁止换绑与再入。
+//! - `run` 只交出 [`SqlOps`]，不交出 `rusqlite::Connection`。每次进入 C API 的操作
+//!   （prepare、execute、query_row、语句的 execute / query_row）之前都重新核：本绑定为当前
+//!   绑定、父账当前冻结域仍是本绑定的 origin、连接归属本父账、本父账本 origin 尚无拒绝；
+//!   任一不符则该操作不进入 SQLite。同一时刻只有一个 `run`，期间禁止换绑与再入。
+//!   [`SqlOps::handle`] 是 `unsafe` 逃生口，调用方须维持本合同（不改进度回调、不关闭连接）。
 //! - 只有正处于 `run` 中的线程能让 allocator 收费，其他线程或域外的分配一律按未知归属拒绝。
 //! - 首个拒绝按（父账、origin）记，同父同 origin 重绑不清除；只有换到新冻结域才开新记录。
 //! - 每条连接另装 SQLite 进度回调（每 1 条 VM 指令计数），在循环底部、每次返回行和语句结束
@@ -36,6 +39,8 @@ pub trait SqliteParent: Send + Sync {
     fn release_sqlite(&self, bytes: usize, origin: u64) -> Result<(), ScratchFailure>;
     /// 块头或槽账不一致时标记父账破损。
     fn invalidate_sqlite(&self);
+    /// `origin` 仍是父账当前冻结域且父账未破损。
+    fn admits_sqlite(&self, origin: u64) -> bool;
 }
 
 const SLOTS: usize = 8;
@@ -139,12 +144,21 @@ impl State {
             .filter(|(origin, _)| *origin == b.origin)
             .map(|(_, f)| f)
     }
-    /// `owner` 的连接此刻可执行：父账为当前绑定、该冻结域无拒绝、allocator 未破损。
+    /// `owner` 的连接此刻可执行：父账为当前绑定、父账当前域仍是绑定 origin、
+    /// 该冻结域无拒绝、allocator 未破损。
     fn admits(&self, owner: Owner) -> bool {
         !self.broken
-            && self
-                .current
-                .is_some_and(|b| b.owner == owner && self.first_refusal(b).is_none())
+            && self.current.is_some_and(|b| {
+                b.owner == owner && self.first_refusal(b).is_none() && self.origin_live(b)
+            })
+    }
+    fn origin_live(&self, b: Binding) -> bool {
+        let sl = &self.slots[b.owner.slot];
+        sl.generation == b.owner.generation
+            && sl
+                .parent
+                .as_deref()
+                .is_some_and(|p| p.admits_sqlite(b.origin))
     }
     fn latch(&mut self, b: Binding, failure: ScratchFailure) {
         let slot = &mut self.slots[b.owner.slot];
@@ -541,21 +555,28 @@ impl SqliteBinding {
             return Err(SqlGate::Refused(ScratchFailure::Ledger));
         }
         let running = Running(());
-        {
-            let s = state().ok_or(SqlGate::Refused(ScratchFailure::Ledger))?;
-            let current = s.current.filter(|b| b.epoch == self.epoch);
-            let Some(b) = current.filter(|_| !s.broken) else {
-                return Err(SqlGate::Refused(ScratchFailure::Ledger));
-            };
-            if let Some(first) = s.first_refusal(b) {
-                return Err(SqlGate::Refused(first));
-            }
-            if conn.is_some_and(|c| c.owner != self.owner) {
-                return Err(SqlGate::WrongParent);
-            }
-        }
+        self.admit(conn.map(|c| c.owner))?;
         IN_RUN.with(|r| r.set(true));
         Ok(running)
+    }
+
+    /// 本绑定为当前绑定、父账当前域仍是本 origin、本域无拒绝、`owner` 归属本父账。
+    fn admit(&self, owner: Option<Owner>) -> Result<(), SqlGate> {
+        let s = state().ok_or(SqlGate::Refused(ScratchFailure::Ledger))?;
+        let current = s.current.filter(|b| b.epoch == self.epoch);
+        let Some(b) = current.filter(|_| !s.broken) else {
+            return Err(SqlGate::Refused(ScratchFailure::Ledger));
+        };
+        if let Some(first) = s.first_refusal(b) {
+            return Err(SqlGate::Refused(first));
+        }
+        if !s.origin_live(b) {
+            return Err(SqlGate::Refused(ScratchFailure::Ledger));
+        }
+        if owner.is_some_and(|o| o != self.owner) {
+            return Err(SqlGate::WrongParent);
+        }
+        Ok(())
     }
 
     /// 首拒优先：本域执行中已记收费拒绝时，一律报该首个拒绝（即使 SQLite 层吞掉了错误）。
@@ -591,17 +612,25 @@ impl SqliteBinding {
             .map(|conn| ChargedConnection { conn, owner })
     }
 
-    /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行。
-    /// 执行中首个收费拒绝之后，SQLite 不再返回行或继续写（`SQLITE_INTERRUPT`），结果报首拒。
+    /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行；
+    /// `f` 内每次操作再各自核一次。首个收费拒绝之后，后续操作不再进入 SQLite，结果报首拒。
     pub fn run<R>(
         &self,
         conn: &ChargedConnection,
-        f: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<R>,
+        f: impl FnOnce(&SqlOps<'_>) -> Result<R, SqlGate>,
     ) -> Result<R, SqlGate> {
         let running = self.enter(Some(conn))?;
-        let result = f(&conn.conn);
+        let ops = SqlOps {
+            conn: &conn.conn,
+            binding: self,
+            owner: conn.owner,
+        };
+        let result = f(&ops);
         drop(running);
-        self.settle(result)
+        match self.refusal() {
+            Some(first) => Err(SqlGate::Refused(first)),
+            None => result,
+        }
     }
 
     /// 在本操作域关闭归属本父账的连接；不符时原样交回连接。
@@ -660,4 +689,74 @@ pub enum SqlGate {
 pub struct ChargedConnection {
     conn: rusqlite::Connection,
     owner: Owner,
+}
+
+/// `run` 内的 SQL 操作口。每个方法进入 SQLite 前重核操作域（绑定、父账当前域、首拒、归属）。
+pub struct SqlOps<'a> {
+    conn: &'a rusqlite::Connection,
+    binding: &'a SqliteBinding,
+    owner: Owner,
+}
+
+impl<'a> SqlOps<'a> {
+    fn gate<T>(&self, op: impl FnOnce() -> rusqlite::Result<T>) -> Result<T, SqlGate> {
+        self.binding.admit(Some(self.owner))?;
+        self.binding.settle(op())
+    }
+
+    pub fn execute_batch(&self, sql: &str) -> Result<(), SqlGate> {
+        self.gate(|| self.conn.execute_batch(sql))
+    }
+
+    pub fn execute<P: rusqlite::Params>(&self, sql: &str, params: P) -> Result<usize, SqlGate> {
+        self.gate(|| self.conn.execute(sql, params))
+    }
+
+    pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<T, SqlGate>
+    where
+        P: rusqlite::Params,
+        F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    {
+        self.gate(|| self.conn.query_row(sql, params, f))
+    }
+
+    pub fn prepare(&self, sql: &str) -> Result<GatedStatement<'a>, SqlGate> {
+        let conn = self.conn;
+        let stmt = self.gate(|| conn.prepare(sql))?;
+        Ok(GatedStatement {
+            stmt,
+            binding: self.binding,
+            owner: self.owner,
+        })
+    }
+
+    /// # Safety
+    /// 只用于本操作域内的只读诊断与裸语句操作；不得更改或移除进度回调、不得关闭连接、
+    /// 不得把句柄带出本 `run`。
+    pub unsafe fn handle(&self) -> *mut ffi::sqlite3 {
+        unsafe { self.conn.handle() }
+    }
+}
+
+/// 经 [`SqlOps::prepare`] 得到的语句；每次执行前重核操作域。
+pub struct GatedStatement<'a> {
+    stmt: rusqlite::Statement<'a>,
+    binding: &'a SqliteBinding,
+    owner: Owner,
+}
+
+impl GatedStatement<'_> {
+    pub fn execute<P: rusqlite::Params>(&mut self, params: P) -> Result<usize, SqlGate> {
+        self.binding.admit(Some(self.owner))?;
+        self.binding.settle(self.stmt.execute(params))
+    }
+
+    pub fn query_row<T, P, F>(&mut self, params: P, f: F) -> Result<T, SqlGate>
+    where
+        P: rusqlite::Params,
+        F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    {
+        self.binding.admit(Some(self.owner))?;
+        self.binding.settle(self.stmt.query_row(params, f))
+    }
 }

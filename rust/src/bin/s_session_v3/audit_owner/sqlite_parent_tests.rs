@@ -4,11 +4,29 @@
 use super::native::Budget;
 use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
 use newchan_rust::s_content::capture_allocation::sqlite_parent::{
-    charged_bytes, SqlGate, SqliteBinding, SqliteParentAllocator,
+    charged_bytes, SqlGate, SqlOps, SqliteBinding, SqliteParentAllocator,
 };
 use rusqlite::{ffi, Connection, ErrorCode};
-use std::ffi::CStr;
+use std::ffi::{c_int, c_uint, c_void, CStr};
 use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// 主库连接上每条语句开始执行（`SQLITE_TRACE_STMT`）的次数：进入 SQLite 执行的探针。
+static ENTERED: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" fn count_entry(
+    _: c_uint,
+    _: *mut c_void,
+    _: *mut c_void,
+    _: *mut c_void,
+) -> c_int {
+    ENTERED.fetch_add(1, Ordering::SeqCst);
+    0
+}
+
+fn entered() -> usize {
+    ENTERED.load(Ordering::SeqCst)
+}
 
 const LIMIT: usize = 64 << 20;
 const ROOM: usize = 16 << 20;
@@ -58,15 +76,17 @@ fn heap_query(head: &str) -> String {
 }
 
 /// 在连接上准备一条裸语句，交给后续域里单独 step / column / finalize。
-fn raw_prepare(conn: &Connection, sql: &CStr) -> rusqlite::Result<usize> {
+fn raw_prepare(q: &SqlOps<'_>, sql: &CStr) -> Result<usize, SqlGate> {
     let mut raw = ptr::null_mut();
-    let rc = unsafe {
-        ffi::sqlite3_prepare_v2(conn.handle(), sql.as_ptr(), -1, &mut raw, ptr::null_mut())
-    };
+    let rc =
+        unsafe { ffi::sqlite3_prepare_v2(q.handle(), sql.as_ptr(), -1, &mut raw, ptr::null_mut()) };
     if rc == ffi::SQLITE_OK {
         Ok(raw as usize)
     } else {
-        Err(rusqlite::Error::SqliteFailure(ffi::Error::new(rc), None))
+        Err(SqlGate::Sqlite(rusqlite::Error::SqliteFailure(
+            ffi::Error::new(rc),
+            None,
+        )))
     }
 }
 
@@ -100,8 +120,17 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let main = wide.open(dir.join("main.sqlite3")).unwrap();
-    wide.run(&main, |c| {
-        c.execute_batch(
+    wide.run(&main, |q| {
+        let rc = unsafe {
+            ffi::sqlite3_trace_v2(
+                q.handle(),
+                ffi::SQLITE_TRACE_STMT,
+                Some(count_entry),
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(rc, ffi::SQLITE_OK);
+        q.execute_batch(
             "PRAGMA journal_mode=WAL;
              CREATE TABLE t(id INTEGER PRIMARY KEY, body BLOB NOT NULL);
              INSERT INTO t VALUES(1, zeroblob(4096));
@@ -110,8 +139,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     })
     .unwrap();
     let ledger = wide.open(dir.join("ledger.sqlite3")).unwrap();
-    wide.run(&ledger, |c| {
-        c.execute_batch(
+    wide.run(&ledger, |q| {
+        q.execute_batch(
             "CREATE TABLE k(key BLOB PRIMARY KEY) WITHOUT ROWID;
              INSERT INTO k VALUES(x'01');",
         )
@@ -150,8 +179,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let prepaid = d.next(0);
     let live = d.current.live();
     prepaid
-        .run(&main, |c| {
-            c.prepare("SELECT body FROM t WHERE id = 2").map(drop)
+        .run(&main, |q| {
+            q.prepare("SELECT body FROM t WHERE id = 2").map(drop)
         })
         .unwrap();
     assert_eq!(prepaid.refusal(), None);
@@ -160,10 +189,10 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     // B1 反例的前置：先在宽域准备不再需要新堆块的 SELECT 1 与一条 INSERT。
     let roomy = d.next(ROOM);
     let (select_one, insert) = roomy
-        .run(&main, |c| {
+        .run(&main, |q| {
             Ok((
-                raw_prepare(c, c"SELECT 1")?,
-                raw_prepare(c, c"INSERT INTO t VALUES(3, x'00')")?,
+                raw_prepare(q, c"SELECT 1")?,
+                raw_prepare(q, c"INSERT INTO t VALUES(3, x'00')")?,
             ))
         })
         .unwrap();
@@ -184,25 +213,52 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     // prepare：需要新堆块时在零额度域内被拒，首个拒绝是 Budget，账不残留。
     let prepare = d.next(0);
     let live = d.current.live();
-    let first = refused(prepare.run(&main, |c| {
-        let error = c
-            .prepare(&heap_query("SELECT body FROM t WHERE id = 2"))
-            .map(drop)
-            .expect_err("prepare refused");
+    let first = refused(prepare.run(&main, |q| {
+        let sql = std::ffi::CString::new(heap_query("SELECT body FROM t WHERE id = 2")).unwrap();
+        let Err(SqlGate::Sqlite(error)) = raw_prepare(q, &sql) else {
+            panic!("prepare refused with NOMEM");
+        };
         assert!(nomem(&error), "{error}");
         assert_eq!(prepare.refusal_of(&error), Some(ScratchFailure::Budget));
-        Err::<(), _>(error)
+        Ok(())
     }));
     assert_eq!(first, ScratchFailure::Budget);
     assert_eq!(d.current.live(), live);
 
-    // B1：首个拒绝之后零 SQL。拒绝发生后，不需新分配的 SELECT 1 与 INSERT 也被 SQLite 中止
-    // （不再出行、不再写），后续 run 不进入 SQLite（调用计数不增），返回原 typed 首拒。
+    // B1：首个拒绝之后零 SQL。同一闭包内，首拒前已准备的 SELECT 1（零新分配）、新的 SELECT 1
+    // 与 INSERT 都在操作口被拒，SQLite 语句执行探针不增；返回原 typed 首拒。
     let latched = d.next(charged_bytes(4096).unwrap());
     let live = d.current.live();
     let mut codes = (0, 0);
-    let first = refused(latched.run(&main, |_| {
+    let first = refused(latched.run(&main, |q| {
+        let mut one = q.prepare("SELECT 1")?;
+        let before = entered();
+        assert_eq!(one.query_row([], |r| r.get::<_, i64>(0))?, 1);
+        assert_eq!(entered(), before + 1);
         assert!(unsafe { ffi::sqlite3_malloc(8192) }.is_null());
+        let before = entered();
+        let after = one.query_row([], |r| r.get::<_, i64>(0));
+        assert!(
+            matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
+            "{after:?}"
+        );
+        let after = q.query_row("SELECT 1", [], |r| r.get::<_, i64>(0));
+        assert!(
+            matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
+            "{after:?}"
+        );
+        let after = q.execute("INSERT INTO t VALUES(3, x'00')", []);
+        assert!(
+            matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
+            "{after:?}"
+        );
+        let after = q.prepare("SELECT 1").map(drop);
+        assert!(
+            matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
+            "{after:?}"
+        );
+        assert_eq!(entered(), before);
+        // unsafe 逃生口不在合同内；即便绕过操作口裸 step，进度回调仍不出行、不写。
         codes = unsafe {
             (
                 ffi::sqlite3_step(stmt(select_one)),
@@ -239,8 +295,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     // step：语句在宽域准备，换到零额度域后取跨页大行被拒。
     let roomy = d.next(ROOM);
     let big = roomy
-        .run(&main, |c| {
-            raw_prepare(c, c"SELECT body FROM t WHERE id = 2")
+        .run(&main, |q| {
+            raw_prepare(q, c"SELECT body FROM t WHERE id = 2")
         })
         .unwrap();
     let step = d.next(0);
@@ -258,8 +314,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     // 需要另建缓冲的取值（BLOB 按 TEXT 取需追加终止符）在零额度域内返回空指针并报 NOMEM。
     let roomy = d.next(ROOM);
     let pair = roomy
-        .run(&main, |c| {
-            let raw = raw_prepare(c, c"SELECT zeroblob(65536), randomblob(50000)")?;
+        .run(&main, |q| {
+            let raw = raw_prepare(q, c"SELECT zeroblob(65536), randomblob(50000)")?;
             assert_eq!(unsafe { ffi::sqlite3_step(stmt(raw)) }, ffi::SQLITE_ROW);
             Ok(raw)
         })
@@ -275,10 +331,10 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
         .unwrap();
     assert_eq!(column.refusal(), None);
     assert_eq!(d.current.live(), live);
-    let first = refused(column.run(&main, |c| {
+    let first = refused(column.run(&main, |q| {
         assert!(unsafe { ffi::sqlite3_column_text(stmt(pair), 1) }.is_null());
         assert_eq!(
-            unsafe { ffi::sqlite3_errcode(c.handle()) },
+            unsafe { ffi::sqlite3_errcode(q.handle()) },
             ffi::SQLITE_NOMEM
         );
         Ok(())
@@ -290,8 +346,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
 
     // 台账点查与新开连接同样在原父账内被拒。
     let point = d.next(0);
-    let first = refused(point.run(&ledger, |c| {
-        c.prepare(&heap_query("SELECT EXISTS(SELECT 1 FROM k WHERE key = ?1)"))
+    let first = refused(point.run(&ledger, |q| {
+        q.prepare(&heap_query("SELECT EXISTS(SELECT 1 FROM k WHERE key = ?1)"))
             .map(drop)
     }));
     assert_eq!(first, ScratchFailure::Budget);
@@ -302,12 +358,37 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     );
 
     // 换域而不换绑：旧绑定过期，按未知归属拒绝（Ledger），不扣新域。
+    // 父账已换域、绑定未换：run 不进入（调用计数不增）。
     let stale = d.next(ROOM);
     d.advance(ROOM);
     let live = d.current.live();
-    let first = refused(stale.run(&main, |_| Ok(unsafe { ffi::sqlite3_malloc(16) })));
-    assert_eq!(first, ScratchFailure::Ledger);
+    let mut calls = 0;
+    let before = entered();
+    let first = refused(stale.run(&main, |q| {
+        calls += 1;
+        q.query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
+    }));
+    assert_eq!(
+        (first, calls, entered()),
+        (ScratchFailure::Ledger, 0, before)
+    );
     assert_eq!(d.current.live(), live);
+    // run 中途父账换域：零分配的 SELECT 1 在操作口被拒，裸 step 被进度回调中止。
+    let midway = d.next(ROOM);
+    let mut rc = 0;
+    let first = refused(midway.run(&main, |q| {
+        d.advance(ROOM);
+        let after = q.query_row("SELECT 1", [], |r| r.get::<_, i64>(0));
+        assert!(
+            matches!(after, Err(SqlGate::Refused(ScratchFailure::Ledger))),
+            "{after:?}"
+        );
+        rc = unsafe { ffi::sqlite3_step(stmt(select_one)) };
+        unsafe { ffi::sqlite3_reset(stmt(select_one)) };
+        after.map(drop)
+    }));
+    assert_eq!(first, ScratchFailure::Ledger);
+    assert_eq!(rc, ffi::SQLITE_INTERRUPT);
 
     // realloc：新块在旧块存活时完整预留；差 1 B 即拒且旧块不变，
     // 恰好够时成功；旧块按旧 origin 返还，不回补当前域额度。
@@ -358,8 +439,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let foreign_binding = allocator.bind(other_parent.clone(), other_origin).unwrap();
     let foreign = foreign_binding.open_in_memory().unwrap();
     let foreign_block = foreign_binding
-        .run(&foreign, |c| {
-            c.execute_batch("CREATE TABLE f(x BLOB); INSERT INTO f VALUES(zeroblob(50000));")?;
+        .run(&foreign, |q| {
+            q.execute_batch("CREATE TABLE f(x BLOB); INSERT INTO f VALUES(zeroblob(50000));")?;
             Ok(unsafe { ffi::sqlite3_malloc(64) } as usize)
         })
         .unwrap() as *mut std::ffi::c_void;
@@ -371,9 +452,9 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let foreign_live = other.live();
     // A 连接在 B 域：错父 prepare 在进入 SQLite 前拒绝，两边零增量。
     let mut calls = 0;
-    let wrong = home.run(&foreign, |c| {
+    let wrong = home.run(&foreign, |q| {
         calls += 1;
-        c.prepare(&heap_query("SELECT x FROM f WHERE 1")).map(drop)
+        q.prepare(&heap_query("SELECT x FROM f WHERE 1")).map(drop)
     });
     assert!(matches!(wrong, Err(SqlGate::WrongParent)), "{wrong:?}");
     assert_eq!(calls, 0);
@@ -448,8 +529,8 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     .unwrap();
     // B1 的 INSERT 被中止，表里没有 id=3。
     let inserted: i64 = home
-        .run(&main, |c| {
-            c.query_row("SELECT count(*) FROM t WHERE id = 3", [], |r| r.get(0))
+        .run(&main, |q| {
+            q.query_row("SELECT count(*) FROM t WHERE id = 3", [], |r| r.get(0))
         })
         .unwrap();
     assert_eq!(inserted, 0);

@@ -1776,6 +1776,11 @@ impl SqliteParent for Ledger {
     fn invalidate_sqlite(&self) {
         ScratchParent::invalidate(self);
     }
+    fn admits_sqlite(&self, origin: u64) -> bool {
+        self.domain
+            .lock()
+            .is_ok_and(|d| d.state & BROKEN == 0 && u64::from(d.serial) == origin)
+    }
 }
 impl Budget {
     /// 本冻结域的 SQLite 收费父账与 origin，供 `SqliteParentAllocator::bind`。
