@@ -1564,6 +1564,17 @@ pub(super) mod tests {
                 self.nodes.read(digest)
             }
         }
+        /// 只计前沿点查（每次点查 = 资格逐字段核 + 完整键 EXISTS 两条台账 SQL）。
+        struct CountingFrontier<'a> {
+            inner: QualifiedSuccessView<'a>,
+            lookups: std::cell::Cell<u64>,
+        }
+        impl cd::Frontier for CountingFrontier<'_> {
+            fn contains(&self, unit: cd::Unit) -> Result<bool, sc::CodecError> {
+                self.lookups.set(self.lookups.get() + 1);
+                self.inner.contains(unit)
+            }
+        }
         fn units(q: &QualifiedUnits<'_>) -> BTreeSet<Unit> {
             let mut out = BTreeSet::new();
             q.verified
@@ -1660,7 +1671,7 @@ pub(super) mod tests {
                     // 空 g1：没有已提交资格，前沿为空，两台账同走完整核验。
                     commit(&mut a, &token, &m, &roots, &whole, None);
                     commit(&mut b, &token, &m, &roots, &whole, None);
-                    receipts.push((generation, full_reads, full_reads, units(&whole).len()));
+                    receipts.push((generation, full_reads, full_reads, units(&whole).len(), 0));
                 } else {
                     let qa = a.qualification().unwrap();
                     let qb = b.qualification().unwrap();
@@ -1692,15 +1703,29 @@ pub(super) mod tests {
                         assert!(oracle.is_empty());
                     }
                     assert!(delta_reads < full_reads, "g{generation} Δ未止步");
-                    receipts.push((generation, full_reads, delta_reads, oracle.len()));
+                    let counted = CountingFrontier {
+                        inner: QualifiedSuccessView {
+                            ledger: &b,
+                            qualification: &qb,
+                        },
+                        lookups: std::cell::Cell::new(0),
+                    };
+                    cd::verify_four_roots_from(&mut nodes, refs(r), &counted).unwrap();
+                    receipts.push((
+                        generation,
+                        full_reads,
+                        delta_reads,
+                        oracle.len(),
+                        counted.lookups.get(),
+                    ));
                     commit(&mut a, &token, &m, &roots, &whole, Some(&qa));
                     commit(&mut b, &token, &m, &roots, &d, Some(&qb));
                 }
                 assert_eq!(dump(&a.path), dump(&b.path), "g{generation} 台账不同");
             }
-            for (g, full_reads, delta_reads, new_units) in &receipts {
+            for (g, full_reads, delta_reads, new_units, lookups) in &receipts {
                 println!(
-                    "M8D_3B_RECEIPT g={g} full_node_reads={full_reads} delta_node_reads={delta_reads} new_units={new_units}"
+                    "M8D_3B_RECEIPT g={g} full_node_reads={full_reads} delta_node_reads={delta_reads} new_units={new_units} frontier_lookups={lookups}"
                 );
             }
         }
