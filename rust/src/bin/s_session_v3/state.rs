@@ -1447,7 +1447,13 @@ impl ColdHistoricalSourceFold<'_, '_, '_> {
             ],
         )
         .map_err(publish_err)?;
-        ledger.stage_verified(token, &delta, &verified, store.native_work_scope(), None)?;
+        ledger.stage_verified(
+            token,
+            &delta,
+            &super::audit_ledger::QualifiedUnits::full(verified)?,
+            store.native_work_scope(),
+            None,
+        )?;
         ledger.bind_view(token, cut.metadata.view(), cut.roots.view())?;
         ledger.content_committed()?;
         Ok(())
