@@ -240,6 +240,7 @@ impl<'a> AuditTxn<'a> {
     }
 
     /// 只供负控：以本 owner 签发的门核另一个事务，验证门比较的是 owner 私有连接而非自比。
+    #[cfg(test)]
     pub(super) fn gate_check_on_for_test(
         &self,
         parent: &native::Budget,
