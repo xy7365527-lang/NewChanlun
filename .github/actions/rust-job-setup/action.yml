@@ -42,7 +42,7 @@ runs:
           flock "$cfg.lock" bash -c 'grep -qxF "[profile.dev]" "$1" 2>/dev/null || printf "[profile.dev]\nopt-level = 1\ndebug-assertions = true\noverflow-checks = true\n" >> "$1"' _ "$cfg"
         fi
         echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
-        cat "$cfg"
+        cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash
@@ -106,7 +106,7 @@ runs:
         cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
         mkdir -p "$(dirname "$cfg")"
         flock "$cfg.lock" bash -c 'grep -qF "[profile.dev.package.\"*\"]" "$1" 2>/dev/null || printf "[profile.dev.package.\"*\"]\nopt-level = 2\n" >> "$1"' _ "$cfg"
-        cat "$cfg"
+        cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     # 遥测包装器的边界快照对 `du target` 失败即判红；拆 job 后首个 cargo 步可能就是被包装的那一步，
     # 此时 target 尚不存在，故预先建空目录（不影响构建产物）。
