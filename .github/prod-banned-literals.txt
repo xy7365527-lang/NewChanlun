@@ -31,6 +31,7 @@ B/B+1 接纳全部剩余节点，含 LF 与逗号
 B11 恒等式：封存后live = 残余M + 封存池逐张许可之和
 B11：同父峰须在夹具帽内
 B11：审计前父账残余只有根控制块M
+B_W 冻结时 W 规则串长
 Begin 倒退必须拒绝
 Begin不能使A2或S漏过本次raw变化
 C/D/E/F结果离域后仍持父账许可
@@ -1623,6 +1624,7 @@ writer/recover闭合后无SHM
 见证重审未完整消费
 观察渲染是合法 JSON
 观察闭包可核
+规则串持有者恰为 Binding meta 与 Proof Key.rule 各一份，各按串长计许可
 规范 JSON 是 UTF-8
 规范字节 UTF-8
 规范渲染是 UTF-8
