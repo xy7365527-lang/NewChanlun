@@ -149,14 +149,15 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert_eq!(d.current.live(), live);
     drop(statement);
 
-    // blob：zeroblob 在 column_blob 展开时分配，零额度域内返回空指针并报 NOMEM。
+    // 列取值：已在 step 时物化（并收费）的 BLOB，零额度域内 column_blob 不再新增费用；
+    // 需要另建缓冲的取值（UTF-8 转 UTF-16）在零额度域内返回空指针并报 NOMEM。
     let _roomy = d.next(ROOM);
     let mut raw = ptr::null_mut();
     assert_eq!(
         unsafe {
             ffi::sqlite3_prepare_v2(
                 main.handle(),
-                c"SELECT zeroblob(65536)".as_ptr(),
+                c"SELECT zeroblob(65536), hex(zeroblob(50000))".as_ptr(),
                 -1,
                 &mut raw,
                 ptr::null_mut(),
@@ -165,14 +166,18 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
         ffi::SQLITE_OK
     );
     assert_eq!(unsafe { ffi::sqlite3_step(raw) }, ffi::SQLITE_ROW);
-    let blob = d.next(0);
+    let column = d.next(0);
     let live = d.current.live();
-    assert!(unsafe { ffi::sqlite3_column_blob(raw, 0) }.is_null());
+    assert!(!unsafe { ffi::sqlite3_column_blob(raw, 0) }.is_null());
+    assert_eq!(unsafe { ffi::sqlite3_column_bytes(raw, 0) }, 65536);
+    assert_eq!(column.refusal(), None);
+    assert_eq!(d.current.live(), live);
+    assert!(unsafe { ffi::sqlite3_column_text16(raw, 1) }.is_null());
     assert_eq!(
         unsafe { ffi::sqlite3_errcode(main.handle()) },
         ffi::SQLITE_NOMEM
     );
-    assert_eq!(blob.refusal(), Some(ScratchFailure::Budget));
+    assert_eq!(column.refusal(), Some(ScratchFailure::Budget));
     assert_eq!(d.current.live(), live);
     let _roomy = d.next(ROOM);
     unsafe { ffi::sqlite3_finalize(raw) };
@@ -240,9 +245,10 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert_eq!(other.live() - other_base, foreign_binding.live_bytes());
     let home = d.next(ROOM);
     let main_live = d.current.live();
+    let foreign_live = foreign_binding.live_bytes();
     drop(foreign);
-    assert_eq!(other.live(), other_base);
-    assert_eq!(foreign_binding.live_blocks(), 0);
+    assert!(foreign_binding.live_bytes() < foreign_live);
+    assert_eq!(other.live() - other_base, foreign_binding.live_bytes());
     assert_eq!(d.current.live(), main_live);
     drop(foreign_binding);
 
