@@ -35,8 +35,8 @@ use rusqlite::types::{ToSqlOutput, ValueRef};
 use rusqlite::ToSql;
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::Cell;
-use std::ffi::c_void;
-use std::path::Path;
+use std::ffi::{c_int, c_void, CStr};
+use std::marker::PhantomData;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -539,9 +539,9 @@ impl SqliteBinding {
             .map(|(_, f)| f)
     }
 
-    /// SQLite 报 `SQLITE_NOMEM` 且本域已记收费拒绝时，返回该首个拒绝。
-    pub fn refusal_of(&self, error: &rusqlite::Error) -> Option<ScratchFailure> {
-        if error.sqlite_error_code() == Some(rusqlite::ErrorCode::OutOfMemory) {
+    /// SQLite 报 `SQLITE_NOMEM`（含扩展码）且本域已记收费拒绝时，返回该首个拒绝。
+    pub fn refusal_of(&self, code: c_int) -> Option<ScratchFailure> {
+        if code & 0xff == ffi::SQLITE_NOMEM {
             self.refusal()
         } else {
             None
@@ -617,7 +617,7 @@ impl SqliteBinding {
     }
 
     /// 首拒优先：本域执行中已记收费拒绝时，一律报该首个拒绝（即使 SQLite 层吞掉了错误）。
-    fn settle<R>(&self, result: rusqlite::Result<R>) -> Result<R, SqlGate> {
+    fn settle<R>(&self, result: Result<R, c_int>) -> Result<R, SqlGate> {
         if let Some(first) = self.refusal() {
             return Err(SqlGate::Refused(first));
         }
@@ -625,28 +625,36 @@ impl SqliteBinding {
     }
 
     /// 在本父账名下打开连接；连接终身归属本父账，并装执行边界的进度回调。
-    pub fn open(&self, path: impl AsRef<Path>) -> Result<ChargedConnection, SqlGate> {
-        self.open_with(|| rusqlite::Connection::open(path))
-    }
-
-    /// 同 [`Self::open`]，内存库。
-    pub fn open_in_memory(&self) -> Result<ChargedConnection, SqlGate> {
-        self.open_with(rusqlite::Connection::open_in_memory)
-    }
-
-    fn open_with(
-        &self,
-        open: impl FnOnce() -> rusqlite::Result<rusqlite::Connection>,
-    ) -> Result<ChargedConnection, SqlGate> {
+    /// 路径由调用方以 C 字符串持有（`:memory:` 为内存库）；组件直接走 C API，不建 Rust 包装对象。
+    pub fn open(&self, path: &CStr) -> Result<ChargedConnection, SqlGate> {
         let running = self.enter(None)?;
         let owner = self.owner;
-        let opened = open().and_then(|conn| {
-            conn.progress_handler(1, Some(move || state().is_none_or(|s| !s.admits(owner))))?;
-            Ok(conn)
-        });
+        let mut db = ptr::null_mut();
+        let flags = ffi::SQLITE_OPEN_READWRITE | ffi::SQLITE_OPEN_CREATE | ffi::SQLITE_OPEN_URI;
+        // SAFETY: path is NUL-terminated; db receives a handle (possibly non-null on error).
+        let rc = unsafe { ffi::sqlite3_open_v2(path.as_ptr(), &mut db, flags, ptr::null()) };
+        let opened = if rc == ffi::SQLITE_OK {
+            // SAFETY: db is a live handle; the callback context is an integer, not a pointer.
+            unsafe {
+                ffi::sqlite3_extended_result_codes(db, 1);
+                ffi::sqlite3_progress_handler(db, 1, Some(progress), owner.context());
+            }
+            Ok(ChargedConnection { db, owner })
+        } else {
+            let code = if db.is_null() {
+                rc
+            } else {
+                // SAFETY: db is a live handle from the failed open.
+                unsafe {
+                    let code = ffi::sqlite3_extended_errcode(db);
+                    ffi::sqlite3_close(db);
+                    code
+                }
+            };
+            Err(code)
+        };
         drop(running);
         self.settle(opened)
-            .map(|conn| ChargedConnection { conn, owner })
     }
 
     /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行；
@@ -658,9 +666,10 @@ impl SqliteBinding {
     ) -> Result<R, SqlGate> {
         let running = self.enter(Some(conn))?;
         let ops = SqlOps {
-            conn: &conn.conn,
+            db: conn.db,
             binding: self,
             owner: conn.owner,
+            _conn: PhantomData,
         };
         let result = f(&ops);
         drop(running);
@@ -670,18 +679,20 @@ impl SqliteBinding {
         }
     }
 
-    /// 在本操作域关闭归属本父账的连接；不符时原样交回连接。
+    /// 在本操作域关闭归属本父账的连接；不符或连接仍有未结束语句时原样交回连接。
     pub fn close(&self, conn: ChargedConnection) -> Result<(), (ChargedConnection, SqlGate)> {
         let running = match self.enter(Some(&conn)) {
             Ok(running) => running,
             Err(e) => return Err((conn, e)),
         };
-        let owner = conn.owner;
-        let result = conn.conn.close();
+        // SAFETY: conn owns a live handle.
+        let rc = unsafe { ffi::sqlite3_close(conn.db) };
         drop(running);
-        match result {
-            Ok(()) => Ok(()),
-            Err((conn, e)) => Err((ChargedConnection { conn, owner }, SqlGate::Sqlite(e))),
+        if rc == ffi::SQLITE_OK {
+            std::mem::forget(conn);
+            Ok(())
+        } else {
+            Err((conn, SqlGate::Sqlite(rc)))
         }
     }
 }
@@ -715,58 +726,188 @@ impl Drop for Running {
     }
 }
 
-/// 操作域边界的拒绝。`Refused` 携本域首个收费拒绝；绑定非当前、已有 `run` 在执行或
-/// allocator 破损时为 `Refused(Ledger)`。
-#[derive(Debug)]
+/// 操作域边界的拒绝。`Refused` 携本域首个收费拒绝；绑定非当前、已有 `run` 在执行、行映射中
+/// 或 allocator 破损时为 `Refused(Ledger)`。`Sqlite` 携 SQLite 扩展结果码（不建错误文本）。
+#[derive(Debug, PartialEq, Eq)]
 pub enum SqlGate {
     Refused(ScratchFailure),
     /// 连接归属另一父账，未执行任何 SQL。
     WrongParent,
-    Sqlite(rusqlite::Error),
+    Sqlite(c_int),
 }
 
-/// 归属开它的父账的 SQLite 连接，不暴露裸连接；只能经 [`SqliteBinding::run`] 使用。
-/// 未经 [`SqliteBinding::close`] 直接析构时仍关闭连接，块按各自块头返还原父账，
-/// 关闭期间的新分配因不在操作域而被拒。
+impl Owner {
+    /// 进度回调的上下文：槽号与代号编进一个整数，不分配。
+    fn context(self) -> *mut c_void {
+        ((self.generation as usize) << 8 | self.slot) as *mut c_void
+    }
+    fn from_context(context: *mut c_void) -> Self {
+        let raw = context as usize;
+        Owner {
+            slot: raw & 0xff,
+            generation: (raw >> 8) as u32,
+        }
+    }
+}
+
+/// 进度回调：归属、父账当前域或首拒不符即中止（`SQLITE_INTERRUPT`）。仅兜底 unsafe 逃生口。
+unsafe extern "C" fn progress(context: *mut c_void) -> c_int {
+    let owner = Owner::from_context(context);
+    c_int::from(state().is_none_or(|s| !s.admits(owner)))
+}
+
+/// 归属开它的父账的 SQLite 连接，直接持有 C 句柄，不建 rusqlite 包装对象；只能经
+/// [`SqliteBinding::run`] 使用。未经 [`SqliteBinding::close`] 直接析构时以 `sqlite3_close_v2`
+/// 关闭，块按各自块头返还原父账，关闭期间的新分配因不在操作域而被拒。
 #[derive(Debug)]
 pub struct ChargedConnection {
-    conn: rusqlite::Connection,
+    db: *mut ffi::sqlite3,
     owner: Owner,
 }
 
-/// 参数先在准入之前全部求值：`ToSql` 是调用方代码，可能触发收费拒绝或尝试换域，必须在
-/// 最终核验之前跑完。结果留在栈上的定长数组里，`Borrowed` 只借调用方自己的内存，组件不复制、
-/// 不新建任何 Rust 堆持有；之后进入 SQLite 的绑定只读这些值（`ToSqlOutput` 的 `to_sql` 无回调）。
+// SAFETY: the handle is only used inside the exclusive `run` domain; SQLite is built threadsafe.
+unsafe impl Send for ChargedConnection {}
+
+impl Drop for ChargedConnection {
+    fn drop(&mut self) {
+        // SAFETY: the handle is live and owned; close_v2 defers until statements finalize.
+        unsafe { ffi::sqlite3_close_v2(self.db) };
+    }
+}
+
+fn last_code(db: *mut ffi::sqlite3, rc: c_int) -> c_int {
+    // SAFETY: db is a live handle.
+    let code = unsafe { ffi::sqlite3_extended_errcode(db) };
+    if code & 0xff == rc & 0xff {
+        code
+    } else {
+        rc
+    }
+}
+
+/// 参数先在两次准入之间求值：`ToSql` 是调用方代码，可能触发收费拒绝或尝试换域。结果留在栈上
+/// 定长数组，`Borrowed` 只借调用方内存；绑定一律 `SQLITE_TRANSIENT`，由 SQLite 以本父账收费的
+/// 块复制，组件不建 Rust 副本。
 fn evaluate<'p, const N: usize>(
     params: &[&'p dyn ToSql; N],
-) -> Result<[Option<ToSqlOutput<'p>>; N], SqlGate> {
-    let mut out = [const { None }; N];
+) -> Result<[ToSqlOutput<'p>; N], SqlGate> {
+    let mut out = [const { ToSqlOutput::Borrowed(ValueRef::Null) }; N];
     for (slot, p) in out.iter_mut().zip(params) {
         let p: &'p dyn ToSql = *p;
-        *slot = Some(p.to_sql().map_err(SqlGate::Sqlite)?);
+        *slot = p
+            .to_sql()
+            .map_err(|_| SqlGate::Sqlite(ffi::SQLITE_MISMATCH))?;
     }
     Ok(out)
 }
 
-/// 在操作口内把当前行的前 `M` 列借成 `ValueRef`（不复制），每取一列前重核首拒；
-/// 随后在禁止任何 SQL 操作的状态下把借值交给调用方映射。借值活不过本次调用。
+fn value_of<'v>(out: &'v ToSqlOutput<'_>) -> Result<ValueRef<'v>, SqlGate> {
+    match out {
+        ToSqlOutput::Borrowed(v) => Ok(*v),
+        // 调用方在 `to_sql` 里新建的堆值（Owned Text/Blob）不进操作域：组件不为其代付，也不让
+        // 未计费持有参与 SQL；调用方须以借用交出自己按许可持有的数据。标量 Owned 无堆。
+        ToSqlOutput::Owned(rusqlite::types::Value::Text(_) | rusqlite::types::Value::Blob(_)) => {
+            Err(SqlGate::Sqlite(ffi::SQLITE_MISMATCH))
+        }
+        ToSqlOutput::Owned(v) => Ok(ValueRef::from(v)),
+        #[allow(unreachable_patterns)]
+        _ => Err(SqlGate::Sqlite(ffi::SQLITE_MISMATCH)),
+    }
+}
+
+/// 把求值后的参数绑到语句；全部 `SQLITE_TRANSIENT`。
+fn bind<const N: usize>(
+    db: *mut ffi::sqlite3,
+    stmt: *mut ffi::sqlite3_stmt,
+    values: &[ToSqlOutput<'_>; N],
+) -> Result<(), c_int> {
+    // SAFETY: stmt is live; pointers and lengths come from live borrowed values copied by SQLite.
+    unsafe {
+        if usize::try_from(ffi::sqlite3_bind_parameter_count(stmt)).ok() != Some(N) {
+            return Err(ffi::SQLITE_RANGE);
+        }
+        for (i, out) in values.iter().enumerate() {
+            let at = i as c_int + 1;
+            let rc = match value_of(out).map_err(|_| ffi::SQLITE_MISMATCH)? {
+                ValueRef::Null => ffi::sqlite3_bind_null(stmt, at),
+                ValueRef::Integer(v) => ffi::sqlite3_bind_int64(stmt, at, v),
+                ValueRef::Real(v) => ffi::sqlite3_bind_double(stmt, at, v),
+                ValueRef::Text(t) => ffi::sqlite3_bind_text64(
+                    stmt,
+                    at,
+                    t.as_ptr().cast(),
+                    t.len() as u64,
+                    ffi::SQLITE_TRANSIENT(),
+                    ffi::SQLITE_UTF8 as u8,
+                ),
+                ValueRef::Blob(b) => ffi::sqlite3_bind_blob64(
+                    stmt,
+                    at,
+                    b.as_ptr().cast(),
+                    b.len() as u64,
+                    ffi::SQLITE_TRANSIENT(),
+                ),
+            };
+            if rc != ffi::SQLITE_OK {
+                return Err(last_code(db, rc));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 在操作口内逐列借值（每取一列前重核首拒；text/blob 的物化由 SQLite 以本父账收费），
+/// 然后在禁止任何 SQL 操作的状态下把借值交给调用方映射。借值活不过本次调用。
 fn map_row<T, const M: usize>(
     binding: &SqliteBinding,
-    row: &rusqlite::Row<'_>,
+    db: *mut ffi::sqlite3,
+    stmt: *mut ffi::sqlite3_stmt,
     f: impl FnOnce([ValueRef<'_>; M]) -> T,
-) -> rusqlite::Result<T> {
-    if row.as_ref().column_count() != M {
-        return Err(rusqlite::Error::InvalidColumnIndex(M));
-    }
-    let mut refs = [ValueRef::Null; M];
-    for (i, slot) in refs.iter_mut().enumerate() {
-        if binding.refusal().is_some() {
-            return Err(sql_error(ffi::SQLITE_NOMEM));
+) -> Result<T, c_int> {
+    // SAFETY: stmt is live and positioned on a row; returned slices stay valid until the next
+    // step/reset/finalize on stmt, all of which happen after `f` returns.
+    unsafe {
+        if usize::try_from(ffi::sqlite3_column_count(stmt)).ok() != Some(M) {
+            return Err(ffi::SQLITE_RANGE);
         }
-        *slot = row.get_ref(i)?;
+        let mut refs = [ValueRef::Null; M];
+        for (i, slot) in refs.iter_mut().enumerate() {
+            if binding.refusal().is_some() {
+                return Err(ffi::SQLITE_NOMEM);
+            }
+            let at = i as c_int;
+            *slot = match ffi::sqlite3_column_type(stmt, at) {
+                ffi::SQLITE_INTEGER => ValueRef::Integer(ffi::sqlite3_column_int64(stmt, at)),
+                ffi::SQLITE_FLOAT => ValueRef::Real(ffi::sqlite3_column_double(stmt, at)),
+                ffi::SQLITE_TEXT => {
+                    let p = ffi::sqlite3_column_text(stmt, at);
+                    let n = ffi::sqlite3_column_bytes(stmt, at) as usize;
+                    if p.is_null() {
+                        return Err(last_code(db, ffi::SQLITE_NOMEM));
+                    }
+                    ValueRef::Text(std::slice::from_raw_parts(p, n))
+                }
+                ffi::SQLITE_BLOB => {
+                    let p = ffi::sqlite3_column_blob(stmt, at);
+                    let n = ffi::sqlite3_column_bytes(stmt, at) as usize;
+                    if p.is_null() {
+                        if n != 0 || ffi::sqlite3_errcode(db) == ffi::SQLITE_NOMEM {
+                            return Err(ffi::SQLITE_NOMEM);
+                        }
+                        ValueRef::Blob(&[])
+                    } else {
+                        ValueRef::Blob(std::slice::from_raw_parts(p.cast(), n))
+                    }
+                }
+                _ => ValueRef::Null,
+            };
+        }
+        if binding.refusal().is_some() {
+            return Err(ffi::SQLITE_NOMEM);
+        }
+        let _mapping = RowMapping::enter();
+        Ok(f(refs))
     }
-    let _mapping = RowMapping::enter();
-    Ok(f(refs))
 }
 
 /// 行映射回调期间置位；其间一切 SQL 操作在准入处拒绝。
@@ -785,14 +926,15 @@ impl Drop for RowMapping {
     }
 }
 
-/// `run` 内的 SQL 操作口。组件在操作口内不创建任何 Rust 堆持有：参数以借用 / 调用方产出的值
-/// 留在栈上定长数组，结果行以 `ValueRef` 借给调用方映射，需要保留的数据由调用方在映射中
-/// 自行（按其许可）复制。每个方法在参数求值前后各核一次操作域（绑定、父账当前域、首拒、
-/// 归属）：首拒已在则不求值参数；参数回调之后再核，之后到 SQLite 返回只执行组件代码。
+/// `run` 内的 SQL 操作口，直接走 C API。组件在操作口内不创建任何 Rust 堆持有：SQL 文本按
+/// 指针+长度交给 SQLite（不建 C 字符串），参数在栈上定长数组并以 `SQLITE_TRANSIENT` 由
+/// SQLite 复制，结果行以 `ValueRef` 借给调用方映射，错误只携结果码（不建错误文本），
+/// 进度回调的上下文是整数。每个方法在参数求值前后各核一次操作域。
 pub struct SqlOps<'a> {
-    conn: &'a rusqlite::Connection,
+    db: *mut ffi::sqlite3,
     binding: &'a SqliteBinding,
     owner: Owner,
+    _conn: PhantomData<&'a ChargedConnection>,
 }
 
 impl<'a> SqlOps<'a> {
@@ -800,9 +942,47 @@ impl<'a> SqlOps<'a> {
         self.binding.admit(Some(self.owner))
     }
 
-    pub fn execute_batch(&self, sql: &str) -> Result<(), SqlGate> {
+    /// 准备一条语句；`tail` 返回未消费的 SQL 余部。
+    fn raw_prepare<'s>(&self, sql: &'s str) -> Result<(*mut ffi::sqlite3_stmt, &'s str), SqlGate> {
         self.admit()?;
-        self.binding.settle(self.conn.execute_batch(sql))
+        let len = c_int::try_from(sql.len()).map_err(|_| SqlGate::Sqlite(ffi::SQLITE_TOOBIG))?;
+        let mut stmt = ptr::null_mut();
+        let mut tail = ptr::null();
+        // SAFETY: db is live; SQLite reads at most len bytes of sql.
+        let rc = unsafe {
+            ffi::sqlite3_prepare_v2(self.db, sql.as_ptr().cast(), len, &mut stmt, &mut tail)
+        };
+        let result = if rc == ffi::SQLITE_OK {
+            let used = if tail.is_null() {
+                sql.len()
+            } else {
+                (tail as usize).saturating_sub(sql.as_ptr() as usize)
+            };
+            Ok((stmt, sql.get(used..).unwrap_or("")))
+        } else {
+            Err(last_code(self.db, rc))
+        };
+        self.binding.settle(result)
+    }
+
+    /// 依次准备并执行 `sql` 中的每条语句，每条之前重核操作域。
+    pub fn execute_batch(&self, sql: &str) -> Result<(), SqlGate> {
+        let mut rest = sql;
+        loop {
+            let (stmt, tail) = self.raw_prepare(rest)?;
+            if stmt.is_null() {
+                return Ok(());
+            }
+            let mut statement = GatedStatement {
+                stmt,
+                db: self.db,
+                binding: self.binding,
+                owner: self.owner,
+                _conn: PhantomData,
+            };
+            statement.execute([])?;
+            rest = tail;
+        }
     }
 
     pub fn execute<const N: usize>(
@@ -810,13 +990,7 @@ impl<'a> SqlOps<'a> {
         sql: &str,
         params: [&dyn ToSql; N],
     ) -> Result<usize, SqlGate> {
-        self.admit()?;
-        let values = evaluate(&params)?;
-        self.admit()?;
-        self.binding.settle(
-            self.conn
-                .execute(sql, rusqlite::params_from_iter(values.iter().flatten())),
-        )
+        self.prepare(sql)?.execute(params)
     }
 
     /// 取首行的 `M` 列交 `f` 映射；`f` 中不能再执行 SQL。
@@ -826,24 +1000,20 @@ impl<'a> SqlOps<'a> {
         params: [&dyn ToSql; N],
         f: impl FnOnce([ValueRef<'_>; M]) -> T,
     ) -> Result<T, SqlGate> {
-        self.admit()?;
-        let values = evaluate(&params)?;
-        self.admit()?;
-        let binding = self.binding;
-        binding.settle(self.conn.query_row(
-            sql,
-            rusqlite::params_from_iter(values.iter().flatten()),
-            |row| map_row(binding, row, f),
-        ))
+        self.prepare(sql)?.query_row(params, f)
     }
 
     pub fn prepare(&self, sql: &str) -> Result<GatedStatement<'a>, SqlGate> {
-        self.admit()?;
-        let stmt = self.binding.settle(self.conn.prepare(sql))?;
+        let (stmt, _) = self.raw_prepare(sql)?;
+        if stmt.is_null() {
+            return Err(SqlGate::Sqlite(ffi::SQLITE_MISUSE));
+        }
         Ok(GatedStatement {
             stmt,
+            db: self.db,
             binding: self.binding,
             owner: self.owner,
+            _conn: PhantomData,
         })
     }
 
@@ -851,15 +1021,24 @@ impl<'a> SqlOps<'a> {
     /// 只用于本操作域内的只读诊断与裸语句操作；不得更改或移除进度回调、不得关闭连接、
     /// 不得把句柄带出本 `run`。经此句柄的操作不受本合同保护。
     pub unsafe fn handle(&self) -> *mut ffi::sqlite3 {
-        unsafe { self.conn.handle() }
+        self.db
     }
 }
 
-/// 经 [`SqlOps::prepare`] 得到的语句；规则同 [`SqlOps`]。
+/// 经 [`SqlOps::prepare`] 得到的语句；规则同 [`SqlOps`]。析构时 finalize。
 pub struct GatedStatement<'a> {
-    stmt: rusqlite::Statement<'a>,
+    stmt: *mut ffi::sqlite3_stmt,
+    db: *mut ffi::sqlite3,
     binding: &'a SqliteBinding,
     owner: Owner,
+    _conn: PhantomData<&'a ChargedConnection>,
+}
+
+impl Drop for GatedStatement<'_> {
+    fn drop(&mut self) {
+        // SAFETY: stmt is live and owned.
+        unsafe { ffi::sqlite3_finalize(self.stmt) };
+    }
 }
 
 impl GatedStatement<'_> {
@@ -867,31 +1046,55 @@ impl GatedStatement<'_> {
         self.binding.admit(Some(self.owner))
     }
 
-    pub fn execute<const N: usize>(&mut self, params: [&dyn ToSql; N]) -> Result<usize, SqlGate> {
+    /// 求值参数（前后各一次准入）并绑定；成功后语句处于可 step 状态。
+    fn ready<const N: usize>(&mut self, params: [&dyn ToSql; N]) -> Result<(), SqlGate> {
         self.admit()?;
         let values = evaluate(&params)?;
         self.admit()?;
-        self.binding.settle(
-            self.stmt
-                .execute(rusqlite::params_from_iter(values.iter().flatten())),
-        )
+        // SAFETY: stmt is live.
+        unsafe {
+            ffi::sqlite3_reset(self.stmt);
+            ffi::sqlite3_clear_bindings(self.stmt);
+        }
+        self.binding.settle(bind(self.db, self.stmt, &values))
     }
 
-    /// 取首行的 `M` 列交 `f` 映射；`f` 中不能再执行 SQL。
+    fn step(&mut self) -> Result<c_int, SqlGate> {
+        // SAFETY: stmt is live and bound.
+        let rc = unsafe { ffi::sqlite3_step(self.stmt) };
+        let result = match rc {
+            ffi::SQLITE_ROW | ffi::SQLITE_DONE => Ok(rc),
+            _ => Err(last_code(self.db, rc)),
+        };
+        self.binding.settle(result)
+    }
+
+    /// 执行到结束（跳过结果行）；返回变更行数。
+    pub fn execute<const N: usize>(&mut self, params: [&dyn ToSql; N]) -> Result<usize, SqlGate> {
+        self.ready(params)?;
+        while self.step()? == ffi::SQLITE_ROW {
+            self.admit()?;
+        }
+        // SAFETY: db is live.
+        let changes = unsafe { ffi::sqlite3_changes64(self.db) };
+        // SAFETY: stmt is live.
+        unsafe { ffi::sqlite3_reset(self.stmt) };
+        Ok(usize::try_from(changes).unwrap_or(0))
+    }
+
+    /// 取首行的 `M` 列交 `f` 映射；`f` 中不能再执行 SQL。无行时报 `SQLITE_DONE`。
     pub fn query_row<T, const N: usize, const M: usize>(
         &mut self,
         params: [&dyn ToSql; N],
         f: impl FnOnce([ValueRef<'_>; M]) -> T,
     ) -> Result<T, SqlGate> {
-        self.admit()?;
-        let values = evaluate(&params)?;
-        self.admit()?;
-        let binding = self.binding;
-        binding.settle(
-            self.stmt
-                .query_row(rusqlite::params_from_iter(values.iter().flatten()), |row| {
-                    map_row(binding, row, f)
-                }),
-        )
+        self.ready(params)?;
+        if self.step()? != ffi::SQLITE_ROW {
+            return Err(SqlGate::Sqlite(ffi::SQLITE_DONE));
+        }
+        let mapped = map_row(self.binding, self.db, self.stmt, f);
+        // SAFETY: stmt is live; borrowed values are gone once `f` returned.
+        unsafe { ffi::sqlite3_reset(self.stmt) };
+        self.binding.settle(mapped)
     }
 }

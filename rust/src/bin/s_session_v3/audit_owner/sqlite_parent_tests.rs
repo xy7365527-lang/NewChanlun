@@ -133,10 +133,9 @@ fn raw_prepare(q: &SqlOps<'_>, sql: &CStr) -> Result<usize, SqlGate> {
     if rc == ffi::SQLITE_OK {
         Ok(raw as usize)
     } else {
-        Err(SqlGate::Sqlite(rusqlite::Error::SqliteFailure(
-            ffi::Error::new(rc),
-            None,
-        )))
+        Err(SqlGate::Sqlite(unsafe {
+            ffi::sqlite3_extended_errcode(q.handle())
+        }))
     }
 }
 
@@ -167,9 +166,10 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let wide = d.rebind();
 
     let dir = std::env::temp_dir().join(format!("sqlite-parent-{}", std::process::id()));
+    let path = |name: &str| std::ffi::CString::new(dir.join(name).to_str().unwrap()).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let main = wide.open(dir.join("main.sqlite3")).unwrap();
+    let main = wide.open(&path("main.sqlite3")).unwrap();
     wide.run(&main, |q| {
         let rc = unsafe {
             ffi::sqlite3_trace_v2(
@@ -188,7 +188,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
         )
     })
     .unwrap();
-    let ledger = wide.open(dir.join("ledger.sqlite3")).unwrap();
+    let ledger = wide.open(&path("ledger.sqlite3")).unwrap();
     wide.run(&ledger, |q| {
         q.execute_batch(
             "CREATE TABLE k(key BLOB PRIMARY KEY) WITHOUT ROWID;
@@ -265,11 +265,11 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let live = d.current.live();
     let first = refused(prepare.run(&main, |q| {
         let sql = std::ffi::CString::new(heap_query("SELECT body FROM t WHERE id = 2")).unwrap();
-        let Err(SqlGate::Sqlite(error)) = raw_prepare(q, &sql) else {
+        let Err(SqlGate::Sqlite(code)) = raw_prepare(q, &sql) else {
             panic!("prepare refused with NOMEM");
         };
-        assert!(nomem(&error), "{error}");
-        assert_eq!(prepare.refusal_of(&error), Some(ScratchFailure::Budget));
+        assert_eq!(code & 0xff, ffi::SQLITE_NOMEM);
+        assert_eq!(prepare.refusal_of(code), Some(ScratchFailure::Budget));
         Ok(())
     }));
     assert_eq!(first, ScratchFailure::Budget);
@@ -416,7 +416,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert_eq!(first, ScratchFailure::Budget);
     let open = d.next(0);
     assert_eq!(
-        refused(open.open(dir.join("third.sqlite3"))),
+        refused(open.open(&path("third.sqlite3"))),
         ScratchFailure::Budget
     );
 
@@ -552,7 +552,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let other = other_root.bind_frozen(1, LIMIT, 0, 0).unwrap();
     let (other_parent, other_origin) = other.sqlite_parent();
     let foreign_binding = allocator.bind(other_parent.clone(), other_origin).unwrap();
-    let foreign = foreign_binding.open_in_memory().unwrap();
+    let foreign = foreign_binding.open(c":memory:").unwrap();
     let foreign_block = foreign_binding
         .run(&foreign, |q| {
             q.execute_batch("CREATE TABLE f(x BLOB); INSERT INTO f VALUES(zeroblob(50000));")?;
