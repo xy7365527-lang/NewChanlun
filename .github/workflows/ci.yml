@@ -587,6 +587,10 @@ jobs:
             [ -f "$so" ] && je=$so
           fi
           echo "s4_allocator=${je:-glibc}"
+          # #1875 R11：Boat 磁盘 fsync 慢（新盘 p50 约 0.3 s），S4 的测试库放 tmpfs（gate 同此口径）；S4 不验掉电持久性。
+          s4tmp="${TMPDIR:-/tmp}"
+          if [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ] && [ -d /dev/shm ]; then s4tmp=$(mktemp -d /dev/shm/s4lock.XXXXXX); fi
+          echo "s4_tmpdir=$s4tmp"
           setsid nohup bash -c 'for _ in $(seq 120); do pgrep -f "deps/s_structure_session-[0-9a-f]+ --ignored --exact" >/dev/null && break; sleep 1; done
             ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}" \
               && ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
@@ -598,7 +602,7 @@ jobs:
             total=$((total + 1))
             log="../out-release-$(echo $t | tr ':/' '__').log"
             if ! grep -qx "$t: test" ../list-release.txt; then echo -e "$t\tNOT_LISTED_RELEASE" >> ../locks.tsv; fail=1; continue; fi
-            LD_PRELOAD=$je timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
+            TMPDIR=$s4tmp LD_PRELOAD=$je timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
             rc=$?
             cat "$log"
             if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "$log"; then echo -e "$t\tPASS_RELEASE" >> ../locks.tsv; else echo -e "$t\tFAIL_RELEASE($rc)" >> ../locks.tsv; fail=1; fi
