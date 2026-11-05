@@ -312,7 +312,7 @@ fn m8d_descriptor_new_process_cannot_import_old_authority() {
     );
     let line = stdout
         .lines()
-        .find_map(|line| line.strip_prefix("M8D_CHILD "))
+        .find_map(|line| line.split_once("M8D_CHILD ").map(|(_, rest)| rest))
         .unwrap_or_else(|| panic!("子进程未运行冷认证 reader：{stdout}"));
     let (life, frames) = line.split_once(" frames=").unwrap();
     assert!(life.starts_with("life="), "{line}");
@@ -494,8 +494,8 @@ fn h1_m8d_access_descriptor_real_life_diff() {
     assert_eq!(actual.last(), Some(&None));
     assert_eq!(receipt.node_selects, probe.len() as u64);
     assert_eq!(m8d_selects() - before, probe.len() as u64);
-    // 构造 1 次 + 每次点查 1 次的固定域核，各 3 条元数据查询（夹持观测另计于原控制读）。
-    assert_eq!(receipt.metadata_reads, 3 * (probe.len() as u64 + 1));
+    // 构造 1 次 + 每次点查 1 次 + 步出口 1 次的固定域核，各 3 条元数据查询（夹持观测另计于原控制读）。
+    assert_eq!(receipt.metadata_reads, 3 * (probe.len() as u64 + 2));
     assert_eq!(parent.live(), base, "reader 工作域、行副本许可与夹持控制读随生涯结束回到父账");
     active.read_end().unwrap();
     assert!(!owner.retired.get());
