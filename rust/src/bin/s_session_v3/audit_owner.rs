@@ -90,7 +90,7 @@ mod history_clamp;
 // #1419 M8D 3A：owner 生涯封印签发的受管 SQL reader；只在测试驱动，非测试调用点归 3C。
 #[cfg(feature = "s_incremental")]
 pub(crate) mod native;
-#[cfg(all(test, feature = "s_capture_native_testonly", unix))]
+#[cfg(all(test, feature = "s_incremental", unix))]
 mod step_reader;
 /// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
 #[cfg(feature = "s_incremental")]
@@ -1672,6 +1672,8 @@ impl AuditConnection {
         }
         #[cfg(feature = "s_incremental")]
         drop(pending);
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        step_reader::run_material_hook(active);
         #[cfg(feature = "s_incremental")]
         active.finish_fixed_write_in_publication(parent)?;
         #[cfg(not(feature = "s_incremental"))]
@@ -5756,6 +5758,8 @@ pub(super) mod construction_tests {
     include!("audit_owner/w2_h1_window_tests.rs");
     #[cfg(unix)]
     include!("audit_owner/legacy_admission_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/step_reader_production_tests.rs");
     #[cfg(all(unix, feature = "s_capture_native_testonly"))]
     include!("audit_owner/step_reader_tests.rs");
 

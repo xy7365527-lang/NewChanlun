@@ -1,6 +1,7 @@
 //! #1419 M8D 3A：owner 生涯封印签发的受管 SQL reader。
 //!
-//! 只在测试驱动（M8D §6：3A/3B 不接非测试调用点，生产来源准备归 3C）。签发方是持私有
+//! 只在测试驱动（M8D §6：3A/3B 不接非测试调用点，生产来源准备归 3C），生产增量与 native delta
+//! 两构建同一份签发。签发方是持私有
 //! `Connection` 的 AuditConnection：reader 独占借本事务 `&mut Transaction`，同时在 reader
 //! 生涯内给该私有连接装只读授权器，同连接任何别名（`unchecked_transaction`、
 //! `execute_batch("COMMIT")`、写入、DDL、带值 PRAGMA、checkpoint）都在 SQLite 预编译时被拒。
@@ -8,7 +9,7 @@
 //! 用 owner 的真实夹持（FD/WAL/stat/data_version/schema/域/控制原件全等于本切面）、
 //! 事务编号/写序、父账身份与材料能力核验；library 只执行这个门，不能自行构造它。
 use super::*;
-use newchan_rust::s_content::m8b_testonly::{GatedSqlReader, LiveGate};
+use newchan_rust::s_content::m8d_owner_bridge::{GatedSqlReader, LiveGate};
 use newchan_rust::s_content::{code, CodecError};
 use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 
@@ -132,9 +133,9 @@ pub(super) struct StepReaderReceipt {
 }
 
 impl<'a> AuditTxn<'a> {
-    /// 签发前置：先用原夹持解释本事务全部自身写（无写走 `check`，已闭合写走
-    /// `check_candidate`），再封印连接、取本切面观测。`parent` 由调用方提供，签发前与 owner
-    /// 夹持父账比对；异父只拒本次签发，不进 owner 核。
+    /// 签发前置：先用原夹持解释本事务全部自身写（无写走 `check`；已闭合写走 `check_candidate`；
+    /// node 自身写后、effects 未闭合的材料期走与 `candidate` 同一判据的材料切面），再封印连接、
+    /// 取本切面观测。`parent` 由调用方提供，签发前与 owner 夹持父账比对；异父只拒本次签发，不进 owner 核。
     fn issue_gate(
         &self,
         parent: &native::Budget,
@@ -163,21 +164,42 @@ impl<'a> AuditTxn<'a> {
             .map_err(|_| history_clamp::stale("reader 父账冻结域已失效"))?;
         // 先封印连接，再取唯一一次观测：它必须同时通过原判据（无写对生涯基线、已闭合写对
         // effects 候选），并原样作为本切面；签发后的每次 check_phase 只能与这份已核观测全等。
-        if self.dirty.get() && self.history_write.borrow().is_none() {
-            // 未闭合的自身写是签发时点错误，不是外部变化：只拒本次签发，不进 owner 核。
+        let open_write = self.dirty.get() && self.history_write.borrow().is_none();
+        if open_write && material.is_none() {
+            // 未闭合且未绑定材料能力的自身写是签发时点错误，不是外部变化：只拒本次签发，不进 owner 核。
             return Err(history_clamp::stale("自身写尚未闭合为已核 effects"));
         }
+        if open_write {
+            // 与 finish 前同一物理顺序门：本连接脏页先写入 WAL，否则读期 pager spill 会晚于本切面观测。
+            self.tx().cache_flush().map_err(history_clamp::stale)?;
+        }
         let seal = ConnectionSeal::install(&owner.connection)?;
-        let phase = if self.dirty.get() {
-            let clamp = owner.history_clamp.borrow();
-            let candidate = self.history_write.borrow();
-            clamp
-                .as_ref()
-                .unwrap()
-                .phase_from_candidate(self, candidate.as_ref().unwrap())
-        } else {
-            let mut clamp = owner.history_clamp.borrow_mut();
-            clamp.as_mut().unwrap().phase_from_baseline(self)
+        let phase = match (&material, open_write) {
+            (Some(material), true) => (|| {
+                let writes = material.writes(self.tx())?;
+                let pending = self.pending.borrow();
+                let originals = &pending
+                    .as_ref()
+                    .ok_or_else(|| history_clamp::stale("材料期缺写前原件"))?
+                    .originals;
+                let clamp = owner.history_clamp.borrow();
+                clamp
+                    .as_ref()
+                    .unwrap()
+                    .phase_from_material(self, &writes, material, originals)
+            })(),
+            _ if self.dirty.get() => {
+                let clamp = owner.history_clamp.borrow();
+                let candidate = self.history_write.borrow();
+                clamp
+                    .as_ref()
+                    .unwrap()
+                    .phase_from_candidate(self, candidate.as_ref().unwrap())
+            }
+            _ => {
+                let mut clamp = owner.history_clamp.borrow_mut();
+                clamp.as_mut().unwrap().phase_from_baseline(self)
+            }
         };
         let phase = owner.history_result(phase)?;
         match &material {
@@ -248,5 +270,19 @@ impl<'a> AuditTxn<'a> {
         let result = gate.check_live(other).map_err(|error| error.to_string());
         drop(seal);
         result
+    }
+}
+
+type MaterialHook = Box<dyn for<'a, 'b> FnOnce(&'b mut AuditTxn<'a>)>;
+thread_local! {
+    static MATERIAL_HOOK: std::cell::RefCell<Option<MaterialHook>> = const { std::cell::RefCell::new(None) };
+}
+/// 测试驱动：在真实 publish 的 effects 闭合之前（node 写后、Recording 仍活）运行一次。
+pub(super) fn arm_material_hook(hook: MaterialHook) {
+    MATERIAL_HOOK.with(|slot| *slot.borrow_mut() = Some(hook));
+}
+pub(super) fn run_material_hook(active: &mut AuditTxn<'_>) {
+    if let Some(hook) = MATERIAL_HOOK.with(|slot| slot.borrow_mut().take()) {
+        hook(active);
     }
 }

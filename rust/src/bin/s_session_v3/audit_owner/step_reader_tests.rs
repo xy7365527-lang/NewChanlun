@@ -1,55 +1,11 @@
 // #1419 M8D 3A：owner 生涯封印签发的受管 SQL reader（L1–L5/P1）。真实认证 owner、真实 WAL 文件库、
 // 真实外连接/换库/stat；拒绝点核 SELECT 不增长、首错保持与 owner 粘滞退役。
-fn m8d_parent(owner: &AuditConnection) -> native::Budget {
-    owner
-        .history_clamp
-        .borrow()
-        .as_ref()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .clone()
-}
-fn m8d_nodes(f: &prepared::tests::Fixture, n: usize) -> Vec<([u8; 32], u8, Vec<u8>)> {
-    let mut stmt = f
-        .conn
-        .prepare("SELECT digest, tag, body FROM s_content_nodes ORDER BY digest LIMIT ?1")
-        .unwrap();
-    let rows = stmt
-        .query_map([n as i64], |r| {
-            let digest: Vec<u8> = r.get(0)?;
-            let tag: i64 = r.get(1)?;
-            Ok((
-                <[u8; 32]>::try_from(digest.as_slice()).unwrap(),
-                u8::try_from(tag).unwrap(),
-                r.get::<_, Vec<u8>>(2)?,
-            ))
-        })
-        .unwrap()
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap();
-    assert!(rows.len() >= 2, "夹具须有至少两个真实节点");
-    rows
+fn m8d_is_stale(error: &newchan_rust::s_content::CodecError) -> bool {
+    error.to_string().contains("HistoricalAuditStale")
 }
 fn m8d_selects() -> u64 {
     newchan_rust::s_content::m8b_testonly::sql_reads_on_thread()
 }
-fn m8d_owner_in(
-) -> (prepared::tests::Fixture, AuditConnection, native::Budget, request_audit::RequestAuditContext) {
-    let f = fixture();
-    let mut c = context();
-    let owner = h1_certified_owner(&f, &mut c);
-    let parent = m8d_parent(&owner);
-    (f, owner, parent, c)
-}
-fn m8d_owner() -> (prepared::tests::Fixture, AuditConnection, native::Budget) {
-    let (f, owner, parent, _) = m8d_owner_in();
-    (f, owner, parent)
-}
-fn m8d_is_stale(error: &newchan_rust::s_content::CodecError) -> bool {
-    error.to_string().contains("HistoricalAuditStale")
-}
-
 #[test]
 fn m8d_descriptor_real_foreign_commit_stops_before_hit() {
     // 外连接在签发前提交：签发核（原 check）即拒，owner 粘滞退役。
@@ -60,7 +16,9 @@ fn m8d_descriptor_real_foreign_commit_stops_before_hit() {
         .unwrap();
     let mut active = active;
     let before = m8d_selects();
-    assert!(active.with_step_reader(&parent, None, None, |_| ()).is_err());
+    assert!(active
+        .with_step_reader(&parent, None, None, |_| ())
+        .is_err());
     assert_eq!(m8d_selects(), before);
     assert!(owner.retired.get());
     drop(active);
@@ -166,7 +124,10 @@ fn m8d_descriptor_main_wal_replace_and_stat_refuse() {
 
 const M8D_CHILD_DB: &str = "NEWCHAN_M8D_CHILD_DB";
 fn m8d_frame_line(digest: &[u8; 32], tag: u8, body: &[u8]) -> String {
-    let hex = digest.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let hex = digest
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
     let body = body.iter().map(|b| format!("{b:02x}")).collect::<String>();
     format!("{hex}:{tag}:{body}")
 }
@@ -179,9 +140,8 @@ fn m8d_descriptor_child_process_cold_reader() {
     };
     let db = PathBuf::from(db);
     let mut c = context();
-    let owner =
-        AuditConnection::open_certified_history_component(&db, 1 << 20, None, &mut c, None)
-            .unwrap();
+    let owner = AuditConnection::open_certified_history_component(&db, 1 << 20, None, &mut c, None)
+        .unwrap();
     let parent = m8d_parent(&owner);
     let digests: Vec<[u8; 32]> = {
         let conn = rusqlite::Connection::open(&db).unwrap();
@@ -271,7 +231,10 @@ fn m8d_descriptor_dirty_phase_reads_after_closed_effects() {
     assert!(!owner.retired.get());
     let ended = active.commit().unwrap();
     owner.continue_with(ended).unwrap();
-    assert!(!owner.retired.get(), "reader 未改变自身写的已核候选，提交照常");
+    assert!(
+        !owner.retired.get(),
+        "reader 未改变自身写的已核候选，提交照常"
+    );
 }
 
 #[test]
@@ -418,7 +381,11 @@ fn m8d_descriptor_own_write_checkpoint_and_epoch_boundaries() {
                     .is_err(),
             );
             denied.push(alias.execute_batch("CREATE TEMP TABLE m8d(x)").is_err());
-            denied.push(alias.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").is_err());
+            denied.push(
+                alias
+                    .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+                    .is_err(),
+            );
             denied.push(alias.execute_batch("PRAGMA wal_checkpoint").is_err());
             denied.push(alias.execute_batch("PRAGMA foreign_keys=OFF").is_err());
             denied.push(alias.execute_batch("SAVEPOINT m8d").is_err());
@@ -451,52 +418,6 @@ fn m8d_descriptor_own_write_checkpoint_and_epoch_boundaries() {
         })
         .unwrap();
     assert_eq!(frames, nodes.iter().map(|n| n.1).collect::<Vec<_>>());
-    active.read_end().unwrap();
-    assert!(!owner.retired.get());
-}
-
-#[test]
-fn h1_m8d_access_descriptor_real_life_diff() {
-    // 生产读口 TxStore 与 owner 签发 reader 对同一事务逐帧对拍；缺失同为 None；读数逐次可对账。
-    use newchan_rust::s_content::NodeSource;
-    let (f, owner, parent) = m8d_owner();
-    let nodes = m8d_nodes(&f, 16);
-    let mut active = owner.begin(TransactionBehavior::Deferred).unwrap();
-    let mut probe: Vec<[u8; 32]> = nodes.iter().map(|n| n.0).collect();
-    probe.push([0; 32]);
-    let expected = {
-        let mut store = crate::content_store::TxStore::new(active.tx()).unwrap();
-        probe
-            .iter()
-            .map(|digest| {
-                store
-                    .checked_read(digest)
-                    .unwrap()
-                    .map(|frame| (frame.tag(), frame.body().to_vec()))
-            })
-            .collect::<Vec<_>>()
-    };
-    let before = m8d_selects();
-    let base = parent.live();
-    let (actual, receipt) = active
-        .with_step_reader(&parent, None, None, |reader| {
-            probe
-                .iter()
-                .map(|digest| {
-                    reader
-                        .frame(digest, |tag, body| (tag, body.to_vec()))
-                        .unwrap()
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap();
-    assert_eq!(actual, expected);
-    assert_eq!(actual.last(), Some(&None));
-    assert_eq!(receipt.node_selects, probe.len() as u64);
-    assert_eq!(m8d_selects() - before, probe.len() as u64);
-    // 构造 1 次 + 每次点查 1 次 + 步出口 1 次的固定域核，各 3 条元数据查询（夹持观测另计于原控制读）。
-    assert_eq!(receipt.metadata_reads, 3 * (probe.len() as u64 + 2));
-    assert_eq!(parent.live(), base, "reader 工作域、行副本许可与夹持控制读随生涯结束回到父账");
     active.read_end().unwrap();
     assert!(!owner.retired.get());
 }

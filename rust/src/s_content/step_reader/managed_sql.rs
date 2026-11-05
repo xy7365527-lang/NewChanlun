@@ -7,7 +7,6 @@ use std::cell::Cell;
 /// #1419 M8D 3A：签发方提供的生涯门。`check_live` 在每次域核（节点 SELECT 前）以本 reader
 /// 独占的同一事务调用，由 owner 核其私有连接、快照/文件观测、材料与父身份；`sample` 只采样
 /// 原绝对期限/取消。library 不构造生涯，也不接受“已认证”标志；判定全由签发方的真实核给出。
-#[cfg(feature = "s_capture_native_testonly")]
 pub trait LiveGate {
     fn check_live(&self, tx: &Transaction<'_>) -> Result<(), CodecError>;
     fn sample(&self) -> Result<(), CodecError>;
@@ -17,23 +16,22 @@ pub trait LiveGate {
 /// 门负责），owner 签发的 reader 只用 `LiveGate`。两者不在同一 if-else 上互为兜底。
 #[derive(Clone, Copy)]
 enum Gate<'w> {
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     Sample(&'w dyn Fn() -> Result<(), CodecError>),
-    #[cfg(feature = "s_capture_native_testonly")]
     Live(&'w dyn LiveGate),
 }
 impl Gate<'_> {
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(unused_variables))]
     fn live(&self, tx: &Transaction<'_>) -> Result<(), CodecError> {
         match self {
+            #[cfg(any(test, feature = "s_capture_native_testonly"))]
             Gate::Sample(sample) => sample(),
-            #[cfg(feature = "s_capture_native_testonly")]
             Gate::Live(gate) => gate.check_live(tx),
         }
     }
     fn sample(&self) -> Result<(), CodecError> {
         match self {
+            #[cfg(any(test, feature = "s_capture_native_testonly"))]
             Gate::Sample(sample) => sample(),
-            #[cfg(feature = "s_capture_native_testonly")]
             Gate::Live(gate) => gate.sample(),
         }
     }
@@ -61,6 +59,7 @@ pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
 }
 
 impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     pub(super) fn new(
         tx: &'tx mut Transaction<'conn>,
         work: &'work WorkScope,
@@ -69,7 +68,6 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         Self::issue(tx, work, Gate::Sample(sample))
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn with_gate(
         tx: &'tx mut Transaction<'conn>,
         work: &'work WorkScope,
@@ -359,11 +357,9 @@ pub(crate) fn with_sql_root<T>(
 
 /// #1419 M8D 3A：owner 工厂签发的受管 SQL reader。只能由持有 `&mut Transaction` 的签发方
 /// 构造，门由签发方给出；不暴露 tx/Connection，不提供 Clone、跨步句柄或正文 into。
-#[cfg(feature = "s_capture_native_testonly")]
 pub struct GatedSqlReader<'tx, 'conn, 'work> {
     inner: ManagedSqlStep<'tx, 'conn, 'work>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
 impl<'tx, 'conn, 'work> GatedSqlReader<'tx, 'conn, 'work> {
     pub fn new(
         tx: &'tx mut Transaction<'conn>,
