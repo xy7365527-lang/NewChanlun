@@ -150,14 +150,14 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     drop(statement);
 
     // 列取值：已在 step 时物化（并收费）的 BLOB，零额度域内 column_blob 不再新增费用；
-    // 需要另建缓冲的取值（UTF-8 转 UTF-16）在零额度域内返回空指针并报 NOMEM。
+    // 需要另建缓冲的取值（BLOB 按 TEXT 取需追加终止符）在零额度域内返回空指针并报 NOMEM。
     let _roomy = d.next(ROOM);
     let mut raw = ptr::null_mut();
     assert_eq!(
         unsafe {
             ffi::sqlite3_prepare_v2(
                 main.handle(),
-                c"SELECT zeroblob(65536), hex(zeroblob(50000))".as_ptr(),
+                c"SELECT zeroblob(65536), randomblob(50000)".as_ptr(),
                 -1,
                 &mut raw,
                 ptr::null_mut(),
@@ -172,7 +172,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert_eq!(unsafe { ffi::sqlite3_column_bytes(raw, 0) }, 65536);
     assert_eq!(column.refusal(), None);
     assert_eq!(d.current.live(), live);
-    assert!(unsafe { ffi::sqlite3_column_text16(raw, 1) }.is_null());
+    assert!(unsafe { ffi::sqlite3_column_text(raw, 1) }.is_null());
     assert_eq!(
         unsafe { ffi::sqlite3_errcode(main.handle()) },
         ffi::SQLITE_NOMEM
