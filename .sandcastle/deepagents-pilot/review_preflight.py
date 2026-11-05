@@ -37,6 +37,7 @@ PROBE_TIMEOUT = 45
 PROVIDER = "cliproxy-local"
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
+ENV_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 RESPONSE_STATUSES = ("completed", "incomplete", "failed", "cancelled", "in_progress", "queued")
 CLEANUP_RESERVE = 3.0  # 总时限里留给回收与输出报告的秒数
 OUTPUT_MARGIN = 0.5  # 回收之后杀进程组、删目录、输出报告所留的秒数（机器忙时也够）
@@ -143,7 +144,8 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
         container_done = result.returncode >= 0 and result.returncode != 125
         ok = result.returncode == 0 and seen == nonce
         detail.update(docker_rc=result.returncode, nonce_match=seen == nonce,
-                      stderr=result.stderr.decode("utf-8", "replace").strip())
+                      # daemon/registry 的自由文本不进报告，与上游错误正文同样只给分类、长度、摘要
+                      stderr=_error_info(result.stderr.decode("utf-8", "replace").strip()))
     except subprocess.TimeoutExpired:
         detail["error"] = "docker run 超时"
     except Exception as error:
@@ -215,7 +217,8 @@ def provider_key(codex_home: Path, deadline: Deadline) -> tuple[str, str]:
         return _clean_key(entry["experimental_bearer_token"], "experimental_bearer_token"), "experimental_bearer_token"
     if entry.get("env_key"):
         if not isinstance(entry["env_key"], str) or not env.get(entry["env_key"]):
-            raise CredentialError(f"Missing environment variable: {entry['env_key']}")
+            name = entry["env_key"] if isinstance(entry["env_key"], str) and ENV_NAME_RE.fullmatch(entry["env_key"]) else "<非变量名>"
+            raise CredentialError(f"Missing environment variable: {name}")
         return _clean_key(env[entry["env_key"]], "env_key"), "env_key"
     raise CredentialError(f"model_providers.{PROVIDER} 未配置任何凭据来源")
 

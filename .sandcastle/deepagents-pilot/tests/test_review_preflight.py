@@ -815,3 +815,22 @@ def test_unknown_route_is_reported_as_other(tmp_path):
          mock.patch.object(preflight, "round_trip", lambda *a: {"ok": True}):
         route = preflight.probe_model(args, SOL, "k", preflight.Deadline(5))[0]
     assert route["detail"]["actual"] == ["other"] and not route["ok"]
+
+
+def test_docker_stderr_is_summarised_and_never_carries_the_key(env, capsys, tmp_path):
+    """独审十八：docker/daemon 的 stderr 是自由文本，双重编码的 key 也不能经它进报告。"""
+    (tmp_path / "key.txt").write_text('isolated"host"key1742\n')
+    encoded = json.dumps(json.dumps('isolated"host"key1742')).replace("'", "'\\''")
+    (tmp_path / "bin" / "docker").write_text(f"#!/bin/sh\n[ \"$1\" = rm ] && exit 0\necho 'daemon diagnostic: {encoded}' >&2\nexit 125\n")
+    code, report, out, _ = env(capsys=capsys)
+    stderr = check(report, "checkout_root_container_mount")["detail"]["stderr"]
+    assert code == 2 and set(stderr) == {"class", "length", "sha256_12"} and "1742" not in out
+
+
+def test_env_key_that_is_not_a_variable_name_is_not_echoed(env, capsys, tmp_path):
+    """env_key 误填成 key 本身时，错误信息不回显它。"""
+    (tmp_path / "codex/config.toml").write_text(
+        '[model_providers.cliproxy-local]\nenv_key = "sk-\\"double\\"-1742"\n')
+    code, report, out, _ = env(capsys=capsys)
+    assert code == 2 and "1742" not in out
+    assert "<非变量名>" in check(report, "credential:codex-host")["detail"]["error"]
