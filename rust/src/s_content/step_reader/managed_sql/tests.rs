@@ -587,6 +587,15 @@ thread_local! {
     static OBSERVED: std::cell::RefCell<Option<Vec<(&'static str, SqliteReading)>>> =
         const { std::cell::RefCell::new(None) };
 }
+impl std::fmt::Display for SqliteReading {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "cache={} schema={} stmt={} process={}",
+            self.cache, self.schema, self.stmt, self.process
+        )
+    }
+}
 fn reading(conn: &rusqlite::Connection) -> SqliteReading {
     let status = |op| {
         let (mut current, mut high) = (0, 0);
@@ -808,8 +817,12 @@ fn m8d_sqlite_internal_and_rust_copy_coexist_receipt() {
         let names: Vec<_> = points.iter().map(|p| p.0).collect();
         assert_eq!(names, ["prepared", "row_and_rust_copy", "finalized"]);
         let copy = points[1].1;
+        println!("M8D_L10_RECEIPT body_len={body_len} point=idle {idle}");
+        for (point, value) in &points {
+            println!("M8D_L10_RECEIPT body_len={body_len} point={point} {value}");
+        }
         println!(
-            "M8D_L10_RECEIPT body_len={body_len} idle={idle:?} points={points:?} parent_live_delta_with_copy={:?} coverage=unproven(B_sql)",
+            "M8D_L10_RECEIPT body_len={body_len} parent_live_delta_with_copy={:?} coverage=unproven(B_sql)",
             at_copy_live
         );
         assert!(
@@ -849,7 +862,7 @@ fn m8d_sqlite_domain_permit_lives_until_resource_destroyed() {
     }
     let after = reading(&conn);
     println!(
-        "M8D_L11_RECEIPT idle={idle:?} after_finalize_lease_and_tx={after:?} parent_live={}",
+        "M8D_L11_RECEIPT idle {idle} | after_finalize_lease_and_tx {after} | parent_live={}",
         bank.live.load(Ordering::SeqCst)
     );
     assert_eq!(bank.live.load(Ordering::SeqCst), 0, "Rust 许可全退");
