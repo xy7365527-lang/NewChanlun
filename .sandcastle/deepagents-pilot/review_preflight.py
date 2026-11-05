@@ -30,7 +30,7 @@ _TOTAL_END = float("inf")  # 总时限（含回收预留）的绝对时刻
 _CLOSING = False  # 主线程开始回收后置位；之后不再建探针、不再起容器（在 _CLEANUP_LOCK 下读写）
 _CLEANUP_FAILURES: list[str] = []  # 任一线程回收失败都记在这里，主线程汇总成 probe_cleanup
 _RECLAIMING: set[str] = set()  # 已被探针线程认领、正在回收的容器；主线程退出前限时等它们做完
-_RECLAIM_DONE = threading.Condition(_CLEANUP_LOCK)
+OUTPUT_MARGIN = 0.05  # 回收收尾之后序列化并输出报告所留的时间
 # 上游错误只按固定词表分类，不把原文抄进报告（原文可能回显 key，且转义形态无法穷举）
 ERROR_CLASSES = (("tool_choice", "tool_choice_unsupported"), ("预扣额度", "quota"), ("quota", "quota"),
                  ("insufficient", "quota"), ("invalid api key", "auth"), ("invalid bearer", "auth"), ("unauthorized", "auth"),
@@ -170,7 +170,7 @@ def _bounded(fn, timeout: float):
     def run() -> None:
         try:
             box["value"] = fn()
-        except OSError as error:
+        except Exception as error:  # 交给调用方处理，不让守护线程里的异常被吞掉
             box["error"] = error
 
     worker = threading.Thread(target=run, daemon=True)
@@ -210,6 +210,8 @@ def _reclaim(entry: dict, container: str, budget: float) -> str | None:
 
     end = time.monotonic() + budget
     errors = []
+    # 先删宿主侧探针目录：不依赖容器是否已删（容器只读挂载它）；限时执行，且排在等进程之前（gemini3·3）
+    dir_error = _remove_probe_dir(entry["probe"], max(0.0, min(1.0, end - time.monotonic())))
     proc = entry.get("proc")
     if proc is not None:
         # 不以父进程是否存活为前提：包装脚本可能已退出、却留下后台子进程继续建容器（独审九）。
@@ -233,8 +235,6 @@ def _reclaim(entry: dict, container: str, budget: float) -> str | None:
                     pass
         if proc.poll() is None:
             errors.append(f"docker run 进程未退出，容器 {container} 可能仍会被创建")
-    # 先删宿主侧探针目录：不依赖容器是否已删（容器只读挂载它）；限时执行，文件系统卡住也不拖过总时限
-    dir_error = _remove_probe_dir(entry["probe"], max(0.0, min(1.0, end - time.monotonic())))
     if end - time.monotonic() <= 0:
         errors.append(f"回收预算耗尽，未能确认容器 {container} 已删除")
     else:
@@ -269,7 +269,6 @@ def _claim(container: str) -> dict | None:
 def _release(container: str) -> None:
     with _CLEANUP_LOCK:
         _RECLAIMING.discard(container)
-        _RECLAIM_DONE.notify_all()
 
 
 def _record_failure(error: str | None) -> None:
@@ -293,16 +292,19 @@ def reclaim_pending(budget: float) -> list[str]:
         _CLEANUP_LOCK.release()
     for container, entry in pending:
         _record_failure(_reclaim(entry, container, max(0.0, end - time.monotonic())))
-    # 探针线程已认领、仍在回收的条目：限时等它们做完，避免 os._exit 把回收掐在半路
-    if not _CLEANUP_LOCK.acquire(timeout=max(0.0, end - time.monotonic())):
-        return ["回收锁在时限内未取得：在途回收未能确认"]
-    try:
-        _RECLAIM_DONE.wait_for(lambda: not _RECLAIMING, timeout=max(0.0, end - time.monotonic()))
-        failures = list(_CLEANUP_FAILURES)
-        failures += [f"容器 {c} 的回收在时限内未完成，探针目录或容器可能遗留" for c in sorted(_RECLAIMING)]
-        return failures
-    finally:
-        _CLEANUP_LOCK.release()
+    # 探针线程已认领、仍在回收的条目：限时轮询等它们做完，避免 os._exit 把回收掐在半路。
+    # 不用 Condition.wait：它超时返回前会无限期重取锁（gemini3·4a）。每次取锁都限时。
+    while True:
+        if not _CLEANUP_LOCK.acquire(timeout=max(0.0, end - time.monotonic())):
+            return ["回收锁在时限内未取得：在途回收未能确认"]
+        try:
+            in_flight = sorted(_RECLAIMING)
+            failures = list(_CLEANUP_FAILURES)
+        finally:
+            _CLEANUP_LOCK.release()
+        if not in_flight or time.monotonic() >= end:
+            return failures + [f"容器 {c} 的回收在时限内未完成，探针目录或容器可能遗留" for c in in_flight]
+        time.sleep(min(0.02, max(0.0, end - time.monotonic())))
 
 
 def check_mount(args) -> dict:
@@ -324,19 +326,24 @@ def check_mount(args) -> dict:
         if _CLOSING or _remaining() <= 0:
             raise TimeoutError("总时限已到，未启动挂载探针")
         _PENDING_CLEANUP[container] = entry
+        abort = None
         try:
             probe.mkdir(mode=0o700)
             (probe / "nonce").write_text(nonce)
-        except OSError:
-            _PENDING_CLEANUP.pop(container, None)  # 没建成就不登记，免得误报“未删净”
-            shutil.rmtree(probe, ignore_errors=True)
-            raise
-        if _CLOSING or _remaining() <= 0:  # 慢 I/O 后再查一次：时限已过就不起容器
+        except OSError as error:
+            abort = error
+        if abort is None and (_CLOSING or _remaining() <= 0):  # 慢 I/O 后再查一次：时限已过就不起容器
+            abort = TimeoutError("总时限已到，未启动挂载容器")
+        if abort is None:
+            entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                    text=True, errors="replace", start_new_session=True)
+        else:
             _PENDING_CLEANUP.pop(container, None)
-            shutil.rmtree(probe, ignore_errors=True)
-            raise TimeoutError("总时限已到，未启动挂载容器")
-        entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                                start_new_session=True)
+    if abort is not None:
+        # 锁外限时删除已建的探针目录；删不掉要记入 probe_cleanup，不静默遗留（gemini3·2）
+        if probe.exists():
+            _record_failure(_remove_probe_dir(probe, min(1.0, max(0.0, _total_left() - 0.1))))
+        raise abort
     try:
         out, err = proc.communicate(timeout=min(30.0, _remaining()) or 0.001)
     except subprocess.TimeoutExpired:
@@ -366,20 +373,27 @@ class CredentialError(RuntimeError):
 
 
 def _clean_key(value, source: str) -> str:
-    """去掉首尾空白；只接受可见 ASCII（0x21–0x7E）且至少 8 个字符的 key（HTTP 头安全，脱敏可靠）。不回显值。"""
+    """去掉首尾空白；只接受可见 ASCII（0x21–0x7E）的 key（HTTP 头安全）。不设长度或字符子集门槛——
+    正式 worker 不设，预检多设就是误报（独审十一）；短 key、含转义的 key 由脱敏形态覆盖。不回显值。"""
     if not isinstance(value, str):
         raise CredentialError(f"{source} 的 key 不是字符串")
     key = value.strip()
     if not key:
         raise CredentialError(f"{source} 的 key 为空")
-    if len(key) < 8 or any(not 0x21 <= ord(ch) <= 0x7E for ch in key):
-        raise CredentialError(f"{source} 的 key 含非可见 ASCII 字符或少于 8 个字符")
+    if any(not 0x21 <= ord(ch) <= 0x7E for ch in key):
+        raise CredentialError(f"{source} 的 key 含非可见 ASCII 字符")
     return key
 
 
 def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | None = None) -> tuple[str, dict]:
     """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
-    config = tomllib.loads((codex_home / "config.toml").read_text(encoding="utf-8"))
+    done, text = _bounded(lambda: (codex_home / "config.toml").read_text(encoding="utf-8"),
+                          5.0 if budget is None else max(0.0, budget))
+    if not done:
+        raise CredentialError("读取 Codex config.toml 超时")
+    if isinstance(text, Exception):
+        raise text
+    config = tomllib.loads(text)
     providers = config.get("model_providers")
     entry = providers.get(provider) if isinstance(providers, dict) else None
     if not isinstance(entry, dict):
@@ -492,9 +506,17 @@ def _secret_forms(secrets) -> list[str]:
     for secret in secrets:
         if not secret:
             continue
+        forms.add(secret.encode("utf-8", "surrogateescape").decode("utf-8", "replace"))
+        try:  # key 里的 \uXXXX 之类转义被上游 JSON/TOML 解码后的形态（gemini3·5a）
+            decoded = json.loads(f'"{secret}"')
+            if isinstance(decoded, str):
+                forms.add(decoded)
+        except ValueError:
+            pass
         forms.update({secret, json.dumps(secret, ensure_ascii=False)[1:-1], json.dumps(secret)[1:-1],
                       repr(secret)[1:-1], secret.strip()})
-    return sorted((f for f in forms if len(f) >= 4), key=len, reverse=True)
+    # 不按长度过滤：短 key 宁可过度脱敏也不漏（报告里已不含上游原文，剩下的几乎都是本脚本自己的文字）
+    return sorted((f for f in forms if f), key=len, reverse=True)
 
 
 def redact(text: str, secrets, limit: int | None = None) -> str:
@@ -506,10 +528,10 @@ def redact(text: str, secrets, limit: int | None = None) -> str:
         text = text.replace(form, "<redacted>")
     if limit is not None and len(text) > limit:
         text = text[:limit]
-    tail = max((k for form in forms for k in range(len(form) - 1, 3, -1) if text.endswith(form[:k])), default=0)
+    tail = max((k for form in forms for k in range(len(form) - 1, 1, -1) if text.endswith(form[:k])), default=0)
     if tail:
         text = text[:-tail] + "<redacted>"
-    head = max((k for form in forms for k in range(len(form) - 1, 3, -1) if text.startswith(form[-k:])), default=0)
+    head = max((k for form in forms for k in range(len(form) - 1, 1, -1) if text.startswith(form[-k:])), default=0)
     if head:
         text = "<redacted>" + text[head:]
     return text
@@ -634,8 +656,10 @@ def served_models(text: str) -> set[str]:
                 continue
             kind = event.get("type", "") if isinstance(event, dict) else ""
             if kind == "message_start" and isinstance(event.get("message"), dict):
-                served.add(event["message"].get("model"))
-            elif kind.startswith("response.") and isinstance(event.get("response"), dict) and event["response"].get("model"):
+                if isinstance(event["message"].get("model"), str):
+                    served.add(event["message"]["model"])
+            elif kind.startswith("response.") and isinstance(event.get("response"), dict) \
+                    and isinstance(event["response"].get("model"), str):
                 served.add(event["response"]["model"])
     served.discard(None)
     return served
@@ -647,7 +671,7 @@ def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) 
     proxy 的日志以 `=== RESPONSE ===` 段收尾（实测 92/92）。只在该段已出现、且相邻两次轮询文件大小不变时解析，
     避免把写到一半的 `provider=clau` 或尚未写入的实际服务模型当成定论。"""
     deadline = time.monotonic() + wait
-    partial, sizes = None, {}
+    partial, sizes, recheck, extended = None, {}, False, False
     while True:
         entries = []
         try:
@@ -678,9 +702,14 @@ def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) 
                 attempts = list(zip(providers, hosts, strict=True)) if providers and len(providers) == len(hosts) else []
                 return attempts, served_models(text)
             partial = ([], set())  # 找到了但还没写完；窗口结束仍未完成即按“无法核实”判失败
+            # 完整收尾段已在，只差一次大小确认：窗口末尾首次看到时允许再多轮询一次（gemini3·6）
+            recheck = "\n=== RESPONSE ===" in text
             break
         if time.monotonic() > deadline:
-            return partial
+            if not recheck or extended:  # 只多给一次，文件一直在变就按未写完判失败
+                return partial
+            extended = True
+            deadline = time.monotonic() + 0.1
         time.sleep(0.05)
 
 
@@ -738,7 +767,8 @@ def _emit(report: dict, secrets=()) -> None:
 class _Parser(argparse.ArgumentParser):
     def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3；stdout 仍给 JSON
         print(f"review_preflight: {message}", file=sys.stderr)
-        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "usage_error": message})
+        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "usage_error": message},
+              [os.environ.get(SCRUBBED_ENV)])
         sys.exit(3)
 
     def print_help(self, file=None):
@@ -833,7 +863,7 @@ def _run(args, t0: float, secrets: list) -> int:
         thread.start()
     for thread in threads.values():
         thread.join(max(0.0, _DEADLINE_AT - time.monotonic()))
-    cleanup_failures = reclaim_pending(max(0.0, t0 + args.deadline - time.monotonic()))
+    cleanup_failures = reclaim_pending(max(0.0, t0 + args.deadline - OUTPUT_MARGIN - time.monotonic()))
     checks = [credential, worker_check]
     if cleanup_failures:
         checks.append({"name": "probe_cleanup", "class": "cleanup", "ok": False, "detail": cleanup_failures})

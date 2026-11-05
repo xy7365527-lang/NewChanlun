@@ -13,6 +13,7 @@ from pilot1742 import external_review
 from pilot1742.github_app import IdentityError
 
 KEY = "local-test-key-must-not-leak"
+SHORT_VALID = "short7k"  # 正式 worker 接受的 7 字符 key（独审十一）
 OTHER_VALID = f"outer-{KEY}-tail"  # 含 KEY：两把 key 互为子串（独审六·1）
 SOL, OPUS = "gpt-6.1-sol", "claude-opus-5-5"
 OFFICIAL = {SOL: ("codex", "https://chatgpt.com/backend-api/codex/responses"),
@@ -60,7 +61,7 @@ class FakeProxy:
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 proxy.requests.append({"body": body, "auth": self.headers["Authorization"]})
-                if self.headers["Authorization"] not in (f"Bearer {KEY}", f"Bearer {OTHER_VALID}"):
+                if self.headers["Authorization"] not in (f"Bearer {KEY}", f"Bearer {OTHER_VALID}", f"Bearer {SHORT_VALID}"):
                     self.send_response(401)
                     self.send_header("Content-Length", "0")
                     self.end_headers()
@@ -969,9 +970,9 @@ def test_structured_sse_error_never_reaches_the_report(monkeypatch):
     assert "secret" not in out and "12345" not in out and trip["error"]["class"] == "auth"
 
 
-@pytest.mark.parametrize("raw", ["abc", "\x80-secret-tail-12345", "café-secret-key"])
-def test_short_or_non_ascii_keys_are_rejected(raw):
-    """gemini2·5：长度不足 8 或含非可见 ASCII 的 key 不进 HTTP 头（脱敏才可靠）。"""
+@pytest.mark.parametrize("raw", ["\x80-secret-tail-12345", "café-secret-key"])
+def test_non_ascii_keys_are_rejected(raw):
+    """gemini2·5：含非可见 ASCII 的 key 不进 HTTP 头。"""
     with pytest.raises(preflight.CredentialError):
         preflight._clean_key(raw, "env")
 
@@ -1089,3 +1090,150 @@ def test_backgrounded_child_with_closed_streams_after_exit_0_is_reclaimed(tmp_pa
     cleanup_reported = any(c["name"] == "probe_cleanup" for c in report["checks"])
     assert code == 2 and (list(created.iterdir()) == [] or cleanup_reported)
     assert list(created.iterdir()) == []
+
+
+# ---------------- 跨族边界独审三（gemini @5c9db65d82） ----------------
+
+def _reset_state(monkeypatch, deadline=30.0, total=33.0):
+    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + deadline)
+    monkeypatch.setattr(preflight, "_TOTAL_END", time.monotonic() + total)
+    monkeypatch.setattr(preflight, "_CLOSING", False)
+    preflight._PENDING_CLEANUP.clear()
+    preflight._RECLAIMING.clear()
+    preflight._CLEANUP_FAILURES.clear()
+
+
+def test_aborted_setup_reports_a_probe_dir_it_cannot_remove(tmp_path, monkeypatch):
+    """gemini3·2：锁内慢 I/O 超时后放弃起容器，删不掉的探针目录要记入 probe_cleanup，不静默遗留。"""
+    _reset_state(monkeypatch, deadline=0.1, total=2.0)
+    real_write = preflight.Path.write_text
+    monkeypatch.setattr(preflight.Path, "write_text", lambda self, *a, **k: (time.sleep(0.2), real_write(self, *a, **k))[1])
+    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: None)
+    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
+    with pytest.raises(TimeoutError):
+        preflight.check_mount(args)
+    assert any("探针目录" in f for f in preflight.reclaim_pending(1.0))
+
+
+def test_waiting_on_the_process_does_not_eat_the_dir_budget(tmp_path, monkeypatch):
+    """gemini3·3：等进程退出之前先删目录，预算被 wait 用光也不会让本地目录删不掉。"""
+    probe = tmp_path / "preflight-wait"
+    probe.mkdir()
+
+    class Stuck:
+        pid = 2 ** 22 + 777
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            time.sleep(timeout or 0)
+            raise preflight.subprocess.TimeoutExpired("docker", timeout)
+
+    preflight._reclaim({"probe": probe, "proc": Stuck()}, "preflight-wait", 0.3)
+    assert not probe.exists()
+
+
+def test_reclaim_wait_never_blocks_past_budget_on_a_busy_lock(monkeypatch):
+    """gemini3·4a：等在途回收时每次取锁都限时，别的线程长时间持锁也不越过预算。"""
+    import threading
+    _reset_state(monkeypatch)
+    preflight._RECLAIMING.add("preflight-in-flight")
+    release = threading.Event()
+
+    def holder():
+        time.sleep(0.05)
+        with preflight._CLEANUP_LOCK:
+            release.wait(1.5)
+
+    threading.Thread(target=holder, daemon=True).start()
+    start = time.monotonic()
+    preflight.reclaim_pending(0.2)
+    elapsed = time.monotonic() - start
+    release.set()
+    preflight._RECLAIMING.clear()
+    assert elapsed < 0.4
+
+
+def test_report_is_printed_within_the_deadline_when_docker_hangs(tmp_path, repo):
+    """gemini3·4b：docker 全部卡住时，回收收尾加输出也不超过 --deadline。"""
+    code, report = _cli(tmp_path, repo, "#!/bin/sh\nsleep 30\n", "2",
+                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                        'experimental_bearer_token = "key12345"\n')
+    assert code == 2 and report["wall_seconds"] <= 2.0
+
+
+def test_codex_config_read_is_bounded(tmp_path, monkeypatch):
+    """gemini3·4c：config.toml 读取卡住（FIFO 等）时按凭据失败返回，不拖住主线程。"""
+    codex = tmp_path / "codex"
+    codex.mkdir()
+    real_read = preflight.Path.read_text
+    monkeypatch.setattr(preflight.Path, "read_text",
+                        lambda self, *a, **k: time.sleep(2) if self.name == "config.toml" else real_read(self, *a, **k))
+    start = time.monotonic()
+    with pytest.raises(preflight.CredentialError):
+        preflight.provider_key(codex, budget=0.2)
+    assert time.monotonic() - start < 0.5
+
+
+def test_short_and_escape_containing_keys_are_accepted_and_still_redacted():
+    """独审十一：正式 worker 不限长度与字符子集，预检也不能多拦；短 key 与含转义的 key 由脱敏覆盖（gemini3·5a）。"""
+    for raw in ("short7k", "abc", "secret-\\u00e9-12345", 'secret"quoted-1234'):
+        assert preflight._clean_key(raw, "env") == raw
+    escaped = "secret-\\u00e9-12345"
+    decoded = json.loads(f'"{escaped}"')
+    out = json.dumps(preflight.sanitize({"status": decoded, "short": "Bearer abc"}, [escaped, "abc"]), ensure_ascii=True)
+    assert "secret-" not in out and "12345" not in out and "abc" not in out
+
+
+def test_surrogate_key_is_redacted_in_replace_decoded_text():
+    """gemini3·5b：环境变量 key 含非 UTF-8 字节时，按 errors=replace 解码出的形态也要抹掉。"""
+    secret = "secret-\udcff-key-12345"
+    text = b"secret-\xff-key-12345".decode("utf-8", "replace")
+    out = json.dumps(preflight.sanitize({"detail": text}, [secret]), ensure_ascii=True)
+    assert "secret-" not in out and "-key-12345" not in out
+
+
+def test_truncation_leaves_no_multi_char_key_prefix():
+    """gemini3·5c：截断后残留的 key 前缀（≥2 个字符）也要清掉。"""
+    key = "MySecretKey-must-not-leak"
+    assert not preflight.redact("x" * 497 + key[:20], [key], limit=500).endswith("MyS")
+
+
+def test_usage_error_redacts_the_environment_key(capsys, monkeypatch):
+    """gemini3·5d：用法错误把参数值回显到 stdout 时，也要按环境变量里的 key 脱敏。"""
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "MySecretKey-must-not-leak")
+    with pytest.raises(SystemExit):
+        preflight.main(["--deadline", "MySecretKey-must-not-leak"])
+    assert "MySecretKey" not in capsys.readouterr().out
+
+
+def test_complete_log_first_seen_at_window_end_is_rechecked(tmp_path):
+    """gemini3·6：完整日志恰在等待窗口末尾才落盘时，多做一次大小确认，不误报。"""
+    import threading
+    session = "preflight-late-complete"
+    text = (f"=== HEADERS ===\nSession-Id: {session}\n\n=== API REQUEST 1 ===\n"
+            "Upstream URL: https://chatgpt.com/backend-api/codex/responses\nAuth: provider=codex, auth_id=x\n\n"
+            '=== API RESPONSE 1 ===\nStatus: 200\ndata: {"type":"response.completed","response":{"model":"gpt-6.1-sol"}}\n'
+            "\n=== RESPONSE ===\nStatus: 200\n")
+    threading.Timer(0.18, (tmp_path / "v1-responses-1.log").write_text, args=(text,)).start()
+    assert preflight._route_from_log(tmp_path, session, time.time(), wait=0.2) == (
+        [("codex", "chatgpt.com")], {"gpt-6.1-sol"})
+
+
+def test_non_string_model_fields_are_ignored():
+    """gemini3·7：日志里 model 不是字符串时忽略，不让整项检查崩成异常。"""
+    text = ('=== API RESPONSE 1 ===\ndata: {"type":"message_start","message":{"model":{"id":"x"}}}\n'
+            'data: {"type":"response.created","response":{"model":["y"]}}\n\n=== RESPONSE ===\n')
+    assert preflight.served_models(text) == set()
+
+
+def test_short_valid_key_passes_in_a_healthy_environment(env, capsys, tmp_path, monkeypatch):
+    """独审十一：7 字符的有效 key 在健康环境不能被误拦。"""
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", SHORT_VALID)
+    (tmp_path / "key.txt").write_text(SHORT_VALID + "\n")
+    code, report, out, proxy = env(capsys=capsys)
+    assert code == 0 and len(proxy.requests) == 2 and SHORT_VALID not in out
