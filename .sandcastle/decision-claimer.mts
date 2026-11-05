@@ -25,7 +25,8 @@ import { CLIPROXY_BASE_URL, CLIPROXY_CONFIG, extractFirstApiKey, readCliProxyAcc
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { MAIN_MODEL } from "./main-model.mts";
 import { canonicalPath, parseCanonicalEdit, applyCanonicalEdit, readCanonicalTarget, canonicalDiff, validateCanonicalPlan, writeCanonicalPlan, type CanonicalPlan } from "./canonical-edit.mts";
-import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
+import { DRAIN_ROOT, DrainFrozenError } from "./drain-control.mts";
+import { graphAdmissionFrozen, withGraphAdmission } from "./deepagents-cutover.mts";
 import { randomUUID } from "node:crypto";
 import { loadMainSession, openMainSession, type MainSession, type SessionRef } from "./main-session.mts";
 
@@ -993,6 +994,8 @@ export function reviewRetryPrompt(base: string): string {
 export interface Deps {
   mode: Mode;
   drainRoot?: string;
+  /** 切流记录根；缺省与 engine 共用生产根，测试显式给临时目录。 */
+  stateRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -1324,9 +1327,9 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   return { ticket: n, dir, problems: r.problems, counts: { A: c("A"), B: c("B"), C: c("C") } };
 }
 
-/** --archaeology-only 入口的排空准入；冻结时不得新增考古动作。 */
+/** --archaeology-only 入口与 engine 共用切流准入；无有效切流时保持冻结。 */
 export async function archaeologyOnlyAdmission(n: number, d: Deps) {
-  return withLegacyAdmission(() => archaeologyOnly(n, d), d.drainRoot);
+  return withGraphAdmission(() => archaeologyOnly(n, d), d);
 }
 
 export async function processTicket(n: number, raw: Deps): Promise<Summary> {
@@ -1412,14 +1415,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      await withLegacyAdmission(() => {
+      await withGraphAdmission(() => {
         const mine = (resume || triaged || loaded.prior) && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
         if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
         if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
         claimed = true;
         const after = loadTicket(d.gh, n).assignees;
         if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
-      }, d.drainRoot);
+      }, d);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1973,7 +1976,7 @@ async function main() {
     return;
   }
   for (;;) {
-    if (drainRequested(d.drainRoot)) { log("旧入口冻结，已领工作收尾后退出"); return; }
+    if (graphAdmissionFrozen(d)) { log("旧入口冻结，已领工作收尾后退出"); return; }
     try {
       const sha = ensureSrc(REPO_ROOT, srcDir, git);
       log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);

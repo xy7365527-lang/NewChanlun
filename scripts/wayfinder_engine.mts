@@ -37,9 +37,8 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
-import { HOLD_LABELS, QUEUE_LABEL, releaseLabel, withQueueAdmission } from "../.sandcastle/deepagents-cutover.mts";
-export { releaseLabel, HOLD_LABELS };
-import { drainRequested, withLegacyAdmission } from "../.sandcastle/drain-control.mts";
+import { HOLD_LABELS, QUEUE_LABEL, releaseLabel, graphAdmissionFrozen, withGraphAdmission as withEngineAdmission } from "../.sandcastle/deepagents-cutover.mts";
+export { releaseLabel, HOLD_LABELS, withEngineAdmission };
 import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1194,15 +1193,8 @@ function describeAction(a: Action): string {
 
 // ── 壳：轮询 + 每轮重算 ready 集 ───────────────────────────────────────────────
 
-export async function withEngineAdmission<T>(action: () => T | Promise<T>,
-  roots?: { stateRoot: string; drainRoot: string }): Promise<T> {
-  const label = roots ? releaseLabel(roots.stateRoot, roots.drainRoot) : releaseLabel();
-  return label === QUEUE_LABEL ? withQueueAdmission(action, roots?.stateRoot, roots?.drainRoot)
-    : withLegacyAdmission(action, roots?.drainRoot);
-}
-
 async function runOnce(cfg: EngineConfig): Promise<void> {
-  if (drainRequested() && releaseLabel() !== QUEUE_LABEL) return;
+  if (graphAdmissionFrozen()) return;
   const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
   console.log(`\n[wayfinder_engine] ${stamp} 一轮开始（${cfg.dryRun ? "dry-run" : "live"}）`);
   let maps: MapState[];
@@ -1308,7 +1300,7 @@ async function main(): Promise<void> {
     return;
   }
   for (;;) {
-    if (drainRequested() && releaseLabel() !== QUEUE_LABEL) { console.log("旧入口冻结，本轮不再领新工作"); return; }
+    if (graphAdmissionFrozen()) { console.log("旧入口冻结，本轮不再领新工作"); return; }
     try {
       await runOnce(cfg);
     } catch (e) {
