@@ -13,14 +13,19 @@ mod production_diff;
 /// 同一个不可变 owner 与同一活动工作域是本片的封闭读取域。
 /// 这里只借用，不复制父账、origin 或生涯能力；不冒充尚未实现的 SQL 事务身份。
 #[cfg(test)]
+#[derive(Clone, Copy)]
 struct CaptureStep<'step> {
     capture: &'step AuditCapture,
     work: &'step WorkScope,
 }
 
+/// R1：单一本步读取入口。驻留原件走原 OwnerCapture 帧核；未驻留且装有同域 SQL
+/// 后端时走同事务受管 SQL 帧核（`read_scoped_checked`，与 Source 上下文同一函数）。
+/// 两者都只交已核摘要的帧，不另立判据，不换源重读；尚未启用淘汰，生产全部命中驻留。
 #[cfg(test)]
-struct StepReader<'step> {
+struct StepReader<'step, 'tx, 'conn> {
     backend: CaptureStep<'step>,
+    sql: Option<managed_sql::ManagedSqlStep<'tx, 'conn, 'step>>,
 }
 
 /// 不提供 Clone、into_body 或跨步句柄。正文的可见借用受租约限制，
@@ -35,7 +40,34 @@ struct ReadLease<'lease> {
 }
 
 #[cfg(test)]
-impl<'step> StepReader<'step> {
+impl<'step, 'tx, 'conn> StepReader<'step, 'tx, 'conn> {
+    /// 装入同事务 SQL 后端。SQL 描述符必须借同一活动工作域；异域只拒本次构造，
+    /// 尚未进入 owner 核，不撤销 owner 成功资格。
+    fn with_sql(
+        capture: &'step AuditCapture,
+        work: &'step WorkScope,
+        sql: managed_sql::ManagedSqlStep<'tx, 'conn, 'step>,
+    ) -> Result<Self, CodecError> {
+        if !sql.bound_to(work) {
+            return Err(work.reject(capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        let mut reader = Self::new(capture, work)?;
+        reader.sql = Some(sql);
+        Ok(reader)
+    }
+
+    /// 单帧读：驻留命中不触发任何 SQL；未驻留才在同事务点查。缺失与篡改均按原码拒绝。
+    fn read_frame(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody<'step>), CodecError> {
+        let CaptureStep { capture, work } = self.backend;
+        if capture.contains(digest) {
+            return CodecContext::OwnerCapture { capture, work }.read(digest);
+        }
+        match self.sql.as_mut() {
+            Some(sql) => read_scoped_checked(sql, digest),
+            None => CodecContext::OwnerCapture { capture, work }.read(digest),
+        }
+    }
+
     fn new(capture: &'step AuditCapture, work: &'step WorkScope) -> Result<Self, CodecError> {
         // 兼容首片包装锁：只核当前域与已存在的索引描述符，不再扫描全表。
         // 索引许可不是全部正文同父的证明；此借用后端仍 pin 原 capture。
@@ -54,6 +86,7 @@ impl<'step> StepReader<'step> {
             }
             Ok(Self {
                 backend: CaptureStep { capture, work },
+                sql: None,
             })
         })();
         // 域描述符拒绝尚未进入 owner 核，不能增添撤销成功资格的语义。
@@ -669,6 +702,174 @@ mod tests {
                 receipt.outputs[0].as_ref().unwrap_err().scratch_failure(),
                 Some(expected)
             );
+        }
+    }
+
+    fn sql_database(nodes: &MemoryNodes) -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL);",
+        )
+        .unwrap();
+        for (digest, (tag, body)) in &nodes.nodes {
+            conn.execute(
+                "INSERT INTO s_content_nodes VALUES(?1,?2,?3)",
+                rusqlite::params![&digest[..], i64::from(*tag), body],
+            )
+            .unwrap();
+        }
+        conn
+    }
+
+    /// 驻留 A 只在 capture；B 只在 SQL；库内另有 A 的同字节行。
+    fn resident_and_sql_only() -> (MemoryNodes, MemoryNodes, NodeDigest, NodeDigest) {
+        let mut resident = MemoryNodes::new();
+        let a = write_value(&mut resident, &Value::string("驻留正文"))
+            .unwrap()
+            .content_ref()
+            .digest()
+            .unwrap();
+        let mut stored = resident.clone();
+        let b = write_value(&mut stored, &Value::string("只在库内的正文"))
+            .unwrap()
+            .content_ref()
+            .digest()
+            .unwrap();
+        assert!(!resident.nodes.contains_key(&b));
+        (resident, stored, a, b)
+    }
+
+    #[test]
+    fn r1_step_reader_resident_hit_has_no_sql_and_miss_reads_same_transaction() {
+        let (resident, stored, a, b) = resident_and_sql_only();
+        let expected_b = stored.nodes.get(&b).cloned().unwrap();
+        let capture = AuditCapture::new(resident)
+            .enable_native_frame_reuse()
+            .unwrap();
+        let mut conn = sql_database(&stored);
+        let mut tx = conn.transaction().unwrap();
+        let parent = Parent::new();
+        CodecWork::new(parent.clone(), 32 << 20)
+            .unwrap()
+            .run(|scope| {
+                let sql = managed_sql::ManagedSqlStep::new(&mut tx, scope, &|| Ok(()))?;
+                let mut reader = StepReader::with_sql(&capture, scope, sql)?;
+                let (tag, body) = reader.read_frame(&a)?;
+                let resident = capture.original(&a).unwrap();
+                assert_eq!((tag, &*body), (resident.0, resident.1));
+                assert!(matches!(body, VerifierBody::Borrowed(_)));
+                assert_eq!(reader.sql.as_ref().unwrap().reads, 0);
+                drop(body);
+                let (tag, body) = reader.read_frame(&b)?;
+                assert!(matches!(body, VerifierBody::Scoped(_)));
+                assert_eq!((tag, body.to_vec()), expected_b);
+                assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
+                // SQL 正文许可与驻留同父：读出期间 live 增长，析构后归还。
+                assert!(parent.live.load(Ordering::SeqCst) >= expected_b.1.len());
+                drop(body);
+                let missing = reader.read_frame(&[9; 32]).err().unwrap();
+                assert_eq!(missing.code(), code::NODE_MISSING);
+                assert_eq!(reader.sql.as_ref().unwrap().reads, 2);
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        assert!(!capture.owner_codec.borrow().revoked);
+        drop(capture);
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn r1_step_reader_without_sql_backend_keeps_resident_missing_error() {
+        let (resident, _, a, b) = resident_and_sql_only();
+        let capture = AuditCapture::new(resident)
+            .enable_native_frame_reuse()
+            .unwrap();
+        let parent = Parent::new();
+        CodecWork::new(parent.clone(), 32 << 20)
+            .unwrap()
+            .run(|scope| {
+                let mut reader = StepReader::new(&capture, scope)?;
+                assert!(reader.read_frame(&a).is_ok());
+                assert_eq!(
+                    reader.read_frame(&b).err().unwrap().code(),
+                    code::NODE_MISSING
+                );
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn r1_step_reader_rejects_sql_descriptor_bound_to_other_work_scope() {
+        let (resident, stored, _, _) = resident_and_sql_only();
+        let capture = AuditCapture::new(resident)
+            .enable_native_frame_reuse()
+            .unwrap();
+        let mut conn = sql_database(&stored);
+        let mut tx = conn.transaction().unwrap();
+        let parent = Parent::new();
+        let other = Parent::new();
+        CodecWork::new(parent.clone(), 32 << 20)
+            .unwrap()
+            .run(|scope| {
+                let sql = managed_sql::ManagedSqlStep::new(&mut tx, scope, &|| Ok(()))?;
+                let rejected = CodecWork::new(other.clone(), 32 << 20)
+                    .unwrap()
+                    .run(|foreign| StepReader::with_sql(&capture, foreign, sql).map(|_| ()));
+                assert!(matches!(
+                    rejected,
+                    Err(capture_allocation::scratch::WorkError::Resource(
+                        ScratchFailure::Ledger
+                    ))
+                ));
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        // 构造期拒绝不进入 owner 核，不撤销 owner 成功资格。
+        assert!(!capture.owner_codec.borrow().revoked);
+    }
+
+    #[test]
+    fn r1_reader_internal_write_or_commit_rejects_next_miss_without_select() {
+        for commit in [false, true] {
+            let (resident, stored, a, b) = resident_and_sql_only();
+            let capture = AuditCapture::new(resident)
+                .enable_native_frame_reuse()
+                .unwrap();
+            let mut conn = sql_database(&stored);
+            let mut tx = conn.transaction().unwrap();
+            let parent = Parent::new();
+            let result = CodecWork::new(parent.clone(), 32 << 20)
+                .unwrap()
+                .run(|scope| {
+                    let sql = managed_sql::ManagedSqlStep::new(&mut tx, scope, &|| Ok(()))?;
+                    let mut reader = StepReader::with_sql(&capture, scope, sql)?;
+                    drop(reader.read_frame(&b)?);
+                    assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
+                    // 事务由 reader 独占借用，外部调用方无从写入或提交；测试经 reader 内部注入，
+                    // 锁定 total_changes/autocommit 夹持仍拒且不吸收变化。
+                    let tx = reader.sql.as_ref().unwrap().tx_for_test();
+                    if commit {
+                        tx.execute_batch("COMMIT").unwrap();
+                    } else {
+                        tx.execute(
+                            "INSERT INTO s_content_nodes VALUES(?1,0,?2)",
+                            rusqlite::params![&[7u8; 32][..], &b""[..]],
+                        )
+                        .unwrap();
+                    }
+                    let first = reader.read_frame(&b).err().unwrap();
+                    assert_eq!(first.scratch_failure(), Some(ScratchFailure::Ledger));
+                    let again = reader.read_frame(&b).err().unwrap();
+                    assert_eq!(again, first);
+                    assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
+                    // 首错使本工作域失败；驻留读也不再越过失败域放行。
+                    assert!(reader.read_frame(&a).is_err());
+                    Err::<(), _>(first)
+                });
+            assert!(result.is_err());
+            drop(capture);
+            assert_eq!(parent.live.load(Ordering::SeqCst), 0);
         }
     }
 }

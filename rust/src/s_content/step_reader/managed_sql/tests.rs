@@ -124,8 +124,6 @@ fn m8b_sql_first_reachable_missing_corrupt_and_complete_reference() {
 fn m8b_sql_foreign_stale_and_same_transaction_mutation_are_not_retried() {
     let mut conn = database(&MemoryNodes::new());
     let mut tx = conn.transaction().unwrap();
-    let mut other = database(&MemoryNodes::new());
-    let foreign_tx = other.transaction().unwrap();
     for fault in 0..3 {
         let bank = Bank::new();
         let foreign = Bank::new();
@@ -135,7 +133,7 @@ fn m8b_sql_foreign_stale_and_same_transaction_mutation_are_not_retried() {
                 0 => {
                     let rejected = CodecWork::new(foreign.clone(), 32 << 20)
                         .unwrap()
-                        .run(|foreign_work| reader.check_domain(&foreign_tx, foreign_work));
+                        .run(|foreign_work| reader.check_domain(foreign_work));
                     assert!(matches!(
                         rejected,
                         Err(capture_allocation::scratch::WorkError::Resource(
@@ -184,7 +182,7 @@ fn m8b_sql_same_transaction_pragma_main_ddl_and_temp_shadow_change_seal() {
             let error = sql.checked_read_scoped(&[0; 32]).err().unwrap();
             assert_eq!(error.scratch_failure(), Some(ScratchFailure::Ledger));
             assert_eq!(sql.reads, 0);
-            assert_eq!(sql.metadata_reads.get(), 6);
+            assert_eq!(sql.metadata_reads.get(), 6, "{mutation}");
             Err::<(), _>(error)
         });
         assert!(result.is_err());

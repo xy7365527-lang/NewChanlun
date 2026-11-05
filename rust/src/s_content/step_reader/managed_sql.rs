@@ -4,8 +4,11 @@ use capture_allocation::scratch::{NativeReservation, ScratchFailure};
 use rusqlite::Transaction;
 use std::cell::Cell;
 
-/// 独占事务借用阻止其他调用方 Commit/换事务或执行事务控制 SQL；
-/// total_changes/schema/隔离夹持额外拒绝测试内部注入的同事务变化。
+/// 独占事务借用（#1419 R1-01 返修，回到 M8B 原合同）：reader 存活期内任何 Rust 调用方都拿不到
+/// 同一 Transaction 的另一借用，不能 Commit、换事务或执行事务控制 SQL；读者自身也不暴露 tx。
+/// 事务能力的封闭来自所有权而不是统计观测：底层 Connection 的别名只能由签发方排除，
+/// 生产签发方是持私有连接的 owner（M8D §1.2 生涯封印，3A），非测试调用点在 3C 之前不接。
+/// total_changes/schema/隔离夹持只拒测试内部经本 reader 注入的同事务变化。
 /// 外连接身份/生涯夹持由原 sample 门负责；原父许可只作 O(1) 域身份封印。
 /// sample 必须借本请求原绝对 deadline/取消门，不能在这里重新起算期限。
 pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
@@ -54,14 +57,27 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         })
     }
 
-    fn check_domain(&self, tx: &Transaction<'_>, work: &WorkScope) -> Result<(), CodecError> {
+    /// R1 单一入口的同域核：只认构造时借入的同一活动工作域，不另签身份。
+    #[cfg(test)]
+    pub(super) fn bound_to(&self, work: &WorkScope) -> bool {
+        std::ptr::eq(self.work, work)
+    }
+
+    /// 测试内部注入入口：只给同 crate 测试取得 reader 独占的事务；生产没有 tx getter。
+    #[cfg(test)]
+    pub(super) fn tx_for_test(&self) -> &Transaction<'conn> {
+        self.tx
+    }
+
+    /// 只核签发时独占借入的事务；原 `ptr::eq(self.tx, tx)` 恒以 self.tx 自比，已删去，
+    /// 同一事务由独占借用的类型保证，不再传入第二个事务参数。
+    fn check_domain(&self, work: &WorkScope) -> Result<(), CodecError> {
         if let Some(error) = &self.failure {
             return Err(error.clone());
         }
         work.check_current()?;
         if !self.live.get()
             || self.tx.is_autocommit()
-            || !std::ptr::eq(self.tx, tx)
             || !self.identity.belongs_to_parent(work)
             || self.tx.total_changes() != self.changes
         {
@@ -81,7 +97,7 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         reference: RefView<'lease>,
         mode: Mode,
     ) -> Result<SqlReadLease<'lease>, CodecError> {
-        if let Err(error) = self.check_domain(self.tx, self.work) {
+        if let Err(error) = self.check_domain(self.work) {
             if self.failure.is_none() {
                 self.failure = Some(error.clone());
             }
@@ -171,7 +187,7 @@ impl NodeSource for ManagedSqlStep<'_, '_, '_> {
 }
 impl ManagedSqlStep<'_, '_, '_> {
     fn read_frame(&mut self, digest: &NodeDigest) -> Result<Option<job::ScopedFrame>, CodecError> {
-        self.check_domain(self.tx, self.work)?;
+        self.check_domain(self.work)?;
         self.reads = self.reads.saturating_add(1);
         #[cfg(feature = "s_capture_native_testonly")]
         SQL_READS.with(|reads| reads.set(reads.get().saturating_add(1)));
