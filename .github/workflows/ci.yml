@@ -607,8 +607,9 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
         timeout-minutes: 30
         run: |
-          until [ -f ../artifact.rc ]; do sleep 5; done
+          for _ in $(seq 330); do [ -f ../artifact.rc ] && break; sleep 5; done
           cat ../artifact.log
+          if [ ! -f ../artifact.rc ]; then echo "::error title=Artifact build did not finish::no exit status after 27.5 min"; exit 1; fi
           exit "$(cat ../artifact.rc)"
 
       - name: Upload release-only lock logs（#1640）
@@ -621,6 +622,7 @@ jobs:
             list-release.txt
             locks.tsv
             out-release-*.log
+            artifact.log
           if-no-files-found: warn
 
   # #1722：保留原 check 名称。仅全矩阵成功可绿；失败、取消、跳过或无结果均拒绝。

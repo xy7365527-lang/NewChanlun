@@ -34,26 +34,25 @@ runs:
     - name: Optimize own crate in test builds and pin test threads (#1875 R4)
       shell: bash
       run: |
-        cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
-        mkdir -p "$(dirname "$cfg")"
         # 只对测试执行时间远大于编译时间的作业开（s_session 分片，tb02w 28→14 分钟）；多 feature 反复编译的作业
         #   （extras native/owned/content）opt-level 1 的编译更慢，反而拖长（R4c：native 17→29 分钟）。
+        #   用作业级环境变量而非写 $CARGO_HOME/config.toml，不会泄漏到共用 CARGO_HOME 的其他作业。
         if [ "${CI_OWN_OPT_LEVEL1:-}" = 1 ]; then
-          flock "$cfg.lock" bash -c 'grep -qxF "[profile.dev]" "$1" 2>/dev/null || printf "[profile.dev]\nopt-level = 1\ndebug-assertions = true\noverflow-checks = true\n" >> "$1"' _ "$cfg"
+          { echo "CARGO_PROFILE_DEV_OPT_LEVEL=1"; echo "CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=true"; echo "CARGO_PROFILE_DEV_OVERFLOW_CHECKS=true"; } >> "$GITHUB_ENV"
+          echo "own_crate_opt_level=1"
         fi
         echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
         # #1875 R7/R13：`--jobs 1` 是 #1141 的磁盘预算处置（当时托管 runner 约 14 GB 空闲，并发链接写满磁盘）。
         #   现在按工作区实际空闲决定：≥ 40 GB 按核数并行编译，否则退回 1（release 档退回原来的 4）。
         #   实测托管 runner 根分区 154 GB、作业内最低空闲 83 GB（run 42028458748），Boat large 约 112 GB。
         #   构建并行度不改变产物与测试结论；遥测包装器的 2 GB 下限照旧兜底。
-        avail_kb=$(df -Pk "${GITHUB_WORKSPACE:-.}" | awk 'NR==2 {print $4}')
+        avail_kb=$(df -Pk "${GITHUB_WORKSPACE:-.}" | awk 'NR==2 {print $4}') || avail_kb=0
         if [ "${avail_kb:-0}" -ge 39062500 ]; then
           echo "CI_CARGO_JOBS=$(nproc)"; echo "CI_CARGO_JOBS_RELEASE=$(nproc)"
         else
           echo "CI_CARGO_JOBS=1"; echo "CI_CARGO_JOBS_RELEASE=4"
         fi >> "$GITHUB_ENV"
         echo "cargo_jobs_disk_avail_kb=${avail_kb:-unknown}"
-        cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash
