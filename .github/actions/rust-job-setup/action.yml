@@ -44,7 +44,12 @@ runs:
         echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
         # #1875 R7：`--jobs 1` 是托管 runner 磁盘预算的处置（#1141 ENOSPC，约 14 GB 空闲）；Boat large 空闲约 112 GB，
         #   按核数并行编译。托管 runner 仍取 1，构建并行度不改变产物与测试结论。
-        if [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ]; then echo "CI_CARGO_JOBS=$(nproc)"; else echo "CI_CARGO_JOBS=1"; fi >> "$GITHUB_ENV"
+        #   release 构建原为 --jobs 4（托管 runner 的核数），Boat 上同样按核数（R7b）。
+        if [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ]; then
+          echo "CI_CARGO_JOBS=$(nproc)"; echo "CI_CARGO_JOBS_RELEASE=$(nproc)"
+        else
+          echo "CI_CARGO_JOBS=1"; echo "CI_CARGO_JOBS_RELEASE=4"
+        fi >> "$GITHUB_ENV"
         cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     - name: Record runner, toolchain, linker, and initial resources (#1141)

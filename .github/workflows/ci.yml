@@ -454,7 +454,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
           grep -Fx "test v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
           grep -Fx "test v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
 
@@ -463,7 +463,7 @@ jobs:
         run: |
           set -o pipefail
           # #1481 S1K：接替 history36h 的全部 h1_ release 锁，保留正式准入逐名收据。
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
           for test in \
             h1_admission_cold_prefixes_match_full_canonical \
             h1_admission_cold_negative_classes_match_full_oracle \
@@ -488,7 +488,7 @@ jobs:
           do
             grep -Fx "test v3::audit_owner::construction_tests::$test ... ok" "$RUNNER_TEMP/1481-admission.log"
           done
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ledger_cache_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ledger.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_ledger_cache_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ledger.log"
           for test in \
             h1_ledger_cache_sidecars_are_pinned_and_physically_counted \
             h1_ledger_cache_registration_still_rejects_unknown_sidecars \
@@ -500,10 +500,10 @@ jobs:
           do
             grep -Fx "test v3::admission_provider::control_lock_tests::$test ... ok" "$RUNNER_TEMP/1481-ledger.log"
           done
-          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs 4 h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
+          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job ... ok" "$RUNNER_TEMP/1481-e6.log"
 
@@ -512,7 +512,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs 4 -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
           for test in \
             v3::audit_owner::construction_tests::h1_sqlite_commit_failure_does_not_advance_clamp \
             v3::commit::tests::prepared_commit_sqlite_commit_failure_returns_no_receipt_and_rolls_back \
@@ -526,7 +526,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --test-threads 1 --show-output --format pretty --color never v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_ 2>&1 | tee "$RUNNER_TEMP/1481-native-debug.log"
+          cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --test-threads 1 --show-output --format pretty --color never v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_ 2>&1 | tee "$RUNNER_TEMP/1481-native-debug.log"
           for test in \
             v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix \
             v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget \
@@ -565,7 +565,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
         run: |
           set -o pipefail
-          ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4 2>&1 | tee ../build-release.log
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" 2>&1 | tee ../build-release.log
 
       - name: release-only locks (each exact, --release --ignored)（#1640）
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
