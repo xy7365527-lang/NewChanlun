@@ -721,7 +721,7 @@ def test_upstream_status_object_keyed_by_the_key_never_reaches_the_report(monkey
                         lambda req, timeout=None: FakeResp(("data: " + json.dumps(event) + "\n\n").encode()))
     trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(5))
     preflight._emit(trip, [key])
-    assert key not in capsys.readouterr().out and trip["status"] is None
+    assert key not in capsys.readouterr().out and trip["status"] == "other"
 
 
 def test_sanitize_redacts_dict_keys_too():
@@ -752,3 +752,27 @@ def test_container_created_by_the_daemon_after_a_failed_client_and_rm_is_reporte
     time.sleep(1)
     assert list(created.iterdir())  # 容器确实在 rm -f 之后出现：killpg 与 rm -f 都管不到 daemon
     assert code == 2 and any("daemon" in item for item in check(report, "probe_cleanup")["detail"])
+
+
+@pytest.mark.parametrize("status", [lambda k: json.dumps(json.dumps(k)), lambda k: k[::-1], lambda k: {k: 1}])
+def test_unknown_upstream_status_is_normalised_and_never_carries_the_key(monkeypatch, status):
+    """独审十六：status 只报已知枚举；双重 JSON 编码、倒序等任意形态的 key 都不进报告。"""
+    import io
+    import urllib.request
+
+    key = 'isolated"host"key1742'
+    event = {"type": "response.completed", "response": {"status": status(key)}}
+
+    class FakeResp(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen",
+                        lambda req, timeout=None: FakeResp(("data: " + json.dumps(event) + "\n\n").encode()))
+    trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(5))
+    assert trip["status"] == "other" and "1742" not in json.dumps(preflight.sanitize(trip, [key]))

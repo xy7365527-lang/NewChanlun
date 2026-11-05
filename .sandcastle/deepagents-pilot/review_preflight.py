@@ -35,6 +35,7 @@ PROBE_TIMEOUT = 45
 PROVIDER = "cliproxy-local"
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
+RESPONSE_STATUSES = ("completed", "incomplete", "failed", "cancelled", "in_progress", "queued")
 CLEANUP_RESERVE = 3.0  # 总时限里留给回收与输出报告的秒数
 # 上游错误只按固定词表分类，不把原文抄进报告（原文可能回显 key，且转义形态无法穷举）
 ERROR_CLASSES = (("tool_choice", "tool_choice_unsupported"), ("预扣额度", "quota"), ("quota", "quota"),
@@ -310,8 +311,9 @@ def round_trip(url: str, key: str, model: str, session: str, deadline: Deadline)
                     if event.get("type") in ("response.completed", "response.incomplete", "response.failed", "error"):
                         terminal = event.get("type")
                         inner = event.get("response") if isinstance(event.get("response"), dict) else {}
-                        # 只收字符串：上游任意对象（含以 key 为键的字典）不进报告
-                        status = inner.get("status") if isinstance(inner.get("status"), str) else None
+                        # 只报已知枚举：上游任意值（可能以各种编码夹带 key）一律归一成 "other"，不进报告
+                        status = inner.get("status") if inner.get("status") in RESPONSE_STATUSES else (
+                            None if inner.get("status") is None else "other")
                         detail = inner.get("error") or event.get("error") or event.get("message")
                         break
             # 事件名成功还不够：响应体自报 failed/cancelled 或带 error 也算失败。
