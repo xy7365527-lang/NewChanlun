@@ -170,7 +170,9 @@ fn m8b_sql_foreign_stale_and_same_transaction_mutation_are_not_retried() {
 
 #[test]
 fn m8b_sql_same_transaction_pragma_main_ddl_and_temp_shadow_change_seal() {
-    for mutation in ["PRAGMA read_uncommitted=1", "ALTER TABLE s_content_nodes RENAME TO prior_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER, body BLOB)", "CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER, body BLOB)"] {
+    // 主库 DDL 取得写锁使 txn_state READ→WRITE，R1-01 epoch 在元数据 PRAGMA 前即拒（3 次，
+    // 仅签发时的那 3 次）；另两项不动 epoch，由 PRAGMA 夹持拒（签发 3 + 本核 3）。
+    for (mutation, metadata_reads) in [("PRAGMA read_uncommitted=1", 6), ("ALTER TABLE s_content_nodes RENAME TO prior_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER, body BLOB)", 3), ("CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER, body BLOB)", 6)] {
         let mut conn = database(&MemoryNodes::new());
         let mut tx = conn.transaction().unwrap();
         let bank = Bank::new();
@@ -182,7 +184,7 @@ fn m8b_sql_same_transaction_pragma_main_ddl_and_temp_shadow_change_seal() {
             let error = sql.checked_read_scoped(&[0; 32]).err().unwrap();
             assert_eq!(error.scratch_failure(), Some(ScratchFailure::Ledger));
             assert_eq!(sql.reads, 0);
-            assert_eq!(sql.metadata_reads.get(), 6);
+            assert_eq!(sql.metadata_reads.get(), metadata_reads, "{mutation}");
             Err::<(), _>(error)
         });
         assert!(result.is_err());
