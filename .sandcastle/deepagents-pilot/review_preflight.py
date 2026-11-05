@@ -349,11 +349,10 @@ def check_mount(args) -> dict:
         raise TimeoutError("docker run 超时") from None
     owned = _claim(container)
     if owned is not None:
+        # 任何退出码都走完整回收（杀进程组、rm -f、确认容器不在、删目录）：退出码 0 也不能只信 --rm——
+        # 包装脚本可能关闭标准流后把子进程放到后台，再晚些建出容器（独审十）。
         try:
-            if proc.returncode != 0:  # 容器可能已建但未启动，--rm 不会清理：一并 rm -f
-                _record_failure(_reclaim(owned, container, min(3.0, max(0.0, _total_left() - 0.1))))
-            else:
-                _record_failure(_remove_probe_dir(probe, min(1.0, max(0.0, _total_left() - 0.1))))
+            _record_failure(_reclaim(owned, container, min(3.0, max(0.0, _total_left() - 0.1))))
         finally:
             _release(container)
     seen = out.strip()

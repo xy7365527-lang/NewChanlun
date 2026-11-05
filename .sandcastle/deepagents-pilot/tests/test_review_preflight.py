@@ -1073,3 +1073,19 @@ def test_background_child_of_an_exited_docker_wrapper_is_killed(tmp_path, repo):
                         'experimental_bearer_token = "key12345"\n')
     time.sleep(3)
     assert code == 2 and list(created.iterdir()) == []
+
+
+def test_backgrounded_child_with_closed_streams_after_exit_0_is_reclaimed(tmp_path, repo):
+    """独审十：包装脚本关闭标准流、把子进程放后台后以 0 退出，迟建的容器也要被回收（或被报告）。"""
+    created = tmp_path / "containers"
+    created.mkdir()
+    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then (sleep 2.5; touch "{created}/$4") >/dev/null 2>&1 & exit 0; fi\n'
+              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
+              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
+    code, report = _cli(tmp_path, repo, docker, "4",
+                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+                        'experimental_bearer_token = "key12345"\n')
+    time.sleep(3)
+    cleanup_reported = any(c["name"] == "probe_cleanup" for c in report["checks"])
+    assert code == 2 and (list(created.iterdir()) == [] or cleanup_reported)
+    assert list(created.iterdir()) == []
