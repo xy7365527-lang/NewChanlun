@@ -27,7 +27,7 @@ runs:
     #   stable（新 lint 由 -D warnings 暴露），所以两种 runner 都先对齐到当前 stable，版本记录在下一步。
     - name: Align Rust toolchain with current stable (#1875)
       shell: bash
-      run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      run: flock "${RUSTUP_HOME:-$HOME/.rustup}/.stable-install.lock" sh -c 'rustup toolchain install stable --profile minimal --no-self-update && rustup default stable'
 
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash

@@ -708,7 +708,7 @@ jobs:
             ${{ runner.os }}-${{ runner.environment }}-cargo-registry-v1-
       - name: Align Rust toolchain with current stable (#1875)
         # Boat 快照里的 rustup stable 停在保存那天；#1608 约定工具链随 stable，两种 runner 必须同一版本。
-        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+        run: flock "${RUSTUP_HOME:-$HOME/.rustup}/.stable-install.lock" sh -c 'rustup toolchain install stable --profile minimal --no-self-update && rustup default stable'
       - name: Record source and toolchain identity (#1488)
         run: |
           git rev-parse HEAD 'HEAD^{tree}'
@@ -938,7 +938,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.environment }}-cargo-registry-v1-
       - name: Align Rust toolchain with current stable (#1875)
-        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+        run: flock "${RUSTUP_HOME:-$HOME/.rustup}/.stable-install.lock" sh -c 'rustup toolchain install stable --profile minimal --no-self-update && rustup default stable'
       - name: Record source and Native toolchain identity (#1488)
         run: |
           git rev-parse HEAD 'HEAD^{tree}'
