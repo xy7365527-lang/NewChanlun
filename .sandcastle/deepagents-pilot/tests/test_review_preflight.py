@@ -655,7 +655,7 @@ def test_redact_drops_key_prefix_left_at_any_cut():
     key = "secret-key-" + "a" * 190
     text = (key * 20)[:4000]
     assert key[:20] not in preflight.redact(text, [key], 300)
-    assert key[:20] not in preflight.redact("prefix " + key[:150], [key])
+    # 未截断的字符串不做残留清理（gemini4·1）：上游原文已不进报告，没有来源会在源头截出 key 前缀
 
 
 def test_log_with_non_utf8_byte_is_still_read(tmp_path):
@@ -977,9 +977,10 @@ def test_non_ascii_keys_are_rejected(raw):
         preflight._clean_key(raw, "env")
 
 
-def test_redact_also_drops_a_key_suffix_left_at_the_start():
-    key = "local-test-key-must-not-leak"
-    assert "must-not-leak" not in preflight.redact((key + "x" * 1985)[-2000:], [key])
+def test_untruncated_protocol_fields_are_never_rewritten():
+    """gemini4·1：key 首尾两个字符碰巧与字段首尾重合时，未截断的协议字段不能被改写（#1742 调用方按字段匹配）。"""
+    report = {"kind": "review-preflight", "checks": [{"name": "credential:codex-host", "class": "credential"}]}
+    assert preflight.sanitize(report, ["st-valid-key-ending-re"]) == report
 
 
 def test_output_is_ascii_json_even_with_surrogates(tmp_path, repo, capsys):
@@ -1237,3 +1238,19 @@ def test_short_valid_key_passes_in_a_healthy_environment(env, capsys, tmp_path, 
     (tmp_path / "key.txt").write_text(SHORT_VALID + "\n")
     code, report, out, proxy = env(capsys=capsys)
     assert code == 0 and len(proxy.requests) == 2 and SHORT_VALID not in out
+
+
+def test_aborted_setup_cleanup_is_awaited_by_reclaim(tmp_path, monkeypatch):
+    """gemini4·2：建探针中途放弃时，锁外删目录期间主线程回收也要等它收尾。"""
+    import threading
+    _reset_state(monkeypatch, deadline=0.1, total=2.0)
+    real_write = preflight.Path.write_text
+    monkeypatch.setattr(preflight.Path, "write_text", lambda self, *a, **k: (time.sleep(0.2), real_write(self, *a, **k))[1])
+    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: time.sleep(0.2))
+    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
+    worker = threading.Thread(target=lambda: _swallow(preflight.check_mount, args), daemon=True)
+    worker.start()
+    time.sleep(0.25)  # 线程已越过截止、正在锁外删目录
+    failures = preflight.reclaim_pending(1.0)
+    worker.join(2)
+    assert any("探针目录" in f for f in failures)  # 等到了它的结果（rmtree 是空操作，目录仍在 -> 报告）

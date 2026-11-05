@@ -339,10 +339,14 @@ def check_mount(args) -> dict:
                                                     text=True, errors="replace", start_new_session=True)
         else:
             _PENDING_CLEANUP.pop(container, None)
+            _RECLAIMING.add(container)  # 锁外删目录期间主线程也会等它收尾（gemini4·2）
     if abort is not None:
         # 锁外限时删除已建的探针目录；删不掉要记入 probe_cleanup，不静默遗留（gemini3·2）
-        if probe.exists():
-            _record_failure(_remove_probe_dir(probe, min(1.0, max(0.0, _total_left() - 0.1))))
+        try:
+            if probe.exists():
+                _record_failure(_remove_probe_dir(probe, min(1.0, max(0.0, _total_left() - 0.1))))
+        finally:
+            _release(container)
         raise abort
     try:
         out, err = proc.communicate(timeout=min(30.0, _remaining()) or 0.001)
@@ -528,12 +532,11 @@ def redact(text: str, secrets, limit: int | None = None) -> str:
         text = text.replace(form, "<redacted>")
     if limit is not None and len(text) > limit:
         text = text[:limit]
-    tail = max((k for form in forms for k in range(len(form) - 1, 1, -1) if text.endswith(form[:k])), default=0)
-    if tail:
-        text = text[:-tail] + "<redacted>"
-    head = max((k for form in forms for k in range(len(form) - 1, 1, -1) if text.startswith(form[-k:])), default=0)
-    if head:
-        text = "<redacted>" + text[head:]
+        # 只有真的截断了，末尾才可能残留 key 前缀；未截断的字符串（含 kind/name 等协议字段）不动，
+        # 免得 key 首尾两个字符碰巧与字段首尾重合时改写字段（gemini4·1）。报告里已无从左侧截取的文本。
+        tail = max((k for form in forms for k in range(len(form) - 1, 1, -1) if text.endswith(form[:k])), default=0)
+        if tail:
+            text = text[:-tail] + "<redacted>"
     return text
 
 
