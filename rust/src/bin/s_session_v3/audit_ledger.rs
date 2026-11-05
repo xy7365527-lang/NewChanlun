@@ -1551,7 +1551,6 @@ pub(super) mod tests {
     mod m8d_success {
         use super::*;
         use sc::closure_delta as cd;
-        use sc::NodeSource as _;
 
         /// 只计节点读，读本身委托给原内存库。
         struct Counting<'a> {
@@ -1826,8 +1825,8 @@ pub(super) mod tests {
                 };
                 assert!(got.contains(&twin), "模式孪生单位缺失");
             }
-            // 上下文切换：g3 把 Bool(false) 放进 JsonText 内层；
-            // 其 Value 上下文单位已在 g2 认证，JsonInner 上下文仍需核验。
+            // 上下文切换：g3 把 Bool(false) 放进 JsonText 内层；未提交的 JsonInner 单位
+            // 必须出现在 Δ 中，不因同摘要其他上下文而免核（台账此处只提交了 g1）。
             let full_g3 = {
                 let mut c = Counting {
                     nodes: &mut nodes,
