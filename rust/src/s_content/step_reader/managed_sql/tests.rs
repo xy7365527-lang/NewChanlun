@@ -696,7 +696,7 @@ const M8D_METADATA: [&str; 3] = [
 fn m8d_metadata_node_f_string_bool_cold_warm_receipts() {
     for (name, value, closure) in [
         ("STRING", Value::String("fourbyte".into()), 4u64),
-        ("BOOL", Value::Bool(true), 1u64),
+        ("BOOL", Value::Bool(true), 2u64),
     ] {
         let mut nodes = MemoryNodes::new();
         let root = write_value(&mut nodes, &value).unwrap().content_ref();
@@ -755,11 +755,18 @@ fn m8d_metadata_node_f_string_bool_cold_warm_receipts() {
                 arm.0
             );
         }
-        // 与 M8B 推导对照：cold 含构造即 3×(selects+2)。
+        // 与 M8B 推导对照：cold 含构造即 3×(selects+2)。BOOL 根读闭包实测 2 次节点 SELECT。
         assert_eq!(
             arms[0].2 + arms[1].2,
             3 * (arms[1].1 + 2),
             "{name} 冷读对照 M8B 推导"
+        );
+        // 实测冻结：STRING 5 次节点 SELECT / 21 次元数据，BOOL 3 / 15（与 M8B 源码推导一致）。
+        let frozen = if name == "STRING" { (5, 21) } else { (3, 15) };
+        assert_eq!(
+            (arms[1].1, arms[0].2 + arms[1].2),
+            frozen,
+            "{name} 冷读实测冻结"
         );
         assert_eq!(bank.live.load(Ordering::SeqCst), 0);
     }

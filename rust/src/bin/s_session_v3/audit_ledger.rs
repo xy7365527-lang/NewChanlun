@@ -1729,9 +1729,15 @@ pub(super) mod tests {
             }
         }
 
-        /// #1419 M8D L9（台账层）：test-only SQLITE_TRACE_STMT 按原语句文本计数，证实每次前沿
-        /// 点查恰为资格行 + 完整键 EXISTS 两条台账语句、点查之外无别的台账 SQL；stage/bind/
-        /// 内容提交的逐桶语句另列收据。不改台账连接配置，回调随 guard 卸载。
+        const M8D_LEDGER_EXISTS: &str =
+            "SELECT EXISTS(SELECT 1 FROM node WHERE digest=?1 AND flavor=?2 AND mode=?3 AND first_generation<=?4)";
+        const M8D_LEDGER_QUALIFICATION: &str = "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1";
+        const M8D_LEDGER_THROUGH: &str =
+            "SELECT certified_through_generation FROM meta WHERE singleton=1";
+        /// #1419 M8D L9（台账层）：test-only SQLITE_TRACE_STMT 按原语句文本计数。实测冻结：每次
+        /// 前沿点查 = 完整键 EXISTS 1 + 资格行（cert×meta）1 + 认证水位 2，共 4 条；verify_delta
+        /// 签发另有资格行 1 + 水位 1。点查之外无别的台账 SQL；stage/bind/内容提交逐桶另列收据。
+        /// 不改台账连接配置，回调随 guard 卸载。
         #[test]
         fn m8d_metadata_node_f_and_qualified_lookup_receipts() {
             type Counts = std::cell::RefCell<BTreeMap<String, u64>>;
@@ -1825,12 +1831,18 @@ pub(super) mod tests {
                 println!(
                     "M8D_L9_LEDGER g={generation} phase=lookup node_reads={node_reads} frontier_lookups={lookups} statements={lookup_sql:?}"
                 );
-                if lookups > 0 {
-                    assert_eq!(lookup_sql.len(), 2, "g{generation}：点查只用两条台账语句");
-                }
-                assert!(
-                    lookup_sql.values().all(|&n| n == lookups),
-                    "g{generation}：每次点查恰各一次资格行与 EXISTS，别无台账 SQL"
+                let expected: BTreeMap<String, u64> = [
+                    (M8D_LEDGER_EXISTS, lookups),
+                    (M8D_LEDGER_QUALIFICATION, lookups + 1),
+                    (M8D_LEDGER_THROUGH, 2 * lookups + 1),
+                ]
+                .into_iter()
+                .filter(|(_, n)| *n > 0)
+                .map(|(sql, n)| (sql.to_owned(), n))
+                .collect();
+                assert_eq!(
+                    lookup_sql, expected,
+                    "g{generation}：点查各 1 EXISTS、1 资格行、2 水位，签发另 1 资格行、1 水位，别无台账 SQL"
                 );
                 commit(&mut b, &token, &m, &roots, &d, Some(&q));
                 println!(
