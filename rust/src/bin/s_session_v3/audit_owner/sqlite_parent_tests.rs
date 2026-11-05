@@ -178,7 +178,9 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
         ffi::SQLITE_NOMEM
     );
     assert_eq!(column.refusal(), Some(ScratchFailure::Budget));
-    assert_eq!(d.current.live(), live);
+    // 失败路径会释放旧的动态值：旧 origin 返还只降 live，不回补零额度域，也没有新收费。
+    assert!(d.current.live() <= live);
+    assert_eq!(d.current.remaining(), 0);
     let _roomy = d.next(ROOM);
     unsafe { ffi::sqlite3_finalize(raw) };
 
