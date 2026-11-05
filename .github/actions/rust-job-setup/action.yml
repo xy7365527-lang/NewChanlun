@@ -92,8 +92,11 @@ runs:
     # 不是已证实的固定对象损坏或 rust-lld regression。处置只压低磁盘峰值：
     # 不恢复 target、不生成 incremental、测试串行编译；runner/toolchain/linker 不钉死。
     # #1588：拆 job 后每个 job 在独立 runner 上，各自只编自己那档 feature，磁盘峰值低于拆前单 job。
+    # #1875 R10：Boat 快照 hc-gate-base 已预装 cargo registry；Boat 到 GitHub cache 上传约 0.3 MB/s，
+    #   新分支首轮保存 100 MB 要在作业尾部多耗 5 分多钟（run 42004333964），故自托管 runner 不用此缓存。
     - name: Cache cargo registry + git only (#1141)
       id: cargo-cache
+      if: runner.environment != 'self-hosted'
       uses: actions/cache@v4
       with:
         path: |
