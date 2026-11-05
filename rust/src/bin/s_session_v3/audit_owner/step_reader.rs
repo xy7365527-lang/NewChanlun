@@ -88,19 +88,20 @@ impl OwnerLiveGate<'_> {
         {
             return Err(history_clamp::stale("reader 生涯内事务或写序已变化"));
         }
-        let clamp = self.owner.history_clamp.borrow();
-        let clamp = clamp
-            .as_ref()
-            .ok_or_else(|| history_clamp::stale("reader 生涯内夹持已撤去"))?;
-        if !clamp
-            .parent()
-            .is_some_and(|parent| parent.same_parent(&self.parent))
-            || self.parent.check_current().is_err()
         {
-            return Err(history_clamp::stale("reader 父账身份或冻结域已变化"));
+            let clamp = self.owner.history_clamp.borrow();
+            let clamp = clamp
+                .as_ref()
+                .ok_or_else(|| history_clamp::stale("reader 生涯内夹持已撤去"))?;
+            if !clamp
+                .parent()
+                .is_some_and(|parent| parent.same_parent(&self.parent))
+                || self.parent.check_current().is_err()
+            {
+                return Err(history_clamp::stale("reader 父账身份或冻结域已变化"));
+            }
+            clamp.check_phase(tx, &self.phase)?;
         }
-        clamp.check_phase(tx, &self.phase)?;
-        drop(clamp);
         match &self.material {
             Some(material) => material.check(tx),
             None if effects::has_journal(tx)? => Err(history_clamp::stale(
