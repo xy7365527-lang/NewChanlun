@@ -567,14 +567,6 @@ jobs:
           set -o pipefail
           ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4 2>&1 | tee ../build-release.log
 
-      # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
-      #   复用 release-only 构建的 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。
-      - name: 生产增量 release 产物无测试钩子（#1640）
-        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
-        run: |
-          ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1
-          ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
-
       - name: release-only locks (each exact, --release --ignored)（#1640）
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
         timeout-minutes: 50
@@ -583,6 +575,13 @@ jobs:
           fail=0
           : > ../locks.tsv
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --list --format terse --ignored > ../list-release.txt 2>&1
+          # #1875 R5：产物机检的 bin 构建（单线程，约 3 分钟）与单线程的锁并行：等锁的测试进程起来（cargo 此时已放开
+          #   target 目录锁）再在同一 rust/target 后台构建，结论由下一步「产物无测试钩子」收取并决定成败。
+          rm -f ../artifact.rc
+          setsid nohup bash -c 'for _ in $(seq 120); do pgrep -f "deps/s_structure_session-[0-9a-f]+ --ignored --exact" >/dev/null && break; sleep 1; done
+            ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 \
+              && ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
+            echo $? > ../artifact.rc.tmp && mv ../artifact.rc.tmp ../artifact.rc' > ../artifact.log 2>&1 < /dev/null &
           total=0
           while IFS= read -r t; do
             [ -z "$t" ] && continue
@@ -598,6 +597,17 @@ jobs:
           if [ "$total" -eq 0 ]; then echo "::error title=Empty release-only lock list::nothing was executed"; fail=1; fi
           cat ../locks.tsv
           exit $fail
+
+      # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
+      #   复用 release-only 构建的 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。
+      #   构建与检查在上一步后台进行（#1875 R5），此处等其结束并以其退出码为本步结论。
+      - name: 生产增量 release 产物无测试钩子（#1640）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
+        timeout-minutes: 30
+        run: |
+          until [ -f ../artifact.rc ]; do sleep 5; done
+          cat ../artifact.log
+          exit "$(cat ../artifact.rc)"
 
       - name: Upload release-only lock logs（#1640）
         if: ${{ always() && matrix.group == 'release-locks' }}
