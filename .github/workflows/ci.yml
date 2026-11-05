@@ -317,6 +317,7 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       S_SESSION_SHARDS: "4"
+      CI_OWN_OPT_LEVEL1: "1"
     defaults:
       run:
         working-directory: rust

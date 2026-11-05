@@ -29,6 +29,21 @@ runs:
       shell: bash
       run: flock "${RUSTUP_HOME:-$HOME/.rustup}/.stable-install.lock" sh -c 'rustup toolchain install stable --profile minimal --no-self-update && rustup default stable'
 
+    # #1875 R4：本仓 crate 测试构建 opt-level 1（断言与溢出检查显式保持开启）；libtest 线程数与 GitHub
+    #   托管 runner 的 4 核一致（Boat large 为 8 核，8 线程会放大测试里按 fd 号/计时判断的竞态，FL1/R4b）。
+    - name: Optimize own crate in test builds and pin test threads (#1875 R4)
+      shell: bash
+      run: |
+        cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
+        mkdir -p "$(dirname "$cfg")"
+        # 只对测试执行时间远大于编译时间的作业开（s_session 分片，tb02w 28→14 分钟）；多 feature 反复编译的作业
+        #   （extras native/owned/content）opt-level 1 的编译更慢，反而拖长（R4c：native 17→29 分钟）。
+        if [ "${CI_OWN_OPT_LEVEL1:-}" = 1 ]; then
+          flock "$cfg.lock" bash -c 'grep -qxF "[profile.dev]" "$1" 2>/dev/null || printf "[profile.dev]\nopt-level = 1\ndebug-assertions = true\noverflow-checks = true\n" >> "$1"' _ "$cfg"
+        fi
+        echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
+        cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
+
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash
       working-directory: rust
@@ -91,7 +106,7 @@ runs:
         cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
         mkdir -p "$(dirname "$cfg")"
         flock "$cfg.lock" bash -c 'grep -qF "[profile.dev.package.\"*\"]" "$1" 2>/dev/null || printf "[profile.dev.package.\"*\"]\nopt-level = 2\n" >> "$1"' _ "$cfg"
-        cat "$cfg"
+        cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     # 遥测包装器的边界快照对 `du target` 失败即判红；拆 job 后首个 cargo 步可能就是被包装的那一步，
     # 此时 target 尚不存在，故预先建空目录（不影响构建产物）。
