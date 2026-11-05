@@ -708,6 +708,16 @@ class PilotRun:
             self._prepare_dispatch(key, brief, facts)
         return self._drive_all(keys)
 
+    def _output_protocol(self) -> str:
+        if not isinstance(self.spec.execution, BoatRun):
+            # 本地 launcher 使用当前控制端的 codex-child，不封包历史 runtime。
+            return DEEPAGENTS_OUTPUT_PROTOCOL
+        source = _git(self.source_repo, "show",
+                      f"{self.spec.execution.runtime_head}:.sandcastle/codex-child.ts")
+        declaration = f'export const DEEPAGENTS_OUTPUT_PROTOCOL = "{DEEPAGENTS_OUTPUT_PROTOCOL}";'
+        # 与 _build 打包的冻结运行时同源；控制端升级不改变在飞 run 的能力。
+        return DEEPAGENTS_OUTPUT_PROTOCOL if declaration in source.splitlines() else "legacy"
+
     def _prepare_dispatch(self, key: WorkerKey, brief: str, facts: RunFacts) -> None:
         model = self.spec.model_for(key.role)
         checkout = self.spec.checkout_for(key.role)
@@ -719,7 +729,8 @@ class PilotRun:
                 _git(checkout, "switch", "-q", "-C", self.spec.branch_for(key.role), key.target_head)
         prompt = self.dir / "prompts" / f"{key.name}.md"
         prompt.parent.mkdir(parents=True, exist_ok=True)
-        prompt_text = self._prompt(key, brief, facts)
+        protocol = self._output_protocol()
+        prompt_text = self._prompt(key, brief, facts, protocol)
         if self.execution is not None:
             source = self.execution.config.pstack_source
             prompt_text = prompt_text.replace(source, "/opt/newchanlun/pstack")
@@ -727,7 +738,7 @@ class PilotRun:
         _write_once(self.dir / "intents" / f"{key.name}.json", {
             "key": key.name, "run_id": self.spec.run_id, "role": key.role, "target_head": key.target_head,
             "mode": ROLE_MODE[key.role], "model": model, "checkout": str(checkout), "prompt_file": str(prompt),
-            "output_protocol": DEEPAGENTS_OUTPUT_PROTOCOL, "created_at": _now()})
+            **({"output_protocol": protocol} if protocol != "legacy" else {}), "created_at": _now()})
         self.trail("intent", key=key.name, model=model)
         self._crash("after_intent_before_spawn")
 
@@ -806,14 +817,18 @@ class PilotRun:
     def _label(self) -> str:
         return "交付" if self.spec.v == 2 else "试点"
 
-    def _prompt(self, key: WorkerKey, brief: str, facts: RunFacts) -> str:
+    def _prompt(self, key: WorkerKey, brief: str, facts: RunFacts, protocol: str | None = None) -> str:
         task = self.spec.task
         scope = "、".join(task.allowed_prefixes)
         skills_root = "/opt/newchanlun/pstack/installed/skills/" if self.execution is not None else SKILLS_ROOT
         architect = skills_root + "architect"
-        service = ("你由另一个代理作为工具调用，只向主控交回结果，不直接与用户对话。\n"
-                   "输出保留 status、summary、findings、validation，并自报 confidence（high/medium/low）和 caveats（字符串数组）。"
-                   "caveats 逐条写未能核实或会改变结论的局限；没有则给空数组。confidence 不决定准入。\n\n")
+        protocol = self._output_protocol() if protocol is None else protocol
+        service = "你由另一个代理作为工具调用，只向主控交回结果，不直接与用户对话。\n"
+        if protocol == DEEPAGENTS_OUTPUT_PROTOCOL:
+            service += ("输出保留 status、summary、findings、validation，并自报 confidence（high/medium/low）和 caveats（字符串数组）。"
+                        "caveats 逐条写未能核实或会改变结论的局限；没有则给空数组。confidence 不决定准入。\n\n")
+        else:
+            service += "输出严格使用 status、summary、findings、validation 四键。局限写进 findings。\n\n"
         if key.role in DESIGN_SLOTS:
             return (service + f"# #{self.spec.ticket} 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     "你在自己的独立只读 checkout 里工作，不写任何文件。\n\n"

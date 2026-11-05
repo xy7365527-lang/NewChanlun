@@ -1,8 +1,11 @@
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
+from conftest import git
 from test_agent import receipt_for, worker_tool
+from test_boat import adapter
 
 from pilot1742.domain import (
     DEEPAGENTS_OUTPUT_PROTOCOL,
@@ -10,6 +13,7 @@ from pilot1742.domain import (
     WorkerKey,
     WorkerSelfReport,
     parse_self_report,
+    parse_sha,
 )
 from pilot1742.run import Halted, parse_result
 
@@ -69,6 +73,44 @@ def test_new_dispatch_binds_protocol_through_launcher_and_resume(env):
     assert same.run_worker("author", "重连").self_report == receipt.self_report
     assert len(env.claims()) == 1
     same.release()
+
+
+@pytest.mark.parametrize("self_report", [False, True])
+def test_boat_new_dispatch_uses_frozen_runtime_not_controller(env, self_report):
+    current = (Path(__file__).resolve().parents[3] / ".sandcastle/codex-child.ts").read_text()
+    legacy = 'export const OUTPUT_SCHEMA = {required: ["status", "summary", "findings", "validation"]};\n'
+    runtime = env.source / ".sandcastle/codex-child.ts"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text(current if self_report else legacy)
+    git(env.source, "add", ".")
+    git(env.source, "commit", "-qm", "frozen worker runtime")
+    env.base = parse_sha(git(env.source, "rev-parse", "HEAD"))
+    # Current checkout can be upgraded or otherwise changed; only frozen Git bytes select the protocol.
+    runtime.write_text(legacy if self_report else current)
+    run, _, key, _ = adapter(env)
+    try:
+        run._prepare_dispatch(key, "新任务", run.facts())
+        intent = json.loads((run.dir / "intents" / f"{key.name}.json").read_text())
+        prompt = Path(intent["prompt_file"]).read_text()
+        assert intent.get("output_protocol", "legacy") == (DEEPAGENTS_OUTPUT_PROTOCOL if self_report else "legacy")
+        assert ("并自报 confidence" in prompt) is self_report
+        assert ("严格使用 status、summary、findings、validation 四键" in prompt) is not self_report
+        result = {"status": "completed", "summary": "完成", "findings": [], "validation": []}
+        raw = {"ticket": 1742, "status": "completed", "expected_head": key.target_head,
+               "mode": "execute", "model": str(run.spec.author_model), "result": result}
+        if self_report:
+            result.update(confidence="medium", caveats=["原样局限"])
+            raw["output_protocol"] = DEEPAGENTS_OUTPUT_PROTOCOL
+        receipt = run._parse_worker_result(key, raw)
+        assert receipt.self_report == (WorkerSelfReport("medium", ("原样局限",)) if self_report else None)
+        if self_report:
+            raw.pop("output_protocol")
+            result.pop("confidence")
+            result.pop("caveats")
+            with pytest.raises(ValueError, match="输出协议"):
+                run._parse_worker_result(key, raw)
+    finally:
+        run.release()
 
 
 def test_legacy_pending_intent_is_not_upgraded_on_resume(env):
