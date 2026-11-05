@@ -460,6 +460,7 @@ class BoatExecution(WorkerExecution):
                 "spec": spec.target if spec is not None else None, "controller_head": self._controller_head(),
                 "identity": binding.identity, "package_id": binding.package_id, "root": binding.remote_root,
                 "ticket": self.run.spec.ticket, "model": intent["model"], "mode": intent["mode"],
+                **({"output_protocol": intent["output_protocol"]} if "output_protocol" in intent else {}),
                 "endpoint": self.config.endpoint, "image": self.config.image,
                 "allowed_prefixes": list(self.run.spec.task.allowed_prefixes),
                 "prompt": prompt})
@@ -604,9 +605,8 @@ class BoatExecution(WorkerExecution):
                 and process_exit["code"] == code)
 
     def _terminal(self, key: WorkerKey) -> Terminal:
-        from .run import parse_result
         out = self.run._key_dir(key)
-        return Terminal(parse_result(key, json.loads((out / "result.json").read_text()), out, self.run.spec.ticket))
+        return Terminal(self.run._parse_worker_result(key, json.loads((out / "result.json").read_text())))
 
     def _fetch(self, key: WorkerKey, binding: BoatBinding, *, allow_launch: bool = True) -> WorkerFact | None:
         if cast(str, self.cli.info(cast(str, binding.sandbox_id)).get("state")) in STOPPED_STATES:
@@ -701,8 +701,8 @@ class BoatExecution(WorkerExecution):
         checkout = self.run.spec.checkout_for(key.role)
         if git(checkout, "rev-parse", "HEAD").decode().strip() != key.target_head:
             raise ExecutionUnknown("收集目标head已漂移")
-        from .run import _porcelain_paths, parse_result
-        parsed = parse_result(key, record, self.run._key_dir(key), self.run.spec.ticket)
+        from .run import _porcelain_paths
+        parsed = self.run._parse_worker_result(key, record)
         files = receipt.get("files", [])
         if not isinstance(files, list):
             raise ExecutionUnknown("产物清单不是列表")

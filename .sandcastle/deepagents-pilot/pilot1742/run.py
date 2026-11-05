@@ -29,7 +29,9 @@ from .boat_execution import (
     parse_execution,
 )
 from .domain import (
+    DEEPAGENTS_OUTPUT_PROTOCOL,
     DESIGN_SLOTS,
+    LEGACY_CAVEAT,
     MODEL_FAMILY,
     ROLE_MODE,
     TICKET,
@@ -69,6 +71,7 @@ from .domain import (
     outside_allowed,
     parse_key_name,
     parse_model,
+    parse_self_report,
     parse_sha,
     parse_verdict,
     reconcile_commit,
@@ -309,7 +312,8 @@ def _status_text_paths(status: str) -> tuple[str, ...]:
     return tuple(sorted(set(paths)))
 
 
-def parse_result(key: WorkerKey, data: dict, output_dir: Path, ticket: int = TICKET) -> WorkerReceipt:
+def parse_result(key: WorkerKey, data: dict, output_dir: Path, ticket: int = TICKET,
+                 expected_protocol: str | None = None) -> WorkerReceipt:
     if data.get("ticket") != ticket or data.get("status") not in ("completed", "failed", "cancelled"):
         raise ValueError("result.json 票号或终态不符")
     expected = parse_sha(data.get("expected_head"))
@@ -317,6 +321,12 @@ def parse_result(key: WorkerKey, data: dict, output_dir: Path, ticket: int = TIC
         raise ValueError("result.json 的基线或模式与派工键不符")
     after = data.get("checkout_after") or {}
     result = data.get("result") or {}
+    protocol = data.get("output_protocol", "legacy")
+    if expected_protocol is not None and protocol != expected_protocol:
+        raise ValueError("result.json 输出协议与冻结派工不符")
+    if protocol not in ("legacy", DEEPAGENTS_OUTPUT_PROTOCOL):
+        raise ValueError("未知工蜂输出协议")
+    report = parse_self_report(result, protocol) if data.get("result") is not None or data["status"] == "completed" else None
     return WorkerReceipt(
         key=key, child_run_id=str(data.get("run_id")), status=data["status"], model=parse_model(data.get("model")),
         expected_head=expected, head_after=parse_sha(after["head"]) if after.get("head") else None,
@@ -324,8 +334,15 @@ def parse_result(key: WorkerKey, data: dict, output_dir: Path, ticket: int = TIC
         external_session_id=data.get("external_session_id"), external_session_log=data.get("external_session_log"),
         summary=str(result.get("summary") or ""), findings=tuple(result.get("findings") or ()),
         validation=tuple(result.get("validation") or ()), failure_reason=data.get("failure_reason"),
-        output_dir=str(output_dir),
+        output_dir=str(output_dir), output_protocol=protocol, self_report=report,
     )
+
+
+def _self_report_text(receipt: WorkerReceipt) -> str:
+    if receipt.self_report is None:
+        return (LEGACY_CAVEAT if receipt.output_protocol == "legacy" else "工蜂未返回自报结论。") + "\n"
+    return json.dumps({"confidence": receipt.self_report.confidence, "caveats": receipt.self_report.caveats},
+                      ensure_ascii=False) + "\n"
 
 
 _LEDGER_KINDS = ("tracker_comment", "user_message")
@@ -595,6 +612,11 @@ class PilotRun:
                 names.update(p.name.removesuffix(".json") for p in folder.iterdir() if not p.name.endswith(".tmp"))
         return [parse_key_name(self.spec.run_id, name) for name in sorted(names)]
 
+    def _parse_worker_result(self, key: WorkerKey, data: dict) -> WorkerReceipt:
+        intent = self.dir / "intents" / f"{key.name}.json"
+        protocol = json.loads(intent.read_text()).get("output_protocol", "legacy") if intent.exists() else None
+        return parse_result(key, data, self._key_dir(key), self.spec.ticket, protocol)
+
     def _observe(self, key: WorkerKey, rows: list[tuple[int, int, str, str]], reconcile: bool = True) -> WorkerFact:
         if self.execution is not None:
             return self.execution.observe(key, reconcile=reconcile)
@@ -603,7 +625,7 @@ class PilotRun:
         state = None
         try:
             if (out / "result.json").exists():
-                result = parse_result(key, json.loads((out / "result.json").read_text()), out, self.spec.ticket)
+                result = self._parse_worker_result(key, json.loads((out / "result.json").read_text()))
             if (out / "state.json").exists():
                 state = json.loads((out / "state.json").read_text())
         except (ValueError, KeyError, json.JSONDecodeError) as error:
@@ -705,7 +727,7 @@ class PilotRun:
         _write_once(self.dir / "intents" / f"{key.name}.json", {
             "key": key.name, "run_id": self.spec.run_id, "role": key.role, "target_head": key.target_head,
             "mode": ROLE_MODE[key.role], "model": model, "checkout": str(checkout), "prompt_file": str(prompt),
-            "created_at": _now()})
+            "output_protocol": DEEPAGENTS_OUTPUT_PROTOCOL, "created_at": _now()})
         self.trail("intent", key=key.name, model=model)
         self._crash("after_intent_before_spawn")
 
@@ -726,6 +748,8 @@ class PilotRun:
                 "--expected-head", key.target_head, "--mode", intent["mode"], "--model", intent["model"],
                 "--idle-timeout-seconds", str(WORKER_IDLE_SECONDS), "--timeout-seconds", str(WORKER_TOTAL_SECONDS),
                 "--prompt-file", intent["prompt_file"], "--output-dir", str(out)]
+        if "output_protocol" in intent:
+            argv.extend(("--output-protocol", intent["output_protocol"]))
         log_dir = self.dir / "launch"
         log_dir.mkdir(exist_ok=True)
         env = {k: os.environ[k] for k in _ENV_KEEP if os.environ.get(k)}
@@ -787,7 +811,9 @@ class PilotRun:
         scope = "、".join(task.allowed_prefixes)
         skills_root = "/opt/newchanlun/pstack/installed/skills/" if self.execution is not None else SKILLS_ROOT
         architect = skills_root + "architect"
-        service = "你由另一个代理作为工具调用，只向主控交回结果，不直接与用户对话。\n\n"
+        service = ("你由另一个代理作为工具调用，只向主控交回结果，不直接与用户对话。\n"
+                   "输出保留 status、summary、findings、validation，并自报 confidence（high/medium/low）和 caveats（字符串数组）。"
+                   "caveats 逐条写未能核实或会改变结论的局限；没有则给空数组。confidence 不决定准入。\n\n")
         if key.role in DESIGN_SLOTS:
             return (service + f"# #{self.spec.ticket} 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     "你在自己的独立只读 checkout 里工作，不写任何文件。\n\n"
@@ -808,7 +834,7 @@ class PilotRun:
                 validation = "\n".join(f"- {v}" for v in fact.receipt.validation)
                 packages.append(f"## {label}\n{fact.receipt.summary}\n\n### {label}拒绝的替代形状\n{rejected}\n"
                                 f"\n### {label}实际核查\n{validation}\n"
-                                "\n### 局限\n旧协议未单独采集 confidence 与 caveats，不能把设计完成视为高置信。\n"
+                                + "\n### 自报与局限\n" + _self_report_text(fact.receipt)
                                 + (f"{fact.receipt.failure_reason}\n" if fact.receipt.failure_reason else ""))
             return (service + f"# #{self.spec.ticket} arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     f"先完整读 `{skills_root}arena/SKILL.md`，你是其中 Phase C 的只读裁判，不写任何文件。"
@@ -826,7 +852,7 @@ class PilotRun:
                 rework = (f"\n## 返修依据\n候选 {key.target_head} 被独审（{verdict.reviewer_model}）判 BLOCK。\n"
                           f"{review.receipt.summary}\n{findings}\n"
                           + "\n## 独审实际核查\n" + "\n".join(review.receipt.validation)
-                          + "\n## 独审局限\n旧协议未单独采集 confidence 与 caveats，不能把审阅完成视为高置信。\n"
+                          + "\n## 独审自报与局限\n" + _self_report_text(review.receipt)
                           + (f"{review.receipt.failure_reason}\n" if review.receipt.failure_reason else ""))
             return (service + f"# #{self.spec.ticket} {self._label}作者任务：{task.title}\n\nrun {self.spec.run_id}，基线 {key.target_head}。\n\n"
                     f"## 需求原文\n{task.requirement}\n\n## 写集\n只允许改动 {scope} 下的文件；"
