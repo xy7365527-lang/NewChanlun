@@ -621,6 +621,10 @@ pub struct RequestProbe {
 #[doc(hidden)]
 pub mod sqlite;
 
+/// #1419 M8D 3B：SQLite 分配前向原 Native 父账收费；3C 前无生产调用点。
+#[doc(hidden)]
+pub mod sqlite_parent;
+
 #[doc(hidden)]
 pub mod audit_json;
 

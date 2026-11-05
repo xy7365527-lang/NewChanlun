@@ -1542,6 +1542,7 @@ impl<V: Retained> Retained for Tree<V> {
 use newchan_rust::s_content::capture_allocation::scratch::{
     CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
 };
+use newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteParent;
 impl<E: From<&'static str>> From<ScratchFailure> for Failure<E> {
     fn from(e: ScratchFailure) -> Self {
         match e {
@@ -1761,6 +1762,29 @@ impl ScratchParent for Ledger {
             self.invalidate();
         }
         result
+    }
+}
+/// #1419 M8D 3B：SQLite 块与 Rust 许可同父同域收费。只记总账（不进 Native/Layout 分项），
+/// 不改 Ledger 布局；旧 origin 返还只降累计占用。
+impl SqliteParent for Ledger {
+    fn reserve_sqlite(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
+        self.reserve_total(bytes, Some(expected))
+    }
+    fn release_sqlite(&self, bytes: usize, origin: u64) -> Result<(), ScratchFailure> {
+        self.release_total(bytes, origin)
+    }
+    fn invalidate_sqlite(&self) {
+        ScratchParent::invalidate(self);
+    }
+}
+impl Budget {
+    /// 本冻结域的 SQLite 收费父账与 origin，供 `SqliteParentAllocator::bind`。
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1419 M8D 3B：同父 SQLite 收费在 3C 接线前只由测试绑定")
+    )]
+    pub(crate) fn sqlite_parent(&self) -> (Arc<dyn SqliteParent>, u64) {
+        (self.0.clone(), self.1)
     }
 }
 /// 固定 std SwissTable：小表 4/8 桶只空一槽，>=16 桶的装载率 7/8；控制组最多16字节。

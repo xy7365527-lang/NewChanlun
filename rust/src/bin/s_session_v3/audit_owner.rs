@@ -90,6 +90,9 @@ mod history_clamp;
 // #1419 M8D 3A：owner 生涯封印签发的受管 SQL reader；只在测试驱动，非测试调用点归 3C。
 #[cfg(feature = "s_incremental")]
 pub(crate) mod native;
+// #1419 M8D 3B：SQLite 同父分配前收费合同；全新进程逐条 --ignored --exact 运行。
+#[cfg(all(test, feature = "s_incremental"))]
+mod sqlite_parent_tests;
 #[cfg(all(test, feature = "s_incremental", unix))]
 mod step_reader;
 /// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
