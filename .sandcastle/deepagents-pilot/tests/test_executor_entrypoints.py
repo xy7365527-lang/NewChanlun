@@ -81,3 +81,15 @@ def test_runbook_commands_run_real_executor_help(cli_environment, tmp_path):
     assert prefixes
     for command in prefixes:
         assert_help(['bash', '-c', command], env)
+
+
+def test_readme_runs_real_v1_help(cli_environment):
+    _, env = cli_environment
+    manual = (REPO / '.sandcastle/deepagents-pilot/README.md').read_text()
+    line = next(line for line in manual.splitlines() if line.startswith('PYTHONPATH='))
+    command = line.split(' -m pilot1742 ')[0] + ' -m pilot1742 --help'
+    child = subprocess.run(['bash', '-c', command], cwd=REPO, env=env,
+                           capture_output=True, text=True, timeout=30)
+    assert child.returncode == 0, child.stdout + child.stderr
+    assert 'usage: pilot1742 ' in child.stdout
+    assert 'run' in child.stdout and 'status' in child.stdout and 'cancel-worker' in child.stdout
