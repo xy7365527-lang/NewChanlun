@@ -7981,17 +7981,19 @@ thread_local! {
     pub(super) static SOURCE_APPEND_CAP_RECEIPT: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
 }
 
-/// #1419 M8D P2：真实来源追加的局部 cap；未布置或未到扩容边界时原样返回 j.cap。
+/// #1419 M8D P2：真实来源追加的局部 cap；未布置、未到扩容边界或本节点已驻留（同摘要
+/// 追加不扩容、不比较 cap）时原样返回 j.cap。
 #[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn source_append_cap_for_test(
     capture: &newchan_rust::s_content::AuditCapture,
+    digest: &newchan_rust::s_content::NodeDigest,
     cap: usize,
 ) -> usize {
     match (
         SOURCE_APPEND_CAP_AT_GROWTH.with(Cell::get),
         capture.owner_index_next_growth(),
     ) {
-        (Some(offset), Some(growth)) => {
+        (Some(offset), Some(growth)) if !capture.contains(digest) => {
             SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.set(None));
             SOURCE_APPEND_CAP_RECEIPT.with(|r| r.set(Some((growth, cap))));
             growth - offset
