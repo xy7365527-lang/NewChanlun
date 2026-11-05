@@ -6,7 +6,7 @@ use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
 use newchan_rust::s_content::capture_allocation::sqlite_parent::{
     charged_bytes, SqlGate, SqlOps, SqliteBinding, SqliteParentAllocator,
 };
-use rusqlite::types::{ToSql, ToSqlOutput, Value};
+use rusqlite::types::{ToSql, ToSqlOutput, ValueRef};
 use rusqlite::{ffi, Connection, ErrorCode};
 use std::cell::Cell;
 use std::ffi::{c_int, c_uint, c_void, CStr};
@@ -72,6 +72,19 @@ impl ToSql for Handoff<'_> {
         let moved = self.budget.handoff(self.request, ROOM).is_ok();
         self.tried.set(Some(moved));
         Ok(ToSqlOutput::from(7i64))
+    }
+}
+
+/// 借出调用方大 BLOB 的参数，记 `to_sql` 被调用的次数。
+struct Counted<'a> {
+    blob: &'a [u8],
+    calls: &'a Cell<usize>,
+}
+
+impl ToSql for Counted<'_> {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        self.calls.set(self.calls.get() + 1);
+        Ok(ToSqlOutput::Borrowed(ValueRef::Blob(self.blob)))
     }
 }
 
@@ -267,28 +280,41 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let latched = d.next(charged_bytes(4096).unwrap());
     let live = d.current.live();
     let mut codes = (0, 0);
+    let big = vec![0x5au8; 1 << 20];
+    let counted_calls = Cell::new(0);
+    let counted = Counted {
+        blob: &big,
+        calls: &counted_calls,
+    };
     let first = refused(latched.run(&main, |q| {
         let mut one = q.prepare("SELECT 1")?;
         let before = entered();
-        assert_eq!(one.query_row(&[])?, [Value::Integer(1)]);
+        assert_eq!(one.query_row([], |[v]| v.as_i64())?, Ok(1));
         assert_eq!(entered(), before + 1);
         assert!(unsafe { ffi::sqlite3_malloc(8192) }.is_null());
         let before = entered();
-        let after = one.query_row(&[]);
+        let after = one.query_row([], |[v]| v.as_i64());
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
             "{after:?}"
         );
-        let after = q.query_row("SELECT 1", &[]);
+        let after = q.query_row("SELECT 1", [], |[v]| v.as_i64());
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
             "{after:?}"
         );
-        let after = q.execute("INSERT INTO t VALUES(3, x'00')", &[]);
+        let after = q.execute("INSERT INTO t VALUES(3, x'00')", []);
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
             "{after:?}"
         );
+        // 首拒后带大借用 BLOB 参数的调用：参数不被求值（to_sql 零次），组件不建任何副本。
+        let after = q.execute("INSERT INTO t VALUES(4, ?1)", [&counted]);
+        assert!(
+            matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
+            "{after:?}"
+        );
+        assert_eq!(counted_calls.get(), 0);
         let after = q.prepare("SELECT 1").map(drop);
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
@@ -403,7 +429,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let before = entered();
     let first = refused(stale.run(&main, |q| {
         calls += 1;
-        q.query_row("SELECT 1", &[])
+        q.query_row("SELECT 1", [], |[v]| v.as_i64())
     }));
     assert_eq!(
         (first, calls, entered()),
@@ -424,12 +450,12 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
         .run(&main, |q| {
             assert!(d.current.handoff(d.request + 1, ROOM).is_err());
             let mut select = q.prepare("SELECT ?1")?;
-            select.query_row(&[&param])
+            select.query_row([&param], |[v]| v.as_i64())
         })
         .unwrap();
     assert_eq!(
         (value, tried.get(), entered()),
-        (vec![Value::Integer(7)], Some(false), before + 1)
+        (Ok(7), Some(false), before + 1)
     );
     assert_eq!(held.refusal(), None);
     d.advance(ROOM);
@@ -440,6 +466,30 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     }));
     assert_eq!((first, calls), (ScratchFailure::Ledger, 0));
 
+    // 大结果行以借值交给映射，不由组件复制；映射期间任何 SQL 操作在准入处拒绝（零执行）。
+    // 宽域内带大借用 BLOB 参数的写入照常成功（to_sql 一次），组件不建副本。
+    let rows = d.next(ROOM);
+    let before = entered();
+    let (len, nested) = rows
+        .run(&main, |q| {
+            q.query_row("SELECT body FROM t WHERE id = 2", [], |[body]| {
+                let nested = q.query_row("SELECT 1", [], |[v]| v.as_i64());
+                (
+                    body.as_blob().map(<[u8]>::len),
+                    matches!(nested, Err(SqlGate::Refused(ScratchFailure::Ledger))),
+                )
+            })
+        })
+        .unwrap();
+    assert_eq!((len, nested, entered()), (Ok(200000), true, before + 1));
+    let wrote = rows
+        .run(&main, |q| {
+            q.execute("INSERT INTO t VALUES(5, ?1)", [&counted])
+        })
+        .unwrap();
+    assert_eq!((wrote, counted_calls.get()), (1, 1));
+    assert_eq!(rows.refusal(), None);
+
     // 参数回调内的首拒：ToSql 在零额度域触发 prepare 收费拒绝并吞掉错误后返回值；
     // 外层语句在准入时即拒，不再进入 SQLite（执行探针不增），返回原 Budget 首错。
     let callback = d.next(0);
@@ -448,7 +498,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let first = refused(callback.run(&main, |q| {
         let mut select = q.prepare("SELECT ?1")?;
         let param = Refuse { q, hit: &hit };
-        select.query_row(&[&param])
+        select.query_row([&param], |[v]| v.as_i64())
     }));
     assert_eq!(
         (first, hit.get(), entered()),
@@ -595,10 +645,10 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     // B1 的 INSERT 被中止，表里没有 id=3。
     let inserted = home
         .run(&main, |q| {
-            q.query_row("SELECT count(*) FROM t WHERE id = 3", &[])
+            q.query_row("SELECT count(*) FROM t WHERE id = 3", [], |[v]| v.as_i64())
         })
         .unwrap();
-    assert_eq!(inserted, [Value::Integer(0)]);
+    assert_eq!(inserted, Ok(0));
     home.close(main).map_err(|(_, e)| e).unwrap();
     home.close(ledger).map_err(|(_, e)| e).unwrap();
     assert_eq!(unsafe { ffi::sqlite3_shutdown() }, ffi::SQLITE_OK);
