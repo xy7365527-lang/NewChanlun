@@ -1279,7 +1279,7 @@ impl MaterialLive {
         })
     }
     /// 本事务 journal 是否已登记该表该 rowid 的实际 hook 写（只读，不改 journal）。
-    pub(crate) fn covers_row(&self, table: Table, rowid: i64) -> Result<bool, String> {
+    pub(super) fn covers_row(&self, table: Table, rowid: i64) -> Result<bool, String> {
         let j = self
             .journal
             .lock()
