@@ -578,7 +578,7 @@ impl Pool {
         Ok(out)
     }
     /// #1419 r14：列出池内逐字等于规则串的全部持有者及其Native许可字节，供封存基准按持有者推导规则串增量。
-    #[cfg(all(test, feature = "s_incremental"))]
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn rule_revision_holders(&self, rule: &str) -> Vec<(&'static str, usize, Option<usize>)> {
         let mut out = Vec::new();
         for rows in self.binding.rows.iter() {
