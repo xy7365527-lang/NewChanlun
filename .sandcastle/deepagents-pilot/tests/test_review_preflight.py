@@ -928,3 +928,24 @@ def test_slow_but_successful_round_trip_within_the_work_deadline_passes(monkeypa
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
     trip = preflight.round_trip(LOCAL, KEY, SOL, "s", preflight.Deadline(60))
     assert trip["ok"] and seen["timeout"] > 50
+
+
+def test_every_subprocess_wait_comes_from_the_deadline_alone(tmp_path, monkeypatch):
+    """独审二十二 B-3：docker run、docker rm、codex 校验都不能有低于剩余时限的固定上限（旧实现 30/5/10 秒）。"""
+    from types import SimpleNamespace
+    seen = {}
+
+    def record(cmd, timeout, **kwargs):
+        seen[cmd[1] if cmd[0] != "/bin/cat" else "helper"] = timeout
+        out = b"k\n" if cmd[0] == "/bin/cat" else b""
+        return subprocess.CompletedProcess(cmd, 0, out, b"")
+
+    monkeypatch.setattr(preflight, "run_bounded", record)
+    deadline = preflight.Deadline(60)
+    preflight.check_mount(SimpleNamespace(checkout_root=str(tmp_path / "chk"), image="img"), deadline)
+    home = tmp_path / "codex"
+    home.mkdir()
+    (home / "config.toml").write_text('[model_providers.cliproxy-local]\n[model_providers.cliproxy-local.auth]\n'
+                                      'command = "/bin/cat"\nargs = ["k"]\ntimeout_ms = 120000\n')
+    preflight.provider_key(home, deadline, "codex")
+    assert seen["run"] > 50 and seen["rm"] > 50 and seen["features"] > 50 and seen["helper"] > 50

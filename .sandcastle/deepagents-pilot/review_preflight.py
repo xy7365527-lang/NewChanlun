@@ -137,7 +137,7 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
         result = run_bounded(["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
                               "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
                               "--entrypoint", "cat", args.image, f"/checkouts/{container}/nonce"],
-                             min(30.0, deadline.work_left()))
+                             deadline.work_left())  # 只受总工作时限约束，不另设固定上限
         seen = result.stdout.decode("utf-8", "replace").strip()
         # docker 约定：125 是 docker 自身出错（容器可能没跑完）；其余退出码来自容器里的命令，容器已跑完、--rm 已删
         container_done = result.returncode >= 0 and result.returncode != 125
@@ -152,7 +152,7 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
     finally:
         # docker run 被杀或非 0 退出时容器可能已建，--rm 不会清：总是 rm -f（容器不存在时也返回 0）。
         try:
-            removed = run_bounded(["docker", "rm", "-f", container], min(5.0, deadline.total_left() - OUTPUT_MARGIN))
+            removed = run_bounded(["docker", "rm", "-f", container], deadline.total_left() - OUTPUT_MARGIN)
             if removed.returncode:
                 cleanup.append(f"docker rm -f {container} 退出 {removed.returncode}")
         except (OSError, subprocess.TimeoutExpired) as error:
@@ -187,7 +187,7 @@ def codex_accepts_config(codex_bin: str, codex_home: Path, env: dict, deadline: 
     """让宿主自己的 codex 离线加载这份配置（`codex features list`，约 50ms、不发请求）：
     provider/auth 字段组合与取值以 Codex 为准，预检不再自己抄一份校验规则。"""
     try:
-        result = run_bounded([codex_bin, "features", "list"], min(10.0, deadline.work_left()), env=env)
+        result = run_bounded([codex_bin, "features", "list"], deadline.work_left(), env=env)
     except subprocess.TimeoutExpired:
         raise CredentialError("codex 加载配置超时") from None
     except OSError as error:
