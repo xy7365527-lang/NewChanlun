@@ -209,6 +209,13 @@ struct Coverage {
     node_inserts: u64,
     exact: bool,
 }
+impl Coverage {
+    /// 截至 `after` 的实际写数是否全部由 hook/node 收据解释（finish 与材料期切面同一判据）。
+    fn covered_at(&self, after: u64) -> Option<u64> {
+        let expected = self.hook_events.checked_add(self.node_inserts);
+        (self.exact && after.checked_sub(self.start) == expected).then_some(after)
+    }
+}
 struct Journal {
     keys: Vec<Key>,
     // 摘要 → 首次 occurrence 的 key 下标（#1488 0035 合并 key）。
@@ -666,12 +673,10 @@ impl Recording {
             return Ok(None);
         }
         let covered_total = if let Some(c) = journal.coverage.as_ref() {
-            let after = tx.total_changes();
-            let expected = c.hook_events.checked_add(c.node_inserts);
-            if !c.exact || after.checked_sub(c.start) != expected {
-                return Err(publish_stale("actual writes与hook/node收据不一致"));
-            }
-            Some(after)
+            Some(
+                c.covered_at(tx.total_changes())
+                    .ok_or_else(|| publish_stale("actual writes与hook/node收据不一致"))?,
+            )
         } else {
             None
         };
@@ -1188,6 +1193,129 @@ pub(crate) struct MaterialAccess<'tx, 'work, 'db> {
     #[cfg(test)]
     stage: Option<&'work crate::staged_nodes::StageOwner<'work>>,
 }
+fn check_material(
+    tx: &Transaction<'_>,
+    journal: &Arc<Mutex<Journal>>,
+    issued: SnapshotSeal,
+    initial_material_epoch: u64,
+    j: &Journal,
+) -> Result<(), String> {
+    let actual =
+        current_journal(tx)?.ok_or_else(|| construction_state::stale("实际事务已无owner日志"))?;
+    let seal = j
+        .set_seed
+        .as_ref()
+        .map(|s| s.seal)
+        .or_else(|| j.set.as_ref().map(|s| s.seal))
+        .or_else(|| j.source_binding.map(|s| s.seal));
+    if !Arc::ptr_eq(&actual, journal)
+        || tx.is_autocommit()
+        || j.unexpected
+        || j.overflow
+        || seal != Some(issued)
+        || j.material_epoch < initial_material_epoch
+    {
+        return Err(construction_state::stale(
+            "实际材料能力的owner/事务/epoch已失效",
+        ));
+    }
+    Ok(())
+}
+#[cfg(all(test, unix))]
+pub(crate) struct MaterialLive {
+    journal: Arc<Mutex<Journal>>,
+    seal: SnapshotSeal,
+    initial_material_epoch: u64,
+}
+#[cfg(all(test, unix))]
+impl MaterialLive {
+    pub(crate) fn check(&self, tx: &Transaction<'_>) -> Result<(), String> {
+        let j = self
+            .journal
+            .lock()
+            .map_err(|_| construction_state::stale("材料journal锁损坏"))?;
+        check_material(
+            tx,
+            &self.journal,
+            self.seal,
+            self.initial_material_epoch,
+            &j,
+        )
+    }
+}
+/// #1419 M8D 3A：截至当前写序的自身写证据，取自仍活的 journal；与 finish 同一覆盖判据与父账归属，
+/// 不闭合集合、不撤 hook/journal、不取走原件、不产出 Effects。
+#[cfg(all(test, unix))]
+pub(crate) struct MaterialWrites {
+    pub(crate) shared_parent: bool,
+    covered: Option<u64>,
+}
+#[cfg(all(test, unix))]
+impl MaterialWrites {
+    pub(crate) fn has_exact_coverage(&self, total_changes: u64) -> bool {
+        self.covered == Some(total_changes)
+    }
+}
+#[cfg(all(test, unix))]
+impl MaterialLive {
+    pub(crate) fn writes(&self, tx: &Transaction<'_>) -> Result<MaterialWrites, String> {
+        let j = self
+            .journal
+            .lock()
+            .map_err(|_| construction_state::stale("材料journal锁损坏"))?;
+        check_material(
+            tx,
+            &self.journal,
+            self.seal,
+            self.initial_material_epoch,
+            &j,
+        )?;
+        Ok(MaterialWrites {
+            shared_parent: j.resources.as_ref().is_some_and(|r| r.shared_parent),
+            covered: j
+                .coverage
+                .as_ref()
+                .and_then(|c| c.covered_at(tx.total_changes())),
+        })
+    }
+    /// 本事务 journal 是否已登记该表该 rowid 的实际 hook 写（只读，不改 journal）。
+    pub(super) fn covers_row(&self, table: Table, rowid: i64) -> Result<bool, String> {
+        let j = self
+            .journal
+            .lock()
+            .map_err(|_| construction_state::stale("材料journal锁损坏"))?;
+        Ok(j.keys
+            .iter()
+            .any(|k| k.table == table && k.rowid == rowid && k.action.is_some()))
+    }
+}
+#[cfg(all(test, unix))]
+thread_local! {
+    static MATERIAL_PROBE: std::cell::RefCell<Option<Option<MaterialLive>>> =
+        const { std::cell::RefCell::new(None) };
+}
+/// 测试探针：只在已武装时记录本线程首次签发的真实材料能力见证；未武装不留任何 Arc。
+#[cfg(all(test, unix))]
+pub(crate) fn arm_material_probe() {
+    MATERIAL_PROBE.with(|slot| *slot.borrow_mut() = Some(None));
+}
+#[cfg(all(test, unix))]
+pub(crate) fn take_material_probe() -> Option<MaterialLive> {
+    MATERIAL_PROBE.with(|slot| slot.borrow_mut().take().flatten())
+}
+#[cfg(all(test, unix))]
+fn record_material_probe(access: &MaterialAccess<'_, '_, '_>) {
+    MATERIAL_PROBE.with(|slot| {
+        if let Some(slot @ None) = slot.borrow_mut().as_mut() {
+            *slot = Some(access.live_seal());
+        }
+    });
+}
+/// 本事务现有 owner 日志；生涯门签发时据此判断材料阶段是否必须绑定真实材料能力。
+#[cfg(all(test, unix))]
+pub(crate) fn has_journal(tx: &Transaction<'_>) -> Result<bool, String> {
+    Ok(current_journal(tx)?.is_some())
+}
 struct ActualRead<'a, 'db> {
     inner: crate::content_store::TxStore<'a, 'db>,
 }
@@ -1221,26 +1349,23 @@ impl<'tx, 'work, 'db> MaterialAccess<'tx, 'work, 'db> {
         self.work
     }
     fn check(&self, j: &Journal) -> Result<(), String> {
-        let actual = current_journal(self.tx)?
-            .ok_or_else(|| construction_state::stale("实际事务已无owner日志"))?;
-        let seal = j
-            .set_seed
-            .as_ref()
-            .map(|s| s.seal)
-            .or_else(|| j.set.as_ref().map(|s| s.seal))
-            .or_else(|| j.source_binding.map(|s| s.seal));
-        if !Arc::ptr_eq(&actual, &self.journal)
-            || self.tx.is_autocommit()
-            || j.unexpected
-            || j.overflow
-            || seal != Some(self.seal)
-            || j.material_epoch < self.initial_material_epoch
-        {
-            return Err(construction_state::stale(
-                "实际材料能力的owner/事务/epoch已失效",
-            ));
+        check_material(
+            self.tx,
+            &self.journal,
+            self.seal,
+            self.initial_material_epoch,
+            j,
+        )
+    }
+    /// #1419 M8D 3A：材料能力的生涯见证。只从真实 MaterialAccess 取得，
+    /// 每次检查走同一 `check_material`，不签发读能力，也不冒充材料访问本身。
+    #[cfg(all(test, unix))]
+    pub(crate) fn live_seal(&self) -> MaterialLive {
+        MaterialLive {
+            journal: self.journal.clone(),
+            seal: self.seal,
+            initial_material_epoch: self.initial_material_epoch,
         }
-        Ok(())
     }
     fn reader<'material>(&'material self) -> Result<ActualRead<'material, 'db>, PublishError> {
         Ok(ActualRead {
@@ -1703,6 +1828,8 @@ pub(super) fn with_material_in_publication<T>(
         #[cfg(test)]
         stage,
     };
+    #[cfg(all(test, unix))]
+    record_material_probe(&access);
     let result = f(Some(&access));
     drop(access);
     let result = result.and_then(|value| {
@@ -1810,6 +1937,8 @@ pub(super) fn with_material_access<T, E: From<String> + From<PublishError>>(
             #[cfg(test)]
             stage: None,
         };
+        #[cfg(all(test, unix))]
+        record_material_probe(&access);
         let result = f(Some(&access));
         #[cfg(test)]
         if result.is_err() {
@@ -2597,6 +2726,34 @@ mod construction_coverage_tests {
         })
         .unwrap();
         assert_eq!(child.moved_in_for_test(), 0);
+        drop(recording);
+    }
+    // #1419 M8D 3A：生涯门持有的材料见证只从真实 MaterialAccess 取得，复用同一 check_material；
+    // journal 失效、换事务或日志撤去后均拒，不由调用者自报。
+    #[cfg(all(feature = "s_capture_native_testonly", unix))]
+    #[test]
+    fn m8d_material_live_seal_follows_real_access_and_journal_state() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        let live = with_material_access::<_, PublishError>(&tx, None, |m| {
+            let m = m.unwrap();
+            note_source_cut(m, (&state).into())?;
+            Ok(m.live_seal())
+        })
+        .unwrap();
+        assert!(has_journal(&tx).unwrap());
+        live.check(&tx).unwrap();
+        recording.journal.lock().unwrap().unexpected = true;
+        assert!(
+            live.check(&tx).is_err(),
+            "journal unexpected 后材料见证必须失效"
+        );
+        recording.journal.lock().unwrap().unexpected = false;
+        live.check(&tx).unwrap();
+        clear_node_journal(&tx);
+        assert!(!has_journal(&tx).unwrap());
+        assert!(live.check(&tx).is_err(), "owner 日志撤去后材料见证必须失效");
         drop(recording);
     }
     fn set_recording(tx: &Transaction<'_>) -> (Recording, sc::ContentRef) {

@@ -391,6 +391,7 @@ injected actual header failure
 injected write failure
 intern命中不重复签共享块费，临时复制已释放
 issue1527 31Q TestOnly：故意使登记锁中毒
+journal unexpected 后材料见证必须失效
 json_text 向量渲染逐字节一致
 json_text内部占位不得被共享上下文放行
 k = 严格小于 4 的最大 2 的幂 = 2
@@ -430,6 +431,8 @@ owned fragment不能擦除为std JSON
 owned manifest必须来自实际capture预算
 owned request须借anchor_view，不能擦std
 owned.sqlite 必须是普通文件
+owner 已退役或事务已终结
+owner 日志撤去后材料见证必须失效
 owner不得经symlink
 owner不得重放旧birth
 owner不得重放旧death
@@ -464,6 +467,13 @@ raw_bars 投影后重复
 raw_events与独立依据不同
 raw_text必须文本
 raw父拥有者析构归还原载荷许可
+reader 事务不在 owner 私有连接上
+reader 工作域超过父账额度
+reader 父账与 owner 夹持父账不同
+reader 父账冻结域已失效
+reader 父账身份或冻结域已变化
+reader 生涯内事务或写序已变化
+reader 生涯内夹持已撤去
 ready必须返回原回执
 read保留原F路径
 real-commit-fault
@@ -756,6 +766,7 @@ writer/recover闭合后无SHM
 发布索引根长度不足 32 字节（CHECK 被旁路）
 发布索引行被删除
 取消后不能重建成功scope
+受管 reader 需要 owner 夹持
 变化JSON不是普通数组
 变化原件不得沿用旧证明
 变形 flag 不得创建库
@@ -1274,9 +1285,13 @@ writer/recover闭合后无SHM
 本用例需要至少一个组
 本用例需要至少三个可判窗口
 本用例需要至少三组
+材料journal锁损坏
 材料域外写必须真实命中
 材料子账即出生时子账
 材料差异不是提交许可
+材料期缺写前原件
+材料阶段出现 owner 日志而 reader 未绑定材料能力
+材料阶段签发 reader 必须绑定真实材料能力
 来源Counts六字段逐项对拍
 来源cache绑定允许合法新增，但仍逐tuple覆盖全部旧原件
 来源不明的同父许可必须拒绝
@@ -1568,6 +1583,7 @@ writer/recover闭合后无SHM
 缺选择器值不得创建库
 耗尽游标须进检查点
 联合闭包缺节点
+自身写尚未闭合为已核 effects
 节点证书应被保留
 节点长度越界
 补上子节点后闭包可核
@@ -1632,6 +1648,7 @@ writer/recover闭合后无SHM
 读 Delta 域模式
 读上一代前沿
 读冻结原始账
+读期间版本、文件、控制原件、写计数或连接域改变
 读集加入即驱逐旧持久句柄
 调用间不得继承旧闭包
 负控前必须真命中缓存

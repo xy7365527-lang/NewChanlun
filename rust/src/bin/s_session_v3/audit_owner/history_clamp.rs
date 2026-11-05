@@ -1,9 +1,11 @@
 //! #1481 U-A：既有 AuditConnection 的观测值，不是第二个连接 owner。
 //! 显式组件入口才启用。旧路径不增加前置；这里不签发历史认证。
+#[cfg(test)]
+use super::request_audit::ExactRows;
 use super::{effects, native, request_audit::SqlCell, AuditTxn};
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{capture_allocation::scratch::WorkScope, CodecVec};
-use rusqlite::{types::ValueRef, Connection};
+use rusqlite::{types::ValueRef, Connection, Transaction};
 use std::{cell::RefCell, rc::Rc};
 use std::{
     fs::{File, Metadata},
@@ -88,6 +90,9 @@ struct Observation {
 pub(super) struct WriteCandidate {
     observation: Observation,
 }
+/// 本切面观测见证；字段私有，只能由 `Clamp::phase` 构造。
+#[cfg(test)]
+pub(super) struct Phase(Observation);
 #[path = "history_physical.rs"]
 mod physical;
 pub(super) use physical::CommitMonitor;
@@ -227,25 +232,26 @@ impl Clamp {
         })
     }
     fn observe(&self, active: &AuditTxn<'_>) -> Result<Observation, String> {
+        self.observe_tx(active.tx())
+    }
+    fn observe_tx(&self, tx: &Transaction<'_>) -> Result<Observation, String> {
         let before = self.files()?;
         let out = Observation {
-            data_version: active
-                .tx()
+            data_version: tx
                 .query_row("PRAGMA main.data_version", [], |r| r.get(0))
                 .map_err(stale)?,
-            schema_version: active
-                .tx()
+            schema_version: tx
                 .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
                 .map_err(stale)?,
-            domain: active.read_domain().map_err(stale)?,
-            total_changes: active.tx().total_changes(),
+            domain: super::read_domain_of(tx).map_err(stale)?,
+            total_changes: tx.total_changes(),
             controls: match &self.parent {
                 Some(parent) => parent
                     .codec_work()
                     .map_err(resource_failure)?
-                    .run(|work| Controls::read(active.tx(), self.control_limit, Some(work)))
+                    .run(|work| Controls::read(tx, self.control_limit, Some(work)))
                     .map_err(|error| resource_failure(native::Failure::from(error)))?,
-                None => Controls::read(active.tx(), self.control_limit, None)?,
+                None => Controls::read(tx, self.control_limit, None)?,
             },
             files: self.files()?,
         };
@@ -256,6 +262,14 @@ impl Clamp {
         Ok(out)
     }
     pub(super) fn check(&mut self, active: &AuditTxn<'_>) -> Result<(), String> {
+        let now = self.checked_against_baseline(active)?;
+        if self.baseline.is_none() {
+            self.baseline = Some(now);
+        }
+        Ok(())
+    }
+    /// 原 `check` 的唯一判据：交接外部提交、当前观测与生涯基线逐项全等。返回被核过的那一份观测。
+    fn checked_against_baseline(&mut self, active: &AuditTxn<'_>) -> Result<Observation, String> {
         // #1481：先核两把锁之间的外部提交；不得让后续控制读的暂时资源失败掩盖它。
         if let Some(inherited) = self.inherited_data_version.take() {
             if active.data_version != inherited {
@@ -269,20 +283,34 @@ impl Clamp {
                 self.integrity_refusal.set(true);
                 return Err(stale("版本、文件、控制原件、写计数或连接域改变"));
             }
-        } else {
-            self.baseline = Some(now);
         }
-        Ok(())
+        Ok(now)
     }
     pub(super) fn candidate(
         &self,
         active: &AuditTxn<'_>,
         effects: &effects::Effects,
     ) -> Result<WriteCandidate, String> {
-        if self.parent.is_some() && !effects.shared_parent {
+        let (before, after) = self.own_write_versions(
+            active,
+            effects.shared_parent,
+            effects.has_exact_coverage(active.tx().total_changes()),
+        )?;
+        before.controls.verify_effects(&after.controls, effects)?;
+        self.own_write_files(before, &after)?;
+        Ok(WriteCandidate { observation: after })
+    }
+    /// 自身写的父账、覆盖与版本判据（`candidate` 与材料期切面唯一共用）。返回生涯起点与本次唯一观测。
+    fn own_write_versions(
+        &self,
+        active: &AuditTxn<'_>,
+        shared_parent: bool,
+        exact_coverage: bool,
+    ) -> Result<(&Observation, Observation), String> {
+        if self.parent.is_some() && !shared_parent {
             return Err(stale("认证自身写effects未进入同一父账"));
         }
-        if !effects.has_exact_coverage(active.tx().total_changes()) {
+        if !exact_coverage {
             return Err(stale("自身写缺完整effects覆盖"));
         }
         let before = self.baseline.as_ref().ok_or_else(|| stale("缺生涯起点"))?;
@@ -294,12 +322,15 @@ impl Clamp {
         {
             return Err(stale("自身写改变版本/schema/domain"));
         }
-        before.controls.verify_effects(&after.controls, effects)?;
+        Ok((before, after))
+    }
+    /// 自身写的物理文件判据（`candidate` 与材料期切面唯一共用），在控制原件核之后。
+    fn own_write_files(&self, before: &Observation, after: &Observation) -> Result<(), String> {
         Self::own_files(&before.files, &after.files, self.progress.complete())?;
         if before.files != after.files && before.total_changes == after.total_changes {
             return Err(stale("无自身SQL效果却发生物理变化"));
         }
-        Ok(WriteCandidate { observation: after })
+        Ok(())
     }
     fn own_files(before: &Files, after: &Files, reset_allowed: bool) -> Result<(), String> {
         if before.main != after.main
@@ -341,6 +372,56 @@ impl Clamp {
         }
         Ok(())
     }
+    /// #1419 M8D 3A：本切面观测就是签发时被原判据核过的那一份观测，不另行重新采样：
+    /// 无自身写时与生涯基线全等（原 `check`），已闭合自身写时与已核 effects 候选全等
+    /// （原 `check_candidate`）。它不是 `WriteCandidate`，不推进生涯基线，也无提交资格。
+    #[cfg(test)]
+    pub(super) fn phase_from_baseline(&mut self, active: &AuditTxn<'_>) -> Result<Phase, String> {
+        if self.baseline.is_none() {
+            return Err(stale("缺生涯起点"));
+        }
+        Ok(Phase(self.checked_against_baseline(active)?))
+    }
+    /// #1419 M8D 3A 材料期切面：node 自身写之后、Recording 仍活、effects 尚未闭合。沿 `candidate`
+    /// 同一父账/覆盖/版本与物理判据，控制原件以截至当前写序的 journal 键和写前原件解释；不闭合集合、
+    /// 不产出 `WriteCandidate`、不推进基线。最终 finish/candidate 仍照原门完整执行。
+    #[cfg(test)]
+    pub(super) fn phase_from_material(
+        &self,
+        active: &AuditTxn<'_>,
+        writes: &effects::MaterialWrites,
+        material: &effects::MaterialLive,
+        originals: &[ExactRows],
+    ) -> Result<Phase, String> {
+        let (before, after) = self.own_write_versions(
+            active,
+            writes.shared_parent,
+            writes.has_exact_coverage(active.tx().total_changes()),
+        )?;
+        before
+            .controls
+            .verify_writes(&after.controls, material, originals)?;
+        self.own_write_files(before, &after)?;
+        Ok(Phase(after))
+    }
+    #[cfg(test)]
+    pub(super) fn phase_from_candidate(
+        &self,
+        active: &AuditTxn<'_>,
+        candidate: &WriteCandidate,
+    ) -> Result<Phase, String> {
+        Ok(Phase(self.checked_against_candidate(active, candidate)?))
+    }
+    /// reader 生涯内事务由读者独占且连接写入被拒，任何变化都不能由自身 effects 解释，
+    /// 因而与本切面逐项全等；同一 `observe` 判据，不另立宽松核。
+    #[cfg(test)]
+    pub(super) fn check_phase(&self, tx: &Transaction<'_>, phase: &Phase) -> Result<(), String> {
+        if self.observe_tx(tx)? != phase.0 {
+            self.integrity_refusal.set(true);
+            return Err(stale("读期间版本、文件、控制原件、写计数或连接域改变"));
+        }
+        Ok(())
+    }
     pub(super) fn arm_commit(&self) -> Result<CommitMonitor, String> {
         CommitMonitor::begin(self)
     }
@@ -349,10 +430,19 @@ impl Clamp {
         active: &AuditTxn<'_>,
         candidate: &WriteCandidate,
     ) -> Result<(), String> {
-        if self.observe(active)? != candidate.observation {
+        self.checked_against_candidate(active, candidate).map(drop)
+    }
+    /// 原 `check_candidate` 的唯一判据；返回被核过的那一份观测。
+    fn checked_against_candidate(
+        &self,
+        active: &AuditTxn<'_>,
+        candidate: &WriteCandidate,
+    ) -> Result<Observation, String> {
+        let now = self.observe(active)?;
+        if now != candidate.observation {
             return Err(stale("effects闭合后出现未声明变化"));
         }
-        Ok(())
+        Ok(now)
     }
     pub(super) fn committed(
         &mut self,
@@ -522,6 +612,61 @@ impl Controls {
         Ok(())
     }
 }
+#[cfg(test)]
+impl Controls {
+    /// 材料期控制原件核：与 `verify_effects` 同一前像判据（写前原件须等于生涯原件），变化只能由
+    /// 本事务 journal 截至当前写序已登记的同表同 rowid 写解释；未登记的变化即拒。后像即本次观测本身。
+    fn verify_writes(
+        &self,
+        after: &Self,
+        material: &effects::MaterialLive,
+        originals: &[ExactRows],
+    ) -> Result<(), String> {
+        for (index, table) in [effects::Table::Meta, effects::Table::Protocol]
+            .into_iter()
+            .enumerate()
+        {
+            let original = effects::table(originals, table)?;
+            let mut old = self.0[index].iter().peekable();
+            let mut new = after.0[index].iter().peekable();
+            loop {
+                let Some(rowid) = [old.peek().map(|r| r.0), new.peek().map(|r| r.0)]
+                    .into_iter()
+                    .flatten()
+                    .min()
+                else {
+                    break;
+                };
+                let before = if old.peek().is_some_and(|r| r.0 == rowid) {
+                    old.next().map(|r| &r.1)
+                } else {
+                    None
+                };
+                let actual = if new.peek().is_some_and(|r| r.0 == rowid) {
+                    new.next().map(|r| &r.1)
+                } else {
+                    None
+                };
+                if material.covers_row(table, rowid)? {
+                    let prior = original
+                        .rows
+                        .binary_search_by_key(&rowid, |r| {
+                            effects::integer(&r[0]).unwrap_or(i64::MIN)
+                        })
+                        .ok()
+                        .map(|i| &original.rows[i][..]);
+                    if !matches_row(before, prior) {
+                        return Err(stale("effects控制前像与生涯原件不符"));
+                    }
+                } else if before != actual {
+                    return Err(stale("控制原件变化未由effects解释"));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 fn matches_row(wire: Option<&CodecVec<u8>>, cells: Option<&[SqlCell]>) -> bool {
     let (wire, cells) = match (wire, cells) {
         (None, None) => return true,

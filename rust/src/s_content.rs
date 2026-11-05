@@ -44,11 +44,18 @@ pub mod raw_materials;
 mod ref_owner;
 pub mod sqlite_audit;
 // #1419 M8A/M8B：capture 包装与 SQL 受管回读只接测试，生产调用与原件持有保持原样。
-#[cfg(any(
-    all(test, feature = "s_incremental"),
-    feature = "s_capture_native_testonly"
-))]
+// #1419 M8D 3A：s_incremental 下另编译无历史资格的 owner 机制桥（见 m8d_owner_bridge）。
+#[cfg(feature = "s_incremental")]
 mod step_reader;
+
+/// #1419 M8D 3A 机制桥：只导出封闭 reader 与签发方生涯门 trait，供 bin owner 工厂在生产增量
+/// 测试与 native delta 两构建签发。不导出任意期限回调入口、事务 getter、测试注入或读数计数器；
+/// library 不构造生涯门，也不接受“已认证”标志。非测试调用点归 M8D 3C。
+#[cfg(feature = "s_incremental")]
+#[doc(hidden)]
+pub mod m8d_owner_bridge {
+    pub use super::step_reader::managed_sql::{GatedSqlReader, LiveGate};
+}
 
 /// #1419 M8B：仅现有 Native TestOnly 特性下向 bin 差分锁开放借用回调。
 /// 回调不能移出 SQL 正文或租约；普通生产特性不编译此接缝。
@@ -56,6 +63,7 @@ mod step_reader;
 #[doc(hidden)]
 pub mod m8b_testonly {
     use super::*;
+    pub use step_reader::managed_sql::{GatedSqlReader, LiveGate};
 
     pub fn sql_reads_on_thread() -> u64 {
         step_reader::managed_sql::sql_reads_on_thread()
