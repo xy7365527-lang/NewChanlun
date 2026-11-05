@@ -170,6 +170,7 @@ Recover前owner持有已提交构造资格
 Recover前当期token可绑定
 Recover后换了父账
 Recover成功后晋升新资格
+Rust 许可全退
 S1394_PUBLICATION_PROBE_DB
 S1568_CHILD_CLOCK
 S1568_CHILD_DB
@@ -367,6 +368,7 @@ expected 重复先于集合差异
 expected 非数组先于集合差异
 extent 是 U64 长度，按 §5.2 用规范十进制字符串传输
 field body错误
+finalize 释放语句字节
 first failure\"😀
 first success certificate admitted before injected second-node refusal
 fixture成员完整性已核
@@ -444,6 +446,7 @@ position.center_id 悬空
 position.center_id 指roles
 position.center_revision 超前
 prepare 不提前生成数组
+prepare 后 statement 字节须有读数，不能签 0
 producer 公开根
 projection实际owner与anchor预算不一致
 prototype_audit_allocation_incomplete：normal JSON shape不可擦除Owned
@@ -766,6 +769,7 @@ writer/recover闭合后无SHM
 发布索引根长度不足 32 字节（CHECK 被旁路）
 发布索引行被删除
 取消后不能重建成功scope
+取行后本连接页缓存须增长
 受管 reader 需要 owner 夹持
 变化JSON不是普通数组
 变化原件不得沿用旧证明
@@ -1429,6 +1433,7 @@ writer/recover闭合后无SHM
 父与独立子值并存期间分别持费
 父线程注册不能泄漏
 父节点证书应已保留
+父账只含 Rust 行副本许可；SQLite 页与语句字节未入父账
 父账大于journal子帽仍须允许真实工作
 父账装不下inline+首块须报错
 父预留已回滚
@@ -1646,6 +1651,7 @@ writer/recover闭合后无SHM
 该窗口应可判
 该端点须已确认
 语义读取失败被错误改类
+语句字节不残留
 语法失败不得留下原解析许可
 语法失败无载荷逃逸，原准入许可释放
 请求不可重复
@@ -1773,6 +1779,7 @@ writer/recover闭合后无SHM
 非 s-session/3 域必须拒绝
 非对象记录必须拒绝
 非真空 FIRST 成员关系
+页缓存在 finalize、租约与事务结束后仍归连接存活
 顶层闭包在业务审计前拒绝此故障
 顺序、ContentRef、kind、extent及render值一致
 顺序遍历必须实际减少重复祖先读取

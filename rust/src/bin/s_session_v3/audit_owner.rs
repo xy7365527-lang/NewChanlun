@@ -7997,6 +7997,10 @@ thread_local! {
     /// 代替本次调用的 j.cap（只此一次，用后清空）；收据记 (G, 原 j.cap)。
     pub(super) static SOURCE_APPEND_CAP_AT_GROWTH: Cell<Option<usize>> = const { Cell::new(None) };
     pub(super) static SOURCE_APPEND_CAP_RECEIPT: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
+    /// #1419 M8D P3：真实来源追加每次到达索引扩容边界（新节点）时的局部门输入
+    /// (G, 本次实际 cap, 原 j.cap, 工作域 live)；只读记录，不改变门判。
+    pub(super) static SOURCE_APPEND_BOUNDARY_TRACE: std::cell::RefCell<Vec<[usize; 4]>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// #1419 M8D P2：真实来源追加的局部 cap；未布置、未到扩容边界或本节点已驻留（同摘要
@@ -8006,18 +8010,26 @@ pub(super) fn source_append_cap_for_test(
     capture: &newchan_rust::s_content::AuditCapture,
     digest: &newchan_rust::s_content::NodeDigest,
     cap: usize,
+    work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
 ) -> usize {
-    match (
-        SOURCE_APPEND_CAP_AT_GROWTH.with(Cell::get),
-        capture.owner_index_next_growth(),
-    ) {
-        (Some(offset), Some(growth)) if !capture.contains(digest) => {
+    let growth = capture
+        .owner_index_next_growth()
+        .filter(|_| !capture.contains(digest));
+    let effective = match (SOURCE_APPEND_CAP_AT_GROWTH.with(Cell::get), growth) {
+        (Some(offset), Some(growth)) => {
             SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.set(None));
             SOURCE_APPEND_CAP_RECEIPT.with(|r| r.set(Some((growth, cap))));
             growth - offset
         }
         _ => cap,
+    };
+    if let Some(growth) = growth {
+        SOURCE_APPEND_BOUNDARY_TRACE.with(|t| {
+            t.borrow_mut()
+                .push([growth, effective, cap, work.snapshot().live])
+        });
     }
+    effective
 }
 
 #[cfg(all(test, feature = "s_incremental"))]

@@ -212,3 +212,66 @@ fn h1_m8d_material_phase_unexplained_write_refuses_before_select() {
     assert!(owner.retired.get());
     assert!(published.is_err());
 }
+
+#[test]
+fn h1_m8d_sqlite_parent_peak_and_first_error_receipts() {
+    // P6 观察部分：真实 owner、真实父账与工作域。每帧租约存活时父账增量覆盖 Rust 行副本，
+    // owner 私有连接上的 SQLite 页缓存与语句字节同时在场但不在父账；reader 生涯结束后
+    // 父账回到基线而页缓存仍归连接。B_sql 同父覆盖尚未获批，覆盖额与少 1B 门不在本锁签署。
+    let (f, owner, parent) = m8d_owner();
+    let nodes = m8d_nodes(&f, 16);
+    let status = |op| {
+        let (mut current, mut high) = (0, 0);
+        // SAFETY: owner 私有连接存活；只读当前值，不重置高水位、不执行 SQL。
+        let rc = unsafe {
+            rusqlite::ffi::sqlite3_db_status(
+                owner.connection.handle(),
+                op,
+                &mut current,
+                &mut high,
+                0,
+            )
+        };
+        assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+        current
+    };
+    let idle_cache = status(rusqlite::ffi::SQLITE_DBSTATUS_CACHE_USED);
+    let mut active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    let base = parent.live();
+    let (points, receipt) = active
+        .with_step_reader(&parent, None, None, |reader| {
+            nodes
+                .iter()
+                .map(|(digest, _, expected)| {
+                    reader
+                        .frame(digest, |_, body| {
+                            assert_eq!(body, expected.as_slice());
+                            (
+                                body.len(),
+                                parent.live() - base,
+                                status(rusqlite::ffi::SQLITE_DBSTATUS_CACHE_USED),
+                            )
+                        })
+                        .unwrap()
+                        .unwrap()
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap();
+    let after_cache = status(rusqlite::ffi::SQLITE_DBSTATUS_CACHE_USED);
+    for (body, rust, cache) in &points {
+        println!(
+            "M8D_P6_RECEIPT body={body} parent_delta={rust} connection_cache={cache} coverage=unproven(B_sql)"
+        );
+        assert!(rust >= body, "租约存活时父账覆盖 Rust 行副本");
+        assert!(*cache > 0, "页缓存读数为正，不能签 0");
+    }
+    println!(
+        "M8D_P6_RECEIPT idle_cache={idle_cache} after_cache={after_cache} node_selects={} metadata_reads={}",
+        receipt.node_selects, receipt.metadata_reads
+    );
+    assert_eq!(parent.live(), base, "reader 生涯结束父账回基线");
+    assert!(after_cache > 0, "页缓存在 reader 生涯后仍归连接");
+    active.read_end().unwrap();
+    assert!(!owner.retired.get());
+}

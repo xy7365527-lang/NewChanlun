@@ -282,6 +282,74 @@ fn w2_h1_roundtrip(
     });
 }
 
+/// #1419 M8D P3：原 C/D、E/F 完整锁的登记首拒代。方案 ii 第 3+4 片完成后改登记为 None
+/// （无该拒绝），helper 随即要求整条在线序列不再出现局部门拒绝。
+#[derive(Clone, Copy)]
+struct M8dP3Lock {
+    name: &'static str,
+    first_refusal: Option<usize>,
+}
+thread_local! {
+    static M8D_P3_LOCK: std::cell::Cell<Option<M8dP3Lock>> = const { std::cell::Cell::new(None) };
+}
+const M8D_P3_RESOURCE_REFUSAL: &str =
+    "HistoricalAuditStale：认证发布资源不足；禁止无候选重试或完整审计兜底";
+
+/// #1419 M8D P3 诊断断言：读出本代真实 `audit_native_source` 到达的每个索引扩容边界
+/// (G, 实际 cap, 原 j.cap, 工作域 live)。未登记的锁只清记录。登记锁出错时，错误必须恰是
+/// 登记代、原资源首拒文本，且最后一个边界满足 G > 原 j.cap（局部门，而非父账或别处）；
+/// 不消费、不改写原错误，原 unwrap 照旧失败。成功代不改变原成功断言。
+fn h1_m8d_jcap_cd_g23_ef_g26_first_refusal(n: usize, handled: &Result<Value, String>) {
+    let trace = super::SOURCE_APPEND_BOUNDARY_TRACE.with(|t| std::mem::take(&mut *t.borrow_mut()));
+    let Some(lock) = M8D_P3_LOCK.with(std::cell::Cell::get) else {
+        return;
+    };
+    for [growth, cap, j_cap, live] in &trace {
+        println!(
+            "M8D_P3_BOUNDARY lock={} g={n} growth={growth} cap={cap} j_cap={j_cap} work_live={live} local_refusal={}",
+            lock.name,
+            growth > cap
+        );
+    }
+    let Err(error) = handled else {
+        if lock.first_refusal == Some(n) {
+            println!(
+                "M8D_P3_RECEIPT lock={} g={n} outcome=passed_registered_refusal_generation",
+                lock.name
+            );
+        }
+        return;
+    };
+    let last = trace.last().copied();
+    println!(
+        "M8D_P3_RECEIPT lock={} g={n} outcome=refused boundary={last:?} error={error}",
+        lock.name
+    );
+    assert_eq!(
+        lock.first_refusal,
+        Some(n),
+        "M8D P3 {}：首拒代与登记不符；原错误：{error}",
+        lock.name
+    );
+    assert_eq!(
+        error, M8D_P3_RESOURCE_REFUSAL,
+        "M8D P3 {}：首拒不是原资源首拒",
+        lock.name
+    );
+    let [growth, cap, j_cap, _] = last.unwrap_or_else(|| {
+        panic!(
+            "M8D P3 {}：第 {n} 代资源首拒前没有到达来源索引扩容边界；原错误：{error}",
+            lock.name
+        )
+    });
+    assert_eq!(cap, j_cap, "M8D P3 {}：诊断不得替换 cap", lock.name);
+    assert!(
+        growth > j_cap,
+        "M8D P3 {}：最后一个扩容边界 G={growth} 未超原 j.cap={j_cap}，首拒不在局部门；原错误：{error}",
+        lock.name
+    );
+}
+
 fn w2_h1_roundtrip_selected(envelopes: &[Value], mut check: impl FnMut(usize, &Value) -> bool) {
     let f = W2H1Fixture::new(envelopes.len());
     let mut online = f.open(&f.db);
@@ -290,11 +358,9 @@ fn w2_h1_roundtrip_selected(envelopes: &[Value], mut check: impl FnMut(usize, &V
     for (offset, envelope) in envelopes.iter().enumerate() {
         let n = offset + 1;
         let before = state::full_audit_calls_for_test();
-        assert_eq!(
-            online.handle(envelope.clone()).unwrap()["kind"],
-            "Committed",
-            "在线第 {n} 代"
-        );
+        let handled = online.handle(envelope.clone());
+        h1_m8d_jcap_cd_g23_ef_g26_first_refusal(n, &handled);
+        assert_eq!(handled.unwrap()["kind"], "Committed", "在线第 {n} 代");
         assert_eq!(state::full_audit_calls_for_test(), before);
         let snapshot = w2_h1_snapshot(&online);
         let cold_point = check(n, &snapshot);
@@ -377,6 +443,12 @@ fn w2_h1_active<'a>(snapshot: &'a Value, kind: &'a str) -> impl Iterator<Item = 
 
 #[test]
 fn w2_h1_cold_cd_second_cursor_continuation_matches_online() {
+    M8D_P3_LOCK.with(|l| {
+        l.set(Some(M8dP3Lock {
+            name: "cd",
+            first_refusal: Some(23),
+        }))
+    });
     // #1414 独立手算端点生成的真实 OHLC；不复制生产生成结果。
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -519,6 +591,12 @@ fn w2_h1_pair_rows() -> Vec<W2H1Row> {
 
 #[test]
 fn w2_h1_cold_ef_seed_pair_qualification_and_canonical_matches_online() {
+    M8D_P3_LOCK.with(|l| {
+        l.set(Some(M8dP3Lock {
+            name: "ef",
+            first_refusal: Some(26),
+        }))
+    });
     let mut rows = w2_h1_pair_rows();
     let top = rows.iter().position(|r| r.2 == 2120).unwrap();
     let original = rows[top];
