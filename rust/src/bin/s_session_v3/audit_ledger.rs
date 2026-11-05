@@ -1729,6 +1729,117 @@ pub(super) mod tests {
             }
         }
 
+        /// #1419 M8D L9（台账层）：test-only SQLITE_TRACE_STMT 按原语句文本计数，证实每次前沿
+        /// 点查恰为资格行 + 完整键 EXISTS 两条台账语句、点查之外无别的台账 SQL；stage/bind/
+        /// 内容提交的逐桶语句另列收据。不改台账连接配置，回调随 guard 卸载。
+        #[test]
+        fn m8d_metadata_node_f_and_qualified_lookup_receipts() {
+            type Counts = std::cell::RefCell<BTreeMap<String, u64>>;
+            extern "C" fn count(
+                kind: std::ffi::c_uint,
+                ctx: *mut std::ffi::c_void,
+                _stmt: *mut std::ffi::c_void,
+                sql: *mut std::ffi::c_void,
+            ) -> std::ffi::c_int {
+                if kind == rusqlite::ffi::SQLITE_TRACE_STMT {
+                    // SAFETY: ctx 指向安装期间不移动的 Box<Counts>；sql 为 NUL 结尾原文。
+                    let counts = unsafe { &*(ctx as *const Counts) };
+                    let text = unsafe { std::ffi::CStr::from_ptr(sql as *const std::ffi::c_char) };
+                    *counts
+                        .borrow_mut()
+                        .entry(text.to_string_lossy().into_owned())
+                        .or_default() += 1;
+                }
+                0
+            }
+            struct Trace(*mut rusqlite::ffi::sqlite3, Box<Counts>);
+            impl Trace {
+                fn take(&self) -> BTreeMap<String, u64> {
+                    std::mem::take(&mut *self.1.borrow_mut())
+                }
+            }
+            impl Drop for Trace {
+                fn drop(&mut self) {
+                    // SAFETY: 同一台账连接仍活；mask 0 卸载回调。
+                    unsafe {
+                        rusqlite::ffi::sqlite3_trace_v2(self.0, 0, None, std::ptr::null_mut())
+                    };
+                }
+            }
+            let (f, _, token, mut m, mut roots) = prepared::tests::p6_candidate();
+            let mut b = ledger(&f.db_path(), "m8d-l9.sqlite", &m.rule_revision);
+            let trace = {
+                let counts: Box<Counts> = Box::default();
+                // SAFETY: 句柄来自活台账连接；回调上下文由 Trace 持有到卸载。
+                let db = unsafe { b.connection.as_ref().unwrap().handle() };
+                let rc = unsafe {
+                    rusqlite::ffi::sqlite3_trace_v2(
+                        db,
+                        rusqlite::ffi::SQLITE_TRACE_STMT,
+                        Some(count),
+                        &*counts as *const Counts as *mut std::ffi::c_void,
+                    )
+                };
+                assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+                Trace(db, counts)
+            };
+            let mut nodes = sc::MemoryNodes::new();
+            let (gens, _) = values(&mut nodes);
+            for (i, r) in gens.iter().enumerate() {
+                let generation = i as i64 + 1;
+                m.generation = generation;
+                set_roots(&mut m, &mut roots, r);
+                trace.take();
+                if generation == 1 {
+                    let (whole, _) = full(&mut nodes, r);
+                    commit(&mut b, &token, &m, &roots, &whole, None);
+                    println!(
+                        "M8D_L9_LEDGER g=1 phase=commit statements={:?}",
+                        trace.take()
+                    );
+                    continue;
+                }
+                let q = b.qualification().unwrap();
+                let qualification_sql = trace.take();
+                let mut c = Counting {
+                    nodes: &mut nodes,
+                    reads: 0,
+                };
+                let d = b.verify_delta(&mut c, refs(r), &q).unwrap();
+                let node_reads = c.reads;
+                let lookup_sql = trace.take();
+                // 同一输入再经计数前沿走一遍，只为取逻辑点查次数；其 SQL 不计入上面的桶。
+                let counted = CountingFrontier {
+                    inner: QualifiedSuccessView {
+                        ledger: &b,
+                        qualification: &q,
+                    },
+                    lookups: std::cell::Cell::new(0),
+                };
+                cd::verify_four_roots_from(&mut nodes, refs(r), &counted).unwrap();
+                let lookups = counted.lookups.get();
+                trace.take();
+                println!(
+                    "M8D_L9_LEDGER g={generation} phase=qualification statements={qualification_sql:?}"
+                );
+                println!(
+                    "M8D_L9_LEDGER g={generation} phase=lookup node_reads={node_reads} frontier_lookups={lookups} statements={lookup_sql:?}"
+                );
+                if lookups > 0 {
+                    assert_eq!(lookup_sql.len(), 2, "g{generation}：点查只用两条台账语句");
+                }
+                assert!(
+                    lookup_sql.values().all(|&n| n == lookups),
+                    "g{generation}：每次点查恰各一次资格行与 EXISTS，别无台账 SQL"
+                );
+                commit(&mut b, &token, &m, &roots, &d, Some(&q));
+                println!(
+                    "M8D_L9_LEDGER g={generation} phase=commit statements={:?}",
+                    trace.take()
+                );
+            }
+        }
+
         #[test]
         fn h1_m8d_success_ledger_commit_failure_and_cold_rebuild_diff() {
             let (f, _, token, mut m, mut roots) = prepared::tests::p6_candidate();
