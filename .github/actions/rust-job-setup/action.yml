@@ -42,6 +42,9 @@ runs:
           flock "$cfg.lock" bash -c 'grep -qxF "[profile.dev]" "$1" 2>/dev/null || printf "[profile.dev]\nopt-level = 1\ndebug-assertions = true\noverflow-checks = true\n" >> "$1"' _ "$cfg"
         fi
         echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
+        # #1875 R7：`--jobs 1` 是托管 runner 磁盘预算的处置（#1141 ENOSPC，约 14 GB 空闲）；Boat large 空闲约 112 GB，
+        #   按核数并行编译。托管 runner 仍取 1，构建并行度不改变产物与测试结论。
+        if [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ]; then echo "CI_CARGO_JOBS=$(nproc)"; else echo "CI_CARGO_JOBS=1"; fi >> "$GITHUB_ENV"
         cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     - name: Record runner, toolchain, linker, and initial resources (#1141)
