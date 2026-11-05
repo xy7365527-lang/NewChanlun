@@ -36,7 +36,11 @@ runs:
       run: |
         cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
         mkdir -p "$(dirname "$cfg")"
-        flock "$cfg.lock" bash -c 'grep -qxF "[profile.dev]" "$1" 2>/dev/null || printf "[profile.dev]\nopt-level = 1\ndebug-assertions = true\noverflow-checks = true\n" >> "$1"' _ "$cfg"
+        # 只对测试执行时间远大于编译时间的作业开（s_session 分片，tb02w 28→14 分钟）；多 feature 反复编译的作业
+        #   （extras native/owned/content）opt-level 1 的编译更慢，反而拖长（R4c：native 17→29 分钟）。
+        if [ "${CI_OWN_OPT_LEVEL1:-}" = 1 ]; then
+          flock "$cfg.lock" bash -c 'grep -qxF "[profile.dev]" "$1" 2>/dev/null || printf "[profile.dev]\nopt-level = 1\ndebug-assertions = true\noverflow-checks = true\n" >> "$1"' _ "$cfg"
+        fi
         echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
         cat "$cfg"
 
