@@ -1100,6 +1100,12 @@ fn h1_admission_normal_exit_same_database_new_process_restarts() {
                 h1_admission_driver_commit(&mut driver, n, row, 1, "1");
             }
         }
+        if phase == "cold_write" {
+            h1_m8d_cold_reader_then_write(&db, &mut driver);
+            drop(driver);
+            h1_admission_assert_clean_close(&db);
+            return;
+        }
         let conn = Connection::open(&db).unwrap();
         assert_eq!(meta_i64(&conn, "generation").unwrap(), 3);
         let tx = conn.unchecked_transaction().unwrap();
@@ -1113,7 +1119,7 @@ fn h1_admission_normal_exit_same_database_new_process_restarts() {
     }
     let f = H1AdmissionFixture::new();
     h1_admission_assert_clean_close(&f.db);
-    for phase in ["write", "restart"] {
+    for phase in ["write", "restart", "cold_write"] {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "v3::audit_owner::construction_tests::h1_admission_normal_exit_same_database_new_process_restarts", "--nocapture"])
             .env(CHILD, &f.db)
@@ -1135,8 +1141,91 @@ fn h1_admission_normal_exit_same_database_new_process_restarts() {
             stdout.contains("test result: ok. 1 passed"),
             "子锁须有实际通过收据：{stdout}"
         );
+        if phase == "cold_write" {
+            assert!(
+                stdout.contains("H1_M8D_COLD_WRITE generation=4 "),
+                "新进程须在冷认证后签发 reader 并续写第 4 代：{stdout}"
+            );
+        }
         h1_admission_assert_clean_close(&f.db);
     }
+}
+
+/// 公开内容库中按 digest 排序、不在 `skip` 内的前 `n` 个节点原件；只读连接用完即关。
+fn h1_m8d_nodes_at(db: &Path, skip: &[[u8; 32]], n: usize) -> Vec<([u8; 32], u8, Vec<u8>)> {
+    let conn = Connection::open(db).unwrap();
+    let mut stmt = conn
+        .prepare("SELECT digest, tag, body FROM s_content_nodes ORDER BY digest")
+        .unwrap();
+    let rows = stmt
+        .query_map([], |r| {
+            let digest: Vec<u8> = r.get(0)?;
+            let tag: i64 = r.get(1)?;
+            Ok((
+                <[u8; 32]>::try_from(digest.as_slice()).unwrap(),
+                u8::try_from(tag).unwrap(),
+                r.get::<_, Vec<u8>>(2)?,
+            ))
+        })
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|row| !skip.contains(&row.0))
+        .take(n)
+        .collect::<Vec<_>>();
+    rows
+}
+
+/// 由冷认证 owner 签发 3A reader，读取 `nodes` 并以原件逐字核对；读事务按原门收尾，与 P1 同样不改 owner 交接状态。
+fn h1_m8d_cold_owner_reads(owner: &AuditConnection, nodes: &[([u8; 32], u8, Vec<u8>)]) {
+    let parent = m8d_parent(owner);
+    let mut active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    let (frames, receipt) = active
+        .with_step_reader(&parent, None, None, |reader| m8d_frames(reader, nodes))
+        .unwrap();
+    assert_eq!(
+        frames,
+        nodes
+            .iter()
+            .map(|(_, tag, body)| Some((*tag, body.clone())))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(receipt.node_selects, nodes.len() as u64);
+    active.read_end().unwrap();
+    assert!(!owner.retired.get(), "冷认证 owner 读后不得退役");
+}
+
+/// 同一新进程：冷认证后签发 reader 读原件，再经原 Driver 真实续写第 4 代并核账，最后读新原件。
+fn h1_m8d_cold_reader_then_write(db: &Path, driver: &mut driver::Driver) {
+    assert_eq!(
+        meta_i64(&Connection::open(db).unwrap(), "generation").unwrap(),
+        3
+    );
+    let old = h1_m8d_nodes_at(db, &[], 16);
+    assert!(old.len() >= 2, "第 3 代须有真实节点");
+    let before = h1_m8d_nodes_at(db, &[], usize::MAX)
+        .into_iter()
+        .map(|row| row.0)
+        .collect::<Vec<_>>();
+    h1_m8d_cold_owner_reads(driver.h1_owner_for_test(), &old);
+    h1_admission_driver_commit(driver, 4, ("b", 1, 14, 21, 10, 15), 2, "1");
+    let conn = Connection::open(db).unwrap();
+    assert_eq!(meta_i64(&conn, "generation").unwrap(), 4);
+    let tx = conn.unchecked_transaction().unwrap();
+    let expected = state::audit_native_current(&tx).unwrap().h1_canonical();
+    tx.rollback().unwrap();
+    drop(conn);
+    let owner = driver.h1_owner_for_test();
+    assert_eq!(h1_admission_canonical(owner), expected);
+    assert!(!owner.retired.get(), "冷认证后续写不得退役");
+    let fresh = h1_m8d_nodes_at(db, &before, 16);
+    assert!(!fresh.is_empty(), "第 4 代须写入新节点");
+    h1_m8d_cold_owner_reads(owner, &fresh);
+    h1_m8d_cold_owner_reads(owner, &old);
+    println!(
+        "H1_M8D_COLD_WRITE generation=4 old_frames={} new_frames={}",
+        old.len(),
+        fresh.len()
+    );
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
