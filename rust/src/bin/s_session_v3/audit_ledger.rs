@@ -1572,7 +1572,7 @@ pub(super) mod tests {
         impl cd::Frontier for CountingFrontier<'_> {
             fn contains(&self, unit: cd::Unit) -> Result<bool, sc::CodecError> {
                 self.lookups.set(self.lookups.get() + 1);
-                self.inner.contains(unit)
+                cd::Frontier::contains(&self.inner, unit)
             }
         }
         fn units(q: &QualifiedUnits<'_>) -> BTreeSet<Unit> {
