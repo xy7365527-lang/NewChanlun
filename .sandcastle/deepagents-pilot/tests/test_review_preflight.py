@@ -1,5 +1,7 @@
 import json
 import re
+import subprocess
+import sys
 import threading
 import time
 from collections import namedtuple
@@ -13,12 +15,14 @@ from pilot1742 import external_review
 from pilot1742.github_app import IdentityError
 
 KEY = "local-test-key-must-not-leak"
-SHORT_VALID = "short7k"  # 正式 worker 接受的 7 字符 key（独审十一）
-OTHER_VALID = f"outer-{KEY}-tail"  # 含 KEY：两把 key 互为子串（独审六·1）
+SHORT_VALID = "short7k"  # 正式 worker 接受的 7 字符 key
+OTHER_VALID = f"outer-{KEY}-tail"  # 含 KEY：两把 key 互为子串
 SOL, OPUS = "gpt-6.1-sol", "claude-opus-5-5"
 OFFICIAL = {SOL: ("codex", "https://chatgpt.com/backend-api/codex/responses"),
             OPUS: ("claude", "https://api.anthropic.com/v1/messages")}
 ANTIGRAVITY = ("antigravity", "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent")
+MODELFLARE = ("openai-compatible-modelflare-codex", "https://modelflare.dev/v1/responses")
+LOCAL = "http://localhost:9"  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
 Usage = namedtuple("Usage", "total used free")
 
 
@@ -42,21 +46,14 @@ def repo(tmp_path):
 class FakeProxy:
     """同形 CLIProxy：按模型选 provider，写 request-log，记录收到的请求。"""
 
-    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0, served=None,
-                 echo_auth=False, terminal=None, header_first=0.0, split_at=None, error_body=None,
-                 stream_model=None):
+    def __init__(self, log_dir, routes, *, status=None, write_log=True, hang=False, log_delay=0.0,
+                 echo_auth=False, terminal=None, header_first=0.0, split_at=None, error_body=None):
         self.requests = []
         proxy = self
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
                 pass
-
-            def do_GET(self):
-                code = 200 if self.headers.get("Authorization") in (f"Bearer {KEY}", f"Bearer {OTHER_VALID}") else 401
-                self.send_response(code)
-                self.send_header("Content-Length", "0")
-                self.end_headers()
 
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
@@ -72,17 +69,12 @@ class FakeProxy:
                     path = log_dir / f"v1-responses-{time.time_ns()}.log"
                     text = (f"=== HEADERS ===\nSession-Id: {self.headers['Session-Id']}\n\n=== API REQUEST 1 ===\n"
                             f"Upstream URL: {upstream}\nAuth: provider={provider}, auth_id=x, label=x, type=oauth\n"
-                            "\n=== API RESPONSE 1 ===\nStatus: 200\n")
-                    model_served = (served or {}).get(body["model"])
-                    if model_served:
-                        text += 'data: {"type":"message_start","message":{"model":"%s"}}\n' % model_served
-                    text += "\n=== RESPONSE ===\nStatus: 200\n"
+                            "\n=== API RESPONSE 1 ===\nStatus: 200\n\n=== RESPONSE ===\nStatus: 200\n")
                     if split_at and split_at in text:
                         # 分段写入：先落盘到 split_at 之前（可能截在一行中间），0.3 秒后补全
                         path.write_text(text[:text.index(split_at)])
                         threading.Timer(0.3, path.write_text, args=(text,)).start()
                     elif header_first:
-                        # 先只落盘会话头，过一会儿再补全上游段（分段写入）
                         path.write_text(text.split("\n\n=== API REQUEST")[0] + "\n")
                         threading.Timer(header_first, path.write_text, args=(text,)).start()
                     elif log_delay:
@@ -103,8 +95,7 @@ class FakeProxy:
                 elif code != 200:
                     payload = b'{"error":{"message":"tool_choice: type \\"tool\\" and \\"any\\" are not supported"}}'
                 else:
-                    payload = (terminal or b'event: response.completed\ndata: {"type":"response.completed","response":{"model":"{model}"}}\n\n')
-                    payload = payload.replace(b"{model}", (stream_model or {}).get(body["model"], body["model"]).encode())
+                    payload = terminal or b'event: response.completed\ndata: {"type":"response.completed","response":{}}\n\n'
                 self.send_response(code)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
@@ -121,7 +112,7 @@ class FakeProxy:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch, repo):
-    """宿主 checkout_root、假 docker（按 bind 源映射读文件）与 proxy key。"""
+    """宿主 checkout_root、假 docker（按 bind 源映射读文件）与宿主 provider 配置。"""
     root, base, head = repo
     bin_dir, logs, checkouts = tmp_path / "bin", tmp_path / "logs", tmp_path / "checkouts"
     for d in (bin_dir, logs):
@@ -129,7 +120,6 @@ def env(tmp_path, monkeypatch, repo):
     docker = bin_dir / "docker"
     docker.write_text("#!/bin/sh\n"
                       "[ \"$1\" = rm ] && exit 0\n"
-                      "[ \"$1\" = ps ] && exit 0\n"
                       "src=$(printf '%s\\n' \"$@\" | sed -n 's/^type=bind,src=\\(.*\\),dst=\\/checkouts,readonly$/\\1/p')\n"
                       "case \"$src\" in /*) ;; *) echo 'mount path must be absolute' >&2; exit 125;; esac\n"
                       "[ -n \"$FAKE_DOCKER_EMPTY\" ] && src=/nonexistent\n"
@@ -139,7 +129,7 @@ def env(tmp_path, monkeypatch, repo):
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     # 测试不依赖宿主真实剩余空间；专测空间的用例自行覆盖。
     monkeypatch.setattr(preflight.shutil, "disk_usage", lambda _: Usage(0, 0, 1 << 50))
-    # 正式 worker 从进程环境取 key（launcher 传入）；宿主 provider 按 auth.command 从文件取同一个 key。
+    # 预检进程里有这个变量（launcher 传入）；宿主 provider 按 auth.command 从文件取 key。
     monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY)
     codex = tmp_path / "codex"
     codex.mkdir()
@@ -152,16 +142,9 @@ def env(tmp_path, monkeypatch, repo):
     def run(routes=None, capsys=None, extra=(), **proxy_options):
         proxy = FakeProxy(logs, routes or OFFICIAL, **proxy_options)
         proxies.append(proxy)
-        config = codex / "config.toml"
-        previous = [f"{p.url}/v1" for p in proxies[:-1]] + ["http://127.0.0.1:8318/v1"]  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-        data = config.read_bytes()  # 按字节替换：有的用例故意写入非 UTF-8 配置
-        for old_url in previous:
-            data = data.replace(old_url.encode(), f"{proxy.url}/v1".encode())
-        config.write_bytes(data)  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
         code = preflight.main(["--source", str(root), "--base", base, "--head", head, "--merge-base", base,
                                "--checkout-root", str(checkouts), "--proxy-url", proxy.url,
-                               "--proxy-log-dir", str(logs), "--codex-home", str(codex),
-                               "--proxy-config", str(tmp_path / "cliproxy-config.yaml"), *extra])
+                               "--proxy-log-dir", str(logs), "--codex-home", str(codex), *extra])
         out = capsys.readouterr().out
         return code, json.loads(out), out, proxy
 
@@ -174,8 +157,57 @@ def failing(report):
     return {c["name"] for c in report["checks"] if not c["ok"]}
 
 
+def check(report, name):
+    return next(c for c in report["checks"] if c["name"] == name)
+
+
+def _cli(tmp_path, repo, docker_script: str, deadline: str, codex_text: str = (
+        '[model_providers.cliproxy-local]\nexperimental_bearer_token = "key12345"\n')):
+    """真实 CLI 退出路径（os._exit）；docker 换成给定脚本。"""
+    root, base, head = repo
+    bin_dir = tmp_path / "bin2"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "docker").write_text(docker_script)
+    (bin_dir / "docker").chmod(0o755)
+    codex = tmp_path / "codex2"
+    codex.mkdir(exist_ok=True)
+    (codex / "config.toml").write_text(codex_text)
+    start = time.monotonic()
+    result = subprocess.run(
+        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
+         "--merge-base", base, "--checkout-root", str(tmp_path / "chk"), "--proxy-url", LOCAL,
+         "--proxy-log-dir", str(tmp_path), "--codex-home", str(codex), "--deadline", deadline],
+        capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
+    return result.returncode, json.loads(result.stdout), time.monotonic() - start
+
+
+def _leftovers(tmp_path):
+    chk = tmp_path / "chk"
+    return list(chk.iterdir()) if chk.exists() else []
+
+
+# ---------------- 空间：PR1866 A1/A2、PR1868 A3 ----------------
+
 def test_snapshot_bytes_equal_to_controller_formula(repo, tmp_path, monkeypatch):
     root, base, head = repo
+    target = external_review.ReviewTarget(1, 7, 1, "main", base, 1, "topic", head, base, "run", 1,
+                                          external_review.POLICY, head, 0)
+    monkeypatch.setattr(external_review.shutil, "disk_usage", lambda _: Usage(0, 0, 0))
+    with pytest.raises(IdentityError) as error:
+        external_review.prepare_review(target, root, tmp_path / "checkout")
+    required = int(re.search(r"需要 (\d+) bytes", str(error.value)).group(1))
+    assert preflight.snapshot_bytes(root, base, head, base) == required
+
+
+def test_snapshot_bytes_match_controller_with_replace_refs(repo, tmp_path, monkeypatch):
+    """控制器不跟随 replace 引用；预检若跟随，同一输入字节数会不同。"""
+    root, base, head = repo
+    (root / "big.txt").write_text("y" * 200000)
+    git(root, "add", "big.txt")
+    git(root, "commit", "-qm", "replacement")
+    replacement = git(root, "rev-parse", "HEAD")
+    git(root, "reset", "-q", "--hard", head)
+    git(root, "replace", head, replacement)
     target = external_review.ReviewTarget(1, 7, 1, "main", base, 1, "topic", head, base, "run", 1,
                                           external_review.POLICY, head, 0)
     monkeypatch.setattr(external_review.shutil, "disk_usage", lambda _: Usage(0, 0, 0))
@@ -205,6 +237,8 @@ def test_space_below_two_snapshots_blocks(env, capsys, repo, monkeypatch):
     assert env(capsys=capsys)[0] == 0
 
 
+# ---------------- 挂载：PR1868 A1 ----------------
+
 def test_container_seeing_empty_mount_blocks(env, capsys, monkeypatch):
     monkeypatch.setenv("FAKE_DOCKER_EMPTY", "1")
     code, report, *_ = env(capsys=capsys)
@@ -216,17 +250,119 @@ def test_probe_leaves_no_files_in_checkout_root(env, capsys, tmp_path):
     assert list((tmp_path / "checkouts").iterdir()) == []
 
 
+def test_relative_checkout_root_is_mounted_as_absolute(env, capsys, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    code, report, *_ = env(capsys=capsys, extra=("--checkout-root", "checkouts"))
+    assert code == 0 and failing(report) == set()
+
+
+def test_failed_docker_run_container_is_removed(env, capsys, tmp_path):
+    """docker run 非 0 退出时容器可能已建，--rm 不会清，须 rm -f。"""
+    calls = tmp_path / "docker-calls"
+    (tmp_path / "bin" / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\nexit 125\n')
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and any(line.startswith("rm -f preflight-") for line in calls.read_text().splitlines())
+    assert "probe_cleanup" not in failing(report)
+
+
+def test_probe_dir_that_cannot_be_deleted_is_reported(env, capsys, tmp_path, monkeypatch):
+    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: None)
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and "probe_cleanup" in failing(report)
+    for leftover in (tmp_path / "checkouts").iterdir():
+        (leftover / "nonce").unlink(missing_ok=True)
+        leftover.rmdir()
+
+
+# ---------------- 有界原语 run_bounded：超时、杀进程组、清理只在这一处 ----------------
+
+def test_run_bounded_kills_a_background_child_left_by_an_exited_parent(tmp_path):
+    marker = tmp_path / "late"
+    result = preflight.run_bounded(["/bin/sh", "-c", f"(sleep 0.5; touch {marker}) >/dev/null 2>&1 & exit 0"], 5)
+    time.sleep(1)
+    assert result.returncode == 0 and not marker.exists()
+
+
+def test_run_bounded_timeout_kills_the_whole_group_in_time(tmp_path):
+    marker = tmp_path / "late"
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        preflight.run_bounded(["/bin/sh", "-c", f"(sleep 0.8; touch {marker}) & wait"], 0.3)
+    assert time.monotonic() - start < 0.6
+    time.sleep(1)
+    assert not marker.exists()
+
+
+def test_run_bounded_with_no_time_left_starts_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(preflight.subprocess, "Popen", lambda *a, **k: pytest.fail("不应启动子进程"))
+    with pytest.raises(subprocess.TimeoutExpired):
+        preflight.run_bounded(["true"], 0)
+
+
+def test_hanging_docker_is_killed_removed_and_reported_within_deadline(tmp_path, repo):
+    """docker run 与 rm 都卡住：总耗时不越过 --deadline，探针目录删掉，回收失败如实报告。"""
+    calls = tmp_path / "docker-calls"
+    code, report, elapsed = _cli(tmp_path, repo, f'#!/bin/sh\necho "$@" >> {calls}\nsleep 30\n', "4")
+    lines = calls.read_text().splitlines()
+    assert code == 2 and elapsed < 4.6 and report["wall_seconds"] <= 4.0 and _leftovers(tmp_path) == []
+    name = next(a.split()[a.split().index("--name") + 1] for a in lines if a.startswith("run "))
+    assert f"rm -f {name}" in lines and "probe_cleanup" in failing(report)
+
+
+def test_report_is_printed_within_the_deadline_when_docker_hangs(tmp_path, repo):
+    code, report, _ = _cli(tmp_path, repo, "#!/bin/sh\nsleep 30\n", "2")
+    assert code == 2 and report["wall_seconds"] <= 2.0
+
+
+def test_in_flight_docker_run_is_killed_before_it_creates_a_container(tmp_path, repo):
+    created = tmp_path / "containers"
+    created.mkdir()
+    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then sleep 1.5; touch "{created}/$4"; exit 0; fi\n'
+              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
+    code, _, _ = _cli(tmp_path, repo, docker, "1")
+    time.sleep(2)
+    assert code == 2 and list(created.iterdir()) == [] and _leftovers(tmp_path) == []
+
+
+@pytest.mark.parametrize("spawn", [
+    "(sleep 1.5; touch \"{created}/$4\") & wait; exit 0",  # 包装脚本等子进程
+    "(sleep 2.5; touch \"{created}/$4\") & exit 0",  # 父进程先退出，子进程占着 stdout
+    "(sleep 2.5; touch \"{created}/$4\") >/dev/null 2>&1 & exit 0",  # 关闭标准流后放后台，以 0 退出
+])
+def test_container_created_late_by_a_docker_wrapper_child_never_appears(tmp_path, repo, spawn):
+    created = tmp_path / "containers"
+    created.mkdir()
+    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then {spawn.format(created=created)}; fi\n'
+              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
+    code, _, _ = _cli(tmp_path, repo, docker, "2")
+    time.sleep(3)
+    assert code == 2 and list(created.iterdir()) == []
+
+
+def test_no_probe_dir_is_left_when_credentials_use_up_the_deadline(tmp_path, repo):
+    slow = ('[model_providers.cliproxy-local]\n'
+            '[model_providers.cliproxy-local.auth]\ncommand = "/bin/sh"\nargs = ["-c", "sleep 2; echo key12345"]\n')
+    code, _, _ = _cli(tmp_path, repo, "#!/bin/sh\nexit 0\n", "1", slow)
+    assert code == 2 and _leftovers(tmp_path) == []
+
+
+# ---------------- 路由与往返：PR1883 A1 ----------------
+
 def test_opus_on_antigravity_with_upstream_400_blocks(env, capsys):
     code, report, *_ = env(routes={**OFFICIAL, OPUS: ANTIGRAVITY}, status={OPUS: 400}, capsys=capsys)
-    # 往返失败没有服务模型证据，identity 按无从核实一并拦（独审五）
-    assert code == 2 and failing(report) == {f"route:{OPUS}", f"roundtrip:{OPUS}", f"identity:{OPUS}"}
-    route = next(c for c in report["checks"] if c["name"] == f"route:{OPUS}")
-    assert route["detail"]["actual"] == ["antigravity@daily-cloudcode-pa.googleapis.com"]
+    assert code == 2 and failing(report) == {f"route:{OPUS}", f"roundtrip:{OPUS}"}
+    assert check(report, f"route:{OPUS}")["detail"]["actual"] == ["antigravity@daily-cloudcode-pa.googleapis.com"]
+    assert check(report, f"roundtrip:{OPUS}")["detail"]["error"]["class"] == "tool_choice_unsupported"
 
 
 def test_wrong_provider_blocks_even_when_round_trip_succeeds(env, capsys):
     code, report, *_ = env(routes={**OFFICIAL, OPUS: ANTIGRAVITY}, capsys=capsys)
     assert code == 2 and failing(report) == {f"route:{OPUS}"}
+
+
+def test_sol_on_third_party_codex_route_blocks(env, capsys):
+    code, report, *_ = env(routes={**OFFICIAL, SOL: MODELFLARE}, status={SOL: 403}, capsys=capsys)
+    assert code == 2 and failing(report) == {f"route:{SOL}", f"roundtrip:{SOL}"}
 
 
 def test_route_unknown_without_request_log_blocks(env, capsys):
@@ -235,185 +371,9 @@ def test_route_unknown_without_request_log_blocks(env, capsys):
     assert all(not c["detail"]["log_found"] for c in report["checks"] if c["name"].startswith("route:"))
 
 
-def test_hanging_upstream_is_cut_at_deadline(env, capsys, monkeypatch):
-    monkeypatch.setattr(preflight, "PROBE_TIMEOUT", 3)
-    start = time.monotonic()
-    code, report, *_ = env(hang=True, extra=("--deadline", "2"), capsys=capsys)
-    assert time.monotonic() - start < 4
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
-
-
-def test_env_key_provider_without_variable_blocks_before_any_probe(env, capsys, tmp_path, monkeypatch):
-    """#1323：宿主 provider 只认 env_key 时，去掉 CLIPROXY_LOCAL_KEY 即报 Missing environment variable。"""
-    (tmp_path / "codex/config.toml").write_text(
-        '[model_providers.cliproxy-local]\nbase_url = "http://127.0.0.1:8318/v1"\nenv_key = "CLIPROXY_LOCAL_KEY"\n')  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY)  # 预检进程里有也不算：宿主进程里没有
-    code, report, out, proxy = env(capsys=capsys)
-    assert code == 2 and failing(report) == {"credential:codex-host"}
-    credential = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
-    assert "Missing environment variable: CLIPROXY_LOCAL_KEY" in credential["detail"]["error"]
-    assert KEY not in out
-
-
-def test_auth_command_failure_blocks(env, capsys, tmp_path):
-    (tmp_path / "key.txt").unlink()
-    code, report, *_ = env(capsys=capsys)
-    assert code == 2 and "credential:codex-host" in failing(report)
-
-
-MODELFLARE = ("openai-compatible-modelflare-codex", "https://modelflare.dev/v1/responses")
-
-
-def test_sol_on_third_party_codex_route_blocks(env, capsys):
-    """main.log 出现过 gpt-6.1-sol 被选到 modelflare-codex 并 403 预扣额度失败。"""
-    code, report, *_ = env(routes={**OFFICIAL, SOL: MODELFLARE}, status={SOL: 403}, capsys=capsys)
-    assert code == 2 and failing(report) == {f"route:{SOL}", f"roundtrip:{SOL}", f"identity:{SOL}"}
-
-
-def test_proxy_down_blocks_without_waiting_out_the_log_window(env, capsys):
-    start = time.monotonic()
-    # 后给的 --proxy-url 覆盖 fixture 的假 proxy，指向无人监听的端口。
-    code, report, *_ = env(capsys=capsys, extra=("--proxy-url", "http://127.0.0.1:9"))  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
-    assert time.monotonic() - start < 2
-
-
 def test_request_log_written_one_second_late_still_passes(env, capsys):
     code, report, *_ = env(log_delay=1.0, capsys=capsys)
     assert code == 0 and failing(report) == set()
-
-
-def test_request_log_disabled_in_proxy_config_blocks_at_once(env, capsys, tmp_path):
-    (tmp_path / "cliproxy-config.yaml").write_text("observability:\n    logs:\n        request-log: false\n")
-    start = time.monotonic()
-    code, report, *_ = env(write_log=False, capsys=capsys)
-    assert time.monotonic() - start < 1.5
-    assert code == 2 and failing(report) == {f"route:{SOL}", f"route:{OPUS}"}
-    assert all("request-log=false" in c["detail"]["error"] for c in report["checks"] if c["name"].startswith("route:"))
-
-
-@pytest.mark.parametrize("text, expected", [
-    ("observability:\n    logs:\n        request-log: true\n", True),
-    ("observability:\n    logs:\n        request-log: false  # off\n", False),
-    ("logs:\n  request-log: false\n", None),
-    ("observability:\n    pprof:\n        request-log: false\n", None),
-])
-def test_request_log_setting_is_read_from_its_own_section(tmp_path, text, expected):
-    config = tmp_path / "config.yaml"
-    config.write_text(text)
-    assert preflight.request_log_enabled(config) is expected
-    assert preflight.request_log_enabled(tmp_path / "missing.yaml") is None
-
-
-def test_opus_silently_served_by_fallback_model_blocks(env, capsys):
-    """proxy 给 Claude 请求注入 fallbacks:[claude-opus-4-8]；上游实际由 4.8 服务时必须拦。"""
-    code, report, *_ = env(served={OPUS: "claude-opus-4-8", SOL: SOL}, capsys=capsys)
-    assert code == 2 and failing(report) == {f"identity:{OPUS}"}
-    identity = next(c for c in report["checks"] if c["name"] == f"identity:{OPUS}")
-    assert identity["detail"]["served"] == ["claude-opus-4-8", OPUS] and identity["detail"]["verified"]
-
-
-def test_served_model_matching_request_passes_and_is_marked_verified(env, capsys):
-    code, report, *_ = env(served={OPUS: OPUS, SOL: SOL}, capsys=capsys)
-    assert code == 0
-    assert all(c["detail"]["verified"] for c in report["checks"] if c["class"] == "identity")
-
-
-def test_served_models_reads_both_stream_shapes():
-    text = ("=== API RESPONSE 1 ===\nStatus: 200\n"
-            'data: {"type":"message_start","message":{"model":"claude-opus-5-5"}}\n'
-            'data: {"type":"response.created","response":{"model":"gpt-6.1-sol","tools":[{"model":"gpt-image-2-codex"}]}}\n'
-            "\n=== RESPONSE ===\n"
-            'data: {"type":"response.completed","response":{"model":"client-side-echo"}}\n')
-    assert preflight.served_models(text) == {"claude-opus-5-5", "gpt-6.1-sol"}
-
-
-def test_target_missing_from_source_reports_needs_source_sync(env, capsys, repo):
-    root, base, head = repo
-    absent = "1" * 40
-    code, report, *_ = env(capsys=capsys, extra=("--head", absent))
-    assert code == 2 and "source_objects" in failing(report)
-    source = next(c for c in report["checks"] if c["name"] == "source_objects")
-    assert source["class"] == "source" and source["detail"]["needs_source_sync"] == [absent]
-
-
-def test_auth_command_combined_with_env_key_blocks_like_codex(env, capsys, tmp_path):
-    """Codex 拒绝 provider 同时配 auth 与 env_key；预检不能因 helper 能取到 key 就放行。"""
-    config = tmp_path / "codex/config.toml"
-    config.write_text(config.read_text().replace("[model_providers.cliproxy-local.auth]",
-                                                 'env_key = "CLIPROXY_LOCAL_KEY"\n[model_providers.cliproxy-local.auth]'))
-    code, report, _, proxy = env(capsys=capsys)
-    assert code == 2 and failing(report) == {"credential:codex-host"}
-    credential = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
-    assert "cannot be combined with env_key" in credential["detail"]["error"]
-
-
-def _auth_command(tmp_path, command: str, args: list[str], timeout_ms: int = 5000) -> None:
-    (tmp_path / "codex/config.toml").write_text(
-        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:8318/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-        f'[model_providers.cliproxy-local.auth]\ncommand = "{command}"\nargs = {json.dumps(args)}\ntimeout_ms = {timeout_ms}\n')
-
-
-def test_credential_helper_timeout_does_not_leak_its_arguments(env, capsys, tmp_path):
-    _auth_command(tmp_path, "/bin/sh", ["-c", f"sleep 5 # {KEY}"], timeout_ms=200)
-    code, report, out, _ = env(capsys=capsys)
-    assert code == 2 and KEY not in out
-    assert "未返回" in next(c for c in report["checks"] if c["class"] == "credential")["detail"]["error"]
-
-
-def test_credential_helper_respects_total_deadline(env, capsys, tmp_path):
-    _auth_command(tmp_path, "/bin/sh", ["-c", "sleep 3; echo key"], timeout_ms=120000)
-    start = time.monotonic()
-    code, report, *_ = env(capsys=capsys, extra=("--deadline", "0.5"))
-    assert time.monotonic() - start < 2 and code == 2
-
-
-def test_key_echoed_by_upstream_error_is_redacted(env, capsys):
-    code, report, out, _ = env(status={OPUS: 400}, echo_auth=True, capsys=capsys)
-    trip = next(c for c in report["checks"] if c["name"] == f"roundtrip:{OPUS}")["detail"]
-    # 上游正文不进报告：只有分类、长度和摘要
-    assert code == 2 and KEY not in out and set(trip["error"]) == {"class", "length", "sha256_12"}
-
-
-def test_cli_deadline_exit_reclaims_probe_dir_and_container(tmp_path, repo):
-    """真实 CLI 退出路径（os._exit）：docker 卡住、总时限先到时，探针目录与容器都要回收。"""
-    import subprocess
-    import sys
-    root, base, head = repo
-    bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
-    bin_dir.mkdir()
-    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = rm ] && exit 0\n[ "$1" = ps ] && exit 0\nsleep 30\n')
-    (bin_dir / "docker").chmod(0o755)
-    (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")  # 不碰本机真实 launchctl
-    (bin_dir / "launchctl").chmod(0o755)
-    codex = tmp_path / "codex"
-    codex.mkdir()
-    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nexperimental_bearer_token = "x"\n')
-    result = subprocess.run(
-        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
-         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-         "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
-         "--codex-home", str(codex), "--deadline", "4"],
-        capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
-    lines = calls.read_text().splitlines() if calls.exists() else []
-    if not any(line.startswith("run ") for line in lines):
-        pytest.skip("机器过忙，探针未在时限内起容器；回收机制由 test_reclaim_kills_a_started_probe_deterministically 覆盖")
-    assert result.returncode == 2
-    assert [p.name for p in checkouts.iterdir()] == []
-    name = next(a.split()[a.split().index("--name") + 1] for a in lines if a.startswith("run "))
-    assert f"rm -f {name}" in lines
-
-
-def test_completed_event_with_failed_status_is_not_success(env, capsys):
-    bad = b'data: {"type":"response.completed","response":{"status":"failed","error":{"message":"overloaded"}}}\n\n'
-    code, report, *_ = env(terminal=bad, capsys=capsys)
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
-
-
-def test_incomplete_without_error_still_passes(env, capsys):
-    ok = b'data: {"type":"response.incomplete","response":{"model":"{model}","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}\n\n'
-    code, report, *_ = env(terminal=ok, capsys=capsys)
-    assert code == 0
 
 
 def test_log_written_in_two_steps_is_not_misread(env, capsys):
@@ -421,8 +381,15 @@ def test_log_written_in_two_steps_is_not_misread(env, capsys):
     assert code == 0 and failing(report) == set()
 
 
+def test_provider_line_written_halfway_is_not_misread(env, capsys):
+    """日志截在 provider=clau 时不能判失败。"""
+    code, report, *_ = env(split_at="ude, auth_id", capsys=capsys)
+    assert code == 0 and failing(report) == set()
+
+
 def test_unrelated_log_vanishing_mid_scan_does_not_block(env, capsys, tmp_path, monkeypatch):
     original = preflight.Path.stat
+
     def flaky(self, *a, **k):
         if self.name.startswith("v1-responses-gone"):
             raise FileNotFoundError(self)
@@ -433,79 +400,123 @@ def test_unrelated_log_vanishing_mid_scan_does_not_block(env, capsys, tmp_path, 
     assert code == 0 and failing(report) == set()
 
 
-def test_snapshot_bytes_match_controller_with_replace_refs(repo, tmp_path, monkeypatch):
-    """控制器不跟随 replace 引用；预检若跟随，同一输入字节数会不同（独审第 7 条）。"""
-    root, base, head = repo
-    (root / "big.txt").write_text("y" * 200000)
-    git(root, "add", "big.txt")
-    git(root, "commit", "-qm", "replacement")
-    replacement = git(root, "rev-parse", "HEAD")
-    git(root, "reset", "-q", "--hard", head)
-    git(root, "replace", head, replacement)
-    target = external_review.ReviewTarget(1, 7, 1, "main", base, 1, "topic", head, base, "run", 1,
-                                          external_review.POLICY, head, 0)
-    monkeypatch.setattr(external_review.shutil, "disk_usage", lambda _: Usage(0, 0, 0))
-    with pytest.raises(IdentityError) as error:
-        external_review.prepare_review(target, root, tmp_path / "checkout")
-    required = int(re.search(r"需要 (\d+) bytes", str(error.value)).group(1))
-    assert preflight.snapshot_bytes(root, base, head, base) == required
-
-
-def test_space_failure_reports_bytes_held_by_vm_deleted_files(env, capsys, monkeypatch, tmp_path):
-    bin_dir = tmp_path / "bin"
-    (bin_dir / "pgrep").write_text("#!/bin/sh\necho 4242\n")
-    # 同一 inode 被两个 fd 打开只算一次
-    (bin_dir / "lsof").write_text("#!/bin/sh\nprintf 'p4242\\nf10\\ns1000\\ni7\\nf11\\ns1000\\ni7\\nf12\\ns500\\ni8\\n'\n")
-    for name in ("pgrep", "lsof"):
-        (bin_dir / name).chmod(0o755)
-    monkeypatch.setattr(preflight.shutil, "disk_usage", lambda _: Usage(0, 0, 1))
+def test_unreadable_log_dir_does_not_crash(env, capsys, monkeypatch):
+    monkeypatch.setattr(preflight.Path, "glob", lambda self, pattern: (_ for _ in ()).throw(PermissionError(13, "denied")))
     code, report, *_ = env(capsys=capsys)
-    space = next(c for c in report["checks"] if c["name"] == "checkout_root_free_space")
-    assert code == 2 and space["detail"]["vm_deleted_open_bytes"] == 1500 and space["detail"]["vm_deleted_open_files"] == 2
+    assert code == 2 and {f"route:{SOL}", f"route:{OPUS}"} <= failing(report)
 
 
-def _fake_launchctl(tmp_path, value: str) -> None:
-    script = tmp_path / "bin" / "launchctl"
-    script.write_text(f"#!/bin/sh\n[ \"$1 $2\" = \"getenv CLIPROXY_LOCAL_KEY\" ] && printf '%s' '{value}'\n")
-    script.chmod(0o755)
+def test_log_with_non_utf8_byte_is_still_read(tmp_path):
+    session = "preflight-utf"
+    (tmp_path / "v1-responses-1.log").write_bytes(
+        f"=== HEADERS ===\nSession-Id: {session}\n\n=== API REQUEST 1 ===\n"
+        "Upstream URL: https://chatgpt.com/backend-api/codex/responses\nAuth: provider=codex, auth_id=x\n\n"
+        "=== API RESPONSE 1 ===\nStatus: 200\n".encode() + b"# byte \xff\n\n=== RESPONSE ===\nStatus: 200\n")
+    assert preflight.route_from_log(tmp_path, session, time.time() - 5, wait=0.5) == [("codex", "chatgpt.com")]
 
 
-def test_worker_key_missing_from_env_and_launchctl_blocks_before_probes(env, capsys, tmp_path, monkeypatch):
-    """codex 机器人复核：宿主 auth.command 能取到 key 不代表正式 worker 有 key。"""
-    monkeypatch.delenv("CLIPROXY_LOCAL_KEY")
-    _fake_launchctl(tmp_path, "")
-    code, report, _, proxy = env(capsys=capsys)
-    assert code == 2 and "credential:review-worker" in failing(report) and proxy.requests == []
-    assert next(c for c in report["checks"] if c["name"] == "credential:codex-host")["ok"]
+def test_completed_event_with_failed_status_is_not_success(env, capsys):
+    bad = b'data: {"type":"response.completed","response":{"status":"failed","error":{"message":"overloaded"}}}\n\n'
+    code, report, *_ = env(terminal=bad, capsys=capsys)
+    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
 
 
-def test_worker_key_falls_back_to_launchctl_like_provider_environment(env, capsys, tmp_path, monkeypatch):
-    monkeypatch.delenv("CLIPROXY_LOCAL_KEY")
-    _fake_launchctl(tmp_path, KEY)
-    code, report, _, proxy = env(capsys=capsys)
-    worker = next(c for c in report["checks"] if c["name"] == "credential:review-worker")
-    assert code == 0 and worker["detail"]["source"] == "launchctl" and len(proxy.requests) == 2
+def test_incomplete_without_error_still_passes(env, capsys):
+    ok = b'data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}\n\n'
+    code, report, *_ = env(terminal=ok, capsys=capsys)
+    assert code == 0
 
 
-def test_host_key_different_from_worker_is_proven_by_its_own_round_trip(env, capsys, tmp_path):
-    """独审三·2：key 不同时 Sol 那一次探测走宿主 key，两把 key 各由一次真实往返证明，每家仍只探测一次。"""
-    (tmp_path / "key.txt").write_text(OTHER_VALID + "\n")
+def test_hanging_upstream_is_cut_at_deadline(env, capsys, monkeypatch):
+    monkeypatch.setattr(preflight, "PROBE_TIMEOUT", 3)
+    start = time.monotonic()
+    code, report, *_ = env(hang=True, extra=("--deadline", "2"), capsys=capsys)
+    assert time.monotonic() - start < 4
+    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+
+
+def test_proxy_down_blocks_without_waiting_out_the_log_window(env, capsys):
+    start = time.monotonic()
+    code, report, *_ = env(capsys=capsys, extra=("--proxy-url", LOCAL))  # 后给的 --proxy-url 覆盖假 proxy
+    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+    assert time.monotonic() - start < 2
+
+
+def test_no_probe_is_sent_once_the_work_deadline_has_passed(monkeypatch):
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: pytest.fail("不应发送"))
+    deadline = preflight.Deadline(0.002)
+    time.sleep(0.01)
+    assert preflight.round_trip(LOCAL, KEY, SOL, "s", deadline)["error"] == {"not_sent": "总时限已到"}
+
+
+# ---------------- 凭据：#1323 宿主缺 CLIPROXY_LOCAL_KEY ----------------
+
+def test_env_key_provider_without_variable_blocks_before_any_probe(env, capsys, tmp_path, monkeypatch):
+    """宿主 provider 只认 env_key 时，去掉 CLIPROXY_LOCAL_KEY 即报 Missing environment variable。"""
+    (tmp_path / "codex/config.toml").write_text(
+        '[model_providers.cliproxy-local]\nbase_url = "http://127.0.0.1:8318/v1"\nenv_key = "CLIPROXY_LOCAL_KEY"\n')  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY)  # 预检进程里有也不算：宿主进程里没有
     code, report, out, proxy = env(capsys=capsys)
-    used = {r["body"]["model"]: r["auth"] for r in proxy.requests}
-    assert code == 0 and used == {SOL: f"Bearer {OTHER_VALID}", OPUS: f"Bearer {KEY}"}
-    assert OTHER_VALID not in out
+    assert code == 2 and failing(report) == {"credential:codex-host", f"roundtrip:{SOL}", f"roundtrip:{OPUS}"}
+    assert "Missing environment variable: CLIPROXY_LOCAL_KEY" in check(report, "credential:codex-host")["detail"]["error"]
+    assert KEY not in out and proxy.requests == []
+
+
+def test_auth_command_failure_blocks(env, capsys, tmp_path):
+    (tmp_path / "key.txt").unlink()
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and "credential:codex-host" in failing(report)
+
+
+def test_auth_command_combined_with_env_key_blocks_like_codex(env, capsys, tmp_path):
+    """Codex 拒绝 provider 同时配 auth 与 env_key；预检不能因 helper 能取到 key 就放行。"""
+    config = tmp_path / "codex/config.toml"
+    config.write_text(config.read_text().replace("[model_providers.cliproxy-local.auth]",
+                                                 'env_key = "CLIPROXY_LOCAL_KEY"\n[model_providers.cliproxy-local.auth]'))
+    code, report, *_ = env(capsys=capsys)
+    assert code == 2 and "cannot be combined with env_key" in check(report, "credential:codex-host")["detail"]["error"]
 
 
 def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):
     (tmp_path / "key.txt").write_text("revoked-key\n")
     code, report, *_ = env(capsys=capsys)
-    assert code == 2 and f"roundtrip:{SOL}" in failing(report) and f"roundtrip:{OPUS}" not in failing(report)
+    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+
+
+def _auth_command(tmp_path, command: str, args: list[str], timeout_ms: int = 5000) -> None:
+    (tmp_path / "codex/config.toml").write_text(
+        '[model_providers.cliproxy-local]\n'
+        f'[model_providers.cliproxy-local.auth]\ncommand = "{command}"\nargs = {json.dumps(args)}\ntimeout_ms = {timeout_ms}\n')
+
+
+def test_credential_helper_respects_total_deadline(env, capsys, tmp_path):
+    _auth_command(tmp_path, "/bin/sh", ["-c", "sleep 3; echo key"], timeout_ms=120000)
+    start = time.monotonic()
+    code, report, *_ = env(capsys=capsys, extra=("--deadline", "0.5"))
+    assert time.monotonic() - start < 2 and code == 2
+
+
+# ---------------- 密钥不外泄（全部保留） ----------------
+
+def test_credential_helper_timeout_does_not_leak_its_arguments(env, capsys, tmp_path):
+    _auth_command(tmp_path, "/bin/sh", ["-c", f"sleep 5 # {KEY}"], timeout_ms=200)
+    code, report, out, _ = env(capsys=capsys)
+    assert code == 2 and KEY not in out
+    assert "未返回" in check(report, "credential:codex-host")["detail"]["error"]
+
+
+def test_key_echoed_by_upstream_error_is_redacted(env, capsys):
+    code, report, out, _ = env(status={OPUS: 400}, echo_auth=True, capsys=capsys)
+    trip = check(report, f"roundtrip:{OPUS}")["detail"]
+    # 上游正文不进报告：只有分类、长度和摘要
+    assert code == 2 and KEY not in out and set(trip["error"]) == {"class", "length", "sha256_12"}
 
 
 def test_key_crossing_the_truncation_point_leaves_no_prefix(env, capsys):
-    """独审二·1：先截断后脱敏会留下 key 前缀。"""
+    """先截断后脱敏会留下 key 前缀。"""
     def body(auth: str) -> str:
-        head = json.dumps({"error": {"message": ""}})[:-3]  # 到 message 值开头为止
+        head = json.dumps({"error": {"message": ""}})[:-3]
         pad = 290 - len(head) - len("Bearer ")  # 让 key 从第 290 个字符开始，跨过 300 的截断点
         return head + "x" * pad + auth + ' tail"}}'
     assert body(f"Bearer {KEY}").index(KEY) == 290
@@ -513,130 +524,72 @@ def test_key_crossing_the_truncation_point_leaves_no_prefix(env, capsys):
     assert code == 2 and KEY[:8] not in out
 
 
-def test_provider_line_written_halfway_is_not_misread(env, capsys):
-    """独审二·2：日志截在 provider=clau 时不能判失败。"""
-    code, report, *_ = env(split_at="ude, auth_id", capsys=capsys)
-    assert code == 0 and failing(report) == set()
-
-
-def test_served_model_appended_later_is_still_checked(env, capsys):
-    """独审二·2：路由头先写完、实际服务模型后补，fallback 仍须拦。"""
-    code, report, *_ = env(served={OPUS: "claude-opus-4-8", SOL: SOL}, split_at='data: {"type":"message_start"', capsys=capsys)
-    assert code == 2 and f"identity:{OPUS}" in failing(report)
-
-
-def test_cleanup_stays_within_deadline_and_reports_failure(tmp_path, repo):
-    """独审二·3/4：docker rm 卡住时目录仍删除、失败要报告，且总耗时不超总时限。"""
-    import subprocess
-    import sys
-    root, base, head = repo
-    bin_dir, checkouts, calls = tmp_path / "bin", tmp_path / "checkouts", tmp_path / "docker-calls"
-    bin_dir.mkdir()
-    (bin_dir / "docker").write_text(f'#!/bin/sh\necho "$@" >> {calls}\nsleep 30\n')
-    (bin_dir / "docker").chmod(0o755)
-    (bin_dir / "launchctl").write_text("#!/bin/sh\nexit 0\n")
-    (bin_dir / "launchctl").chmod(0o755)
-    codex = tmp_path / "codex"
-    codex.mkdir()
-    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nexperimental_bearer_token = "x"\n')
-    start = time.monotonic()
-    result = subprocess.run(
-        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
-         "--merge-base", base, "--checkout-root", str(checkouts), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-         "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
-         "--codex-home", str(codex), "--deadline", "4"],
-        capture_output=True, text=True, timeout=20, env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)})
-    elapsed = time.monotonic() - start
-    report = json.loads(result.stdout)
-    if not calls.exists() or not any(line.startswith("run ") for line in calls.read_text().splitlines()):
-        pytest.skip("机器过忙，探针未在时限内起容器；回收机制由 test_reclaim_kills_a_started_probe_deterministically 覆盖")
-    assert result.returncode == 2 and elapsed < 4.6
-    assert [p.name for p in checkouts.iterdir()] == []
-    assert "probe_cleanup" in {c["name"] for c in report["checks"] if not c["ok"]}
-
-
-def test_host_provider_pointing_elsewhere_blocks(env, capsys, tmp_path):
-    """独审三·2：宿主 base_url 不是预检代理时，探测证明不了宿主能完成往返。"""
-    config = tmp_path / "codex/config.toml"
-    config.write_text(config.read_text().replace("http://127.0.0.1:8318/v1", "http://127.0.0.1:9/v1"))  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    code, report, *_ = env(capsys=capsys)
-    host = next(c for c in report["checks"] if c["name"] == "credential:codex-host")
-    assert code == 2 and failing(report) == {"credential:codex-host"} and "不是同一端点" in host["detail"]["error"]
-
-
-def test_credential_stages_share_the_total_deadline(env, capsys, tmp_path, monkeypatch):
-    """独审三·1：helper、launchctl 各自的超时都不能叠加到总时限之外。"""
-    _auth_command(tmp_path, "/bin/sh", ["-c", "sleep 3; echo key"], timeout_ms=120000)
-    monkeypatch.delenv("CLIPROXY_LOCAL_KEY")
-    slow = tmp_path / "bin" / "launchctl"
-    slow.write_text("#!/bin/sh\nsleep 5\n")
-    slow.chmod(0o755)
-    start = time.monotonic()
-    code, report, *_ = env(capsys=capsys, extra=("--deadline", "1"))
-    assert code == 2 and time.monotonic() - start < 1.6
-
-
-def test_probe_dir_that_cannot_be_deleted_is_reported(env, capsys, tmp_path, monkeypatch):
-    """独审三·3：正常路径删目录失败时不能静默丢登记。"""
-    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: None)
-    code, report, *_ = env(capsys=capsys)
-    assert code == 2 and "probe_cleanup" in failing(report)
-    for leftover in (tmp_path / "checkouts").iterdir():
-        (leftover / "nonce").unlink(missing_ok=True)
-        leftover.rmdir()
-
-
-@pytest.mark.parametrize("value", ["0", "-5", "61", "1e9", "nan"])
-def test_out_of_range_deadline_is_a_usage_error(value, capsys):
-    with pytest.raises(SystemExit) as exit_info:
-        preflight.main(["--source", ".", "--base", "a", "--head", "b", "--merge-base", "a", "--checkout-root", ".",
-                        "--deadline", value])
-    assert exit_info.value.code == 3
-
-
-@pytest.mark.parametrize("a, b, same", [
-    ("http://[::1]:8318/v1", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092,DS137138 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("http://localhost:8318/v1/", "http://127.0.0.1:8318/v1", True),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("http://LOCALHOST:8318/v1", "http://[::1]:8318/v1", True),  # DevSkim: ignore DS162092,DS137138 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("http://127.0.0.1:9/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("https://127.0.0.1:8318/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("http://127.0.0.2:8318/v1", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092,DS137138 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ("http://127.0.0.1:8318/v2", "http://127.0.0.1:8318/v1", False),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-])
-def test_endpoint_equivalence_including_ipv6_loopback(a, b, same):
-    """独审四·1：带端口的 IPv6 回环不能被误判为不同端点。"""
-    assert (preflight._endpoint(a) == preflight._endpoint(b)) is same
-
-
-def test_stream_reporting_fallback_model_blocks_even_without_upstream_body(env, capsys):
-    """独审五：日志没有上游响应体、客户端流自报 claude-opus-4-8，不能放行。"""
-    code, report, *_ = env(stream_model={OPUS: "claude-opus-4-8"}, capsys=capsys)
-    identity = next(c for c in report["checks"] if c["name"] == f"identity:{OPUS}")
-    assert code == 2 and failing(report) == {f"identity:{OPUS}"} and identity["detail"]["served"] == ["claude-opus-4-8"]
-
-
-def test_unverifiable_served_model_blocks(env, capsys):
-    """独审五：两处都没有服务模型证据时按无从核实拦截，不算通过。"""
-    bare = b'data: {"type":"response.completed","response":{"status":"completed"}}\n\n'
-    code, report, *_ = env(terminal=bare, capsys=capsys)
-    assert code == 2 and failing(report) == {f"identity:{SOL}", f"identity:{OPUS}"}
-    assert all(not c["detail"]["verified"] for c in report["checks"] if c["class"] == "identity")
-
-
-# ---------------- 跨族边界独审（gemini）反例 ----------------
-
-def test_key_with_inner_control_char_is_rejected_without_leaking(env, capsys, monkeypatch):
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "abc\ndef-secret-tail")
+def test_host_key_from_file_is_used_for_both_probes_and_never_printed(env, capsys, tmp_path):
+    (tmp_path / "key.txt").write_text(OTHER_VALID + "\n")
     code, report, out, proxy = env(capsys=capsys)
-    worker = next(c for c in report["checks"] if c["name"] == "credential:review-worker")
-    assert code == 2 and not worker["ok"] and "非可见 ASCII" in worker["detail"]["error"]
+    assert code == 0 and {r["auth"] for r in proxy.requests} == {f"Bearer {OTHER_VALID}"}
+    assert OTHER_VALID not in out
+
+
+def test_nested_keys_echoed_by_upstream_never_split_each_other(env, capsys, monkeypatch):
+    """请求用短 key（宿主），错误正文却回显包含它的长 key（环境变量）；只按短 key 先脱敏会把长 key 拆开。"""
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", OTHER_VALID)
+    body = lambda auth: json.dumps({"error": {"message": f"other credential {OTHER_VALID} rejected"}})  # noqa: E731
+    code, report, out, _ = env(status={SOL: 400}, error_body=body, capsys=capsys)
+    assert code == 2 and KEY not in out and "outer-" not in out and "-tail" not in out
+
+
+def test_key_with_inner_control_char_is_rejected_without_leaking(env, capsys, tmp_path):
+    (tmp_path / "key.txt").write_text("abc\ndef-secret-tail")
+    code, report, out, proxy = env(capsys=capsys)
+    host = check(report, "credential:codex-host")
+    assert code == 2 and not host["ok"] and "非可见 ASCII" in host["detail"]["error"]
     assert "def-secret-tail" not in out and proxy.requests == []
 
 
-def test_key_with_trailing_newline_is_stripped_like_a_header_value(env, capsys, monkeypatch):
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY + "\n")
+def test_key_with_surrounding_whitespace_is_stripped_like_a_header_value(env, capsys, tmp_path):
+    (tmp_path / "key.txt").write_text(f"  {KEY}  \n\n")
     code, report, out, _ = env(capsys=capsys)
     assert code == 0 and KEY not in out
+
+
+def test_short_valid_key_passes_in_a_healthy_environment(env, capsys, tmp_path):
+    """7 字符的有效 key 在健康环境不能被误拦，也不能出现在输出里。"""
+    (tmp_path / "key.txt").write_text(SHORT_VALID + "\n")
+    code, report, out, proxy = env(capsys=capsys)
+    assert code == 0 and len(proxy.requests) == 2 and SHORT_VALID not in out
+
+
+@pytest.mark.parametrize("config", [b"\xff\xfe", b'[model_providers]\ncliproxy-local = 3\n',
+                                    b'[model_providers.cliproxy-local]\n'
+                                    b'experimental_bearer_token = ["local-test-key-must-not-leak"]\n'])
+def test_broken_codex_config_never_crashes_the_report(env, capsys, tmp_path, config):
+    (tmp_path / "codex/config.toml").write_bytes(config)
+    code, report, out, _ = env(capsys=capsys)
+    assert code == 2 and report["kind"] == "review-preflight" and KEY not in out
+
+
+def test_structured_sse_error_never_reaches_the_report(monkeypatch):
+    """SSE 错误体（含二次转义的 key）不抄进报告，只留分类与摘要。"""
+    import io
+    import urllib.request
+
+    key = 'secret"key"12345'
+    line = "data: " + json.dumps({"type": "error", "error": {"message": json.dumps({"e": f"invalid Bearer {key}"})}}) + "\n\n"
+
+    class FakeResp(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(line.encode()))
+    trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(30))
+    out = json.dumps(preflight.sanitize(trip, [key]), ensure_ascii=True)
+    assert "secret" not in out and "12345" not in out and trip["error"]["class"] == "auth"
 
 
 @pytest.mark.parametrize("secrets, text", [
@@ -655,30 +608,68 @@ def test_redact_drops_key_prefix_left_at_any_cut():
     key = "secret-key-" + "a" * 190
     text = (key * 20)[:4000]
     assert key[:20] not in preflight.redact(text, [key], 300)
-    # 未截断的字符串不做残留清理（gemini4·1）：上游原文已不进报告，没有来源会在源头截出 key 前缀
 
 
-def test_log_with_non_utf8_byte_is_still_read(tmp_path):
-    session = "preflight-utf"
-    (tmp_path / "v1-responses-1.log").write_bytes(
-        f"=== HEADERS ===\nSession-Id: {session}\n\n=== API REQUEST 1 ===\n"
-        "Upstream URL: https://chatgpt.com/backend-api/codex/responses\nAuth: provider=codex, auth_id=x\n\n"
-        '=== API RESPONSE 1 ===\nStatus: 200\ndata: {"type":"response.created","response":{"model":"gpt-6.1-sol"}}\n'.encode()
-        + b"# byte \xff\n\n=== RESPONSE ===\nStatus: 200\n")
-    assert preflight._route_from_log(tmp_path, session, time.time() - 5, wait=0.5) == (
-        [("codex", "chatgpt.com")], {"gpt-6.1-sol"})
+def test_truncation_leaves_no_multi_char_key_prefix():
+    key = "MySecretKey-must-not-leak"
+    assert not preflight.redact("x" * 497 + key[:20], [key], limit=500).endswith("MyS")
 
 
-def test_unreadable_log_dir_does_not_crash(env, capsys, tmp_path, monkeypatch):
-    monkeypatch.setattr(preflight.Path, "glob", lambda self, pattern: (_ for _ in ()).throw(PermissionError(13, "denied")))
-    code, report, *_ = env(capsys=capsys)
-    assert code == 2 and {f"route:{SOL}", f"route:{OPUS}"} <= failing(report)
+def test_untruncated_protocol_fields_are_never_rewritten():
+    """key 首尾两个字符碰巧与字段首尾重合时，未截断的协议字段不能被改写（#1742 调用方按字段匹配）。"""
+    report = {"kind": "review-preflight", "checks": [{"name": "credential:codex-host", "class": "credential"}]}
+    assert preflight.sanitize(report, ["st-valid-key-ending-re"]) == report
 
 
-def test_relative_checkout_root_is_mounted_as_absolute(env, capsys, tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    code, report, *_ = env(capsys=capsys, extra=("--checkout-root", "checkouts"))
-    assert code == 0 and failing(report) == set()
+@pytest.mark.parametrize("raw", ["\x80-secret-tail-12345", "café-secret-key"])
+def test_non_ascii_keys_are_rejected(raw):
+    with pytest.raises(preflight.CredentialError):
+        preflight._clean_key(raw, "env")
+
+
+def test_short_and_escape_containing_keys_are_accepted_and_still_redacted():
+    """正式 worker 不限长度与字符子集，预检也不能多拦；短 key 与含转义的 key 由脱敏覆盖。"""
+    for raw in ("short7k", "abc", "secret-\\u00e9-12345", 'secret"quoted-1234'):
+        assert preflight._clean_key(raw, "env") == raw
+    escaped = "secret-\\u00e9-12345"
+    decoded = json.loads(f'"{escaped}"')
+    out = json.dumps(preflight.sanitize({"status": decoded, "short": "Bearer abc"}, [escaped, "abc"]), ensure_ascii=True)
+    assert "secret-" not in out and "12345" not in out and "abc" not in out
+
+
+def test_surrogate_key_is_redacted_in_replace_decoded_text():
+    secret = "secret-\udcff-key-12345"
+    text = b"secret-\xff-key-12345".decode("utf-8", "replace")
+    out = json.dumps(preflight.sanitize({"detail": text}, [secret]), ensure_ascii=True)
+    assert "secret-" not in out and "-key-12345" not in out
+
+
+def test_usage_error_redacts_the_environment_key(capsys, monkeypatch):
+    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "MySecretKey-must-not-leak")
+    with pytest.raises(SystemExit):
+        preflight.main(["--deadline", "MySecretKey-must-not-leak"])
+    captured = capsys.readouterr()
+    assert "MySecretKey" not in captured.out and "MySecretKey" not in captured.err
+
+
+def test_output_is_ascii_json_even_with_surrogates(tmp_path, repo, capsys):
+    root, base, head = repo
+    code = preflight.main(["--source", str(root), "--base", base, "--head", head, "--merge-base", base,
+                           "--checkout-root", str(tmp_path / "chk"), "--image", "img-\udcff",
+                           "--proxy-url", LOCAL, "--codex-home", str(tmp_path), "--deadline", "1"])
+    out = capsys.readouterr().out
+    assert code == 2 and out.isascii()
+    json.loads(out)
+
+
+# ---------------- 用法 ----------------
+
+@pytest.mark.parametrize("value", ["0", "-5", "61", "1e9", "nan"])
+def test_out_of_range_deadline_is_a_usage_error(value, capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        preflight.main(["--source", ".", "--base", "a", "--head", "b", "--merge-base", "a", "--checkout-root", ".",
+                        "--deadline", value])
+    assert exit_info.value.code == 3
 
 
 @pytest.mark.parametrize("flag, value", [("--base", "--all"), ("--merge-base", "--max-count=0"), ("--head", "not-a-sha")])
@@ -690,310 +681,6 @@ def test_non_sha_arguments_are_usage_errors(flag, value, capsys):
     assert exit_info.value.code == 3
 
 
-def test_blob_given_as_commit_is_not_accepted(env, capsys, repo):
-    root, base, head = repo
-    blob = git(root, "rev-parse", f"{head}:a.txt")
-    code, report, *_ = env(capsys=capsys, extra=("--base", blob, "--merge-base", blob))
-    source = next(c for c in report["checks"] if c["class"] == "source")
-    assert code == 2 and source["detail"]["needs_source_sync"] == [blob]
-
-
-@pytest.mark.parametrize("config", [b"\xff\xfe", b'[model_providers]\ncliproxy-local = 3\n',
-                                    b'[model_providers.cliproxy-local]\nbase_url = "http://localhost:bad/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                                    b'experimental_bearer_token = "local-test-key-must-not-leak"\n'])
-def test_broken_codex_config_never_crashes_the_report(env, capsys, tmp_path, config):
-    (tmp_path / "codex/config.toml").write_bytes(config)
-    code, report, out, _ = env(capsys=capsys)
-    assert code == 2 and report["kind"] == "review-preflight" and KEY not in out
-
-
-def _cli(tmp_path, repo, docker_script: str, deadline: str, codex_text: str):
-    import subprocess
-    import sys
-    root, base, head = repo
-    bin_dir = tmp_path / "bin2"
-    bin_dir.mkdir(exist_ok=True)
-    (bin_dir / "docker").write_text(docker_script)
-    (bin_dir / "docker").chmod(0o755)
-    for name in ("launchctl", "pgrep"):
-        (bin_dir / name).write_text("#!/bin/sh\nexit 0\n")
-        (bin_dir / name).chmod(0o755)
-    codex = tmp_path / "codex2"
-    codex.mkdir(exist_ok=True)
-    (codex / "config.toml").write_text(codex_text)
-    result = subprocess.run(
-        [sys.executable, "-I", preflight.__file__, "--source", str(root), "--base", base, "--head", head,
-         "--merge-base", base, "--checkout-root", str(tmp_path / "chk"), "--proxy-url", "http://localhost:9",  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-         "--proxy-log-dir", str(tmp_path), "--proxy-config", str(tmp_path / "none.yaml"),
-         "--codex-home", str(codex), "--deadline", deadline],
-        capture_output=True, text=True, timeout=20,
-        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path), "CLIPROXY_LOCAL_KEY": "key12345"})
-    return result.returncode, json.loads(result.stdout)
-
-
-def test_no_probe_dir_is_created_after_the_deadline_is_spent(tmp_path, repo):
-    """gemini 3·1：凭据阶段耗尽时限后，不能再建探针目录并在退出时遗留。"""
-    slow = ('[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-            '[model_providers.cliproxy-local.auth]\ncommand = "/bin/sh"\nargs = ["-c", "sleep 2; echo key12345"]\n')
-    code, report = _cli(tmp_path, repo, "#!/bin/sh\nexit 0\n", "1", slow)
-    assert code == 2
-    assert not (tmp_path / "chk").exists() or list((tmp_path / "chk").iterdir()) == []
-
-
-def test_in_flight_docker_run_is_killed_before_rm(tmp_path, repo):
-    """gemini 3·2：docker run 在途时回收要先杀掉它，不能让它在 rm 之后才把容器建出来。"""
-    created = tmp_path / "containers"
-    created.mkdir()
-    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then sleep 1.5; touch "{created}/$4"; exit 0; fi\n'
-              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
-              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
-    code, report = _cli(tmp_path, repo, docker, "1",
-                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                        'experimental_bearer_token = "key12345"\n')
-    time.sleep(2)
-    assert code == 2 and list(created.iterdir()) == []
-    assert not (tmp_path / "chk").exists() or list((tmp_path / "chk").iterdir()) == []
-
-
-def test_failed_docker_run_container_is_removed(env, capsys, tmp_path):
-    """gemini 3·3：docker run 非 0 退出时容器可能已建，--rm 不会清，须 rm -f。"""
-    calls = tmp_path / "docker-calls"
-    script = tmp_path / "bin" / "docker"
-    script.write_text(f'#!/bin/sh\necho "$@" >> {calls}\n[ "$1" = ps ] && exit 0\n[ "$1" = rm ] && exit 0\nexit 125\n')
-    code, report, *_ = env(capsys=capsys)
-    assert code == 2 and any(line.startswith("rm -f preflight-") for line in calls.read_text().splitlines())
-    assert "probe_cleanup" not in failing(report)
-
-
-# ---------------- 独审六 反例 ----------------
-
-def test_nested_keys_echoed_by_upstream_never_split_each_other(env, capsys, tmp_path, monkeypatch):
-    """独审六·1：本次请求用短 key（宿主），错误正文却回显长 key（worker）；只按本次 key 先脱敏会把长 key 拆开。"""
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", OTHER_VALID)  # worker：长 key，含宿主 key
-    body = lambda auth: json.dumps({"error": {"message": f"other credential {OTHER_VALID} rejected"}})  # noqa: E731
-    code, report, out, _ = env(status={SOL: 400}, error_body=body, capsys=capsys)  # Sol 用宿主短 key=KEY
-    assert code == 2 and KEY not in out and "outer-" not in out and "-tail" not in out
-
-
-def test_mount_probe_creates_nothing_once_reclaim_has_started(tmp_path, monkeypatch):
-    """回收开始（closing）之后，挂载探针不再登记、建目录或起容器。"""
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 30)
-    monkeypatch.setattr(preflight, "_CLOSING", True)
-    popen_calls = []
-    monkeypatch.setattr(preflight.subprocess, "Popen", lambda *a, **k: popen_calls.append(a))
-    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
-    with pytest.raises(TimeoutError):
-        preflight.check_mount(args)
-    # checkout_root 本身可以存在（不是探针产物）；里面不能有探针目录，也不能起容器或留登记
-    chk = tmp_path / "chk"
-    assert popen_calls == [] and (not chk.exists() or list(chk.iterdir()) == []) and preflight._PENDING_CLEANUP == {}
-
-
-def test_no_probe_is_sent_after_the_work_deadline(env, capsys, monkeypatch):
-    monkeypatch.setattr(preflight, "_remaining", lambda: 0.0)
-    args = type("A", (), {"proxy_url": "http://localhost:9"})()  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    checks = preflight.probe_model(args, SOL, KEY)
-    assert [c["name"] for c in checks] == [f"roundtrip:{SOL}"] and "未发探测" in checks[0]["detail"]
-
-
-def test_reclaim_stops_once_rm_has_used_up_the_budget(tmp_path, monkeypatch):
-    """独审六·4：rm 用完回收预算后不能再以最小超时起 ps。"""
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd[1])
-        time.sleep(0.08)  # 比预算长：rm 结束时预算已耗尽
-        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-
-    monkeypatch.setattr(preflight.subprocess, "run", fake_run)
-    probe = tmp_path / "preflight-x"
-    probe.mkdir()
-    start = time.monotonic()
-    error = preflight._reclaim({"probe": probe, "proc": None}, "preflight-x", 0.05)
-    assert calls == ["rm"] and "预算耗尽" in error and not probe.exists()
-    assert time.monotonic() - start < 0.12
-
-
-# ---------------- 独审七 ----------------
-
-def test_reclaim_does_not_wait_past_budget_for_a_held_lock():
-    """独审七·2：探针线程持锁做阻塞 I/O 时，主线程回收限时取锁，拿不到就报告而不是无限等待。"""
-    import threading
-    held, release = threading.Event(), threading.Event()
-
-    def holder():
-        with preflight._CLEANUP_LOCK:
-            held.set()
-            release.wait(5)
-
-    thread = threading.Thread(target=holder, daemon=True)
-    thread.start()
-    held.wait(5)
-    start = time.monotonic()
-    failures = preflight.reclaim_pending(0.2)
-    elapsed = time.monotonic() - start
-    release.set()
-    thread.join(5)
-    assert elapsed < 0.5 and failures and "回收锁在时限内未取得" in failures[0]
-
-
-def test_reclaim_kills_a_started_probe_deterministically(tmp_path, monkeypatch):
-    """独审七·3：用启动握手确定探针已起容器，再触发回收：须杀掉 docker run、rm -f、删探针目录、清空登记。"""
-    import threading
-    started, killed = threading.Event(), threading.Event()
-    calls = []
-
-    class FakeProc:
-        def __init__(self, *args, **kwargs):
-            self.returncode = None
-            self.pid = 2 ** 22 + 12345  # 不存在的进程组：killpg 失败后退回 kill()
-            started.set()
-
-        def poll(self):
-            return self.returncode
-
-        def communicate(self, timeout=None):
-            if not killed.wait(timeout):
-                raise preflight.subprocess.TimeoutExpired("docker", timeout)
-            return "", ""
-
-        def kill(self):
-            self.returncode = -9
-            killed.set()
-
-        def wait(self, timeout=None):
-            return self.returncode
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd[:2])
-        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-
-    monkeypatch.setattr(preflight.subprocess, "Popen", FakeProc)
-    monkeypatch.setattr(preflight.subprocess, "run", fake_run)
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 30)
-    monkeypatch.setattr(preflight, "_TOTAL_END", time.monotonic() + 33)
-    monkeypatch.setattr(preflight, "_CLOSING", False)
-    preflight._PENDING_CLEANUP.clear()
-    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
-    worker = threading.Thread(target=lambda: _swallow(preflight.check_mount, args), daemon=True)
-    worker.start()
-    assert started.wait(5)  # 握手：探针已发布 docker run 句柄
-    failures = preflight.reclaim_pending(2.0)
-    worker.join(5)
-    assert killed.is_set() and ["docker", "rm"] in calls and ["docker", "ps"] in calls
-    assert failures == [] and preflight._PENDING_CLEANUP == {} and list((tmp_path / "chk").iterdir()) == []
-
-
-def _swallow(fn, *args):
-    try:
-        fn(*args)
-    except Exception:
-        pass
-
-
-# ---------------- 跨族边界独审二（gemini @35d74560b1） ----------------
-
-def test_slow_probe_setup_past_deadline_starts_no_container(tmp_path, monkeypatch):
-    """gemini2·1：锁内慢 I/O 耗尽时限后，起容器前再查一次，不再 Popen，目录与登记都清掉。"""
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 0.3)
-    monkeypatch.setattr(preflight, "_CLOSING", False)
-    preflight._PENDING_CLEANUP.clear()
-    real_write = preflight.Path.write_text
-
-    def slow_write(self, *a, **k):
-        time.sleep(0.5)
-        return real_write(self, *a, **k)
-
-    popen_calls = []
-    monkeypatch.setattr(preflight.Path, "write_text", slow_write)
-    monkeypatch.setattr(preflight.subprocess, "Popen", lambda *a, **k: popen_calls.append(a))
-    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
-    with pytest.raises(TimeoutError):
-        preflight.check_mount(args)
-    assert popen_calls == [] and list((tmp_path / "chk").iterdir()) == [] and preflight._PENDING_CLEANUP == {}
-
-
-def test_claimed_probe_is_reclaimed_once_and_main_waits_for_it(tmp_path, monkeypatch):
-    """gemini2·2：探针线程认领后，主线程不再并发回收同一探针，而是限时等它做完；超时如实报告。"""
-    monkeypatch.setattr(preflight, "_CLOSING", False)
-    preflight._PENDING_CLEANUP.clear()
-    preflight._RECLAIMING.clear()
-    preflight._CLEANUP_FAILURES.clear()
-    probe = tmp_path / "preflight-own"
-    probe.mkdir()
-    preflight._PENDING_CLEANUP["preflight-own"] = {"probe": probe, "proc": None}
-    reclaimed = []
-    monkeypatch.setattr(preflight, "_reclaim", lambda *a, **k: reclaimed.append(a) or None)
-    assert preflight._claim("preflight-own") is not None  # 探针线程认领
-    failures = preflight.reclaim_pending(0.2)  # 线程未 release：主线程限时等待后报告
-    assert reclaimed == [] and any("时限内未完成" in f for f in failures)
-    preflight._release("preflight-own")
-    assert preflight.reclaim_pending(0.2) == []
-
-
-def test_wrapper_child_of_docker_run_is_killed_with_its_group(tmp_path, repo):
-    """gemini2·3：docker 是包装脚本、真正建容器的是子进程时，回收要杀整个进程组。"""
-    created = tmp_path / "containers"
-    created.mkdir()
-    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then (sleep 1.5; touch "{created}/$4") & wait; exit 0; fi\n'
-              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
-              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
-    code, report = _cli(tmp_path, repo, docker, "1",
-                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                        'experimental_bearer_token = "key12345"\n')
-    time.sleep(2)
-    assert code == 2 and list(created.iterdir()) == []
-
-
-def test_structured_sse_error_never_reaches_the_report(monkeypatch):
-    """gemini2·4：SSE 错误体（含二次转义的 key）不抄进报告，只留分类与摘要。"""
-    import io
-    import urllib.request
-
-    key = 'secret"key"12345'
-    line = "data: " + json.dumps({"type": "error", "error": {"message": json.dumps({"e": f"invalid Bearer {key}"})}}) + "\n\n"
-
-    class FakeResp(io.BytesIO):
-        status = 200
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(line.encode()))
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 30)  # 不受前面用例留下的模块状态影响
-    monkeypatch.setattr(preflight, "_CLOSING", False)
-    trip = preflight._round_trip("http://localhost:9", key, SOL, "s")  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    out = json.dumps(preflight.sanitize(trip, [key]), ensure_ascii=True)
-    assert "secret" not in out and "12345" not in out and trip["error"]["class"] == "auth"
-
-
-@pytest.mark.parametrize("raw", ["\x80-secret-tail-12345", "café-secret-key"])
-def test_non_ascii_keys_are_rejected(raw):
-    """gemini2·5：含非可见 ASCII 的 key 不进 HTTP 头。"""
-    with pytest.raises(preflight.CredentialError):
-        preflight._clean_key(raw, "env")
-
-
-def test_untruncated_protocol_fields_are_never_rewritten():
-    """gemini4·1：key 首尾两个字符碰巧与字段首尾重合时，未截断的协议字段不能被改写（#1742 调用方按字段匹配）。"""
-    report = {"kind": "review-preflight", "checks": [{"name": "credential:codex-host", "class": "credential"}]}
-    assert preflight.sanitize(report, ["st-valid-key-ending-re"]) == report
-
-
-def test_output_is_ascii_json_even_with_surrogates(tmp_path, repo, capsys):
-    """gemini2·6：孤立代理项 / surrogateescape 参数也必须输出合法 JSON。"""
-    root, base, head = repo
-    code = preflight.main(["--source", str(root), "--base", base, "--head", head, "--merge-base", base,
-                           "--checkout-root", str(tmp_path / "chk"), "--image", "img-\udcff",
-                           "--proxy-url", "http://localhost:9", "--codex-home", str(tmp_path), "--deadline", "1"])  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    out = capsys.readouterr().out
-    assert code == 2 and out.isascii()
-    json.loads(out)
-
-
 def test_usage_error_and_help_print_json(capsys):
     with pytest.raises(SystemExit) as exit_info:
         preflight.main(["--deadline", "0"])
@@ -1001,314 +688,3 @@ def test_usage_error_and_help_print_json(capsys):
     with pytest.raises(SystemExit) as exit_info:
         preflight.main(["--help"])
     assert exit_info.value.code == 0 and "usage" in json.loads(capsys.readouterr().out)
-
-
-def test_request_log_setting_tolerates_non_utf8_bytes(tmp_path):
-    """gemini2·7：配置注释含非 UTF-8 字节不能让探测误报。"""
-    config = tmp_path / "config.yaml"
-    config.write_bytes(b"# comment \xff\nobservability:\n    logs:\n        request-log: true\n")
-    assert preflight.request_log_enabled(config) is True
-
-
-def test_non_string_base_url_is_a_credential_error_not_a_crash(env, capsys, tmp_path):
-    """gemini2·8：base_url 类型错误只让 codex-host 失败，其余检查照常。"""
-    (tmp_path / "codex/config.toml").write_text(
-        '[model_providers.cliproxy-local]\nbase_url = 123\nexperimental_bearer_token = "local-test-key-must-not-leak"\n')
-    code, report, *_ = env(capsys=capsys)
-    assert code == 2 and failing(report) == {"credential:codex-host"}
-
-
-# ---------------- 独审八 ----------------
-
-def test_slow_directory_removal_does_not_stretch_reclaim(tmp_path, monkeypatch):
-    """独审八·1：checkout_root 删除卡住时，回收按预算返回并报告，不让主线程越过总时限。"""
-    monkeypatch.setattr(preflight, "_CLOSING", False)
-    preflight._PENDING_CLEANUP.clear()
-    preflight._RECLAIMING.clear()
-    preflight._CLEANUP_FAILURES.clear()
-    probe = tmp_path / "preflight-slow"
-    probe.mkdir()
-    preflight._PENDING_CLEANUP["preflight-slow"] = {"probe": probe, "proc": None}
-    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: time.sleep(1.0))
-    monkeypatch.setattr(preflight.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
-    start = time.monotonic()
-    failures = preflight.reclaim_pending(0.2)
-    assert time.monotonic() - start < 0.5 and any("探针目录" in f for f in failures)
-
-
-def test_probe_rechecks_closing_right_before_sending(monkeypatch):
-    """独审八·2：入口检查之后才进入回收（closing）时，真正发送前再查一次，不调用 urlopen。"""
-    import urllib.request
-    sent = []
-    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: sent.append(a))
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 30)
-    monkeypatch.setattr(preflight, "_CLOSING", True)
-    trip = preflight._round_trip("http://localhost:9", KEY, SOL, "s")  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    assert sent == [] and trip["error"] == {"not_sent": "总时限已到"}
-
-
-def test_vm_diagnosis_counts_only_the_vm_process(tmp_path, monkeypatch):
-    """独审八·3：lsof 必须带 -a（条件取交集），否则会把其它进程的已删除文件算到 VM 头上。"""
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        out = "4242\n" if cmd[0] == "pgrep" else "p4242\nf10\ns1000\ni7\n"
-        return type("R", (), {"returncode": 0, "stdout": out, "stderr": ""})()
-
-    monkeypatch.setattr(preflight.subprocess, "run", fake_run)
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + 30)
-    result = preflight.vm_deleted_open_bytes()
-    lsof = next(c for c in calls if c[0] == "lsof")
-    assert "-a" in lsof and result["vm_deleted_open_bytes"] == 1000
-
-
-def test_background_child_of_an_exited_docker_wrapper_is_killed(tmp_path, repo):
-    """独审九：包装脚本起后台子进程后立即退出（子进程仍占着 stdout），回收要杀整个进程组，不以父进程存活为前提。"""
-    created = tmp_path / "containers"
-    created.mkdir()
-    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then (sleep 2.5; touch "{created}/$4") & exit 0; fi\n'
-              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
-              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
-    code, report = _cli(tmp_path, repo, docker, "2",
-                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                        'experimental_bearer_token = "key12345"\n')
-    time.sleep(3)
-    assert code == 2 and list(created.iterdir()) == []
-
-
-def test_backgrounded_child_with_closed_streams_after_exit_0_is_reclaimed(tmp_path, repo):
-    """独审十：包装脚本关闭标准流、把子进程放后台后以 0 退出，迟建的容器也要被回收（或被报告）。"""
-    created = tmp_path / "containers"
-    created.mkdir()
-    docker = (f'#!/bin/sh\nif [ "$1" = run ]; then (sleep 2.5; touch "{created}/$4") >/dev/null 2>&1 & exit 0; fi\n'
-              f'if [ "$1" = ps ]; then ls "{created}"; exit 0; fi\n'
-              f'if [ "$1" = rm ]; then rm -f "{created}/$3"; exit 0; fi\n')
-    code, report = _cli(tmp_path, repo, docker, "4",
-                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                        'experimental_bearer_token = "key12345"\n')
-    time.sleep(3)
-    cleanup_reported = any(c["name"] == "probe_cleanup" for c in report["checks"])
-    assert code == 2 and (list(created.iterdir()) == [] or cleanup_reported)
-    assert list(created.iterdir()) == []
-
-
-# ---------------- 跨族边界独审三（gemini @5c9db65d82） ----------------
-
-def _reset_state(monkeypatch, deadline=30.0, total=33.0):
-    monkeypatch.setattr(preflight, "_DEADLINE_AT", time.monotonic() + deadline)
-    monkeypatch.setattr(preflight, "_TOTAL_END", time.monotonic() + total)
-    monkeypatch.setattr(preflight, "_CLOSING", False)
-    preflight._PENDING_CLEANUP.clear()
-    preflight._RECLAIMING.clear()
-    preflight._CLEANUP_FAILURES.clear()
-
-
-def test_aborted_setup_reports_a_probe_dir_it_cannot_remove(tmp_path, monkeypatch):
-    """gemini3·2：锁内慢 I/O 超时后放弃起容器，删不掉的探针目录要记入 probe_cleanup，不静默遗留。"""
-    _reset_state(monkeypatch, deadline=0.1, total=2.0)
-    real_write = preflight.Path.write_text
-    monkeypatch.setattr(preflight.Path, "write_text", lambda self, *a, **k: (time.sleep(0.2), real_write(self, *a, **k))[1])
-    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: None)
-    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
-    with pytest.raises(TimeoutError):
-        preflight.check_mount(args)
-    assert any("探针目录" in f for f in preflight.reclaim_pending(1.0))
-
-
-def test_waiting_on_the_process_does_not_eat_the_dir_budget(tmp_path, monkeypatch):
-    """gemini3·3：等进程退出之前先删目录，预算被 wait 用光也不会让本地目录删不掉。"""
-    probe = tmp_path / "preflight-wait"
-    probe.mkdir()
-
-    class Stuck:
-        pid = 2 ** 22 + 777
-
-        def poll(self):
-            return None
-
-        def kill(self):
-            pass
-
-        def wait(self, timeout=None):
-            time.sleep(timeout or 0)
-            raise preflight.subprocess.TimeoutExpired("docker", timeout)
-
-    preflight._reclaim({"probe": probe, "proc": Stuck()}, "preflight-wait", 0.3)
-    assert not probe.exists()
-
-
-def test_reclaim_wait_never_blocks_past_budget_on_a_busy_lock(monkeypatch):
-    """gemini3·4a：等在途回收时每次取锁都限时，别的线程长时间持锁也不越过预算。"""
-    import threading
-    _reset_state(monkeypatch)
-    preflight._RECLAIMING.add("preflight-in-flight")
-    release = threading.Event()
-
-    def holder():
-        time.sleep(0.05)
-        with preflight._CLEANUP_LOCK:
-            release.wait(1.5)
-
-    threading.Thread(target=holder, daemon=True).start()
-    start = time.monotonic()
-    preflight.reclaim_pending(0.2)
-    elapsed = time.monotonic() - start
-    release.set()
-    preflight._RECLAIMING.clear()
-    assert elapsed < 0.4
-
-
-def test_report_is_printed_within_the_deadline_when_docker_hangs(tmp_path, repo):
-    """gemini3·4b：docker 全部卡住时，回收收尾加输出也不超过 --deadline。"""
-    code, report = _cli(tmp_path, repo, "#!/bin/sh\nsleep 30\n", "2",
-                        '[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                        'experimental_bearer_token = "key12345"\n')
-    assert code == 2 and report["wall_seconds"] <= 2.0
-
-
-def test_codex_config_read_is_bounded(tmp_path, monkeypatch):
-    """gemini3·4c：config.toml 读取卡住（FIFO 等）时按凭据失败返回，不拖住主线程。"""
-    codex = tmp_path / "codex"
-    codex.mkdir()
-    real_read = preflight.Path.read_text
-    monkeypatch.setattr(preflight.Path, "read_text",
-                        lambda self, *a, **k: time.sleep(2) if self.name == "config.toml" else real_read(self, *a, **k))
-    start = time.monotonic()
-    with pytest.raises(preflight.CredentialError):
-        preflight.provider_key(codex, budget=0.2)
-    assert time.monotonic() - start < 0.5
-
-
-def test_short_and_escape_containing_keys_are_accepted_and_still_redacted():
-    """独审十一：正式 worker 不限长度与字符子集，预检也不能多拦；短 key 与含转义的 key 由脱敏覆盖（gemini3·5a）。"""
-    for raw in ("short7k", "abc", "secret-\\u00e9-12345", 'secret"quoted-1234'):
-        assert preflight._clean_key(raw, "env") == raw
-    escaped = "secret-\\u00e9-12345"
-    decoded = json.loads(f'"{escaped}"')
-    out = json.dumps(preflight.sanitize({"status": decoded, "short": "Bearer abc"}, [escaped, "abc"]), ensure_ascii=True)
-    assert "secret-" not in out and "12345" not in out and "abc" not in out
-
-
-def test_surrogate_key_is_redacted_in_replace_decoded_text():
-    """gemini3·5b：环境变量 key 含非 UTF-8 字节时，按 errors=replace 解码出的形态也要抹掉。"""
-    secret = "secret-\udcff-key-12345"
-    text = b"secret-\xff-key-12345".decode("utf-8", "replace")
-    out = json.dumps(preflight.sanitize({"detail": text}, [secret]), ensure_ascii=True)
-    assert "secret-" not in out and "-key-12345" not in out
-
-
-def test_truncation_leaves_no_multi_char_key_prefix():
-    """gemini3·5c：截断后残留的 key 前缀（≥2 个字符）也要清掉。"""
-    key = "MySecretKey-must-not-leak"
-    assert not preflight.redact("x" * 497 + key[:20], [key], limit=500).endswith("MyS")
-
-
-def test_usage_error_redacts_the_environment_key(capsys, monkeypatch):
-    """gemini3·5d：用法错误把参数值回显到 stdout 时，也要按环境变量里的 key 脱敏。"""
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", "MySecretKey-must-not-leak")
-    with pytest.raises(SystemExit):
-        preflight.main(["--deadline", "MySecretKey-must-not-leak"])
-    captured = capsys.readouterr()
-    assert "MySecretKey" not in captured.out and "MySecretKey" not in captured.err  # 独审十二·3：stderr 也不能漏
-
-
-def test_complete_log_first_seen_at_window_end_is_rechecked(tmp_path):
-    """gemini3·6：完整日志恰在等待窗口末尾才落盘时，多做一次大小确认，不误报。"""
-    import threading
-    session = "preflight-late-complete"
-    text = (f"=== HEADERS ===\nSession-Id: {session}\n\n=== API REQUEST 1 ===\n"
-            "Upstream URL: https://chatgpt.com/backend-api/codex/responses\nAuth: provider=codex, auth_id=x\n\n"
-            '=== API RESPONSE 1 ===\nStatus: 200\ndata: {"type":"response.completed","response":{"model":"gpt-6.1-sol"}}\n'
-            "\n=== RESPONSE ===\nStatus: 200\n")
-    threading.Timer(0.18, (tmp_path / "v1-responses-1.log").write_text, args=(text,)).start()
-    assert preflight._route_from_log(tmp_path, session, time.time(), wait=0.2) == (
-        [("codex", "chatgpt.com")], {"gpt-6.1-sol"})
-
-
-def test_non_string_model_fields_are_ignored():
-    """gemini3·7：日志里 model 不是字符串时忽略，不让整项检查崩成异常。"""
-    text = ('=== API RESPONSE 1 ===\ndata: {"type":"message_start","message":{"model":{"id":"x"}}}\n'
-            'data: {"type":"response.created","response":{"model":["y"]}}\n\n=== RESPONSE ===\n')
-    assert preflight.served_models(text) == set()
-
-
-def test_short_valid_key_passes_in_a_healthy_environment(env, capsys, tmp_path, monkeypatch):
-    """独审十一：7 字符的有效 key 在健康环境不能被误拦。"""
-    monkeypatch.setenv("CLIPROXY_LOCAL_KEY", SHORT_VALID)
-    (tmp_path / "key.txt").write_text(SHORT_VALID + "\n")
-    code, report, out, proxy = env(capsys=capsys)
-    assert code == 0 and len(proxy.requests) == 2 and SHORT_VALID not in out
-
-
-def test_aborted_setup_cleanup_is_awaited_by_reclaim(tmp_path, monkeypatch):
-    """gemini4·2：建探针中途放弃时，锁外删目录期间主线程回收也要等它收尾。"""
-    import threading
-    _reset_state(monkeypatch, deadline=0.1, total=2.0)
-    real_write = preflight.Path.write_text
-    monkeypatch.setattr(preflight.Path, "write_text", lambda self, *a, **k: (time.sleep(0.2), real_write(self, *a, **k))[1])
-    monkeypatch.setattr(preflight.shutil, "rmtree", lambda *a, **k: time.sleep(0.2))
-    args = type("A", (), {"checkout_root": str(tmp_path / "chk"), "image": "img"})()
-    worker = threading.Thread(target=lambda: _swallow(preflight.check_mount, args), daemon=True)
-    worker.start()
-    time.sleep(0.25)  # 线程已越过截止、正在锁外删目录
-    failures = preflight.reclaim_pending(1.0)
-    worker.join(2)
-    assert any("探针目录" in f for f in failures)  # 等到了它的结果（rmtree 是空操作，目录仍在 -> 报告）
-
-
-# ---------------- 独审十二 ----------------
-
-def test_config_read_and_auth_command_share_one_deadline(tmp_path, monkeypatch):
-    """独审十二·1：读配置耗掉的时间要从 auth.command 的预算里扣除，两段合计不超过给定预算。"""
-    codex = tmp_path / "codex"
-    codex.mkdir()
-    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                                       '[model_providers.cliproxy-local.auth]\ncommand = "/bin/sh"\n'
-                                       'args = ["-c", "sleep 5; echo key12345"]\ntimeout_ms = 120000\n')
-    real_read = preflight.Path.read_text
-    monkeypatch.setattr(preflight.Path, "read_text", lambda self, *a, **k: (time.sleep(0.4), real_read(self, *a, **k))[1])
-    start = time.monotonic()
-    with pytest.raises(preflight.CredentialError):
-        preflight.provider_key(codex, budget=0.6)
-    assert time.monotonic() - start < 0.9
-
-
-def test_aborted_setup_in_cli_is_reported_not_silently_left(tmp_path, repo):
-    """独审十二·2：放弃建探针、锁外删目录被截断时，报告要写明回收未完成，而不是静默遗留。"""
-    import subprocess
-    import sys
-    root, base, head = repo
-    script = tmp_path / "slow_preflight.py"
-    script.write_text(
-        "import sys, time, pathlib\n"
-        f"sys.path.insert(0, {str(pathlib_dir())!r})\n"
-        "import review_preflight as p\n"
-        "real_write = p.Path.write_text\n"
-        "p.Path.write_text = lambda self, *a, **k: (time.sleep(1.1) if self.name == 'nonce' else None, real_write(self, *a, **k))[1]\n"
-        "p.shutil.rmtree = lambda *a, **k: time.sleep(30)\n"
-        "p.os._exit(p.main(sys.argv[1:]))\n")
-    codex = tmp_path / "codex2"
-    codex.mkdir()
-    (codex / "config.toml").write_text('[model_providers.cliproxy-local]\nbase_url = "http://localhost:9/v1"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-                                       'experimental_bearer_token = "key12345"\n')
-    bin_dir = tmp_path / "bin3"
-    bin_dir.mkdir()
-    for name in ("docker", "launchctl", "pgrep"):
-        (bin_dir / name).write_text("#!/bin/sh\nexit 0\n")
-        (bin_dir / name).chmod(0o755)
-    result = subprocess.run(
-        [sys.executable, "-I", str(script), "--source", str(root), "--base", base, "--head", head, "--merge-base", base,
-         "--checkout-root", str(tmp_path / "chk"), "--proxy-url", "http://localhost:9", "--proxy-log-dir", str(tmp_path),  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-         "--proxy-config", str(tmp_path / "none.yaml"), "--codex-home", str(codex), "--deadline", "2"],
-        capture_output=True, text=True, timeout=20,
-        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path), "CLIPROXY_LOCAL_KEY": "key12345"})
-    report = json.loads(result.stdout)
-    leftovers = list((tmp_path / "chk").iterdir()) if (tmp_path / "chk").exists() else []
-    if leftovers:
-        assert "probe_cleanup" in {c["name"] for c in report["checks"] if not c["ok"]}
-
-
-def pathlib_dir():
-    from pathlib import Path
-    return Path(preflight.__file__).resolve().parent

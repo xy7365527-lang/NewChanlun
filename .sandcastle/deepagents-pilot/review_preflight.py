@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-"""#1742 正式独审 attempt 的启动前预检。只报告环境能否启动，不是审阅结果。"""
+"""#1742 正式独审 attempt 的启动前预检。只报告环境能否启动，不是审阅结果。
+
+每项检查对应一种真实发生过的启动失败（对照表见 REVIEW-PREFLIGHT.md）：
+  checkout_root_free_space       PR1866 A1/A2、PR1868 A3：双快照空间不足
+  checkout_root_container_mount  PR1868 A1：容器里看到的 checkout_root 是空的
+  route / roundtrip              PR1883 A1：Opus 被路由到 Antigravity，tool_choice=auto 上游 400
+  credential:codex-host          #1323：宿主进程缺 CLIPROXY_LOCAL_KEY
+"""
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -17,41 +28,55 @@ import tomllib
 # 与 pilot1742.external_review.SPACE_RESERVE 相同；预检不导入控制器，避免改变其加载面。
 SPACE_RESERVE = 256 * 1024 * 1024
 MODELS = ("gpt-6.1-sol", "claude-opus-5-5")
-CLIPROXY_HOME = Path.home() / "Library/Application Support/CLIProxyLocal"
+CLIPROXY_LOG_DIR = Path.home() / "Library/Application Support/CLIProxyLocal/auth/logs"
 # 正式路线：Sol 走 Codex OAuth（chatgpt.com），Opus 走 Claude OAuth（api.anthropic.com）。
 ROUTES = {"gpt-6.1-sol": ("codex", "chatgpt.com"), "claude-opus-5-5": ("claude", "api.anthropic.com")}
 PROBE_TIMEOUT = 45
 PROVIDER = "cliproxy-local"
-# 未回收的挂载探针（目录、容器名）。总时限到时由主线程在退出前回收，os._exit 不会跑 daemon 线程的 finally。
-_PENDING_CLEANUP: dict[str, dict] = {}  # 容器名 -> {"probe": Path, "proc": Popen | None}
-_CLEANUP_LOCK = threading.Lock()
-_DEADLINE_AT = float("inf")
-_TOTAL_END = float("inf")  # 总时限（含回收预留）的绝对时刻
-_CLOSING = False  # 主线程开始回收后置位；之后不再建探针、不再起容器（在 _CLEANUP_LOCK 下读写）
-_CLEANUP_FAILURES: list[str] = []  # 任一线程回收失败都记在这里，主线程汇总成 probe_cleanup
-_RECLAIMING: set[str] = set()  # 已被探针线程认领、正在回收的容器；主线程退出前限时等它们做完
-OUTPUT_MARGIN = 0.05  # 回收收尾之后序列化并输出报告所留的时间
+SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+CLEANUP_RESERVE = 3.0  # 总时限里留给回收与输出报告的秒数
 # 上游错误只按固定词表分类，不把原文抄进报告（原文可能回显 key，且转义形态无法穷举）
 ERROR_CLASSES = (("tool_choice", "tool_choice_unsupported"), ("预扣额度", "quota"), ("quota", "quota"),
                  ("insufficient", "quota"), ("invalid api key", "auth"), ("invalid bearer", "auth"), ("unauthorized", "auth"),
                  ("authentication", "auth"), ("rate limit", "rate_limit"), ("overloaded", "overloaded"),
                  ("model_not_found", "model_not_found"), ("not supported", "unsupported"))
-SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
-SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 
-def _remaining() -> float:
-    return max(0.0, _DEADLINE_AT - time.monotonic())
+class Deadline:
+    """一次预检的唯一时间来源：检查用到 work，回收与输出用到 total。"""
+
+    def __init__(self, seconds: float):
+        self.total = time.monotonic() + seconds
+        self.work = self.total - min(CLEANUP_RESERVE, seconds / 2)
+
+    def work_left(self) -> float:
+        return max(0.0, self.work - time.monotonic())
+
+    def total_left(self) -> float:
+        return max(0.0, self.total - time.monotonic())
 
 
-def _total_left() -> float:
-    return max(0.0, _TOTAL_END - time.monotonic())
-
-
-class SourceError(RuntimeError):
-    def __init__(self, missing: list[str]):
-        super().__init__(f"needs_source_sync: {missing}")
-        self.missing = missing
+def run_bounded(cmd: list[str], timeout: float, *, data: bytes | None = None,
+                env: dict | None = None) -> subprocess.CompletedProcess:
+    """预检里唯一的子进程原语：在独立进程组里运行，最多等 timeout 秒（超时抛 TimeoutExpired）；
+    无论成败，返回前都杀掉整个进程组，包装脚本留下的后台子进程也一并结束。"""
+    if timeout <= 0:
+        raise subprocess.TimeoutExpired(cmd, 0)
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE if data is not None else subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, start_new_session=True)
+    try:
+        out, err = proc.communicate(data, timeout=timeout)
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:  # 组内已无进程
+            pass
+        proc.wait()
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream:
+                stream.close()
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
 
 def git_environment() -> dict[str, str]:
@@ -62,314 +87,72 @@ def git_environment() -> dict[str, str]:
     return env
 
 
-def _git(source: Path, *args: str, data: bytes | None = None) -> bytes:
-    return subprocess.run(["git", "-C", str(source), *args], input=data, capture_output=True, check=True,
-                          env=git_environment(), timeout=_git_timeout()).stdout
+def snapshot_bytes(source: Path, base: str, head: str, merge_base: str, deadline: Deadline | None = None) -> int:
+    """单个模型审阅快照的所需字节，逐项复刻 external_review.prepare_review 的公式。"""
+    deadline = deadline or Deadline(60)
+
+    def git(*args: str, data: bytes | None = None) -> bytes:
+        result = run_bounded(["git", "-C", str(source), *args], deadline.work_left(), data=data, env=git_environment())
+        if result.returncode:
+            raise subprocess.CalledProcessError(result.returncode, result.args)
+        return result.stdout
+
+    objects = {line.split(b" ", 1)[0] for line in git("rev-list", "--objects", "--no-walk", base, head, merge_base).splitlines()}
+    objects.update(git("rev-list", base, head).splitlines())
+    sizes = git("cat-file", "--buffer", "--batch-check=%(objectsize)", data=b"\n".join(sorted(objects)) + b"\n").splitlines()
+    worktree = sum(int(line.split(b"\t", 1)[0].split()[-1]) for line in git("ls-tree", "-rl", head).splitlines()
+                   if line.split()[1] == b"blob")
+    return sum(int(size) for size in sizes) + worktree + SPACE_RESERVE
 
 
-def _git_timeout() -> float | None:
-    left = _remaining()
-    return None if left == float("inf") else max(0.01, left)
-
-
-def snapshot_bytes(source: Path, base: str, head: str, merge_base: str) -> int:
-    """单个模型审阅快照的所需字节，逐项复刻 external_review.prepare_review 的公式。互不依赖的 git 读并发执行。"""
-    def start(*args: str, stdin: bool = False) -> subprocess.Popen:
-        return subprocess.Popen(["git", "-C", str(source), *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                stdin=subprocess.PIPE if stdin else None, env=git_environment())
-
-    def finish(proc: subprocess.Popen, data: bytes | None = None) -> bytes:
-        out, _ = proc.communicate(data, timeout=_git_timeout())
-        if proc.returncode:
-            raise subprocess.CalledProcessError(proc.returncode, proc.args)
-        return out
-
-    shas = sorted({base, head, merge_base})
-    procs = []
-    try:
-        # 与 prepare_review 相同：三者须是 source 里已有的 commit，否则是 needs_source_sync
-        kinds = start("cat-file", "--batch-check", stdin=True)
-        procs.append(kinds)
-        snapshot_objects = start("rev-list", "--objects", "--no-walk", base, head, merge_base)
-        commits = start("rev-list", base, head)
-        tree = start("ls-tree", "-rl", head)
-        procs += [snapshot_objects, commits, tree]
-        lines = finish(kinds, "".join(f"{sha}^{{commit}}\n" for sha in shas).encode()).decode().splitlines()
-        missing = [sha for sha, line in zip(shas, lines, strict=True) if line.endswith("missing")]
-        if missing:
-            raise SourceError(missing)
-        objects = {line.split(b" ", 1)[0] for line in finish(snapshot_objects).splitlines()}
-        objects.update(finish(commits).splitlines())
-        sizes = _git(source, "cat-file", "--buffer", "--batch-check=%(objectsize)",
-                     data=b"\n".join(sorted(objects)) + b"\n").splitlines()
-        worktree = sum(int(line.split(b"\t", 1)[0].split()[-1]) for line in finish(tree).splitlines()
-                       if line.split()[1] == b"blob")
-        return sum(int(size) for size in sizes) + worktree + SPACE_RESERVE
-    finally:
-        for proc in procs:  # 任一步失败或超时，不留下其余 git 子进程
-            if proc.poll() is None:
-                proc.kill()
-                proc.wait()
-
-
-def _existing(path: Path) -> Path:
-    while not path.exists():
-        path = path.parent
-    return path
-
-
-def check_space(args) -> dict:
-    try:
-        per = snapshot_bytes(Path(args.source), args.base, args.head, args.merge_base)
-    except SourceError as error:
-        return {"name": "source_objects", "class": "source", "ok": False,
-                "detail": {"needs_source_sync": error.missing, "source": args.source}}
+def check_space(args, deadline: Deadline) -> dict:
+    per = snapshot_bytes(Path(args.source), args.base, args.head, args.merge_base, deadline)
     need = per * len(MODELS)
-    free = shutil.disk_usage(_existing(Path(args.checkout_root).absolute())).free
-    detail = {"required_bytes": need, "per_snapshot_bytes": per, "snapshots": len(MODELS), "free_bytes": free}
-    if free < need:
-        try:  # 诊断失败不能丢掉已算出的空间明细
-            detail.update(vm_deleted_open_bytes())
-        except (OSError, subprocess.SubprocessError, ValueError) as error:
-            detail["vm_diagnosis_error"] = type(error).__name__
-    return {"name": "checkout_root_free_space", "class": "space", "ok": free >= need, "detail": detail}
+    existing = Path(args.checkout_root).absolute()
+    while not existing.exists():
+        existing = existing.parent
+    free = shutil.disk_usage(existing).free
+    return {"name": "checkout_root_free_space", "class": "space", "ok": free >= need,
+            "detail": {"required_bytes": need, "per_snapshot_bytes": per, "snapshots": len(MODELS), "free_bytes": free}}
 
 
-def vm_deleted_open_bytes() -> dict:
-    """空间不足时的诊断：colima/lima 的 VM 进程常持有已删除快照与 worktree 的 inode，空间要等 VM 重启才回收。"""
-    pids = subprocess.run(["pgrep", "-x", "com.apple.Virtualization.VirtualMachine"],
-                          capture_output=True, text=True, timeout=max(0.01, min(5.0, _remaining()))).stdout.split()
-    held, files = 0, 0
-    for pid in pids:
-        try:
-            # -a：选择条件取交集。缺了它 lsof 会把其它进程的已删除文件也算进来（实测 144GB vs VM 自身 11GB）
-            out = subprocess.run(["lsof", "-nP", "-a", "+L1", "-p", pid, "-Fsin"], capture_output=True, text=True,
-                                 timeout=max(0.01, min(10.0, _remaining()))).stdout
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        seen, size = set(), None
-        for line in out.splitlines():
-            if line[:1] == "f":
-                size = None
-            elif line[:1] == "s":
-                size = int(line[1:])
-            elif line[:1] == "i" and size is not None and line[1:] not in seen:
-                seen.add(line[1:])
-                held += size
-        files += len(seen)
-    if not held:
-        return {}
-    return {"vm_deleted_open_bytes": held, "vm_deleted_open_files": files,
-            "hint": "VM 进程仍持有已删除文件；先停掉其中运行的容器，再重启 colima 才能回收这部分空间"}
-
-
-def _bounded(fn, timeout: float):
-    """在守护线程里跑可能卡住的文件系统操作，最多等 timeout 秒；超时返回 (False, None)，主线程不被拖住。"""
-    box: dict = {}
-
-    def run() -> None:
-        try:
-            box["value"] = fn()
-        except Exception as error:  # 交给调用方处理，不让守护线程里的异常被吞掉
-            box["error"] = error
-
-    worker = threading.Thread(target=run, daemon=True)
-    worker.start()
-    worker.join(max(0.0, timeout))
-    if worker.is_alive():
-        return False, None
-    return True, box.get("value", box.get("error"))
-
-
-def _remove_probe_dir(probe: Path, timeout: float) -> str | None:
-    """限时删除探针目录并确认已不存在；超时或删不净都返回失败说明。"""
-    def remove() -> bool:
-        shutil.rmtree(probe, ignore_errors=True)
-        return probe.exists()
-
-    done, leftover = _bounded(remove, timeout)
-    if not done:
-        return f"探针目录 {probe} 删除在时限内未完成"
-    if leftover is not False:
-        return f"探针目录 {probe} 未删净"
-    return None
-
-
-def _container_present(container: str, timeout: float) -> bool | None:
-    try:
-        result = subprocess.run(["docker", "ps", "-aq", "--filter", f"name=^/{container}$"], capture_output=True,
-                                text=True, timeout=timeout)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    return bool(result.stdout.strip()) if result.returncode == 0 else None
-
-
-def _reclaim(entry: dict, container: str, budget: float) -> str | None:
-    """回收一个挂载探针：先杀掉 docker run 的整个进程组，再 rm -f 并确认容器已不存在；目录总会删。返回失败说明。"""
-    import signal
-
-    end = time.monotonic() + budget
-    errors = []
-    # 先删宿主侧探针目录：不依赖容器是否已删（容器只读挂载它）；限时执行，且排在等进程之前（gemini3·3）
-    dir_error = _remove_probe_dir(entry["probe"], max(0.0, min(1.0, end - time.monotonic())))
-    proc = entry.get("proc")
-    if proc is not None:
-        # 不以父进程是否存活为前提：包装脚本可能已退出、却留下后台子进程继续建容器（独审九）。
-        # start_new_session=True 使 pgid == 父 pid；组内已无成员时 killpg 报 ProcessLookupError，属正常。
-        # 残余风险：组内全部成员退出后的数秒内，该 pgid 恰被无关进程组复用——概率极低，接受。
-        try:
-            if proc.pid <= 1:
-                raise ProcessLookupError(proc.pid)
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        except OSError:
-            pass
-        if proc.poll() is None:
-            proc.kill()  # 父进程仍在（或进程组信号不可用）时直接结束它
-            left = min(1.0, end - time.monotonic())
-            if left > 0:
-                try:
-                    proc.wait(timeout=left)
-                except subprocess.TimeoutExpired:
-                    pass
-        if proc.poll() is None:
-            errors.append(f"docker run 进程未退出，容器 {container} 可能仍会被创建")
-    if end - time.monotonic() <= 0:
-        errors.append(f"回收预算耗尽，未能确认容器 {container} 已删除")
-    else:
-        try:
-            subprocess.run(["docker", "rm", "-f", container], capture_output=True, text=True,
-                           timeout=end - time.monotonic())
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            errors.append(f"docker rm -f {container} {type(exc).__name__}")
-        else:
-            left = end - time.monotonic()
-            if left <= 0:
-                errors.append(f"回收预算耗尽，未能确认容器 {container} 已删除")
-            else:
-                present = _container_present(container, left)
-                if present is not False:
-                    errors.append(f"容器 {container} {'仍存在' if present else '状态无法确认'}")
-    if dir_error:
-        errors.append(dir_error)
-    return "；".join(errors) or None
-
-
-def _claim(container: str) -> dict | None:
-    """回收所有权：谁从登记里取走条目，谁负责回收；同一探针只会被回收一次（独审·gemini2）。
-    认领后记入 _RECLAIMING，做完调用 _release；主线程退出前会限时等这些在途回收结束。"""
-    with _CLEANUP_LOCK:
-        entry = _PENDING_CLEANUP.pop(container, None)
-        if entry is not None:
-            _RECLAIMING.add(container)
-        return entry
-
-
-def _release(container: str) -> None:
-    with _CLEANUP_LOCK:
-        _RECLAIMING.discard(container)
-
-
-def _record_failure(error: str | None) -> None:
-    if error:
-        with _CLEANUP_LOCK:
-            _CLEANUP_FAILURES.append(error)
-
-
-def reclaim_pending(budget: float) -> list[str]:
-    """总时限到时回收仍登记的探针，耗时不超过 budget（留在总时限之内）。返回本次与此前登记的全部回收失败。"""
-    global _CLOSING
-    end = time.monotonic() + budget
-    # 限时取锁：探针线程可能正持锁做文件 I/O 或起容器；等不到就如实报告，不让主线程越过总时限（独审七）
-    if not _CLEANUP_LOCK.acquire(timeout=max(0.0, budget)):
-        return ["回收锁在时限内未取得：挂载探针仍在建立，探针目录或容器可能遗留，回收未能确认"]
-    try:
-        _CLOSING = True  # 此后 check_mount 不再登记、建目录或起容器
-        pending = list(_PENDING_CLEANUP.items())
-        _PENDING_CLEANUP.clear()
-    finally:
-        _CLEANUP_LOCK.release()
-    for container, entry in pending:
-        _record_failure(_reclaim(entry, container, max(0.0, end - time.monotonic())))
-    # 探针线程已认领、仍在回收的条目：限时轮询等它们做完，避免 os._exit 把回收掐在半路。
-    # 不用 Condition.wait：它超时返回前会无限期重取锁（gemini3·4a）。每次取锁都限时。
-    while True:
-        if not _CLEANUP_LOCK.acquire(timeout=max(0.0, end - time.monotonic())):
-            return ["回收锁在时限内未取得：在途回收未能确认"]
-        try:
-            in_flight = sorted(_RECLAIMING)
-            failures = list(_CLEANUP_FAILURES)
-        finally:
-            _CLEANUP_LOCK.release()
-        if not in_flight or time.monotonic() >= end:
-            return failures + [f"容器 {c} 的回收在时限内未完成，探针目录或容器可能遗留" for c in in_flight]
-        time.sleep(min(0.02, max(0.0, end - time.monotonic())))
-
-
-def check_mount(args) -> dict:
-    """宿主写一次性 nonce，审阅镜像经同样的只读 bind 挂载 checkout_root 读回；读不到即容器看见的不是真实文件。"""
-    if _remaining() <= 0:
-        raise TimeoutError("总时限已到，未启动挂载探针")
+def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
+    """宿主写一次性 nonce，审阅镜像经同样的只读 bind 挂载 checkout_root 读回；读不到即容器看见的不是真实文件。
+    返回 (检查结果, 回收失败列表)。"""
     root = Path(args.checkout_root).absolute()  # docker bind 只接受绝对路径
     nonce = os.urandom(16).hex()
     container = f"preflight-{nonce[:16]}"
     probe = root / container
-    entry = {"probe": probe, "proc": None}
-    command = ["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
-               "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
-               "--entrypoint", "cat", args.image, f"/checkouts/{probe.name}/nonce"]
-    # 登记、建目录、起容器、发布进程句柄在同一把锁内完成，并以 closing 为准：
-    # 主线程一旦开始回收，这里要么已整体登记可被回收，要么根本不建任何东西（独审六）。
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)  # checkout_root 本身不是探针产物，放在锁外
-    with _CLEANUP_LOCK:
-        if _CLOSING or _remaining() <= 0:
-            raise TimeoutError("总时限已到，未启动挂载探针")
-        _PENDING_CLEANUP[container] = entry
-        abort = None
-        try:
-            probe.mkdir(mode=0o700)
-            (probe / "nonce").write_text(nonce)
-        except OSError as error:
-            abort = error
-        if abort is None and (_CLOSING or _remaining() <= 0):  # 慢 I/O 后再查一次：时限已过就不起容器
-            abort = TimeoutError("总时限已到，未启动挂载容器")
-        if abort is None:
-            entry["proc"] = proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                                    text=True, errors="replace", start_new_session=True)
-        else:
-            _PENDING_CLEANUP.pop(container, None)
-            _RECLAIMING.add(container)  # 锁外删目录期间主线程也会等它收尾（gemini4·2）
-    if abort is not None:
-        # 锁外限时删除已建的探针目录；删不掉要记入 probe_cleanup，不静默遗留（gemini3·2）
-        try:
-            if probe.exists():
-                _record_failure(_remove_probe_dir(probe, min(1.0, max(0.0, _total_left() - 0.1))))
-        finally:
-            _release(container)
-        raise abort
+    detail: dict = {"checkout_root": str(root), "image": args.image}
+    ok, cleanup = False, []
     try:
-        out, err = proc.communicate(timeout=min(30.0, _remaining()) or 0.001)
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        probe.mkdir(mode=0o700)
+        (probe / "nonce").write_text(nonce)
+        result = run_bounded(["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
+                              "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
+                              "--entrypoint", "cat", args.image, f"/checkouts/{container}/nonce"],
+                             min(30.0, deadline.work_left()))
+        seen = result.stdout.decode("utf-8", "replace").strip()
+        ok = result.returncode == 0 and seen == nonce
+        detail.update(docker_rc=result.returncode, nonce_match=seen == nonce,
+                      stderr=result.stderr.decode("utf-8", "replace").strip())
     except subprocess.TimeoutExpired:
-        owned = _claim(container)
-        if owned is not None:
-            try:
-                _record_failure(_reclaim(owned, container, min(3.0, max(0.0, _total_left() - 0.1))))
-            finally:
-                _release(container)
-        raise TimeoutError("docker run 超时") from None
-    owned = _claim(container)
-    if owned is not None:
-        # 任何退出码都走完整回收（杀进程组、rm -f、确认容器不在、删目录）：退出码 0 也不能只信 --rm——
-        # 包装脚本可能关闭标准流后把子进程放到后台，再晚些建出容器（独审十）。
+        detail["error"] = "docker run 超时"
+    except Exception as error:
+        detail["error"] = type(error).__name__
+    finally:
+        # docker run 被杀或非 0 退出时容器可能已建，--rm 不会清：总是 rm -f（容器不存在时也返回 0）。
         try:
-            _record_failure(_reclaim(owned, container, min(3.0, max(0.0, _total_left() - 0.1))))
-        finally:
-            _release(container)
-    seen = out.strip()
-    return {"name": "checkout_root_container_mount", "class": "mount", "ok": proc.returncode == 0 and seen == nonce,
-            "detail": {"checkout_root": str(root), "image": args.image, "docker_rc": proc.returncode,
-                       "nonce_match": seen == nonce, "stderr": err.strip()}}
+            removed = run_bounded(["docker", "rm", "-f", container], min(5.0, deadline.total_left() - 0.2))
+            if removed.returncode:
+                cleanup.append(f"docker rm -f {container} 退出 {removed.returncode}")
+        except (OSError, subprocess.TimeoutExpired) as error:
+            cleanup.append(f"docker rm -f {container} {type(error).__name__}")
+        shutil.rmtree(probe, ignore_errors=True)
+        if probe.exists():
+            cleanup.append(f"探针目录 {probe} 未删净")
+    return {"name": "checkout_root_container_mount", "class": "mount", "ok": ok, "detail": detail}, cleanup
 
 
 class CredentialError(RuntimeError):
@@ -378,7 +161,7 @@ class CredentialError(RuntimeError):
 
 def _clean_key(value, source: str) -> str:
     """去掉首尾空白；只接受可见 ASCII（0x21–0x7E）的 key（HTTP 头安全）。不设长度或字符子集门槛——
-    正式 worker 不设，预检多设就是误报（独审十一）；短 key、含转义的 key 由脱敏形态覆盖。不回显值。"""
+    正式 worker 不设，预检多设就是误报；短 key、含转义的 key 由脱敏形态覆盖。不回显值。"""
     if not isinstance(value, str):
         raise CredentialError(f"{source} 的 key 不是字符串")
     key = value.strip()
@@ -389,120 +172,53 @@ def _clean_key(value, source: str) -> str:
     return key
 
 
-def provider_key(codex_home: Path, provider: str = PROVIDER, budget: float | None = None) -> tuple[str, dict]:
+def provider_key(codex_home: Path, deadline: Deadline) -> tuple[str, str]:
     """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
-    # 读配置与跑 auth.command 共用同一个绝对截止时间（独审十二·1）
-    end = time.monotonic() + (5.0 if budget is None else max(0.0, budget))
-    done, text = _bounded(lambda: (codex_home / "config.toml").read_text(encoding="utf-8"),
-                          max(0.0, end - time.monotonic()))
-    if not done:
-        raise CredentialError("读取 Codex config.toml 超时")
-    if isinstance(text, Exception):
-        raise text
-    config = tomllib.loads(text)
+    try:
+        config = tomllib.loads((codex_home / "config.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise CredentialError(f"读不到或解析不了 Codex config.toml（{type(error).__name__}）") from None
     providers = config.get("model_providers")
-    entry = providers.get(provider) if isinstance(providers, dict) else None
+    entry = providers.get(PROVIDER) if isinstance(providers, dict) else None
     if not isinstance(entry, dict):
-        raise CredentialError(f"{codex_home}/config.toml 没有 model_providers.{provider}")
-    if entry.get("base_url") is not None and not isinstance(entry.get("base_url"), str):
-        raise CredentialError(f"model_providers.{provider}.base_url 不是字符串")
+        raise CredentialError(f"{codex_home}/config.toml 没有 model_providers.{PROVIDER}")
     env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
     auth = entry.get("auth")
     if isinstance(auth, dict) and auth.get("command"):
-        if entry.get("env_key"):
-            # Codex 离线校验：provider auth cannot be combined with env_key，宿主回合起不来。
+        if entry.get("env_key"):  # Codex 离线校验：provider auth cannot be combined with env_key，宿主回合起不来
             raise CredentialError("provider auth cannot be combined with env_key")
-        args = auth.get("args", [])
-        timeout_ms = auth.get("timeout_ms", 5000)
-        if (not isinstance(auth["command"], str) or not isinstance(args, list) or not all(isinstance(a, str) for a in args)
+        command, args, timeout_ms = auth["command"], auth.get("args", []), auth.get("timeout_ms", 5000)
+        if (not isinstance(command, str) or not isinstance(args, list) or not all(isinstance(a, str) for a in args)
                 or isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int | float) or timeout_ms <= 0):
             raise CredentialError("model_providers.auth 的 command/args/timeout_ms 类型无效")
-        timeout = min(timeout_ms / 1000, max(0.0, end - time.monotonic()))
-        if timeout <= 0:
-            raise CredentialError("总时限已到，未执行 auth.command")
+        timeout = min(timeout_ms / 1000, deadline.work_left())
         try:
-            result = subprocess.run([auth["command"], *args], env=env, capture_output=True, timeout=timeout)
+            result = run_bounded([command, *args], timeout, env=env)
         except subprocess.TimeoutExpired:
             raise CredentialError(f"auth.command 超过 {timeout:g}s 未返回") from None
         except OSError as error:
             raise CredentialError(f"auth.command 无法执行（{type(error).__name__}）") from None
         if result.returncode != 0:
             raise CredentialError(f"auth.command 退出 {result.returncode}")
-        key = _clean_key(result.stdout.decode("utf-8", "replace"), "auth.command")
-        return key, {"source": "auth.command", "command": auth["command"], "base_url": entry.get("base_url")}
+        return _clean_key(result.stdout.decode("utf-8", "replace"), "auth.command"), "auth.command"
     if entry.get("experimental_bearer_token"):
-        return (_clean_key(entry["experimental_bearer_token"], "experimental_bearer_token"),
-                {"source": "experimental_bearer_token", "base_url": entry.get("base_url")})
+        return _clean_key(entry["experimental_bearer_token"], "experimental_bearer_token"), "experimental_bearer_token"
     if entry.get("env_key"):
         if not isinstance(entry["env_key"], str) or not env.get(entry["env_key"]):
             raise CredentialError(f"Missing environment variable: {entry['env_key']}")
-        return (_clean_key(env[entry["env_key"]], "env_key"),
-                {"source": "env_key", "env_key": entry["env_key"], "base_url": entry.get("base_url")})
-    raise CredentialError(f"model_providers.{provider} 未配置任何凭据来源")
+        return _clean_key(env[entry["env_key"]], "env_key"), "env_key"
+    raise CredentialError(f"model_providers.{PROVIDER} 未配置任何凭据来源")
 
 
-def check_credential(args, budget: float | None = None) -> tuple[dict, str | None]:
+def check_credential(args, deadline: Deadline) -> tuple[dict, str | None]:
+    detail: dict = {"scrubbed_env": SCRUBBED_ENV}
     try:
-        key, source = provider_key(Path(args.codex_home), budget=budget)
+        key, detail["source"] = provider_key(Path(args.codex_home), deadline)
     except CredentialError as error:
-        message = str(error)
-    except OSError as error:
-        message = f"读不到 Codex 配置（{type(error).__name__}）"
-    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
-        message = "Codex config.toml 解析失败"
-    except (TypeError, ValueError, AttributeError) as error:
-        message = f"Codex provider 配置无效（{type(error).__name__}）"
+        key, detail["error"] = None, str(error)
     else:
-        return {"name": f"credential:{PROVIDER}", "class": "credential", "ok": True,
-                "detail": {"scrubbed_env": SCRUBBED_ENV, **source}}, key
-    return {"name": f"credential:{PROVIDER}", "class": "credential", "ok": False,
-            "detail": {"scrubbed_env": SCRUBBED_ENV, "error": message}}, None
-
-
-def worker_key(budget: float = 5.0) -> tuple[str | None, str]:
-    """与 codex-child.ts providerEnvironment 相同：先进程环境，再 launchctl getenv。正式 worker 只认这两处。"""
-    if os.environ.get(SCRUBBED_ENV):
-        return os.environ[SCRUBBED_ENV], "env"
-    if budget <= 0:
-        return None, "budget-exhausted"
-    try:
-        value = subprocess.run(["launchctl", "getenv", SCRUBBED_ENV], capture_output=True,
-                               timeout=min(5.0, budget)).stdout.decode("utf-8", "replace")
-    except (OSError, subprocess.TimeoutExpired):
-        value = ""
-    return (value, "launchctl") if value.strip() else (None, "missing")
-
-
-def check_worker_credential(budget: float = 5.0) -> tuple[dict, str | None]:
-    key, source = worker_key(budget)
-    detail = {"source": source, "consumer": "external-review-worker (providerEnvironment)"}
-    if key is None:
-        detail["error"] = f"缺少 {SCRUBBED_ENV}：进程环境与 launchctl 均未提供，正式 worker 会在启动前失败"
-    else:
-        try:
-            key = _clean_key(key, source)
-        except CredentialError as error:
-            key = None
-            detail["error"] = str(error)
-    return {"name": "credential:review-worker", "class": "credential", "ok": key is not None, "detail": detail}, key
-
-
-def _endpoint(url: str) -> tuple[str, str, int | None, str]:
-    """把 base_url 归一成 (scheme, host, port, path)；回环主机名、IPv4 与 IPv6 回环视为同一端点。"""
-    from urllib.parse import (
-        urlsplit,  # 用标准解析：手写切分会把带端口的 IPv6 字面量解析错（独审四）
-    )
-
-    parts = urlsplit(url.strip().rstrip("/"))
-    scheme = parts.scheme.lower()
-    host = (parts.hostname or "").lower()
-    if host in ("localhost", "127.0.0.1", "::1"):  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-        host = "loopback"
-    try:
-        port = parts.port or {"http": 80, "https": 443}.get(scheme)
-    except ValueError:
-        port = "invalid"
-    return scheme, host, port, parts.path or ""
+        detail["proven_by"] = "两家 roundtrip 都用这把 key"
+    return {"name": "credential:codex-host", "class": "credential", "ok": key is not None, "detail": detail}, key
 
 
 def _secret_forms(secrets) -> list[str]:
@@ -511,7 +227,7 @@ def _secret_forms(secrets) -> list[str]:
         if not secret:
             continue
         forms.add(secret.encode("utf-8", "surrogateescape").decode("utf-8", "replace"))
-        try:  # key 里的 \uXXXX 之类转义被上游 JSON/TOML 解码后的形态（gemini3·5a）
+        try:  # key 里的 \uXXXX 之类转义被上游 JSON/TOML 解码后的形态
             decoded = json.loads(f'"{secret}"')
             if isinstance(decoded, str):
                 forms.add(decoded)
@@ -524,7 +240,7 @@ def _secret_forms(secrets) -> list[str]:
 
 
 def redact(text: str, secrets, limit: int | None = None) -> str:
-    """抹掉 key 的各种形态（原文、JSON/repr 转义），长者优先；再截断，并清掉两端残留的 key 片段（防御纵深）。"""
+    """抹掉 key 的各种形态（原文、JSON/repr 转义），长者优先；再截断，并清掉截断处残留的 key 前缀。"""
     if isinstance(secrets, str) or secrets is None:
         secrets = [secrets]
     forms = _secret_forms(secrets)
@@ -532,8 +248,7 @@ def redact(text: str, secrets, limit: int | None = None) -> str:
         text = text.replace(form, "<redacted>")
     if limit is not None and len(text) > limit:
         text = text[:limit]
-        # 只有真的截断了，末尾才可能残留 key 前缀；未截断的字符串（含 kind/name 等协议字段）不动，
-        # 免得 key 首尾两个字符碰巧与字段首尾重合时改写字段（gemini4·1）。报告里已无从左侧截取的文本。
+        # 只有真的截断了，末尾才可能残留 key 前缀；未截断的协议字段不动。
         tail = max((k for form in forms for k in range(len(form) - 1, 1, -1) if text.endswith(form[:k])), default=0)
         if tail:
             text = text[:-tail] + "<redacted>"
@@ -551,17 +266,15 @@ def sanitize(value, secrets, limit: int = 500):
     return value
 
 
-def _round_trip(url: str, key: str, model: str, session: str) -> dict:
-    # 不在这里按单把 key 脱敏或截断：两把 key 互为子串时会互相拆坏。统一由报告出门前的 sanitize 用完整 secret 集合处理（独审六）。
-    return _round_trip_raw(url, key, model, session)
+def _error_info(body: str) -> dict:
+    """上游错误正文只给长度、sha256 前 12 位与固定词表分类，不抄原文。"""
+    lowered = body.lower()
+    kind = next((label for needle, label in ERROR_CLASSES if needle in lowered), "unclassified")
+    return {"class": kind, "length": len(body), "sha256_12": hashlib.sha256(body.encode("utf-8", "replace")).hexdigest()[:12]}
 
 
-def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
+def round_trip(url: str, key: str, model: str, session: str, deadline: Deadline) -> dict:
     """一次最小往返，请求形状对齐正式独审：responses + tools + tool_choice=auto + JSON 输出格式。"""
-    # 只在探测线程里导入，与 docker/git 等待重叠，不占启动关键路径。
-    import urllib.error
-    import urllib.request
-
     body = {"model": model, "stream": True, "store": False, "reasoning": {"effort": "low"},
             "instructions": "Preflight connectivity check. Do not call tools.",
             "input": [{"role": "user", "content": [{"type": "input_text", "text": 'Return {"ok": true}.'}]}],
@@ -575,25 +288,19 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                                               "Accept": "text/event-stream", "Session-Id": session,
                                               "X-Client-Request-Id": session})
-    # 在真正发送的边界再查一次（独审八）：入口检查之后还有导入、构造请求与线程调度。检查与系统调用之间
-    # 剩下的几条指令之内若越过截止，这次探测也不会延长总墙钟（探测线程是 daemon，退出时被放弃），也不留下产物。
-    if _remaining() <= 0 or _CLOSING:
+    timeout = min(PROBE_TIMEOUT, deadline.work_left())
+    if timeout <= 0:
         return {"http_status": None, "terminal": None, "ok": False, "error": {"not_sent": "总时限已到"}}
-    deadline = time.monotonic() + PROBE_TIMEOUT
     try:
-        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
-            terminal, detail, status, streamed = None, "流在终态事件前结束", None, set()
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            terminal, detail, status = None, "流在终态事件前结束", None
             for raw in response:
-                if time.monotonic() > deadline:
-                    detail = f"超过 {PROBE_TIMEOUT}s 仍无终态事件"
+                if deadline.work_left() <= 0:
+                    detail = "总时限内无终态事件"
                     break
                 line = raw.decode("utf-8", "replace").strip()
                 if line.startswith("data:"):
                     event = json.loads(line[5:]) if line[5:].strip().startswith("{") else {}
-                    # 客户端流里自报的服务模型（response.* 的 response.model / message_start 的 message.model）
-                    for holder in (event.get("response"), event.get("message")):
-                        if isinstance(holder, dict) and isinstance(holder.get("model"), str):
-                            streamed.add(holder["model"])
                     if event.get("type") in ("response.completed", "response.incomplete", "response.failed", "error"):
                         terminal = event.get("type")
                         inner = event.get("response") if isinstance(event.get("response"), dict) else {}
@@ -603,91 +310,36 @@ def _round_trip_raw(url: str, key: str, model: str, session: str) -> dict:
             # 事件名成功还不够：响应体自报 failed/cancelled 或带 error 也算失败。
             ok = (terminal in ("response.completed", "response.incomplete") and not detail
                   and status not in ("failed", "cancelled"))
-            body = detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False) if detail else ""
+            text = detail if isinstance(detail, str) else json.dumps(detail, ensure_ascii=False) if detail else ""
             return {"http_status": response.status, "terminal": terminal, "status": status, "ok": ok,
-                    "streamed_models": sorted(streamed), "error": None if ok else _error_info(body)}
+                    "error": None if ok else _error_info(text)}
     except urllib.error.HTTPError as error:
         return {"http_status": error.code, "terminal": None, "ok": False,
                 "error": _error_info(error.read(65536).decode("utf-8", "replace"))}
-    except Exception as error:  # 请求构造、连接、协议等任何异常都只记类型与 errno，不带异常原文
+    except Exception as error:  # 连接、协议等任何异常都只记类型与 errno，不带异常原文
         reason = getattr(error, "reason", None)
         return {"http_status": None, "terminal": None, "ok": False,
                 "error": {"exception": type(error).__name__, "errno": getattr(reason, "errno", getattr(error, "errno", None))}}
 
 
-def _error_info(body: str) -> dict:
-    """上游错误正文只给长度、sha256 前 12 位与固定词表分类，不抄原文。"""
-    import hashlib
-
-    lowered = body.lower()
-    kind = next((label for needle, label in ERROR_CLASSES if needle in lowered), "unclassified")
-    return {"class": kind, "length": len(body), "sha256_12": hashlib.sha256(body.encode("utf-8", "replace")).hexdigest()[:12]}
-
-
-def request_log_enabled(config: Path) -> bool | None:
-    """只读 CLIProxy 配置 observability.logs.request-log；读不到返回 None（按开启处理）。"""
-    try:
-        lines = config.read_bytes().decode("utf-8", "replace").splitlines()
-    except OSError:
-        return None
-    path, want = [], ("observability", "logs", "request-log")
-    for raw in lines:
-        if not raw.strip() or raw.lstrip().startswith("#") or ":" not in raw:
-            continue
-        indent = len(raw) - len(raw.lstrip())
-        key, _, value = raw.strip().partition(":")
-        while path and path[-1][0] >= indent:
-            path.pop()
-        path.append((indent, key))
-        if tuple(k for _, k in path) == want:
-            return value.split("#")[0].strip().lower() not in ("false", "no", "off", "0")
-    return None
-
-
-def served_models(text: str) -> set[str]:
-    """从各 API RESPONSE 段读上游实际服务的模型：Anthropic message_start.message.model、Responses response.model。"""
-    served = set()
-    for section in text.split("=== API RESPONSE ")[1:]:
-        section = section.split("\n=== RESPONSE ===", 1)[0]
-        for line in section.splitlines():
-            line = line.strip().removeprefix("data:").strip()
-            if not line.startswith("{"):
-                continue
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue
-            kind = event.get("type", "") if isinstance(event, dict) else ""
-            if kind == "message_start" and isinstance(event.get("message"), dict):
-                if isinstance(event["message"].get("model"), str):
-                    served.add(event["message"]["model"])
-            elif kind.startswith("response.") and isinstance(event.get("response"), dict) \
-                    and isinstance(event["response"].get("model"), str):
-                served.add(event["response"]["model"])
-    served.discard(None)
-    return served
-
-
-def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) -> tuple[list[tuple[str, str]], set[str]] | None:
-    """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 provider 与主机，以及实际服务模型。
-
-    proxy 的日志以 `=== RESPONSE ===` 段收尾（实测 92/92）。只在该段已出现、且相邻两次轮询文件大小不变时解析，
-    避免把写到一半的 `provider=clau` 或尚未写入的实际服务模型当成定论。"""
-    deadline = time.monotonic() + wait
-    partial, sizes, recheck, extended = None, {}, False, False
-    while True:
-        entries = []
+def route_from_log(log_dir: Path, session: str, since: float, wait: float) -> list[tuple[str, str]] | None:
+    """按本次唯一 Session-Id 找 CLIProxy request-log，读出每次上游尝试的 (provider, 主机)。
+    proxy 的日志以 `=== RESPONSE ===` 段收尾；只在该段已出现、且相邻两次轮询文件大小不变时解析，
+    避免把写到一半的 `provider=clau` 当成定论。找不到或一直没写完返回 None。"""
+    end = time.monotonic() + wait
+    sizes: dict = {}
+    while time.monotonic() <= end:
         try:
-            candidates = list(log_dir.glob("v1-responses-*.log"))
-        except OSError:  # 日志目录不可读：按找不到日志处理（route 判失败），不中断探测
-            candidates = []
-        for path in candidates:
+            paths = list(log_dir.glob("v1-responses-*.log"))
+        except OSError:  # 日志目录不可读：按找不到日志处理
+            paths = []
+        candidates = []
+        for path in paths:
             try:  # 其他会话的日志可能在 glob 与 stat 之间被轮转删除
-                stat = path.stat()
+                candidates.append((path.stat().st_mtime, path))
             except OSError:
                 continue
-            entries.append((stat.st_mtime, stat.st_size, path))
-        for mtime, size, path in sorted(entries, reverse=True):
+        for mtime, path in sorted(candidates, reverse=True):
             if mtime < since - 1:
                 break
             try:
@@ -697,62 +349,36 @@ def _route_from_log(log_dir: Path, session: str, since: float, wait: float = 2) 
             text = raw.decode("utf-8", "replace")
             if f"Session-Id: {session}" not in text:
                 continue
-            stable = sizes.get(path) == size == len(raw)  # 按字节比较，日志含非 UTF-8 字节也能判稳定
-            sizes[path] = size
+            stable = sizes.get(path) == len(raw)
+            sizes[path] = len(raw)
             if "\n=== RESPONSE ===" in text and stable:
                 providers = re.findall(r"^Auth: provider=([\w.-]+)(?=,|\s*$)", text, re.M)
                 hosts = re.findall(r"^Upstream URL: https?://([^/:?\s]+)", text, re.M)
-                attempts = list(zip(providers, hosts, strict=True)) if providers and len(providers) == len(hosts) else []
-                return attempts, served_models(text)
-            partial = ([], set())  # 找到了但还没写完；窗口结束仍未完成即按“无法核实”判失败
-            # 完整收尾段已在，只差一次大小确认：窗口末尾首次看到时允许再多轮询一次（gemini3·6）
-            recheck = "\n=== RESPONSE ===" in text
+                return list(zip(providers, hosts, strict=True)) if providers and len(providers) == len(hosts) else []
             break
-        if time.monotonic() > deadline:
-            if not recheck or extended:  # 只多给一次，文件一直在变就按未写完判失败
-                return partial
-            extended = True
-            deadline = time.monotonic() + 0.1
         time.sleep(0.05)
+    return None
 
 
-def probe_model(args, model: str, key: str | None) -> list[dict]:
-    if key is None:
-        return [{"name": f"roundtrip:{model}", "class": "roundtrip", "ok": False,
-                 "detail": "provider 凭据不可用，未发探测"}]
-    if _remaining() <= 0:
-        return [{"name": f"roundtrip:{model}", "class": "roundtrip", "ok": False, "detail": "总时限已到，未发探测"}]
+def probe_model(args, model: str, key: str, deadline: Deadline) -> list[dict]:
     session = f"preflight-{uuid.uuid4()}"
     since = time.time()
-    trip = _round_trip(args.proxy_url, key, model, session)
-    if request_log_enabled(Path(args.proxy_config)) is False:
-        provider, host = ROUTES[model]
-        return [{"name": f"route:{model}", "class": "route", "ok": False,
-                 "detail": {"expected": f"{provider}@{host}", "actual": [], "log_found": False,
-                            "error": "CLIProxy observability.logs.request-log=false，无法核实实际路由"}},
-                {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
-    # 实测 proxy 在响应结束后 14–85ms 写日志；成功时等 2 秒（约 23 倍余量），往返已失败时日志只作诊断，等 0.3 秒。
-    found = _route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
-    attempts, served = found if found is not None else (None, set())
-    provider, host = ROUTES[model]
-    routed = bool(attempts) and all(a == (provider, host) for a in attempts)
-    # proxy 会给 Claude 请求注入 fallbacks（如 claude-opus-4-8）。服务模型取上游日志与客户端流两处之并，
-    # 必须至少有一处证据且全部等于请求的模型；无从核实也算失败（独审五）。
-    served = served | set(trip.get("streamed_models", []))
-    return [{"name": f"route:{model}", "class": "route", "ok": routed,
-             "detail": {"expected": f"{provider}@{host}", "actual": [f"{p}@{h}" for p, h in attempts or []],
-                        "log_found": found is not None, "session": session}},
-            {"name": f"identity:{model}", "class": "identity", "ok": bool(served) and served <= {model},
-             "detail": {"requested": model, "served": sorted(served), "verified": bool(served)}},
+    trip = round_trip(args.proxy_url, key, model, session, deadline)
+    # 实测 proxy 在响应结束后 14–85ms 写日志；成功时等 2 秒，往返已失败时日志只作诊断，等 0.3 秒。
+    attempts = route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
+    expected = ROUTES[model]
+    return [{"name": f"route:{model}", "class": "route", "ok": bool(attempts) and all(a == expected for a in attempts),
+             "detail": {"expected": "@".join(expected), "actual": [f"{p}@{h}" for p, h in attempts or []],
+                        "log_found": attempts is not None, "session": session}},
             {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
 
 
-def _timed(job) -> list[dict]:
-    start = time.monotonic()
-    checks = job()
-    for check in checks:
-        check["elapsed_s"] = round(time.monotonic() - start, 3)
-    return checks
+def _guarded(name: str, kind: str, fn) -> dict:
+    """检查自身异常按未通过处理，只记异常类型（不带可能含参数的原文）。"""
+    try:
+        return fn()
+    except Exception as error:
+        return {"name": name, "class": kind, "ok": False, "detail": {"error": type(error).__name__}}
 
 
 def _deadline(text: str) -> float:
@@ -762,31 +388,30 @@ def _deadline(text: str) -> float:
     return value
 
 
-def _emit(report: dict, secrets=()) -> None:
-    # ensure_ascii：孤立代理项、surrogateescape 参数都转成 \uXXXX，stdout 永远是合法 ASCII JSON
-    print(json.dumps(sanitize(report, list(secrets)), ensure_ascii=True), flush=True)
-
-
-class _Parser(argparse.ArgumentParser):
-    def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3；stdout 仍给 JSON
-        # stderr 同样脱敏：参数值可能被误填成 key（独审十二·3）
-        print(redact(f"review_preflight: {message}", [os.environ.get(SCRUBBED_ENV)]), file=sys.stderr)
-        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "usage_error": message},
-              [os.environ.get(SCRUBBED_ENV)])
-        sys.exit(3)
-
-    def print_help(self, file=None):
-        _emit({"kind": "review-preflight-help", "is_review_result": False, "usage": self.format_help()})
-
-
 def _sha(text: str) -> str:
     if not SHA_RE.fullmatch(text):
         raise argparse.ArgumentTypeError("必须是 40 位小写十六进制 commit SHA")
     return text
 
 
+def _emit(report: dict, secrets=()) -> None:
+    # ensure_ascii：孤立代理项、surrogateescape 参数都转成 \uXXXX，stdout 永远是合法 ASCII JSON
+    print(json.dumps(sanitize(report, list(secrets)), ensure_ascii=True), flush=True)
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message):  # 退出码 2 专指“拦截”，用法错误用 3；stdout 仍给 JSON，stderr 同样脱敏
+        secrets = [os.environ.get(SCRUBBED_ENV)]
+        print(redact(f"review_preflight: {message}", secrets), file=sys.stderr)
+        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "usage_error": message}, secrets)
+        sys.exit(3)
+
+    def print_help(self, file=None):
+        _emit({"kind": "review-preflight-help", "is_review_result": False, "usage": self.format_help()})
+
+
 def main(argv=None) -> int:
-    ap = _Parser(description=__doc__)
+    ap = _Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", required=True, help="控制器读取候选对象的仓库（ExternalReview.source）")
     ap.add_argument("--base", required=True, type=_sha)
     ap.add_argument("--head", required=True, type=_sha)
@@ -794,98 +419,52 @@ def main(argv=None) -> int:
     ap.add_argument("--checkout-root", required=True, help="正式 attempt 将传给 ExternalReview 的 checkout_root")
     ap.add_argument("--image", default="sandcastle:newchanlun", help="与 external-review-worker.mts REVIEW_IMAGE 相同")
     ap.add_argument("--proxy-url", default="http://127.0.0.1:8318")  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
-    ap.add_argument("--proxy-config", default=str(CLIPROXY_HOME / "config.yaml"), help="只读，用于确认 request-log 已开启")
-    ap.add_argument("--proxy-log-dir", default=str(CLIPROXY_HOME / "auth/logs"))
+    ap.add_argument("--proxy-log-dir", default=str(CLIPROXY_LOG_DIR))
     ap.add_argument("--codex-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
                     help="宿主 Codex 配置目录；按其 model_providers.cliproxy-local 取 key")
     ap.add_argument("--deadline", type=_deadline, default=55.0, help="总墙钟上限（秒，0 < x ≤ 60），超时的检查判失败")
     args = ap.parse_args(argv)
-    secrets: list = []
     t0 = time.monotonic()
+    deadline = Deadline(args.deadline)
+    secrets = [os.environ.get(SCRUBBED_ENV)]
     try:
-        return _run(args, t0, secrets)
-    except Exception as error:  # 主流程意外异常也要给出合法报告，退出码仍是 2，不变成 1；并照样回收探针
+        checks = run_checks(args, deadline, secrets)
+    except Exception as error:  # 主流程意外异常也要给出合法报告，退出码仍是 2
         checks = [{"name": "preflight_internal", "class": "tool", "ok": False, "detail": type(error).__name__}]
-        try:
-            failures = reclaim_pending(_total_left())
-        except Exception as cleanup_error:
-            failures = [f"回收本身失败：{type(cleanup_error).__name__}"]
-        if failures:
-            checks.append({"name": "probe_cleanup", "class": "cleanup", "ok": False, "detail": failures})
-        _emit({"kind": "review-preflight", "is_review_result": False, "ready": False, "checks": checks,
-               "wall_seconds": round(time.monotonic() - t0, 3)}, secrets)
-        return 2
-
-
-def _run(args, t0: float, secrets: list) -> int:
-    global _DEADLINE_AT
-    reserve = min(3.0, args.deadline / 2)  # 回收探针的预算留在总时限之内
-    global _TOTAL_END, _CLOSING
-    with _CLEANUP_LOCK:  # 同一进程内多次调用 main()（测试）时重置回收状态
-        _CLOSING = False
-        _PENDING_CLEANUP.clear()
-        _CLEANUP_FAILURES.clear()
-        _RECLAIMING.clear()
-    _DEADLINE_AT = t0 + args.deadline - reserve
-    _TOTAL_END = t0 + args.deadline
-    remaining = lambda: max(0.0, _DEADLINE_AT - time.monotonic())  # noqa: E731  凭据各阶段共用同一截止时间
-    credential, host_key = check_credential(args, budget=remaining())
-    credential["name"] = "credential:codex-host"
-    worker_check, key = check_worker_credential(remaining())
-    secrets += [key, host_key, os.environ.get(SCRUBBED_ENV)]
-    probe_keys = {model: key for model in MODELS}
-    if key is None:
-        pass  # 正式 worker 缺 key，attempt 起不来，不再花 token 探测
-    elif host_key is not None:
-        host_url = credential["detail"].get("base_url") or ""
-        preflight_url = args.proxy_url.rstrip("/") + "/v1"
-        if _endpoint(host_url) != _endpoint(preflight_url):
-            # 宿主不经预检代理时，同一次探测证明不了宿主能完成往返
-            credential["ok"] = False
-            credential["detail"]["error"] = f"宿主 provider base_url={host_url or '未配置'}，与预检代理 {preflight_url} 不是同一端点"
-        elif host_key == key:
-            credential["detail"]["proven_by"] = "两家往返探测（与 worker 同一 key、同一端点）"
-        else:
-            # key 不同：Sol 的那一次探测改用宿主 key，两把 key 各由一次真实往返证明，每家仍只探测一次
-            probe_keys["gpt-6.1-sol"] = host_key
-            credential["detail"]["proven_by"] = "roundtrip:gpt-6.1-sol（宿主 key）"
-            worker_check["detail"]["proven_by"] = "roundtrip:claude-opus-5-5（worker key）"
-    # 键为该 job 超时或异常时上报的检查名与类别。
-    jobs = {("checkout_root_free_space", "space"): lambda: [check_space(args)],
-            ("checkout_root_container_mount", "mount"): lambda: [check_mount(args)],
-            **{(f"roundtrip:{model}", "roundtrip"): (lambda m=model: probe_model(args, m, probe_keys[m])) for model in MODELS}}
-    results: dict = {}
-
-    def run(key, job) -> None:
-        try:
-            results[key] = ("ok", _timed(job))
-        except Exception as error:  # 检查自身失败按未通过处理，不放行。
-            results[key] = ("error", error)
-
-    threads = {key: threading.Thread(target=run, args=(key, job), daemon=True) for key, job in jobs.items()}
-    for thread in threads.values():
-        thread.start()
-    for thread in threads.values():
-        thread.join(max(0.0, _DEADLINE_AT - time.monotonic()))
-    cleanup_failures = reclaim_pending(max(0.0, t0 + args.deadline - OUTPUT_MARGIN - time.monotonic()))
-    checks = [credential, worker_check]
-    if cleanup_failures:
-        checks.append({"name": "probe_cleanup", "class": "cleanup", "ok": False, "detail": cleanup_failures})
-    for name, kind in jobs:
-        status, value = results.get((name, kind), ("timeout", None))
-        if status == "ok":
-            checks.extend(value)
-        elif status == "error":
-            checks.append({"name": name, "class": kind, "ok": False, "detail": f"{type(value).__name__}: {value}"})
-        else:
-            checks.append({"name": name, "class": kind, "ok": False, "detail": f"超过 {args.deadline}s 总时限未完成"})
     ready = all(c["ok"] for c in checks)
-    report = {"kind": "review-preflight", "is_review_result": False, "ready": ready, "checks": checks,
-              "wall_seconds": round(time.monotonic() - t0, 3)}
-    _emit(report, secrets)
+    _emit({"kind": "review-preflight", "is_review_result": False, "ready": ready, "checks": checks,
+           "wall_seconds": round(time.monotonic() - t0, 3)}, secrets)
     return 0 if ready else 2
 
 
+def run_checks(args, deadline: Deadline, secrets: list) -> list[dict]:
+    credential, key = check_credential(args, deadline)
+    secrets.append(key)
+    checks = [credential]
+    # 两次往返不留任何本地产物，放在守护线程里与空间、挂载检查并行；到时未完成即判失败、放弃等待。
+    probes: dict = {}
+    threads = []
+    if key is not None:
+        for model in MODELS:
+            def probe(m=model):
+                probes[m] = _guarded(f"roundtrip:{m}", "roundtrip", lambda: probe_model(args, m, key, deadline))
+            threads.append(threading.Thread(target=probe, daemon=True))
+            threads[-1].start()
+    checks.append(_guarded("checkout_root_free_space", "space", lambda: check_space(args, deadline)))
+    mount, cleanup = check_mount(args, deadline)
+    checks.append(mount)
+    if cleanup:
+        checks.append({"name": "probe_cleanup", "class": "cleanup", "ok": False, "detail": cleanup})
+    for thread in threads:
+        thread.join(deadline.work_left())
+    for model in MODELS:
+        result = probes.get(model)
+        if result is None:
+            reason = "凭据不可用，未发探测" if key is None else "总时限内未完成"
+            result = [{"name": f"roundtrip:{model}", "class": "roundtrip", "ok": False, "detail": reason}]
+        checks.extend(result if isinstance(result, list) else [result])
+    return checks
+
+
 if __name__ == "__main__":
-    # 不等待超时后仍挂住的探测线程。
-    os._exit(main())
+    os._exit(main())  # 不等待超时后仍挂住的探测线程
