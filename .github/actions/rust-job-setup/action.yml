@@ -53,11 +53,6 @@ runs:
           echo "CI_CARGO_JOBS=1"; echo "CI_CARGO_JOBS_RELEASE=4"
         fi >> "$GITHUB_ENV"
         echo "cargo_jobs_disk_avail_kb=${avail_kb:-unknown}"
-        # #1875 R14：测试库放 tmpfs（每个作业独立目录）。Boat 与托管 runner 的磁盘 fsync 都慢；gate 一直这样跑，
-        #   全部作业与测试结论与 GitHub 一致（G1c），并消除了 fsync 时限类偶发失败。/dev/shm 不可用时保持原 TMPDIR。
-        if [ -d /dev/shm ] && [ -w /dev/shm ]; then
-          t=$(mktemp -d /dev/shm/ci-tmp.XXXXXX) && echo "TMPDIR=$t" >> "$GITHUB_ENV" && echo "test_tmpdir=$t"
-        fi
         cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     - name: Record runner, toolchain, linker, and initial resources (#1141)
