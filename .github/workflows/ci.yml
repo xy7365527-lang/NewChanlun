@@ -578,6 +578,15 @@ jobs:
           # #1875 R5：产物机检的 bin 构建（单线程，约 3 分钟）与单线程的锁并行：等锁的测试进程起来（cargo 此时已放开
           #   target 目录锁）再在同一 rust/target 后台构建，结论由下一步「产物无测试钩子」收取并决定成败。
           rm -f ../artifact.rc
+          # #1875 R9：Boat 上 S4 锁换 jemalloc（只改分配器，环境层，同 tmpfs TMPDIR；gate 实测 677→607 s、28 行逐位相同）。
+          #   装不上即退回 glibc，日志记 s4_allocator；托管 runner 不变。
+          je=
+          if [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ]; then
+            so=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+            [ -f "$so" ] || sudo -n apt-get install -y -qq libjemalloc2 >/dev/null 2>&1 || { sudo -n apt-get update -qq >/dev/null 2>&1 && sudo -n apt-get install -y -qq libjemalloc2 >/dev/null 2>&1; }
+            [ -f "$so" ] && je=$so
+          fi
+          echo "s4_allocator=${je:-glibc}"
           setsid nohup bash -c 'for _ in $(seq 120); do pgrep -f "deps/s_structure_session-[0-9a-f]+ --ignored --exact" >/dev/null && break; sleep 1; done
             ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}" \
               && ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
@@ -589,7 +598,7 @@ jobs:
             total=$((total + 1))
             log="../out-release-$(echo $t | tr ':/' '__').log"
             if ! grep -qx "$t: test" ../list-release.txt; then echo -e "$t\tNOT_LISTED_RELEASE" >> ../locks.tsv; fail=1; continue; fi
-            timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
+            LD_PRELOAD=$je timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
             rc=$?
             cat "$log"
             if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "$log"; then echo -e "$t\tPASS_RELEASE" >> ../locks.tsv; else echo -e "$t\tFAIL_RELEASE($rc)" >> ../locks.tsv; fail=1; fi
