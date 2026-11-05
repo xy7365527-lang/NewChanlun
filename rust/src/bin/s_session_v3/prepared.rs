@@ -716,7 +716,13 @@ impl Runtime {
                 self.audit_ledger
                     .as_mut()
                     .ok_or("AuditLedgerStale：未安装台账")?
-                    .stage_verified(token, &delta, &verified, work, prior)?;
+                    .stage_verified(
+                        token,
+                        &delta,
+                        &super::audit_ledger::QualifiedUnits::full(verified)?,
+                        work,
+                        prior,
+                    )?;
             }
             if let Some(ledger) = &mut self.audit_ledger {
                 ledger.bind(token, &prepared.metadata, &prepared.roots)?;

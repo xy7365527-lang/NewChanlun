@@ -1,5 +1,8 @@
 //! #1647：四根严格核验的单位导出与非准入 Δ 探针。
 //! Frontier 是诊断输入，不签发 U-A 或来源资格；生产入口不得用此探针替代准入。
+//! #1419 M8D 3B：`verify_four_roots_from` 是同一严格核验以完整单位前沿止步的机制，
+//! 结果带 `frontier_used` 标记；前沿是否为已提交合格单位由签发方绑定并在 stage 时复核，
+//! 本模块不证明前沿资格。
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -77,8 +80,14 @@ pub const VERIFIER_REVISION: &str = "s-content-four-root-units/1";
 pub struct VerifiedUnits {
     units: Probe,
     roots: [Built; 4],
+    frontier_used: bool,
 }
 impl VerifiedUnits {
+    /// 核验是否在外部前沿止步。完整闭包核验为 false；为 true 时，未列出的子树
+    /// 由前沿担保而未在本次读回，消费方必须绑定并复核该前沿的资格。
+    pub fn frontier_used(&self) -> bool {
+        self.frontier_used
+    }
     pub fn matches_roots(&self, roots: [RefView<'_>; 4]) -> Result<bool, CodecError> {
         for (actual, expected) in roots.into_iter().zip(&self.roots) {
             if actual.format() != CONTENT_FORMAT
@@ -120,7 +129,25 @@ pub fn verify_four_roots(
     source: &mut dyn NodeSource,
     roots: [RefView<'_>; 4],
 ) -> Result<VerifiedUnits, CodecError> {
-    let units = verify_roots(source, roots, None)?;
+    verified_units(source, roots, None)
+}
+
+/// 同一严格核验，完整单位 `(digest, Flavor, Mode)` 命中前沿即止步；根四字段每次重核，
+/// 前沿查询失败即整体失败（不当 miss）。返回值只含未命中前沿的单位。
+pub fn verify_four_roots_from(
+    source: &mut dyn NodeSource,
+    roots: [RefView<'_>; 4],
+    frontier: &dyn Frontier,
+) -> Result<VerifiedUnits, CodecError> {
+    verified_units(source, roots, Some(frontier))
+}
+
+fn verified_units(
+    source: &mut dyn NodeSource,
+    roots: [RefView<'_>; 4],
+    frontier: Option<&dyn Frontier>,
+) -> Result<VerifiedUnits, CodecError> {
+    let units = verify_roots(source, roots, frontier)?;
     let root = |r: RefView<'_>| -> Result<Built, CodecError> {
         Ok(Built {
             digest: r.digest()?,
@@ -136,6 +163,7 @@ pub fn verify_four_roots(
             root(roots[2])?,
             root(roots[3])?,
         ],
+        frontier_used: frontier.is_some(),
     })
 }
 

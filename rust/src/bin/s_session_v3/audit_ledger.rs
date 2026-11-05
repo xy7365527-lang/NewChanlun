@@ -316,6 +316,57 @@ impl Qualification {
             && self.binary_commit == v.binary_commit
     }
 }
+/// #1419 M8D 3B：`stage_verified` 的唯一单位输入。`frontier` 为 None 是完整闭包核验；
+/// 为 Some 时单位来自以该资格的已提交完整单位为前沿的同一核验，只能由 `verify_delta` 签发。
+#[cfg(feature = "s_incremental")]
+pub(super) struct QualifiedUnits<'q> {
+    verified: sc::closure_delta::VerifiedUnits,
+    frontier: Option<&'q Qualification>,
+}
+#[cfg(feature = "s_incremental")]
+impl QualifiedUnits<'static> {
+    /// 完整闭包核验结果；前沿止步的核验结果不能经此冒充完整核验。
+    pub(super) fn full(verified: sc::closure_delta::VerifiedUnits) -> Result<Self, String> {
+        if verified.frontier_used() {
+            return Err(error("前沿止步的单位不能作为完整核验结果"));
+        }
+        Ok(Self {
+            verified,
+            frontier: None,
+        })
+    }
+}
+/// 已提交合格单位前沿：每次点查都经原 `contains_qualified_unit`（资格逐字段核 + 完整键 EXISTS）。
+#[cfg(feature = "s_incremental")]
+struct QualifiedSuccessView<'a> {
+    ledger: &'a Ledger,
+    qualification: &'a Qualification,
+}
+#[cfg(feature = "s_incremental")]
+impl sc::closure_delta::Frontier for QualifiedSuccessView<'_> {
+    fn contains(&self, unit: sc::closure_delta::Unit) -> Result<bool, sc::CodecError> {
+        self.ledger
+            .contains_qualified_unit(self.qualification, &Unit::of_closure(unit))
+            .map_err(|e| sc::CodecError::new(sc::code::SOURCE, e))
+    }
+}
+#[cfg(feature = "s_incremental")]
+impl Unit {
+    fn of_closure(u: sc::closure_delta::Unit) -> Self {
+        use sc::closure_delta::{Context, VerificationMode};
+        Self {
+            digest: u.digest,
+            flavor: match u.context {
+                Context::Value => Flavor::Value,
+                Context::JsonInner => Flavor::JsonInner,
+            },
+            mode: match u.mode {
+                VerificationMode::Public => Mode::Public,
+                VerificationMode::Template => Mode::Template,
+            },
+        }
+    }
+}
 struct QualificationView<'a> {
     through: i64,
     roots: &'a str,
@@ -716,19 +767,50 @@ impl Ledger {
         }
         result
     }
+    /// #1419 M8D 3B：以本台账当前签发的资格为前沿做同一严格四根核验，完整单位命中即止步。
+    /// 资格不符、台账非 Ready 或前沿点查失败都整体失败，不退回完整核验、不当 miss。
+    /// 结果绑定该资格；`stage_verified` 在同一台账事务内复核它就是上一代资格。
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn verify_delta<'q>(
+        &self,
+        source: &mut dyn sc::NodeSource,
+        roots: [RefView<'_>; 4],
+        qualification: &'q Qualification,
+    ) -> Result<QualifiedUnits<'q>, String> {
+        if !self.matches_committed(qualification)? {
+            return Err(error("Δ核验资格与当前已提交台账不符"));
+        }
+        let view = QualifiedSuccessView {
+            ledger: self,
+            qualification,
+        };
+        let verified =
+            sc::closure_delta::verify_four_roots_from(source, roots, &view).map_err(error)?;
+        Ok(QualifiedUnits {
+            verified,
+            frontier: Some(qualification),
+        })
+    }
     /// `prior`（39P B1）：H1 持有的上一代资格；stage 在同一台账事务内先核它与当前已提交
     /// 状态逐字段相同，再改写折叠链。外写 meta/cert 不能被新一代 stage 吸收为自洽。
+    /// 唯一单位入口（M8D 条件 A）：完整核验与前沿止步核验同判据，后者要求绑定资格等于 `prior`。
     #[cfg(feature = "s_incremental")]
     pub(super) fn stage_verified(
         &mut self,
         token: &str,
         delta: &GenerationDelta,
-        verified: &sc::closure_delta::VerifiedUnits,
+        verified: &QualifiedUnits<'_>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
         prior: Option<&Qualification>,
     ) -> Result<(), String> {
         let result = (|| {
             self.committed_through()?;
+            if let Some(bound) = verified.frontier {
+                if prior != Some(bound) {
+                    return Err(error("Δ单位绑定资格与上一代资格不符"));
+                }
+            }
+            let verified = &verified.verified;
             if !verified
                 .matches_roots(delta.roots.each_ref().map(Into::into))
                 .map_err(error)?
@@ -737,18 +819,7 @@ impl Ledger {
             }
             let mut units = sc::CodecVec::default();
             verified.try_for_each_unit(|u| -> Result<(), String> {
-                use sc::closure_delta::{Context, VerificationMode};
-                let unit = Unit {
-                    digest: u.digest,
-                    flavor: match u.context {
-                        Context::Value => Flavor::Value,
-                        Context::JsonInner => Flavor::JsonInner,
-                    },
-                    mode: match u.mode {
-                        VerificationMode::Public => Mode::Public,
-                        VerificationMode::Template => Mode::Template,
-                    },
-                };
+                let unit = Unit::of_closure(u);
                 if !self.contains_committed_unit(&unit)? {
                     match work {
                         Some(work) => units.try_reserve_native(work, 1),
@@ -1425,7 +1496,9 @@ pub(super) mod tests {
         roots.publication_template = root.clone();
         roots.delta_template = root.clone();
         let refs = [&root, &root, &root, &root].map(Into::into);
-        let verified = sc::closure_delta::verify_four_roots(&mut nodes, refs).unwrap();
+        let verified =
+            QualifiedUnits::full(sc::closure_delta::verify_four_roots(&mut nodes, refs).unwrap())
+                .unwrap();
         for generation in 1..=2 {
             metadata.generation = generation;
             let facts = delta(&metadata, &roots);
@@ -1470,6 +1543,393 @@ pub(super) mod tests {
                 mode: Mode::Public
             })
             .unwrap());
+    }
+
+    /// #1419 M8D 3B：成功继承锁（L7/L8/P4/P5）。完整核验是 oracle；Δ 核验以台账已提交
+    /// 合格单位为前沿，经同一 `stage_verified` 入口。
+    #[cfg(feature = "s_incremental")]
+    mod m8d_success {
+        use super::*;
+        use sc::closure_delta as cd;
+
+        /// 只计节点读，读本身委托给原内存库。
+        struct Counting<'a> {
+            nodes: &'a mut sc::MemoryNodes,
+            reads: u64,
+        }
+        impl sc::NodeSource for Counting<'_> {
+            fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                self.reads += 1;
+                self.nodes.read(digest)
+            }
+        }
+        /// 只计前沿点查（每次点查 = 资格逐字段核 + 完整键 EXISTS 两条台账 SQL）。
+        struct CountingFrontier<'a> {
+            inner: QualifiedSuccessView<'a>,
+            lookups: std::cell::Cell<u64>,
+        }
+        impl cd::Frontier for CountingFrontier<'_> {
+            fn contains(&self, unit: cd::Unit) -> Result<bool, sc::CodecError> {
+                self.lookups.set(self.lookups.get() + 1);
+                cd::Frontier::contains(&self.inner, unit)
+            }
+        }
+        fn units(q: &QualifiedUnits<'_>) -> BTreeSet<Unit> {
+            let mut out = BTreeSet::new();
+            q.verified
+                .try_for_each_unit(|u| {
+                    out.insert(Unit::of_closure(u));
+                    Ok::<_, ()>(())
+                })
+                .unwrap();
+            out
+        }
+        fn set_roots(
+            m: &mut content_manifest::ManifestMetadata,
+            roots: &mut content_manifest::ManifestRoots,
+            r: &ContentRef,
+        ) {
+            m.scope = r.clone();
+            roots.generated_state = r.clone();
+            roots.publication_template = r.clone();
+            roots.delta_template = r.clone();
+        }
+        fn refs(r: &ContentRef) -> [RefView<'_>; 4] {
+            [r, r, r, r].map(Into::into)
+        }
+        fn full(nodes: &mut sc::MemoryNodes, r: &ContentRef) -> (QualifiedUnits<'static>, u64) {
+            let mut c = Counting { nodes, reads: 0 };
+            let v = cd::verify_four_roots(&mut c, refs(r)).unwrap();
+            (QualifiedUnits::full(v).unwrap(), c.reads)
+        }
+        fn commit(
+            l: &mut Ledger,
+            token: &str,
+            m: &content_manifest::ManifestMetadata,
+            roots: &content_manifest::ManifestRoots,
+            units: &QualifiedUnits<'_>,
+            prior: Option<&Qualification>,
+        ) {
+            l.stage_verified(token, &delta(m, roots), units, None, prior)
+                .unwrap();
+            l.bind(token, m, roots).unwrap();
+            l.content_committed().unwrap();
+        }
+        fn values(nodes: &mut sc::MemoryNodes) -> (Vec<ContentRef>, ContentRef) {
+            use sc::{JsonValue, Value};
+            // 写入但 g1 不可达；g2 首次可达，必须作为新单位重核。
+            let latent = sc::write_value(nodes, &Value::Bool(false))
+                .unwrap()
+                .content_ref();
+            let g = [
+                Value::Object(vec![
+                    ("a".into(), Value::Null),
+                    ("t".into(), Value::JsonText(Box::new(JsonValue::Null))),
+                ]),
+                // 换位置：原 Null/JsonText 子树移到新容器，新增 latent 引用。
+                Value::Object(vec![
+                    ("b".into(), Value::Null),
+                    (
+                        "a".into(),
+                        Value::Array(vec![Value::Null, Value::edge_of_ref(&latent).unwrap()]),
+                    ),
+                    ("t".into(), Value::JsonText(Box::new(JsonValue::Null))),
+                ]),
+                Value::Array(vec![
+                    Value::Object(vec![(
+                        "t".into(),
+                        Value::JsonText(Box::new(JsonValue::Bool(false))),
+                    )]),
+                    Value::String("x".into()),
+                    Value::JsonText(Box::new(JsonValue::Null)),
+                ]),
+            ];
+            let mut out: Vec<ContentRef> = g
+                .iter()
+                .map(|v| sc::write_value(nodes, v).unwrap().content_ref())
+                .collect();
+            // 第四代不变：Δ 必须零新单位。
+            out.push(out[2].clone());
+            (out, latent)
+        }
+
+        #[test]
+        fn h1_m8d_success_delta_and_full_canonical_diff() {
+            let (f, _, token, mut m, mut roots) = prepared::tests::p6_candidate();
+            let mut a = ledger(&f.db_path(), "m8d-full.sqlite", &m.rule_revision);
+            let mut b = ledger(&f.db_path(), "m8d-delta.sqlite", &m.rule_revision);
+            let mut nodes = sc::MemoryNodes::new();
+            let (gens, latent) = values(&mut nodes);
+            let mut receipts = Vec::new();
+            for (i, r) in gens.iter().enumerate() {
+                let generation = i as i64 + 1;
+                m.generation = generation;
+                set_roots(&mut m, &mut roots, r);
+                let (whole, full_reads) = full(&mut nodes, r);
+                if generation == 1 {
+                    // 空 g1：没有已提交资格，前沿为空，两台账同走完整核验。
+                    commit(&mut a, &token, &m, &roots, &whole, None);
+                    commit(&mut b, &token, &m, &roots, &whole, None);
+                    receipts.push((generation, full_reads, full_reads, units(&whole).len(), 0));
+                } else {
+                    let qa = a.qualification().unwrap();
+                    let qb = b.qualification().unwrap();
+                    assert_eq!(qa, qb);
+                    let mut c = Counting {
+                        nodes: &mut nodes,
+                        reads: 0,
+                    };
+                    let d = b.verify_delta(&mut c, refs(r), &qb).unwrap();
+                    let delta_reads = c.reads;
+                    assert!(d.verified.frontier_used());
+                    let mut oracle = BTreeSet::new();
+                    for u in units(&whole) {
+                        if !a.contains_committed_unit(&u).unwrap() {
+                            oracle.insert(u);
+                        }
+                    }
+                    assert_eq!(units(&d), oracle, "g{generation} Δ单位与完整核验差集不同");
+                    if generation == 2 {
+                        for mode in [Mode::Public, Mode::Template] {
+                            assert!(oracle.contains(&Unit {
+                                digest: latent.digest().unwrap(),
+                                flavor: Flavor::Value,
+                                mode,
+                            }));
+                        }
+                    }
+                    if generation == 4 {
+                        assert!(oracle.is_empty());
+                    }
+                    assert!(delta_reads < full_reads, "g{generation} Δ未止步");
+                    let counted = CountingFrontier {
+                        inner: QualifiedSuccessView {
+                            ledger: &b,
+                            qualification: &qb,
+                        },
+                        lookups: std::cell::Cell::new(0),
+                    };
+                    cd::verify_four_roots_from(&mut nodes, refs(r), &counted).unwrap();
+                    receipts.push((
+                        generation,
+                        full_reads,
+                        delta_reads,
+                        oracle.len(),
+                        counted.lookups.get(),
+                    ));
+                    commit(&mut a, &token, &m, &roots, &whole, Some(&qa));
+                    commit(&mut b, &token, &m, &roots, &d, Some(&qb));
+                }
+                assert_eq!(dump(&a.path), dump(&b.path), "g{generation} 台账不同");
+            }
+            for (g, full_reads, delta_reads, new_units, lookups) in &receipts {
+                println!(
+                    "M8D_3B_RECEIPT g={g} full_node_reads={full_reads} delta_node_reads={delta_reads} new_units={new_units} frontier_lookups={lookups}"
+                );
+            }
+        }
+
+        #[test]
+        fn h1_m8d_success_ledger_commit_failure_and_cold_rebuild_diff() {
+            let (f, _, token, mut m, mut roots) = prepared::tests::p6_candidate();
+            let mut online = ledger(&f.db_path(), "m8d-online.sqlite", &m.rule_revision);
+            let mut nodes = sc::MemoryNodes::new();
+            let (gens, _) = values(&mut nodes);
+            // 在线：Δ 逐代；第三代绑定失败使台账失效，失效后不得再签资格或点查。
+            for (i, r) in gens.iter().enumerate().take(3) {
+                m.generation = i as i64 + 1;
+                set_roots(&mut m, &mut roots, r);
+                if m.generation == 1 {
+                    let (whole, _) = full(&mut nodes, r);
+                    commit(&mut online, &token, &m, &roots, &whole, None);
+                    continue;
+                }
+                let q = online.qualification().unwrap();
+                let d = online.verify_delta(&mut nodes, refs(r), &q).unwrap();
+                online
+                    .stage_verified(&token, &delta(&m, &roots), &d, None, Some(&q))
+                    .unwrap();
+                if m.generation == 3 {
+                    assert!(online.bind("different-request", &m, &roots).is_err());
+                    assert!(online.connection.is_none());
+                    assert!(online.qualification().is_err());
+                    assert!(online.verify_delta(&mut nodes, refs(r), &q).is_err());
+                    break;
+                }
+                online.bind(&token, &m, &roots).unwrap();
+                online.content_committed().unwrap();
+            }
+            // 冷重建：从空 g1 起每代走同一 Δ 步；结果须与一路完整核验的台账逐字相同。
+            let mut cold = ledger(&f.db_path(), "m8d-cold.sqlite", &m.rule_revision);
+            let mut oracle = ledger(&f.db_path(), "m8d-oracle.sqlite", &m.rule_revision);
+            for (i, r) in gens.iter().enumerate() {
+                m.generation = i as i64 + 1;
+                set_roots(&mut m, &mut roots, r);
+                let (whole, _) = full(&mut nodes, r);
+                let prior_o = (m.generation > 1).then(|| oracle.qualification().unwrap());
+                commit(&mut oracle, &token, &m, &roots, &whole, prior_o.as_ref());
+                match (m.generation > 1).then(|| cold.qualification().unwrap()) {
+                    None => commit(&mut cold, &token, &m, &roots, &whole, None),
+                    Some(q) => {
+                        let d = cold.verify_delta(&mut nodes, refs(r), &q).unwrap();
+                        commit(&mut cold, &token, &m, &roots, &d, Some(&q));
+                    }
+                }
+                assert_eq!(dump(&cold.path), dump(&oracle.path));
+            }
+        }
+
+        fn committed_g1(
+            name: &str,
+        ) -> (
+            prepared::tests::Fixture,
+            Ledger,
+            sc::MemoryNodes,
+            String,
+            content_manifest::ManifestMetadata,
+            content_manifest::ManifestRoots,
+            Vec<ContentRef>,
+        ) {
+            let (f, _, token, mut m, mut roots) = prepared::tests::p6_candidate();
+            let mut l = ledger(&f.db_path(), name, &m.rule_revision);
+            let mut nodes = sc::MemoryNodes::new();
+            let (gens, _) = values(&mut nodes);
+            m.generation = 1;
+            set_roots(&mut m, &mut roots, &gens[0]);
+            let (whole, _) = full(&mut nodes, &gens[0]);
+            commit(&mut l, &token, &m, &roots, &whole, None);
+            m.generation = 2;
+            set_roots(&mut m, &mut roots, &gens[1]);
+            (f, l, nodes, token, m, roots, gens)
+        }
+
+        #[test]
+        fn m8d_success_complete_unit_context_position_and_first_reachable() {
+            // 完整单位 (digest,Flavor,Mode) 点查：同摘要异上下文/异模式不互借；首达旧节点重核；
+            // 序列不是单位。逐代差集对拍由 h1_m8d_success_delta_and_full_canonical_diff 承担。
+            let (_f, l, mut nodes, _, _, _, gens) = committed_g1("m8d-l7.sqlite");
+            let q = l.qualification().unwrap();
+            let d = l.verify_delta(&mut nodes, refs(&gens[1]), &q).unwrap();
+            let got = units(&d);
+            for u in &got {
+                assert!(!l.contains_committed_unit(u).unwrap());
+            }
+            // 每个新单位在 Public 与 Template 两模式都出现：模式独立认证。
+            for u in &got {
+                let twin = Unit {
+                    mode: match u.mode {
+                        Mode::Public => Mode::Template,
+                        Mode::Template => Mode::Public,
+                    },
+                    ..u.clone()
+                };
+                assert!(got.contains(&twin), "模式孪生单位缺失");
+            }
+            // 上下文切换：g3 把 Bool(false) 放进 JsonText 内层；未提交的 JsonInner 单位
+            // 必须出现在 Δ 中，不因同摘要其他上下文而免核（台账此处只提交了 g1）。
+            let full_g3 = {
+                let mut c = Counting {
+                    nodes: &mut nodes,
+                    reads: 0,
+                };
+                QualifiedUnits::full(cd::verify_four_roots(&mut c, refs(&gens[2])).unwrap())
+                    .unwrap()
+            };
+            let inner: BTreeSet<Unit> = units(&full_g3)
+                .into_iter()
+                .filter(|u| matches!(u.flavor, Flavor::JsonInner))
+                .collect();
+            assert!(!inner.is_empty(), "夹具未产生 JsonInner 单位");
+            let d3 = l.verify_delta(&mut nodes, refs(&gens[2]), &q).unwrap();
+            for u in inner {
+                if !l.contains_committed_unit(&u).unwrap() {
+                    assert!(units(&d3).contains(&u));
+                }
+            }
+        }
+
+        #[test]
+        fn m8d_success_partial_failure_and_ledger_phase_never_promote() {
+            // (a) 前沿止步的结果不能冒充完整核验。
+            {
+                let mut nodes = sc::MemoryNodes::new();
+                let r = sc::write_value(&mut nodes, &sc::Value::Null)
+                    .unwrap()
+                    .content_ref();
+                let v =
+                    cd::verify_four_roots_from(&mut nodes, refs(&r), &cd::EmptyFrontier).unwrap();
+                assert!(QualifiedUnits::full(v).is_err());
+            }
+            // (b) miss 的损坏节点：Δ 与完整核验同错误码失败，台账不变。
+            {
+                let (_f, l, mut nodes, _, _, _, _) = committed_g1("m8d-l8-corrupt.sqlite");
+                let fresh = sc::write_value(&mut nodes, &sc::Value::String("fresh".into()))
+                    .unwrap()
+                    .content_ref();
+                let r = sc::write_value(
+                    &mut nodes,
+                    &sc::Value::Array(vec![sc::Value::edge_of_ref(&fresh).unwrap()]),
+                )
+                .unwrap()
+                .content_ref();
+                let digest = fresh.digest().unwrap();
+                let (tag, _) = nodes.get(&digest).unwrap();
+                nodes.insert_unchecked(digest, tag, b"bad".to_vec());
+                let before = dump(&l.path);
+                let q = l.qualification().unwrap();
+                let view = QualifiedSuccessView {
+                    ledger: &l,
+                    qualification: &q,
+                };
+                let delta_err = cd::verify_four_roots_from(&mut nodes, refs(&r), &view)
+                    .err()
+                    .unwrap();
+                let full_err = cd::verify_four_roots(&mut nodes, refs(&r)).err().unwrap();
+                assert_eq!(delta_err.code(), full_err.code());
+                assert!(l.verify_delta(&mut nodes, refs(&r), &q).is_err());
+                assert_eq!(before, dump(&l.path));
+            }
+            // (c) 未提交（pending/bound）时不能签发或点查；失效台账同样拒绝。
+            {
+                let (_f, mut l, mut nodes, token, m, roots, gens) =
+                    committed_g1("m8d-l8-pending.sqlite");
+                let q = l.qualification().unwrap();
+                let d = l.verify_delta(&mut nodes, refs(&gens[1]), &q).unwrap();
+                l.stage_verified(&token, &delta(&m, &roots), &d, None, Some(&q))
+                    .unwrap();
+                assert!(l.verify_delta(&mut nodes, refs(&gens[1]), &q).is_err());
+                let view = QualifiedSuccessView {
+                    ledger: &l,
+                    qualification: &q,
+                };
+                // 前沿点查失败即整体失败，不当 miss 退回完整核验。
+                assert!(cd::verify_four_roots_from(&mut nodes, refs(&gens[1]), &view).is_err());
+                l.bind(&token, &m, &roots).unwrap();
+                assert!(l.verify_delta(&mut nodes, refs(&gens[1]), &q).is_err());
+                l.content_committed().unwrap();
+                // (d) 推进一代后旧资格过期。
+                assert!(l.verify_delta(&mut nodes, refs(&gens[2]), &q).is_err());
+                let fresh = l.qualification().unwrap();
+                assert_ne!(fresh, q);
+                assert!(l.verify_delta(&mut nodes, refs(&gens[2]), &fresh).is_ok());
+            }
+            // (e) 绑定资格必须等于 prior：缺 prior 或换资格都拒绝，失败使台账失效且文件不变。
+            for case in 0..2 {
+                let (_f, mut l, mut nodes, token, m, roots, gens) =
+                    committed_g1(&format!("m8d-l8-prior-{case}.sqlite"));
+                let q = l.qualification().unwrap();
+                let d = l.verify_delta(&mut nodes, refs(&gens[1]), &q).unwrap();
+                let before = dump(&l.path);
+                let mut other = q.clone();
+                other.fold_digest = "0".repeat(64);
+                let prior = if case == 0 { None } else { Some(&other) };
+                assert!(l
+                    .stage_verified(&token, &delta(&m, &roots), &d, None, prior)
+                    .is_err());
+                assert!(l.connection.is_none());
+                assert_eq!(before, dump(&l.path));
+            }
+        }
     }
 
     #[test]

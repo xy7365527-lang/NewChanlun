@@ -1585,6 +1585,10 @@ pub(super) fn audit_native_source(
             }
             // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
             for digest in j.nodes.keys() {
+                #[cfg(test)]
+                let cap = super::source_append_cap_for_test(capture, digest, j.cap);
+                #[cfg(not(test))]
+                let cap = j.cap;
                 // #1488：活动域读取签发的正文许可随正文移入 owner，不再走 Plain 早退。
                 let node =
                     sc::NodeSource::read_scoped(&mut reader.inner, digest).map_err(publish_err)?;
@@ -1596,7 +1600,7 @@ pub(super) fn audit_native_source(
                         *digest,
                         tag,
                         body,
-                        j.cap,
+                        cap,
                         Some(access.work),
                     ),
                     (body, Some(fee)) => {
@@ -1606,7 +1610,7 @@ pub(super) fn audit_native_source(
                                 *digest,
                                 tag,
                                 body,
-                                j.cap,
+                                cap,
                                 access.work,
                             )
                         })

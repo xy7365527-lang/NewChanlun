@@ -742,6 +742,16 @@ pub trait NodeSource {
     }
 }
 
+/// owner 原件索引一次扩容的完整申请：新容量 2 倍（至少 4）再按控制与表项上界计费。
+#[cfg(feature = "s_incremental")]
+fn owner_index_growth(capacity: usize) -> usize {
+    capacity
+        .saturating_mul(2)
+        .max(4)
+        .saturating_mul(2)
+        .saturating_add(16)
+        .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1)
+}
 /// 内存节点表：缓冲/测试用。写入面按摘要校验，损坏节点用 `insert_unchecked` 注入。
 #[derive(Debug, Clone, Default)]
 pub struct MemoryNodes {
@@ -3616,11 +3626,7 @@ impl AuditCapture {
         // 须指到这块已物理计费的正文，不再在父账同额物理reserve。
         let source_claim = work.map(|_| SourceClaim::on_body(&body)).transpose()?;
         if native.nodes.len() == native.nodes.capacity() {
-            let capacity = native.nodes.capacity().saturating_mul(2).max(4);
-            let growth = capacity
-                .saturating_mul(2)
-                .saturating_add(16)
-                .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1);
+            let growth = owner_index_growth(native.nodes.capacity());
             let permit = work.map(|w| w.reserve_native(growth)).transpose()?;
             if growth > cap || native.nodes.try_reserve(1).is_err() {
                 if let Some(work) = work {
@@ -3650,6 +3656,16 @@ impl AuditCapture {
         Ok(true)
     }
 
+    /// #1419 M8D L6：owner 原件索引满时一次扩容的完整申请量 G；局部门比较 `G > j.cap`。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn owner_index_next_growth(&self) -> Option<usize> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return None;
+        };
+        (native.nodes.len() == native.nodes.capacity())
+            .then(|| owner_index_growth(native.nodes.capacity()))
+    }
     /// #1394 owner正常追加的热交接：只清本步实际生成过proof的节点。
     /// 完整原件与根证书继续保留；不扫描旧节点求body总量。
     #[cfg(feature = "s_incremental")]
@@ -9628,6 +9644,84 @@ mod native_owner_codec_bridge_tests {
         assert!(capture.owner_codec.borrow().revoked);
         assert!(!capture.contains(&digest));
         assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+
+    /// #1419 M8D L6：同父余量充足时，局部门恰在一次扩容的完整申请 G 上：cap=G 通过，
+    /// cap=G−1 在父账 reserve 成功后才以 Allocation 拒绝，正文与临时许可全额退回、
+    /// 首错为本门、能力撤销、原件未入；usize::MAX 只作对照臂，与 cap=G 结果相同。
+    #[test]
+    fn m8d_jcap_exact_growth_one_less_and_max_control() {
+        fn count(capture: &AuditCapture) -> usize {
+            let CaptureNodes::Native(native) = &capture.nodes else {
+                unreachable!()
+            };
+            native.nodes.len()
+        }
+        fn append_nth(
+            parent: &Arc<Parent>,
+            capture: &mut AuditCapture,
+            n: usize,
+            cap: usize,
+        ) -> Result<bool, WorkError<CodecError>> {
+            let body = codec_body(parent, format!("fill-{n}").as_bytes());
+            let digest = frame(tag::BYTES_CHUNK, &body);
+            run(parent, |work| {
+                capture.append_original_codec_for_owner(digest, tag::BYTES_CHUNK, body, cap, work)
+            })
+        }
+        /// 追加到第 `filled` 次扩容边界（中途未到边界的追加不比较 cap），返回已追加个数。
+        fn fill_to(parent: &Arc<Parent>, capture: &mut AuditCapture, filled: usize) -> usize {
+            let (mut n, mut grown) = (0, 0);
+            loop {
+                if capture.owner_index_next_growth().is_some() {
+                    if grown == filled {
+                        return n;
+                    }
+                    grown += 1;
+                }
+                assert!(append_nth(parent, capture, n, usize::MAX).unwrap());
+                n += 1;
+            }
+        }
+        let boundary = |filled: usize| {
+            let parent = Parent::new(64 << 20, 0);
+            let mut capture = native(MemoryNodes::new());
+            let n = fill_to(&parent, &mut capture, filled);
+            let g = capture.owner_index_next_growth().unwrap();
+            let live = parent.live.load(Ordering::SeqCst);
+            let failed = append_nth(&parent, &mut capture, n, g - 1);
+            assert!(matches!(
+                failed,
+                Err(WorkError::Resource(ScratchFailure::Allocation))
+            ));
+            assert!(
+                parent.peak.load(Ordering::SeqCst) >= live + g,
+                "父 reserve 先成功、局部门后拒"
+            );
+            assert_eq!(
+                parent.live.load(Ordering::SeqCst),
+                live,
+                "正文与临时许可全退"
+            );
+            assert!(capture.owner_codec.borrow().revoked);
+            assert_eq!(count(&capture), n, "拒绝不入原件");
+            for cap in [g, usize::MAX] {
+                let parent = Parent::new(64 << 20, 0);
+                let mut target = native(MemoryNodes::new());
+                assert_eq!(fill_to(&parent, &mut target, filled), n);
+                assert_eq!(target.owner_index_next_growth(), Some(g));
+                assert!(
+                    append_nth(&parent, &mut target, n, cap).unwrap(),
+                    "cap={cap} 不小于 G 须通过"
+                );
+                assert_eq!(count(&target), n + 1);
+                assert!(!target.owner_codec.borrow().revoked);
+            }
+            g
+        };
+        let first = boundary(0);
+        let later = boundary(2);
+        assert!(later > first, "后续边界的 G 随容量增长");
     }
 
     #[test]
