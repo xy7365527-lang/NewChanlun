@@ -8994,6 +8994,10 @@ pub(super) fn append_owner_cut(
         .map_err(publish_err)?
         .with_codec_work(work, native);
     store.audit_full_arrays = true;
+    // 本能力对象只活在当前事务的新一代 append 内；Native 成功单位并入 owner 生涯证明
+    // （#1481:26）。对象/辅助效果的闭包核验与本代发布根同属这一请求，共用同一能力。
+    store.request_verifier =
+        Some(sc::CapturedRequestVerifier::new(capture, work).map_err(publish_err)?);
     let mut sweep = old
         .object_sweep
         .take()
@@ -9075,9 +9079,6 @@ pub(super) fn append_owner_cut(
     let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(publish_err)?)?;
     let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(publish_err)?)?;
     let delta = root_ref_bytes(&mut store, row.blob(4).map_err(publish_err)?)?;
-    // 本能力对象只活在当前事务的新一代 append 内；Native 成功单位并入 owner 生涯证明（#1481:26）。
-    store.request_verifier =
-        Some(sc::CapturedRequestVerifier::new(capture, work).map_err(publish_err)?);
     store
         .verify_many_ref([snapshot.view(), delta.view()], sc::Mode::Public)
         .map_err(publish_err)?;
