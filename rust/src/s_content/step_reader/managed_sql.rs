@@ -4,12 +4,14 @@ use capture_allocation::scratch::{NativeReservation, ScratchFailure};
 use rusqlite::Transaction;
 use std::cell::Cell;
 
-/// 独占事务借用阻止其他调用方 Commit/换事务或执行事务控制 SQL；
-/// total_changes/schema/隔离夹持额外拒绝测试内部注入的同事务变化。
+/// 共享事务借用（#1419 R1）：生产材料切面只持 `&Transaction`（effects MaterialAccess），
+/// 同一步写者也借同一事务。借用期内 Transaction 不能被 Commit 消费或替换；
+/// 经共享句柄执行的写入由 total_changes 夹持拒绝，COMMIT/ROLLBACK 由 autocommit 拒绝，
+/// DDL/PRAGMA/TEMP 影子由 schema 与 read_uncommitted 夹持拒绝；三者都在每次节点 SELECT 前核。
 /// 外连接身份/生涯夹持由原 sample 门负责；原父许可只作 O(1) 域身份封印。
 /// sample 必须借本请求原绝对 deadline/取消门，不能在这里重新起算期限。
 pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
-    tx: &'tx mut Transaction<'conn>,
+    tx: &'tx Transaction<'conn>,
     work: &'work WorkScope,
     sample: &'work dyn Fn() -> Result<(), CodecError>,
     identity: NativeReservation,
@@ -24,7 +26,7 @@ pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
 
 impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
     pub(super) fn new(
-        tx: &'tx mut Transaction<'conn>,
+        tx: &'tx Transaction<'conn>,
         work: &'work WorkScope,
         sample: &'work dyn Fn() -> Result<(), CodecError>,
     ) -> Result<Self, CodecError> {
@@ -52,6 +54,12 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
             reads: 0,
             metadata_reads,
         })
+    }
+
+    /// R1 单一入口的同域核：只认构造时借入的同一活动工作域，不另签身份。
+    #[cfg(test)]
+    pub(super) fn bound_to(&self, work: &WorkScope) -> bool {
+        std::ptr::eq(self.work, work)
     }
 
     fn check_domain(&self, tx: &Transaction<'_>, work: &WorkScope) -> Result<(), CodecError> {
@@ -263,7 +271,7 @@ impl Drop for SqlReadLease<'_> {
 
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn with_sql_frame<T>(
-    tx: &mut Transaction<'_>,
+    tx: &Transaction<'_>,
     work: &WorkScope,
     sample: &dyn Fn() -> Result<(), CodecError>,
     digest: &NodeDigest,
@@ -277,7 +285,7 @@ pub(crate) fn with_sql_frame<T>(
 
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn with_sql_root<T>(
-    tx: &mut Transaction<'_>,
+    tx: &Transaction<'_>,
     work: &WorkScope,
     sample: &dyn Fn() -> Result<(), CodecError>,
     reference: RefView<'_>,
