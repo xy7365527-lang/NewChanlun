@@ -376,10 +376,7 @@ impl SqliteParentAllocator {
                     .position(|sl| sl.parent.is_none())
                     .ok_or(ScratchFailure::Ledger)?;
                 let sl = &mut s.slots[slot];
-                sl.generation = sl
-                    .generation
-                    .checked_add(1)
-                    .ok_or(ScratchFailure::Ledger)?;
+                sl.generation = sl.generation.checked_add(1).ok_or(ScratchFailure::Ledger)?;
                 sl.parent = Some(parent);
                 slot
             }

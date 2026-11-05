@@ -154,7 +154,10 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let blob = d.next(0);
     let live = d.current.live();
     assert!(unsafe { ffi::sqlite3_column_blob(raw, 0) }.is_null());
-    assert_eq!(unsafe { ffi::sqlite3_errcode(main.handle()) }, ffi::SQLITE_NOMEM);
+    assert_eq!(
+        unsafe { ffi::sqlite3_errcode(main.handle()) },
+        ffi::SQLITE_NOMEM
+    );
     assert_eq!(blob.refusal(), Some(ScratchFailure::Budget));
     assert_eq!(d.current.live(), live);
     let _roomy = d.next(ROOM);

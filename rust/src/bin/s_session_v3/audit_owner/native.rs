@@ -1781,7 +1781,10 @@ impl Budget {
     /// 本冻结域的 SQLite 收费父账与 origin，供 `SqliteParentAllocator::bind`。
     #[cfg_attr(
         not(test),
-        allow(dead_code, reason = "#1419 M8D 3B：同父 SQLite 收费在 3C 接线前只由测试绑定")
+        allow(
+            dead_code,
+            reason = "#1419 M8D 3B：同父 SQLite 收费在 3C 接线前只由测试绑定"
+        )
     )]
     pub(crate) fn sqlite_parent(&self) -> (Arc<dyn SqliteParent>, u64) {
         (self.0.clone(), self.1)
