@@ -109,7 +109,7 @@ def verify(database, case, node=None):
             require(axis['implementation_status'] == 'not_implemented', 'finite domain cannot close whole axis')
         states.append(state)
     if node:
-        script = "const fs=require('node:fs'),A=require(process.argv[1]);(async()=>{for(const s of JSON.parse(fs.readFileSync(0,'utf8'))){await A.validateTB02Catalog(s.catalog);await A.validateTB02CutSources(s.snapshot);await A.validateTB02Axes(s.snapshot.catalog_evidence.axes,s.snapshot.objects);}})().catch(e=>{console.error(e);process.exitCode=1;});"
+        script = "const fs=require('node:fs'),A=require(process.argv[1]);(async()=>{for(const s of JSON.parse(fs.readFileSync(0,'utf8'))){const snapshot={...s.snapshot,rule_revision:s.snapshot.catalog_evidence.rule_revision};await A.validateTB02Catalog(s.catalog);await A.validateTB02CutSources(snapshot);await A.validateTB02Axes(snapshot.catalog_evidence.axes,snapshot.objects);}})().catch(e=>{console.error(e);process.exitCode=1;});"
         run = subprocess.run([str(node),'-e',script,str(ROOT/'browser/tb01c-client.js')], input=json.dumps(states), text=True, capture_output=True, timeout=120)
         require(run.returncode == 0, run.stderr)
     return {'status':'passed','case':case,'cuts':proof['generation'],'oracle_cuts':results,

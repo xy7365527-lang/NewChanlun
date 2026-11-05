@@ -63381,7 +63381,17 @@
     "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|10",
     "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|4",
     "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|5",
-    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|6"
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|6",
+    "DS172411|s_session/browser/q3-consumer.js|1912",
+    "DS172411|s_session/browser/q3-consumer.js|2002",
+    "DS172411|s_session/browser/q3-consumer.js|2564",
+    "DS172411|s_session/browser/tb01c-client.js|6207",
+    "DS172411|s_session/browser/tb01c-client.js|6297",
+    "DS172411|s_session/browser/tb01c-client.js|6859",
+    "DS172411|s_session/browser/tb01c-client.js|7871",
+    "DS172411|s_session/browser/tb01c-client.js|8109",
+    "DS173237|s_session/browser/tb01c-client.js|7685",
+    "DS173237|s_session/browser/tb01c-client.js|7805"
   ],
   "updates": [
     {
@@ -63621,6 +63631,34 @@
         ".chanlun/review-results/issue1778-decision-20261028/review1779-sync.json"
       ],
       "reason": "两文件是 #1778 裁定七原件的逐字归档副本（不改正文）；archaeology.json 第 8–10 行与 review1779-sync.json 第 4–6 行均为 40 位 Git 提交号（git cat-file 核为 commit 对象），非凭据。只追加精确 rule|path|line 键，不作目录排除（同 #1657 先例）。"
+    },
+    {
+      "issue": 1789,
+      "pull_request": 1805,
+      "source_head": "58b31eaa5d",
+      "actions_run": null,
+      "added_findings": 10,
+      "rule_counts": {
+        "DS172411": 8,
+        "DS173237": 2
+      },
+      "scope": [
+        "s_session/browser/q3-consumer.js",
+        "s_session/browser/tb01c-client.js"
+      ],
+      "reason": "同一行文本的行号漂移（同 #1491 先例）：10 键与 ab556a846e 官方 run 40860899530 的 10 项同规则同内容，58b31eaa5d 上的行号取自官方 1.0.90 镜像对该 head 的诊断扫描（官方 run 40870772273 因 92 MB 单行夹具未在期限内产出 SARIF）。逐键比对 266aedfa11 旧行与 58b31eaa5d 新行内容逐字相同后按精确 rule|path|line 键追加；旧键保留，原清单顺序不变。",
+      "entries": {
+        "DS172411|s_session/browser/q3-consumer.js|1912": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1761 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/q3-consumer.js|2002": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1860 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/q3-consumer.js|2564": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|2400 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|6207": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5144 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|6297": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5243 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|6859": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5783 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|7871": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6791 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|8109": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|7029 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS173237|s_session/browser/tb01c-client.js|7685": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6605 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。",
+        "DS173237|s_session/browser/tb01c-client.js|7805": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6725 同一行文本，因 #1789 移植 #1419 W Client 合同（q3-typed/q3-consumer/q3-center 及其打包段）在上方增行而行号漂移，逐行比对 266aedfa11 与 58b31eaa5d 内容不变。"
+      }
     }
   ]
 }
