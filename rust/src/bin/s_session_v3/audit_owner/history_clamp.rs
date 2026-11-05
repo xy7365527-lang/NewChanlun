@@ -260,6 +260,14 @@ impl Clamp {
         Ok(out)
     }
     pub(super) fn check(&mut self, active: &AuditTxn<'_>) -> Result<(), String> {
+        let now = self.checked_against_baseline(active)?;
+        if self.baseline.is_none() {
+            self.baseline = Some(now);
+        }
+        Ok(())
+    }
+    /// 原 `check` 的唯一判据：交接外部提交、当前观测与生涯基线逐项全等。返回被核过的那一份观测。
+    fn checked_against_baseline(&mut self, active: &AuditTxn<'_>) -> Result<Observation, String> {
         // #1481：先核两把锁之间的外部提交；不得让后续控制读的暂时资源失败掩盖它。
         if let Some(inherited) = self.inherited_data_version.take() {
             if active.data_version != inherited {
@@ -273,10 +281,8 @@ impl Clamp {
                 self.integrity_refusal.set(true);
                 return Err(stale("版本、文件、控制原件、写计数或连接域改变"));
             }
-        } else {
-            self.baseline = Some(now);
         }
-        Ok(())
+        Ok(now)
     }
     pub(super) fn candidate(
         &self,
@@ -345,11 +351,23 @@ impl Clamp {
         }
         Ok(())
     }
-    /// #1419 M8D 3A：本切面观测。只在签发方已用原 `check` 或 `check_candidate`
-    /// 解释本事务全部自身写之后取得；它不是 `WriteCandidate`，不推进生涯基线，也无提交资格。
+    /// #1419 M8D 3A：本切面观测就是签发时被原判据核过的那一份观测，不另行重新采样：
+    /// 无自身写时与生涯基线全等（原 `check`），已闭合自身写时与已核 effects 候选全等
+    /// （原 `check_candidate`）。它不是 `WriteCandidate`，不推进生涯基线，也无提交资格。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    pub(super) fn phase(&self, active: &AuditTxn<'_>) -> Result<Phase, String> {
-        Ok(Phase(self.observe(active)?))
+    pub(super) fn phase_from_baseline(&mut self, active: &AuditTxn<'_>) -> Result<Phase, String> {
+        if self.baseline.is_none() {
+            return Err(stale("缺生涯起点"));
+        }
+        Ok(Phase(self.checked_against_baseline(active)?))
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn phase_from_candidate(
+        &self,
+        active: &AuditTxn<'_>,
+        candidate: &WriteCandidate,
+    ) -> Result<Phase, String> {
+        Ok(Phase(self.checked_against_candidate(active, candidate)?))
     }
     /// reader 生涯内事务由读者独占且连接写入被拒，任何变化都不能由自身 effects 解释，
     /// 因而与本切面逐项全等；同一 `observe` 判据，不另立宽松核。
@@ -369,10 +387,19 @@ impl Clamp {
         active: &AuditTxn<'_>,
         candidate: &WriteCandidate,
     ) -> Result<(), String> {
-        if self.observe(active)? != candidate.observation {
+        self.checked_against_candidate(active, candidate).map(drop)
+    }
+    /// 原 `check_candidate` 的唯一判据；返回被核过的那一份观测。
+    fn checked_against_candidate(
+        &self,
+        active: &AuditTxn<'_>,
+        candidate: &WriteCandidate,
+    ) -> Result<Observation, String> {
+        let now = self.observe(active)?;
+        if now != candidate.observation {
             return Err(stale("effects闭合后出现未声明变化"));
         }
-        Ok(())
+        Ok(now)
     }
     pub(super) fn committed(
         &mut self,

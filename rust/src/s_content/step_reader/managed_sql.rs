@@ -394,6 +394,18 @@ impl<'tx, 'conn, 'work> GatedSqlReader<'tx, 'conn, 'work> {
         let lease = self.inner.read_checked(reference, mode)?;
         Ok(f(lease.tag, &lease))
     }
+    /// 步出口（M8D §1.2(4)）：交付前再过一次同一域核与签发方门（期限/取消、生涯）；
+    /// 已有首错原样返回，出口失败同样记为首错，之后零 SELECT。
+    pub fn exit(&mut self) -> Result<(), CodecError> {
+        let result = self.inner.check_domain(self.inner.work);
+        if let Err(error) = &result {
+            if self.inner.failure.is_none() {
+                self.inner.failure = Some(error.clone());
+            }
+            self.inner.live.set(false);
+        }
+        result
+    }
     pub fn node_selects(&self) -> u64 {
         self.inner.reads
     }

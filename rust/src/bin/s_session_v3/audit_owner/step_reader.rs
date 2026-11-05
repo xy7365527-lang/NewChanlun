@@ -161,27 +161,23 @@ impl<'a> AuditTxn<'a> {
         parent
             .check_current()
             .map_err(|_| history_clamp::stale("reader 父账冻结域已失效"))?;
-        if self.dirty.get() {
+        // 先封印连接，再取唯一一次观测：它必须同时通过原判据（无写对生涯基线、已闭合写对
+        // effects 候选），并原样作为本切面；签发后的每次 check_phase 只能与这份已核观测全等。
+        if self.dirty.get() && self.history_write.borrow().is_none() {
             // 未闭合的自身写是签发时点错误，不是外部变化：只拒本次签发，不进 owner 核。
-            if self.history_write.borrow().is_none() {
-                return Err(history_clamp::stale("自身写尚未闭合为已核 effects"));
-            }
-            let checked = {
-                let clamp = owner.history_clamp.borrow();
-                let candidate = self.history_write.borrow();
-                clamp
-                    .as_ref()
-                    .unwrap()
-                    .check_candidate(self, candidate.as_ref().unwrap())
-            };
-            owner.history_result(checked)?;
-        } else {
-            self.check_history()?;
+            return Err(history_clamp::stale("自身写尚未闭合为已核 effects"));
         }
         let seal = ConnectionSeal::install(&owner.connection)?;
-        let phase = {
+        let phase = if self.dirty.get() {
             let clamp = owner.history_clamp.borrow();
-            clamp.as_ref().unwrap().phase(self)
+            let candidate = self.history_write.borrow();
+            clamp
+                .as_ref()
+                .unwrap()
+                .phase_from_candidate(self, candidate.as_ref().unwrap())
+        } else {
+            let mut clamp = owner.history_clamp.borrow_mut();
+            clamp.as_mut().unwrap().phase_from_baseline(self)
         };
         let phase = owner.history_result(phase)?;
         match &material {
@@ -228,6 +224,8 @@ impl<'a> AuditTxn<'a> {
                 let mut reader =
                     GatedSqlReader::new(tx, work, &gate).map_err(|error| error.to_string())?;
                 let value = consume(&mut reader);
+                // 步出口：consume 内超期、取消或外部变化而未再读时，也不得交付成功。
+                reader.exit().map_err(|error| error.to_string())?;
                 let receipt = StepReaderReceipt {
                     node_selects: reader.node_selects(),
                     metadata_reads: reader.metadata_reads(),
