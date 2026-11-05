@@ -949,3 +949,15 @@ def test_every_subprocess_wait_comes_from_the_deadline_alone(tmp_path, monkeypat
                                       'command = "/bin/cat"\nargs = ["k"]\ntimeout_ms = 120000\n')
     preflight.provider_key(home, deadline, "codex")
     assert seen["run"] > 50 and seen["rm"] > 50 and seen["features"] > 50 and seen["helper"] > 50
+
+
+
+def test_mount_probe_runs_as_the_host_user_like_review_containers(env, capsys, tmp_path):
+    """正式审阅 1（Sol）：探针目录是 0700，必须像正式审阅容器一样以宿主 uid:gid 运行，否则镜像用户不同时误拦。"""
+    import os
+    calls = tmp_path / "docker-calls"
+    docker = tmp_path / "bin" / "docker"
+    docker.write_text(docker.read_text().replace("#!/bin/sh\n", f'#!/bin/sh\necho "$@" >> {calls}\n', 1))
+    code, report, *_ = env(capsys=capsys)
+    run = next(line for line in calls.read_text().splitlines() if line.startswith("run "))
+    assert code == 0 and f"--user {os.getuid()}:{os.getgid()}" in run

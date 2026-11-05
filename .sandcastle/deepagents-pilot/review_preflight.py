@@ -134,7 +134,10 @@ def check_mount(args, deadline: Deadline) -> tuple[dict, list[str]]:
         probe.mkdir(mode=0o700)
         (probe / "nonce").write_text(nonce)
         docker_called = True
+        # 与正式审阅容器相同，以宿主 uid:gid 运行（docker-isolation.mts）：探针目录是 0700，镜像用户与宿主不同时
+        # 不带 --user 会因 EACCES 误拦健康环境
         result = run_bounded(["docker", "run", "--rm", "--name", container, "--network", "none", "--read-only",
+                              "--user", f"{os.getuid()}:{os.getgid()}",
                               "--mount", f"type=bind,src={root},dst=/checkouts,readonly",
                               "--entrypoint", "cat", args.image, f"/checkouts/{container}/nonce"],
                              deadline.work_left())  # 只受总工作时限约束，不另设固定上限
