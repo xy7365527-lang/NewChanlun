@@ -36,7 +36,7 @@ VENV=/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/venv
 PEM=/Users/silencehan/Downloads/newchanlun-deepagents-1742.2026-10-26.private-key.pem
 export PILOT_BOAT_CONFIG=/绝对路径/boat-config.json
 export PILOT_BOAT_API_KEY_FILE=/仓外绝对路径/boat-controller.key
-executor() { PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
+executor() { PYTHONPATH=.sandcastle/approval-signing:.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
 git fetch origin <已推送的分支>
 BASE=$(git rev-parse origin/<已推送的分支>)
 ```
@@ -61,6 +61,18 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 退出码 75 表示这个 run 已有控制进程。控制进程被杀后直接重跑同一命令，工蜂按原键收养，已做的外部写入先读回再决定。受控故障注入用 `--crash-at`，取值为 `after_label_before_receipt`、`after_claim_before_receipt`、`after_push_before_receipt`、`after_pr_before_receipt`、`after_status_before_receipt`、`after_deliver_before_receipt`，进程在该点被 SIGKILL。
 
 明确决定撤销人工中断并继续运行时才加 `--resume`。恢复 Boat 在途工蜂时也一样：它会清除人工中断，不是只读对账选项；只查看本地事实用 `executor status`。
+
+**人工停点。** `runs/<run>/interrupt.request` 记录一次需要人决定的停止，`by` 字段写明来源：
+
+| `by` | 何时写入 | 图的位置 |
+|---|---|---|
+| 操作员（如 `studio`） | Studio 取消或操作员请求中断 | 停在下一次工具调用前的 checkpoint |
+| `execution_unknown` | v2 工具在派工中遇到 `ExecutionUnknown`（例如 Boat VM 等待 `hydrated` 超时），或观察、补派、收集得到 `EffectUnknown` 且该绑定尚无已证终态的排空证据 | 停在该工具调用的 checkpoint，`reason` 是原文 |
+| `brain_stopped_early` | 图已结束，业务相位不是 `gate`/`halted`/`awaiting_merge`/`merged`/`stale`/`conflict`，且当前 head 有已登记、未取消、未收集、未排空的 Boat 绑定 | 图已结束 |
+
+只有 `executor run --resume` 和 Studio 中断处的 Resume 清除停点。`--recheck-approval`、普通 `executor run`、Studio 的 Continue 和队列都不清除。停点已写入、图还没落到中断 checkpoint 时进程崩溃，图会停在待执行的工具前；这时 CLI 与 Studio 的 Continue 都只重跑该工具，工具在调用前看到停点就重新停下。队列看到停点即报 `awaiting_human`，不再起子进程。只有已证终态且已排空的 Boat 绑定（例如已取消并清理）才转 `halted`。
+
+`--resume` 在 checkpoint 处重跑该工具调用，同角色同 head 的工蜂按原绑定收养，已有 VM 不再 fork。图已结束时，只有上表 `brain_stopped_early` 的条件成立才继续：宿主在同一 thread 追加一条固定恢复消息，主控从原历史接着走。条件不成立（正常结束、绑定已取消、已收集或已排空、候选 head 漂移）时 `--resume` 只读，不重开。签批、持有代次与 SPEC 正文漂移在打开 run 时先拒绝，到不了恢复。
 
 **查看。** 只读本机，不访问 GitHub。
 
@@ -141,6 +153,12 @@ deepagents-scope: rust/src/example/ rust/tests/example/
 ### 为新队列 run 提供 SPEC 授权
 
 D8 的请求绑定 `ticket`、`run_id`、`claim_generation`、`spec_authorization` 与 SPEC 正文原始字节。已有同绑定、同正文且未过期的已发布签批直接复用。历史评论关键词批准和另一个 run 的签批不能复制到新 run。它们的历史批准记录不改写。
+
+签批判定为 approved 后，宿主在同一次动作锁内把那份正文原始字节写入 `runs/<run>/spec/<SPEC 号>.md`，旁注 `spec/<SPEC 号>.json` 记签批目标与代次。两个文件之间崩溃留下的错配，在下一次 approved 判定时按读到的原字节重写收敛，不需要人工删目录。读出时重算摘要，与签批目标不符即拒绝。每个 Boat 工蜂的 request 附封包时的这份正文。主控的系统提示在 `build_agent` 时取快照，同一控制进程内重签不会刷新提示；下一次打开 run 才用新正文。放行不依赖提示，只看独审封包（见下文）。它是数据，不是批准：放行仍只看每个动作边界的签批与正文复核。工蜂没有 GitHub 凭据，不读票面。
+
+宿主先完成旧 prompt 的路径映射，再原样附上这份正文，正文字节不改写。Boat 工蜂的封包在 `request.json` 的 `spec` 中记下所附正文的摘要。派工前（包括 `prepared` 续派和监督未认领时的补派）以及收集回执前，都在动作锁内核对它是否仍等于当前签批目标。不符时落 `execution_unknown` 停点，不重封包、不派工、不收集。派工前不符时，原包、绑定与 VM 都保留。收集前不符时，回执已经取回，按既有回收顺序删除 key 并停止 VM，原回执保留、checkout 不写。处置走既有入口：`cancel-worker` 把该绑定标为已取消，旧 SPEC 的完成回执作废但原样保留，不记成功，此后满足 [排空条件](BOAT.md#取消后释放队列槽或换代)，`release` 后换代。本版本之前封包、`request.json` 没有 `spec` 的 `prepared`、`submitted` 或已收集绑定都按不符处理，走同一条取消、排空、换代路径；t1863-1 当时尚未封包，按原身份恢复。
+
+发布同样以此为判据：`publish_candidate` 在推送、PR、状态、交付四个动作锁内，等签批与正文重核之后，核对放行用的同 head 独审封包 `spec` 是否等于当前签批目标。不符时返回 `decision=refused`、`reasons=["review_spec_mismatch"]`，停在下一次写之前；已完成的写、原包、回执与候选都保留，日志重放时同样先核对。同 head 的独审键已收集，不能重派，要在新 SPEC 下取得独审须走 `release` 后换代。
 
 首次 `serve --once` 会登记 `t<票号>-1`，在任何票面写入前生成 `runs/<run>/approvals/spec_authorization.request`。状态页列出请求路径及签批命令。由批准人在受管签批工具中核对、签名并发布该请求，再运行下一轮。签名未发布、拒绝或已过期时保持等待。每个动作都重读权威决定链和 SPEC 正文。正文变化时暂停并生成新请求，模型恢复载荷不算批准。
 

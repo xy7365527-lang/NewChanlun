@@ -133,6 +133,39 @@ def test_official_continue_runs_the_pending_tools_of_a_stopped_run(v2, bound, mo
     v2.run(bound).release()
 
 
+def test_continue_keeps_a_stop_recorded_before_its_checkpoint(v2, bound, monkeypatch):
+    from pilot1742.cli import drive
+
+    run, head = cli_paused(v2, bound, operator=False)
+    run.request_interrupt("execution_unknown", reason="interrupt() 落 checkpoint 之前进程崩溃")
+    monkeypatch.setattr(studio, "EXECUTION_MODEL", scripted(AIMessage("停点被绕过")))
+    thread = thread_for(bound.run_id)
+
+    async def official_continue():
+        async with studio.graph(execution(bound, resume=False, checkpoint=head)) as agent:
+            served = agent.copy(update={"checkpointer": RunBoundCheckpointer()})
+            await served.ainvoke(None, {"configurable": {"thread_id": thread}})
+
+    asyncio.run(official_continue())
+    config = {"configurable": {"thread_id": bound.run_id}}
+
+    def state():
+        cli = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)),
+                          scripted())
+        return cli.get_state(config)
+
+    stopped = state()
+    assert run.interrupt_requested()["by"] == "execution_unknown"
+    assert stopped.tasks[0].interrupts and [m.type for m in stopped.values["messages"]] == ["human", "ai"]
+    pilot = v2.run(bound)
+    try:
+        drive(pilot, recheck_approval=True)
+    finally:
+        pilot.release()
+    assert run.interrupt_requested()["by"] == "execution_unknown"
+    assert [m.type for m in state().values["messages"]] == ["human", "ai"]
+
+
 def test_execution_only_advances_an_unfinished_run_from_the_checkpoint_it_was_asked_about(v2, bound):
     """run 锁内复核：未首跑、已结束、checkpoint 已变、恢复与继续用错，一律拒绝且不留锁、不清中断请求。"""
 

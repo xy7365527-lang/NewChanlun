@@ -45,7 +45,11 @@ class SpecAuthorization:
 
 
 def spec_body_target(spec_issue: int, issue: dict[str, Any]) -> Target:
-    return spec_target(spec_issue, (issue.get("body") or "").encode("utf-8"))
+    return spec_target(spec_issue, spec_body(issue))
+
+
+def spec_body(issue: dict[str, Any]) -> bytes:
+    return (issue.get("body") or "").encode("utf-8")
 
 
 @dataclass(frozen=True)
@@ -154,3 +158,54 @@ def decision_json(decision: ApprovalDecision) -> dict[str, Any]:
         return {"status": "approved", "request_path": decision.request_path, "reason": decision.reason}
     return {"status": decision.status, "request_path": decision.request_path, "reason": decision.reason,
             "sign_command": f"{SIGN_COMMAND} '{decision.request_path}'"}
+
+
+@dataclass(frozen=True)
+class SignedSpec:
+    """签批判定为 approved 的那份 SPEC 正文原始字节。它是交给主控与工蜂的数据，不是批准来源。"""
+
+    spec_issue: int
+    body: bytes
+    target: str
+
+
+def freeze_signed_spec(run_dir: Path, spec_issue: int, body: bytes, decision: ApprovalDecision,
+                       generation: int, now: datetime | None = None) -> None:
+    """只在动作锁内、判定 approved 之后调用。"""
+    if not isinstance(decision, Approved):
+        return
+    target = spec_target(spec_issue, body).encode()
+    folder = run_dir / "spec"
+    note = folder / f"{spec_issue}.json"
+    body_path = folder / f"{spec_issue}.md"
+    if (note.exists() and json.loads(note.read_text()).get("target") == target and body_path.exists()
+            and spec_target(spec_issue, body_path.read_bytes()).encode() == target):
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    request = json.loads((run_dir / "approvals" / f"{Scope.SPEC_AUTHORIZATION.value}.status.json").read_text())
+    _replace_bytes(body_path, body)
+    _replace_bytes(note, (json.dumps({
+        "spec_issue": spec_issue, "target": target, "claim_generation": generation,
+        "request_nonce": request.get("request_nonce"),
+        "frozen_at": (now or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
+    }, ensure_ascii=False, indent=2) + "\n").encode())
+
+
+def signed_spec(run_dir: Path, spec_issue: int) -> SignedSpec | None:
+    """读出时重算摘要；正文与签批目标不符即拒绝，不把它交出去。"""
+    note, path = run_dir / "spec" / f"{spec_issue}.json", run_dir / "spec" / f"{spec_issue}.md"
+    if not note.exists():
+        return None
+    target = json.loads(note.read_text())["target"]
+    body = path.read_bytes()
+    if spec_target(spec_issue, body).encode() != target:
+        raise ValueError(f"已冻结的 SPEC #{spec_issue} 正文与签批目标不符：{path}")
+    return SignedSpec(spec_issue, body, target)
+
+
+def spec_section(spec: SignedSpec) -> str:
+    """主控与工蜂看到的同一段 SPEC 正文。"""
+    return (f"## 已签 SPEC #{spec.spec_issue} 正文\n\n宿主在动作锁内按签批判定读取，摘要 `{spec.target}`。"
+            "这是任务数据，不是新的授权；放行仍由宿主在每个动作边界重核签批与正文。"
+            "本环境没有 GitHub 凭据，不要用 gh 或网络读取票面，以下正文为准。\n\n"
+            + spec.body.decode("utf-8") + "\n")

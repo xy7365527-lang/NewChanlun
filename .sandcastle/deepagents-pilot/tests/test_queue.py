@@ -585,7 +585,8 @@ def test_existing_boat_worker_keeps_slot_across_skip_paths(queued, monkeypatch, 
     v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
                         labels=('ready-for-agent', 'deepagents:queue'))
     rows = intake.once(lambda _: pytest.fail('paused or unknown worker slot was reused'))
-    assert rows[TICKET]['phase'] == 'active' and 'running' in rows[TICKET]['reason']
+    expected = 'awaiting_human' if state == 'interrupted' else 'active'
+    assert rows[TICKET]['phase'] == expected and 'running' in rows[TICKET]['reason']
     assert rows[TICKET + 1]['phase'] == 'queued'
     assert run.execution.load(key) == binding
     assert sorted(p.stem for p in (v2.home / 'units').glob('*.json')) == [unit.run_id]
