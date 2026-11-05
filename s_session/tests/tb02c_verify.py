@@ -76,6 +76,17 @@ def verify(database, case, node=None):
         script = """const fs=require('node:fs'), A=require(process.argv[1]);
 (async()=>{for(const s of JSON.parse(fs.readFileSync(0,'utf8'))){await A.validateTB02Catalog(s.catalog);await A.validateTB02CutSources(s.snapshot);await A.validateTB02Axes(s.snapshot.catalog_evidence.axes,s.snapshot.objects);}console.log('28 cuts');})().catch(e=>{console.error(e);process.exitCode=1;});"""
         result = subprocess.run([str(node), '-e', script, str(ROOT / 'browser/tb01c-client.js')], input=json.dumps(states), text=True, capture_output=True, timeout=60)
+        _diag = __import__('os').environ.get('TB02C_DIAG')
+        if _diag:
+            import hashlib as _h, os as _o
+            _o.makedirs(_diag, exist_ok=True)
+            _in = json.dumps(states)
+            _tag = f"{case}-{_o.getpid()}-rc{result.returncode}"
+            with open(_o.path.join(_diag, 'runs.tsv'), 'a') as _f:
+                _f.write(f"{case}\t{result.returncode}\t{len(_in)}\t{_h.sha256(_in.encode()).hexdigest()}\t{result.stdout.strip()[:80]!r}\t{result.stderr.strip()[:200]!r}\n")
+            if result.returncode:
+                open(_o.path.join(_diag, _tag + '.json'), 'w').write(_in)
+                open(_o.path.join(_diag, _tag + '.out'), 'w').write(result.stdout + '\n----\n' + result.stderr)
         if result.returncode:
             raise ValueError(result.stderr)
     return {'status': 'passed', 'cuts': len(states), 'case': case, 'scope': '真实持久库公共Q/观察器合同，不替代HTTP与GUI'}
