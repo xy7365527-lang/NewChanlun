@@ -7975,6 +7975,29 @@ thread_local! {
     pub(super) static PREPARE_ALLOCATION_FAILURE: Cell<bool> = const { Cell::new(false) };
     /// 0072 R2：尾检先记 Allocation，再返回另一作用域 Ledger 类 scratch 错误的渲染（须拒绝）。
     pub(super) static PUBLICATION_LEDGER_AFTER_BUDGET: Cell<bool> = const { Cell::new(false) };
+    /// #1419 M8D P2：audit_native_source 实际追加首次遇到索引扩容边界时，以 `G - offset`
+    /// 代替本次调用的 j.cap（只此一次，用后清空）；收据记 (G, 原 j.cap)。
+    pub(super) static SOURCE_APPEND_CAP_AT_GROWTH: Cell<Option<usize>> = const { Cell::new(None) };
+    pub(super) static SOURCE_APPEND_CAP_RECEIPT: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
+}
+
+/// #1419 M8D P2：真实来源追加的局部 cap；未布置或未到扩容边界时原样返回 j.cap。
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn source_append_cap_for_test(
+    capture: &newchan_rust::s_content::AuditCapture,
+    cap: usize,
+) -> usize {
+    match (
+        SOURCE_APPEND_CAP_AT_GROWTH.with(Cell::get),
+        capture.owner_index_next_growth(),
+    ) {
+        (Some(offset), Some(growth)) => {
+            SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.set(None));
+            SOURCE_APPEND_CAP_RECEIPT.with(|r| r.set(Some((growth, cap))));
+            growth - offset
+        }
+        _ => cap,
+    }
 }
 
 #[cfg(all(test, feature = "s_incremental"))]

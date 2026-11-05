@@ -8705,6 +8705,79 @@ mod tests {
         use super::super::audit_owner::SOURCE_APPEND_ALLOCATION_FAILURE;
         publication_candidate_shortfall_case(&SOURCE_APPEND_ALLOCATION_FAILURE, None);
     }
+    /// #1419 M8D P2：真实 `effects::audit_native_source` 来源追加的有限 j.cap 门。首次遇到
+    /// owner 原件索引扩容边界时把本次 cap 换成该次完整申请 G（通过）或 G−1（父 reserve 后
+    /// 局部 Allocation，经原桥降级放弃候选）；其余追加与各代照原 j.cap。两臂回复与运行根均逐项
+    /// 等于 ordinary oracle；收据核原 j.cap 不小于 G（真实路径本就放行该次扩容）。
+    #[cfg(feature = "s_incremental")]
+    fn m8d_jcap_case(offset: usize) -> (usize, usize) {
+        use super::super::audit_owner::{SOURCE_APPEND_CAP_AT_GROWTH, SOURCE_APPEND_CAP_RECEIPT};
+        use super::super::prepared::tests::runtime_root_tables;
+        let abandoned = |events: &[Value]| {
+            events
+                .iter()
+                .filter(|e| e["phase"] == "publication_candidate_abandoned")
+                .count()
+        };
+        let warm_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
+        )
+        .unwrap();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        assert_eq!(
+            warm.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
+        SOURCE_APPEND_CAP_RECEIPT.with(|r| r.set(None));
+        let mut receipt = None;
+        for n in [2, 3, 3] {
+            let armed = receipt.is_none();
+            if armed {
+                assert!(
+                    warm.conn.complete_retained_bytes() > 0,
+                    "布置代入口须带候选"
+                );
+                SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.set(Some(offset)));
+            }
+            let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(n)));
+            let hit = armed && SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.get()).is_none();
+            SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.set(None));
+            assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(n)).unwrap());
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+            let expect_abandon = hit && offset > 0;
+            assert_eq!(abandoned(&events), usize::from(expect_abandon), "第{n}代");
+            if hit {
+                receipt = SOURCE_APPEND_CAP_RECEIPT.with(|r| r.take());
+                assert!(receipt.is_some());
+            }
+        }
+        let (growth, real) = receipt.expect("来源追加必须实际到达索引扩容边界");
+        assert!(real >= growth, "原 j.cap={real} 小于 G={growth}");
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "后续代重建并保留候选"
+        );
+        (growth, real)
+    }
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn h1_m8d_jcap_effects_append_read_diff() {
+        let exact = m8d_jcap_case(0);
+        let one_less = m8d_jcap_case(1);
+        assert_eq!(exact, one_less, "同输入同边界");
+        println!("M8D_P2_RECEIPT growth={} real_j_cap={}", exact.0, exact.1);
+    }
     /// #1488 0072 锁（独审 0070 R1）：故障起点改到 prepared 发布读取租约处，真实候选父工作域
     /// Allocation 经 prepared 的 `err` 以 `S3PrepareInvalid：` 包装上抛（S86 message-34 的真实形态）。
     /// 0069 文字白名单下此处被 fail-closed；类型化判据须降级成功，后续代照常。
