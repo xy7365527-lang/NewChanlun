@@ -62,7 +62,7 @@ pub mod m8b_testonly {
     }
 
     pub fn with_sql_frame<T>(
-        tx: &rusqlite::Transaction<'_>,
+        tx: &mut rusqlite::Transaction<'_>,
         work: &capture_allocation::scratch::WorkScope,
         sample: &dyn Fn() -> Result<(), CodecError>,
         digest: &NodeDigest,
@@ -72,7 +72,7 @@ pub mod m8b_testonly {
     }
 
     pub fn with_sql_root<T>(
-        tx: &rusqlite::Transaction<'_>,
+        tx: &mut rusqlite::Transaction<'_>,
         work: &capture_allocation::scratch::WorkScope,
         sample: &dyn Fn() -> Result<(), CodecError>,
         reference: RefView<'_>,

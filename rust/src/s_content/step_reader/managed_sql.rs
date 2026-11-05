@@ -4,32 +4,21 @@ use capture_allocation::scratch::{NativeReservation, ScratchFailure};
 use rusqlite::Transaction;
 use std::cell::Cell;
 
-/// 共享事务借用（#1419 R1）：生产材料切面只持 `&Transaction`（effects MaterialAccess），
-/// 同一步写者也借同一事务。借用期内 Rust Transaction 不能被 `commit(self)` 消费，
-/// 但共享句柄仍可执行 SQL `COMMIT; BEGIN`/`ROLLBACK; BEGIN`，Rust 对象和
-/// total_changes/schema 可完全不变（R1-01）。因此每次节点 SELECT 前、任何会开启
-/// 读事务的 PRAGMA 之前，先核 SQL 事务 epoch：
-/// - 连接 rollback 计数必须不变：SQLite 在任何事务回滚（显式 ROLLBACK，含只读事务；
-///   ON CONFLICT ROLLBACK 等隐式全回滚）的 `sqlite3RollbackAll` 中调用 rollback hook；
-/// - `sqlite3_txn_state(main)` 必须仍等于签发时状态（READ/WRITE）。旧事务结束后的
-///   deferred BEGIN 为 NONE，READ 被换成 BEGIN IMMEDIATE 为 WRITE，均拒绝；
-/// - pager data version（`SQLITE_FCNTL_DATA_VERSION`）必须不变：本连接 COMMIT 写事务
-///   （含随后 BEGIN IMMEDIATE 重回 WRITE）和新快照吸收的外连接提交都会改变它。
-/// 写入由 total_changes 拒绝，裸 COMMIT/ROLLBACK 由 autocommit 拒绝，DDL/PRAGMA/TEMP 影子由
-/// schema 与 read_uncommitted 拒绝。不刷新任何签发基线。
-/// 余下不可区分的序列只剩“READ 签发、无自身写、别名结束事务后又重读开新快照且无外连接
-/// 提交”，新旧快照内容逐字相同（data version 证无外提交，READ 证无自身未提交写）。
-/// 外连接 FD/WAL/生涯夹持仍由原 sample 门负责；原父许可只作 O(1) 域身份封印。
+/// 独占事务借用（#1419 R1-01 返修，回到 M8B 原合同）：reader 存活期内任何 Rust 调用方都拿不到
+/// 同一 Transaction 的另一借用，不能 Commit、换事务或执行事务控制 SQL；读者自身也不暴露 tx。
+/// 事务能力的封闭来自所有权而不是统计观测：底层 Connection 的别名只能由签发方排除，
+/// 生产签发方是持私有连接的 owner（M8D §1.2 生涯封印，3A），非测试调用点在 3C 之前不接。
+/// total_changes/schema/隔离夹持只拒测试内部经本 reader 注入的同事务变化。
+/// 外连接身份/生涯夹持由原 sample 门负责；原父许可只作 O(1) 域身份封印。
 /// sample 必须借本请求原绝对 deadline/取消门，不能在这里重新起算期限。
 pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
-    tx: &'tx Transaction<'conn>,
+    tx: &'tx mut Transaction<'conn>,
     work: &'work WorkScope,
     sample: &'work dyn Fn() -> Result<(), CodecError>,
     identity: NativeReservation,
     live: Cell<bool>,
     changes: u64,
     schema: (i64, i64),
-    epoch: TxEpoch,
     failure: Option<CodecError>,
     pub(super) reads: u64,
     // 固定域元数据查询独立计数；reads/SQL_READS 只计与原 TxStore 同口径的节点 SELECT。
@@ -38,7 +27,7 @@ pub(super) struct ManagedSqlStep<'tx, 'conn, 'work> {
 
 impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
     pub(super) fn new(
-        tx: &'tx Transaction<'conn>,
+        tx: &'tx mut Transaction<'conn>,
         work: &'work WorkScope,
         sample: &'work dyn Fn() -> Result<(), CodecError>,
     ) -> Result<Self, CodecError> {
@@ -52,8 +41,6 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         if read_uncommitted != 0 {
             return Err(work.reject(ScratchFailure::Ledger));
         }
-        // 元数据 PRAGMA 已开启本事务快照；此后签发的 epoch 不再随读刷新。
-        let epoch = TxEpoch::seal(tx)?;
         let identity = work.reserve_native(0)?;
         let changes = tx.total_changes();
         Ok(Self {
@@ -64,7 +51,6 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
             live: Cell::new(true),
             changes,
             schema: (main_schema, temp_schema),
-            epoch,
             failure: None,
             reads: 0,
             metadata_reads,
@@ -77,19 +63,23 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
         std::ptr::eq(self.work, work)
     }
 
-    /// 只核签发时借入的事务；原 `ptr::eq(self.tx, tx)` 恒以 self.tx 自比，已删去，
-    /// 同一 SQL 事务改由 epoch 证明（R1-01）。
+    /// 测试内部注入入口：只给同 crate 测试取得 reader 独占的事务；生产没有 tx getter。
+    #[cfg(test)]
+    pub(super) fn tx_for_test(&self) -> &Transaction<'conn> {
+        self.tx
+    }
+
+    /// 只核签发时独占借入的事务；原 `ptr::eq(self.tx, tx)` 恒以 self.tx 自比，已删去，
+    /// 同一事务由独占借用的类型保证，不再传入第二个事务参数。
     fn check_domain(&self, work: &WorkScope) -> Result<(), CodecError> {
         if let Some(error) = &self.failure {
             return Err(error.clone());
         }
         work.check_current()?;
-        // epoch 在任何会开启读事务的 PRAGMA 之前核，避免本核自身把 NONE 改成 READ。
         if !self.live.get()
             || self.tx.is_autocommit()
             || !self.identity.belongs_to_parent(work)
             || self.tx.total_changes() != self.changes
-            || !self.epoch.holds(self.tx)?
         {
             return Err(work.reject(ScratchFailure::Ledger));
         }
@@ -145,99 +135,6 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
             drop_observer: None,
         })
     }
-}
-
-/// 签发时的 SQL 事务 epoch（R1-01）。三项都来自 SQLite 自身状态或其回调，调用者不能
-/// 传入或改写；不随读刷新。
-struct TxEpoch {
-    state: std::ffi::c_int,
-    pager: std::ffi::c_uint,
-    rollbacks: std::sync::Arc<std::sync::atomic::AtomicU64>,
-    sealed_rollbacks: u64,
-}
-
-thread_local! {
-    /// 连接句柄 → 该连接 rollback hook 持有的计数。hook 闭包持强引用，连接关闭或 hook
-    /// 被替换时闭包析构，Weak 失效后按新连接重装；故句柄地址复用不会继承旧计数。
-    /// 仓内无其他 rollback hook 使用者；若日后有人替换，本计数即失效并在下一次签发时重装。
-    static ROLLBACK_EPOCHS: std::cell::RefCell<
-        Vec<(usize, std::sync::Weak<std::sync::atomic::AtomicU64>)>,
-    > = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-impl TxEpoch {
-    fn seal(tx: &Transaction<'_>) -> Result<Self, CodecError> {
-        use std::sync::{atomic::AtomicU64, atomic::Ordering, Arc};
-        // SAFETY: 句柄来自借用期内的活连接，仅作注册表键，不解引用。
-        let handle = unsafe { tx.handle() } as usize;
-        let rollbacks = ROLLBACK_EPOCHS.with(|slot| -> Result<_, CodecError> {
-            let mut entries = slot.borrow_mut();
-            entries.retain(|(_, weak)| weak.strong_count() > 0);
-            if let Some(counter) = entries
-                .iter()
-                .find(|(key, _)| *key == handle)
-                .and_then(|(_, weak)| weak.upgrade())
-            {
-                return Ok(counter);
-            }
-            entries.retain(|(key, _)| *key != handle);
-            let counter = Arc::new(AtomicU64::new(0));
-            let hook = Arc::clone(&counter);
-            tx.rollback_hook(Some(move || {
-                hook.fetch_add(1, Ordering::SeqCst);
-            }))
-            .map_err(storage_error)?;
-            entries.push((handle, Arc::downgrade(&counter)));
-            Ok(counter)
-        })?;
-        let state = txn_state(tx);
-        if state != rusqlite::ffi::SQLITE_TXN_READ && state != rusqlite::ffi::SQLITE_TXN_WRITE {
-            return Err(CodecError::new(
-                code::SOURCE,
-                "S3 内容存储：签发时未处于读或写事务",
-            ));
-        }
-        let sealed_rollbacks = rollbacks.load(Ordering::SeqCst);
-        Ok(Self {
-            state,
-            pager: pager_version(tx)?,
-            rollbacks,
-            sealed_rollbacks,
-        })
-    }
-
-    /// 只读 SQLite 状态与计数，不发 SQL、不开启读事务。
-    fn holds(&self, tx: &Transaction<'_>) -> Result<bool, CodecError> {
-        Ok(
-            self.rollbacks.load(std::sync::atomic::Ordering::SeqCst) == self.sealed_rollbacks
-                && txn_state(tx) == self.state
-                && pager_version(tx)? == self.pager,
-        )
-    }
-}
-
-fn txn_state(tx: &Transaction<'_>) -> std::ffi::c_int {
-    // SAFETY: 句柄来自借用期内的活连接；sqlite3_txn_state 只读事务状态，不改连接。
-    unsafe { rusqlite::ffi::sqlite3_txn_state(tx.handle(), c"main".as_ptr()) }
-}
-
-fn pager_version(tx: &Transaction<'_>) -> Result<std::ffi::c_uint, CodecError> {
-    let mut version: std::ffi::c_uint = 0;
-    // SAFETY: 句柄来自借用期内的活连接；DATA_VERSION 向调用方提供的 u32 写入 pager 计数。
-    let rc = unsafe {
-        rusqlite::ffi::sqlite3_file_control(
-            tx.handle(),
-            c"main".as_ptr(),
-            rusqlite::ffi::SQLITE_FCNTL_DATA_VERSION,
-            (&mut version as *mut std::ffi::c_uint).cast(),
-        )
-    };
-    if rc != rusqlite::ffi::SQLITE_OK {
-        return Err(storage_error(format!(
-            "读取 pager data version 失败 rc={rc}"
-        )));
-    }
-    Ok(version)
 }
 
 fn storage_error(error: impl std::fmt::Display) -> CodecError {
@@ -382,7 +279,7 @@ impl Drop for SqlReadLease<'_> {
 
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn with_sql_frame<T>(
-    tx: &Transaction<'_>,
+    tx: &mut Transaction<'_>,
     work: &WorkScope,
     sample: &dyn Fn() -> Result<(), CodecError>,
     digest: &NodeDigest,
@@ -396,7 +293,7 @@ pub(crate) fn with_sql_frame<T>(
 
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn with_sql_root<T>(
-    tx: &Transaction<'_>,
+    tx: &mut Transaction<'_>,
     work: &WorkScope,
     sample: &dyn Fn() -> Result<(), CodecError>,
     reference: RefView<'_>,
