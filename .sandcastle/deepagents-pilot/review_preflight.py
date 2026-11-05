@@ -184,23 +184,41 @@ def _clean_key(value, source: str) -> str:
     return key
 
 
-def provider_key(codex_home: Path, deadline: Deadline) -> tuple[str, str]:
-    """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
+def codex_accepts_config(codex_bin: str, codex_home: Path, env: dict, deadline: Deadline) -> None:
+    """让宿主自己的 codex 离线加载这份配置（`codex features list`，约 50ms、不发请求）：
+    provider/auth 字段组合与取值以 Codex 为准，预检不再自己抄一份校验规则。"""
     try:
-        config = tomllib.loads((codex_home / "config.toml").read_text(encoding="utf-8"))
+        result = run_bounded([codex_bin, "features", "list"], min(10.0, deadline.work_left()),
+                             env={**env, "CODEX_HOME": str(codex_home)})
+    except subprocess.TimeoutExpired:
+        raise CredentialError("codex 加载配置超时") from None
+    except OSError as error:
+        raise CredentialError(f"无法运行 codex（{type(error).__name__}）") from None
+    if result.returncode != 0:
+        # 只取 Codex 报错里的字段名，其余文本可能含配置取值，不进报告
+        stderr = result.stderr.decode("utf-8", "replace")
+        field = re.search(r"cannot be combined with ([A-Za-z_]+)", stderr)
+        reason = f"provider auth cannot be combined with {field.group(1)}" if field else "配置无效"
+        raise CredentialError(f"Codex 拒绝加载该配置（退出 {result.returncode}）：{reason}")
+
+
+def provider_key(codex_home: Path, deadline: Deadline, codex_bin: str = "codex") -> tuple[str, str]:
+    """按 Codex 宿主的 provider 配置取 key，且进程环境去掉 CLIPROXY_LOCAL_KEY（#1323 宿主就缺这个变量）。"""
+    env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
+    codex_accepts_config(codex_bin, codex_home, env, deadline)
+    path = codex_home / "config.toml"
+    if not path.is_file():  # FIFO 等特殊文件读起来会无界阻塞
+        raise CredentialError("Codex config.toml 不是普通文件")
+    try:
+        config = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise CredentialError(f"读不到或解析不了 Codex config.toml（{type(error).__name__}）") from None
     providers = config.get("model_providers")
     entry = providers.get(PROVIDER) if isinstance(providers, dict) else None
     if not isinstance(entry, dict):
         raise CredentialError(f"{codex_home}/config.toml 没有 model_providers.{PROVIDER}")
-    env = {k: v for k, v in os.environ.items() if k != SCRUBBED_ENV}
     auth = entry.get("auth")
     if isinstance(auth, dict) and auth.get("command"):
-        # Codex 离线校验：auth 与这些字段并存时宿主直接退出（codex-cli 0.166 实测），回合起不来
-        for field in ("env_key", "experimental_bearer_token", "requires_openai_auth"):
-            if entry.get(field):
-                raise CredentialError(f"provider auth cannot be combined with {field}")
         command, args, timeout_ms = auth["command"], auth.get("args", []), auth.get("timeout_ms", 5000)
         if (not isinstance(command, str) or not isinstance(args, list) or not all(isinstance(a, str) for a in args)
                 or isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int | float) or timeout_ms <= 0):
@@ -228,7 +246,7 @@ def provider_key(codex_home: Path, deadline: Deadline) -> tuple[str, str]:
 def check_credential(args, deadline: Deadline) -> tuple[dict, str | None]:
     detail: dict = {"scrubbed_env": SCRUBBED_ENV}
     try:
-        key, detail["source"] = provider_key(Path(args.codex_home), deadline)
+        key, detail["source"] = provider_key(Path(args.codex_home), deadline, args.codex_bin)
     except CredentialError as error:
         key, detail["error"] = None, str(error)
     else:
@@ -388,8 +406,10 @@ def probe_model(args, model: str, key: str, deadline: Deadline) -> list[dict]:
     session = f"preflight-{uuid.uuid4()}"
     since = time.time()
     trip = round_trip(args.proxy_url, key, model, session, deadline)
-    # 实测 proxy 在响应结束后 14–85ms 写日志；成功时等 2 秒，往返已失败时日志只作诊断，等 0.3 秒。
-    attempts = route_from_log(Path(args.proxy_log_dir), session, since, 2 if trip["ok"] else 0.3)
+    # 往返成功时日志一定会写（实测响应后 14–85ms），等到工作时限前 0.25 秒（留给线程交回结果）；
+    # 往返已失败时日志只作诊断，等 0.3 秒。
+    wait = max(0.0, deadline.work_left() - 0.25) if trip["ok"] else 0.3
+    attempts = route_from_log(Path(args.proxy_log_dir), session, since, wait)
     expected = ROUTES[model]
     return [{"name": f"route:{model}", "class": "route", "ok": bool(attempts) and all(a == expected for a in attempts),
              "detail": {"expected": "@".join(expected), "actual": [f"{p}@{h}" if (p, h) in KNOWN_ROUTES else "other" for p, h in attempts or []],
@@ -446,6 +466,7 @@ def main(argv=None) -> int:
     ap.add_argument("--proxy-log-dir", default=str(CLIPROXY_LOG_DIR))
     ap.add_argument("--codex-home", default=os.environ.get("CODEX_HOME", str(Path.home() / ".codex")),
                     help="宿主 Codex 配置目录；按其 model_providers.cliproxy-local 取 key")
+    ap.add_argument("--codex-bin", default="codex", help="宿主使用的 codex 可执行文件，用于离线校验 provider 配置")
     ap.add_argument("--deadline", type=_deadline, default=55.0, help="总墙钟上限（秒，0 < x ≤ 60），超时的检查判失败")
     args = ap.parse_args(argv)
     t0 = time.monotonic()

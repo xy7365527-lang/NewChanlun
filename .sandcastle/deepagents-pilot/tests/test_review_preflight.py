@@ -126,6 +126,7 @@ def env(tmp_path, monkeypatch, repo):
                       "for last; do :; done\n"
                       "exec cat \"$src${last#/checkouts}\"\n")
     docker.chmod(0o755)
+    _fake_codex(bin_dir)
     monkeypatch.setenv("PATH", f"{bin_dir}:/usr/bin:/bin")
     # 测试不依赖宿主真实剩余空间；专测空间的用例自行覆盖。
     monkeypatch.setattr(preflight.shutil, "disk_usage", lambda _: Usage(0, 0, 1 << 50))
@@ -153,6 +154,12 @@ def env(tmp_path, monkeypatch, repo):
         proxy.close()
 
 
+def _fake_codex(bin_dir, stderr: str = "", rc: int = 0) -> None:
+    """假 codex：`codex features list` 按给定退出码与 stderr 返回（真实 codex 的校验另有专门用例）。"""
+    (bin_dir / "codex").write_text(f"#!/bin/sh\nprintf '%s' '{stderr}' >&2\nexit {rc}\n")
+    (bin_dir / "codex").chmod(0o755)
+
+
 def failing(report):
     return {c["name"] for c in report["checks"] if not c["ok"]}
 
@@ -169,6 +176,7 @@ def _cli(tmp_path, repo, docker_script: str, deadline: str, codex_text: str = (
     bin_dir.mkdir(exist_ok=True)
     (bin_dir / "docker").write_text(docker_script)
     (bin_dir / "docker").chmod(0o755)
+    _fake_codex(bin_dir)
     codex = tmp_path / "codex2"
     codex.mkdir(exist_ok=True)
     (codex / "config.toml").write_text(codex_text)
@@ -375,7 +383,7 @@ def test_sol_on_third_party_codex_route_blocks(env, capsys):
 
 
 def test_route_unknown_without_request_log_blocks(env, capsys):
-    code, report, *_ = env(write_log=False, capsys=capsys)
+    code, report, *_ = env(write_log=False, capsys=capsys, extra=("--deadline", "6"))
     assert code == 2 and failing(report) == {f"route:{SOL}", f"route:{OPUS}"}
     assert all(not c["detail"]["log_found"] for c in report["checks"] if c["name"].startswith("route:"))
 
@@ -411,7 +419,7 @@ def test_unrelated_log_vanishing_mid_scan_does_not_block(env, capsys, tmp_path, 
 
 def test_unreadable_log_dir_does_not_crash(env, capsys, monkeypatch):
     monkeypatch.setattr(preflight.Path, "glob", lambda self, pattern: (_ for _ in ()).throw(PermissionError(13, "denied")))
-    code, report, *_ = env(capsys=capsys)
+    code, report, *_ = env(capsys=capsys, extra=("--deadline", "6"))
     assert code == 2 and {f"route:{SOL}", f"route:{OPUS}"} <= failing(report)
 
 
@@ -478,17 +486,64 @@ def test_auth_command_failure_blocks(env, capsys, tmp_path):
     assert code == 2 and "credential:codex-host" in failing(report)
 
 
-@pytest.mark.parametrize("field, line", [("env_key", 'env_key = "CLIPROXY_LOCAL_KEY"'),
-                                         ("experimental_bearer_token", 'experimental_bearer_token = "fixture-static"'),
-                                         ("requires_openai_auth", "requires_openai_auth = true")])
-def test_auth_command_combined_with_a_conflicting_field_blocks_like_codex(env, capsys, tmp_path, field, line):
-    """Codex 拒绝 provider 同时配 auth 与这些字段（独审十九）；预检不能因 helper 能取到 key 就放行。"""
+def test_config_rejected_by_codex_blocks_and_only_the_field_name_is_reported(env, capsys, tmp_path):
+    """provider 配置以宿主 codex 自己的加载结果为准；报错里只取字段名，其余文本不进报告。"""
+    _fake_codex(tmp_path / "bin", "model_providers.cliproxy-local: provider auth cannot be combined with env_key "
+                "value=local-test-key-must-not-leak", rc=1)
+    code, report, out, proxy = env(capsys=capsys)
+    error = check(report, "credential:codex-host")["detail"]["error"]
+    assert code == 2 and "cannot be combined with env_key" in error and KEY not in out and proxy.requests == []
+
+
+REAL_CODEX = __import__("shutil").which("codex")
+
+
+@pytest.mark.skipif(REAL_CODEX is None, reason="本机没有 codex")
+@pytest.mark.parametrize("extra, auth_extra", [
+    ('env_key = ""', ""), ('experimental_bearer_token = ""', ""), ("requires_openai_auth = true", ""),
+    ("", "timeout_ms = 12.5"), ("", "refresh_interval_ms = -1"), ('wire_api = "chat"', ""),
+])
+def test_configs_the_real_codex_refuses_are_blocked(tmp_path, monkeypatch, extra, auth_extra):
+    """独审二十 A1/A2：真实 codex 拒绝加载的 provider 配置，预检也必须拦（不再自己抄校验规则）。"""
+    home = tmp_path / "codex"
+    home.mkdir()
+    (tmp_path / "key.txt").write_text("k\n")
+    wire = "" if "wire_api" in extra else 'wire_api = "responses"\n'
+    (home / "config.toml").write_text(
+        f'[model_providers.cliproxy-local]\nname = "x"\nbase_url = "http://127.0.0.1:9/v1"\n{wire}{extra}\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+        f'[model_providers.cliproxy-local.auth]\ncommand = "/bin/cat"\nargs = ["{tmp_path / "key.txt"}"]\n{auth_extra}\n')
+    with pytest.raises(preflight.CredentialError, match="Codex 拒绝加载"):
+        preflight.provider_key(home, preflight.Deadline(10), REAL_CODEX)
+
+
+@pytest.mark.skipif(REAL_CODEX is None, reason="本机没有 codex")
+def test_valid_auth_command_config_is_accepted_by_the_real_codex(tmp_path):
+    home = tmp_path / "codex"
+    home.mkdir()
+    (tmp_path / "key.txt").write_text("k\n")
+    (home / "config.toml").write_text(
+        '[model_providers.cliproxy-local]\nname = "x"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\n'  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
+        'requires_openai_auth = false\n'
+        f'[model_providers.cliproxy-local.auth]\ncommand = "/bin/cat"\nargs = ["{tmp_path / "key.txt"}"]\n')
+    assert preflight.provider_key(home, preflight.Deadline(10), REAL_CODEX) == ("k", "auth.command")
+
+
+def test_fifo_config_cannot_stretch_past_the_deadline(env, capsys, tmp_path):
+    """独审二十 C1：config.toml 是 FIFO（写端迟迟不来）时，凭据检查按时限失败，不越过 --deadline。"""
+    import os as _os
     config = tmp_path / "codex/config.toml"
-    config.write_text(config.read_text().replace("[model_providers.cliproxy-local.auth]",
-                                                 f"{line}\n[model_providers.cliproxy-local.auth]"))
-    code, report, _, proxy = env(capsys=capsys)
-    assert code == 2 and f"cannot be combined with {field}" in check(report, "credential:codex-host")["detail"]["error"]
-    assert proxy.requests == []
+    config.unlink()
+    _os.mkfifo(config)
+    (tmp_path / "bin" / "codex").write_text(f"#!/bin/sh\ncat '{config}' >/dev/null\n")  # 真实 codex 读 FIFO 也会卡住
+    start = time.monotonic()
+    code, report, *_ = env(capsys=capsys, extra=("--deadline", "1"))
+    assert code == 2 and "credential:codex-host" in failing(report) and time.monotonic() - start < 1.5
+
+
+def test_request_log_written_late_within_the_deadline_still_passes(env, capsys):
+    """独审二十 B1：日志晚于 2 秒落盘也不是路由失败，等到工作时限为止。"""
+    code, report, *_ = env(log_delay=2.4, capsys=capsys)
+    assert code == 0 and failing(report) == set()
 
 
 def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):
