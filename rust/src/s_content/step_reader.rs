@@ -743,7 +743,9 @@ mod tests {
     fn r1_step_reader_resident_hit_has_no_sql_and_miss_reads_same_transaction() {
         let (resident, stored, a, b) = resident_and_sql_only();
         let expected_b = stored.nodes.get(&b).cloned().unwrap();
-        let capture = AuditCapture::new(resident).enable_native_frame_reuse().unwrap();
+        let capture = AuditCapture::new(resident)
+            .enable_native_frame_reuse()
+            .unwrap();
         let mut conn = sql_database(&stored);
         let tx = conn.transaction().unwrap();
         let parent = Parent::new();
@@ -779,14 +781,19 @@ mod tests {
     #[test]
     fn r1_step_reader_without_sql_backend_keeps_resident_missing_error() {
         let (resident, _, a, b) = resident_and_sql_only();
-        let capture = AuditCapture::new(resident).enable_native_frame_reuse().unwrap();
+        let capture = AuditCapture::new(resident)
+            .enable_native_frame_reuse()
+            .unwrap();
         let parent = Parent::new();
         CodecWork::new(parent.clone(), 32 << 20)
             .unwrap()
             .run(|scope| {
                 let mut reader = StepReader::new(&capture, scope)?;
                 assert!(reader.read_frame(&a).is_ok());
-                assert_eq!(reader.read_frame(&b).err().unwrap().code(), code::NODE_MISSING);
+                assert_eq!(
+                    reader.read_frame(&b).err().unwrap().code(),
+                    code::NODE_MISSING
+                );
                 Ok::<_, CodecError>(())
             })
             .unwrap();
@@ -795,7 +802,9 @@ mod tests {
     #[test]
     fn r1_step_reader_rejects_sql_descriptor_bound_to_other_work_scope() {
         let (resident, stored, _, _) = resident_and_sql_only();
-        let capture = AuditCapture::new(resident).enable_native_frame_reuse().unwrap();
+        let capture = AuditCapture::new(resident)
+            .enable_native_frame_reuse()
+            .unwrap();
         let mut conn = sql_database(&stored);
         let tx = conn.transaction().unwrap();
         let parent = Parent::new();
@@ -809,7 +818,9 @@ mod tests {
                     .run(|foreign| StepReader::with_sql(&capture, foreign, sql).map(|_| ()));
                 assert!(matches!(
                     rejected,
-                    Err(capture_allocation::scratch::WorkError::Resource(ScratchFailure::Ledger))
+                    Err(capture_allocation::scratch::WorkError::Resource(
+                        ScratchFailure::Ledger
+                    ))
                 ));
                 Ok::<_, CodecError>(())
             })
@@ -822,34 +833,38 @@ mod tests {
     fn r1_shared_transaction_write_or_commit_rejects_next_miss_without_select() {
         for commit in [false, true] {
             let (resident, stored, a, b) = resident_and_sql_only();
-            let capture = AuditCapture::new(resident).enable_native_frame_reuse().unwrap();
+            let capture = AuditCapture::new(resident)
+                .enable_native_frame_reuse()
+                .unwrap();
             let mut conn = sql_database(&stored);
             let tx = conn.transaction().unwrap();
             let parent = Parent::new();
-            let result = CodecWork::new(parent.clone(), 32 << 20).unwrap().run(|scope| {
-                let sql = managed_sql::ManagedSqlStep::new(&tx, scope, &|| Ok(()))?;
-                let mut reader = StepReader::with_sql(&capture, scope, sql)?;
-                drop(reader.read_frame(&b)?);
-                assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
-                // 同一步写者经同一共享事务句柄写入或提交；读者不能吸收该变化。
-                if commit {
-                    tx.execute_batch("COMMIT").unwrap();
-                } else {
-                    tx.execute(
-                        "INSERT INTO s_content_nodes VALUES(?1,0,?2)",
-                        rusqlite::params![&[7u8; 32][..], &b""[..]],
-                    )
-                    .unwrap();
-                }
-                let first = reader.read_frame(&b).err().unwrap();
-                assert_eq!(first.scratch_failure(), Some(ScratchFailure::Ledger));
-                let again = reader.read_frame(&b).err().unwrap();
-                assert_eq!(again, first);
-                assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
-                // 首错使本工作域失败；驻留读也不再越过失败域放行。
-                assert!(reader.read_frame(&a).is_err());
-                Err::<(), _>(first)
-            });
+            let result = CodecWork::new(parent.clone(), 32 << 20)
+                .unwrap()
+                .run(|scope| {
+                    let sql = managed_sql::ManagedSqlStep::new(&tx, scope, &|| Ok(()))?;
+                    let mut reader = StepReader::with_sql(&capture, scope, sql)?;
+                    drop(reader.read_frame(&b)?);
+                    assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
+                    // 同一步写者经同一共享事务句柄写入或提交；读者不能吸收该变化。
+                    if commit {
+                        tx.execute_batch("COMMIT").unwrap();
+                    } else {
+                        tx.execute(
+                            "INSERT INTO s_content_nodes VALUES(?1,0,?2)",
+                            rusqlite::params![&[7u8; 32][..], &b""[..]],
+                        )
+                        .unwrap();
+                    }
+                    let first = reader.read_frame(&b).err().unwrap();
+                    assert_eq!(first.scratch_failure(), Some(ScratchFailure::Ledger));
+                    let again = reader.read_frame(&b).err().unwrap();
+                    assert_eq!(again, first);
+                    assert_eq!(reader.sql.as_ref().unwrap().reads, 1);
+                    // 首错使本工作域失败；驻留读也不再越过失败域放行。
+                    assert!(reader.read_frame(&a).is_err());
+                    Err::<(), _>(first)
+                });
             assert!(result.is_err());
             drop(capture);
             assert_eq!(parent.live.load(Ordering::SeqCst), 0);

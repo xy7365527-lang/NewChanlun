@@ -2290,7 +2290,9 @@ impl<'a> CapturedRequestVerifier<'a> {
         // 只核本请求新增单位；根四字段仍每次真实读取。成功并入同一 owner 生涯的 codec 证明，
         // 失败撤销该证明与本请求能力。非 Native 捕获无 owner 生涯，保持请求内 memo。
         if matches!(&self.capture.nodes, CaptureNodes::Native(_)) {
-            let result = self.capture.verify_owner_refview(reference, mode, self.work);
+            let result = self
+                .capture
+                .verify_owner_refview(reference, mode, self.work);
             if result.is_err() {
                 self.invalidate();
             }
@@ -9191,10 +9193,7 @@ mod native_owner_codec_bridge_tests {
         let mut bad = first.clone();
         bad.kind = Kind::Array;
         assert_eq!(
-            operation_error(
-                request(&capture, &bad, Mode::Public).map(|_| ())
-            )
-            .code(),
+            operation_error(request(&capture, &bad, Mode::Public).map(|_| ())).code(),
             code::KIND
         );
         assert!(capture.owner_codec.borrow().revoked);

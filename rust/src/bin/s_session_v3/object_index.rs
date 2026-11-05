@@ -1130,8 +1130,18 @@ impl HistoryObjects<'_> {
         let (mut active_keep_t, mut active_keep_p) = (0, 0);
         for (position, (key, i)) in sweep.active.keys().enumerate() {
             if let Some(lows) = &lows {
-                advance_keep(&mut active_keep_t, position, (key, *i), lows.active_template.as_ref());
-                advance_keep(&mut active_keep_p, position, (key, *i), lows.active_public.as_ref());
+                advance_keep(
+                    &mut active_keep_t,
+                    position,
+                    (key, *i),
+                    lows.active_template.as_ref(),
+                );
+                advance_keep(
+                    &mut active_keep_p,
+                    position,
+                    (key, *i),
+                    lows.active_public.as_ref(),
+                );
             }
             active
                 .try_push((*i, &self.entries[*i]))
@@ -1143,8 +1153,18 @@ impl HistoryObjects<'_> {
         let (mut dead_keep_t, mut dead_keep_p) = (0, 0);
         for (position, (key, i)) in sweep.withdrawn.keys().enumerate() {
             if let Some(lows) = &lows {
-                advance_keep(&mut dead_keep_t, position, (key, *i), lows.dead_template.as_ref());
-                advance_keep(&mut dead_keep_p, position, (key, *i), lows.dead_public.as_ref());
+                advance_keep(
+                    &mut dead_keep_t,
+                    position,
+                    (key, *i),
+                    lows.dead_template.as_ref(),
+                );
+                advance_keep(
+                    &mut dead_keep_p,
+                    position,
+                    (key, *i),
+                    lows.dead_public.as_ref(),
+                );
             }
             dead.try_push((*i, &self.entries[*i]))
                 .map_err(publish_err)?;
@@ -1230,12 +1250,8 @@ impl HistoryObjects<'_> {
                         .map_err(publish_err)?;
                         let template = built_ref(s, &b)?;
                         let public = replace_batch_field(s, template.view(), saved)?;
-                        s.native_verify_original(
-                            native.capture,
-                            public.view(),
-                            sc::Mode::Public,
-                        )
-                        .map_err(publish_err)?;
+                        s.native_verify_original(native.capture, public.view(), sc::Mode::Public)
+                            .map_err(publish_err)?;
                         native.remember_wire(s, ordinal, phase, &public)?;
                         let pair = (template, public);
                         pairs
@@ -1488,7 +1504,12 @@ fn projection_lows(
     Ok(lows)
 }
 /// 有序遍历中：位置 `position` 的键严格小于变化下界且此前全部继承，则继承长度推进到其后。
-fn advance_keep(keep: &mut usize, position: usize, key: (&PublicRank, usize), low: Option<&SetKey>) {
+fn advance_keep(
+    keep: &mut usize,
+    position: usize,
+    key: (&PublicRank, usize),
+    low: Option<&SetKey>,
+) {
     if *keep != position {
         return;
     }
@@ -3186,9 +3207,7 @@ fn touch(
     withdrawn: bool,
     store: &(impl CodecRead + ?Sized),
 ) -> Result<(), PublishError> {
-    store
-        .native_codec_room(touched, 1)
-        .map_err(publish_err)?;
+    store.native_codec_room(touched, 1).map_err(publish_err)?;
     touched.try_push((ordinal, withdrawn)).map_err(publish_err)
 }
 fn native_rank(
