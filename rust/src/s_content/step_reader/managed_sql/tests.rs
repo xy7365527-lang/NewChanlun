@@ -573,3 +573,289 @@ fn m8b_sql_lease_destroys_body_before_original_origin_release_without_refund() {
         .unwrap();
     assert_eq!(bank.live.load(Ordering::SeqCst), 0);
 }
+
+/// #1419 M8D L10/L11 只读测点：现成 sqlite3_db_status（本连接）与 sqlite3_memory_used（进程汇总）。
+/// 未布置时不读任何状态；不改 SQLite 配置、不装分配 hook。
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct SqliteReading {
+    cache: i32,
+    schema: i32,
+    stmt: i32,
+    process: i64,
+}
+thread_local! {
+    static OBSERVED: std::cell::RefCell<Option<Vec<(&'static str, SqliteReading)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+fn reading(conn: &rusqlite::Connection) -> SqliteReading {
+    let status = |op| {
+        let (mut current, mut high) = (0, 0);
+        // SAFETY: 句柄来自活连接；只读当前值，resetFlg=0 不清任何高水位。
+        let rc = unsafe {
+            rusqlite::ffi::sqlite3_db_status(conn.handle(), op, &mut current, &mut high, 0)
+        };
+        assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+        current
+    };
+    SqliteReading {
+        cache: status(rusqlite::ffi::SQLITE_DBSTATUS_CACHE_USED),
+        schema: status(rusqlite::ffi::SQLITE_DBSTATUS_SCHEMA_USED),
+        stmt: status(rusqlite::ffi::SQLITE_DBSTATUS_STMT_USED),
+        // SAFETY: 无参数的只读全局汇总。
+        process: unsafe { rusqlite::ffi::sqlite3_memory_used() },
+    }
+}
+pub(super) fn observe(conn: &rusqlite::Connection, point: &'static str) {
+    OBSERVED.with(|slot| {
+        if let Some(points) = slot.borrow_mut().as_mut() {
+            points.push((point, reading(conn)));
+        }
+    });
+}
+fn observed<T>(f: impl FnOnce() -> T) -> (T, Vec<(&'static str, SqliteReading)>) {
+    OBSERVED.with(|slot| *slot.borrow_mut() = Some(Vec::new()));
+    let value = f();
+    (
+        value,
+        OBSERVED.with(|slot| slot.borrow_mut().take().unwrap()),
+    )
+}
+
+/// #1419 M8D L9：test-only 语句计数。SQLITE_TRACE_STMT 在每条语句开始运行时按原 SQL 文本回调，
+/// 用来证明 node_selects 与 metadata_reads 两个计数之外没有别的语句。
+struct SqlTrace {
+    db: *mut rusqlite::ffi::sqlite3,
+    counts: Box<std::cell::RefCell<std::collections::BTreeMap<String, u64>>>,
+}
+extern "C" fn count_statement(
+    kind: std::ffi::c_uint,
+    ctx: *mut std::ffi::c_void,
+    _stmt: *mut std::ffi::c_void,
+    sql: *mut std::ffi::c_void,
+) -> std::ffi::c_int {
+    if kind == rusqlite::ffi::SQLITE_TRACE_STMT {
+        // SAFETY: ctx 是 SqlTrace 持有的 Box，安装期间不移动；X 为 NUL 结尾的语句原文。
+        let counts = unsafe {
+            &*(ctx as *const std::cell::RefCell<std::collections::BTreeMap<String, u64>>)
+        };
+        let text = unsafe { std::ffi::CStr::from_ptr(sql as *const std::ffi::c_char) };
+        *counts
+            .borrow_mut()
+            .entry(text.to_string_lossy().into_owned())
+            .or_default() += 1;
+    }
+    0
+}
+impl SqlTrace {
+    fn install(conn: &rusqlite::Connection) -> Self {
+        let counts = Box::new(std::cell::RefCell::new(std::collections::BTreeMap::new()));
+        // SAFETY: 回调上下文在 Drop 卸载之前一直有效。
+        let db = unsafe { conn.handle() };
+        let rc = unsafe {
+            rusqlite::ffi::sqlite3_trace_v2(
+                db,
+                rusqlite::ffi::SQLITE_TRACE_STMT,
+                Some(count_statement),
+                &*counts as *const _ as *mut std::ffi::c_void,
+            )
+        };
+        assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+        Self { db, counts }
+    }
+    fn take(&self) -> std::collections::BTreeMap<String, u64> {
+        std::mem::take(&mut *self.counts.borrow_mut())
+    }
+}
+impl Drop for SqlTrace {
+    fn drop(&mut self) {
+        // SAFETY: 同一连接仍活；mask 0 卸载回调。
+        unsafe { rusqlite::ffi::sqlite3_trace_v2(self.db, 0, None, std::ptr::null_mut()) };
+    }
+}
+
+const M8D_NODE_SELECT: &str = "SELECT tag, body FROM s_content_nodes WHERE digest=?1";
+const M8D_METADATA: [&str; 3] = [
+    "PRAGMA read_uncommitted",
+    "PRAGMA main.schema_version",
+    "PRAGMA temp.schema_version",
+];
+
+/// #1419 M8D L9（库层）：STRING/BOOL 根读冷、暖逐桶实测。每次 read_checked 新建 AuditMemo，
+/// 暖读不复用上一读的成功闭包；固定域核 = 构造 1 次 + 每读入口 1 次 + 每节点 SELECT 1 次，
+/// 各 3 条 PRAGMA。语句全集由 trace 证实只有这两个桶，节点 SELECT 与 SQL_READS 同口径。
+#[test]
+fn m8d_metadata_node_f_string_bool_cold_warm_receipts() {
+    for (name, value, closure) in [
+        ("STRING", Value::String("fourbyte".into()), 4u64),
+        ("BOOL", Value::Bool(true), 1u64),
+    ] {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(&mut nodes, &value).unwrap().content_ref();
+        let mut conn = database(&nodes);
+        let trace = SqlTrace::install(&conn);
+        let mut tx = conn.transaction().unwrap();
+        trace.take();
+        let bank = Bank::new();
+        let mut arms = Vec::new();
+        CodecWork::new(bank.clone(), 32 << 20)
+            .unwrap()
+            .run(|work| {
+                let mut reader = ManagedSqlStep::new(&mut tx, work, &|| Ok(()))?;
+                arms.push((
+                    "construct",
+                    reader.reads,
+                    reader.metadata_reads.get(),
+                    trace.take(),
+                ));
+                for arm in ["cold", "warm"] {
+                    let (reads, metadata) = (reader.reads, reader.metadata_reads.get());
+                    let lease = reader.read_checked((&root).into(), Mode::Public)?;
+                    drop(lease);
+                    arms.push((
+                        arm,
+                        reader.reads - reads,
+                        reader.metadata_reads.get() - metadata,
+                        trace.take(),
+                    ));
+                }
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        for (arm, selects, metadata, statements) in &arms {
+            println!("M8D_L9_RECEIPT kind={name} arm={arm} node_selects={selects} metadata_reads={metadata} statements={statements:?}");
+            let mut expected = std::collections::BTreeMap::new();
+            let checks = metadata / 3;
+            for pragma in M8D_METADATA {
+                expected.insert(pragma.to_owned(), checks);
+            }
+            if *selects > 0 {
+                expected.insert(M8D_NODE_SELECT.to_owned(), *selects);
+            }
+            assert_eq!(
+                statements, &expected,
+                "{name} {arm}：语句全集只含两个计数桶"
+            );
+        }
+        assert_eq!((arms[0].1, arms[0].2), (0, 3), "{name} 构造");
+        for arm in &arms[1..] {
+            // 闭包每节点 1 次 SELECT，根租约再读 1 次；入口 1 次域核 + 每 SELECT 1 次。
+            assert_eq!(
+                (arm.1, arm.2),
+                (closure + 1, 3 * (closure + 2)),
+                "{name} {}：节点 SELECT 与元数据",
+                arm.0
+            );
+        }
+        // 与 M8B 推导对照：cold 含构造即 3×(selects+2)。
+        assert_eq!(
+            arms[0].2 + arms[1].2,
+            3 * (arms[1].1 + 2),
+            "{name} 冷读对照 M8B 推导"
+        );
+        assert_eq!(bank.live.load(Ordering::SeqCst), 0);
+    }
+}
+
+fn m8d_file_database(body_len: usize) -> (tempfile::TempDir, rusqlite::Connection, NodeDigest) {
+    let dir = tempfile::tempdir().unwrap();
+    let conn = rusqlite::Connection::open(dir.path().join("m8d-sqlite.db")).unwrap();
+    let mode: String = conn
+        .query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode, "wal");
+    conn.execute_batch(
+        "CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL);",
+    )
+    .unwrap();
+    let body: Vec<u8> = (0..body_len).map(|i| (i % 251) as u8).collect();
+    let digest = frame(tag::BYTES_CHUNK, &body);
+    conn.execute(
+        "INSERT INTO s_content_nodes VALUES(?1,?2,?3)",
+        rusqlite::params![&digest[..], i64::from(tag::BYTES_CHUNK), body],
+    )
+    .unwrap();
+    drop(conn);
+    // 重开连接：页缓存从冷状态开始，测点读数只反映本次读取。
+    let conn = rusqlite::Connection::open(dir.path().join("m8d-sqlite.db")).unwrap();
+    (dir, conn, digest)
+}
+
+/// #1419 M8D L10：SQLite 行材料与 Rust 行副本共存。测点在 read_frame 内（prepare 后、行副本后、
+/// finalize 后），只读现成状态。父账此刻恰只有 Rust 行副本许可；本连接 SQLite 字节为正且不在
+/// 父账中。B_sql 覆盖额尚无已证明值，本锁只交观察下界与“未计入父账”，不签覆盖。
+#[test]
+fn m8d_sqlite_internal_and_rust_copy_coexist_receipt() {
+    for body_len in [48usize, 256 << 10] {
+        let (_dir, mut conn, digest) = m8d_file_database(body_len);
+        let idle = reading(&conn);
+        let mut tx = conn.transaction().unwrap();
+        let bank = Bank::new();
+        let mut at_copy_live = None;
+        let ((), points) = observed(|| {
+            CodecWork::new(bank.clone(), 32 << 20)
+                .unwrap()
+                .run(|work| {
+                    let mut reader = ManagedSqlStep::new(&mut tx, work, &|| Ok(()))?;
+                    let base = bank.live.load(Ordering::SeqCst);
+                    let frame = reader.checked_read_scoped(&digest)?.unwrap();
+                    assert_eq!(frame.body().len(), body_len);
+                    at_copy_live = Some(bank.live.load(Ordering::SeqCst) - base);
+                    drop(frame);
+                    Ok::<_, CodecError>(())
+                })
+                .unwrap()
+        });
+        let names: Vec<_> = points.iter().map(|p| p.0).collect();
+        assert_eq!(names, ["prepared", "row_and_rust_copy", "finalized"]);
+        let copy = points[1].1;
+        println!(
+            "M8D_L10_RECEIPT body_len={body_len} idle={idle:?} points={points:?} parent_live_delta_with_copy={:?} coverage=unproven(B_sql)",
+            at_copy_live
+        );
+        assert!(
+            points[0].1.stmt > 0,
+            "prepare 后 statement 字节须有读数，不能签 0"
+        );
+        assert!(copy.cache > idle.cache, "取行后本连接页缓存须增长");
+        assert_eq!(
+            at_copy_live,
+            Some(body_len),
+            "父账只含 Rust 行副本许可；SQLite 页与语句字节未入父账"
+        );
+        assert!(points[2].1.stmt < points[0].1.stmt, "finalize 释放语句字节");
+        assert_eq!(bank.live.load(Ordering::SeqCst), 0);
+    }
+}
+
+/// #1419 M8D L11（观察部分）：finalize 与租约析构后，页缓存字节仍归本连接存活到连接关闭，
+/// 而 Rust 许可已全部退回父账。连接域许可（SqliteDomainLease）依赖 B_sql 同父覆盖机制，
+/// 尚未实现；“许可活到资源析构”与少 1B 门待该机制获批后补锁，本锁只固定被覆盖的对象。
+#[test]
+fn m8d_sqlite_domain_permit_lives_until_resource_destroyed() {
+    let (_dir, mut conn, digest) = m8d_file_database(256 << 10);
+    let idle = reading(&conn);
+    let bank = Bank::new();
+    {
+        let mut tx = conn.transaction().unwrap();
+        CodecWork::new(bank.clone(), 32 << 20)
+            .unwrap()
+            .run(|work| {
+                let mut reader = ManagedSqlStep::new(&mut tx, work, &|| Ok(()))?;
+                drop(reader.checked_read_scoped(&digest)?.unwrap());
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        tx.rollback().unwrap();
+    }
+    let after = reading(&conn);
+    println!(
+        "M8D_L11_RECEIPT idle={idle:?} after_finalize_lease_and_tx={after:?} parent_live={}",
+        bank.live.load(Ordering::SeqCst)
+    );
+    assert_eq!(bank.live.load(Ordering::SeqCst), 0, "Rust 许可全退");
+    assert!(
+        after.cache > idle.cache,
+        "页缓存在 finalize、租约与事务结束后仍归连接存活"
+    );
+    assert_eq!(after.stmt, idle.stmt, "语句字节不残留");
+}

@@ -249,6 +249,8 @@ impl ManagedSqlStep<'_, '_, '_> {
         )
         .map_err(storage_error)?;
         statement.bind_blob(1, digest).map_err(storage_error)?;
+        #[cfg(test)]
+        tests::observe(&**self.tx, "prepared");
         let material = match statement.next().map_err(storage_error)? {
             None => None,
             Some(mut row) => {
@@ -262,10 +264,14 @@ impl ManagedSqlStep<'_, '_, '_> {
                 body.try_reserve_exact(bytes.len())
                     .map_err(|_| self.work.reject(ScratchFailure::Allocation))?;
                 body.extend_from_slice(bytes);
+                #[cfg(test)]
+                tests::observe(&**self.tx, "row_and_rust_copy");
                 Some(SqlMaterial { tag, body, permit })
             }
         };
         statement.finalize().map_err(storage_error)?;
+        #[cfg(test)]
+        tests::observe(&**self.tx, "finalized");
         let result = material
             .map(|material| {
                 let tag = u8::try_from(material.tag)
