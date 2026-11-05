@@ -6,7 +6,9 @@ use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
 use newchan_rust::s_content::capture_allocation::sqlite_parent::{
     charged_bytes, SqlGate, SqlOps, SqliteBinding, SqliteParentAllocator,
 };
+use rusqlite::types::{ToSql, ToSqlOutput, Value};
 use rusqlite::{ffi, Connection, ErrorCode};
+use std::cell::Cell;
 use std::ffi::{c_int, c_uint, c_void, CStr};
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -55,6 +57,41 @@ impl Domains<'_> {
             .current
             .handoff(self.request, allowance)
             .expect("handoff to the next frozen domain");
+    }
+}
+
+/// 绑定参数时尝试让父账换域的 `ToSql`；记录 handoff 是否成功。
+struct Handoff<'a> {
+    budget: &'a Budget,
+    request: u64,
+    tried: &'a Cell<Option<bool>>,
+}
+
+impl ToSql for Handoff<'_> {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        let moved = self.budget.handoff(self.request, ROOM).is_ok();
+        self.tried.set(Some(moved));
+        Ok(ToSqlOutput::from(7i64))
+    }
+}
+
+/// 绑定参数时在同一操作域里触发收费拒绝并吞掉错误的 `ToSql`。
+struct Refuse<'q, 'a> {
+    q: &'q SqlOps<'a>,
+    hit: &'q Cell<Option<bool>>,
+}
+
+impl ToSql for Refuse<'_, '_> {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        let refused = self
+            .q
+            .prepare(&heap_query("SELECT body FROM t WHERE id = 2"))
+            .map(drop);
+        self.hit.set(Some(matches!(
+            refused,
+            Err(SqlGate::Refused(ScratchFailure::Budget))
+        )));
+        Ok(ToSqlOutput::from(1i64))
     }
 }
 
@@ -233,21 +270,21 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let first = refused(latched.run(&main, |q| {
         let mut one = q.prepare("SELECT 1")?;
         let before = entered();
-        assert_eq!(one.query_row([], |r| r.get::<_, i64>(0))?, 1);
+        assert_eq!(one.query_row(&[])?, [Value::Integer(1)]);
         assert_eq!(entered(), before + 1);
         assert!(unsafe { ffi::sqlite3_malloc(8192) }.is_null());
         let before = entered();
-        let after = one.query_row([], |r| r.get::<_, i64>(0));
+        let after = one.query_row(&[]);
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
             "{after:?}"
         );
-        let after = q.query_row("SELECT 1", [], |r| r.get::<_, i64>(0));
+        let after = q.query_row("SELECT 1", &[]);
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
             "{after:?}"
         );
-        let after = q.execute("INSERT INTO t VALUES(3, x'00')", []);
+        let after = q.execute("INSERT INTO t VALUES(3, x'00')", &[]);
         assert!(
             matches!(after, Err(SqlGate::Refused(ScratchFailure::Budget))),
             "{after:?}"
@@ -366,29 +403,57 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     let before = entered();
     let first = refused(stale.run(&main, |q| {
         calls += 1;
-        q.query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
+        q.query_row("SELECT 1", &[])
     }));
     assert_eq!(
         (first, calls, entered()),
         (ScratchFailure::Ledger, 0, before)
     );
     assert_eq!(d.current.live(), live);
-    // run 中途父账换域：零分配的 SELECT 1 在操作口被拒，裸 step 被进度回调中止。
-    let midway = d.next(ROOM);
-    let mut rc = 0;
-    let first = refused(midway.run(&main, |q| {
-        d.advance(ROOM);
-        let after = q.query_row("SELECT 1", [], |r| r.get::<_, i64>(0));
-        assert!(
-            matches!(after, Err(SqlGate::Refused(ScratchFailure::Ledger))),
-            "{after:?}"
-        );
-        rc = unsafe { ffi::sqlite3_step(stmt(select_one)) };
-        unsafe { ffi::sqlite3_reset(stmt(select_one)) };
-        after.map(drop)
+    // 操作域固定冻结域：run 持有父账活动作用域，期间 handoff 被拒——包括参数 ToSql 回调里
+    // 的 handoff；该查询仍在原 origin 上执行并成功。run 结束后作用域释放，换域恢复可用。
+    let held = d.next(ROOM);
+    let tried = Cell::new(None);
+    let param = Handoff {
+        budget: &d.current,
+        request: d.request + 1,
+        tried: &tried,
+    };
+    let before = entered();
+    let value = held
+        .run(&main, |q| {
+            assert!(d.current.handoff(d.request + 1, ROOM).is_err());
+            let mut select = q.prepare("SELECT ?1")?;
+            select.query_row(&[&param])
+        })
+        .unwrap();
+    assert_eq!(
+        (value, tried.get(), entered()),
+        (vec![Value::Integer(7)], Some(false), before + 1)
+    );
+    assert_eq!(held.refusal(), None);
+    d.advance(ROOM);
+    let mut calls = 0;
+    let first = refused(held.run(&main, |_| {
+        calls += 1;
+        Ok(())
     }));
-    assert_eq!(first, ScratchFailure::Ledger);
-    assert_eq!(rc, ffi::SQLITE_INTERRUPT);
+    assert_eq!((first, calls), (ScratchFailure::Ledger, 0));
+
+    // 参数回调内的首拒：ToSql 在零额度域触发 prepare 收费拒绝并吞掉错误后返回值；
+    // 外层语句在准入时即拒，不再进入 SQLite（执行探针不增），返回原 Budget 首错。
+    let callback = d.next(0);
+    let hit = Cell::new(None);
+    let before = entered();
+    let first = refused(callback.run(&main, |q| {
+        let mut select = q.prepare("SELECT ?1")?;
+        let param = Refuse { q, hit: &hit };
+        select.query_row(&[&param])
+    }));
+    assert_eq!(
+        (first, hit.get(), entered()),
+        (ScratchFailure::Budget, Some(true), before)
+    );
 
     // realloc：新块在旧块存活时完整预留；差 1 B 即拒且旧块不变，
     // 恰好够时成功；旧块按旧 origin 返还，不回补当前域额度。
@@ -528,12 +593,12 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     })
     .unwrap();
     // B1 的 INSERT 被中止，表里没有 id=3。
-    let inserted: i64 = home
+    let inserted = home
         .run(&main, |q| {
-            q.query_row("SELECT count(*) FROM t WHERE id = 3", [], |r| r.get(0))
+            q.query_row("SELECT count(*) FROM t WHERE id = 3", &[])
         })
         .unwrap();
-    assert_eq!(inserted, 0);
+    assert_eq!(inserted, [Value::Integer(0)]);
     home.close(main).map_err(|(_, e)| e).unwrap();
     home.close(ledger).map_err(|(_, e)| e).unwrap();
     assert_eq!(unsafe { ffi::sqlite3_shutdown() }, ffi::SQLITE_OK);

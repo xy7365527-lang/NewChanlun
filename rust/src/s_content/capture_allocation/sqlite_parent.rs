@@ -15,6 +15,11 @@
 //!   （prepare、execute、query_row、语句的 execute / query_row）之前都重新核：本绑定为当前
 //!   绑定、父账当前冻结域仍是本绑定的 origin、连接归属本父账、本父账本 origin 尚无拒绝；
 //!   任一不符则该操作不进入 SQLite。同一时刻只有一个 `run`，期间禁止换绑与再入。
+//! - `run`（含 open / close）在入口核验通过后，即在父账当前冻结域上持有一个活动作用域，
+//!   与 Rust 许可的作用域同一计数，直到 `run` 结束；持有期间父账 `handoff` / 重新冻结均被拒，
+//!   所以整个操作域内 origin 固定，参数 `ToSql` 等任何回调都无法在操作中途换域。
+//! - 调用方回调（参数 `ToSql`）只在准入之前运行；准入之后到 SQLite 返回的整段只执行组件代码，
+//!   行在操作口内物化为自有值。回调里触发的首拒因此在进入 SQLite 前即被准入拦下。
 //!   [`SqlOps::handle`] 是 `unsafe` 逃生口，调用方须维持本合同（不改进度回调、不关闭连接）。
 //! - 只有正处于 `run` 中的线程能让 allocator 收费，其他线程或域外的分配一律按未知归属拒绝。
 //! - 首个拒绝按（父账、origin）记，同父同 origin 重绑不清除；只有换到新冻结域才开新记录。
@@ -23,6 +28,7 @@
 //! - realloc 只在块的原父账为当前绑定时进行；跨父 realloc 在收费前拒绝。
 use super::scratch::ScratchFailure;
 use rusqlite::ffi;
+use rusqlite::types::{ToSqlOutput, Value};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::Cell;
 use std::ffi::c_void;
@@ -41,6 +47,11 @@ pub trait SqliteParent: Send + Sync {
     fn invalidate_sqlite(&self);
     /// `origin` 仍是父账当前冻结域且父账未破损。
     fn admits_sqlite(&self, origin: u64) -> bool;
+    /// 在 `origin` 冻结域上开一个活动作用域（与 Rust 许可作用域同一计数）：持有期间父账拒绝换域。
+    /// `origin` 已非当前域或父账破损时返回 `Ledger`。
+    fn open_sqlite_scope(&self, origin: u64) -> Result<(), ScratchFailure>;
+    /// 关闭 [`Self::open_sqlite_scope`] 开的作用域。
+    fn close_sqlite_scope(&self, origin: u64) -> Result<(), ScratchFailure>;
 }
 
 const SLOTS: usize = 8;
@@ -554,10 +565,27 @@ impl SqliteBinding {
         {
             return Err(SqlGate::Refused(ScratchFailure::Ledger));
         }
-        let running = Running(());
+        let mut running = Running(None);
         self.admit(conn.map(|c| c.owner))?;
+        running.0 = Some(self.hold_domain()?);
         IN_RUN.with(|r| r.set(true));
         Ok(running)
+    }
+
+    /// 在父账本 origin 上开活动作用域，固定整个操作域的冻结域。
+    fn hold_domain(&self) -> Result<(Arc<dyn SqliteParent>, u64), SqlGate> {
+        let parent = {
+            let s = state().ok_or(SqlGate::Refused(ScratchFailure::Ledger))?;
+            let sl = &s.slots[self.owner.slot];
+            match sl.parent.as_ref() {
+                Some(p) if sl.generation == self.owner.generation => p.clone(),
+                _ => return Err(SqlGate::Refused(ScratchFailure::Ledger)),
+            }
+        };
+        parent
+            .open_sqlite_scope(self.origin)
+            .map_err(SqlGate::Refused)?;
+        Ok((parent, self.origin))
     }
 
     /// 本绑定为当前绑定、父账当前域仍是本 origin、本域无拒绝、`owner` 归属本父账。
@@ -663,10 +691,16 @@ impl Drop for SqliteBinding {
     }
 }
 
-struct Running(());
+/// 独占的操作域；持有父账冻结域的活动作用域直到析构。
+struct Running(Option<(Arc<dyn SqliteParent>, u64)>);
 
 impl Drop for Running {
     fn drop(&mut self) {
+        if let Some((parent, origin)) = self.0.take() {
+            if parent.close_sqlite_scope(origin).is_err() {
+                parent.invalidate_sqlite();
+            }
+        }
         let _ = IN_RUN.try_with(|r| r.set(false));
         RUNNING.store(false, Ordering::Release);
     }
@@ -691,7 +725,29 @@ pub struct ChargedConnection {
     owner: Owner,
 }
 
-/// `run` 内的 SQL 操作口。每个方法进入 SQLite 前重核操作域（绑定、父账当前域、首拒、归属）。
+/// 参数先在准入之前全部转换为自有值：`ToSql` 是调用方代码，可能触发收费拒绝或尝试换域，
+/// 必须在核验之前跑完，之后进入 SQLite 的绑定只用无回调的自有值。
+fn owned_params(params: &[&dyn rusqlite::ToSql]) -> Result<Vec<Value>, SqlGate> {
+    params
+        .iter()
+        .map(|p| match p.to_sql().map_err(SqlGate::Sqlite)? {
+            ToSqlOutput::Borrowed(v) => Ok(Value::from(v)),
+            ToSqlOutput::Owned(v) => Ok(v),
+            #[allow(unreachable_patterns)]
+            _ => Err(SqlGate::Sqlite(rusqlite::Error::InvalidQuery)),
+        })
+        .collect()
+}
+
+/// 当前行的全部列物化为自有值；在操作口内完成，调用方拿到的行不再触达 SQLite。
+fn owned_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Vec<Value>> {
+    let n = row.as_ref().column_count();
+    (0..n).map(|i| row.get::<_, Value>(i)).collect()
+}
+
+/// `run` 内的 SQL 操作口。参数在准入前转为自有值，准入后进入 SQLite 的整段只执行组件代码
+/// （无调用方回调），行在操作口内物化后交回。每个方法进入 SQLite 前重核操作域（绑定、父账
+/// 当前域、首拒、归属）；操作域在整个 `run` 中持有父账活动作用域，冻结域不可更换。
 pub struct SqlOps<'a> {
     conn: &'a rusqlite::Connection,
     binding: &'a SqliteBinding,
@@ -708,16 +764,25 @@ impl<'a> SqlOps<'a> {
         self.gate(|| self.conn.execute_batch(sql))
     }
 
-    pub fn execute<P: rusqlite::Params>(&self, sql: &str, params: P) -> Result<usize, SqlGate> {
-        self.gate(|| self.conn.execute(sql, params))
+    pub fn execute(&self, sql: &str, params: &[&dyn rusqlite::ToSql]) -> Result<usize, SqlGate> {
+        let values = owned_params(params)?;
+        self.gate(|| {
+            self.conn
+                .execute(sql, rusqlite::params_from_iter(values.iter()))
+        })
     }
 
-    pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<T, SqlGate>
-    where
-        P: rusqlite::Params,
-        F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
-    {
-        self.gate(|| self.conn.query_row(sql, params, f))
+    /// 取首行全部列（自有值）。
+    pub fn query_row(
+        &self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> Result<Vec<Value>, SqlGate> {
+        let values = owned_params(params)?;
+        self.gate(|| {
+            self.conn
+                .query_row(sql, rusqlite::params_from_iter(values.iter()), owned_row)
+        })
     }
 
     pub fn prepare(&self, sql: &str) -> Result<GatedStatement<'a>, SqlGate> {
@@ -732,13 +797,13 @@ impl<'a> SqlOps<'a> {
 
     /// # Safety
     /// 只用于本操作域内的只读诊断与裸语句操作；不得更改或移除进度回调、不得关闭连接、
-    /// 不得把句柄带出本 `run`。
+    /// 不得把句柄带出本 `run`。经此句柄的操作不受本合同保护。
     pub unsafe fn handle(&self) -> *mut ffi::sqlite3 {
         unsafe { self.conn.handle() }
     }
 }
 
-/// 经 [`SqlOps::prepare`] 得到的语句；每次执行前重核操作域。
+/// 经 [`SqlOps::prepare`] 得到的语句；每次执行前先转参数、再重核操作域。
 pub struct GatedStatement<'a> {
     stmt: rusqlite::Statement<'a>,
     binding: &'a SqliteBinding,
@@ -746,17 +811,20 @@ pub struct GatedStatement<'a> {
 }
 
 impl GatedStatement<'_> {
-    pub fn execute<P: rusqlite::Params>(&mut self, params: P) -> Result<usize, SqlGate> {
+    pub fn execute(&mut self, params: &[&dyn rusqlite::ToSql]) -> Result<usize, SqlGate> {
+        let values = owned_params(params)?;
         self.binding.admit(Some(self.owner))?;
-        self.binding.settle(self.stmt.execute(params))
+        self.binding
+            .settle(self.stmt.execute(rusqlite::params_from_iter(values.iter())))
     }
 
-    pub fn query_row<T, P, F>(&mut self, params: P, f: F) -> Result<T, SqlGate>
-    where
-        P: rusqlite::Params,
-        F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
-    {
+    /// 取首行全部列（自有值）。
+    pub fn query_row(&mut self, params: &[&dyn rusqlite::ToSql]) -> Result<Vec<Value>, SqlGate> {
+        let values = owned_params(params)?;
         self.binding.admit(Some(self.owner))?;
-        self.binding.settle(self.stmt.query_row(params, f))
+        self.binding.settle(
+            self.stmt
+                .query_row(rusqlite::params_from_iter(values.iter()), owned_row),
+        )
     }
 }

@@ -1776,6 +1776,20 @@ impl SqliteParent for Ledger {
     fn invalidate_sqlite(&self) {
         ScratchParent::invalidate(self);
     }
+    fn open_sqlite_scope(&self, origin: u64) -> Result<(), ScratchFailure> {
+        let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if d.state & BROKEN != 0 || u64::from(d.serial) != origin {
+            return Err(ScratchFailure::Ledger);
+        }
+        d.active_scopes = d
+            .active_scopes
+            .checked_add(1)
+            .ok_or(ScratchFailure::Ledger)?;
+        Ok(())
+    }
+    fn close_sqlite_scope(&self, origin: u64) -> Result<(), ScratchFailure> {
+        ScratchParent::close_scope(self, origin)
+    }
     fn admits_sqlite(&self, origin: u64) -> bool {
         self.domain
             .lock()
