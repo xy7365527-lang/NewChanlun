@@ -707,3 +707,250 @@ fn sqlite_parent_install_refused_after_sqlite_initialized() {
     let c = Connection::open_in_memory().unwrap();
     c.execute_batch("CREATE TABLE x(y)").unwrap();
 }
+
+/// 调用方进度回调被调用的次数；`STOP` 置位时要求中止。
+static USER_PROGRESS: AtomicUsize = AtomicUsize::new(0);
+static STOP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+unsafe extern "C" fn user_progress(_: *mut c_void) -> c_int {
+    USER_PROGRESS.fetch_add(1, Ordering::SeqCst);
+    c_int::from(STOP.load(Ordering::SeqCst))
+}
+
+/// 原私有快照式授权门：拒绝读取表 `secret`。
+unsafe extern "C" fn deny_secret(
+    _: *mut c_void,
+    action: c_int,
+    table: *const std::ffi::c_char,
+    _: *const std::ffi::c_char,
+    _: *const std::ffi::c_char,
+    _: *const std::ffi::c_char,
+) -> c_int {
+    if action == ffi::SQLITE_READ
+        && !table.is_null()
+        && unsafe { CStr::from_ptr(table) }.to_bytes() == b"secret"
+    {
+        ffi::SQLITE_DENY
+    } else {
+        ffi::SQLITE_OK
+    }
+}
+
+fn user_calls() -> usize {
+    USER_PROGRESS.load(Ordering::SeqCst)
+}
+
+fn sqlite_code(result: Result<impl std::fmt::Debug, SqlGate>) -> c_int {
+    match result {
+        Err(SqlGate::Sqlite(code)) => code,
+        other => panic!("expected an SQLite result code, got {other:?}"),
+    }
+}
+
+#[test]
+#[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{Callback, OpenSpec};
+    // SAFETY: this test runs alone in a fresh process before any SQLite use.
+    let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+    let root = Budget::fresh(LIMIT).unwrap();
+    let base = root.live();
+    let mut d = Domains {
+        allocator: &allocator,
+        current: root.bind_frozen(1, LIMIT, 0, 0).unwrap(),
+        request: 1,
+    };
+    let dir = std::env::temp_dir().join(format!("sqlite-boundary-{}", std::process::id()));
+    let path = |name: &str| std::ffi::CString::new(dir.join(name).to_str().unwrap()).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    // 以默认方式建一个快照库，供下面按原只读规格打开。
+    let wide = d.rebind();
+    let seed = wide.open(&path("snap.sqlite3")).unwrap();
+    wide.run(&seed, |q| {
+        q.execute_batch(
+            "CREATE TABLE s(x INTEGER); INSERT INTO s VALUES(1);
+             CREATE TABLE secret(y INTEGER); INSERT INTO secret VALUES(2);",
+        )
+    })
+    .unwrap();
+    wide.close(seed).map_err(|(_, e)| e).unwrap();
+
+    // 在本父账名下注册私有 VFS（默认 VFS 的同名副本）；注册中的分配记到本父账。
+    let mut vfs: ffi::sqlite3_vfs = unsafe { *ffi::sqlite3_vfs_find(ptr::null()) };
+    vfs.zName = c"bsql-private".as_ptr();
+    let vfs_ptr: *mut ffi::sqlite3_vfs = &mut vfs;
+    unsafe { wide.register_vfs(vfs_ptr) }.unwrap();
+    assert_eq!(
+        unsafe { ffi::sqlite3_vfs_find(c"bsql-private".as_ptr()) },
+        vfs_ptr
+    );
+
+    // 原私有快照的打开语义：只读、私有缓存、无互斥、指定 VFS；关闭时不 checkpoint、防御模式、
+    // 禁扩展加载、工作线程 0、busy 0；授权门与调用方进度回调都保留。
+    let configs = [
+        (ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1),
+        (ffi::SQLITE_DBCONFIG_DEFENSIVE, 1),
+        (ffi::SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, 0),
+    ];
+    let limits = [(ffi::SQLITE_LIMIT_WORKER_THREADS, 0)];
+    let spec = OpenSpec {
+        flags: ffi::SQLITE_OPEN_READONLY | ffi::SQLITE_OPEN_PRIVATECACHE | ffi::SQLITE_OPEN_NOMUTEX,
+        vfs: Some(c"bsql-private"),
+        db_config: &configs,
+        limits: &limits,
+        busy_timeout_ms: Some(0),
+        authorizer: Some(Callback {
+            callback: deny_secret,
+            context: ptr::null_mut(),
+        }),
+        progress: Some(Callback {
+            callback: user_progress,
+            context: ptr::null_mut(),
+        }),
+    };
+    // 未知 VFS：原样报 SQLite 错误，不建连接、不留块。
+    let live = d.current.live();
+    let missing = OpenSpec {
+        vfs: Some(c"bsql-missing"),
+        ..OpenSpec::default()
+    };
+    let code = sqlite_code(unsafe { wide.open_with(&path("snap.sqlite3"), &missing) });
+    assert_eq!(code & 0xff, ffi::SQLITE_ERROR);
+    assert_eq!(d.current.live(), live);
+
+    let snap = unsafe { wide.open_with(&path("snap.sqlite3"), &spec) }.unwrap();
+    let before = user_calls();
+    wide.run(&snap, |q| {
+        let mut used: *mut ffi::sqlite3_vfs = ptr::null_mut();
+        let rc = unsafe {
+            ffi::sqlite3_file_control(
+                q.handle(),
+                c"main".as_ptr(),
+                ffi::SQLITE_FCNTL_VFS_POINTER,
+                (&mut used as *mut *mut ffi::sqlite3_vfs).cast(),
+            )
+        };
+        assert_eq!(rc, ffi::SQLITE_OK);
+        assert_eq!(used, vfs_ptr);
+        for (op, want) in configs {
+            let mut out: c_int = -1;
+            let rc = unsafe { ffi::sqlite3_db_config(q.handle(), op, -1, &mut out as *mut c_int) };
+            assert_eq!((rc, out), (ffi::SQLITE_OK, want));
+        }
+        assert_eq!(
+            unsafe { ffi::sqlite3_limit(q.handle(), ffi::SQLITE_LIMIT_WORKER_THREADS, -1) },
+            0
+        );
+        assert_eq!(
+            q.query_row("SELECT x FROM s", [], |[v]| v.as_i64()),
+            Ok(Ok(1))
+        );
+        // 只读打开：写被 SQLite 以 READONLY 拒绝。
+        let code = sqlite_code(q.execute("INSERT INTO s VALUES(9)", []));
+        assert_eq!(code & 0xff, ffi::SQLITE_READONLY);
+        // 原授权门仍在：读 secret 被拒（SQLITE_AUTH）。
+        let code = sqlite_code(q.query_row("SELECT y FROM secret", [], |[v]| v.as_i64()));
+        assert_eq!(code & 0xff, ffi::SQLITE_AUTH);
+        Ok(())
+    })
+    .unwrap();
+    // 调用方进度回调串在组件门之后，真实被调用；它要求中止时查询被中止。
+    assert!(user_calls() > before);
+    STOP.store(true, Ordering::SeqCst);
+    let code = wide
+        .run(&snap, |q| {
+            Ok(sqlite_code(q.query_row(
+                "SELECT count(*) FROM s",
+                [],
+                |[v]| v.as_i64(),
+            )))
+        })
+        .unwrap();
+    assert_eq!(code & 0xff, ffi::SQLITE_INTERRUPT);
+    STOP.store(false, Ordering::SeqCst);
+    // 运行中可更换授权门（原 3A 连接封印式）；撤销后 secret 可读。
+    wide.run(&snap, |q| {
+        unsafe { q.set_authorizer(None) }?;
+        assert_eq!(
+            q.query_row("SELECT y FROM secret", [], |[v]| v.as_i64()),
+            Ok(Ok(2))
+        );
+        Ok(())
+    })
+    .unwrap();
+    // 只读连接与 VFS 都记在本父账名下。
+    assert_eq!(d.current.live() - base, wide.live_bytes());
+    drop(wide);
+
+    // 首拒后的收尾：事务中触发收费拒绝，之后调用方 SQL 一律不进 SQLite，调用方进度回调也不再
+    // 被调用；回滚与关闭作为收尾仍完成，首拒保持，且回滚期间调用方要求中止也不中断回滚。
+    let home = d.next(ROOM);
+    let writer = unsafe {
+        home.open_with(
+            &path("w.sqlite3"),
+            &OpenSpec {
+                progress: Some(Callback {
+                    callback: user_progress,
+                    context: ptr::null_mut(),
+                }),
+                ..OpenSpec::default()
+            },
+        )
+    }
+    .unwrap();
+    home.run(&writer, |q| {
+        q.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE w(v INTEGER);")
+    })
+    .unwrap();
+    let home = d.next(ROOM);
+    let first = refused(home.run(&writer, |q| {
+        q.execute_batch("BEGIN; INSERT INTO w VALUES(1);")?;
+        assert!(unsafe { ffi::sqlite3_malloc64(ROOM as u64 + 1) }.is_null());
+        Ok(())
+    }));
+    assert_eq!(first, ScratchFailure::Budget);
+    let mut calls = 0;
+    let quiet = user_calls();
+    assert_eq!(
+        refused(home.run(&writer, |q| {
+            calls += 1;
+            q.execute("INSERT INTO w VALUES(2)", [])
+        })),
+        ScratchFailure::Budget
+    );
+    assert_eq!(calls, 0);
+    assert_eq!(user_calls(), quiet);
+    STOP.store(true, Ordering::SeqCst);
+    let in_tx = home.run(&writer, |_| Ok(()));
+    assert_eq!(refused(in_tx), ScratchFailure::Budget);
+    home.rollback(&writer).unwrap();
+    STOP.store(false, Ordering::SeqCst);
+    assert_eq!(user_calls(), quiet);
+    assert_eq!(home.refusal(), Some(ScratchFailure::Budget));
+    home.close(writer).map_err(|(_, e)| e).unwrap();
+    assert_eq!(home.refusal(), Some(ScratchFailure::Budget));
+    drop(home);
+
+    // 新冻结域：回滚确已生效（没有 v=1），收尾后的连接与 VFS 全部归还。
+    let home = d.next(ROOM);
+    let reader = home.open(&path("w.sqlite3")).unwrap();
+    assert_eq!(
+        home.run(&reader, |q| q.query_row(
+            "SELECT count(*) FROM w",
+            [],
+            |[v]| v.as_i64()
+        )),
+        Ok(Ok(0))
+    );
+    home.close(reader).map_err(|(_, e)| e).unwrap();
+    home.close(snap).map_err(|(_, e)| e).unwrap();
+    unsafe { home.unregister_vfs(vfs_ptr) }.unwrap();
+    assert!(unsafe { ffi::sqlite3_vfs_find(c"bsql-private".as_ptr()) }.is_null());
+    assert_eq!(unsafe { ffi::sqlite3_shutdown() }, ffi::SQLITE_OK);
+    assert_eq!(home.live_bytes(), 0);
+    assert_eq!(d.current.live(), base);
+    assert!(!allocator.is_broken());
+    let _ = std::fs::remove_dir_all(&dir);
+}

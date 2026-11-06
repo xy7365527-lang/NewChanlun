@@ -35,7 +35,7 @@ use rusqlite::types::{ToSqlOutput, ValueRef};
 use rusqlite::ToSql;
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::Cell;
-use std::ffi::{c_int, c_void, CStr};
+use std::ffi::{c_char, c_int, c_void, CStr};
 use std::marker::PhantomData;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -59,6 +59,8 @@ pub trait SqliteParent: Send + Sync {
 }
 
 const SLOTS: usize = 8;
+/// 同时存活、带调用方进度回调的连接上限（定长表，不分配）。
+const HOOKS: usize = 16;
 const MAGIC: u64 = 0x1419_5351_5041_5254;
 
 #[repr(C, align(16))]
@@ -110,6 +112,14 @@ struct Owner {
     generation: u32,
 }
 
+/// 连接上调用方进度回调的登记项；组件进度门之后串联调用。
+#[derive(Clone, Copy)]
+struct Hook {
+    owner: Owner,
+    callback: ProgressFn,
+    context: usize,
+}
+
 #[derive(Clone, Copy)]
 struct Binding {
     owner: Owner,
@@ -124,6 +134,7 @@ struct State {
     current: Option<Binding>,
     epoch: u64,
     unattributed: usize,
+    hooks: [Option<Hook>; HOOKS],
 }
 
 const EMPTY: Slot = Slot {
@@ -141,6 +152,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     current: None,
     epoch: 0,
     unattributed: 0,
+    hooks: [None; HOOKS],
 });
 static INSTALLING: AtomicBool = AtomicBool::new(false);
 /// 某个 `run` 正在执行；期间拒绝换绑与再入。
@@ -150,6 +162,12 @@ thread_local! {
     static IN_RUN: Cell<bool> = const { Cell::new(false) };
     /// 本线程正处于结果行映射回调；其间拒绝一切 SQL 操作。
     static IN_ROW_MAP: Cell<bool> = const { Cell::new(false) };
+    /// 本线程正处于收尾域（回滚、关闭、撤 VFS）：首拒后仍允许，且不调用调用方进度回调。
+    static IN_TEARDOWN: Cell<bool> = const { Cell::new(false) };
+}
+
+fn in_teardown() -> bool {
+    IN_TEARDOWN.try_with(Cell::get).unwrap_or(false)
 }
 
 fn state() -> Option<MutexGuard<'static, State>> {
@@ -192,6 +210,13 @@ impl State {
             && self.current.is_some_and(|b| {
                 b.owner == owner && self.first_refusal(b).is_none() && self.origin_live(b)
             })
+    }
+    /// 收尾域准入：同 [`Self::admits`]，但不看首拒——首拒之后仍须能回滚与关闭。
+    fn admits_teardown(&self, owner: Owner) -> bool {
+        !self.broken
+            && self
+                .current
+                .is_some_and(|b| b.owner == owner && self.origin_live(b))
     }
     fn origin_live(&self, b: Binding) -> bool {
         let sl = &self.slots[b.owner.slot];
@@ -253,7 +278,9 @@ unsafe fn allocate(n: i32) -> *mut c_void {
 }
 
 unsafe fn allocate_for(s: &mut State, b: Binding, payload: usize) -> *mut c_void {
-    if s.first_refusal(b).is_some() {
+    // 收尾域（回滚、关闭）在首拒后仍须完成：其分配照常向原父账原冻结域预留，额度不足仍拒；
+    // `latch` 不覆盖已有首拒。收尾域内不执行调用方 SQL。
+    if s.first_refusal(b).is_some() && !in_teardown() {
         return ptr::null_mut();
     }
     let Some(layout) = block_layout(payload) else {
@@ -595,6 +622,19 @@ impl SqliteBinding {
 
     /// 进入操作域：独占 `run`，核本绑定为当前、本域无拒绝、连接归属本父账。
     fn enter(&self, conn: Option<&ChargedConnection>) -> Result<Running, SqlGate> {
+        self.enter_mode(conn, false)
+    }
+
+    /// 进入收尾域：同 [`Self::enter`]，但首拒之后仍放行；域内只执行组件自己的收尾调用。
+    fn enter_teardown(&self, conn: Option<&ChargedConnection>) -> Result<Running, SqlGate> {
+        self.enter_mode(conn, true)
+    }
+
+    fn enter_mode(
+        &self,
+        conn: Option<&ChargedConnection>,
+        teardown: bool,
+    ) -> Result<Running, SqlGate> {
         if RUNNING
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .is_err()
@@ -602,9 +642,12 @@ impl SqliteBinding {
             return Err(SqlGate::Refused(ScratchFailure::Ledger));
         }
         let mut running = Running(None);
-        self.admit(conn.map(|c| c.owner))?;
+        self.admit_mode(conn.map(|c| c.owner), teardown)?;
         running.0 = Some(self.hold_domain()?);
         IN_RUN.with(|r| r.set(true));
+        if teardown {
+            IN_TEARDOWN.with(|t| t.set(true));
+        }
         Ok(running)
     }
 
@@ -626,6 +669,10 @@ impl SqliteBinding {
 
     /// 本绑定为当前绑定、父账当前域仍是本 origin、本域无拒绝、`owner` 归属本父账。
     fn admit(&self, owner: Option<Owner>) -> Result<(), SqlGate> {
+        self.admit_mode(owner, false)
+    }
+
+    fn admit_mode(&self, owner: Option<Owner>, teardown: bool) -> Result<(), SqlGate> {
         if IN_ROW_MAP.try_with(Cell::get).unwrap_or(true) {
             return Err(SqlGate::Refused(ScratchFailure::Ledger));
         }
@@ -634,7 +681,7 @@ impl SqliteBinding {
         let Some(b) = current.filter(|_| !s.broken) else {
             return Err(SqlGate::Refused(ScratchFailure::Ledger));
         };
-        if let Some(first) = s.first_refusal(b) {
+        if let Some(first) = s.first_refusal(b).filter(|_| !teardown) {
             return Err(SqlGate::Refused(first));
         }
         if !s.origin_live(b) {
@@ -654,22 +701,53 @@ impl SqliteBinding {
         result.map_err(SqlGate::Sqlite)
     }
 
-    /// 在本父账名下打开连接；连接终身归属本父账，并装执行边界的进度回调。
-    /// 路径由调用方以 C 字符串持有（`:memory:` 为内存库）；组件直接走 C API，不建 Rust 包装对象。
+    /// 在本父账名下以默认方式（读写、可创建、URI、默认 VFS）打开连接；见 [`Self::open_with`]。
     pub fn open(&self, path: &CStr) -> Result<ChargedConnection, SqlGate> {
+        // SAFETY: the default spec carries no caller callbacks or contexts.
+        unsafe { self.open_with(path, &OpenSpec::default()) }
+    }
+
+    /// 在本父账名下按 `spec` 打开连接：保留调用方原有的打开标志、VFS、连接配置、限额与
+    /// 授权回调；调用方进度回调串在组件进度门之后（门不放行时不调用，收尾域内也不调用）。
+    /// 任一配置未生效即关闭连接并报错。连接终身归属本父账。
+    ///
+    /// # Safety
+    /// `spec` 中的回调上下文与 VFS 必须在连接关闭（或析构）之前一直有效；回调不得重入本连接、
+    /// 不得更改进度回调或关闭连接。
+    pub unsafe fn open_with(
+        &self,
+        path: &CStr,
+        spec: &OpenSpec<'_>,
+    ) -> Result<ChargedConnection, SqlGate> {
         let running = self.enter(None)?;
         let owner = self.owner;
+        let hook = match spec.progress {
+            Some(p) => match reserve_hook(owner, p) {
+                Some(h) => Some(h),
+                None => return Err(SqlGate::Refused(ScratchFailure::Ledger)),
+            },
+            None => None,
+        };
         let mut db = ptr::null_mut();
-        let flags = ffi::SQLITE_OPEN_READWRITE | ffi::SQLITE_OPEN_CREATE | ffi::SQLITE_OPEN_URI;
+        let vfs = spec.vfs.map_or(ptr::null(), CStr::as_ptr);
         // SAFETY: path is NUL-terminated; db receives a handle (possibly non-null on error).
-        let rc = unsafe { ffi::sqlite3_open_v2(path.as_ptr(), &mut db, flags, ptr::null()) };
+        let rc = unsafe { ffi::sqlite3_open_v2(path.as_ptr(), &mut db, spec.flags, vfs) };
         let opened = if rc == ffi::SQLITE_OK {
-            // SAFETY: db is a live handle; the callback context is an integer, not a pointer.
-            unsafe {
-                ffi::sqlite3_extended_result_codes(db, 1);
-                ffi::sqlite3_progress_handler(db, 1, Some(progress), owner.context());
+            // SAFETY: db is a live handle; callback contexts are guaranteed by the caller.
+            match unsafe { configure(db, spec) } {
+                Ok(()) => {
+                    // SAFETY: db is live; the component's context is an integer, not a pointer.
+                    unsafe {
+                        ffi::sqlite3_progress_handler(db, 1, Some(progress), owner.context(hook));
+                    }
+                    Ok(ChargedConnection { db, owner, hook })
+                }
+                Err(code) => {
+                    // SAFETY: db is live and has no statements yet.
+                    unsafe { ffi::sqlite3_close(db) };
+                    Err(code)
+                }
             }
-            Ok(ChargedConnection { db, owner })
         } else {
             let code = if db.is_null() {
                 rc
@@ -684,7 +762,69 @@ impl SqliteBinding {
             Err(code)
         };
         drop(running);
+        if opened.is_err() {
+            release_hook(hook);
+        }
         self.settle(opened)
+    }
+
+    /// 在本父账名下注册 VFS（不设为默认）。注册中 SQLite 的分配向本父账收费。
+    ///
+    /// # Safety
+    /// `vfs` 必须有效，且在 [`Self::unregister_vfs`] 之前一直有效、不移动。
+    pub unsafe fn register_vfs(&self, vfs: *mut ffi::sqlite3_vfs) -> Result<(), SqlGate> {
+        let running = self.enter(None)?;
+        // SAFETY: caller guarantees vfs stays valid until unregistered; make_default = 0.
+        let rc = unsafe { ffi::sqlite3_vfs_register(vfs, 0) };
+        drop(running);
+        self.settle(if rc == ffi::SQLITE_OK {
+            Ok(())
+        } else {
+            Err(rc)
+        })
+    }
+
+    /// 收尾：撤销 [`Self::register_vfs`] 注册的 VFS。首拒之后仍可执行。
+    ///
+    /// # Safety
+    /// `vfs` 必须是先前注册且已无连接使用的 VFS。
+    pub unsafe fn unregister_vfs(&self, vfs: *mut ffi::sqlite3_vfs) -> Result<(), SqlGate> {
+        let running = self.enter_teardown(None)?;
+        // SAFETY: caller guarantees vfs was registered and is unused.
+        let rc = unsafe { ffi::sqlite3_vfs_unregister(vfs) };
+        drop(running);
+        if rc == ffi::SQLITE_OK {
+            Ok(())
+        } else {
+            Err(SqlGate::Sqlite(rc))
+        }
+    }
+
+    /// 收尾：回滚连接上未结束的事务（无事务时什么都不做）。首拒之后仍可执行，不调用调用方进度
+    /// 回调，也不执行调用方 SQL；结果只报回滚本身，首个拒绝仍由 [`Self::refusal`] 给出。
+    pub fn rollback(&self, conn: &ChargedConnection) -> Result<(), SqlGate> {
+        let running = self.enter_teardown(Some(conn))?;
+        // SAFETY: conn owns a live handle; the statement text is a static C string.
+        let rc = unsafe {
+            if ffi::sqlite3_get_autocommit(conn.db) != 0 {
+                ffi::SQLITE_OK
+            } else {
+                ffi::sqlite3_exec(
+                    conn.db,
+                    c"ROLLBACK".as_ptr(),
+                    None,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                )
+            }
+        };
+        let result = if rc == ffi::SQLITE_OK {
+            Ok(())
+        } else {
+            Err(SqlGate::Sqlite(last_code(conn.db, rc)))
+        };
+        drop(running);
+        result
     }
 
     /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行；
@@ -709,9 +849,10 @@ impl SqliteBinding {
         }
     }
 
-    /// 在本操作域关闭归属本父账的连接；不符或连接仍有未结束语句时原样交回连接。
+    /// 收尾：在本父账名下关闭归属本父账的连接；首拒之后仍可执行。归属不符、绑定非当前或连接
+    /// 仍有未结束语句时原样交回连接。
     pub fn close(&self, conn: ChargedConnection) -> Result<(), (ChargedConnection, SqlGate)> {
-        let running = match self.enter(Some(&conn)) {
+        let running = match self.enter_teardown(Some(&conn)) {
             Ok(running) => running,
             Err(e) => return Err((conn, e)),
         };
@@ -719,6 +860,7 @@ impl SqliteBinding {
         let rc = unsafe { ffi::sqlite3_close(conn.db) };
         drop(running);
         if rc == ffi::SQLITE_OK {
+            release_hook(conn.hook);
             std::mem::forget(conn);
             Ok(())
         } else {
@@ -752,6 +894,7 @@ impl Drop for Running {
             }
         }
         let _ = IN_RUN.try_with(|r| r.set(false));
+        let _ = IN_TEARDOWN.try_with(|t| t.set(false));
         RUNNING.store(false, Ordering::Release);
     }
 }
@@ -767,23 +910,149 @@ pub enum SqlGate {
 }
 
 impl Owner {
-    /// 进度回调的上下文：槽号与代号编进一个整数，不分配。
-    fn context(self) -> *mut c_void {
-        ((self.generation as usize) << 8 | self.slot) as *mut c_void
+    /// 进度回调的上下文：槽号、调用方回调登记号（0 为无）与代号编进一个整数，不分配。
+    fn context(self, hook: Option<usize>) -> *mut c_void {
+        let hook = hook.map_or(0, |h| h + 1);
+        ((self.generation as usize) << 16 | hook << 8 | self.slot) as *mut c_void
     }
-    fn from_context(context: *mut c_void) -> Self {
+    fn from_context(context: *mut c_void) -> (Self, Option<usize>) {
         let raw = context as usize;
-        Owner {
+        let owner = Owner {
             slot: raw & 0xff,
-            generation: (raw >> 8) as u32,
+            generation: (raw >> 16) as u32,
+        };
+        (owner, ((raw >> 8) & 0xff).checked_sub(1))
+    }
+}
+
+/// 调用方的 SQLite 进度回调（`sqlite3_progress_handler` 形式）。
+pub type ProgressFn = unsafe extern "C" fn(*mut c_void) -> c_int;
+/// 调用方的 SQLite 授权回调（`sqlite3_set_authorizer` 形式）。
+pub type AuthorizerFn = unsafe extern "C" fn(
+    *mut c_void,
+    c_int,
+    *const c_char,
+    *const c_char,
+    *const c_char,
+    *const c_char,
+) -> c_int;
+
+/// 调用方回调及其上下文。
+#[derive(Clone, Copy, Debug)]
+pub struct Callback<F> {
+    pub callback: F,
+    pub context: *mut c_void,
+}
+
+/// [`SqliteBinding::open_with`] 的开库规格：原打开标志、VFS、连接配置（`op`, 值，打开后读回
+/// 核对）、限额（id, 值，读回核对）、busy 超时、授权回调与调用方进度回调（每 1 条 VM 指令）。
+pub struct OpenSpec<'s> {
+    pub flags: c_int,
+    pub vfs: Option<&'s CStr>,
+    pub db_config: &'s [(c_int, c_int)],
+    pub limits: &'s [(c_int, c_int)],
+    pub busy_timeout_ms: Option<c_int>,
+    pub authorizer: Option<Callback<AuthorizerFn>>,
+    pub progress: Option<Callback<ProgressFn>>,
+}
+
+impl Default for OpenSpec<'_> {
+    fn default() -> Self {
+        Self {
+            flags: ffi::SQLITE_OPEN_READWRITE | ffi::SQLITE_OPEN_CREATE | ffi::SQLITE_OPEN_URI,
+            vfs: None,
+            db_config: &[],
+            limits: &[],
+            busy_timeout_ms: None,
+            authorizer: None,
+            progress: None,
         }
     }
 }
 
-/// 进度回调：归属、父账当前域或首拒不符即中止（`SQLITE_INTERRUPT`）。仅兜底 unsafe 逃生口。
+/// 按规格配置刚打开的连接；任一项未生效返回其结果码。
+unsafe fn configure(db: *mut ffi::sqlite3, spec: &OpenSpec<'_>) -> Result<(), c_int> {
+    // SAFETY: db is live; contexts are guaranteed by the caller of `open_with`.
+    unsafe {
+        ffi::sqlite3_extended_result_codes(db, 1);
+        for &(op, value) in spec.db_config {
+            let mut out: c_int = -1;
+            let rc = ffi::sqlite3_db_config(db, op, value, &mut out as *mut c_int);
+            if rc != ffi::SQLITE_OK {
+                return Err(last_code(db, rc));
+            }
+            if out != value {
+                return Err(ffi::SQLITE_MISUSE);
+            }
+        }
+        for &(id, value) in spec.limits {
+            ffi::sqlite3_limit(db, id, value);
+            if ffi::sqlite3_limit(db, id, -1) != value {
+                return Err(ffi::SQLITE_MISUSE);
+            }
+        }
+        if let Some(ms) = spec.busy_timeout_ms {
+            let rc = ffi::sqlite3_busy_timeout(db, ms);
+            if rc != ffi::SQLITE_OK {
+                return Err(rc);
+            }
+        }
+        if let Some(a) = spec.authorizer {
+            let rc = ffi::sqlite3_set_authorizer(db, Some(a.callback), a.context);
+            if rc != ffi::SQLITE_OK {
+                return Err(rc);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reserve_hook(owner: Owner, p: Callback<ProgressFn>) -> Option<usize> {
+    let mut s = state()?;
+    let at = s.hooks.iter().position(Option::is_none)?;
+    s.hooks[at] = Some(Hook {
+        owner,
+        callback: p.callback,
+        context: p.context as usize,
+    });
+    Some(at)
+}
+
+fn release_hook(hook: Option<usize>) {
+    if let (Some(at), Some(mut s)) = (hook, state()) {
+        s.hooks[at] = None;
+    }
+}
+
+/// 进度回调：归属、父账当前域或首拒不符即中止（`SQLITE_INTERRUPT`），兜底 unsafe 逃生口；
+/// 门放行后再调用调用方登记的进度回调（收尾域内不调用，与原回滚前停用进度回调同义）。
 unsafe extern "C" fn progress(context: *mut c_void) -> c_int {
-    let owner = Owner::from_context(context);
-    c_int::from(state().is_none_or(|s| !s.admits(owner)))
+    let (owner, hook) = Owner::from_context(context);
+    let teardown = in_teardown();
+    let user = {
+        let Some(s) = state() else {
+            return 1;
+        };
+        let open = if teardown {
+            s.admits_teardown(owner)
+        } else {
+            s.admits(owner)
+        };
+        if !open {
+            return 1;
+        }
+        if teardown {
+            None
+        } else {
+            hook.and_then(|h| s.hooks.get(h).copied().flatten())
+                .filter(|k| k.owner == owner)
+        }
+    };
+    match user {
+        // SAFETY: the caller of `open_with` guarantees the context outlives the connection.
+        Some(k) => unsafe { (k.callback)(k.context as *mut c_void) },
+        None => 0,
+    }
 }
 
 /// 归属开它的父账的 SQLite 连接，直接持有 C 句柄，不建 rusqlite 包装对象；只能经
@@ -793,6 +1062,7 @@ unsafe extern "C" fn progress(context: *mut c_void) -> c_int {
 pub struct ChargedConnection {
     db: *mut ffi::sqlite3,
     owner: Owner,
+    hook: Option<usize>,
 }
 
 // SAFETY: the handle is only used inside the exclusive `run` domain; SQLite is built threadsafe.
@@ -814,6 +1084,7 @@ impl Drop for ChargedConnection {
                 ffi::sqlite3_close(self.db);
             }
         }
+        release_hook(self.hook);
     }
 }
 
@@ -1057,6 +1328,27 @@ impl<'a> SqlOps<'a> {
             binding: self.binding,
             owner: self.owner,
             _conn: PhantomData,
+        })
+    }
+
+    /// 更换连接的授权回调（原 3A 连接封印式的授权门）；`None` 撤销。授权回调不影响本组件的
+    /// 收费与准入合同。
+    ///
+    /// # Safety
+    /// 回调上下文必须在连接关闭或下次更换之前一直有效。
+    pub unsafe fn set_authorizer(
+        &self,
+        authorizer: Option<Callback<AuthorizerFn>>,
+    ) -> Result<(), SqlGate> {
+        self.admit()?;
+        let (callback, context) =
+            authorizer.map_or((None, ptr::null_mut()), |a| (Some(a.callback), a.context));
+        // SAFETY: db is live; the caller guarantees the context's lifetime.
+        let rc = unsafe { ffi::sqlite3_set_authorizer(self.db, callback, context) };
+        self.binding.settle(if rc == ffi::SQLITE_OK {
+            Ok(())
+        } else {
+            Err(rc)
         })
     }
 

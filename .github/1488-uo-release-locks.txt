@@ -7,3 +7,4 @@ v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages
 # #1419 M8D 3B SQLite 同父分配前收费：全局 allocator 须在全新进程首次 SQLite 初始化前安装，逐条 exact 执行
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_charges_same_parent_before_allocation
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_install_refused_after_sqlite_initialized
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_connection_boundary_keeps_original_open_semantics
