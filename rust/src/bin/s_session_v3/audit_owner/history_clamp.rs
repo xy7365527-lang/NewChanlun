@@ -172,6 +172,7 @@ impl Clamp {
         };
         connection.install_commit_observer(&CommitObserver {
             legacy: physical::observe_commit,
+            #[cfg(test)]
             charged: physical::observe_commit_charged,
         })?;
         Ok(result)
@@ -248,11 +249,9 @@ impl Clamp {
                 Some(parent) => parent
                     .codec_work()
                     .map_err(resource_failure)?
-                    .run(|work| {
-                        Controls::read(tx, self.control_limit, Some(work), &self.integrity_refusal)
-                    })
+                    .run(|work| Controls::read(self, tx, Some(work)))
                     .map_err(|error| resource_failure(native::Failure::from(error)))?,
-                None => Controls::read(tx, self.control_limit, None, &self.integrity_refusal)?,
+                None => Controls::read(self, tx, None)?,
             },
             files: self.files()?,
         };
@@ -541,11 +540,11 @@ impl Controls {
             .sum::<usize>()
     }
     fn read(
+        clamp: &Clamp,
         connection: &dyn OwnerSql,
-        limit: usize,
         work: Option<&WorkScope>,
-        integrity_refusal: &std::cell::Cell<bool>,
     ) -> Result<Self, String> {
+        let limit = clamp.control_limit;
         let mut out = Self(Default::default());
         let admission = NativeAdmission(work);
         let mut used = 0usize;
@@ -575,8 +574,9 @@ impl Controls {
                     RowsError::Row(error) => error,
                     // 准入 schema 下行宽至多 8；更宽只可能是外部改动 schema，按完整性拒绝保全证据，
                     // 与原连接上同一改动在基线比对处被判为完整性拒绝一致。
+                    #[cfg(test)]
                     RowsError::Shape(error) => {
-                        integrity_refusal.set(true);
+                        clamp.integrity_refusal.set(true);
                         stale(error)
                     }
                 })?;

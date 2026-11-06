@@ -103,7 +103,9 @@ pub(super) fn observe_commit(wal: &Wal, frames: i32) -> rusqlite::Result<()> {
 }
 
 /// #1419 3C U5：收费组件连接上的同一提交观察。回调内 checkpoint 经组件 `wal_checkpoint`，
-/// 与普通操作同准入、首拒优先结算；判据与 [`observe_commit`] 共用 [`record_commit`]。
+/// 与普通操作同准入、首拒优先结算；判据与 [`observe_commit`] 共用 [`record_commit`]。目前只由
+/// 测试编译的收费 owner 消费（见 `owner_sql` 收费一族的 cfg）。
+#[cfg(test)]
 pub(super) unsafe extern "C" fn observe_commit_charged(
     _: *mut std::ffi::c_void,
     db: *mut rusqlite::ffi::sqlite3,

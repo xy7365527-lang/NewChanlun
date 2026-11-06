@@ -21,13 +21,14 @@ pub(in crate::v3) enum RowsError {
     Sql(String),
     Row(String),
     /// 行宽超过收费组件栈缓冲（准入 schema 至多 8 列，只可能来自外部改动的 schema）。
+    #[cfg(all(test, feature = "s_incremental", unix))]
     Shape(String),
 }
 
 /// 提交观察回调：rusqlite 连接用 `wal_hook` 形式，收费连接用组件的 `WalFn` 形式。
 pub(in crate::v3) struct CommitObserver {
     pub(in crate::v3) legacy: fn(&rusqlite::hooks::Wal, c_int) -> rusqlite::Result<()>,
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(test, feature = "s_incremental", unix))]
     pub(in crate::v3) charged: newchan_rust::s_content::capture_allocation::sqlite_parent::WalFn,
 }
 
@@ -146,10 +147,13 @@ impl OwnerSql for Transaction<'_> {
     }
 }
 
-#[cfg(feature = "s_incremental")]
+// #1419 3C U5：收费 owner 一族（SQL 面、后端、连接与守卫）目前只由全新进程 release 锁消费（夹持
+// `charged_tests`、生涯门 `step_reader`，两者都是测试编译、unix）。cfg 与消费者精确一致；Native
+// 一次启用波接入生产时随生产调用点一起放宽，不靠 allow 掩盖。
+#[cfg(all(test, feature = "s_incremental", unix))]
 pub(super) use charged::ChargedOwnerSql;
 
-#[cfg(feature = "s_incremental")]
+#[cfg(all(test, feature = "s_incremental", unix))]
 mod charged {
     use super::*;
     use newchan_rust::s_content::capture_allocation::sqlite_parent::{
@@ -285,7 +289,7 @@ mod sealed {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::v3) enum JournalKey {
     Handle(usize),
-    #[cfg(feature = "s_incremental")]
+    #[cfg(all(test, feature = "s_incremental", unix))]
     Charged(newchan_rust::s_content::capture_allocation::sqlite_parent::ConnectionId),
 }
 
@@ -378,10 +382,10 @@ impl OwnerBackend for LegacyOwner {
     }
 }
 
-#[cfg(feature = "s_incremental")]
+#[cfg(all(test, feature = "s_incremental", unix))]
 pub(super) use charged_owner::{ChargedOwner, ChargedOwnerConn, ChargedOwnerTxn};
 
-#[cfg(feature = "s_incremental")]
+#[cfg(all(test, feature = "s_incremental", unix))]
 mod charged_owner {
     use super::*;
     use newchan_rust::s_content::capture_allocation::sqlite_parent::{
@@ -394,10 +398,6 @@ mod charged_owner {
     pub(in super::super) enum ChargedOwner {}
     impl sealed::Sealed for ChargedOwner {}
 
-    #[allow(
-        dead_code,
-        reason = "#1419 3C U5：受管 owner 只由全新进程 release 锁消费，Native 一次启用波接入生产"
-    )]
     pub(in super::super) struct ChargedOwnerConn {
         pub(in super::super) binding: Rc<SqliteBinding>,
         pub(in super::super) connection: ChargedConnection,
@@ -505,20 +505,14 @@ mod charged_owner {
             conn: &ChargedOwnerConn,
             result: Result<T, String>,
         ) -> Result<T, String> {
-            #[cfg(unix)]
-            return crate::h1_close_after_failure(
+            crate::h1_close_after_failure(
                 &crate::v3::h1_writer_sql::ChargedWriter {
                     binding: &conn.binding,
                     connection: &conn.connection,
                 },
                 result,
                 false,
-            );
-            #[cfg(not(unix))]
-            {
-                let _ = conn;
-                result
-            }
+            )
         }
     }
 }

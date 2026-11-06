@@ -1316,12 +1316,8 @@ fn record_material_probe(access: &MaterialAccess<'_, '_, '_>) {
         }
     });
 }
-/// 本事务现有 owner 日志；生涯门签发时据此判断材料阶段是否必须绑定真实材料能力。
-#[cfg(all(test, unix))]
-pub(crate) fn has_journal(tx: &Transaction<'_>) -> Result<bool, String> {
-    has_journal_key(tx_key(tx))
-}
-/// 同 [`has_journal`]，按连接键查；其他连接的登记按原判据报跨事务连接。
+/// 该连接键上现有 owner 日志；生涯门签发时据此判断材料阶段是否必须绑定真实材料能力。其他连接的
+/// 登记按原判据报跨事务连接。
 #[cfg(all(test, unix))]
 pub(super) fn has_journal_key(key: JournalKey) -> Result<bool, String> {
     NODE_JOURNAL.with(|slot| match slot.borrow().as_ref() {
@@ -2760,7 +2756,7 @@ mod construction_coverage_tests {
             Ok(m.live_seal())
         })
         .unwrap();
-        assert!(has_journal(&tx).unwrap());
+        assert!(has_journal_key(tx_key(&tx)).unwrap());
         live.check(&tx).unwrap();
         recording.journal.lock().unwrap().unexpected = true;
         assert!(
@@ -2770,7 +2766,7 @@ mod construction_coverage_tests {
         recording.journal.lock().unwrap().unexpected = false;
         live.check(&tx).unwrap();
         clear_node_journal(&tx);
-        assert!(!has_journal(&tx).unwrap());
+        assert!(!has_journal_key(tx_key(&tx)).unwrap());
         assert!(live.check(&tx).is_err(), "owner 日志撤去后材料见证必须失效");
         drop(recording);
     }
