@@ -209,7 +209,7 @@ def test_prelaunch_stop_transition_keeps_slot_until_terminal(env, state):
 
 
 @pytest.mark.parametrize("has_vm", [True, False])
-def test_prelaunch_cancelled_worker_resume_halts_without_redispatch(env, has_vm):
+def test_prelaunch_cancelled_worker_resume_halts_without_redispatch(env, legacy_boat_runtime, has_vm):
     remote = {"key": True, "running": True}
     cli = cleanup_cli(remote)
     run, engine, key, binding = adapter(env, cli, "prepared" if has_vm else "creating")
@@ -229,7 +229,7 @@ def test_prelaunch_cancelled_worker_resume_halts_without_redispatch(env, has_vm)
 
 
 @pytest.mark.parametrize("stage", ["creating", "prepared", "lost_fork"])
-def test_agent_status_resumes_preparation_through_dispatch_without_new_vm(env, monkeypatch, stage):
+def test_agent_status_resumes_preparation_through_dispatch_without_new_vm(env, legacy_boat_runtime, monkeypatch, stage):
     cli = FakeBoat(info={"state": "running", "hydrated": True, "archiveAfter": stamp(1700)},
                    detach=[{"commandId": "cmd_resumed", "processId": 7}],
                    stop=[{"operation": {"id": "stop_resumed"}}])

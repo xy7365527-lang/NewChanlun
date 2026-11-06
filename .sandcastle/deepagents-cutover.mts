@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { DRAIN_ROOT, withAdmission } from "./drain-control.mts";
+import { DRAIN_ROOT, drainRequested, withAdmission, withLegacyAdmission } from "./drain-control.mts";
 
 export const EXECUTOR_ROOT = "/Volumes/AgentStorage/deepagents-exec";
 const POLICY = JSON.parse(readFileSync(new URL("./queue-policy.json", import.meta.url), "utf8"));
@@ -36,4 +36,23 @@ export function releaseLabel(stateRoot = EXECUTOR_ROOT, drainRoot = DRAIN_ROOT):
 export async function withQueueAdmission<T>(action: () => T | Promise<T>, stateRoot = EXECUTOR_ROOT,
                                              drainRoot = DRAIN_ROOT): Promise<T> {
   return withAdmission(action, [HELPER, "--state-root", stateRoot, "--drain-root", drainRoot]);
+}
+
+/** engine 与裁决消费者共用的准入根；只影响调度，不改变工蜂或队列协议。 */
+export interface GraphAdmissionRoots {
+  stateRoot?: string;
+  drainRoot?: string;
+}
+
+/** 轮询的快速停止判断；真正写动作仍须经 withGraphAdmission 在锁内复核。 */
+export function graphAdmissionFrozen(roots: GraphAdmissionRoots = {}): boolean {
+  return drainRequested(roots.drainRoot) && releaseLabel(roots.stateRoot, roots.drainRoot) !== QUEUE_LABEL;
+}
+
+/** 有效切流复用新队列的冻结锁准入；否则保留旧入口冻结语义，不降级重试。 */
+export async function withGraphAdmission<T>(action: () => T | Promise<T>,
+  roots: GraphAdmissionRoots = {}): Promise<T> {
+  return releaseLabel(roots.stateRoot, roots.drainRoot) === QUEUE_LABEL
+    ? withQueueAdmission(action, roots.stateRoot, roots.drainRoot)
+    : withLegacyAdmission(action, roots.drainRoot);
 }

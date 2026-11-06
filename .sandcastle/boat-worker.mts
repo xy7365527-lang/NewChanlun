@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { CodexTranscript, OUTPUT_SCHEMA, PROVIDER_DEFINITION, snapshotCheckout } from "./codex-child.ts";
+import { CodexTranscript, outputProtocol, workerOutputSchema, PROVIDER_DEFINITION, snapshotCheckout } from "./codex-child.ts";
 import { assertContainerIsolationContract, hardenProvider } from "./docker-isolation.mts";
 
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -37,6 +37,8 @@ process.once("SIGTERM", () => {
   })();
 });
 try {
+  const protocol = outputProtocol(request.output_protocol);
+  if (request.output_protocol !== undefined) record.output_protocol = protocol;
   if (!/^sha256:[a-f0-9]{64}$/.test(request.image)) throw new Error("Docker image identity invalid");
   const before = snapshotCheckout(checkout);
   if (before.head !== request.identity.target_head || before.status) throw new Error("Frozen source is not clean");
@@ -56,7 +58,7 @@ try {
     { hostPath: join(root, "project-skills"), sandboxPath: "/workspace/repo/.agents/skills", readonly: true },
   ] });
   const schema = join(claim, "output.schema.json");
-  writeFileSync(schema, JSON.stringify(OUTPUT_SCHEMA));
+  writeFileSync(schema, JSON.stringify(workerOutputSchema(protocol)));
   await handle.copyFileIn(schema, "/tmp/output.schema.json");
   const home = "/tmp/codex-" + record.run_id;
   const agent = codex(request.model, { effort: "high", sessionStorage: { sandboxSessionsDir: home + "/sessions" } });
@@ -73,7 +75,7 @@ try {
     " -c 'features.apps=false' -c 'features.plugins=false' -c 'web_search=\"disabled\"'" +
     " -c 'model_provider=\"cliproxy-local\"'" + Object.entries(overrides).map(([key, value]) =>
       " -c " + quote("model_providers.cliproxy-local." + key + "=" + JSON.stringify(value))).join("") + " -";
-  const transcript = new CodexTranscript(agent);
+  const transcript = new CodexTranscript(agent, protocol);
   const result = await handle.exec("mkdir -p " + quote(home) + "; env CODEX_HOME=" + quote(home) + " " + command +
     "; code=$?; printf '%s' \"$code\" > /tmp/newchanlun-exit; exit \"$code\"", {
     stdin: built.stdin, onLine(line) { writeFileSync(join(claim, "events.jsonl"), line + "\n", { flag: "a" }); transcript.accept(line); },

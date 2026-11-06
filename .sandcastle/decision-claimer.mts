@@ -17,6 +17,10 @@
  * 模型通道：claude -p 经本机统一路由 127.0.0.1:8318；令牌运行时从 CLIProxyLocal config
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { gfmTable } from "micromark-extension-gfm-table";
+import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
+import type { Nodes } from "mdast";
 import { useScheduler } from "./scheduler-config.mts";
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -25,7 +29,8 @@ import { CLIPROXY_BASE_URL, CLIPROXY_CONFIG, extractFirstApiKey, readCliProxyAcc
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { MAIN_MODEL } from "./main-model.mts";
 import { canonicalPath, parseCanonicalEdit, applyCanonicalEdit, readCanonicalTarget, canonicalDiff, validateCanonicalPlan, writeCanonicalPlan, type CanonicalPlan } from "./canonical-edit.mts";
-import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
+import { DRAIN_ROOT, DrainFrozenError } from "./drain-control.mts";
+import { graphAdmissionFrozen, withGraphAdmission } from "./deepagents-cutover.mts";
 import { randomUUID } from "node:crypto";
 import { loadMainSession, openMainSession, type MainSession, type SessionRef } from "./main-session.mts";
 
@@ -829,9 +834,26 @@ export function renderArchaeology(t: Pick<TicketContext, "number" | "title">, a:
 
 /** 草稿「考古对照」段须逐个点名考古点号。返回问题清单。 */
 export function archaeologyCoverageProblems(draft: string, a: Archaeology): string[] {
-  const m = new RegExp(`^#{1,3}\\s*(?:\\d+[.、]\\s*)?${ARCH_SECTION}\\s*$`, "m").exec(draft);
-  if (!m) return [`草稿缺「${ARCH_SECTION}」段`];
-  const rest = draft.slice(m.index + m[0].length).split(/^#{1,3}\s/m)[0];
+  // CommonMark 解析器区分列表续行和代码，统一处理 ATX/setext 层级。
+  // 只读可见文字：链接 URL、HTML、代码块节点不参与覆盖。
+  const text = (node: Nodes): string => {
+    if (node.type === "code" || node.type === "html" || node.type === "definition") return "";
+    if (node.type === "text" || node.type === "inlineCode") return node.value;
+    return "children" in node ? node.children.map(child => text(child)).join(" ") : "";
+  };
+  const nodes = fromMarkdown(draft, {
+    extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()],
+  }).children;
+  const start = nodes.findIndex(node => node.type === "heading" &&
+    text(node).replace(/^\d+[.、]\s*/, "").trim() === ARCH_SECTION);
+  const heading = nodes[start];
+  if (!heading || heading.type !== "heading") return [`草稿缺「${ARCH_SECTION}」段`];
+  const body: string[] = [];
+  for (const node of nodes.slice(start + 1)) {
+    if (node.type === "heading" && node.depth <= heading.depth) break;
+    body.push(text(node));
+  }
+  const rest = body.join("\n");
   const missing = a.points.filter((p) => !new RegExp(`\\b${p.id}\\b`).test(rest)).map((p) => p.id);
   return missing.length ? [`「${ARCH_SECTION}」段漏了考古点 ${missing.join("、")}`] : [];
 }
@@ -886,7 +908,7 @@ ${FIXED_CLASS_LINE}${fixed === "none" ? "（只验考古）" : `：分级已定�
 - AGENTS.md「开之前先搜（两路，缺一不可）」与 docs/adr/0012-inference-layer-document-naming.md 裁定一、四：推论层主张可援引，推理链必须搬进来重过并现场打溯源标签。
 
 ${renderTicket(t)}
-${o.feedback ? `\n## 上一次考古产物没过机械校验，必须逐条补齐：\n${o.feedback}\n` : ""}
+${o.feedback ? `\n## 上一次考古的机械校验或独审反馈，必须逐条回查更正：\n${o.feedback}\n` : ""}
 考古要你交的（胶水，以上 skill 没规定的部分）：
 1. 把票面与评论里的待决点逐个列出，编号 Q1、Q2…，一点一问。
 2. 每点两路各至少一条查询，记下实际命令与命中数。tracker 路用 \`gh search issues "<词>" --repo ${GH_REPO}\` 或 \`gh issue list --repo ${GH_REPO} --state all --search "<词> in:comments"\`（覆盖已关闭票与评论）；仓内路用 rg -n 搜正本层 docs/adr/、.chanlun/definitions/、CONTEXT.md，推论层 analysis/、docs/、.chanlun/，以及代码常量与测试夹具（rust/、src/、tests/、trading_system/、scripts/）。同一概念换中文词、英文标识符、票号各搜一次。
@@ -993,6 +1015,8 @@ export function reviewRetryPrompt(base: string): string {
 export interface Deps {
   mode: Mode;
   drainRoot?: string;
+  /** 切流记录根；缺省与 engine 共用生产根，测试显式给临时目录。 */
+  stateRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -1130,6 +1154,8 @@ interface RoundCheckpoint {
   review?: Review;
   reviewRecord?: Record<string, unknown>;
   reviewInput?: { drafter: string; drafterSession?: string; missing: string[]; extra: string[] };
+  /** 本轮实际消费的考古原件；先提交检查点，再发布 json/md 别名。 */
+  archaeology?: ArchaeologySnapshot;
   progress: Pick<Summary, "attempts" | "klass" | "convertedToP" | "durationsMs" | "reviewCounts" | "rounds" |
     "reclassNotes" | "landingRedrafts" | "canonicalPlan" | "landing" | "factGapNote" | "modelSwitches">;
 }
@@ -1145,6 +1171,79 @@ function loadRoundCheckpoint(dir: string, sessionId: string): RoundCheckpoint | 
       (value.state.phase === "review" && !value.reviewInput)) {
     throw new Error("MAIN 轮次检查点损坏或不属于本会话，保留原件待恢复");
   }
+  const a = value.archaeology;
+  const validOrigin = !a || (a.attempt === null ? a.origin === "legacy" :
+    Number.isSafeInteger(a.attempt) && a.attempt >= 1 && a.attempt <= value.state.attempt);
+  if (a && (!validOrigin ||
+      (a.mechanicalGeneration !== undefined && (!Number.isSafeInteger(a.mechanicalGeneration) || a.mechanicalGeneration < 1)) ||
+      typeof a.md !== "string" || a.record?.parsed !== true || !Array.isArray(a.record.points) || !Array.isArray(a.record.problems))) {
+    throw new Error("MAIN 检查点考古原件损坏，保留原件待恢复");
+  }
+  return value;
+}
+
+interface ArchaeologySnapshot {
+  attempt: number | null;
+  origin?: "legacy";
+  mechanicalGeneration?: number;
+  reviewedRepair?: true;
+  record: Record<string, unknown>;
+  md: string;
+}
+
+function readArchaeologySnapshot(dir: string, attempt: number | null): ArchaeologySnapshot {
+  return { attempt, ...(attempt === null ? { origin: "legacy" as const } : {}), record: JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")), md: readFileSync(join(dir, ARCHAEOLOGY_FILE), "utf8") };
+}
+
+function publishArchaeology(dir: string, a: ArchaeologySnapshot): void {
+  const version = a.attempt === null ? "legacy" : `attempt${a.attempt}`;
+  writeJson(join(dir, `archaeology.${version}.json`), a.record);
+  writeFileSync(join(dir, `archaeology.${version}.md`), a.md);
+  writeJson(join(dir, "archaeology.json"), a.record);
+  writeFileSync(join(dir, ARCHAEOLOGY_FILE), a.md);
+}
+
+/** 只把独审真正解析出的 R8 BLOCK 回流；缺 R8 的合成 BLOCK 不触发。 */
+function archaeologyReviewFeedback(review?: Review): string | undefined {
+  if (!review || review.parseError || review.problems.some(p => /^R8 缺/.test(p))) return undefined;
+  const item = review.items.find(i => i.rule === "R8" && i.verdict === "BLOCK");
+  return item ? `- R8 BLOCK：${item.basis}` : undefined;
+}
+
+/** 返修调用先记 intent，再记回执。结果未知时停下，不自动重放一次可能已执行的调用。 */
+async function repairTriageCall(dir: string, index: number, call: ModelCall, run: ModelRunner, stopOnUnknown = true): Promise<ModelResult> {
+  mkdirSync(dir, { recursive: true });
+  const intent = join(dir, `call${index}.intent.json`);
+  const result = join(dir, `call${index}.result.json`);
+  const failure = join(dir, `call${index}.error.json`);
+  if (existsSync(intent)) {
+    const saved = JSON.parse(readFileSync(intent, "utf8"));
+    // 票上可能新增本流程自己的分级评论；已有回执绑定首次冻结的提示，不因重读票面重发。
+    if (saved.model !== call.model || saved.role !== call.role || saved.cwd !== call.cwd) throw new Error("考古返修调用与已保存 intent 不一致，保留原件待恢复");
+    if (existsSync(result)) return JSON.parse(readFileSync(result, "utf8")) as ModelResult;
+    if (stopOnUnknown) {
+      if (existsSync(failure)) {
+        const observed = JSON.parse(readFileSync(failure, "utf8"));
+        const reason = ["rate_limit", "timeout", "transport", "safeguard", "upstream_transient", "other"].includes(observed.reason) ? observed.reason : "other";
+        throw new Error(`考古返修已观察到调用失败（${reason}），call${index} intent=${intent}；禁止自动重复调用`);
+      }
+      throw new Error(`考古返修调用结果未知，call${index} intent=${intent}；保留原件待核实，禁止自动重复调用`);
+    }
+  }
+  writeJson(intent, call);
+  let value: ModelResult;
+  try { value = await run(call); }
+  catch (error) {
+    // 只保存宿主生成的枚举/布尔值，绝不把任意上游文本或凭据复制进新证据。
+    const message = error instanceof Error ? error.message : "";
+    const reason = /\b429\b|rate[ _-]?limit|quota|限流/i.test(message) ? "rate_limit"
+      : /timed? ?out|ETIMEDOUT|超时/i.test(message) ? "timeout"
+      : /ECONNRESET|ECONNREFUSED|EAI_AGAIN|network error|fetch failed|socket hang up/i.test(message) ? "transport"
+      : isSafeguardBlock(message) ? "safeguard" : isRetryable(message) ? "upstream_transient" : "other";
+    writeJson(failure, { observedAt: new Date().toISOString(), callIndex: index, intent, reason, retryable: isRetryable(message) });
+    throw new Error(`考古返修已观察到调用失败（${reason}），call${index} intent=${intent}；${stopOnUnknown ? "禁止自动重复调用" : "沿用机械失败恢复条件"}`);
+  }
+  writeJson(result, value);
   return value;
 }
 
@@ -1152,7 +1251,7 @@ function loadRoundCheckpoint(dir: string, sessionId: string): RoundCheckpoint | 
 function retireTriage(dir: string): void {
   const files: Array<[string, string]> = [["classify", "json"], ["archaeology", "json"], ["archaeology", "md"], ["main-rounds", "json"]];
   for (const f of readdirSync(dir)) {
-    const m = /^(draft\.attempt\d+|review\.attempt\d+)\.(md|json)$/.exec(f);
+    const m = /^(draft\.attempt\d+|review\.attempt\d+|archaeology\.(?:attempt\d+|legacy))\.(md|json)$/.exec(f);
     if (m) files.push([m[1], m[2]]);
   }
   const generations = readdirSync(dir).flatMap(f => {
@@ -1160,6 +1259,9 @@ function retireTriage(dir: string): void {
     return m ? [Number(m[1])] : [];
   });
   const k = Math.max(0, ...generations) + 1;
+  for (const f of readdirSync(dir).filter(f => /^archaeology\.(?:repair\d+|mechanical\d+-\d+)$/.test(f))) {
+    renameSync(join(dir, f), join(dir, `${f}.retired-${k}`));
+  }
   for (const [name, ext] of files) {
     const path = join(dir, `${name}.${ext}`);
     if (existsSync(path)) renameSync(path, join(dir, `${name}.retired-${k}.${ext}`));
@@ -1174,7 +1276,7 @@ function retireTriage(dir: string): void {
  */
 export async function runTriage(
   t: TicketContext, d: Pick<Deps, "model" | "srcDir">, dir: string, summary?: Summary,
-  o: { feedback?: string; fixed?: Classification | "none"; round?: number; switches?: ModelSwitch[] } = {},
+  o: { feedback?: string; fixed?: Classification | "none"; round?: number; switches?: ModelSwitch[]; receiptDir?: string; stopOnUnknown?: boolean } = {},
 ): Promise<TriageRun> {
   // 新一轮联合分级前先撤下整组旧产物；旧两段式 fixed 恢复仍保留分类原件。
   if (o.fixed === undefined) retireTriage(dir);
@@ -1191,7 +1293,8 @@ export async function runTriage(
     return sw.length ? { modelSwitches: sw } : {};
   };
   for (let i = 1; i <= 2; i++) {
-    const r = await d.model({ model: planned, prompt: triagePrompt(t, { feedback: fb, fixed }), cwd: d.srcDir, role: "triage" });
+    const call: ModelCall = { model: planned, prompt: triagePrompt(t, { feedback: fb, fixed }), cwd: d.srcDir, role: "triage" };
+    const r = o.receiptDir ? await repairTriageCall(o.receiptDir, i, call, d.model, o.stopOnUnknown) : await d.model(call);
     model = r.model ?? planned;
     if (summary) summary.durationsMs[`triage${o.round ?? 1}_${i}`] = r.durationMs;
     raw = r.text;
@@ -1203,7 +1306,7 @@ export async function runTriage(
     arch = parseArchaeology(r.text);
     problems = arch ? archaeologyProblems(arch) : ["考古输出无可解析的 points JSON"];
     if (problems.length === 0) break;
-    fb = problems.map((x) => `- ${x}`).join("\n");
+    fb = [o.feedback, ...problems.map((x) => `- ${x}`)].filter(Boolean).join("\n");
   }
   if (!arch) {
     writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, ...switchesOf(), parsed: false, problems, raw });
@@ -1242,13 +1345,13 @@ export function loadTriaged(dir: string): Classification | null {
  * MAIN 会话续接（F4）：上次分级与考古都已落盘且通过解析，会话仍有效时直接沿用，不再调用分级模型；
  * 起草在同一会话里继续。任何一份缺失或坏了返回 null，按原口径重跑。
  */
-export function loadTriageDone(dir: string): TriageRun | null {
+export function loadTriageDone(dir: string, snapshot?: ArchaeologySnapshot): TriageRun | null {
   try {
     const c = JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")) as { klass?: unknown; reason?: unknown; parsed?: unknown };
-    const a = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")) as { parsed?: boolean; points?: ArchPoint[]; problems?: unknown };
+    const a = (snapshot?.record ?? JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"))) as { parsed?: boolean; points?: ArchPoint[]; problems?: unknown };
     if ((c.klass !== "T" && c.klass !== "P") || typeof c.reason !== "string" || !c.reason) return null;
     if (!a.parsed || !Array.isArray(a.points) || !Array.isArray(a.problems)) return null;
-    const md = readFileSync(join(dir, ARCHAEOLOGY_FILE), "utf8");
+    const md = snapshot?.md ?? readFileSync(join(dir, ARCHAEOLOGY_FILE), "utf8");
     return { cls: { klass: c.klass, reason: c.reason, parsed: c.parsed === true }, ar: { arch: { points: a.points }, md, problems: a.problems as string[] } };
   } catch { return null; }
 }
@@ -1324,9 +1427,9 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   return { ticket: n, dir, problems: r.problems, counts: { A: c("A"), B: c("B"), C: c("C") } };
 }
 
-/** --archaeology-only 入口的排空准入；冻结时不得新增考古动作。 */
+/** --archaeology-only 入口与 engine 共用切流准入；无有效切流时保持冻结。 */
 export async function archaeologyOnlyAdmission(n: number, d: Deps) {
-  return withLegacyAdmission(() => archaeologyOnly(n, d), d.drainRoot);
+  return withGraphAdmission(() => archaeologyOnly(n, d), d);
 }
 
 export async function processTicket(n: number, raw: Deps): Promise<Summary> {
@@ -1412,14 +1515,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      await withLegacyAdmission(() => {
+      await withGraphAdmission(() => {
         const mine = (resume || triaged || loaded.prior) && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
         if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
         if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
         claimed = true;
         const after = loadTicket(d.gh, n).assignees;
         if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
-      }, d.drainRoot);
+      }, d);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1453,7 +1556,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     const md: Deps = { ...d, model: main.run };
     skipPersist = true; // 恢复证据校验失败时保留旧 summary；错误记录不能擦除旧额度。
     const checkpoint = loaded.prior ? loadRoundCheckpoint(dir, loaded.prior.sessionId) : null;
-    const done = loaded.prior && !triaged ? loadTriageDone(dir) : null;
+    const done = loaded.prior && (!triaged || checkpoint?.archaeology?.reviewedRepair) ? loadTriageDone(dir, checkpoint?.archaeology) : null;
     if (checkpoint && !done && !triaged) throw new Error("MAIN 轮次存在但分级原件不可恢复，保留检查点待恢复");
     if (loaded.prior && !checkpoint && (prevSummary(dir).rounds?.length || loaded.prior.turns.some((turn) => turn.role === "draft"))) {
       throw new Error("旧 MAIN 已有独审轮次但无轮次检查点，保留原件待迁移；不重置额度");
@@ -1474,6 +1577,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     else if (triaged) summary.resumedFrom = "triaged";
     postClassify();
     let ar = tr.ar;
+    let archaeology = done && checkpoint?.archaeology ? checkpoint.archaeology : readArchaeologySnapshot(dir, done ? null : checkpoint?.state.attempt ?? 1);
+    if (!done && checkpoint) {
+      // 旧机械解析失败已触发原有的“只补考古”入口；这是新执行，不复用失败代的回执。
+      const prefix = `archaeology.mechanical${checkpoint.state.attempt}-`;
+      const generations = readdirSync(dir).filter(name => name.startsWith(prefix))
+        .map(name => name.slice(prefix.length)).filter(suffix => /^\d+$/.test(suffix)).map(Number);
+      if (generations.length) archaeology.mechanicalGeneration = Math.max(...generations);
+    }
 
     // 2–3. 起草 / 独审，至多 MAX_ROUNDS 轮。分级由分级器定，起草者只能提改判建议。
     s = { ...initialState(cls.klass, main.model() ?? MODEL_MAIN), convertedToP: !!effP && cls.klass === "P" && cls.reason === effP.reason };
@@ -1534,15 +1645,33 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         canonicalPlan: summary.canonicalPlan, landing: summary.landing, factGapNote: summary.factGapNote,
         modelSwitches: summary.modelSwitches,
       };
-      writeJson(join(dir, ROUND_CHECKPOINT), { version: 1, sessionId: ms.sessionId, state: s, draft, review, reviewRecord, reviewInput, progress });
+      writeJson(join(dir, ROUND_CHECKPOINT), { version: 1, sessionId: ms.sessionId, state: s, draft, review, reviewRecord, reviewInput, archaeology, progress });
     };
     saveRound();
+    publishArchaeology(dir, archaeology);
     while (s.phase === "draft" || s.phase === "review") {
       summary.attempts = s.attempt;
       if (s.phase === "draft") {
-        if (s.draftMode === "redo" && ar.problems.length) {
-          ar = (await runTriage(t, md, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), fixed: effCls, round: s.attempt })).ar;
+        const r8Feedback = archaeologyReviewFeedback(review);
+        const archFeedback = [r8Feedback, ...ar.problems.map(x => `- ${x}`)].filter(Boolean).join("\n");
+        if (s.draftMode === "redo" && r8Feedback && !(archaeology.reviewedRepair && archaeology.attempt === s.attempt)) {
+          // 新原件先留在轮次目录；崩溃后凭回执续做，旧 json/md 不被半组覆盖。
+          const repairDir = join(dir, `archaeology.repair${s.attempt}`);
+          mkdirSync(repairDir, { recursive: true });
+          ar = (await runTriage(t, md, repairDir, summary, { feedback: archFeedback, fixed: effCls, round: s.attempt, receiptDir: repairDir })).ar;
+          archaeology = { ...readArchaeologySnapshot(repairDir, s.attempt), reviewedRepair: true };
+          saveRound();
+          publishArchaeology(dir, archaeology);
           gapGate();
+          saveRound();
+        } else if (s.draftMode === "redo" && !r8Feedback && ar.problems.length) {
+          // 机械返修缓存已返回回执，封住别名发布到 checkpoint 的重复调用窗口；无回执仍沿用原恢复条件。
+          const generation = (archaeology.mechanicalGeneration ?? 0) + 1;
+          ar = (await runTriage(t, md, dir, summary, { feedback: archFeedback, fixed: effCls, round: s.attempt, receiptDir: join(dir, `archaeology.mechanical${s.attempt}-${generation}`), stopOnUnknown: false })).ar;
+          archaeology = { ...readArchaeologySnapshot(dir, s.attempt), mechanicalGeneration: generation };
+          gapGate();
+          saveRound();
+          publishArchaeology(dir, archaeology);
         }
         const prompt = (fb?: string) =>
           s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "", ar.md) : draftPrompt(t, effCls, fb ?? s.reviewFeedback, ar.md);
@@ -1973,7 +2102,7 @@ async function main() {
     return;
   }
   for (;;) {
-    if (drainRequested(d.drainRoot)) { log("旧入口冻结，已领工作收尾后退出"); return; }
+    if (graphAdmissionFrozen(d)) { log("旧入口冻结，已领工作收尾后退出"); return; }
     try {
       const sha = ensureSrc(REPO_ROOT, srcDir, git);
       log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);
