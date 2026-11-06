@@ -1080,13 +1080,28 @@ fn production_launcher_does_not_forward_theta_diagnostic_switch() {
 
 // #1823 A 观察族：SIGKILL S → 原 manifest 重启。只观察不清理；收据经 `std::io::stderr().write_all`
 // 直写（libtest 不截获），所有出口共用 `finalize`。只对超时、遗留进程与 harness 错误失败，不对错误文本断言。
+// 每个用例在本测试二进制的独立 helper 进程中执行：subreaper 是进程级属性，只能随 helper 生灭，
+// helper 的全部子进程才可视为本例所有物。
 
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::{Arc, Mutex};
 
+/// 父测试（三个公开用例）的绝对上限。
 const OBS_CASE: Duration = Duration::from_secs(150);
-/// 从总期限中预留给冻结、回收、捕获终态、收尾投影与收据的时间。
-const OBS_REAP_RESERVE: Duration = Duration::from_secs(20);
+/// helper 内部用例预算；父测试在其外再留启动、超时回收与收据的时间。
+const OBS_HELPER_CASE: Duration = Duration::from_secs(135);
+const OBS_HELPER_WAIT: Duration = Duration::from_secs(142);
+const OBS_HELPER_REAP_DONE: Duration = Duration::from_secs(3);
+const OBS_HELPER_SETTLE_DONE: Duration = Duration::from_secs(1);
+const OBS_HELPER_ENV: &str = "PSE_OBS_HELPER_SCENARIO";
+const OBS_HELPER_TEST: &str = "socket_residue_observe_helper";
+const OBS_SCENARIOS: [(&str, Option<&str>); 3] = [
+    ("OBS-OUT", None),
+    ("OBS-IN-A", Some("s/s-state/diagnostic.sock")),
+    ("OBS-IN-BASENAME", Some("s/s.db.sock")),
+];
+/// 从 helper 预算中预留给冻结、回收、捕获终态、收尾投影与收据的时间。
+const OBS_REAP_RESERVE: Duration = Duration::from_secs(15);
 const OBS_REAP_DONE: Duration = Duration::from_secs(8);
 const OBS_SETTLE_DONE: Duration = Duration::from_secs(5);
 const OBS_READ_DONE: Duration = Duration::from_secs(2);
@@ -1168,8 +1183,8 @@ impl Budget {
         let start = Instant::now();
         Self {
             start,
-            ops_end: start + OBS_CASE - OBS_REAP_RESERVE,
-            end: start + OBS_CASE,
+            ops_end: start + OBS_HELPER_CASE - OBS_REAP_RESERVE,
+            end: start + OBS_HELPER_CASE,
         }
     }
     fn phase(&self, limit: Duration) -> Instant {
@@ -1241,6 +1256,9 @@ fn unix_connect(socket: &Path, until: Instant) -> Result<UnixStream, String> {
     }
     let stream = unsafe { UnixStream::from_raw_fd(fd) };
     loop {
+        if left(until).is_zero() {
+            return Err("TIMEOUT：connect 未在期限内完成".into());
+        }
         let rc = unsafe {
             libc::connect(
                 fd,
@@ -1254,12 +1272,7 @@ fn unix_connect(socket: &Path, until: Instant) -> Result<UnixStream, String> {
         let e = std::io::Error::last_os_error();
         match e.raw_os_error() {
             Some(libc::EINTR) => {}
-            Some(libc::EAGAIN) => {
-                if left(until).is_zero() {
-                    return Err(format!("TIMEOUT：connect 未在期限内完成（{e}）"));
-                }
-                sleep_until_at_most(until, Duration::from_millis(20));
-            }
+            Some(libc::EAGAIN) => sleep_until_at_most(until, Duration::from_millis(20)),
             Some(libc::EINPROGRESS) => {
                 wait_fd(fd, libc::POLLOUT, until)?;
                 return match stream.take_error() {
@@ -1278,6 +1291,9 @@ fn unix_exchange(socket: &Path, request: &[u8], until: Instant) -> Result<Vec<u8
     let fd = stream.as_raw_fd();
     let mut sent = 0;
     while sent < request.len() {
+        if left(until).is_zero() {
+            return Err("TIMEOUT：write 未在期限内完成".into());
+        }
         match stream.write(&request[sent..]) {
             Ok(0) => return Err("write: 写入 0 字节".into()),
             Ok(n) => sent += n,
@@ -1294,6 +1310,9 @@ fn unix_exchange(socket: &Path, request: &[u8], until: Instant) -> Result<Vec<u8
     let mut reply = Vec::new();
     let mut chunk = [0u8; 4096];
     loop {
+        if left(until).is_zero() {
+            return Err("TIMEOUT：read 未在期限内读到 EOF".into());
+        }
         match stream.read(&mut chunk) {
             Ok(0) => return Ok(reply),
             Ok(n) => reply.extend_from_slice(&chunk[..n]),
@@ -1336,13 +1355,16 @@ fn lock_held(db: &Path) -> bool {
 
 /// SQLite 只读读取：busy 等待不超过剩余绝对预算（替换库默认的 5s busy handler）。
 fn read_field(db: &Path, sql: &str, until: Instant) -> Value {
-    let budget = left(until);
-    if budget.is_zero() {
+    if left(until).is_zero() {
         return json!({"not_run":"预算已耗尽"});
     }
     match Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY) {
         Err(e) => json!({"error": e.to_string()}),
         Ok(c) => {
+            let budget = left(until);
+            if budget.is_zero() {
+                return json!({"not_run":"开库后预算已耗尽"});
+            }
             if let Err(e) = c.busy_timeout(budget) {
                 return json!({"error": format!("busy_timeout: {e}")});
             }
@@ -1521,7 +1543,8 @@ fn stable_children(parent: u32, until: Instant) -> (Vec<ProcId>, bool) {
     }
 }
 
-/// 本测试进程在用例期间是 child subreaper：launcher 死后其后代改挂到本进程，可按 PID waitpid。
+/// helper 进程是 child subreaper：launcher 死后其后代改挂到 helper，可按 PID waitpid。
+/// helper 只承载一个用例，故其全部子进程（除仍持有 `Child` 句柄的 launcher）均属本例。
 fn reap_adopted(exclude: &[u32], until: Instant) -> Value {
     let me = std::process::id();
     let mut signals = Vec::new();
@@ -1987,6 +2010,26 @@ struct Case {
     l1: Option<Launched>,
     l2: Option<Launched>,
     baseline: Option<Value>,
+    init_stderr: Option<Capture>,
+    init_status: Option<Value>,
+    precondition: Result<(), String>,
+}
+
+/// 设置并读回 subreaper；只在 helper 进程内调用，随 helper 退出而消失，不触及调用者进程。
+fn enable_subreaper() -> (Value, Result<(), String>) {
+    let set = unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1 as libc::c_ulong) };
+    let set_errno = (set != 0).then(|| std::io::Error::last_os_error().to_string());
+    let mut flag: libc::c_int = 0;
+    let get = unsafe { libc::prctl(libc::PR_GET_CHILD_SUBREAPER, &mut flag as *mut libc::c_int) };
+    let get_errno = (get != 0).then(|| std::io::Error::last_os_error().to_string());
+    let record =
+        json!({"set_rc":set,"set_errno":set_errno,"get_rc":get,"get_errno":get_errno,"flag":flag});
+    let ok = if set == 0 && get == 0 && flag == 1 {
+        Ok(())
+    } else {
+        Err(format!("subreaper 未生效：{record}"))
+    };
+    (record, ok)
 }
 
 impl Case {
@@ -2012,10 +2055,10 @@ impl Case {
                 "run_attempt":env("GITHUB_RUN_ATTEMPT"),"job":env("GITHUB_JOB"),
                 "boot_id":std::fs::read_to_string("/proc/sys/kernel/random/boot_id").map(|s| s.trim().to_string()).map_err(|e| e.to_string())}),
         );
-        let rc = unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1 as libc::c_ulong) };
+        let (subreaper, precondition) = enable_subreaper();
         receipt.insert(
-            "subreaper".into(),
-            json!({"set_rc":rc,"errno":(rc != 0).then(|| std::io::Error::last_os_error().to_string())}),
+            "helper".into(),
+            json!({"pid":std::process::id(),"subreaper":subreaper}),
         );
         Self {
             scenario,
@@ -2031,6 +2074,9 @@ impl Case {
             l1: None,
             l2: None,
             baseline: None,
+            init_stderr: None,
+            init_status: None,
+            precondition,
         }
     }
 
@@ -2083,27 +2129,17 @@ impl Case {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| format!("S init 启动失败：{e}"))?;
-        let mut err = Capture::start(child.stderr.take().unwrap());
+        self.init_stderr = Some(Capture::start(child.stderr.take().unwrap()));
         let status = match wait_child(&mut child, self.budget.phase(OBS_INIT)) {
             Ok(status) => status,
             Err(_) => {
                 let _ = child.kill();
                 let reaped = wait_child(&mut child, self.budget.before_end(OBS_REAP_DONE));
-                err.settle(self.budget.before_end(OBS_SETTLE_DONE));
-                let (bytes, end) = err.frozen();
-                self.set(
-                    "init",
-                    json!({"timeout":true,"after_kill":format!("{reaped:?}"),"stderr":capture_json(&bytes, end)}),
-                );
+                self.init_status = Some(json!({"timeout":true,"after_kill":format!("{reaped:?}")}));
                 return Err("S init 超时".into());
             }
         };
-        err.settle(self.budget.phase(OBS_PROBE));
-        let (bytes, end) = err.frozen();
-        self.set(
-            "init",
-            json!({"status":status_record(status),"stderr":capture_json(&bytes, end)}),
-        );
+        self.init_status = Some(status_record(status));
         if !status.success() {
             return Err(format!("S init 失败 {status}"));
         }
@@ -2241,7 +2277,6 @@ fn finalize(mut c: Case, result: Result<(), String>) {
         .map(|r| r.child.id())
         .collect();
     let adopted = reap_adopted(&exclude, reap_until);
-    let unset = unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 0 as libc::c_ulong) };
     if adopted["unreaped"]
         .as_array()
         .is_some_and(|a| !a.is_empty())
@@ -2275,10 +2310,22 @@ fn finalize(mut c: Case, result: Result<(), String>) {
         run.stdout.settle(settle_until);
         run.stderr.settle(settle_until);
     }
+    if let Some(init) = c.init_stderr.as_mut() {
+        init.settle(settle_until);
+    }
     let captures_complete = [c.l1.as_ref(), c.l2.as_ref()]
         .into_iter()
         .flatten()
-        .all(|r| r.stdout.complete() && r.stderr.complete());
+        .all(|r| r.stdout.complete() && r.stderr.complete())
+        && c.init_stderr.as_ref().is_none_or(Capture::complete);
+    let init = match &c.init_stderr {
+        Some(capture) => {
+            let (bytes, end) = capture.frozen();
+            json!({"status":c.init_status,"stderr":capture_json(&bytes, end)})
+        }
+        None => json!({"status":"NOT_REACHED"}),
+    };
+    c.set("init", init);
     c.snapshot("final");
     let after = if lingering.is_empty() {
         c.projection(c.budget.before_end(OBS_READ_DONE))
@@ -2327,12 +2374,9 @@ fn finalize(mut c: Case, result: Result<(), String>) {
     let (steps, snapshots) = (json!(c.steps), json!(c.snapshots));
     c.set("steps", steps);
     c.set("snapshots", snapshots);
-    c.set(
-        "reap",
-        json!({"adopted":adopted,"subreaper_unset_rc":unset,"lingering":lingering}),
-    );
-    if c.budget.start.elapsed() > OBS_CASE {
-        failures.push("用例超过 150s 上限".into());
+    c.set("reap", json!({"adopted":adopted,"lingering":lingering}));
+    if c.budget.start.elapsed() > OBS_HELPER_CASE {
+        failures.push("helper 用例超过预算".into());
     }
     let complete = failures.is_empty()
         && captures_complete
@@ -2360,30 +2404,198 @@ fn finalize(mut c: Case, result: Result<(), String>) {
 }
 
 fn observe_sigkill_restart(scenario: &'static str, s_socket: Option<&str>) {
+    assert!(
+        std::env::var_os(OBS_HELPER_ENV).is_some(),
+        "观察用例只能在 helper 进程内执行"
+    );
     let mut c = Case::new(scenario, s_socket);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(&mut c)))
-        .unwrap_or_else(|panic| {
-            let text = panic
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string()))
-                .unwrap_or_default();
-            Err(format!("harness panic：{text}"))
-        });
+    let result = match c.precondition.clone() {
+        Err(why) => Err(why),
+        Ok(()) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(&mut c)))
+            .unwrap_or_else(|panic| {
+                let text = panic
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string()))
+                    .unwrap_or_default();
+                Err(format!("harness panic：{text}"))
+            }),
+    };
     finalize(c, result);
+}
+
+/// 以 `root` 为根、按 PPID 广度遍历的后代身份（不含 root）。
+fn descendants(root: u32) -> Vec<ProcId> {
+    let mut out: Vec<ProcId> = Vec::new();
+    let mut queue = vec![root];
+    while let Some(pid) = queue.pop() {
+        for child in children_of(pid) {
+            if !out.contains(&child) {
+                queue.push(child.pid);
+                out.push(child);
+            }
+        }
+    }
+    out
+}
+
+/// helper 超时：逐轮 SIGSTOP 整棵树直至成员全部停止且两次遍历一致，再按身份 SIGKILL，并有界 wait helper。
+fn reap_helper_tree(child: &mut Child, root: Option<&ProcId>, until: Instant) -> Value {
+    let mut members: Vec<ProcId> = root.cloned().into_iter().collect();
+    let mut stop_signals = Vec::new();
+    let frozen = loop {
+        let before = descendants(child.id());
+        for p in &before {
+            if !members.contains(p) {
+                members.push(p.clone());
+            }
+        }
+        for p in members.iter().filter(|p| p.state() == "alive") {
+            stop_signals.push(signal_identity(p, libc::SIGSTOP));
+        }
+        sleep_until_at_most(until, Duration::from_millis(20));
+        let after = descendants(child.id());
+        let settled = members
+            .iter()
+            .all(|p| matches!(p.state(), "stopped" | "zombie" | "gone" | "pid_reused"));
+        if after == before && settled {
+            break true;
+        }
+        if left(until).is_zero() {
+            break false;
+        }
+    };
+    let kill_signals: Vec<Value> = members
+        .iter()
+        .filter(|p| matches!(p.state(), "alive" | "stopped"))
+        .map(|p| signal_identity(p, libc::SIGKILL))
+        .collect();
+    let helper_status = wait_child(child, until);
+    while members
+        .iter()
+        .any(|p| matches!(p.state(), "alive" | "stopped"))
+        && !left(until).is_zero()
+    {
+        sleep_until_at_most(until, Duration::from_millis(20));
+    }
+    let open: Vec<Value> = members
+        .iter()
+        .filter(|p| matches!(p.state(), "alive" | "stopped"))
+        .map(ProcId::json)
+        .collect();
+    json!({"frozen":frozen,"stop_signals":stop_signals,"kill_signals":kill_signals,
+        "helper_status":format!("{helper_status:?}"),"members":members.iter().map(ProcId::json).collect::<Vec<_>>(),
+        "open":open})
+}
+
+/// 父测试：只拉起并看管一个 helper；自身不设 subreaper，不回收 helper 树以外的任何进程。
+fn observe_in_helper(scenario: &'static str) {
+    assert!(
+        std::env::var_os(OBS_HELPER_ENV).is_none(),
+        "helper 内不得再起 helper"
+    );
+    let start = Instant::now();
+    let end = start + OBS_CASE;
+    let mut failures: Vec<String> = Vec::new();
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            OBS_HELPER_TEST,
+            "--exact",
+            "--ignored",
+            "--nocapture",
+            "--test-threads",
+            "1",
+        ])
+        .env(OBS_HELPER_ENV, scenario)
+        .env_remove(CREDENTIAL_KEY)
+        .env_remove(THETA_DIAGNOSTIC.0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let helper = ProcId::capture("helper", child.id());
+    let mut out = Capture::start(child.stdout.take().unwrap());
+    let mut err = Capture::start(child.stderr.take().unwrap());
+    let (status, tree) = match wait_child(&mut child, start + OBS_HELPER_WAIT) {
+        Ok(status) => (Some(status), Value::Null),
+        Err(_) => {
+            failures.push("helper 未在限时内退出".into());
+            let tree = reap_helper_tree(&mut child, helper.as_ref(), end - OBS_HELPER_REAP_DONE);
+            if tree["open"].as_array().is_some_and(|a| !a.is_empty()) || tree["frozen"] != true {
+                failures.push("helper 进程树未闭合".into());
+            }
+            (child.try_wait().ok().flatten(), tree)
+        }
+    };
+    out.settle(end - OBS_HELPER_SETTLE_DONE);
+    err.settle(end - OBS_HELPER_SETTLE_DONE);
+    let (out_bytes, out_end) = out.frozen();
+    let (err_bytes, err_end) = err.frozen();
+    std::io::stderr().write_all(&err_bytes).unwrap();
+    let receipts: Vec<Value> = String::from_utf8_lossy(&err_bytes)
+        .lines()
+        .filter_map(|l| l.strip_prefix("socket_residue_observe_receipt "))
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    match status {
+        Some(s) if s.success() => {}
+        other => failures.push(format!("helper 退出状态 {other:?}")),
+    }
+    if receipts.len() != 1 {
+        failures.push(format!("helper 收据条数 {}（须为 1）", receipts.len()));
+    }
+    if receipts.iter().any(|r| {
+        r["harness_failures"]
+            .as_array()
+            .is_none_or(|a| !a.is_empty())
+    }) {
+        failures.push("helper 收据含 harness 失败".into());
+    }
+    if !(out.complete() && err.complete()) {
+        failures.push("helper 输出捕获未闭合".into());
+    }
+    if start.elapsed() > OBS_CASE {
+        failures.push("用例超过 150s 上限".into());
+    }
+    let wrapper = json!({"scenario":scenario,"helper":helper.as_ref().map(ProcId::json),
+        "status":status.map(status_record),"tree_reap":tree,
+        "helper_stdout":capture_json(&out_bytes, out_end),
+        "helper_stderr":{"bytes":err_bytes.len(),"end":err_end,"sha256":sha256_hex(&err_bytes),"relayed_raw_above":true},
+        "receipts":receipts.len(),"failures":failures,"elapsed_ms":start.elapsed().as_millis() as u64});
+    std::io::stderr()
+        .write_all(format!("socket_residue_observe_helper {wrapper}\n").as_bytes())
+        .unwrap();
+    if !failures.is_empty() {
+        panic!("{scenario}：{}", failures.join("；"));
+    }
+}
+
+#[test]
+#[ignore = "仅由 socket_residue_observe_* 以独立 helper 进程调用"]
+fn socket_residue_observe_helper() {
+    let Ok(scenario) = std::env::var(OBS_HELPER_ENV) else {
+        return;
+    };
+    let (name, socket) = OBS_SCENARIOS
+        .iter()
+        .copied()
+        .find(|(name, _)| *name == scenario)
+        .expect("未知观察场景");
+    observe_sigkill_restart(name, socket);
 }
 
 #[test]
 fn socket_residue_observe_sigkill_restart_outside_m() {
-    observe_sigkill_restart("OBS-OUT", None);
+    observe_in_helper("OBS-OUT");
 }
 
 #[test]
 fn socket_residue_observe_invalid_layout_a_subtree() {
-    observe_sigkill_restart("OBS-IN-A", Some("s/s-state/diagnostic.sock"));
+    observe_in_helper("OBS-IN-A");
 }
 
 #[test]
 fn socket_residue_observe_invalid_layout_basename_family() {
-    observe_sigkill_restart("OBS-IN-BASENAME", Some("s/s.db.sock"));
+    observe_in_helper("OBS-IN-BASENAME");
 }
