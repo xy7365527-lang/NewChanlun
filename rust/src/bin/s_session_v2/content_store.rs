@@ -1047,12 +1047,32 @@ impl NodeSource for ReadStore<'_> {
         read_node(self.conn, digest)
     }
 
-    /// #1890：生产 `new` 只接 `&Transaction` 并已在其中读过一次（`ensure_format`），读快照
-    /// 自此固定，外部提交不可见；`is_autocommit()` 再按连接实况确认仍在显式事务内。纪元取
-    /// 本连接 `total_changes()`：本连接任何写都使上层 reader 的查找结果表整表作废。
-    /// 不在事务里的短读（私有夹具字面量）没有纪元，外部提交在下一次读时照旧可见。
-    fn snapshot_epoch(&self) -> Option<u64> {
-        (!self.conn.is_autocommit()).then(|| self.conn.total_changes())
+    /// #1890：只在显式事务内、main 处于 `SQLITE_TXN_READ`（已建立读快照、本事务尚未写过）
+    /// 时给出纪元 (`SQLITE_FCNTL_DATA_VERSION`, `total_changes()`)。写过（含 SAVEPOINT 后
+    /// 写再回滚、DDL）即为 WRITE，不给纪元；事务经 SQL 结束再开时，读前为 NONE，读后数据
+    /// 版本随任何连接的提交推进。全部走 FFI，不执行 SQL，审计授权器不介入。不在事务里的
+    /// 短读（私有夹具字面量）没有纪元，外部提交在下一次读时照旧可见。
+    fn snapshot_epoch(&self) -> Option<s_content::lookup_memo::SnapshotEpoch> {
+        use rusqlite::ffi;
+        if self.conn.is_autocommit() {
+            return None;
+        }
+        // SAFETY: 句柄只在本次调用内借给两个只读查询（事务状态、pager 数据版本）；不关闭、
+        // 不转移、不改连接状态，也不执行 SQL。`c"main"` 是以 NUL 结尾的静态库名。
+        let db = unsafe { self.conn.handle() };
+        if unsafe { ffi::sqlite3_txn_state(db, c"main".as_ptr()) } != ffi::SQLITE_TXN_READ {
+            return None;
+        }
+        let mut version: u32 = 0;
+        let rc = unsafe {
+            ffi::sqlite3_file_control(
+                db,
+                c"main".as_ptr(),
+                ffi::SQLITE_FCNTL_DATA_VERSION,
+                (&mut version as *mut u32).cast(),
+            )
+        };
+        (rc == ffi::SQLITE_OK).then(|| [u64::from(version), self.conn.total_changes()])
     }
 
     fn checked_read(
@@ -1258,10 +1278,11 @@ mod tests {
         std::fs::remove_file(path).unwrap();
     }
 
-    /// #1890：只有显式事务内的 ReadStore 给出快照纪元；短读夹具没有纪元，上层 reader
-    /// 的查找结果表不启用，外部提交照旧可见（上一测试锁住的性质不受影响）。
+    /// #1890：只有显式事务内、尚未写过的读快照给出纪元；短读夹具没有纪元，上层 reader
+    /// 的查找结果表不启用，外部提交照旧可见（上一测试锁住的性质不受影响）。本事务一写即
+    /// 不给纪元；提交后新事务的纪元与旧纪元不同。
     #[test]
-    fn snapshot_epoch_only_inside_transaction_and_advances_on_write() {
+    fn snapshot_epoch_only_in_unwritten_read_transaction() {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
         conn.execute(
@@ -1269,24 +1290,38 @@ mod tests {
             [],
         )
         .unwrap();
+        {
+            let tx = conn.transaction().unwrap();
+            init_schema(&tx).unwrap();
+            tx.commit().unwrap();
+        }
         let short = ReadStore {
             conn: &conn,
             same_material: None,
         };
         assert_eq!(short.snapshot_epoch(), None, "短读来源没有纪元");
+        let first = {
+            let tx = conn.transaction().unwrap();
+            let reader = ReadStore::new(&tx).unwrap();
+            let epoch = reader.snapshot_epoch().expect("未写过的读快照有纪元");
+            assert_eq!(reader.snapshot_epoch(), Some(epoch), "读状态下纪元稳定");
+            TxStore::new(&tx)
+                .unwrap()
+                .put(
+                    s_content::frame(s_content::tag::BOOL_TRUE, &[]),
+                    s_content::tag::BOOL_TRUE,
+                    &[],
+                )
+                .unwrap();
+            assert_eq!(reader.snapshot_epoch(), None, "本事务写过即不给纪元");
+            drop(reader);
+            tx.commit().unwrap();
+            epoch
+        };
         let tx = conn.transaction().unwrap();
-        init_schema(&tx).unwrap();
         let reader = ReadStore::new(&tx).unwrap();
-        let before = reader.snapshot_epoch().expect("事务内 reader 有纪元");
-        TxStore::new(&tx)
-            .unwrap()
-            .put(
-                s_content::frame(s_content::tag::BOOL_TRUE, &[]),
-                s_content::tag::BOOL_TRUE,
-                &[],
-            )
-            .unwrap();
-        assert_ne!(reader.snapshot_epoch(), Some(before), "本连接写入推进纪元");
+        let second = reader.snapshot_epoch().expect("新读快照有纪元");
+        assert_ne!(first, second, "提交后数据版本与写计数都已推进");
     }
 
     #[test]

@@ -3777,25 +3777,27 @@ impl NodeSource for HashReader<'_> {
         result
     }
     /// #1890：资格——无 Owned 容器、无工作域、无审计预算与期限、普通策略、动态来源且来源
-    /// 给出快照纪元。任一不满足就无表，每次查找照旧真实执行（计费次数不变）。
+    /// 此刻给出快照纪元（每次取表都重取）。任一不满足就整表作废并返回 None，每次查找照旧
+    /// 真实执行（计费次数不变）；纪元先失后复也不会复活旧表。
     fn path_lookup_memo(&mut self) -> Option<&mut sc::lookup_memo::LookupMemo> {
-        if self.owned.is_some()
-            || self.work.is_some()
-            || self.budget.is_some()
-            || self.deadline.is_some()
-            || self.policy != SourcePolicy::Ordinary
-        {
-            return None;
-        }
+        let qualified = self.owned.is_none()
+            && self.work.is_none()
+            && self.budget.is_none()
+            && self.deadline.is_none()
+            && self.policy == SourcePolicy::Ordinary;
         #[cfg(feature = "s_incremental")]
-        if self.native_budget.is_some() {
-            return None;
-        }
-        let ReadOwner::Dynamic(source) = &self.source else {
-            return None;
+        let qualified = qualified && self.native_budget.is_none();
+        let epoch = match &self.source {
+            ReadOwner::Dynamic(source) if qualified => source.snapshot_epoch(),
+            _ => None,
         };
-        let epoch = source.snapshot_epoch()?;
-        Some(self.path_memo.at_epoch(epoch))
+        match epoch {
+            Some(epoch) => Some(self.path_memo.at_epoch(epoch)),
+            None => {
+                self.path_memo.clear();
+                None
+            }
+        }
     }
 }
 impl HashReader<'_> {
@@ -5572,81 +5574,99 @@ pub(super) mod tests {
         );
     }
 
-    /// #1890：同一 reader、同一事务快照纪元内，同一查找的成功结果复用；首次照旧真读；
-    /// 错误不入表且清表；本连接一写即推进纪元，之后的改写在下一次查找时照旧暴露。
-    #[test]
-    fn path_memo_reuses_only_successful_same_lookup_within_snapshot_epoch() {
+    fn path_memo_fixture(value: &V) -> (commit::tests::Fixture, ContentRef) {
         let mut fixture = commit::tests::fixture();
         let tx = fixture.conn.transaction().unwrap();
-        let root = sc::write_value(
-            &mut content_store::TxStore::new(&tx).unwrap(),
-            &V::Object(vec![("a".into(), V::Null), ("b".into(), V::Bool(true))]),
-        )
-        .unwrap()
-        .content_ref();
+        let root = sc::write_value(&mut content_store::TxStore::new(&tx).unwrap(), value)
+            .unwrap()
+            .content_ref();
+        tx.commit().unwrap();
+        (fixture, root)
+    }
+    fn sql_reads_during(f: &mut dyn FnMut()) -> u64 {
+        let before = content_store::sql_reads_on_thread();
+        f();
+        content_store::sql_reads_on_thread() - before
+    }
+
+    /// #1890：未写过的读快照内，同一 reader 的同一查找成功结果复用；首次照旧真读；错误
+    /// 不入表且清表；clear_overlay 清表；本事务一写就停用，改写在下一次查找照旧暴露。
+    #[test]
+    fn path_memo_reuses_only_successful_same_lookup_within_read_snapshot() {
+        let (mut fixture, root) = path_memo_fixture(&V::Object(vec![
+            ("a".into(), V::Null),
+            ("b".into(), V::Bool(true)),
+        ]));
+        let tx = fixture.conn.transaction().unwrap();
         let mut source = content_store::ReadStore::new(&tx).unwrap();
-        let reads = |f: &mut dyn FnMut()| {
-            let before = content_store::sql_reads_on_thread();
-            f();
-            content_store::sql_reads_on_thread() - before
-        };
         {
-            let mut reader = HashReader::new(&mut source);
-            let mut first = None;
-            let cold =
-                reads(&mut || first = Some(reader.lookup_field_ref((&root).into(), "a").unwrap()));
-            assert!(cold > 0, "首次查找逐节点真读");
-            let mut second = None;
-            let warm =
-                reads(&mut || second = Some(reader.lookup_field_ref((&root).into(), "a").unwrap()));
-            assert_eq!(warm, 0, "同一查找第二次复用整次结果");
-            assert!(first == second);
-            // 不同查找键（另一字段名、另一入口）各自真读一次。
-            assert!(
-                reads(&mut || {
-                    reader.lookup_field_ref((&root).into(), "b").unwrap();
-                }) > 0
+            // 有期限的 reader 不提供表：同一查找每次都真读。
+            let mut timed = HashReader::metered(
+                &mut source,
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3600)),
+                None,
+                None,
             );
-            assert!(
-                reads(&mut || {
-                    reader
-                        .lookup_subset_ref((&root).into(), &["a", "b"])
-                        .unwrap();
-                }) > 0
-            );
-            // 错误不入表：每次都重新执行，错误码不变；并清空整表。
-            let mut codes = Vec::new();
             for _ in 0..2 {
-                let n = reads(&mut || {
-                    codes.push(
-                        reader
-                            .lookup_field_ref((&root).into(), "zz")
-                            .unwrap_err()
-                            .code()
-                            .to_owned(),
-                    )
-                });
-                assert!(n > 0, "失败查找每次真读");
+                assert!(
+                    sql_reads_during(&mut || {
+                        let _ = timed.lookup_field_ref((&root).into(), "b");
+                    }) > 0
+                );
             }
-            assert_eq!(codes[0], sc::path::path_code::PATH_FIELD_MISSING);
-            assert_eq!(codes[0], codes[1]);
-            assert!(
-                reads(&mut || {
-                    reader.lookup_field_ref((&root).into(), "a").unwrap();
-                }) > 0,
-                "失败后表已清空"
-            );
-            // overlay 重置同样清表。
-            reader.lookup_field_ref((&root).into(), "a").unwrap();
-            reader.clear_overlay();
-            assert!(
-                reads(&mut || {
-                    reader.lookup_field_ref((&root).into(), "a").unwrap();
-                }) > 0
-            );
         }
         let mut reader = HashReader::new(&mut source);
-        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        let a = |r: &mut HashReader<'_>| r.lookup_field_ref((&root).into(), "a");
+        let mut first = None;
+        assert!(sql_reads_during(&mut || first = Some(a(&mut reader).unwrap())) > 0);
+        let mut second = None;
+        assert_eq!(
+            sql_reads_during(&mut || second = Some(a(&mut reader).unwrap())),
+            0,
+            "同一查找第二次复用整次结果"
+        );
+        assert!(first == second);
+        assert!(
+            sql_reads_during(&mut || {
+                reader.lookup_field_ref((&root).into(), "b").unwrap();
+            }) > 0
+        );
+        assert!(
+            sql_reads_during(&mut || {
+                reader
+                    .lookup_subset_ref((&root).into(), &["a", "b"])
+                    .unwrap();
+            }) > 0
+        );
+        let mut codes = Vec::new();
+        for _ in 0..2 {
+            let reads = sql_reads_during(&mut || {
+                codes.push(
+                    reader
+                        .lookup_field_ref((&root).into(), "zz")
+                        .unwrap_err()
+                        .code()
+                        .to_owned(),
+                )
+            });
+            assert!(reads > 0, "失败查找每次真读");
+        }
+        assert_eq!(codes[0], sc::path::path_code::PATH_FIELD_MISSING);
+        assert_eq!(codes[0], codes[1]);
+        assert!(
+            sql_reads_during(&mut || {
+                a(&mut reader).unwrap();
+            }) > 0,
+            "失败后表已清空"
+        );
+        a(&mut reader).unwrap();
+        reader.clear_overlay();
+        assert!(
+            sql_reads_during(&mut || {
+                a(&mut reader).unwrap();
+            }) > 0
+        );
+        a(&mut reader).unwrap();
         let null = sc::frame(sc::tag::NULL, &[]);
         tx.execute(
             "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
@@ -5654,13 +5674,111 @@ pub(super) mod tests {
         )
         .unwrap();
         assert_eq!(
+            a(&mut reader).unwrap_err().code(),
+            sc::code::NODE_DIGEST,
+            "本事务写过即停用，改写在下一次查找照旧暴露"
+        );
+    }
+
+    /// #1890 审查反例 A：SAVEPOINT 内写入并查找成功，再 ROLLBACK TO；同一 reader 同一查找
+    /// 必须与基线一样报 NODE_MISSING。另：读状态下已入表的条目，在本事务删掉该节点后不复用。
+    #[test]
+    fn path_memo_does_not_survive_savepoint_rollback_or_delete() {
+        let (mut fixture, committed) = path_memo_fixture(&V::Bool(true));
+        let tx = fixture.conn.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        reader.lookup_ref((&committed).into(), &[]).unwrap();
+        tx.execute_batch("SAVEPOINT pm1890").unwrap();
+        let fresh = sc::write_value(
+            &mut content_store::TxStore::new(&tx).unwrap(),
+            &V::String("pm-1890-savepoint-only".into()),
+        )
+        .unwrap()
+        .content_ref();
+        reader.lookup_ref((&fresh).into(), &[]).unwrap();
+        tx.execute_batch("ROLLBACK TO pm1890; RELEASE pm1890")
+            .unwrap();
+        assert_eq!(
+            reader.lookup_ref((&fresh).into(), &[]).unwrap_err().code(),
+            sc::code::NODE_MISSING
+        );
+        let digest = committed.digest().unwrap();
+        tx.execute(
+            "DELETE FROM s_content_nodes WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            reader
+                .lookup_ref((&committed).into(), &[])
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_MISSING
+        );
+    }
+
+    /// #1890 审查反例 B：读状态下缓存成功后 DROP TABLE；同一查找必须报 SOURCE。
+    #[test]
+    fn path_memo_does_not_hide_dropped_table_source_error() {
+        let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
+        let tx = fixture.conn.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        tx.execute_batch("DROP TABLE s_content_nodes").unwrap();
+        assert_eq!(
             reader
                 .lookup_field_ref((&root).into(), "a")
                 .unwrap_err()
                 .code(),
-            sc::code::NODE_DIGEST,
-            "本连接写入推进纪元，改写在下一次查找照旧暴露"
+            sc::code::SOURCE
         );
+    }
+
+    /// #1890 审查反例 C：事务经 SQL 结束再 BEGIN（ABA），期间另一连接提交改写；无论新事务
+    /// 是否已读过（NONE/READ 两种状态），旧结果都不得复活，必须与基线一样报 NODE_DIGEST。
+    #[test]
+    fn path_memo_does_not_revive_across_transaction_restart() {
+        let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Bool(true))]));
+        let path = fixture.conn.path().unwrap().to_owned();
+        let external = rusqlite::Connection::open(&path).unwrap();
+        let leaf = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        let set_body = |body: &[u8]| {
+            external
+                .execute(
+                    "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                    params![body, &leaf[..]],
+                )
+                .unwrap();
+        };
+        let tx = fixture.conn.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        let a = |r: &mut HashReader<'_>| r.lookup_field_ref((&root).into(), "a");
+        a(&mut reader).unwrap();
+        assert_eq!(sql_reads_during(&mut || drop(a(&mut reader).unwrap())), 0);
+        // 新事务尚未读（NONE）。
+        tx.execute_batch("COMMIT").unwrap();
+        set_body(&[1]);
+        tx.execute_batch("BEGIN").unwrap();
+        assert_eq!(a(&mut reader).unwrap_err().code(), sc::code::NODE_DIGEST);
+        // 恢复原件，重新入表；新事务已读（READ），另一连接的提交推进数据版本。
+        tx.execute_batch("COMMIT").unwrap();
+        set_body(&[]);
+        tx.execute_batch("BEGIN").unwrap();
+        // 读前（NONE）的查找不入表；读后（READ）的第二次查找入表，第三次命中。
+        a(&mut reader).unwrap();
+        a(&mut reader).unwrap();
+        assert_eq!(sql_reads_during(&mut || drop(a(&mut reader).unwrap())), 0);
+        tx.execute_batch("COMMIT").unwrap();
+        set_body(&[1]);
+        tx.execute_batch("BEGIN").unwrap();
+        let _: i64 = tx
+            .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(a(&mut reader).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
 
     #[test]

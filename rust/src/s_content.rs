@@ -543,9 +543,10 @@ pub trait NodeSource {
         None
     }
 
-    /// #1890：来源快照纪元。Some(e) 声明：纪元仍为 e 期间，同一摘要的存储原件不会消失或
-    /// 改变（显式事务读快照内、本连接未再写）。不在事务里的短读来源必须返回 None。
-    fn snapshot_epoch(&self) -> Option<u64> {
+    /// #1890：来源快照纪元，调用方每次取表都重取。Some(e) 声明：此刻处于一个尚未写过的
+    /// 读快照内，且纪元仍为 e 期间同一摘要的存储原件不会消失或改变。不在事务里的短读
+    /// 来源、已写过的事务都必须返回 None。
+    fn snapshot_epoch(&self) -> Option<lookup_memo::SnapshotEpoch> {
         None
     }
 }

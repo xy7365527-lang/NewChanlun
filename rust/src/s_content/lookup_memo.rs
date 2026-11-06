@@ -17,10 +17,16 @@
 //!    (tag, body) 决定（`RefOutput::from_checked(kind, digest, extent)`），而沿途每个摘要
 //!    都已按 F 核过。所以在同一一致读集内，同一查找第二次执行只可能逐字重放第一次的读，
 //!    得到同一结果。本表只在来源能**证明**读集一致的期间生效：
-//!    - 来源必须通过 [`NodeSource::snapshot_epoch`] 给出纪元。目前只有
-//!      `ReadStore`（只能由 `&Transaction` 构造）给出：连接处于显式事务内
-//!      （`!is_autocommit()`），且纪元取本连接 `total_changes()`。事务读快照内看不到外部
-//!      提交；本连接任何 INSERT/UPDATE/DELETE 都会推进纪元并整表作废。
+//!    - 来源必须通过 [`NodeSource::snapshot_epoch`] 给出纪元，**每次取表都重取**。目前
+//!      只有 `ReadStore`（只能由 `&Transaction` 构造）给出，且只在 main 库处于
+//!      `SQLITE_TXN_READ`（显式事务已建立读快照、**本事务尚未写过**）时给出；纪元为
+//!      (`SQLITE_FCNTL_DATA_VERSION`, `total_changes()`)。读状态下读快照固定，外部提交
+//!      不可见，本连接也没有写：节点不会被改写、删除、回滚掉，表结构不会变。一旦本事务
+//!      写过（含 SAVEPOINT 后写入再 `ROLLBACK TO`、DDL 如 `DROP TABLE`），状态变为
+//!      WRITE，不给纪元，reader 整表作废、不再复用。事务经 SQL 结束再开（ABA）时，新
+//!      事务读之前状态是 NONE（整表作废）；读后若期间任何连接改过库，数据版本已变
+//!      （本连接提交或另一连接提交都会推进），整表作废。两个信号都走 FFI、不执行 SQL，
+//!      不触发审计授权器（PRAGMA 会被 `audit_sql_allowed` 拒绝并计入 `sql_denials`）。
 //!    - 不在事务里的来源（例如 content_store 私有夹具那种「每次 SELECT 是独立短读」的
 //!      `ReadStore` 字面量，`same_material_external_commit_visible_between_short_reads`）
 //!      `is_autocommit()` 为真，没有纪元，表不启用，外部提交在下一次读时照旧可见。
@@ -46,8 +52,12 @@ use std::collections::HashMap;
 
 /// 单表条目上限；满后不再收新条目，之后的查找照旧真实执行。
 const MAX_ENTRIES: usize = 1 << 17;
-/// 单表近似字节上限（键与值的堆字节）。
+/// 单表计入字节上限：键、值的堆字节加每条目 `(Key, Value)` 本体；不含 HashMap 桶与
+/// 分配器开销。结果副本在复制**之前**按剩余额度筛选，超额的结果不复制、不入表。
 const MAX_BYTES: usize = 64 << 20;
+
+/// 来源快照纪元：(`SQLITE_FCNTL_DATA_VERSION`, `total_changes()`)。
+pub type SnapshotEpoch = [u64; 2];
 
 #[derive(PartialEq, Eq, Hash)]
 pub(super) enum Step {
@@ -167,7 +177,7 @@ fn rebuild(c: &Checked) -> NativeValue<ContentRef> {
 /// reader 级查找结果表。见模块文档的合同论证。
 #[derive(Default)]
 pub struct LookupMemo {
-    epoch: Option<u64>,
+    epoch: Option<SnapshotEpoch>,
     map: HashMap<Key, Value>,
     bytes: usize,
 }
@@ -183,21 +193,32 @@ impl LookupMemo {
         self.map.is_empty()
     }
     /// 按来源当前纪元取表：纪元与表内条目不同即整表作废。
-    pub fn at_epoch(&mut self, epoch: u64) -> &mut Self {
+    pub fn at_epoch(&mut self, epoch: SnapshotEpoch) -> &mut Self {
         if self.epoch != Some(epoch) {
             self.clear();
             self.epoch = Some(epoch);
         }
         self
     }
-    fn insert(&mut self, epoch: Option<u64>, key: Key, value: Value) {
+    /// 本纪元下还能为 `key` 再收多少字节的结果；不能再收（条目满、纪元已变、键本身超额）
+    /// 时为 None，调用方不复制结果。
+    fn room(&self, epoch: Option<SnapshotEpoch>, key: &Key) -> Option<usize> {
         if epoch.is_none() || self.epoch != epoch || self.map.len() >= MAX_ENTRIES {
+            return None;
+        }
+        MAX_BYTES
+            .checked_sub(self.bytes)?
+            .checked_sub(key.heap_bytes() + std::mem::size_of::<(Key, Value)>())
+    }
+    fn insert(&mut self, epoch: Option<SnapshotEpoch>, key: Key, value: Value) {
+        let Some(room) = self.room(epoch, &key) else {
+            return;
+        };
+        let value_bytes = value.heap_bytes();
+        if value_bytes > room {
             return;
         }
-        let bytes = key.heap_bytes() + value.heap_bytes() + std::mem::size_of::<(Key, Value)>();
-        if self.bytes.saturating_add(bytes) > MAX_BYTES {
-            return;
-        }
+        let bytes = key.heap_bytes() + value_bytes + std::mem::size_of::<(Key, Value)>();
         if self.map.insert(key, value).is_none() {
             self.bytes += bytes;
         }
@@ -210,7 +231,7 @@ fn memoized<T>(
     reference: RefView<'_>,
     op: impl FnOnce() -> Op,
     hit: impl FnOnce(&Value) -> Option<Result<T, CodecError>>,
-    store: impl FnOnce(&T) -> Result<Option<Value>, CodecError>,
+    store: impl FnOnce(&T, usize) -> Result<Option<Value>, CodecError>,
     run: impl FnOnce(&mut dyn NodeSource) -> Result<T, CodecError>,
 ) -> Result<T, CodecError> {
     if source.codec_work().is_some() {
@@ -239,10 +260,15 @@ fn memoized<T>(
     let result = run(source);
     match &result {
         Ok(value) => {
-            // 结果转存失败只放弃入表，不改变本次返回值。
-            if let Ok(Some(value)) = store(value) {
-                if let Some(memo) = source.path_lookup_memo() {
-                    memo.insert(epoch, key, value);
+            // 先按剩余额度筛选再复制；超额或转存失败只放弃入表，不改变本次返回值。
+            let room = source
+                .path_lookup_memo()
+                .and_then(|memo| memo.room(epoch, &key));
+            if let Some(room) = room {
+                if let Ok(Some(value)) = store(value, room) {
+                    if let Some(memo) = source.path_lookup_memo() {
+                        memo.insert(epoch, key, value);
+                    }
                 }
             }
         }
@@ -269,7 +295,7 @@ pub(super) fn lookup_ref(
             Value::Ref(c) => Some(Ok(rebuild(c))),
             _ => None,
         },
-        |result| checked(result.as_ref()).map(|c| Some(Value::Ref(c))),
+        |result, _| checked(result.as_ref()).map(|c| Some(Value::Ref(c))),
         run,
     )
 }
@@ -288,7 +314,7 @@ pub(super) fn lookup_optional(
             Value::Ref(c) => Some(Ok(Some(rebuild(c)))),
             _ => None,
         },
-        |result| match result {
+        |result, _| match result {
             Some(found) => checked(found.as_ref()).map(|c| Some(Value::Ref(c))),
             None => Ok(None),
         },
@@ -321,7 +347,12 @@ pub(super) fn lookup_fields(
             }
             _ => None,
         },
-        |result| {
+        |result, room| {
+            let names: usize = result.iter().map(|(name, _)| name.len()).sum();
+            let len = result.iter().count();
+            if len * std::mem::size_of::<(Box<str>, Checked)>() + names > room {
+                return Ok(None);
+            }
             result
                 .iter()
                 .map(|(name, r)| checked(r.as_ref()).map(|c| (Box::<str>::from(name), c)))
@@ -354,7 +385,10 @@ pub(super) fn lookup_items(
             }
             _ => None,
         },
-        |result| {
+        |result, room| {
+            if result.len() * std::mem::size_of::<Checked>() > room {
+                return Ok(None);
+            }
             result
                 .iter()
                 .map(|r| checked(r.as_ref()))
