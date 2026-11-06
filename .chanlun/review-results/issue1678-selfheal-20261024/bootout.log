@@ -1,3 +1,0 @@
-before_claim_loop_processes=3
-bootout_exit=0
-after_bootout_claim_loop_processes=0
