@@ -787,8 +787,8 @@ unsafe extern "C" fn progress(context: *mut c_void) -> c_int {
 }
 
 /// 归属开它的父账的 SQLite 连接，直接持有 C 句柄，不建 rusqlite 包装对象；只能经
-/// [`SqliteBinding::run`] 使用。未经 [`SqliteBinding::close`] 直接析构时以 `sqlite3_close_v2`
-/// 关闭，块按各自块头返还原父账，关闭期间的新分配因不在操作域而被拒。
+/// [`SqliteBinding::run`] 使用。未经 [`SqliteBinding::close`] 直接析构时先 finalize 残留语句再
+/// `sqlite3_close`，块按各自块头返还原父账，关闭期间的新分配因不在操作域而被拒。
 #[derive(Debug)]
 pub struct ChargedConnection {
     db: *mut ffi::sqlite3,
@@ -800,8 +800,20 @@ unsafe impl Send for ChargedConnection {}
 
 impl Drop for ChargedConnection {
     fn drop(&mut self) {
-        // SAFETY: the handle is live and owned; close_v2 defers until statements finalize.
-        unsafe { ffi::sqlite3_close_v2(self.db) };
+        // SAFETY: the handle is live and owned. Statements left by the unsafe escape hatch are
+        // finalized first so the close cannot fail with SQLITE_BUSY and leak the handle.
+        unsafe {
+            if ffi::sqlite3_close(self.db) != ffi::SQLITE_OK {
+                loop {
+                    let stmt = ffi::sqlite3_next_stmt(self.db, ptr::null_mut());
+                    if stmt.is_null() {
+                        break;
+                    }
+                    ffi::sqlite3_finalize(stmt);
+                }
+                ffi::sqlite3_close(self.db);
+            }
+        }
     }
 }
 
@@ -821,7 +833,8 @@ fn last_code(db: *mut ffi::sqlite3, rc: c_int) -> c_int {
 fn evaluate<'p, const N: usize>(
     params: &[&'p dyn ToSql; N],
 ) -> Result<[ToSqlOutput<'p>; N], SqlGate> {
-    let mut out = [const { ToSqlOutput::Borrowed(ValueRef::Null) }; N];
+    let mut out: [ToSqlOutput<'p>; N] =
+        std::array::from_fn(|_| ToSqlOutput::Borrowed(ValueRef::Null));
     for (slot, p) in out.iter_mut().zip(params) {
         let p: &'p dyn ToSql = *p;
         *slot = p
