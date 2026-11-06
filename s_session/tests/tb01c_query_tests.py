@@ -1,4 +1,7 @@
-"""#1372 Q 定点测试；--binary 必须指向正式 S writer，结构数据不手编。
+"""#1372 Q 定点测试；结构数据不手编。
+
+历史读取消费 #1768 冻结 pre-W 旧规则 oracle 重建夹具（正式 writer 产物，见 fixtures/issue1768-frozen-pre-w-oracle/README.md）；
+真实后续提交仍经 --binary 指向的正式 S writer。
 
 协议分页单元臂仅给已核 v1 图像附加局部协议模型，不作为 v2 持久面或 C 实跑证据。
 """
@@ -27,7 +30,146 @@ import s_readonly_server as reader
 audit = reader._query_integrity()
 query = reader._query_module("s_query")
 BINARY = None
+FROZEN = ROOT / "s_session/tests/fixtures/issue1768-frozen-pre-w-oracle"
 
+
+def load_frozen(name, dest):
+    """冻结原件带持久 WAL 头；有侧件即可能有未检查点帧，拒绝。否则 immutable 只读，backup 到私有 dest。"""
+    path = (FROZEN / f"{name}.sqlite").resolve()
+    present = [s for s in ("-wal", "-shm", "-journal") if Path(f"{path}{s}").exists()]
+    if present:
+        raise RuntimeError(f"frozen 原件带侧件 {present}，拒绝 immutable 读取：{path}")
+    with closing(sqlite3.connect(path.as_uri() + "?immutable=1", uri=True)) as source, closing(sqlite3.connect(dest)) as target:
+        source.execute("PRAGMA query_only=ON")
+        source.backup(target)
+
+from r4_anchor_fixture import TestAnchor
+
+# #1768 组件臂：仅当显式注入冻结源 cfg(test) producer 时，accept/advance 改由其逐代真实 WriterScope 写入。
+PRODUCER = os.environ.get("S1768_PRODUCER_BINARY")
+PRODUCER_EVIDENCE = os.environ.get("S1768_PRODUCER_EVIDENCE")
+
+
+class FrozenProducer:
+    """同一 Python reader 存续期间驱动冻结 producer；失败原样上抛，不关 reader、不动侧件。"""
+
+    READY_TIMEOUT, STOP_TIMEOUT = 600, 60
+
+    def __init__(self, test, db):
+        self.test, self.db, self.n, self.records = test, Path(db), 0, []
+        self.proc, self.ready, self.failure, self.finished = None, False, None, False
+        self.dir = Path(tempfile.mkdtemp(prefix="handshake-", dir=test.base))
+        self.log = Path(PRODUCER_EVIDENCE or test.base) / test.id().rsplit(".", 1)[-1]
+        self.log.mkdir(parents=True, exist_ok=True)
+        self.out = open(self.log / "producer.stdout", "wb")
+        self.err = open(self.log / "producer.stderr", "wb")
+        # 启动前即挂 cleanup：ready 失败等任何后续异常都经 finish 有界回收（LIFO，先于 reader.close）。
+        test.addCleanup(self.finish)
+        self.argv = [PRODUCER, "issue1768_seed_export::issue1768_dynamic_producer", "--ignored", "--exact", "--nocapture"]
+        try:
+            self.proc = subprocess.Popen(self.argv, stdout=self.out, stderr=self.err,
+                env=dict(os.environ, S1768_PRODUCER_DB=str(self.db), S1768_PRODUCER_HANDSHAKE=str(self.dir)))
+        except BaseException as error:
+            self.failure = error
+            raise
+
+    def start(self):
+        try:
+            ready = self.wait("ready", timeout=self.READY_TIMEOUT)
+        except Exception as error:
+            self.failure = error
+            self.record("ready-failed", error=repr(error), observed=self.observe())
+            raise
+        self.ready = True
+        self.record("ready", observed=self.observe(), ready=ready)
+        return self
+
+    def observe(self):
+        reader_ = self.test.reader
+        cached = reader_.cached if isinstance(reader_.cached, dict) else {}
+        return dict(python_pid=os.getpid(), reader_object=id(reader_),
+                    connection_object=None if reader_.connection is None else id(reader_.connection),
+                    reader_generation=cached.get("generation"), cached_version=reader_.cached_version,
+                    sidecars={s: (Path(f"{self.db}{s}").stat().st_size if Path(f"{self.db}{s}").exists() else None)
+                              for s in ("-wal", "-shm", "-journal")})
+
+    def record(self, event, **fields):
+        self.records.append(dict(event=event, producer_exit=None if self.proc is None else self.proc.poll(), **fields))
+        (self.log / "records.json").write_text(json.dumps(dict(argv=self.argv, db=str(self.db), records=self.records),
+                                                          ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+
+    def publish(self, name, value):
+        tmp = self.dir / f"{name}.json.tmp"
+        tmp.write_text(json.dumps(value), encoding="utf-8")
+        tmp.rename(self.dir / f"{name}.json")
+
+    def wait(self, name, timeout=600):
+        path, start = self.dir / f"{name}.json", time.monotonic()
+        while not path.exists():
+            if self.proc.poll() is not None:
+                raise AssertionError(f"producer 在 {name} 前退出 exit={self.proc.returncode}，见 {self.log}")
+            if time.monotonic() - start > timeout:
+                raise AssertionError(f"等待 {name} 超时，见 {self.log}")
+            time.sleep(0.05)
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def request(self, seq, price):
+        try:
+            return self._request(seq, price)
+        except BaseException as error:
+            self.failure = error
+            raise
+
+    def _request(self, seq, price):
+        n, before = self.n, self.observe()
+        self.publish(f"request-{n}", dict(seq=str(seq), price=str(price)))
+        receipt = self.wait(f"receipt-{n}")
+        if not receipt.get("ok"):
+            try:
+                self.proc.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                pass
+        self.record(f"request-{n}", seq=seq, price=price, before=before, receipt=receipt, after=self.observe())
+        self.n += 1
+        if not receipt.get("ok"):
+            raise AssertionError(json.dumps(receipt, ensure_ascii=False))
+        expected = ({"Ok": str(seq)}, {"Ok": str(seq + 1)})
+        if (receipt["generation_before"], receipt["generation_after"]) != expected:
+            raise AssertionError(f"代际不是 {expected}：{json.dumps(receipt, ensure_ascii=False)}")
+        return receipt
+
+    def finish(self):
+        """幂等回收：停止握手超时或非零退出让测试失败；已有主因（ready/request 失败）时只回收留痕，不覆盖主因。"""
+        if self.finished:
+            return
+        self.finished, problem = True, None
+        try:
+            if self.proc is None:
+                problem = "producer 未能启动"
+            elif self.proc.poll() is None and not self.ready:
+                self.proc.kill()
+                self.proc.wait(timeout=self.STOP_TIMEOUT)
+                self.record("stop", stopped="killed: ready 未完成", observed=self.observe())
+            elif self.proc.poll() is None:
+                self.publish("stop", {})
+                try:
+                    stopped = self.wait("stopped", timeout=self.STOP_TIMEOUT)
+                    self.proc.wait(timeout=self.STOP_TIMEOUT)
+                except (AssertionError, subprocess.TimeoutExpired) as error:
+                    stopped = repr(error)
+                    problem = f"producer 未正常停止：{stopped}"
+                    self.proc.kill()
+                    self.proc.wait(timeout=self.STOP_TIMEOUT)
+                self.record("stop", stopped=stopped, observed=self.observe())
+            else:
+                self.record("exited", observed=self.observe())
+            if problem is None and self.proc is not None and self.proc.returncode != 0:
+                problem = f"producer 退出码 {self.proc.returncode}"
+        finally:
+            self.out.close()
+            self.err.close()
+        if problem is not None and self.failure is None:
+            raise AssertionError(f"{problem}，见 {self.log}")
 
 def resources():
     return dict(max_frame_bytes=1024*1024, max_pending_connections=8,
@@ -45,11 +187,7 @@ class QueryTests(unittest.TestCase):
         cls.directory = tempfile.TemporaryDirectory(prefix="tb01c-query-")
         cls.base = Path(cls.directory.name)
         cls.seed = cls.base / "seed.sqlite"
-        cls.call(cls.seed, "init", "--session", "tb01c-query-unit", "--catalog", ROOT/"s_session/catalog/signed-catalog.json")
-        for seq, price in enumerate((10000, 11000, 10500, 12000)):
-            path = cls.input(seq, price)
-            cls.call(cls.seed, "accept", "--input", path, "--profile", ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
-            cls.call(cls.seed, "advance")
+        load_frozen("g4", cls.seed)
 
     @classmethod
     def tearDownClass(cls):
@@ -57,7 +195,14 @@ class QueryTests(unittest.TestCase):
 
     @classmethod
     def call(cls, db, operation, *args):
-        result = subprocess.run([str(BINARY), operation, "--db", str(db), *map(str, args)],
+        admission_args = []
+        if operation in ("accept", "advance", "recover"):
+            state = cls.base / "admission" / db.name
+            if not Path(str(db.resolve()) + ".control-owner.json").exists():
+                state.mkdir(parents=True, exist_ok=True)
+                TestAnchor(db, state)
+            admission_args = ["--admission-job-limits", str(state / "s-admission" / "limits.json")]
+        result = subprocess.run([str(BINARY), operation, "--db", str(db), *admission_args, *map(str, args)],
             capture_output=True, text=True, timeout=60,
             env=dict(os.environ, S_SESSION_PRAGMA_SIDECAR_PATH=str(cls.base / "pragma.txt")))
         if result.returncode != 0:
@@ -80,10 +225,76 @@ class QueryTests(unittest.TestCase):
             source.backup(dest)
         self.reader = query.AuditReader(self.db, resources(), vars(reader))
         self.addCleanup(self.reader.close)
+        if PRODUCER:
+            self.producer = None
+            self.call = self.producer_call
+
+    def producer_call(self, db, operation, *args):
+        """accept 发一次 request（producer 同次真实 accept+advance）；随后的 advance 只核该收据的 advance 已成功。"""
+        if Path(db) != self.db or operation not in ("accept", "advance"):
+            raise AssertionError(f"组件臂 producer 不支持 {operation} {db}")
+        if operation == "advance":
+            receipt = self.producer.records[-1]["receipt"]
+            if not (receipt["advance"] or {}).get("ok"):
+                raise AssertionError(json.dumps(receipt, ensure_ascii=False))
+            return receipt
+        event = json.loads(Path(args[args.index("--input") + 1]).read_text(encoding="utf-8"))["events"][0]
+        if self.producer is None:
+            self.producer = FrozenProducer(self, db)
+            self.producer.start()
+        return self.producer.request(int(event["seq"]), int(event["price"]))
 
     def mutate(self, sql, values=()):
         with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute(sql, values)
+
+    def graph_root_bytes(self, root_key):
+        """经审计读者自身的图还原（内容寻址+闭包已核）取某根完整展开字节。"""
+        with closing(reader.open_readonly(self.db)) as conn:
+            conn.execute("BEGIN")
+            tables = audit._typed_rows(audit.capture(conn))
+        return audit.evidence_sources(tables, audit.evidence_mode(tables))[root_key]
+
+    def replace_graph_root_bytes(self, root_key, data):
+        """图域私有副本内把某根展开字节换成精确 data；行内物理列（delta_json 等）不动。
+
+        新叶节点内容寻址自洽，根 node_id/expanded_length/content_sha256 同步、slot_ids 清空；
+        仅删除失去全部引用的节点（共享节点保留），使图闭包仍成立，负控只落在语义门上。
+        """
+        if type(data) is str:
+            data = data.encode("utf-8")
+        leaf = audit.EVIDENCE_NODE_LEAF
+        node_id = hashlib.sha256(bytes([leaf]) + data).digest()
+        with closing(sqlite3.connect(self.db)) as conn, conn:
+            conn.execute("INSERT OR IGNORE INTO s_evidence_nodes VALUES(?,?,?,?)", (node_id, leaf, data, len(data)))
+            updated = conn.execute(
+                "UPDATE s_evidence_roots SET node_id=?,slot_ids=?,expanded_length=?,content_sha256=? WHERE root_key=?",
+                (node_id, b"", len(data), hashlib.sha256(data).hexdigest(), root_key)).rowcount
+            if updated != 1:
+                raise AssertionError(f"图根不存在：{root_key}")
+            nodes = dict((row[0], (row[1], row[2])) for row in conn.execute(
+                "SELECT node_id,node_kind,payload FROM s_evidence_nodes"))
+            reachable, stack = set(), []
+            for root, slots in conn.execute("SELECT node_id,slot_ids FROM s_evidence_roots"):
+                stack.append(root)
+                stack.extend(slots[i:i+32] for i in range(0, len(slots), 32))
+            while stack:
+                current = stack.pop()
+                if current in reachable:
+                    continue
+                reachable.add(current)
+                kind, payload = nodes[current]
+                index = 0
+                while kind == audit.EVIDENCE_NODE_SEQ and index < len(payload):
+                    if payload[index] == 0:
+                        index += 5 + int.from_bytes(payload[index+1:index+5], "big")
+                    elif payload[index] == 1:
+                        stack.append(payload[index+1:index+33])
+                        index += 33
+                    else:
+                        index += 3
+            for orphan in nodes.keys() - reachable:
+                conn.execute("DELETE FROM s_evidence_nodes WHERE node_id=?", (orphan,))
 
     def test_full_projection_matches_existing_six_family_projection(self):
         proof = self.reader.capture_verified()
@@ -109,7 +320,7 @@ class QueryTests(unittest.TestCase):
         self.assertIsNone(self.reader.cached)
 
     def test_unpublished_raw_is_checked(self):
-        self.call(self.db, "accept", "--input", self.input(4, 11500), "--profile", ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+        load_frozen("g4-pending", self.db)
         good = self.reader.capture_verified()
         self.assertEqual(len(good["raw"]), 5)
         self.mutate("UPDATE raw_events SET source_coord='bad' WHERE seq=4")
@@ -117,7 +328,7 @@ class QueryTests(unittest.TestCase):
             self.reader.capture_verified()
 
     def test_unpublished_content_hash_is_checked(self):
-        self.call(self.db, "accept", "--input", self.input(4, 11500), "--profile", ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+        load_frozen("g4-pending", self.db)
         self.mutate("UPDATE raw_events SET price='11501' WHERE seq=4")
         with self.assertRaises(ValueError):
             self.reader.capture_verified()
@@ -125,9 +336,8 @@ class QueryTests(unittest.TestCase):
     def test_pending_numeric_domains_despite_consistent_hash_at_g0_and_g4(self):
         """正式 writer 产生两份 pending 原行；只在私有库改变数值并重算摘要。"""
         empty = self.base / (self.id().rsplit(".",1)[-1]+"-g0.sqlite")
-        self.call(empty,"init","--session","tb01c-query-unit","--catalog",ROOT/"s_session/catalog/signed-catalog.json")
-        for db, seq in ((empty,0), (self.db,4)):
-            self.call(db,"accept","--input",self.input(seq,11500),"--profile",ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+        for db, seq, frozen in ((empty,0,"g0-pending"), (self.db,4,"g4-pending")):
+            load_frozen(frozen, db)
             check = query.AuditReader(db,resources(),vars(reader))
             try:
                 proof = check.capture_verified()
@@ -236,9 +446,13 @@ class QueryTests(unittest.TestCase):
     def test_unretained_batch_bytes_are_freshly_rechecked_after_external_change(self):
         proof = self.reader.capture_verified()
         self.assertIs(self.reader.cached, proof)
-        self.mutate("UPDATE batches SET canonical_bytes=? WHERE batch_id=(SELECT batch_id FROM batches LIMIT 1)",
-                    (b"{}",))
-        with self.assertRaisesRegex(ValueError, "batch"):
+        # 图域下替换目标 batch 根的展开字节为 b"{}"，内容地址/长度/摘要自洽，但保留公开 batch_id
+        with closing(sqlite3.connect(self.db)) as conn:
+            batch_id = conn.execute("SELECT batch_id FROM batches LIMIT 1").fetchone()[0]
+            root_key = "batch/" + batch_id
+        self.replace_graph_root_bytes(root_key, b"{}")
+        # 应到达 `:541-552` 的身份门：证据图根展开字节与公开批次身份不符
+        with self.assertRaisesRegex(ValueError, "证据图根展开字节与公开批次身份不符"):
             self.reader.capture_verified()
         self.assertIsNone(self.reader.cached)
         self.assertFalse(self.reader.connection.in_transaction)
@@ -291,12 +505,12 @@ class QueryTests(unittest.TestCase):
 
     def test_changed_sealed_source_rebuilds_suffix_and_preserves_full_delta_order(self):
         self.reader.capture_verified()
-        with closing(reader.open_readonly(self.db)) as conn:
-            delta = audit.parse_json(conn.execute("SELECT delta_json FROM structure_deltas WHERE generation=3").fetchone()[0])
+        # 图域下从私有根读第 3 代 delta，反转 witnesses，加 source_extension
+        delta = audit.parse_json(self.graph_root_bytes("delta/3").decode("utf-8"))
         self.assertGreater(len(delta["witnesses"]), 1)
         delta["witnesses"].reverse()
         delta["source_extension"] = {"preserved": ["all", "fields"]}
-        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", (audit.canonical(delta).decode(),))
+        self.replace_graph_root_bytes("delta/3", audit.canonical(delta))
         changed = self.reader.capture_verified()
         self.assertEqual((changed["_audit_memo"]["hits"], changed["_audit_memo"]["misses"]), (2, 2))
         full_reader = query.AuditReader(self.db, resources(), vars(reader), use_memo=False)
@@ -309,20 +523,20 @@ class QueryTests(unittest.TestCase):
 
     def test_memo_rejects_duplicate_json_key_after_source_change(self):
         self.reader.capture_verified()
-        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", ('{"generation":"3","generation":"3"}',))
-        with self.assertRaises(ValueError):
+        # 图内写入带重复键的文本，应到达重复键门
+        self.replace_graph_root_bytes("delta/3", '{"generation":"3","generation":"3"}')
+        with self.assertRaisesRegex(ValueError, "持久 JSON 含重复键"):
             self.reader.capture_verified()
         self.assertEqual(self.reader.memo, {})
 
     def test_encoded_delta_certificate_preserves_exact_digest_after_text_change(self):
         initial = self.reader.capture_verified()
         original_digest = initial["capture_digest"]
-        with closing(reader.open_readonly(self.db)) as conn:
-            source = conn.execute("SELECT delta_json FROM structure_deltas WHERE generation=3").fetchone()[0]
-        delta = audit.parse_json(source)
+        # 图域下从私有根读第 3 代原件；写回精确文本（含空白/转义），不重新 canonical 化。
+        delta = audit.parse_json(self.graph_root_bytes("delta/3").decode("utf-8"))
         delta["source_extension"] = {"escaped": "引号\"反斜线\\换行\n制表\t控制\x00"}
         changed_source = " \n" + audit.canonical(delta).decode() + "\n "
-        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", (changed_source,))
+        self.replace_graph_root_bytes("delta/3", changed_source)
         later = self.reader.capture_verified()
         self.assertEqual((later["_audit_memo"]["hits"], later["_audit_memo"]["misses"]), (2, 2))
         self.assertNotEqual(later["capture_digest"], original_digest)
@@ -540,6 +754,87 @@ class QueryTests(unittest.TestCase):
         result = query.watch_page(later, stalled, limits, vars(reader), leases)
         self.assertEqual(result["gap"]["reason"], "client_backlog_overflow")
         self.assertEqual(result["gap"]["missing_range"], {"from_generation":"5", "to_generation":"7"})
+
+    def test_memo_certificate_binds_evidence_version_bidirectional_hot_cache(self):
+        """同一活 reader 跨证据表示重核，摘要仍对应当前全部 typed 行。"""
+        def capture_image():
+            with closing(reader.open_readonly(self.db)) as conn:
+                conn.execute("BEGIN")
+                return audit.capture(conn)
+
+        original = capture_image()
+        tables = audit._typed_rows(original)
+        self.assertEqual(audit.evidence_mode(tables), audit.EVIDENCE_GRAPH_FORMAT)
+        sources = audit.evidence_sources(tables, audit.EVIDENCE_GRAPH_FORMAT)
+
+        def write_representation(version):
+            # 只改本测试私有库的物理表示，逻辑原文取自冻结夹具的已核图根。
+            graph3 = version == audit.EVIDENCE_GRAPH_FORMAT
+            with closing(sqlite3.connect(self.db)) as conn, conn:
+                for row in tables["structure_deltas"]:
+                    text = "" if graph3 else sources[f"delta/{row['generation']}"].decode("utf-8")
+                    conn.execute("UPDATE structure_deltas SET delta_json=? WHERE generation=?",
+                                 (text, row["generation"]))
+                for row in tables.get("structure_facts", []):
+                    values = ("", "", "") if graph3 else json.loads(sources[f"fact/{row['object_id']}"])
+                    conn.execute(
+                        "UPDATE structure_facts SET payload_json=?,input_refs_json=?,source_coords_json=? WHERE object_id=?",
+                        (*values, row["object_id"]))
+                conn.execute("UPDATE s_evidence_format SET graph_format=?", (version,))
+                conn.execute("DELETE FROM s_evidence_roots")
+                conn.execute("DELETE FROM s_evidence_nodes")
+                for key, data in sources.items():
+                    if graph3 or key.startswith("batch/"):
+                        leaf = audit.EVIDENCE_NODE_LEAF
+                        node_id = hashlib.sha256(bytes([leaf]) + data).digest()
+                        conn.execute("INSERT OR IGNORE INTO s_evidence_nodes VALUES(?,?,?,?)",
+                                     (node_id, leaf, data, len(data)))
+                        conn.execute("INSERT INTO s_evidence_roots VALUES(?,?,?,?,?)",
+                                     (key, node_id, b"", len(data), hashlib.sha256(data).hexdigest()))
+
+        versions = (audit.EVIDENCE_GRAPH_FORMAT, audit.EVIDENCE_GRAPH_FORMAT_V2)
+        for source, destination in (versions, versions[::-1]):
+            with self.subTest(source=source, destination=destination):
+                write_representation(source)
+                with closing(query.AuditReader(self.db, resources(), vars(reader))) as live:
+                    first = live.capture_verified()
+                    self.assertEqual((first["_audit_memo"]["hits"], first["_audit_memo"]["misses"]), (0, 4))
+                    self.mutate("INSERT OR REPLACE INTO meta VALUES('memo_domain_probe',?)", (source,))
+                    hot = live.capture_verified()
+                    self.assertEqual((hot["_audit_memo"]["hits"], hot["_audit_memo"]["misses"]), (4, 0))
+                    self.assertEqual(len(live.memo["entries"]), 4)
+                    self.assertIs(live.memo, hot["_audit_memo"])
+                    connection, identity = live.connection, live.identity
+                    previous_memo = live.memo
+                    before = capture_image()
+                    self.assertEqual(hot["capture_digest"], audit.capture_digest(before))
+
+                    write_representation(destination)
+                    after = capture_image()
+                    self.assertEqual(before["schema"], after["schema"])
+                    self.assertEqual(before["schema_rows"], after["schema_rows"])
+                    current_tables = audit._typed_rows(after)
+                    self.assertEqual(audit.evidence_mode(current_tables), destination)
+                    self.assertTrue(all(bool(row["delta_json"]) == (destination == audit.EVIDENCE_GRAPH_FORMAT_V2)
+                                        for row in current_tables["structure_deltas"]))
+                    self.assertIs(live.memo, previous_memo)
+                    warm = live.capture_verified()
+                    self.assertIs(live.connection, connection)
+                    self.assertEqual(live.identity, identity)
+                    self.assertEqual(live.stats["captures"], 3)
+                    with closing(query.AuditReader(self.db, resources(), vars(reader), use_memo=False)) as disabled:
+                        full = disabled.capture_verified()
+                    raw = audit.capture_digest(after)
+                    self.assertEqual(full["capture_digest"], raw)
+                    self.assertEqual(warm["capture_digest"], raw)
+                    self.assertEqual((warm["_audit_memo"]["hits"], warm["_audit_memo"]["misses"]), (0, 4))
+                    self.assertNotEqual(previous_memo["context"], live.memo["context"])
+                    for cut in (None, 0, 1, 2, 3, 4):
+                        self.assertEqual(audit.project_state(hot, cut, vars(reader)),
+                                         audit.project_state(warm, cut, vars(reader)))
+                    for after_generation in range(5):
+                        self.assertEqual(reader._delta_from_proof(hot, after_generation),
+                                         reader._delta_from_proof(warm, after_generation))
 
 
 if __name__ == "__main__":

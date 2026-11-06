@@ -9,12 +9,12 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
-from r4_anchor_fixture import test_prepare
+from r4_anchor_fixture import test_prepare as prepare_anchor
 
 class AdmissionContractTests(unittest.TestCase):
     def build(self, root, *, pending=True, version="test-only/1", response=None):
         db=root/"source.sqlite"; state=root/"state"
-        test_prepare(db,state,pending=pending)
+        prepare_anchor(db,state,pending=pending)
         binary=root/"contract-probe"
         binary.write_text("#!"+sys.executable+"\nimport json,sys\n"+(response or "print('denied',file=sys.stderr)\nsys.exit(7)\n"))
         binary.chmod(0o700)
