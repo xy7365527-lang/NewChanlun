@@ -14,9 +14,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SOURCE_SUFFIXES = {'.py', '.rs', '.js', '.cjs', '.mjs', '.ts', '.mts', '.cts', '.sh'}
 _Q = r"""\\?['"`]"""
-# 记号之间允许空白、宿主字符串里的转义空白（\n \t \r）和 /* */ 注释；对象只看顶层键（[^{}] 不进嵌套对象），键可带引号。
+# 记号之间允许空白、宿主字符串里的转义空白（\n \t \r）、/* */ 与 // 行注释；对象只看顶层键（[^{}] 不进嵌套对象），键可带引号。
 # 注释里写出这种调用也会被拦：这是有意的，仓内说明请换一种措辞。
-_S = r"(?:\s|\\[ntr]|/\*.*?\*/)*"
+_S = r"(?:\s|\\[ntr]|/\*.*?\*/|//[^\n]*)*"
 UTF8_STDIN_READ = re.compile(
     r"readFileSync" + _S + r"\(" + _S + r"(?:0|process" + _S + r"\." + _S + r"stdin" + _S + r"\." + _S + r"fd|"
     + _Q + r"/dev/stdin" + _Q + r")" + _S + r"," + _S +
@@ -52,6 +52,7 @@ class NodeStdinReadTests(unittest.TestCase):
                     r'"const s=fs.readFileSync(0,\"utf8\")"',
                     'fs.readFileSync(0, {"encoding": "utf8"})',
                     "fs.readFileSync(0, /* decoding */ 'utf8')",
+                    "fs.readFileSync(\n  0, // stdin\n  'utf8',\n)",
                     r'let js = "fs.readFileSync(\n 0,\n \"utf8\")";'):
             self.assertTrue(hits_in(bad), bad)
         self.assertEqual(hits_in("a\nb\nfs.readFileSync(\n0,'utf8')"), [3])
