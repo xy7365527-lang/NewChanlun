@@ -22,3 +22,5 @@ v3::audit_owner::sqlite_parent_tests::charged_step_reader_reads_on_same_parent_a
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_owner_hooks_flush_and_cells_on_same_parent
 # #1419 3C 4da F1：WAL 回调内 checkpoint 的准入与首拒优先结算（已有首拒不进 SQLite，自身收费拒绝带类型返回）
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_wal_checkpoint_admits_and_settles_first_refusal
+# #1419 3C U5 夹持观测与提交收据经收费组件 owner 连接：连接域核、控制原件、版本与文件、WAL 提交收据，同父收费与首拒
+v3::audit_owner::history_clamp::charged_tests::clamp_observes_and_receipts_commit_on_charged_owner_connection

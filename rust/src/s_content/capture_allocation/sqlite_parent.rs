@@ -787,7 +787,12 @@ impl SqliteBinding {
                     unsafe {
                         ffi::sqlite3_progress_handler(db, 1, Some(progress), owner.context(hook));
                     }
-                    Ok(ChargedConnection { db, owner, hook })
+                    Ok(ChargedConnection {
+                        db,
+                        owner,
+                        hook,
+                        id: ConnectionId(NEXT_CONNECTION.fetch_add(1, Ordering::Relaxed)),
+                    })
                 }
                 Err(code) => {
                     // SAFETY: db is live and has no statements yet.
@@ -1227,7 +1232,15 @@ pub struct ChargedConnection {
     db: *mut ffi::sqlite3,
     owner: Owner,
     hook: Option<usize>,
+    id: ConnectionId,
 }
+
+/// 受管连接的身份：本进程内每次成功开库取一个新值，连接关闭后不复用（不同于句柄地址可能被
+/// 新连接重用）。只能比较，不交出句柄。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConnectionId(u64);
+
+static NEXT_CONNECTION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 // ChargedConnection 既非 Send 也非 Sync：实现任一，下面的推断即歧义而编译失败。
 const _: fn() = || {
@@ -1251,6 +1264,11 @@ impl ChargedConnection {
     pub fn total_changes(&self) -> u64 {
         // SAFETY: db is a live handle owned by this connection.
         u64::try_from(unsafe { ffi::sqlite3_total_changes64(self.db) }).unwrap_or(0)
+    }
+
+    /// 本连接的身份，见 [`ConnectionId`]。
+    pub fn id(&self) -> ConnectionId {
+        self.id
     }
 }
 

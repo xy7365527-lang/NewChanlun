@@ -472,6 +472,7 @@ raw_bars 投影后重复
 raw_events与独立依据不同
 raw_text必须文本
 raw父拥有者析构归还原载荷许可
+read_uncommitted 0; bundled SQLITE_DEFAULT_FOREIGN_KEYS=1; recursive_triggers 0; trusted_schema default 1; query_only 0; UTF-8
 reader 事务不在 owner 私有连接上
 reader 工作域超过父账额度
 reader 父账与 owner 夹持父账不同

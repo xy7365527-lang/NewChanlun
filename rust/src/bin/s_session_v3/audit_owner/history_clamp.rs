@@ -1,11 +1,12 @@
 //! #1481 U-A：既有 AuditConnection 的观测值，不是第二个连接 owner。
 //! 显式组件入口才启用。旧路径不增加前置；这里不签发历史认证。
+use super::owner_sql::{CommitObserver, OwnerSql, RowsError};
 #[cfg(test)]
 use super::request_audit::ExactRows;
 use super::{effects, native, request_audit::SqlCell, AuditTxn};
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{capture_allocation::scratch::WorkScope, CodecVec};
-use rusqlite::{types::ValueRef, Connection, Transaction};
+use rusqlite::types::ValueRef;
 use std::{cell::RefCell, rc::Rc};
 use std::{
     fs::{File, Metadata},
@@ -111,7 +112,7 @@ pub(super) struct Clamp {
 impl Clamp {
     #[cfg(test)]
     pub(super) fn open(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         path: &Path,
         control_limit: usize,
     ) -> Result<Self, String> {
@@ -119,7 +120,7 @@ impl Clamp {
     }
     #[cfg(test)]
     pub(super) fn open_in_parent(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         path: &Path,
         control_limit: usize,
         parent: Option<native::Budget>,
@@ -134,7 +135,7 @@ impl Clamp {
         )
     }
     pub(super) fn open_in_parent_with_refusal(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         path: &Path,
         control_limit: usize,
         parent: Option<native::Budget>,
@@ -146,9 +147,7 @@ impl Clamp {
                 .check_current()
                 .map_err(|_| stale("控制父账已过期"))?;
         }
-        let mode: String = connection
-            .query_row("PRAGMA main.journal_mode", [], |r| r.get(0))
-            .map_err(stale)?;
+        let mode = connection.text("PRAGMA main.journal_mode").map_err(stale)?;
         if mode != "wal" {
             integrity_refusal.set(true);
             return Err(stale("H1组件要求既有WAL域，不自动改变journal_mode"));
@@ -157,8 +156,9 @@ impl Clamp {
         wal.push("-wal");
         let wal = PathBuf::from(wal);
         let checkpoint_threshold = connection
-            .query_row("PRAGMA wal_autocheckpoint", [], |r| r.get(0))
-            .map_err(stale)?;
+            .integer("PRAGMA wal_autocheckpoint")
+            .map_err(stale)
+            .and_then(|n| i32::try_from(n).map_err(stale))?;
         let result = Self {
             main: WatchedFile::open(path, integrity_refusal)?,
             wal: WatchedFile::open(&wal, integrity_refusal)?,
@@ -170,7 +170,10 @@ impl Clamp {
             integrity_refusal: std::cell::Cell::new(false),
             inherited_data_version,
         };
-        connection.wal_hook(Some(physical::observe_commit));
+        connection.install_commit_observer(&CommitObserver {
+            legacy: physical::observe_commit,
+            charged: physical::observe_commit_charged,
+        })?;
         Ok(result)
     }
     pub(super) fn integrity_refusal(&self) -> bool {
@@ -234,15 +237,11 @@ impl Clamp {
     fn observe(&self, active: &AuditTxn<'_>) -> Result<Observation, String> {
         self.observe_tx(active.tx())
     }
-    fn observe_tx(&self, tx: &Transaction<'_>) -> Result<Observation, String> {
+    fn observe_tx(&self, tx: &dyn OwnerSql) -> Result<Observation, String> {
         let before = self.files()?;
         let out = Observation {
-            data_version: tx
-                .query_row("PRAGMA main.data_version", [], |r| r.get(0))
-                .map_err(stale)?,
-            schema_version: tx
-                .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
-                .map_err(stale)?,
+            data_version: tx.integer("PRAGMA main.data_version").map_err(stale)?,
+            schema_version: tx.integer("PRAGMA main.schema_version").map_err(stale)?,
             domain: super::read_domain_of(tx).map_err(stale)?,
             total_changes: tx.total_changes(),
             controls: match &self.parent {
@@ -415,7 +414,7 @@ impl Clamp {
     /// reader 生涯内事务由读者独占且连接写入被拒，任何变化都不能由自身 effects 解释，
     /// 因而与本切面逐项全等；同一 `observe` 判据，不另立宽松核。
     #[cfg(test)]
-    pub(super) fn check_phase(&self, tx: &Transaction<'_>, phase: &Phase) -> Result<(), String> {
+    pub(super) fn check_phase(&self, tx: &dyn OwnerSql, phase: &Phase) -> Result<(), String> {
         if self.observe_tx(tx)? != phase.0 {
             self.integrity_refusal.set(true);
             return Err(stale("读期间版本、文件、控制原件、写计数或连接域改变"));
@@ -531,7 +530,7 @@ impl Controls {
             .sum::<usize>()
     }
     fn read(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         limit: usize,
         work: Option<&WorkScope>,
     ) -> Result<Self, String> {
@@ -539,30 +538,30 @@ impl Controls {
         let admission = NativeAdmission(work);
         let mut used = 0usize;
         for (i, sql) in Self::SQL.into_iter().enumerate() {
-            let mut statement = connection.prepare(sql).map_err(stale)?;
-            let columns = statement.column_count();
-            let mut rows = statement.query([]).map_err(stale)?;
-            while let Some(row) = rows.next().map_err(stale)? {
-                let mut wire = CodecVec::default();
-                for column in 0..columns {
-                    encode_value(
-                        &mut wire,
-                        row.get_ref(column).map_err(stale)?,
-                        limit.saturating_sub(used),
-                        work,
-                    )?;
-                }
-                used = used
-                    .checked_add(wire.len())
-                    .filter(|n| *n <= limit)
-                    .ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
-                admission
-                    .native_codec_room(&mut out.0[i], 1)
-                    .map_err(stale)?;
-                out.0[i]
-                    .try_push((row.get(0).map_err(stale)?, wire))
-                    .map_err(stale)?;
-            }
+            let rows = &mut out.0[i];
+            connection
+                .rows(sql, &mut |row| {
+                    let mut wire = CodecVec::default();
+                    for column in 0..row.len() {
+                        encode_value(
+                            &mut wire,
+                            row.value(column).map_err(stale)?,
+                            limit.saturating_sub(used),
+                            work,
+                        )?;
+                    }
+                    used = used
+                        .checked_add(wire.len())
+                        .filter(|n| *n <= limit)
+                        .ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
+                    admission.native_codec_room(rows, 1).map_err(stale)?;
+                    rows.try_push((row.integer(0).map_err(stale)?, wire))
+                        .map_err(stale)
+                })
+                .map_err(|error| match error {
+                    RowsError::Sql(error) => stale(error),
+                    RowsError::Row(error) => error,
+                })?;
         }
         Ok(out)
     }
@@ -743,4 +742,131 @@ fn encode_value(
             .map_err(stale)?;
         out.try_extend_bytes(bytes).map_err(stale)
     })
+}
+
+/// #1419 3C U5：夹持观测与提交观察在收费组件连接上运行原判据（连接域核、控制原件、版本、
+/// 文件、WAL 提交收据），同父收费；收费首拒之后观测不再进入 SQLite 并带首拒报错。
+/// allocator 只能在本进程首次 SQLite 初始化前安装，须全新进程 `--release --ignored --exact`。
+#[cfg(test)]
+mod charged_tests {
+    use super::super::owner_sql::ChargedOwnerSql;
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+        SqlGate, SqliteParentAllocator,
+    };
+    use rusqlite::ffi;
+
+    const LIMIT: usize = 64 << 20;
+
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn clamp_observes_and_receipts_commit_on_charged_owner_connection() {
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = native::Budget::fresh(LIMIT).unwrap();
+        let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let (parent, origin) = current.sqlite_parent();
+        let binding = allocator.bind(parent, origin).expect("bind");
+        let dir = std::env::temp_dir().join(format!("clamp-charged-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("owner.sqlite3");
+        let base = current.live();
+        let path = std::ffi::CString::new(db.to_str().unwrap()).unwrap();
+        let conn = binding.open(&path).unwrap();
+        binding
+            .run(&conn, |q| {
+                q.execute_batch(
+                    "PRAGMA journal_mode=WAL;
+                     CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                     INSERT INTO meta VALUES('rule_revision', 'r');
+                     CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                       protocol_revision TEXT NOT NULL, session_generation TEXT NOT NULL,
+                       clock_plan_hash TEXT NOT NULL, clock_plan_json TEXT NOT NULL,
+                       next_attempt_ordinal INTEGER NOT NULL, logical_phase_frontier TEXT NOT NULL);
+                     INSERT INTO s_protocol_meta VALUES(1, 's-session/3', 'g', 'h', '{}', 1, 'f');",
+                )
+            })
+            .unwrap();
+        let sql = ChargedOwnerSql {
+            binding: &binding,
+            connection: &conn,
+        };
+        let refusal = std::cell::Cell::new(false);
+        let clamp = Clamp::open_in_parent_with_refusal(
+            &sql,
+            &db,
+            1 << 20,
+            Some(current.clone()),
+            &refusal,
+            None,
+        )
+        .unwrap();
+        assert!(!refusal.get());
+        assert_eq!(
+            super::super::read_domain_of(&sql).unwrap(),
+            [0, 1, 0, 1, 0, 1],
+            "read_uncommitted 0; bundled SQLITE_DEFAULT_FOREIGN_KEYS=1; recursive_triggers 0; \
+             trusted_schema default 1; query_only 0; UTF-8"
+        );
+        let first = clamp.observe_tx(&sql).unwrap();
+        let again = clamp.observe_tx(&sql).unwrap();
+        assert!(first == again, "no change between observations");
+        assert_eq!(
+            first.controls.0[0].len(),
+            1,
+            "meta rows read through the charged cells"
+        );
+        assert_eq!(first.controls.0[1].len(), 1, "s_protocol_meta rows read");
+        assert!(
+            binding.live_bytes() > 0,
+            "observation SQLite bytes live on the parent"
+        );
+
+        let monitor = clamp.arm_commit().unwrap();
+        binding
+            .run(&conn, |q| {
+                q.execute_batch("INSERT INTO meta VALUES('k', 'v');")
+            })
+            .unwrap();
+        assert!(
+            matches!(monitor.take(), Some(Ok(_))),
+            "the charged WAL hook produced the commit receipt"
+        );
+        drop(monitor);
+        let after = clamp.observe_tx(&sql).unwrap();
+        assert!(
+            after != first,
+            "the committed write is visible to the clamp"
+        );
+
+        let refused = binding.run(&conn, |_| {
+            // SAFETY: plain SQLite allocation inside the operation domain.
+            assert!(unsafe { ffi::sqlite3_malloc64(LIMIT as u64 + 1) }.is_null());
+            Ok(())
+        });
+        assert_eq!(refused, Err(SqlGate::Refused(ScratchFailure::Budget)));
+        let stale = clamp
+            .observe_tx(&sql)
+            .err()
+            .expect("observation after first refusal");
+        assert!(stale.contains("Refused(Budget)"), "{stale}");
+        assert_eq!(
+            binding.refusal(),
+            Some(ScratchFailure::Budget),
+            "first refusal kept"
+        );
+
+        drop((first, again, after));
+        binding.clear_write_hooks(&conn).unwrap();
+        binding.close(conn).map_err(|(_, e)| e).unwrap();
+        drop(clamp);
+        assert_eq!(
+            current.live(),
+            base,
+            "all connection and control bytes returned"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

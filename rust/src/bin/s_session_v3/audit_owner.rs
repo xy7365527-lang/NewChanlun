@@ -91,6 +91,8 @@ mod history_clamp;
 #[cfg(feature = "s_incremental")]
 pub(crate) mod native;
 // #1419 M8D 3B：SQLite 同父分配前收费合同；全新进程逐条 --ignored --exact 运行。
+// #1419 3C U5：owner 连接上的 SQL 面（rusqlite 与收费组件各一份实现）。
+mod owner_sql;
 #[cfg(all(test, feature = "s_incremental"))]
 mod sqlite_parent_tests;
 #[cfg(all(test, feature = "s_incremental", unix))]
@@ -3184,17 +3186,13 @@ impl AuditTxn<'_> {
 }
 
 /// #1419 M8D 3A：连接域读取只依赖实际事务；AuditTxn 与 owner 生涯门共用这一份判据。
-fn read_domain_of(tx: &Transaction<'_>) -> Result<[i64; 6], String> {
+fn read_domain_of(tx: &dyn owner_sql::OwnerSql) -> Result<[i64; 6], String> {
     // main 快照/version 已在 begin 中取得；TEMP 和连接设置不由 main version 覆盖。
-    let temp: i64 = tx
-        .query_row("SELECT count(*) FROM temp.sqlite_schema", [], |r| r.get(0))
+    let temp = tx
+        .integer("SELECT count(*) FROM temp.sqlite_schema")
         .map_err(invalid)?;
-    let databases: i64 = tx
-        .query_row(
-            "SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main','temp')",
-            [],
-            |r| r.get(0),
-        )
+    let databases = tx
+        .integer("SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main','temp')")
         .map_err(invalid)?;
     if temp != 0 || databases != 0 {
         return Err(invalid("完整候选不允许 TEMP 对象或附加数据库"));
@@ -3206,33 +3204,20 @@ fn read_domain_of(tx: &Transaction<'_>) -> Result<[i64; 6], String> {
         "PRAGMA recursive_triggers",
         "PRAGMA trusted_schema",
         "PRAGMA query_only",
-        "PRAGMA main.encoding",
     ]
     .into_iter()
     .enumerate()
     {
-        if i == 5 {
-            let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
-                tx,
-                c"PRAGMA main.encoding",
-            )
-            .map_err(invalid)?;
-            let mut row = stmt
-                .next()
-                .map_err(invalid)?
-                .ok_or_else(|| invalid("编码域缺行"))?;
-            out[i] = match row.text(0).map_err(invalid)? {
-                "UTF-8" => 1,
-                "UTF-16le" => 2,
-                "UTF-16be" => 3,
-                _ => return Err(invalid("未知编码域")),
-            };
-            drop(row);
-            stmt.finalize().map_err(invalid)?;
-        } else {
-            out[i] = tx.query_row(sql, [], |r| r.get(0)).map_err(invalid)?;
-        }
+        out[i] = tx.integer(sql).map_err(invalid)?;
     }
+    out[5] = match tx
+        .main_encoding()
+        .map_err(invalid)?
+        .ok_or_else(|| invalid("编码域缺行"))?
+    {
+        0 => return Err(invalid("未知编码域")),
+        code => code,
+    };
     if out[0] != 0 {
         return Err(invalid("完整候选不允许 read_uncommitted"));
     }
