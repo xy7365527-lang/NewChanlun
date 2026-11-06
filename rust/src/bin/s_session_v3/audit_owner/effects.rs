@@ -1257,9 +1257,6 @@ fn tx_key(tx: &Transaction<'_>) -> JournalKey {
     // SAFETY: the handle is only compared as an address.
     JournalKey::Handle(unsafe { tx.handle() } as usize)
 }
-pub(super) fn clear_node_journal(tx: &Transaction<'_>) {
-    clear_node_journal_key(tx_key(tx));
-}
 /// 撤下本线程登记在 `key` 连接上的节点 journal（其他连接的登记不动）。
 pub(super) fn clear_node_journal_key(key: JournalKey) {
     NODE_JOURNAL.with(|slot| {
@@ -2978,7 +2975,7 @@ mod construction_coverage_tests {
         );
         recording.journal.lock().unwrap().unexpected = false;
         live.check(&tx).unwrap();
-        clear_node_journal(&tx);
+        clear_node_journal_key(tx_key(&tx));
         assert!(!has_journal_key(tx_key(&tx)).unwrap());
         assert!(live.check(&tx).is_err(), "owner 日志撤去后材料见证必须失效");
         drop(recording);
