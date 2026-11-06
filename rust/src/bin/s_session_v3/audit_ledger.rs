@@ -3744,7 +3744,7 @@ pub(super) mod tests {
         )
     }
 
-    /// 同 [`verify_in`]，可预读根节点，并只对完整 `verify_delta` 调用开 Rust 分配窗口。
+    /// 同 [`verify_in`]，可预读根节点；返回错误、Rust 分项和总分配，零分配断言使用总量。
     #[cfg(feature = "s_incremental")]
     fn verify_measured(
         budget: &super::super::audit_owner::native::Budget,
@@ -3754,7 +3754,7 @@ pub(super) mod tests {
         q: &Qualification,
         fault: Fault,
         prefetch: bool,
-    ) -> (Option<LedgerError>, u64) {
+    ) -> (Option<LedgerError>, u64, u64) {
         let prepared: Vec<_> = prefetch
             .then(|| {
                 let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
@@ -3778,7 +3778,11 @@ pub(super) mod tests {
             let (result, probe) = rust_window(budget, || {
                 l.verify_delta(&mut source, [root.into(); 4], q).err()
             });
-            seen = Some((result, probe.rust));
+            seen = Some((
+                result,
+                probe.rust,
+                probe.probe["allocated_bytes"].as_u64().unwrap(),
+            ));
             Ok::<_, ()>(())
         });
         seen.expect("verify ran")
@@ -3978,7 +3982,11 @@ pub(super) mod tests {
         l1.bind(token, &m1, &r1).unwrap();
         assert_eq!(count(&a, &peek, through), 0);
         let (committed, probe) = rust_window(&current, || l1.content_committed());
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         committed.unwrap();
         assert_eq!(count(&a, &peek, through), 1);
         assert_eq!(l1.committed_through().unwrap(), 1);
@@ -4117,7 +4125,11 @@ pub(super) mod tests {
         let mut bad = delta(&m1, &r1);
         bad.roots[1].format = "not-a-format".repeat(64);
         let (staged, probe) = rust_window(&current, || lg.stage(token, &bad));
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         assert_eq!(staged, Err(LedgerError::Invalid("台账根格式无效")));
         assert!(lg.connection.is_none());
         drop((lg, bad));
@@ -4191,7 +4203,11 @@ pub(super) mod tests {
         let (refused_fresh, probe) = rust_window(&current, || {
             Ledger::fresh_charged(&refused_path, &content, &id, STORE, refused_parent)
         });
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         assert_eq!(
             refused_fresh.err(),
             Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget)))
@@ -4201,14 +4217,22 @@ pub(super) mod tests {
         // 首拒之后：台账读、受管开库都返回本次 typed 分类，Rust 侧零分配，不进入 SQLite。
         let entered = LEDGER_STATEMENTS.load(Ordering::SeqCst);
         let (refused, probe) = rust_window(&current, || l2.through());
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         let refused = refused.unwrap_err();
         assert_eq!(refused, budget);
         assert_eq!(LEDGER_STATEMENTS.load(Ordering::SeqCst), entered);
         let spare_parent = parent(&current, &b);
         let (reopened, probe) =
             rust_window(&current, || Charged::open(&spare_path, pages, spare_parent));
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         assert_eq!(reopened.err().as_ref(), Some(&budget));
         let unit = newchan_rust::s_content::closure_delta::Unit {
             digest: [1; 32],
@@ -4219,7 +4243,11 @@ pub(super) mod tests {
         let (lookup, probe) = rust_window(&current, || {
             newchan_rust::s_content::closure_delta::Frontier::contains(&view, unit)
         });
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         assert!(lookup.is_err());
         let carried = view.refused.into_inner().expect("typed refusal carried");
         assert_eq!(carried, budget);
@@ -4229,7 +4257,11 @@ pub(super) mod tests {
         ));
         drop((l3, q3));
         let (committed, probe) = rust_window(&current, || l2.content_committed());
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         let committed = committed.unwrap_err();
         assert_eq!(committed, budget);
         assert!(l2.connection.is_none());
@@ -4309,7 +4341,10 @@ pub(super) mod tests {
         ] {
             let measured =
                 verify_measured(&current, &l4, &mut nodes, &bad, &q4, Fault::None, false);
-            assert_eq!(measured, (Some(LedgerError::Invalid("Δ闭包核验失败")), 0));
+            assert_eq!(
+                measured,
+                (Some(LedgerError::Invalid("Δ闭包核验失败")), 0, 0)
+            );
         }
         let mut wrong_kind = root.clone();
         wrong_kind.kind = newchan_rust::s_content::Kind::Array;
@@ -4488,7 +4523,7 @@ pub(super) mod tests {
             super::super::audit_owner::native::Failure::BudgetExceeded
         ));
         assert!(l6.connection.is_some());
-        let (allocation, bytes) = verify_measured(
+        let (allocation, bytes, total_bytes) = verify_measured(
             &current,
             &l6,
             &mut nodes6,
@@ -4497,7 +4532,7 @@ pub(super) mod tests {
             Fault::Allocation,
             false,
         );
-        assert_eq!(bytes, 0);
+        assert_eq!((bytes, total_bytes), (0, 0));
         let allocation = allocation.expect("refused");
         assert_eq!(allocation, LedgerError::Scratch(ScratchFailure::Allocation));
         assert!(matches!(
@@ -4512,7 +4547,11 @@ pub(super) mod tests {
         let (stale_fresh, probe) = rust_window(&current, || {
             Ledger::fresh_charged(&stale_path, &content, &id, STORE, stale)
         });
-        assert_eq!(probe.rust, 0, "{probe}");
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
         assert_eq!(
             stale_fresh.err(),
             Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Ledger)))
