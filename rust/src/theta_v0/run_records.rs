@@ -657,10 +657,11 @@ mod tests {
             symbol == Some("BTC")
         })
         .unwrap();
-        let by_profile = production_venue_from_records(&table, VenueUsage::General, |profile, _| {
-            profile == "P0"
-        })
-        .unwrap();
+        let by_profile =
+            production_venue_from_records(&table, VenueUsage::General, |profile, _| {
+                profile == "P0"
+            })
+            .unwrap();
         assert_eq!(by_symbol, by_profile);
         assert_eq!(by_symbol.entry_delay_bars, 1);
         assert_eq!(by_symbol.tax_bps, 0.0);
