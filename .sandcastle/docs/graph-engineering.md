@@ -120,7 +120,7 @@ wayfinder_engine 下一轮重扫；FU blocker 全关的实施票被挂 `sandcast
 
 放行判据（2026-10-20 图审计第 13–15 条修正）：扫描集是 open 的 `ready-for-agent` ∪ `wayfinder:impl`；实施票按 `[impl]` 标题或 `wayfinder:impl` 标签认（决策票除外）。批准态沿 sub_issues 子树递归：祖先链上有 SPEC 的票，链上每张 SPEC 都已批准才算批准；没有 SPEC 的 map 直挂票及其子票继承 map 直挂 SPEC 的批准态，且仍须带 `ready-for-agent` 才进放行队列。有任何 assignee、有 open blocker、带 `queue-policy.json` 的 hold 标签（`needs-approval`/`ready-for-human`/`needs-info`/`needs-triage`/`wontfix`）、或仍有 open 子票的汇总票，一律不挂 `sandcastle`；挂之前重读单票复核一次。`needs-approval` 已无流程会添加，留在 hold 里只为不让存量票被批量放行：实施票上的旧标签由主控逐票核实依赖与 owner 后摘（#1909）。
 
-SPEC「已批准」= 编排者账号的有效结构化 SPEC 裁定（见下节）；`SPEC_RULING_CUTOVER`（2026-11-08T00:00Z）之前的用户自由文本批准仍算，之后的自由文本「批准 / 通过」不算。驳回词任何时候都撤销。
+SPEC「已批准」= 编排者账号的有效结构化 SPEC 裁定（见下节）；所有票都须绑定非作者独审 PASS，任何日期的自由文本「批准 / 通过」都不算。驳回词任何时候都撤销。
 
 裁决面 decision-claimer 在 live 与 dry-run 下都跳过本地已落地（`done`/`land_t` 且无断点）的票、held 且水印后无退回评论的票，以及已关闭、已有 resolution、或编排者账号首行「用户 … 批复」评论的票（之后的「退回/驳回/重写」评论会重新打开）。带旧 `needs-approval` 的 grilling 票照常入选。要重跑已落地的票，先把 `/Volumes/AgentStorage/decisions/<票号>` 改名（先例 `1530.returned-20261020`）。
 
@@ -128,22 +128,41 @@ SPEC「已批准」= 编排者账号的有效结构化 SPEC 裁定（见下节�
 
 ## SPEC 裁定（#1909）
 
-SPEC 与决策票一样：起草后由另一进程独审，PASS 才放行。wayfinder_engine 只认编排者账号的结构化评论：
+SPEC 起草后由非作者独立进程审查。独审者在原件 JSON 中记录所审票号、正文摘要、双方会话或进程身份与结论，并附 R1–R6 意见。身份使用具体会话或进程标识，同模型的两个进程可独立审查。
 
-```
-**SPEC 独审裁定：PASS**
-作者：<起草者身份>
-独审：<独审者身份，不同于作者>
-正文 sha256：<独审时 SPEC 正文摘要>
-证据：<独审原件路径或链接>
+```json
+{
+  "specNumber": 1340,
+  "verdict": "PASS",
+  "author": "draft-session-id",
+  "reviewer": "review-session-id",
+  "digest": "<独审所读 GitHub body 的 specBodyDigest，64 位小写十六进制>",
+  "findings": []
+}
 ```
 
-有效条件：作者与独审都非空且不同；证据非空；摘要等于当前 SPEC 正文（GitHub body 统一 CRLF、去末尾空白后的 sha256）。独审后正文再改，记录自动失效，须重审。按时间序最新一条结构化记录生效：BLOCK 或无效 PASS 都不放行。生成正文（只读，不写 GitHub）：
+`verdict` 只能是 `PASS` 或 `BLOCK`。`specNumber` 是正整数；作者与独审是非空单行文本，去首尾空白、忽略大小写后必须不同。`digest` 在独审时从所读正文计算：统一 CRLF 为 LF，去末尾空白，取 UTF-8 sha256。`specBodyDigest` 导出同一算法。原件来源与身份真实性由调用者负责，发布工具检查字段形状、身份不同、票号和当前正文绑定。
+
+发布时读取原件，不重新生成所审摘要。先生成成功，再发送评论，避免失败时提交空评论：
 
 ```bash
-npx tsx scripts/wayfinder_engine.mts --spec-ruling <SPEC 号> --verdict PASS --author <起草者> --reviewer <独审> --evidence <原件> \
-  | gh issue comment <SPEC 号> --body-file -
+npx tsx scripts/wayfinder_engine.mts --spec-ruling 1340 --review-file /Volumes/AgentStorage/spec-1340/review.json \
+  > /Volumes/AgentStorage/spec-1340/ruling.md && \
+  gh issue comment 1340 --body-file /Volumes/AgentStorage/spec-1340/ruling.md
 ```
+
+工具只读 GitHub 和原件并向 stdout 输出；`证据` 保留实际读取的原件路径。PASS 与 BLOCK 都须匹配当前正文；不匹配时无评论输出，重新独审当前版本。生成的评论格式为：
+
+```text
+**SPEC 独审裁定：PASS**
+SPEC：1340
+作者：draft-session-id
+独审：review-session-id
+正文 sha256：<独审原件中的 digest>
+证据：/Volumes/AgentStorage/spec-1340/review.json
+```
+
+wayfinder_engine 只认编排者账号的结构化评论，消费时再次核对票号、非作者身份、证据位置和当前正文摘要。正文修改即使发生在生成评论后，也会使 PASS 失效。按时间序最新一条结构化记录生效：BLOCK 或无效 PASS 都不放行，后续驳回评论撤销 PASS。自由文本批准没有日期兼容层，存量 SPEC 也须补齐真实独审绑定。
 
 独审者只拿 SPEC 正文、被引用的决策票 resolution 与仓内源文件，看不到起草推理；按 R1–R6（引用、教义冲突、验收可执行、Destination、宽严两档与兜底、受影响票与边）逐条给结论，原件落 `/Volumes/AgentStorage/`。引擎起草的 SPEC 不再挂 `ready-for-human`。
 

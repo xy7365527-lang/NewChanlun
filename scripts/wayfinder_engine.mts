@@ -15,7 +15,7 @@
  *      （blocking 边 + 票面逐条挂裁定票）+ 挂 sandcastle 标签 → 工蜂拾取；
  *   3. 实装票全关 + 图关判据满足 → 自动起草图关 comment + close map。
  *
- * 不碰决策票（v1）：决策票（含 Notes N-k 预授权）一律人工；纯决策图（spec 出图）也人工。
+ * 本引擎不裁决策票，也不处理纯决策图；决策票由 decision-claimer 起草并经非作者独审裁定。
  * 人工闸只剩合入 main（本引擎不碰 main）；spec 与 P 类决策改为起草 + 非作者独审 PASS 由代理裁定（#1909）。
  *
  * #1084 追加（2026-08-19 打回复核）——常驻控制面成为活机制：
@@ -41,7 +41,7 @@ import { HOLD_LABELS, QUEUE_LABEL, releaseLabel, graphAdmissionFrozen, withGraph
 export { releaseLabel, HOLD_LABELS, withEngineAdmission };
 import { execFileSync, execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cliProxyEnv } from "../.sandcastle/cliproxy-env.mts";
@@ -178,15 +178,8 @@ export function isPureDecisionMap(map: Pick<MapState, "body">): boolean {
 
 // ── spec 裁定检测（纯函数，#1909） ─────────────────────────────────────────────
 
-/**
- * 旧口径的自由文本批准（用户批复时代的「批准 / 通过 …」）只认这一时刻之前的评论；
- * 之后只有结构化 SPEC 裁定记录能批准。驳回词任何时候都撤销批准（只收紧）。
- */
-export const SPEC_RULING_CUTOVER = "2026-11-08T00:00:00Z";
 export const SPEC_RULING_HEAD = "SPEC 独审裁定";
 
-const APPROVAL_RE =
-  /批准|通过|照此执行|按此拆票|approve|approved|lgtm|ship\s*it|^ack$/i;
 const REJECT_RE = /不批准|不通过|打回|驳回|重写|reject|deny|nack|暂不/i;
 
 /** SPEC 正文摘要：GitHub 返回的 body，统一 CRLF 并去掉末尾空白后取 sha256。 */
@@ -194,7 +187,8 @@ export function specBodyDigest(body: string): string {
   return createHash("sha256").update(body.replace(/\r\n/g, "\n").trimEnd(), "utf8").digest("hex");
 }
 
-export interface SpecRuling {
+export interface SpecReview {
+  specNumber: number;
   verdict: "PASS" | "BLOCK";
   /** 起草者身份（模型或会话）。 */
   author: string;
@@ -202,6 +196,9 @@ export interface SpecRuling {
   reviewer: string;
   /** 独审时所审 SPEC 正文的 specBodyDigest。 */
   digest: string;
+}
+
+export interface SpecRuling extends SpecReview {
   /** 独审原件位置（路径或链接）。 */
   evidence: string;
 }
@@ -223,6 +220,7 @@ export function parseSpecRuling(body: string): SpecRuling | null {
   if (!m) return null;
   const rest = lines.slice(1);
   return {
+    specNumber: Number(field(rest, "SPEC")),
     verdict: m[1] as SpecRuling["verdict"],
     author: field(rest, "作者"),
     reviewer: field(rest, "独审"),
@@ -231,27 +229,34 @@ export function parseSpecRuling(body: string): SpecRuling | null {
   };
 }
 
-/** PASS 记录有效：作者、独审、证据齐全，独审不是作者，摘要等于当前正文。否则返回原因。 */
-export function specRulingProblem(r: SpecRuling, specBody: string): string | null {
-  if (r.verdict !== "PASS") return "裁定为 BLOCK";
-  if (!r.author || !r.reviewer) return "缺作者或独审身份";
-  if (r.author.toLowerCase() === r.reviewer.toLowerCase()) return "独审与作者相同";
-  if (!r.evidence) return "缺独审原件位置";
-  if (!/^[a-f0-9]{64}$/.test(r.digest)) return "缺正文 sha256";
+/** 审查绑定同时用于原件发布和评论消费；BLOCK 原件也须绑定所审正文。 */
+function specReviewProblem(r: SpecReview, specNumber: number, specBody: string): string | null {
+  if (!Number.isSafeInteger(r.specNumber) || r.specNumber <= 0 || r.specNumber !== specNumber) return "SPEC 票号不匹配";
+  if (r.verdict !== "PASS" && r.verdict !== "BLOCK") return "结论只能是 PASS 或 BLOCK";
+  if (![r.author, r.reviewer].every((v) => typeof v === "string" && v.trim() && !/[\r\n]/.test(v))) return "缺作者或独审单行身份";
+  if (r.author.trim().toLowerCase() === r.reviewer.trim().toLowerCase()) return "独审与作者相同";
+  if (typeof r.digest !== "string" || !/^[a-f0-9]{64}$/.test(r.digest)) return "缺正文 sha256";
   if (r.digest !== specBodyDigest(specBody)) return "正文已在独审后改动";
   return null;
 }
 
+/** 只有绑定当前 SPEC 的非作者 PASS 才能放行。 */
+export function specRulingProblem(r: SpecRuling, specNumber: number, specBody: string): string | null {
+  if (r.verdict !== "PASS") return "裁定为 BLOCK";
+  if (!r.evidence.trim() || /[\r\n]/.test(r.evidence)) return "缺独审原件位置";
+  return specReviewProblem(r, specNumber, specBody);
+}
+
 /** 结构化裁定评论正文（给主控发评论用）。 */
 export function specRulingBody(r: SpecRuling): string {
-  return [`**${SPEC_RULING_HEAD}：${r.verdict}**`, `作者：${r.author}`, `独审：${r.reviewer}`, `正文 sha256：${r.digest}`, `证据：${r.evidence}`].join("\n") + "\n";
+  return [`**${SPEC_RULING_HEAD}：${r.verdict}**`, `SPEC：${r.specNumber}`, `作者：${r.author}`, `独审：${r.reviewer}`, `正文 sha256：${r.digest}`, `证据：${r.evidence}`].join("\n") + "\n";
 }
 
 /**
  * spec 是否已裁定放行。只认 orchestrator 的评论，按时间序推进：
  *   - 结构化「SPEC 独审裁定」：PASS 且有效（非作者、证据齐、摘要等于当前正文）→ 放行；BLOCK 或无效 PASS → 不放行；
  *   - 其他评论含驳回词 → 不放行（REJECT 先判，避免「不通过」被「通过」子串误命中）；
- *   - SPEC_RULING_CUTOVER 之前的自由文本批准 → 放行（用户批复时代的既有批准仍有效）。
+ *   - 自由文本批准不放行，不区分票或评论的创建日期。
  */
 export function isSpecApproved(spec: ChildIssue, orchestrator: string): boolean {
   const mine = spec.comments
@@ -260,9 +265,8 @@ export function isSpecApproved(spec: ChildIssue, orchestrator: string): boolean 
   let approved = false;
   for (const c of mine) {
     const ruling = parseSpecRuling(c.body);
-    if (ruling) approved = specRulingProblem(ruling, spec.body) === null;
+    if (ruling) approved = specRulingProblem(ruling, spec.number, spec.body) === null;
     else if (REJECT_RE.test(c.body)) approved = false;
-    else if (Date.parse(c.createdAt) < Date.parse(SPEC_RULING_CUTOVER) && APPROVAL_RE.test(c.body)) approved = true;
   }
   return approved;
 }
@@ -1358,11 +1362,15 @@ function parseArgs(argv: string[]): EngineConfig {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
- * 主控发 SPEC 裁定前生成评论正文：读 SPEC 当前正文算摘要，打印到 stdout。不写 GitHub。
- *   npx tsx scripts/wayfinder_engine.mts --spec-ruling <号> --verdict PASS|BLOCK --author <起草者> --reviewer <独审> --evidence <原件>
- * 输出交给 gh issue comment <号> --body-file -；发之后正文再改，该记录即失效，须重审。
+ * 读取独审 JSON 原件，核对票号和当前正文后打印评论，不写 GitHub。
+ *   npx tsx scripts/wayfinder_engine.mts --spec-ruling <号> --review-file <原件.json>
+ * digest 来自独审原件；发布时只比较，不能用当前正文摘要替换。
  */
-export function specRulingCli(argv: string[], readBody: (n: number) => string = (n) => JSON.parse(gh(`issue view ${n} --json body`)).body as string): string {
+export function specRulingCli(
+  argv: string[],
+  readBody: (n: number) => string = (n) => JSON.parse(gh(`issue view ${n} --json body`)).body as string,
+  readReview: (path: string) => string = (path) => readFileSync(path, "utf8"),
+): string {
   const arg = (name: string) => {
     const i = argv.indexOf(name);
     const v = i >= 0 ? argv[i + 1] : undefined;
@@ -1370,13 +1378,14 @@ export function specRulingCli(argv: string[], readBody: (n: number) => string = 
     return v;
   };
   const n = Number(arg("--spec-ruling").replace(/^#/, ""));
-  if (!Number.isInteger(n) || n <= 0) throw new Error("--spec-ruling 票号非法");
-  const v = arg("--verdict").toUpperCase();
-  if (v !== "PASS" && v !== "BLOCK") throw new Error("--verdict 只能是 PASS 或 BLOCK");
-  const verdict: SpecRuling["verdict"] = v;
-  const body = readBody(n);
-  const r: SpecRuling = { verdict, author: arg("--author"), reviewer: arg("--reviewer"), evidence: arg("--evidence"), digest: specBodyDigest(body) };
-  const why = verdict === "PASS" ? specRulingProblem(r, body) : null;
+  if (!Number.isSafeInteger(n) || n <= 0) throw new Error("--spec-ruling 票号非法");
+  const evidence = arg("--review-file");
+  if (!evidence.trim() || /[\r\n]/.test(evidence)) throw new Error("独审原件路径须为非空单行");
+  const review: unknown = JSON.parse(readReview(evidence));
+  if (!review || typeof review !== "object" || Array.isArray(review)) throw new Error("独审原件须为 JSON 对象");
+  // 外部 JSON 在下面统一校验，附加的逐项审查意见留在原件中。
+  const r = { ...review, evidence } as SpecRuling;
+  const why = specReviewProblem(r, n, readBody(n));
   if (why) throw new Error(`SPEC #${n} 裁定记录无效：${why}`);
   return specRulingBody(r);
 }

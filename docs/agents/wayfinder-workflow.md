@@ -107,7 +107,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 - **状态**：stateless——tracker 即账本，每轮重算 ready 集、天然幂等，不建状态库。
 - **自动动作边界**：
   1. 图清（子票全关、frontier 空）→ 自动起草 spec 草案、开图内 spec 票，待非作者独审；
-  2. spec 有效「SPEC 独审裁定：PASS」记录（非作者、绑定正文摘要，格式见 `.sandcastle/docs/graph-engineering.md`「SPEC 裁定」）→ 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
+  2. spec 有效「SPEC 独审裁定：PASS」记录（从独审 JSON 原件生成，非作者、绑定 SPEC 票号及所审正文摘要，任何日期的自由文本批准均无效，格式见 `.sandcastle/docs/graph-engineering.md`「SPEC 裁定」）→ 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
   3. 实装票全关 + 图关判据满足（destination 达成、残雾三去处核实）→ 自动起草图关 comment + close。
 - **engine 不碰决策票**：wayfinder_engine 本体不裁决策票。
   - **裁决面**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)，#1909 更新）：独立组件 decision-claimer 分级（T/P）、考古、起草、非作者独审；T/P 两类审查全 PASS 即由代理裁定落地，BLOCK 用尽或考古有事实缺口则暂停（held）不放行，票上「退回：…」评论后整链重跑。起草前先考古（用户 2026-10-20 令「所有的裁决票都要先考古」）：每个待决点两路搜，已裁的沿用，真没设计过的决定由起草者按推荐答案与推导裁定、交独审核对。流程正本 `.sandcastle/docs/graph-engineering.md`「2. 考古」。
