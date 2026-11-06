@@ -26,6 +26,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -503,8 +504,7 @@ class ExternalReview:
             raise EffectPending("已有 launch，不能按未派工 prepare 回收")
         if checkout.exists():
             shutil.rmtree(checkout)
-        if checkout.parent.exists() and not any(checkout.parent.iterdir()):
-            checkout.parent.rmdir()
+        # 父目录 <run_id> 由同 run 的 reviewer 共用，等全部 reviewer 结束后由 review_pr 收走。
         _save(worker / "checkout-cleanup.json", {"state": "removed", "checkout": str(checkout)})
         return True
 
@@ -563,6 +563,32 @@ class ExternalReview:
         self.cleanup_checkout(target, model, folder)
         return outcome
 
+    def run_reviewers(self, target: ReviewTarget, folder: Path) -> list[ReviewOutcome]:
+        """全新派发时各 reviewer 并发（各用自己的 worker 目录和 checkout），全部结束后再汇总。
+        已有任何 worker 状态即为恢复，按原顺序串行：第一位 FAILED 不派第二位，待对账立即上抛。"""
+        if any((folder / model).exists() for model in MODELS):
+            outcomes = []
+            for model in MODELS:
+                try:
+                    outcomes.append(self.run_review(target, model, folder))
+                except EffectPending:
+                    raise
+                except Exception as error:
+                    outcomes.append(ReviewOutcome(model, "FAILED", None, str(error)))
+                if outcomes[-1].verdict == "FAILED":
+                    break
+            return outcomes
+        with ThreadPoolExecutor(max_workers=len(MODELS)) as pool:
+            futures = [pool.submit(self.run_review, target, model, folder) for model in MODELS]
+            wait(futures)
+        outcomes = []
+        for model, future in zip(MODELS, futures, strict=True):
+            failure = future.exception()
+            if isinstance(failure, EffectPending) or (failure is not None and not isinstance(failure, Exception)):
+                raise failure  # 与串行一致：待对账和中断不折算成 FAILED。
+            outcomes.append(future.result() if failure is None else ReviewOutcome(model, "FAILED", None, str(failure)))
+        return outcomes
+
     def review_pr(self, number: int, attempt: int = 1) -> dict:
         target = self.target(number, attempt)
         assert self.gateway is not None
@@ -591,16 +617,7 @@ class ExternalReview:
                     result["publication"] = publisher.publish("success", source["run_id"])
                     _save(folder / "outcome.json", result)
                     return result
-                outcomes = []
-                for model in MODELS:
-                    try:
-                        outcomes.append(self.run_review(target, model, folder))
-                    except EffectPending:
-                        raise
-                    except Exception as error:
-                        outcomes.append(ReviewOutcome(model, "FAILED", None, str(error)))
-                    if outcomes[-1].verdict == "FAILED":
-                        break
+                outcomes = self.run_reviewers(target, folder)
                 sessions = [o.session_id for o in outcomes if o.session_id]
                 if len(sessions) != len(set(sessions)):
                     outcomes = [ReviewOutcome(o.model, "FAILED", o.session_id, "两独审复用了 session") for o in outcomes]
@@ -626,6 +643,9 @@ class ExternalReview:
                             self.cleanup_checkout(target, model, folder)
                         elif not (worker / "launch.json").exists():
                             self.cleanup_checkout(target, model, folder, preparing=True)
+                run_checkouts = self.checkout_root / target.run_id
+                if run_checkouts.is_dir() and not run_checkouts.is_symlink() and not any(run_checkouts.iterdir()):
+                    run_checkouts.rmdir()
 
     def status(self, number: int) -> list[dict]:
         if number <= 0:

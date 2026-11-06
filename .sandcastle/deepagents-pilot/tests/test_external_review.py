@@ -280,7 +280,7 @@ def test_recover_after_spawn_without_second_model_call(lane, monkeypatch):
         lane.review_pr(1810)
     result = lane.review_pr(1810)
     assert result["verdict"] == "PASS"
-    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS)
+    assert sorted((lane.state_root / "runs" / "launches").read_text().splitlines()) == sorted(MODELS)
     assert lane.gateway.sent == ["pending", "success"]
 
 
@@ -417,7 +417,7 @@ def test_terminal_reclaims_only_checkout_and_retains_evidence(lane):
         for name in ("launch.json", "receipt.json", "events.jsonl", "session.jsonl"):
             assert (worker / name).is_file()
     assert lane.review_pr(1810)["verdict"] == "PASS"
-    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS)
+    assert sorted((lane.state_root / "runs" / "launches").read_text().splitlines()) == sorted(MODELS)
 
 
 @pytest.mark.parametrize("crash_point", ["during-prepare", "after-prepare"])
@@ -439,14 +439,37 @@ def test_prepare_interruption_recovers_without_duplicate_dispatch(lane, monkeypa
     with pytest.raises(KeyboardInterrupt):
         lane.review_pr(1810)
     assert lane.review_pr(1810)["verdict"] == "PASS"
-    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS)
+    assert sorted((lane.state_root / "runs" / "launches").read_text().splitlines()) == sorted(MODELS)
 
 
-def test_failed_first_reviewer_does_not_dispatch_second(lane):
+def test_fresh_reviewers_run_concurrently_and_any_failure_fails_the_run(lane):
     lane.target(1810, 1)
     (lane.state_root / "runs" / "fake-mode").write_text("failed")
     result = lane.review_pr(1810)
     assert result["verdict"] == "FAILED"
+    assert sorted((lane.state_root / "runs" / "launches").read_text().splitlines()) == sorted(MODELS)
+    assert not list(lane.checkout_root.iterdir())
+
+
+def test_reviewers_overlap_in_time(lane, monkeypatch):
+    import threading
+    started, both = [], threading.Event()
+    real = lane.run_review
+    def run_review(target, model, folder):
+        started.append(model)
+        if len(started) == len(MODELS):
+            both.set()
+        assert both.wait(30), "第二位 reviewer 没有在第一位结束前启动"
+        return real(target, model, folder)
+    monkeypatch.setattr(lane, "run_review", run_review)
+    assert lane.review_pr(1810)["verdict"] == "PASS"
+
+
+def test_resume_after_first_failure_stays_serial(lane):
+    target = lane.target(1810, 1)
+    (lane.state_root / "runs" / target.key / MODELS[0]).mkdir()
+    (lane.state_root / "runs" / "fake-mode").write_text("failed")
+    assert lane.review_pr(1810)["verdict"] == "FAILED"
     assert (lane.state_root / "runs" / "launches").read_text().splitlines() == [MODELS[0]]
 
 
@@ -523,7 +546,7 @@ def test_multiple_attempts_reclaim_each_checkout(lane):
     for attempt in (1, 2, 3):
         assert lane.review_pr(1810, attempt)["verdict"] == "PASS"
         assert not list(lane.checkout_root.iterdir())
-    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS) * 3
+    assert sorted((lane.state_root / "runs" / "launches").read_text().splitlines()) == sorted(list(MODELS) * 3)
     assert len(list((lane.state_root / "runs").glob("*/outcome.json"))) == 3
 
 
@@ -548,11 +571,8 @@ def test_failed_spawn_has_terminal_receipt_and_reclaims_checkout(lane):
 
 
 def test_space_exhausted_after_prepare_stops_before_model(lane, monkeypatch):
-    calls = 0
-    def disk_usage(path):
-        nonlocal calls
-        calls += 1
-        return SimpleNamespace(free=10**12 if calls <= 2 else 1)  # 登记准入与 prepare 各一次
+    def disk_usage(path):  # 只有模型启动前对 checkout 本身的复查看到空间耗尽
+        return SimpleNamespace(free=1 if Path(path).name in MODELS else 10**12)
     monkeypatch.setattr(module.shutil, "disk_usage", disk_usage)
     result = lane.review_pr(1810)
     assert result["verdict"] == "FAILED"
