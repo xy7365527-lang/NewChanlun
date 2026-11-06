@@ -46,6 +46,27 @@ ERROR_CLASSES = (("tool_choice", "tool_choice_unsupported"), ("预扣额度", "q
                  ("model_not_found", "model_not_found"), ("not supported", "unsupported"))
 
 
+TERMINAL_EVENTS = ("response.completed", "response.incomplete", "response.failed", "error")
+CREDENTIAL_SOURCES = ("auth.command", "experimental_bearer_token", "env_key")
+# 报告协议词表：字段名与枚举值都由本脚本写死、与 key 无关，原样输出不透露 key 的任何信息。
+# 合法 key 可以是任意可见 ASCII（如 "ok"），与它们相同或是其子串时，脱敏也不能改写它们（调用方按字段与枚举读结论）。
+PROTOCOL_FIELDS = frozenset({
+    "kind", "is_review_result", "ready", "checks", "wall_seconds", "usage", "usage_error",
+    "name", "class", "ok", "detail",
+    "checkout_root", "free_bytes", "required_bytes", "per_snapshot_bytes", "snapshots",
+    "image", "nonce_match", "docker_rc", "stderr",
+    "scrubbed_env", "source", "proven_by", "error",
+    "expected", "actual", "log_found", "session",
+    "http_status", "terminal", "status", "length", "sha256_12", "exception", "errno", "not_sent"})
+PROTOCOL_VALUES = frozenset({
+    "review-preflight", "review-preflight-help",
+    "checkout_root_free_space", "checkout_root_container_mount", "credential:codex-host", "probe_cleanup",
+    "preflight_internal", *(f"{kind}:{model}" for kind in ("route", "roundtrip") for model in MODELS),
+    "space", "mount", "credential", "route", "roundtrip", "cleanup", "tool",
+    *TERMINAL_EVENTS, *RESPONSE_STATUSES, "other", *(label for _, label in ERROR_CLASSES), "unclassified",
+    *(f"{provider}@{host}" for provider, host in KNOWN_ROUTES), *CREDENTIAL_SOURCES})
+
+
 class Deadline:
     """一次预检的唯一时间来源：检查用到 work，回收与输出用到 total。"""
 
@@ -293,11 +314,12 @@ def redact(text: str, secrets, limit: int | None = None) -> str:
 def sanitize(value, secrets, limit: int = 500):
     """对报告逐字段脱敏后截断；在序列化之前做，保证输出仍是合法 JSON。"""
     if isinstance(value, dict):
-        return {redact(str(k), secrets, limit): sanitize(v, secrets, limit) for k, v in value.items()}
+        return {k if k in PROTOCOL_FIELDS else redact(str(k), secrets, limit): sanitize(v, secrets, limit)
+                for k, v in value.items()}
     if isinstance(value, list):
         return [sanitize(v, secrets, limit) for v in value]
     if isinstance(value, str):
-        return redact(value, secrets, limit)
+        return value if value in PROTOCOL_VALUES else redact(value, secrets, limit)
     return value
 
 
@@ -336,7 +358,7 @@ def round_trip(url: str, key: str, model: str, session: str, deadline: Deadline)
                 line = raw.decode("utf-8", "replace").strip()
                 if line.startswith("data:"):
                     event = json.loads(line[5:]) if line[5:].strip().startswith("{") else {}
-                    if event.get("type") in ("response.completed", "response.incomplete", "response.failed", "error"):
+                    if event.get("type") in TERMINAL_EVENTS:
                         terminal = event.get("type")
                         inner = event.get("response") if isinstance(event.get("response"), dict) else {}
                         # 只报已知枚举：上游任意值（可能以各种编码夹带 key）一律归一成 "other"，不进报告

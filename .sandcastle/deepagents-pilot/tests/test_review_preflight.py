@@ -17,6 +17,8 @@ from pilot1742.github_app import IdentityError
 KEY = "local-test-key-must-not-leak"
 SHORT_VALID = "short7k"  # 正式 worker 接受的 7 字符 key
 OTHER_VALID = f"outer-{KEY}-tail"  # 含 KEY：两把 key 互为子串
+# 与报告字段名、枚举值相同或是其子串的合法 key（_clean_key 允许任意可见 ASCII）
+PROTOCOL_LIKE_KEYS = ("ok", "ready", "completed", "re", "name", "codex")
 SOL, OPUS = "gpt-6.1-sol", "claude-opus-5-5"
 OFFICIAL = {SOL: ("codex", "https://chatgpt.com/backend-api/codex/responses"),
             OPUS: ("claude", "https://api.anthropic.com/v1/messages")}
@@ -58,7 +60,7 @@ class FakeProxy:
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 proxy.requests.append({"body": body, "auth": self.headers["Authorization"]})
-                if self.headers["Authorization"] not in (f"Bearer {KEY}", f"Bearer {OTHER_VALID}", f"Bearer {SHORT_VALID}"):
+                if self.headers["Authorization"] not in {f"Bearer {k}" for k in (KEY, OTHER_VALID, SHORT_VALID, *PROTOCOL_LIKE_KEYS)}:
                     self.send_response(401)
                     self.send_header("Content-Length", "0")
                     self.end_headers()
@@ -961,3 +963,43 @@ def test_mount_probe_runs_as_the_host_user_like_review_containers(env, capsys, t
     code, report, *_ = env(capsys=capsys)
     run = next(line for line in calls.read_text().splitlines() if line.startswith("run "))
     assert code == 0 and f"--user {os.getuid()}:{os.getgid()}" in run
+
+
+# ---------------- 正式审查 a4 Sol P2：key 与报告字段名、枚举值重合 ----------------
+
+def _walk(value, fields, enums, field=None):
+    if isinstance(value, dict):
+        for k, v in value.items():
+            fields.add(k)
+            _walk(v, fields, enums, k)
+    elif isinstance(value, list):
+        for v in value:
+            _walk(v, fields, enums, field)
+    elif isinstance(value, str) and field in ("name", "class", "kind", "status", "terminal", "actual", "expected", "source"):
+        enums.add(value)
+
+
+@pytest.mark.parametrize("key", PROTOCOL_LIKE_KEYS)
+def test_key_equal_to_a_protocol_token_does_not_rewrite_the_report(env, capsys, tmp_path, key):
+    """合法 key 是「ok」「ready」等时，脱敏不能改写报告的字段名与枚举，否则调用方读不到结论。"""
+    code, baseline, *_ = env(capsys=capsys)
+    (tmp_path / "key.txt").write_text(key + "\n")
+    code, report, _, proxy = env(capsys=capsys)
+    assert code == 0 and {r["auth"] for r in proxy.requests} == {f"Bearer {key}"}
+    assert report["ready"] is True and failing(report) == set()
+    fields, enums, base_fields, base_enums = set(), set(), set(), set()
+    _walk(report, fields, enums)
+    _walk(baseline, base_fields, base_enums)
+    assert (fields, enums) == (base_fields, base_enums)
+
+
+def test_every_report_field_and_enum_is_in_the_protocol_vocabulary(env, capsys, monkeypatch):
+    """新增报告字段或枚举必须登记进协议词表，否则 key 与它重合时会被脱敏改写。"""
+    reports = [env(capsys=capsys)[1],
+               env(routes={**OFFICIAL, OPUS: ANTIGRAVITY}, status={OPUS: 400}, capsys=capsys)[1]]
+    monkeypatch.setenv("FAKE_DOCKER_EMPTY", "1")
+    reports.append(env(capsys=capsys)[1])
+    fields, enums = set(), set()
+    for report in reports:
+        _walk(report, fields, enums)
+    assert fields <= preflight.PROTOCOL_FIELDS and enums <= preflight.PROTOCOL_VALUES
