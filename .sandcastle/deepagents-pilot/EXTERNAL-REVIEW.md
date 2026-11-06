@@ -35,7 +35,7 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。全新派发时两位 reviewer 并发，各用自己的 worker 目录和 checkout，全部结束后汇总，任一 FAILED 即整轮 FAILED。恢复（任一 worker 已留下状态）时按原顺序串行：第一位 FAILED 后不再调用第二个模型，待对账立即上抛。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，保留已完成的 reviews，旧 run 不把状态写到新 SHA。
 
-新 head 可以沿用旧 PASS，不调用模型，条件是同 PR 某个旧 head 的正式双审为 PASS 且已发布 success，并且 `patch_id`、`policy_version`、`review_contract` 三者都相同。这时新 run 在新 head 上先写 pending 再写 success，描述带 `reuse=<原 run_id> p=<patch_id 前 12 位>`，`outcome.json` 的 `reused_from` 留原 run 的 SHA、patch_id、双审结论和原发布记录。以下情况照常双审：当前 head 上已经有过别的 run（对同一 head 再发 attempt 就是要求重新独审）；补丁不同；原结论是 BLOCK、FAILED 或 STALE；同一补丁出现过 BLOCK；policy、模型或提示词有变；找不到可重算补丁身份的原 run；原 run 本身就是沿用来的。
+新 head 可以沿用旧 PASS，不调用模型。条件：同 PR 某个旧 head 的正式双审为 PASS 且已发布 success；`patch_id`、`policy_version`、`review_contract`、`controller_code_head` 都相同；并且沿用前通过与正式派发同一组的部署准入（`external-review-worker.mts --admission-only`：controller 已提交且 head 相符、当前镜像有 accepted 记录），准入镜像与原 run 两份回执的 `image_id` 相同。这时新 run 在新 head 上先写 pending 再写 success，描述带 `reuse=<原 run_id> p=<patch_id 前 12 位>`，`outcome.json` 的 `reused_from` 留原 run 的 SHA、patch_id、双审结论、原发布记录和本次准入。以下情况照常双审：当前 head 上已经有过别的 run（对同一 head 再发 attempt 就是要求重新独审）；补丁不同；原结论是 BLOCK、FAILED 或 STALE；同一补丁的任何 run 里有任一 reviewer 给出过 BLOCK（不看整轮结论，因为 BLOCK 可能被同轮 FAILED 或发布时的 STALE 盖住；没有 `patch_id` 的旧 run 按其冻结 SHA 现场重算补丁身份）；policy、模型、提示词或 controller 有变；部署准入不通过或镜像不同；找不到可重算补丁身份的原 run；原 run 本身就是沿用来的。
 
 `patch_id` 是 `merge_base..head` 每个改动路径的路径、前后 mode、前后 blob 清单的 sha256，补丁逐字相同时才相等。不用 `git patch-id`，因为它忽略空白。main 只改了 PR 没碰的文件时 `patch_id` 不变；冲突解决，或 main 也改了 PR 碰过的文件，都会让它变化并触发重审。残余风险：同一补丁放到新 base 上语义可能变（例如 main 改了被调用的函数）。重审时模型会读新 base 上的相关源码，沿用时不读。CI 会在新 head 上重跑，但目前 CI 不是 main 的必需检查，失败不拦合入；要让 CI 兜住这一点，需要把它设为必需检查。
 
@@ -81,7 +81,7 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 无凭据 detached checkout 位于外盘 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/checkouts/external-review/<run-id>/<model>`。每份对象库只保存 base、head、merge-base 的源码树及祖先 commit 元数据，不带无关历史版本的树和 blob。`git merge-base`、完整 PR diff、三端源码和提交元数据可用。其它历史提交的源码不在快照内。Git config、hooks、alternates 和凭据不从源仓复制。
 
-登记 attempt 之前先做总准入：单份快照需要导入对象未压缩大小、head 文件大小再加 256 MiB 余量，乘以 reviewer 数（目前是 2，按并发同时存在两份计算），与 checkout_root 所在卷的可用空间比较。不够就不登记 attempt、不写任何状态，报出总需求、单份需求和可用字节数。能沿用旧 PASS 时不建快照，跳过准入。每位 reviewer 在 prepare 前仍按单份需求复查一次，模型启动前再核对 256 MiB 余量，防止排队期间空间被占用；复查不通过时明确失败，不启动模型。
+登记 attempt（以有效的 `target.json` 是否存在为准，不以目录是否存在为准，目录建好但 target.json 未写时中断也要重新准入）之前先做总准入：单份快照需要导入对象未压缩大小、head 文件大小再加 256 MiB 余量，乘以 reviewer 数（目前是 2，按并发同时存在两份计算），与 checkout_root 所在卷的可用空间比较。不够就不登记 attempt、不写任何状态，报出总需求、单份需求和可用字节数。能沿用旧 PASS 时不建快照，跳过准入。每位 reviewer 在 prepare 前仍按单份需求复查一次，模型启动前再核对 256 MiB 余量，防止排队期间空间被占用；复查不通过时明确失败，不启动模型。
 
 宿主先保存 `prepare.json`，再构造 checkout。prepare 中断且尚无 launch 时，同键重跑只回收本 run 的未启动 checkout 并重建。`launch.json` 之后沿用原收养协议，不自动重复派工。监督在读取 launch、获取锁等启动阶段失败也保存失败终态。已记录的监督进程退出却未写终态时，controller 生成 FAILED 记录并发布 error，不永久停留在 pending。
 

@@ -607,6 +607,7 @@ def _advance_main(lane, env, *, conflict=False, rewrite=None):
         (src / "changed-1").write_text(rewrite)
         git(src, "commit", "-qam", "patch changes")
     lane.gateway.pr["base"]["sha"], lane.gateway.pr["head"]["sha"] = base, git(src, "rev-parse", "HEAD")
+    git(src, "checkout", "-q", head)  # 宿主 controller 不随 PR 追平而变，只在部署时变
 
 
 def test_same_patch_on_new_base_reuses_pass_without_model(lane, env):
@@ -679,3 +680,75 @@ def test_reuse_needs_no_snapshot_space(lane, env, monkeypatch):
     _advance_main(lane, env)
     monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
     assert "reused_from" in lane.review_pr(1810)
+
+
+def _second_opinion(lane, env, monkeypatch, verdicts, *, stale=False):
+    """同一补丁先双 PASS，再在同一 head 上显式重审得到 verdicts（可选让发布时 head 漂移成 STALE），然后追平 main。"""
+    first = lane.review_pr(1810)
+    real = lane.run_reviewers
+    def scripted(target, folder):
+        outcomes = [module.ReviewOutcome(m, v, f"s-{m}" if v != "FAILED" else None, f"VERDICT: {v}")
+                    for m, v in zip(MODELS, verdicts, strict=True)]
+        if stale:
+            _advance_main(lane, env)
+        return outcomes
+    monkeypatch.setattr(lane, "run_reviewers", scripted)
+    second = lane.review_pr(1810, 2)
+    monkeypatch.setattr(lane, "run_reviewers", real)
+    if not stale:
+        _advance_main(lane, env)
+    return first, second
+
+
+def test_reviewer_block_hidden_by_failed_run_still_vetoes_reuse(lane, env, monkeypatch):
+    _, second = _second_opinion(lane, env, monkeypatch, ["BLOCK", "FAILED"])
+    assert second["verdict"] == "FAILED"
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_reviewer_block_hidden_by_stale_run_still_vetoes_reuse(lane, env, monkeypatch):
+    _, second = _second_opinion(lane, env, monkeypatch, ["PASS", "BLOCK"], stale=True)
+    assert second["verdict"] == "STALE" and [r["verdict"] for r in second["reviews"]] == ["PASS", "BLOCK"]
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_block_on_legacy_run_without_patch_id_still_vetoes_reuse(lane, env, monkeypatch):
+    _, second = _second_opinion(lane, env, monkeypatch, ["BLOCK", "BLOCK"])
+    path = lane.state_root / "runs" / ReviewTarget(**second["target"]).key / "target.json"
+    legacy = json.loads(path.read_text())
+    legacy.pop("patch_id"), legacy.pop("review_contract")
+    path.write_text(json.dumps(legacy))
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_interrupted_registration_without_target_json_is_still_admitted(lane, monkeypatch):
+    target = lane.target(1810, 1)
+    folder = lane.state_root / "runs" / target.key
+    (folder / "target.json").unlink()  # _lock 已建目录、target.json 未写时中断
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
+    with pytest.raises(IdentityError, match="未登记 attempt"):
+        lane.review_pr(1810)
+    assert not (folder / "target.json").exists() and lane.gateway.sent == []
+
+
+@pytest.mark.parametrize("change", ["controller", "admission-fails", "image"])
+def test_reuse_requires_current_deployment_admission(lane, env, change):
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    if change == "controller":
+        git(lane.source, "commit", "--allow-empty", "-qm", "controller redeployed")
+    else:
+        (lane.source / ".git" / "fake-admission").write_text("fail" if change == "admission-fails" else "sha256:" + "2" * 64)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_reuse_records_admission(lane, env):
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert result["reused_from"]["admission"] == {"controller_code_head": git(lane.source, "rev-parse", "HEAD"),
+                                                  "image_id": "sha256:" + "1" * 64}

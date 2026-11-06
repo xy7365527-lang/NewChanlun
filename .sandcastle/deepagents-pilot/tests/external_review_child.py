@@ -5,6 +5,14 @@ import sys
 import uuid
 from pathlib import Path
 
+if sys.argv[1:] == ["--admission-only"]:  # 部署准入替身：controller=cwd 的 HEAD；.git/fake-admission 可注入失败或换镜像
+    import subprocess
+    head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    override = Path(".git/fake-admission").read_text().strip() if Path(".git/fake-admission").exists() else ""
+    if override == "fail":
+        sys.exit(2)
+    print(json.dumps({"controller_code_head": head, "image_id": override or "sha256:" + "1" * 64}))
+    sys.exit(0)
 folder = Path(sys.argv[sys.argv.index("--output-dir") + 1])
 launch = json.loads((folder / "launch.json").read_text())
 with open(folder.parents[1] / "launches", "a") as log:

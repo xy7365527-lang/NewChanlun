@@ -425,7 +425,8 @@ class ExternalReview:
                               attempt=attempt, policy_version=POLICY, controller_code_head=head,
                               registered_at_ns=time.time_ns(), patch_id=patch, review_contract=REVIEW_CONTRACT)
         folder = self.state_root / "runs" / target.key
-        if not folder.exists() and self.reuse_source(target) is None:
+        # 以有效 target.json 判断是否已登记：_lock 会先建目录，建目录后、写 target.json 前中断时仍须准入。
+        if not (folder / "target.json").exists() and self.reusable(target) is None:
             self.admit_space(target)
         with _lock(folder):
             if (folder / "target.json").exists():
@@ -448,6 +449,21 @@ class ExternalReview:
             raise IdentityError(f"空间不足：{len(MODELS)} 份并发快照共需 {required} bytes（单份 {single}），"
                                 f"{volume} 可用 {available} bytes；未登记 attempt，未启动模型")
 
+    @staticmethod
+    def _has_block(row: dict) -> bool:
+        """任一 reviewer 完整审阅给出过 BLOCK 就算，不看整轮结论：BLOCK 可能被同轮 FAILED 或发布时的 STALE 盖住。"""
+        saved = row["outcome"] or {}
+        return saved.get("verdict") == "BLOCK" or any(r.get("verdict") == "BLOCK" for r in saved.get("reviews", []))
+
+    def _patch_of(self, old: dict) -> str | None:
+        """旧 run 的补丁身份；没有 patch_id 字段的旧 run 按其冻结 SHA 现场重算，算不出时返回 None。"""
+        if old.get("patch_id"):
+            return old["patch_id"]
+        try:
+            return patch_identity(self.source, old["merge_base_sha"], old["head_sha"])
+        except (subprocess.CalledProcessError, KeyError):
+            return None
+
     def reuse_source(self, target: ReviewTarget) -> dict | None:
         """同 PR 中可沿用的正式 PASS 原件；规则见模块文档。只认真实双审，不认沿用产生的 success。
         同一补丁只要有过 BLOCK，就不沿用任何 PASS。"""
@@ -458,8 +474,7 @@ class ExternalReview:
         if any(row["target"].get("head_sha") == target.head_sha and row["target"].get("run_id") != target.run_id
                for row in rows):
             return None
-        if any(row["outcome"] and row["outcome"].get("verdict") == "BLOCK"
-               and row["target"].get("patch_id") == target.patch_id for row in rows):
+        if any(self._has_block(row) and self._patch_of(row["target"]) == target.patch_id for row in rows):
             return None
         for row in rows:
             saved, old = row["outcome"], row["target"]
@@ -468,6 +483,7 @@ class ExternalReview:
                     or (saved.get("publication") or {}).get("state") != "success"
                     or [(r["model"], r["verdict"]) for r in saved.get("reviews", [])]
                     != [(m, "PASS") for m in MODELS]
+                    or old.get("controller_code_head") != target.controller_code_head
                     or old.get("policy_version") != target.policy_version
                     or old.get("review_contract") != target.review_contract
                     or old.get("patch_id") != target.patch_id):
@@ -479,6 +495,34 @@ class ExternalReview:
                 continue
             return saved
         return None
+
+    def reusable(self, target: ReviewTarget) -> tuple[dict, dict] | None:
+        """可沿用的原件及本次部署准入；登记时的空间准入与发布前的沿用决定用同一判定。"""
+        source = self.reuse_source(target)
+        admission = self.reuse_admission(target, source) if source is not None else None
+        return (source, admission) if source is not None and admission is not None else None
+
+    def reuse_admission(self, target: ReviewTarget, source: dict) -> dict | None:
+        """沿用前过一遍与正式派发相同的部署准入（worker --admission-only：controller 已提交且 head 相符、
+        当前镜像有 accepted 记录），并要求准入镜像与原 run 两份回执的镜像相同。任一不符就不沿用，照常双审。"""
+        env = {k: os.environ[k] for k in ("PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG") if k in os.environ}
+        try:
+            done = subprocess.run([*self.launcher, "--admission-only"], env=env, cwd=self.source, stdin=subprocess.DEVNULL,
+                                  capture_output=True, text=True, timeout=300)
+            admission = json.loads(done.stdout) if done.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return None
+        if (not isinstance(admission, dict) or admission.get("controller_code_head") != target.controller_code_head
+                or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(admission.get("image_id", "")))):
+            return None
+        old_folder = self.state_root / "runs" / ReviewTarget(**source["target"]).key
+        try:
+            images = {_read(old_folder / model / "receipt.json").get("image_id") for model in MODELS}
+        except (OSError, ValueError):
+            return None
+        if images != {admission["image_id"]}:
+            return None
+        return {"controller_code_head": admission["controller_code_head"], "image_id": admission["image_id"]}
 
     def cleanup_checkout(self, target: ReviewTarget, model: str, folder: Path, *, preparing: bool = False) -> bool:
         worker = folder / model
@@ -604,12 +648,13 @@ class ExternalReview:
                     reused = (saved.get("reused_from") or {}).get("run_id")
                     saved["publication"] = publisher.publish(saved["state"], reused)
                     return saved
-                source = self.reuse_source(target)
+                reuse = self.reusable(target)
                 publisher.publish("pending")
-                if source is not None:
+                if reuse is not None:
+                    source, admission = reuse
                     old = source["target"]
                     reused_from = {"run_id": source["run_id"], "reviews": source["reviews"],
-                                   "publication": source["publication"],
+                                   "publication": source["publication"], "admission": admission,
                                    **{k: old[k] for k in ("head_sha", "base_sha", "merge_base_sha", "patch_id")}}
                     result: dict[str, Any] = {"run_id": target.run_id, "verdict": "PASS", "state": "success",
                                               "target": asdict(target), "reviews": [], "reused_from": reused_from}

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { codexWorker } from "./codex-route.mts";
-import { readLaunch, reviewMounts, runExternalReview, verifyReviewAdmission, type ReviewLaunch, type WorkerDependencies } from "./external-review-worker.mts";
+import { REVIEW_IMAGE, checkReviewAdmission, readLaunch, reviewMounts, runExternalReview, verifyReviewAdmission, type ReviewLaunch, type WorkerDependencies } from "./external-review-worker.mts";
 import type { BindMountSandboxHandle } from "@ai-hero/sandcastle";
 
 const image = "sha256:" + "1".repeat(64);
@@ -208,3 +208,12 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     } finally { rmSync(f.root, { recursive: true, force: true }); }
   });
 }
+
+test("沿用前准入与正式派发同一组检查：controller 未提交或镜像未验收即拒绝", () => {
+  const head = "c".repeat(40);
+  const ready = (img: string) => { assert.equal(img, REVIEW_IMAGE); return image; };
+  assert.deepEqual(checkReviewAdmission({ identity: () => ({ head, dirty: "" }), ready }), { controller_code_head: head, image_id: image });
+  assert.throws(() => checkReviewAdmission({ identity: () => ({ head, dirty: " M .sandcastle/x" }), ready }), /未提交/);
+  assert.throws(() => checkReviewAdmission({ identity: () => ({ head, dirty: "" }),
+    ready: () => { throw new Error("外部独审必须先完成当前代码 head 的 Docker 验收"); } }), /Docker 验收/);
+});
