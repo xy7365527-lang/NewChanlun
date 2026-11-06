@@ -20,6 +20,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "s_session"))
+from v2_seed import require_seed_binary  # noqa: E402  #1419 种子构建闸
 import s_readonly_server as reader
 
 audit = reader._query_integrity()
@@ -303,7 +304,7 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    BINARY, OUTPUT = args.binary.resolve(), args.output.resolve()
+    BINARY, OUTPUT = require_seed_binary(args.binary.resolve()), args.output.resolve()
     OUTPUT.mkdir(parents=True, exist_ok=False)
     sources = [ROOT / "s_session" / name for name in ("s_query_integrity.py", "s_query.py", "s_readonly_server.py", "s_tb02_contract.py")]
     sources += [Path(__file__).resolve(), BINARY]

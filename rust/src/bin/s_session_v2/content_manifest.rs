@@ -18,6 +18,8 @@ use crate::v3::business_json::TextValue;
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+#[cfg(feature = "s_incremental")]
+use newchan_rust::s_content::ContextError as PublishError;
 #[allow(
     unused_imports,
     reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
@@ -689,7 +691,7 @@ impl PreparedManifestWorkspace {
         metadata: &ManifestMetadata,
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         self.resolve_in_publication_admitted(tx, token, metadata, roots, manifest, None)
     }
     pub(crate) fn resolve_in_publication_admitted(
@@ -700,7 +702,7 @@ impl PreparedManifestWorkspace {
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         self.resolve_in_publication_inner(
             tx,
             token,
@@ -724,7 +726,7 @@ impl PreparedManifestWorkspace {
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
         stage: &super::staged_nodes::StageOwner<'_>,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         self.resolve_in_publication_inner(tx, token, metadata, roots, manifest, work, Some(stage))
     }
     fn resolve_in_publication_inner(
@@ -738,7 +740,7 @@ impl PreparedManifestWorkspace {
         #[cfg(all(test, feature = "s_incremental"))] stage: Option<
             &super::staged_nodes::StageOwner<'_>,
         >,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         // No qualified originals exist across these actual Begin/scope/frontier SELECTs.
         // The issuer itself performs them; callers cannot substitute a scope/frontier token.
         super::content_publication::verify_current_begin_admitted(
@@ -750,7 +752,7 @@ impl PreparedManifestWorkspace {
         let previous_frontier =
             super::content_publication::current_publication_frontier_admitted(tx, work)?;
         NativePublicationLease::new(tx)
-            .map_err(|e| format!("PublicationInvalid：{e}"))?
+            .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?
             .resolve(
                 self,
                 metadata,
@@ -789,7 +791,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         #[cfg(all(test, feature = "s_incremental"))] stage: Option<
             &super::staged_nodes::StageOwner<'_>,
         >,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         let budget = workspace.budget;
         let source_cost = workspace.source_cost;
         let before = manifest_workspace_stats();
@@ -813,7 +815,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
             // all bytes, even after context/material mismatch. No caller can mint its owner.
             let equal = store
                 .rebind_originals(&workspace.originals)
-                .map_err(|e| format!("PublicationInvalid：{e}"))?
+                .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?
                 && context_equal;
             if equal {
                 record_workspace_stats(|stats| stats.rebound += 1);
@@ -826,7 +828,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
                         .get(digest)
                         .expect("recorded successful put");
                     s_content::NodeSink::put(&mut store, *digest, *tag, body)
-                        .map_err(|e| format!("PublicationInvalid：{e}"))?;
+                        .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?;
                     record_workspace_stats(|stats| stats.replay_puts += 1);
                 }
                 if store.bind_after_replay {
@@ -852,7 +854,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
             } else {
                 drop(workspace);
                 let computed = assemble_unpublished(&mut store, metadata, roots)
-                    .map_err(|e| format!("PublicationInvalid：{e}"))?;
+                    .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?;
                 if computed.batch_id != manifest.batch_id
                     || computed.value.content_ref() != manifest.value.content_ref()
                 {
@@ -1486,7 +1488,7 @@ impl ManifestSourceReceipt {
         metadata: &ManifestMetadata,
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
-    ) -> Result<s_content::closure_delta::VerifiedUnits, String> {
+    ) -> Result<s_content::closure_delta::VerifiedUnits, PublishError> {
         if !self.metadata.matches(metadata.view())
             || !same_roots(self.roots.view(), roots.view())
             || self.manifest_value != manifest.value
@@ -1513,7 +1515,7 @@ impl ManifestSourceReceipt {
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         raw_range: std::ops::Range<usize>,
-    ) -> Result<crate::v3::audit_owner::RawReceipt, String> {
+    ) -> Result<crate::v3::audit_owner::RawReceipt, PublishError> {
         let metadata_view = metadata.view();
         let roots_view = roots.view();
         #[cfg(test)]
@@ -1572,7 +1574,7 @@ pub(crate) fn assemble_with_source(
         Option<PreparedManifestWorkspace>,
         ManifestSourceReceipt,
     ),
-    String,
+    PublishError,
 > {
     source.check_manifest(
         metadata.generation,
@@ -1584,25 +1586,25 @@ pub(crate) fn assemble_with_source(
     )?;
     let (mut manifest, workspace) = source.with_store(store, |bounded| match budget {
         Some(budget) => assemble_workspace_units(bounded, metadata, roots, budget, collect_units)
-            .map_err(|e| e.to_string()),
+            .map_err(PublishError::from),
         None => {
             let mut view = crate::v3::audit_store::StoreView::generic(bounded);
             view.collect_manifest_units = collect_units;
             assemble_unpublished_in_store(&mut view, metadata, roots)
                 .map(|manifest| (manifest, None))
-                .map_err(|e| e.to_string())
+                .map_err(PublishError::from)
         }
     })?;
     let work = store.codec_work();
     let proof = ManifestSourceReceipt {
         source,
-        metadata: NativeMetadata::from_view(metadata.view(), work).map_err(|e| e.to_string())?,
-        roots: NativeRoots::from_view(roots.view(), work).map_err(|e| e.to_string())?,
+        metadata: NativeMetadata::from_view(metadata.view(), work).map_err(PublishError::from)?,
+        roots: NativeRoots::from_view(roots.view(), work).map_err(PublishError::from)?,
         manifest_value: manifest.value.clone(),
         closure_units: manifest.closure_units.take(),
         batch_id: TextValue::Plain(
             NativeValue::<String>::try_from_str(&manifest.batch_id, work)
-                .map_err(|e| e.to_string())?,
+                .map_err(PublishError::from)?,
         ),
     };
     Ok((manifest, workspace, proof))

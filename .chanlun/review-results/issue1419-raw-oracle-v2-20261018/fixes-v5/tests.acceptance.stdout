@@ -1,0 +1,328 @@
+test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) ... 
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-008.endpoint', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-010.bi', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-013.segment', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-016.center', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-016.center_seed_attempt', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-017.center_roles', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-020.center_pair', mode='double') ... ERROR
+  test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-022.unit_assignment', mode='double') ... ERROR
+test_f1_json_text_data_rehashed (test_v5.Tests.test_f1_json_text_data_rehashed) ... ok
+test_f1_public_complete_set_and_lifecycle_limits (test_v5.Tests.test_f1_public_complete_set_and_lifecycle_limits) ... ok
+test_f1_raw_type_check_uses_graph_budget (test_v5.Tests.test_f1_raw_type_check_uses_graph_budget) ... ok
+test_f2_constructor_and_binding_preallocation (test_v5.Tests.test_f2_constructor_and_binding_preallocation) ... ok
+test_f2_equal_payload_fragmentation_never_cheaper (test_v5.Tests.test_f2_equal_payload_fragmentation_never_cheaper) ... ok
+test_f2_large_header_rejected_before_serialization (test_v5.Tests.test_f2_large_header_rejected_before_serialization) ... ok
+test_f2_metadata_admission_shapes_deadline_and_cumulative (test_v5.Tests.test_f2_metadata_admission_shapes_deadline_and_cumulative) ... ok
+test_f8_first_binding_full_identity_and_split_equivalence (test_v5.Tests.test_f8_first_binding_full_identity_and_split_equivalence) ... ok
+test_f8_no_reset_cursor_alias_or_failed_advance (test_v5.Tests.test_f8_no_reset_cursor_alias_or_failed_advance) ... ok
+test_f8_split_profile_drift (test_v5.Tests.test_f8_split_profile_drift) ... ok
+test_f8_trusted_cursor_all_fields_and_budget (test_v5.Tests.test_f8_trusted_cursor_all_fields_and_budget) ... ok
+test_f1_public_positive_and_geometry (test_v5.RetainedV4.test_f1_public_positive_and_geometry) ... ok
+test_f1_conflicting_internal_fields (test_v5.RetainedV4.test_f1_conflicting_internal_fields) ... ok
+test_f3_public_complete_set (test_v5.RetainedV4.test_f3_public_complete_set) ... ok
+test_f2_decode_plain_records_same_budget (test_v5.RetainedV4.test_f2_decode_plain_records_same_budget) ... ok
+test_f2_collector_budget_survives_second_snapshot (test_v5.RetainedV4.test_f2_collector_budget_survives_second_snapshot) ... ok
+test_f8_frozen_named_messages (test_v5.RetainedV4.test_f8_frozen_named_messages) ... ok
+test_f8_cut_frontier_conflict (test_v5.RetainedV4.test_f8_cut_frontier_conflict) ... ok
+test_f8_identity_and_cross_epoch (test_v5.RetainedV4.test_f8_identity_and_cross_epoch) ... ok
+test_domain_adapter_positive_and_zn_mutation_negative (test_v2.V2Tests.test_domain_adapter_positive_and_zn_mutation_negative) ... ok
+test_domain_withdrawal_rejects_stale_pair (test_v2.V2Tests.test_domain_withdrawal_rejects_stale_pair) ... ok
+test_driver_collects_fixed_pages_and_full_content (test_v2.V2Tests.test_driver_collects_fixed_pages_and_full_content) ... ok
+test_live_is_unconditionally_denied (test_v2.V2Tests.test_live_is_unconditionally_denied) ... ok
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-008.endpoint', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-010.bi', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-013.segment', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-016.center', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-016.center_seed_attempt', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-017.center_roles', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-020.center_pair', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+======================================================================
+ERROR: test_f1_all_kinds_original_types (test_v5.Tests.test_f1_all_kinds_original_types) (kind='CC-022.unit_assignment', mode='double')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/test_v5.py", line 86, in test_f1_all_kinds_original_types
+    verified = v4.closed(objects)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 34, in closed
+    return cc.close_projection(s, [p], **LIMITS)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 350, in close_projection
+    decoded=graph.decode(ref)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 275, in decode
+    elif t==5:v=[self.decode(r,depth+1,ordinary) for r in self.entries(ref)]
+                 ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 276, in decode
+    elif t==6:v={e['key']:self.decode(e['value_ref'],depth+1,ordinary) for e in self.entries(ref)}
+                          ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 277, in decode
+    elif t==7:v=JSONText(self.decode(self.ref(self.r(b)),depth+1,True))
+                         ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 263, in decode
+    if ordinary:require(ref['kind']!='json_text','json_text内非普通JSON')
+                ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 41, in require
+    raise ValueError(message)
+ValueError: json_text内非普通JSON
+
+----------------------------------------------------------------------
+Ran 24 tests in 38.502s
+
+FAILED (errors=8)
+重复全图fake拒绝 {'calls': 45, 'work': 999999, 'limit': 1000000}
+分块完整图fake通过 {'calls': 182, 'work': 603298, 'limit': 1000000}
+{"tests": 24, "failures": 0, "errors": 8}

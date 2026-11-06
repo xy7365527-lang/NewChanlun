@@ -4,3 +4,33 @@
 # 不缩代数、不削弱比较（fix-0089 负责人裁定，0086 uo-ci run 39559317863 debug 600s 超时）。
 # #1488 S4 整代 增量≡冷全量 六阶段对拍锁（主控 D4/D6，#799/#804）
 v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages
+# #1419 M8D 3B SQLite 同父分配前收费：全局 allocator 须在全新进程首次 SQLite 初始化前安装，逐条 exact 执行
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_charges_same_parent_before_allocation
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_install_refused_after_sqlite_initialized
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_connection_boundary_keeps_original_open_semantics
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_db_config_accepts_only_boolean_int_pointer_ops
+# #1419 3C 台账受管构造：真实台账阶段机在全新进程装 allocator 后同父收费、首拒后零 SQL、Commit 次序、与快照事务交替
+v3::audit_ledger::tests::charged_ledger_same_parent_phase_machine_and_snapshot_interleave
+# #1419 3C 私有快照受管连接：原 VFS/授权/进度/读前序/quick_check 判据经收费组件，同父收费，首拒后收尾撤销 VFS
+v3::admission_private::fd_wal::charged_tests::private_snapshot_charged_keeps_original_vfs_gates_and_same_parent
+# #1419 3C 写者交接连接受管：原交接配置、WAL 转换（排他事务回滚/提交、完整性拒绝与自身失败的关闭语义）、正常关闭经收费组件，同父收费与首拒
+v3::h1_writer_sql::charged_tests::h1_writer_handoff_charged_keeps_original_config_conversion_and_close
+v3::h1_writer_sql::charged_tests::h1_writer_budget_refusal_after_open_still_restores_normal_close
+# #1419 3C 3A 受管 reader 经收费组件事务：同父收费、原判据与首错粘滞、收费首拒按工作域类型返回
+v3::audit_owner::sqlite_parent_tests::charged_step_reader_reads_on_same_parent_and_types_refusal
+# #1419 3C owner 连接家族组件能力：行变更/WAL 提交回调、回调内 checkpoint、cache_flush、按实际列数借行、收尾撤销回调
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_owner_hooks_flush_and_cells_on_same_parent
+# #1419 3C 4da F1：WAL 回调内 checkpoint 的准入与首拒优先结算（已有首拒不进 SQLite，自身收费拒绝带类型返回）
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_wal_checkpoint_admits_and_settles_first_refusal
+# #1419 3C U5 夹持观测与提交收据经收费组件 owner 连接：连接域核、控制原件、版本与文件、WAL 提交收据，同父收费与首拒
+v3::audit_owner::history_clamp::charged_tests::clamp_observes_and_receipts_commit_on_charged_owner_connection
+# #1419 3C U5 owner 连接、事务守卫与生涯门经收费组件：签发受管 reader 读真实节点、外连接提交 stale、守卫 COMMIT 与首拒后收尾回滚
+v3::audit_owner::step_reader::charged_tests::charged_owner_lifecycle_and_gate_on_same_parent
+# #1419 3C U5 F2/F3：封印 reader 在夹持 SQL 内首拒按值为 Budget、窄收尾撤封后回滚、首拒保持、字节返还
+v3::audit_owner::step_reader::charged_tests::charged_sealed_reader_first_refusal_in_clamp_sql_is_typed_and_rolls_back
+# #1419 3C effects S1：effects 写记录与 TxStore 经受管 owner 守卫真实读写（节点收据与 C 行回调同一 journal、finish 精确覆盖）；负控：域已预置首拒时节点读按值 Budget、窄收尾撤回调并回滚、字节返还
+v3::audit_owner::effects::charged_tests::charged_effects_record_txstore_writes_and_type_first_refusal
+# #1419 3C effects S1 F2/F3：真实受管行写进入更新回调、回调内 journal 同父许可遭拒按值记为首拒：执行中写返回 Budget、后续同拒不进回调、窄收尾撤回调回滚、首拒保留、字节返还
+v3::audit_owner::effects::charged_tests::charged_effects_update_hook_parent_refusal_is_typed_first_refusal
+# #1419 3C effects S1 节点收据：真实 TxStore::put 的 INSERT 成功（完成时无首拒）后，节点收据扩 journal 容器的同父许可遭拒按值记为首拒：本次 put 返回 typed Budget、后续同拒、窄收尾回滚、首拒保留、字节返还
+v3::audit_owner::effects::charged_tests::charged_effects_node_receipt_parent_refusal_is_typed_first_refusal

@@ -1,0 +1,54 @@
+{
+  "ticket": 1393,
+  "scope": "静态与纯模型/toy；不代表Rust或正式链验收",
+  "checks": [
+    {
+      "command": "python3 .chanlun/review-results/issue1393-sandcastle-20261018/verify_model.py",
+      "exit_code": 0,
+      "tests": 4,
+      "cases": 11,
+      "historical_cuts": 4,
+      "exhaustive_sequences": 1555,
+      "result": "通过；含独立Python子进程重放及toy SQLite重开"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s s_session/tests -p test_tb02u_contract.py -v",
+      "exit_code": 0,
+      "tests": 5,
+      "result": "通过；纯JS子项3合法、4拒绝，无浏览器"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s s_session/tests -p test_tb02d_validate_once.py -v",
+      "exit_code": 0,
+      "tests": 9,
+      "result": "通过；既有共享校验器定向回归"
+    },
+    {
+      "command": "python3 .chanlun/review-results/issue1393-sandcastle-20261018/verify_static.py",
+      "exit_code": 0,
+      "result": "通过；contains/merge/strict_dir/fold_step/fold_all与固定基线逐字一致；规则仅追加W；Python AST与Lean占位扫描"
+    },
+    {
+      "command": "rustfmt --check --edition 2021 --config skip_children=true <报告所列9个Rust文件>",
+      "exit_code": 0,
+      "result": "格式/语法解析通过，不是编译或类型检查"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "通过"
+    }
+  ],
+  "NOT_RUN": [
+    "Rust编译/测试",
+    "产品二进制/真实S会话/API/浏览器",
+    "真实产品新进程重放/持久故障恢复",
+    "Long/全量历史",
+    "资金/订单",
+    "lake/Lean检验",
+    "fixture drift",
+    "CI",
+    "独立会话评审"
+  ],
+  "git_actions": "未暂存/未提交；等待管理者收包"
+}

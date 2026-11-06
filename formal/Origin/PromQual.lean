@@ -285,12 +285,26 @@ theorem shiftMove_compose (k : Nat) (subs : List Move) (centers : List Center) (
       = Move.compose (subs.map (shiftMove k)) centers (level + k) := by
   simp only [shiftMove, shiftMoveList_eq_map]
 
-/-- ★平移保价格区间（L0）：`(shiftMove k m).interval = m.interval`——shiftMove 只改级别（compose）
-    或不改（segment），interval 由 segment 直接字段 / compose 中枢外缘算（中枢不变）⟹ 区间不变。 -/
-theorem shiftMove_interval (k : Nat) (m : Move) : (shiftMove k m).interval = m.interval := by
-  cases m with
-  | segment d lo hi => simp only [shiftMove]
-  | compose subs centers level => simp only [shiftMove, Move.interval]
+mutual
+  /-- ★平移保价格区间（L0）：`(shiftMove k m).interval = m.interval`——shiftMove 只改级别（compose）
+      或不改（segment）；interval 由 segment 直接字段 / compose 全部子走势区间算（★#1419 r2：子走势
+      逐个平移、各自区间不变）⟹ 区间不变。 -/
+  theorem shiftMove_interval (k : Nat) : (m : Move) → (shiftMove k m).interval = m.interval
+    | Move.segment d lo hi => by simp only [shiftMove]
+    | Move.compose subs centers level => by
+        simp only [shiftMove, Move.interval]
+        exact shiftMoveList_listInterval k subs
+  /-- ★平移保子走势序列区间极值（L0，`shiftMove_interval` 的列表半边）。 -/
+  theorem shiftMoveList_listInterval (k : Nat) :
+      (xs : List Move) → Move.listInterval (shiftMoveList k xs) = Move.listInterval xs
+    | [] => by simp only [shiftMoveList, Move.listInterval]
+    | [m] => by simp only [shiftMoveList, Move.listInterval]; exact shiftMove_interval k m
+    | m :: m' :: ms => by
+        have h1 := shiftMove_interval k m
+        have h2 := shiftMoveList_listInterval k (m' :: ms)
+        simp only [shiftMoveList] at h2 ⊢
+        simp only [Move.listInterval, h1, h2]
+end
 
 /-- ★平移保下沿（L0，windowCenters_shift 用）。 -/
 theorem shiftMove_lo (k : Nat) (m : Move) : (shiftMove k m).lo = m.lo := by

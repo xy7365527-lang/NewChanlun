@@ -278,6 +278,13 @@ impl super::audit_budget::Budget for WriterScope {
 }
 
 impl WriterScope {
+    #[cfg_attr(
+        not(any(test, feature = "s_v2_seed_testonly")),
+        expect(
+            dead_code,
+            reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+        )
+    )]
     pub(crate) fn admit_legacy_serve(
         db: &Path,
         prepared: PreparedAdmission,
@@ -303,6 +310,7 @@ impl WriterScope {
             super::admission_private::RejectionPrefix::None,
         )
     }
+    #[cfg(any(test, feature = "s_v2_seed_testonly"))]
     pub(crate) fn admit_legacy_write(
         db: &Path,
         prepared: PreparedAdmission,
@@ -589,6 +597,13 @@ fn current_scope() -> Result<Option<WriterScope>, String> {
     })
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 pub(crate) fn read_current_text(path: &Path) -> Result<String, String> {
     let scope = current_scope()?.ok_or("StartupScopeMissing")?;
     let bytes = read_startup(&scope, path, None)?;
@@ -618,6 +633,13 @@ pub(crate) fn load_startup_profile(
     crate::load_profile(path)
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 pub(crate) fn write_current_result(value: &serde_json::Value) -> Result<(), String> {
     let scope = current_scope()?.ok_or("StartupScopeMissing")?;
     scope.write_result(value)?;

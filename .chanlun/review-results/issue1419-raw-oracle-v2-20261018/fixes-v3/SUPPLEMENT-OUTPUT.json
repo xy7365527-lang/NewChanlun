@@ -1,0 +1,136 @@
+{
+  "qualification": "尾差定向验证，非独立评审",
+  "observations": [
+    {
+      "finding": "回归",
+      "case": "test_domain_adapter_positive_and_zn_mutation_negative",
+      "result": "PASS",
+      "fixture_qualification": "旧自洽模型夹具；非独立证据"
+    },
+    {
+      "finding": "回归",
+      "case": "test_domain_withdrawal_rejects_stale_pair",
+      "result": "PASS",
+      "fixture_qualification": "旧自洽模型夹具；非独立证据"
+    },
+    {
+      "finding": "回归",
+      "case": "test_driver_collects_fixed_pages_and_full_content",
+      "result": "PASS",
+      "fixture_qualification": "旧自洽模型夹具；非独立证据"
+    },
+    {
+      "finding": "F1",
+      "case": "首次可见接口切面/raw/定义前沿绑定",
+      "result": {
+        "status": "DEFINITION_FIRST_VISIBILITY_ONLY",
+        "prefixes": 2,
+        "known_at": "UNVERIFIED",
+        "AsKnown": "UNVERIFIED",
+        "product_run": "NOT_RUN"
+      },
+      "product_prefixes": "UNVERIFIED"
+    },
+    {
+      "finding": "F8",
+      "case": "'100'/1",
+      "rejection": "watch输入前沿回退"
+    },
+    {
+      "finding": "F8",
+      "case": "'-1'/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "'0139'/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "'139.0'/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "139/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "True/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "None/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "'140'/1",
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    },
+    {
+      "finding": "F8",
+      "case": "'139'/2",
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    },
+    {
+      "finding": "F8",
+      "case": "具名接纳数+跨epoch正控",
+      "frontiers": [
+        "138",
+        "139",
+        "204",
+        "269"
+      ],
+      "affected_seq_to": "7",
+      "accepted_counts": [
+        1,
+        65,
+        65
+      ],
+      "result_frontier": "269"
+    },
+    {
+      "finding": "F1",
+      "case": "补验规范角色值/排除原因null",
+      "result": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED"
+    },
+    {
+      "finding": "F2",
+      "case": "未受测三族保留共享结构不plain展开",
+      "work": 284,
+      "nodes": 98
+    },
+    {
+      "finding": "F4",
+      "case": "缺null字段/中心成员悬空",
+      "result": "REJECT"
+    },
+    {
+      "finding": "F7",
+      "case": "新增域门原输入:base",
+      "result": "INDEPENDENT_TESTONLY_RAW_DEFINITION_EXAMPLE"
+    },
+    {
+      "finding": "F7",
+      "case": "新增域门原输入:revise-non-zn-tail",
+      "result": "INDEPENDENT_TESTONLY_RAW_DEFINITION_EXAMPLE"
+    },
+    {
+      "finding": "F7",
+      "case": "新增域门原输入:withdraw-second-center",
+      "result": "INDEPENDENT_TESTONLY_RAW_DEFINITION_EXAMPLE"
+    },
+    {
+      "finding": "F7",
+      "case": "新增域门原输入:restore-original",
+      "result": "INDEPENDENT_TESTONLY_RAW_DEFINITION_EXAMPLE"
+    }
+  ],
+  "tests_run": 6,
+  "failures": 1,
+  "errors": 0
+}

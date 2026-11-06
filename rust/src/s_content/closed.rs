@@ -21,6 +21,7 @@ pub struct ClosedCapturedOwner<'capture> {
     overlay: OverlaySlab,
     max_render_bytes: Option<u64>,
     full_arrays: bool,
+    preserve_sequence_trace: bool,
     read_trace: Option<fn(bool)>,
     put_trace: Option<fn()>,
     overlay_peak_trace: Option<fn((usize, usize))>,
@@ -106,6 +107,7 @@ impl AuditCapture {
             overlay,
             max_render_bytes,
             full_arrays: false,
+            preserve_sequence_trace: false,
             read_trace: None,
             put_trace: None,
             overlay_peak_trace: None,
@@ -163,6 +165,19 @@ impl<'capture> ClosedCapturedOwner<'capture> {
         p: &[path::PathStep],
     ) -> Result<RefOwner, CodecError> {
         path::lookup_path_owned_ctx(self, r, p)
+    }
+    pub fn array_cursor_owned(
+        &mut self,
+        reference: RefView<'_>,
+    ) -> Result<path::NativeArrayCursor, CodecError> {
+        path::NativeArrayCursor::new_ctx(&mut CodecContext::Closed(self), reference)
+    }
+    pub fn next_array_member_owned(
+        &mut self,
+        cursor: &mut path::NativeArrayCursor,
+        prefix: &[path::PathStep],
+    ) -> Result<Option<RefOwner>, CodecError> {
+        cursor.next_output(&mut CodecContext::Closed(self), prefix)
     }
     pub fn lookup_array_items_owned(
         &mut self,
@@ -330,6 +345,24 @@ impl<'capture> ClosedCapturedOwner<'capture> {
     pub fn write_template(&mut self, v: &Value) -> Result<Built, CodecError> {
         write_in_mode(&mut CodecContext::Closed(self), v, Mode::Template)
     }
+    pub fn sequence_rebuild_suffix(
+        &mut self,
+        seq: &super::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
+    ) -> Result<super::SequenceRef, CodecError> {
+        let budget = self.budget.clone();
+        super::sequence::sequence_rebuild_suffix_ctx(
+            &mut CodecContext::Closed(self),
+            seq,
+            keep,
+            leaves,
+            Some(&budget),
+        )
+    }
+    pub fn swap_sequence_read_trace(&mut self, enabled: bool) -> bool {
+        std::mem::replace(&mut self.preserve_sequence_trace, enabled)
+    }
     pub fn raw_put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), CodecError> {
         let material = FrameMaterial::checked(t, b);
         if material.digest != d {
@@ -373,7 +406,10 @@ impl<'capture> ClosedCapturedOwner<'capture> {
         self.capture.reads.set(self.capture.reads.get() + 1);
         // 借用只来自本 owner 的不可变 capture，生命周期不依赖 overlay 或 &mut self。
         let (t, bytes) = self.capture.original(d).ok_or_else(|| {
-            CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+            CodecError::new(
+                code::NODE_MISSING,
+                codec_detail!("节点缺失：{}", root_string(d)),
+            )
         })?;
         Ok((t, VerifierBody::Borrowed(bytes)))
     }
@@ -395,7 +431,7 @@ impl<'capture> ClosedCapturedOwner<'capture> {
         if actual != *d {
             return Err(CodecError::new(
                 code::NODE_DIGEST,
-                format!(
+                codec_detail!(
                     "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
                     root_string(d),
                     root_string(&actual)
@@ -650,6 +686,8 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         match self {
             Self::Source(s) => s.preserve_sequence_read_trace(),
             Self::Store(s) => s.preserve_sequence_read_trace(),
+            Self::Closed(c) => c.preserve_sequence_trace,
+            Self::QAccess { owner, .. } => owner.preserve_sequence_trace,
             _ => false,
         }
     }
@@ -744,13 +782,16 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 trace_capture_body_read(d);
                 capture.reads.set(capture.reads.get().saturating_add(1));
                 let (tag, body) = capture.original(d).ok_or_else(|| {
-                    CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+                    CodecError::new(
+                        code::NODE_MISSING,
+                        codec_detail!("节点缺失：{}", root_string(d)),
+                    )
                 })?;
                 let actual = frame(tag, body);
                 if actual != *d {
                     return Err(CodecError::new(
                         code::NODE_DIGEST,
-                        format!(
+                        codec_detail!(
                             "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
                             root_string(d),
                             root_string(&actual)
@@ -1039,6 +1080,60 @@ mod tests {
             base,
         )
     }
+    #[test]
+    fn closed_array_cursor_matches_plain_frames_and_preserves_ledger() {
+        for count in [0, 1, 3, 9] {
+            let mut nodes = MemoryNodes::new();
+            let values = (0..count)
+                .map(|i| Value::string(format!("item-{i}")))
+                .collect();
+            let built = write_value(&mut nodes, &Value::Array(values)).unwrap();
+            let reference = built.content_ref();
+            let mut plain = nodes.clone();
+            let f = frame_calls_on_thread();
+            let mut cursor = path::NativeArrayCursor::new(&mut plain, (&reference).into()).unwrap();
+            let mut expected = Vec::new();
+            while let Some(member) = cursor.next(&mut plain).unwrap() {
+                expected.push(member.root.clone());
+            }
+            let plain_f = frame_calls_on_thread() - f;
+            let (capture, budget, base) = capture(nodes.clone(), 65536);
+            let (other, foreign, foreign_base) = self::capture(nodes, 65536);
+            let mut owner = capture
+                .closed_codec_for_allocation_prototype(0, 0, None)
+                .unwrap();
+            let mut foreign_owner = other
+                .closed_codec_for_allocation_prototype(0, 0, None)
+                .unwrap();
+            let f = frame_calls_on_thread();
+            let mut cursor = owner.array_cursor_owned((&reference).into()).unwrap();
+            let before = frame_calls_on_thread();
+            assert_eq!(
+                foreign_owner
+                    .next_array_member_owned(&mut cursor, &[])
+                    .unwrap_err()
+                    .code(),
+                capture_allocation::INCOMPLETE
+            );
+            assert_eq!(frame_calls_on_thread(), before);
+            assert_eq!(foreign.snapshot().live_requested_layout_bytes, foreign_base);
+            let mut actual = Vec::new();
+            while let Some(member) = owner.next_array_member_owned(&mut cursor, &[]).unwrap() {
+                actual.push(member.root().to_string());
+            }
+            assert_eq!(actual, expected);
+            assert_eq!(frame_calls_on_thread() - f, plain_f);
+            drop(cursor);
+            drop(owner);
+            drop(foreign_owner);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            drop(capture);
+            drop(other);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+
     #[test]
     fn closed_codec_capture_borrows_without_copy_and_overlay_remains_independent() {
         let mut nodes = MemoryNodes::new();

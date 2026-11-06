@@ -1,0 +1,860 @@
+{
+  "base_order": [
+    {
+      "name": "raw-0000",
+      "file": "raw/messages.base.jsonl",
+      "line": 1,
+      "input_frontier": 0
+    },
+    {
+      "name": "raw-0001",
+      "file": "raw/messages.base.jsonl",
+      "line": 2,
+      "input_frontier": 1
+    },
+    {
+      "name": "raw-0002",
+      "file": "raw/messages.base.jsonl",
+      "line": 3,
+      "input_frontier": 2
+    },
+    {
+      "name": "raw-0003",
+      "file": "raw/messages.base.jsonl",
+      "line": 4,
+      "input_frontier": 3
+    },
+    {
+      "name": "raw-0004",
+      "file": "raw/messages.base.jsonl",
+      "line": 5,
+      "input_frontier": 4
+    },
+    {
+      "name": "raw-0005",
+      "file": "raw/messages.base.jsonl",
+      "line": 6,
+      "input_frontier": 5
+    },
+    {
+      "name": "raw-0006",
+      "file": "raw/messages.base.jsonl",
+      "line": 7,
+      "input_frontier": 6
+    },
+    {
+      "name": "raw-0007",
+      "file": "raw/messages.base.jsonl",
+      "line": 8,
+      "input_frontier": 7
+    },
+    {
+      "name": "raw-0008",
+      "file": "raw/messages.base.jsonl",
+      "line": 9,
+      "input_frontier": 8
+    },
+    {
+      "name": "raw-0009",
+      "file": "raw/messages.base.jsonl",
+      "line": 10,
+      "input_frontier": 9
+    },
+    {
+      "name": "raw-0010",
+      "file": "raw/messages.base.jsonl",
+      "line": 11,
+      "input_frontier": 10
+    },
+    {
+      "name": "raw-0011",
+      "file": "raw/messages.base.jsonl",
+      "line": 12,
+      "input_frontier": 11
+    },
+    {
+      "name": "raw-0012",
+      "file": "raw/messages.base.jsonl",
+      "line": 13,
+      "input_frontier": 12
+    },
+    {
+      "name": "raw-0013",
+      "file": "raw/messages.base.jsonl",
+      "line": 14,
+      "input_frontier": 13
+    },
+    {
+      "name": "raw-0014",
+      "file": "raw/messages.base.jsonl",
+      "line": 15,
+      "input_frontier": 14
+    },
+    {
+      "name": "raw-0015",
+      "file": "raw/messages.base.jsonl",
+      "line": 16,
+      "input_frontier": 15
+    },
+    {
+      "name": "raw-0016",
+      "file": "raw/messages.base.jsonl",
+      "line": 17,
+      "input_frontier": 16
+    },
+    {
+      "name": "raw-0017",
+      "file": "raw/messages.base.jsonl",
+      "line": 18,
+      "input_frontier": 17
+    },
+    {
+      "name": "raw-0018",
+      "file": "raw/messages.base.jsonl",
+      "line": 19,
+      "input_frontier": 18
+    },
+    {
+      "name": "raw-0019",
+      "file": "raw/messages.base.jsonl",
+      "line": 20,
+      "input_frontier": 19
+    },
+    {
+      "name": "raw-0020",
+      "file": "raw/messages.base.jsonl",
+      "line": 21,
+      "input_frontier": 20
+    },
+    {
+      "name": "raw-0021",
+      "file": "raw/messages.base.jsonl",
+      "line": 22,
+      "input_frontier": 21
+    },
+    {
+      "name": "raw-0022",
+      "file": "raw/messages.base.jsonl",
+      "line": 23,
+      "input_frontier": 22
+    },
+    {
+      "name": "raw-0023",
+      "file": "raw/messages.base.jsonl",
+      "line": 24,
+      "input_frontier": 23
+    },
+    {
+      "name": "raw-0024",
+      "file": "raw/messages.base.jsonl",
+      "line": 25,
+      "input_frontier": 24
+    },
+    {
+      "name": "raw-0025",
+      "file": "raw/messages.base.jsonl",
+      "line": 26,
+      "input_frontier": 25
+    },
+    {
+      "name": "raw-0026",
+      "file": "raw/messages.base.jsonl",
+      "line": 27,
+      "input_frontier": 26
+    },
+    {
+      "name": "raw-0027",
+      "file": "raw/messages.base.jsonl",
+      "line": 28,
+      "input_frontier": 27
+    },
+    {
+      "name": "raw-0028",
+      "file": "raw/messages.base.jsonl",
+      "line": 29,
+      "input_frontier": 28
+    },
+    {
+      "name": "raw-0029",
+      "file": "raw/messages.base.jsonl",
+      "line": 30,
+      "input_frontier": 29
+    },
+    {
+      "name": "raw-0030",
+      "file": "raw/messages.base.jsonl",
+      "line": 31,
+      "input_frontier": 30
+    },
+    {
+      "name": "raw-0031",
+      "file": "raw/messages.base.jsonl",
+      "line": 32,
+      "input_frontier": 31
+    },
+    {
+      "name": "raw-0032",
+      "file": "raw/messages.base.jsonl",
+      "line": 33,
+      "input_frontier": 32
+    },
+    {
+      "name": "raw-0033",
+      "file": "raw/messages.base.jsonl",
+      "line": 34,
+      "input_frontier": 33
+    },
+    {
+      "name": "raw-0034",
+      "file": "raw/messages.base.jsonl",
+      "line": 35,
+      "input_frontier": 34
+    },
+    {
+      "name": "raw-0035",
+      "file": "raw/messages.base.jsonl",
+      "line": 36,
+      "input_frontier": 35
+    },
+    {
+      "name": "raw-0036",
+      "file": "raw/messages.base.jsonl",
+      "line": 37,
+      "input_frontier": 36
+    },
+    {
+      "name": "raw-0037",
+      "file": "raw/messages.base.jsonl",
+      "line": 38,
+      "input_frontier": 37
+    },
+    {
+      "name": "raw-0038",
+      "file": "raw/messages.base.jsonl",
+      "line": 39,
+      "input_frontier": 38
+    },
+    {
+      "name": "raw-0039",
+      "file": "raw/messages.base.jsonl",
+      "line": 40,
+      "input_frontier": 39
+    },
+    {
+      "name": "raw-0040",
+      "file": "raw/messages.base.jsonl",
+      "line": 41,
+      "input_frontier": 40
+    },
+    {
+      "name": "raw-0041",
+      "file": "raw/messages.base.jsonl",
+      "line": 42,
+      "input_frontier": 41
+    },
+    {
+      "name": "raw-0042",
+      "file": "raw/messages.base.jsonl",
+      "line": 43,
+      "input_frontier": 42
+    },
+    {
+      "name": "raw-0043",
+      "file": "raw/messages.base.jsonl",
+      "line": 44,
+      "input_frontier": 43
+    },
+    {
+      "name": "raw-0044",
+      "file": "raw/messages.base.jsonl",
+      "line": 45,
+      "input_frontier": 44
+    },
+    {
+      "name": "raw-0045",
+      "file": "raw/messages.base.jsonl",
+      "line": 46,
+      "input_frontier": 45
+    },
+    {
+      "name": "raw-0046",
+      "file": "raw/messages.base.jsonl",
+      "line": 47,
+      "input_frontier": 46
+    },
+    {
+      "name": "raw-0047",
+      "file": "raw/messages.base.jsonl",
+      "line": 48,
+      "input_frontier": 47
+    },
+    {
+      "name": "raw-0048",
+      "file": "raw/messages.base.jsonl",
+      "line": 49,
+      "input_frontier": 48
+    },
+    {
+      "name": "raw-0049",
+      "file": "raw/messages.base.jsonl",
+      "line": 50,
+      "input_frontier": 49
+    },
+    {
+      "name": "raw-0050",
+      "file": "raw/messages.base.jsonl",
+      "line": 51,
+      "input_frontier": 50
+    },
+    {
+      "name": "raw-0051",
+      "file": "raw/messages.base.jsonl",
+      "line": 52,
+      "input_frontier": 51
+    },
+    {
+      "name": "raw-0052",
+      "file": "raw/messages.base.jsonl",
+      "line": 53,
+      "input_frontier": 52
+    },
+    {
+      "name": "raw-0053",
+      "file": "raw/messages.base.jsonl",
+      "line": 54,
+      "input_frontier": 53
+    },
+    {
+      "name": "raw-0054",
+      "file": "raw/messages.base.jsonl",
+      "line": 55,
+      "input_frontier": 54
+    },
+    {
+      "name": "raw-0055",
+      "file": "raw/messages.base.jsonl",
+      "line": 56,
+      "input_frontier": 55
+    },
+    {
+      "name": "raw-0056",
+      "file": "raw/messages.base.jsonl",
+      "line": 57,
+      "input_frontier": 56
+    },
+    {
+      "name": "raw-0057",
+      "file": "raw/messages.base.jsonl",
+      "line": 58,
+      "input_frontier": 57
+    },
+    {
+      "name": "raw-0058",
+      "file": "raw/messages.base.jsonl",
+      "line": 59,
+      "input_frontier": 58
+    },
+    {
+      "name": "raw-0059",
+      "file": "raw/messages.base.jsonl",
+      "line": 60,
+      "input_frontier": 59
+    },
+    {
+      "name": "raw-0060",
+      "file": "raw/messages.base.jsonl",
+      "line": 61,
+      "input_frontier": 60
+    },
+    {
+      "name": "raw-0061",
+      "file": "raw/messages.base.jsonl",
+      "line": 62,
+      "input_frontier": 61
+    },
+    {
+      "name": "raw-0062",
+      "file": "raw/messages.base.jsonl",
+      "line": 63,
+      "input_frontier": 62
+    },
+    {
+      "name": "raw-0063",
+      "file": "raw/messages.base.jsonl",
+      "line": 64,
+      "input_frontier": 63
+    },
+    {
+      "name": "raw-0064",
+      "file": "raw/messages.base.jsonl",
+      "line": 65,
+      "input_frontier": 64
+    },
+    {
+      "name": "raw-0065",
+      "file": "raw/messages.base.jsonl",
+      "line": 66,
+      "input_frontier": 65
+    },
+    {
+      "name": "raw-0066",
+      "file": "raw/messages.base.jsonl",
+      "line": 67,
+      "input_frontier": 66
+    },
+    {
+      "name": "raw-0067",
+      "file": "raw/messages.base.jsonl",
+      "line": 68,
+      "input_frontier": 67
+    },
+    {
+      "name": "raw-0068",
+      "file": "raw/messages.base.jsonl",
+      "line": 69,
+      "input_frontier": 68
+    },
+    {
+      "name": "raw-0069",
+      "file": "raw/messages.base.jsonl",
+      "line": 70,
+      "input_frontier": 69
+    },
+    {
+      "name": "raw-0070",
+      "file": "raw/messages.base.jsonl",
+      "line": 71,
+      "input_frontier": 70
+    },
+    {
+      "name": "raw-0071",
+      "file": "raw/messages.base.jsonl",
+      "line": 72,
+      "input_frontier": 71
+    },
+    {
+      "name": "raw-0072",
+      "file": "raw/messages.base.jsonl",
+      "line": 73,
+      "input_frontier": 72
+    },
+    {
+      "name": "raw-0073",
+      "file": "raw/messages.base.jsonl",
+      "line": 74,
+      "input_frontier": 73
+    },
+    {
+      "name": "raw-0074",
+      "file": "raw/messages.base.jsonl",
+      "line": 75,
+      "input_frontier": 74
+    },
+    {
+      "name": "raw-0075",
+      "file": "raw/messages.base.jsonl",
+      "line": 76,
+      "input_frontier": 75
+    },
+    {
+      "name": "raw-0076",
+      "file": "raw/messages.base.jsonl",
+      "line": 77,
+      "input_frontier": 76
+    },
+    {
+      "name": "raw-0077",
+      "file": "raw/messages.base.jsonl",
+      "line": 78,
+      "input_frontier": 77
+    },
+    {
+      "name": "raw-0078",
+      "file": "raw/messages.base.jsonl",
+      "line": 79,
+      "input_frontier": 78
+    },
+    {
+      "name": "raw-0079",
+      "file": "raw/messages.base.jsonl",
+      "line": 80,
+      "input_frontier": 79
+    },
+    {
+      "name": "raw-0080",
+      "file": "raw/messages.base.jsonl",
+      "line": 81,
+      "input_frontier": 80
+    },
+    {
+      "name": "raw-0081",
+      "file": "raw/messages.base.jsonl",
+      "line": 82,
+      "input_frontier": 81
+    },
+    {
+      "name": "raw-0082",
+      "file": "raw/messages.base.jsonl",
+      "line": 83,
+      "input_frontier": 82
+    },
+    {
+      "name": "raw-0083",
+      "file": "raw/messages.base.jsonl",
+      "line": 84,
+      "input_frontier": 83
+    },
+    {
+      "name": "raw-0084",
+      "file": "raw/messages.base.jsonl",
+      "line": 85,
+      "input_frontier": 84
+    },
+    {
+      "name": "raw-0085",
+      "file": "raw/messages.base.jsonl",
+      "line": 86,
+      "input_frontier": 85
+    },
+    {
+      "name": "raw-0086",
+      "file": "raw/messages.base.jsonl",
+      "line": 87,
+      "input_frontier": 86
+    },
+    {
+      "name": "raw-0087",
+      "file": "raw/messages.base.jsonl",
+      "line": 88,
+      "input_frontier": 87
+    },
+    {
+      "name": "raw-0088",
+      "file": "raw/messages.base.jsonl",
+      "line": 89,
+      "input_frontier": 88
+    },
+    {
+      "name": "raw-0089",
+      "file": "raw/messages.base.jsonl",
+      "line": 90,
+      "input_frontier": 89
+    },
+    {
+      "name": "raw-0090",
+      "file": "raw/messages.base.jsonl",
+      "line": 91,
+      "input_frontier": 90
+    },
+    {
+      "name": "raw-0091",
+      "file": "raw/messages.base.jsonl",
+      "line": 92,
+      "input_frontier": 91
+    },
+    {
+      "name": "raw-0092",
+      "file": "raw/messages.base.jsonl",
+      "line": 93,
+      "input_frontier": 92
+    },
+    {
+      "name": "raw-0093",
+      "file": "raw/messages.base.jsonl",
+      "line": 94,
+      "input_frontier": 93
+    },
+    {
+      "name": "raw-0094",
+      "file": "raw/messages.base.jsonl",
+      "line": 95,
+      "input_frontier": 94
+    },
+    {
+      "name": "raw-0095",
+      "file": "raw/messages.base.jsonl",
+      "line": 96,
+      "input_frontier": 95
+    },
+    {
+      "name": "raw-0096",
+      "file": "raw/messages.base.jsonl",
+      "line": 97,
+      "input_frontier": 96
+    },
+    {
+      "name": "raw-0097",
+      "file": "raw/messages.base.jsonl",
+      "line": 98,
+      "input_frontier": 97
+    },
+    {
+      "name": "raw-0098",
+      "file": "raw/messages.base.jsonl",
+      "line": 99,
+      "input_frontier": 98
+    },
+    {
+      "name": "raw-0099",
+      "file": "raw/messages.base.jsonl",
+      "line": 100,
+      "input_frontier": 99
+    },
+    {
+      "name": "raw-0100",
+      "file": "raw/messages.base.jsonl",
+      "line": 101,
+      "input_frontier": 100
+    },
+    {
+      "name": "raw-0101",
+      "file": "raw/messages.base.jsonl",
+      "line": 102,
+      "input_frontier": 101
+    },
+    {
+      "name": "raw-0102",
+      "file": "raw/messages.base.jsonl",
+      "line": 103,
+      "input_frontier": 102
+    },
+    {
+      "name": "raw-0103",
+      "file": "raw/messages.base.jsonl",
+      "line": 104,
+      "input_frontier": 103
+    },
+    {
+      "name": "raw-0104",
+      "file": "raw/messages.base.jsonl",
+      "line": 105,
+      "input_frontier": 104
+    },
+    {
+      "name": "raw-0105",
+      "file": "raw/messages.base.jsonl",
+      "line": 106,
+      "input_frontier": 105
+    },
+    {
+      "name": "raw-0106",
+      "file": "raw/messages.base.jsonl",
+      "line": 107,
+      "input_frontier": 106
+    },
+    {
+      "name": "raw-0107",
+      "file": "raw/messages.base.jsonl",
+      "line": 108,
+      "input_frontier": 107
+    },
+    {
+      "name": "raw-0108",
+      "file": "raw/messages.base.jsonl",
+      "line": 109,
+      "input_frontier": 108
+    },
+    {
+      "name": "raw-0109",
+      "file": "raw/messages.base.jsonl",
+      "line": 110,
+      "input_frontier": 109
+    },
+    {
+      "name": "raw-0110",
+      "file": "raw/messages.base.jsonl",
+      "line": 111,
+      "input_frontier": 110
+    },
+    {
+      "name": "raw-0111",
+      "file": "raw/messages.base.jsonl",
+      "line": 112,
+      "input_frontier": 111
+    },
+    {
+      "name": "raw-0112",
+      "file": "raw/messages.base.jsonl",
+      "line": 113,
+      "input_frontier": 112
+    },
+    {
+      "name": "raw-0113",
+      "file": "raw/messages.base.jsonl",
+      "line": 114,
+      "input_frontier": 113
+    },
+    {
+      "name": "raw-0114",
+      "file": "raw/messages.base.jsonl",
+      "line": 115,
+      "input_frontier": 114
+    },
+    {
+      "name": "raw-0115",
+      "file": "raw/messages.base.jsonl",
+      "line": 116,
+      "input_frontier": 115
+    },
+    {
+      "name": "raw-0116",
+      "file": "raw/messages.base.jsonl",
+      "line": 117,
+      "input_frontier": 116
+    },
+    {
+      "name": "raw-0117",
+      "file": "raw/messages.base.jsonl",
+      "line": 118,
+      "input_frontier": 117
+    },
+    {
+      "name": "raw-0118",
+      "file": "raw/messages.base.jsonl",
+      "line": 119,
+      "input_frontier": 118
+    },
+    {
+      "name": "raw-0119",
+      "file": "raw/messages.base.jsonl",
+      "line": 120,
+      "input_frontier": 119
+    },
+    {
+      "name": "raw-0120",
+      "file": "raw/messages.base.jsonl",
+      "line": 121,
+      "input_frontier": 120
+    },
+    {
+      "name": "raw-0121",
+      "file": "raw/messages.base.jsonl",
+      "line": 122,
+      "input_frontier": 121
+    },
+    {
+      "name": "raw-0122",
+      "file": "raw/messages.base.jsonl",
+      "line": 123,
+      "input_frontier": 122
+    },
+    {
+      "name": "raw-0123",
+      "file": "raw/messages.base.jsonl",
+      "line": 124,
+      "input_frontier": 123
+    },
+    {
+      "name": "raw-0124",
+      "file": "raw/messages.base.jsonl",
+      "line": 125,
+      "input_frontier": 124
+    },
+    {
+      "name": "raw-0125",
+      "file": "raw/messages.base.jsonl",
+      "line": 126,
+      "input_frontier": 125
+    },
+    {
+      "name": "raw-0126",
+      "file": "raw/messages.base.jsonl",
+      "line": 127,
+      "input_frontier": 126
+    },
+    {
+      "name": "raw-0127",
+      "file": "raw/messages.base.jsonl",
+      "line": 128,
+      "input_frontier": 127
+    },
+    {
+      "name": "raw-0128",
+      "file": "raw/messages.base.jsonl",
+      "line": 129,
+      "input_frontier": 128
+    },
+    {
+      "name": "raw-0129",
+      "file": "raw/messages.base.jsonl",
+      "line": 130,
+      "input_frontier": 129
+    },
+    {
+      "name": "raw-0130",
+      "file": "raw/messages.base.jsonl",
+      "line": 131,
+      "input_frontier": 130
+    },
+    {
+      "name": "raw-0131",
+      "file": "raw/messages.base.jsonl",
+      "line": 132,
+      "input_frontier": 131
+    },
+    {
+      "name": "raw-0132",
+      "file": "raw/messages.base.jsonl",
+      "line": 133,
+      "input_frontier": 132
+    },
+    {
+      "name": "raw-0133",
+      "file": "raw/messages.base.jsonl",
+      "line": 134,
+      "input_frontier": 133
+    },
+    {
+      "name": "raw-0134",
+      "file": "raw/messages.base.jsonl",
+      "line": 135,
+      "input_frontier": 134
+    },
+    {
+      "name": "raw-0135",
+      "file": "raw/messages.base.jsonl",
+      "line": 136,
+      "input_frontier": 135
+    },
+    {
+      "name": "raw-0136",
+      "file": "raw/messages.base.jsonl",
+      "line": 137,
+      "input_frontier": 136
+    },
+    {
+      "name": "raw-0137",
+      "file": "raw/messages.base.jsonl",
+      "line": 138,
+      "input_frontier": 137
+    },
+    {
+      "name": "raw-0138",
+      "file": "raw/messages.base.jsonl",
+      "line": 139,
+      "input_frontier": 138
+    },
+    {
+      "name": "revise-non-zn-tail",
+      "file": "raw/revise-non-zn-tail.message.json",
+      "input_frontier": 139,
+      "meaning": "同一raw身份121修订2，价格整体+32；u9低点2080→2112；非Zn故c6六变量不变"
+    },
+    {
+      "name": "withdraw-second-center",
+      "file": "raw/withdraw-second-center.message.json",
+      "input_frontier": 204,
+      "meaning": "单次原子raw_input修订74..138为递增尾部；不是raw删除。已失去依据的第二中心及其派生事实须显式撤回"
+    },
+    {
+      "name": "restore-original",
+      "file": "raw/restore-original.message.json",
+      "input_frontier": 269,
+      "meaning": "更高raw revision恢复原始价格字节；领域值回base，新版本/获知时点不得冒用旧对象修订"
+    }
+  ],
+  "recovery_after_base_input_count": 111,
+  "recovery_suffix": "raw/messages.recovery-epoch2.jsonl",
+  "recovery_count": 31,
+  "generation_rule": "每条成功advance一代；input_frontier按接纳事件数，修订批次不等于generation"
+}

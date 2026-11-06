@@ -1,0 +1,8 @@
+AST + py_compile PASS: .github/scripts/issue1393_validate.py
+AST + py_compile PASS: .github/scripts/test_issue1393_validate.py
+YAML + False gate + 60-minute job + embedded Python/shell syntax PASS; PyYAML 6.0.3
+ci.yml exact additive-only comparison PASS; original build/fixture preserved
+fixed base + unchanged existing CI / build / exact / Lean / fixture / budget / package AST PASS
+read-only Git stdin identity protocol + parent tree syntax PASS; no Git mutation
+write scope + product unchanged + previous 19-toy history byte preservation PASS
+tracked + new code whitespace check PASS

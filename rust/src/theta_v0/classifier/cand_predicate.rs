@@ -573,6 +573,7 @@ mod tests {
     /// div_cand 现直读 LeveledMove——测试段用 RMove::Segment 承载 lo/hi/direction（L0，sub_moves 空）。
     fn seg(direction: Direction, lo: i64, hi: i64, start: usize, end: usize) -> LeveledMove {
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment { direction, lo, hi },
             start_index: start,
             end_index: end,
@@ -1505,6 +1506,7 @@ mod tests {
             hi,
         };
         LeveledMove {
+            interval_cache: None,
             rmove,
             start_index: start,
             end_index: end,
@@ -1527,6 +1529,7 @@ mod tests {
         let end = subs.last().map(|m| m.end_index).unwrap_or(0);
         let sub_rmoves: Vec<_> = subs.iter().map(|m| m.rmove.clone()).collect();
         LeveledMove {
+            interval_cache: None,
             rmove: TestRMove::Compose {
                 subs: Rc::new(sub_rmoves),
                 centers: vec![Center {

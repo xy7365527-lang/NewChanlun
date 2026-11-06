@@ -1,0 +1,41 @@
+{
+  "status": "复用既有失败原件和参考响应；本轮未联网/重装/索引",
+  "files": [
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/RAW-V3-INDEPENDENT-REVIEW.json",
+      "copy": "V3-INDEPENDENT-REVIEW.reference.json",
+      "bytes": 13765,
+      "sha256": "e7fb0aa7e8d0057afd83c3a1fc7398511ce91c1f4a07666ce1df8dcb4776dca9"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/XERJ-ATTEMPTS.json",
+      "copy": "XERJ-ATTEMPTS.reference.json",
+      "bytes": 1553,
+      "sha256": "836261b9189ddc977d281ecd62de833d08183c0fb6fa22c134ab5f4ca2d0f96d"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/REFERENCE-HITS.json",
+      "copy": "REFERENCE-HITS.reference.json",
+      "bytes": 8074,
+      "sha256": "ed243437370852eaa58448a44dd63298740f90a439c3f5b61ead3f78ee2d73fc"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/REFERENCE-SEARCH.md",
+      "copy": "REFERENCE-SEARCH.reference.md",
+      "bytes": 4403,
+      "sha256": "1b7c90d06086e0aecb3bbae82e467891f5b3d41c72140d19c39c219e8e4504b2"
+    },
+    {
+      "source": "4161ebfe6d1a11b93cccf1de1a8f134c6c7d2c6a:.chanlun/review-results/issue1419-raw-oracle-v2-20261018/MANIFEST.json",
+      "copy": "V3-MANIFEST.json.reference",
+      "bytes": 22487,
+      "sha256": "21637979e8b58989a8776d628b4c7ba80e35f33b623e9075f6485720655c3ce2"
+    },
+    {
+      "source": "4161ebfe6d1a11b93cccf1de1a8f134c6c7d2c6a:.chanlun/review-results/issue1419-raw-oracle-v2-20261018/SHA256SUMS",
+      "copy": "V3-SHA256SUMS.reference",
+      "bytes": 12729,
+      "sha256": "5e95c47e54e0929af5297ae7d8b9ee732c246ac277aaa323fa626fcaf57e080b"
+    }
+  ]
+}

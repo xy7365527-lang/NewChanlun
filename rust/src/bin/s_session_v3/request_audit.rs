@@ -846,7 +846,9 @@ impl ExactRows {
     ) -> Result<Self, String> {
         let store = NativeAdmission(work);
         let sql_text = sql.to_str().map_err(storage)?;
-        let owned_sql = store.native_text(sql_text)?;
+        let owned_sql = store
+            .native_text(sql_text)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let mut owned_scope = CodecVec::default();
         store
             .native_codec_room(&mut owned_scope, scope.len())
@@ -878,7 +880,13 @@ impl ExactRows {
             .map_err(|e| e.to_string())?;
         for column in 0..count {
             let name = stmt.column_name(column).map_err(storage)?;
-            push_cell(&mut columns, store.native_text(name)?, work)?;
+            push_cell(
+                &mut columns,
+                store
+                    .native_text(name)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                work,
+            )?;
         }
         let mut rows = CodecVec::default();
         while let Some(mut row) = stmt.next().map_err(storage)? {
@@ -949,6 +957,91 @@ impl ExactRows {
             columns: CodecVec::from_plain(columns),
             rows: CodecVec::from_plain(rows),
         })
+    }
+}
+/// [`ExactRows::read_native_attempt`] 的语句面（消费者只在增量构建）。
+#[cfg(feature = "s_incremental")]
+trait ExactStatement {
+    fn column_name(&self, i: usize) -> Result<&str, String>;
+    /// 执行并逐行交 `row`；`row` 的错误原样返回并停止。
+    fn each_row(
+        &mut self,
+        row: &mut dyn FnMut(&dyn ExactRow) -> Result<(), String>,
+    ) -> Result<(), String>;
+}
+/// 一行的列借用。
+#[cfg(feature = "s_incremental")]
+trait ExactRow {
+    fn get_ref(&self, i: usize) -> Result<ValueRef<'_>, String>;
+}
+/// 现行 rusqlite 语句：逐字原调用（`column_name`、`query`、`next`、`get_ref`）。
+#[cfg(feature = "s_incremental")]
+struct LegacyExact<'s, 'c, P: Params> {
+    stmt: &'s mut rusqlite::Statement<'c>,
+    params: Option<P>,
+}
+#[cfg(feature = "s_incremental")]
+impl<P: Params> ExactStatement for LegacyExact<'_, '_, P> {
+    fn column_name(&self, i: usize) -> Result<&str, String> {
+        self.stmt.column_name(i).map_err(storage)
+    }
+    fn each_row(
+        &mut self,
+        row: &mut dyn FnMut(&dyn ExactRow) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let params = self
+            .params
+            .take()
+            .ok_or_else(|| storage("精确读语句只执行一次"))?;
+        let mut cursor = self.stmt.query(params).map_err(storage)?;
+        while let Some(r) = cursor.next().map_err(storage)? {
+            row(r)?;
+        }
+        Ok(())
+    }
+}
+#[cfg(feature = "s_incremental")]
+impl ExactRow for rusqlite::Row<'_> {
+    fn get_ref(&self, i: usize) -> Result<ValueRef<'_>, String> {
+        rusqlite::Row::get_ref(self, i).map_err(storage)
+    }
+}
+/// 受管语句（effects S1）：按语句实际列数借出整行。
+#[cfg(all(test, feature = "s_incremental", unix))]
+struct ChargedExact<'s, 'g, 'p, const N: usize> {
+    stmt: &'s mut newchan_rust::s_content::capture_allocation::sqlite_parent::GatedStatement<'g>,
+    params: [&'p dyn rusqlite::ToSql; N],
+}
+#[cfg(all(test, feature = "s_incremental", unix))]
+impl<const N: usize> ExactStatement for ChargedExact<'_, '_, '_, N> {
+    fn column_name(&self, i: usize) -> Result<&str, String> {
+        self.stmt
+            .column_name(i)
+            .map_err(|error| storage(format!("受管SQLite拒绝：{error:?}")))
+    }
+    fn each_row(
+        &mut self,
+        row: &mut dyn FnMut(&dyn ExactRow) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let mut failed = None;
+        self.stmt
+            .for_each_cells(self.params, |cells| match row(&cells) {
+                Ok(()) => std::ops::ControlFlow::Continue(()),
+                Err(error) => {
+                    failed = Some(error);
+                    std::ops::ControlFlow::Break(())
+                }
+            })
+            .map_err(|error| storage(format!("受管SQLite拒绝：{error:?}")))?;
+        failed.map_or(Ok(()), Err)
+    }
+}
+#[cfg(all(test, feature = "s_incremental", unix))]
+impl ExactRow for &[ValueRef<'_>] {
+    fn get_ref(&self, i: usize) -> Result<ValueRef<'_>, String> {
+        self.get(i)
+            .copied()
+            .ok_or_else(|| storage(rusqlite::Error::InvalidColumnIndex(i)))
     }
 }
 #[cfg_attr(
@@ -2651,7 +2744,7 @@ impl ExactRows {
         Self::read_optional_bounded_params_in_parent(tx, sql, params, cap, None)
     }
     pub(super) fn read_optional_bounded_params_in_parent(
-        tx: &Transaction<'_>,
+        tx: &rusqlite::Connection,
         sql: &str,
         params: impl Params,
         cap: usize,
@@ -2789,23 +2882,60 @@ impl ExactRows {
         cap: usize,
         parent: &super::audit_owner::native::Budget,
     ) -> Result<Option<(Self, usize)>, String> {
+        use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+        let attempted = Self::read_native_attempt(
+            &mut LegacyExact {
+                stmt: &mut stmt,
+                params: Some(params),
+            },
+            sql,
+            count,
+            cap,
+            parent,
+        );
+        // cursor已在run内析构；finalize的SQL错误不能因可选资源拒绝而变成None。
+        let finalized = stmt.finalize().map_err(storage);
+        match attempted {
+            None => {
+                finalized?;
+                Ok(None)
+            }
+            Some(Err(WorkError::Operation(error))) => {
+                let _ = finalized;
+                Err(error)
+            }
+            Some(Err(WorkError::Resource(_))) => {
+                finalized?;
+                Ok(None)
+            }
+            Some(Ok(value)) => {
+                finalized?;
+                Ok(Some(value))
+            }
+        }
+    }
+    /// 原父 codec 工作域内逐行精确取原件（两种语句面的同一判据）。`None`：工作域元数据已超帽，
+    /// 或父账开不出工作域，调用方按可选资源报 `Ok(None)`。
+    fn read_native_attempt(
+        stmt: &mut dyn ExactStatement,
+        sql: &str,
+        count: usize,
+        cap: usize,
+        parent: &super::audit_owner::native::Budget,
+    ) -> Option<
+        Result<
+            (Self, usize),
+            newchan_rust::s_content::capture_allocation::scratch::WorkError<String>,
+        >,
+    > {
         use super::audit_retention::{sum, vec_bytes, Retained};
-        use newchan_rust::s_content::capture_allocation::scratch::{
-            CodecWork, ScratchFailure, WorkError,
-        };
+        use newchan_rust::s_content::capture_allocation::scratch::{CodecWork, ScratchFailure};
         let metadata = CodecWork::metadata_bytes();
         if metadata > cap {
-            stmt.finalize().map_err(storage)?;
-            return Ok(None);
+            return None;
         }
-        let work = match parent.codec_work() {
-            Ok(work) => work,
-            Err(_) => {
-                stmt.finalize().map_err(storage)?;
-                return Ok(None);
-            }
-        };
-        let attempted = work.run(|scope| -> Result<(Self, usize), String> {
+        let work = parent.codec_work().ok()?;
+        Some(work.run(|scope| -> Result<(Self, usize), String> {
             let admission = NativeAdmission(Some(scope));
             let mut columns = CodecVec::default();
             let column_capacity = if count == 0 { 0 } else { count.max(4) };
@@ -2815,16 +2945,24 @@ impl ExactRows {
                 vec_bytes::<super::business_json::TextValue>(column_capacity),
             ]);
             for i in 0..count {
-                expected = expected.saturating_add(stmt.column_name(i).map_err(storage)?.len());
+                expected = expected.saturating_add(stmt.column_name(i)?.len());
             }
             if expected > cap {
                 return Err(scope.reject(ScratchFailure::Budget).to_string());
             }
             reserve_cells(&mut columns, count, Some(scope))?;
-            let owned_sql = admission.native_text(sql)?;
+            let owned_sql = admission
+                .native_text(sql)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             for i in 0..count {
-                let name = stmt.column_name(i).map_err(storage)?;
-                push_cell(&mut columns, admission.native_text(name)?, Some(scope))?;
+                let name = stmt.column_name(i)?;
+                push_cell(
+                    &mut columns,
+                    admission
+                        .native_text(name)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    Some(scope),
+                )?;
             }
             let mut result = Self {
                 sql: owned_sql,
@@ -2841,8 +2979,7 @@ impl ExactRows {
             if peak > cap {
                 return Err(scope.reject(ScratchFailure::Budget).to_string());
             }
-            let mut cursor = stmt.query(params).map_err(storage)?;
-            while let Some(row) = cursor.next().map_err(storage)? {
+            stmt.each_row(&mut |row| {
                 let old_capacity = result.rows.capacity();
                 let grows = result.rows.len() == old_capacity;
                 let new_capacity = if grows {
@@ -2852,17 +2989,16 @@ impl ExactRows {
                 };
                 let mut row_bytes = vec_bytes::<SqlCell>(if count == 0 { 0 } else { count.max(4) });
                 for i in 0..count {
-                    row_bytes =
-                        row_bytes.saturating_add(match row.get_ref(i).map_err(storage)? {
-                            ValueRef::Text(v) | ValueRef::Blob(v) => {
-                                if v.is_empty() {
-                                    0
-                                } else {
-                                    v.len().max(4)
-                                }
+                    row_bytes = row_bytes.saturating_add(match row.get_ref(i)? {
+                        ValueRef::Text(v) | ValueRef::Blob(v) => {
+                            if v.is_empty() {
+                                0
+                            } else {
+                                v.len().max(4)
                             }
-                            _ => 0,
-                        });
+                        }
+                        _ => 0,
+                    });
                 }
                 // 完整旧外层块与完整新外层块共存；payload只累计每行一次。
                 let next_peak = sum([
@@ -2880,7 +3016,7 @@ impl ExactRows {
                 let mut cells = CodecVec::default();
                 reserve_cells(&mut cells, count, Some(scope))?;
                 for i in 0..count {
-                    let cell = match row.get_ref(i).map_err(storage)? {
+                    let cell = match row.get_ref(i)? {
                         ValueRef::Null => SqlCellView::Null,
                         ValueRef::Integer(v) => SqlCellView::Integer(v),
                         ValueRef::Real(v) => SqlCellView::Real(v.to_bits()),
@@ -2900,25 +3036,53 @@ impl ExactRows {
                 if peak > cap {
                     return Err(scope.reject(ScratchFailure::Budget).to_string());
                 }
-            }
+                Ok(())
+            })?;
             Ok((result, peak))
+        }))
+    }
+    /// #1419 3C effects S1：受管 owner 守卫上同一原父精确读。同一 SQL、同一头部预检与逐行判据
+    /// （[`Self::read_native_attempt`]）。语句只在本次受管操作内存在，结束即 finalize。
+    #[cfg(all(test, feature = "s_incremental", unix))]
+    pub(super) fn read_optional_charged_in_parent<const N: usize>(
+        txn: &super::audit_owner::owner_sql::ChargedOwnerTxn<'_>,
+        sql: &str,
+        params: [&dyn rusqlite::ToSql; N],
+        cap: usize,
+        parent: &super::audit_owner::native::Budget,
+    ) -> Result<Option<(Self, usize)>, String> {
+        use super::audit_retention::{sum, vec_bytes};
+        use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+        let read = txn.run(|q| {
+            let mut stmt = q.prepare(sql)?;
+            let count = stmt.column_count();
+            let mut fixed = sum([
+                sql.len(),
+                vec_bytes::<super::business_json::TextValue>(count),
+            ]);
+            for i in 0..count {
+                fixed = fixed.saturating_add(stmt.column_name(i)?.len());
+            }
+            if fixed > cap {
+                return Ok(Ok(None));
+            }
+            let attempted = Self::read_native_attempt(
+                &mut ChargedExact {
+                    stmt: &mut stmt,
+                    params,
+                },
+                sql,
+                count,
+                cap,
+                parent,
+            );
+            Ok(match attempted {
+                None | Some(Err(WorkError::Resource(_))) => Ok(None),
+                Some(Err(WorkError::Operation(error))) => Err(error),
+                Some(Ok(value)) => Ok(Some(value)),
+            })
         });
-        // cursor已在run内析构；finalize的SQL错误不能因可选资源拒绝而变成None。
-        let finalized = stmt.finalize().map_err(storage);
-        match attempted {
-            Err(WorkError::Operation(error)) => {
-                let _ = finalized;
-                Err(error)
-            }
-            Err(WorkError::Resource(_)) => {
-                finalized?;
-                Ok(None)
-            }
-            Ok(value) => {
-                finalized?;
-                Ok(Some(value))
-            }
-        }
+        read.map_err(|error| storage(format!("受管SQLite拒绝：{error:?}")))?
     }
 }
 

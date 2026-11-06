@@ -35,7 +35,7 @@ fn fields(f: &SourceFields<'static>, names: &[&'static str]) -> Fields {
         .filter_map(|&n| f.0.get(n).map(|r| (n, reference(r))))
         .collect()
 }
-fn restore_fields(f: &Fields) -> Result<SourceFields<'static>, String> {
+fn restore_fields(f: &Fields) -> Result<SourceFields<'static>, PublishError> {
     NativeRefFields::try_from_views(f.iter().map(|(n, r)| (*n, r.into())), None)
         .map(|f| SourceFields(super::super::audit_store::RefFields::Plain(f)))
         .map_err(err)
@@ -79,7 +79,7 @@ impl ObjectData {
             && ref_matches(&self.refs, object.refs.view())
             && self.sources[..] == *object.sources
     }
-    fn restore(&self, s: &(impl CodecRead + ?Sized)) -> Result<Object, String> {
+    fn restore(&self, s: &(impl CodecRead + ?Sized)) -> Result<Object, PublishError> {
         Ok(Object {
             id: s.native_text(&self.id)?,
             kind: s.native_text(&self.kind)?,
@@ -118,7 +118,7 @@ impl GroupData {
             && self.sources[..] == *g.sources
             && self.anchor == g.anchor
     }
-    fn restore(&self, s: &(impl CodecRead + ?Sized)) -> Result<Group, String> {
+    fn restore(&self, s: &(impl CodecRead + ?Sized)) -> Result<Group, PublishError> {
         Ok(Group {
             payload: self.payload.clone().into(),
             members: SourceCoords::Original(copy_coords(s, &self.members)?),
@@ -172,6 +172,9 @@ struct RawReads<'a, T: ?Sized> {
     deps: &'a RefCell<Dependencies>,
 }
 impl<T: RawLookup + ?Sized> RawLookup for RawReads<'_, T> {
+    fn len(&self) -> usize {
+        self.raw.len()
+    }
     fn get(&self, c: &i64) -> Option<&Source> {
         let value = self.raw.get(c);
         self.deps.borrow_mut().raw.push((*c, value.copied()));
@@ -368,10 +371,10 @@ struct ObjectWrites<'a, T> {
     group: Option<(i64, GroupData)>,
 }
 impl<T: ObjectSlots> ObjectSlots for ObjectWrites<'_, T> {
-    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         self.slots.reserve_group(s)
     }
-    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String> {
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError> {
         self.slots.insert_id(s, id)
     }
     fn insert_group(
@@ -380,7 +383,7 @@ impl<T: ObjectSlots> ObjectSlots for ObjectWrites<'_, T> {
         id: &str,
         index: i64,
         group: Group,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         self.group = Some((index, GroupData::read(&group)));
         self.slots.insert_group(s, id, index, group)
     }
@@ -397,7 +400,7 @@ impl OrdinaryProofs {
         prefix: usize,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn super::super::audit_budget::Budget>,
-    ) -> Result<Object, String> {
+    ) -> Result<Object, PublishError> {
         let k = key(record.view());
         let groups = bj::new_map::<i64, Group>(None);
         let shapes = bj::new_map::<bj::TextValue, Shape>(None);
@@ -427,6 +430,8 @@ impl OrdinaryProofs {
             record,
             &lookup,
             producer,
+            &self.rule,
+            0,
             &mut writes,
             checked,
             None,
@@ -434,6 +439,7 @@ impl OrdinaryProofs {
             false,
             deadline,
             budget,
+            None,
         )?;
         semantic_sources(&deps, &output.sources, raw);
         self.object_records
@@ -457,7 +463,7 @@ impl OrdinaryProofs {
         prefix: usize,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn super::super::audit_budget::Budget>,
-    ) -> Result<Shape, String> {
+    ) -> Result<Shape, PublishError> {
         // object_id 不是完整记录身份；配方使用的全部字段均由记录引用绑定。
         let k = self
             .object_records
@@ -501,7 +507,7 @@ impl OrdinaryProofs {
         shapes: &impl ShapeLookup,
         slots: &mut impl WitnessSlots,
         deadline: Option<std::time::Instant>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let k = key(record.view());
         if let Some(p) = self.candidate(2, &k, raw, groups, shapes) {
             let Output::Witness(id, slot) = &p.output else {
@@ -567,7 +573,7 @@ impl StepData {
         &self,
         s: &(impl CodecRead + ?Sized),
         object: &'a Object,
-    ) -> Result<source_pending::Step<'a>, String> {
+    ) -> Result<source_pending::Step<'a>, PublishError> {
         Ok(source_pending::Step {
             object,
             fields: restore_fields(&self.fields)?,
@@ -658,6 +664,11 @@ struct StepReads<'a, T> {
     steps: &'a T,
     reads: &'a RefCell<RequestData>,
 }
+impl<T: source_pending::StepLookup> source_structure::Lookup for StepReads<'_, T> {
+    fn object(&self, id: &str) -> Option<&Object> {
+        self.steps.object(id)
+    }
+}
 impl<T: source_pending::StepLookup> source_pending::StepLookup for StepReads<'_, T> {
     fn get_step(&self, coord: i64) -> Option<&dyn source_pending::StepView> {
         let value = self.steps.get_step(coord);
@@ -678,11 +689,19 @@ struct RequestWrites<'a, T> {
     writes: &'a RefCell<RequestData>,
 }
 impl<T: source_pending::RequestSlots> source_pending::RequestSlots for RequestWrites<'_, T> {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, String> {
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError> {
         self.writes.borrow_mut().key = key.into();
         self.slots.insert_request(s, key)
     }
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, String> {
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError> {
         self.writes.borrow_mut().bound = Some(coord);
         self.slots.insert_bound(s, coord)
     }
@@ -694,7 +713,7 @@ impl OrdinaryProofs {
         object: &'a Object,
         raw: &impl RawLookup,
         equal: bool,
-    ) -> Result<(i64, source_pending::Step<'a>), String> {
+    ) -> Result<(i64, source_pending::Step<'a>), PublishError> {
         let k = self
             .object_records
             .get(object.id.as_str())
@@ -725,7 +744,7 @@ impl OrdinaryProofs {
         &mut self,
         s: &mut (impl SourceFieldStore + ?Sized),
         record: &RefValue,
-    ) -> Result<bj::TextValue, String> {
+    ) -> Result<bj::TextValue, PublishError> {
         let k = key(record.view());
         if let Some(proof) = self.previous.get(&(5, k.clone())).cloned() {
             let Output::Observation(kind) = &proof.output else {
@@ -753,7 +772,7 @@ impl OrdinaryProofs {
         steps: &impl source_pending::StepLookup,
         slots: &mut impl source_pending::RequestSlots,
         equal: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let k = key(request.view());
         if let Some(p) = self.previous.get(&(4, k.clone())).cloned() {
             let Output::Request(data) = &p.output else {
@@ -789,6 +808,7 @@ impl OrdinaryProofs {
                 writes: &data,
             },
             equal,
+            &self.rule,
         )?;
         self.save(
             4,
@@ -802,8 +822,30 @@ impl OrdinaryProofs {
 
 #[cfg(all(test, feature = "s_incremental"))]
 mod tests {
-    use super::super::tests::{fixture, original_sources, replace_field, STATE};
+    use super::super::tests::{original_sources, replace_field, STATE};
     use super::*;
+
+    fn fixture() -> (sc::MemoryNodes, ContentRef, Vec<Value>, String) {
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/s4-legacy4df/source.json"),
+        )
+        .unwrap();
+        let fixture: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(fixture["head"], "4df2d10f92d1075f5fb761a1b112c9c949da5408");
+        let mut nodes = sc::MemoryNodes::new();
+        let originals: Vec<(NodeDigest, u8, Vec<u8>)> =
+            serde_json::from_value(fixture["nodes"].clone()).unwrap();
+        for (digest, tag, body) in originals {
+            nodes.insert_unchecked(digest, tag, body);
+        }
+        (
+            nodes,
+            ContentRef::from_transport_json(&fixture["root"]).unwrap(),
+            serde_json::from_value(fixture["raw"].clone()).unwrap(),
+            fixture["rule"].as_str().unwrap().to_string(),
+        )
+    }
 
     fn run(
         nodes: &mut sc::MemoryNodes,
@@ -811,7 +853,7 @@ mod tests {
         raw: &[Value],
         rule: &str,
         book: &mut OrdinaryProofs,
-    ) -> Result<Counts, String> {
+    ) -> Result<Counts, PublishError> {
         let mut reader = super::super::super::history::HashReader::metered(nodes, None, None, None);
         audit_generated_with_proofs(
             &mut reader,
@@ -873,7 +915,7 @@ mod tests {
         root: &ContentRef,
         raw: &[Value],
         rule: &str,
-    ) -> Result<Counts, String> {
+    ) -> Result<Counts, PublishError> {
         let mut reader = super::super::super::history::HashReader::metered(nodes, None, None, None);
         audit_generated_frozen_for_test(&mut reader, root, raw, tb02a::PROFILE, rule, None, None)
     }
@@ -971,7 +1013,7 @@ mod tests {
                 ]),
             );
             let expected = oracle(&mut nodes, &bad, &raw, &rule).unwrap_err();
-            assert!(expected.contains(expected_text), "{expected}");
+            assert!(expected.to_string().contains(expected_text), "{expected}");
             let mut book = OrdinaryProofs::default();
             run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
             book.commit();
@@ -1087,6 +1129,8 @@ mod tests {
             &record,
             &raw,
             &producer,
+            &rule,
+            0,
             &mut bj::new_map(None),
             &mut bj::new_map(None),
             &mut bj::new_map(None),
@@ -1118,7 +1162,7 @@ mod tests {
             .err()
             .unwrap();
         assert_eq!(new, old);
-        assert!(new.contains("真实完整八字段原件"));
+        assert!(new.to_string().contains("真实完整八字段原件"));
         assert_eq!(book.stats.invalidations, 1);
     }
     #[test]
@@ -1179,12 +1223,17 @@ mod tests {
             .err()
             .unwrap();
         assert_eq!(new, old);
-        assert!(new.contains("形态窗口"));
+        assert!(new.to_string().contains("形态窗口"));
         assert!(book.stats.invalidations > 0);
     }
     #[test]
     fn ordinary_proof_request_negative_subject_dependency_cannot_be_reused() {
         struct Steps(bool);
+        impl source_structure::Lookup for Steps {
+            fn object(&self, _: &str) -> Option<&Object> {
+                None
+            }
+        }
         impl source_pending::StepLookup for Steps {
             fn get_step(&self, _: i64) -> Option<&dyn source_pending::StepView> {
                 None
@@ -1200,14 +1249,14 @@ mod tests {
                 &mut self,
                 _: &(impl CodecRead + ?Sized),
                 _: &str,
-            ) -> Result<bool, String> {
+            ) -> Result<bool, PublishError> {
                 Ok(false)
             }
             fn insert_bound(
                 &mut self,
                 _: &(impl CodecRead + ?Sized),
                 _: i64,
-            ) -> Result<bool, String> {
+            ) -> Result<bool, PublishError> {
                 Ok(false)
             }
         }
@@ -1235,6 +1284,7 @@ mod tests {
             &Steps(true),
             &mut Slots,
             true,
+            "",
         )
         .unwrap_err();
         assert_eq!(
@@ -1242,7 +1292,7 @@ mod tests {
                 .unwrap_err(),
             expected
         );
-        assert!(expected.contains("知识主体被绑定"));
+        assert!(expected.to_string().contains("知识主体被绑定"));
         assert_eq!(book.stats.invalidations, 1);
     }
     #[test]
@@ -1279,7 +1329,7 @@ mod tests {
             book.step(&mut nodes, &object, &raw, true).err().unwrap(),
             expected
         );
-        assert!(expected.contains("同cut原始来源"));
+        assert!(expected.to_string().contains("同cut原始来源"));
         let raw = original_sources(&events, events.len()).unwrap();
         let (witness_key, id, slot) = book
             .previous

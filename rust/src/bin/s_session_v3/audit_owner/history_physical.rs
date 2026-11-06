@@ -85,12 +85,10 @@ impl Progress {
         self.frames > 0 && self.frames == self.backfill
     }
 }
-pub(super) fn initial_progress(connection: &Connection) -> Result<Progress, String> {
+pub(super) fn initial_progress(connection: &dyn OwnerSql) -> Result<Progress, String> {
     // Bundled SQLite支持NOOP：仅读取WAL前沿，不触发checkpoint或改变阈值。
-    let (busy, frames, done): (i32, i32, i32) = connection
-        .query_row("PRAGMA main.wal_checkpoint(NOOP)", [], |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-        })
+    let (busy, frames, done) = connection
+        .int3("PRAGMA main.wal_checkpoint(NOOP)")
         .map_err(stale)?;
     if busy != 0 {
         return Err(stale("无法读取初始WAL前沿"));
@@ -98,6 +96,43 @@ pub(super) fn initial_progress(connection: &Connection) -> Result<Progress, Stri
     Progress::checked((frames, done))
 }
 pub(super) fn observe_commit(wal: &Wal, frames: i32) -> rusqlite::Result<()> {
+    record_commit(wal.name().to_bytes() == b"main", frames, &mut |mode| {
+        wal.checkpoint_v2(mode).map_err(stale)
+    });
+    Ok(())
+}
+
+/// #1419 3C U5：收费组件连接上的同一提交观察。回调内 checkpoint 经组件 `wal_checkpoint`，
+/// 与普通操作同准入、首拒优先结算；判据与 [`observe_commit`] 共用 [`record_commit`]。目前只由
+/// 测试编译的收费 owner 消费（见 `owner_sql` 收费一族的 cfg）。
+#[cfg(test)]
+pub(super) unsafe extern "C" fn observe_commit_charged(
+    _: *mut std::ffi::c_void,
+    db: *mut rusqlite::ffi::sqlite3,
+    name: *const std::ffi::c_char,
+    frames: std::ffi::c_int,
+) -> std::ffi::c_int {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::wal_checkpoint;
+    // SAFETY: SQLite passes the attached database name as a NUL-terminated string.
+    let is_main =
+        !name.is_null() && unsafe { std::ffi::CStr::from_ptr(name) }.to_bytes() == b"main";
+    record_commit(is_main, frames, &mut |mode| {
+        let mode = match mode {
+            CheckpointMode::NOOP => rusqlite::ffi::SQLITE_CHECKPOINT_NOOP,
+            CheckpointMode::PASSIVE => rusqlite::ffi::SQLITE_CHECKPOINT_PASSIVE,
+            _ => return Err(stale("提交观察只用 NOOP/PASSIVE")),
+        };
+        // SAFETY: db is the handle SQLite passed to this WAL hook.
+        unsafe { wal_checkpoint(db, mode) }.map_err(|e| stale(format!("{e:?}")))
+    });
+    rusqlite::ffi::SQLITE_OK
+}
+
+fn record_commit(
+    is_main: bool,
+    frames: i32,
+    checkpoint: &mut dyn FnMut(CheckpointMode) -> Result<(i32, i32), String>,
+) {
     ACTIVE.with(|slot| {
         let state = slot.borrow().as_ref().cloned();
         if let Some(state) = state {
@@ -108,16 +143,15 @@ pub(super) fn observe_commit(wal: &Wal, frames: i32) -> rusqlite::Result<()> {
             }
             // checkpoint失败不篡改已完成的SQL COMMIT；收据失败由owner退役。
             let result = (|| {
-                if wal.name().to_bytes() != b"main" {
+                if !is_main {
                     return Err(stale("非main的WAL提交"));
                 }
                 let before = state.watch.files()?;
-                let start =
-                    Progress::checked(wal.checkpoint_v2(CheckpointMode::NOOP).map_err(stale)?)?;
-                let checkpoint = state.watch.checkpoint_threshold > 0
+                let start = Progress::checked(checkpoint(CheckpointMode::NOOP)?)?;
+                let run_checkpoint = state.watch.checkpoint_threshold > 0
                     && frames >= state.watch.checkpoint_threshold;
-                let end = if checkpoint {
-                    Progress::checked(wal.checkpoint_v2(CheckpointMode::PASSIVE).map_err(stale)?)?
+                let end = if run_checkpoint {
+                    Progress::checked(checkpoint(CheckpointMode::PASSIVE)?)?
                 } else {
                     start
                 };
@@ -125,7 +159,7 @@ pub(super) fn observe_commit(wal: &Wal, frames: i32) -> rusqlite::Result<()> {
                 Ok(PhysicalCommit {
                     before,
                     after,
-                    checkpoint,
+                    checkpoint: run_checkpoint,
                     start,
                     end,
                     frames,
@@ -134,5 +168,4 @@ pub(super) fn observe_commit(wal: &Wal, frames: i32) -> rusqlite::Result<()> {
             state.result = Some(result);
         }
     });
-    Ok(())
 }

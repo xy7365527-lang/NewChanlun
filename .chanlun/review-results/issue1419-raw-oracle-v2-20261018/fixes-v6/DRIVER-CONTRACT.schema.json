@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "#1419 v6候选与本Collector验证收据合同",
+  "type": "object",
+  "required": [
+    "schema",
+    "authorization",
+    "execution_authorized",
+    "source_commit",
+    "source_tree",
+    "binary_sha256",
+    "product_run",
+    "watch_contract"
+  ],
+  "properties": {
+    "schema": {
+      "const": "issue1419-raw-driver-contract/6"
+    },
+    "authorization": {
+      "const": false
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "source_commit": {
+      "const": "PENDING_SOURCE"
+    },
+    "source_tree": {
+      "const": "PENDING_SOURCE"
+    },
+    "binary_sha256": {
+      "const": "PENDING_SOURCE"
+    },
+    "product_run": {
+      "const": "NOT_RUN"
+    },
+    "watch_contract": {
+      "const": {
+        "trusted_anchor": "本Collector真实closed_snapshot→snapshot/content→call→close_projection→records全链成功后发行opaque receipt；bind_watch只认本实例最新收据，普通dict和外来收据拒绝",
+        "stable_fields": [
+          "session_id",
+          "session_generation",
+          "catalog_revision",
+          "profile_id",
+          "profile_hash",
+          "scope",
+          "rule_revision"
+        ],
+        "per_generation_fields": [
+          "structure_cut",
+          "cut_generation",
+          "index_frontier",
+          "input_frontier",
+          "seq_range",
+          "catalog_run_status",
+          "catalog_evidence"
+        ],
+        "read_view_fields": [
+          "history_mode",
+          "as_of_generation"
+        ],
+        "per_generation_rule": "所有固定发布字段按代对齐；AsKnown(g)与RecomputedWithRevision(null)仅为读取视图，分别保存projection根；已知代际input_frontier单调，历史/新代可读取而不推进watch游标",
+        "envelope": "observed_head须RecomputedWithRevision/null且完整同代身份一致；投递head相等，retain/first为正且first≤head+1，无Gap游标不得越过first-1；head≥末批，has_more严格等于head>末批。较高head也在成功后登记；全部值先核后提交",
+        "failure": "closed_snapshot或整次watch任何失败不提交上下文/收据/切面/游标/去重账；先前成功状态保留；请求编号、工作与回复费用不回滚",
+        "caller_protocol_preconditions": "accepted_commits的具名输入→实际接纳映射仍由离线轨迹提供；bind_named_submissions核原请求摘要/会话/事件数/重复代际，不证明S真实接纳。watch验证与完整delta字段及本Collector上下文的一致性，返回closure_verified=false；未声称delta完整内容或领域生命周期已验",
+        "lifecycle": "UNVERIFIED",
+        "formal_wire_binding": "PENDING_SOURCE"
+      }
+    }
+  },
+  "$defs": {
+    "public_tested_object": {
+      "type": "object",
+      "required": [
+        "kind",
+        "payload"
+      ],
+      "not": {
+        "required": [
+          "payload_json"
+        ]
+      },
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "required": [
+            "data"
+          ],
+          "properties": {
+            "data": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/public_payload_value"
+              }
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/public_payload_value"
+          }
+        }
+      },
+      "description": "schema描述普通JSON形状；0x07必须由driver在plain前对原始s-content类型检查，不能靠序列化后的schema证明"
+    },
+    "accepted_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "session_generation",
+        "message_id",
+        "source_epoch",
+        "accepted_events",
+        "accepted_cut"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "session_generation": {
+          "type": "string"
+        },
+        "message_id": {
+          "type": "string"
+        },
+        "source_epoch": {
+          "type": "string"
+        },
+        "accepted_events": {
+          "type": "string"
+        },
+        "accepted_cut": {
+          "type": "object",
+          "required": [
+            "session_id",
+            "session_generation",
+            "structure_cut",
+            "cut_generation",
+            "catalog_revision",
+            "index_frontier",
+            "profile_id",
+            "profile_hash",
+            "input_frontier",
+            "seq_range",
+            "catalog_run_status",
+            "catalog_evidence",
+            "scope",
+            "rule_revision",
+            "history_mode",
+            "as_of_generation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "session_id": {
+              "type": "string"
+            },
+            "session_generation": {
+              "type": "string"
+            },
+            "structure_cut": {
+              "type": "string"
+            },
+            "cut_generation": {
+              "type": "string"
+            },
+            "catalog_revision": {
+              "type": "string"
+            },
+            "index_frontier": {
+              "type": "string"
+            },
+            "profile_id": {
+              "type": "string"
+            },
+            "profile_hash": {
+              "type": "string"
+            },
+            "input_frontier": {
+              "type": "string"
+            },
+            "seq_range": {
+              "type": "object"
+            },
+            "catalog_run_status": {
+              "type": "string"
+            },
+            "catalog_evidence": {
+              "type": "object"
+            },
+            "scope": {
+              "type": "object"
+            },
+            "rule_revision": {
+              "type": "string"
+            },
+            "history_mode": {
+              "type": "string"
+            },
+            "as_of_generation": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "history_mode": {
+                    "const": "AsKnown"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "as_of_generation": {
+                    "type": "string"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "history_mode": {
+                    "const": "RecomputedWithRevision"
+                  },
+                  "as_of_generation": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "public_payload_value": {
+      "description": "原始内容树不得含json_text。Number保留原始数值令牌直到显式转换；本递归schema不是原始tag验证器。",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "string",
+            "number"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/public_payload_value"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/public_payload_value"
+          }
+        }
+      ]
+    },
+    "watch_cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after_generation",
+        "base_cut",
+        "catalog_revision",
+        "index_frontier",
+        "last_seq",
+        "order_version",
+        "scope",
+        "session_generation",
+        "session_id"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "session_generation": {
+          "type": "string"
+        },
+        "catalog_revision": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "object"
+        },
+        "after_generation": {
+          "type": "string"
+        },
+        "base_cut": {
+          "type": "string"
+        },
+        "index_frontier": {
+          "type": "string"
+        },
+        "last_seq": {
+          "type": "string"
+        },
+        "order_version": {
+          "type": "string"
+        }
+      }
+    },
+    "watch_context": {
+      "type": "object",
+      "required": [
+        "trusted_fixed",
+        "last_verified_fixed",
+        "last_verified_cursor"
+      ],
+      "properties": {
+        "trusted_fixed": {
+          "$ref": "#/$defs/accepted_binding/properties/accepted_cut"
+        },
+        "last_verified_fixed": {
+          "$ref": "#/$defs/accepted_binding/properties/accepted_cut"
+        },
+        "last_verified_cursor": {
+          "$ref": "#/$defs/watch_cursor"
+        }
+      },
+      "description": "运行时Collector保存共享完整cut/projection及watch状态；本schema不能发行收据。session_state仅提供收费的观察副本；模式值按AsKnown(g)/Recomputed(null)核对。"
+    },
+    "snapshot_receipt": {
+      "description": "进程内对象身份，不可JSON序列化或从schema构造；只由本Collector完整闭包+公共原始类型验证发行。普通对象不是有效收据。",
+      "not": {}
+    }
+  }
+}

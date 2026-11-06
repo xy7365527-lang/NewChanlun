@@ -1,0 +1,79 @@
+{
+  "qualification": "固定Git原件的静态协议摘录；不代表产品源冻结或执行资格",
+  "sources": [
+    {
+      "commit": "2694afcf147f3ba4114fde386470886c2428efc0",
+      "path": "rust/src/bin/s_session_v3/object_records.rs",
+      "bytes": 128581,
+      "sha256": "12bb78de584c5f77899cbcb520a701aa5c6587537c37896d022ece0809183c50",
+      "blob": "cea38c43af5571366498dea5c51f1f37beb8e4ea",
+      "excerpts": [
+        {
+          "first_line": 30,
+          "last_line": 48,
+          "byte_start_inclusive": 2058,
+          "byte_end_exclusive": 3746,
+          "sha256": "ee5173c4afe7427e16283b08a017cb6432900f667b49012a00fb5a40f8378be8",
+          "text": "//!\n//! - 泛型六字段对象 15 字段：`… batch_id, fact_key, payload, input_refs, source_coords,\n//!   … withdrawn_generation, withdrawal_reason, superseded_by, lifecycle`。\n//! - CC-006 20 字段：`… batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end,\n//!   comparisons, input_refs, source_coords, … lifecycle`（**没有** `fact_key`）。\n//!\n//! ## 三条内容纪律（实现与测试都按它核）\n//!\n//! 1. **0x07 只在获准位置**：生成态 `payload_json` / `input_refs_json` / `source_coords_json`\n//!    直接复用 producer 的 0x07 文本视图边；CC-006 的 `comparisons_json` **不是**获准 0x07\n//!    位置（§5.2 的明确列），按旧规范文本重建为普通字符串（比较集是固定小结构，属允许精确\n//!    读的小元数据）。其余任何位置不得出现 0x07／0x08。\n//! 2. **两种编码各走自己的边，互不代用**：wire 的 `payload` / `input_refs` /\n//!    `source_coords` 直接借 producer 给出的公开值根；CC-006 的 `input_refs` 借 producer\n//!    **同次构造**的 `wire_input_refs`（原 generic 字符串源叶 + 共享序列，`merged_index` 字符串），\n//!    不得改用生成态数值叶重渲染。生成态一侧保留原配方的类型与值：typed 的 `raw_ref` 全文本叶、\n//!    CC-006 的数值 `merged_index`/`revision`/`seq` 照存，数值→文本只发生在 wire 一侧（§5.3）。\n//! 3. **不做全闭包 `verify`**：`record` 的三条内容边指向载荷／来源／坐标大根；内容层 `verify`\n//!    沿去重 DAG 遍历根，不展开成完整逻辑 JSON。发布前的完整闭包核验归发布链自己的读集与\n"
+        },
+        {
+          "first_line": 97,
+          "last_line": 118,
+          "byte_start_inclusive": 5635,
+          "byte_end_exclusive": 6153,
+          "sha256": "d472bec83caa73c5152096680a6fa759efab9a41bbaa7e893eb1fef0670bdaf8",
+          "text": "    \"first_known_generation\",\n    \"first_known_cut\",\n    \"published_generation\",\n];\n/// 公开 wire 单条（泛型）：`tb02a::project` 的十五项。\npub(super) const TYPED_WIRE_FIELDS: [&str; 15] = [\n    \"object_id\",\n    \"object_revision\",\n    \"kind\",\n    \"batch_id\",\n    \"fact_key\",\n    \"payload\",\n    \"input_refs\",\n    \"source_coords\",\n    \"first_known_generation\",\n    \"first_known_cut\",\n    \"published_generation\",\n    \"withdrawn_generation\",\n    \"withdrawal_reason\",\n    \"superseded_by\",\n    \"lifecycle\",\n];\n"
+        }
+      ]
+    },
+    {
+      "commit": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+      "path": "s_session/browser/q3-consumer.js",
+      "bytes": 98529,
+      "sha256": "26318cc02a263a70d56883d9b526e8bf0e897bce574a3b873a418c92fedf9e98",
+      "blob": "4fa91eecb57aeeb883e42c28e0d18e211c3c3df8",
+      "excerpts": [
+        {
+          "first_line": 42,
+          "last_line": 59,
+          "byte_start_inclusive": 1098,
+          "byte_end_exclusive": 1459,
+          "sha256": "00e8968db6a753fbe0e5924e7d8da40a8d9f9556bbedb7a7ddaa903efdefbed4",
+          "text": "  const FIXED = [\n    \"session_id\",\n    \"session_generation\",\n    \"structure_cut\",\n    \"cut_generation\",\n    \"catalog_revision\",\n    \"index_frontier\",\n    \"profile_id\",\n    \"profile_hash\",\n    \"input_frontier\",\n    \"seq_range\",\n    \"catalog_run_status\",\n    \"catalog_evidence\",\n    \"scope\",\n    \"rule_revision\",\n    \"history_mode\",\n    \"as_of_generation\",\n  ];\n"
+        },
+        {
+          "first_line": 1628,
+          "last_line": 1656,
+          "byte_start_inclusive": 54149,
+          "byte_end_exclusive": 55141,
+          "sha256": "cfec137c42d4336f88bf308f5f740aa2ebfb22407e17f65f08bbc120782a1e3c",
+          "text": "    async function comparePublication(delta, snapshot) {\n      const dd = await f(delta, \"delta\");\n      for (const [dk, sk] of [\n        [\"session_id\", \"session_id\"],\n        [\"generation\", \"generation\"],\n        [\"catalog_revision\", \"catalog_revision\"],\n        [\"next_cut\", \"structure_cut\"],\n        [\"index_frontier\", \"index_frontier\"],\n        [\"input_frontier\", \"input_frontier\"],\n        [\"seq_range\", \"seq_range\"],\n        [\"catalog_run_status\", \"catalog_run_status\"],\n        [\"catalog_evidence\", \"catalog_evidence\"],\n      ])\n        need(\n          await equal(await f(dd, dk), await f(snapshot, sk)),\n          \"Delta/Snapshot字段不同：\" + sk,\n        );\n      for (const k of [\"profile_id\", \"profile_hash\", \"scope\"])\n        need(\n          await equal(\n            await f(await f(dd, \"catalog_evidence\"), k),\n            await f(snapshot, k),\n          ),\n          \"Delta来源不同\",\n        );\n    }\n    class Client {\n      #committed = null;\n      get committed() {\n"
+        },
+        {
+          "first_line": 2588,
+          "last_line": 2612,
+          "byte_start_inclusive": 88469,
+          "byte_end_exclusive": 89234,
+          "sha256": "4d457115db5a52a52a518a688d592359f06a59ea04c264f8c05664fa6452ed15",
+          "text": "        return families;\n      }\n      async watch() {\n        return this.run(async (b) => {\n          need(this.committed, \"尚未安装完整Snapshot\");\n          const before = this.committed;\n          for (const node of before.reader.cache.values()) {\n            this.check(b);\n            await b.job.acceptNode(node);\n            this.check(b);\n          }\n          const reply = await this.request(\n              before.cursor,\n              {\n                op: \"watch\",\n                cursor: before.cursor,\n                max_batches: String(this.limits.watchBatches),\n                client_id: this.instance,\n              },\n              b,\n            ),\n            page = reply.payload;\n          await keys(\n            page,\n            [\n"
+        },
+        {
+          "first_line": 2728,
+          "last_line": 2752,
+          "byte_start_inclusive": 93449,
+          "byte_end_exclusive": 94618,
+          "sha256": "47b7c9257cd18c1856dd2063abed274680dca3b17407e0eb89f9c6eeb2009ba7",
+          "text": "          need(sameIdentity(reply, before.cursor), \"无Gap不准换会话\");\n          let candidate = before;\n          for (const wire of page.deltas) {\n            await keys(wire, [...D, \"delta\"], \"Delta wire\");\n            content.validateRef(wire.delta);\n            content.validateRef(wire.catalog_evidence);\n            need(\n              wire.generation ===\n                (BigInt(candidate.cursor.after_generation) + 1n).toString() &&\n                wire.base_cut === candidate.cursor.base_cut &&\n                wire.session_id === before.cursor.session_id &&\n                wire.catalog_revision === before.cursor.catalog_revision &&\n                wire.seq_range.from ===\n                  (BigInt(candidate.cursor.last_seq) + 1n).toString(),\n              \"Delta断代/会话/cut/前沿\",\n            );\n            const anchor = {\n                kind: \"delta\",\n                ...smallIdentity(before.cursor),\n                generation: wire.generation,\n                base_cut: wire.base_cut,\n                next_cut: wire.next_cut,\n                index_frontier: wire.index_frontier,\n                delta_ref: wire.delta,\n              },\n"
+        },
+        {
+          "first_line": 2816,
+          "last_line": 2848,
+          "byte_start_inclusive": 96933,
+          "byte_end_exclusive": 98122,
+          "sha256": "7afeed038517ce2ce247e61b9488bd044ff024946950671621516ac0b8abffff",
+          "text": "                    candidate.families[family].length,\n                ),\n              );\n            need(\n              await equal(candidate.projection, before.projection),\n              \"空Delta完整projection改变\",\n            );\n          }\n          need(\n            await equal(page.next_cursor, candidate.cursor),\n            \"next_cursor不是末批完整身份\",\n          );\n          const head = BigInt(page.observed_head.cut_generation),\n            end = BigInt(candidate.cursor.after_generation);\n          need(\n            head >= end &&\n              page.has_more === head > end &&\n              (page.deltas.length > 0 || head === end),\n            \"Watch head/has_more/空批不同\",\n          );\n          if (head === end)\n            need(\n              await equal(page.observed_head, {\n                ...candidate.fixed,\n                history_mode: \"RecomputedWithRevision\",\n                as_of_generation: null,\n              }),\n              \"Watch head不是同cut原完整身份\",\n            );\n          return this.commit(candidate, b, {\n            kind: \"watch\",\n            batches: page.deltas.length,\n            hasMore: page.has_more,\n"
+        }
+      ]
+    }
+  ]
+}

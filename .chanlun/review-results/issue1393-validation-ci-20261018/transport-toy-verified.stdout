@@ -1,0 +1,9 @@
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "False 门：真实命令 NOT_RUN", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "缺 push head_commit", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "缺 push head_commit", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "畸形 JSON", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "事件原件超界", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "message 缺失或超界", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "approval原件不符", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "缺少唯一完整封套", "received_signal": null}
+{"status": "REFUSED", "real_execution": "NOT_RUN", "package_receipt": "PACKAGE.json", "error": "合同字段缺失或未知", "received_signal": null}

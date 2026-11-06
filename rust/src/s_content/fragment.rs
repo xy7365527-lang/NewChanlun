@@ -440,10 +440,13 @@ impl std::fmt::Display for PathDiagnostic<'_> {
 impl PathDiagnostic<'_> {
     fn into_codec(self) -> CodecError {
         match self {
-            Self::Fixed(s) => CodecError::new(INVALID, s.to_string()),
+            Self::Fixed(s) => CodecError::new(INVALID, codec_detail!("{}", s)),
             Self::Decimal(e) => {
-                let rendered = e.to_string();
                 let code = e.code();
+                if super::quiet_diagnostics() {
+                    return CodecError::new(code, "");
+                }
+                let rendered = e.to_string();
                 CodecError::new(
                     code,
                     rendered
@@ -973,7 +976,7 @@ impl<'capture> Recorder<'_, 'capture> {
             }
         }
         let text: String = serde_json::from_slice(&buffer.bytes)
-            .map_err(|e| CodecError::new(code::UTF8, e.to_string()))?;
+            .map_err(|e| CodecError::new(code::UTF8, codec_detail!("{}", e)))?;
         Ok(FragmentText {
             bytes: WorkVec::from_plain(text.into_bytes()),
         })
@@ -1013,7 +1016,7 @@ impl<'capture> Recorder<'_, 'capture> {
                     self.access.pre_io_check()?;
                     return Err(CodecError::new(
                         code::NODE_MISSING,
-                        format!("节点缺失：{}", root_string(digest)),
+                        codec_detail!("节点缺失：{}", root_string(digest)),
                     ));
                 }
                 super::job::ScopedNodeRead::Found { tag, body } => {
@@ -1176,7 +1179,7 @@ fn public_header_view(r: RefView<'_>) -> Result<(), CodecError> {
     }
 }
 fn err(e: impl std::fmt::Display) -> CodecError {
-    CodecError::new(INVALID, e.to_string())
+    CodecError::new(INVALID, codec_detail!("{}", e))
 }
 fn encoded_len(value: &impl serde::Serialize) -> Result<u64, CodecError> {
     struct Count(u64);

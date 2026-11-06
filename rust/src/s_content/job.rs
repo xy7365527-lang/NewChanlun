@@ -121,7 +121,7 @@ impl JobLimits {
             if !LIMIT_FIELDS.contains(&key.as_str()) {
                 return Err(CodecError::new(
                     LIMIT_FIELD,
-                    format!("job_limits 含未声明字段 `{key}`；exact 只需八个字段"),
+                    codec_detail!("job_limits 含未声明字段 `{key}`；exact 只需八个字段"),
                 ));
             }
         }
@@ -143,7 +143,7 @@ impl JobLimits {
             if value == 0 || value > MAX_LIMIT {
                 return Err(CodecError::new(
                     LIMIT_DOMAIN,
-                    format!("{name} = {value} 不在 1..={MAX_LIMIT}；无缺省、无无限量"),
+                    codec_detail!("{name} = {value} 不在 1..={MAX_LIMIT}；无缺省、无无限量"),
                 ));
             }
         }
@@ -168,11 +168,11 @@ impl JobLimits {
 fn limit_field(object: &JsonMap<String, JsonNode>, key: &'static str) -> Result<u64, CodecError> {
     let value = object
         .get(key)
-        .ok_or_else(|| CodecError::new(LIMIT_FIELD, format!("job_limits 缺字段 `{key}`")))?;
+        .ok_or_else(|| CodecError::new(LIMIT_FIELD, codec_detail!("job_limits 缺字段 `{key}`")))?;
     let text = value.as_str().ok_or_else(|| {
         CodecError::new(
             LIMIT_FIELD,
-            format!("`{key}` 必须是规范十进制字符串，不是 JSON 数字或其它类型"),
+            codec_detail!("`{key}` 必须是规范十进制字符串，不是 JSON 数字或其它类型"),
         )
     })?;
     parse_limit(text, key)
@@ -184,22 +184,25 @@ fn parse_limit(text: &str, key: &str) -> Result<u64, CodecError> {
     if bytes.is_empty() || !bytes.iter().all(|b| b.is_ascii_digit()) {
         return Err(CodecError::new(
             LIMIT_DOMAIN,
-            format!("`{key}` = `{text}` 不是规范十进制：只允许 0-9，无符号、无空白"),
+            codec_detail!("`{key}` = `{text}` 不是规范十进制：只允许 0-9，无符号、无空白"),
         ));
     }
     if bytes[0] == b'0' {
         return Err(CodecError::new(
             LIMIT_DOMAIN,
-            format!("`{key}` = `{text}` 有前导零或为 0：数域是 1..=2^63-1"),
+            codec_detail!("`{key}` = `{text}` 有前导零或为 0：数域是 1..=2^63-1"),
         ));
     }
-    let value = text
-        .parse::<u64>()
-        .map_err(|_| CodecError::new(LIMIT_DOMAIN, format!("`{key}` = `{text}` 超出 u64 表达")))?;
+    let value = text.parse::<u64>().map_err(|_| {
+        CodecError::new(
+            LIMIT_DOMAIN,
+            codec_detail!("`{key}` = `{text}` 超出 u64 表达"),
+        )
+    })?;
     if value > MAX_LIMIT {
         return Err(CodecError::new(
             LIMIT_DOMAIN,
-            format!("`{key}` = `{text}` 超过上限 2^63-1"),
+            codec_detail!("`{key}` = `{text}` 超过上限 2^63-1"),
         ));
     }
     Ok(value)
@@ -350,7 +353,7 @@ impl CheckedNodeUsage {
         if actual != *digest {
             return Err(CodecError::new(
                 code::NODE_DIGEST,
-                format!(
+                codec_detail!(
                     "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不计入",
                     root_string(digest),
                     root_string(&actual)
@@ -525,7 +528,7 @@ impl CheckedFrame {
         if actual != *digest {
             return Err(CodecError::new(
                 code::NODE_DIGEST,
-                format!(
+                codec_detail!(
                     "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
                     root_string(digest),
                     root_string(&actual)
@@ -714,27 +717,30 @@ impl Job {
         if existing.staged_bytes > existing.store_bytes {
             return Err(CodecError::new(
                 LIMIT_DOMAIN,
-                format!(
+                codec_detail!(
                     "暂存基线 {} 大于存储基线 {}：暂存是总存储的子集，基线也必须满足子集关系",
-                    existing.staged_bytes, existing.store_bytes
+                    existing.staged_bytes,
+                    existing.store_bytes
                 ),
             ));
         }
         if existing.staged_bytes > limits.max_staged_bytes {
             return Err(CodecError::new(
                 LIMIT_EXCEEDED,
-                format!(
+                codec_detail!(
                     "既存暂存 {} 已超 max_staged_bytes {}",
-                    existing.staged_bytes, limits.max_staged_bytes
+                    existing.staged_bytes,
+                    limits.max_staged_bytes
                 ),
             ));
         }
         if existing.store_bytes > limits.max_store_bytes {
             return Err(CodecError::new(
                 LIMIT_EXCEEDED,
-                format!(
+                codec_detail!(
                     "既存存储 {} 已超 max_store_bytes {}",
-                    existing.store_bytes, limits.max_store_bytes
+                    existing.store_bytes,
+                    limits.max_store_bytes
                 ),
             ));
         }
@@ -1312,7 +1318,7 @@ impl Job {
             None => {
                 return Err(CodecError::new(
                     RESERVATION,
-                    format!("预留 {} 已对账或已释放", grant.id),
+                    codec_detail!("预留 {} 已对账或已释放", grant.id),
                 ))
             }
         };
@@ -1353,7 +1359,7 @@ impl Job {
             None => {
                 return Err(CodecError::new(
                     RESERVATION,
-                    format!("预留 {} 已对账或已释放", grant.id),
+                    codec_detail!("预留 {} 已对账或已释放", grant.id),
                 ))
             }
         };
@@ -1375,7 +1381,7 @@ impl Job {
         if u128::from(actual_deleted) > self.staged.committed {
             return Err(CodecError::new(
                 RECLAIM,
-                format!(
+                codec_detail!(
                     "回收 {actual_deleted} 字节超过本 job 已对账暂存 {} 字节：历史内容不在本入口管辖内",
                     self.staged.committed
                 ),
@@ -1396,7 +1402,7 @@ impl Job {
         if !self.open.is_empty() {
             return Err(CodecError::new(
                 RESERVATION,
-                format!(
+                codec_detail!(
                     "尚有 {} 个预留未对账：写后必须 reconcile 或 release",
                     self.open.len()
                 ),
@@ -1537,7 +1543,9 @@ impl Job {
 
     /// #1527：mixed 错误保留静态细节、原 code 和累计账；不渲染动态格式参数。
     fn stop_detail(&self, detail: fmt::Arguments<'_>) -> Cow<'static, str> {
-        if matches!(self.accepted, AcceptedNodes::Mixed { .. }) {
+        if super::quiet_diagnostics() {
+            Cow::Borrowed(super::QUIET_DETAIL)
+        } else if matches!(self.accepted, AcceptedNodes::Mixed { .. }) {
             Cow::Borrowed("mixed Job resource rejection; see code and snapshot counters")
         } else {
             Cow::Owned(detail.to_string())

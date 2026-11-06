@@ -65,6 +65,9 @@ pub const THETA_LINEAGE_TRACE: &str = "THETA_LINEAGE_TRACE";
 pub const THETA_T3INC_SKIP: &str = "THETA_T3INC_SKIP";
 pub const THETA_CASCADE_FULLCLEAR: &str = "THETA_CASCADE_FULLCLEAR";
 pub const CENSUS_WINDOW: &str = "CENSUS_WINDOW";
+
+// -- parser（#1634 全史读数锁）--
+pub const NC_BTC_FULL_JSON: &str = "NC_BTC_FULL_JSON";
 pub const DIAG_CANDCACHE: &str = "DIAG_CANDCACHE";
 pub const DIAG_L0UNITS: &str = "DIAG_L0UNITS";
 
@@ -185,6 +188,13 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         kind: GateKind::Observation,
         default_arm: "未设 ⟹ 全历史",
         layer: "classifier",
+    },
+    EnvKeyMeta {
+        key: NC_BTC_FULL_JSON,
+        semantic: "#1634 全史读数锁的 btc_1m_full.json 路径（仅 #[ignore] 测试读取，test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 该忽略测试 expect 失败（默认不运行）",
+        layer: "parser",
     },
     EnvKeyMeta {
         key: DIAG_CANDCACHE,
@@ -638,13 +648,13 @@ mod tests {
 
     /// 表内键数锁（票 #746 面复核实数 46 + #758 issue766 补 4 + #719 补
     /// THETA_DEATH_WO_DUMP 一键 + 2026-08-16 镜像追推 CI 守卫实撞补登 #837/#841 探针五键
-    /// + #1223 探针两键 + #1405 TB-02-V 测试脚手架两键）。
+    /// + #1223 探针两键 + #1405 TB-02-V 测试脚手架两键 + #1634 全史读数锁一键）。
     #[test]
-    fn registry_has_65_entries() {
+    fn registry_has_66_entries() {
         assert_eq!(
             REGISTRY.len(),
-            65,
-            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5 + #1223 补 2 + #1405 补 2）"
+            66,
+            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5 + #1223 补 2 + #1405 补 2 + #1634 补 1）"
         );
     }
 

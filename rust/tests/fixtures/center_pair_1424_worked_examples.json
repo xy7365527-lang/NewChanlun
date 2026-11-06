@@ -1,0 +1,2925 @@
+{
+ "schema": "tb1424-worked-examples/1",
+ "generator": ".chanlun/review-results/issue1424-tb02f-20261014/oracle_pairs.py",
+ "endpoint_order": [
+  "DD",
+  "ZD",
+  "ZG",
+  "GG"
+ ],
+ "streams": [
+  {
+   "name": "W0_MIN_PAIR",
+   "prep_name": "W0_MIN_PAIR",
+   "note": "成对最小流：A=u0..u2、突破段 u3、B=u4..u6；UP_EXPANSION",
+   "endpoints": [
+    10,
+    40,
+    20,
+    50,
+    45,
+    60,
+    50,
+    55
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 4,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 2,
+     "settled": true,
+     "break_unit": 3,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 40,
+     "zn_members": [
+      0,
+      2
+     ],
+     "DD_full": 10,
+     "GG_full": 50,
+     "DD": 10,
+     "GG": 50,
+     "D": 20,
+     "G": 40,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "STRICT_ABOVE",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 4,
+     "last": 6,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 50,
+     "ZG": 55,
+     "zn_members": [
+      4,
+      6
+     ],
+     "DD_full": 45,
+     "GG_full": 60,
+     "DD": 45,
+     "GG": 60,
+     "D": 50,
+     "G": 55,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 4,
+     "connectors": [
+      3
+     ],
+     "status": "EVALUATED",
+     "leaf": "UP_EXPANSION",
+     "direction": "UP",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": ">",
+      "B.DD?A.ZD": ">",
+      "B.DD?A.ZG": ">",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": ">",
+      "B.ZD?A.ZG": ">",
+      "B.ZD?A.GG": "=",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": ">",
+      "B.ZG?A.ZG": ">",
+      "B.ZG?A.GG": ">",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": ">",
+      "B.GG?A.ZG": ">",
+      "B.GG?A.GG": ">"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "UP_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      2
+     ],
+     "ZD": 20,
+     "ZG": 40,
+     "DD": 10,
+     "GG": 50,
+     "sub": false
+    },
+    {
+     "win": [
+      4,
+      6
+     ],
+     "ZD": 50,
+     "ZG": 55,
+     "DD": 45,
+     "GG": 60,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      2
+     ],
+     "b_win": [
+      4,
+      6
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "UP_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W1_DOWN_EXPANSION",
+   "prep_name": "W1_UP_E3_K12",
+   "note": "#1419 UP 流 K12（center_scan_1419.rs UP 前 14 点）；外缘相交、向下扩展",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    38,
+    21,
+    25,
+    5,
+    15,
+    2,
+    12,
+    4,
+    9
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": 10,
+     "GG": 40,
+     "D": 30,
+     "G": 25,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_BELOW",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 9,
+     "last": 12,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 4,
+     "ZG": 12,
+     "zn_members": [
+      9,
+      11
+     ],
+     "DD_full": 2,
+     "GG_full": 15,
+     "DD": 2,
+     "GG": 15,
+     "D": 4,
+     "G": 12,
+     "tested": [
+      {
+       "unit": 12,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      }
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 9,
+     "connectors": [
+      8
+     ],
+     "status": "EVALUATED",
+     "leaf": "DOWN_EXPANSION",
+     "direction": "DOWN",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": "<",
+      "B.DD?A.ZD": "<",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": "<",
+      "B.ZD?A.ZD": "<",
+      "B.ZD?A.ZG": "<",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": "<",
+      "B.ZG?A.ZG": "<",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": "<",
+      "B.GG?A.ZG": "<",
+      "B.GG?A.GG": "<"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 40,
+     "sub": false
+    },
+    {
+     "win": [
+      9,
+      12
+     ],
+     "ZD": 4,
+     "ZG": 12,
+     "DD": 2,
+     "GG": 15,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      9,
+      12
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "DOWN_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W2_UP_EXPANSION",
+   "prep_name": "W2_DOWN_MIRROR_K12",
+   "note": "W1 镜像 p'=45−p；向上扩展",
+   "endpoints": [
+    35,
+    5,
+    25,
+    10,
+    15,
+    7,
+    24,
+    20,
+    40,
+    30,
+    43,
+    33,
+    41,
+    36
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 10,
+     "ZG": 25,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": 5,
+     "GG": 35,
+     "D": 20,
+     "G": 15,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_ABOVE",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 9,
+     "last": 12,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 33,
+     "ZG": 41,
+     "zn_members": [
+      9,
+      11
+     ],
+     "DD_full": 30,
+     "GG_full": 43,
+     "DD": 30,
+     "GG": 43,
+     "D": 33,
+     "G": 41,
+     "tested": [
+      {
+       "unit": 12,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      }
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 9,
+     "connectors": [
+      8
+     ],
+     "status": "EVALUATED",
+     "leaf": "UP_EXPANSION",
+     "direction": "UP",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": ">",
+      "B.DD?A.ZD": ">",
+      "B.DD?A.ZG": ">",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": ">",
+      "B.ZD?A.ZG": ">",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": ">",
+      "B.ZG?A.ZG": ">",
+      "B.ZG?A.GG": ">",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": ">",
+      "B.GG?A.ZG": ">",
+      "B.GG?A.GG": ">"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "UP_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 10,
+     "ZG": 25,
+     "DD": 5,
+     "GG": 35,
+     "sub": false
+    },
+    {
+     "win": [
+      9,
+      12
+     ],
+     "ZD": 33,
+     "ZG": 41,
+     "DD": 30,
+     "GG": 43,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      9,
+      12
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "UP_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W3_DISC_DOWN_NEWBIRTH",
+   "prep_name": "W3_DISC_DOWN",
+   "note": "R26 判别例：Zn 外缘 DOWN_NEWBIRTH，全单元外缘 DOWN_EXPANSION",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    38,
+    21,
+    25,
+    5,
+    9,
+    2,
+    8,
+    3
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": 10,
+     "GG": 40,
+     "D": 30,
+     "G": 25,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_BELOW",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 9,
+     "last": 11,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 3,
+     "ZG": 8,
+     "zn_members": [
+      9,
+      11
+     ],
+     "DD_full": 2,
+     "GG_full": 9,
+     "DD": 2,
+     "GG": 9,
+     "D": 3,
+     "G": 8,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 9,
+     "connectors": [
+      8
+     ],
+     "status": "EVALUATED",
+     "leaf": "DOWN_NEWBIRTH",
+     "direction": "DOWN",
+     "relation4": "DownContinuation",
+     "matrix": {
+      "B.DD?A.DD": "<",
+      "B.DD?A.ZD": "<",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": "<",
+      "B.ZD?A.ZD": "<",
+      "B.ZD?A.ZG": "<",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": "<",
+      "B.ZG?A.ZD": "<",
+      "B.ZG?A.ZG": "<",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": "<",
+      "B.GG?A.ZD": "<",
+      "B.GG?A.ZG": "<",
+      "B.GG?A.GG": "<"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 40,
+     "sub": false
+    },
+    {
+     "win": [
+      9,
+      11
+     ],
+     "ZD": 3,
+     "ZG": 8,
+     "DD": 2,
+     "GG": 9,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      9,
+      11
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "DOWN_NEWBIRTH",
+     "relation4": "DownContinuation"
+    }
+   ]
+  },
+  {
+   "name": "W4_DISC_UP_NEWBIRTH",
+   "prep_name": "W4_DISC_UP",
+   "note": "W3 镜像：Zn UP_NEWBIRTH，全单元 UP_EXPANSION",
+   "endpoints": [
+    35,
+    5,
+    25,
+    10,
+    15,
+    7,
+    24,
+    20,
+    40,
+    36,
+    43,
+    37,
+    42
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 10,
+     "ZG": 25,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": 5,
+     "GG": 35,
+     "D": 20,
+     "G": 15,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_ABOVE",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 9,
+     "last": 11,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 37,
+     "ZG": 42,
+     "zn_members": [
+      9,
+      11
+     ],
+     "DD_full": 36,
+     "GG_full": 43,
+     "DD": 36,
+     "GG": 43,
+     "D": 37,
+     "G": 42,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 9,
+     "connectors": [
+      8
+     ],
+     "status": "EVALUATED",
+     "leaf": "UP_NEWBIRTH",
+     "direction": "UP",
+     "relation4": "UpContinuation",
+     "matrix": {
+      "B.DD?A.DD": ">",
+      "B.DD?A.ZD": ">",
+      "B.DD?A.ZG": ">",
+      "B.DD?A.GG": ">",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": ">",
+      "B.ZD?A.ZG": ">",
+      "B.ZD?A.GG": ">",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": ">",
+      "B.ZG?A.ZG": ">",
+      "B.ZG?A.GG": ">",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": ">",
+      "B.GG?A.ZG": ">",
+      "B.GG?A.GG": ">"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "UP_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 10,
+     "ZG": 25,
+     "DD": 5,
+     "GG": 35,
+     "sub": false
+    },
+    {
+     "win": [
+      9,
+      11
+     ],
+     "ZD": 37,
+     "ZG": 42,
+     "DD": 36,
+     "GG": 43,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      9,
+      11
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "UP_NEWBIRTH",
+     "relation4": "UpContinuation"
+    }
+   ]
+  },
+  {
+   "name": "W5_OUTER_TOUCH",
+   "prep_name": "W5_OUTER_TOUCH",
+   "note": "外缘恰等 B.GG=A.DD=10 仍归扩展（A-ST-014-02）",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    38,
+    21,
+    25,
+    5,
+    10,
+    2,
+    8,
+    3
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": 10,
+     "GG": 40,
+     "D": 30,
+     "G": 25,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_BELOW",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 9,
+     "last": 11,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 3,
+     "ZG": 8,
+     "zn_members": [
+      9,
+      11
+     ],
+     "DD_full": 2,
+     "GG_full": 10,
+     "DD": 2,
+     "GG": 10,
+     "D": 3,
+     "G": 8,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 9,
+     "connectors": [
+      8
+     ],
+     "status": "EVALUATED",
+     "leaf": "DOWN_EXPANSION",
+     "direction": "DOWN",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": "<",
+      "B.DD?A.ZD": "<",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": "<",
+      "B.ZD?A.ZD": "<",
+      "B.ZD?A.ZG": "<",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": "<",
+      "B.ZG?A.ZD": "<",
+      "B.ZG?A.ZG": "<",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": "=",
+      "B.GG?A.ZD": "<",
+      "B.GG?A.ZG": "<",
+      "B.GG?A.GG": "<"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": true,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 40,
+     "sub": false
+    },
+    {
+     "win": [
+      9,
+      11
+     ],
+     "ZD": 3,
+     "ZG": 8,
+     "DD": 2,
+     "GG": 10,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      9,
+      11
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "DOWN_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W6_CORE_TANGENT",
+   "prep_name": "W6_CORE_TANGENT",
+   "note": "核心相切 B.ZD=A.ZG 归首叶；两单元连接段",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    50,
+    40,
+    60,
+    30,
+    40,
+    35,
+    38
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 6,
+     "result": "EXCLUDED",
+     "exclusion_reason": "TANGENT_ZD_EQ_ZG"
+    },
+    {
+     "at": 7,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 4,
+     "settled": true,
+     "break_unit": 5,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4
+     ],
+     "DD_full": 10,
+     "GG_full": 50,
+     "DD": 10,
+     "GG": 50,
+     "D": 30,
+     "G": 35,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "STRICT_ABOVE",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 7,
+     "last": 10,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 35,
+     "ZG": 40,
+     "zn_members": [
+      7,
+      9
+     ],
+     "DD_full": 30,
+     "GG_full": 60,
+     "DD": 30,
+     "GG": 60,
+     "D": 35,
+     "G": 40,
+     "tested": [
+      {
+       "unit": 10,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      }
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 7,
+     "connectors": [
+      5,
+      6
+     ],
+     "status": "EVALUATED",
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "direction": null,
+     "relation4": "CoreOverlap",
+     "matrix": {
+      "B.DD?A.DD": ">",
+      "B.DD?A.ZD": ">",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": ">",
+      "B.ZD?A.ZG": "=",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": ">",
+      "B.ZG?A.ZG": ">",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": ">",
+      "B.GG?A.ZG": ">",
+      "B.GG?A.GG": ">"
+     },
+     "witnesses": {
+      "core_tangent": true,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "CORE_NOT_STRICTLY_SEPARATED"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      4
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 50,
+     "sub": false
+    },
+    {
+     "win": [
+      7,
+      10
+     ],
+     "ZD": 35,
+     "ZG": 40,
+     "DD": 30,
+     "GG": 60,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      4
+     ],
+     "b_win": [
+      7,
+      10
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "relation4": "CoreOverlap"
+    }
+   ]
+  },
+  {
+   "name": "W7_CONTAIN_ENDPOINT",
+   "prep_name": "W7_CONTAIN_ENDPOINT",
+   "note": "B 外缘包含 A 外缘、UP_EXPANSION；u5 为 #1478 端点条款下的连接段",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    50,
+    40,
+    55,
+    42,
+    48,
+    5,
+    60,
+    45
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 6,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 4,
+     "settled": true,
+     "break_unit": 5,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4
+     ],
+     "DD_full": 10,
+     "GG_full": 50,
+     "DD": 10,
+     "GG": 50,
+     "D": 30,
+     "G": 35,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "STRICT_ABOVE",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 6,
+     "last": 11,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 42,
+     "ZG": 48,
+     "zn_members": [
+      6,
+      8,
+      10
+     ],
+     "DD_full": 5,
+     "GG_full": 60,
+     "DD": 5,
+     "GG": 60,
+     "D": 42,
+     "G": 48,
+     "tested": [
+      {
+       "unit": 9,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 10,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 11,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      }
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 6,
+     "connectors": [
+      5
+     ],
+     "status": "EVALUATED",
+     "leaf": "UP_EXPANSION",
+     "direction": "UP",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": "<",
+      "B.DD?A.ZD": "<",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": ">",
+      "B.ZD?A.ZG": ">",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": ">",
+      "B.ZG?A.ZG": ">",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": ">",
+      "B.GG?A.ZG": ">",
+      "B.GG?A.GG": ">"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "B_CONTAINS_A",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "UP_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      4
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 50,
+     "sub": false
+    },
+    {
+     "win": [
+      6,
+      11
+     ],
+     "ZD": 42,
+     "ZG": 48,
+     "DD": 5,
+     "GG": 60,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      4
+     ],
+     "b_win": [
+      6,
+      11
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "UP_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W8_E4_TWO_UNIT_CONNECTOR",
+   "prep_name": "W8_E4_TWO_UNIT_CONNECTOR",
+   "note": "#1419 E4 流：seed 相切失败后两单元连接段，DOWN_EXPANSION",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    38,
+    21,
+    25,
+    5,
+    15,
+    2,
+    18,
+    15,
+    17
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "EXCLUDED",
+     "exclusion_reason": "TANGENT_ZD_EQ_ZG"
+    },
+    {
+     "at": 10,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": 10,
+     "GG": 40,
+     "D": 30,
+     "G": 25,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_BELOW",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 10,
+     "last": 12,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 15,
+     "ZG": 17,
+     "zn_members": [
+      10,
+      12
+     ],
+     "DD_full": 2,
+     "GG_full": 18,
+     "DD": 2,
+     "GG": 18,
+     "D": 15,
+     "G": 17,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 10,
+     "connectors": [
+      8,
+      9
+     ],
+     "status": "EVALUATED",
+     "leaf": "DOWN_EXPANSION",
+     "direction": "DOWN",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": "<",
+      "B.DD?A.ZD": "<",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": "<",
+      "B.ZD?A.ZG": "<",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": "<",
+      "B.ZG?A.ZG": "<",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": "<",
+      "B.GG?A.ZG": "<",
+      "B.GG?A.GG": "<"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 40,
+     "sub": false
+    },
+    {
+     "win": [
+      10,
+      12
+     ],
+     "ZD": 15,
+     "ZG": 17,
+     "DD": 2,
+     "GG": 18,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      10,
+      12
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "DOWN_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W9_UPGRADE_THEN_B",
+   "prep_name": "W9_UPGRADE_THEN_B",
+   "note": "A 12 成员 UPGRADE_PENDING_TB02H，对 A→B 待定；塔子中枢关系不得照抄",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    38,
+    22,
+    36,
+    25,
+    33,
+    21,
+    26,
+    5,
+    9,
+    2,
+    8,
+    3
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 13,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 11,
+     "settled": true,
+     "break_unit": 12,
+     "status": "UPGRADE_PENDING_TB02H",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10
+     ],
+     "DD_full": 5,
+     "GG_full": 40,
+     "DD": null,
+     "GG": null,
+     "D": null,
+     "G": null,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 9,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 10,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 11,
+       "position": "INTERIOR_CONTACT",
+       "role": "UPGRADE_PENDING_MEMBER"
+      },
+      {
+       "unit": 12,
+       "position": "STRICT_BELOW",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 13,
+     "last": 15,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 3,
+     "ZG": 8,
+     "zn_members": [
+      13,
+      15
+     ],
+     "DD_full": 2,
+     "GG_full": 9,
+     "DD": 2,
+     "GG": 9,
+     "D": 3,
+     "G": 8,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 13,
+     "connectors": [
+      12
+     ],
+     "status": "PENDING_UPGRADE_TB02H",
+     "leaf": null,
+     "direction": null,
+     "relation4": null,
+     "matrix": null,
+     "witnesses": null
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      2
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 40,
+     "sub": true
+    },
+    {
+     "win": [
+      3,
+      5
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 22,
+     "GG": 38,
+     "sub": true
+    },
+    {
+     "win": [
+      6,
+      8
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 22,
+     "GG": 36,
+     "sub": true
+    },
+    {
+     "win": [
+      9,
+      11
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 5,
+     "GG": 33,
+     "sub": true
+    },
+    {
+     "win": [
+      13,
+      15
+     ],
+     "ZD": 3,
+     "ZG": 8,
+     "DD": 2,
+     "GG": 9,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      2
+     ],
+     "b_win": [
+      3,
+      5
+     ],
+     "a_sub": true,
+     "b_sub": true,
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "relation4": "CoreOverlap"
+    },
+    {
+     "a_win": [
+      3,
+      5
+     ],
+     "b_win": [
+      6,
+      8
+     ],
+     "a_sub": true,
+     "b_sub": true,
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "relation4": "CoreOverlap"
+    },
+    {
+     "a_win": [
+      6,
+      8
+     ],
+     "b_win": [
+      9,
+      11
+     ],
+     "a_sub": true,
+     "b_sub": true,
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "relation4": "CoreOverlap"
+    },
+    {
+     "a_win": [
+      9,
+      11
+     ],
+     "b_win": [
+      13,
+      15
+     ],
+     "a_sub": true,
+     "b_sub": false,
+     "leaf": "DOWN_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W10_TOUCH_POSITIONS",
+   "prep_name": "W10_TOUCH_POSITIONS",
+   "note": "CC-018 HIGH_TOUCH/LOW_TOUCH 都是延伸成员",
+   "endpoints": [
+    10,
+    40,
+    20,
+    45,
+    40,
+    50,
+    12,
+    20,
+    8,
+    15,
+    3,
+    12,
+    5
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 9,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 7,
+     "settled": true,
+     "break_unit": 8,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 40,
+     "zn_members": [
+      0,
+      2,
+      4,
+      6
+     ],
+     "DD_full": 8,
+     "GG_full": 50,
+     "DD": 10,
+     "GG": 50,
+     "D": 40,
+     "G": 20,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "HIGH_TOUCH",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "HIGH_TOUCH",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 6,
+       "position": "LOW_TOUCH",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 7,
+       "position": "LOW_TOUCH",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 8,
+       "position": "STRICT_BELOW",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 9,
+     "last": 11,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 5,
+     "ZG": 12,
+     "zn_members": [
+      9,
+      11
+     ],
+     "DD_full": 3,
+     "GG_full": 15,
+     "DD": 3,
+     "GG": 15,
+     "D": 5,
+     "G": 12,
+     "tested": []
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 9,
+     "connectors": [
+      8
+     ],
+     "status": "EVALUATED",
+     "leaf": "DOWN_EXPANSION",
+     "direction": "DOWN",
+     "relation4": "LevelExpansion",
+     "matrix": {
+      "B.DD?A.DD": "<",
+      "B.DD?A.ZD": "<",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": "<",
+      "B.ZD?A.ZD": "<",
+      "B.ZD?A.ZG": "<",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": "<",
+      "B.ZG?A.ZG": "<",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": "<",
+      "B.GG?A.ZG": "<",
+      "B.GG?A.GG": "<"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      7
+     ],
+     "ZD": 20,
+     "ZG": 40,
+     "DD": 10,
+     "GG": 50,
+     "sub": false
+    },
+    {
+     "win": [
+      9,
+      11
+     ],
+     "ZD": 5,
+     "ZG": 12,
+     "DD": 3,
+     "GG": 15,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      7
+     ],
+     "b_win": [
+      9,
+      11
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "DOWN_EXPANSION",
+     "relation4": "LevelExpansion"
+    }
+   ]
+  },
+  {
+   "name": "W11_CORE_OVERLAP",
+   "prep_name": "W6b_CORE_OVERLAP",
+   "note": "W6 改 u9 终点：核心重叠，同属首叶",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    50,
+    40,
+    60,
+    30,
+    40,
+    33,
+    38
+   ],
+   "attempts": [
+    {
+     "at": 0,
+     "result": "FORMED",
+     "exclusion_reason": null
+    },
+    {
+     "at": 6,
+     "result": "EXCLUDED",
+     "exclusion_reason": "TANGENT_ZD_EQ_ZG"
+    },
+    {
+     "at": 7,
+     "result": "FORMED",
+     "exclusion_reason": null
+    }
+   ],
+   "centers": [
+    {
+     "first": 0,
+     "last": 4,
+     "settled": true,
+     "break_unit": 5,
+     "status": "SETTLED",
+     "ZD": 20,
+     "ZG": 35,
+     "zn_members": [
+      0,
+      2,
+      4
+     ],
+     "DD_full": 10,
+     "GG_full": 50,
+     "DD": 10,
+     "GG": 50,
+     "D": 30,
+     "G": 35,
+     "tested": [
+      {
+       "unit": 3,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 4,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      },
+      {
+       "unit": 5,
+       "position": "STRICT_ABOVE",
+       "role": "BREAK_UNIT"
+      }
+     ]
+    },
+    {
+     "first": 7,
+     "last": 10,
+     "settled": false,
+     "break_unit": null,
+     "status": "EXTENDING",
+     "ZD": 33,
+     "ZG": 40,
+     "zn_members": [
+      7,
+      9
+     ],
+     "DD_full": 30,
+     "GG_full": 60,
+     "DD": 30,
+     "GG": 60,
+     "D": 33,
+     "G": 40,
+     "tested": [
+      {
+       "unit": 10,
+       "position": "INTERIOR_CONTACT",
+       "role": "EXTENSION_MEMBER"
+      }
+     ]
+    }
+   ],
+   "pairs": [
+    {
+     "left": 0,
+     "right": 1,
+     "a_first": 0,
+     "b_first": 7,
+     "connectors": [
+      5,
+      6
+     ],
+     "status": "EVALUATED",
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "direction": null,
+     "relation4": "CoreOverlap",
+     "matrix": {
+      "B.DD?A.DD": ">",
+      "B.DD?A.ZD": ">",
+      "B.DD?A.ZG": "<",
+      "B.DD?A.GG": "<",
+      "B.ZD?A.DD": ">",
+      "B.ZD?A.ZD": ">",
+      "B.ZD?A.ZG": "<",
+      "B.ZD?A.GG": "<",
+      "B.ZG?A.DD": ">",
+      "B.ZG?A.ZD": ">",
+      "B.ZG?A.ZG": ">",
+      "B.ZG?A.GG": "<",
+      "B.GG?A.DD": ">",
+      "B.GG?A.ZD": ">",
+      "B.GG?A.ZG": ">",
+      "B.GG?A.GG": ">"
+     },
+     "witnesses": {
+      "core_tangent": false,
+      "outer_touch": false,
+      "outer_containment": "NONE",
+      "core_containment": "NONE"
+     },
+     "leaf_if_full_unit_outer": "CORE_NOT_STRICTLY_SEPARATED"
+    }
+   ],
+   "tower_centers": [
+    {
+     "win": [
+      0,
+      4
+     ],
+     "ZD": 20,
+     "ZG": 35,
+     "DD": 10,
+     "GG": 50,
+     "sub": false
+    },
+    {
+     "win": [
+      7,
+      10
+     ],
+     "ZD": 33,
+     "ZG": 40,
+     "DD": 30,
+     "GG": 60,
+     "sub": false
+    }
+   ],
+   "tower_pairs": [
+    {
+     "a_win": [
+      0,
+      4
+     ],
+     "b_win": [
+      7,
+      10
+     ],
+     "a_sub": false,
+     "b_sub": false,
+     "leaf": "CORE_NOT_STRICTLY_SEPARATED",
+     "relation4": "CoreOverlap"
+    }
+   ]
+  }
+ ],
+ "series": [
+  {
+   "name": "W12_LEAF_REVISION",
+   "prep_name": "W3b_LEAF_REVISION",
+   "note": "W3 续：B 开放期 B.GG 9→12，K13 由 DOWN_NEWBIRTH 修订为 DOWN_EXPANSION",
+   "endpoints": [
+    10,
+    40,
+    20,
+    35,
+    30,
+    38,
+    21,
+    25,
+    5,
+    9,
+    2,
+    8,
+    3,
+    12,
+    4
+   ],
+   "cuts": [
+    {
+     "name": "W12_LEAF_REVISION@K11",
+     "prep_name": "W3b_LEAF_REVISION",
+     "note": "W3 续：B 开放期 B.GG 9→12，K13 由 DOWN_NEWBIRTH 修订为 DOWN_EXPANSION",
+     "endpoints": [
+      10,
+      40,
+      20,
+      35,
+      30,
+      38,
+      21,
+      25,
+      5,
+      9,
+      2,
+      8,
+      3
+     ],
+     "attempts": [
+      {
+       "at": 0,
+       "result": "FORMED",
+       "exclusion_reason": null
+      },
+      {
+       "at": 9,
+       "result": "FORMED",
+       "exclusion_reason": null
+      }
+     ],
+     "centers": [
+      {
+       "first": 0,
+       "last": 7,
+       "settled": true,
+       "break_unit": 8,
+       "status": "SETTLED",
+       "ZD": 20,
+       "ZG": 35,
+       "zn_members": [
+        0,
+        2,
+        4,
+        6
+       ],
+       "DD_full": 5,
+       "GG_full": 40,
+       "DD": 10,
+       "GG": 40,
+       "D": 30,
+       "G": 25,
+       "tested": [
+        {
+         "unit": 3,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 4,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 5,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 6,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 7,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 8,
+         "position": "STRICT_BELOW",
+         "role": "BREAK_UNIT"
+        }
+       ]
+      },
+      {
+       "first": 9,
+       "last": 11,
+       "settled": false,
+       "break_unit": null,
+       "status": "EXTENDING",
+       "ZD": 3,
+       "ZG": 8,
+       "zn_members": [
+        9,
+        11
+       ],
+       "DD_full": 2,
+       "GG_full": 9,
+       "DD": 2,
+       "GG": 9,
+       "D": 3,
+       "G": 8,
+       "tested": []
+      }
+     ],
+     "pairs": [
+      {
+       "left": 0,
+       "right": 1,
+       "a_first": 0,
+       "b_first": 9,
+       "connectors": [
+        8
+       ],
+       "status": "EVALUATED",
+       "leaf": "DOWN_NEWBIRTH",
+       "direction": "DOWN",
+       "relation4": "DownContinuation",
+       "matrix": {
+        "B.DD?A.DD": "<",
+        "B.DD?A.ZD": "<",
+        "B.DD?A.ZG": "<",
+        "B.DD?A.GG": "<",
+        "B.ZD?A.DD": "<",
+        "B.ZD?A.ZD": "<",
+        "B.ZD?A.ZG": "<",
+        "B.ZD?A.GG": "<",
+        "B.ZG?A.DD": "<",
+        "B.ZG?A.ZD": "<",
+        "B.ZG?A.ZG": "<",
+        "B.ZG?A.GG": "<",
+        "B.GG?A.DD": "<",
+        "B.GG?A.ZD": "<",
+        "B.GG?A.ZG": "<",
+        "B.GG?A.GG": "<"
+       },
+       "witnesses": {
+        "core_tangent": false,
+        "outer_touch": false,
+        "outer_containment": "NONE",
+        "core_containment": "NONE"
+       },
+       "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+      }
+     ],
+     "tower_centers": [
+      {
+       "win": [
+        0,
+        7
+       ],
+       "ZD": 20,
+       "ZG": 35,
+       "DD": 10,
+       "GG": 40,
+       "sub": false
+      },
+      {
+       "win": [
+        9,
+        11
+       ],
+       "ZD": 3,
+       "ZG": 8,
+       "DD": 2,
+       "GG": 9,
+       "sub": false
+      }
+     ],
+     "tower_pairs": [
+      {
+       "a_win": [
+        0,
+        7
+       ],
+       "b_win": [
+        9,
+        11
+       ],
+       "a_sub": false,
+       "b_sub": false,
+       "leaf": "DOWN_NEWBIRTH",
+       "relation4": "DownContinuation"
+      }
+     ],
+     "k": 11
+    },
+    {
+     "name": "W12_LEAF_REVISION@K12",
+     "prep_name": "W3b_LEAF_REVISION",
+     "note": "W3 续：B 开放期 B.GG 9→12，K13 由 DOWN_NEWBIRTH 修订为 DOWN_EXPANSION",
+     "endpoints": [
+      10,
+      40,
+      20,
+      35,
+      30,
+      38,
+      21,
+      25,
+      5,
+      9,
+      2,
+      8,
+      3,
+      12
+     ],
+     "attempts": [
+      {
+       "at": 0,
+       "result": "FORMED",
+       "exclusion_reason": null
+      },
+      {
+       "at": 9,
+       "result": "FORMED",
+       "exclusion_reason": null
+      }
+     ],
+     "centers": [
+      {
+       "first": 0,
+       "last": 7,
+       "settled": true,
+       "break_unit": 8,
+       "status": "SETTLED",
+       "ZD": 20,
+       "ZG": 35,
+       "zn_members": [
+        0,
+        2,
+        4,
+        6
+       ],
+       "DD_full": 5,
+       "GG_full": 40,
+       "DD": 10,
+       "GG": 40,
+       "D": 30,
+       "G": 25,
+       "tested": [
+        {
+         "unit": 3,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 4,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 5,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 6,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 7,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 8,
+         "position": "STRICT_BELOW",
+         "role": "BREAK_UNIT"
+        }
+       ]
+      },
+      {
+       "first": 9,
+       "last": 12,
+       "settled": false,
+       "break_unit": null,
+       "status": "EXTENDING",
+       "ZD": 3,
+       "ZG": 8,
+       "zn_members": [
+        9,
+        11
+       ],
+       "DD_full": 2,
+       "GG_full": 12,
+       "DD": 2,
+       "GG": 9,
+       "D": 3,
+       "G": 8,
+       "tested": [
+        {
+         "unit": 12,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        }
+       ]
+      }
+     ],
+     "pairs": [
+      {
+       "left": 0,
+       "right": 1,
+       "a_first": 0,
+       "b_first": 9,
+       "connectors": [
+        8
+       ],
+       "status": "EVALUATED",
+       "leaf": "DOWN_NEWBIRTH",
+       "direction": "DOWN",
+       "relation4": "DownContinuation",
+       "matrix": {
+        "B.DD?A.DD": "<",
+        "B.DD?A.ZD": "<",
+        "B.DD?A.ZG": "<",
+        "B.DD?A.GG": "<",
+        "B.ZD?A.DD": "<",
+        "B.ZD?A.ZD": "<",
+        "B.ZD?A.ZG": "<",
+        "B.ZD?A.GG": "<",
+        "B.ZG?A.DD": "<",
+        "B.ZG?A.ZD": "<",
+        "B.ZG?A.ZG": "<",
+        "B.ZG?A.GG": "<",
+        "B.GG?A.DD": "<",
+        "B.GG?A.ZD": "<",
+        "B.GG?A.ZG": "<",
+        "B.GG?A.GG": "<"
+       },
+       "witnesses": {
+        "core_tangent": false,
+        "outer_touch": false,
+        "outer_containment": "NONE",
+        "core_containment": "NONE"
+       },
+       "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+      }
+     ],
+     "tower_centers": [
+      {
+       "win": [
+        0,
+        7
+       ],
+       "ZD": 20,
+       "ZG": 35,
+       "DD": 10,
+       "GG": 40,
+       "sub": false
+      },
+      {
+       "win": [
+        9,
+        12
+       ],
+       "ZD": 3,
+       "ZG": 8,
+       "DD": 2,
+       "GG": 9,
+       "sub": false
+      }
+     ],
+     "tower_pairs": [
+      {
+       "a_win": [
+        0,
+        7
+       ],
+       "b_win": [
+        9,
+        12
+       ],
+       "a_sub": false,
+       "b_sub": false,
+       "leaf": "DOWN_NEWBIRTH",
+       "relation4": "DownContinuation"
+      }
+     ],
+     "k": 12
+    },
+    {
+     "name": "W12_LEAF_REVISION@K13",
+     "prep_name": "W3b_LEAF_REVISION",
+     "note": "W3 续：B 开放期 B.GG 9→12，K13 由 DOWN_NEWBIRTH 修订为 DOWN_EXPANSION",
+     "endpoints": [
+      10,
+      40,
+      20,
+      35,
+      30,
+      38,
+      21,
+      25,
+      5,
+      9,
+      2,
+      8,
+      3,
+      12,
+      4
+     ],
+     "attempts": [
+      {
+       "at": 0,
+       "result": "FORMED",
+       "exclusion_reason": null
+      },
+      {
+       "at": 9,
+       "result": "FORMED",
+       "exclusion_reason": null
+      }
+     ],
+     "centers": [
+      {
+       "first": 0,
+       "last": 7,
+       "settled": true,
+       "break_unit": 8,
+       "status": "SETTLED",
+       "ZD": 20,
+       "ZG": 35,
+       "zn_members": [
+        0,
+        2,
+        4,
+        6
+       ],
+       "DD_full": 5,
+       "GG_full": 40,
+       "DD": 10,
+       "GG": 40,
+       "D": 30,
+       "G": 25,
+       "tested": [
+        {
+         "unit": 3,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 4,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 5,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 6,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 7,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 8,
+         "position": "STRICT_BELOW",
+         "role": "BREAK_UNIT"
+        }
+       ]
+      },
+      {
+       "first": 9,
+       "last": 13,
+       "settled": false,
+       "break_unit": null,
+       "status": "EXTENDING",
+       "ZD": 3,
+       "ZG": 8,
+       "zn_members": [
+        9,
+        11,
+        13
+       ],
+       "DD_full": 2,
+       "GG_full": 12,
+       "DD": 2,
+       "GG": 12,
+       "D": 4,
+       "G": 8,
+       "tested": [
+        {
+         "unit": 12,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        },
+        {
+         "unit": 13,
+         "position": "INTERIOR_CONTACT",
+         "role": "EXTENSION_MEMBER"
+        }
+       ]
+      }
+     ],
+     "pairs": [
+      {
+       "left": 0,
+       "right": 1,
+       "a_first": 0,
+       "b_first": 9,
+       "connectors": [
+        8
+       ],
+       "status": "EVALUATED",
+       "leaf": "DOWN_EXPANSION",
+       "direction": "DOWN",
+       "relation4": "LevelExpansion",
+       "matrix": {
+        "B.DD?A.DD": "<",
+        "B.DD?A.ZD": "<",
+        "B.DD?A.ZG": "<",
+        "B.DD?A.GG": "<",
+        "B.ZD?A.DD": "<",
+        "B.ZD?A.ZD": "<",
+        "B.ZD?A.ZG": "<",
+        "B.ZD?A.GG": "<",
+        "B.ZG?A.DD": "<",
+        "B.ZG?A.ZD": "<",
+        "B.ZG?A.ZG": "<",
+        "B.ZG?A.GG": "<",
+        "B.GG?A.DD": ">",
+        "B.GG?A.ZD": "<",
+        "B.GG?A.ZG": "<",
+        "B.GG?A.GG": "<"
+       },
+       "witnesses": {
+        "core_tangent": false,
+        "outer_touch": false,
+        "outer_containment": "NONE",
+        "core_containment": "NONE"
+       },
+       "leaf_if_full_unit_outer": "DOWN_EXPANSION"
+      }
+     ],
+     "tower_centers": [
+      {
+       "win": [
+        0,
+        7
+       ],
+       "ZD": 20,
+       "ZG": 35,
+       "DD": 10,
+       "GG": 40,
+       "sub": false
+      },
+      {
+       "win": [
+        9,
+        13
+       ],
+       "ZD": 3,
+       "ZG": 8,
+       "DD": 2,
+       "GG": 12,
+       "sub": false
+      }
+     ],
+     "tower_pairs": [
+      {
+       "a_win": [
+        0,
+        7
+       ],
+       "b_win": [
+        9,
+        13
+       ],
+       "a_sub": false,
+       "b_sub": false,
+       "leaf": "DOWN_EXPANSION",
+       "relation4": "LevelExpansion"
+      }
+     ],
+     "k": 13
+    }
+   ]
+  }
+ ]
+}

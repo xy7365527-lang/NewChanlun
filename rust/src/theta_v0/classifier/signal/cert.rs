@@ -391,6 +391,7 @@ mod tests {
     /// 测试用次级别走势（L0 线段，sub_moves 空）。
     fn seg(direction: Direction, lo: Tick, hi: Tick, start: usize, end: usize) -> LeveledMove {
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment { direction, lo, hi },
             start_index: start,
             end_index: end,
@@ -424,6 +425,7 @@ mod tests {
             end_index: 17,
         }];
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Compose {
                 subs: Rc::new(subs.iter().map(|m| m.rmove.clone()).collect()),
                 centers,

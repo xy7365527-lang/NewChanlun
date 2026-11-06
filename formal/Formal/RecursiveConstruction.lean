@@ -44,13 +44,43 @@ def level : Move → Nat
   | segment _ _ _ => 0
   | compose _ _ lvl => lvl
 
-/-- 走势的价格区间（segment 直接带；compose 由其中枢外缘合成）。 -/
-def interval : Move → (Int × Int)
-  | segment _ lo hi => (lo, hi)
-  | compose _ centers _ =>
-      let los := centers.map (·.dd)
-      let his := centers.map (·.gg)
-      (los.foldr min 0, his.foldr max 0)
+mutual
+  /--
+    走势的价格区间（segment 直接带；compose = 全部子走势区间的极值）。
+
+    ★#1419 根裁定 r2 第 1 条：走势区间不是中枢外缘。中枢 GG/DD 只聚合 Zn（与 seed 首段同向的成员，
+    #1478），走势区间取全部子走势（含非 Zn 的末成员——其端点就是走势的实际极值）。旧定义由
+    `centers` 的 dd/gg 合成，且以 `foldr min 0`/`foldr max 0` 起算，对正价下沿恒为 0；本定义改对
+    `subs` 取极值，空 `subs` 记 `(0, 0)`（与 Rust `RMove::lo/hi` 的 `unwrap_or(0)` 同口径，#804）。
+  -/
+  def interval : Move → (Int × Int)
+    | segment _ lo hi => (lo, hi)
+    | compose subs _ _ => listInterval subs
+  /-- 子走势序列的区间极值（`[]` 记 `(0, 0)`；单元素即其区间；否则逐个取 min/max）。 -/
+  def listInterval : List Move → (Int × Int)
+    | [] => (0, 0)
+    | [m] => interval m
+    | m :: m' :: ms =>
+        let a := interval m
+        let b := listInterval (m' :: ms)
+        (min a.1 b.1, max a.2 b.2)
+end
+
+/-- #1419：走势区间不读中枢外缘与级别；中枢换成 Zn 外缘不会删去子走势极值。 -/
+theorem interval_compose_centers_irrelevant (subs : List Move)
+    (cs ds : List Center) (l k : Nat) :
+    (compose subs cs l).interval = (compose subs ds k).interval := rfl
+
+/-- #1419：空组合有占位区间；非空正价/负价列表不引入零哨兵。 -/
+example : (compose [] [] 1).interval = (0, 0) := by decide
+example : (compose [segment .up 10 40, segment .down 5 25] [] 1).interval = (5, 40) := by
+  decide
+example : (compose [segment .up (-40) (-10), segment .down (-25) (-5)] [] 1).interval
+    = (-40, -5) := by decide
+
+/-- #1419：递归取值，包括与首段反向的末成员；这里只锁区间函数，不假设已构成完整走势。 -/
+example : (compose [compose [segment .up 10 40, segment .down 5 25] [] 1,
+    segment .up 12 30] [] 2).interval = (5, 40) := by decide
 
 /-- 走势区间下沿。 -/
 def lo (m : Move) : Int := m.interval.1

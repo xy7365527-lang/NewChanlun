@@ -22,6 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "s_session"))
+from v2_seed import require_seed_binary  # noqa: E402  #1419 种子构建闸
 import s_readonly_server as reader
 
 audit = reader._query_integrity()
@@ -546,5 +547,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     args, rest = parser.parse_known_args()
-    BINARY = args.binary.resolve()
+    BINARY = require_seed_binary(args.binary.resolve())
     unittest.main(argv=[sys.argv[0], *rest])

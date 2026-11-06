@@ -15,9 +15,23 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BudgetExceeded;
 #[derive(Debug)]
-pub(crate) enum Failure {
+pub(crate) enum Failure<E = String> {
     BudgetExceeded,
-    Invalid(String),
+    Invalid(E),
+}
+
+impl From<super::PublishError> for Failure<super::PublishError> {
+    fn from(error: super::PublishError) -> Self {
+        Self::Invalid(error)
+    }
+}
+impl From<Failure> for Failure<super::PublishError> {
+    fn from(error: Failure) -> Self {
+        match error {
+            Failure::BudgetExceeded => Self::BudgetExceeded,
+            Failure::Invalid(error) => Self::Invalid(error.into()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -290,14 +304,14 @@ mod r6_codec_work_tests {
         send_sync::<Budget>();
     }
 }
-impl From<BudgetExceeded> for Failure {
+impl<E> From<BudgetExceeded> for Failure<E> {
     fn from(_: BudgetExceeded) -> Self {
         Self::BudgetExceeded
     }
 }
-impl From<String> for Failure {
+impl<E: From<String>> From<String> for Failure<E> {
     fn from(e: String) -> Self {
-        Self::Invalid(e)
+        Self::Invalid(e.into())
     }
 }
 #[derive(Clone)]
@@ -346,8 +360,32 @@ pub(crate) struct CensusEvent {
 /// 普查容量预留，记账期间不得引发分配/realloc；超额即判普查失效。
 #[cfg(test)]
 const CENSUS_CAPACITY: usize = 1 << 20;
+// #1419 3C：经 `SqliteParent` 收取的 SQLite 块另记为 "sqlite"。它们与 Rust 许可同走总账，但块由
+// 组件 allocator 以 Rust layout 分配，测试的 Rust 分配窗口也会读到；分开登记才能把窗口读数拆成
+// SQLite 块与其余 Rust 分配逐项对账。只是普查标签，不改预留本身。
+#[cfg(test)]
+thread_local! {
+    static CENSUS_SQLITE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+#[cfg(test)]
+struct SqliteCensus(bool);
+#[cfg(test)]
+impl SqliteCensus {
+    fn enter() -> Self {
+        Self(CENSUS_SQLITE.with(|c| c.replace(true)))
+    }
+}
+#[cfg(test)]
+impl Drop for SqliteCensus {
+    fn drop(&mut self) {
+        CENSUS_SQLITE.with(|c| c.set(self.0));
+    }
+}
 #[cfg(test)]
 fn census_kind(kind: Option<ScratchCharge>) -> &'static str {
+    if kind.is_none() && CENSUS_SQLITE.with(std::cell::Cell::get) {
+        return "sqlite";
+    }
     match kind {
         None => "permit",
         Some(ScratchCharge::Metadata) => "metadata",
@@ -1528,7 +1566,8 @@ impl<V: Retained> Retained for Tree<V> {
 use newchan_rust::s_content::capture_allocation::scratch::{
     CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
 };
-impl From<ScratchFailure> for Failure {
+use newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteParent;
+impl<E: From<&'static str>> From<ScratchFailure> for Failure<E> {
     fn from(e: ScratchFailure) -> Self {
         match e {
             ScratchFailure::Budget | ScratchFailure::Allocation => Self::BudgetExceeded,
@@ -1536,8 +1575,8 @@ impl From<ScratchFailure> for Failure {
         }
     }
 }
-impl<E: Into<Failure>> From<WorkError<E>> for Failure {
-    fn from(e: WorkError<E>) -> Self {
+impl<E: From<&'static str>, O: Into<Failure<E>>> From<WorkError<O>> for Failure<E> {
+    fn from(e: WorkError<O>) -> Self {
         match e {
             WorkError::Resource(e) => e.into(),
             WorkError::Operation(e) => e.into(),
@@ -1747,6 +1786,70 @@ impl ScratchParent for Ledger {
             self.invalidate();
         }
         result
+    }
+}
+/// #1419 M8D 3B：SQLite 块与 Rust 许可同父同域收费。只记总账（不进 Native/Layout 分项），
+/// 不改 Ledger 布局；旧 origin 返还只降累计占用。
+impl SqliteParent for Ledger {
+    fn reserve_sqlite(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
+        #[cfg(test)]
+        let _census = SqliteCensus::enter();
+        self.reserve_total(bytes, Some(expected))
+    }
+    fn release_sqlite(&self, bytes: usize, origin: u64) -> Result<(), ScratchFailure> {
+        #[cfg(test)]
+        let _census = SqliteCensus::enter();
+        self.release_total(bytes, origin)
+    }
+    fn invalidate_sqlite(&self) {
+        ScratchParent::invalidate(self);
+    }
+    fn open_sqlite_scope(&self, origin: u64) -> Result<(), ScratchFailure> {
+        let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if d.state & BROKEN != 0 || u64::from(d.serial) != origin {
+            return Err(ScratchFailure::Ledger);
+        }
+        d.active_scopes = d
+            .active_scopes
+            .checked_add(1)
+            .ok_or(ScratchFailure::Ledger)?;
+        Ok(())
+    }
+    fn close_sqlite_scope(&self, origin: u64) -> Result<(), ScratchFailure> {
+        ScratchParent::close_scope(self, origin)
+    }
+    fn admits_sqlite(&self, origin: u64) -> bool {
+        self.domain
+            .lock()
+            .is_ok_and(|d| d.state & BROKEN == 0 && u64::from(d.serial) == origin)
+    }
+}
+impl Budget {
+    /// 本冻结域的 SQLite 收费父账与 origin，供 `SqliteParentAllocator::bind`。
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1419 M8D 3B：同父 SQLite 收费在 3C 接线前只由测试绑定"
+        )
+    )]
+    pub(crate) fn sqlite_parent(&self) -> (Arc<dyn SqliteParent>, u64) {
+        (self.0.clone(), self.1)
+    }
+    /// 工作域是否属于本父账的本冻结域（同一父账对象、同一 origin）。
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1419 3C：受管台账核 codec 工作域归属；Native 一次启用波接入生产"
+        )
+    )]
+    pub(crate) fn owns_work(
+        &self,
+        work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+    ) -> bool {
+        let (parent, origin) = work.parent_identity();
+        parent == Arc::as_ptr(&self.0).cast::<()>() && origin == self.1
     }
 }
 /// 固定 std SwissTable：小表 4/8 桶只空一槽，>=16 桶的装载率 7/8；控制组最多16字节。

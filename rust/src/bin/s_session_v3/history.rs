@@ -15,6 +15,7 @@ use crate::v3::audit_store::{CodecRead, CodecStore};
 use content_manifest::ManifestRoots;
 #[cfg(test)]
 use newchan_rust::s_content::path::lookup_path;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
     Value as V,
@@ -53,7 +54,7 @@ fn compare_cut_array(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let expected =
         hash_array_metered_with_work(nodes, deadline, budget, false, allocation, s.codec_work())?;
     same_digest(s, public, name, expected)
@@ -63,13 +64,13 @@ fn native_cut_binding(
     m: content_manifest::MetadataView<'_>,
     r: content_manifest::RootsView<'_>,
     previous: i64,
-) -> Result<sc::CodecVec<bj::TextValue>, String> {
+) -> Result<sc::CodecVec<bj::TextValue>, PublishError> {
     let c = m.source_commit;
     let mut out = sc::CodecVec::default();
     // 18 个原字段、4 个十进制字段、4 份 ref 的各4字段。
     store
         .native_codec_room(&mut out, 18 + 4 + 4 * 4)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     for text in [
         m.session_id,
         m.session_generation,
@@ -90,15 +91,16 @@ fn native_cut_binding(
         c.producer_epoch,
         c.clock_event_id,
     ] {
-        out.try_push(store.native_text(text)?).map_err(err)?;
+        out.try_push(store.native_text(text)?)
+            .map_err(publish_err)?;
     }
     for value in [m.generation, m.input_frontier, c.attempt_index, previous] {
         out.try_push(
             store
                 .native_text(bj::Decimal::new(value).text())
-                .map_err(err)?,
+                .map_err(publish_err)?,
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
     }
     for v in [
         m.scope,
@@ -107,15 +109,16 @@ fn native_cut_binding(
         r.delta_template,
     ] {
         for text in [v.format(), v.root(), v.kind().name()] {
-            out.try_push(store.native_text(text)?).map_err(err)?;
+            out.try_push(store.native_text(text)?)
+                .map_err(publish_err)?;
         }
         out.try_push(
             store
                 .native_format(format_args!("{:?}", v.extent()))
                 .map(bj::TextValue::Plain)
-                .map_err(err)?,
+                .map_err(publish_err)?,
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
     }
     Ok(out)
 }
@@ -128,7 +131,7 @@ impl NativeCutProjection<'_, '_, '_> {
         r: content_manifest::RootsView<'_>,
         batch: &str,
         previous: i64,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
             || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
@@ -136,7 +139,7 @@ impl NativeCutProjection<'_, '_, '_> {
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
         {
-            return Err(err(
+            return Err(publish_err(
                 "Native双投影scope/capture/transaction/cut/index绑定不符",
             ));
         }
@@ -155,7 +158,7 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     roots: content_manifest::RootsView<'_>,
     batch: &str,
     previous: i64,
-) -> Result<Option<NativeCutProjection<'scope, 'connection, 'capture>>, String> {
+) -> Result<Option<NativeCutProjection<'scope, 'connection, 'capture>>, PublishError> {
     let Some(capture) = s.native_projection_capture() else {
         return Ok(None);
     };
@@ -166,14 +169,17 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     let (delta_members, delta_template) =
         aux_index::native_cut_members(aux, s, layout, m.generation, true, batch)?;
     let public_array =
-        |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
+        |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, PublishError> {
             let mut values = sc::CodecVec::default();
-            s.native_vec_room(&mut values, nodes.len()).map_err(err)?;
+            s.native_vec_room(&mut values, nodes.len())
+                .map_err(publish_err)?;
             for digest in nodes {
-                values.try_push(sc::ValueView::Edge(*digest)).map_err(err)?;
+                values
+                    .try_push(sc::ValueView::Edge(*digest))
+                    .map_err(publish_err)?;
             }
             s.write_template_view(sc::ValueView::Array(&values))
-                .map_err(err)
+                .map_err(publish_err)
         };
     let snapshot_public = public_array(s, &snapshot_members[2])?;
     let delta_public = public_array(s, &delta_members[2])?;
@@ -202,7 +208,7 @@ pub(super) trait CutSourceVerifier {
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
         auxiliary: &aux_index::Index,
-    ) -> Result<(), String>;
+    ) -> Result<(), PublishError>;
 }
 
 pub(super) struct PublishedCut {
@@ -257,7 +263,7 @@ impl NativeRawPrefixes {
         raw: RawEventsView<'_>,
         _bound: &super::audit_owner::BoundOriginals,
         native: &super::audit_owner::native::Budget,
-    ) -> Result<usize, super::audit_owner::native::Failure> {
+    ) -> Result<usize, super::audit_owner::native::Failure<PublishError>> {
         native
             .codec_work()?
             .run(|scope| self.check_appended_work(capture, raw, _bound, native, scope))
@@ -274,12 +280,12 @@ impl NativeRawPrefixes {
         _bound: &super::audit_owner::BoundOriginals,
         native: &super::audit_owner::native::Budget,
         work: &sc::capture_allocation::scratch::WorkScope,
-    ) -> Result<usize, super::audit_owner::native::Failure> {
+    ) -> Result<usize, super::audit_owner::native::Failure<PublishError>> {
         let store = HashReader::captured_for_audit(capture, None)
-            .map_err(err)?
+            .map_err(publish_err)?
             .with_codec_work(work, native);
         if self.raw_nodes.len() != self.raw_wire_nodes.len() || self.raw_nodes.len() > raw.len() {
-            return Err(err("raw 已核 R 前沿不符").into());
+            return Err(publish_err("raw 已核 R 前沿不符").into());
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
@@ -291,26 +297,28 @@ impl NativeRawPrefixes {
         native.rebirth_codec_vec(&mut self.raw_wire_nodes, work, append)?;
         self.raw_nodes
             .try_reserve_native(work, append)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         self.raw_wire_nodes
             .try_reserve_native(work, append)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         // #1481: RawIter::skip walks the already certified prefix. Direct indexing
         // preserves its checks while touching only the newly owned suffix.
         for ordinal in self.raw_nodes.len()..raw.len() {
-            let event = raw.get(ordinal).ok_or_else(|| err("raw 后缀序号越界"))?;
+            let event = raw
+                .get(ordinal)
+                .ok_or_else(|| publish_err("raw 后缀序号越界"))?;
             self.raw_nodes
                 .try_push(hash_json_in_store(&store, event, None, None)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             let wire = bj::RawWire::new(event)?;
             self.raw_wire_nodes
                 .try_push(hash_json_in_store(&store, wire.view(), None, None)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         let mut retained = super::audit_retention::RetainedDelta::default();
         retained.vec_capacity::<NodeDigest>(old[0], self.raw_nodes.capacity());
         retained.vec_capacity::<NodeDigest>(old[1], self.raw_wire_nodes.capacity());
-        retained.apply(0)
+        retained.apply(0).map_err(Into::into)
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
@@ -395,6 +403,7 @@ pub(super) fn read_indexed_history(
         None,
         SourcePolicy::Ordinary,
         false,
+        None,
         &mut None,
     )
 }
@@ -425,6 +434,7 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         SourcePolicy::Ordinary,
         false,
+        None,
         &mut None,
     )
 }
@@ -562,6 +572,7 @@ pub(super) fn fold_certified_history(
         None,
         SourcePolicy::NativeMeasured,
         false,
+        None,
         &mut Some(certify),
     )
 }
@@ -594,6 +605,7 @@ pub(super) fn read_indexed_history_with_policy<'a>(
         materials,
         policy,
         false,
+        None,
         &mut None,
     );
     if result.is_err() {
@@ -762,8 +774,10 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
+    sqlite_base: Option<&sc::sqlite_audit::SqliteAuditBase<'_>>,
 ) -> Result<VerifiedPublicHistory<'scope, 'tx>, String> {
     let qualified = policy == SourcePolicy::Ordinary
+        && sqlite_base.is_none()
         && capture.is_none()
         && work.is_none()
         && materials.is_none()
@@ -775,7 +789,25 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(tx))
     .transpose()
     .map_err(err)?;
-    let history = if let Some(pool) = originals.as_mut() {
+    let history = if sqlite_base.is_some() {
+        read_indexed_history_inner(
+            tx,
+            raw.into(),
+            control,
+            deadline,
+            max_render_bytes,
+            budget,
+            true,
+            capture,
+            records,
+            work,
+            materials,
+            policy,
+            false,
+            sqlite_base,
+            &mut None,
+        )?
+    } else if let Some(pool) = originals.as_mut() {
         read_indexed_history_inner(
             tx,
             raw.into(),
@@ -790,6 +822,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
             Some(pool),
             policy,
             true,
+            None,
             &mut None,
         )?
     } else {
@@ -920,24 +953,27 @@ fn read_indexed_history_inner(
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
     sealed_ordinary_materials: bool,
+    sqlite_base: Option<&sc::sqlite_audit::SqliteAuditBase<'_>>,
     certify: &mut Option<&mut dyn CutSourceVerifier>,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work)?;
+        verify_required_meta_admitted(tx, work)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
     } else {
         verify_required_meta(tx)?;
     }
     #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
     let bound_births_qualified = policy == SourcePolicy::Ordinary
+        && sqlite_base.is_none()
         && capture.is_none()
         && work.is_none()
         && (materials.is_none() || sealed_ordinary_materials)
         && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    if audit_same_material {
+    if audit_same_material && sqlite_base.is_none() {
         reader.enable_audit_same_material();
     }
     let mut reader = Some(reader);
@@ -955,7 +991,10 @@ fn read_indexed_history_inner(
         Some(c) => HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
-        None => HashReader::metered(source, deadline, max_render_bytes, budget),
+        None => match sqlite_base {
+            Some(base) => HashReader::sqlite_base(base),
+            None => HashReader::metered(source, deadline, max_render_bytes, budget),
+        },
     };
     store = store
         .with_source_policy(policy)
@@ -972,11 +1011,13 @@ fn read_indexed_history_inner(
     let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
-    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
+    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let auxiliary = aux_index::load(tx, &mut store, aux_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
+    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let mut objects = object_index::load_for_history(tx, &mut store, object_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
@@ -992,11 +1033,17 @@ fn read_indexed_history_inner(
             check_deadline(deadline)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
+                .try_push(
+                    root_ref_bytes(&mut store, row.blob(0).map_err(err)?)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
                 .map_err(err)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(1).map_err(err)?)?)
+                .try_push(
+                    root_ref_bytes(&mut store, row.blob(1).map_err(err)?)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
                 .map_err(err)?;
         }
         stmt.finalize().map_err(err)?;
@@ -1004,7 +1051,10 @@ fn read_indexed_history_inner(
     };
     let manifest_coverage = store.owned.is_none()
         && store.work.is_none()
-        && matches!(store.source, ReadOwner::Dynamic(_));
+        && matches!(
+            store.source,
+            ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+        );
     let mut public_roots = public_roots;
     let template_roots = {
         let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
@@ -1013,7 +1063,10 @@ fn read_indexed_history_inner(
             check_deadline(deadline)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
+                .try_push(
+                    root_ref_bytes(&mut store, row.blob(0).map_err(err)?)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
                 .map_err(err)?;
         }
         stmt.finalize().map_err(err)?;
@@ -1041,7 +1094,8 @@ fn read_indexed_history_inner(
     if manifest_coverage {
         for manifest in template_roots.iter() {
             check_deadline(deadline)?;
-            let (metadata, roots) = decode_manifest(&mut store, manifest.view())?;
+            let (metadata, roots) = decode_manifest(&mut store, manifest.view())
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             store.native_codec_room(&mut public_roots, 2).map_err(err)?;
             public_roots.try_push(metadata.scope).map_err(err)?;
             public_roots.try_push(roots.generated_state).map_err(err)?;
@@ -1073,10 +1127,15 @@ fn read_indexed_history_inner(
         public: &public_roots,
     };
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
-    let mut object_sweep = objects.native_sweep_admitted(&store)?;
+    let mut object_sweep = objects
+        .native_sweep_admitted(&store)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
-        Some(content_publication::PublicationProjection::new(tx, &store)?)
+        Some(
+            content_publication::PublicationProjection::new(tx, &store)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
     } else {
         None
     };
@@ -1115,7 +1174,8 @@ fn read_indexed_history_inner(
             budget,
             allocation.as_ref(),
             certify,
-        )?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if let Some(projection) = ordinary_publication.as_mut() {
             projection.commit_cut();
         }
@@ -1152,7 +1212,8 @@ fn read_indexed_history_inner(
     );
     resolved_result.map_err(err)?;
     let control_facts = control.into_facts()?;
-    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())?;
+    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
     let raw_prefixes = match (native_prefix, ordered_raw) {
         (Some(prefixes), Some(ordered)) => Some(NativeRawPrefixes {
@@ -1212,16 +1273,16 @@ fn audit_one_published_cut<'capture>(
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
     certify: &mut Option<&mut dyn CutSourceVerifier>,
-) -> Result<PublishedCut, String> {
+) -> Result<PublishedCut, PublishError> {
     let codec_work = store.work;
     check_deadline(deadline)?;
-    let generation: i64 = row.integer(0).map_err(err)?;
+    let generation: i64 = row.integer(0).map_err(publish_err)?;
     #[cfg(test)]
     super::state::trace_event("history_template_closure", Some(generation));
-    let batch_id = sql_text_in_store(store, row, 1, allocation).map_err(err)?;
-    let manifest = root_ref_bytes(store, row.blob(2).map_err(err)?)?;
-    let snapshot = root_ref_bytes(store, row.blob(3).map_err(err)?)?;
-    let delta = root_ref_bytes(store, row.blob(4).map_err(err)?)?;
+    let batch_id = sql_text_in_store(store, row, 1, allocation).map_err(publish_err)?;
+    let manifest = root_ref_bytes(store, row.blob(2).map_err(publish_err)?)?;
+    let snapshot = root_ref_bytes(store, row.blob(3).map_err(publish_err)?)?;
+    let delta = root_ref_bytes(store, row.blob(4).map_err(publish_err)?)?;
     #[cfg(test)]
     super::state::trace_event("history_decode_manifest", Some(generation));
     let (m, roots) = decode_manifest(store, manifest.view())?;
@@ -1231,24 +1292,31 @@ fn audit_one_published_cut<'capture>(
     let mut assembly = if let Some(verified_templates) = verified_templates.filter(|_| {
         store.owned.is_none()
             && store.work.is_none()
-            && matches!(store.source, ReadOwner::Dynamic(_))
+            && matches!(
+                store.source,
+                ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+            )
     }) {
-        let manifest_digest = manifest.view().digest().map_err(err)?;
+        let manifest_digest = manifest.view().digest().map_err(publish_err)?;
         if !std::ptr::eq(tx, verified_templates.transaction)
             || !verified_templates
                 .roots
                 .iter()
                 .any(|root| root.view().digest().ok() == Some(manifest_digest))
         {
-            return Err(err("manifest不属于当前完整Template审计"));
+            return Err(publish_err("manifest不属于当前完整Template审计"));
         }
         let templates = [
-            roots.publication_template.view().digest().map_err(err)?,
-            roots.delta_template.view().digest().map_err(err)?,
+            roots
+                .publication_template
+                .view()
+                .digest()
+                .map_err(publish_err)?,
+            roots.delta_template.view().digest().map_err(publish_err)?,
         ];
         let public = [
-            m.scope.view().digest().map_err(err)?,
-            roots.generated_state.view().digest().map_err(err)?,
+            m.scope.view().digest().map_err(publish_err)?,
+            roots.generated_state.view().digest().map_err(publish_err)?,
         ];
         if !public.iter().all(|digest| {
             verified_templates
@@ -1256,7 +1324,7 @@ fn audit_one_published_cut<'capture>(
                 .iter()
                 .any(|root| root.view().digest().ok() == Some(*digest))
         }) {
-            return Err(err("manifest Public子根不属于当前联合Public审计"));
+            return Err(publish_err("manifest Public子根不属于当前联合Public审计"));
         }
         super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
             source: store,
@@ -1274,7 +1342,7 @@ fn audit_one_published_cut<'capture>(
                 m.view(),
                 roots.view(),
             )
-            .map_err(err)?;
+            .map_err(publish_err)?;
             (u.value, TextValue::Owned(u.batch_id))
         }
         _ => {
@@ -1283,17 +1351,17 @@ fn audit_one_published_cut<'capture>(
                 m.view(),
                 roots.view(),
             )
-            .map_err(err)?;
+            .map_err(publish_err)?;
             (u.value, u.batch_id)
         }
     };
-    if value.digest != manifest.digest().map_err(err)?
+    if value.digest != manifest.digest().map_err(publish_err)?
         || value.kind != manifest.kind()
         || value.extent != manifest.extent()
         || batch_rebuilt != batch_id
         || m.generation != generation
     {
-        return Err(err("持久 manifest 原件/身份/代号不一致"));
+        return Err(publish_err("持久 manifest 原件/身份/代号不一致"));
     }
     #[cfg(test)]
     super::state::trace_event("history_resolve_publication", Some(generation));
@@ -1311,7 +1379,7 @@ fn audit_one_published_cut<'capture>(
                 batch_id.as_str(),
                 previous,
             )?
-            .ok_or_else(|| err("Native双投影资格失效；不回退重判"))?,
+            .ok_or_else(|| publish_err("Native双投影资格失效；不回退重判"))?,
         )
     } else {
         None
@@ -1347,11 +1415,19 @@ fn audit_one_published_cut<'capture>(
         )?
     };
     if resolved.snapshot != snapshot || resolved.delta != delta {
-        return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
+        return Err(publish_err(
+            "实际发布根不是 manifest 模板按独立出生索引解析的结果",
+        ));
     }
-    store.native_codec_room(resolved_roots, 2).map_err(err)?;
-    resolved_roots.try_push(resolved.snapshot).map_err(err)?;
-    resolved_roots.try_push(resolved.delta).map_err(err)?;
+    store
+        .native_codec_room(resolved_roots, 2)
+        .map_err(publish_err)?;
+    resolved_roots
+        .try_push(resolved.snapshot)
+        .map_err(publish_err)?;
+    resolved_roots
+        .try_push(resolved.delta)
+        .map_err(publish_err)?;
     #[cfg(test)]
     super::state::trace_event("history_object_members", Some(generation));
     #[cfg(test)]
@@ -1366,10 +1442,13 @@ fn audit_one_published_cut<'capture>(
         generation,
         object_sweep.as_ref(),
         records.as_deref_mut(),
+        &m.rule_revision,
     );
     #[cfg(test)]
     super::admission_private::s4_read_trace::end(tx, "ord_obj_members", &members_result);
     members_result?;
+    #[cfg(test)]
+    super::state::trace_event("history_object_members_verified", Some(generation));
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
             p.arrays[0].1.clone(),
@@ -1408,29 +1487,29 @@ fn audit_one_published_cut<'capture>(
     for v in withdrawals
         .view()
         .as_array()
-        .ok_or_else(|| err("withdrawals不是数组"))?
+        .ok_or_else(|| publish_err("withdrawals不是数组"))?
         .iter()
     {
         if let Some(b) = budget {
-            b.record().map_err(err)?;
+            b.record().map_err(publish_err)?;
         }
         store
             .native_codec_room(&mut wire_withdrawals.0, 1)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         wire_withdrawals
             .0
             .try_push(bj::WithdrawalWire::new(v)?)
-            .map_err(err)?;
+            .map_err(publish_err)?;
     }
     same_json(store, &delta, "withdrawals", wire_withdrawals.view())?;
     for _ in replaces
         .view()
         .as_array()
-        .ok_or_else(|| err("replaces不是数组"))?
+        .ok_or_else(|| publish_err("replaces不是数组"))?
         .iter()
     {
         if let Some(b) = budget {
-            b.record().map_err(err)?;
+            b.record().map_err(publish_err)?;
         }
     }
     same_json(store, &delta, "replaces", replaces.view())?;
@@ -1489,15 +1568,16 @@ fn audit_one_published_cut<'capture>(
         ("catalog_revision", &m.catalog_revision),
     ] {
         if meta_text_in_store(store, tx, key, allocation)?.as_deref() != Some(actual.as_str()) {
-            return Err(err(format!("manifest.{key} 与冻结域不符")));
+            return Err(publish_err(format!("manifest.{key} 与冻结域不符")));
         }
     }
-    let scope_text =
-        meta_text_in_store(store, tx, "scope", allocation)?.ok_or_else(|| err("缺scope"))?;
+    let scope_text = meta_text_in_store(store, tx, "scope", allocation)?
+        .ok_or_else(|| publish_err("缺scope"))?;
     let scope = history_decode_in_store(store, scope_text.as_bytes(), allocation)?;
-    if m.scope.digest().map_err(err)? != hash_json_in_store(store, scope.view(), deadline, budget)?
+    if m.scope.digest().map_err(publish_err)?
+        != hash_json_in_store(store, scope.view(), deadline, budget)?
     {
-        return Err(err("manifest.scope 与冻结域不符"));
+        return Err(publish_err("manifest.scope 与冻结域不符"));
     }
     verify_source(store, tx, &m, allocation)?;
     control.consume_header(
@@ -1514,7 +1594,7 @@ fn audit_one_published_cut<'capture>(
             .ok()
             .is_none_or(|n| n >= raw.len())
     {
-        return Err(err("发布原始前沿无新增、越界或倒退"));
+        return Err(publish_err("发布原始前沿无新增、越界或倒退"));
     }
     #[cfg(test)]
     super::state::trace_event("history_aux_members", Some(generation));
@@ -1540,16 +1620,18 @@ fn audit_one_published_cut<'capture>(
     super::state::trace_event("history_raw_members", Some(generation));
     for n in (previous + 1)..=frontier {
         check_deadline(deadline)?;
-        let event = raw.get(n as usize).ok_or_else(|| err("原始序号越界"))?;
+        let event = raw
+            .get(n as usize)
+            .ok_or_else(|| publish_err("原始序号越界"))?;
         if bj::field(event, "seq").as_i64() != Some(n) {
-            return Err(err("真实原始账序与数组位置不符"));
+            return Err(publish_err("真实原始账序与数组位置不符"));
         }
         let coord = bj::coord(event)?;
         if ordered_raw.is_none() {
-            store.native_map_room(effective).map_err(err)?;
+            store.native_map_room(effective).map_err(publish_err)?;
             effective
                 .insert(coord, raw_nodes[n as usize])
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         if let Some(prefix) = native_prefix.as_mut() {
             // Only the actual newly checked interval is appended. Future raw material
@@ -1598,9 +1680,9 @@ fn audit_one_published_cut<'capture>(
                     let mut nodes = bj::new_work(allocation);
                     store
                         .native_codec_room(&mut nodes, frontier as usize + 1)
-                        .map_err(err)?;
+                        .map_err(publish_err)?;
                     for (_, ordinal) in index.ordered() {
-                        nodes.try_push(raw_nodes[ordinal]).map_err(err)?;
+                        nodes.try_push(raw_nodes[ordinal]).map_err(publish_err)?;
                     }
                     nodes
                 } else {
@@ -1671,7 +1753,7 @@ fn audit_one_published_cut<'capture>(
                         "catalog_run_status",
                     ],
                 )
-                .map_err(err)?,
+                .map_err(publish_err)?,
         )
     } else {
         None
@@ -1694,7 +1776,7 @@ fn audit_one_published_cut<'capture>(
                         "catalog_evidence",
                     ],
                 )
-                .map_err(err)?,
+                .map_err(publish_err)?,
         )
     } else {
         None
@@ -1706,7 +1788,7 @@ fn audit_one_published_cut<'capture>(
         ("from", JsonView::String(from_decimal.text())),
         ("to", JsonView::String(to_decimal.text())),
     ];
-    let seq_range = JsonView::object_fields(&seq_fields).map_err(err)?;
+    let seq_range = JsonView::object_fields(&seq_fields).map_err(publish_err)?;
     for (public, fields) in [(&snapshot, &snapshot_fields), (&delta, &delta_fields)] {
         same_json_selected(
             store,
@@ -1785,7 +1867,7 @@ fn audit_one_published_cut<'capture>(
         &snapshot,
         snapshot_fields.as_ref(),
         "scope",
-        m.scope.digest().map_err(err)?,
+        m.scope.digest().map_err(publish_err)?,
     )?;
     same_json_selected(
         store,
@@ -1804,7 +1886,7 @@ fn audit_one_published_cut<'capture>(
     if m.base_cut.strip_prefix("cut-") != Some(bj::Decimal::new(generation - 1).text())
         || m.structure_cut.strip_prefix("cut-") != Some(generation_decimal.text())
     {
-        return Err(err("manifest cut 链不连续"));
+        return Err(publish_err("manifest cut 链不连续"));
     }
     for (column, actual) in [
         (5, m.session_id.as_str()),
@@ -1814,20 +1896,20 @@ fn audit_one_published_cut<'capture>(
         (10, batch_id.as_str()),
     ] {
         if sql_text_in_store(store, row, column, allocation)
-            .map_err(err)?
+            .map_err(publish_err)?
             .as_str()
             != actual
         {
-            return Err(err("Delta 独立控制列与 manifest 不符"));
+            return Err(publish_err("Delta 独立控制列与 manifest 不符"));
         }
     }
-    let stored_range = sql_text_in_store(store, row, 9, allocation).map_err(err)?;
+    let stored_range = sql_text_in_store(store, row, 9, allocation).map_err(publish_err)?;
     if !history_canonical_equal(seq_range, &stored_range, allocation)?
-        || row.integer(11).map_err(err)? != frontier
+        || row.integer(11).map_err(publish_err)? != frontier
     {
-        return Err(err("Delta 独立前沿不符"));
+        return Err(publish_err("Delta 独立前沿不符"));
     }
-    let catalog_run_status = sql_text_in_store(store, row, 12, allocation).map_err(err)?;
+    let catalog_run_status = sql_text_in_store(store, row, 12, allocation).map_err(publish_err)?;
     same_json_selected(
         store,
         &delta,
@@ -1837,18 +1919,18 @@ fn audit_one_published_cut<'capture>(
     )?;
     let evidence = selected_field(store, &delta, delta_fields.as_ref(), "catalog_evidence")?;
     for (column, want) in [(13, &evidence), (14, &delta)] {
-        let encoded = sql_text_in_store(store, row, column, allocation).map_err(err)?;
+        let encoded = sql_text_in_store(store, row, column, allocation).map_err(publish_err)?;
         let parsed = history_decode_in_store(store, encoded.as_bytes(), allocation)?;
         if !history_canonical_equal(parsed.view(), &encoded, allocation)?
             || !transport_equal(parsed.view(), want)?
         {
-            return Err(err("Delta 持久引用与实际内容根不同"));
+            return Err(publish_err("Delta 持久引用与实际内容根不同"));
         }
     }
     for key in ["catalog_evidence", "catalog_run_status"] {
         let expected = selected_field(store, &delta, delta_fields.as_ref(), key)?
             .digest()
-            .map_err(err)?;
+            .map_err(publish_err)?;
         same_digest_selected(store, &snapshot, snapshot_fields.as_ref(), key, expected)?;
     }
 
@@ -1889,7 +1971,10 @@ fn hash_current_raw(
         }
         store.native_codec_room(&mut raw_nodes, 1).map_err(err)?;
         raw_nodes
-            .try_push(hash_json_in_store(store, v, deadline, budget)?)
+            .try_push(
+                hash_json_in_store(store, v, deadline, budget)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
             .map_err(err)?;
     }
     let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
@@ -1904,12 +1989,10 @@ fn hash_current_raw(
             .native_codec_room(&mut raw_wire_nodes, 1)
             .map_err(err)?;
         raw_wire_nodes
-            .try_push(hash_json_in_store(
-                store,
-                bj::RawWire::new(event)?.view(),
-                deadline,
-                budget,
-            )?)
+            .try_push(
+                hash_json_in_store(store, bj::RawWire::new(event)?.view(), deadline, budget)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
             .map_err(err)?;
     }
     Ok((raw_nodes, raw_wire_nodes))
@@ -1920,15 +2003,15 @@ fn verify_current_frontiers(
     output: &sc::CodecVec<PublishedCut>,
     previous: i64,
     allocation: Option<&OwnedBudget>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if meta_i64_in_store(store, tx, "last_advance_frontier", allocation)? != previous {
-        return Err(err("根前沿与完整发布史不符"));
+        return Err(publish_err("根前沿与完整发布史不符"));
     }
     if let Some(last) = output.last() {
         if meta_text_in_store(store, tx, "index_frontier", allocation)?.as_deref()
             != Some(last.batch_id.as_str())
         {
-            return Err(err("根批次与完整发布史末代不符"));
+            return Err(publish_err("根批次与完整发布史末代不符"));
         }
     }
     Ok(())
@@ -1986,7 +2069,8 @@ pub(super) fn revalidate_current_for_reuse_measured(
 ) -> Result<(), String> {
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work)?;
+        verify_required_meta_admitted(tx, work)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
     } else {
         verify_required_meta(tx)?;
     }
@@ -2017,6 +2101,7 @@ pub(super) fn revalidate_current_for_reuse_measured(
         cuts.last().map_or(-1, |c| c.metadata.input_frontier),
         None,
     )
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 
 fn verify_source(
@@ -2024,20 +2109,21 @@ fn verify_source(
     tx: &Transaction<'_>,
     m: &AuditMetadata,
     allocation: Option<&OwnedBudget>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let s = &m.source_commit;
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3").map_err(err)?;
-    stmt.bind_text(1, &s.source_namespace).map_err(err)?;
-    stmt.bind_text(2, &s.source_epoch).map_err(err)?;
-    stmt.bind_text(3, &s.message_id).map_err(err)?;
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3").map_err(publish_err)?;
+    stmt.bind_text(1, &s.source_namespace)
+        .map_err(publish_err)?;
+    stmt.bind_text(2, &s.source_epoch).map_err(publish_err)?;
+    stmt.bind_text(3, &s.message_id).map_err(publish_err)?;
     let raw = {
         let mut row = stmt
             .next()
-            .map_err(err)?
-            .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
-        sql_text_in_store(store, &mut row, 0, allocation).map_err(err)?
+            .map_err(publish_err)?
+            .ok_or_else(|| publish_err(rusqlite::Error::QueryReturnedNoRows))?;
+        sql_text_in_store(store, &mut row, 0, allocation).map_err(publish_err)?
     };
-    stmt.finalize().map_err(err)?;
+    stmt.finalize().map_err(publish_err)?;
     let envelope = history_decode_in_store(store, raw.as_bytes(), allocation)?;
     let e = newchan_rust::session_protocol::validate_envelope_view_with_owner(
         envelope.view(),
@@ -2055,33 +2141,33 @@ fn verify_source(
         ("producer_epoch", &s.producer_epoch),
     ] {
         if bj::field(e, key).as_str() != Some(want.as_str()) {
-            return Err(err(format!("source_commit.{key} 不符")));
+            return Err(publish_err(format!("source_commit.{key} 不符")));
         }
     }
     if bj::field(bj::field(e, "payload"), "clock_event_id").as_str()
         != Some(s.clock_event_id.as_str())
     {
-        return Err(err("manifest clock 与真实消息不符"));
+        return Err(publish_err("manifest clock 与真实消息不符"));
     }
     if writer_for_generation(store, tx, m.generation, allocation)? != m.writer_epoch {
-        return Err(err("manifest写者与本代实际换代史不同"));
+        return Err(publish_err("manifest写者与本代实际换代史不同"));
     }
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2").map_err(err)?;
-    stmt.bind_text(1, &s.clock_event_id).map_err(err)?;
-    stmt.bind_integer(2, s.attempt_index).map_err(err)?;
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2").map_err(publish_err)?;
+    stmt.bind_text(1, &s.clock_event_id).map_err(publish_err)?;
+    stmt.bind_integer(2, s.attempt_index).map_err(publish_err)?;
     let (g, ns) = {
         let mut row = stmt
             .next()
-            .map_err(err)?
-            .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
+            .map_err(publish_err)?
+            .ok_or_else(|| publish_err(rusqlite::Error::QueryReturnedNoRows))?;
         (
-            row.integer(0).map_err(err)?,
-            sql_text_in_store(store, &mut row, 1, allocation).map_err(err)?,
+            row.integer(0).map_err(publish_err)?,
+            sql_text_in_store(store, &mut row, 1, allocation).map_err(publish_err)?,
         )
     };
-    stmt.finalize().map_err(err)?;
+    stmt.finalize().map_err(publish_err)?;
     if g != m.generation || ns != m.semantic_commit_ns {
-        return Err(err("manifest source attempt 不是本代真实 Commit"));
+        return Err(publish_err("manifest source attempt 不是本代真实 Commit"));
     }
     Ok(())
 }
@@ -2092,13 +2178,13 @@ fn writer_for_generation(
     tx: &Transaction<'_>,
     generation: i64,
     allocation: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
+) -> Result<TextValue, PublishError> {
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(publish_err)?;
     let mut result = None;
-    while let Some(mut row) = stmt.next().map_err(err)? {
-        let from = sql_text_in_store(store, &mut row, 0, allocation).map_err(err)?;
-        let to = sql_text_in_store(store, &mut row, 1, allocation).map_err(err)?;
-        let at = sql_text_in_store(store, &mut row, 2, allocation).map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(publish_err)? {
+        let from = sql_text_in_store(store, &mut row, 0, allocation).map_err(publish_err)?;
+        let to = sql_text_in_store(store, &mut row, 1, allocation).map_err(publish_err)?;
+        let at = sql_text_in_store(store, &mut row, 2, allocation).map_err(publish_err)?;
         if result.is_none() {
             result = Some(from);
         }
@@ -2110,10 +2196,10 @@ fn writer_for_generation(
             break;
         }
     }
-    stmt.finalize().map_err(err)?;
+    stmt.finalize().map_err(publish_err)?;
     result.map(Ok).unwrap_or_else(|| {
         meta_text_in_store(store, tx, "writer_epoch", allocation)?
-            .ok_or_else(|| err("缺writer_epoch"))
+            .ok_or_else(|| publish_err("缺writer_epoch"))
     })
 }
 fn history_allocation(s: &(impl CodecRead + ?Sized)) -> Result<Option<OwnedBudget>, String> {
@@ -2129,11 +2215,13 @@ fn sql_text_in_store(
     row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
     column: usize,
     allocation: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     if store.codec_work().is_some() {
-        store.native_text(row.text(column).map_err(err)?)
+        store
+            .native_text(row.text(column).map_err(publish_err)?)
+            .map_err(Into::into)
     } else {
-        TextValue::from_sql(row, column, allocation)
+        TextValue::from_sql(row, column, allocation).map_err(Into::into)
     }
 }
 fn meta_text_in_store(
@@ -2141,11 +2229,11 @@ fn meta_text_in_store(
     tx: &Transaction<'_>,
     key: &str,
     allocation: Option<&OwnedBudget>,
-) -> Result<Option<TextValue>, String> {
+) -> Result<Option<TextValue>, PublishError> {
     if store.codec_work().is_none() {
-        return v2::control_meta_text(tx, key, allocation);
+        return v2::control_meta_text(tx, key, allocation).map_err(Into::into);
     }
-    let error = |e| format!("读 meta.{key} 失败：{e}");
+    let error = |e| PublishError::from(e).context(&format!("读 meta.{key} 失败："));
     let mut stmt =
         CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(error)?;
     stmt.bind_text(1, key).map_err(error)?;
@@ -2161,26 +2249,30 @@ fn meta_i64_in_store(
     tx: &Transaction<'_>,
     key: &str,
     allocation: Option<&OwnedBudget>,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     if store.codec_work().is_none() {
-        return v2::control_meta_i64(tx, key, allocation);
+        return v2::control_meta_i64(tx, key, allocation).map_err(Into::into);
     }
     let value = meta_text_in_store(store, tx, key, allocation)?
         .ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
     let label = store
         .native_format(format_args!("meta.{key}"))
-        .map_err(err)?;
-    parse_canonical_i64(&value, &label).map_err(|e| format!("StorageUnavailable：{e}"))
+        .map_err(publish_err)?;
+    parse_canonical_i64(&value, &label)
+        .map_err(|e| PublishError::from(e).context("StorageUnavailable："))
 }
 fn history_decode_in_store(
     store: &(impl CodecRead + ?Sized),
     bytes: &[u8],
     allocation: Option<&OwnedBudget>,
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, PublishError> {
     if allocation.is_none() {
-        store.parse_rendered_plain(bytes).map(JsonOwner::Plain)
+        store
+            .parse_rendered_plain(bytes)
+            .map(JsonOwner::Plain)
+            .map_err(Into::into)
     } else {
-        history_decode(bytes, allocation)
+        history_decode(bytes, allocation).map_err(Into::into)
     }
 }
 fn history_decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<JsonOwner, String> {
@@ -2273,11 +2365,11 @@ thread_local! {
 fn decode_manifest(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<(AuditMetadata, AuditRoots), String> {
+) -> Result<(AuditMetadata, AuditRoots), PublishError> {
     #[cfg(test)]
     MANIFEST_DECODE_CALLS.with(|calls| calls.set(calls.get() + 1));
     if r.kind() != Kind::Object || r.extent() != Some(21) {
-        return Err(err("manifest 不是21字段对象"));
+        return Err(publish_err("manifest 不是21字段对象"));
     }
     for (key, want) in [
         ("schema_revision", "s-batch-manifest/1"),
@@ -2285,12 +2377,12 @@ fn decode_manifest(
         ("protocol_revision", PROTOCOL_REVISION),
     ] {
         if text_meta(s, r, key)? != want {
-            return Err(err(format!("manifest.{key} 不符")));
+            return Err(publish_err(format!("manifest.{key} 不符")));
         }
     }
     let source = field_meta(s, r, "source_commit")?;
     if source.kind() != Kind::Object || source.extent() != Some(8) {
-        return Err(err("source_commit不是8字段对象"));
+        return Err(publish_err("source_commit不是8字段对象"));
     }
     let source_commit = AuditSourceCommit {
         source_namespace: text_meta(s, source.view(), "source_namespace")?,
@@ -2337,7 +2429,7 @@ fn field<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     field_meta(s, r.into(), k)
 }
 #[cfg_attr(
@@ -2348,7 +2440,7 @@ fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     text_meta(s, r.into(), k)
 }
 #[allow(
@@ -2359,10 +2451,14 @@ fn integer<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     newchan_rust::session_protocol::parse_canonical_i64(text(s, r, k)?.as_str(), k)
+        .map_err(Into::into)
 }
 
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("HistoryInvalid：")
+}
 fn err(e: impl std::fmt::Display) -> String {
     format!("HistoryInvalid：{e}")
 }
@@ -2371,9 +2467,9 @@ fn same_digest<'a>(
     r: impl Into<sc::RefView<'a>>,
     k: &str,
     want: NodeDigest,
-) -> Result<(), String> {
-    if field(s, r, k)?.digest().map_err(err)? != want {
-        Err(err(format!("{k}与独立依据不同")))
+) -> Result<(), PublishError> {
+    if field(s, r, k)?.digest().map_err(publish_err)? != want {
+        Err(publish_err(format!("{k}与独立依据不同")))
     } else {
         Ok(())
     }
@@ -2383,7 +2479,7 @@ fn same_json<'r, 'j>(
     r: impl Into<sc::RefView<'r>>,
     k: &str,
     v: impl Into<JsonView<'j>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let expected = hash_json_in_store(s, v, s.deadline, s.budget)?;
     same_digest(s, r, k, expected)
 }
@@ -2393,12 +2489,12 @@ fn selected_field<'r>(
     r: impl Into<sc::RefView<'r>>,
     fields: Option<&super::audit_store::RefFields<'_>>,
     key: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     match fields {
         Some(fields) => fields
             .get_admitted(s, key)
-            .map_err(err)?
-            .ok_or_else(|| err(format!("缺{key}"))),
+            .map_err(publish_err)?
+            .ok_or_else(|| publish_err(format!("缺{key}"))),
         None => field(s, r, key),
     }
 }
@@ -2408,9 +2504,13 @@ fn same_digest_selected<'r>(
     fields: Option<&super::audit_store::RefFields<'_>>,
     key: &str,
     want: NodeDigest,
-) -> Result<(), String> {
-    if selected_field(s, r, fields, key)?.digest().map_err(err)? != want {
-        Err(err(format!("{key}与独立依据不同")))
+) -> Result<(), PublishError> {
+    if selected_field(s, r, fields, key)?
+        .digest()
+        .map_err(publish_err)?
+        != want
+    {
+        Err(publish_err(format!("{key}与独立依据不同")))
     } else {
         Ok(())
     }
@@ -2421,7 +2521,7 @@ fn same_json_selected<'r, 'j>(
     fields: Option<&super::audit_store::RefFields<'_>>,
     key: &str,
     value: impl Into<JsonView<'j>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let expected = hash_json_in_store(s, value, s.deadline, s.budget)?;
     same_digest_selected(s, r, fields, key, expected)
 }
@@ -2510,7 +2610,7 @@ pub(super) fn hash_json_in_store<'a>(
     v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
     deadline: Option<std::time::Instant>,
     job: Option<&dyn super::audit_budget::Budget>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     hash_json_with_owner(
         v.into(),
         deadline,
@@ -2525,7 +2625,7 @@ fn hash_json_with_owner(
     job: Option<&dyn super::audit_budget::Budget>,
     owner: Option<&sc::capture_allocation::OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = owner {
@@ -2535,12 +2635,12 @@ fn hash_json_with_owner(
             b,
         )
         .map(|v| v.digest)
-        .map_err(err);
+        .map_err(|error| PublishError::from(error).context("HistoryInvalid："));
     }
     let _ = owner;
     sc::write_json_view(&mut Discard(deadline, job, work), v)
         .map(|v| v.digest)
-        .map_err(err)
+        .map_err(|error| PublishError::from(error).context("HistoryInvalid："))
 }
 
 #[cfg(test)]
@@ -2572,6 +2672,7 @@ fn hash_array_metered_with_owner(
     allocation: Option<&OwnedBudget>,
 ) -> Result<NodeDigest, String> {
     hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None)
+        .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 fn hash_array_metered_with_work(
     nodes: &[NodeDigest],
@@ -2580,10 +2681,10 @@ fn hash_array_metered_with_work(
     records: bool,
     allocation: Option<&OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
-        return Err(err("owned历史摘要入口未启用"));
+        return Err(publish_err("owned历史摘要入口未启用"));
     }
     let mut edges = bj::new_work(allocation);
     let mut work_edges = work.map(|scope| scope.vector());
@@ -2591,14 +2692,14 @@ fn hash_array_metered_with_work(
         check_deadline(deadline)?;
         if records {
             if let Some(b) = budget {
-                b.record().map_err(err)?;
+                b.record().map_err(publish_err)?;
             }
         }
         match &mut work_edges {
             Some(edges) => edges.try_push(sc::ValueView::Edge(*d)),
             None => edges.try_push(sc::ValueView::Edge(*d)),
         }
-        .map_err(err)?;
+        .map_err(publish_err)?;
     }
     let value = sc::ValueView::Array(work_edges.as_ref().map_or(&*edges, |edges| &**edges));
     #[cfg(feature = "s_allocation_json_testonly")]
@@ -2609,11 +2710,11 @@ fn hash_array_metered_with_work(
             b,
         )
         .map(|built| built.digest)
-        .map_err(err);
+        .map_err(publish_err);
     }
     sc::write_value_view(&mut Discard(deadline, budget, work), value)
         .map(|built| built.digest)
-        .map_err(err)
+        .map_err(publish_err)
 }
 
 /// 本次 cold history 内的追加路径；不是任意 M 的 concat/split 算法。
@@ -2625,22 +2726,26 @@ struct PrefixArray {
     stack: sc::CodecVec<(u64, NodeDigest)>,
 }
 impl PrefixArray {
-    fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, String> {
+    fn branch(
+        left: &NodeDigest,
+        right: &NodeDigest,
+        count: u64,
+    ) -> Result<NodeDigest, PublishError> {
         let mut body = [0; 72];
-        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..40].copy_from_slice(left);
         body[40..].copy_from_slice(right);
         Ok(sc::frame(sc::tag::SEQ_BRANCH, &body))
     }
-    fn append(&mut self, digest: NodeDigest) -> Result<(), String> {
+    fn append(&mut self, digest: NodeDigest) -> Result<(), PublishError> {
         let next = self
             .count
             .checked_add(1)
-            .ok_or_else(|| err("前缀叶数溢出"))?;
-        sc::checked_frame_len(next).map_err(err)?;
+            .ok_or_else(|| publish_err("前缀叶数溢出"))?;
+        sc::checked_frame_len(next).map_err(publish_err)?;
         self.stack
             .try_push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)))
-            .map_err(err)?;
+            .map_err(publish_err)?;
         while self.stack.len() >= 2 {
             let (right_count, right) = self.stack[self.stack.len() - 1];
             let (left_count, left) = self.stack[self.stack.len() - 2];
@@ -2649,15 +2754,15 @@ impl PrefixArray {
             }
             let count = left_count
                 .checked_add(right_count)
-                .ok_or_else(|| err("前缀分支叶数溢出"))?;
+                .ok_or_else(|| publish_err("前缀分支叶数溢出"))?;
             let digest = Self::branch(&left, &right, count)?;
             self.stack.truncate(self.stack.len() - 2);
-            self.stack.try_push((count, digest)).map_err(err)?;
+            self.stack.try_push((count, digest)).map_err(publish_err)?;
         }
         self.count = next;
         Ok(())
     }
-    fn array_root(&self) -> Result<NodeDigest, String> {
+    fn array_root(&self) -> Result<NodeDigest, PublishError> {
         let mut iter = self.stack.iter().rev();
         let (count, root) = match iter.next() {
             None => (0, sc::frame(sc::tag::SEQ_EMPTY, &[])),
@@ -2665,23 +2770,23 @@ impl PrefixArray {
                 for &(left_count, left) in iter {
                     count = left_count
                         .checked_add(count)
-                        .ok_or_else(|| err("前缀取根叶数溢出"))?;
+                        .ok_or_else(|| publish_err("前缀取根叶数溢出"))?;
                     root = Self::branch(&left, &root, count)?;
                 }
                 (count, root)
             }
         };
         if count != self.count {
-            return Err(err("前缀序列叶数记账不符"));
+            return Err(publish_err("前缀序列叶数记账不符"));
         }
         let mut body = [0; 40];
-        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..].copy_from_slice(&root);
         Ok(sc::frame(sc::tag::ARRAY, &body))
     }
-    fn root_at(&self, count: usize) -> Result<NodeDigest, String> {
+    fn root_at(&self, count: usize) -> Result<NodeDigest, PublishError> {
         if u64::try_from(count).ok() != Some(self.count) {
-            return Err(err("前缀与当前已检查cut长度不符"));
+            return Err(publish_err("前缀与当前已检查cut长度不符"));
         }
         self.array_root()
     }
@@ -2703,12 +2808,15 @@ enum EffectiveContents {
     Branch(EffectiveBlock, EffectiveBlock),
 }
 impl EffectiveBlock {
-    fn allocate(node: EffectiveNode, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn allocate(
+        node: EffectiveNode,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, PublishError> {
         let permit = store
             .native_reservation(std::mem::size_of::<EffectiveNode>())
-            .map_err(err)?;
-        let node =
-            allocator_api2::boxed::Box::try_new(node).map_err(|_| err(store.native_overflow()))?;
+            .map_err(publish_err)?;
+        let node = allocator_api2::boxed::Box::try_new(node)
+            .map_err(|_| publish_err(store.native_overflow()))?;
         Ok(Self { node, permit })
     }
     fn leaf(
@@ -2716,7 +2824,7 @@ impl EffectiveBlock {
         ordinal: usize,
         digest: NodeDigest,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         #[cfg(test)]
         record_effective_work(0);
         Self::allocate(
@@ -2730,12 +2838,16 @@ impl EffectiveBlock {
             store,
         )
     }
-    fn branch(left: Self, right: Self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn branch(
+        left: Self,
+        right: Self,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, PublishError> {
         let count = left
             .node
             .count
             .checked_add(right.node.count)
-            .ok_or_else(|| err("effective count overflow"))?;
+            .ok_or_else(|| publish_err("effective count overflow"))?;
         let digest = PrefixArray::branch(&left.node.digest, &right.node.digest, count)?;
         #[cfg(test)]
         record_effective_work(1);
@@ -2771,7 +2883,7 @@ impl EffectiveSequenceFacts {
                 .saturating_mul(std::mem::size_of::<EffectiveNode>())
         })
     }
-    fn array_root(&self) -> Result<NodeDigest, String> {
+    fn array_root(&self) -> Result<NodeDigest, PublishError> {
         let (count, digest) = self
             .root
             .as_ref()
@@ -2779,7 +2891,7 @@ impl EffectiveSequenceFacts {
                 (r.node.count, r.node.digest)
             });
         let mut body = [0; 40];
-        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..].copy_from_slice(&digest);
         Ok(sc::frame(sc::tag::ARRAY, &body))
     }
@@ -2788,7 +2900,7 @@ impl EffectiveSequenceFacts {
         changes: &[bj::RawWinnerEdit],
         raw: &[NodeDigest],
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if changes.is_empty() {
             return Ok(());
         }
@@ -2799,17 +2911,17 @@ impl EffectiveSequenceFacts {
                 changes
                     .len()
                     .checked_mul(2)
-                    .ok_or_else(|| err(store.native_overflow()))?,
+                    .ok_or_else(|| publish_err(store.native_overflow()))?,
             )
-            .map_err(err)?;
+            .map_err(publish_err)?;
         for change in changes {
             if let Some(old) = change.old {
-                edits.try_push((old.coord, None)).map_err(err)?;
+                edits.try_push((old.coord, None)).map_err(publish_err)?;
             }
             if let Some(new) = change.new {
                 edits
                     .try_push((new.coord, Some(new.ordinal)))
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
         }
         edits.sort_unstable_by_key(|&(coord, ordinal)| (coord, ordinal.is_some()));
@@ -2827,9 +2939,11 @@ impl EffectiveSequenceFacts {
         let mut peaks = sc::CodecVec::default();
         let mut count = 0u64;
         let mut cursor = 0;
-        store.native_vec_room(&mut pending, 1).map_err(err)?;
+        store
+            .native_vec_room(&mut pending, 1)
+            .map_err(publish_err)?;
         if let Some(root) = self.root.take() {
-            pending.try_push(root).map_err(err)?;
+            pending.try_push(root).map_err(publish_err)?;
         }
         while let Some(block) = pending.pop() {
             #[cfg(test)]
@@ -2852,9 +2966,11 @@ impl EffectiveSequenceFacts {
                         cursor += 1;
                     }
                     EffectiveContents::Branch(left, right) => {
-                        store.native_vec_room(&mut pending, 2).map_err(err)?;
-                        pending.try_push(right).map_err(err)?;
-                        pending.try_push(left).map_err(err)?;
+                        store
+                            .native_vec_room(&mut pending, 2)
+                            .map_err(publish_err)?;
+                        pending.try_push(right).map_err(publish_err)?;
+                        pending.try_push(left).map_err(publish_err)?;
                     }
                 }
             } else {
@@ -2878,11 +2994,11 @@ impl EffectiveSequenceFacts {
         peaks: &mut sc::CodecVec<EffectiveBlock>,
         count: &mut u64,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if let (coord, Some(ordinal)) = edit {
             let digest = *raw
                 .get(ordinal)
-                .ok_or_else(|| err("effective ordinal out of range"))?;
+                .ok_or_else(|| publish_err("effective ordinal out of range"))?;
             Self::emit_block(
                 EffectiveBlock::leaf(coord, ordinal, digest, store)?,
                 peaks,
@@ -2897,10 +3013,12 @@ impl EffectiveSequenceFacts {
         peaks: &mut sc::CodecVec<EffectiveBlock>,
         count: &mut u64,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let mut pending = sc::CodecVec::default();
-        store.native_vec_room(&mut pending, 1).map_err(err)?;
-        pending.try_push(block).map_err(err)?;
+        store
+            .native_vec_room(&mut pending, 1)
+            .map_err(publish_err)?;
+        pending.try_push(block).map_err(publish_err)?;
         while let Some(mut block) = pending.pop() {
             let size = block.node.count;
             if !size.is_power_of_two() || *count % size != 0 {
@@ -2909,22 +3027,24 @@ impl EffectiveSequenceFacts {
                 };
                 #[cfg(test)]
                 record_effective_work(3);
-                store.native_vec_room(&mut pending, 2).map_err(err)?;
-                pending.try_push(right).map_err(err)?;
-                pending.try_push(left).map_err(err)?;
+                store
+                    .native_vec_room(&mut pending, 2)
+                    .map_err(publish_err)?;
+                pending.try_push(right).map_err(publish_err)?;
+                pending.try_push(left).map_err(publish_err)?;
                 continue;
             }
             *count = count
                 .checked_add(size)
-                .ok_or_else(|| err("effective count overflow"))?;
+                .ok_or_else(|| publish_err("effective count overflow"))?;
             while peaks
                 .last()
                 .is_some_and(|left| left.node.count == block.node.count)
             {
                 block = EffectiveBlock::branch(peaks.pop().unwrap(), block, store)?;
             }
-            store.native_vec_room(peaks, 1).map_err(err)?;
-            peaks.try_push(block).map_err(err)?;
+            store.native_vec_room(peaks, 1).map_err(publish_err)?;
+            peaks.try_push(block).map_err(publish_err)?;
         }
         Ok(())
     }
@@ -2949,15 +3069,17 @@ struct NativeHistoryPrefixes {
     sequence: EffectiveSequenceFacts,
 }
 impl NativeHistoryPrefixes {
-    fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
-        store.native_vec_room(&mut self.raw.stack, 1).map_err(err)?;
+    fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
+        store
+            .native_vec_room(&mut self.raw.stack, 1)
+            .map_err(publish_err)?;
         store
             .native_vec_room(&mut self.wire.stack, 1)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         if let Some(effective) = &mut self.effective {
             store
                 .native_vec_room(&mut effective.stack, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         Ok(())
     }
@@ -2987,7 +3109,12 @@ impl NativeHistoryPrefixes {
             sequence: EffectiveSequenceFacts::default(),
         })
     }
-    fn append(&mut self, coord: i64, raw: NodeDigest, wire: NodeDigest) -> Result<(), String> {
+    fn append(
+        &mut self,
+        coord: i64,
+        raw: NodeDigest,
+        wire: NodeDigest,
+    ) -> Result<(), PublishError> {
         self.raw.append(raw)?;
         self.wire.append(wire)?;
         #[cfg(test)]
@@ -3008,10 +3135,10 @@ impl NativeHistoryPrefixes {
         }
         Ok(())
     }
-    fn raw_root(&self, count: usize) -> Result<NodeDigest, String> {
+    fn raw_root(&self, count: usize) -> Result<NodeDigest, PublishError> {
         self.raw.root_at(count)
     }
-    fn wire_root(&self, count: usize) -> Result<NodeDigest, String> {
+    fn wire_root(&self, count: usize) -> Result<NodeDigest, PublishError> {
         self.wire.root_at(count)
     }
 }
@@ -3049,12 +3176,14 @@ fn history_prefix_leaves() -> [u64; 6] {
 enum ReadOwner<'a> {
     Dynamic(&'a mut dyn NodeSource),
     Captured(&'a sc::AuditCapture),
+    SqliteBase(&'a sc::sqlite_audit::SqliteAuditBase<'a>),
 }
 impl NodeSource for ReadOwner<'_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
         match self {
             Self::Dynamic(s) => s.read(d),
             Self::Captured(c) => c.reader().read(d),
+            Self::SqliteBase(b) => b.read(d),
         }
     }
     fn checked_read(
@@ -3064,12 +3193,13 @@ impl NodeSource for ReadOwner<'_> {
         match self {
             Self::Dynamic(s) => s.checked_read(d),
             Self::Captured(c) => c.reader().checked_read(d),
+            Self::SqliteBase(b) => b.checked_read(d),
         }
     }
     fn max_render_bytes(&self) -> Option<u64> {
         match self {
             Self::Dynamic(s) => s.max_render_bytes(),
-            Self::Captured(_) => None,
+            Self::Captured(_) | Self::SqliteBase(_) => None,
         }
     }
 }
@@ -3262,7 +3392,7 @@ impl<'a> HashReader<'a> {
                 self.reserve_copy(capture.original(digest).map_or(0, |(_, body)| body.len()))
             }
             // 动态来源在自己的实际读取边界持账；不可在读取后补签许可。
-            ReadOwner::Dynamic(_) => Ok(None),
+            ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_) => Ok(None),
         }
     }
     #[cfg(feature = "s_incremental")]
@@ -3535,14 +3665,17 @@ impl<'a> HashReader<'a> {
     pub(super) fn source_capture_for_role_probe(&self) -> Option<&sc::AuditCapture> {
         match self.source {
             ReadOwner::Captured(c) => Some(c),
-            ReadOwner::Dynamic(_) => None,
+            ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_) => None,
         }
     }
     pub(crate) fn ordinary_bound_births_qualified(&self) -> bool {
         self.policy == SourcePolicy::Ordinary
             && self.owned.is_none()
             && self.work.is_none()
-            && matches!(self.source, ReadOwner::Dynamic(_))
+            && matches!(
+                self.source,
+                ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+            )
     }
     pub(crate) fn owned_codec_active(&self) -> bool {
         self.owned.is_some()
@@ -3551,6 +3684,11 @@ impl<'a> HashReader<'a> {
         let previous = std::mem::replace(&mut self.audit_full_arrays, enabled);
         self.sync_owned();
         previous
+    }
+    pub(crate) fn swap_codec_sequence_role(&mut self, enabled: bool) -> bool {
+        self.owned
+            .as_mut()
+            .map_or(false, |o| o.swap_sequence_read_trace(enabled))
     }
     fn sync_owned(&mut self) {
         let full = self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none();
@@ -3612,7 +3750,10 @@ impl<'a> HashReader<'a> {
             return owner.verify_many_cached(refs, mode);
         }
         if self.work.is_some()
-            || matches!(self.source, ReadOwner::Dynamic(_))
+            || matches!(
+                self.source,
+                ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+            )
             || (!self.native_measured() && (self.budget.is_some() || self.deadline.is_some()))
         {
             return sc::audit_verify_many(self, refs, mode);
@@ -3712,6 +3853,48 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
             history_public_roots: None,
+        }
+    }
+    pub(super) fn sqlite_base(source: &'a sc::sqlite_audit::SqliteAuditBase<'a>) -> Self {
+        Self {
+            source: ReadOwner::SqliteBase(source),
+            overlay: OverlayOwner::Dynamic(Default::default()),
+            owned: None,
+            work: None,
+            #[cfg(feature = "s_incremental")]
+            native_budget: None,
+            #[cfg(feature = "s_incremental")]
+            request_verifier: None,
+            deadline: None,
+            max_render_bytes: None,
+            budget: None,
+            audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
+        }
+    }
+    pub(super) fn eligible_sqlite_base(&self) -> Option<&'a sc::sqlite_audit::SqliteAuditBase<'a>> {
+        if self.policy != SourcePolicy::Ordinary
+            || self.owned.is_some()
+            || self.work.is_some()
+            || self.budget.is_some()
+            || self.deadline.is_some()
+            || self.max_render_bytes.is_some()
+            || cfg!(feature = "s_incremental")
+        {
+            return None;
+        }
+        let empty = match &self.overlay {
+            OverlayOwner::Dynamic(values) => values.is_empty(),
+            #[cfg(test)]
+            OverlayOwner::Bounded(_) => false,
+        };
+        if !empty {
+            return None;
+        }
+        match &self.source {
+            ReadOwner::SqliteBase(base) => Some(base),
+            _ => None,
         }
     }
 }
@@ -3945,10 +4128,34 @@ impl CodecRead for HashReader<'_> {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         super::business_json::strict_plain_json_admitted(bytes, self.work)
     }
 
+    fn array_cursor(
+        &mut self,
+        reference: sc::RefView<'_>,
+    ) -> Result<Option<sc::path::NativeArrayCursor>, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(owner) => owner.array_cursor_owned(reference).map(Some),
+            None => sc::path::NativeArrayCursor::new(self, reference).map(Some),
+        }
+    }
+    fn next_array_member_with_prefix(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+        prefix: &[PathStep],
+    ) -> Result<RefValue, sc::CodecError> {
+        self.sync_owned();
+        let member = match &mut self.owned {
+            Some(owner) => owner
+                .next_array_member_owned(cursor, prefix)?
+                .map(RefValue::Owned),
+            None => cursor.next_with_prefix(self, prefix)?.map(RefValue::Plain),
+        };
+        member.ok_or_else(|| sc::CodecError::new(sc::code::EXTENT, "数组游标提前结束"))
+    }
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -4079,6 +4286,9 @@ impl CodecRead for HashReader<'_> {
         self.verify_ref(r, mode)
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
+        if let Some(base) = self.eligible_sqlite_base() {
+            return base.verify_ref(r, m);
+        }
         self.sync_owned();
         #[cfg(feature = "s_incremental")]
         if self.request_verifier.is_some() {
@@ -4135,6 +4345,9 @@ impl CodecRead for HashReader<'_> {
         r: impl IntoIterator<Item = sc::RefView<'a>>,
         m: sc::Mode,
     ) -> Result<(), sc::CodecError> {
+        if let Some(base) = self.eligible_sqlite_base() {
+            return base.verify_many(r, m);
+        }
         self.sync_owned();
         #[cfg(feature = "s_incremental")]
         if self.request_verifier.is_some() {
@@ -4147,7 +4360,10 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o.verify_many_cached_owned(r, m),
             None => {
                 if self.work.is_some()
-                    || matches!(self.source, ReadOwner::Dynamic(_))
+                    || matches!(
+                        self.source,
+                        ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+                    )
                     || (!self.native_measured()
                         && (self.budget.is_some() || self.deadline.is_some()))
                 {
@@ -4308,6 +4524,27 @@ impl CodecRead for HashReader<'_> {
     }
 }
 impl CodecStore for HashReader<'_> {
+    fn rebuild_sequence_suffix(
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(owner) => {
+                if !budget.is_some_and(|b| b.same_ledger(&owner.allocation_budget())) {
+                    return Err(sc::CodecError::new(
+                        sc::capture_allocation::INCOMPLETE,
+                        "sequence store 与工作集必须使用同一 Owned 账本",
+                    ));
+                }
+                owner.sequence_rebuild_suffix(seq, keep, leaves)
+            }
+            None => sc::sequence_rebuild_suffix_with_allocation(self, seq, keep, leaves, budget),
+        }
+    }
     fn replace_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -4943,7 +5180,10 @@ pub(super) mod tests {
                             .err()
                             .unwrap()
                     };
-                    assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                    assert!(
+                        error.to_string().contains(sc::capture_allocation::LIMIT),
+                        "{error}"
+                    );
                     let refusal = budget.allocation_request_probe();
                     assert!(refusal.refused_kind.ends_with("::path::Ancestor"));
                     assert!(refusal.refused_bytes > 0);
@@ -5025,7 +5265,10 @@ pub(super) mod tests {
                     let result = bj::read_text(&mut reader, r.view());
                     if output_room == 4096 {
                         let error = result.err().unwrap();
-                        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                        assert!(
+                            error.to_string().contains(sc::capture_allocation::LIMIT),
+                            "{error}"
+                        );
                         let refusal = budget.allocation_request_probe();
                         assert_eq!(refusal.refused_kind, std::any::type_name::<u8>());
                         assert!(refusal.refused_bytes >= value.len());
@@ -5577,7 +5820,7 @@ pub(super) mod tests {
                         .collect::<Result<Vec<_>, _>>()
                         .map(sc::CodecVec::from_plain)
                 } else {
-                    source_audit::elements(&mut reader, &root)
+                    source_audit::elements(&mut reader, &root).map_err(|e| e.to_string())
                 };
                 drop(reader);
                 let reads = content_store::sql_reads_on_thread() - reads;
@@ -5605,6 +5848,7 @@ pub(super) mod tests {
         reader.audit_full_arrays = true;
         assert!(source_audit::elements(&mut reader, &root)
             .unwrap_err()
+            .to_string()
             .contains("verify_deadline"));
         assert_eq!(content_store::sql_reads_on_thread(), sql);
         assert!(
@@ -6091,6 +6335,7 @@ pub(super) mod tests {
             None,
             None,
             SourcePolicy::Ordinary,
+            None,
         )
         .unwrap();
         assert!(verified.qualified());
@@ -6158,12 +6403,10 @@ pub(super) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_material_whole_readonly_audit_heap_releases() {
-        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
-        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
-        f.publish(&envelope, &token).unwrap();
+        let historical = legacy_s4_fixture_path(1, "db");
         let run = || {
             let mut conn = Connection::open_with_flags(
-                f.conn.path().unwrap(),
+                &historical,
                 rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
             )
             .unwrap();
@@ -6186,17 +6429,115 @@ pub(super) mod tests {
         eprintln!("ORDINARY_MATERIAL_REQUEST_HEAP {observed} {material:?}");
     }
 
+    pub(crate) fn legacy_s4_fixture_path(cut: usize, extension: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/s4-legacy4df")
+            .join(format!("cut-{cut}.{extension}"))
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_legacy_seven_cut_readonly_matches_frozen_originals() {
+        for cut in 1..=7 {
+            let expected: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(legacy_s4_fixture_path(cut, "json")).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(expected["head"], "4df2d10f92d1075f5fb761a1b112c9c949da5408");
+            let mut conn = Connection::open_with_flags(
+                legacy_s4_fixture_path(cut, "db"),
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+            )
+            .unwrap();
+            assert_eq!(
+                super::layout::Layout::of_library(&conn).unwrap(),
+                super::layout::Layout::Sorted
+            );
+            let before = super::prepared::tests::runtime_root_tables(&conn, true);
+            super::admission_private::s4_read_trace::enable();
+            super::admission_private::s4_read_trace::phase(2);
+            super::source_audit::reset_ordinary_proof_stats();
+            {
+                let tx = conn.transaction().unwrap();
+                let audited = super::state::audit_until(&tx, None).unwrap();
+                assert_eq!(audited.cuts.len(), cut);
+                for (index, historical) in audited.cuts.iter().enumerate() {
+                    assert_eq!(historical.metadata.generation, index as i64 + 1);
+                    assert_eq!(historical.metadata.rule_revision, crate::V3_RULE_REVISION);
+                }
+            }
+            let coverage = super::admission_private::s4_read_trace::finish();
+            assert_eq!(coverage, [cut as u64, cut as u64 * 3]);
+            let proofs = super::source_audit::ordinary_proof_stats();
+            assert!(proofs.executions > 0);
+            if cut > 1 {
+                assert!(proofs.hits > 0);
+            }
+            assert_eq!(
+                format!(
+                    "{:?}",
+                    super::prepared::tests::runtime_root_tables(&conn, false)
+                ),
+                expected["roots_debug"].as_str().unwrap(),
+            );
+            let expected_arrays: Vec<(i64, [NodeDigest; 5])> =
+                serde_json::from_value(expected["arrays"].clone()).unwrap();
+            assert_eq!(layout_published_arrays(&mut conn), expected_arrays);
+            let generations: Vec<i64> = (1..=cut as i64).collect();
+            let rebuilt = {
+                let tx = conn.transaction().unwrap();
+                let mut sql = content_store::ReadStore::new(&tx).unwrap();
+                let mut store = HashReader::metered(&mut sql, None, None, None);
+                let entries = object_index::load_for_audit(&tx, &mut store, cut as i64).unwrap();
+                let auxiliary = aux_index::load(&tx, &mut store, cut as i64).unwrap();
+                generations
+                    .iter()
+                    .map(|&generation| {
+                        let (active, withdrawn, _) = object_index::at_cut(
+                            &mut store,
+                            super::layout::Layout::Sorted,
+                            &entries,
+                            generation,
+                        )
+                        .unwrap();
+                        let [witnesses, relations, observations] = aux_index::cut_members(
+                            &auxiliary,
+                            super::layout::Layout::Sorted,
+                            generation,
+                            false,
+                        )
+                        .unwrap();
+                        [
+                            active.digest,
+                            withdrawn.digest,
+                            hash_array(&witnesses).unwrap(),
+                            hash_array(&relations).unwrap(),
+                            hash_array(&observations).unwrap(),
+                        ]
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                rebuilt,
+                expected_arrays
+                    .iter()
+                    .map(|(_, roots)| *roots)
+                    .collect::<Vec<_>>(),
+            );
+            assert_eq!(
+                super::prepared::tests::runtime_root_tables(&conn, true),
+                before
+            );
+        }
+    }
+
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
-        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
-        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
-        f.publish(&envelope, &token).unwrap();
-        let mut conn = Connection::open_with_flags(
-            f.conn.path().unwrap(),
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        )
-        .unwrap();
+        let historical = legacy_s4_fixture_path(1, "db");
+        let mut conn =
+            Connection::open_with_flags(&historical, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
         let tx = conn.transaction().unwrap();
         let control = control_audit::prepare_s3_control_history(&tx).unwrap();
         let raw = read_raw_events(&tx).unwrap();
@@ -6212,6 +6553,7 @@ pub(super) mod tests {
             None,
             None,
             SourcePolicy::Ordinary,
+            None,
         )
         .unwrap();
         let cut = &verified.history().cuts[0];
@@ -6228,6 +6570,7 @@ pub(super) mod tests {
                 None,
                 proofs,
             )
+            .map_err(|e| e.to_string())
         };
         super::source_audit::reset_ordinary_proof_stats();
         session
@@ -6252,6 +6595,7 @@ pub(super) mod tests {
         assert!(session
             .audit_cut(&tx, cut, None, None, None, |_, _| Ok(()))
             .unwrap_err()
+            .to_string()
             .contains("已拒绝"));
         super::source_audit::reset_ordinary_proof_stats();
         let mut reopened = verified.ordinary_source_session().unwrap();
@@ -6263,11 +6607,9 @@ pub(super) mod tests {
             super::source_audit::ordinary_proof_stats().executions,
             first.executions
         );
-        let mut foreign = Connection::open_with_flags(
-            f.conn.path().unwrap(),
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        )
-        .unwrap();
+        let mut foreign =
+            Connection::open_with_flags(&historical, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
         let foreign_tx = foreign.transaction().unwrap();
         assert!(reopened
             .audit_cut(&foreign_tx, cut, None, None, None, |_, _| Ok(()))
@@ -6287,6 +6629,7 @@ pub(super) mod tests {
                     None,
                     proofs,
                 )
+                .map_err(|e| e.to_string())
             })
             .is_err());
         assert!(expired.proofs.is_none());
@@ -6329,9 +6672,10 @@ pub(super) mod tests {
                         Some(&gate),
                         proofs,
                     )
+                    .map_err(|e| e.to_string())
                 })
                 .unwrap_err();
-            assert!(error.contains(code), "{error}");
+            assert!(error.to_string().contains(code), "{error}");
             assert!(session.proofs.is_none());
         }
         let mut malformed = verified.ordinary_source_session().unwrap();
@@ -6358,6 +6702,7 @@ pub(super) mod tests {
                     None,
                     proofs,
                 )
+                .map_err(|e| e.to_string())
             })
             .is_err());
         assert!(malformed.proofs.is_none());
@@ -6552,8 +6897,8 @@ pub(super) mod tests {
     #[test]
     fn history_layout_multicut_publish_equals_audit_rebuild() {
         use super::layout::Layout;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        let mut sorted = layout_multicut_library(crate::V3_RULE_REVISION, None);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
+        let mut sorted = layout_multicut_library(crate::W1_STRUCTURE_RULE_REVISION, None);
         let mut bounded = layout_multicut_library(&bounded_rule, None);
         let mut views = Vec::new();
         for (layout, other, fixture) in [
@@ -6621,10 +6966,10 @@ pub(super) mod tests {
     #[test]
     fn history_layout_multicut_wrong_array_order_rejects() {
         use super::layout::Layout;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         for (rule, forced) in [
             (bounded_rule.as_str(), Layout::Sorted),
-            (crate::V3_RULE_REVISION, Layout::Bounded1),
+            (crate::W1_STRUCTURE_RULE_REVISION, Layout::Bounded1),
         ] {
             let mut fixture = layout_multicut_library(rule, Some(forced));
             assert_ne!(Layout::of_library(&fixture.conn).unwrap(), forced);
@@ -6644,8 +6989,8 @@ pub(super) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn history_layout_multicut_native_projection_equals_plain_audit() {
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        for rule in [crate::V3_RULE_REVISION, bounded_rule.as_str()] {
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
+        for rule in [crate::W1_STRUCTURE_RULE_REVISION, bounded_rule.as_str()] {
             let mut fixture = layout_multicut_library(rule, None);
             let plain = audit(&mut fixture.conn).unwrap();
             let tx = fixture.conn.transaction().unwrap();
@@ -6692,7 +7037,7 @@ pub(super) mod tests {
             let mut ordered = Some(bj::RawPrefixIndex::new(raw_view));
             let (raw_nodes, wire_nodes) = hash_current_raw(&base, raw_view, None, None).unwrap();
             let before = budget.live();
-            assert_eq!(verify_required_meta_admitted(&tx, scope)?, 1);
+            assert_eq!(verify_required_meta_admitted(&tx, scope).map_err(newchan_rust::s_content::ContextError::into_message)?, 1);
             let mut store = HashReader::captured_for_audit(&capture, None).map_err(err)?
                 .with_codec_work(scope, &budget);
             store.audit_full_arrays = true;
@@ -6700,13 +7045,13 @@ pub(super) mod tests {
             let mut resolved = bj::new_work(None);
             let mut stmt = CheckedStatement::prepare(&tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=1").map_err(err)?;
             let mut row = stmt.next().map_err(err)?.unwrap();
-            let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
-            let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
+            let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let cut = audit_one_published_cut(
                 &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
                 &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None, &mut None,
-            )?;
+            ).map_err(newchan_rust::s_content::ContextError::into_message)?;
             drop(row);
             stmt.finalize().map_err(err)?;
             assert_eq!(cut.snapshot, snapshot);
@@ -6720,7 +7065,7 @@ pub(super) mod tests {
             let mut cuts = bj::new_work(None);
             store.native_codec_room(&mut cuts, 1).map_err(err)?;
             cuts.try_push(cut).map_err(err)?;
-            verify_current_frontiers(&store, &tx, &cuts, 0, None)?;
+            verify_current_frontiers(&store, &tx, &cuts, 0, None).map_err(newchan_rust::s_content::ContextError::into_message)?;
             assert!(budget.live() > before);
             assert!(scope.snapshot().attempts > 0);
             Ok::<_, String>(())
@@ -7035,6 +7380,104 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn publication_native_cut_scope_real_budget_preserves_origin() {
+        use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
+        let mut fixture = super::prepared::tests::Fixture::new();
+        let (envelope, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.publish(&envelope, &token).unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let (bytes, batch): (Vec<u8>, String) = tx
+            .query_row(
+                "SELECT manifest_root,batch_id FROM s_content_publications WHERE generation=1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        // #1419 M6：本锁测真实资源错误的来源保真，不冻结成功预演的 8 MiB 门槛。
+        // 沿 r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication 的
+        // 64 MiB 测试父账，先完成相同真实载荷的索引/双投影；随后仍用 ballast
+        // 精确占满全部余额，目标消费者必须原样返回 Budget 及 BridgeProof。
+        let budget = super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+        let work = budget.codec_work().unwrap();
+        let mut returned = None;
+        let (run, trace) = failure_trace::capture(|| {
+            work.run(|scope| {
+                let mut reader = HashReader::captured_for_audit(&capture, None)
+                    .map_err(PublishError::from)?
+                    .with_codec_work(scope, &budget);
+                reader.audit_full_arrays = true;
+                let auxiliary = aux_index::load(&tx, &mut reader, 1).unwrap();
+                let mut objects = object_index::load_for_history(&tx, &mut reader, 1).unwrap();
+                let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
+                let (metadata, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
+                let projection = native_cut_projection(
+                    &tx,
+                    &mut reader,
+                    &mut objects,
+                    &auxiliary,
+                    metadata.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                )
+                .unwrap()
+                .unwrap();
+                content_publication::resolve_native_dual_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    metadata.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                    &projection,
+                )
+                .unwrap();
+                // #1419 M6D：首次成功预演后、ballast 前只读既有预算遥测。
+                // scope 的 live/peak 仅计 Layout；Native 与元数据计入父账。
+                let scope_usage = scope.snapshot();
+                eprintln!(
+                    "[budget-telemetry 1419-M6D] phase=pre-ballast parent_remaining_bytes={} parent_sampled_occupancy_bytes={} parent_peak_bytes={} scope_layout_sampled_occupancy_bytes={} scope_layout_peak_bytes={}",
+                    budget.remaining(),
+                    budget.live(),
+                    budget.peak(),
+                    scope_usage.live,
+                    scope_usage.peak,
+                );
+                let ballast = scope.reserve_native(budget.remaining()).unwrap();
+                let result = content_publication::resolve_native_dual_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    metadata.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                    &projection,
+                );
+                returned = result.as_ref().err().cloned();
+                drop(ballast);
+                result.map(|_| ())
+            })
+        });
+        assert!(
+            matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))),
+            "{run:?}"
+        );
+        assert!(trace.only_resource(), "{trace:?}");
+        let error = returned.expect("真实投影scope绑定预算失败须返回原错误");
+        assert_eq!(
+            super::super::audit_owner::publication_degrade_verdict_for_test(
+                run.unwrap_err(),
+                Some(error),
+                trace,
+            ),
+            Ok(()),
+            "真实投影scope资源来源须穿过双投影消费者和最终publication判决"
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     fn native_dual_real_multicut_roots_and_scoped_projection() {
         let mut fixture = super::prepared::tests::Fixture::new();
         for (n, row, revision) in [
@@ -7274,11 +7717,13 @@ pub(super) mod tests {
                 .content_ref()
         }
         let mut fixture = super::prepared::tests::Fixture::new();
+        // #1419 W：第 4 代原为 b 的前缀改价，W 下前缀改价令同 cut 全部对象重生，快照里没有
+        // 非模板批旧记录；改为第 4 代追加新 bar，旧代对象（a/b/c 的步骤等）原样存活，同时有本代新生记录。
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
             (2, ("b", 10, 8, 16, 6, 12), 1),
             (3, ("c", 20, 8, 13, 4, 7), 1),
-            (4, ("b", 10, 8, 17, 6, 12), 2),
+            (4, ("d", 30, 9, 18, 7, 15), 1),
         ] {
             let (e, token) = fixture.accept_begin(n, row, revision);
             fixture.publish(&e, &token).unwrap();
@@ -7630,7 +8075,7 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("substituted root must fail");
-        assert!(error.contains("实际发布根不是"), "{error}");
+        assert!(error.to_string().contains("实际发布根不是"), "{error}");
     }
 
     #[test]
@@ -7645,7 +8090,10 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("different valid descriptor must fail");
-        assert!(error.contains("持久引用与实际内容根不同"), "{error}");
+        assert!(
+            error.to_string().contains("持久引用与实际内容根不同"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -7655,7 +8103,10 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("wrong root tuple must fail");
-        assert!(error.contains("根批次与完整发布史末代不符"), "{error}");
+        assert!(
+            error.to_string().contains("根批次与完整发布史末代不符"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -7668,7 +8119,10 @@ pub(super) mod tests {
         let error = read_history(&tx, &raw, control)
             .err()
             .expect("different source must fail");
-        assert!(error.contains("raw_events与独立依据不同"), "{error}");
+        assert!(
+            error.to_string().contains("raw_events与独立依据不同"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -8154,33 +8608,36 @@ fn field_meta(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<RefValue, String> {
-    s.lookup_field_ref(r, k).map_err(err)
+) -> Result<RefValue, PublishError> {
+    s.lookup_field_ref(r, k).map_err(publish_err)
 }
 fn text_meta(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let f = field_meta(s, r, k)?;
     if f.kind() != Kind::String {
-        return Err(err(format!("{k}不是文本")));
+        return Err(publish_err(format!("{k}不是文本")));
     }
-    bj::read_text(s, f.view()).map_err(err)
+    bj::read_text(s, f.view()).map_err(publish_err)
 }
 fn integer_meta(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     let n = text_meta(s, r, k)?;
-    parse_canonical_i64(n.as_str(), k).map_err(err)
+    parse_canonical_i64(n.as_str(), k).map_err(publish_err)
 }
 
-fn root_ref_bytes(s: &mut (impl CodecRead + ?Sized), bytes: &[u8]) -> Result<RefValue, String> {
-    let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
+fn root_ref_bytes(
+    s: &mut (impl CodecRead + ?Sized),
+    bytes: &[u8],
+) -> Result<RefValue, PublishError> {
+    let digest: NodeDigest = bytes.try_into().map_err(|_| publish_err("根不是32字节"))?;
     s.content_ref_view(sc::FixedRoot::new(&digest).as_str())
-        .map_err(err)
+        .map_err(publish_err)
 }
 
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
@@ -8200,7 +8657,10 @@ mod explicit_empty_json_budget_probe {
                 assert!(actual.as_ref().unwrap().same_ledger(&budget));
                 hash_array_metered_with_owner(&[], None, None, false, actual.as_ref())
             });
-        assert!(result.unwrap_err().contains(sc::capture_allocation::LIMIT));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains(sc::capture_allocation::LIMIT));
         assert!(budget.snapshot().rejected_layouts > 0);
         assert_eq!(budget.snapshot().allocation_attempts, 0);
         drop(capture);
@@ -8258,7 +8718,10 @@ mod explicit_empty_json_budget_probe {
                 None,
             )
         });
-        assert!(result.unwrap_err().contains(sc::capture_allocation::LIMIT));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains(sc::capture_allocation::LIMIT));
         assert!(b.snapshot().rejected_layouts > 0);
         assert_eq!(b.snapshot().allocation_attempts, 0);
         drop((empty, capture));
@@ -8343,7 +8806,10 @@ mod borrowed_change_consumer_probe {
                     JsonView::Number(&wrong_type),
                 )
                 .unwrap_err();
-                assert!(error.contains("generation与独立依据不同"), "{error}");
+                assert!(
+                    error.to_string().contains("generation与独立依据不同"),
+                    "{error}"
+                );
                 let canonical =
                     format!("{{\"from\":\"{}\",\"to\":\"{}\"}}", from.text(), to.text());
                 assert!(history_canonical_equal(
@@ -8444,7 +8910,7 @@ mod owner_retention {
 fn verify_required_meta_admitted(
     tx: &Transaction<'_>,
     work: &sc::capture_allocation::scratch::WorkScope,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     use super::audit_owner::native::JsonShape;
     let admission = super::audit_store::NativeAdmission(Some(work));
     let mut reserved_bytes = 0usize;
@@ -8458,31 +8924,31 @@ fn verify_required_meta_admitted(
         "last_advance_frontier",
         "scope",
     ] {
-        let mut stmt =
-            CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(err)?;
-        stmt.bind_text(1, key).map_err(err)?;
-        if let Some(mut row) = stmt.next().map_err(err)? {
-            let text = row.text(0).map_err(err)?;
+        let mut stmt = CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1")
+            .map_err(publish_err)?;
+        stmt.bind_text(1, key).map_err(publish_err)?;
+        if let Some(mut row) = stmt.next().map_err(publish_err)? {
+            let text = row.text(0).map_err(publish_err)?;
             reserved_bytes = reserved_bytes
                 .checked_add(text.len())
-                .ok_or_else(|| err(admission.native_overflow()))?;
+                .ok_or_else(|| publish_err(admission.native_overflow()))?;
             if key == "scope" {
                 reserved_bytes = reserved_bytes
                     .checked_add(JsonShape::scan(text.as_bytes()).parse_peak())
-                    .ok_or_else(|| err(admission.native_overflow()))?;
+                    .ok_or_else(|| publish_err(admission.native_overflow()))?;
             }
         }
-        stmt.finalize().map_err(err)?;
+        stmt.finalize().map_err(publish_err)?;
     }
     // format!("cut-{generation}")：初块8，i64最长20位后新块至多24；
     // meta_i64 的两个 label：初块10，增长块 max(20, 5 + key.len())。
     reserved_bytes = reserved_bytes
         .checked_add(8 + 24)
-        .ok_or_else(|| err(admission.native_overflow()))?;
+        .ok_or_else(|| publish_err(admission.native_overflow()))?;
     for key in ["generation", "last_advance_frontier"] {
         reserved_bytes = reserved_bytes
             .checked_add(10 + 20usize.max(5 + key.len()))
-            .ok_or_else(|| err(admission.native_overflow()))?;
+            .ok_or_else(|| publish_err(admission.native_overflow()))?;
     }
     // validate_scope 原样构造的固定两字段期望对象也与解析树共存。
     reserved_bytes = reserved_bytes
@@ -8490,10 +8956,12 @@ fn verify_required_meta_admitted(
             JsonShape::scan(br#"{"structure":"CompleteCut","economic":"not_started"}"#)
                 .parse_peak(),
         )
-        .ok_or_else(|| err(admission.native_overflow()))?;
-    let _temporaries = admission.native_reservation(reserved_bytes).map_err(err)?;
+        .ok_or_else(|| publish_err(admission.native_overflow()))?;
+    let _temporaries = admission
+        .native_reservation(reserved_bytes)
+        .map_err(publish_err)?;
     // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
-    verify_required_meta(tx)
+    verify_required_meta(tx).map_err(Into::into)
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
@@ -8514,22 +8982,26 @@ pub(super) fn append_owner_cut(
     certify: &mut dyn CutSourceVerifier,
 ) -> Result<
     (IndexedHistory, super::audit_retention::RetainedDelta),
-    super::audit_owner::native::Failure,
+    super::audit_owner::native::Failure<PublishError>,
 > {
     let mut retained = super::audit_retention::RetainedDelta::default();
     verify_required_meta_admitted(tx, work)?;
     let previous = old.cuts.last().map_or(-1, |c| c.metadata.input_frontier);
     if generation != old.cuts.len() as i64 + 1 {
-        return Err(err("owner 后缀非连续一代").into());
+        return Err(publish_err("owner 后缀非连续一代").into());
     }
     let mut store = HashReader::captured_for_audit(capture, None)
-        .map_err(err)?
+        .map_err(publish_err)?
         .with_codec_work(work, native);
     store.audit_full_arrays = true;
+    // 本能力对象只活在当前事务的新一代 append 内；Native 成功单位并入 owner 生涯证明
+    // （#1481:26）。对象/辅助效果的闭包核验与本代发布根同属这一请求，共用同一能力。
+    store.request_verifier =
+        Some(sc::CapturedRequestVerifier::new(capture, work).map_err(publish_err)?);
     let mut sweep = old
         .object_sweep
         .take()
-        .ok_or_else(|| err("缺完整对象事件事实"))?;
+        .ok_or_else(|| publish_err("缺完整对象事件事实"))?;
     // 冷构造的计数已由 capture 全量准入计过；本轮只消费新变更。
     drop(sweep.take_retained_delta());
     object_index::update_from_owner(
@@ -8542,11 +9014,11 @@ pub(super) fn append_owner_cut(
         bound,
         &mut retained,
     )
-    .map_err(|e| format!("{e} [owner object effects g={generation}]"))?;
+    .map_err(|e| e.context_suffix(&format!(" [owner object effects g={generation}]")))?;
     let mut aux_facts = old
         .auxiliary_facts
         .take()
-        .ok_or_else(|| err("缺辅助事实"))?;
+        .ok_or_else(|| publish_err("缺辅助事实"))?;
     aux_index::update_from_owner(
         tx,
         &mut store,
@@ -8557,8 +9029,8 @@ pub(super) fn append_owner_cut(
         bound,
         &mut retained,
     )
-    .map_err(|e| format!("{e} [owner aux effects g={generation}]"))?;
-    let layout = super::layout::Layout::of_library(tx).map_err(err)?;
+    .map_err(|e| e.context_suffix(&format!(" [owner aux effects g={generation}]")))?;
+    let layout = super::layout::Layout::of_library(tx).map_err(publish_err)?;
     let mut objects = object_index::restore_for_owner(
         old.objects,
         layout,
@@ -8583,7 +9055,7 @@ pub(super) fn append_owner_cut(
     } = old
         .raw_prefixes
         .take()
-        .ok_or_else(|| err("缺 raw R/F 事实"))?;
+        .ok_or_else(|| publish_err("缺 raw R/F 事实"))?;
     let prefix_capacities = prefixes.retained_capacities();
     let sequence_bytes = prefixes.sequence.retained_bytes();
     let mut prefixes = Some(prefixes);
@@ -8598,23 +9070,21 @@ pub(super) fn append_owner_cut(
         &store,
     )?;
     let mut resolved = bj::new_work(None);
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
-    stmt.bind_integer(1, generation).map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(publish_err)?;
+    stmt.bind_integer(1, generation).map_err(publish_err)?;
     let mut row = stmt
         .next()
-        .map_err(err)?
-        .ok_or_else(|| err("缺实际新发布行"))?;
-    let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(err)?)?;
-    let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
-    let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
-    // 本对象只活在当前事务的新一代 append 内，不能携带到下一请求。
-    store.request_verifier = Some(sc::CapturedRequestVerifier::new(capture, work).map_err(err)?);
+        .map_err(publish_err)?
+        .ok_or_else(|| publish_err("缺实际新发布行"))?;
+    let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(publish_err)?)?;
+    let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(publish_err)?)?;
+    let delta = root_ref_bytes(&mut store, row.blob(4).map_err(publish_err)?)?;
     store
         .verify_many_ref([snapshot.view(), delta.view()], sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     store
         .verify_many_ref([manifest.view()], sc::Mode::Template)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     let cut = audit_one_published_cut(
         tx,
         None,
@@ -8642,20 +9112,22 @@ pub(super) fn append_owner_cut(
         None,
         &mut Some(certify),
     )
-    .map_err(|e| format!("{e} [owner full cut g={generation}]"))?;
+    .map_err(|e| e.context_suffix(&format!(" [owner full cut g={generation}]")))?;
     drop(row);
-    stmt.finalize().map_err(err)?;
+    stmt.finalize().map_err(publish_err)?;
     let frontier = cut.metadata.input_frontier;
     retained.add(&cut);
     let capacity = old.cuts.capacity();
-    store.native_codec_room(&mut old.cuts, 1).map_err(err)?;
-    old.cuts.try_push(cut).map_err(err)?;
+    store
+        .native_codec_room(&mut old.cuts, 1)
+        .map_err(publish_err)?;
+    old.cuts.try_push(cut).map_err(publish_err)?;
     retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
     #[cfg(test)]
     let repeated_before = sc::frame_calls_on_thread();
     store
         .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     #[cfg(test)]
     REQUEST_CLOSURE_REPEATS.with(|counts| {
         let (requests, reads) = counts.get();
@@ -9354,6 +9826,36 @@ mod manifest_template_coverage_tests {
     }
 }
 
+#[cfg(test)]
+#[path = "sqlite_base_tests.rs"]
+mod sqlite_base_tests;
+
+#[cfg(test)]
+mod development_eligibility_tests {
+    use super::*;
+    #[test]
+    fn actual_sqlite_base_rejects_deadline_and_max_render_without_reading() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
+        let mut reader = HashReader::sqlite_base(&base);
+        assert_eq!(
+            reader.eligible_sqlite_base().is_some(),
+            !cfg!(feature = "s_incremental")
+        );
+        reader.deadline = Some(std::time::Instant::now());
+        assert!(reader.eligible_sqlite_base().is_none());
+        reader.deadline = None;
+        reader.max_render_bytes = Some(1);
+        assert!(reader.eligible_sqlite_base().is_none());
+        reader.max_render_bytes = None;
+        assert_eq!(
+            reader.eligible_sqlite_base().is_some(),
+            !cfg!(feature = "s_incremental")
+        );
+        assert_eq!(base.material_stats().logical_reads, 0);
+    }
+}
+
 #[cfg(all(test, feature = "s_incremental"))]
 impl NativeRawPrefixes {
     pub(super) fn h1_canonical(&self) -> Value {
@@ -9569,7 +10071,7 @@ mod effective_sequence_tests {
             facts.apply(&[edit(-1, None, 33)], &raw, &admission)?;
             facts.apply(&[edit(i64::MAX, None, 34)], &raw, &admission)?;
             assert_eq!(budget.live() - work_base, facts.heap_bytes());
-            Ok::<_, String>(facts)
+            Ok::<_, PublishError>(facts)
         });
         let success = result.is_ok();
         let peak = budget.peak();

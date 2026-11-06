@@ -577,6 +577,35 @@ impl Pool {
         }
         Ok(out)
     }
+    /// #1419 r14：列出池内逐字等于规则串的全部持有者及其Native许可字节，供封存基准按持有者推导规则串增量。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn rule_revision_holders(
+        &self,
+        rule: &str,
+    ) -> Vec<(&'static str, usize, Option<usize>)> {
+        let mut out = Vec::new();
+        for rows in self.binding.rows.iter() {
+            for row in rows.rows.iter() {
+                for cell in row.iter() {
+                    if let SqlCell::Text(v) = cell {
+                        if v.len() == rule.len() && v.starts_with(rule.as_bytes()) {
+                            out.push(("binding.cell", v.len(), v.native_retained_charge()));
+                        }
+                    }
+                }
+            }
+        }
+        for proof in self.proofs.iter() {
+            if proof.key.rule.as_str() == rule {
+                out.push((
+                    "proof.key.rule",
+                    proof.key.rule.len(),
+                    proof.key.rule.retained_charge(),
+                ));
+            }
+        }
+        out
+    }
 }
 
 pub(super) struct Keeper {

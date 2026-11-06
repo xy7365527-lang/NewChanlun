@@ -1,0 +1,30 @@
+{
+  "unique_new_tests_passed": 13,
+  "names": [
+    "test_bad_raw_domain_rejected_instead_of_relaxed_fallback",
+    "test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor",
+    "test_closure_validates_six_families_and_qcut",
+    "test_codec_large_bytes_numbers_and_json_text",
+    "test_domain_adapter_positive_and_zn_mutation_negative",
+    "test_domain_withdrawal_rejects_stale_pair",
+    "test_driver_collects_fixed_pages_and_full_content",
+    "test_full_raw_proof_and_hand_calculated_anchors",
+    "test_live_is_unconditionally_denied",
+    "test_no_early_segment_or_center_from_missing_witness",
+    "test_revision_withdrawal_restore_named_expected",
+    "test_second_sequence_confirm_precedes_same_stroke_crossing",
+    "test_toy_supervisor_paths_reap"
+  ],
+  "stdout_files": [
+    "validation/tests.stdout",
+    "validation/domain-rerun.stdout",
+    "validation/supervisor-rerun.stdout"
+  ],
+  "first_run": 12,
+  "targeted_domain_recheck": 2,
+  "targeted_supervisor_log_preservation_recheck": 1,
+  "prior_23_tests": "复用原件，未重跑",
+  "scope": "纯Python定义模型、假传输、固定toy监督及静态原件检查",
+  "product_rust_lean_services_real_db_replay_recovery_browser": "NOT_RUN",
+  "independent_review_of_this_bundle": "PENDING_MANAGER_REVIEW"
+}

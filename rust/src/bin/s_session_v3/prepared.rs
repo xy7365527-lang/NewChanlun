@@ -7,6 +7,7 @@ use super::audit_store::{CodecRead, CodecStore};
 use super::*;
 use content_manifest::{ManifestMetadata, SourceCommit, UnpublishedManifest};
 use generation::{GenerationInput, GenerationRuntime};
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -33,8 +34,8 @@ fn publication_material<T>(
     work: Option<&WorkScope>,
     parent: Option<&super::audit_owner::PublicationScope<'_>>,
     #[cfg(test)] stage: Option<&staged_nodes::StageOwner<'_>>,
-    f: impl FnOnce(Option<&super::audit_owner::MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
-) -> Result<T, String> {
+    f: impl FnOnce(Option<&super::audit_owner::MaterialAccess<'_, '_, '_>>) -> Result<T, PublishError>,
+) -> Result<T, PublishError> {
     match parent {
         Some(parent) => super::audit_owner::with_construction_material_in_publication(
             tx,
@@ -526,7 +527,7 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         phase.publish(self, token, envelope, context)
     }
     #[cfg_attr(
@@ -563,7 +564,7 @@ impl Runtime {
         bound_capture: Option<&mut sc::AuditCapture>,
         bound_source: Option<&mut Option<source_audit::NativeSourceState>>,
         parent: Option<&super::audit_owner::PublicationScope<'_>>,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         self.publish_impl_admitted_bound(
             tx,
             token,
@@ -608,6 +609,7 @@ impl Runtime {
             #[cfg(feature = "s_incremental")]
             None,
         )
+        .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     fn publish_impl_admitted_bound(
         &mut self,
@@ -625,7 +627,7 @@ impl Runtime {
         >,
         work: Option<&WorkScope>,
         #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         #[cfg(feature = "s_incremental")]
         if self.queued_audit_facts.is_some() {
             self.invalidate_audit_ledger();
@@ -676,7 +678,7 @@ impl Runtime {
         } else {
             None
         };
-        let result = (|| {
+        let result: Result<_, PublishError> = (|| {
             let prepared = self.prepare(
                 tx,
                 token,
@@ -714,7 +716,13 @@ impl Runtime {
                 self.audit_ledger
                     .as_mut()
                     .ok_or("AuditLedgerStale：未安装台账")?
-                    .stage_verified(token, &delta, &verified, work, prior)?;
+                    .stage_verified(
+                        token,
+                        &delta,
+                        &super::audit_ledger::QualifiedUnits::full(verified)?,
+                        work,
+                        prior,
+                    )?;
             }
             if let Some(ledger) = &mut self.audit_ledger {
                 ledger.bind(token, &prepared.metadata, &prepared.roots)?;
@@ -750,7 +758,7 @@ impl Runtime {
                 }
                 self.auxiliary.visit_runtime_roots(&mut visit)?;
                 if let Some(error) = failed {
-                    return Err(err(error));
+                    return Err((publish_err(error)).into());
                 }
                 return commit::publish_borrowed_staged(
                     tx,
@@ -764,7 +772,8 @@ impl Runtime {
                     prepared.workspace,
                     work,
                     prepared.source_manifest,
-                );
+                )
+                .map_err(Into::into);
             }
             #[cfg(feature = "s_incremental")]
             return commit::publish_borrowed_with_workspace_admitted(
@@ -787,6 +796,7 @@ impl Runtime {
                 &prepared.manifest,
                 &prepared.policy_records,
             )
+            .map_err(Into::into)
         })();
         #[cfg(test)]
         state::trace_stage("publish_end", "-", -1);
@@ -818,7 +828,7 @@ impl Runtime {
         #[cfg(all(test, feature = "s_incremental"))] stage: Option<&staged_nodes::StageOwner>,
         work: Option<&WorkScope>,
         #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
-    ) -> Result<Prepared, String> {
+    ) -> Result<Prepared, PublishError> {
         #[cfg(feature = "s_incremental")]
         let workspace_budget = context
             .as_deref()
@@ -860,34 +870,35 @@ impl Runtime {
             required(envelope, "message_id")?,
         )?;
         if view.envelope() != envelope {
-            return Err(err("Commit原件与已接纳消息不同"));
+            return Err((publish_err("Commit原件与已接纳消息不同")).into());
         }
         if view.is_fresh() || view.is_committed() {
-            return Err(err("Commit只接已接纳未提交的消息"));
+            return Err((publish_err("Commit只接已接纳未提交的消息")).into());
         }
         let semantic_commit_ns = control
             .commit_time(&view)?
-            .ok_or_else(|| err("缺实际Begin提交时刻"))?;
-        let get = |key| meta_get_opt(tx, key)?.ok_or_else(|| err(format!("缺冻结字段{key}")));
+            .ok_or_else(|| publish_err("缺实际Begin提交时刻"))?;
+        let get =
+            |key| meta_get_opt(tx, key)?.ok_or_else(|| publish_err(format!("缺冻结字段{key}")));
         let scope = strict_json(get("scope")?.as_bytes())?;
         let scope_value = cv(&scope)?;
         let scope_root = sc::write_value(&mut sc::MemoryNodes::default(), &scope_value)
-            .map_err(err)?
+            .map_err(publish_err)?
             .content_ref();
         let generation = meta_i64(tx, "generation")?
             .checked_add(1)
-            .ok_or_else(|| err("代号溢出"))?;
+            .ok_or_else(|| publish_err("代号溢出"))?;
         let frontier = i64::try_from(audited.raw.len())
-            .map_err(err)?
+            .map_err(publish_err)?
             .checked_sub(1)
-            .ok_or_else(|| err("原始前沿为空"))?;
+            .ok_or_else(|| publish_err("原始前沿为空"))?;
         let previous = meta_i64(tx, "last_advance_frontier")?;
         let e = view.envelope();
         let attempts: i64 = tx.query_row(
             "SELECT attempt_count FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",
             params![required(e,"source_namespace")?, required(e,"source_epoch")?, required(e,"message_id")?],
             |row| row.get(0),
-        ).map_err(err)?;
+        ).map_err(publish_err)?;
         let metadata = ManifestMetadata {
             session_id: get("session_id")?,
             session_generation: required(e, "session_generation")?.into(),
@@ -906,7 +917,7 @@ impl Runtime {
                 clock_event_id: required(&e["payload"], "clock_event_id")?.into(),
                 attempt_index: attempts
                     .checked_sub(1)
-                    .ok_or_else(|| err("缺实际Begin attempt"))?,
+                    .ok_or_else(|| publish_err("缺实际Begin attempt"))?,
             },
             clock_plan_hash: clock.hash,
             semantic_commit_ns,
@@ -919,10 +930,10 @@ impl Runtime {
         super::require_current_writer_rule(&metadata.rule_revision)?;
         content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
         if metadata.profile_id != tb02a::PROFILE {
-            return Err(err("非OHLC档生成/来源接线仍未实现"));
+            return Err((publish_err("非OHLC档生成/来源接线仍未实现")).into());
         }
         if frontier <= previous {
-            return Err(err("本次没有新增原始前沿"));
+            return Err((publish_err("本次没有新增原始前沿")).into());
         }
 
         let database: String = tx
@@ -931,7 +942,7 @@ impl Runtime {
                 [],
                 |r| r.get(0),
             )
-            .map_err(err)?;
+            .map_err(publish_err)?;
         let lane_key = s_fact_cache::lane_key(
             Path::new(&database),
             &metadata.session_id,
@@ -951,7 +962,9 @@ impl Runtime {
         ];
         if let Some(prior) = &self.binding {
             if prior != &binding {
-                return Err(err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例"));
+                return Err(
+                    (publish_err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例")).into(),
+                );
             }
         } else {
             self.generator = Some(GenerationRuntime::with_config(
@@ -966,7 +979,7 @@ impl Runtime {
         if let Some(raw) = bound_raw {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) || audited.budget.is_some()
             {
-                return Err(err("owner增量路径只接受Native原件"));
+                return Err((publish_err("owner增量路径只接受Native原件")).into());
             }
             // #1640 D6：租约资格检查常驻生产；staged 夹具的父域缺失只在测试构建可达。
             #[cfg(test)]
@@ -974,10 +987,12 @@ impl Runtime {
             #[cfg(not(test))]
             let staged_without_parent = false;
             if !self.native_read_lease || staged_without_parent {
-                return Err(err("owner增量路径必须使用真实Native读取租约"));
+                return Err((publish_err("owner增量路径必须使用真实Native读取租约")).into());
             }
-            let capture = bound_capture.ok_or_else(|| err("owner增量缺同pending原件capture"))?;
-            let source_slot = bound_source.ok_or_else(|| err("owner增量缺唯一来源状态槽"))?;
+            let capture =
+                bound_capture.ok_or_else(|| publish_err("owner增量缺同pending原件capture"))?;
+            let source_slot =
+                bound_source.ok_or_else(|| publish_err("owner增量缺唯一来源状态槽"))?;
             let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
             drop(control);
             // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
@@ -990,11 +1005,16 @@ impl Runtime {
                         #[cfg(test)]
                         stage,
                     )
-                    .map_err(err)?,
+                    .map_err(publish_err)?,
                     budget: None,
                 };
-                sc::write_value(&mut store, &scope_value).map_err(err)?;
-                let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+                let structure_prior =
+                    object_index::structure_prior_records(&store, &audited.objects)?;
+                sc::write_value(&mut store, &scope_value).map_err(publish_err)?;
+                let generator = self
+                    .generator
+                    .as_mut()
+                    .ok_or_else(|| publish_err("生成器未绑定"))?;
                 #[cfg(test)]
                 state::trace_stage("generate", "delta", generation);
                 #[cfg(all(test, feature = "s_incremental"))]
@@ -1005,6 +1025,7 @@ impl Runtime {
                     &mut store,
                     raw,
                     generation::BoundGenerationInput {
+                        structure_prior: structure_prior.borrowed(),
                         generation,
                         structure_cut: &metadata.structure_cut,
                         input_frontier: frontier,
@@ -1028,6 +1049,7 @@ impl Runtime {
                     &generated.objects,
                     &audited.objects,
                     generation,
+                    &metadata.rule_revision,
                 )?;
                 generated.finish_axes(
                     &mut store,
@@ -1040,10 +1062,10 @@ impl Runtime {
                         generated
                             .catalog_axes
                             .as_ref()
-                            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?
+                            .ok_or_else(|| publish_err("目录轴完成后仍缺真实根"))?
                             .into(),
                     )
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
                 (generated, objects, axes)
             };
             #[cfg(test)]
@@ -1055,7 +1077,7 @@ impl Runtime {
                 >::try_from_view(
                     (&injected).into(), work
                 )
-                .map_err(err)?;
+                .map_err(publish_err)?;
             }
             #[cfg(test)]
             if let Some(stage) = stage {
@@ -1071,7 +1093,8 @@ impl Runtime {
                 #[cfg(test)]
                 stage,
                 |material| {
-                    let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
+                    let material =
+                        material.ok_or_else(|| publish_err("owner增量缺实际材料能力"))?;
                     #[cfg(test)]
                     state::trace_stage("prepare_source_audit", "delta", generation);
                     let audit_source = if self
@@ -1095,11 +1118,11 @@ impl Runtime {
                     let mut store = BusinessTxStore {
                         #[cfg(test)]
                         inner: content_store::TxStore::new_with_stage(tx, stage)
-                            .map_err(err)?
+                            .map_err(publish_err)?
                             .with_work(Some(material.work())),
                         #[cfg(not(test))]
                         inner: content_store::TxStore::new(tx)
-                            .map_err(err)?
+                            .map_err(publish_err)?
                             .with_work(Some(material.work())),
                         budget: None,
                     };
@@ -1146,7 +1169,12 @@ impl Runtime {
                         &products.manifest.batch_id,
                         Some(material),
                     )?;
-                    catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
+                    catalog_evidence::stage_current(
+                        tx,
+                        &mut store,
+                        &products.axes,
+                        &metadata.rule_revision,
+                    )?;
                     *source_slot = Some(source);
                     Ok(products)
                 },
@@ -1177,6 +1205,7 @@ impl Runtime {
         let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
         let input = GenerationInput {
+            structure_prior: generation::StructurePriors::default(),
             all_events: audited.raw.view(),
             effective: effective.raw_view(),
             generation,
@@ -1209,7 +1238,7 @@ impl Runtime {
         #[cfg(feature = "s_incremental")]
         if use_lease {
             if audited.budget.is_some() {
-                return Err(err("Native读取租约不允许Owned业务预算"));
+                return Err((publish_err("Native读取租约不允许Owned业务预算")).into());
             }
             // End the only safe same-connection alias before the exclusive read phase.
             drop(control);
@@ -1221,8 +1250,14 @@ impl Runtime {
                         #[cfg(test)]
                         stage,
                     )
-                    .map_err(err)?,
+                    .map_err(publish_err)?,
                     budget: None,
+                };
+                let structure_prior =
+                    object_index::structure_prior_records(&store, &audited.objects)?;
+                let input = GenerationInput {
+                    structure_prior: structure_prior.borrowed(),
+                    ..input
                 };
                 self.generate_node_products(
                     &mut store,
@@ -1264,11 +1299,11 @@ impl Runtime {
             let mut store = BusinessTxStore {
                 #[cfg(test)]
                 inner: content_store::TxStore::new_with_stage(tx, stage)
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .with_work(work),
                 #[cfg(not(test))]
                 inner: content_store::TxStore::new(tx)
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .with_work(work),
                 budget: None,
             };
@@ -1300,9 +1335,10 @@ impl Runtime {
                         &manifest.batch_id,
                         material,
                     )
+                    .map_err(Into::into)
                 },
             )?;
-            catalog_evidence::stage_current(tx, &mut store, &axes)?;
+            catalog_evidence::stage_current(tx, &mut store, &axes, &metadata.rule_revision)?;
             return Ok(Prepared {
                 metadata,
                 roots,
@@ -1316,13 +1352,18 @@ impl Runtime {
         let mut store = BusinessTxStore {
             #[cfg(all(test, feature = "s_incremental"))]
             inner: content_store::TxStore::new_with_stage(tx, stage)
-                .map_err(err)?
+                .map_err(publish_err)?
                 .with_work(work),
             #[cfg(not(all(test, feature = "s_incremental")))]
             inner: content_store::TxStore::new(tx)
-                .map_err(err)?
+                .map_err(publish_err)?
                 .with_work(work),
             budget: audited.budget.clone(),
+        };
+        let structure_prior = object_index::structure_prior_records(&store, &audited.objects)?;
+        let input = GenerationInput {
+            structure_prior: structure_prior.borrowed(),
+            ..input
         };
         let NodeProducts {
             generated,
@@ -1383,6 +1424,7 @@ impl Runtime {
                     &manifest.batch_id,
                     material,
                 )
+                .map_err(Into::into)
             },
         )?;
         #[cfg(not(feature = "s_incremental"))]
@@ -1390,7 +1432,7 @@ impl Runtime {
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
             aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
         }
-        catalog_evidence::stage_current(tx, &mut store, &axes)?;
+        catalog_evidence::stage_current(tx, &mut store, &axes, &metadata.rule_revision)?;
         Ok(Prepared {
             metadata,
             roots,
@@ -1410,16 +1452,19 @@ impl Runtime {
             request_audit::ManifestWorkspaceBudget,
         >,
         token: &str,
-        input: &GenerationInput<'raw>,
+        input: &GenerationInput<'raw, '_>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
         scope_value: &V,
         previous: i64,
         generation: i64,
         frontier: i64,
-    ) -> Result<NodeProducts<'raw>, String> {
-        sc::write_value(store, scope_value).map_err(err)?;
-        let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+    ) -> Result<NodeProducts<'raw>, PublishError> {
+        sc::write_value(store, scope_value).map_err(publish_err)?;
+        let generator = self
+            .generator
+            .as_mut()
+            .ok_or_else(|| publish_err("生成器未绑定"))?;
         #[cfg(test)]
         let path = if native.is_some() {
             "full_lease"
@@ -1449,6 +1494,7 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
+                &metadata.rule_revision,
             )?
         } else {
             object_index::plan_for_layout(
@@ -1457,6 +1503,7 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
+                &metadata.rule_revision,
             )?
         };
         #[cfg(not(feature = "s_incremental"))]
@@ -1466,6 +1513,7 @@ impl Runtime {
             &generated.objects,
             &audited.objects,
             generation,
+            &metadata.rule_revision,
         )?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
@@ -1473,10 +1521,10 @@ impl Runtime {
                 generated
                     .catalog_axes
                     .as_ref()
-                    .ok_or_else(|| err("目录轴完成后仍缺真实根"))?
+                    .ok_or_else(|| publish_err("目录轴完成后仍缺真实根"))?
                     .into(),
             )
-            .map_err(err)?;
+            .map_err(publish_err)?;
         #[cfg(test)]
         state::trace_stage("prepare_source_audit", path, generation);
         #[cfg(feature = "s_incremental")]
@@ -1572,7 +1620,7 @@ impl Runtime {
         previous: i64,
         frontier: i64,
         generation: i64,
-    ) -> Result<NodeProducts<'raw>, String> {
+    ) -> Result<NodeProducts<'raw>, PublishError> {
         #[cfg(test)]
         state::trace_stage("assemble_manifest", "-", generation);
         let auxiliary = self.auxiliary.plan(
@@ -1607,7 +1655,7 @@ impl Runtime {
             generated_state: audit_store::RefValue::Plain(
                 store
                     .native_plain_ref((&generated.generated_state).into())
-                    .map_err(err)?,
+                    .map_err(publish_err)?,
             ),
             publication_template: snapshot,
             delta_template: delta,
@@ -1625,7 +1673,7 @@ impl Runtime {
             receipt.export_business(store, &objects, &auxiliary)?;
             let facts = audit_ledger::QueuedFacts::from_receipt(receipt, metadata)?;
             if ledger.committed_through()?.checked_add(1) != Some(facts.generation) {
-                return Err(err("AuditLedgerStale：待准备事实代号不连续"));
+                return Err(publish_err("AuditLedgerStale：待准备事实代号不连续"));
             }
             self.queued_audit_facts = Some((receipt.request_token().to_owned(), facts));
         }
@@ -1700,7 +1748,7 @@ impl Runtime {
         };
         #[cfg(not(feature = "s_incremental"))]
         let manifest =
-            content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
+            content_manifest::assemble_unpublished(store, metadata, &roots).map_err(publish_err)?;
         #[cfg(all(test, feature = "s_incremental"))]
         if workspace.is_some() {
             state::trace_event("s4_manifest_workspace", Some(generation));
@@ -1799,7 +1847,7 @@ fn templates(
     a: &aux_index::Plan,
     run: &str,
     evidence: sc::RefView<'_>,
-) -> Result<(audit_store::RefValue, audit_store::RefValue), String> {
+) -> Result<(audit_store::RefValue, audit_store::RefValue), PublishError> {
     // #1488/#1507：只借用元数据及已持有输出；固定字段与十进制缓冲都留在栈上。
     // 模板根由 typed owner 保留许可，经 NativeManifestRoots 持有到发布返回。
     use sc::ValueView::{BatchSelf, Edge, Json, Object, String as Text};
@@ -1815,13 +1863,16 @@ fn templates(
         ("input_frontier", Text(frontier.text())),
         ("seq_range", Object(&range)),
         ("catalog_run_status", Text(run)),
-        ("catalog_evidence", Edge(evidence.digest().map_err(err)?)),
+        (
+            "catalog_evidence",
+            Edge(evidence.digest().map_err(publish_err)?),
+        ),
     ];
     let mut snapshot = [("", BatchSelf); 20];
     snapshot[..8].copy_from_slice(&common);
     snapshot[8..].copy_from_slice(&[
         ("structure_cut", Text(&m.structure_cut)),
-        ("scope", Edge(m.scope.digest().map_err(err)?)),
+        ("scope", Edge(m.scope.digest().map_err(publish_err)?)),
         ("profile_id", Text(&m.profile_id)),
         ("profile_hash", Text(&m.profile_hash)),
         ("history_mode", Text("RecomputedWithRevision")),
@@ -1839,12 +1890,12 @@ fn templates(
     let budget = s.allocation_budget();
     let mut withdrawals = business_json::WithdrawalArray(business_json::new_work(budget.as_ref()));
     s.native_codec_room(&mut withdrawals.0, o.withdrawals.array_len())
-        .map_err(err)?;
+        .map_err(publish_err)?;
     for withdrawal in business_json::RawEventsView::from(&o.withdrawals) {
         withdrawals
             .0
             .try_push(business_json::WithdrawalWire::new(withdrawal)?)
-            .map_err(err)?;
+            .map_err(publish_err)?;
     }
     let replaces = business_json::RawEventsView::from(&o.replaces);
     let mut delta = [("", BatchSelf); 17];
@@ -1865,10 +1916,12 @@ fn templates(
         ("observations", Edge(a.delta_values.observations.digest)),
         ("raw_history_added", Edge(a.delta_values.raw_history.digest)),
     ]);
-    let snapshot = s.write_template_view(Object(&snapshot)).map_err(err)?;
-    let snapshot = s.native_built_ref(&snapshot).map_err(err)?;
-    let delta = s.write_template_view(Object(&delta)).map_err(err)?;
-    let delta = s.native_built_ref(&delta).map_err(err)?;
+    let snapshot = s
+        .write_template_view(Object(&snapshot))
+        .map_err(publish_err)?;
+    let snapshot = s.native_built_ref(&snapshot).map_err(publish_err)?;
+    let delta = s.write_template_view(Object(&delta)).map_err(publish_err)?;
+    let delta = s.native_built_ref(&delta).map_err(publish_err)?;
     Ok((snapshot, delta))
 }
 
@@ -1945,11 +1998,16 @@ pub(crate) mod tests {
         path: PathBuf,
         pub(crate) conn: Connection,
         runtime: Runtime,
+        /// 接纳消息声明的写者纪元（真实恢复后递增）。
+        writer_epoch: String,
         rule: Option<String>,
+        preserve_originals: bool,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            if !self.preserve_originals {
+                let _ = std::fs::remove_dir_all(&self.path);
+            }
         }
     }
     impl Fixture {
@@ -1957,24 +2015,64 @@ pub(crate) mod tests {
             Self::with_retain(4)
         }
         pub(crate) fn with_retain(retain: i64) -> Self {
-            Self::build(retain, 4, None)
+            Self::with_clock_events(retain, 4)
+        }
+        /// 时钟计划含 `input-1..=events`；多代真实导出需要超过默认 4 个接纳事件。
+        pub(crate) fn with_clock_events(retain: i64, clock_events: i64) -> Self {
+            Self::with_clock_plan(retain, clock_events, &[])
+        }
+        /// 同上，另带具名恢复事件 `(name, recover_ns)`（供真实纪元递增恢复）。
+        pub(crate) fn with_clock_plan(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+        ) -> Self {
+            Self::build(retain, clock_events, recover_events, None)
         }
         /// #1491：在测试写者规则注入（`with_test_writer_rule`）下建库与发布，库 meta 与各代
         /// manifest 天然同带 `rule`；时钟 6 个事件、保留 6 代，使修订与撤回落在不同代。
         pub(crate) fn with_rule(rule: &str) -> Self {
-            Self::build(6, 6, Some(rule.to_owned()))
+            Self::build(6, 6, &[], Some(rule.to_owned()))
         }
-        fn build(retain: i64, clock_events: i64, rule: Option<String>) -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "s1394-real-{}-{}-{}",
-                std::process::id(),
-                now_nanos(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
+        fn build(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            rule: Option<String>,
+        ) -> Self {
+            Self::build_at(retain, clock_events, recover_events, rule, None)
+        }
+        pub(crate) fn with_clock_plan_persistent(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            directory: PathBuf,
+        ) -> Self {
+            Self::build_at(retain, clock_events, recover_events, None, Some(directory))
+        }
+        fn build_at(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            rule: Option<String>,
+            directory: Option<PathBuf>,
+        ) -> Self {
+            let preserve_originals = directory.is_some();
+            let path = directory.unwrap_or_else(|| {
+                std::env::temp_dir().join(format!(
+                    "s1394-real-{}-{}-{}",
+                    std::process::id(),
+                    now_nanos(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ))
+            });
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
             for n in 1..=clock_events {
                 events.insert(format!("input-{n}"),json!({"accept_ns":(n*10).to_string(),"attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]}));
+            }
+            for (name, ns) in recover_events {
+                events.insert((*name).to_string(), json!({"recover_ns": ns.to_string()}));
             }
             let clock = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"real-content-commit","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":events});
             let clock_path = path.join("clock.json");
@@ -2002,12 +2100,35 @@ pub(crate) mod tests {
                 path,
                 conn,
                 runtime,
+                writer_epoch: "1".to_string(),
                 rule,
+                preserve_originals,
             }
         }
         /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。
         pub(crate) fn db_path(&self) -> PathBuf {
             self.path.join("s.sqlite")
+        }
+        /// 真实写者恢复：经 S3 显式恢复入口把纪元升到 `epoch`（须高于当前纪元），再重开连接与运行时；
+        /// 此后接纳消息按新纪元声明。同纪元重开不是恢复。
+        pub(crate) fn recover_writer(&mut self, epoch: &str, clock_event: &str) {
+            let clock = v2::stored_clock(&self.conn).unwrap();
+            let db = self.db_path();
+            drop(std::mem::replace(
+                &mut self.conn,
+                Connection::open_in_memory().unwrap(),
+            ));
+            super::super::driver::recover(
+                &db,
+                epoch,
+                &clock,
+                clock_event,
+                crate::v3::admission_anchor::test_prepare(&db).into(),
+            )
+            .unwrap();
+            self.conn = open_db(&db).unwrap();
+            self.runtime = Runtime::new();
+            self.writer_epoch = epoch.to_string();
         }
         pub(crate) fn accept_begin(
             &mut self,
@@ -2015,9 +2136,20 @@ pub(crate) mod tests {
             row: (&str, i64, i64, i64, i64, i64),
             revision: i64,
         ) -> (Value, String) {
-            let mut raw = located_ohlc_input(&[row]);
-            raw["events"][0]["revision"] = json!(revision.to_string());
-            let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),"raw_input":raw});
+            self.accept_begin_rows(n, &[row], revision)
+        }
+        /// 只做正式接纳（AcceptedPending），不开 Begin、不发布；返回接纳信封与库存时钟。
+        pub(crate) fn accept_rows(
+            &mut self,
+            n: i64,
+            rows: &[(&str, i64, i64, i64, i64, i64)],
+            revision: i64,
+        ) -> (Value, v2::ClockPlan) {
+            let mut raw = located_ohlc_input(rows);
+            for event in raw["events"].as_array_mut().unwrap() {
+                event["revision"] = json!(revision.to_string());
+            }
+            let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":self.writer_epoch,"clock_event_id":format!("input-{n}"),"raw_input":raw});
             let envelope = json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001","session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1","message_id":format!("message-{n}"),"producer_id":"real-content-test","producer_epoch":"1","payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
             let clock = v2::stored_clock(&self.conn).unwrap();
             let tx = self.conn.transaction().unwrap();
@@ -2028,6 +2160,16 @@ pub(crate) mod tests {
                     .unwrap();
             control.accept(&view, &accepted).unwrap();
             tx.commit().unwrap();
+            (envelope, clock)
+        }
+        /// 一条接纳消息携带多根原始事件（同一修订号），随后在同一消息上开 Begin（不发布）。
+        pub(crate) fn accept_begin_rows(
+            &mut self,
+            n: i64,
+            rows: &[(&str, i64, i64, i64, i64, i64)],
+            revision: i64,
+        ) -> (Value, String) {
+            let (envelope, clock) = self.accept_rows(n, rows, revision);
             let tx = self.conn.transaction().unwrap();
             let control = control::S3Control::attach(&tx, &clock).unwrap();
             let view = control.inspect_ingest(envelope.clone()).unwrap();
@@ -2035,7 +2177,7 @@ pub(crate) mod tests {
             let frontier = read_raw_events(&tx).unwrap().len() as i64 - 1;
             let base = meta_get_opt(&tx, "structure_cut").unwrap().unwrap();
             let token = control
-                .begin(&view, generation, frontier, &base, "1")
+                .begin(&view, generation, frontier, &base, &self.writer_epoch)
                 .unwrap();
             tx.commit().unwrap();
             (envelope, token)
@@ -2115,7 +2257,7 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_incremental")]
     fn source_partitions_real_owner(admitted: bool) {
-        let mut f = Fixture::build(5, 5, None);
+        let mut f = Fixture::build(5, 5, &[], None);
         let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
         let db = f.db_path();
         let path = db.with_file_name("source-partitions.sqlite");
@@ -2895,7 +3037,7 @@ pub(crate) mod tests {
         ];
         let mut dumps = Vec::new();
         for round in 0..2 {
-            let mut f = Fixture::build(5, 5, None);
+            let mut f = Fixture::build(5, 5, &[], None);
             let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
             let db = f.db_path();
             let name = format!("complete-{round}.sqlite");
@@ -4694,4 +4836,8 @@ pub(crate) mod tests {
         assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
         assert_eq!(count(&f.conn, "s_clock_events"), 2);
     }
+}
+
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("S3PrepareInvalid：")
 }

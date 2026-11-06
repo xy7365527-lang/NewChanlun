@@ -1,0 +1,23 @@
+{
+  "qualification": "只读原件复用，非新执行或新独审",
+  "files": [
+    {
+      "source": ".chanlun/review-results/issue1419-raw-oracle-v2-20261018/MANIFEST.json",
+      "copy": "V4-MANIFEST.json.reference",
+      "bytes": 27663,
+      "sha256": "6c3d2ffd91c0085726a97186c437283b02481a8ba0cc351f57fac59498564123"
+    },
+    {
+      "source": ".chanlun/review-results/issue1419-raw-oracle-v2-20261018/SHA256SUMS",
+      "copy": "V4-SHA256SUMS.reference",
+      "bytes": 15729,
+      "sha256": "e222ef51441c69eb00bf953da4dd48d7036ea9370a933028aa9dffee843be9a9"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/RAW-V4-INDEPENDENT-REVIEW.json",
+      "copy": "V4-INDEPENDENT-REVIEW.reference.json",
+      "bytes": 9516,
+      "sha256": "72f1222726ea48566396214b34a6ada156fc86fb14a95dc19e107fd17f396aa3"
+    }
+  ]
+}

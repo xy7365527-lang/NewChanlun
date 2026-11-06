@@ -169,6 +169,7 @@ impl Lane {
         group_facts: &[InclusionGroupFact],
         raw: &BTreeMap<i64, Value>,
         shapes: &[Value],
+        previous: &[Value],
         gen: i64,
         cut: &str,
         frontier: i64,
@@ -196,6 +197,7 @@ impl Lane {
             group_facts,
             raw,
             shapes,
+            previous,
             gen,
             cut,
             frontier,
@@ -405,7 +407,7 @@ impl DeltaLane {
         admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
         deadline: Option<Instant>,
         budget: &dyn crate::v3::audit_budget::Budget,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, newchan_rust::s_content::ContextError> {
         if !binding.is_unbound_cold() || prefix > raw.len() || raw.budget().is_some() {
             return Err("GenError：冷车道必须来自未绑定的已核发布前缀".into());
         }
@@ -415,13 +417,15 @@ impl DeltaLane {
         if let Some(work) = admission.codec_work() {
             lane.rows
                 .try_reserve_native(work, winners.ordered().count())
-                .map_err(|e| e.to_string())?;
+                .map_err(newchan_rust::s_content::ContextError::from)?;
         } else {
             return Err("GenError：冷车道缺原生工作域".into());
         }
         for (_, ordinal) in winners.ordered() {
             crate::v3::check_deadline(deadline)?;
-            budget.precheck().map_err(|e| e.to_string())?;
+            budget
+                .precheck()
+                .map_err(newchan_rust::s_content::ContextError::from)?;
             let bar = bar_of(raw.get(ordinal).ok_or("GenError：冷winner原行缺失")?)?;
             let change = lane.state.append_with_changes(bar);
             if !change.shared_available() {
@@ -432,7 +436,7 @@ impl DeltaLane {
                     DeltaRawRow { ordinal, bar },
                     admission.codec_work().ok_or("GenError：冷车道缺工作域")?,
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(newchan_rust::s_content::ContextError::from)?;
         }
         lane.prefix = prefix;
         lane.binding = Some(binding);
@@ -767,6 +771,13 @@ impl DeltaLane {
                 if !appended.shared_available() {
                     return Err("GenError：有效 raw winner 非严格升序，不能沿用共享 parser".into());
                 }
+                // #1393：建立方向那一代从 raw0 重折，前缀步骤如实变脏。
+                if appended.replayed_from_zero() {
+                    changes.effective_dirty_from = min_frontier(
+                        changes.effective_dirty_from,
+                        Some(appended.step_dirty_from()),
+                    );
+                }
                 changes.group_dirty_from =
                     min_frontier(changes.group_dirty_from, appended.group_dirty_from());
                 changes.merged_dirty_from =
@@ -1079,6 +1090,7 @@ mod delta_tests {
             &groups,
             &raw,
             &[],
+            &[],
             1,
             "c1",
             3,
@@ -1088,6 +1100,7 @@ mod delta_tests {
             &lane.state,
             &groups,
             &raw,
+            &[],
             &[],
             1,
             "c1",
@@ -1111,6 +1124,7 @@ mod delta_tests {
             &groups,
             &raw,
             &[],
+            &[],
             2,
             "c2",
             4,
@@ -1119,6 +1133,7 @@ mod delta_tests {
         let want = tb02a_facts::build(
             &process_inclusion_with_facts(&bars[..3]),
             &raw,
+            &[],
             &[],
             2,
             "c2",

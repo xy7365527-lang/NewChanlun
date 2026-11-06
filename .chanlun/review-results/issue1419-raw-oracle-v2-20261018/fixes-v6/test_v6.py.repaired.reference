@@ -1,0 +1,347 @@
+"""#1419 v6：真实Collector链，只以内存exchange/文件替身替代I/O。"""
+import copy
+import hashlib
+import json
+from pathlib import Path
+import sys
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT/'driver'), str(ROOT/'fixes-v5'), str(ROOT/'fixes-v4')]
+import content_closure as cc
+import fixed_cut_driver as fd
+import driver_v2 as dv
+from test_v2 import fixture, reply, signed, LIMITS
+import test_v5 as v5
+
+OBS = []
+RAW = []
+IDENTITY = dict(v5.IDENTITY)
+
+
+def material(changes=None, objects=None):
+    # 重建合法projection/所有节点/hash；负例没有借损坏hash提前失败。
+    enc = cc.Encoder()
+    # 先按原fixture编码同一组外部边，再整体编码改变后的固定切面。
+    snapshot, page, _ = fixture(objects or [{'kind':'UNTESTED.toy','payload':{'value':'ok'}}])
+    enc.nodes.update({n['root']:n for n in page['nodes']})
+    fixed = snapshot['fixed_cut']
+    fixed.update(structure_cut='cut-139')
+    fixed.update(copy.deepcopy(changes or {}))
+    logical = {k:snapshot[k] for k in ('counts','scope','omissions','order_version')}
+    logical['scope'] = fixed['scope']
+    logical.update(fixed_cut={**fixed,'catalog_evidence':cc.Edge(fixed['catalog_evidence'])},
+                   catalog=cc.Edge(snapshot['catalog']),
+                   rows=[{**r,'record':cc.Edge(r['record'])} for r in snapshot['rows']])
+    ref = enc.encode(logical)
+    qcut = 'qcut3-'+cc.frame(0x22, cc.root_bytes(ref['root']))
+    snapshot.update(scope=fixed['scope'], cut_projection_digest=qcut)
+    graph = cc.Graph(list(enc.nodes.values()), **LIMITS)
+    anchor = dict(kind='projection', fixed_cut=copy.deepcopy(fixed), cut_projection_digest=qcut, projection_ref=ref)
+    return snapshot, anchor, graph, list(enc.nodes.values())
+
+
+def cursor_for(cut):
+    return dict(**{k:copy.deepcopy(cut[k]) for k in ('session_id','session_generation','catalog_revision','scope','index_frontier')},
+                after_generation=cut['cut_generation'], base_cut=cut['structure_cut'], last_seq=cut['input_frontier'],
+                order_version='s-record-order/2')
+
+
+def snapshot_request(fixed):
+    return dict(op='snapshot', **{k:fixed[k] for k in ('session_id','session_generation','scope','history_mode')},
+                as_of_generation=fixed['cut_generation'],page_size='1024',order_version='s-record-order/2')
+
+
+def watch_material(mode='AsKnown'):
+    m = material(dict(history_mode=mode, as_of_generation='139' if mode=='AsKnown' else None))
+    fixed = m[0]['fixed_cut']; cursor = cursor_for(fixed); current = copy.deepcopy(cursor)
+    pages = []; bindings = {}
+    for i, (frontier, count) in enumerate(zip(('139','204','269'), (1,65,65)), 140):
+        cut = dict(copy.deepcopy(fixed), cut_generation=str(i), structure_cut='cut-'+str(i),
+                   input_frontier=frontier, index_frontier=str(i), as_of_generation=str(i) if mode=='AsKnown' else None,
+                   seq_range={'from':'7','to':'7'})
+        delta = dict(generation=str(i), session_id='toy', catalog_revision=cut['catalog_revision'],
+                     base_cut=current['base_cut'], next_cut=cut['structure_cut'],
+                     **{k:copy.deepcopy(cut[k]) for k in ('index_frontier','input_frontier','seq_range','catalog_run_status','catalog_evidence')},
+                     delta=cc.Encoder().encode({'toy':'delta'}))
+        current = cursor_for(cut)
+        bindings[str(i)] = dict(session_id='toy', session_generation='1', message_id='named-'+str(i),
+                               source_epoch='1' if i==140 else '2', accepted_events=str(count), accepted_cut=cut)
+        pages.append(dict(deltas=[delta], next_cursor=copy.deepcopy(current),
+                          observed_head=dict(copy.deepcopy(cut), history_mode='RecomputedWithRevision', as_of_generation=None),
+                          delivery_frontier=dict(policy_revision='s-delivery/1', retain_generations='4', first_available_generation='139', head_generation=str(i)),
+                          has_more=False, gap=None, validated_capture_digest='b'*64, ok=True))
+    return m, cursor, pages, bindings
+
+
+def packed(pages):
+    return dict(copy.deepcopy(pages[-1]), deltas=[copy.deepcopy(p['deltas'][0]) for p in pages])
+
+
+class Exchange:
+    def __init__(self, m=None, pages=()):
+        self.material = m or material()
+        self.pages = list(copy.deepcopy(pages))
+        self.sent = False
+        self.calls = 0
+        self.headers = {}
+        self.transform = lambda payload: payload
+        self.fail_on = None
+        self.log = []
+
+    def use(self, m):
+        self.material = m
+        self.sent = False
+
+    def __call__(self, route, raw):
+        self.calls += 1
+        if self.calls == self.fail_on: raise OSError('内存传输中断')
+        req = json.loads(raw); p = req['payload']
+        snapshot, anchor, graph, nodes = self.material
+        if route.endswith('watch'):
+            payload = self.pages.pop(0)
+        elif route.endswith('snapshot'):
+            q = p.get('snapshot_token', p)
+            size = int(q['page_size']); start = int(q.get('offset','0')); total = len(snapshot['rows']); end = min(start+size,total)
+            token = None if end==total else signed(dict(token_schema='s-snapshot-token/2',
+                **{k:snapshot['fixed_cut'][k] for k in ('session_id','session_generation','cut_generation','scope','history_mode','structure_cut','catalog_revision','index_frontier','profile_hash','rule_revision')},
+                order_version='s-record-order/2',page_size=str(size),offset=str(end),cut_projection_digest=snapshot['cut_projection_digest'],issued_capture_digest='b'*64))
+            payload = dict(snapshot, rows=snapshot['rows'][start:end], offset=str(start), done=end==total,
+                           next_token=token, validated_capture_digest='b'*64, ok=True)
+        else:
+            q = p.get('content_token', p)
+            target = graph.resolve(anchor['projection_ref'], q['path'])
+            start = int(q['offset']); limit = int(q['limit']); unit = q['unit']
+            total = 1 if unit=='value' else int(target['extent']); end = min(start+limit,total)
+            items = graph.entries(target)[start:end] if unit=='items' else graph.byte_value(target)[start:end].hex() if unit=='bytes' else [target]
+            token = None if end==total else signed(dict(token_schema='s-content-token/1', anchor=q['anchor'], path=q['path'], target_ref=target,
+                                                       unit=unit,offset=str(end),limit=str(limit),issued_capture_digest='b'*64))
+            payload = dict(anchor=q['anchor'],path=q['path'],target_ref=target,unit=unit,offset=str(start),end=str(end),total=str(total),
+                           items=items,nodes=nodes if not self.sent else [],done=end==total,next_token=token,validated_capture_digest='b'*64,ok=True)
+            self.sent = True
+        payload = self.transform(copy.deepcopy(payload))
+        result = reply(req, payload)
+        self.log.append(dict(route=route, request=raw.decode(), status=200, headers=copy.deepcopy(self.headers), reply=result.decode()))
+        return 200, self.headers, result
+
+
+def collector(exchange, cls=dv.CollectorV2, limit=1000000):
+    with patch.object(Path, 'mkdir'):
+        return cls(IDENTITY, fd.Budget(16*1024*1024,10), exchange, '/memory/v6', '1', work_budget=cc.WorkBudget(limit))
+
+
+def collect(c, ex):
+    ex.sent = False
+    return c.closed_snapshot(ex.material[0]['fixed_cut'], 1024, **LIMITS)
+
+
+def ready(mode='AsKnown', cls=dv.CollectorV2):
+    m, cursor, pages, bindings = watch_material(mode)
+    ex = Exchange(m, pages); c = collector(ex, cls)
+    _, _, verified = collect(c, ex)
+    c.bind_watch(verified['receipt'], cursor)
+    return c, ex, cursor, pages, bindings
+
+
+class Tests(unittest.TestCase):
+    def setUp(self):
+        self.writes = patch.object(Path, 'write_bytes', return_value=0)
+        self.writes.start(); self.addCleanup(self.writes.stop)
+
+    def record(self, case, c, ex, **extra):
+        row = dict(case=case, calls=ex.calls, work=c.work_budget.used, limit=c.work_budget.limit,
+                   reply_bytes=c.budget.used, state=c.session_state, **extra)
+        OBS.append(row)
+
+    def test_receipts_only_from_real_complete_chain(self):
+        ex=Exchange(); c=collector(ex); fixed=ex.material[0]['fixed_cut']; cursor=cursor_for(fixed)
+        c.snapshot(fixed,1024)
+        c.content(ex.material[1],[], 'items',1024)
+        self.assertIsNone(c.session_state['anchor'])
+        for bad in (fixed, dict(closure_verified=True, fixed_cut=fixed), fd.SnapshotReceipt()):
+            with self.assertRaisesRegex(ValueError,'收据'): c.bind_watch(bad,cursor)
+        other=collector(Exchange()); _,_,foreign=collect(other,other.exchange)
+        _,_,verified=collect(c,ex)
+        for bad in (fixed, foreign['receipt']):
+            with self.assertRaisesRegex(ValueError,'收据'): c.bind_watch(bad,cursor)
+        alien=copy.deepcopy(fixed); alien['profile_id']='alien'
+        with self.assertRaisesRegex(ValueError,'收据'): c.bind_watch(alien,cursor_for(alien))
+        c.bind_watch(verified['receipt'],cursor)
+        self.assertEqual(c.session_state['watch']['fixed'],fixed)
+        self.record('真实A只绑定A，普通B/外来收据/未发行对象拒绝',c,ex)
+
+    def test_stale_receipt_and_return_alias(self):
+        ex=Exchange(); c=collector(ex); s,_,v=collect(c,ex); old=v['receipt']; old_cursor=cursor_for(s['fixed_cut'])
+        changes=dict(cut_generation='138', structure_cut='cut-138', as_of_generation='138',input_frontier='137',index_frontier='138')
+        ex.use(material(changes)); s,_,v=collect(c,ex)
+        with self.assertRaisesRegex(ValueError,'收据'): c.bind_watch(old,old_cursor)
+        fixed=copy.deepcopy(s['fixed_cut']); cursor=cursor_for(fixed)
+        s['fixed_cut']['profile_id']='alien'; v['decoded']['fixed_cut']['profile_id']='alien'
+        c.bind_watch(v['receipt'],cursor)
+        self.assertEqual(c.session_state['watch']['fixed'],fixed)
+        self.record('历史读取可用；旧失配收据与返回值别名',c,ex)
+
+    def test_all_entrypoints_reject_same_generation_conflicts(self):
+        for cls in (fd.Collector,dv.CollectorV2):
+            for change in (dict(input_frontier='999'),dict(structure_cut='alien-cut'),dict(profile_id='alien'),
+                           dict(profile_hash='c'*64),dict(rule_revision='alien'),dict(scope={}),dict(catalog_revision='alien')):
+                for entry in ('closed_snapshot','snapshot','content','call_snapshot','call_content'):
+                    with self.subTest(cls=cls.__name__,change=change,entry=entry):
+                        c,ex,cursor,pages,bindings=ready(cls=cls)
+                        before=c.session_state; original=copy.deepcopy(ex.material[0]); original_material=ex.material
+                        bad=material(change); ex.use(bad)
+                        with self.assertRaisesRegex(ValueError,'冲突|身份|共享'):
+                            if entry=='closed_snapshot': collect(c,ex)
+                            elif entry=='snapshot': c.snapshot(bad[0]['fixed_cut'],1024)
+                            elif entry=='content': c.content(bad[1],[],'items',1024)
+                            elif entry=='call_snapshot': c.call('/api/v3/snapshot',snapshot_request(bad[0]['fixed_cut']))
+                            else: c.call('/api/v3/content',dict(op='content',anchor=bad[1],path=[],unit='items',offset='0',limit='1024'))
+                        self.assertEqual(c.session_state,before)
+                        ex.use(original_material)
+                        c.watch(cursor,140,'client',accepted_commits=bindings)
+                        self.assertEqual(c.session_state['watch']['cursor']['last_seq'],'139')
+                        self.assertEqual(original,original_material[0])
+                        self.record('共享入口冲突拒绝后继续',c,ex,entry=entry,cls=cls.__name__,change=change)
+
+    def test_full_projection_identity_and_closure_failure_no_receipt(self):
+        for failure in ('missing_node','bad_items','public_jsontext','metadata','transport','budget'):
+            ex=Exchange(); c=collector(ex); before=c.session_state
+            if failure=='missing_node':
+                ex.material[3].clear()
+            elif failure=='bad_items':
+                def change(p):
+                    if 'nodes' in p and p['unit']=='items': p['items']=[]
+                    return p
+                ex.transform=change
+            elif failure=='public_jsontext':
+                ex.use(material(objects=[{'kind':'CC-013.segment','payload':{'data':cc.JSONText({'x':'y'})}}]))
+            elif failure=='metadata': ex.headers={'x':['z'*1024]*500000}
+            elif failure=='transport': ex.fail_on=3
+            else: c.work_budget.charge(c.work_budget.limit-c.work_budget.used-300)
+            with self.assertRaises((ValueError,OSError)) as error: collect(c,ex)
+            self.assertEqual({k:v for k,v in c._Collector__state.items() if k!='receipt'}, before)
+            self.assertIsNone(c._Collector__state['receipt'])
+            OBS.append(dict(case='失败不发行收据',failure=failure,calls=ex.calls,work=c.work_budget.used,error=str(error.exception)))
+        c,ex,cursor,pages,bindings=ready(); before=c.session_state
+        ex.use(material(objects=[{'kind':'UNTESTED.toy','payload':{'value':'different'}}]))
+        with self.assertRaisesRegex(ValueError,'projection冲突'): collect(c,ex)
+        self.assertEqual(c.session_state,before)
+
+    def test_watch_envelope_negatives_and_recovery(self):
+        mutations={
+            'head_frontier':lambda p:p['observed_head'].update(input_frontier='999'),
+            'head_profile':lambda p:p['observed_head'].update(profile_id='alien'),
+            'head_cut':lambda p:p['observed_head'].update(structure_cut='alien-cut'),
+            'head_evidence':lambda p:p['observed_head'].update(catalog_evidence=cc.Encoder().encode({'other':'evidence'})),
+            'head_mode':lambda p:p['observed_head'].update(history_mode='AsKnown',as_of_generation='140'),
+            'head_asof':lambda p:p['observed_head'].update(as_of_generation='140'),
+            'delivery_head':lambda p:p['delivery_frontier'].update(head_generation='999'),
+            'delivery_first':lambda p:p['delivery_frontier'].update(first_available_generation='999'),
+            'delivery_gap':lambda p:p['delivery_frontier'].update(first_available_generation='141'),
+            'delivery_retain':lambda p:p['delivery_frontier'].update(retain_generations='0'),
+            'delivery_policy':lambda p:p['delivery_frontier'].update(policy_revision=None),
+            'has_more':lambda p:p.update(has_more=True),
+            'has_more_type':lambda p:p.update(has_more=0),
+            'head_behind':lambda p:p['observed_head'].update(cut_generation='138'),
+            'capture_digest':lambda p:p.update(validated_capture_digest='bad'),
+        }
+        for name,mutate in mutations.items():
+            c,ex,cursor,pages,bindings=ready(); before=c.session_state; used=c.work_budget.used
+            bad=copy.deepcopy(pages[0]); mutate(bad); ex.pages=[bad]
+            with self.assertRaises(ValueError) as error: c.watch(cursor,140,'client',accepted_commits=bindings)
+            self.assertEqual(c.session_state,before); self.assertGreater(c.work_budget.used,used)
+            ex.pages=[pages[0]]; c.watch(cursor,140,'client',accepted_commits=bindings)
+            self.record('watch信封拒绝后可继续',c,ex,mutation=name,error=str(error.exception))
+            if name=='head_frontier': RAW.append(dict(case=name,trace=ex.log))
+
+    def test_head_ahead_pagination_recompute_and_interleaving(self):
+        states=[]; outputs=[]
+        for style in ('combined','split','interleaved'):
+            c,ex,cursor,pages,bindings=ready()
+            budget=c.work_budget
+            # 三个响应使用同一更高观测头，前两页has_more=true；head在到达前已锁定身份。
+            for p in pages[:-1]:
+                p['observed_head']=copy.deepcopy(pages[-1]['observed_head'])
+                p['delivery_frontier']=copy.deepcopy(pages[-1]['delivery_frontier']);p['has_more']=True
+            result=[]
+            if style=='combined':
+                ex.pages=[packed(pages)]
+                out=c.watch(cursor,142,'client',max_batches=3,accepted_commits=bindings)
+                result=out['deltas']
+            else:
+                ex.pages=copy.deepcopy(pages)
+                for gen in (140,141,142):
+                    if style=='interleaved':
+                        c.snapshot(ex.material[0]['fixed_cut'],1024)
+                        c.content(ex.material[1],[], 'items',1024)
+                    out=c.watch(cursor,gen,'client',accepted_commits=bindings)
+                    cursor=out['next_cursor'];result.extend(out['deltas'])
+            states.append(c.session_state);outputs.append(result)
+            self.assertIs(c.work_budget,budget)
+            self.assertEqual(c.session_state['watch']['cursor']['last_seq'],'269')
+            self.record('合并/分次/交错1/65/65完整状态',c,ex,style=style)
+            RAW.append(dict(case=style,trace=ex.log))
+        self.assertEqual(states[0],states[1]);self.assertEqual(states[1],states[2]);self.assertEqual(outputs[0],outputs[2])
+        c,ex,cursor,pages,bindings=ready('RecomputedWithRevision')
+        ex.pages=[packed(pages)];c.watch(cursor,142,'client',max_batches=3,accepted_commits=bindings)
+        self.assertIsNone(c.session_state['watch']['fixed']['as_of_generation'])
+        self.record('RecomputedWithRevision/null正控',c,ex)
+
+    def test_historical_and_future_snapshots_share_watch_context(self):
+        c,ex,cursor,pages,bindings=ready()
+        base=ex.material
+        for changes in (dict(cut_generation='138',structure_cut='cut-138',as_of_generation='138',input_frontier='137',index_frontier='138'),
+                        dict(bindings['140']['accepted_cut']),dict(history_mode='RecomputedWithRevision',as_of_generation=None)):
+            ex.use(material(changes));collect(c,ex)
+        ex.use(base); c.watch(cursor,140,'client',accepted_commits=bindings)
+        before=c.session_state
+        ex.use(material(dict(bindings['140']['accepted_cut'],input_frontier='999')))
+        with self.assertRaisesRegex(ValueError,'同代'):collect(c,ex)
+        self.assertEqual(c.session_state,before)
+        self.record('历史/未来/两模式合法快照交错，同代冲突拒绝',c,ex)
+
+    def test_watch_transaction_failures_and_direct_call_guard(self):
+        for failure in ('later_invalid','transport','metadata','budget'):
+            c,ex,cursor,pages,bindings=ready(); before=c.session_state; used=c.work_budget.used
+            if failure=='later_invalid': ex.pages[1]['observed_head']['input_frontier']='999'
+            elif failure=='transport': ex.fail_on=ex.calls+2
+            elif failure=='metadata':
+                def change(p):
+                    if p.get('next_cursor',{}).get('after_generation')=='141': ex.headers={'x':['z'*1024]*500000}
+                    return p
+                ex.transform=change
+            else: c.work_budget.charge(c.work_budget.limit-c.work_budget.used-5000)
+            with self.assertRaises((ValueError,OSError)) as error:c.watch(cursor,142,'client',accepted_commits=bindings)
+            # 只读私有态用于耗尽后的观察；不设置可信态，也不替代任何校验。
+            state=c._Collector__state
+            self.assertEqual({k:v for k,v in state.items() if k!='receipt'},before)
+            self.assertGreater(c.work_budget.used,used)
+            if failure in ('later_invalid','transport'):
+                ex.fail_on=None;ex.pages=[packed(pages)]
+                c.watch(cursor,142,'client',max_batches=3,accepted_commits=bindings)
+            OBS.append(dict(case='整次watch失败原子性',failure=failure,error=str(error.exception),calls=ex.calls,work=c.work_budget.used,state_unchanged=True))
+        c,ex,cursor,pages,bindings=ready()
+        with self.assertRaisesRegex(ValueError,'绕过'):c.call('/api/v3/watch',dict(op='watch',cursor=cursor))
+        c.watch(cursor,140,'client',accepted_commits=bindings)
+
+    def test_original_accepted_999_vs_delta_139_and_identity_locks(self):
+        mutations={**{k:'alien' for k in fd.WATCH_IDENTITY if k!='scope'},'scope':{},'input_frontier':'999',
+                   'structure_cut':'alien','index_frontier':'999','catalog_run_status':'alien','seq_range':{'from':'8','to':'8'}}
+        for key,val in mutations.items():
+            c,ex,cursor,pages,bindings=ready(); before=c.session_state
+            bindings['140']['accepted_cut'][key]=val
+            with self.assertRaises(ValueError) as error:c.watch(cursor,140,'client',accepted_commits=bindings)
+            self.assertEqual(c.session_state,before)
+            self.record('原前沿999/139及完整身份锁',c,ex,key=key,error=str(error.exception))
+
+    def test_context_budget_admitted_before_copy(self):
+        c,ex,cursor,pages,bindings=ready(); before=copy.deepcopy(c._Collector__state['watch'])
+        c.work_budget.charge(c.work_budget.limit-c.work_budget.used)
+        with patch.object(fd,'deepcopy',side_effect=AssertionError('未准入不可复制')):
+            with self.assertRaisesRegex(ValueError,'工作量'):c.watch(cursor,140,'client',accepted_commits=bindings)
+        self.assertEqual(c._Collector__state['watch'],before)
+        OBS.append(dict(case='上下文复制预准入',work=c.work_budget.used,limit=c.work_budget.limit))
+
+
+if __name__=='__main__': unittest.main(verbosity=2)

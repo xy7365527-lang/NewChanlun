@@ -1,0 +1,83 @@
+{
+  "qualification": "固定正式原件静态合同；不授予新产品source资格",
+  "sources": [
+    {
+      "commit": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+      "path": "s_session/browser/q3-consumer.js",
+      "bytes": 98529,
+      "sha256": "26318cc02a263a70d56883d9b526e8bf0e897bce574a3b873a418c92fedf9e98",
+      "blob": "4fa91eecb57aeeb883e42c28e0d18e211c3c3df8",
+      "same_as_46a": true,
+      "excerpts": [
+        {
+          "first_line": 42,
+          "last_line": 59,
+          "sha256": "00e8968db6a753fbe0e5924e7d8da40a8d9f9556bbedb7a7ddaa903efdefbed4",
+          "text": "  const FIXED = [\n    \"session_id\",\n    \"session_generation\",\n    \"structure_cut\",\n    \"cut_generation\",\n    \"catalog_revision\",\n    \"index_frontier\",\n    \"profile_id\",\n    \"profile_hash\",\n    \"input_frontier\",\n    \"seq_range\",\n    \"catalog_run_status\",\n    \"catalog_evidence\",\n    \"scope\",\n    \"rule_revision\",\n    \"history_mode\",\n    \"as_of_generation\",\n  ];\n"
+        },
+        {
+          "first_line": 1951,
+          "last_line": 1978,
+          "sha256": "232b62e65cdd9cc74433baff03a775c3eb253ab51723aa30638d74ee4080b707",
+          "text": "      async fixed(fixed) {\n        await keys(fixed, FIXED, \"fixed_cut\");\n        await T(fixed.session_id);\n        await I(fixed.session_generation, true);\n        await I(fixed.cut_generation);\n        await I(fixed.input_frontier, false, true);\n        await T(fixed.catalog_revision);\n        await T(fixed.rule_revision);\n        await S(fixed.profile_id);\n        await S(fixed.profile_hash);\n        need(\n          fixed.structure_cut === \"cut-\" + fixed.cut_generation &&\n            (await equal(fixed.scope, SCOPE)),\n          \"fixed cut/scope错误\",\n        );\n        await keys(fixed.seq_range, [\"from\", \"to\"], \"seq_range\");\n        await I(fixed.seq_range.from);\n        await I(fixed.seq_range.to, false, true);\n        need(fixed.seq_range.to === fixed.input_frontier, \"fixed前沿错误\");\n        need(\n          fixed.history_mode === \"AsKnown\"\n            ? fixed.as_of_generation === fixed.cut_generation\n            : fixed.history_mode === \"RecomputedWithRevision\" &&\n                fixed.as_of_generation === null,\n          \"历史cut错误\",\n        );\n        content.validateRef(fixed.catalog_evidence);\n        if (fixed.cut_generation !== \"0\") batch(fixed.index_frontier);\n"
+        },
+        {
+          "first_line": 2590,
+          "last_line": 2662,
+          "sha256": "9e3bbc40bca99d4d1c0272b34cec05bb3a8586e6a89d757b4d85732939f826f3",
+          "text": "      async watch() {\n        return this.run(async (b) => {\n          need(this.committed, \"尚未安装完整Snapshot\");\n          const before = this.committed;\n          for (const node of before.reader.cache.values()) {\n            this.check(b);\n            await b.job.acceptNode(node);\n            this.check(b);\n          }\n          const reply = await this.request(\n              before.cursor,\n              {\n                op: \"watch\",\n                cursor: before.cursor,\n                max_batches: String(this.limits.watchBatches),\n                client_id: this.instance,\n              },\n              b,\n            ),\n            page = reply.payload;\n          await keys(\n            page,\n            [\n              \"deltas\",\n              \"next_cursor\",\n              \"observed_head\",\n              \"delivery_frontier\",\n              \"has_more\",\n              \"gap\",\n              \"validated_capture_digest\",\n              \"ok\",\n            ],\n            \"Watch\",\n          );\n          await this.fixed(page.observed_head);\n          digest(page.validated_capture_digest);\n          need(\n            sameIdentity(reply, page.observed_head) &&\n              page.observed_head.history_mode === \"RecomputedWithRevision\",\n            \"Watch观测头身份/模式不同\",\n          );\n          await keys(\n            page.delivery_frontier,\n            [\n              \"policy_revision\",\n              \"retain_generations\",\n              \"first_available_generation\",\n              \"head_generation\",\n            ],\n            \"投递前沿\",\n          );\n          await T(page.delivery_frontier.policy_revision);\n          await I(page.delivery_frontier.retain_generations, true);\n          await I(page.delivery_frontier.first_available_generation, true);\n          await I(page.delivery_frontier.head_generation);\n          need(\n            page.delivery_frontier.head_generation ===\n              page.observed_head.cut_generation &&\n              BigInt(page.delivery_frontier.first_available_generation) <=\n                BigInt(page.delivery_frontier.head_generation) + 1n,\n            \"投递前沿/head不同\",\n          );\n          need(\n            Array.isArray(page.deltas) &&\n              page.deltas.length <= this.limits.watchBatches &&\n              typeof page.has_more === \"boolean\",\n            \"Watch批次数错误\",\n          );\n          await keys(page.next_cursor, CURSOR, \"cursor\");\n          if (page.gap !== null) {\n            const gap = page.gap;\n            await keys(\n              gap,\n"
+        },
+        {
+          "first_line": 2728,
+          "last_line": 2752,
+          "sha256": "47b7c9257cd18c1856dd2063abed274680dca3b17407e0eb89f9c6eeb2009ba7",
+          "text": "          need(sameIdentity(reply, before.cursor), \"无Gap不准换会话\");\n          let candidate = before;\n          for (const wire of page.deltas) {\n            await keys(wire, [...D, \"delta\"], \"Delta wire\");\n            content.validateRef(wire.delta);\n            content.validateRef(wire.catalog_evidence);\n            need(\n              wire.generation ===\n                (BigInt(candidate.cursor.after_generation) + 1n).toString() &&\n                wire.base_cut === candidate.cursor.base_cut &&\n                wire.session_id === before.cursor.session_id &&\n                wire.catalog_revision === before.cursor.catalog_revision &&\n                wire.seq_range.from ===\n                  (BigInt(candidate.cursor.last_seq) + 1n).toString(),\n              \"Delta断代/会话/cut/前沿\",\n            );\n            const anchor = {\n                kind: \"delta\",\n                ...smallIdentity(before.cursor),\n                generation: wire.generation,\n                base_cut: wire.base_cut,\n                next_cut: wire.next_cut,\n                index_frontier: wire.index_frontier,\n                delta_ref: wire.delta,\n              },\n"
+        },
+        {
+          "first_line": 2823,
+          "last_line": 2848,
+          "sha256": "bfa2e71fd0c4347dc89c963274f0dfaa51fdcc21882fc5785c73c202355920a3",
+          "text": "          }\n          need(\n            await equal(page.next_cursor, candidate.cursor),\n            \"next_cursor不是末批完整身份\",\n          );\n          const head = BigInt(page.observed_head.cut_generation),\n            end = BigInt(candidate.cursor.after_generation);\n          need(\n            head >= end &&\n              page.has_more === head > end &&\n              (page.deltas.length > 0 || head === end),\n            \"Watch head/has_more/空批不同\",\n          );\n          if (head === end)\n            need(\n              await equal(page.observed_head, {\n                ...candidate.fixed,\n                history_mode: \"RecomputedWithRevision\",\n                as_of_generation: null,\n              }),\n              \"Watch head不是同cut原完整身份\",\n            );\n          return this.commit(candidate, b, {\n            kind: \"watch\",\n            batches: page.deltas.length,\n            hasMore: page.has_more,\n"
+        }
+      ]
+    },
+    {
+      "commit": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+      "path": "rust/src/bin/s_session_v3/q_watch.rs",
+      "bytes": 50962,
+      "sha256": "3c1ca9b9a8d40767e71dcf761e56ec31d49b5e03affb9b4b88460c1d4f7ca777",
+      "blob": "8e919ea6deb77a71d983a6ed8212ebcba4bed8be",
+      "same_as_46a": true,
+      "excerpts": [
+        {
+          "first_line": 491,
+          "last_line": 547,
+          "sha256": "69d954a6489e479937b943f02ce686694e8f8ea876abbc162d04c07cf51e0dcf",
+          "text": "    if leases.resource_digest() != resources.digest() {\n        return Err(err(\"租约与当前读取不是同一冻结资源配置\"));\n    }\n    let allocation = source.allocation();\n    let fixed = bj::field(current.wire.view(), \"fixed_cut\");\n    let session = TextValue::from_str(required_view(fixed, \"session_id\")?, allocation.as_ref())?;\n    let incarnation = TextValue::from_str(\n        required_view(fixed, \"session_generation\")?,\n        allocation.as_ref(),\n    )?;\n    let head = nonnegative(required_view(fixed, \"cut_generation\")?, \"cut_generation\")?;\n    if policy.head != head\n        || policy.first < 1\n        || policy.retain < 1\n        || policy.first > head.saturating_add(1)\n    {\n        return Err(err(\"已核交付策略与head不一致\"));\n    }\n    if let Some(b) = allocation.as_ref() {\n        if !request\n            .allocation_budget()\n            .is_some_and(|a| a.same_ledger(b))\n            || !leases.allocation_budget().is_some_and(|a| a.same_ledger(b))\n        {\n            return Err(err(\n                \"prototype_audit_allocation_incomplete：Watch请求/lease与实际捕获不是同账\",\n            ));\n        }\n    }\n    job.begin_first_read().map_err(err)?;\n    let retain = bj::Decimal::new(policy.retain);\n    let first = bj::Decimal::new(policy.first);\n    let policy_head = bj::Decimal::new(policy.head);\n    let frontier_fields = [\n        (\"policy_revision\", JsonView::String(&policy.revision)),\n        (\"retain_generations\", JsonView::String(retain.text())),\n        (\"first_available_generation\", JsonView::String(first.text())),\n        (\"head_generation\", JsonView::String(policy_head.text())),\n    ];\n    let frontier = JsonView::object_fields(&frontier_fields).map_err(err)?;\n    let cursor = request.cursor_view();\n    let same = bj::field(cursor, \"session_id\").as_str() == Some(session.as_str())\n        && bj::field(cursor, \"session_generation\").as_str() == Some(incarnation.as_str());\n    let (reason, missing_end) = if !same {\n        (Some(\"session_identity_changed\"), None)\n    } else if request.after > head {\n        return Err(err(\"同会话cursor超出永久发布历史\"));\n    } else {\n        let actual = cursor_at_with_budget(&current, cuts, request.after, allocation.as_ref())?;\n        if cursor != actual.view() {\n            return Err(err(\n                \"cursor base/index/seq/catalog/scope/order与实际切面不符\",\n            ));\n        }\n        if request.after < policy.first - 1 {\n            (Some(\"delivery_retention_gap\"), Some(policy.first - 1))\n        } else if leases.observe(\n"
+        },
+        {
+          "first_line": 618,
+          "last_line": 667,
+          "sha256": "68c1747744a569f985ee622c63cf62d788f92ab9a22975e07bb0a01529cbb9ef",
+          "text": "    for cut in cuts\n        .iter()\n        .filter(|c| c.metadata.generation > request.after)\n        .take(request.maximum as usize)\n    {\n        source.measure(cut, resources, job)?;\n        let wire = source.delta_wire(cut, job, allocation.as_ref())?;\n        let cursor =\n            cursor_at_with_budget(&current, cuts, cut.metadata.generation, allocation.as_ref())?;\n        candidates\n            .try_push(Candidate {\n                wire,\n                cursor,\n                generation: cut.metadata.generation,\n            })\n            .map_err(err)?;\n    }\n    let mut accepted = None;\n    let mut through = request.after;\n    if candidates.is_empty() {\n        let payload = Payload {\n            deltas: &empty,\n            cursor,\n            fixed,\n            frontier,\n            has_more: false,\n            gap: JsonView::Null,\n            digest: capture_digest,\n        };\n        accepted = Some(q_wire::reply_view(\n            request.envelope_view(),\n            payload.view(),\n            &session,\n            &incarnation,\n            epoch,\n            resources,\n            job,\n            allocation.as_ref(),\n        )?);\n    } else {\n        for (i, candidate) in candidates.iter().enumerate() {\n            let deltas = Deltas(&candidates[..=i]);\n            let payload = Payload {\n                deltas: &deltas,\n                cursor: candidate.cursor.view(),\n                fixed,\n                frontier,\n                has_more: candidate.generation < head,\n                gap: JsonView::Null,\n                digest: capture_digest,\n"
+        }
+      ]
+    },
+    {
+      "commit": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+      "path": "rust/src/bin/s_session_v3/projection.rs",
+      "bytes": 58378,
+      "sha256": "59bf7b936bb34b6c9010ee15a98fda59db350b6bf32dbfcb46317a24c465c4c2",
+      "blob": "c6982bbbf8da39c913f9e46797d64267b98da815",
+      "same_as_46a": true,
+      "excerpts": [
+        {
+          "first_line": 265,
+          "last_line": 331,
+          "sha256": "d593faf51a407c660ddbe9ccc5208599087bca782aaf741de8d1578d2a374795",
+          "text": "    ];\n    let (evidence, run, frontier, range, index) = if let Some(cut) = cut {\n        (\n            field(&mut s, cut.snapshot.view(), \"catalog_evidence\")?,\n            text(&mut s, cut.snapshot.view(), \"catalog_run_status\")?,\n            TextValue::from_str(\n                bj::Decimal::new(cut.metadata.input_frontier).text(),\n                budget.as_ref(),\n            )?,\n            scalar_json(&mut s, cut.snapshot.view(), \"seq_range\")?,\n            TextValue::from_str(cut.batch_id.as_str(), budget.as_ref())?,\n        )\n    } else {\n        (\n            s.native_ref_clone(&empty).map_err(err)?,\n            TextValue::from_str(\"not_run\", budget.as_ref())?,\n            TextValue::from_str(\"-1\", budget.as_ref())?,\n            bj::json_from_view(\n                JsonView::object_fields(&zero_range_fields).map_err(err)?,\n                budget.as_ref(),\n            )?,\n            TextValue::from_str(\"\", budget.as_ref())?,\n        )\n    };\n    let session_id = get(\"session_id\")?;\n    let generation_decimal = bj::Decimal::new(generation);\n    let mut cut_bytes = [0u8; 24];\n    cut_bytes[..4].copy_from_slice(b\"cut-\");\n    let cut_len = 4 + generation_decimal.text().len();\n    cut_bytes[4..cut_len].copy_from_slice(generation_decimal.text().as_bytes());\n    let cut_text = std::str::from_utf8(&cut_bytes[..cut_len]).unwrap();\n    let catalog_revision = get(\"catalog_revision\")?;\n    let profile_id = get(\"profile_id\")?;\n    let profile_hash = get(\"profile_hash\")?;\n    let rule_revision = get(\"rule_revision\")?;\n    let evidence_transport = TransportView::new(evidence.view());\n    let fixed_fields = [\n        (\"session_id\", JsonView::String(&session_id)),\n        (\"session_generation\", JsonView::String(&session_generation)),\n        (\"structure_cut\", JsonView::String(cut_text)),\n        (\n            \"cut_generation\",\n            JsonView::String(generation_decimal.text()),\n        ),\n        (\"catalog_revision\", JsonView::String(&catalog_revision)),\n        (\"index_frontier\", JsonView::String(&index)),\n        (\"profile_id\", JsonView::String(&profile_id)),\n        (\"profile_hash\", JsonView::String(&profile_hash)),\n        (\"input_frontier\", JsonView::String(&frontier)),\n        (\"seq_range\", range.view()),\n        (\"catalog_run_status\", JsonView::String(&run)),\n        (\"catalog_evidence\", evidence_transport.view()),\n        (\"scope\", scope.view()),\n        (\"rule_revision\", JsonView::String(&rule_revision)),\n        (\"history_mode\", JsonView::String(mode.name())),\n        (\n            \"as_of_generation\",\n            if matches!(mode, HistoryMode::AsKnown) {\n                JsonView::String(generation_decimal.text())\n            } else {\n                JsonView::Null\n            },\n        ),\n    ];\n    let fixed = bj::json_from_view(\n        JsonView::object_fields(&fixed_fields).map_err(err)?,\n        budget.as_ref(),\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 //! #1394 封闭审计读取边界。动态来源没有捕获能力；唯有具体 HashReader 自己选择
 //! 与实际读取绑定的不可变 owner。两种路径都用同一业务函数，不传成功 token。
 pub(crate) use super::history::HashReader;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, CodecError, ContentRef, NodeDigest, NodeRead, NodeSink, NodeSource, NodeStore,
 };
@@ -324,6 +325,13 @@ pub(crate) trait CodecRead: NodeSource {
         let Some(scope) = self.codec_work() else {
             return capture.verify_refview_observed(reference, mode, observer);
         };
+        // #1419/#1481:26 / AMENDMENT:60：Native owner 捕获的闭包核验并入同生涯 owner codec
+        // 证明，已认证 (摘要, Flavor, Mode) 单位止步，根四字段仍每次真实读取；失败撤销该证明。
+        // 与请求闭包（CapturedRequestVerifier）同一判据。计量观察者的预算轨迹不改，仍走原核。
+        #[cfg(feature = "s_incremental")]
+        if observer.is_none() && capture.native_frame_reuse_active() {
+            return capture.verify_owner_refview(reference, mode, scope);
+        }
         struct Current<'a> {
             capture: &'a sc::AuditCapture,
             scope: &'a sc::capture_allocation::scratch::WorkScope,
@@ -383,14 +391,15 @@ pub(crate) trait CodecRead: NodeSource {
             mode,
         )
     }
-    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
+    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, PublishError> {
         if self.codec_work().is_some() && self.allocation_budget().is_none() {
             return self
                 .native_string(text)
                 .map(super::business_json::TextValue::Plain)
-                .map_err(|e| e.to_string());
+                .map_err(PublishError::from);
         }
         super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref())
+            .map_err(PublishError::from)
     }
     fn native_json_clone(
         &self,
@@ -401,7 +410,7 @@ pub(crate) trait CodecRead: NodeSource {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         super::business_json::strict_plain_json_admitted(bytes, self.codec_work())
     }
 
@@ -419,8 +428,15 @@ pub(crate) trait CodecRead: NodeSource {
         &mut self,
         cursor: &mut sc::path::NativeArrayCursor,
     ) -> Result<RefValue, CodecError> {
+        self.next_array_member_with_prefix(cursor, &[])
+    }
+    fn next_array_member_with_prefix(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+        prefix: &[PathStep],
+    ) -> Result<RefValue, CodecError> {
         cursor
-            .next(self.generic_source())?
+            .next_with_prefix(self.generic_source(), prefix)?
             .map(RefValue::Plain)
             .ok_or_else(|| CodecError::new(sc::code::EXTENT, "数组游标提前结束"))
     }
@@ -602,6 +618,15 @@ pub(crate) trait CodecRead: NodeSource {
     }
 }
 pub(crate) trait CodecStore: CodecRead + NodeSink {
+    fn rebuild_sequence_suffix(
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, CodecError> {
+        sc::sequence_rebuild_suffix_with_allocation(self.generic_store(), seq, keep, leaves, budget)
+    }
     fn replace_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -744,10 +769,24 @@ impl<'a, 'source> StoreView<'a, 'source> {
             Backend::Audit(s) => &**s,
         }
     }
+    pub(super) fn eligible_sqlite_base(
+        &self,
+    ) -> Option<&'source sc::sqlite_audit::SqliteAuditBase<'source>> {
+        match &self.backend {
+            Backend::Generic(_) => None,
+            Backend::Audit(s) => s.eligible_sqlite_base(),
+        }
+    }
     pub(crate) fn owned_codec_active(&self) -> bool {
         match &self.backend {
             Backend::Generic(_) => false,
             Backend::Audit(s) => s.owned_codec_active(),
+        }
+    }
+    pub(crate) fn swap_codec_sequence_role(&mut self, enabled: bool) -> bool {
+        match &mut self.backend {
+            Backend::Generic(s) => s.preserve_sequence_read_trace(),
+            Backend::Audit(s) => s.swap_codec_sequence_role(enabled),
         }
     }
     pub(crate) fn swap_codec_full_array_role(&mut self, enabled: bool) -> bool {
@@ -788,13 +827,32 @@ impl CodecRead for StoreView<'_, '_> {
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
-    ) -> Result<super::business_json::PlainJson, String> {
+    ) -> Result<super::business_json::PlainJson, newchan_rust::s_content::ContextError> {
         match &self.backend {
             Backend::Generic(s) => s.parse_rendered_plain(bytes),
             Backend::Audit(s) => s.parse_rendered_plain(bytes),
         }
     }
 
+    fn array_cursor(
+        &mut self,
+        r: sc::RefView<'_>,
+    ) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.array_cursor(r),
+            Backend::Audit(s) => s.array_cursor(r),
+        }
+    }
+    fn next_array_member_with_prefix(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+        prefix: &[PathStep],
+    ) -> Result<RefValue, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.next_array_member_with_prefix(cursor, prefix),
+            Backend::Audit(s) => s.next_array_member_with_prefix(cursor, prefix),
+        }
+    }
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -1032,6 +1090,18 @@ impl CodecRead for StoreView<'_, '_> {
     }
 }
 impl CodecStore for StoreView<'_, '_> {
+    fn rebuild_sequence_suffix(
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.rebuild_sequence_suffix(seq, keep, leaves, budget),
+            Backend::Audit(s) => s.rebuild_sequence_suffix(seq, keep, leaves, budget),
+        }
+    }
     fn replace_ref(
         &mut self,
         r: sc::RefView<'_>,

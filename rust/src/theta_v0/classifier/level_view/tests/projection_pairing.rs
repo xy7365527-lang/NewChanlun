@@ -32,8 +32,10 @@ fn projection_uses_only_first_three_and_is_immutable_from_extension_tail() {
         .iter()
         .all(|seed| seed.source_sub_count == 4));
     assert_eq!(projected.seeds[0].end_index, 29);
+    // ★#1419 S2（Zn 外缘，D-B）：seed 外缘只聚合与首单元同向的 ↑ 单元（[90,110]、[98,112]）⟹ GG=112；
+    // 本夹具单元端点不相连，中间 ↓ 单元的 hi=115 不是 Zn（旧三段外缘取到 115）。
     assert_eq!(
-        projected.seeds[0].center.gg, 115,
+        projected.seeds[0].center.gg, 112,
         "扩展尾 [30,39] 的 116 不得污染 seed"
     );
 }

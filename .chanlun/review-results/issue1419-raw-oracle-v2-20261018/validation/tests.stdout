@@ -1,0 +1,17 @@
+test_bad_raw_domain_rejected_instead_of_relaxed_fallback (__main__.V2Tests.test_bad_raw_domain_rejected_instead_of_relaxed_fallback) ... ok
+test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor (__main__.V2Tests.test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor) ... ok
+test_closure_validates_six_families_and_qcut (__main__.V2Tests.test_closure_validates_six_families_and_qcut) ... ok
+test_codec_large_bytes_numbers_and_json_text (__main__.V2Tests.test_codec_large_bytes_numbers_and_json_text) ... ok
+test_domain_adapter_positive_and_zn_mutation_negative (__main__.V2Tests.test_domain_adapter_positive_and_zn_mutation_negative) ... ok
+test_driver_collects_fixed_pages_and_full_content (__main__.V2Tests.test_driver_collects_fixed_pages_and_full_content) ... ok
+test_full_raw_proof_and_hand_calculated_anchors (__main__.V2Tests.test_full_raw_proof_and_hand_calculated_anchors) ... ok
+test_live_is_unconditionally_denied (__main__.V2Tests.test_live_is_unconditionally_denied) ... ok
+test_no_early_segment_or_center_from_missing_witness (__main__.V2Tests.test_no_early_segment_or_center_from_missing_witness) ... ok
+test_revision_withdrawal_restore_named_expected (__main__.V2Tests.test_revision_withdrawal_restore_named_expected) ... ok
+test_second_sequence_confirm_precedes_same_stroke_crossing (__main__.V2Tests.test_second_sequence_confirm_precedes_same_stroke_crossing) ... ok
+test_toy_supervisor_paths_reap (__main__.V2Tests.test_toy_supervisor_paths_reap) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 2.227s
+
+OK

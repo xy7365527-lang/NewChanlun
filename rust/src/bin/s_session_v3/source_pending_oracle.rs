@@ -25,7 +25,8 @@ const EQUAL_EXTREME: &str = "equal_extreme_identity";
 fn equal_is_evidence(rule: &str) -> Result<bool, String> {
     let contract =
         tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
-    Ok(contract == tb02b::CURRENT_CONTRACT)
+    // #1419：W 后继串合同 = /2 加 W 知识域，同价证据口径同 /2（与现役入口同一判断）。
+    Ok(contract == tb02b::CURRENT_CONTRACT || contract == tb02b::W_CONTRACT)
 }
 
 fn is_waiting_reason(reason: &str, equal_is_evidence: bool) -> bool {
@@ -54,10 +55,14 @@ fn request_reasons(
     if request.kind() != Kind::Array || request.extent() != Some(waiting_count as u64) {
         return Err(err("CC004知识请求未绑定版本化等待reasons"));
     }
-    let actual = elements(s, request)?;
+    let actual =
+        elements(s, request).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let mut index = 0;
-    for item in elements(s, evidence)? {
-        let reason = text_value(s, &item, "waiting reason")?;
+    for item in
+        elements(s, evidence).map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
+        let reason = text_value(s, &item, "waiting reason")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if is_waiting_reason(reason.as_str(), equal_is_evidence) {
             if actual.get(index) != Some(&item) {
                 return Err(err("CC004知识请求未绑定版本化等待reasons"));
@@ -82,6 +87,7 @@ pub(super) fn raw_bar(
         deadline,
         budget,
     )
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 
 struct Step<'a> {
@@ -95,7 +101,10 @@ struct Step<'a> {
 }
 
 fn payload(s: &mut (impl CodecRead + ?Sized), object: &Object) -> Result<RefValue, String> {
-    let payload = object.fields.get_admitted(s, "payload_json")?;
+    let payload = object
+        .fields
+        .get_admitted(s, "payload_json")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     s.lookup_ref(payload.view(), &[PathStep::JsonText])
         .map_err(err)
 }
@@ -106,7 +115,12 @@ fn nulls(
     names: &[&str],
 ) -> Result<(), String> {
     for name in names {
-        if fields.get_admitted(s, name)?.kind() != Kind::Null {
+        if fields
+            .get_admitted(s, name)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            .kind()
+            != Kind::Null
+        {
             return Err(err("初始未定/seed步骤出现非空方向或累积结果"));
         }
     }
@@ -114,9 +128,17 @@ fn nulls(
 }
 
 fn strings(s: &mut (impl CodecRead + ?Sized), r: &RefValue, want: &[&str]) -> Result<(), String> {
-    exact(r, Kind::Array, want.len() as u64)?;
-    for (item, expected) in elements(s, r)?.iter().zip(want) {
-        if text_value(s, item, "数组文本")? != *expected {
+    exact(r, Kind::Array, want.len() as u64)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    for (item, expected) in elements(s, r)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?
+        .iter()
+        .zip(want)
+    {
+        if text_value(s, item, "数组文本")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            != *expected
+        {
             return Err(err("步骤/知识请求的完整文本数组不同"));
         }
     }
@@ -124,7 +146,7 @@ fn strings(s: &mut (impl CodecRead + ?Sized), r: &RefValue, want: &[&str]) -> Re
 }
 
 fn singleton(s: &mut (impl CodecRead + ?Sized), r: &RefValue, coord: i64) -> Result<(), String> {
-    let values = coords(s, r)?;
+    let values = coords(s, r).map_err(newchan_rust::s_content::ContextError::into_message)?;
     if &*values != [coord] {
         return Err(err("seed极值来源不是本cut首来源"));
     }
@@ -138,14 +160,36 @@ fn comparisons(
     seed: &RefValue,
     require_containment: bool,
 ) -> Result<(), String> {
-    let acc = SourceFields::read_subset(s, seed.view(), &["high", "low"])?;
-    let incoming = step.get_admitted(s, "incoming")?;
-    let incoming = SourceFields::read_subset(s, incoming.view(), &["high", "low"])?;
+    let acc = SourceFields::read_subset(s, seed.view(), &["high", "low"])
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let incoming = step
+        .get_admitted(s, "incoming")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let incoming = SourceFields::read_subset(s, incoming.view(), &["high", "low"])
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let prices = [
-        decimal(&acc.text(s, "high")?)?,
-        decimal(&acc.text(s, "low")?)?,
-        decimal(&incoming.text(s, "high")?)?,
-        decimal(&incoming.text(s, "low")?)?,
+        decimal(
+            &acc.text(s, "high")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(
+            &acc.text(s, "low")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(
+            &incoming
+                .text(s, "high")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(
+            &incoming
+                .text(s, "low")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?,
     ];
     // 核已发表的首 waiting 谓词与同 cut 原件一致，不重跑解析器生成结构。
     // 后续 waiting 的 contains 为 null，不能把后来的非包含行情反折为已知方向。
@@ -155,22 +199,45 @@ fn comparisons(
     {
         return Err(err("首waiting的真实OHLC不满足包含关系"));
     }
-    let list = step.get_admitted(s, "comparisons")?;
-    exact(&list, Kind::Array, 2)?;
-    for (i, item) in elements(s, &list)?.iter().enumerate() {
-        exact(item, Kind::Object, 4)?;
+    let list = step
+        .get_admitted(s, "comparisons")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    exact(&list, Kind::Array, 2).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    for (i, item) in elements(s, &list)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?
+        .iter()
+        .enumerate()
+    {
+        exact(item, Kind::Object, 4)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let fields =
-            SourceFields::read_subset(s, item.view(), &["axis", "acc", "incoming", "order"])?;
+            SourceFields::read_subset(s, item.view(), &["axis", "acc", "incoming", "order"])
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let order = match prices[i].cmp(&prices[i + 2]) {
             std::cmp::Ordering::Less => "LT",
             std::cmp::Ordering::Equal => "EQ",
             std::cmp::Ordering::Greater => "GT",
         };
-        if fields.text(s, "axis")? != ["high", "low"][i]
-            || fields.get_admitted(s, "acc")? != acc.get_admitted(s, ["high", "low"][i])?
-            || fields.get_admitted(s, "incoming")?
-                != incoming.get_admitted(s, ["high", "low"][i])?
-            || fields.text(s, "order")? != order
+        if fields
+            .text(s, "axis")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            != ["high", "low"][i]
+            || fields
+                .get_admitted(s, "acc")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != acc
+                    .get_admitted(s, ["high", "low"][i])
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+            || fields
+                .get_admitted(s, "incoming")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != incoming
+                    .get_admitted(s, ["high", "low"][i])
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+            || fields
+                .text(s, "order")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != order
         {
             return Err(err("waiting比较记录与seed/incoming不同"));
         }
@@ -183,8 +250,12 @@ fn comparisons(
     ];
     endpoints.sort_unstable();
     let mut offset = 0;
-    let endpoint_order = step.get_admitted(s, "endpoint_order")?;
-    for class in elements(s, &endpoint_order)? {
+    let endpoint_order = step
+        .get_admitted(s, "endpoint_order")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    for class in
+        elements(s, &endpoint_order).map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
         if offset == endpoints.len() {
             return Err(err("waiting端点类多余"));
         }
@@ -192,9 +263,17 @@ fn comparisons(
         while offset < endpoints.len() && endpoints[offset].0 == endpoints[start].0 {
             offset += 1;
         }
-        exact(&class, Kind::Array, (offset - start) as u64)?;
-        for (item, (_, label)) in elements(s, &class)?.iter().zip(&endpoints[start..offset]) {
-            if text_value(s, item, "端点")? != *label {
+        exact(&class, Kind::Array, (offset - start) as u64)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        for (item, (_, label)) in elements(s, &class)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            .iter()
+            .zip(&endpoints[start..offset])
+        {
+            if text_value(s, item, "端点")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != *label
+            {
                 return Err(err("waiting端点类与原件不同"));
             }
         }
@@ -214,50 +293,97 @@ pub(super) fn audit(
     deadline: Option<Instant>,
 ) -> Result<sc::CodecVec<i64>, String> {
     let equal_is_evidence = equal_is_evidence(rule)?;
-    let allocation = source_allocation(s)?;
+    let allocation =
+        source_allocation(s).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let mut steps = bj::new_map(allocation.as_ref());
     let mut step_subjects = bj::new_map(allocation.as_ref());
     let mut knowledge = None;
+    // #1393/#1565 W：冻结旧核之外的初始化/未定原件判据与现役入口调同一份（镜像，非独立对拍）。
+    use super::super::source_pending as live;
+    let w = live::is_w_rule(rule);
+    let mut w_init: Option<&Object> = None;
+    let mut w_raws = bj::new_map(allocation.as_ref());
+    let mut by_id = bj::new_map(allocation.as_ref());
     for object in objects {
         super::super::super::history::check_deadline(deadline)?;
-        if object.kind == CC054_KNOWLEDGE_KIND {
+        if w {
+            s.native_map_room(&mut by_id).map_err(err)?;
+            by_id.insert(object.id.as_str(), object).map_err(err)?;
+        }
+        if w && object.kind == content_producer::CC004_INITIALIZATION_KIND {
+            if w_init.replace(object).is_some() {
+                return Err(err("同cut W初始化事实重复"));
+            }
+        } else if w && object.kind == content_producer::CC004_UNDETERMINED_KIND {
+            let coord = live::w_raw_slot(s, object)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            s.native_map_room(&mut w_raws).map_err(err)?;
+            if w_raws.insert(coord, object).map_err(err)?.is_some() {
+                return Err(err("同cut W未定原件坐标重复"));
+            }
+        } else if object.kind == CC054_KNOWLEDGE_KIND {
             let p = payload(s, object)?;
-            let key = object.fields.text(s, "fact_key")?;
-            let parsed = parsed_json(s, key.as_bytes())?;
+            let key = object
+                .fields
+                .text(s, "fact_key")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let parsed = parsed_json(s, key.as_bytes())
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             if parsed.view().index(1).and_then(|v| v.as_str()) != Some("TB-02-A")
-                || text(s, &p, "scope")? != "TB-02-A"
+                || text(s, &p, "scope")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    != "TB-02-A"
                 || knowledge.replace((p, object)).is_some()
             {
                 return Err(err("同cut CC054知识域重复或不符"));
             }
         } else if object.kind == CC004_STEP_KIND {
             let p = payload(s, object)?;
-            exact(&p, Kind::Object, STEP.len() as u64)?;
-            let fields = SourceFields::read_subset(s, p.view(), &STEP)?;
-            let incoming = fields.get_admitted(s, "incoming")?;
-            exact(&incoming, Kind::Object, 5)?;
-            let coord = decimal(&text(s, &incoming, "source_coord")?)?;
-            let key = object.fields.text(s, "fact_key")?;
-            let parsed = parsed_json(s, key.as_bytes())?;
+            exact(&p, Kind::Object, STEP.len() as u64)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let fields = SourceFields::read_subset(s, p.view(), &STEP)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let incoming = fields
+                .get_admitted(s, "incoming")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            exact(&incoming, Kind::Object, 5)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let coord = decimal(
+                &text(s, &incoming, "source_coord")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let key = object
+                .fields
+                .text(s, "fact_key")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let parsed = parsed_json(s, key.as_bytes())
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let key_coord = parsed
                 .view()
                 .index(1)
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| err("CC004槽位不是源坐标文本"))?;
-            let incoming_digest = digest(&incoming)?;
-            if decimal(key_coord)? != coord
+            let incoming_digest =
+                digest(&incoming).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            if decimal(key_coord).map_err(newchan_rust::s_content::ContextError::into_message)?
+                != coord
                 || raw
                     .get(&coord)
                     .is_none_or(|source| source.bar != incoming_digest)
             {
                 return Err(err("CC004 incoming/槽位/OHLC不是同cut原始来源"));
             }
-            let reasons = fields.get_admitted(s, "waiting_reasons")?;
-            let reason_items = elements(s, &reasons)?;
+            let reasons = fields
+                .get_admitted(s, "waiting_reasons")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let reason_items = elements(s, &reasons)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let mut insufficient = false;
             let mut waiting_count = 0;
             for item in &reason_items {
-                let reason = text_value(s, item, "waiting reason")?;
+                let reason = text_value(s, item, "waiting reason")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 if !is_waiting_reason(reason.as_str(), equal_is_evidence) {
                     continue;
                 }
@@ -270,9 +396,17 @@ pub(super) fn audit(
                 );
             }
             let incomplete = waiting_count != 0
-                || fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+                || fields
+                    .get_admitted(s, "direction_evidence")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    .kind()
+                    == Kind::Null;
             insufficient |= waiting_count == 0
-                && fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+                && fields
+                    .get_admitted(s, "direction_evidence")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    .kind()
+                    == Kind::Null;
             drop(parsed);
             s.native_map_room(&mut step_subjects).map_err(err)?;
             step_subjects
@@ -299,54 +433,120 @@ pub(super) fn audit(
             }
         }
     }
-    if steps.len() != raw.len() {
+    let w_unsettled = w && steps.is_empty();
+    if !w_unsettled && steps.len() != raw.len() {
         return Err(err("同cut CC004未一一覆盖生效原始账"));
     }
-    let ordered = sorted_numeric_entries(s, raw)?;
+    let ordered = sorted_numeric_entries(s, raw)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let mut prefix = bj::new_work(allocation.as_ref());
+    for (coord, _) in ordered.iter() {
+        s.native_codec_room(&mut prefix, 1).map_err(err)?;
+        prefix.try_push(*coord).map_err(err)?;
+    }
     let mut pending = bj::new_work(allocation.as_ref());
     let mut seed = None;
     let mut unsettled = false;
+    let established_at = if w && !w_unsettled {
+        let first = steps
+            .get(&ordered[0].0)
+            .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+        let end = *first
+            .object
+            .sources
+            .last()
+            .ok_or_else(|| err("W seed来源为空"))?;
+        prefix
+            .iter()
+            .position(|coord| *coord == end)
+            .ok_or_else(|| err("W seed来源末端不是同cut生效原件"))?
+    } else {
+        0
+    };
     for (ordinal, (coord, _)) in ordered.iter().enumerate() {
+        if w_unsettled {
+            break;
+        }
         super::super::super::history::check_deadline(deadline)?;
-        s.native_codec_room(&mut prefix, 1).map_err(err)?;
-        prefix.try_push(*coord).map_err(err)?;
         let step = steps.get(coord).ok_or_else(|| err("raw缺当前CC004步骤"))?;
-        if &*step.object.sources != &*prefix {
+        let end = if w {
+            live::w_prefix_end(ordinal, established_at)
+        } else {
+            ordinal
+        };
+        if &*step.object.sources != &prefix[..=end] {
             return Err(err("CC004来源不是截至incoming的同cut完整前缀"));
         }
         let fields = &step.fields;
-        let action = fields.text(s, "action")?;
+        let action = fields
+            .text(s, "action")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if ordinal == 0 {
             if action != "seed"
-                || fields.get_admitted(s, "acc_after")? != fields.get_admitted(s, "incoming")?
+                || fields
+                    .get_admitted(s, "acc_after")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    != fields
+                        .get_admitted(s, "incoming")
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
             {
                 return Err(err("首CC004不是原件seed"));
             }
-            nulls(
-                s,
-                fields,
-                &["acc_before", "contains", "direction", "direction_evidence"],
-            )?;
+            if w {
+                nulls(s, fields, &["acc_before", "contains"])?;
+                for key in ["direction", "direction_evidence"] {
+                    if fields
+                        .get_admitted(s, key)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .kind()
+                        == Kind::Null
+                    {
+                        return Err(err("W seed缺初始化方向证据"));
+                    }
+                }
+            } else {
+                nulls(
+                    s,
+                    fields,
+                    &["acc_before", "contains", "direction", "direction_evidence"],
+                )?;
+            }
             for key in ["comparisons", "endpoint_order", "waiting_reasons"] {
-                let value = fields.get_admitted(s, key)?;
+                let value = fields
+                    .get_admitted(s, key)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 strings(s, &value, &[])?;
             }
             for key in ["high_sources", "low_sources"] {
-                let value = fields.get_admitted(s, key)?;
+                let value = fields
+                    .get_admitted(s, key)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 singleton(s, &value, *coord)?;
             }
-            seed = Some(fields.get_admitted(s, "incoming")?);
+            seed = Some(
+                fields
+                    .get_admitted(s, "incoming")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            );
         } else if action == "waiting" {
+            if w {
+                return Err(err("W规则下waiting步不得作为CC004发布"));
+            }
             if !unsettled && ordinal != 1 {
                 return Err(err("初始未定不是从首包含对开始"));
             }
             let seed = seed.as_ref().ok_or_else(|| err("waiting缺seed原件"))?;
-            if fields.get_admitted(s, "acc_before")? != *seed {
+            if fields
+                .get_admitted(s, "acc_before")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != *seed
+            {
                 return Err(err("waiting acc_before不是本cut seed原件"));
             }
             nulls(s, fields, &["acc_after", "direction", "direction_evidence"])?;
-            let contains = fields.scalar(s, "contains")?;
+            let contains = fields
+                .scalar(s, "contains")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             if (!unsettled && contains.view().as_bool() != Some(true))
                 || (unsettled && !contains.view().is_null())
             {
@@ -354,7 +554,9 @@ pub(super) fn audit(
             }
             strings(s, &step.reasons, &[INITIAL])?;
             for key in ["high_sources", "low_sources"] {
-                let value = fields.get_admitted(s, key)?;
+                let value = fields
+                    .get_admitted(s, key)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 strings(s, &value, &[])?;
             }
             comparisons(s, fields, seed, !unsettled)?;
@@ -370,8 +572,13 @@ pub(super) fn audit(
             {
                 return Err(err("CC004未定后缀中断或步骤action不符"));
             }
-            for reason in elements(s, &step.reasons)? {
-                if text_value(s, &reason, "waiting reason")? == INITIAL {
+            for reason in elements(s, &step.reasons)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+            {
+                if text_value(s, &reason, "waiting reason")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    == INITIAL
+                {
                     return Err(err("非waiting步骤携带初始未定原因"));
                 }
             }
@@ -389,7 +596,11 @@ pub(super) fn audit(
         }
         let seed = seed.as_ref().expect("unsettled checked seed");
         for key in ["open", "high", "low", "close"] {
-            if field(s, &group.payload, key)? != field(s, seed, key)? {
+            if field(s, &group.payload, key)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != field(s, seed, key)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+            {
                 return Err(err("初始未定seed组OHLC不同"));
             }
         }
@@ -405,20 +616,31 @@ pub(super) fn audit(
                 "low_sources",
                 "waiting_reasons",
             ],
-        )?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         nulls(
             s,
             &group_fields,
             &["direction", "direction_evidence", "confirmation_evidence"],
         )?;
-        if group_fields.scalar(s, "confirmed")?.view().as_bool() != Some(false) {
+        if group_fields
+            .scalar(s, "confirmed")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            .view()
+            .as_bool()
+            != Some(false)
+        {
             return Err(err("初始未定seed组被声明为已确认"));
         }
         for key in ["high_sources", "low_sources"] {
-            let value = group_fields.get_admitted(s, key)?;
+            let value = group_fields
+                .get_admitted(s, key)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             singleton(s, &value, coord)?;
         }
-        let waiting_reasons = group_fields.get_admitted(s, "waiting_reasons")?;
+        let waiting_reasons = group_fields
+            .get_admitted(s, "waiting_reasons")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         strings(s, &waiting_reasons, &["direction_not_yet_established"])?;
     }
     // 全部请求只读一遍，以具名step键绑定；其它形态/组请求合法共存。
@@ -426,12 +648,52 @@ pub(super) fn audit(
     if &*knowledge_object.sources != &*prefix {
         return Err(err("CC054来源不是同cut全部生效原始账"));
     }
+    if w {
+        let evidence = if w_unsettled {
+            None
+        } else {
+            let first = steps
+                .get(&ordered[0].0)
+                .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+            Some(
+                first
+                    .fields
+                    .get_admitted(s, "direction_evidence")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
+        };
+        live::audit_w(
+            s,
+            w_init,
+            &w_raws,
+            &prefix,
+            raw,
+            groups,
+            evidence.as_ref().map(|e| (e, established_at)),
+            &knowledge,
+            true,
+            &mut None,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        if w_unsettled {
+            for (coord, _) in ordered.iter() {
+                s.native_codec_room(&mut pending, 1).map_err(err)?;
+                pending.try_push(*coord).map_err(err)?;
+            }
+        }
+    }
+    let mut w_seen = live::WRequestSeen::default();
+    let w_lookup = ObjectsById(&by_id);
     let mut requests = bj::new_map(allocation.as_ref());
     let mut bound = bj::new_map(allocation.as_ref());
-    let request_array = field(s, &knowledge, "requests")?;
-    for request in elements(s, &request_array)? {
+    let request_array = field(s, &knowledge, "requests")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    for request in
+        elements(s, &request_array).map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
         super::super::super::history::check_deadline(deadline)?;
-        exact(&request, Kind::Object, 5)?;
+        exact(&request, Kind::Object, 5)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let fields = SourceFields::read_subset(
             s,
             request.view(),
@@ -442,26 +704,45 @@ pub(super) fn audit(
                 "reasons",
                 "source_coords",
             ],
-        )?;
-        let key = fields.text(s, "request_id")?;
-        let parsed = parsed_json(s, key.as_bytes())?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let key = fields
+            .text(s, "request_id")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let parsed = parsed_json(s, key.as_bytes())
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let view = parsed.view();
-        if !canonical_matches(s, view, key.as_bytes())?
+        if !canonical_matches(s, view, key.as_bytes())
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
             || view.as_array().is_none_or(|a| a.len() != 2)
         {
             return Err(err("知识请求键不是规范二元槽位"));
         }
         s.native_map_room(&mut requests).map_err(err)?;
         if requests
-            .insert(s.native_text(key.as_str())?, ())
+            .insert(
+                s.native_text(key.as_str())
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                (),
+            )
             .map_err(err)?
             .is_some()
         {
             return Err(err("同cut知识请求重复"));
         }
+        if w {
+            if let Some(class) = live::w_request(s, &request, &w_lookup, &prefix, w_unsettled)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+            {
+                w_seen.note(class);
+                continue;
+            }
+        }
         if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
             // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
-            let subject = fields.scalar(s, "subject_id")?;
+            let subject = fields
+                .scalar(s, "subject_id")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             if subject
                 .view()
                 .as_str()
@@ -475,13 +756,21 @@ pub(super) fn audit(
             view.index(1)
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| err("步骤请求槽位非坐标"))?,
-        )?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let step = steps.get(&coord).ok_or_else(|| err("多余CC004知识请求"))?;
         if key != step.key
-            || fields.text(s, "subject_id")? != step.object.id
+            || fields
+                .text(s, "subject_id")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != step.object.id
             || {
-                let sources = fields.get_admitted(s, "source_coords")?;
-                &*coords(s, &sources)? != &*step.object.sources
+                let sources = fields
+                    .get_admitted(s, "source_coords")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                &*coords(s, &sources)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    != &*step.object.sources
             }
             || {
                 s.native_map_room(&mut bound).map_err(err)?;
@@ -490,9 +779,15 @@ pub(super) fn audit(
         {
             return Err(err("CC004知识请求key/subject/来源不一致"));
         }
-        let reasons = fields.get_admitted(s, "reasons")?;
-        let missing_direction =
-            step.fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+        let reasons = fields
+            .get_admitted(s, "reasons")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let missing_direction = step
+            .fields
+            .get_admitted(s, "direction_evidence")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
+            .kind()
+            == Kind::Null;
         request_reasons(
             s,
             &step.reasons,
@@ -501,13 +796,17 @@ pub(super) fn audit(
             missing_direction,
             equal_is_evidence,
         )?;
-        let axes = fields.get_admitted(s, "axes")?;
-        exact(&axes, Kind::Object, 4)?;
+        let axes = fields
+            .get_admitted(s, "axes")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        exact(&axes, Kind::Object, 4)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let axes = SourceFields::read_subset(
             s,
             axes.view(),
             &["input_quality", "applicability", "computation", "validity"],
-        )?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         for (name, want) in [
             (
                 "input_quality",
@@ -535,7 +834,11 @@ pub(super) fn audit(
             ),
             ("validity", "CURRENT"),
         ] {
-            if axes.text(s, name)? != want {
+            if axes
+                .text(s, name)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+                != want
+            {
                 return Err(err("CC004知识请求四轴不同"));
             }
         }
@@ -543,5 +846,22 @@ pub(super) fn audit(
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));
     }
+    if w {
+        w_seen
+            .check(w_raws.len(), w_unsettled)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    }
     Ok(pending)
+}
+
+/// W 请求主体按 id 查同 cut 对象（镜像现役入口的 `source_structure::Lookup` 面）。
+struct ObjectsById<'a, 'b>(&'a BusinessMap<&'b str, &'b Object>);
+impl super::super::source_structure::Lookup for ObjectsById<'_, '_> {
+    fn object(&self, id: &str) -> Option<&Object> {
+        self.0.get(id).copied()
+    }
+}
+
+fn err(error: impl std::fmt::Display) -> String {
+    format!("SourceAuditInvalid：{error}")
 }

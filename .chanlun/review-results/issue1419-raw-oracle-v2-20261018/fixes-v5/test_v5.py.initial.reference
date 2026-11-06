@@ -1,0 +1,129 @@
+"""#1419 v5：F1/F2/F8 内存回归；旧夹具只读，所有输出由新 runner 保存。"""
+import copy
+import inspect
+import json
+from pathlib import Path
+import sys
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT/'driver'), str(ROOT/'fixes-v4'), str(ROOT/'fixes-v3')]
+import content_closure as cc
+import driver_v2 as dv
+import fixed_cut_driver as fd
+import test_v4 as v4
+from test_v2 import fixture, reply, LEDGER
+
+OBS = []
+IDENTITY = dict(session_id='toy', session_generation='1', source_namespace='toy.query',
+                source_epoch='1', producer_id='toy-driver', producer_epoch='1')
+
+
+def collector(exchange=lambda *_: None, limit=1000000, check=lambda: None):
+    clock = fd.Budget(16*1024*1024, 10)
+    work = cc.WorkBudget(limit, check)
+    # 仅兼容固定 v4 的红测入口；v5 正测会断言正式构造必须接工作预算。
+    kw = {'work_budget': work} if 'work_budget' in inspect.signature(fd.Collector).parameters else {}
+    with patch.object(Path, 'mkdir'):
+        c = dv.CollectorV2(IDENTITY, clock, exchange, Path('/memory/trace'), '1', **kw)
+    if not kw:
+        c.work_budget = work
+    return c
+
+
+def watch_material(frontiers=('139', '204', '269'), counts=(1, 65, 65)):
+    fixed = fixture()[0]['fixed_cut']
+    cursor = {k:copy.deepcopy(fixed[k]) for k in
+              ('session_id', 'session_generation', 'catalog_revision', 'scope', 'index_frontier')}
+    cursor.update(after_generation='139', base_cut='toy-cut', last_seq='138', order_version='s-record-order/2')
+    current = copy.deepcopy(cursor)
+    pages, bindings = [], {}
+    for i, (frontier, count) in enumerate(zip(frontiers, counts), 140):
+        cut = dict(copy.deepcopy(fixed), cut_generation=str(i), structure_cut='cut-'+str(i),
+                   input_frontier=frontier, index_frontier=str(i), as_of_generation=str(i),
+                   seq_range={'from':'7', 'to':'7'})
+        delta = dict(generation=str(i), session_id='toy', catalog_revision=cut['catalog_revision'],
+                     base_cut=current['base_cut'], next_cut=cut['structure_cut'],
+                     **{k:copy.deepcopy(cut[k]) for k in ('index_frontier','input_frontier','seq_range',
+                                                          'catalog_run_status','catalog_evidence')}, delta={})
+        current.update(after_generation=str(i), base_cut=delta['next_cut'],
+                       index_frontier=str(i), last_seq=frontier)
+        bindings[str(i)] = dict(session_id='toy', session_generation='1', message_id='named-'+str(i),
+                                source_epoch='1' if i == 140 else '2', accepted_events=str(count), accepted_cut=cut)
+        pages.append(dict(deltas=[delta], next_cursor=copy.deepcopy(current), observed_head=str(i),
+                          delivery_frontier=str(i), has_more=False, gap=None,
+                          validated_capture_digest='b'*64, ok=True))
+    return fixed, cursor, pages, bindings
+
+
+def bind(c, fixed, cursor):
+    if hasattr(c, 'bind_watch'):
+        c.bind_watch(fixed, cursor)
+
+
+class Tests(unittest.TestCase):
+    def test_f1_json_text_data_rehashed(self):
+        objects = v4.public_objects()
+        row = next(r for r in objects if r['kind'] == 'CC-013.segment')
+        row['payload']['data'] = cc.JSONText(row['payload']['data'])
+        closed = v4.closed(objects)
+        self.assertTrue(closed['closure_verified'])
+        try:
+            result = dv.compare_domain(closed, LEDGER)
+        except ValueError as e:
+            OBS.append(dict(case='F1直接JSONText', closure=True, rejected=str(e)))
+            self.assertIn('JSONText', str(e))
+        else:
+            OBS.append(dict(case='F1直接JSONText', closure=True, accepted=result))
+            self.fail('非法公共JSONText被compare_domain放行')
+
+    def test_f2_large_header_rejected_before_serialization(self):
+        writes, serialized = [], []
+        header = {'x-toy':'x'*2000000}
+        def exchange(route, raw):
+            return 200, header, reply(json.loads(raw), {'ok':True})
+        original = fd.canonical
+        def canonical(value):
+            if isinstance(value, dict) and value.get('headers') is header:
+                serialized.append('headers')
+            return original(value)
+        c = collector(exchange, 300)
+        error = None
+        with patch.object(fd, 'canonical', side_effect=canonical), \
+             patch.object(Path, 'write_bytes', side_effect=lambda b: writes.append(len(b))):
+            try:
+                c.call('/toy', {})
+            except ValueError as e:
+                error = str(e)
+        OBS.append(dict(case='F2两百万header', error=error, work=c.work_budget.used,
+                        reply_bytes=c.budget.used, writes=writes, serialized=serialized))
+        self.assertIsNotNone(error, '大header未准入却序列化/写出')
+        self.assertIn('工作量', error)
+        self.assertEqual(serialized, [])
+        self.assertEqual(len(writes), 1)  # 只准保留已经准入的请求。
+
+    def test_f8_split_profile_drift(self):
+        fixed, cursor, pages, bindings = watch_material()
+        bindings['141']['accepted_cut']['profile_id'] = 'alien'
+        bindings['142']['accepted_cut']['profile_id'] = 'third-profile'
+        c = collector()
+        bind(c, fixed, cursor)
+        accepted, error = [], None
+        for page in pages:
+            generation = int(page['deltas'][0]['generation'])
+            with patch.object(c, 'call', return_value=page):
+                try:
+                    result = c.watch(cursor, generation, 'client', accepted_commits=bindings)
+                except ValueError as e:
+                    error = str(e)
+                    break
+            cursor = result['next_cursor']
+            accepted.append(generation)
+        OBS.append(dict(case='F8分次profile漂移', accepted=accepted, error=error))
+        self.assertEqual(accepted, [140])
+        self.assertIn('身份', error)
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

@@ -1,0 +1,1899 @@
+{
+  "segments": [
+    {
+      "id": "u0",
+      "direction": "UP",
+      "start_stroke": 0,
+      "end_stroke": 2,
+      "member_strokes": [
+        "b0",
+        "b1",
+        "b2"
+      ],
+      "member_raw_interval": [
+        1,
+        13
+      ],
+      "low": 800,
+      "high": 1600,
+      "first_three_overlap": [
+        880,
+        960
+      ],
+      "first_segment_start_roots": [
+        1
+      ],
+      "result": "CASE_TWO",
+      "proof": {
+        "abc": [
+          {
+            "index": 1,
+            "direction": "DOWN",
+            "low": 880,
+            "high": 960
+          },
+          {
+            "index": 3,
+            "direction": "DOWN",
+            "low": 1440,
+            "high": 1600
+          },
+          {
+            "index": 5,
+            "direction": "DOWN",
+            "low": 1120,
+            "high": 1520
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 1,
+              "direction": "DOWN",
+              "low": 880,
+              "high": 960
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              1
+            ]
+          },
+          {
+            "incoming": {
+              "index": 3,
+              "direction": "DOWN",
+              "low": 1440,
+              "high": 1600
+            },
+            "previous": {
+              "index": 1,
+              "direction": "DOWN",
+              "low": 880,
+              "high": 960
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              3
+            ]
+          },
+          {
+            "incoming": {
+              "index": 5,
+              "direction": "DOWN",
+              "low": 1120,
+              "high": 1520
+            },
+            "previous": {
+              "index": 3,
+              "direction": "DOWN",
+              "low": 1440,
+              "high": 1600
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              5
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": false,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION",
+        "second_sequence": {
+          "steps": [
+            {
+              "incoming": {
+                "index": 4,
+                "direction": "UP",
+                "low": 1440,
+                "high": 1520
+              },
+              "previous": null,
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                4
+              ]
+            },
+            {
+              "incoming": {
+                "index": 6,
+                "direction": "UP",
+                "low": 1120,
+                "high": 1280
+              },
+              "previous": {
+                "index": 4,
+                "direction": "UP",
+                "low": 1440,
+                "high": 1520
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                6
+              ]
+            },
+            {
+              "incoming": {
+                "index": 8,
+                "direction": "UP",
+                "low": 1200,
+                "high": 1920
+              },
+              "previous": {
+                "index": 6,
+                "direction": "UP",
+                "low": 1120,
+                "high": 1280
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                8
+              ]
+            }
+          ],
+          "checks": [
+            {
+              "elements": [
+                {
+                  "index": 4,
+                  "direction": "UP",
+                  "low": 1440,
+                  "high": 1520
+                },
+                {
+                  "index": 6,
+                  "direction": "UP",
+                  "low": 1120,
+                  "high": 1280
+                },
+                {
+                  "index": 8,
+                  "direction": "UP",
+                  "low": 1200,
+                  "high": 1920
+                }
+              ],
+              "top": false,
+              "bottom": true,
+              "through_stroke": 8
+            }
+          ],
+          "per_stroke_order": [
+            {
+              "stroke": 4,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 5,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 6,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 7,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 8,
+              "selected_same_direction": true,
+              "fractal_first": true,
+              "strict_crossing_after_fractal_check": true,
+              "state": "CONFIRMED"
+            }
+          ],
+          "state": "CONFIRMED",
+          "through_stroke": 8,
+          "reference": "SECOND_SEQUENCE"
+        }
+      },
+      "observed_through_stroke": 8,
+      "first_known_input_count": 39,
+      "all_evidence_strokes_confirmed_input_count": 43
+    },
+    {
+      "id": "u1",
+      "direction": "DOWN",
+      "start_stroke": 3,
+      "end_stroke": 5,
+      "member_strokes": [
+        "b3",
+        "b4",
+        "b5"
+      ],
+      "member_raw_interval": [
+        13,
+        25
+      ],
+      "low": 1120,
+      "high": 1600,
+      "first_three_overlap": [
+        1440,
+        1520
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_ONE",
+      "proof": {
+        "abc": [
+          {
+            "index": 4,
+            "direction": "UP",
+            "low": 1440,
+            "high": 1520
+          },
+          {
+            "index": 6,
+            "direction": "UP",
+            "low": 1120,
+            "high": 1280
+          },
+          {
+            "index": 8,
+            "direction": "UP",
+            "low": 1200,
+            "high": 1920
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 4,
+              "direction": "UP",
+              "low": 1440,
+              "high": 1520
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              4
+            ]
+          },
+          {
+            "incoming": {
+              "index": 6,
+              "direction": "UP",
+              "low": 1120,
+              "high": 1280
+            },
+            "previous": {
+              "index": 4,
+              "direction": "UP",
+              "low": 1440,
+              "high": 1520
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              6
+            ]
+          },
+          {
+            "incoming": {
+              "index": 8,
+              "direction": "UP",
+              "low": 1200,
+              "high": 1920
+            },
+            "previous": {
+              "index": 6,
+              "direction": "UP",
+              "low": 1120,
+              "high": 1280
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              8
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": true,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION"
+      },
+      "observed_through_stroke": 8,
+      "first_known_input_count": 39,
+      "all_evidence_strokes_confirmed_input_count": 43
+    },
+    {
+      "id": "u2",
+      "direction": "UP",
+      "start_stroke": 6,
+      "end_stroke": 8,
+      "member_strokes": [
+        "b6",
+        "b7",
+        "b8"
+      ],
+      "member_raw_interval": [
+        25,
+        37
+      ],
+      "low": 1120,
+      "high": 1920,
+      "first_three_overlap": [
+        1200,
+        1280
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_TWO",
+      "proof": {
+        "abc": [
+          {
+            "index": 7,
+            "direction": "DOWN",
+            "low": 1200,
+            "high": 1280
+          },
+          {
+            "index": 9,
+            "direction": "DOWN",
+            "low": 1760,
+            "high": 1920
+          },
+          {
+            "index": 11,
+            "direction": "DOWN",
+            "low": 1440,
+            "high": 1840
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 7,
+              "direction": "DOWN",
+              "low": 1200,
+              "high": 1280
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              7
+            ]
+          },
+          {
+            "incoming": {
+              "index": 9,
+              "direction": "DOWN",
+              "low": 1760,
+              "high": 1920
+            },
+            "previous": {
+              "index": 7,
+              "direction": "DOWN",
+              "low": 1200,
+              "high": 1280
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              9
+            ]
+          },
+          {
+            "incoming": {
+              "index": 11,
+              "direction": "DOWN",
+              "low": 1440,
+              "high": 1840
+            },
+            "previous": {
+              "index": 9,
+              "direction": "DOWN",
+              "low": 1760,
+              "high": 1920
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              11
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": false,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION",
+        "second_sequence": {
+          "steps": [
+            {
+              "incoming": {
+                "index": 10,
+                "direction": "UP",
+                "low": 1760,
+                "high": 1840
+              },
+              "previous": null,
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                10
+              ]
+            },
+            {
+              "incoming": {
+                "index": 12,
+                "direction": "UP",
+                "low": 1440,
+                "high": 1600
+              },
+              "previous": {
+                "index": 10,
+                "direction": "UP",
+                "low": 1760,
+                "high": 1840
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                12
+              ]
+            },
+            {
+              "incoming": {
+                "index": 14,
+                "direction": "UP",
+                "low": 1520,
+                "high": 2720
+              },
+              "previous": {
+                "index": 12,
+                "direction": "UP",
+                "low": 1440,
+                "high": 1600
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                14
+              ]
+            }
+          ],
+          "checks": [
+            {
+              "elements": [
+                {
+                  "index": 10,
+                  "direction": "UP",
+                  "low": 1760,
+                  "high": 1840
+                },
+                {
+                  "index": 12,
+                  "direction": "UP",
+                  "low": 1440,
+                  "high": 1600
+                },
+                {
+                  "index": 14,
+                  "direction": "UP",
+                  "low": 1520,
+                  "high": 2720
+                }
+              ],
+              "top": false,
+              "bottom": true,
+              "through_stroke": 14
+            }
+          ],
+          "per_stroke_order": [
+            {
+              "stroke": 10,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 11,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 12,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 13,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 14,
+              "selected_same_direction": true,
+              "fractal_first": true,
+              "strict_crossing_after_fractal_check": true,
+              "state": "CONFIRMED"
+            }
+          ],
+          "state": "CONFIRMED",
+          "through_stroke": 14,
+          "reference": "SECOND_SEQUENCE"
+        }
+      },
+      "observed_through_stroke": 14,
+      "first_known_input_count": 63,
+      "all_evidence_strokes_confirmed_input_count": 67
+    },
+    {
+      "id": "u3",
+      "direction": "DOWN",
+      "start_stroke": 9,
+      "end_stroke": 11,
+      "member_strokes": [
+        "b9",
+        "b10",
+        "b11"
+      ],
+      "member_raw_interval": [
+        37,
+        49
+      ],
+      "low": 1440,
+      "high": 1920,
+      "first_three_overlap": [
+        1760,
+        1840
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_ONE",
+      "proof": {
+        "abc": [
+          {
+            "index": 10,
+            "direction": "UP",
+            "low": 1760,
+            "high": 1840
+          },
+          {
+            "index": 12,
+            "direction": "UP",
+            "low": 1440,
+            "high": 1600
+          },
+          {
+            "index": 14,
+            "direction": "UP",
+            "low": 1520,
+            "high": 2720
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 10,
+              "direction": "UP",
+              "low": 1760,
+              "high": 1840
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              10
+            ]
+          },
+          {
+            "incoming": {
+              "index": 12,
+              "direction": "UP",
+              "low": 1440,
+              "high": 1600
+            },
+            "previous": {
+              "index": 10,
+              "direction": "UP",
+              "low": 1760,
+              "high": 1840
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              12
+            ]
+          },
+          {
+            "incoming": {
+              "index": 14,
+              "direction": "UP",
+              "low": 1520,
+              "high": 2720
+            },
+            "previous": {
+              "index": 12,
+              "direction": "UP",
+              "low": 1440,
+              "high": 1600
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              14
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": true,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION"
+      },
+      "observed_through_stroke": 14,
+      "first_known_input_count": 63,
+      "all_evidence_strokes_confirmed_input_count": 67
+    },
+    {
+      "id": "u4",
+      "direction": "UP",
+      "start_stroke": 12,
+      "end_stroke": 14,
+      "member_strokes": [
+        "b12",
+        "b13",
+        "b14"
+      ],
+      "member_raw_interval": [
+        49,
+        61
+      ],
+      "low": 1440,
+      "high": 2720,
+      "first_three_overlap": [
+        1520,
+        1600
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_TWO",
+      "proof": {
+        "abc": [
+          {
+            "index": 13,
+            "direction": "DOWN",
+            "low": 1520,
+            "high": 1600
+          },
+          {
+            "index": 15,
+            "direction": "DOWN",
+            "low": 2560,
+            "high": 2720
+          },
+          {
+            "index": 17,
+            "direction": "DOWN",
+            "low": 2400,
+            "high": 2640
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 13,
+              "direction": "DOWN",
+              "low": 1520,
+              "high": 1600
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              13
+            ]
+          },
+          {
+            "incoming": {
+              "index": 15,
+              "direction": "DOWN",
+              "low": 2560,
+              "high": 2720
+            },
+            "previous": {
+              "index": 13,
+              "direction": "DOWN",
+              "low": 1520,
+              "high": 1600
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              15
+            ]
+          },
+          {
+            "incoming": {
+              "index": 17,
+              "direction": "DOWN",
+              "low": 2400,
+              "high": 2640
+            },
+            "previous": {
+              "index": 15,
+              "direction": "DOWN",
+              "low": 2560,
+              "high": 2720
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              17
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": false,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION",
+        "second_sequence": {
+          "steps": [
+            {
+              "incoming": {
+                "index": 16,
+                "direction": "UP",
+                "low": 2560,
+                "high": 2640
+              },
+              "previous": null,
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                16
+              ]
+            },
+            {
+              "incoming": {
+                "index": 18,
+                "direction": "UP",
+                "low": 2400,
+                "high": 2560
+              },
+              "previous": {
+                "index": 16,
+                "direction": "UP",
+                "low": 2560,
+                "high": 2640
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                18
+              ]
+            },
+            {
+              "incoming": {
+                "index": 20,
+                "direction": "UP",
+                "low": 2480,
+                "high": 3200
+              },
+              "previous": {
+                "index": 18,
+                "direction": "UP",
+                "low": 2400,
+                "high": 2560
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                20
+              ]
+            }
+          ],
+          "checks": [
+            {
+              "elements": [
+                {
+                  "index": 16,
+                  "direction": "UP",
+                  "low": 2560,
+                  "high": 2640
+                },
+                {
+                  "index": 18,
+                  "direction": "UP",
+                  "low": 2400,
+                  "high": 2560
+                },
+                {
+                  "index": 20,
+                  "direction": "UP",
+                  "low": 2480,
+                  "high": 3200
+                }
+              ],
+              "top": false,
+              "bottom": true,
+              "through_stroke": 20
+            }
+          ],
+          "per_stroke_order": [
+            {
+              "stroke": 16,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 17,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 18,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 19,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 20,
+              "selected_same_direction": true,
+              "fractal_first": true,
+              "strict_crossing_after_fractal_check": true,
+              "state": "CONFIRMED"
+            }
+          ],
+          "state": "CONFIRMED",
+          "through_stroke": 20,
+          "reference": "SECOND_SEQUENCE"
+        }
+      },
+      "observed_through_stroke": 20,
+      "first_known_input_count": 87,
+      "all_evidence_strokes_confirmed_input_count": 91
+    },
+    {
+      "id": "u5",
+      "direction": "DOWN",
+      "start_stroke": 15,
+      "end_stroke": 17,
+      "member_strokes": [
+        "b15",
+        "b16",
+        "b17"
+      ],
+      "member_raw_interval": [
+        61,
+        73
+      ],
+      "low": 2400,
+      "high": 2720,
+      "first_three_overlap": [
+        2560,
+        2640
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_ONE",
+      "proof": {
+        "abc": [
+          {
+            "index": 16,
+            "direction": "UP",
+            "low": 2560,
+            "high": 2640
+          },
+          {
+            "index": 18,
+            "direction": "UP",
+            "low": 2400,
+            "high": 2560
+          },
+          {
+            "index": 20,
+            "direction": "UP",
+            "low": 2480,
+            "high": 3200
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 16,
+              "direction": "UP",
+              "low": 2560,
+              "high": 2640
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              16
+            ]
+          },
+          {
+            "incoming": {
+              "index": 18,
+              "direction": "UP",
+              "low": 2400,
+              "high": 2560
+            },
+            "previous": {
+              "index": 16,
+              "direction": "UP",
+              "low": 2560,
+              "high": 2640
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              18
+            ]
+          },
+          {
+            "incoming": {
+              "index": 20,
+              "direction": "UP",
+              "low": 2480,
+              "high": 3200
+            },
+            "previous": {
+              "index": 18,
+              "direction": "UP",
+              "low": 2400,
+              "high": 2560
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              20
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": false,
+        "gap_closed_by_c": null,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION"
+      },
+      "observed_through_stroke": 20,
+      "first_known_input_count": 87,
+      "all_evidence_strokes_confirmed_input_count": 91
+    },
+    {
+      "id": "u6",
+      "direction": "UP",
+      "start_stroke": 18,
+      "end_stroke": 20,
+      "member_strokes": [
+        "b18",
+        "b19",
+        "b20"
+      ],
+      "member_raw_interval": [
+        73,
+        85
+      ],
+      "low": 2400,
+      "high": 3200,
+      "first_three_overlap": [
+        2480,
+        2560
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_TWO",
+      "proof": {
+        "abc": [
+          {
+            "index": 19,
+            "direction": "DOWN",
+            "low": 2480,
+            "high": 2560
+          },
+          {
+            "index": 21,
+            "direction": "DOWN",
+            "low": 3040,
+            "high": 3200
+          },
+          {
+            "index": 23,
+            "direction": "DOWN",
+            "low": 2720,
+            "high": 3120
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 19,
+              "direction": "DOWN",
+              "low": 2480,
+              "high": 2560
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              19
+            ]
+          },
+          {
+            "incoming": {
+              "index": 21,
+              "direction": "DOWN",
+              "low": 3040,
+              "high": 3200
+            },
+            "previous": {
+              "index": 19,
+              "direction": "DOWN",
+              "low": 2480,
+              "high": 2560
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              21
+            ]
+          },
+          {
+            "incoming": {
+              "index": 23,
+              "direction": "DOWN",
+              "low": 2720,
+              "high": 3120
+            },
+            "previous": {
+              "index": 21,
+              "direction": "DOWN",
+              "low": 3040,
+              "high": 3200
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              23
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": false,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION",
+        "second_sequence": {
+          "steps": [
+            {
+              "incoming": {
+                "index": 22,
+                "direction": "UP",
+                "low": 3040,
+                "high": 3120
+              },
+              "previous": null,
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                22
+              ]
+            },
+            {
+              "incoming": {
+                "index": 24,
+                "direction": "UP",
+                "low": 2720,
+                "high": 2880
+              },
+              "previous": {
+                "index": 22,
+                "direction": "UP",
+                "low": 3040,
+                "high": 3120
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                24
+              ]
+            },
+            {
+              "incoming": {
+                "index": 26,
+                "direction": "UP",
+                "low": 2800,
+                "high": 3520
+              },
+              "previous": {
+                "index": 24,
+                "direction": "UP",
+                "low": 2720,
+                "high": 2880
+              },
+              "contains": false,
+              "action": "APPEND",
+              "roots": [
+                26
+              ]
+            }
+          ],
+          "checks": [
+            {
+              "elements": [
+                {
+                  "index": 22,
+                  "direction": "UP",
+                  "low": 3040,
+                  "high": 3120
+                },
+                {
+                  "index": 24,
+                  "direction": "UP",
+                  "low": 2720,
+                  "high": 2880
+                },
+                {
+                  "index": 26,
+                  "direction": "UP",
+                  "low": 2800,
+                  "high": 3520
+                }
+              ],
+              "top": false,
+              "bottom": true,
+              "through_stroke": 26
+            }
+          ],
+          "per_stroke_order": [
+            {
+              "stroke": 22,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 23,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 24,
+              "selected_same_direction": true,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 25,
+              "selected_same_direction": false,
+              "fractal_first": false,
+              "strict_crossing_after_fractal_check": false,
+              "state": "OPEN_AT_PREFIX_END"
+            },
+            {
+              "stroke": 26,
+              "selected_same_direction": true,
+              "fractal_first": true,
+              "strict_crossing_after_fractal_check": true,
+              "state": "CONFIRMED"
+            }
+          ],
+          "state": "CONFIRMED",
+          "through_stroke": 26,
+          "reference": "SECOND_SEQUENCE"
+        }
+      },
+      "observed_through_stroke": 26,
+      "first_known_input_count": 111,
+      "all_evidence_strokes_confirmed_input_count": 115
+    },
+    {
+      "id": "u7",
+      "direction": "DOWN",
+      "start_stroke": 21,
+      "end_stroke": 23,
+      "member_strokes": [
+        "b21",
+        "b22",
+        "b23"
+      ],
+      "member_raw_interval": [
+        85,
+        97
+      ],
+      "low": 2720,
+      "high": 3200,
+      "first_three_overlap": [
+        3040,
+        3120
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_ONE",
+      "proof": {
+        "abc": [
+          {
+            "index": 22,
+            "direction": "UP",
+            "low": 3040,
+            "high": 3120
+          },
+          {
+            "index": 24,
+            "direction": "UP",
+            "low": 2720,
+            "high": 2880
+          },
+          {
+            "index": 26,
+            "direction": "UP",
+            "low": 2800,
+            "high": 3520
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 22,
+              "direction": "UP",
+              "low": 3040,
+              "high": 3120
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              22
+            ]
+          },
+          {
+            "incoming": {
+              "index": 24,
+              "direction": "UP",
+              "low": 2720,
+              "high": 2880
+            },
+            "previous": {
+              "index": 22,
+              "direction": "UP",
+              "low": 3040,
+              "high": 3120
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              24
+            ]
+          },
+          {
+            "incoming": {
+              "index": 26,
+              "direction": "UP",
+              "low": 2800,
+              "high": 3520
+            },
+            "previous": {
+              "index": 24,
+              "direction": "UP",
+              "low": 2720,
+              "high": 2880
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              26
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": true,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION"
+      },
+      "observed_through_stroke": 26,
+      "first_known_input_count": 111,
+      "all_evidence_strokes_confirmed_input_count": 115
+    },
+    {
+      "id": "u8",
+      "direction": "UP",
+      "start_stroke": 24,
+      "end_stroke": 26,
+      "member_strokes": [
+        "b24",
+        "b25",
+        "b26"
+      ],
+      "member_raw_interval": [
+        97,
+        109
+      ],
+      "low": 2720,
+      "high": 3520,
+      "first_three_overlap": [
+        2800,
+        2880
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_ONE",
+      "proof": {
+        "abc": [
+          {
+            "index": 25,
+            "direction": "DOWN",
+            "low": 2800,
+            "high": 2880
+          },
+          {
+            "index": 27,
+            "direction": "DOWN",
+            "low": 3360,
+            "high": 3520
+          },
+          {
+            "index": 29,
+            "direction": "DOWN",
+            "low": 2080,
+            "high": 3440
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 25,
+              "direction": "DOWN",
+              "low": 2800,
+              "high": 2880
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              25
+            ]
+          },
+          {
+            "incoming": {
+              "index": 27,
+              "direction": "DOWN",
+              "low": 3360,
+              "high": 3520
+            },
+            "previous": {
+              "index": 25,
+              "direction": "DOWN",
+              "low": 2800,
+              "high": 2880
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              27
+            ]
+          },
+          {
+            "incoming": {
+              "index": 29,
+              "direction": "DOWN",
+              "low": 2080,
+              "high": 3440
+            },
+            "previous": {
+              "index": 27,
+              "direction": "DOWN",
+              "low": 3360,
+              "high": 3520
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              29
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": true,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION"
+      },
+      "observed_through_stroke": 29,
+      "first_known_input_count": 123,
+      "all_evidence_strokes_confirmed_input_count": 127
+    },
+    {
+      "id": "u9",
+      "direction": "DOWN",
+      "start_stroke": 27,
+      "end_stroke": 29,
+      "member_strokes": [
+        "b27",
+        "b28",
+        "b29"
+      ],
+      "member_raw_interval": [
+        109,
+        121
+      ],
+      "low": 2080,
+      "high": 3520,
+      "first_three_overlap": [
+        3360,
+        3440
+      ],
+      "first_segment_start_roots": null,
+      "result": "CASE_ONE",
+      "proof": {
+        "abc": [
+          {
+            "index": 28,
+            "direction": "UP",
+            "low": 3360,
+            "high": 3440
+          },
+          {
+            "index": 30,
+            "direction": "UP",
+            "low": 2080,
+            "high": 2240
+          },
+          {
+            "index": 32,
+            "direction": "UP",
+            "low": 2160,
+            "high": 4000
+          }
+        ],
+        "standardization": [
+          {
+            "incoming": {
+              "index": 28,
+              "direction": "UP",
+              "low": 3360,
+              "high": 3440
+            },
+            "previous": null,
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              28
+            ]
+          },
+          {
+            "incoming": {
+              "index": 30,
+              "direction": "UP",
+              "low": 2080,
+              "high": 2240
+            },
+            "previous": {
+              "index": 28,
+              "direction": "UP",
+              "low": 3360,
+              "high": 3440
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              30
+            ]
+          },
+          {
+            "incoming": {
+              "index": 32,
+              "direction": "UP",
+              "low": 2160,
+              "high": 4000
+            },
+            "previous": {
+              "index": 30,
+              "direction": "UP",
+              "low": 2080,
+              "high": 2240
+            },
+            "contains": false,
+            "action": "APPEND",
+            "roots": [
+              32
+            ]
+          }
+        ],
+        "strict_fractal": true,
+        "initial_gap": true,
+        "gap_closed_by_c": true,
+        "turn_window_members": [],
+        "reference": "SEGMENT_TERMINATION"
+      },
+      "observed_through_stroke": 32,
+      "first_known_input_count": 135,
+      "all_evidence_strokes_confirmed_input_count": 139
+    }
+  ],
+  "pending_segment": {
+    "id": "u10",
+    "direction": "UP",
+    "start_stroke": 30,
+    "member_strokes": [
+      "b30",
+      "b31",
+      "b32",
+      "b33"
+    ],
+    "feature_elements": [
+      {
+        "index": 31,
+        "direction": "DOWN",
+        "low": 2160,
+        "high": 2240
+      },
+      {
+        "index": 33,
+        "direction": "DOWN",
+        "low": 3840,
+        "high": 4000
+      }
+    ],
+    "candidates": [],
+    "status": "OPEN_AT_PREFIX_END",
+    "completed": false,
+    "reason": "尚无满足全部终结见证的下一段；不得送入strict seed"
+  },
+  "centers": [
+    {
+      "id": "c0",
+      "seed": [
+        "u0",
+        "u1",
+        "u2"
+      ],
+      "ZD": 1120,
+      "ZG": 1600,
+      "roles": {
+        "DD": 800,
+        "D": 1440,
+        "G": 1600,
+        "GG": 2720
+      },
+      "members": [
+        "u0",
+        "u1",
+        "u2",
+        "u3",
+        "u4"
+      ],
+      "Zn": [
+        "u0",
+        "u2",
+        "u4"
+      ],
+      "contributors": {
+        "DD": [
+          "u0"
+        ],
+        "D": [
+          "u4"
+        ],
+        "G": [
+          "u0"
+        ],
+        "GG": [
+          "u4"
+        ]
+      },
+      "member_intersections": [
+        {
+          "unit": "u0",
+          "interval": [
+            1120,
+            1600
+          ]
+        },
+        {
+          "unit": "u1",
+          "interval": [
+            1120,
+            1600
+          ]
+        },
+        {
+          "unit": "u2",
+          "interval": [
+            1120,
+            1600
+          ]
+        },
+        {
+          "unit": "u3",
+          "interval": [
+            1440,
+            1600
+          ]
+        },
+        {
+          "unit": "u4",
+          "interval": [
+            1440,
+            1600
+          ]
+        }
+      ],
+      "first_known_input_count": 63,
+      "last_member": 4,
+      "resume": 6,
+      "reference": "CENTER_ROLES"
+    },
+    {
+      "id": "c6",
+      "seed": [
+        "u6",
+        "u7",
+        "u8"
+      ],
+      "ZD": 2720,
+      "ZG": 3200,
+      "roles": {
+        "DD": 2400,
+        "D": 2720,
+        "G": 3200,
+        "GG": 3520
+      },
+      "members": [
+        "u6",
+        "u7",
+        "u8",
+        "u9"
+      ],
+      "Zn": [
+        "u6",
+        "u8"
+      ],
+      "contributors": {
+        "DD": [
+          "u6"
+        ],
+        "D": [
+          "u8"
+        ],
+        "G": [
+          "u6"
+        ],
+        "GG": [
+          "u8"
+        ]
+      },
+      "member_intersections": [
+        {
+          "unit": "u6",
+          "interval": [
+            2720,
+            3200
+          ]
+        },
+        {
+          "unit": "u7",
+          "interval": [
+            2720,
+            3200
+          ]
+        },
+        {
+          "unit": "u8",
+          "interval": [
+            2720,
+            3200
+          ]
+        },
+        {
+          "unit": "u9",
+          "interval": [
+            2720,
+            3200
+          ]
+        }
+      ],
+      "first_known_input_count": 123,
+      "last_member": 9,
+      "resume": 11,
+      "reference": "CENTER_ROLES"
+    }
+  ],
+  "attempts": [
+    {
+      "start": 0,
+      "seed": [
+        "u0",
+        "u1",
+        "u2"
+      ],
+      "condition_vector": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ZD": 1120,
+      "ZG": 1600,
+      "core_order": "LT",
+      "reference": "CENTER_SEED"
+    },
+    {
+      "start": 6,
+      "seed": [
+        "u6",
+        "u7",
+        "u8"
+      ],
+      "condition_vector": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ZD": 2720,
+      "ZG": 3200,
+      "core_order": "LT",
+      "reference": "CENTER_SEED"
+    }
+  ],
+  "assignments": [
+    {
+      "unit": "u0",
+      "status": "CENTER_MEMBER",
+      "center": "c0"
+    },
+    {
+      "unit": "u1",
+      "status": "CENTER_MEMBER",
+      "center": "c0"
+    },
+    {
+      "unit": "u2",
+      "status": "CENTER_MEMBER",
+      "center": "c0"
+    },
+    {
+      "unit": "u3",
+      "status": "CENTER_MEMBER",
+      "center": "c0"
+    },
+    {
+      "unit": "u4",
+      "status": "CENTER_MEMBER",
+      "center": "c0"
+    },
+    {
+      "unit": "u5",
+      "status": "CONNECTOR",
+      "left_center": "c0",
+      "right_center": "c6",
+      "exclusion": {
+        "low": 2400,
+        "high": 2720,
+        "ZD": 1120,
+        "ZG": 1600
+      }
+    },
+    {
+      "unit": "u6",
+      "status": "CENTER_MEMBER",
+      "center": "c6"
+    },
+    {
+      "unit": "u7",
+      "status": "CENTER_MEMBER",
+      "center": "c6"
+    },
+    {
+      "unit": "u8",
+      "status": "CENTER_MEMBER",
+      "center": "c6"
+    },
+    {
+      "unit": "u9",
+      "status": "CENTER_MEMBER",
+      "center": "c6"
+    },
+    {
+      "unit": "u10",
+      "status": "NOT_YET_ASSIGNED",
+      "completed": false
+    }
+  ],
+  "pairs": [
+    {
+      "left": "c0",
+      "right": "c6",
+      "endpoints_left": {
+        "DD": 800,
+        "ZD": 1120,
+        "ZG": 1600,
+        "GG": 2720
+      },
+      "endpoints_right": {
+        "DD": 2400,
+        "ZD": 2720,
+        "ZG": 3200,
+        "GG": 3520
+      },
+      "matrix16": {
+        "DD:DD": "LT",
+        "DD:ZD": "LT",
+        "DD:ZG": "LT",
+        "DD:GG": "LT",
+        "ZD:DD": "LT",
+        "ZD:ZD": "LT",
+        "ZD:ZG": "LT",
+        "ZD:GG": "LT",
+        "ZG:DD": "LT",
+        "ZG:ZD": "LT",
+        "ZG:ZG": "LT",
+        "ZG:GG": "LT",
+        "GG:DD": "GT",
+        "GG:ZD": "EQ",
+        "GG:ZG": "LT",
+        "GG:GG": "LT"
+      },
+      "leaf": "UP_EXPANSION",
+      "upper_object": "NOT_CONSTRUCTED_DEFERRED_1429",
+      "product_pair": "NOT_RUN"
+    }
+  ]
+}

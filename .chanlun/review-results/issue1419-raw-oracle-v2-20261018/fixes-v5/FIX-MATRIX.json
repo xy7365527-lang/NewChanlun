@@ -1,0 +1,64 @@
+{
+  "ticket": 1419,
+  "baseline": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+  "authorization": false,
+  "product_run": "NOT_RUN",
+  "independent_review": "PENDING",
+  "items": [
+    {
+      "finding": "F1",
+      "status": "IMPLEMENTED_TARGETED_TESTS_PASS_PENDING_REVIEW",
+      "change": "原始公共payload在plain前迭代遍历，所有objects的公共子树禁JSONText；八类受测kind完整集合、payload.data与内部字段门保留；遍历及容器分配先扣图的同一WorkBudget。",
+      "tests": [
+        "test_f1_json_text_data_rehashed",
+        "test_f1_all_kinds_original_types",
+        "test_f1_unknown_kind_payload_still_rejects_json_text",
+        "test_f1_public_complete_set_and_lifecycle_limits",
+        "test_f1_raw_type_check_uses_graph_budget",
+        "RetainedV4：public_positive/conflicting_internal/public_complete_set"
+      ],
+      "actual_output": "fixes-v5/verified-observations.json",
+      "original_failure": "fixes-v5/initial-observations.json",
+      "limit": "公共tag准入和有限静态字段通过；known_at/AsKnown/entity_revision/raw_history/withdrawn_objects仍UNVERIFIED。"
+    },
+    {
+      "finding": "F2",
+      "status": "IMPLEMENTED_TARGETED_TESTS_PASS_PENDING_REVIEW",
+      "change": "Collector构造即必传WorkBudget；route/identity/query_epoch/payload/status/headers键值与嵌套/回复/分页与watch标量/具名提交在canonical、deepcopy、回复及元数据写出前收费；整数按位长计量。保持同对象预算与截止，不加帽。",
+      "tests": [
+        "test_f2_large_header_rejected_before_serialization",
+        "test_f2_metadata_admission_shapes_deadline_and_cumulative",
+        "test_f2_equal_payload_fragmentation_never_cheaper",
+        "test_f2_constructor_and_binding_preallocation",
+        "test_f2_all_foreign_scalar_metadata_before_string_conversion",
+        "RetainedV4：decode_plain_records_same_budget/collector_budget_survives_second_snapshot",
+        "V2：driver_collects_fixed_pages_and_full_content"
+      ],
+      "actual_output": "fixes-v5/verified-observations.json",
+      "original_failure": "fixes-v5/initial-observations.json",
+      "limit": "确认逻辑准入遗漏修复；没有把它降级成OS未验问题。OS内存、同步IO硬截止、磁盘配额仍未资格化。"
+    },
+    {
+      "finding": "F8",
+      "status": "IMPLEMENTED_TARGETED_TESTS_PASS_PENDING_REVIEW",
+      "change": "显式bind_watch一次安装可信完整切面和初始游标；跨调用保留完整已验证fixed/cursor/seen_commits，八个固定身份逐代比较，八个变化字段核delta/代际；整次调用成功才推进，失败状态不变且费用不退款。",
+      "tests": [
+        "test_f8_split_profile_drift",
+        "test_f8_first_binding_full_identity_and_split_equivalence",
+        "test_f8_no_reset_cursor_alias_or_failed_advance",
+        "test_f8_trusted_cursor_all_fields_and_budget",
+        "RetainedV4：frozen_named_messages/cut_frontier_conflict/identity_and_cross_epoch"
+      ],
+      "actual_output": "fixes-v5/verified-observations.json",
+      "original_failure": "fixes-v5/initial-observations.json",
+      "limit": "离线信任根来自调用者已验证切面；本轮fake不证明真实接纳、来源、生命周期或正式watch可达。"
+    }
+  ],
+  "reused_unchanged": [
+    "F4/F6/F7既有几何证据",
+    "F5头与ContentRef检查",
+    "独立Graph建图/大hex/重复节点/跨页单测"
+  ],
+  "retained_regressions": 12,
+  "new_tests": 14
+}

@@ -4,6 +4,7 @@
 //! data_version 只在真实 main 读快照建立后、同连接第一次写入前取得。
 
 use super::*;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
 use std::cell::Cell;
@@ -86,8 +87,18 @@ pub(crate) mod cold_source;
 pub(super) mod effects;
 #[cfg(all(feature = "s_incremental", unix))]
 mod history_clamp;
+// #1419 M8D 3A：owner 生涯封印签发的受管 SQL reader；只在测试驱动，非测试调用点归 3C。
 #[cfg(feature = "s_incremental")]
 pub(crate) mod native;
+// #1419 M8D 3B：SQLite 同父分配前收费合同；全新进程逐条 --ignored --exact 运行。
+// #1419 3C U5：owner 连接上的 SQL 面（rusqlite 与收费组件各一份实现）。
+pub(crate) mod owner_sql;
+// #1419 3C effects S1：effects 与 TxStore 在 owner 事务上的 SQL 面（Legacy 与受管守卫）。
+pub(crate) mod owner_tx;
+#[cfg(all(test, feature = "s_incremental"))]
+mod sqlite_parent_tests;
+#[cfg(all(test, feature = "s_incremental", unix))]
+mod step_reader;
 /// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
 #[cfg(feature = "s_incremental")]
 type ColdRoot = native::Budget;
@@ -306,8 +317,8 @@ pub(crate) struct BoundOriginals {
 
 static NEXT_LIFE: AtomicU64 = AtomicU64::new(1);
 
-pub(super) struct AuditConnection {
-    connection: Connection,
+pub(super) struct AuditConnection<B: owner_sql::OwnerBackend = owner_sql::LegacyOwner> {
+    connection: B::Conn,
     #[cfg(all(feature = "s_incremental", unix))]
     history_clamp: std::cell::RefCell<Option<history_clamp::Clamp>>,
     #[cfg(all(feature = "s_incremental", unix))]
@@ -355,7 +366,7 @@ impl PublishPhase<'_, '_> {
         token: &str,
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         #[cfg(feature = "s_incremental")]
         return runtime.publish_impl_bound(
             self.transaction,
@@ -369,13 +380,15 @@ impl PublishPhase<'_, '_> {
             self.publication,
         );
         #[cfg(not(feature = "s_incremental"))]
-        runtime.publish_impl(self.transaction, token, envelope, Some(context))
+        runtime
+            .publish_impl(self.transaction, token, envelope, Some(context))
+            .map_err(Into::into)
     }
 }
 
-struct AuditTxn<'a> {
-    owner: &'a AuditConnection,
-    transaction: Option<Transaction<'a>>,
+struct AuditTxn<'a, B: owner_sql::OwnerBackend = owner_sql::LegacyOwner> {
+    owner: &'a AuditConnection<B>,
+    transaction: Option<B::Txn<'a>>,
     // 只能随本事务封存；结束后不重新采样。
     data_version: i64,
     schema_version: i64,
@@ -430,40 +443,6 @@ impl AuditConnection {
             ));
         }
         Ok(())
-    }
-
-    fn new(connection: Connection) -> Result<Self, String> {
-        let result = (|| {
-            let life = NEXT_LIFE
-                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
-                .map_err(|_| invalid("连接生涯编号耗尽"))?;
-            if !connection.is_autocommit() {
-                return Err(invalid("不能接管已有活动事务的连接"));
-            }
-            Ok(life)
-        })();
-        #[cfg(all(feature = "s_incremental", unix))]
-        let result = crate::h1_close_after_failure(&connection, result, false);
-        let life = result?;
-        Ok(Self {
-            connection,
-            #[cfg(all(feature = "s_incremental", unix))]
-            history_clamp: Default::default(),
-            #[cfg(all(feature = "s_incremental", unix))]
-            require_historical_certificate: false,
-            life,
-            retired: Cell::new(false),
-            next_transaction: Cell::new(0),
-            write_sequence: Cell::new(0),
-            construction_lease: Default::default(),
-            construction: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            complete: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            source_keeper: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            quiescent: Default::default(),
-        })
     }
 
     /// #1481：只供夹持测试的非资格组件入口。
@@ -698,7 +677,9 @@ impl AuditConnection {
                         .before_write()
                         .is_some_and(|shape| shape.get() == crate::DeltaShape::PrePolicyRecords);
                     if prepolicy {
-                        candidate.prepare_cold_policy_migration(work)?;
+                        candidate
+                            .prepare_cold_policy_migration(work)
+                            .map_err(PublishError::into_message)?;
                     }
                     let prefix = candidate
                         .audited
@@ -1009,15 +990,6 @@ impl AuditConnection {
     }
 
     #[cfg(all(feature = "s_incremental", unix))]
-    fn history_result<T>(&self, result: Result<T, String>) -> Result<T, String> {
-        if result.is_err() {
-            self.retired.set(true);
-            self.clear_candidates();
-        }
-        result
-    }
-
-    #[cfg(all(feature = "s_incremental", unix))]
     fn bind_history_parent(
         &self,
         context: &request_audit::RequestAuditContext,
@@ -1056,30 +1028,6 @@ impl AuditConnection {
         }
     }
 
-    fn invalidate_construction(&self) {
-        self.construction_lease.invalidate();
-        drop(self.construction.borrow_mut().take());
-    }
-
-    fn clear_candidates(&self) {
-        #[cfg(all(feature = "s_incremental", unix))]
-        if self.retired.get() {
-            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() {
-                clamp.retire();
-            }
-        }
-        self.invalidate_construction();
-        self.clear_optional_candidates();
-    }
-
-    fn clear_optional_candidates(&self) {
-        #[cfg(feature = "s_incremental")]
-        {
-            drop(self.source_keeper.borrow_mut().take());
-            drop(self.complete.borrow_mut().take());
-        }
-    }
-
     // #1481：控制观测发生在 begin 内，必须先交接同父冻结域，不能等准入后的候选命中。
     fn begin_in_request(
         &self,
@@ -1093,63 +1041,6 @@ impl AuditConnection {
         #[cfg(not(all(feature = "s_incremental", unix)))]
         let _ = context;
         self.begin(behavior)
-    }
-
-    fn begin(&self, behavior: TransactionBehavior) -> Result<AuditTxn<'_>, String> {
-        if self.retired.get() || !self.connection.is_autocommit() {
-            self.retired.set(true);
-            self.clear_candidates();
-            return Err(invalid("连接已退役或存在未终结事务"));
-        }
-        let transaction_id = self
-            .next_transaction
-            .get()
-            .checked_add(1)
-            .ok_or_else(|| invalid("事务编号耗尽"))?;
-        self.next_transaction.set(transaction_id);
-        let transaction =
-            Transaction::new_unchecked(&self.connection, behavior).map_err(|error| {
-                self.clear_candidates();
-                invalid(error)
-            })?;
-        let mut active = AuditTxn {
-            owner: self,
-            transaction: Some(transaction),
-            data_version: 0,
-            schema_version: 0,
-            transaction_id,
-            write_sequence: self.write_sequence.get(),
-            dirty: Cell::new(false),
-            #[cfg(all(feature = "s_incremental", unix))]
-            history_write: Default::default(),
-            construction: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            complete: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            pending: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            recording: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            effect_limit: Cell::new(0),
-            #[cfg(feature = "s_incremental")]
-            publication_issued: Cell::new(false),
-        };
-        // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
-        let _: i64 = active
-            .tx()
-            .query_row("SELECT COUNT(*) FROM main.meta", [], |r| r.get(0))
-            .map_err(invalid)?;
-        active.data_version = active
-            .tx()
-            .query_row("PRAGMA main.data_version", [], |r| r.get(0))
-            .map_err(invalid)?;
-        active.schema_version = active
-            .tx()
-            .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
-            .map_err(invalid)?;
-        #[cfg(all(feature = "s_incremental", unix))]
-        active.check_history()?;
-        Ok(active)
     }
 
     pub(super) fn startup(
@@ -1336,7 +1227,9 @@ impl AuditConnection {
                         // #1488：仅测试选择已审 owner 原型；所有正式准入与实际 Accept/COMMIT 原样执行。
                         #[cfg(all(test, feature = "s_incremental"))]
                         construction_tests::select_for_formal_accept(&active, context)?;
-                        active.before_fixed_write(FixedOperation::Accept, Some(context))?;
+                        active
+                            .before_fixed_write(FixedOperation::Accept, Some(context))
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
                         control.accept(&view, &accepted)?;
                         wrote = true;
@@ -1425,7 +1318,9 @@ impl AuditConnection {
             .checked_sub(1)
             .ok_or_else(|| invalid("没有原始输入"))?;
         let base = meta_get_opt(tx, "structure_cut")?.ok_or_else(|| invalid("缺当前cut"))?;
-        active.before_fixed_write(FixedOperation::Begin, Some(context))?;
+        active
+            .before_fixed_write(FixedOperation::Begin, Some(context))
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let token = control.begin(&view, generation, frontier, &base, epoch)?;
         drop(control);
         active.finish_fixed_write()?;
@@ -1451,7 +1346,9 @@ impl AuditConnection {
             let mut active = self.begin(TransactionBehavior::Immediate)?;
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
             active.bind_existing(Some(context))?;
-            let receipt = self.publish_body(&mut active, runtime, token, envelope, context)?;
+            let receipt = self
+                .publish_body(&mut active, runtime, token, envelope, context)
+                .map_err(PublishError::into_message)?;
             let ended = active.commit_publication()?;
             Ok((receipt, ended))
         })();
@@ -1570,7 +1467,7 @@ impl AuditConnection {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
         #[cfg(feature = "s_incremental")] parent: Option<&PublicationScope<'_>>,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         #[cfg(feature = "s_incremental")]
         let issued = if active.complete.borrow().is_some() && context.source_cache_enabled() {
             Some(
@@ -1653,11 +1550,13 @@ impl AuditConnection {
                 .checked_add(native::Budget::metadata_bytes())
                 .is_none_or(|n| n > candidate.resources.total_limit().unwrap_or(0))
             {
-                return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
+                return Err((construction_state::stale("来源原件/证明保留账超过效果帽")).into());
             }
         }
         #[cfg(feature = "s_incremental")]
         drop(pending);
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        step_reader::run_material_hook(active);
         #[cfg(feature = "s_incremental")]
         active.finish_fixed_write_in_publication(parent)?;
         #[cfg(not(feature = "s_incremental"))]
@@ -1758,25 +1657,6 @@ impl AuditConnection {
         self.mark_quiescent();
     }
 
-    /// #1488 P1-1/P1-2：请求局部持有者（context/slot/ended）均已析构后，对保留下来的
-    /// 候选父账与keeper池父账各读一次live，作为下次冻结的来源证明；其后任何未经请求的增减都使映射失效。
-    #[cfg(feature = "s_incremental")]
-    fn mark_quiescent(&self) {
-        let mut marks = Vec::new();
-        if let Some(c) = self.complete.borrow().as_ref() {
-            marks.push(c.resources.quiescent_mark());
-        }
-        if let Some(home) = self
-            .source_keeper
-            .borrow()
-            .as_ref()
-            .and_then(|k| k.source_home())
-        {
-            marks.push(home.quiescent_mark());
-        }
-        *self.quiescent.borrow_mut() = marks;
-    }
-
     pub(super) fn pending_originals(&self) -> Result<Vec<String>, String> {
         let active = self.begin(TransactionBehavior::Deferred)?;
         #[cfg(all(feature = "s_incremental", unix))]
@@ -1846,7 +1726,9 @@ impl AuditConnection {
         let control = control::S3Control::attach(tx, clock)?;
         let generation = meta_get_opt(tx, "generation")?.ok_or_else(|| invalid("缺generation"))?;
         let prior = meta_get_opt(tx, "advance_state")?.ok_or_else(|| invalid("缺advance_state"))?;
-        active.before_fixed_write(FixedOperation::Recover(handoff), None)?;
+        active
+            .before_fixed_write(FixedOperation::Recover(handoff), None)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let transitioned_at = control.recover(clock_event, &generation)?;
         let recovered = if prior != "idle" {
             meta_set(tx, "advance_state", "idle")?;
@@ -1982,6 +1864,166 @@ impl AuditTxn<'_> {
         Ok(())
     }
 
+    fn tx(&self) -> &Transaction<'_> {
+        self.transaction.as_ref().unwrap()
+    }
+}
+
+impl<B: owner_sql::OwnerBackend> AuditConnection<B> {
+    fn new(connection: B::Conn) -> Result<Self, String> {
+        let result = (|| {
+            let life = NEXT_LIFE
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                .map_err(|_| invalid("连接生涯编号耗尽"))?;
+            if !B::conn_autocommit(&connection) {
+                return Err(invalid("不能接管已有活动事务的连接"));
+            }
+            Ok(life)
+        })();
+        let result = B::close_after_failure(&connection, result);
+        let life = result?;
+        Ok(Self {
+            connection,
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_clamp: Default::default(),
+            #[cfg(all(feature = "s_incremental", unix))]
+            require_historical_certificate: false,
+            life,
+            retired: Cell::new(false),
+            next_transaction: Cell::new(0),
+            write_sequence: Cell::new(0),
+            construction_lease: Default::default(),
+            construction: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            complete: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            source_keeper: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            quiescent: Default::default(),
+        })
+    }
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn history_result<T>(&self, result: Result<T, String>) -> Result<T, String> {
+        if result.is_err() {
+            self.retired.set(true);
+            self.clear_candidates();
+        }
+        result
+    }
+    fn invalidate_construction(&self) {
+        self.construction_lease.invalidate();
+        drop(self.construction.borrow_mut().take());
+    }
+    fn clear_candidates(&self) {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.retired.get() {
+            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() {
+                clamp.retire();
+            }
+        }
+        self.invalidate_construction();
+        self.clear_optional_candidates();
+    }
+    fn clear_optional_candidates(&self) {
+        #[cfg(feature = "s_incremental")]
+        {
+            drop(self.source_keeper.borrow_mut().take());
+            drop(self.complete.borrow_mut().take());
+        }
+    }
+    fn begin(&self, behavior: TransactionBehavior) -> Result<AuditTxn<'_, B>, String> {
+        if self.retired.get() || !B::conn_autocommit(&self.connection) {
+            self.retired.set(true);
+            self.clear_candidates();
+            return Err(invalid("连接已退役或存在未终结事务"));
+        }
+        let transaction_id = self
+            .next_transaction
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| invalid("事务编号耗尽"))?;
+        self.next_transaction.set(transaction_id);
+        let transaction = B::begin(&self.connection, behavior).map_err(|error| {
+            self.clear_candidates();
+            invalid(error)
+        })?;
+        let mut active = AuditTxn {
+            owner: self,
+            transaction: Some(transaction),
+            data_version: 0,
+            schema_version: 0,
+            transaction_id,
+            write_sequence: self.write_sequence.get(),
+            dirty: Cell::new(false),
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_write: Default::default(),
+            construction: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            complete: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            pending: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            recording: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            effect_limit: Cell::new(0),
+            #[cfg(feature = "s_incremental")]
+            publication_issued: Cell::new(false),
+        };
+        // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
+        let _ = active
+            .sql()
+            .integer("SELECT COUNT(*) FROM main.meta")
+            .map_err(invalid)?;
+        active.data_version = active
+            .sql()
+            .integer("PRAGMA main.data_version")
+            .map_err(invalid)?;
+        active.schema_version = active
+            .sql()
+            .integer("PRAGMA main.schema_version")
+            .map_err(invalid)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        active.check_history()?;
+        Ok(active)
+    }
+    /// #1488 P1-1/P1-2：请求局部持有者（context/slot/ended）均已析构后，对保留下来的
+    /// 候选父账与keeper池父账各读一次live，作为下次冻结的来源证明；其后任何未经请求的增减都使映射失效。
+    #[cfg(feature = "s_incremental")]
+    fn mark_quiescent(&self) {
+        let mut marks = Vec::new();
+        if let Some(c) = self.complete.borrow().as_ref() {
+            marks.push(c.resources.quiescent_mark());
+        }
+        if let Some(home) = self
+            .source_keeper
+            .borrow()
+            .as_ref()
+            .and_then(|k| k.source_home())
+        {
+            marks.push(home.quiescent_mark());
+        }
+        *self.quiescent.borrow_mut() = marks;
+    }
+    /// 同一请求的 Accept/Begin 已提交结果在下一事务重新绑定，不刷新版本号。
+    pub(super) fn continue_with(&self, ended: Ended) -> Result<(), String> {
+        if ended.life != self.life || self.retired.get() || !B::conn_autocommit(&self.connection) {
+            return Err(invalid("事务结果不属于当前连接生涯"));
+        }
+        #[cfg(feature = "s_incremental")]
+        {
+            *self.complete.borrow_mut() = ended.complete;
+            // 交接点：候选移入owner；请求收尾的finish_source_keeper会在静止点重读覆盖。
+            self.mark_quiescent();
+        }
+        Ok(())
+    }
+}
+
+impl<B: owner_sql::OwnerBackend> AuditTxn<'_, B> {
+    /// 本事务的 SQL 面（夹持观测、连接域核与版本读取共用）。
+    fn sql(&self) -> &dyn owner_sql::OwnerSql {
+        B::txn_sql(self.transaction.as_ref().unwrap())
+    }
     #[cfg(all(feature = "s_incremental", unix))]
     fn check_history(&self) -> Result<(), String> {
         let result = match self.owner.history_clamp.borrow_mut().as_mut() {
@@ -1990,11 +2032,6 @@ impl AuditTxn<'_> {
         };
         self.owner.history_result(result)
     }
-
-    fn tx(&self) -> &Transaction<'_> {
-        self.transaction.as_ref().unwrap()
-    }
-
     fn read_end(mut self) -> Result<Ended, String> {
         #[cfg(all(feature = "s_incremental", unix))]
         self.check_history()?;
@@ -2014,9 +2051,9 @@ impl AuditTxn<'_> {
                 "构造 pending 不可通过只读回滚晋升",
             ));
         }
-        self.owner.connection.flush_prepared_statement_cache();
-        let result = self.transaction.take().unwrap().rollback().map_err(invalid);
-        if result.is_err() || !self.owner.connection.is_autocommit() {
+        B::flush_statements(&self.owner.connection);
+        let result = B::rollback(self.transaction.take().unwrap()).map_err(invalid);
+        if result.is_err() || !B::conn_autocommit(&self.owner.connection) {
             self.owner.retired.set(true);
             self.owner.clear_candidates();
         }
@@ -2034,15 +2071,12 @@ impl AuditTxn<'_> {
             },
         })
     }
-
     fn commit(mut self) -> Result<Ended, String> {
         self.commit_as(false)
     }
-
     fn commit_publication(mut self) -> Result<Ended, String> {
         self.commit_as(true)
     }
-
     fn commit_as(&mut self, publication: bool) -> Result<Ended, String> {
         #[cfg(all(feature = "s_incremental", unix))]
         if self.owner.history_clamp.borrow().is_some() {
@@ -2074,7 +2108,8 @@ impl AuditTxn<'_> {
                     .borrow()
                     .as_ref()
                     .unwrap()
-                    .check_commit(self.construction_seal()?, self.tx().total_changes())
+                    .check_commit(self.construction_seal()?, self.sql().total_changes())
+                    .map_err(PublishError::into_message)
             })();
             if let Err(error) = checked {
                 self.owner.invalidate_construction();
@@ -2100,11 +2135,10 @@ impl AuditTxn<'_> {
                 .transpose();
             self.owner.history_result(armed)?
         };
-        self.owner.connection.flush_prepared_statement_cache();
-        let mut transaction = self.transaction.take().unwrap();
+        B::flush_statements(&self.owner.connection);
+        let transaction = self.transaction.take().unwrap();
         // 提交失败后的终结由 owner 核实，不依赖 Transaction 析构器的隐式回滚。
-        transaction.set_drop_behavior(rusqlite::DropBehavior::Ignore);
-        let result = transaction.commit().map_err(|e| {
+        let result = B::commit(transaction).map_err(|e| {
             if publication {
                 format!("PublicationInvalid：{e}")
             } else {
@@ -2113,16 +2147,16 @@ impl AuditTxn<'_> {
         });
         if result.is_err() {
             self.owner.clear_candidates();
-            if !self.owner.connection.is_autocommit() {
-                let rollback = self.owner.connection.execute_batch("ROLLBACK");
-                if rollback.is_err() || !self.owner.connection.is_autocommit() {
+            if !B::conn_autocommit(&self.owner.connection) {
+                let rollback = B::rollback_conn(&self.owner.connection);
+                if rollback.is_err() || !B::conn_autocommit(&self.owner.connection) {
                     self.owner.retired.set(true);
                 }
             } else {
                 // 错误返回但已无事务，不视为经 owner 确认的正常回滚。
                 self.owner.retired.set(true);
             }
-        } else if !self.owner.connection.is_autocommit() {
+        } else if !B::conn_autocommit(&self.owner.connection) {
             self.owner.retired.set(true);
             self.owner.clear_candidates();
             return Err(invalid("提交返回后事务仍活动"));
@@ -2160,9 +2194,28 @@ impl AuditTxn<'_> {
             complete: self.complete.borrow_mut().take(),
         })
     }
+    fn construction_seal(&self) -> Result<SnapshotSeal, String> {
+        Ok(SnapshotSeal {
+            life: self.owner.life,
+            transaction_id: self.transaction_id,
+            write_sequence: self.owner.write_sequence.get(),
+            data_version: self
+                .sql()
+                .integer("PRAGMA main.data_version")
+                .map_err(invalid)?,
+            schema_version: self
+                .sql()
+                .integer("PRAGMA main.schema_version")
+                .map_err(invalid)?,
+            domain: self.read_domain()?,
+        })
+    }
+    fn read_domain(&self) -> Result<[i64; 6], String> {
+        read_domain_of(self.sql())
+    }
 }
 
-impl Drop for AuditTxn<'_> {
+impl<B: owner_sql::OwnerBackend> Drop for AuditTxn<'_, B> {
     fn drop(&mut self) {
         if let Some(tx) = self.transaction.take() {
             #[cfg(all(feature = "s_incremental", unix))]
@@ -2172,18 +2225,15 @@ impl Drop for AuditTxn<'_> {
             }
             #[cfg(feature = "s_incremental")]
             {
-                if tx
-                    .update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
-                    .is_err()
-                {
+                if B::clear_write_hooks(&tx).is_err() {
                     self.owner.retired.set(true);
                 }
-                effects::clear_node_journal(&tx);
+                effects::clear_node_journal_key(B::journal_key(&tx));
             }
             self.owner.clear_candidates();
-            self.owner.connection.flush_prepared_statement_cache();
-            // 不依赖 rusqlite 的隐式 Drop 回滚；必须核实终结结果。
-            if tx.rollback().is_err() || !self.owner.connection.is_autocommit() {
+            B::flush_statements(&self.owner.connection);
+            // 不依赖守卫的隐式回滚；必须核实终结结果。
+            if B::rollback(tx).is_err() || !B::conn_autocommit(&self.owner.connection) {
                 self.owner.retired.set(true);
             }
         }
@@ -2231,7 +2281,7 @@ mod tests {
         let mut fixture = Fixture::new();
         let (envelope, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
         fixture.publish(&envelope, &token).unwrap();
-        let owner = AuditConnection::new(open_db(&fixture.db_path()).unwrap()).unwrap();
+        let owner = <AuditConnection>::new(open_db(&fixture.db_path()).unwrap()).unwrap();
         let first = owner.begin(TransactionBehavior::Deferred).unwrap();
         let version = first.data_version;
         let generation: i64 = first
@@ -2260,7 +2310,7 @@ mod tests {
         assert_ne!(second.data_version, version);
         assert_eq!(meta_i64(second.tx(), "generation").unwrap(), 2);
         second.read_end().unwrap();
-        let reopened = AuditConnection::new(open_db(&fixture.db_path()).unwrap()).unwrap();
+        let reopened = <AuditConnection>::new(open_db(&fixture.db_path()).unwrap()).unwrap();
         assert_ne!(owner.life, reopened.life);
         assert!(reopened.connection.is_autocommit());
     }
@@ -2614,7 +2664,9 @@ impl AuditConnection {
             token.ensure_current()?;
             Ok(token.into_issued())
         })?;
-        active.before_fixed_write(FixedOperation::Accept, Some(&*context))?;
+        active
+            .before_fixed_write(FixedOperation::Accept, Some(&*context))
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         active
             .tx()
             .execute(
@@ -2665,23 +2717,6 @@ impl AuditConnection {
     }
 }
 impl AuditTxn<'_> {
-    fn construction_seal(&self) -> Result<SnapshotSeal, String> {
-        Ok(SnapshotSeal {
-            life: self.owner.life,
-            transaction_id: self.transaction_id,
-            write_sequence: self.owner.write_sequence.get(),
-            data_version: self
-                .tx()
-                .query_row("PRAGMA main.data_version", [], |r| r.get(0))
-                .map_err(invalid)?,
-            schema_version: self
-                .tx()
-                .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
-                .map_err(invalid)?,
-            domain: self.read_domain()?,
-        })
-    }
-
     #[cfg(feature = "s_incremental")]
     fn issue_publication_resources(
         &self,
@@ -2743,15 +2778,19 @@ impl AuditTxn<'_> {
         &self,
         context: &request_audit::RequestAuditContext,
         parent: Option<&PublicationScope<'_>>,
-        consume: impl for<'raw> FnOnce(BoundRawAdvance<'raw>) -> Result<R, String>,
-    ) -> Result<R, String> {
+        consume: impl for<'raw> FnOnce(BoundRawAdvance<'raw>) -> Result<R, PublishError>,
+    ) -> Result<R, PublishError> {
         let Some(parent) = parent else {
-            return self.with_bound_raw_advance(context, consume);
+            return self
+                .with_bound_raw_advance(context, |token| {
+                    consume(token).map_err(PublishError::into_message)
+                })
+                .map_err(Into::into);
         };
         let result = (|| {
             parent.check_transaction(self.tx())?;
             if self.dirty.get() || self.construction.borrow().is_some() {
-                return Err(construction_state::stale("仅允许本事务首次写前签发一次"));
+                return Err(construction_state::stale("仅允许本事务首次写前签发一次").into());
             }
             let seal = self.construction_seal()?;
             let complete = self.complete.borrow();
@@ -2759,7 +2798,7 @@ impl AuditTxn<'_> {
                 .as_ref()
                 .ok_or_else(|| construction_state::stale("缺当前同快照已核原件"))?;
             if seal != parent.resources.before || candidate.seal != seal {
-                return Err(construction_state::stale("raw与publication父身份不一致"));
+                return Err(construction_state::stale("raw与publication父身份不一致").into());
             }
             let previous = self.owner.construction.borrow_mut().take();
             #[cfg(test)]
@@ -2777,7 +2816,7 @@ impl AuditTxn<'_> {
             *self.construction.borrow_mut() = Some(pending);
             let value = consume(token)?;
             if self.owner.construction_lease.stale.get() {
-                return Err(construction_state::stale("消费者已撤销raw租约"));
+                return Err(construction_state::stale("消费者已撤销raw租约").into());
             }
             Ok(value)
         })();
@@ -2849,7 +2888,8 @@ impl AuditTxn<'_> {
                     &bound,
                     &self.owner.construction_lease,
                     &super::audit_store::NativeAdmission(Some(scope)),
-                )?;
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 pending.attach_fee(state_fee);
                 pending.stamp_parent(&budget);
                 *self.construction.borrow_mut() = Some(pending);
@@ -3148,66 +3188,45 @@ impl AuditTxn<'_> {
         }
         s_allocation::audit_in_request(self.tx(), mode, s_allocation::Phase::Handle, context)
     }
+}
 
-    fn read_domain(&self) -> Result<[i64; 6], String> {
-        // main 快照/version 已在 begin 中取得；TEMP 和连接设置不由 main version 覆盖。
-        let temp: i64 = self
-            .tx()
-            .query_row("SELECT count(*) FROM temp.sqlite_schema", [], |r| r.get(0))
-            .map_err(invalid)?;
-        let databases: i64 = self
-            .tx()
-            .query_row(
-                "SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main','temp')",
-                [],
-                |r| r.get(0),
-            )
-            .map_err(invalid)?;
-        if temp != 0 || databases != 0 {
-            return Err(invalid("完整候选不允许 TEMP 对象或附加数据库"));
-        }
-        let mut out = [0; 6];
-        for (i, sql) in [
-            "PRAGMA read_uncommitted",
-            "PRAGMA foreign_keys",
-            "PRAGMA recursive_triggers",
-            "PRAGMA trusted_schema",
-            "PRAGMA query_only",
-            "PRAGMA main.encoding",
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            if i == 5 {
-                let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
-                    self.tx(),
-                    c"PRAGMA main.encoding",
-                )
-                .map_err(invalid)?;
-                let mut row = stmt
-                    .next()
-                    .map_err(invalid)?
-                    .ok_or_else(|| invalid("编码域缺行"))?;
-                out[i] = match row.text(0).map_err(invalid)? {
-                    "UTF-8" => 1,
-                    "UTF-16le" => 2,
-                    "UTF-16be" => 3,
-                    _ => return Err(invalid("未知编码域")),
-                };
-                drop(row);
-                stmt.finalize().map_err(invalid)?;
-            } else {
-                out[i] = self
-                    .tx()
-                    .query_row(sql, [], |r| r.get(0))
-                    .map_err(invalid)?;
-            }
-        }
-        if out[0] != 0 {
-            return Err(invalid("完整候选不允许 read_uncommitted"));
-        }
-        Ok(out)
+/// #1419 M8D 3A：连接域读取只依赖实际事务；AuditTxn 与 owner 生涯门共用这一份判据。
+fn read_domain_of(tx: &dyn owner_sql::OwnerSql) -> Result<[i64; 6], String> {
+    // main 快照/version 已在 begin 中取得；TEMP 和连接设置不由 main version 覆盖。
+    let temp = tx
+        .integer("SELECT count(*) FROM temp.sqlite_schema")
+        .map_err(invalid)?;
+    let databases = tx
+        .integer("SELECT count(*) FROM pragma_database_list WHERE name NOT IN ('main','temp')")
+        .map_err(invalid)?;
+    if temp != 0 || databases != 0 {
+        return Err(invalid("完整候选不允许 TEMP 对象或附加数据库"));
     }
+    let mut out = [0; 6];
+    for (i, sql) in [
+        "PRAGMA read_uncommitted",
+        "PRAGMA foreign_keys",
+        "PRAGMA recursive_triggers",
+        "PRAGMA trusted_schema",
+        "PRAGMA query_only",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        out[i] = tx.integer(sql).map_err(invalid)?;
+    }
+    out[5] = match tx
+        .main_encoding()
+        .map_err(invalid)?
+        .ok_or_else(|| invalid("编码域缺行"))?
+    {
+        0 => return Err(invalid("未知编码域")),
+        code => code,
+    };
+    if out[0] != 0 {
+        return Err(invalid("完整候选不允许 read_uncommitted"));
+    }
+    Ok(out)
 }
 
 /// #1488 Recover 锁：同事务签发后离开事务的旧 raw token（不透明）。
@@ -3299,7 +3318,7 @@ impl CompleteCandidate {
     fn prepare_cold_policy_migration(
         &mut self,
         work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         use super::audit_retention::Retained;
         let previous = self.originals.heap_bytes();
         let original = self
@@ -3317,10 +3336,11 @@ impl CompleteCandidate {
             let mut bytes = newchan_rust::s_content::CodecVec::default();
             bytes
                 .try_extend_bytes_native(crate::LEGACY_POLICY_RECORDS_UNKNOWN.as_bytes(), work)
-                .map_err(invalid)?;
+                .map_err(publish_err)?;
             request_audit::push_cell(row, request_audit::SqlCell::Text(bytes), Some(work))?;
         }
         self.refresh_cold_sql_charge(previous)
+            .map_err(PublishError::from)
     }
 
     #[cfg(unix)]
@@ -3835,7 +3855,7 @@ impl CompleteCandidate {
         limit: usize,
         source_check: Option<&OwnerSourceCheck>,
         parent: Option<&PublicationScope<'_>>,
-    ) -> Result<Option<Self>, String> {
+    ) -> Result<Option<Self>, PublishError> {
         use super::audit_retention::sum;
         use effects::Table;
         self.detach_slot()?;
@@ -3869,28 +3889,28 @@ impl CompleteCandidate {
             None => self.resources.clone(),
         };
         let capture = self.capture.as_mut().unwrap();
-        let mut append_nodes = |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| -> Result<(), String> {
+        let mut append_nodes = |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| -> Result<(), PublishError> {
             for change in effects
                 .changes
                 .iter_mut()
                 .filter(|c| c.table == Table::Node)
             {
-                let row = change.new.as_mut().ok_or_else(|| invalid("缺新增节点"))?;
+                let row = change.new.as_mut().ok_or_else(|| publish_err("缺新增节点"))?;
                 let digest = match &row[1] {
-                    request_audit::SqlCell::Blob(b) => b.as_ref().try_into().map_err(invalid)?,
-                    _ => return Err(invalid("digest 非 BLOB")),
+                    request_audit::SqlCell::Blob(b) => b.as_ref().try_into().map_err(publish_err)?,
+                    _ => return Err(publish_err("digest 非 BLOB")),
                 };
-                let tag = u8::try_from(effects::integer(&row[2])?).map_err(invalid)?;
+                let tag = u8::try_from(effects::integer(&row[2])?).map_err(publish_err)?;
                 let body = match std::mem::replace(&mut row[3], request_audit::SqlCell::Null) {
                     request_audit::SqlCell::Blob(b) => b,
-                    _ => return Err(invalid("body 非 BLOB")),
+                    _ => return Err(publish_err("body 非 BLOB")),
                 };
                 let existed = capture.contains(&digest);
                 if !capture
                     .append_original_codec_for_owner(digest, tag, body, usize::MAX, scope)
-                    .map_err(invalid)?
+                    .map_err(publish_err)?
                 {
-                    return Err(invalid("Native 节点许可未被消费"));
+                    return Err(publish_err("Native 节点许可未被消费"));
                 }
                 if !existed {
                     self.node_count += 1;
@@ -3898,17 +3918,17 @@ impl CompleteCandidate {
             }
             Ok(())
         };
-        let node_result = match parent {
+        let node_result: Result<(), native::Failure<PublishError>> = match parent {
             Some(parent) => append_nodes(parent.work()).map_err(native::Failure::Invalid),
             None => match budget.codec_work() {
                 Ok(work) => work.run(append_nodes).map_err(native::Failure::from),
-                Err(error) => Err(error),
+                Err(error) => Err(error.into()),
             },
         };
         match node_result {
             Ok(()) => {}
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         match self.q.advance(tx, &effects, &mut self.audited, &budget) {
             Ok(raw_added) => {
@@ -3922,7 +3942,7 @@ impl CompleteCandidate {
                 self.charge.historical_and_raw_capacity = total;
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         let bound = BoundOriginals { _private: () };
         match self.audited.check_owner_raw(capture, &bound, &budget) {
@@ -3933,7 +3953,7 @@ impl CompleteCandidate {
                 self.charge.historical_and_raw_capacity = total;
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         if effects.operation == effects::Operation::Publish {
             // #1394：成功路径借用 SQL 文本，避免复制 meta 值及动态标签。
@@ -3942,19 +3962,19 @@ impl CompleteCandidate {
                     tx,
                     c"SELECT value FROM meta WHERE key=?1",
                 )
-                .map_err(invalid)?;
-                query.bind_text(1, "generation").map_err(invalid)?;
+                .map_err(publish_err)?;
+                query.bind_text(1, "generation").map_err(publish_err)?;
                 let mut row = query
                     .next()
-                    .map_err(invalid)?
-                    .ok_or_else(|| invalid("meta.generation 缺失"))?;
+                    .map_err(publish_err)?
+                    .ok_or_else(|| publish_err("meta.generation 缺失"))?;
                 let value = newchan_rust::session_protocol::parse_canonical_i64(
-                    row.text(0).map_err(invalid)?,
+                    row.text(0).map_err(publish_err)?,
                     "meta.generation",
                 )
-                .map_err(invalid)?;
+                .map_err(publish_err)?;
                 drop(row);
-                query.finalize().map_err(invalid)?;
+                query.finalize().map_err(publish_err)?;
                 value
             };
             let d = effects
@@ -3972,7 +3992,7 @@ impl CompleteCandidate {
                         .as_ref()
                         .is_some_and(|r| effects::text(&r[2]).ok() == Some("commit"))
                 })
-                .ok_or_else(|| invalid("缺 commit 实际效果"))?;
+                .ok_or_else(|| publish_err("缺 commit 实际效果"))?;
             let ns = effects::text(&commit.new.as_ref().unwrap()[4])?;
             let row_ids = |table| -> Result<_, native::BudgetExceeded> {
                 let mut rows = budget.empty::<Vec<i64>>()?;
@@ -4027,11 +4047,11 @@ impl CompleteCandidate {
                         source_check,
                     )
                 };
-            let updated = match parent {
+            let updated: Result<_, native::Failure<PublishError>> = match parent {
                 Some(parent) => append_cut(parent.work()).map_err(native::Failure::from),
                 None => match budget.codec_work() {
                     Ok(work) => work.run(append_cut).map_err(native::Failure::from),
-                    Err(error) => Err(error),
+                    Err(error) => Err(error.into()),
                 },
             };
             #[cfg(test)]
@@ -4044,7 +4064,7 @@ impl CompleteCandidate {
             let (audited, retained) = match updated {
                 Ok(updated) => updated,
                 Err(native::Failure::BudgetExceeded) => return Ok(None),
-                Err(native::Failure::Invalid(e)) => return Err(e),
+                Err(native::Failure::Invalid(e)) => return Err(e.into()),
             };
             // 这些行号只在本次 append_cut 借用；真实销毁后归还各 Vec 实际容量。
             drop(row_ids);
@@ -4053,7 +4073,7 @@ impl CompleteCandidate {
                 match retained.apply(self.charge.historical_and_raw_capacity) {
                     Ok(total) => total,
                     Err(native::Failure::BudgetExceeded) => return Ok(None),
-                    Err(native::Failure::Invalid(error)) => return Err(error),
+                    Err(native::Failure::Invalid(error)) => return Err(error.into()),
                 };
         }
         // 40B B2：资格交接的持久上界在本代后缀入账后、费用终检前持票并计入历史账；提交后交接只消费它。
@@ -4082,21 +4102,21 @@ impl CompleteCandidate {
         ) {
             Ok(peak) => peak,
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         };
         self.capture = Some(
             self.capture
                 .take()
                 .unwrap()
                 .finish_owner_step()
-                .map_err(invalid)?,
+                .map_err(publish_err)?,
         );
         let retained = self
             .capture
             .as_ref()
             .unwrap()
             .native_retention_numbers()
-            .ok_or_else(|| invalid("缺 Native 原件费用"))?;
+            .ok_or_else(|| publish_err("缺 Native 原件费用"))?;
         self.charge.node_source_and_certificates = sum([
             retained.body_len,
             self.node_count.saturating_mul(97),
@@ -4159,21 +4179,7 @@ enum FixedOperation {
     #[cfg_attr(not(feature = "s_incremental"), allow(dead_code))]
     Recover(construction_state::RecoverHandoff),
 }
-impl AuditConnection {
-    /// 同一请求的 Accept/Begin 已提交结果在下一事务重新绑定，不刷新版本号。
-    pub(super) fn continue_with(&self, ended: Ended) -> Result<(), String> {
-        if ended.life != self.life || self.retired.get() || !self.connection.is_autocommit() {
-            return Err(invalid("事务结果不属于当前连接生涯"));
-        }
-        #[cfg(feature = "s_incremental")]
-        {
-            *self.complete.borrow_mut() = ended.complete;
-            // 交接点：候选移入owner；请求收尾的finish_source_keeper会在静止点重读覆盖。
-            self.mark_quiescent();
-        }
-        Ok(())
-    }
-}
+impl AuditConnection {}
 impl AuditTxn<'_> {
     fn bind_existing(
         &self,
@@ -4258,7 +4264,7 @@ impl AuditTxn<'_> {
         &self,
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let result = self.before_fixed_write_inner(operation, context);
         if result.is_err() {
             self.owner.invalidate_construction();
@@ -4269,15 +4275,15 @@ impl AuditTxn<'_> {
         &self,
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         #[cfg(feature = "s_incremental")]
         if self.construction.borrow().is_none()
             && self.owner.construction.borrow().is_some()
             && self.complete.borrow().is_none()
         {
-            return Err(construction_state::stale(
-                "已发布增量游标缺同快照原件；禁止完整路径回退",
-            ));
+            return Err(
+                construction_state::stale("已发布增量游标缺同快照原件；禁止完整路径回退").into(),
+            );
         }
         // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
         // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
@@ -4289,14 +4295,14 @@ impl AuditTxn<'_> {
                 #[cfg(all(test, feature = "s_incremental"))]
                 let seal = p08_snapshot_miss(seal);
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
-                    return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
+                    return Err(construction_state::stale("Recover迁移缺同快照完整原件").into());
                 };
                 let previous = self.owner.construction.borrow_mut().take();
                 // 负控注入：原资格已离开 owner、尚未成为事务构造时交接失败。
                 #[cfg(test)]
                 if RECOVER_HANDOFF_FAILURE.with(|flag| flag.replace(false)) {
                     drop(previous);
-                    return Err(construction_state::stale("测试注入Recover交接失败"));
+                    return Err(construction_state::stale("测试注入Recover交接失败").into());
                 }
                 let pending = construction_state::PendingRawState::recover(
                     previous,
@@ -4318,7 +4324,7 @@ impl AuditTxn<'_> {
             if let Some(candidate) = complete.as_ref() {
                 let seal = self.construction_seal()?;
                 if candidate.seal != seal {
-                    return Err(construction_state::stale("Carry缺同快照完整原件"));
+                    return Err(construction_state::stale("Carry缺同快照完整原件").into());
                 }
                 let previous = self.owner.construction.borrow_mut().take();
                 let mut pending = construction_state::PendingRawState::carry(
@@ -4334,14 +4340,14 @@ impl AuditTxn<'_> {
                     .checked_add(pending.retained_bytes())
                     .ok_or_else(|| construction_state::stale("Carry保留账溢出"))?;
                 if retained > context.unwrap().complete_retention_cap() {
-                    return Err(construction_state::stale("Carry保留账超过完整工作帽"));
+                    return Err(construction_state::stale("Carry保留账超过完整工作帽").into());
                 }
                 *self.construction.borrow_mut() = Some(pending);
             }
         }
         let strict = self.construction.borrow().is_some();
         if strict && self.owner.construction_lease.stale.get() {
-            return Err(construction_state::stale("固定写前租约已撤销"));
+            return Err(construction_state::stale("固定写前租约已撤销").into());
         }
         #[cfg(feature = "s_incremental")]
         {
@@ -4369,7 +4375,7 @@ impl AuditTxn<'_> {
                         )
                     })
                 {
-                    return Err(construction_state::stale("完整保留费超过总容量帽"));
+                    return Err(construction_state::stale("完整保留费超过总容量帽").into());
                 }
                 let op = match operation {
                     FixedOperation::Accept => effects::Operation::Accept,
@@ -4425,19 +4431,17 @@ impl AuditTxn<'_> {
             }
             if strict && self.recording.borrow().is_none() {
                 self.owner.invalidate_construction();
-                return Err(construction_state::stale(
-                    "固定写缺完整effects记录额度/原件",
-                ));
+                return Err(construction_state::stale("固定写缺完整effects记录额度/原件").into());
             }
         }
         #[cfg(not(feature = "s_incremental"))]
         {
             let _ = (operation, context);
             if strict {
-                return Err(construction_state::stale("未启用真实Native effects能力"));
+                return Err(construction_state::stale("未启用真实Native effects能力").into());
             }
         }
-        self.before_write_inner(strict)
+        self.before_write_inner(strict).map_err(Into::into)
     }
     fn finish_fixed_write(&self) -> Result<(), String> {
         let result = self.finish_fixed_write_inner(
@@ -4447,13 +4451,13 @@ impl AuditTxn<'_> {
         if result.is_err() && self.construction.borrow().is_some() {
             self.owner.invalidate_construction();
         }
-        result
+        result.map_err(newchan_rust::s_content::ContextError::into_message)
     }
     #[cfg(feature = "s_incremental")]
     fn finish_fixed_write_in_publication(
         &self,
         parent: Option<&PublicationScope<'_>>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let result = self.finish_fixed_write_inner(parent);
         if result.is_err() && self.construction.borrow().is_some() {
             self.owner.invalidate_construction();
@@ -4463,7 +4467,7 @@ impl AuditTxn<'_> {
     fn finish_fixed_write_inner(
         &self,
         #[cfg(feature = "s_incremental")] parent: Option<&PublicationScope<'_>>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         #[cfg(feature = "s_incremental")]
         {
             let strict = self.construction.borrow().is_some();
@@ -4473,9 +4477,7 @@ impl AuditTxn<'_> {
             let history_strict = false;
             let missing = || {
                 if strict || history_strict {
-                    Err(construction_state::stale(
-                        "effects未完整闭合；不得回落旧审计",
-                    ))
+                    Err(publish_stale("effects未完整闭合；不得回落旧审计"))
                 } else {
                     Ok(())
                 }
@@ -4487,9 +4489,16 @@ impl AuditTxn<'_> {
                 .pending
                 .borrow_mut()
                 .take()
-                .ok_or_else(|| invalid("效果日志缺候选"))?;
+                .ok_or_else(|| publish_err("效果日志缺候选"))?;
             let limit = self.effect_limit.get();
             let recording_cap = limit;
+            #[cfg(unix)]
+            if history_strict {
+                // #1419：本连接的脏页须在 effects 闭合前写入 WAL；否则后续只读
+                // 观测/后缀核验也能触发 pager spill，晚于历史候选的物理快照。
+                // 不在 observe/check_candidate 刷新，闭合后的任何变化仍须拒绝。
+                self.tx().cache_flush().map_err(publish_err)?;
+            }
             let Some(mut effects) =
                 recording.finish(self.tx(), &mut candidate.originals, recording_cap)?
             else {
@@ -4497,7 +4506,7 @@ impl AuditTxn<'_> {
             };
             let closed_changes = self.tx().total_changes();
             if strict && !effects.has_exact_coverage(closed_changes) {
-                return Err(construction_state::stale("actual effects覆盖收据缺失"));
+                return Err(publish_stale("actual effects覆盖收据缺失"));
             }
             #[cfg(unix)]
             let history_candidate = {
@@ -4517,7 +4526,7 @@ impl AuditTxn<'_> {
             effects.bytes = effects
                 .bytes
                 .checked_sub(set_bytes)
-                .ok_or_else(|| invalid("集合保留账不符"))?;
+                .ok_or_else(|| publish_err("集合保留账不符"))?;
             let Some(mut candidate) = candidate.validate_effects(
                 self.tx(),
                 effects,
@@ -4537,11 +4546,11 @@ impl AuditTxn<'_> {
                     .audited
                     .cuts
                     .last()
-                    .ok_or_else(|| construction_state::stale("集合闭合缺实际已核发布根"))?;
+                    .ok_or_else(|| publish_stale("集合闭合缺实际已核发布根"))?;
                 self.construction
                     .borrow_mut()
                     .as_mut()
-                    .ok_or_else(|| construction_state::stale("集合effects丢失raw owner"))?
+                    .ok_or_else(|| publish_stale("集合effects丢失raw owner"))?
                     .close_set(set, current.roots.generated_state.view())?;
             }
             if strict {
@@ -4570,7 +4579,7 @@ impl AuditTxn<'_> {
 
 #[cfg(feature = "s_incremental")]
 pub(crate) fn note_persisted_node(
-    tx: &Transaction<'_>,
+    tx: owner_tx::OwnerTx<'_>,
     digest: [u8; 32],
     before: u64,
     inserted: bool,
@@ -4583,7 +4592,7 @@ pub(crate) fn note_persisted_node(
 pub(crate) fn note_qualified_source_cut(
     material: &MaterialAccess<'_, '_, '_>,
     root: newchan_rust::s_content::RefView<'_>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     effects::note_source_cut(material, root)
 }
 #[cfg(feature = "s_incremental")]
@@ -4595,7 +4604,7 @@ pub(crate) fn audit_native_source_cut(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
-) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), PublishError> {
     effects::audit_native_source(material, capture, previous, root, raw, profile, rule, false)
 }
 #[cfg(feature = "s_incremental")]
@@ -4607,15 +4616,15 @@ pub(crate) fn audit_native_source_partitions_cut(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
-) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), PublishError> {
     effects::audit_native_source(material, capture, previous, root, raw, profile, rule, true)
 }
 #[cfg(feature = "s_incremental")]
-pub(crate) fn with_construction_material<T>(
+pub(crate) fn with_construction_material<T, E: From<String> + From<PublishError>>(
     tx: &Transaction<'_>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
-) -> Result<T, String> {
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, E>,
+) -> Result<T, E> {
     effects::with_material_access(tx, work, f)
 }
 #[cfg(feature = "s_incremental")]
@@ -4623,8 +4632,8 @@ pub(crate) fn with_construction_material_in_publication<T>(
     tx: &Transaction<'_>,
     parent: &PublicationScope<'_>,
     #[cfg(test)] stage: Option<&crate::staged_nodes::StageOwner<'_>>,
-    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
-) -> Result<T, String> {
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, PublishError>,
+) -> Result<T, PublishError> {
     effects::with_material_in_publication(
         tx,
         parent,
@@ -5562,6 +5571,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     pool.originals.native_index_layout_for_testonly().unwrap();
                 parent.census_arm();
                 let inventory = pool.native_permit_inventory().unwrap();
+                let rule_holders = pool.rule_revision_holders(crate::W_STRUCTURE_RULE_REVISION);
                 drop(pool);
                 let released = parent.census_take();
                 // P2-4：逐许可普查独立于下方live差额恒等式，核封存池无重复计费。
@@ -5611,12 +5621,25 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 // knowledge_domain `…without_extreme_identity_competition`→`…with_extreme_root_sets`（−14），
                 // schema s-new-bi/1→/2 等长：ΔL=+41−14=+27，①111,334→111,361，P2-A前封存527,048→527,102。
                 // L由合同字段len()显式相加；不读产生合同额的SourceClaim/正文计费自我对照。
-                const R14_NODES: usize = 803;
+                // #1419 W（主控 2026-10-28 裁定沿 #1488 裁定(b) 增量兼容）：本夹具经 S3 写者只写 W 规则
+                // （CF22 22 轴 + 初始化政策），结构对象增多，803 节点/1040 索引槽的旧夹具不复存在。
+                // 推导式结构不变（①=(C+L)+97·N，②=槽数×(旧槽宽−现槽宽)，P2-A前封存=B+2L+schema_growth），
+                // 只把夹具常量 N、C、B 换成 W 夹具实测（nc-remote a49d63a62c 读数：nodes=1328，
+                // claims=186,527B，index_bytes=464,400B/2064槽，slot 241→225，sealed=654,015B，
+                // L=113，schema_growth=57）：
+                //   C_W = 186,527 − 97·1328 − 113 = 57,598（每节点合同额 97 与 L 叶不变，余为正文）；
+                //   B_W = (654,015 + 186,527 + 2064·16) − 2·113 − 57 = 873,283（P2-A 前同夹具封存）。
+                // 负控（旧夹具常量）仍须把旧串推导回 111,334 / 527,048，证明推导式本身未被改动。
+                const R14_NODES: usize = 1328;
+                const R14_INDEX_SLOTS: usize = 2064;
                 let contract_len = |schema: &str, policy: &str, domain: &str| {
                     schema.len() + policy.len() + domain.len()
                 };
-                let expected_claims = |l: usize| (33_357 + l) + 97 * R14_NODES;
-                let sealed_before_p2a_for = |l: usize| 526_876 + 2 * l;
+                let claims_for = |c: usize, n: usize, l: usize| (c + l) + 97 * n;
+                let expected_claims = |l: usize| claims_for(57_598, R14_NODES, l);
+                let sealed_before_p2a_for = |l: usize| 873_283 + 2 * l;
+                let legacy_claims = |l: usize| claims_for(33_357, 803, l);
+                let legacy_sealed_before_p2a_for = |l: usize| 526_876 + 2 * l;
                 // 负控（独立手算基准）：两串还原为#1405前旧值，推导须回到原字面值。
                 let legacy_len = contract_len(
                     "s-new-bi/1",
@@ -5624,20 +5647,33 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     "established_direction_without_extreme_identity_competition",
                 );
                 assert_eq!(legacy_len, 10 + 18 + 58, "#1405前合同串长");
+                assert_eq!(legacy_claims(legacy_len), 111_334, "旧串推导须回到111,334");
                 assert_eq!(
-                    expected_claims(legacy_len),
-                    111_334,
-                    "旧串推导须回到111,334"
-                );
-                assert_eq!(
-                    sealed_before_p2a_for(legacy_len),
+                    legacy_sealed_before_p2a_for(legacy_len),
                     527_048,
                     "旧串推导须回到527,048"
                 );
                 let contract = crate::tb02b::CURRENT_CONTRACT;
                 let current_len =
                     contract_len(contract.schema, contract.policy, contract.knowledge_domain);
-                let sealed_before_p2a = sealed_before_p2a_for(current_len) + schema_growth;
+                // #1419 W 规则串增量（2026-11-05 主控按用户授权裁定，沿 #1488 裁定(b)）：B_W 冻结于
+                // c25c62d0952，当时 W 规则串 136B；4004c7cd 追加 `+bounded-layout/2` 后为 153B。
+                // 封存池对规则串恰有两个持有者（Binding meta 单元与 Proof Key.rule），各按串长计许可，
+                // 故 P2-A 前同夹具封存随串长差逐持有者增长；873,283 冻结测量不改。
+                const R14_FROZEN_W_RULE: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1";
+                assert_eq!(R14_FROZEN_W_RULE.len(), 136, "B_W 冻结时 W 规则串长");
+                let w_rule = crate::W_STRUCTURE_RULE_REVISION;
+                assert_eq!(
+                    rule_holders,
+                    [
+                        ("binding.cell", w_rule.len(), Some(w_rule.len())),
+                        ("proof.key.rule", w_rule.len(), Some(w_rule.len())),
+                    ],
+                    "规则串持有者恰为 Binding meta 与 Proof Key.rule 各一份，各按串长计许可"
+                );
+                let rule_growth = rule_holders.len() * (w_rule.len() - R14_FROZEN_W_RULE.len());
+                let sealed_before_p2a =
+                    sealed_before_p2a_for(current_len) + schema_growth + rule_growth;
                 assert_eq!(nodes, R14_NODES, "独立交叉核：来源节点数");
                 assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
                 let index_slots = index_bytes / slot_now;
@@ -5645,11 +5681,16 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 eprintln!(
                     "R14_P2B_DROP {}",
                     json!({"sealed_before_p2a":sealed_before_p2a,"sealed":sealed,
-                        "contract_len":current_len,"schema_growth":schema_growth,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
+                        "contract_len":current_len,"schema_growth":schema_growth,"rule_growth":rule_growth,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
                         "slot_now":slot_now,"slot_before_p2a":slot_before_p2a,"layout_drop":layout_drop})
                 );
                 assert_eq!(claims.1, expected_claims(current_len), "①来源合同额之和");
-                assert_eq!(layout_drop, 16_640, "②索引槽宽连带降幅");
+                assert_eq!(index_slots, R14_INDEX_SLOTS, "W 夹具索引槽数");
+                assert_eq!(
+                    layout_drop,
+                    R14_INDEX_SLOTS * 16,
+                    "②索引槽宽连带降幅（每槽窄16B）"
+                );
                 assert_eq!(
                     sealed_before_p2a - sealed,
                     claims.1 + layout_drop,
@@ -5709,7 +5750,15 @@ pub(super) mod construction_tests {
     #[cfg(unix)]
     include!("audit_owner/admission_tests.rs");
     #[cfg(unix)]
+    include!("audit_owner/w2_h1_structure_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/w2_h1_window_tests.rs");
+    #[cfg(unix)]
     include!("audit_owner/legacy_admission_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/step_reader_production_tests.rs");
+    #[cfg(all(unix, feature = "s_capture_native_testonly"))]
+    include!("audit_owner/step_reader_tests.rs");
 
     #[derive(Clone, Debug)]
     struct RawObservation {
@@ -6430,10 +6479,14 @@ pub(super) mod construction_tests {
         use super::super::prepared::tests::{
             runtime_root_compare_reachable_bytes, runtime_root_tables, Fixture,
         };
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         let mut views = Vec::new();
         for (rule, layout, other) in [
-            (crate::V3_RULE_REVISION, Layout::Sorted, Layout::Bounded1),
+            (
+                crate::W1_STRUCTURE_RULE_REVISION,
+                Layout::Sorted,
+                Layout::Bounded1,
+            ),
             (bounded_rule.as_str(), Layout::Bounded1, Layout::Sorted),
         ] {
             let mut warm = Fixture::with_rule(rule);
@@ -6561,10 +6614,10 @@ pub(super) mod construction_tests {
         };
         use super::super::layout::Layout;
         use super::super::prepared::tests::Fixture;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         for (rule, forced) in [
             (bounded_rule.as_str(), Layout::Sorted),
-            (crate::V3_RULE_REVISION, Layout::Bounded1),
+            (crate::W1_STRUCTURE_RULE_REVISION, Layout::Bounded1),
         ] {
             let warm = Fixture::with_rule(rule);
             let mut ordinary = Fixture::with_rule(rule);
@@ -7131,6 +7184,63 @@ pub(super) mod construction_tests {
     fn publication_resource_tail_failure_prevents_actual_sql_commit() {
         publication_scope_case(true);
     }
+    #[test]
+    fn publication_raw_advance_budget_preserves_origin_through_owner_boundary() {
+        let mut f = fixture();
+        let _ = f.accept_begin(2, ("raw-origin", 10, 8, 16, 6, 12), 1);
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut context = context();
+        let cold = owner.begin(TransactionBehavior::Deferred).unwrap();
+        cold.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+        owner.continue_with(cold.read_end().unwrap()).unwrap();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        active.bind_existing(Some(&context)).unwrap();
+        let resources = active.issue_publication_resources(&context).unwrap();
+        let work = resources.budget.codec_work().unwrap();
+        let mut operation_error = None;
+        let consumer_called = Cell::new(false);
+        let (run, trace) = failure_trace::capture(|| {
+            work.run(|work| {
+                // 保留真实父账和原帽；占满可用许可，raw首个实际节点申请必须失败。
+                let ballast = work.reserve_native(resources.budget.remaining()).unwrap();
+                let parent = PublicationScope {
+                    resources: &resources,
+                    work,
+                };
+                let result = active
+                    .with_bound_raw_advance_in_publication(&context, Some(&parent), |_| {
+                        consumer_called.set(true);
+                        Ok(())
+                    })
+                    .map_err(PublishError::from);
+                operation_error = result.as_ref().err().cloned();
+                drop(ballast);
+                result
+            })
+        });
+        assert!(!consumer_called.get(), "真实raw准入须先于消费者失败");
+        assert!(
+            matches!(
+            run,
+            Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(
+                newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Budget
+            ))
+        ),
+            "{run:?}"
+        );
+        assert!(trace.only_resource(), "{trace:?}");
+        assert_eq!(
+            publication_degrade_verdict(run.unwrap_err(), operation_error, trace),
+            Ok(()),
+            "真实父域raw前缀Budget须穿过PendingRawState与owner签发边界保留来源"
+        );
+    }
+
     fn publication_scope_case(fail_tail: bool) {
         let mut f = fixture();
         let (envelope, token) = f.accept_begin(2, ("scope-next", 10, 8, 16, 6, 12), 1);
@@ -7501,15 +7611,15 @@ impl AuditConnection {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(commit::CommitReceipt, Ended), String> {
-        let failure = |error: native::Failure| match error {
-            native::Failure::BudgetExceeded => invalid("P6完整对照臂父预算不足"),
+        let failure = |error: native::Failure<PublishError>| match error {
+            native::Failure::BudgetExceeded => invalid("P6完整对照臂父预算不足").into(),
             native::Failure::Invalid(error) => error,
         };
-        let result = (|| {
+        let result = (|| -> Result<_, PublishError> {
             let mut active =
                 self.begin_in_request(TransactionBehavior::Immediate, Some(context))?;
             if !active.bind_existing(Some(context))? {
-                return Err(invalid("P6完整对照臂缺同快照完整候选"));
+                return Err(invalid("P6完整对照臂缺同快照完整候选").into());
             }
             active.with_bound_raw_advance(context, |raw| raw.ensure_current())?;
             let resources = active.issue_publication_resources(context)?;
@@ -7517,7 +7627,7 @@ impl AuditConnection {
             let (receipt, after) = resources
                 .budget
                 .codec_work()
-                .map_err(&failure)?
+                .map_err(|error| failure(error.into()))?
                 .run(|work| {
                     let parent = PublicationScope {
                         resources: &resources,
@@ -7541,7 +7651,7 @@ impl AuditConnection {
                     active.finish_fixed_write_in_publication(Some(&parent))?;
                     let after = active.construction_seal()?;
                     active.check_publication_transition(resources.before, after)?;
-                    Ok::<_, String>((receipt, after))
+                    Ok::<_, PublishError>((receipt, after))
                 })
                 .map_err(|error| failure(native::Failure::from(error)))?;
             active.check_publication_run(ConstructionRun {
@@ -7560,7 +7670,7 @@ impl AuditConnection {
             runtime.discard();
             drop(context.take());
         }
-        result
+        result.map_err(PublishError::into_message)
     }
 
     pub(super) fn p6_source_context_for_test(&self) -> request_audit::RequestAuditContext {
@@ -7700,7 +7810,7 @@ impl AuditConnection {
             // “资源失败被吞后又返回的非预算真实错误”降级成功，这里另存闭包自身的 Err。
             // 0072（独审 0070 R1/R2）：整个 run（闭包 + 关域 + 父健康）在类型化失败记录下执行，
             // 降级判据读记录的类别多重集，不再按错误文字判断。
-            let mut operation_error: Option<String> = None;
+            let mut operation_error: Option<PublishError> = None;
             let (run, trace) = failure_trace::capture(|| {
                 work.run(|work| {
                     let result = (|| {
@@ -7731,7 +7841,7 @@ impl AuditConnection {
                             // 0069 负控（独审 0068 探针 e）：先记 Allocation，再返回与预算无关的真实错误。
                             if PUBLICATION_REAL_ERROR_AFTER_BUDGET.with(|flag| flag.replace(false)) {
                                 let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
-                                return Err(construction_state::stale("publication尾检身份不符（0069负控注入）"));
+                                return Err(construction_state::stale("publication尾检身份不符（0069负控注入）").into());
                             }
                             // 0072 锁（独审 0070 探针 g 取反）：先记 Allocation，再返回另一作用域 Ledger 类
                             // scratch 错误经 `invalid` 的渲染（与桥同字），须拒绝。
@@ -7742,10 +7852,10 @@ impl AuditConnection {
                                     ledger = Some(w.reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger).to_string());
                                     Ok::<_, String>(())
                                 });
-                                return Err(invalid(ledger.unwrap()));
+                                return Err(publish_err(ledger.unwrap()));
                             }
                         }
-                        Ok::<_, String>((receipt, after))
+                        Ok::<_, PublishError>((receipt, after))
                     })();
                     if let Err(error) = &result {
                         operation_error = Some(error.clone());
@@ -7757,7 +7867,7 @@ impl AuditConnection {
                 Ok(done) => done,
                 Err(error) => match publication_degrade_verdict(error, operation_error, trace) {
                     Ok(()) => return Ok(None),
-                    Err(e) => return Err(e),
+                    Err(e) => return Err(e.into_message()),
                 },
             };
             (
@@ -7770,7 +7880,8 @@ impl AuditConnection {
             )
         } else {
             (
-                self.publish_body(&mut active, runtime, token, envelope, context, None)?,
+                self.publish_body(&mut active, runtime, token, envelope, context, None)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 None,
             )
         };
@@ -7793,27 +7904,36 @@ impl AuditConnection {
 /// 否则返回 Ledger 分类的工作账损坏。
 #[cfg(feature = "s_incremental")]
 fn publication_degrade_verdict(
-    error: newchan_rust::s_content::capture_allocation::scratch::WorkError<String>,
-    operation_error: Option<String>,
+    error: newchan_rust::s_content::capture_allocation::scratch::WorkError<PublishError>,
+    operation_error: Option<PublishError>,
     trace: failure_trace::FailureTrace,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
-    let ledger = || match native::Failure::from(ScratchFailure::Ledger) {
+    let ledger = || match native::Failure::<PublishError>::from(ScratchFailure::Ledger) {
         native::Failure::Invalid(e) => e,
         native::Failure::BudgetExceeded => unreachable!("Ledger 恒为 Invalid"),
     };
     match error {
-        WorkError::Operation(e) => Err(e),
-        WorkError::Resource(ScratchFailure::Ledger) => Err(ledger()),
+        WorkError::Operation(e) => Err((e).into()),
+        WorkError::Resource(ScratchFailure::Ledger) => Err((ledger()).into()),
         WorkError::Resource(ScratchFailure::Budget | ScratchFailure::Allocation) => {
             match operation_error {
                 Some(e) if trace.only_resource() && trace.bridges(&e) => Ok(()),
-                Some(e) => Err(e),
+                Some(e) => Err((e).into()),
                 None if trace.only_resource() => Ok(()),
-                None => Err(ledger()),
+                None => Err((ledger()).into()),
             }
         }
     }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn publication_degrade_verdict_for_test(
+    error: newchan_rust::s_content::capture_allocation::scratch::WorkError<PublishError>,
+    operation_error: Option<PublishError>,
+    trace: failure_trace::FailureTrace,
+) -> Result<(), PublishError> {
+    publication_degrade_verdict(error, operation_error, trace)
 }
 
 #[cfg(feature = "s_incremental")]
@@ -7852,6 +7972,43 @@ thread_local! {
     pub(super) static PREPARE_ALLOCATION_FAILURE: Cell<bool> = const { Cell::new(false) };
     /// 0072 R2：尾检先记 Allocation，再返回另一作用域 Ledger 类 scratch 错误的渲染（须拒绝）。
     pub(super) static PUBLICATION_LEDGER_AFTER_BUDGET: Cell<bool> = const { Cell::new(false) };
+    /// #1419 M8D P2：audit_native_source 实际追加首次遇到索引扩容边界时，以 `G - offset`
+    /// 代替本次调用的 j.cap（只此一次，用后清空）；收据记 (G, 原 j.cap)。
+    pub(super) static SOURCE_APPEND_CAP_AT_GROWTH: Cell<Option<usize>> = const { Cell::new(None) };
+    pub(super) static SOURCE_APPEND_CAP_RECEIPT: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
+    /// #1419 M8D P3：真实来源追加每次到达索引扩容边界（新节点）时的局部门输入
+    /// (G, 本次实际 cap, 原 j.cap, 工作域 live)；只读记录，不改变门判。
+    pub(super) static SOURCE_APPEND_BOUNDARY_TRACE: std::cell::RefCell<Vec<[usize; 4]>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// #1419 M8D P2：真实来源追加的局部 cap；未布置、未到扩容边界或本节点已驻留（同摘要
+/// 追加不扩容、不比较 cap）时原样返回 j.cap。
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn source_append_cap_for_test(
+    capture: &newchan_rust::s_content::AuditCapture,
+    digest: &newchan_rust::s_content::NodeDigest,
+    cap: usize,
+    work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+) -> usize {
+    let growth = capture
+        .owner_index_next_growth()
+        .filter(|_| !capture.contains(digest));
+    let effective = match (SOURCE_APPEND_CAP_AT_GROWTH.with(Cell::get), growth) {
+        (Some(offset), Some(growth)) => {
+            SOURCE_APPEND_CAP_AT_GROWTH.with(|f| f.set(None));
+            SOURCE_APPEND_CAP_RECEIPT.with(|r| r.set(Some((growth, cap))));
+            growth - offset
+        }
+        _ => cap,
+    };
+    if let Some(growth) = growth {
+        SOURCE_APPEND_BOUNDARY_TRACE.with(|t| {
+            t.borrow_mut()
+                .push([growth, effective, cap, work.snapshot().live])
+        });
+    }
+    effective
 }
 
 #[cfg(all(test, feature = "s_incremental"))]
@@ -7862,7 +8019,7 @@ mod publication_degrade_verdict_tests {
     use newchan_rust::s_content::CodecError;
 
     /// 真实 codec 工作域 + 真实类型化记录，与 publish_attempt 同构：返回判据结果。
-    fn verdict(f: impl FnOnce(&WorkScope) -> Result<(), String>) -> Result<(), String> {
+    fn verdict(f: impl FnOnce(&WorkScope) -> Result<(), PublishError>) -> Result<(), String> {
         let mut operation_error = None;
         let (run, trace) = failure_trace::capture(|| {
             native::Budget::new(4096, 0)
@@ -7878,7 +8035,272 @@ mod publication_degrade_verdict_tests {
                 })
         });
         publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
+
+    fn resource_error(failure: ScratchFailure) -> newchan_rust::s_content::CodecError {
+        let mut error = None;
+        let result = native::Budget::new(4096, 0)
+            .unwrap()
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                error = Some(work.reject(failure));
+                Ok::<_, String>(())
+            });
+        assert!(result.is_err());
+        error.unwrap()
+    }
+
+    #[test]
+    fn publication_origin_survives_clone_and_two_contexts() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            assert_eq!(
+                verdict(|work| {
+                    let original = work.reject(failure);
+                    let cloned = original.clone();
+                    assert_eq!(original, cloned);
+                    let error = PublishError::from(cloned);
+                    Err(error
+                        .clone()
+                        .context("S3PrepareInvalid：")
+                        .context_suffix(" [owner full cut g=1]")
+                        .context("S3DriverInvalid："))
+                }),
+                Ok(())
+            );
+        }
+    }
+
+    #[test]
+    fn publication_admitted_json_preserves_deep_origin() {
+        let text = "P57-source".repeat(2048);
+        assert_eq!(
+            verdict(|work| {
+                let mut array = super::super::business_json::ScopedJsonArray::native(work)?;
+                array.push(
+                    newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(
+                        &text,
+                    ),
+                )
+            }),
+            Ok(()),
+            "数组实际准入失败必须到达发布判据"
+        );
+    }
+
+    #[test]
+    fn publication_admitted_history_preserves_deep_origin() {
+        // 对象键的工作向量必须持有所有键；长字符串编码本身可以流式完成。
+        let object = serde_json::Value::Object(
+            (0..1024)
+                .map(|i| (format!("key-{i:04}"), serde_json::Value::Null))
+                .collect(),
+        );
+        assert_eq!(
+            verdict(|work| {
+                let store = super::super::audit_store::NativeAdmission(Some(work));
+                super::super::history::hash_json_in_store(&store, &object, None, None).map(|_| ())
+            }),
+            Ok(()),
+            "历史摘要真实工作域失败必须保留来源"
+        );
+    }
+
+    #[test]
+    fn publication_admitted_sql_text_preserves_deep_origin() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        let text = "P57-source".repeat(2048);
+        connection
+            .execute("CREATE TABLE p57_text(value TEXT)", [])
+            .unwrap();
+        connection
+            .execute("INSERT INTO p57_text VALUES (?1)", [&text])
+            .unwrap();
+        assert_eq!(
+            verdict(|work| {
+                let mut statement = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                    &connection,
+                    c"SELECT value FROM p57_text",
+                )?;
+                let mut row = statement.next()?.unwrap();
+                super::super::business_json::TextValue::from_sql_admitted(
+                    &mut row,
+                    0,
+                    None,
+                    Some(work),
+                )
+                .map(|_| ())
+            }),
+            Ok(()),
+            "SQL文本实际复制失败必须保留来源"
+        );
+    }
+
+    #[test]
+    fn publication_distinct_in_capture_resource_origin_is_valid() {
+        assert_eq!(
+            verdict(|work| {
+                let _first = publish_err(work.reject(ScratchFailure::Budget));
+                Err(publish_err(work.reject(ScratchFailure::Allocation)))
+            }),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn publication_prior_capture_display_and_rewrap_cannot_sign_again() {
+        let ((codec, typed), old_trace) = failure_trace::capture(|| {
+            let codec = resource_error(ScratchFailure::Budget);
+            let typed = publish_err(codec.clone());
+            (codec, typed)
+        });
+        assert!(old_trace.bridges(&typed));
+        let expected = typed.to_string();
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Budget));
+                assert_eq!(typed.to_string(), expected);
+                Err(typed.clone())
+            }),
+            Err(expected.clone())
+        );
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Budget));
+                Err(publish_err(codec.clone()))
+            }),
+            Err(expected)
+        );
+    }
+
+    #[test]
+    fn publication_foreign_thread_origin_cannot_sign_current_capture() {
+        let (codec, typed) = std::thread::spawn(|| {
+            failure_trace::capture(|| {
+                let codec = resource_error(ScratchFailure::Allocation);
+                let typed = publish_err(codec.clone());
+                (codec, typed)
+            })
+            .0
+        })
+        .join()
+        .unwrap();
+        let expected = typed.to_string();
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Allocation));
+                Err(typed)
+            }),
+            Err(expected.clone())
+        );
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Allocation));
+                Err(publish_err(codec))
+            }),
+            Err(expected)
+        );
+    }
+
+    #[test]
+    fn publication_nested_capture_respects_birth_interval() {
+        let ((before, inside, inner), outer) = failure_trace::capture(|| {
+            let before = resource_error(ScratchFailure::Budget);
+            let ((before, inside), inner) = failure_trace::capture(|| {
+                (
+                    publish_err(before.clone()),
+                    publish_err(resource_error(ScratchFailure::Allocation)),
+                )
+            });
+            (before, inside, inner)
+        });
+        assert!(!inner.bridges(&before));
+        assert!(inner.bridges(&inside));
+        assert!(outer.bridges(&before));
+        assert!(outer.bridges(&inside));
+        assert!(outer.only_resource());
+    }
+
+    #[test]
+    fn publication_panic_restores_trace_without_reusing_events() {
+        let mut escaped = None;
+        let ((after, inner), outer) = failure_trace::capture(|| {
+            let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                failure_trace::capture(|| {
+                    escaped = Some(publish_err(resource_error(ScratchFailure::Budget)));
+                    let _ = resource_error(ScratchFailure::Ledger);
+                    panic!("P57捕获恢复");
+                });
+            }));
+            assert!(panic.is_err());
+            let (after, inner) =
+                failure_trace::capture(|| publish_err(resource_error(ScratchFailure::Allocation)));
+            (after, inner)
+        });
+        assert!(!outer.only_resource(), "被捕获的内层panic不能抹去Ledger");
+        assert!(!inner.bridges(escaped.as_ref().unwrap()));
+        assert!(inner.bridges(&after));
+        assert!(outer.bridges(escaped.as_ref().unwrap()));
+        let (_, fresh) = failure_trace::capture(|| ());
+        assert!(!fresh.bridges(&after));
+    }
+
+    #[test]
+    fn publication_serde_writer_preserves_inner_resource_origin() {
+        struct Failing<'a>(&'a WorkScope);
+        impl std::io::Write for Failing<'_> {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other(
+                    self.0.reject(ScratchFailure::Allocation),
+                ))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        assert_eq!(
+            verdict(|work| {
+                let wrapped = serde_json::to_writer(Failing(work), &["P57"]).unwrap_err();
+                let expected = wrapped.to_string();
+                let error = PublishError::from(wrapped);
+                assert_eq!(error.to_string(), expected);
+                Err(error)
+            }),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn publication_sql_and_io_wrappers_preserve_source_and_display() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            assert_eq!(
+                verdict(|work| {
+                    let wrapped = rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(work.reject(failure)),
+                    );
+                    let expected = wrapped.to_string();
+                    let error = PublishError::from(wrapped);
+                    assert_eq!(error.to_string(), expected);
+                    Err(error.context("PublicationInvalid："))
+                }),
+                Ok(())
+            );
+            assert_eq!(
+                verdict(|work| {
+                    let wrapped = std::io::Error::other(work.reject(failure));
+                    let expected = wrapped.to_string();
+                    let error = PublishError::from(wrapped);
+                    assert_eq!(error.to_string(), expected);
+                    Err(error)
+                }),
+                Ok(())
+            );
+        }
+    }
+
     fn other_scope_ledger() -> String {
         let mut seen = None;
         let _ = native::Budget::new(4096, 0)
@@ -7892,24 +8314,68 @@ mod publication_degrade_verdict_tests {
         seen.unwrap()
     }
 
+    #[test]
+    fn publication_same_text_without_origin_rejects() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            let returned = std::cell::RefCell::new(String::new());
+            let result = verdict(|work| {
+                let original = work.reject(failure);
+                let _ = publish_err(&original);
+                let independent =
+                    newchan_rust::s_content::CodecError::new(original.code(), original.detail());
+                let error = publish_err(independent);
+                *returned.borrow_mut() = error.to_string();
+                Err(error)
+            });
+            assert_eq!(result, Err(returned.into_inner()), "同文无来源错误不得降级");
+        }
+    }
+
+    #[test]
+    fn publication_same_text_foreign_origin_rejects() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            let mut foreign = None;
+            let _ = native::Budget::new(4096, 0)
+                .unwrap()
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    foreign = Some(work.reject(failure));
+                    Ok::<_, String>(())
+                });
+            let foreign = foreign.unwrap();
+            let expected = publish_err(&foreign).to_string();
+            assert_eq!(
+                verdict(|work| {
+                    let _ = publish_err(work.reject(failure));
+                    Err(publish_err(foreign.clone()))
+                }),
+                Err(expected),
+                "同文同类的域外错误不得借当前资源失败降级"
+            );
+        }
+    }
+
     /// 0072 判据真值表（独审 0070 R1/R2 + 0068 F1）：种类只取类型化记录；任意前缀包装的真实预算
     /// 不足降级；任何 Ledger（含别的作用域、不记入作用域的直接构造）或闭包自身真实错误一律拒绝。
     #[test]
     fn publication_degrade_verdict_only_for_pure_budget_shortfall() {
         let stale = || construction_state::stale("publication尾检身份不符");
         // R1：真实 S3 层前缀（prepared/state/reader/writer_resources/driver/StaleWriter 包装）全部降级。
-        let wrappers: [(&str, fn(&str) -> String); 7] = [
-            ("裸桥", |e| e.to_string()),
-            ("S3DriverInvalid", |e| invalid(e)),
-            ("S3PrepareInvalid", |e| format!("S3PrepareInvalid：{e}")),
-            ("S3StateInvalid", |e| format!("S3StateInvalid：{e}")),
+        let wrappers: [(&str, fn(PublishError) -> PublishError); 7] = [
+            ("裸桥", |e| e),
+            ("S3DriverInvalid", |e| publish_err(e)),
+            ("S3PrepareInvalid", |e| e.context("S3PrepareInvalid：")),
+            ("S3StateInvalid", |e| e.context("S3StateInvalid：")),
             ("S3ContentReadInvalid", |e| {
-                format!("S3ContentReadInvalid：{e}")
+                e.context("S3ContentReadInvalid：")
             }),
             ("S3WriterResourcesInvalid", |e| {
-                format!("S3WriterResourcesInvalid：{e}")
+                e.context("S3WriterResourcesInvalid：")
             }),
-            ("StaleWriter", |e| construction_state::stale(e)),
+            ("StaleWriter", |e| {
+                e.context("StaleWriter：construction资格失效：")
+            }),
         ];
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
             assert_eq!(
@@ -7922,13 +8388,13 @@ mod publication_degrade_verdict_tests {
             );
             for (name, wrap) in wrappers {
                 assert_eq!(
-                    verdict(|w| Err(wrap(&w.reject(failure).to_string()))),
+                    verdict(|w| Err(wrap(w.reject(failure).into()))),
                     Ok(()),
                     "R1：{name} 包装的真实 {failure:?} 须降级"
                 );
                 // 双层包装（prepared 内经 driver 再包一层）同样降级。
                 assert_eq!(
-                    verdict(|w| Err(invalid(wrap(&w.reject(failure).to_string())))),
+                    verdict(|w| Err(publish_err(wrap(w.reject(failure).into())))),
                     Ok(()),
                     "R1：{name} 双层包装"
                 );
@@ -7937,18 +8403,18 @@ mod publication_degrade_verdict_tests {
             assert_eq!(
                 verdict(|w| {
                     let _ = w.reject(failure);
-                    Err(stale())
+                    Err(stale().into())
                 }),
-                Err(stale()),
+                Err(stale().into()),
                 "F1：资源失败后闭包的非预算错误必须原样拒绝"
             );
             // F1 变体：资源失败已过桥但被吞，随后返回无关真实错误 → 拒绝（过桥核对只收紧）。
             assert_eq!(
                 verdict(|w| {
-                    let _ = invalid(w.reject(failure));
-                    Err(stale())
+                    let _ = publish_err(w.reject(failure));
+                    Err(stale().into())
                 }),
-                Err(stale()),
+                Err(stale().into()),
                 "F1 变体：过桥后被吞的资源失败不能为无关错误背书"
             );
             // R2（独审 0070 探针 g）：先记资源失败，再返回别的作用域 Ledger 类 scratch 错误（与桥同字）。
@@ -7956,9 +8422,9 @@ mod publication_degrade_verdict_tests {
             assert_eq!(
                 verdict(|w| {
                     let _ = w.reject(failure);
-                    Err(invalid(other_scope_ledger()))
+                    Err(publish_err(other_scope_ledger()))
                 }),
-                Err(invalid(&ledger_text)),
+                Err(publish_err(&ledger_text).into_message()),
                 "R2：Ledger 类 scratch 错误与桥同字也须拒绝"
             );
             // R2：不记入任何作用域的直接 Ledger 构造（SourceClaim 字节不符、check_write 域关闭等）。
@@ -7967,7 +8433,7 @@ mod publication_degrade_verdict_tests {
                 assert!(
                     verdict(|w| {
                         let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-                        Err(invalid(w.reject(failure)))
+                        Err(publish_err(w.reject(failure)))
                     })
                     .is_err(),
                     "R2：闭包期间任何 Ledger 构造都须拒绝"
@@ -8004,9 +8470,9 @@ mod publication_degrade_verdict_tests {
                 assert_eq!(
                     verdict(|w| {
                         // 先记资源失败使作用域分类为 Budget/Allocation，再观察语义失败（分类不变，记录 +1）。
-                        let e = invalid(w.reject(failure));
+                        let e = publish_err(w.reject(failure));
                         w.observe_for_test(&semantic());
-                        *bridged.borrow_mut() = e.clone();
+                        *bridged.borrow_mut() = e.to_string();
                         Err(e)
                     }),
                     Err(bridged.borrow().clone()),
@@ -8021,10 +8487,10 @@ mod publication_degrade_verdict_tests {
         })
         .unwrap_err()
         .contains("工作账损坏"));
-        assert!(verdict(|w| Err(invalid(w.reject(ScratchFailure::Ledger)))).is_err());
+        assert!(verdict(|w| Err(publish_err(w.reject(ScratchFailure::Ledger)))).is_err());
         assert_eq!(
-            verdict(|_| Err(stale())),
-            Err(stale()),
+            verdict(|_| Err(stale().into())),
+            Err(stale().into()),
             "无资源失败记录时闭包错误不降级"
         );
         // 记录只在 capture 内发生，嵌套时并入外层。
@@ -8041,8 +8507,14 @@ mod publication_degrade_verdict_tests {
             let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
             let (_, idle) = failure_trace::capture(|| ());
             assert_eq!(
-                idle,
-                failure_trace::FailureTrace::default(),
+                (
+                    idle.budget,
+                    idle.allocation,
+                    idle.ledger,
+                    idle.semantic,
+                    idle.bridged
+                ),
+                (0, 0, 0, 0, 0),
                 "capture 外不记录"
             );
         }
@@ -8080,6 +8552,15 @@ thread_local! {
     /// 本请求发布时取用即清。writer 单线程串行处理请求，冻结域每请求唯一。
     static COLD_ROOT_RERUN: std::cell::Cell<Option<(u64, u64, bool)>> =
         const { std::cell::Cell::new(None) };
+}
+
+#[cfg(feature = "s_incremental")]
+fn publish_stale(message: &str) -> PublishError {
+    construction_state::stale(message).into()
+}
+#[cfg(feature = "s_incremental")]
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("S3DriverInvalid：")
 }
 
 #[cfg(test)]

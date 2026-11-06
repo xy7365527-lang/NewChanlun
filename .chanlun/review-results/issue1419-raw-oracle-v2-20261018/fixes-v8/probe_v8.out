@@ -1,0 +1,41 @@
+{
+ "P1_seq_range_to_inflated_999": {
+  "result": "REJECTED",
+  "error": "ValueError: 切面seq_range.to与输入前沿不符"
+ },
+ "P1b_seq_range_to_minus1": {
+  "result": "REJECTED",
+  "error": "ValueError: 切面seq_range.to与输入前沿不符"
+ },
+ "P2a_caught_up_empty_after_bind_honest": {
+  "result": "ACCEPTED",
+  "detail": {
+   "deltas": 0,
+   "unchanged": true
+  }
+ },
+ "P2b_caught_up_empty_after_bind_structure_drift": {
+  "result": "REJECTED",
+  "error": "ValueError: 同代完整切面冲突:structure_cut"
+ },
+ "P2c_caught_up_empty_after_bind_frontier_drift": {
+  "result": "REJECTED",
+  "error": "ValueError: 同代完整切面冲突:input_frontier"
+ },
+ "P3_empty_page_cursor_advanced": {
+  "result": "REJECTED",
+  "error": "ValueError: watch游标不符"
+ },
+ "P4_from_off_by_one_gen141": {
+  "result": "REJECTED",
+  "error": "ValueError: watch seq_range断链"
+ },
+ "P5_nonempty_then_caught_up_empty": {
+  "result": "ACCEPTED",
+  "detail": {
+   "n": 1,
+   "after": "140",
+   "calls": 52
+  }
+ }
+}

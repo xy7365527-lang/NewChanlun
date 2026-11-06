@@ -5,6 +5,10 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use super::IoAccounting;
+#[cfg(feature = "s_incremental")]
+use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+    Callback, ChargedConnection, DbFlag, OpenSpec, SqlGate, SqlOps, SqliteBinding,
+};
 use rusqlite::{config::DbConfig, ffi, Connection, OpenFlags};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -990,7 +994,163 @@ pub(super) struct Registration<'a> {
     vfs: Option<Box<ffi::sqlite3_vfs>>,
     ctx: Option<Box<Context<'a>>>,
     name: Option<CString>,
+    /// #1419 3C：经收费组件注册时的绑定；撤销也经它走收尾域。
+    #[cfg(feature = "s_incremental")]
+    binding: Option<&'a SqliteBinding>,
     _not_send_or_sync: PhantomData<Rc<()>>,
+}
+
+/// 私有快照连接的读前序：Legacy 与受管连接共用同一组语句与判据。
+const EXCLUSIVE_LOCKING: &str = "PRAGMA locking_mode=EXCLUSIVE";
+const LOCKING_MODE: &str = "PRAGMA locking_mode";
+const READ_ONLY_PRELUDE: &str = "PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;";
+
+fn exclusive_verdict(mode: Option<&str>, check: Option<&str>) -> Result<()> {
+    match (mode, check) {
+        (Some(mode), Some(check)) if mode.eq_ignore_ascii_case("exclusive") && mode == check => {
+            Ok(())
+        }
+        _ => Err("exclusive mode missing".into()),
+    }
+}
+
+/// `PRAGMA quick_check` 的判据：恰好一行且为 `ok`。
+#[derive(Default)]
+pub(super) struct QuickCheck {
+    seen: bool,
+}
+
+impl QuickCheck {
+    pub(super) const SQL: &'static str = "PRAGMA quick_check";
+
+    pub(super) fn row(&mut self, text: &str) -> std::result::Result<(), &'static str> {
+        if text != "ok" || self.seen {
+            return Err("PrivateSqliteIntegrityRejected");
+        }
+        self.seen = true;
+        Ok(())
+    }
+
+    pub(super) fn finish(self) -> std::result::Result<(), &'static str> {
+        if self.seen {
+            Ok(())
+        } else {
+            Err("PrivateSqliteIntegrityEmpty")
+        }
+    }
+}
+
+/// 受管私有快照连接的失败：组件门（含收费首拒）或原前序判据。
+#[cfg(feature = "s_incremental")]
+#[allow(
+    dead_code,
+    reason = "#1419 3C：受管私有快照只由全新进程 release 锁消费，Native 一次启用波接入生产"
+)]
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum ChargedOpen {
+    Gate(SqlGate),
+    Rejected(&'static str),
+}
+
+/// #1419 3C：经收费组件打开的私有快照连接；连接、VFS 与回调上下文都由同一 [`Registration`] 持有。
+#[cfg(feature = "s_incremental")]
+#[allow(
+    dead_code,
+    reason = "#1419 3C：受管私有快照只由全新进程 release 锁消费，Native 一次启用波接入生产"
+)]
+pub(super) struct ChargedSession<'r, 'a> {
+    connection: Option<ChargedConnection>,
+    owner: &'r Registration<'a>,
+    binding: &'a SqliteBinding,
+}
+
+#[cfg(feature = "s_incremental")]
+#[allow(
+    dead_code,
+    reason = "#1419 3C：受管私有快照只由全新进程 release 锁消费，Native 一次启用波接入生产"
+)]
+impl ChargedSession<'_, '_> {
+    fn connection(&self) -> &ChargedConnection {
+        self.connection.as_ref().expect("live session")
+    }
+
+    pub fn run<R>(
+        &self,
+        f: impl FnOnce(&SqlOps<'_>) -> std::result::Result<R, SqlGate>,
+    ) -> std::result::Result<R, SqlGate> {
+        self.binding.run(self.connection(), f)
+    }
+
+    /// 原 `read_session` 的完整性前序：同一 SQL、同一 [`QuickCheck`] 判据，逐行准入。
+    pub fn quick_check(
+        &self,
+    ) -> std::result::Result<std::result::Result<(), &'static str>, SqlGate> {
+        self.run(|q| {
+            let mut verdict = QuickCheck::default();
+            let mut rejected = None;
+            q.prepare(QuickCheck::SQL)?.for_each_row([], |[value]| {
+                let row = match value.as_str() {
+                    Ok(text) => verdict.row(text),
+                    Err(_) => Err("PrivateSqliteCheckFailed"),
+                };
+                match row {
+                    Ok(()) => std::ops::ControlFlow::Continue(()),
+                    Err(e) => {
+                        rejected = Some(e);
+                        std::ops::ControlFlow::Break(())
+                    }
+                }
+            })?;
+            Ok(match rejected {
+                Some(e) => Err(e),
+                None => verdict.finish(),
+            })
+        })
+    }
+
+    /// 收尾：回滚未结束事务；首拒之后仍可执行，不调用原进度回调。
+    pub fn rollback(&self) -> std::result::Result<(), SqlGate> {
+        self.binding.rollback(self.connection())
+    }
+
+    pub fn close(mut self) -> Result<()> {
+        let c = self.connection.take().ok_or("already closed")?;
+        match self.binding.close(c) {
+            Ok(()) => {
+                if self.owner.ctx().close_errors.load(Ordering::SeqCst) > 0 {
+                    Err("VFS close callback failed".into())
+                } else {
+                    Ok(())
+                }
+            }
+            Err((c, e)) => {
+                drop(c);
+                Err(format!("PrivateSqliteCloseRefused {e:?}").into())
+            }
+        }
+    }
+
+    fn prelude(&self, exclusive_before_read: bool) -> std::result::Result<(), ChargedOpen> {
+        if exclusive_before_read {
+            let (mode, check) = self
+                .run(|q| {
+                    let mode = q.query_row(EXCLUSIVE_LOCKING, [], |[v]| {
+                        v.as_str().ok().map(str::to_owned)
+                    })?;
+                    let check =
+                        q.query_row(LOCKING_MODE, [], |[v]| v.as_str().ok().map(str::to_owned))?;
+                    Ok((mode, check))
+                })
+                .map_err(ChargedOpen::Gate)?;
+            exclusive_verdict(mode.as_deref(), check.as_deref())
+                .map_err(|_| ChargedOpen::Rejected("exclusive mode missing"))?;
+            self.owner
+                .arm_exclusive()
+                .map_err(|_| ChargedOpen::Rejected("trace capacity exhausted"))?;
+        }
+        self.run(|q| q.execute_batch(READ_ONLY_PRELUDE))
+            .map_err(ChargedOpen::Gate)
+    }
 }
 
 pub(super) struct Session<'r, 'a> {
@@ -1044,6 +1204,100 @@ impl<'a> Registration<'a> {
         account: &'a mut dyn IoAccounting,
         mixed_tables: Option<&'a std::cell::Cell<super::mixed_sql::MixedPolicy>>,
     ) -> Result<Self> {
+        let mut registration = Self::unregistered(main_file, wal_file, account, mixed_tables)?;
+        let vfs = registration.vfs.as_deref_mut().expect("unregistered vfs");
+        // SAFETY: 名字、vfs、ctx 在 Box 中稳定；makeDflt=0，不改变默认 VFS。
+        let rc = unsafe { ffi::sqlite3_vfs_register(vfs, 0) };
+        if rc != ffi::SQLITE_OK {
+            registration.vfs.take();
+            return Err(format!("register rc={rc}").into());
+        }
+        Ok(registration)
+    }
+
+    /// #1419 3C：同一私有 VFS 经收费组件注册到 `binding` 的父账名下；撤销在 [`Self::finish`]
+    /// 经它的收尾域执行。生产 Native 一次启用前只由全新进程 release 锁消费。
+    #[cfg(feature = "s_incremental")]
+    #[allow(
+        dead_code,
+        reason = "#1419 3C：受管私有快照只由全新进程 release 锁消费，Native 一次启用波接入生产"
+    )]
+    pub fn new_charged(
+        main_file: File,
+        wal_file: Option<File>,
+        account: &'a mut dyn IoAccounting,
+        binding: &'a SqliteBinding,
+    ) -> std::result::Result<Self, ChargedOpen> {
+        let mut registration = Self::unregistered(main_file, wal_file, account, None)
+            .map_err(|_| ChargedOpen::Rejected("PrivateVfsRegistrationFailed"))?;
+        let vfs: *mut ffi::sqlite3_vfs = registration.vfs.as_deref_mut().expect("unregistered vfs");
+        // SAFETY: vfs、名字与 ctx 在 Box 中稳定，直到 finish 撤销或析构；makeDflt=0。
+        if let Err(e) = unsafe { binding.register_vfs(vfs) } {
+            registration.vfs.take();
+            return Err(ChargedOpen::Gate(e));
+        }
+        registration.binding = Some(binding);
+        Ok(registration)
+    }
+
+    /// #1419 3C：按原 [`Self::connect`] 的打开标志、VFS、连接配置、限额、busy 超时、授权与进度
+    /// 回调经收费组件开库；原进度回调串在组件进度门之后。读前序与判据与原连接共用。
+    #[cfg(feature = "s_incremental")]
+    #[allow(
+        dead_code,
+        reason = "#1419 3C：受管私有快照只由全新进程 release 锁消费，Native 一次启用波接入生产"
+    )]
+    pub fn connect_charged(
+        &self,
+        exclusive_before_read: bool,
+    ) -> std::result::Result<ChargedSession<'_, 'a>, ChargedOpen> {
+        let binding = self
+            .binding
+            .ok_or(ChargedOpen::Rejected("PrivateVfsNotCharged"))?;
+        let ctx: *mut c_void = (self.ctx() as *const Context).cast_mut().cast();
+        let configs = [
+            (DbFlag::NoCheckpointOnClose, true),
+            (DbFlag::Defensive, true),
+            (DbFlag::EnableLoadExtension, false),
+        ];
+        let limits = [(ffi::SQLITE_LIMIT_WORKER_THREADS, 0)];
+        let spec = OpenSpec {
+            flags: ffi::SQLITE_OPEN_READONLY | ffi::SQLITE_OPEN_NOMUTEX,
+            vfs: Some(self.name()),
+            db_config: &configs,
+            limits: &limits,
+            busy_timeout_ms: Some(0),
+            authorizer: Some(Callback {
+                callback: authorizer,
+                context: ctx,
+            }),
+            progress: Some(Callback {
+                callback: progress,
+                context: ctx,
+            }),
+        };
+        // SAFETY: ctx 与 VFS 由本 Registration 持有；会话借用本 Registration，连接在其撤销 VFS
+        // 与析构之前关闭；回调只在开库线程同步调用，原样复用原连接的同一上下文。
+        let connection = unsafe { binding.open_with(self.ctx().main_name.as_c_str(), &spec) }
+            .map_err(ChargedOpen::Gate)?;
+        let session = ChargedSession {
+            connection: Some(connection),
+            owner: self,
+            binding,
+        };
+        if let Err(e) = session.prelude(exclusive_before_read) {
+            let _ = session.close();
+            return Err(e);
+        }
+        Ok(session)
+    }
+
+    fn unregistered(
+        main_file: File,
+        wal_file: Option<File>,
+        account: &'a mut dyn IoAccounting,
+        mixed_tables: Option<&'a std::cell::Cell<super::mixed_sql::MixedPolicy>>,
+    ) -> Result<Self> {
         account.before_io()?;
         // D1 机制与固定 bundled SQLite source id 绑定，不换成宿主 SQLite 重试。
         let source_id = unsafe { CStr::from_ptr(ffi::sqlite3_sourceid()) };
@@ -1079,7 +1333,7 @@ impl<'a> Registration<'a> {
             sql_denials: AtomicUsize::new(0),
             read_bytes: AtomicU64::new(0),
         });
-        let mut vfs = Box::new(ffi::sqlite3_vfs {
+        let vfs = Box::new(ffi::sqlite3_vfs {
             iVersion: 1,
             szOsFile: std::mem::size_of::<PinnedFile>() as i32,
             mxPathname: 256,
@@ -1103,17 +1357,26 @@ impl<'a> Registration<'a> {
             xGetSystemCall: None,
             xNextSystemCall: None,
         });
-        // SAFETY: 名字、vfs、ctx 在 Box 中稳定；makeDflt=0，不改变默认 VFS。
-        let rc = unsafe { ffi::sqlite3_vfs_register(&mut *vfs, 0) };
-        if rc != ffi::SQLITE_OK {
-            return Err(format!("register rc={rc}").into());
-        }
         Ok(Self {
             vfs: Some(vfs),
             ctx: Some(ctx),
             name: Some(name),
+            #[cfg(feature = "s_incremental")]
+            binding: None,
             _not_send_or_sync: PhantomData,
         })
+    }
+
+    fn arm_exclusive(&self) -> Result<()> {
+        self.ctx().exclusive_armed.store(true, Ordering::SeqCst);
+        if self
+            .ctx()
+            .record("exclusive-armed", 0, 0, 0, ffi::SQLITE_OK)
+            != ffi::SQLITE_OK
+        {
+            return Err("trace capacity exhausted".into());
+        }
+        Ok(())
     }
 
     fn ctx(&self) -> &Context<'a> {
@@ -1187,21 +1450,12 @@ impl<'a> Registration<'a> {
             );
         }
         if exclusive_before_read {
-            let mode: String = c.query_row("PRAGMA locking_mode=EXCLUSIVE", [], |r| r.get(0))?;
-            let check: String = c.query_row("PRAGMA locking_mode", [], |r| r.get(0))?;
-            if !mode.eq_ignore_ascii_case("exclusive") || mode != check {
-                return Err("exclusive mode missing".into());
-            }
-            self.ctx().exclusive_armed.store(true, Ordering::SeqCst);
-            if self
-                .ctx()
-                .record("exclusive-armed", 0, 0, 0, ffi::SQLITE_OK)
-                != ffi::SQLITE_OK
-            {
-                return Err("trace capacity exhausted".into());
-            }
+            let mode: String = c.query_row(EXCLUSIVE_LOCKING, [], |r| r.get(0))?;
+            let check: String = c.query_row(LOCKING_MODE, [], |r| r.get(0))?;
+            exclusive_verdict(Some(mode.as_str()), Some(check.as_str()))?;
+            self.arm_exclusive()?;
         }
-        c.execute_batch("PRAGMA query_only=ON; PRAGMA temp_store=MEMORY;")?;
+        c.execute_batch(READ_ONLY_PRELUDE)?;
         Ok(Session {
             connection: Some(c),
             owner: self,
@@ -1217,7 +1471,16 @@ impl<'a> Registration<'a> {
         {
             return Err("PrivateVfsCleanupOrSourceChanged".into());
         }
-        let rc = unsafe { ffi::sqlite3_vfs_unregister(self.vfs.as_deref_mut().ok_or("no vfs")?) };
+        let vfs: *mut ffi::sqlite3_vfs = self.vfs.as_deref_mut().ok_or("no vfs")?;
+        #[cfg(feature = "s_incremental")]
+        if let Some(binding) = self.binding {
+            // SAFETY: 本 Registration 经 binding 注册且连接均已关闭；收尾域首拒后仍可撤销。
+            unsafe { binding.unregister_vfs(vfs) }.map_err(|_| "PrivateVfsUnregister")?;
+            self.vfs.take();
+            self.ctx.take();
+            return Ok(());
+        }
+        let rc = unsafe { ffi::sqlite3_vfs_unregister(vfs) };
         if rc != ffi::SQLITE_OK {
             return Err("PrivateVfsUnregister".into());
         }
@@ -1239,5 +1502,157 @@ impl Drop for Registration<'_> {
                 std::process::abort();
             }
         }
+    }
+}
+
+/// #1419 3C：私有快照连接家族经收费组件运行原注册、开库、读前序、完整性判据与收尾。
+/// allocator 只能在本进程首次 SQLite 初始化前安装，须全新进程 `--release --ignored --exact`
+/// 单独运行（CI 经 `.github/1488-uo-release-locks.txt` 逐条执行）。
+#[cfg(all(test, feature = "s_incremental"))]
+mod charged_tests {
+    use super::super::super::audit_owner::native::Budget;
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteParentAllocator;
+
+    const LIMIT: usize = 64 << 20;
+
+    #[derive(Default)]
+    struct Io {
+        before: usize,
+        read: u64,
+    }
+
+    impl IoAccounting for Io {
+        fn before_io(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
+            self.before += 1;
+            Ok(())
+        }
+        fn after_read(
+            &mut self,
+            actual: u64,
+        ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+            self.read += actual;
+            Ok(())
+        }
+    }
+
+    fn vfs_registered(name: &CStr) -> bool {
+        // SAFETY: name is NUL-terminated; lookup does not allocate after initialization.
+        !unsafe { ffi::sqlite3_vfs_find(name.as_ptr()) }.is_null()
+    }
+
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn private_snapshot_charged_keeps_original_vfs_gates_and_same_parent() {
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = Budget::fresh(LIMIT).unwrap();
+        let mut current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let bind = |budget: &Budget| {
+            let (parent, origin) = budget.sqlite_parent();
+            allocator.bind(parent, origin).expect("bind")
+        };
+        let dir = std::env::temp_dir().join(format!("private-charged-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("main.sqlite3");
+
+        let wide = bind(&current);
+        let seed = wide
+            .open(&CString::new(db.to_str().unwrap()).unwrap())
+            .unwrap();
+        wide.run(&seed, |q| {
+            q.execute_batch(
+                "CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
+                 INSERT INTO meta VALUES('rule_revision', 'r');",
+            )
+        })
+        .unwrap();
+        wide.close(seed).map_err(|(_, e)| e).unwrap();
+
+        let base = current.live();
+        let mut io = Io::default();
+        let registration =
+            Registration::new_charged(File::open(&db).unwrap(), None, &mut io, &wide)
+                .unwrap_or_else(|e| panic!("charged registration: {e:?}"));
+        let name = registration.name().to_owned();
+        assert!(
+            vfs_registered(&name),
+            "private VFS registered under the parent"
+        );
+        let session = registration
+            .connect_charged(true)
+            .unwrap_or_else(|e| panic!("charged private open: {e:?}"));
+        assert!(
+            registration.ctx().exclusive_armed.load(Ordering::SeqCst),
+            "exclusive prelude armed the shared callback context"
+        );
+        assert!(
+            current.live() > base,
+            "connection bytes charged to the parent"
+        );
+        assert_eq!(session.quick_check(), Ok(Ok(())));
+        assert_eq!(
+            session.run(|q| q.query_row(
+                "SELECT value FROM meta WHERE key = 'rule_revision'",
+                [],
+                |[v]| { v.as_str().map(str::to_owned).ok() }
+            )),
+            Ok(Some("r".to_owned()))
+        );
+
+        let denials = registration.sql_denials();
+        let write = session.run(|q| q.execute_batch("INSERT INTO meta VALUES('k', 'v')"));
+        assert!(matches!(write, Err(SqlGate::Sqlite(_))), "{write:?}");
+        let rearm = session.run(|q| q.execute_batch("PRAGMA locking_mode=EXCLUSIVE"));
+        assert!(matches!(rearm, Err(SqlGate::Sqlite(_))), "{rearm:?}");
+        assert_eq!(
+            registration.sql_denials(),
+            denials + 2,
+            "original authorizer denies the write and the re-arm"
+        );
+
+        session.rollback().unwrap();
+        session.close().unwrap();
+        registration.finish().unwrap();
+        assert!(
+            !vfs_registered(&name),
+            "VFS unregistered through the teardown domain"
+        );
+        assert!(
+            io.before > 0 && io.read > 0,
+            "VFS I/O went through the original accounting"
+        );
+        assert_eq!(
+            current.live(),
+            base,
+            "all connection and VFS bytes returned"
+        );
+
+        drop(wide);
+        current = current.handoff(2, 0).expect("zero-allowance frozen domain");
+        let tight = bind(&current);
+        let base = current.live();
+        let mut io = Io::default();
+        let registration =
+            Registration::new_charged(File::open(&db).unwrap(), None, &mut io, &tight)
+                .unwrap_or_else(|e| panic!("registration allocates nothing: {e:?}"));
+        let name = registration.name().to_owned();
+        match registration.connect_charged(true) {
+            Err(refused) => assert_eq!(
+                refused,
+                ChargedOpen::Gate(SqlGate::Refused(ScratchFailure::Budget))
+            ),
+            Ok(_) => panic!("open must be refused in a zero-allowance domain"),
+        }
+        assert_eq!(tight.refusal(), Some(ScratchFailure::Budget));
+        registration.finish().unwrap();
+        assert!(
+            !vfs_registered(&name),
+            "teardown unregisters after the first refusal"
+        );
+        assert_eq!(current.live(), base, "refused open leaves no charged bytes");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

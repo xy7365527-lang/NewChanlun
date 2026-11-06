@@ -1,0 +1,30 @@
+test_all_entrypoints_reject_same_generation_conflicts (test_v6.Tests.test_all_entrypoints_reject_same_generation_conflicts) ... ok
+test_context_budget_admitted_before_copy (test_v6.Tests.test_context_budget_admitted_before_copy) ... ok
+test_cursor_all_fields_rebind_and_dedup (test_v6.Tests.test_cursor_all_fields_rebind_and_dedup) ... ok
+test_full_projection_identity_and_closure_failure_no_receipt (test_v6.Tests.test_full_projection_identity_and_closure_failure_no_receipt) ... ok
+test_head_ahead_pagination_recompute_and_interleaving (test_v6.Tests.test_head_ahead_pagination_recompute_and_interleaving) ... ok
+test_historical_and_future_snapshots_share_watch_context (test_v6.Tests.test_historical_and_future_snapshots_share_watch_context) ... ok
+test_new_generation_closure_failure_preserves_old_receipt_and_session (test_v6.Tests.test_new_generation_closure_failure_preserves_old_receipt_and_session) ... ok
+test_observed_future_head_conflict_is_retained_across_calls (test_v6.Tests.test_observed_future_head_conflict_is_retained_across_calls) ... ok
+test_original_accepted_999_vs_delta_139_and_identity_locks (test_v6.Tests.test_original_accepted_999_vs_delta_139_and_identity_locks) ... ok
+test_raw_payload_gate_precedes_receipt_for_all_tested_kinds (test_v6.Tests.test_raw_payload_gate_precedes_receipt_for_all_tested_kinds) ... ok
+test_receipts_only_from_real_complete_chain (test_v6.Tests.test_receipts_only_from_real_complete_chain) ... ok
+test_stale_receipt_and_return_alias (test_v6.Tests.test_stale_receipt_and_return_alias) ... ok
+test_v7_seq_range_continuity_and_caught_up_empty_page (test_v6.Tests.test_v7_seq_range_continuity_and_caught_up_empty_page) ... ok
+test_watch_envelope_negatives_and_recovery (test_v6.Tests.test_watch_envelope_negatives_and_recovery) ... ok
+test_watch_transaction_failures_and_direct_call_guard (test_v6.Tests.test_watch_transaction_failures_and_direct_call_guard) ... ok
+test_f2_constructor_and_binding_preallocation (test_v5.Tests.test_f2_constructor_and_binding_preallocation) ... ok
+test_f2_equal_payload_fragmentation_never_cheaper (test_v5.Tests.test_f2_equal_payload_fragmentation_never_cheaper) ... ok
+test_f2_large_header_rejected_before_serialization (test_v5.Tests.test_f2_large_header_rejected_before_serialization) ... ok
+test_f2_metadata_admission_shapes_deadline_and_cumulative (test_v5.Tests.test_f2_metadata_admission_shapes_deadline_and_cumulative) ... ok
+test_f1_json_text_data_rehashed (test_v5.Tests.test_f1_json_text_data_rehashed) ... ok
+test_f2_graph_duplicate_and_expired (test_v4.Tests.test_f2_graph_duplicate_and_expired) ... ok
+test_f2_graph_byte_work_before_hex_hash (test_v4.Tests.test_f2_graph_byte_work_before_hex_hash) ... ok
+test_driver_collects_fixed_pages_and_full_content (test_v2.V2Tests.test_driver_collects_fixed_pages_and_full_content) ... 重复全图fake拒绝 {'calls': 41, 'work': 999999, 'limit': 1000000}
+分块完整图fake通过 {'calls': 190, 'work': 795047, 'limit': 1000000}
+ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 22.302s
+
+OK

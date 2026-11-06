@@ -33,3 +33,15 @@ layout/1 的库（S86 r6/r7 等冻结证据）由新二进制按库内 `rule_rev
 
 ## 受影响代码清单
 [`1489-AFFECTED-CODE.md`](../../.chanlun/review-results/issue1323-grilling-20261013/1489-AFFECTED-CODE.md)（基线 #1394 整合分支 `0fc0c165`）。段 A 归 [#1488](https://github.com/xy7365527-lang/NewChanlun/issues/1488)，段 B 归 [#1491](https://github.com/xy7365527-lang/NewChanlun/issues/1491)。
+
+## #1419 P2 单元源修订增补（2026-10-30，31P）
+
+[#1419 P2](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769) 的31P增补将唯一新写串登记为 `s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2`。W初始化政策不变，payload政策值仍为 `raw-initialization-w/1`；codec、profile与catalog不升版。
+
+`bounded-layout/2`保留单元五字段 `bar={source_coord,open,high,low,close}` 及24项 `relations`，仅新增 `source_ref` 内容边。它复用 `bind_source` 已登记的同cut同坐标当前有效八字段文本 RawRefSpec：`identity_key,payload_hash,receipt_id,event_id,input_revision,revision,seq,source_coord`；revision、seq沿原规范十进制文本。缺源或坐标不匹配拒绝。单元不加入generation、cut、生命周期，batch.input_refs不扩成历史全账。源修订即使恢复原OHLC也有新单元根及新batch身份，旧cut和已撤回身份保持原状。
+
+失败候选的完整 `raw-initialization-w/2+bounded-layout/1` 串继续精确登记为W2语义及Bounded1布局，只读拒写；旧单元编码、全部已登记历史串读法与原件不改。未知、混版本、重复、错序串拒绝，无fallback。前文最初的 `layout/1` 是Sorted历史布局，与此处 `bounded-layout/1` 区分。
+
+crosswalk只显式分解新增source_ref及其派生身份/根差异；bar、24关系、其余事实、次序和数量完整比较。V6原25代与三个具名锁保留，并加同W的新/2臂。三条原pending_source输入要求通过独立serde配方、目录oracle与codec根检查；旧W1三根缺件义务另列于baohan，不由新W2通过替代。实际测试收据以精确候选CI为准。
+
+S86五常数、g1..86逐代上界、双跑、crosswalk、r6原件与容量门不变；新增源边按原公式核验，不拟合常数。#1481已冻结9011不追加重跑。原106代与28代exact由主控另排，不以靶向CI代替。

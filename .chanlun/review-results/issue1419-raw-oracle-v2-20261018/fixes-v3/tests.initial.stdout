@@ -1,0 +1,19 @@
+test_changed_api_regressions (__main__.Fixes.test_changed_api_regressions) ... ok
+test_changed_supervisor_normal_paths (__main__.Fixes.test_changed_supervisor_normal_paths) ... ok
+test_f1_first_visibility_binding_interface (__main__.Fixes.test_f1_first_visibility_binding_interface) ... ok
+test_f1_independent_static_fixture (__main__.Fixes.test_f1_independent_static_fixture) ... ok
+test_f1_lifecycle_is_not_silently_verified (__main__.Fixes.test_f1_lifecycle_is_not_silently_verified) ... ok
+test_f1_rehashed_field_mutations (__main__.Fixes.test_f1_rehashed_field_mutations) ... ok
+test_f2_shared_dag_budget_boundary (__main__.Fixes.test_f2_shared_dag_budget_boundary) ... ok
+test_f2_unselected_families_are_not_plain_expanded (__main__.Fixes.test_f2_unselected_families_are_not_plain_expanded) ... ok
+test_f3_all_tested_kinds_reject_bad_payload (__main__.Fixes.test_f3_all_tested_kinds_reject_bad_payload) ... ok
+test_f4_wire_null_and_dangling_references (__main__.Fixes.test_f4_wire_null_and_dangling_references) ... ok
+test_f5_original_snapshot_contentref_metadata (__main__.Fixes.test_f5_original_snapshot_contentref_metadata) ... ok
+test_f6_partial_initialization_cleanup (__main__.Fixes.test_f6_partial_initialization_cleanup) ... ok
+test_f7_review_19bar_inclusion_rejected (__main__.Fixes.test_f7_review_19bar_inclusion_rejected) ... ok
+test_f8_frontier_validation_and_cross_epoch (__main__.Fixes.test_f8_frontier_validation_and_cross_epoch) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 50.758s
+
+OK

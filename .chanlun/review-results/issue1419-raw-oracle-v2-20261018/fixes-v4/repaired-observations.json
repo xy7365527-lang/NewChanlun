@@ -1,0 +1,485 @@
+{
+  "tests": 10,
+  "failures": 1,
+  "errors": 1,
+  "observations": [
+    {
+      "case": "F1双字段冲突",
+      "public_bad": true,
+      "rejection": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1双字段冲突",
+      "public_bad": false,
+      "rejection": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1公共payload正控",
+      "result": {
+        "status": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED",
+        "segments": 10,
+        "centers": 2,
+        "pairs_compared": 1,
+        "product_run": "NOT_RUN",
+        "verified_subquantifiers": [
+          "有限域低级端点几何/笔formation及引用绑定",
+          "段端点/construction/strict/fact_vector/终结证书",
+          "seed五条件/核心/成员/Zn贡献/归属null及实体引用",
+          "相邻对连接成员及16格"
+        ],
+        "unverified": {
+          "first_visibility": "UNVERIFIED",
+          "known_at": "UNVERIFIED",
+          "AsKnown": "UNVERIFIED",
+          "entity_revision": "UNVERIFIED",
+          "raw_history": "UNVERIFIED",
+          "withdrawn_objects": "UNVERIFIED",
+          "lower_source_coords_and_sealing": "UNVERIFIED",
+          "lower_confirmation": "UNVERIFIED",
+          "feature_sequence_objects": "UNVERIFIED",
+          "full_catalog_axes": "UNVERIFIED",
+          "product_source_binding": "UNVERIFIED"
+        },
+        "logical_work_used": 323169,
+        "limitations": "只声明逐项静态子量词；真实前缀轨迹和生命周期输出未接入，禁止据此销项"
+      }
+    },
+    {
+      "case": "F2Collector前置拒绝",
+      "expired": false,
+      "snapshot_calls": 1,
+      "content_calls": 0,
+      "hash_calls": 0,
+      "work": 10,
+      "deadline_calls": 9,
+      "rejection": "闭包逻辑工作量超限：used=10, requested=1, limit=10"
+    },
+    {
+      "case": "F2Collector前置拒绝",
+      "expired": true,
+      "snapshot_calls": 0,
+      "content_calls": 0,
+      "hash_calls": 0,
+      "work": 0,
+      "deadline_calls": 1,
+      "rejection": "总截止已到"
+    },
+    {
+      "case": "F2重复20000",
+      "expired": false,
+      "input_calls": 0,
+      "hash_calls": 0,
+      "work": 1,
+      "deadline_calls": 2,
+      "rejection": "闭包逻辑工作量超限：used=1, requested=1, limit=1"
+    },
+    {
+      "case": "F2重复20000",
+      "expired": true,
+      "input_calls": 0,
+      "hash_calls": 0,
+      "work": 0,
+      "deadline_calls": 1,
+      "rejection": "总截止已到"
+    },
+    {
+      "case": "F2内容分配前预算",
+      "call_count": 0,
+      "work": 3
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "ff",
+      "body_bytes": 0,
+      "rejection": "节点头：未知tag"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "03",
+      "body_bytes": 39,
+      "rejection": "节点头：值头长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "00",
+      "body_bytes": 1,
+      "rejection": "节点头：空体种类有载荷"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "08",
+      "body_bytes": 1,
+      "rejection": "节点头：空体种类有载荷"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "11",
+      "body_bytes": 1,
+      "rejection": "节点头：空体种类有载荷"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "07",
+      "body_bytes": 0,
+      "rejection": "节点头：单子长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "12",
+      "body_bytes": 0,
+      "rejection": "节点头：单子长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "10",
+      "body_bytes": 0,
+      "rejection": "节点头：字节块长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "10",
+      "body_bytes": 4097,
+      "rejection": "节点头：字节块长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "13",
+      "body_bytes": 71,
+      "rejection": "节点头：分支长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "13",
+      "body_bytes": 72,
+      "rejection": "节点头：分支计数"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "14",
+      "body_bytes": 63,
+      "rejection": "节点头：field长度"
+    },
+    {
+      "case": "F5未引用头负控",
+      "tag": "05",
+      "body_bytes": 40,
+      "rejection": "节点头：U64域"
+    },
+    {
+      "case": "F5合法头形状正控",
+      "tags": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        16,
+        17,
+        18,
+        19,
+        20
+      ]
+    },
+    {
+      "case": "F8同代140前沿999对139",
+      "rejection": "watch与接纳切面不符:input_frontier"
+    },
+    {
+      "case": "F8跨epoch正控",
+      "counts": [
+        1,
+        65,
+        65
+      ],
+      "frontiers": [
+        "139",
+        "204",
+        "269"
+      ],
+      "seq_to": "7"
+    },
+    {
+      "case": "F8切面身份:structure_cut",
+      "rejection": "watch与接纳切面不符:structure_cut"
+    },
+    {
+      "case": "F8切面身份:index_frontier",
+      "rejection": "watch与接纳切面不符:index_frontier"
+    },
+    {
+      "case": "F8切面身份:catalog_run_status",
+      "rejection": "watch与接纳切面不符:catalog_run_status"
+    },
+    {
+      "case": "F8切面身份:catalog_evidence",
+      "rejection": "watch与接纳切面不符:catalog_evidence"
+    },
+    {
+      "case": "F8切面身份:seq_range",
+      "rejection": "watch与接纳切面不符:seq_range"
+    },
+    {
+      "case": "F8切面身份:scope",
+      "rejection": "接纳切面身份不符:scope"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "100",
+      "count": 1,
+      "rejection": "watch输入前沿回退"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "-1",
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "0139",
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "139.0",
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": 139,
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": true,
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": null,
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "140",
+      "count": 1,
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "139",
+      "count": 2,
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    }
+  ],
+  "product_run": "NOT_RUN"
+}

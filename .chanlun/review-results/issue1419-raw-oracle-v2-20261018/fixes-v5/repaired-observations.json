@@ -1,0 +1,95 @@
+{
+  "schema": "issue1419-v5-targeted-observations/1",
+  "tests": 3,
+  "failures": 0,
+  "errors": 0,
+  "observations": [
+    {
+      "case": "F1直接JSONText",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F2两百万header",
+      "error": "闭包逻辑工作量超限：used=109, requested=1955, limit=300",
+      "work": 109,
+      "reply_bytes": 0,
+      "writes": [
+        319
+      ],
+      "serialized": []
+    },
+    {
+      "case": "F8分次profile漂移",
+      "accepted": [
+        140
+      ],
+      "error": "接纳切面身份变化:profile_id"
+    }
+  ],
+  "source_identity": {
+    "driver/assemble_evidence.py": {
+      "bytes": 16440,
+      "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4"
+    },
+    "driver/content_closure.py": {
+      "bytes": 16908,
+      "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8"
+    },
+    "driver/driver_v2.py": {
+      "bytes": 19632,
+      "sha256": "6d8b4aeed034fe2eb92b7de674a823c8dc1d864c678655bd9df8bdd07a40b7f2"
+    },
+    "driver/fixed_cut_driver.py": {
+      "bytes": 25602,
+      "sha256": "806b239197ec66b45782e50ab5cc4cb9668090ef32050344303a84cf598f85b6"
+    },
+    "driver/prepare_candidate.py": {
+      "bytes": 9867,
+      "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00"
+    },
+    "driver/raw_oracle.py": {
+      "bytes": 14593,
+      "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e"
+    },
+    "driver/seal_bundle.py": {
+      "bytes": 3854,
+      "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575"
+    },
+    "driver/test_v2.py": {
+      "bytes": 17572,
+      "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028"
+    },
+    "driver/toy_supervisor.py": {
+      "bytes": 5543,
+      "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5"
+    },
+    "driver/verify_delivery.py": {
+      "bytes": 4363,
+      "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30"
+    },
+    "fixes-v5/run_checks.py": {
+      "bytes": 1644,
+      "sha256": "0fa67e652a98dd8514b45f66869232be1859c5603982a8f96b6fbf0491b8be4b"
+    },
+    "fixes-v5/test_v5.py": {
+      "bytes": 6071,
+      "sha256": "8198f96d1c52810f243807bdfd87263c9be4e9e6852ffa56580d882e7f682c6f"
+    },
+    "fixes-v4/test_v4.py": {
+      "bytes": 17182,
+      "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a"
+    },
+    "fixes-v3/domain_fields.py": {
+      "bytes": 5414,
+      "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591"
+    },
+    "fixes-v3/independent_fixture.py": {
+      "bytes": 7367,
+      "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e"
+    }
+  },
+  "authorization": false,
+  "product_run": "NOT_RUN",
+  "qualification": "实施工蜂定向内存/fake，非独立评审"
+}

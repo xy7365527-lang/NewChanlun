@@ -35,6 +35,7 @@ use super::*;
 use newchan_rust::s_content as sc;
 #[cfg(test)]
 use newchan_rust::s_content::ContentRef;
+use newchan_rust::s_content::ContextError as PublishError;
 use rusqlite::Transaction;
 
 /// #1394 仅本模块可签发；不是公开事务或跨请求缓存许可。
@@ -828,7 +829,8 @@ fn audit_core_fresh_with_policy(
         None
     };
     let capture = external_capture.or(constructed_capture.as_ref());
-    let ordinary_materials_qualified = budget.is_none()
+    let ordinary_materials_qualified = policy == history::SourcePolicy::Ordinary
+        && budget.is_none()
         && deadline.is_none()
         && max_render_bytes.is_none()
         && !enable_prototype_capture
@@ -923,7 +925,10 @@ fn audit_core_fresh_with_policy(
         .and_then(|capture| history::NativeRecordFields::new_admitted(capture, work));
     #[cfg(not(feature = "s_incremental"))]
     let mut native_records: Option<history::NativeRecordFields<'_>> = None;
-    let mut materials = ordinary_materials_qualified.then(|| {
+    let sqlite_base = (ordinary_materials_qualified && base_proofs_enabled()).then(|| {
+        super::ordinary_materials::SqliteAuditOwner::new(tx, OrdinaryAuditSeal { _private: () })
+    });
+    let mut materials = (ordinary_materials_qualified && sqlite_base.is_none()).then(|| {
         super::ordinary_materials::OrdinaryAuditMaterials::new(OrdinaryAuditSeal { _private: () })
     });
     let verified_history = history::read_verified_public_history(
@@ -938,6 +943,7 @@ fn audit_core_fresh_with_policy(
         work,
         materials.as_mut(),
         policy,
+        sqlite_base.as_ref().map(|owner| owner.base()),
     )?;
     let history::IndexedHistory {
         cuts,
@@ -948,12 +954,19 @@ fn audit_core_fresh_with_policy(
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
-    verify_unrun_catalog_admitted(tx, cuts.is_empty(), control_owner, work)?;
+    // #1419：本会话规则的目录轴表（13/17/22，与写者同表）才是运行行；其余行恒为未运行。
+    let live_axes = match cuts.last() {
+        Some(cut) => catalog_evidence::rule_axes(&cut.metadata.rule_revision)?,
+        None => &[],
+    };
+    verify_unrun_catalog_admitted(tx, cuts.is_empty(), live_axes, control_owner, work)?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    if policy == history::SourcePolicy::NativeMeasured || budget.is_none() {
+    if sqlite_base.is_none()
+        && (policy == history::SourcePolicy::NativeMeasured || budget.is_none())
+    {
         reader.enable_audit_same_material();
     }
     let mut reader = Some(reader);
@@ -968,7 +981,10 @@ fn audit_core_fresh_with_policy(
         Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
-        None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
+        None => match sqlite_base.as_ref() {
+            Some(owner) => history::HashReader::sqlite_base(owner.base()),
+            None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
+        },
     };
     store = store
         .with_source_policy(policy)
@@ -995,7 +1011,8 @@ fn audit_core_fresh_with_policy(
                 policy,
             )
         })
-        .transpose()?;
+        .transpose()
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(not(feature = "s_incremental"))]
     let mut native_sources: Option<source_audit::NativeSourceAudit<'_>> = None;
     #[cfg(feature = "s_incremental")]
@@ -1040,14 +1057,18 @@ fn audit_core_fresh_with_policy(
                 deadline,
                 max_render_bytes,
                 budget,
-                |store, proofs| audit_cut(store, Some(proofs)),
+                |store, proofs| {
+                    audit_cut(store, Some(proofs))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)
+                },
             )?;
         } else if verified_history.qualified() {
             verified_history.audit_cut(tx, cut, deadline, max_render_bytes, budget, |store| {
-                audit_cut(store, None)
+                audit_cut(store, None).map_err(newchan_rust::s_content::ContextError::into_message)
             })?;
         } else {
-            audit_cut(&mut store, None)?;
+            audit_cut(&mut store, None)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
         }
         previous = cut.metadata.input_frontier;
     }
@@ -1055,8 +1076,15 @@ fn audit_core_fresh_with_policy(
         #[cfg(test)]
         trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
-        let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        catalog_evidence::verify_current_for_audit(
+            tx,
+            &mut store,
+            &axes,
+            &last.metadata.rule_revision,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     }
     // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;
@@ -1127,7 +1155,7 @@ fn audit_one_cut_sources(
     #[cfg(feature = "s_incremental")] owner_source: Option<&super::audit_owner::OwnerSourceCheck>,
     #[cfg(feature = "s_incremental")] certified: bool,
     #[cfg(feature = "s_incremental")] cold_counts: Option<source_audit::Counts>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     #[cfg(test)]
     trace_event("generated_sources", Some(cut.metadata.generation));
     history::check_deadline(deadline)?;
@@ -1147,7 +1175,7 @@ fn audit_one_cut_sources(
             Some(source) => {
                 Some(source.counts_for(cut.roots.generated_state.view(), prefix.len())?)
             }
-            None if certified => return Err(err("历史认证在线缺同请求来源收据")),
+            None if certified => return Err(publish_err("历史认证在线缺同请求来源收据")),
             None => source_cache
                 .as_deref_mut()
                 .and_then(|cache| cache.lookup(cut)),
@@ -1156,7 +1184,7 @@ fn audit_one_cut_sources(
     #[cfg(not(feature = "s_incremental"))]
     let cached_counts: Option<source_audit::Counts> = None;
     if proofs.is_some() && (cached_counts.is_some() || native_sources.is_some()) {
-        return Err(err(
+        return Err(publish_err(
             "ordinary来源证明不得与cached_counts/owner_source/Native复用并用",
         ));
     }
@@ -1266,9 +1294,9 @@ struct ColdHistoricalSourceFold<'borrow, 'audit, 'ledger> {
 
 #[cfg(feature = "s_incremental")]
 impl HistoricalSourceFold<'_> {
-    fn require_next_cut(&self, cut: &history::PublishedCut) -> Result<(), String> {
+    fn require_next_cut(&self, cut: &history::PublishedCut) -> Result<(), PublishError> {
         if cut.metadata.generation != self.generation + 1 {
-            return Err(err("历史认证代号不连续"));
+            return Err(publish_err("历史认证代号不连续"));
         }
         Ok(())
     }
@@ -1280,7 +1308,7 @@ impl HistoricalSourceFold<'_> {
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
         cold_counts: Option<source_audit::Counts>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         audit_one_cut_sources(
             cut,
             self.raw,
@@ -1315,7 +1343,7 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
         _auxiliary: &aux_index::Index,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         self.require_next_cut(cut)?;
         self.verify_sources(cut, store, objects, sweep, None)
     }
@@ -1333,7 +1361,7 @@ impl ColdHistoricalSourceFold<'_, '_, '_> {
             source_audit::Counts,
             source_audit::source_receipt::source_facts::SourceExports,
         ),
-        String,
+        PublishError,
     > {
         #[cfg(all(test, unix))]
         {
@@ -1372,7 +1400,7 @@ impl ColdHistoricalSourceFold<'_, '_, '_> {
         drop(material);
         self.cold_source = Some(source);
         self.cold_root = Some(sc::Built {
-            digest: cut.roots.generated_state.digest().map_err(err)?,
+            digest: cut.roots.generated_state.digest().map_err(publish_err)?,
             kind: cut.roots.generated_state.kind(),
             extent: cut.roots.generated_state.extent(),
         });
@@ -1387,7 +1415,7 @@ impl ColdHistoricalSourceFold<'_, '_, '_> {
         auxiliary: &aux_index::Index,
         counts: source_audit::Counts,
         exports: source_audit::source_receipt::source_facts::SourceExports,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let (ledger, _) = self.ledger.as_mut().expect("冷收据必须持台账");
         let raw = self
             .sources
@@ -1418,8 +1446,14 @@ impl ColdHistoricalSourceFold<'_, '_, '_> {
                 cut.roots.delta_template.view(),
             ],
         )
-        .map_err(err)?;
-        ledger.stage_verified(token, &delta, &verified, store.native_work_scope(), None)?;
+        .map_err(publish_err)?;
+        ledger.stage_verified(
+            token,
+            &delta,
+            &super::audit_ledger::QualifiedUnits::full(verified)?,
+            store.native_work_scope(),
+            None,
+        )?;
         ledger.bind_view(token, cut.metadata.view(), cut.roots.view())?;
         ledger.content_committed()?;
         Ok(())
@@ -1435,7 +1469,7 @@ impl history::CutSourceVerifier for ColdHistoricalSourceFold<'_, '_, '_> {
         objects: &[object_index::Entry],
         sweep: Option<&object_index::HistorySweep>,
         auxiliary: &aux_index::Index,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         self.sources.require_next_cut(cut)?;
         let cold_counts = if self.ledger.is_some() {
             let (counts, exports) = self.advance_cold_sources(cut, store)?;
@@ -1840,7 +1874,9 @@ impl HistoricalCertificate {
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::cold_captured(tx, deadline, budget, work, None, None, None).map(|(cert, _, _)| cert)
+        Self::cold_captured(tx, deadline, budget, work, None, None, None)
+            .map(|(cert, _, _)| cert)
+            .map_err(PublishError::into_message)
     }
 
     #[cfg(test)]
@@ -1899,7 +1935,8 @@ impl HistoricalCertificate {
             qualified,
             ledger,
             source_out,
-        )?;
+        )
+        .map_err(PublishError::into_message)?;
         let AuditedState {
             raw,
             budget,
@@ -1937,10 +1974,10 @@ impl HistoricalCertificate {
             &super::audit_owner::native::Budget,
         )>,
         source_out: Option<&mut Option<source_audit::NativeSourceState>>,
-    ) -> Result<(Self, sc::AuditCapture, usize), String> {
+    ) -> Result<(Self, sc::AuditCapture, usize), PublishError> {
         history::check_deadline(deadline)?;
         if let Some(budget) = budget {
-            budget.precheck().map_err(err)?;
+            budget.precheck().map_err(publish_err)?;
         }
         let measure = audit_budget::NativeMeasure { budget, deadline };
         let (capture, node_count) = content_store::capture_for_request_prototype_admitted_measured(
@@ -1948,10 +1985,10 @@ impl HistoricalCertificate {
             work,
             Some(&measure),
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
         let capture = capture
             .enable_native_frame_reuse_admitted(work)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         let control = control_audit::prepare_s3_control_history_admitted(
             tx,
             None,
@@ -1997,16 +2034,25 @@ impl HistoricalCertificate {
             budget,
             &mut cold_sources,
         )?;
-        verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), None, work)?;
+        let live_axes = match indexed.cuts.last() {
+            Some(cut) => catalog_evidence::rule_axes(&cut.metadata.rule_revision)?,
+            None => &[],
+        };
+        verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), live_axes, None, work)?;
         let mut store = history::HashReader::captured_for_audit(&capture, None)
-            .map_err(err)?
+            .map_err(publish_err)?
             .with_audit_gate(budget, deadline)
             .with_source_policy(history::SourcePolicy::NativeMeasured)
             .with_native_scope(work)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         if let Some(last) = indexed.cuts.last() {
             let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-            catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+            catalog_evidence::verify_current_for_audit(
+                tx,
+                &mut store,
+                &axes,
+                &last.metadata.rule_revision,
+            )?;
         }
         history::check_deadline(deadline)?;
         let raw_sources = cold_sources
@@ -2310,11 +2356,12 @@ fn verify_unrun_catalog(
     initial: bool,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<(), String> {
-    verify_unrun_catalog_admitted(tx, initial, allocation, None)
+    verify_unrun_catalog_admitted(tx, initial, &catalog_evidence::AXIS_IDS, allocation, None)
 }
 fn verify_unrun_catalog_admitted(
     tx: &Transaction<'_>,
     initial: bool,
+    live_axes: &[&str],
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<(), String> {
@@ -2350,7 +2397,15 @@ fn verify_unrun_catalog_admitted(
         let proof = text(&mut row, 2)?;
         let run = text(&mut row, 3)?;
         let evidence = text(&mut row, 4)?;
-        validate_unrun_row(&id, &implemented, &proof, &run, &evidence, initial)?;
+        validate_unrun_row(
+            &id,
+            &implemented,
+            &proof,
+            &run,
+            &evidence,
+            initial,
+            live_axes,
+        )?;
     }
     stmt.finalize().map_err(err)
 }
@@ -2362,8 +2417,9 @@ pub(super) fn validate_unrun_row(
     run: &str,
     evidence: &str,
     initial: bool,
+    live_axes: &[&str],
 ) -> Result<(), String> {
-    if (initial || !catalog_evidence::AXIS_IDS.contains(&id))
+    if (initial || !live_axes.contains(&id))
         && (implemented != "not_implemented"
             || proof != "not_proved"
             || run != "not_run"
@@ -2374,6 +2430,9 @@ pub(super) fn validate_unrun_row(
     Ok(())
 }
 
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("S3StateInvalid：")
+}
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3StateInvalid：{e}")
 }
@@ -2382,8 +2441,8 @@ fn field<'r>(
     s: &mut (impl super::audit_store::CodecStore + ?Sized),
     r: impl Into<sc::RefView<'r>>,
     key: &str,
-) -> Result<super::audit_store::RefValue, String> {
-    s.lookup_field_ref(r.into(), key).map_err(err)
+) -> Result<super::audit_store::RefValue, PublishError> {
+    s.lookup_field_ref(r.into(), key).map_err(publish_err)
 }
 
 // #1394：入口路由锁。默认/通用 path 会失败，绿判据必须来自真实 borrowed 方法。
@@ -2611,7 +2670,7 @@ mod tests {
         }
     }
 
-    /// 13 轴之外的目录行（未运行行）之一；轴集合只用 `catalog_evidence::AXIS_IDS`，不另抄一份。
+    /// 本会话规则轴表之外的目录行（未运行行）之一；轴集合只用 `catalog_evidence::rule_axes`，不另抄一份。
     fn non_axis_catalog_id(f: &Fixture) -> String {
         let mut stmt = f
             .conn
@@ -2623,8 +2682,12 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         ids.into_iter()
-            .find(|id| !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
-            .expect("目录必须含 13 轴之外的行")
+            .find(|id| {
+                !catalog_evidence::rule_axes(crate::W_STRUCTURE_RULE_REVISION)
+                    .unwrap()
+                    .contains(&id.as_str())
+            })
+            .expect("目录必须含规则轴表之外的行")
     }
 
     fn publish_one(f: &mut Fixture) {
@@ -3656,7 +3719,10 @@ mod unrun_catalog_owner_tests {
             .map_err(err)?;
         for row in rows {
             let (id, implemented, proof, run, evidence) = row.map_err(err)?;
-            if (initial || !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
+            if (initial
+                || !catalog_evidence::rule_axes(crate::W_STRUCTURE_RULE_REVISION)
+                    .unwrap()
+                    .contains(&id.as_str()))
                 && (implemented != "not_implemented"
                     || proof != "not_proved"
                     || run != "not_run"
@@ -3793,8 +3859,10 @@ impl AuditedState {
         work: &sc::capture_allocation::scratch::WorkScope,
         native: &super::audit_owner::native::Budget,
         source_check: Option<&super::audit_owner::OwnerSourceCheck>,
-    ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
-    {
+    ) -> Result<
+        (Self, super::audit_retention::RetainedDelta),
+        super::audit_owner::native::Failure<PublishError>,
+    > {
         #[cfg(test)]
         let source_check = if H1_DROP_SOURCE_RECEIPT.with(|flag| flag.replace(false)) {
             None
@@ -3803,7 +3871,7 @@ impl AuditedState {
         };
         let certified = self.certification.is_some();
         if certified && source_check.is_none() {
-            return Err(err("历史认证在线缺同请求来源收据").into());
+            return Err(publish_err("历史认证在线缺同请求来源收据").into());
         }
         let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
@@ -3811,7 +3879,7 @@ impl AuditedState {
             HistoricalOwner::Shared(v) => {
                 let shell_bytes = v.allocation_bytes();
                 let value = super::native_shared::NativeRc::try_unwrap(v)
-                    .map_err(|_| err("owner 历史仍有外部共享引用"))?;
+                    .map_err(|_| publish_err("owner 历史仍有外部共享引用"))?;
                 // facts 只移动；try_unwrap 真正释放的是 Rc 外壳和两个计数。
                 retained.release_bytes(shell_bytes);
                 value
@@ -3871,11 +3939,16 @@ impl AuditedState {
         )?;
         retained.merge(history_delta);
         let mut store = history::HashReader::captured_for_audit(capture, None)
-            .map_err(err)?
+            .map_err(publish_err)?
             .with_codec_work(work, native);
-        let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
+        let cut = updated.cuts.last().ok_or_else(|| publish_err("缺新 C_h"))?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(
+            tx,
+            &mut store,
+            &axes,
+            &cut.metadata.rule_revision,
+        )?;
         if certified {
             source_check
                 .ok_or_else(|| err("历史认证在线缺同请求来源收据"))?
@@ -3917,16 +3990,16 @@ impl AuditedState {
         capture: &sc::AuditCapture,
         bound: &super::audit_owner::BoundOriginals,
         native: &super::audit_owner::native::Budget,
-    ) -> Result<usize, super::audit_owner::native::Failure> {
+    ) -> Result<usize, super::audit_owner::native::Failure<PublishError>> {
         let historical = match &mut self.historical {
             HistoricalOwner::Unique(v) => v,
             HistoricalOwner::Shared(v) => super::native_shared::NativeRc::get_mut(v)
-                .ok_or_else(|| err("raw owner 仍有借用"))?,
+                .ok_or_else(|| publish_err("raw owner 仍有借用"))?,
         };
         historical
             .raw_prefixes
             .as_mut()
-            .ok_or_else(|| err("缺 raw R/F 状态"))?
+            .ok_or_else(|| publish_err("缺 raw R/F 状态"))?
             .check_appended(capture, self.raw.view(), bound, native)
     }
 }
@@ -4027,6 +4100,7 @@ mod transaction_material_qualification {
         let meter = Meter;
         for which in 0..8 {
             super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            super::super::ordinary_materials::LAST_PROOFS.with(|r| r.set(None));
             let fresh = if which == 7 {
                 Some((
                     control_audit::prepare_s3_control_history(&tx).unwrap(),
@@ -4056,6 +4130,12 @@ mod transaction_material_qualification {
             if which == 0 {
                 result.unwrap();
             }
+            super::super::ordinary_materials::LAST_PROOFS.with(|r| {
+                assert_eq!(
+                    r.get().is_some(),
+                    which == 0 && !cfg!(feature = "s_incremental")
+                );
+            });
             // 资格门 `ordinary_materials_qualified` 含 `!cfg!(feature = "s_incremental")`
             // （61b4adec5b）：native 构建下第 0 例同样不得发普通原件，与运行顺序无关。
             super::super::ordinary_materials::LAST_REPORT.with(|r| {
@@ -4090,6 +4170,7 @@ mod transaction_material_qualification {
             fn invalidate(&self) {}
         }
         super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+        super::super::ordinary_materials::LAST_PROOFS.with(|r| r.set(None));
         let _ = CodecWork::new(std::sync::Arc::new(Parent), 1024 * 1024)
             .unwrap()
             .run(|scope| {
@@ -4111,6 +4192,29 @@ mod transaction_material_qualification {
             });
         super::super::ordinary_materials::LAST_REPORT.with(|r| assert!(r.get().is_none()));
     }
+}
+
+#[cfg(test)]
+thread_local! { static BASE_PROOFS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+fn base_proofs_enabled() -> bool {
+    #[cfg(test)]
+    if BASE_PROOFS_DISABLED.with(std::cell::Cell::get) {
+        return false;
+    }
+    true
+}
+#[cfg(test)]
+pub(super) fn without_base_proofs_for_test<T>(action: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            BASE_PROOFS_DISABLED.with(|v| v.set(self.0));
+        }
+    }
+    let reset = Reset(BASE_PROOFS_DISABLED.with(|v| v.replace(true)));
+    let result = action();
+    drop(reset);
+    result
 }
 
 /// #1481 对拍规范输出：逐字段完整语义载荷；不包含分配许可、容量或测试计数。

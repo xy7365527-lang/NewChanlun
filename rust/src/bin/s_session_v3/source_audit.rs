@@ -14,6 +14,7 @@ use crate::{
     },
     tb02a, tb02b,
 };
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc,
     path::{lookup_path, PathStep},
@@ -54,6 +55,8 @@ mod source_prefix;
 #[cfg(feature = "s_incremental")]
 #[path = "source_receipt.rs"]
 pub(super) mod source_receipt;
+#[path = "source_structure.rs"]
+mod source_structure;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -97,8 +100,8 @@ fn source_call_note(update: impl FnOnce(&mut SourceCallStats)) {
         v.set(n);
     });
 }
-fn err(e: impl std::fmt::Display) -> String {
-    format!("SourceAuditInvalid：{e}")
+fn err(e: impl Into<PublishError>) -> PublishError {
+    e.into().context("SourceAuditInvalid：")
 }
 #[cfg(test)]
 #[cfg_attr(
@@ -210,7 +213,7 @@ impl<'capture> NativeFieldMemo<'capture> {
 }
 // Local adapter only; ordinary/Owned use the original scalar decoder.
 trait SourceFieldStore: CodecStore {
-    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
+    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, PublishError> {
         scalar_value(self, r)
     }
 }
@@ -223,7 +226,7 @@ impl<'names> SourceFields<'names> {
         s: &mut (impl CodecStore + ?Sized),
         r: sc::RefView<'_>,
         names: &[&'names str],
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
     #[cfg_attr(
@@ -233,10 +236,14 @@ impl<'names> SourceFields<'names> {
             reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
         )
     )]
-    fn get(&self, k: &str) -> Result<sc::RefView<'_>, String> {
+    fn get(&self, k: &str) -> Result<sc::RefView<'_>, PublishError> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
-    fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, String> {
+    fn get_admitted(
+        &self,
+        s: &(impl CodecRead + ?Sized),
+        k: &str,
+    ) -> Result<RefValue, PublishError> {
         self.0
             .get_admitted(s, k)
             .map_err(err)?
@@ -246,7 +253,7 @@ impl<'names> SourceFields<'names> {
         &self,
         s: &mut (impl SourceFieldStore + ?Sized),
         k: &str,
-    ) -> Result<bj::JsonOwner, String> {
+    ) -> Result<bj::JsonOwner, PublishError> {
         let r = self.get_admitted(s, k)?;
         s.decoded_scalar(r.view())
     }
@@ -254,13 +261,17 @@ impl<'names> SourceFields<'names> {
         &self,
         s: &mut (impl SourceFieldStore + ?Sized),
         k: &str,
-    ) -> Result<bj::TextValue, String> {
+    ) -> Result<bj::TextValue, PublishError> {
         let value = self.scalar(s, k)?;
         let view = value.view();
         let text = view.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
         s.native_text(text)
     }
-    fn integer(&self, s: &mut (impl SourceFieldStore + ?Sized), k: &str) -> Result<i64, String> {
+    fn integer(
+        &self,
+        s: &mut (impl SourceFieldStore + ?Sized),
+        k: &str,
+    ) -> Result<i64, PublishError> {
         self.scalar(s, k)?
             .view()
             .as_i64()
@@ -272,21 +283,21 @@ fn field<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     field_ref(s, r.into(), k)
 }
 fn scalar<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, PublishError> {
     let r = field(s, r, k)?;
     scalar_value(s, r.view())
 }
 fn scalar_value<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, PublishError> {
     let r = r.into();
     if !matches!(
         r.kind(),
@@ -294,14 +305,14 @@ fn scalar_value<'a>(
     ) {
         return Err(err("预期标量"));
     }
-    bj::render_json(s, r)
+    bj::render_json(s, r).map_err(Into::into)
 }
 /// 仅当前 part/payload 的固定小字段；Some 由 ArrayAuditSource 关闭批读。
 fn local_fields<'a, 'names>(
     s: &mut (impl CodecStore + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     names: &[&'names str],
-) -> Result<Option<SourceFields<'names>>, String> {
+) -> Result<Option<SourceFields<'names>>, PublishError> {
     if s.audit_full_array_scan() {
         SourceFields::read_subset(s, r.into(), names)
             .map(Some)
@@ -314,7 +325,7 @@ fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<bj::TextValue, String> {
+) -> Result<bj::TextValue, PublishError> {
     let r = field(s, r, k)?;
     text_value(s, r.view(), k)
 }
@@ -322,7 +333,7 @@ fn text_value<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<bj::TextValue, String> {
+) -> Result<bj::TextValue, PublishError> {
     let value = scalar_value(s, r)?;
     let v = value.view();
     let text = v.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
@@ -332,19 +343,19 @@ fn number<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     scalar(s, r, k)?
         .view()
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是整数")))
 }
-fn decimal(v: &str) -> Result<i64, String> {
+fn decimal(v: &str) -> Result<i64, PublishError> {
     newchan_rust::session_protocol::parse_canonical_i64(v, "source coordinate").map_err(err)
 }
-fn digest<'a>(r: impl Into<sc::RefView<'a>>) -> Result<NodeDigest, String> {
+fn digest<'a>(r: impl Into<sc::RefView<'a>>) -> Result<NodeDigest, PublishError> {
     r.into().digest().map_err(err)
 }
-fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
+fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, PublishError> {
     let r = r.into();
     Ok(Built {
         digest: r.digest().map_err(err)?,
@@ -353,7 +364,7 @@ fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
     })
 }
 #[cfg(test)]
-fn cv(v: &Value) -> Result<V, String> {
+fn cv(v: &Value) -> Result<V, PublishError> {
     Ok(match v {
         Value::Null => V::Null,
         Value::Bool(x) => V::Bool(*x),
@@ -363,7 +374,7 @@ fn cv(v: &Value) -> Result<V, String> {
         Value::Object(o) => V::Object(
             o.iter()
                 .map(|(k, v)| Ok((k.clone(), cv(v)?)))
-                .collect::<Result<_, String>>()?,
+                .collect::<Result<_, PublishError>>()?,
         ),
     })
 }
@@ -381,25 +392,27 @@ impl NodeSink for HashOnly {
     dead_code,
     reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
 )]
-fn hash(v: &Value) -> Result<NodeDigest, String> {
+fn hash(v: &Value) -> Result<NodeDigest, PublishError> {
     Ok(sc::write_json_view(&mut HashOnly, v.into())
         .map_err(err)?
         .digest)
 }
-fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOwner, String> {
+fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOwner, PublishError> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = s.allocation_budget() {
         return sc::capture_allocation::audit_json::OwnedJson::parse(bytes, &b)
             .map(bj::JsonOwner::Owned)
             .map_err(err);
     }
-    s.parse_rendered_plain(bytes).map(bj::JsonOwner::Plain)
+    s.parse_rendered_plain(bytes)
+        .map(bj::JsonOwner::Plain)
+        .map_err(Into::into)
 }
 fn canonical_matches(
     s: &(impl CodecRead + ?Sized),
     v: sc::capture_allocation::audit_json::JsonView<'_>,
     bytes: &[u8],
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = s.allocation_budget() {
         return sc::capture_allocation::audit_json::canonical_bytes(v, &b)
@@ -439,7 +452,7 @@ fn canonical_matches(
         _ => Err(err("owned JSON组合缺实际账本")),
     }
 }
-fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), String> {
+fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), PublishError> {
     let r = r.into();
     if r.kind() != kind || r.extent() != Some(n) {
         Err(err(format!("字段/成员形状不符：预期{kind:?}/{n}")))
@@ -450,7 +463,7 @@ fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), St
 pub(super) fn elements<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
-) -> Result<sc::CodecVec<RefValue>, String> {
+) -> Result<sc::CodecVec<RefValue>, PublishError> {
     elements_ref(s, r.into())
 }
 /// 活期仅为本次完整来源审计；预算/期限 Some 强制原路径。
@@ -509,15 +522,17 @@ impl<'a, 'borrow, 'source, 'capture> ArrayAuditSource<'a, 'borrow, 'source, 'cap
             &mut super::audit_store::StoreView<'borrow, 'source>,
         ) -> Result<T, sc::CodecError>,
     ) -> Result<T, sc::CodecError> {
-        let role = self.full_arrays && self.deadline.is_none();
+        let role = self.audit_full_array_scan();
         let previous = self.source.swap_codec_full_array_role(role);
+        let previous_sequence = self.source.swap_codec_sequence_role(!role);
         let result = operation(self.source);
+        self.source.swap_codec_sequence_role(previous_sequence);
         self.source.swap_codec_full_array_role(previous);
         result
     }
 }
 impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
-    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
+    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, PublishError> {
         let eligible = self.full_arrays
             && !self.source.owned_codec_active()
             && (self.source.native_measure().is_some() || self.deadline.is_none())
@@ -564,7 +579,10 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
     fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
         self.source.native_measure()
     }
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
+    fn parse_rendered_plain(
+        &self,
+        bytes: &[u8],
+    ) -> Result<bj::PlainJson, newchan_rust::s_content::ContextError> {
         self.source.parse_rendered_plain(bytes)
     }
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {
@@ -596,6 +614,19 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         } else {
             sc::path::lookup_path_view_native(self, r, &super::audit_store::BorrowedFieldPath(key))
                 .map(RefValue::Plain)
+        }
+    }
+    fn lookup_optional_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefValue>, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            // 结构实体引用核（source_structure::references）走此口；Owned 下同 lookup_field_ref 交原角色，
+            // 默认实现经 generic_source 擦除为动态 NodeSource 会被 closed codec 拒绝。
+            self.owned_role(|s| s.lookup_optional_field_ref(r, key))
+        } else {
+            sc::path::lookup_optional_field_native(self, r, key).map(|v| v.map(RefValue::Plain))
         }
     }
     fn lookup_fields_ref<'a>(
@@ -777,6 +808,19 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl CodecStore for ArrayAuditSource<'_, '_, '_, '_> {
+    fn rebuild_sequence_suffix(
+        &mut self,
+        seq: &sc::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.rebuild_sequence_suffix(seq, keep, leaves, budget))
+        } else {
+            sc::sequence_rebuild_suffix_with_allocation(self, seq, keep, leaves, budget)
+        }
+    }
     fn write_json_view(
         &mut self,
         v: sc::capture_allocation::audit_json::JsonView<'_>,
@@ -834,7 +878,7 @@ impl CodecStore for ArrayAuditSource<'_, '_, '_, '_> {
 
 fn source_allocation(
     s: &(impl CodecRead + ?Sized),
-) -> Result<Option<sc::capture_allocation::OwnedBudget>, String> {
+) -> Result<Option<sc::capture_allocation::OwnedBudget>, PublishError> {
     let allocation = s.allocation_budget();
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
@@ -842,7 +886,10 @@ fn source_allocation(
     }
     Ok(allocation)
 }
-fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVec<i64>, String> {
+fn coords(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
@@ -893,6 +940,7 @@ pub(crate) struct Counts {
 }
 // 来源判据依赖精确查找而不依赖哈希布局。Native 的持久树不会在扩容时重排全历史。
 trait RawLookup {
+    fn len(&self) -> usize;
     fn get(&self, coord: &i64) -> Option<&Source>;
     fn contains_key(&self, coord: &i64) -> bool {
         self.get(coord).is_some()
@@ -902,6 +950,9 @@ trait RawLookup {
     }
 }
 impl RawLookup for BusinessMap<i64, Source> {
+    fn len(&self) -> usize {
+        BusinessMap::len(self)
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         BusinessMap::get(self, coord)
     }
@@ -910,6 +961,9 @@ impl RawLookup for BusinessMap<i64, Source> {
     }
 }
 impl<T: RawLookup + ?Sized> RawLookup for &T {
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         (**self).get(coord)
     }
@@ -943,7 +997,7 @@ fn references(
     raw: &(impl RawLookup + ?Sized),
     numeric: bool,
     checked: &mut BusinessMap<(NodeDigest, bool), i64>,
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
@@ -983,7 +1037,7 @@ fn source_coords(
     r: &RefValue,
     memo: Option<&mut NativeSourceMemo<'_>>,
     domain: ParseDomain,
-) -> Result<SourceCoords, String> {
+) -> Result<SourceCoords, PublishError> {
     match memo {
         Some(memo) => memo.coords(s, r, domain),
         None => coords(s, r).map(SourceCoords::Original),
@@ -998,7 +1052,7 @@ fn source_references(
     memo: Option<&mut NativeSourceMemo<'_>>,
     prefix: usize,
     domain: ParseDomain,
-) -> Result<SourceCoords, String> {
+) -> Result<SourceCoords, PublishError> {
     match memo {
         Some(memo) => memo.references(
             s,
@@ -1016,14 +1070,17 @@ fn source_references(
 fn copy_source_coords(
     s: &(impl CodecRead + ?Sized),
     values: &SourceCoords,
-) -> Result<SourceCoords, String> {
+) -> Result<SourceCoords, PublishError> {
     match values {
         SourceCoords::Shared(v) => Ok(SourceCoords::Shared(v.clone())),
         SourceCoords::Original(v) => copy_coords(s, v).map(SourceCoords::Original),
     }
 }
 /// 仅复制i64；从实际读取源取allocator，不开放普通深Clone或空树后补账。
-fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, String> {
+fn copy_coords(
+    s: &(impl CodecRead + ?Sized),
+    values: &[i64],
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     s.native_codec_room(&mut out, values.len()).map_err(err)?;
@@ -1039,7 +1096,7 @@ fn union_coords(
     s: &(impl CodecRead + ?Sized),
     left: &[i64],
     right: &[i64],
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     let (mut i, mut j) = (0, 0);
@@ -1067,7 +1124,7 @@ fn difference_coords(
     s: &(impl CodecRead + ?Sized),
     all: &[i64],
     members: &[i64],
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     let mut j = 0;
@@ -1085,7 +1142,7 @@ fn difference_coords(
 fn sorted_numeric_entries<'a, V>(
     s: &(impl CodecRead + ?Sized),
     map: &'a BusinessMap<i64, V>,
-) -> Result<sc::CodecVec<(i64, &'a V)>, String> {
+) -> Result<sc::CodecVec<(i64, &'a V)>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for (key, value) in map.iter() {
@@ -1156,7 +1213,7 @@ pub(super) fn native_witness_identity_stats() -> Option<NativeWitnessIdentitySta
 }
 impl<'capture> NativeWitnessIdentityMemo<'capture> {
     #[cfg(feature = "s_incremental")]
-    fn new(capture: &'capture sc::AuditCapture) -> Result<Self, String> {
+    fn new(capture: &'capture sc::AuditCapture) -> Result<Self, PublishError> {
         if capture.is_allocation_prototype() {
             return Err(err("Native身份memo不接收Owned capture"));
         }
@@ -1203,7 +1260,7 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         slot: usize,
         mi: usize,
         bars: &Built,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if !self.capture.contains(&bars.digest) {
             // 派生 overlay 根不取得缓存资格，明确沿原函数计算。
             #[cfg(test)]
@@ -1344,7 +1401,7 @@ impl<'raw> NativeRawLedger<'raw> {
         raw: RawEventsView<'raw>,
         facts: NativeRawFacts,
         bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Ok(Self {
             raw,
             winners: bj::RawPrefixIndex::restore(raw, facts.winners, bound)?,
@@ -1369,7 +1426,7 @@ impl<'raw> NativeRawLedger<'raw> {
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
-    ) -> Result<&BusinessMap<i64, Source>, String> {
+    ) -> Result<&BusinessMap<i64, Source>, PublishError> {
         self.advance_measured(s, prefix, None, None)
     }
     fn advance_measured(
@@ -1378,7 +1435,7 @@ impl<'raw> NativeRawLedger<'raw> {
         prefix: usize,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<&BusinessMap<i64, Source>, String> {
+    ) -> Result<&BusinessMap<i64, Source>, PublishError> {
         if let Err(error) = self.advance_inner(s, prefix, deadline, budget) {
             self.clear();
             return Err(error);
@@ -1391,7 +1448,7 @@ impl<'raw> NativeRawLedger<'raw> {
         prefix: usize,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let changes = self.winners.advance_measured(prefix, s, deadline, budget)?;
         if changes.rewound {
             #[cfg(feature = "s_incremental")]
@@ -1507,7 +1564,7 @@ impl<'capture> NativeSourceAudit<'capture> {
     pub(super) fn new(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Self::new_with_records(capture, raw, None)
     }
     #[cfg(feature = "s_incremental")]
@@ -1515,7 +1572,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
         records: Option<super::history::NativeRecordFields<'capture>>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Self::new_with_records_admitted(capture, raw, records, None)
     }
     #[cfg(feature = "s_incremental")]
@@ -1524,7 +1581,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         raw: RawEventsView<'capture>,
         records: Option<super::history::NativeRecordFields<'capture>>,
         work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Self::new_with_records_measured(
             capture,
             raw,
@@ -1544,7 +1601,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         budget: Option<&'capture dyn super::audit_budget::Budget>,
         deadline: Option<std::time::Instant>,
         policy: super::history::SourcePolicy,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
@@ -1576,7 +1633,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         raw: RawEventsView<'capture>,
         facts: NativeRawFacts,
         bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         let mut result = Self::new(capture, raw)?;
         result.ledger = NativeRawLedger::restore(raw, facts, bound)?;
         Ok(result)
@@ -1590,7 +1647,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         self.ledger.stats
     }
     /// #1481：复用来源counts不等于已推进独立raw事实账。
-    pub(super) fn advance_raw_facts(&mut self, prefix_len: usize) -> Result<(), String> {
+    pub(super) fn advance_raw_facts(&mut self, prefix_len: usize) -> Result<(), PublishError> {
         let measure = self.reader.native_measure();
         self.ledger.advance_measured(
             &mut super::audit_store::StoreView::for_audit(&mut self.reader),
@@ -1606,7 +1663,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         prefix_len: usize,
         profile: &str,
         rule: &str,
-    ) -> Result<Counts, String> {
+    ) -> Result<Counts, PublishError> {
         let measure = self.reader.native_measure();
         let result = (|| {
             audit_generated_in_store(
@@ -1642,7 +1699,7 @@ pub(super) fn audit_generated<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     profile: &str,
     rule: &str,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
 #[allow(
@@ -1656,7 +1713,7 @@ pub(super) fn audit_generated_until<'a>(
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, deadline, None)
 }
 pub(super) fn audit_generated_metered<'a>(
@@ -1667,7 +1724,7 @@ pub(super) fn audit_generated_metered<'a>(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     audit_generated_in_store(
         &mut super::audit_store::StoreView::generic(s),
         state.into(),
@@ -1693,7 +1750,7 @@ pub(super) fn audit_generated_for_audit<'a>(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     #[cfg(test)]
     if !super::history::ordinary_proofs_enabled() {
         let state = state.into();
@@ -1731,8 +1788,10 @@ pub(super) fn audit_generated_with_proofs(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     proofs: &mut OrdinaryProofs,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     proofs.begin(profile, rule);
+    // #1419：结构域配方另依赖当前代和对象关联，沿用完整来源核。
+    let proofs = (!crate::is_structure_rule(rule)).then_some(proofs);
     audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
         state,
@@ -1745,7 +1804,7 @@ pub(super) fn audit_generated_with_proofs(
         None,
         None,
         None,
-        Some(proofs),
+        proofs,
         #[cfg(feature = "s_incremental")]
         None,
     )
@@ -1765,7 +1824,7 @@ pub(super) fn audit_generated_frozen_for_test<'a>(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     frozen_oracle::audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
         state.into(),
@@ -1779,15 +1838,16 @@ pub(super) fn audit_generated_frozen_for_test<'a>(
         None,
         None,
     )
+    .map_err(Into::into)
 }
 
 /// 单对象同判据核：身份唯一性仍在载荷读取之前；调用方提供当前 cut 的全局索引。
 // 同一局部判据只把“当前位置之前是否出现”交给容器；不改变读取/拒绝次序。
 trait ObjectSlots {
-    fn reserve_group(&mut self, _s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve_group(&mut self, _s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         Ok(())
     }
-    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String>;
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError>;
     /// `id` 是该 CC005 对象的 object_id；36M cover 以它而非 group_index 作组身份。
     fn insert_group(
         &mut self,
@@ -1795,7 +1855,7 @@ trait ObjectSlots {
         id: &str,
         index: i64,
         group: Group,
-    ) -> Result<bool, String>;
+    ) -> Result<bool, PublishError>;
 }
 struct FullObjectSlots<'a> {
     ids: &'a mut BusinessMap<bj::TextValue, ()>,
@@ -1803,10 +1863,10 @@ struct FullObjectSlots<'a> {
     owners: Option<&'a mut BusinessMap<i64, bj::TextValue>>,
 }
 impl ObjectSlots for FullObjectSlots<'_> {
-    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         s.native_map_room(self.groups).map_err(err)
     }
-    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String> {
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError> {
         s.native_map_room(self.ids).map_err(err)?;
         Ok(self
             .ids
@@ -1820,7 +1880,7 @@ impl ObjectSlots for FullObjectSlots<'_> {
         id: &str,
         index: i64,
         group: Group,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         if let Some(owners) = self.owners.as_deref_mut() {
             s.native_map_room(owners).map_err(err)?;
             owners.insert(index, s.native_text(id)?).map_err(err)?;
@@ -1835,6 +1895,8 @@ fn audit_object_record(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     ids: &mut BusinessMap<bj::TextValue, ()>,
     groups: &mut BusinessMap<i64, Group>,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
@@ -1843,12 +1905,14 @@ fn audit_object_record(
     memo_fields: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Object, String> {
+) -> Result<Object, PublishError> {
     audit_object_record_with_slots(
         s,
         record,
         raw,
         producer,
+        rule,
+        current_generation,
         &mut FullObjectSlots {
             ids,
             groups,
@@ -1860,7 +1924,337 @@ fn audit_object_record(
         memo_fields,
         deadline,
         budget,
+        None,
     )
+}
+
+#[cfg(test)]
+#[path = "source_audit_development_tests.rs"]
+mod development_tests;
+
+#[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(test, derive(serde::Serialize))]
+struct DevelopmentStats {
+    eligible_batches: u64,
+    hits: u64,
+    misses: u64,
+    current_full: u64,
+    previous_full: u64,
+    disabled: bool,
+    capacity: usize,
+    peak_bytes: usize,
+    retained_bytes: usize,
+    released_bytes: usize,
+}
+#[cfg(test)]
+thread_local! {
+    static DEVELOPMENT_CONFIG: std::cell::Cell<(usize, bool)> = const { std::cell::Cell::new((16384, false)) };
+    static DEVELOPMENT_LAST: std::cell::Cell<DevelopmentStats> = std::cell::Cell::new(DevelopmentStats::default());
+    static DEVELOPMENT_TOTAL: std::cell::Cell<Option<DevelopmentTotals>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+#[derive(Clone, Copy, Default, serde::Serialize)]
+struct DevelopmentTotals {
+    #[serde(flatten)]
+    stats: DevelopmentStats,
+    sessions: u64,
+    allocated_bytes: usize,
+    combined_peak_bytes: usize,
+}
+#[cfg(test)]
+pub(super) fn with_development_previous_for_test<T>(
+    enabled: bool,
+    action: impl FnOnce() -> T,
+) -> (T, Value) {
+    struct Reset((usize, bool), Option<DevelopmentTotals>, DevelopmentStats);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            DEVELOPMENT_CONFIG.with(|s| s.set(self.0));
+            DEVELOPMENT_TOTAL.with(|s| s.set(self.1));
+            DEVELOPMENT_LAST.with(|s| s.set(self.2));
+        }
+    }
+    let reset = Reset(
+        DEVELOPMENT_CONFIG.with(|s| s.replace((if enabled { 16384 } else { 0 }, false))),
+        DEVELOPMENT_TOTAL.with(|s| s.replace(Some(DevelopmentTotals::default()))),
+        DEVELOPMENT_LAST.with(|s| s.replace(DevelopmentStats::default())),
+    );
+    let result = action();
+    let totals = DEVELOPMENT_TOTAL.with(|s| s.get().unwrap());
+    drop(reset);
+    (result, json!(totals))
+}
+#[derive(Clone, Copy, Default)]
+struct DevelopmentSlot {
+    digest: NodeDigest,
+    coord: i64,
+    occupied: bool,
+}
+struct DevelopmentTable<'a> {
+    slots: Vec<DevelopmentSlot>,
+    next: usize,
+    lease: Option<sc::sqlite_audit::ProofLease<'a, 'a>>,
+    stats: DevelopmentStats,
+}
+struct DevelopmentAuditSession<'a, 'raw> {
+    base: &'a sc::sqlite_audit::SqliteAuditBase<'a>,
+    raw: &'raw dyn RawLookup,
+    rule: &'raw str,
+    table: DevelopmentTable<'a>,
+}
+impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
+    fn new(
+        base: &'a sc::sqlite_audit::SqliteAuditBase<'a>,
+        raw: &'raw dyn RawLookup,
+        rule: &'raw str,
+    ) -> Self {
+        let mut table = DevelopmentTable {
+            slots: Vec::new(),
+            next: 0,
+            lease: None,
+            stats: DevelopmentStats {
+                disabled: true,
+                ..DevelopmentStats::default()
+            },
+        };
+        #[cfg(test)]
+        let (entries, allocation_failure) = DEVELOPMENT_CONFIG.with(std::cell::Cell::get);
+        #[cfg(not(test))]
+        let (entries, allocation_failure) = (16384usize, false);
+        let metadata = std::mem::size_of::<Self>()
+            + std::mem::size_of::<Option<Self>>()
+            + 2 * std::mem::size_of::<DevelopmentStats>();
+        let requested = entries
+            .checked_mul(std::mem::size_of::<DevelopmentSlot>())
+            .and_then(|n| n.checked_add(metadata));
+        if entries > 0 && entries % 4 == 0 {
+            if let Some(lease) = requested.and_then(|n| base.reserve_proof_bytes(n)) {
+                if !allocation_failure && table.slots.try_reserve_exact(entries).is_ok() {
+                    let actual = table
+                        .slots
+                        .capacity()
+                        .checked_mul(std::mem::size_of::<DevelopmentSlot>())
+                        .and_then(|n| n.checked_add(metadata));
+                    if actual == requested {
+                        table.slots.resize(entries, DevelopmentSlot::default());
+                        table.stats.disabled = false;
+                        table.stats.capacity = table.slots.capacity();
+                        table.stats.peak_bytes = actual.unwrap();
+                        table.stats.retained_bytes = actual.unwrap();
+                        table.lease = Some(lease);
+                    } else {
+                        table.slots = Vec::new();
+                    }
+                }
+            }
+        }
+        Self {
+            base,
+            raw,
+            rule,
+            table,
+        }
+    }
+    fn batch(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        payload: &RefValue,
+    ) -> Result<(), PublishError> {
+        self.table.stats.eligible_batches += 1;
+        audit_development_batch_inner(s, payload, self.raw, self.rule, Some(&mut self.table))
+    }
+}
+#[cfg(test)]
+impl Drop for DevelopmentAuditSession<'_, '_> {
+    fn drop(&mut self) {
+        DEVELOPMENT_TOTAL.with(|total| {
+            if let Some(mut n) = total.get() {
+                n.combined_peak_bytes = n
+                    .combined_peak_bytes
+                    .max(self.base.proof_stats().combined_peak_bytes);
+                total.set(Some(n));
+            }
+        });
+    }
+}
+impl DevelopmentTable<'_> {
+    fn key(unit: &RefValue) -> Option<NodeDigest> {
+        let r = unit.view();
+        if r.format() != sc::CONTENT_FORMAT || r.kind() != Kind::Object || r.extent() != Some(3) {
+            return None;
+        }
+        r.digest().ok()
+    }
+    fn start(&self, digest: &NodeDigest) -> usize {
+        (u64::from_le_bytes(digest[..8].try_into().unwrap()) as usize % (self.slots.len() / 4)) * 4
+    }
+    fn lookup(&self, unit: &RefValue) -> Option<i64> {
+        if self.slots.is_empty() {
+            return None;
+        }
+        let key = Self::key(unit)?;
+        let start = self.start(&key);
+        self.slots[start..start + 4]
+            .iter()
+            .find(|slot| slot.occupied && slot.digest == key)
+            .map(|slot| slot.coord)
+    }
+    fn save(&mut self, unit: &RefValue, coord: i64) {
+        if self.slots.is_empty() {
+            return;
+        }
+        let Some(key) = Self::key(unit) else {
+            return;
+        };
+        let start = self.start(&key);
+        let index = (start..start + 4)
+            .find(|&i| !self.slots[i].occupied || self.slots[i].digest == key)
+            .unwrap_or(start + self.next % 4);
+        self.next = self.next.wrapping_add(1);
+        self.slots[index] = DevelopmentSlot {
+            digest: key,
+            coord,
+            occupied: true,
+        };
+    }
+}
+impl Drop for DevelopmentTable<'_> {
+    fn drop(&mut self) {
+        self.slots = Vec::new();
+        self.lease = None;
+        self.stats.released_bytes = self.stats.retained_bytes;
+        self.stats.retained_bytes = 0;
+        #[cfg(test)]
+        DEVELOPMENT_LAST.with(|s| s.set(self.stats));
+        #[cfg(test)]
+        DEVELOPMENT_TOTAL.with(|total| {
+            if let Some(mut n) = total.get() {
+                n.sessions += 1;
+                n.allocated_bytes += self.stats.peak_bytes;
+                n.stats.eligible_batches += self.stats.eligible_batches;
+                n.stats.current_full += self.stats.current_full;
+                n.stats.previous_full += self.stats.previous_full;
+                n.stats.hits += self.stats.hits;
+                n.stats.misses += self.stats.misses;
+                n.stats.disabled |= self.stats.disabled;
+                n.stats.capacity = n.stats.capacity.max(self.stats.capacity);
+                n.stats.peak_bytes = n.stats.peak_bytes.max(self.stats.peak_bytes);
+                n.stats.retained_bytes += self.stats.retained_bytes;
+                n.stats.released_bytes += self.stats.released_bytes;
+                total.set(Some(n));
+            }
+        });
+    }
+}
+
+fn audit_development_unit(
+    s: &mut (impl CodecRead + ?Sized),
+    unit: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    source_bound: bool,
+) -> Result<(), PublishError> {
+    audit_development_unit_coord(s, unit, raw, source_bound).map(|_| ())
+}
+fn audit_development_unit_coord(
+    s: &mut (impl CodecRead + ?Sized),
+    unit: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    source_bound: bool,
+) -> Result<(i64, RefValue), PublishError> {
+    exact(unit, Kind::Object, if source_bound { 3 } else { 2 })?;
+    let bar = field(s, unit, "bar")?;
+    exact(&bar, Kind::Object, 5)?;
+    let coord = decimal(&text(s, &bar, "source_coord")?)?;
+    let expected = raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
+    if digest(&bar)? != expected.bar {
+        return Err(err("CC007单元bar不是同cut五字段原件"));
+    }
+    let relations = field(s, unit, "relations")?;
+    exact(&relations, Kind::Array, 24)?;
+    if source_bound {
+        let source = field(s, unit, "source_ref")?;
+        exact(&source, Kind::Object, 8)?;
+        if digest(&source)? != expected.wire {
+            return Err(err("CC007单元source_ref不是同cut完整八字段原件"));
+        }
+    }
+    Ok((coord, bar))
+}
+
+fn audit_development_batch(
+    s: &mut (impl CodecRead + ?Sized),
+    payload: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    rule: &str,
+) -> Result<(), PublishError> {
+    audit_development_batch_inner(s, payload, raw, rule, None)
+}
+fn audit_development_batch_inner(
+    s: &mut (impl CodecRead + ?Sized),
+    payload: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    rule: &str,
+    mut memo: Option<&mut DevelopmentTable<'_>>,
+) -> Result<(), PublishError> {
+    let source_bound = super::layout::Layout::of_rule(rule)? == super::layout::Layout::Bounded2;
+    if !source_bound {
+        return Ok(());
+    }
+    exact(payload, Kind::Object, 2)?;
+    let bar = field(s, payload, "bar")?;
+    let entries = field(s, payload, "entries")?;
+    for entry in elements(s, &entries)? {
+        exact(&entry, Kind::Object, 3)?;
+        let _fractal = text(s, &entry, "fractal_object_id")?;
+        let unit = field(s, &entry, "unit")?;
+        if let Some(memo) = memo.as_deref_mut() {
+            memo.stats.current_full += 1;
+        }
+        let (coord, unit_bar) = audit_development_unit_coord(s, &unit, raw, true)?;
+        if let Some(memo) = memo.as_deref_mut() {
+            memo.save(&unit, coord);
+        }
+        let same_bar = unit_bar == bar;
+        drop(unit_bar);
+        if !same_bar {
+            return Err(err("CC007单元bar与批记录不同"));
+        }
+        let development = field(s, &entry, "development")?;
+        exact(&development, Kind::Object, 2)?;
+        let count = decimal(&text(s, &development, "count")?)?;
+        let prefix = field(s, &development, "root")?;
+        if count <= 0 {
+            return Err(err("CC007发展前缀为空"));
+        }
+        exact(&prefix, Kind::Array, count as u64)?;
+        let units = elements(s, &prefix)?;
+        for (index, previous) in units.iter().enumerate() {
+            if let Some(memo) = memo.as_deref_mut() {
+                if let Some(coord) = memo.lookup(previous) {
+                    sc::audit_verify_refview_headers(s.generic_source(), [previous.view()])
+                        .map_err(err)?;
+                    raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
+                    memo.stats.hits += 1;
+                    continue;
+                }
+                memo.stats.misses += 1;
+                memo.stats.previous_full += 1;
+                let (coord, _) = audit_development_unit_coord(s, previous, raw, true)?;
+                memo.save(previous, coord);
+            } else {
+                // #1419 M4：末项与刚完整审过的本单元同引用时免重审；非末项仍逐项审。
+                // memo 分支保留既有命中核验与统计，末项相等判据仍在循环后执行。
+                if index + 1 == units.len() && previous == &unit {
+                    continue;
+                }
+                audit_development_unit(s, previous, raw, true)?;
+            }
+        }
+        if units.last() != Some(&unit) {
+            return Err(err("CC007发展前缀末项不是本单元"));
+        }
+    }
+    Ok(())
 }
 
 fn audit_object_record_with_slots(
@@ -1868,6 +2262,8 @@ fn audit_object_record_with_slots(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     slots: &mut impl ObjectSlots,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
@@ -1875,7 +2271,8 @@ fn audit_object_record_with_slots(
     memo_fields: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Object, String> {
+    mut development: Option<&mut DevelopmentAuditSession<'_, '_>>,
+) -> Result<Object, PublishError> {
     let kind = if memo_fields {
         SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
     } else {
@@ -1928,6 +2325,14 @@ fn audit_object_record_with_slots(
         ]
         .contains(&kind.as_str())
             && !tb02b::KINDS.contains(&kind.as_str())
+            && !source_structure::is_kind(rule, kind.as_str())
+            // #1393/#1565 W：初始化事实与未定原件只在 W 后继串的 cut 里声明（内容由 source_pending 核）。
+            && !(source_pending::is_w_rule(rule)
+                && [
+                    content_producer::CC004_INITIALIZATION_KIND,
+                    content_producer::CC004_UNDETERMINED_KIND,
+                ]
+                .contains(&kind.as_str()))
         {
             return Err(err("未声明typed事实种类"));
         }
@@ -2010,6 +2415,23 @@ fn audit_object_record_with_slots(
                 return Err(err("新笔payload槽位与fact_key不同"));
             }
         }
+        if source_structure::is_kind(rule, kind.as_str()) {
+            source_structure::audit_payload(
+                s,
+                kind.as_str(),
+                &payload,
+                parsed.index(1).unwrap(),
+                &sources,
+                raw,
+                current_generation,
+            )?;
+        }
+        if kind == CC007_DEVELOPMENT_BATCH_KIND {
+            match development.as_deref_mut() {
+                Some(session) => session.batch(s, &payload)?,
+                None => audit_development_batch(s, &payload, raw, rule)?,
+            }
+        }
         if kind == CC054_KNOWLEDGE_KIND {
             let contract = tb02b::contract_for_rule(producer.rule_revision())
                 .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
@@ -2089,7 +2511,7 @@ fn audit_shape_record(
     raw_prefix_len: usize,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Shape, String> {
+) -> Result<Shape, PublishError> {
     let allocation = source_allocation(s)?;
     exact(&object.refs, Kind::Array, 3)?;
     let mut indices = [0; 3];
@@ -2222,17 +2644,17 @@ fn audit_shape_record(
 
 /// 单见证核，槽位重复在形态/组原件读取之前拒绝；三槽全体性仍由贡献层核验。
 trait WitnessSlots {
-    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String>;
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError>;
     fn insert_slot(
         &mut self,
         s: &(impl CodecRead + ?Sized),
         id: &str,
         slot: i64,
-    ) -> Result<bool, String>;
+    ) -> Result<bool, PublishError>;
 }
 struct FullWitnessSlots<'a>(&'a mut BusinessMap<(bj::TextValue, i64), ()>);
 impl WitnessSlots for FullWitnessSlots<'_> {
-    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         s.native_map_room(self.0).map_err(err)
     }
     fn insert_slot(
@@ -2240,7 +2662,7 @@ impl WitnessSlots for FullWitnessSlots<'_> {
         s: &(impl CodecRead + ?Sized),
         id: &str,
         slot: i64,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         Ok(self
             .0
             .insert((s.native_text(id)?, slot), ())
@@ -2257,7 +2679,7 @@ fn audit_witness_record(
     seen: &mut BusinessMap<(bj::TextValue, i64), ()>,
     native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     deadline: Option<std::time::Instant>,
-) -> Result<(bj::TextValue, i64), String> {
+) -> Result<(bj::TextValue, i64), PublishError> {
     audit_witness_record_with_slots(
         s,
         witness,
@@ -2279,7 +2701,7 @@ fn audit_witness_record_with_slots(
     slots: &mut impl WitnessSlots,
     mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     deadline: Option<std::time::Instant>,
-) -> Result<(bj::TextValue, i64), String> {
+) -> Result<(bj::TextValue, i64), PublishError> {
     exact(witness, Kind::Object, 9)?;
     let fields = SourceFields::read_subset(
         s,
@@ -2375,7 +2797,7 @@ fn audit_generated_in_store(
     #[cfg(feature = "s_incremental")] mut exports: Option<
         &mut source_receipt::source_facts::SourceExports,
     >,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     #[cfg(test)]
     source_call_note(|n| {
         n.full_source_calls += 1;
@@ -2457,6 +2879,22 @@ fn audit_generated_in_store(
         }
         &ordinary_raw
     };
+    let mut development = if ordinary.is_none()
+        && budget.is_none()
+        && deadline.is_none()
+        && super::layout::Layout::of_rule(rule).ok() == Some(super::layout::Layout::Bounded2)
+    {
+        s.source
+            .eligible_sqlite_base()
+            .map(|base| DevelopmentAuditSession::new(base, &raw, rule))
+    } else {
+        None
+    };
+    let current_generation = if crate::is_structure_rule(rule) {
+        number(s, state, "generation")?
+    } else {
+        0
+    };
     let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
@@ -2489,6 +2927,13 @@ fn audit_generated_in_store(
                 .map_err(err)?
         };
         super::history::check_deadline(deadline)?;
+        if development.as_ref().is_some_and(|session| {
+            !s.source
+                .eligible_sqlite_base()
+                .is_some_and(|base| std::ptr::eq(base, session.base))
+        }) {
+            development = None;
+        }
         let memo_fields = s.fields.is_some();
         let object = if let Some(proofs) = ordinary.as_deref_mut() {
             proofs.object(
@@ -2512,6 +2957,8 @@ fn audit_generated_in_store(
                 &record,
                 raw,
                 &producer,
+                rule,
+                current_generation,
                 &mut FullObjectSlots {
                     ids: &mut ids,
                     groups: &mut groups,
@@ -2523,11 +2970,13 @@ fn audit_generated_in_store(
                 memo_fields,
                 deadline,
                 budget,
+                development.as_mut(),
             )?
         };
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
+    source_structure::audit_full(s, &objects, rule)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
     let pending = source_pending::audit_with_proofs(
         s,
@@ -2714,6 +3163,429 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use sc::MemoryNodes;
+
+    // #1419：用共享工厂生成真实身份与记录，再走公共 full/native 共用的对象来源门。
+    // 这里只测规则修订准入；空原始账不抵扣正式非空结构输入验收。
+    fn audit_rule_kind_record(
+        nodes: &mut MemoryNodes,
+        rule: &str,
+        kind: &str,
+        slot: &Value,
+        payload: &Value,
+        memo_fields: bool,
+    ) -> Result<Object, PublishError> {
+        let producer = Cc004Producer::new(tb02a::PROFILE, rule);
+        let empty = sc::write_value(nodes, &V::Array(vec![])).unwrap();
+        let object = producer
+            .build_object(
+                nodes,
+                kind,
+                canonical_json(&json!([kind, slot])),
+                cv(payload).unwrap(),
+                empty.clone(),
+                empty,
+                1,
+                "cut-1",
+            )
+            .unwrap();
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+            object.record.content_ref(),
+        ));
+        // 工厂记录还含三个内部值边；来源核消费现有 TYPED 定义的十字段公开投影。
+        let mut public_fields = vec![];
+        for key in TYPED {
+            let value = field(nodes, &record, key).unwrap();
+            public_fields.push(((*key).to_string(), V::Edge(digest(&value).unwrap())));
+        }
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+            sc::write_value(nodes, &V::Object(public_fields))
+                .unwrap()
+                .content_ref(),
+        ));
+        audit_object_record(
+            nodes,
+            &record,
+            &BusinessMap::<i64, Source>::plain(),
+            &producer,
+            rule,
+            1,
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            None,
+            0,
+            memo_fields,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn bounded2_unit_source_binding_is_exact() {
+        let (mut nodes, state, raw, rule) = fixture();
+        let state_ref = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(state));
+        let object_array = field(&mut nodes, &state_ref, "objects").unwrap();
+        let record = elements(&mut nodes, &object_array)
+            .unwrap()
+            .into_iter()
+            .find(|r| text(&mut nodes, r, "kind").unwrap() == CC007_DEVELOPMENT_BATCH_KIND)
+            .unwrap();
+        let payload_text_ref = field(&mut nodes, &record, "payload_json").unwrap();
+        let payload_ref = nodes
+            .lookup_ref(payload_text_ref.view(), &[PathStep::JsonText])
+            .unwrap();
+        let mut bytes = Vec::new();
+        sc::render_canonical(
+            &mut nodes,
+            &built(payload_ref.view()).unwrap().content_ref(),
+            &mut bytes,
+        )
+        .unwrap();
+        let payload: Value = serde_json::from_slice(&bytes).unwrap();
+        let sources = original_sources(&raw, raw.len()).unwrap();
+        let coord = payload["bar"]["source_coord"]
+            .as_str()
+            .unwrap()
+            .parse::<i64>()
+            .unwrap();
+        let event = raw
+            .iter()
+            .find(|e| e["source_coord"] == coord.to_string())
+            .unwrap();
+        let mut expected = serde_json::Map::new();
+        for name in [
+            "identity_key",
+            "payload_hash",
+            "receipt_id",
+            "event_id",
+            "input_revision",
+            "revision",
+            "seq",
+            "source_coord",
+        ] {
+            expected.insert(
+                name.to_string(),
+                json!(event[name]
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| event[name].to_string())),
+            );
+        }
+        assert_eq!(
+            payload["entries"][0]["unit"]["source_ref"],
+            Value::Object(expected)
+        );
+        let producer = Cc004Producer::new(tb02a::PROFILE, &rule);
+        let key = text(&mut nodes, &record, "fact_key").unwrap();
+        let refs_text = field(&mut nodes, &record, "input_refs_json").unwrap();
+        let refs = nodes
+            .lookup_ref(refs_text.view(), &[PathStep::JsonText])
+            .unwrap();
+        let check = |nodes: &mut MemoryNodes, payload: &Value| {
+            let payload = sc::write_value(nodes, &cv(payload).unwrap()).unwrap();
+            let identity = producer
+                .typed_identity_scoped(
+                    CC007_DEVELOPMENT_BATCH_KIND,
+                    &key,
+                    &payload,
+                    &built(refs.view()).unwrap(),
+                    nodes.codec_work(),
+                )
+                .unwrap();
+            let payload_text = json_text_edge(nodes, &payload.content_ref());
+            let id = sc::write_value(
+                nodes,
+                &V::String(content_producer::object_id_display(&identity).to_string()),
+            )
+            .unwrap();
+            let changed = replace_field(
+                nodes,
+                &record,
+                TYPED,
+                "payload_json",
+                V::Edge(payload_text.digest().unwrap()),
+            );
+            let changed = RefValue::from(replace_field(
+                nodes,
+                &changed,
+                TYPED,
+                "object_id",
+                V::Edge(id.digest),
+            ));
+            audit_object_record(
+                nodes,
+                &changed,
+                &sources,
+                &producer,
+                &rule,
+                1,
+                &mut BusinessMap::plain(),
+                &mut BusinessMap::plain(),
+                &mut BusinessMap::plain(),
+                None,
+                raw.len(),
+                false,
+                None,
+                None,
+            )
+        };
+        assert!(check(&mut nodes, &payload).is_ok());
+        let good_payload = RefValue::from(
+            sc::write_value(&mut nodes, &cv(&payload).unwrap())
+                .unwrap()
+                .content_ref(),
+        );
+        frozen_oracle::audit_bounded2_batch(&mut nodes, &good_payload, &sources, &rule).unwrap();
+        for mode in 0..4 {
+            let mut bad = payload.clone();
+            let unit = &mut bad["entries"][0]["unit"];
+            match mode {
+                0 => {
+                    unit.as_object_mut().unwrap().remove("source_ref");
+                }
+                1 => unit["source_ref"]["source_coord"] = json!("999999"),
+                2 => unit["source_ref"]["revision"] = json!("999999"),
+                _ => unit["source_ref"]["seq"] = json!(1),
+            }
+            let changed_unit = unit.clone();
+            *bad["entries"][0]["development"]["root"]
+                .as_array_mut()
+                .unwrap()
+                .last_mut()
+                .unwrap() = changed_unit;
+            assert!(
+                check(&mut nodes, &bad).is_err(),
+                "正式审计须拒绝变异 {mode}"
+            );
+            let bad_payload = RefValue::from(
+                sc::write_value(&mut nodes, &cv(&bad).unwrap())
+                    .unwrap()
+                    .content_ref(),
+            );
+            assert!(
+                frozen_oracle::audit_bounded2_batch(&mut nodes, &bad_payload, &sources, &rule)
+                    .is_err(),
+                "独立oracle须拒绝变异 {mode}"
+            );
+        }
+        let mut changed = event.clone();
+        changed["revision"] = json!(2);
+        changed["seq"] = json!(raw.len());
+        let mut revised = raw.clone();
+        revised.push(changed);
+        let revised_sources = original_sources(&revised, revised.len()).unwrap();
+        assert_ne!(
+            sources.get(&coord).unwrap().wire,
+            revised_sources.get(&coord).unwrap().wire
+        );
+        let effective = read_effective_events(&revised).unwrap();
+        let profile_hash = text(&mut nodes, &state_ref, "profile_hash").unwrap();
+        let catalog = text(&mut nodes, &state_ref, "catalog_revision").unwrap();
+        let scope_ref = field(&mut nodes, &state_ref, "scope").unwrap();
+        let mut scope_bytes = Vec::new();
+        sc::render_canonical(
+            &mut nodes,
+            &built(scope_ref.view()).unwrap().content_ref(),
+            &mut scope_bytes,
+        )
+        .unwrap();
+        let scope: Value = serde_json::from_slice(&scope_bytes).unwrap();
+        let mut runtime =
+            GenerationRuntime::new("bounded2-source-revision".into(), tb02a::PROFILE, &rule);
+        let revised_state = runtime
+            .generate(
+                &mut nodes,
+                &GenerationInput {
+                    all_events: (&revised).into(),
+                    effective: (&effective).into(),
+                    generation: 2,
+                    structure_cut: "cut-2",
+                    input_frontier: revised.len() as i64 - 1,
+                    profile_id: tb02a::PROFILE,
+                    profile_hash: &profile_hash,
+                    rule_revision: &rule,
+                    catalog_revision: &catalog,
+                    scope: &scope,
+                    semantic_commit_ns: None,
+                    structure_prior: crate::v3::generation::StructurePriors::default(),
+                    prior: PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                },
+            )
+            .unwrap()
+            .generated_state
+            .clone();
+        let revised_state = RefValue::from(revised_state);
+        let revised_objects = field(&mut nodes, &revised_state, "objects").unwrap();
+        let revised_record = elements(&mut nodes, &revised_objects)
+            .unwrap()
+            .into_iter()
+            .find(|record| {
+                text(&mut nodes, record, "kind").unwrap() == CC007_DEVELOPMENT_BATCH_KIND
+                    && text(&mut nodes, record, "fact_key").unwrap() == key
+            })
+            .unwrap();
+        let revised_payload_text = field(&mut nodes, &revised_record, "payload_json").unwrap();
+        let revised_payload_ref = nodes
+            .lookup_ref(revised_payload_text.view(), &[PathStep::JsonText])
+            .unwrap();
+        let mut revised_bytes = Vec::new();
+        sc::render_canonical(
+            &mut nodes,
+            &built(revised_payload_ref.view()).unwrap().content_ref(),
+            &mut revised_bytes,
+        )
+        .unwrap();
+        let actual_revised: Value = serde_json::from_slice(&revised_bytes).unwrap();
+        let actual_unit = &actual_revised["entries"][0]["unit"];
+        assert_eq!(actual_unit["bar"], payload["entries"][0]["unit"]["bar"]);
+        assert_eq!(
+            actual_unit["relations"],
+            payload["entries"][0]["unit"]["relations"]
+        );
+        assert_eq!(
+            actual_unit["source_ref"],
+            crate::tb02a_facts::raw_ref(revised.last().unwrap())
+        );
+        let unit = &payload["entries"][0]["unit"];
+        let original_unit = sc::write_value(&mut nodes, &cv(unit).unwrap()).unwrap();
+        let mut revised_unit = unit.clone();
+        let revised_event = revised.last().unwrap();
+        revised_unit["source_ref"] = crate::tb02a_facts::raw_ref(revised_event);
+        assert_eq!(&revised_unit, actual_unit);
+        let revised_unit = sc::write_value(&mut nodes, &cv(actual_unit).unwrap()).unwrap();
+        assert_ne!(
+            original_unit.digest, revised_unit.digest,
+            "同OHLC而源revision变化必须改变单元身份"
+        );
+        let old = json!({"bar": unit["bar"], "relations": unit["relations"]});
+        let old = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+            sc::write_value(&mut nodes, &cv(&old).unwrap())
+                .unwrap()
+                .content_ref(),
+        ));
+        audit_development_unit(&mut nodes, &old, &sources, false).unwrap();
+        assert!(audit_development_unit(&mut nodes, &old, &sources, true).is_err());
+    }
+
+    #[test]
+    fn structure_rule_rejects_new_kinds_under_legacy_rules() {
+        for rule in [crate::LEGACY_V3_RULE_REVISION, crate::V3_RULE_REVISION] {
+            for kind in crate::tb02c::KINDS
+                .iter()
+                .chain(crate::tb02e::KINDS)
+                .chain(crate::tb02f::KINDS)
+            {
+                for memo_fields in [false, true] {
+                    let mut nodes = MemoryNodes::default();
+                    let result = audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!("test-slot"),
+                        &json!({}),
+                        memo_fields,
+                    );
+                    assert_eq!(
+                        result.err(),
+                        Some(err("未声明typed事实种类")),
+                        "旧规则 {rule} 不得放行 {kind}，memo_fields={memo_fields}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structure_rule_accepts_declared_versions_and_checks_payload() {
+        let rule = crate::V3_STRUCTURE_RULE_REVISION;
+        for memo_fields in [false, true] {
+            let mut nodes = MemoryNodes::default();
+            let mut objects = vec![];
+            for (kind, slot, schema, semantic, policy, delivered) in [
+                (
+                    "CC-056.segment_version",
+                    "TB-02-W",
+                    crate::tb02c::SCHEMA,
+                    newchan_rust::theta_v0::parser::segment::CONSTRUCTION_RULE,
+                    "seed_closed_strict_second",
+                    "seed_strict_first_and_second_terminal",
+                ),
+                (
+                    "CC-056.center_version",
+                    "TB-02-E",
+                    crate::tb02e::SCHEMA_REVISION,
+                    "center-seed/1",
+                    "strict_seed_zn_outer_c_resume",
+                    "l0_strict_seed_zn_roles_c_resume_assignment",
+                ),
+                (
+                    "CC-056.pair_version",
+                    "TB-02-F",
+                    crate::tb02f::SCHEMA_REVISION,
+                    "center-pair/1",
+                    "zn_outer_five_leaf_pending_ge9",
+                    "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position",
+                ),
+            ] {
+                let mut payload = json!({
+                    "schema_revision": schema,
+                    "semantic_version": semantic,
+                    "policy_version": policy,
+                    "view_role": "main",
+                    "object_generation": "1",
+                    "slot": slot,
+                    "data": {
+                        "delivered_scope": delivered,
+                        "waiting_reasons": [],
+                        "deferred_scope": [],
+                        "input_frontier": "-1"
+                    }
+                });
+                objects.push(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .unwrap(),
+                );
+                // 新规则放行kind后仍核其载荷；合法obj3身份不能替代此门。
+                payload["data"]["delivered_scope"] = json!("undeclared");
+                assert_eq!(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .err(),
+                    Some(err("结构版本槽位/范围/全原始账来源不符"))
+                );
+            }
+            source_structure::audit_full(&mut nodes, &objects, rule).unwrap();
+            assert_eq!(
+                audit_rule_kind_record(
+                    &mut nodes,
+                    rule,
+                    "CC-056.future_version",
+                    &json!("unknown"),
+                    &json!({}),
+                    memo_fields,
+                )
+                .err(),
+                Some(err("未声明typed事实种类"))
+            );
+        }
+    }
+
     pub(super) const STATE: &[&str] = &[
         "generation",
         "structure_cut",
@@ -2781,7 +3653,10 @@ mod tests {
         let profile_hash = get("profile_hash");
         // #1394 整合 W-2：本夹具借 v2 的 `init_test_db` 建库取原始账，但跑的是 v3 生成；规则修订
         // 取 v3 写者自己的（v2 写者合并后是 `…+segment-second/1`，它进对象身份配方，冻结轨迹随之变）。
-        let rule = crate::V3_RULE_REVISION.to_string();
+        // #1393×#1419：S3 写者唯一规则改为 W 后继串（`mod.rs::require_current_writer_rule`；
+        // `s_structure_session.rs` W_STRUCTURE_RULE_REVISION 注释「S3 写者只写本串；CF22 及更早各串只读
+        // AsKnown」）。生成夹具随写者规则走；`V3_RULE_REVISION` 退为只读历史域，不再由生成器产出。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();
@@ -2802,6 +3677,7 @@ mod tests {
             catalog_revision: &catalog,
             scope: &scope,
             semantic_commit_ns: None,
+            structure_prior: crate::v3::generation::StructurePriors::default(),
             prior: PriorState {
                 bi_records: vec![],
                 version_record: None,
@@ -2823,7 +3699,8 @@ mod tests {
         let effective = read_effective_events(&raw).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = crate::V3_RULE_REVISION.to_string();
+        // #1393×#1419：同 `fixture`，生成夹具取 S3 写者唯一规则（W 后继串）。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();
@@ -2844,6 +3721,7 @@ mod tests {
                     catalog_revision: &catalog,
                     scope: &scope,
                     semantic_commit_ns: None,
+                    structure_prior: crate::v3::generation::StructurePriors::default(),
                     prior: PriorState {
                         bi_records: vec![],
                         version_record: None,
@@ -2933,11 +3811,14 @@ mod tests {
             ("i1", 1, 1, 9, 1, 9),
             ("i2", 2, 20, 30, 20, 30),
         ];
-        for rows in [&initial[..], &initial[..1]] {
+        // #1393 W（raw-initialization-w/1）：(i0,i1) 包含、(i1,i2) 严格向上 ⟹ 第三根建立方向并从 raw0
+        // 重折为两组；前两根/单根永不建立 ⟹ 零正式组，全部生效原件由未定原件承担（旧核「唯一 seed
+        // 组 + waiting 后缀」的形态随写者规则退场，只在旧规则 cut 的只读审计里保留）。
+        for (rows, groups) in [(&initial[..], 2), (&initial[..2], 0), (&initial[..1], 0)] {
             let (mut s, state, raw, rule) = tb1405_pending_fixture(rows);
             let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
             assert_eq!(counts.effective, rows.len());
-            assert_eq!(counts.groups, 1);
+            assert_eq!(counts.groups, groups);
             assert_eq!(counts.windows, 0);
         }
     }
@@ -2948,11 +3829,10 @@ mod tests {
             "seq": seq, "payload_hash": "same-price", "receipt_id": format!("r-{seq}"),
             "event_id": format!("e-{seq}"), "input_revision": "1"})
     }
-    #[cfg(feature = "s_incremental")]
     pub(super) fn original_sources(
         raw: &[Value],
         n: usize,
-    ) -> Result<BusinessMap<i64, Source>, String> {
+    ) -> Result<BusinessMap<i64, Source>, PublishError> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);
         for event in effective.iter() {
@@ -3384,7 +4264,8 @@ mod tests {
         let raw = read_raw_events(&c).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = get("rule_revision");
+        // #1393×#1419：生成夹具取 S3 写者唯一规则（W 后继串），不取 v2 测试库的历史规则串。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut nodes = MemoryNodes::default();
@@ -3410,6 +4291,7 @@ mod tests {
                             catalog_revision: &catalog,
                             scope: &scope,
                             semantic_commit_ns: None,
+                            structure_prior: crate::v3::generation::StructurePriors::default(),
                             prior: PriorState {
                                 bi_records: vec![],
                                 version_record: None,
@@ -4088,6 +4970,7 @@ mod tests {
         ] {
             assert!(run(&mut context, state, &raw)
                 .unwrap_err()
+                .to_string()
                 .contains(message));
         }
         // #1394（与根裁定 B / 240b061e66 同因）：FIN 04e8a7f48b 的 CC004 incoming 与原始 OHLC
@@ -4098,7 +4981,7 @@ mod tests {
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
         let error = run(&mut revised_context, &state, &revised).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源"
         );
         let mut revised = raw.clone();
@@ -4110,7 +4993,7 @@ mod tests {
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
         let error = run(&mut revised_context, &state, &revised).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：见证raw_bars不是同cut真实原始成员"
         );
         let mut revised = raw.clone();
@@ -4119,6 +5002,7 @@ mod tests {
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
         assert!(run(&mut revised_context, &state, &revised)
             .unwrap_err()
+            .to_string()
             .contains("源引用不是本cut的真实完整八字段原件"));
         let empty = sc::AuditCapture::new(MemoryNodes::default());
         let mut wrong_source = NativeSourceAudit::new(&empty, (&raw).into()).unwrap();
@@ -4292,7 +5176,7 @@ mod tests {
         root: &ContentRef,
         names: &[&str],
         legacy: bool,
-    ) -> Result<Vec<(ContentRef, Option<Value>)>, String> {
+    ) -> Result<Vec<(ContentRef, Option<Value>)>, PublishError> {
         let fields = if legacy {
             None
         } else {
@@ -4531,7 +5415,11 @@ mod tests {
             let deadline = Some(std::time::Instant::now());
             let expired = run(false, None, deadline);
             assert_eq!(expired, run(true, None, deadline));
-            assert!(expired.0.unwrap_err().contains("verify_deadline"));
+            assert!(expired
+                .0
+                .unwrap_err()
+                .to_string()
+                .contains("verify_deadline"));
             assert_eq!((expired.1, expired.2), (0, 0));
             assert!(expired.3.is_empty(), "期限门先于预算门与SQL");
         }
@@ -4632,7 +5520,7 @@ mod tests {
         for budget in [false, true] {
             let old = run(true, budget, expired, None);
             assert_eq!(run(false, budget, expired, None), old);
-            assert!(old.0.unwrap_err().contains("verify_deadline"));
+            assert!(old.0.unwrap_err().to_string().contains("verify_deadline"));
             assert_eq!((old.1, old.2), (0, 0));
             assert!(old.3.is_empty() && old.4.is_empty());
         }
@@ -4677,6 +5565,34 @@ mod tests {
         // `271b8e8cc6` 之后的 `813fc75fa5`、`199caedfd0`、`dccb69793c` 读数与摘要逐值相同，故 +120 来自该
         // 合并本身（同价语义与规则修订），不来自后两处修复；未逐节点分解。
         // 旧摘要（new-bi/1）：read 8418acae…、budget f194dbc3…。
+        // #1393×#1419 重冻（夹具改取 S3 写者唯一规则 W 后继串）：同一 14 根原始账在 W 规则下多出
+        // 初始化事实（槽 W）与 C/D/E/F 结构域对象（81 = 76 + 5），结构域与 W 判据的读取另加
+        // 37928 reads / 38245 F；均为 nc-remote 实测（ac24e9e3eb，s_session 与 +native 两组合同值），
+        // 摘要随规则修订与发布内容改变。旧摘要（new-bi/2，76 对象）：read ffa6288e…、budget 06e35514…。
+        // #1419 M2D：0bace7c395（#1780 / ADR 0037）新增 CC-007.development_batch，
+        // 6028c3e5ee 将正式 W2 写者切入 bounded-layout/1；4004c7cded 升 bounded-layout/2，
+        // 单元增加 source_ref，不另增对象。此 fixture 首个底分型窗口为 [0,10,20]，右组成员
+        // 为 [20,30]；其后 bar 坐标 40/50/60/70/80/90/100/110/120/130 各发一条批记录，
+        // 正好 +10（91 = 81 + 10）。其余四个分型的后续 bar 都在此集合内，聚入同坐标 entries。
+        // development_batches 用 BTreeSet 收集坐标、BTreeMap 每坐标保留一条，fact_key 为
+        // [kind,coord]；完整审计先拒重复 object_id，再按对象数组长度计数。本 fixture 为
+        // fresh runtime、空 prior 的单代生成，不含撤回历史，故这十条不是重复或撤回遗漏。
+        // PR1793@411db603 已实测 91 对象、202561 reads / 224074 F：ac24→PR1793 W2 链
+        // 净变化为 +146 reads / +636 F（批记录、W2 规则与有界载荷变化的合计，未逐节点分解）。
+        // 集成 045a478d 的 job-125104867274.txt 实测 PR1793→集成净变化各 +30267 reads / F；
+        // 对象数不变。该段也未逐节点分解，不将任一段净差全部计作十条新增对象的费用。
+        // 以下按这两段实测净差追加冻结，完整摘要取该 CI 的 Some full 行；旧 W 规则摘要为
+        // read 0dfe6b80…、budget 9236f017…，本机未运行 Rust 重测。
+        // #1419 M4 归因订正（保留上文历史记录）：+30267 来自 W2 链 411db603→ab2bfac7 内
+        // 4004c7cded（bounded-layout/2 发展批来源绑定核），集成段净增 0；ab2bfac7 与集成候选
+        // 读序列逐行相同（run 41401964388 vs 41401952562）。逐读分桶来源：
+        // /Volumes/AgentStorage/cost-diag46z/REPORT.md；重复 18858 = 1a 17640 + 1c 1218，
+        // 必需 11409 = 1b 4263 + 1d 7079 + 闭包 67。
+        // 本轮零新增分配：仅无 memo 路径免除前缀末项对本单元的重审 29×147=4263 读，
+        // 两条路径均复用已读 unit.bar，免除 1c 的 1218 读。以下为前值 − 4263 − 1218：
+        // reads 232828→227347、F 254341→248860。
+        // #1419 M6H：两个摘要按 run 41414959715 job 125176459116 原始日志实测重冻（48ffac48），
+        // reads/F 实测与 M4 预期一致。
         assert_eq!(
             (
                 counts.objects,
@@ -4686,17 +5602,25 @@ mod tests {
                 counts.insufficient,
                 counts.outside_domain
             ),
-            (76, 13, 11, 14, 0, 0)
+            (81 + 10, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351 + 13016 + 120, "r3完整Some读取轨迹");
-        assert_eq!(frames, 170797 + 14276 + 120, "r3完整Some F次数");
+        assert_eq!(
+            roots.len(),
+            (151351 + 13016 + 120 + 37928 + 146 + 30267) - 4263 - 1218,
+            "r3完整Some读取轨迹"
+        );
+        assert_eq!(
+            frames,
+            (170797 + 14276 + 120 + 38245 + 636 + 30267) - 4263 - 1218,
+            "r3完整Some F次数"
+        );
         assert_eq!(
             read_hash,
-            "ffa6288e00eb063d0d10c234ae2f013fff0f15ce5e94e9777c5d0bf33359f2e9"
+            "13bd2c89eae9fa7590d79dcf172f3ee2419ced7b826191ecc73a888f6c3052c2"
         );
         assert_eq!(
             budget_hash,
-            "06e35514afeb5411501d062780ddd409a1796c54a38f3eac7912596d8eeda26e"
+            "20e6e506fdbbe095e5838c68df99add568377e9881a26460ae97540da00da37d"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {
@@ -4730,7 +5654,11 @@ mod tests {
         )
         .unwrap_err();
         drop(original_reader);
-        assert_eq!(none, original, "#1488 旧独立 oracle 与局部核首错一致");
+        assert_eq!(
+            none.to_string(),
+            original,
+            "#1488 旧独立 oracle 与局部核首错一致"
+        );
         let meter = Meter::default();
         let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
         let some = audit_generated_metered(
@@ -4743,7 +5671,7 @@ mod tests {
             Some(&meter),
         )
         .unwrap_err();
-        assert!(none.contains(reason), "{none}");
+        assert!(none.to_string().contains(reason), "{none}");
         assert_eq!(none, some, "合法Merkle畸形在None/Some均须由原业务判据拒绝");
     }
     #[test]
@@ -4984,7 +5912,7 @@ mod tests {
         assert_eq!(result.windows, result.groups - 2);
         let error =
             audit_generated(&mut s, &state, &raw, tb02a::PROFILE, "other-rule").unwrap_err();
-        assert!(error.contains("typed obj3身份"), "{error}");
+        assert!(error.to_string().contains("typed obj3身份"), "{error}");
     }
     #[test]
     fn valid_merkle_graph_with_changed_typed_id_or_shape_recipe_is_rejected() {
@@ -5007,6 +5935,7 @@ mod tests {
         assert!(
             audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule)
                 .unwrap_err()
+                .to_string()
                 .contains("typed obj3身份")
         );
         let shape = all
@@ -5027,6 +5956,7 @@ mod tests {
         assert!(
             audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule)
                 .unwrap_err()
+                .to_string()
                 .contains("CC006 obj3")
         );
     }
@@ -5046,7 +5976,10 @@ mod tests {
         let forged = replace_member(&mut s, &state, "witnesses", 0, changed);
         sc::verify(&mut s, &forged).unwrap();
         let error = audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule).unwrap_err();
-        assert!(error.contains("合并值不是同cut组事实"), "{error}");
+        assert!(
+            error.to_string().contains("合并值不是同cut组事实"),
+            "{error}"
+        );
     }
     /// #1394 整合（根裁定 B）：原名 witness_original_bytes_are_bound_even_if_reference_metadata_is_unchanged。
     /// FIN 04e8a7f48b 新增的 CC004 incoming 与原始 OHLC 绑定（source_pending.rs）先于见证检查执行，
@@ -5058,7 +5991,7 @@ mod tests {
         raw[0]["high"] = json!("999999");
         let error = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源"
         );
     }
@@ -5075,7 +6008,7 @@ mod tests {
         raw[0]["raw_text"] = json!(format!("{text} 篡改"));
         let error = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：见证raw_bars不是同cut真实原始成员"
         );
     }
@@ -5210,7 +6143,10 @@ mod closed_array_role_probe {
                 let discovery =
                     CaptureSlab::new(0, budget.snapshot().limit_bytes - live - 1, &budget).unwrap();
                 let failure = field_ref(&mut source, (&root).into(), "b").unwrap_err();
-                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                assert!(
+                    failure.to_string().contains(sc::capture_allocation::LIMIT),
+                    "{failure}"
+                );
                 let layout = budget.allocation_request_probe();
                 assert!(layout.refused_kind.ends_with("::path::Ancestor"));
                 drop(discovery);
@@ -5222,7 +6158,10 @@ mod closed_array_role_probe {
                 .unwrap();
                 let before = budget.snapshot();
                 let failure = field_ref(&mut source, (&root).into(), "b").unwrap_err();
-                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                assert!(
+                    failure.to_string().contains(sc::capture_allocation::LIMIT),
+                    "{failure}"
+                );
                 let refusal = budget.allocation_request_probe();
                 assert_eq!(refusal.refused_bytes, layout.refused_bytes);
                 assert_eq!(refusal.refused_align, layout.refused_align);
@@ -5256,6 +6195,46 @@ mod closed_array_role_probe {
             budget.snapshot().released_layouts
         );
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_source_sequence_role_restores_preset_after_success_and_error() {
+        let (capture, budget, root, _) = owned_coordinate_source();
+        let base = budget.snapshot().live_requested_layout_bytes;
+        super::super::audit_store::with_owned_store_probe(&capture, &budget, 64, 4096, |store| {
+            assert!(!store.swap_codec_sequence_role(false));
+            for preset in [false, true] {
+                for full_arrays in [false, true] {
+                    store.swap_codec_sequence_role(preset);
+                    let mut source = ArrayAuditSource {
+                        source: store,
+                        full_arrays,
+                        deadline: None,
+                        fields: None,
+                    };
+                    assert!(matches!(
+                        source
+                            .lookup_ref((&root).into(), &[PathStep::Index(0)])
+                            .unwrap(),
+                        RefValue::Owned(_)
+                    ));
+                    assert_eq!(source.source.swap_codec_sequence_role(preset), preset);
+                    assert_eq!(
+                        source
+                            .lookup_ref((&root).into(), &[PathStep::Index(100)])
+                            .unwrap_err()
+                            .code(),
+                        sc::path::path_code::PATH_INDEX_RANGE
+                    );
+                    assert_eq!(source.source.swap_codec_sequence_role(preset), preset);
+                    assert!(!source.source.swap_codec_full_array_role(false));
+                }
+            }
+        });
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     fn owned_coordinate_source() -> (sc::AuditCapture, OwnedBudget, ContentRef, ContentRef) {
         let mut nodes = sc::MemoryNodes::new();
@@ -5299,7 +6278,7 @@ mod closed_array_role_probe {
     fn role_coordinates(
         reader: &mut HashReader<'_>,
         root: &ContentRef,
-    ) -> Result<sc::CodecVec<i64>, String> {
+    ) -> Result<sc::CodecVec<i64>, PublishError> {
         let mut view = StoreView::for_audit(reader);
         let mut source = ArrayAuditSource {
             source: &mut view,
@@ -5383,7 +6362,10 @@ mod closed_array_role_probe {
                 )
                 .unwrap();
                 let error = copy_coords(&reader, &values).unwrap_err();
-                assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                assert!(
+                    error.to_string().contains(sc::capture_allocation::LIMIT),
+                    "{error}"
+                );
                 assert_eq!(&*values, &[0, 2, 3, 7, 11, 15, 17, 20, 21, 25]);
                 drop(fill);
                 assert_eq!(copy_coords(&reader, &values).unwrap(), values);
@@ -5439,7 +6421,7 @@ mod closed_array_role_probe {
                 let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
                 assert!(!reader.audit_full_array_scan());
                 let error = role_coordinates(&mut reader, &invalid).unwrap_err();
-                assert!(error.contains("源坐标不是严格升序"), "{error}");
+                assert!(error.to_string().contains("源坐标不是严格升序"), "{error}");
                 assert!(!reader.audit_full_array_scan());
                 let values = role_coordinates(&mut reader, &valid).unwrap();
                 assert_eq!(&*values, &[0, 2, 3, 7, 11, 15, 17, 20, 21, 25]);
@@ -5535,13 +6517,13 @@ fn field_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     s.lookup_field_ref(r, k).map_err(err)
 }
 fn elements_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<sc::CodecVec<RefValue>, String> {
+) -> Result<sc::CodecVec<RefValue>, PublishError> {
     if r.kind() != Kind::Array {
         return Err(err("预期数组"));
     }

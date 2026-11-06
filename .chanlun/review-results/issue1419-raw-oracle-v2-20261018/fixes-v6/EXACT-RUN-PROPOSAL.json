@@ -1,0 +1,458 @@
+{
+  "schema": "issue1419-raw-driver-contract/6",
+  "ticket": 1419,
+  "execution_authorized": false,
+  "authorization": false,
+  "source_commit": "PENDING_SOURCE",
+  "source_tree": "PENDING_SOURCE",
+  "source_manifest_sha256": "PENDING_SOURCE",
+  "binary_sha256": "PENDING_SOURCE",
+  "product_run": "NOT_RUN",
+  "baseline": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+  "donor": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+  "blockers": [
+    "PENDING_SOURCE：合流源/树/二进制/规则/独审未冻结",
+    "PENDING_RESOURCE_ADMISSION：原帽不变；新input与监督实装需根准入",
+    "PENDING_PRODUCT_EXECUTION：S3/Q/双跑/持久恢复/浏览器NOT_RUN",
+    "MARKET_DOMAIN_OUTSTANDING：市场认证/原量重放/全图完整历史未覆盖",
+    "PENDING_FINAL_ADAPTER：v6离线静态字段/接口靶向验证；正式源22轴/真实前缀/原始来源/生命周期未接入",
+    "PENDING_V6_REVIEW：本轮修复尚待管理者另会话独审"
+  ],
+  "identity": {
+    "session_id": "tb1419-controlled-raw-v2",
+    "session_generation": "1",
+    "source_namespace": "testonly.raw1419.definition.v2",
+    "source_epoch": "1"
+  },
+  "profile": {
+    "path": "sources/ohlc_integer_tb02a_v1.json",
+    "bytes": 468,
+    "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+  },
+  "signed_catalog": {
+    "path": "sources/signed-catalog.json",
+    "bytes": 84259,
+    "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+  },
+  "expected_rule_donor_only": "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1",
+  "frozen_run_rule": "PENDING_SOURCE",
+  "catalog_axis_count_required": 22,
+  "input_artifacts": [
+    {
+      "path": "RAW-INPUT.json",
+      "bytes": 18486,
+      "sha256": "a4c172590b03aca248e8e73240cb17fd444415bcab8fec8250a1bb5e08d123a8"
+    },
+    {
+      "path": "raw/CONSTRUCTION-RECIPE.json",
+      "bytes": 694,
+      "sha256": "0b387046c7352eb4fd656f497e965043859d6a6f86798b025af748908de1877c"
+    },
+    {
+      "path": "raw/ORDER.json",
+      "bytes": 18500,
+      "sha256": "51ffabd11baff9347bed1bc42d1997a8da6bd2143bc25719e00c00be60c5c671"
+    },
+    {
+      "path": "raw/advance-0111.epoch2.json",
+      "bytes": 1064,
+      "sha256": "e3afc613e29348a081129f253b852b8fd106e702bd30b7b1d48a55dfc69b4e29"
+    },
+    {
+      "path": "raw/clock-plan.json",
+      "bytes": 28954,
+      "sha256": "b95ece1d8bf5868b961dacfb3b1ed0b7845facda398b59537881a5b73f4ed232"
+    },
+    {
+      "path": "raw/messages.base.jsonl",
+      "bytes": 147596,
+      "sha256": "bd70f80ecd2ebf4783b4a5cdcb9d84049a82b4f5190052c76509a570b7a21580"
+    },
+    {
+      "path": "raw/messages.recovery-epoch2.jsonl",
+      "bytes": 74160,
+      "sha256": "d84ece145300de4296267cdbfdf3c155a5228e04dfb43b07186e86d49b2ca924"
+    },
+    {
+      "path": "raw/restore-original.json",
+      "bytes": 18380,
+      "sha256": "a8e8afa16c6a63155fbb391066a28c2351328e965556ea9698dacfe839e9890a"
+    },
+    {
+      "path": "raw/restore-original.message.json",
+      "bytes": 31538,
+      "sha256": "c62dbbdad84cf2d7e7283bc7798029221a1cf0765fb8f505565191811ddf64a5"
+    },
+    {
+      "path": "raw/revise-non-zn-tail.json",
+      "bytes": 18380,
+      "sha256": "4c89559dcd84db98b4aab4ee46896a3b27b5d250cb8f2334e1d060257df9c0a0"
+    },
+    {
+      "path": "raw/revise-non-zn-tail.message.json",
+      "bytes": 1386,
+      "sha256": "abb624127d503765032eff09f3d359a71cd69c7cc27920d38b4d502dc8679610"
+    },
+    {
+      "path": "raw/withdraw-second-center.json",
+      "bytes": 18380,
+      "sha256": "39a4c47e3c065c65e30ab8db2341c695ad001f4c840d90f79b507b9c6dcaab6e"
+    },
+    {
+      "path": "raw/withdraw-second-center.message.json",
+      "bytes": 31550,
+      "sha256": "afffd8915f29c976f7311ee39c559c3c0d66b73404ca316015cd710e1ff891d7"
+    }
+  ],
+  "commands": {
+    "remote_build_only_after_admission": [
+      "cargo",
+      "build",
+      "--locked",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "--no-default-features",
+      "--features",
+      "s_session,s_capture_native_testonly",
+      "--bin",
+      "s_structure_session"
+    ],
+    "init": [
+      "PENDING_BINARY",
+      "init",
+      "--protocol-revision",
+      "s-session/3",
+      "--db",
+      "PENDING_RUN/arm/session.sqlite",
+      "--session",
+      "tb1419-controlled-raw-v2",
+      "--catalog",
+      "sources/signed-catalog.json",
+      "--profile",
+      "sources/ohlc_integer_tb02a_v1.json",
+      "--session-generation",
+      "1",
+      "--clock-plan",
+      "raw/clock-plan.json",
+      "--delivery-retain-generations",
+      "4"
+    ],
+    "serve": [
+      "PENDING_BINARY",
+      "serve",
+      "--protocol-revision",
+      "s-session/3",
+      "--db",
+      "PENDING_RUN/arm/session.sqlite",
+      "--profile",
+      "sources/ohlc_integer_tb02a_v1.json",
+      "--writer-epoch",
+      "PENDING_CURRENT_EPOCH",
+      "--clock-plan",
+      "raw/clock-plan.json",
+      "--socket",
+      "PENDING_SHORT_SOCKET",
+      "--resource-config",
+      "S-RESOURCES.reference.json"
+    ],
+    "advance": [
+      "PENDING_BINARY",
+      "advance",
+      "--protocol-revision",
+      "s-session/3",
+      "--db",
+      "PENDING_RUN/arm/session.sqlite",
+      "--profile",
+      "sources/ohlc_integer_tb02a_v1.json",
+      "--writer-epoch",
+      "2",
+      "--clock-plan",
+      "raw/clock-plan.json",
+      "--input",
+      "raw/advance-0111.epoch2.json",
+      "--max-input-bytes",
+      "1064"
+    ],
+    "recover": [
+      "PENDING_BINARY",
+      "recover",
+      "--protocol-revision",
+      "s-session/3",
+      "--db",
+      "PENDING_RUN/arm/session.sqlite",
+      "--new-epoch",
+      "2",
+      "--clock-plan",
+      "raw/clock-plan.json",
+      "--clock-event-id",
+      "recover-after-111"
+    ],
+    "query_serve": [
+      "PENDING_BINARY",
+      "query-serve",
+      "--protocol-revision",
+      "s-session/3",
+      "--db",
+      "PENDING_RUN/arm/session.sqlite",
+      "--resource-config",
+      "Q-RESOURCES.reference.json",
+      "--producer-epoch",
+      "PENDING_Q_EPOCH",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "PENDING_PORT"
+    ]
+  },
+  "proposed_nonsecret_environment": {
+    "S_CAPTURE_NATIVE_TESTONLY": "1"
+  },
+  "environment_rule": "仅serve/advance的显式Native臂；不得混用S_ALLOCATION_JSON_TESTONLY/AUDIT_PROTOTYPE_*；运行时精确环境白名单须源冻结后另审，本轮不读取宿主环境",
+  "targeted_tests_proposed_not_run": [
+    "v3::content_structure::tests::cd_direct_frozen_cases_match_oracle_and_close_real_object_references",
+    "v3::content_structure::tests::ef_direct_prefix_revisions_pending_and_retained_history_match_oracle"
+  ],
+  "test_command_template": [
+    "cargo",
+    "test",
+    "--locked",
+    "--release",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "--no-default-features",
+    "--features",
+    "s_session,s_capture_native_testonly",
+    "--bin",
+    "s_structure_session",
+    "PENDING_EXACT_TEST_NAME",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "do_not_rerun": [
+    "structure_rule_rejects_new_kinds_under_legacy_rules",
+    "structure_rule_accepts_declared_versions_and_checks_payload",
+    "codec_bridge_preserves_json_types_and_number_domain",
+    "无关全量/Long/历史产品筛选"
+  ],
+  "cuts": {
+    "input_counts": [
+      39,
+      63,
+      87,
+      111,
+      123,
+      135,
+      139
+    ],
+    "nonempty_pair_first_count": 123,
+    "final_all_evidence_pens_confirmed_count": 139,
+    "steps": [
+      "base",
+      "revise-non-zn-tail",
+      "withdraw-second-center",
+      "restore-original"
+    ],
+    "input_frontiers": [
+      138,
+      139,
+      204,
+      269
+    ],
+    "meaning": "generation/cut/profile/rule/catalog与回执同次绑定；批次修订续接用input_frontier，不用seq_range.to"
+  },
+  "replay": {
+    "arms": [
+      "fresh-a",
+      "fresh-b"
+    ],
+    "serial": true,
+    "same_input_bytes": true,
+    "normal_recovery_after_input_count": 111,
+    "normal_recovery": "TERM并reap后同库recover epoch2；使用messages.recovery-epoch2.jsonl确定后缀；定义值与fresh-a/fresh-b相同，epoch/capture差异原件保留单列",
+    "fault_injection": "NOT_RUN/NOT_AUTHORIZED；pending-Begin恢复另需精确故障点、PID与一次性许可",
+    "compare": "完整领域值/refs/顺序/时钟；原回复字节保留；Q query epoch/capture运行差异单列，不删除业务字段"
+  },
+  "existing_caps_reference": {
+    "S": {
+      "path": "S-RESOURCES.reference.json",
+      "bytes": 309,
+      "sha256": "478099217039d556e385d5e17b6c19d2f14c5fbc614270742b23a9582adf0c1a"
+    },
+    "Q": {
+      "path": "Q-RESOURCES.reference.json",
+      "bytes": 796,
+      "sha256": "e04ab59fd20d96c0884c2a066a222292bd49771a1cf6a3f3c43152abe21063e4"
+    },
+    "old_s9_operation_seconds": 30,
+    "old_s9_run_seconds": 900,
+    "ingest_seconds": 10,
+    "capture_ms": 2000,
+    "verify_ms": 5000,
+    "retain_generations": 4,
+    "note": "原门不变；三项Delta值仅q_resources.rs测试参考，非新负载部署准入；不使用600000ms功能测试期限"
+  },
+  "proposed_aggregate_caps_not_authorized": {
+    "reply_wire_bytes": {
+      "value": 134217728,
+      "meaning": "a/b与恢复所有回复body累计，错误/重试也计；每帧仍≤原8MiB"
+    },
+    "db_bytes": {
+      "value": 268435456,
+      "meaning": "两臂SQLite主库+WAL+SHM+临时副本当前占用总和；不等同逻辑内容体积"
+    },
+    "heap_bytes": {
+      "value": 268435456,
+      "meaning": "S/Q/消费者工作堆总预算提案；Native账本/测量适配未核，不等同RSS硬帽"
+    },
+    "store_bytes": {
+      "value": 134217728,
+      "meaning": "完整内容验证器暂存节点/溢出文件+索引实际占用总和；唯一节点计数另保留"
+    },
+    "log_bytes": {
+      "value": 8388608,
+      "meaning": "全部stdout/stderr/监督日志累计；原reply已另计，不可截断后称完整"
+    },
+    "whole_run_seconds": {
+      "value": 900,
+      "meaning": "一次申请含a/b、恢复、查询及封包的monotonic总截止；不随子步骤重置"
+    }
+  },
+  "hard_limits": {
+    "os_memory": "UNQUALIFIED",
+    "synchronous_io_deadline": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "enforcement_claim": "逻辑预算及直接toy子进程监督已测；未资格化OS内存/磁盘/同步IO硬截止/EINTR/产品后代树"
+  },
+  "supervision": {
+    "supervisor_pid": "PENDING_SUPERVISOR",
+    "pid_start_identity": "PENDING_SUPERVISOR",
+    "owner_heartbeat_ms_proposed": 1000,
+    "owner_loss_cancel_after_ms_proposed": 5000,
+    "term_grace_ms_proposed": 2000,
+    "kill_reap_grace_ms_proposed": 2000,
+    "cancel": "截止/预算/失联/人工取消后停止投递；仅对登记PID+启动时间+进程组核实的本轮子树TERM，过宽限KILL，逐PID wait/reap",
+    "unreaped": "非空即失败，不重开其他工蜂或以未知PID发信号",
+    "cleanup": "停止/回收后封原请求回复、DB/WAL/SHM、日志、资源峰值、返回码与SHA清单；只清本轮socket，保失败原件不删工位",
+    "implementation": "driver/toy_supervisor.py；限定固定toy，产品启动能力仍不开放"
+  },
+  "quantifiers_not_proved": [
+    "正式S3/Q的非空成功",
+    "真实对象修订/撤回及AsKnown保留",
+    "真实新进程同输入重放",
+    "真实持久恢复",
+    "浏览器核对",
+    "市场源认证/原量/全图历史",
+    "整票/父域/Voice/高级对象完成"
+  ],
+  "independent_expected": [
+    {
+      "path": "INDEPENDENT-WITNESS-LEDGER.json",
+      "bytes": 900251,
+      "sha256": "cb1b687bb75bc6d25e4650b0dd93fee053c4053395b08f240c22c35518f555d8"
+    },
+    {
+      "path": "expected/TRANSITIONS.json",
+      "bytes": 1249,
+      "sha256": "3ffeeb9707bef0530b6c0d345c26b76ca834598a5102f1c13a33dcf8857b9d70"
+    },
+    {
+      "path": "expected/base.json",
+      "bytes": 44065,
+      "sha256": "0b15e2556315ec50bad4bc9b2d29f264289a85356a9f993ca6b4e4f77ed2cf3e"
+    },
+    {
+      "path": "expected/restore-original.json",
+      "bytes": 44065,
+      "sha256": "0b15e2556315ec50bad4bc9b2d29f264289a85356a9f993ca6b4e4f77ed2cf3e"
+    },
+    {
+      "path": "expected/revise-non-zn-tail.json",
+      "bytes": 44065,
+      "sha256": "da566173f66caf4f33926e0d81071daefe570bacd9da1530a423bcd393148014"
+    },
+    {
+      "path": "expected/withdraw-second-center.json",
+      "bytes": 22446,
+      "sha256": "b8f22fbd42e0bb6ee5dd78b4b42bc6c5a52198c32b515a0447f7d3649df42baa"
+    }
+  ],
+  "toy_engineering_completed": {
+    "scope": "纯Python定向回归及固定toy；不是正式S3Q",
+    "outputs": [
+      "fixes-v3/tests.initial.stdout",
+      "fixes-v3/tests.supplement.stdout",
+      "fixes-v3/tests.f8-recheck.stdout"
+    ],
+    "failure_preserved": "补验首轮误读初始消息末三条为修订，5通过1失败；纠正为epoch2恢复后缀末三条后单项通过"
+  },
+  "volume_contract": "现有profile volume_unit=1；本受控raw量原件就是1。市场原量不因此获准转换；未改profile或载体。",
+  "execution_order": [
+    "两臂fresh-a/fresh-b串行，分别从空的本次TestOnly数据库init；相同raw、时钟与控制顺序",
+    "各臂先serve投递messages.base.jsonl第1..111行，逐条等待同次commit回执",
+    "固cut111六族+内容闭包；TERM并reap S；recover-after-111到epoch2；重读同cut原件并比较",
+    "advance使用advance-0111.epoch2.json；再serve送messages.recovery-epoch2.jsonl第2..28行",
+    "在123/135/139及具名前缀按实际回执固定切面；末3行依次修订/撤回/恢复原价格，每步固cut、watch、AsKnown历史",
+    "比较两臂完整内容/业务值/身份/时间/顺序/修订账；运行capture/进程身份差异保原件单列，不抹业务差异",
+    "浏览器同切面核中心/角色/连接/尾部/修订证据；未通过不能套用旧浏览器延期豁免"
+  ],
+  "previous_preparation_baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "artifact_path_base": "父目录 issue1419-raw-oracle-v2-20261018；继承路径不相对 fixes-v6",
+  "review_status": "PENDING_INDEPENDENT_REVIEW_OF_V6_DIFF",
+  "scope_status": "OFFLINE_COLLECTOR_SESSION_VALIDATED_PRODUCT_LIFECYCLE_UNVERIFIED",
+  "driver_revision": {
+    "report": "fixes-v6/REPORT.md",
+    "matrix": "fixes-v6/ENTRYPOINT-MATRIX.md",
+    "schema": "fixes-v6/DRIVER-CONTRACT.schema.json",
+    "public_payload": "保留records/compare_domain原始类型门；closed_snapshot发行收据前也真实调用records；0x07路径读取累计已收到节点，不要求重复全图",
+    "work_budget": "从构造到请求/信封/完整闭包/原始类型/上下文复制/收据/提交，始终同一WorkBudget；失败不退款，不加帽、不重置",
+    "watch_requires": "必须先真实closed_snapshot返回receipt，再bind_watch(receipt,cursor)；同Collector收据及完整cut绑定，拒绝dict/外来/旧失配收据；成功时原子提交共享cut/projection及watch状态",
+    "first_visibility_interface": "原接口保留；真实139前缀产品轨迹未接入"
+  },
+  "unverified": [
+    "first_visibility",
+    "known_at",
+    "AsKnown",
+    "entity_revision",
+    "raw_history",
+    "withdrawn_objects",
+    "lower_source_coords_and_sealing",
+    "lower_confirmation",
+    "feature_sequence_objects",
+    "full_catalog_axes",
+    "product_source_binding"
+  ],
+  "previous_candidate_baseline": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+  "watch_contract": {
+    "trusted_anchor": "本Collector真实closed_snapshot→snapshot/content→call→close_projection→records全链成功后发行opaque receipt；bind_watch只认本实例最新收据，普通dict和外来收据拒绝",
+    "stable_fields": [
+      "session_id",
+      "session_generation",
+      "catalog_revision",
+      "profile_id",
+      "profile_hash",
+      "scope",
+      "rule_revision"
+    ],
+    "per_generation_fields": [
+      "structure_cut",
+      "cut_generation",
+      "index_frontier",
+      "input_frontier",
+      "seq_range",
+      "catalog_run_status",
+      "catalog_evidence"
+    ],
+    "read_view_fields": [
+      "history_mode",
+      "as_of_generation"
+    ],
+    "per_generation_rule": "所有固定发布字段按代对齐；AsKnown(g)与RecomputedWithRevision(null)仅为读取视图，分别保存projection根；已知代际input_frontier单调，历史/新代可读取而不推进watch游标",
+    "envelope": "observed_head须RecomputedWithRevision/null且完整同代身份一致；投递head相等，retain/first为正且first≤head+1，无Gap游标不得越过first-1；head≥末批，has_more严格等于head>末批。较高head也在成功后登记；全部值先核后提交",
+    "failure": "closed_snapshot或整次watch任何失败不提交上下文/收据/切面/游标/去重账；先前成功状态保留；请求编号、工作与回复费用不回滚",
+    "caller_protocol_preconditions": "accepted_commits的具名输入→实际接纳映射仍由离线轨迹提供；bind_named_submissions核原请求摘要/会话/事件数/重复代际，不证明S真实接纳。watch验证与完整delta字段及本Collector上下文的一致性，返回closure_verified=false；未声称delta完整内容或领域生命周期已验",
+    "lifecycle": "UNVERIFIED",
+    "formal_wire_binding": "PENDING_SOURCE"
+  }
+}

@@ -1,0 +1,2342 @@
+{
+  "qualification": "修复工蜂定向回归，非独立评审",
+  "observations": [
+    {
+      "finding": "回归",
+      "case": "test_domain_adapter_positive_and_zn_mutation_negative",
+      "result": "PASS",
+      "fixture_qualification": "旧自洽模型夹具；非独立证据"
+    },
+    {
+      "finding": "回归",
+      "case": "test_domain_withdrawal_rejects_stale_pair",
+      "result": "PASS",
+      "fixture_qualification": "旧自洽模型夹具；非独立证据"
+    },
+    {
+      "finding": "回归",
+      "case": "test_driver_collects_fixed_pages_and_full_content",
+      "result": "PASS",
+      "fixture_qualification": "旧自洽模型夹具；非独立证据"
+    },
+    {
+      "finding": "F6",
+      "case": "固定Python六条原正常/取消路径",
+      "result": "PASS",
+      "output": "toy-regression/validation",
+      "product_run": "NOT_RUN"
+    },
+    {
+      "finding": "F1",
+      "case": "首次可见接口切面/raw/定义前沿绑定",
+      "result": {
+        "status": "DEFINITION_FIRST_VISIBILITY_ONLY",
+        "prefixes": 2,
+        "known_at": "UNVERIFIED",
+        "AsKnown": "UNVERIFIED",
+        "product_run": "NOT_RUN"
+      },
+      "product_prefixes": "UNVERIFIED"
+    },
+    {
+      "finding": "F1",
+      "case": "独立静态wire夹具正控",
+      "result": {
+        "status": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED",
+        "segments": 10,
+        "centers": 2,
+        "pairs_compared": 1,
+        "product_run": "NOT_RUN",
+        "verified_subquantifiers": [
+          "有限域低级端点几何/笔formation及引用绑定",
+          "段端点/construction/strict/fact_vector/终结证书",
+          "seed五条件/核心/成员/Zn贡献/归属null及实体引用",
+          "相邻对连接成员及16格"
+        ],
+        "unverified": {
+          "first_visibility": "UNVERIFIED",
+          "known_at": "UNVERIFIED",
+          "AsKnown": "UNVERIFIED",
+          "entity_revision": "UNVERIFIED",
+          "raw_history": "UNVERIFIED",
+          "withdrawn_objects": "UNVERIFIED",
+          "lower_source_coords_and_sealing": "UNVERIFIED",
+          "lower_confirmation": "UNVERIFIED",
+          "feature_sequence_objects": "UNVERIFIED",
+          "full_catalog_axes": "UNVERIFIED",
+          "product_source_binding": "UNVERIFIED"
+        },
+        "logical_work_used": 28095,
+        "limitations": "只声明逐项静态子量词；真实前缀轨迹和生命周期输出未接入，禁止据此销项"
+      }
+    },
+    {
+      "finding": "F1",
+      "case": "篡改未接入known_at仍不得声称获知时点通过",
+      "result": {
+        "first_visibility": "UNVERIFIED",
+        "known_at": "UNVERIFIED",
+        "AsKnown": "UNVERIFIED",
+        "entity_revision": "UNVERIFIED",
+        "raw_history": "UNVERIFIED",
+        "withdrawn_objects": "UNVERIFIED",
+        "lower_source_coords_and_sealing": "UNVERIFIED",
+        "lower_confirmation": "UNVERIFIED",
+        "feature_sequence_objects": "UNVERIFIED",
+        "full_catalog_axes": "UNVERIFIED",
+        "product_source_binding": "UNVERIFIED"
+      }
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.geometric_end.stroke_index",
+      "closure_verified": true,
+      "rejection": "段.geometric_end不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.geometric_end.group_anchor",
+      "closure_verified": true,
+      "rejection": "段.geometric_end不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.geometric_end.price",
+      "closure_verified": true,
+      "rejection": "段.geometric_end不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.geometric_end.extreme_roots.0",
+      "closure_verified": true,
+      "rejection": "段.geometric_end不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.start_stroke",
+      "closure_verified": true,
+      "rejection": "段起点重复/域外",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.stroke_indices.1",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.stroke_indices.2",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.length",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.vector.0",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.vector.1",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.vector.2",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.vector.3",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.overlap.0",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.overlap.1",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.overlap_relation",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.direction",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.construction.failed_conditions",
+      "closure_verified": true,
+      "rejection": "段.construction不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.0.high",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.0.low",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.0.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.0.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.1.high",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.1.low",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.1.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.1.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.2.high",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.2.low",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.2.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.elements.2.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.raw_gap",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.gap_closed_by_c",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.effective_case",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.closure_operator",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.closure_left",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.strict.closure_right",
+      "closure_verified": true,
+      "rejection": "段.strict不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.stroke_broken",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.new_segment_formed",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.segment_broken",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.stroke_break_witness.earlier_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.stroke_break_witness.later_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.stroke_break_witness.earlier_price",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.stroke_break_witness.later_price",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.stroke_break_witness.comparison",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.scan_from_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.scan_through_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.scan_complete",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.kind",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.0.high",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.0.low",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.0.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.0.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.1.high",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.1.low",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.1.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.1.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.2.high",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.2.low",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.2.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.elements.2.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.raw_gap",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.gap_closed_by_c",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.effective_case",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.closure_operator",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.closure_left",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.strict.closure_right",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.0.high",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.0.low",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.0.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.0.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.1.high",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.1.low",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.1.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.1.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.2.high",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.2.low",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.2.stroke_idx",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.elements.2.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.top_fractal",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.bottom_fractal",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.second_match.through_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.start_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.stroke_indices.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.stroke_indices.1",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.stroke_indices.2",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.length",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.vector.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.vector.1",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.vector.2",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.vector.3",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.overlap.0",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.overlap.1",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.overlap_relation",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.direction",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.construction.failed_conditions",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.minimum_count_met",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.fact_vector.termination_witness.through_stroke",
+      "closure_verified": true,
+      "rejection": "段.fact_vector不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.trigger_stroke",
+      "closure_verified": true,
+      "rejection": "段.trigger_stroke不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.0.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.1.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.2.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.3.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.4.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.5.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.6.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.7.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.stroke_index",
+      "closure_verified": true,
+      "rejection": "成员/终结见证笔完整顺序不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.entity_id",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.entity_id不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.start_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.end_anchor",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.start_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.end_price",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.start_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.start_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-013.segment.stroke_refs.8.end_roots.0",
+      "closure_verified": true,
+      "rejection": "笔引用绑定.end_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.vector.completed",
+      "closure_verified": true,
+      "rejection": "seed五条件不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.vector.consecutive",
+      "closure_verified": true,
+      "rejection": "seed五条件不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.vector.same_level",
+      "closure_verified": true,
+      "rejection": "seed五条件不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.vector.alternating",
+      "closure_verified": true,
+      "rejection": "seed五条件不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.vector.strict",
+      "closure_verified": true,
+      "rejection": "seed五条件不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.ZD.value",
+      "closure_verified": true,
+      "rejection": "seed核心.ZD不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.ZD.contributors.0",
+      "closure_verified": true,
+      "rejection": "seed贡献悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.ZD.contributors.1",
+      "closure_verified": true,
+      "rejection": "seed贡献悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.ZG.value",
+      "closure_verified": true,
+      "rejection": "seed核心.ZG不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.ZG.contributors.0",
+      "closure_verified": true,
+      "rejection": "seed贡献悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.ZG.contributors.1",
+      "closure_verified": true,
+      "rejection": "seed贡献悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.0.unit_id",
+      "closure_verified": true,
+      "rejection": "单元悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.0.unit_object_id",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.0.direction",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.0.lo",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.0.hi",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.1.unit_id",
+      "closure_verified": true,
+      "rejection": "单元悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.1.unit_object_id",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.1.direction",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.1.lo",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.1.hi",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.2.unit_id",
+      "closure_verified": true,
+      "rejection": "单元悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.2.unit_object_id",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.2.direction",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.2.lo",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.units.2.hi",
+      "closure_verified": true,
+      "rejection": "单元完整投影不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.center_id",
+      "closure_verified": true,
+      "rejection": "center_id悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center_seed_attempt.core_order",
+      "closure_verified": true,
+      "rejection": "seed结论.core_order不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.kind",
+      "closure_verified": true,
+      "rejection": "低级端点.kind不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.price",
+      "closure_verified": true,
+      "rejection": "低级端点.price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.group_anchor",
+      "closure_verified": true,
+      "rejection": "缺低级端点",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.merged_index",
+      "closure_verified": true,
+      "rejection": "低级端点.merged_index不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.raw_first",
+      "closure_verified": true,
+      "rejection": "低级端点.raw_first不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.raw_last",
+      "closure_verified": true,
+      "rejection": "低级端点.raw_last不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-008.endpoint.extreme_roots.0",
+      "closure_verified": true,
+      "rejection": "低级端点.extreme_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.kind",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.start.kind不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.price",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.start.price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.merged_index",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.start.merged_index不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.group_anchor",
+      "closure_verified": true,
+      "rejection": "缺低级笔",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.raw_first",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.start.raw_first不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.raw_last",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.start.raw_last不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.start.extreme_roots.0",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.start.extreme_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.kind",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.kind不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.price",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.price不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.merged_index",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.merged_index不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.group_anchor",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.group_anchor不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.raw_first",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.raw_first不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.raw_last",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.raw_last不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.end.extreme_roots.0",
+      "closure_verified": true,
+      "rejection": "笔分型绑定.end.extreme_roots不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.merged_gap",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.raw_between_actual_extrema",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.top_price",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.bottom_price",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.vector.0",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.vector.1",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.vector.2",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.failed_conditions",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formation.waiting_reasons",
+      "closure_verified": true,
+      "rejection": "低级笔.formation不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.merged_gap",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.raw_between_actual_extrema",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.top_price",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.bottom_price",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.vector.0",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.vector.1",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.vector.2",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.failed_conditions",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-010.bi.formed_evidence.waiting_reasons",
+      "closure_verified": true,
+      "rejection": "低级笔.formed_evidence不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-016.center.seed_attempt_id",
+      "closure_verified": true,
+      "rejection": "中枢seed见证绑定不符",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F1",
+      "case": "CC-020.center_pair.connector_units.0",
+      "closure_verified": true,
+      "rejection": "pair连接悬空/非法引用",
+      "exception": "ValueError"
+    },
+    {
+      "finding": "F2",
+      "case": "16层重复子图",
+      "nodes": 51,
+      "bytes": 2380,
+      "decode_work": 166,
+      "rejection": "闭包逻辑工作量超限：used=1001, limit=1000",
+      "work": 1001
+    },
+    {
+      "finding": "F2",
+      "case": "records内payload展开",
+      "work": 1001
+    },
+    {
+      "finding": "F3",
+      "case": "CC-008.endpoint/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-008.endpoint/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-008.endpoint/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-008.endpoint/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-008.endpoint/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-010.bi/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-010.bi/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-010.bi/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-010.bi/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-010.bi/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-013.segment/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-013.segment/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-013.segment/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-013.segment/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-013.segment/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center_seed_attempt/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center_seed_attempt/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center_seed_attempt/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center_seed_attempt/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-016.center_seed_attempt/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-017.center_roles/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-017.center_roles/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-017.center_roles/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-017.center_roles/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-017.center_roles/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-020.center_pair/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-020.center_pair/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-020.center_pair/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-020.center_pair/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-020.center_pair/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-022.unit_assignment/missing",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-022.unit_assignment/null",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-022.unit_assignment/scalar",
+      "closure_verified": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-022.unit_assignment/no_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "finding": "F3",
+      "case": "CC-022.unit_assignment/bad_data",
+      "closure_verified": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].center_id='nonexistent-center'",
+      "rejection": "center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].center_id=False",
+      "rejection": "center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].center_id=''",
+      "rejection": "center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].left_center_id='nonexistent-center'",
+      "rejection": "预期wire null:left_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].left_center_id=False",
+      "rejection": "预期wire null:left_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].left_center_id=''",
+      "rejection": "预期wire null:left_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].right_center_id='nonexistent-center'",
+      "rejection": "预期wire null:right_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].right_center_id=False",
+      "rejection": "预期wire null:right_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[0].right_center_id=''",
+      "rejection": "预期wire null:right_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].center_id='nonexistent-center'",
+      "rejection": "预期wire null:center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].center_id=False",
+      "rejection": "预期wire null:center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].center_id=''",
+      "rejection": "预期wire null:center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].left_center_id='nonexistent-center'",
+      "rejection": "left_center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].left_center_id=False",
+      "rejection": "left_center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].left_center_id=''",
+      "rejection": "left_center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].right_center_id='nonexistent-center'",
+      "rejection": "right_center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].right_center_id=False",
+      "rejection": "right_center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[5].right_center_id=''",
+      "rejection": "right_center_id悬空/非法引用"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].center_id='nonexistent-center'",
+      "rejection": "预期wire null:center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].center_id=False",
+      "rejection": "预期wire null:center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].center_id=''",
+      "rejection": "预期wire null:center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].left_center_id='nonexistent-center'",
+      "rejection": "预期wire null:left_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].left_center_id=False",
+      "rejection": "预期wire null:left_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].left_center_id=''",
+      "rejection": "预期wire null:left_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].right_center_id='nonexistent-center'",
+      "rejection": "预期wire null:right_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].right_center_id=False",
+      "rejection": "预期wire null:right_center_id"
+    },
+    {
+      "finding": "F4",
+      "case": "assignment[10].right_center_id=''",
+      "rejection": "预期wire null:right_center_id"
+    },
+    {
+      "finding": "F5",
+      "case": "catalog.kind",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "引用种类/extent不符"
+    },
+    {
+      "finding": "F5",
+      "case": "catalog.extent",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "引用种类/extent不符"
+    },
+    {
+      "finding": "F5",
+      "case": "catalog.format",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "ContentRef字段"
+    },
+    {
+      "finding": "F5",
+      "case": "catalog_evidence.kind",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "引用种类/extent不符"
+    },
+    {
+      "finding": "F5",
+      "case": "catalog_evidence.extent",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "引用种类/extent不符"
+    },
+    {
+      "finding": "F5",
+      "case": "catalog_evidence.format",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "ContentRef字段"
+    },
+    {
+      "finding": "F5",
+      "case": "record.kind",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "引用种类/extent不符"
+    },
+    {
+      "finding": "F5",
+      "case": "record.extent",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "引用种类/extent不符"
+    },
+    {
+      "finding": "F5",
+      "case": "record.format",
+      "nodes_changed": false,
+      "root_changed": false,
+      "rejection": "ContentRef字段"
+    },
+    {
+      "finding": "F6",
+      "case": "selector",
+      "killpg_calls": 1,
+      "wait_calls": 1,
+      "stdout_closed": 1,
+      "stderr_closed": 1,
+      "actual_process_started": false
+    },
+    {
+      "finding": "F6",
+      "case": "blocking",
+      "killpg_calls": 1,
+      "wait_calls": 1,
+      "stdout_closed": 1,
+      "stderr_closed": 1,
+      "actual_process_started": false
+    },
+    {
+      "finding": "F6",
+      "case": "register_first",
+      "killpg_calls": 1,
+      "wait_calls": 1,
+      "stdout_closed": 1,
+      "stderr_closed": 1,
+      "actual_process_started": false
+    },
+    {
+      "finding": "F6",
+      "case": "register_second",
+      "killpg_calls": 1,
+      "wait_calls": 1,
+      "stdout_closed": 1,
+      "stderr_closed": 1,
+      "actual_process_started": false
+    },
+    {
+      "finding": "F6",
+      "case": "open_first",
+      "killpg_calls": 1,
+      "wait_calls": 1,
+      "stdout_closed": 1,
+      "stderr_closed": 1,
+      "actual_process_started": false
+    },
+    {
+      "finding": "F6",
+      "case": "open_second",
+      "killpg_calls": 1,
+      "wait_calls": 1,
+      "stdout_closed": 1,
+      "stderr_closed": 1,
+      "actual_process_started": false
+    },
+    {
+      "finding": "F7",
+      "case": "独审19bar原反例",
+      "raw_count": 19,
+      "rejection": "域外：特征序列有包含，当前无包含证明不能使用"
+    },
+    {
+      "finding": "F8",
+      "case": "'100'/1",
+      "rejection": "watch输入前沿回退"
+    },
+    {
+      "finding": "F8",
+      "case": "'-1'/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "'0139'/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "'139.0'/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "139/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "True/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "None/1",
+      "rejection": "非规范非负整数"
+    },
+    {
+      "finding": "F8",
+      "case": "'140'/1",
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    },
+    {
+      "finding": "F8",
+      "case": "'139'/2",
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    },
+    {
+      "finding": "F8",
+      "case": "具名接纳数+跨epoch正控",
+      "frontiers": [
+        "138",
+        "139",
+        "204",
+        "269"
+      ],
+      "affected_seq_to": "7",
+      "accepted_counts": [
+        1,
+        65,
+        65
+      ],
+      "result_frontier": "269"
+    }
+  ],
+  "tests_run": 14,
+  "failures": 0,
+  "errors": 0,
+  "product_run": "NOT_RUN"
+}

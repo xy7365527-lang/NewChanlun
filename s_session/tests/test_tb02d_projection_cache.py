@@ -329,7 +329,7 @@ class ProjectionCacheTests(base.QueryTests):
 
 if __name__ == '__main__':
     p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True)
-    args=p.parse_args();base.BINARY=args.binary.resolve()
+    args=p.parse_args();base.BINARY=base.require_seed_binary(args.binary.resolve())
     names=[n for n in ProjectionCacheTests.__dict__ if n.startswith('test_projection_')]
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProjectionCacheTests(n) for n in names))
     raise SystemExit(not result.wasSuccessful())

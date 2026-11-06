@@ -1,0 +1,191 @@
+[
+  {
+    "path": "/Volumes/AgentStorage/issue1419-interface-fix-20261018/nc1419gate-docs-reference.json",
+    "sha256": "3d06eff725dfa8229c3fec1efe48cf694f81bb9c3f63a8aedd3fb4a86291024a",
+    "response": {
+      "took": 0,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "hits": {
+        "total": {
+          "value": 41,
+          "relation": "eq"
+        },
+        "max_score": 18.947659,
+        "hits": [
+          {
+            "_index": "nc1419gate-docs",
+            "_id": "86d19b6632a06e09c8b3cb567269b5e2",
+            "_score": 18.947659,
+            "_source": {
+              "path": "source_audit.rs",
+              "name": "audit",
+              "line": 1461,
+              "end_line": 1490,
+              "code": "pub(super) fn audit<'a>(\n    &mut self,\n    state: impl Into<sc::RefView<'a>>,\n    prefix_len: usize,\n    profile: &str,\n    rule: &str,\n) -> Result<Counts, String>",
+              "impl": "    pub(super) fn audit<'a>(\n        &mut self,\n        state: impl Into<sc::RefView<'a>>,\n        prefix_len: usize,\n        profile: &str,\n        rule: &str,\n    ) -> Result<Counts, String> {\n        let result = (|| {\n            audit_generated_in_store(\n                &mut super::audit_store::StoreView::for_audit(&mut self.reader),\n                state.into(),\n                self.raw.prefix(prefix_len)?,\n                profile,\n                rule,\n                None,\n                None,\n                Some(&mut self.memo),\n                Some(&mut self.source_memo),\n                Some(&mut self.fields),\n                Some(&mut self.ledger),\n            )\n        })();\n        if result.is_err() {\n            self.fields.clear();\n            self.ledger.clear();\n            self.source_memo.clear();\n            self.memo.entries.clear();\n        }\n        result\n    }"
+            }
+          },
+          {
+            "_index": "nc1419gate-docs",
+            "_id": "205d620434abbd2815b2b175b9640372",
+            "_score": 14.714693,
+            "_source": {
+              "path": "source_structure.rs",
+              "name": "payload",
+              "line": 34,
+              "end_line": 40,
+              "code": "pub(super) fn payload(\n    s: &mut (impl SourceFieldStore + ?Sized),\n    object: &Object,\n) -> Result<RefValue, String>",
+              "impl": "pub(super) fn payload(\n    s: &mut (impl SourceFieldStore + ?Sized),\n    object: &Object,\n) -> Result<RefValue, String> {\n    let p = object.fields.get_admitted(s, \"payload_json\")?;\n    s.lookup_ref(p.view(), &[PathStep::JsonText]).map_err(err)\n}"
+            }
+          },
+          {
+            "_index": "nc1419gate-docs",
+            "_id": "a36c178ab40786ea10e28f08fdeb4333",
+            "_score": 12.159561,
+            "_source": {
+              "path": "source_structure.rs",
+              "name": "is_kind",
+              "line": 5,
+              "end_line": 10,
+              "code": "pub(super) fn is_kind(rule: &str, kind: &str) -> bool",
+              "impl": "pub(super) fn is_kind(rule: &str, kind: &str) -> bool {\n    rule == crate::V3_STRUCTURE_RULE_REVISION\n        && (crate::tb02c::KINDS.contains(&kind)\n            || crate::tb02e::KINDS.contains(&kind)\n            || crate::tb02f::KINDS.contains(&kind))\n}"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-interface-fix-20261018/nc1488d1ref-docs-reference.json",
+    "sha256": "7398d875b12e79d69000d06b90ec46dfc4bd6bfb0216cc72b99231ff2cba0e9e",
+    "response": {
+      "took": 0,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "hits": {
+        "total": {
+          "value": 108,
+          "relation": "eq"
+        },
+        "max_score": 12.055761,
+        "hits": [
+          {
+            "_index": "nc1488d1ref-docs",
+            "_id": "2826f6efdd90a5c9fe3a5592b80eddfd",
+            "_score": 12.055761,
+            "_source": {
+              "path": "pool.rs",
+              "name": "insufficient_capacity_err",
+              "line": 305,
+              "end_line": 319,
+              "code": "#[inline(always)]\nfn insufficient_capacity_err(\n    reservation: &MemoryReservation,\n    additional: usize,\n    available: usize,\n    pool: &impl MemoryPool,\n) -> DataFusionError",
+              "impl": "fn insufficient_capacity_err(\n    reservation: &MemoryReservation,\n    additional: usize,\n    available: usize,\n    pool: &impl MemoryPool,\n) -> DataFusionError {\n    resources_datafusion_err!(\n        \"Failed to allocate additional {} for {} with {} already allocated for this reservation - {} remain available for the total memory pool: {}\",\n        human_readable_size(additional),\n        reservation.registration.consumer.name,\n        human_readable_size(reservation.size()),\n        human_readable_size(available),\n        pool\n    )\n}"
+            }
+          },
+          {
+            "_index": "nc1488d1ref-docs",
+            "_id": "80cc9ec729865c449fdc675ce42df64e",
+            "_score": 11.807406,
+            "_source": {
+              "path": "mod.rs",
+              "name": "MemoryLimit",
+              "line": 250,
+              "end_line": 255,
+              "code": "pub enum MemoryLimit {\n    Infinite,\n    /// Bounded memory limit in bytes.\n    Finite",
+              "impl": "pub enum MemoryLimit {\n    Infinite,\n    /// Bounded memory limit in bytes.\n    Finite(usize),\n    Unknown,\n}"
+            }
+          },
+          {
+            "_index": "nc1488d1ref-docs",
+            "_id": "3b062c4ebdad5599e12babeb4288baf2",
+            "_score": 10.383617,
+            "_source": {
+              "path": "mod.rs",
+              "name": "new",
+              "line": 307,
+              "end_line": 313,
+              "code": "pub fn new(name: impl Into<String>) -> Self",
+              "impl": "    pub fn new(name: impl Into<String>) -> Self {\n        Self {\n            name: name.into(),\n            can_spill: false,\n            id: Self::new_unique_id(),\n        }\n    }"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/tmp/codecvec-xerj-search.json",
+    "sha256": "78e9ee96117766d5d257887c3b32b3d38c9ebf5c6e21ff366e59e667b2c9912c",
+    "query_evidence": [
+      {
+        "reason": "this response carried 18429 bytes of `_source` across 2 hit(s) — for code, that is usually whole files. To get only the matching function or class, add `\"fields\":[\"_passage\"]` and drop `_source`.",
+        "try": {
+          "request": "POST /nc1488rawscratch-docs/_search",
+          "body": {
+            "query": {
+              "query_string": {
+                "query": "reserve_native"
+              }
+            },
+            "_source": [
+              "ax_path",
+              "title"
+            ],
+            "fields": [
+              "_passage"
+            ]
+          }
+        }
+      }
+    ],
+    "total": {
+      "value": 3,
+      "relation": "eq"
+    },
+    "hits": [
+      {
+        "_index": "nc1488rawscratch-docs",
+        "_id": "253bfbbb46f5037a0a44152dafa9f981",
+        "_score": 1.0,
+        "path": "rust/src/s_content/capture_allocation/scratch.rs",
+        "symbols": [
+          {
+            "name": "reserve_native",
+            "kind": "function",
+            "line": 97,
+            "end_line": 107
+          },
+          {
+            "name": "reserve_native",
+            "kind": "function",
+            "line": 321,
+            "end_line": 323
+          },
+          {
+            "name": "try_push",
+            "kind": "function",
+            "line": 369,
+            "end_line": 372
+          }
+        ]
+      },
+      {
+        "_index": "nc1488rawscratch-docs",
+        "_id": "5e92580d5e8144148d65a760fd2cadfe",
+        "_score": 1.0,
+        "path": "rust/src/s_content/capture_allocation/scratch.rs",
+        "symbols": []
+      }
+    ]
+  }
+]

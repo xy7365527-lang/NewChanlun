@@ -368,7 +368,8 @@ pub(super) fn enrich_raw_view_admitted(
     use v3::audit_store::{CodecRead, NativeAdmission};
     let admission = NativeAdmission(work);
     if !ohlc {
-        return v3::business_json::json_from_view_admitted(&admission, row);
+        return v3::business_json::json_from_view_admitted(&admission, row)
+            .map_err(newchan_rust::s_content::ContextError::into_message);
     }
     let revision = row
         .get("revision")
@@ -437,7 +438,8 @@ pub(super) fn enrich_raw_view_admitted(
         &admission,
         JsonView::object_fields(&fields)
             .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
-    )?;
+    )
+    .map_err(newchan_rust::s_content::ContextError::into_message)?;
     drop(fields);
     drop(sql);
     stmt.finalize().map_err(missing)?;
@@ -463,6 +465,8 @@ pub(crate) fn checked_fact_kind(o: &Value) -> Result<&str, String> {
     if !matches!(
         kind,
         "CC-004.inclusion_step"
+            | "CC-004.initialization"
+            | "CC-004.undetermined_raw"
             | "CC-005.inclusion_group"
             | "CC-007.fractal_description"
             | "CC-054.knowledge_state"

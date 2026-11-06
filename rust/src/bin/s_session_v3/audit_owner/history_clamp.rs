@@ -1,9 +1,12 @@
 //! #1481 U-A：既有 AuditConnection 的观测值，不是第二个连接 owner。
 //! 显式组件入口才启用。旧路径不增加前置；这里不签发历史认证。
+use super::owner_sql::{CommitObserver, OwnerBackend, OwnerSql, RowsError};
+#[cfg(test)]
+use super::request_audit::ExactRows;
 use super::{effects, native, request_audit::SqlCell, AuditTxn};
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{capture_allocation::scratch::WorkScope, CodecVec};
-use rusqlite::{types::ValueRef, Connection};
+use rusqlite::types::ValueRef;
 use std::{cell::RefCell, rc::Rc};
 use std::{
     fs::{File, Metadata},
@@ -88,6 +91,9 @@ struct Observation {
 pub(super) struct WriteCandidate {
     observation: Observation,
 }
+/// 本切面观测见证；字段私有，只能由 `Clamp::phase` 构造。
+#[cfg(test)]
+pub(super) struct Phase(Observation);
 #[path = "history_physical.rs"]
 mod physical;
 pub(super) use physical::CommitMonitor;
@@ -106,7 +112,7 @@ pub(super) struct Clamp {
 impl Clamp {
     #[cfg(test)]
     pub(super) fn open(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         path: &Path,
         control_limit: usize,
     ) -> Result<Self, String> {
@@ -114,7 +120,7 @@ impl Clamp {
     }
     #[cfg(test)]
     pub(super) fn open_in_parent(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         path: &Path,
         control_limit: usize,
         parent: Option<native::Budget>,
@@ -129,7 +135,7 @@ impl Clamp {
         )
     }
     pub(super) fn open_in_parent_with_refusal(
-        connection: &Connection,
+        connection: &dyn OwnerSql,
         path: &Path,
         control_limit: usize,
         parent: Option<native::Budget>,
@@ -141,9 +147,7 @@ impl Clamp {
                 .check_current()
                 .map_err(|_| stale("控制父账已过期"))?;
         }
-        let mode: String = connection
-            .query_row("PRAGMA main.journal_mode", [], |r| r.get(0))
-            .map_err(stale)?;
+        let mode = connection.text("PRAGMA main.journal_mode").map_err(stale)?;
         if mode != "wal" {
             integrity_refusal.set(true);
             return Err(stale("H1组件要求既有WAL域，不自动改变journal_mode"));
@@ -152,8 +156,9 @@ impl Clamp {
         wal.push("-wal");
         let wal = PathBuf::from(wal);
         let checkpoint_threshold = connection
-            .query_row("PRAGMA wal_autocheckpoint", [], |r| r.get(0))
-            .map_err(stale)?;
+            .integer("PRAGMA wal_autocheckpoint")
+            .map_err(stale)
+            .and_then(|n| i32::try_from(n).map_err(stale))?;
         let result = Self {
             main: WatchedFile::open(path, integrity_refusal)?,
             wal: WatchedFile::open(&wal, integrity_refusal)?,
@@ -165,7 +170,11 @@ impl Clamp {
             integrity_refusal: std::cell::Cell::new(false),
             inherited_data_version,
         };
-        connection.wal_hook(Some(physical::observe_commit));
+        connection.install_commit_observer(&CommitObserver {
+            legacy: physical::observe_commit,
+            #[cfg(test)]
+            charged: physical::observe_commit_charged,
+        })?;
         Ok(result)
     }
     pub(super) fn integrity_refusal(&self) -> bool {
@@ -226,26 +235,23 @@ impl Clamp {
             wal_header: header,
         })
     }
-    fn observe(&self, active: &AuditTxn<'_>) -> Result<Observation, String> {
+    fn observe<B: OwnerBackend>(&self, active: &AuditTxn<'_, B>) -> Result<Observation, String> {
+        self.observe_tx(active.sql())
+    }
+    fn observe_tx(&self, tx: &dyn OwnerSql) -> Result<Observation, String> {
         let before = self.files()?;
         let out = Observation {
-            data_version: active
-                .tx()
-                .query_row("PRAGMA main.data_version", [], |r| r.get(0))
-                .map_err(stale)?,
-            schema_version: active
-                .tx()
-                .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
-                .map_err(stale)?,
-            domain: active.read_domain().map_err(stale)?,
-            total_changes: active.tx().total_changes(),
+            data_version: tx.integer("PRAGMA main.data_version").map_err(stale)?,
+            schema_version: tx.integer("PRAGMA main.schema_version").map_err(stale)?,
+            domain: super::read_domain_of(tx).map_err(stale)?,
+            total_changes: tx.total_changes(),
             controls: match &self.parent {
                 Some(parent) => parent
                     .codec_work()
                     .map_err(resource_failure)?
-                    .run(|work| Controls::read(active.tx(), self.control_limit, Some(work)))
+                    .run(|work| Controls::read(self, tx, Some(work)))
                     .map_err(|error| resource_failure(native::Failure::from(error)))?,
-                None => Controls::read(active.tx(), self.control_limit, None)?,
+                None => Controls::read(self, tx, None)?,
             },
             files: self.files()?,
         };
@@ -255,7 +261,21 @@ impl Clamp {
         }
         Ok(out)
     }
-    pub(super) fn check(&mut self, active: &AuditTxn<'_>) -> Result<(), String> {
+    pub(super) fn check<B: OwnerBackend>(
+        &mut self,
+        active: &AuditTxn<'_, B>,
+    ) -> Result<(), String> {
+        let now = self.checked_against_baseline(active)?;
+        if self.baseline.is_none() {
+            self.baseline = Some(now);
+        }
+        Ok(())
+    }
+    /// 原 `check` 的唯一判据：交接外部提交、当前观测与生涯基线逐项全等。返回被核过的那一份观测。
+    fn checked_against_baseline<B: OwnerBackend>(
+        &mut self,
+        active: &AuditTxn<'_, B>,
+    ) -> Result<Observation, String> {
         // #1481：先核两把锁之间的外部提交；不得让后续控制读的暂时资源失败掩盖它。
         if let Some(inherited) = self.inherited_data_version.take() {
             if active.data_version != inherited {
@@ -269,20 +289,34 @@ impl Clamp {
                 self.integrity_refusal.set(true);
                 return Err(stale("版本、文件、控制原件、写计数或连接域改变"));
             }
-        } else {
-            self.baseline = Some(now);
         }
-        Ok(())
+        Ok(now)
     }
-    pub(super) fn candidate(
+    pub(super) fn candidate<B: OwnerBackend>(
         &self,
-        active: &AuditTxn<'_>,
+        active: &AuditTxn<'_, B>,
         effects: &effects::Effects,
     ) -> Result<WriteCandidate, String> {
-        if self.parent.is_some() && !effects.shared_parent {
+        let (before, after) = self.own_write_versions(
+            active,
+            effects.shared_parent,
+            effects.has_exact_coverage(active.sql().total_changes()),
+        )?;
+        before.controls.verify_effects(&after.controls, effects)?;
+        self.own_write_files(before, &after)?;
+        Ok(WriteCandidate { observation: after })
+    }
+    /// 自身写的父账、覆盖与版本判据（`candidate` 与材料期切面唯一共用）。返回生涯起点与本次唯一观测。
+    fn own_write_versions<B: OwnerBackend>(
+        &self,
+        active: &AuditTxn<'_, B>,
+        shared_parent: bool,
+        exact_coverage: bool,
+    ) -> Result<(&Observation, Observation), String> {
+        if self.parent.is_some() && !shared_parent {
             return Err(stale("认证自身写effects未进入同一父账"));
         }
-        if !effects.has_exact_coverage(active.tx().total_changes()) {
+        if !exact_coverage {
             return Err(stale("自身写缺完整effects覆盖"));
         }
         let before = self.baseline.as_ref().ok_or_else(|| stale("缺生涯起点"))?;
@@ -294,12 +328,15 @@ impl Clamp {
         {
             return Err(stale("自身写改变版本/schema/domain"));
         }
-        before.controls.verify_effects(&after.controls, effects)?;
+        Ok((before, after))
+    }
+    /// 自身写的物理文件判据（`candidate` 与材料期切面唯一共用），在控制原件核之后。
+    fn own_write_files(&self, before: &Observation, after: &Observation) -> Result<(), String> {
         Self::own_files(&before.files, &after.files, self.progress.complete())?;
         if before.files != after.files && before.total_changes == after.total_changes {
             return Err(stale("无自身SQL效果却发生物理变化"));
         }
-        Ok(WriteCandidate { observation: after })
+        Ok(())
     }
     fn own_files(before: &Files, after: &Files, reset_allowed: bool) -> Result<(), String> {
         if before.main != after.main
@@ -341,18 +378,80 @@ impl Clamp {
         }
         Ok(())
     }
+    /// #1419 M8D 3A：本切面观测就是签发时被原判据核过的那一份观测，不另行重新采样：
+    /// 无自身写时与生涯基线全等（原 `check`），已闭合自身写时与已核 effects 候选全等
+    /// （原 `check_candidate`）。它不是 `WriteCandidate`，不推进生涯基线，也无提交资格。
+    #[cfg(test)]
+    pub(super) fn phase_from_baseline<B: OwnerBackend>(
+        &mut self,
+        active: &AuditTxn<'_, B>,
+    ) -> Result<Phase, String> {
+        if self.baseline.is_none() {
+            return Err(stale("缺生涯起点"));
+        }
+        Ok(Phase(self.checked_against_baseline(active)?))
+    }
+    /// #1419 M8D 3A 材料期切面：node 自身写之后、Recording 仍活、effects 尚未闭合。沿 `candidate`
+    /// 同一父账/覆盖/版本与物理判据，控制原件以截至当前写序的 journal 键和写前原件解释；不闭合集合、
+    /// 不产出 `WriteCandidate`、不推进基线。最终 finish/candidate 仍照原门完整执行。
+    #[cfg(test)]
+    pub(super) fn phase_from_material<B: OwnerBackend>(
+        &self,
+        active: &AuditTxn<'_, B>,
+        writes: &effects::MaterialWrites,
+        material: &effects::MaterialLive,
+        originals: &[ExactRows],
+    ) -> Result<Phase, String> {
+        let (before, after) = self.own_write_versions(
+            active,
+            writes.shared_parent,
+            writes.has_exact_coverage(active.sql().total_changes()),
+        )?;
+        before
+            .controls
+            .verify_writes(&after.controls, material, originals)?;
+        self.own_write_files(before, &after)?;
+        Ok(Phase(after))
+    }
+    #[cfg(test)]
+    pub(super) fn phase_from_candidate<B: OwnerBackend>(
+        &self,
+        active: &AuditTxn<'_, B>,
+        candidate: &WriteCandidate,
+    ) -> Result<Phase, String> {
+        Ok(Phase(self.checked_against_candidate(active, candidate)?))
+    }
+    /// reader 生涯内事务由读者独占且连接写入被拒，任何变化都不能由自身 effects 解释，
+    /// 因而与本切面逐项全等；同一 `observe` 判据，不另立宽松核。
+    #[cfg(test)]
+    pub(super) fn check_phase(&self, tx: &dyn OwnerSql, phase: &Phase) -> Result<(), String> {
+        if self.observe_tx(tx)? != phase.0 {
+            self.integrity_refusal.set(true);
+            return Err(stale("读期间版本、文件、控制原件、写计数或连接域改变"));
+        }
+        Ok(())
+    }
     pub(super) fn arm_commit(&self) -> Result<CommitMonitor, String> {
         CommitMonitor::begin(self)
     }
-    pub(super) fn check_candidate(
+    pub(super) fn check_candidate<B: OwnerBackend>(
         &self,
-        active: &AuditTxn<'_>,
+        active: &AuditTxn<'_, B>,
         candidate: &WriteCandidate,
     ) -> Result<(), String> {
-        if self.observe(active)? != candidate.observation {
+        self.checked_against_candidate(active, candidate).map(drop)
+    }
+    /// 原 `check_candidate` 的唯一判据；返回被核过的那一份观测。
+    fn checked_against_candidate<B: OwnerBackend>(
+        &self,
+        active: &AuditTxn<'_, B>,
+        candidate: &WriteCandidate,
+    ) -> Result<Observation, String> {
+        let now = self.observe(active)?;
+        if now != candidate.observation {
             return Err(stale("effects闭合后出现未声明变化"));
         }
-        Ok(())
+        Ok(now)
     }
     pub(super) fn committed(
         &mut self,
@@ -441,38 +540,46 @@ impl Controls {
             .sum::<usize>()
     }
     fn read(
-        connection: &Connection,
-        limit: usize,
+        clamp: &Clamp,
+        connection: &dyn OwnerSql,
         work: Option<&WorkScope>,
     ) -> Result<Self, String> {
+        let limit = clamp.control_limit;
         let mut out = Self(Default::default());
         let admission = NativeAdmission(work);
         let mut used = 0usize;
         for (i, sql) in Self::SQL.into_iter().enumerate() {
-            let mut statement = connection.prepare(sql).map_err(stale)?;
-            let columns = statement.column_count();
-            let mut rows = statement.query([]).map_err(stale)?;
-            while let Some(row) = rows.next().map_err(stale)? {
-                let mut wire = CodecVec::default();
-                for column in 0..columns {
-                    encode_value(
-                        &mut wire,
-                        row.get_ref(column).map_err(stale)?,
-                        limit.saturating_sub(used),
-                        work,
-                    )?;
-                }
-                used = used
-                    .checked_add(wire.len())
-                    .filter(|n| *n <= limit)
-                    .ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
-                admission
-                    .native_codec_room(&mut out.0[i], 1)
-                    .map_err(stale)?;
-                out.0[i]
-                    .try_push((row.get(0).map_err(stale)?, wire))
-                    .map_err(stale)?;
-            }
+            let rows = &mut out.0[i];
+            connection
+                .rows(sql, &mut |row| {
+                    let mut wire = CodecVec::default();
+                    for column in 0..row.len() {
+                        encode_value(
+                            &mut wire,
+                            row.value(column).map_err(stale)?,
+                            limit.saturating_sub(used),
+                            work,
+                        )?;
+                    }
+                    used = used
+                        .checked_add(wire.len())
+                        .filter(|n| *n <= limit)
+                        .ok_or_else(|| stale("控制原件超过组件调用方额度"))?;
+                    admission.native_codec_room(rows, 1).map_err(stale)?;
+                    rows.try_push((row.integer(0).map_err(stale)?, wire))
+                        .map_err(stale)
+                })
+                .map_err(|error| match error {
+                    RowsError::Sql(error) => stale(error),
+                    RowsError::Row(error) => error,
+                    // 准入 schema 下行宽至多 8；更宽只可能是外部改动 schema，按完整性拒绝保全证据，
+                    // 与原连接上同一改动在基线比对处被判为完整性拒绝一致。
+                    #[cfg(test)]
+                    RowsError::Shape(error) => {
+                        clamp.integrity_refusal.set(true);
+                        stale(error)
+                    }
+                })?;
         }
         Ok(out)
     }
@@ -522,6 +629,61 @@ impl Controls {
         Ok(())
     }
 }
+#[cfg(test)]
+impl Controls {
+    /// 材料期控制原件核：与 `verify_effects` 同一前像判据（写前原件须等于生涯原件），变化只能由
+    /// 本事务 journal 截至当前写序已登记的同表同 rowid 写解释；未登记的变化即拒。后像即本次观测本身。
+    fn verify_writes(
+        &self,
+        after: &Self,
+        material: &effects::MaterialLive,
+        originals: &[ExactRows],
+    ) -> Result<(), String> {
+        for (index, table) in [effects::Table::Meta, effects::Table::Protocol]
+            .into_iter()
+            .enumerate()
+        {
+            let original = effects::table(originals, table)?;
+            let mut old = self.0[index].iter().peekable();
+            let mut new = after.0[index].iter().peekable();
+            loop {
+                let Some(rowid) = [old.peek().map(|r| r.0), new.peek().map(|r| r.0)]
+                    .into_iter()
+                    .flatten()
+                    .min()
+                else {
+                    break;
+                };
+                let before = if old.peek().is_some_and(|r| r.0 == rowid) {
+                    old.next().map(|r| &r.1)
+                } else {
+                    None
+                };
+                let actual = if new.peek().is_some_and(|r| r.0 == rowid) {
+                    new.next().map(|r| &r.1)
+                } else {
+                    None
+                };
+                if material.covers_row(table, rowid)? {
+                    let prior = original
+                        .rows
+                        .binary_search_by_key(&rowid, |r| {
+                            effects::integer(&r[0]).unwrap_or(i64::MIN)
+                        })
+                        .ok()
+                        .map(|i| &original.rows[i][..]);
+                    if !matches_row(before, prior) {
+                        return Err(stale("effects控制前像与生涯原件不符"));
+                    }
+                } else if before != actual {
+                    return Err(stale("控制原件变化未由effects解释"));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 fn matches_row(wire: Option<&CodecVec<u8>>, cells: Option<&[SqlCell]>) -> bool {
     let (wire, cells) = match (wire, cells) {
         (None, None) => return true,
@@ -598,4 +760,131 @@ fn encode_value(
             .map_err(stale)?;
         out.try_extend_bytes(bytes).map_err(stale)
     })
+}
+
+/// #1419 3C U5：夹持观测与提交观察在收费组件连接上运行原判据（连接域核、控制原件、版本、
+/// 文件、WAL 提交收据），同父收费；收费首拒之后观测不再进入 SQLite 并带首拒报错。
+/// allocator 只能在本进程首次 SQLite 初始化前安装，须全新进程 `--release --ignored --exact`。
+#[cfg(test)]
+mod charged_tests {
+    use super::super::owner_sql::ChargedOwnerSql;
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+        SqlGate, SqliteParentAllocator,
+    };
+    use rusqlite::ffi;
+
+    const LIMIT: usize = 64 << 20;
+
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn clamp_observes_and_receipts_commit_on_charged_owner_connection() {
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = native::Budget::fresh(LIMIT).unwrap();
+        let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let (parent, origin) = current.sqlite_parent();
+        let binding = allocator.bind(parent, origin).expect("bind");
+        let dir = std::env::temp_dir().join(format!("clamp-charged-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("owner.sqlite3");
+        let base = current.live();
+        let path = std::ffi::CString::new(db.to_str().unwrap()).unwrap();
+        let conn = binding.open(&path).unwrap();
+        binding
+            .run(&conn, |q| {
+                q.execute_batch(
+                    "PRAGMA journal_mode=WAL;
+                     CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                     INSERT INTO meta VALUES('rule_revision', 'r');
+                     CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                       protocol_revision TEXT NOT NULL, session_generation TEXT NOT NULL,
+                       clock_plan_hash TEXT NOT NULL, clock_plan_json TEXT NOT NULL,
+                       next_attempt_ordinal INTEGER NOT NULL, logical_phase_frontier TEXT NOT NULL);
+                     INSERT INTO s_protocol_meta VALUES(1, 's-session/3', 'g', 'h', '{}', 1, 'f');",
+                )
+            })
+            .unwrap();
+        let sql = ChargedOwnerSql {
+            binding: &binding,
+            connection: &conn,
+        };
+        let refusal = std::cell::Cell::new(false);
+        let clamp = Clamp::open_in_parent_with_refusal(
+            &sql,
+            &db,
+            1 << 20,
+            Some(current.clone()),
+            &refusal,
+            None,
+        )
+        .unwrap();
+        assert!(!refusal.get());
+        assert_eq!(
+            super::super::read_domain_of(&sql).unwrap(),
+            [0, 1, 0, 1, 0, 1],
+            "read_uncommitted 0; bundled SQLITE_DEFAULT_FOREIGN_KEYS=1; recursive_triggers 0; \
+             trusted_schema default 1; query_only 0; UTF-8"
+        );
+        let first = clamp.observe_tx(&sql).unwrap();
+        let again = clamp.observe_tx(&sql).unwrap();
+        assert!(first == again, "no change between observations");
+        assert_eq!(
+            first.controls.0[0].len(),
+            1,
+            "meta rows read through the charged cells"
+        );
+        assert_eq!(first.controls.0[1].len(), 1, "s_protocol_meta rows read");
+        assert!(
+            binding.live_bytes() > 0,
+            "observation SQLite bytes live on the parent"
+        );
+
+        let monitor = clamp.arm_commit().unwrap();
+        binding
+            .run(&conn, |q| {
+                q.execute_batch("INSERT INTO meta VALUES('k', 'v');")
+            })
+            .unwrap();
+        assert!(
+            matches!(monitor.take(), Some(Ok(_))),
+            "the charged WAL hook produced the commit receipt"
+        );
+        drop(monitor);
+        let after = clamp.observe_tx(&sql).unwrap();
+        assert!(
+            after != first,
+            "the committed write is visible to the clamp"
+        );
+
+        let refused = binding.run(&conn, |_| {
+            // SAFETY: plain SQLite allocation inside the operation domain.
+            assert!(unsafe { ffi::sqlite3_malloc64(LIMIT as u64 + 1) }.is_null());
+            Ok(())
+        });
+        assert_eq!(refused, Err(SqlGate::Refused(ScratchFailure::Budget)));
+        let stale = clamp
+            .observe_tx(&sql)
+            .err()
+            .expect("observation after first refusal");
+        assert!(stale.contains("Refused(Budget)"), "{stale}");
+        assert_eq!(
+            binding.refusal(),
+            Some(ScratchFailure::Budget),
+            "first refusal kept"
+        );
+
+        drop((first, again, after));
+        binding.clear_write_hooks(&conn).unwrap();
+        binding.close(conn).map_err(|(_, e)| e).unwrap();
+        drop(clamp);
+        assert_eq!(
+            current.live(),
+            base,
+            "all connection and control bytes returned"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -20,6 +20,57 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write;
 
+std::thread_local! {
+    static QUIET_DIAGNOSTICS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// 本线程是否处在静默诊断期：期间 codec 错误只带稳定 `code` 与静态 detail，不格式化、
+/// 不分配诊断文本。默认关闭，判据、失败次序与 `code` 不受影响。
+pub(crate) fn quiet_diagnostics() -> bool {
+    QUIET_DIAGNOSTICS
+        .try_with(std::cell::Cell::get)
+        .unwrap_or(false)
+}
+
+/// 静默诊断期的作用域守卫；析构时恢复进入前的状态。供调用方在其诊断没有付款来源的核验
+/// （如受管台账的 Δ 核验）期间使用。
+pub struct QuietDiagnostics {
+    previous: bool,
+    _thread_bound: std::marker::PhantomData<*const ()>,
+}
+
+impl QuietDiagnostics {
+    pub fn enter() -> Self {
+        let previous = QUIET_DIAGNOSTICS
+            .try_with(|q| q.replace(true))
+            .unwrap_or(false);
+        Self {
+            previous,
+            _thread_bound: std::marker::PhantomData,
+        }
+    }
+}
+
+impl Drop for QuietDiagnostics {
+    fn drop(&mut self) {
+        let _ = QUIET_DIAGNOSTICS.try_with(|q| q.set(self.previous));
+    }
+}
+
+/// codec 错误的诊断文本：静默诊断期返回空 `String`（不分配），否则同 `format!`。
+macro_rules! codec_detail {
+    ($($arg:tt)*) => {
+        if $crate::s_content::quiet_diagnostics() {
+            ::std::string::String::new()
+        } else {
+            ::std::format!($($arg)*)
+        }
+    };
+}
+
+/// 静默诊断期的统一 detail。
+const QUIET_DETAIL: &str = "诊断文本未生成（静默诊断期）";
+
 /// 内容格式标识：ContentRef.format 的唯一合法值。
 pub const CONTENT_FORMAT: &str = "s-content/1";
 /// 根摘要文本前缀：ContentRef.root = `sc1-` + 64 位小写十六进制。
@@ -40,7 +91,56 @@ mod closed;
 pub mod closure_delta;
 /// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
 pub mod json_writer;
+pub mod raw_materials;
 mod ref_owner;
+pub mod sqlite_audit;
+// #1419 M8A/M8B：capture 包装与 SQL 受管回读只接测试，生产调用与原件持有保持原样。
+// #1419 M8D 3A：s_incremental 下另编译无历史资格的 owner 机制桥（见 m8d_owner_bridge）。
+#[cfg(feature = "s_incremental")]
+mod step_reader;
+
+/// #1419 M8D 3A 机制桥：只导出封闭 reader 与签发方生涯门 trait，供 bin owner 工厂在生产增量
+/// 测试与 native delta 两构建签发。不导出任意期限回调入口、事务 getter、测试注入或读数计数器；
+/// library 不构造生涯门，也不接受“已认证”标志。非测试调用点归 M8D 3C。
+#[cfg(feature = "s_incremental")]
+#[doc(hidden)]
+pub mod m8d_owner_bridge {
+    pub use super::step_reader::managed_sql::{ChargedReadTx, GatedSqlReader, LiveGate, ReaderTx};
+}
+
+/// #1419 M8B：仅现有 Native TestOnly 特性下向 bin 差分锁开放借用回调。
+/// 回调不能移出 SQL 正文或租约；普通生产特性不编译此接缝。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+pub mod m8b_testonly {
+    use super::*;
+    pub use step_reader::managed_sql::{GatedSqlReader, LiveGate};
+
+    pub fn sql_reads_on_thread() -> u64 {
+        step_reader::managed_sql::sql_reads_on_thread()
+    }
+
+    pub fn with_sql_frame<T>(
+        tx: &mut rusqlite::Transaction<'_>,
+        work: &capture_allocation::scratch::WorkScope,
+        sample: &dyn Fn() -> Result<(), CodecError>,
+        digest: &NodeDigest,
+        f: impl FnOnce(u8, &[u8]) -> T,
+    ) -> Result<Option<T>, CodecError> {
+        step_reader::managed_sql::with_sql_frame(tx, work, sample, digest, f)
+    }
+
+    pub fn with_sql_root<T>(
+        tx: &mut rusqlite::Transaction<'_>,
+        work: &capture_allocation::scratch::WorkScope,
+        sample: &dyn Fn() -> Result<(), CodecError>,
+        reference: RefView<'_>,
+        mode: Mode,
+        f: impl FnOnce(u8, &[u8]) -> T,
+    ) -> Result<T, CodecError> {
+        step_reader::managed_sql::with_sql_root(tx, work, sample, reference, mode, f)
+    }
+}
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkBudget, WorkMap, WorkSet, WorkVec};
 use closed::CodecContext;
@@ -120,17 +220,23 @@ pub mod code {
 }
 
 /// 内容层错误：稳定 `code` + 人类可读细节。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CodecError {
     code: &'static str,
     detail: std::borrow::Cow<'static, str>,
     scratch_failure: Option<capture_allocation::scratch::ScratchFailure>,
+    #[cfg(feature = "s_incremental")]
+    origin: Option<capture_allocation::scratch::failure_trace::FailureOrigin>,
 }
 
 impl CodecError {
     fn scratch(failure: capture_allocation::scratch::ScratchFailure) -> Self {
         let mut error = Self::static_detail(capture_allocation::LIMIT, "codec 工作域分配失败");
         error.scratch_failure = Some(capture_allocation::scratch::traced(failure));
+        #[cfg(feature = "s_incremental")]
+        {
+            error.origin = capture_allocation::scratch::failure_trace::born();
+        }
         error
     }
     pub fn scratch_failure(&self) -> Option<capture_allocation::scratch::ScratchFailure> {
@@ -142,13 +248,20 @@ impl CodecError {
             code,
             detail: std::borrow::Cow::Borrowed(detail),
             scratch_failure: None,
+            #[cfg(feature = "s_incremental")]
+            origin: None,
         }
     }
     pub fn new(code: &'static str, detail: impl Into<String>) -> Self {
+        if quiet_diagnostics() {
+            return Self::static_detail(code, QUIET_DETAIL);
+        }
         Self {
             code,
             detail: std::borrow::Cow::Owned(detail.into()),
             scratch_failure: None,
+            #[cfg(feature = "s_incremental")]
+            origin: None,
         }
     }
 
@@ -161,9 +274,158 @@ impl CodecError {
     }
 }
 
+impl PartialEq for CodecError {
+    fn eq(&self, other: &Self) -> bool {
+        self.code == other.code
+            && self.detail == other.detail
+            && self.scratch_failure == other.scratch_failure
+    }
+}
+impl Eq for CodecError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextError {
+    message: String,
+    #[cfg(feature = "s_incremental")]
+    proof: Option<capture_allocation::scratch::failure_trace::BridgeProof>,
+}
+impl ContextError {
+    pub fn from_codec(error: CodecError, prefix: &str) -> Self {
+        #[cfg(feature = "s_incremental")]
+        let proof = capture_allocation::scratch::failure_trace::bridge(&error);
+        Self {
+            message: format!("{prefix}{error}"),
+            #[cfg(feature = "s_incremental")]
+            proof,
+        }
+    }
+    pub fn context(self, prefix: &str) -> Self {
+        Self {
+            message: format!("{prefix}{}", self.message),
+            ..self
+        }
+    }
+    pub fn context_suffix(self, suffix: &str) -> Self {
+        Self {
+            message: format!("{}{suffix}", self.message),
+            ..self
+        }
+    }
+    fn from_wrapped(message: String, inner: Option<&(dyn std::error::Error + 'static)>) -> Self {
+        #[cfg(feature = "s_incremental")]
+        let proof = inner.and_then(|error| {
+            if let Some(codec) = error.downcast_ref::<CodecError>() {
+                capture_allocation::scratch::failure_trace::bridge(codec)
+            } else {
+                error.downcast_ref::<Self>().and_then(|error| error.proof)
+            }
+        });
+        #[cfg(not(feature = "s_incremental"))]
+        let _ = inner;
+        Self {
+            message,
+            #[cfg(feature = "s_incremental")]
+            proof,
+        }
+    }
+    /// 只供完成来源判决后的公开文本出口；不提供 From<ContextError> for String，
+    /// 防止内部问号边界隐式擦除来源。
+    pub fn into_message(self) -> String {
+        self.message
+    }
+}
+impl From<String> for ContextError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            #[cfg(feature = "s_incremental")]
+            proof: None,
+        }
+    }
+}
+impl From<&str> for ContextError {
+    fn from(message: &str) -> Self {
+        Self::from(message.to_owned())
+    }
+}
+impl From<CodecError> for ContextError {
+    fn from(error: CodecError) -> Self {
+        Self::from_codec(error, "")
+    }
+}
+impl From<&CodecError> for ContextError {
+    fn from(error: &CodecError) -> Self {
+        Self::from(error.clone())
+    }
+}
+impl From<&String> for ContextError {
+    fn from(error: &String) -> Self {
+        Self::from(error.clone())
+    }
+}
+impl<T> From<std::sync::PoisonError<T>> for ContextError {
+    fn from(error: std::sync::PoisonError<T>) -> Self {
+        Self::from(error.to_string())
+    }
+}
+macro_rules! context_other {
+    ($($error:ty),* $(,)?) => {$(
+        impl From<$error> for ContextError {
+            fn from(error: $error) -> Self { Self::from(error.to_string()) }
+        }
+    )*};
+}
+#[cfg(feature = "s_session")]
+impl From<rusqlite::Error> for ContextError {
+    fn from(error: rusqlite::Error) -> Self {
+        let message = error.to_string();
+        match error {
+            rusqlite::Error::FromSqlConversionFailure(_, _, inner) => {
+                Self::from_wrapped(message, Some(inner.as_ref()))
+            }
+            _ => Self::from(message),
+        }
+    }
+}
+impl From<std::io::Error> for ContextError {
+    fn from(error: std::io::Error) -> Self {
+        Self::from_wrapped(
+            error.to_string(),
+            error.get_ref().map(|e| e as &dyn std::error::Error),
+        )
+    }
+}
+impl From<serde_json::Error> for ContextError {
+    fn from(error: serde_json::Error) -> Self {
+        let message = error.to_string();
+        if error.is_io() {
+            let inner = std::io::Error::from(error);
+            Self::from_wrapped(
+                message,
+                inner.get_ref().map(|e| e as &dyn std::error::Error),
+            )
+        } else {
+            Self::from(message)
+        }
+    }
+}
+context_other!(
+    std::num::ParseIntError,
+    std::num::TryFromIntError,
+    std::array::TryFromSliceError,
+    std::str::Utf8Error,
+    std::string::FromUtf8Error
+);
+impl fmt::Display for ContextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.message.fmt(f)
+    }
+}
+impl std::error::Error for ContextError {}
+
 impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.code, *self.shown())
+        write!(f, "{}: {}", self.code, self.detail)
     }
 }
 
@@ -177,7 +439,7 @@ fn io_error(err: std::io::Error) -> CodecError {
     {
         return e.clone();
     }
-    CodecError::new(code::IO, err.to_string())
+    CodecError::new(code::IO, codec_detail!("{}", err))
 }
 
 /// 逻辑值类型（ContentRef.kind）。
@@ -297,7 +559,7 @@ pub fn checked_frame_len(n: u64) -> Result<[u8; 8], CodecError> {
     if n > MAX_FRAME_LEN {
         return Err(CodecError::new(
             code::LENGTH_OVERFLOW,
-            format!("U64 帧长度 {n} 超过上限 2^63-1"),
+            codec_detail!("U64 帧长度 {n} 超过上限 2^63-1"),
         ));
     }
     Ok(n.to_be_bytes())
@@ -351,32 +613,54 @@ pub fn root_string(digest: &NodeDigest) -> String {
     FixedRoot::new(digest).as_str().to_owned()
 }
 
-/// 解析 transport 根文本；前缀、长度、大小写与十六进制字符全部严格。
-pub fn parse_root(root: &str) -> Result<NodeDigest, CodecError> {
-    let hex = root.strip_prefix(ROOT_PREFIX).ok_or_else(|| {
-        CodecError::new(
-            code::ROOT,
-            format!("根文本 `{root}` 缺少前缀 `{ROOT_PREFIX}`"),
-        )
-    })?;
+/// transport 根判据的失败类别；不带文本，不分配。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RootDefect {
+    Format,
+    Prefix,
+    Length,
+    Hex,
+}
+
+/// 与 [`parse_root`] 同一判据，失败只报类别、不生成诊断文本。
+pub fn parse_root_quiet(root: &str) -> Result<NodeDigest, RootDefect> {
+    let hex = root.strip_prefix(ROOT_PREFIX).ok_or(RootDefect::Prefix)?;
     if hex.len() != 64 {
-        return Err(CodecError::new(
-            code::ROOT,
-            format!("根文本 `{root}` 的十六进制长度 {} ≠ 64", hex.len()),
-        ));
+        return Err(RootDefect::Length);
     }
     let mut d = [0u8; 32];
     let bytes = hex.as_bytes();
     for i in 0..32 {
-        let hi = hex_val(bytes[2 * i]).ok_or_else(|| {
-            CodecError::new(code::ROOT, format!("根文本 `{root}` 含非小写十六进制字符"))
-        })?;
-        let lo = hex_val(bytes[2 * i + 1]).ok_or_else(|| {
-            CodecError::new(code::ROOT, format!("根文本 `{root}` 含非小写十六进制字符"))
-        })?;
+        let hi = hex_val(bytes[2 * i]).ok_or(RootDefect::Hex)?;
+        let lo = hex_val(bytes[2 * i + 1]).ok_or(RootDefect::Hex)?;
         d[i] = (hi << 4) | lo;
     }
     Ok(d)
+}
+
+/// 与 `ContentRef::digest`/`RefView::digest` 同一判据，失败只报类别、不生成诊断文本。
+pub fn transport_digest_quiet(format: &str, root: &str) -> Result<NodeDigest, RootDefect> {
+    if format != CONTENT_FORMAT {
+        return Err(RootDefect::Format);
+    }
+    parse_root_quiet(root)
+}
+
+/// 解析 transport 根文本；前缀、长度、大小写与十六进制字符全部严格。
+pub fn parse_root(root: &str) -> Result<NodeDigest, CodecError> {
+    parse_root_quiet(root).map_err(|defect| {
+        let detail = match defect {
+            RootDefect::Prefix => codec_detail!("根文本 `{root}` 缺少前缀 `{ROOT_PREFIX}`"),
+            RootDefect::Length => codec_detail!(
+                "根文本 `{root}` 的十六进制长度 {} ≠ 64",
+                root.strip_prefix(ROOT_PREFIX).map_or(0, str::len)
+            ),
+            RootDefect::Hex | RootDefect::Format => {
+                codec_detail!("根文本 `{root}` 含非小写十六进制字符")
+            }
+        };
+        CodecError::new(code::ROOT, detail)
+    })
 }
 
 fn hex_val(b: u8) -> Option<u8> {
@@ -534,6 +818,16 @@ pub trait NodeSource {
     }
 }
 
+/// owner 原件索引一次扩容的完整申请：新容量 2 倍（至少 4）再按控制与表项上界计费。
+#[cfg(feature = "s_incremental")]
+fn owner_index_growth(capacity: usize) -> usize {
+    capacity
+        .saturating_mul(2)
+        .max(4)
+        .saturating_mul(2)
+        .saturating_add(16)
+        .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1)
+}
 /// 内存节点表：缓冲/测试用。写入面按摘要校验，损坏节点用 `insert_unchecked` 注入。
 #[derive(Debug, Clone, Default)]
 pub struct MemoryNodes {
@@ -577,7 +871,7 @@ impl NodeSink for MemoryNodes {
         if actual != digest {
             return Err(CodecError::new(
                 code::SINK,
-                format!(
+                codec_detail!(
                     "写入摘要与 (tag, body) 重算不符：声称 {}，实算 {}",
                     root_string(&digest),
                     root_string(&actual)
@@ -613,7 +907,7 @@ impl NumberToken {
         } else {
             Err(CodecError::new(
                 code::NUMBER_TOKEN,
-                format!("`{token}` 不是合法 JSON 数字 token"),
+                codec_detail!("`{token}` 不是合法 JSON 数字 token"),
             ))
         }
     }
@@ -800,7 +1094,7 @@ fn transport_digest(format: &str, root: &str) -> Result<NodeDigest, CodecError> 
     if format != CONTENT_FORMAT {
         return Err(CodecError::new(
             code::FORMAT,
-            format!("ContentRef.format 必须是 `{CONTENT_FORMAT}`，实为 `{format}`"),
+            codec_detail!("ContentRef.format 必须是 `{CONTENT_FORMAT}`，实为 `{format}`"),
         ));
     }
     parse_root(root)
@@ -858,6 +1152,9 @@ impl fmt::Display for DecimalError<'_> {
 fn parse_canonical_u64(text: &str, what: &str) -> Result<u64, CodecError> {
     parse_canonical_u64_typed(text, what).map_err(|e| {
         let code = e.code();
+        if quiet_diagnostics() {
+            return CodecError::new(code, "");
+        }
         let rendered = e.to_string();
         CodecError::new(
             code,
@@ -942,13 +1239,13 @@ fn write_sequence_ctx(
     if u64::try_from(leaves.len()).map_err(|_| {
         CodecError::new(
             code::LENGTH_OVERFLOW,
-            format!("序列叶数 {} 超过 u64 表达", leaves.len()),
+            codec_detail!("序列叶数 {} 超过 u64 表达", leaves.len()),
         )
     })? > MAX_FRAME_LEN
     {
         return Err(CodecError::new(
             code::LENGTH_OVERFLOW,
-            format!("序列叶数 {} 超过 2^63-1", leaves.len()),
+            codec_detail!("序列叶数 {} 超过 2^63-1", leaves.len()),
         ));
     }
     let budget = sink.work_budget();
@@ -979,7 +1276,7 @@ fn write_sequence_ctx(
     if count != expected {
         return Err(CodecError::new(
             code::SEQUENCE_SHAPE,
-            format!("序列叶数记账不符：实得 {count}，应为 {expected}"),
+            codec_detail!("序列叶数记账不符：实得 {count}，应为 {expected}"),
         ));
     }
     Ok(digest)
@@ -1113,7 +1410,7 @@ fn write_steps_inner<'a>(
                 if done.len() != base + keys.len() {
                     return Err(CodecError::new(
                         code::SEQUENCE_SHAPE,
-                        "对象字段记账与已写入子值不符".to_string(),
+                        "对象字段记账与已写入子值不符",
                     ));
                 }
                 let mut order = WorkVec::with_work_capacity(keys.len(), budget.as_ref())?;
@@ -1125,7 +1422,7 @@ fn write_steps_inner<'a>(
                     if keys[w[0]] == keys[w[1]] {
                         return Err(CodecError::new(
                             code::DUPLICATE_KEY,
-                            format!("对象出现重复键 `{}`", keys[w[0]]),
+                            codec_detail!("对象出现重复键 `{}`", keys[w[0]]),
                         ));
                     }
                 }
@@ -1156,7 +1453,7 @@ fn write_steps_inner<'a>(
     if done.len() != 1 {
         return Err(CodecError::new(
             code::SEQUENCE_SHAPE,
-            format!("写入结果记账异常：{} 个根", done.len()),
+            codec_detail!("写入结果记账异常：{} 个根", done.len()),
         ));
     }
     Ok(Built {
@@ -1186,7 +1483,7 @@ impl<'a> BorrowedNumberToken<'a> {
         } else {
             Err(CodecError::new(
                 code::NUMBER_TOKEN,
-                format!("`{token}` 不是合法 JSON 数字 token"),
+                codec_detail!("`{token}` 不是合法 JSON 数字 token"),
             ))
         }
     }
@@ -1393,7 +1690,7 @@ fn value_kind_extent(value: &Value, mode: Mode) -> Result<(Kind, Option<u64>), C
             if mode != Mode::Template {
                 return Err(CodecError::new(
                     code::TEMPLATE_PLACEHOLDER,
-                    "模板占位（0x08）只在显式模板上下文里允许写".to_string(),
+                    "模板占位（0x08）只在显式模板上下文里允许写",
                 ));
             }
             (Kind::TemplateBatch, None)
@@ -1401,8 +1698,7 @@ fn value_kind_extent(value: &Value, mode: Mode) -> Result<(Kind, Option<u64>), C
         Value::Edge(_) => {
             return Err(CodecError::new(
                 code::KIND,
-                "根值不能是既有边：边没有 kind/extent；请用 content_ref_of 从节点来源读根"
-                    .to_string(),
+                "根值不能是既有边：边没有 kind/extent；请用 content_ref_of 从节点来源读根",
             ))
         }
     })
@@ -1451,7 +1747,7 @@ fn write_value_step<'a>(
             if mode != Mode::Template {
                 return Err(CodecError::new(
                     code::TEMPLATE_PLACEHOLDER,
-                    "模板占位（0x08）只在显式模板上下文里允许写".to_string(),
+                    "模板占位（0x08）只在显式模板上下文里允许写",
                 ));
             }
             done.push(put_node(sink, tag::BATCH_SELF, &[])?)?;
@@ -1534,40 +1830,40 @@ enum Flavor {
 fn utf8_error() -> CodecError {
     CodecError::new(
         code::UTF8,
-        "文本不是有效 UTF-8（含孤立代理项、截断或非法序列）".to_string(),
+        "文本不是有效 UTF-8（含孤立代理项、截断或非法序列）",
     )
 }
 
 fn value_kind_error(t: u8) -> CodecError {
     CodecError::new(
         code::VALUE_KIND,
-        format!("tag={t:02x} 是内部节点/字节块，不能充当逻辑值"),
+        codec_detail!("tag={t:02x} 是内部节点/字节块，不能充当逻辑值"),
     )
 }
 
 fn body_shape_error(t: u8, body: &[u8], want: &str) -> CodecError {
     CodecError::new(
         code::BODY_SHAPE,
-        format!("tag={t:02x} 的 body 长度 {} 不符：{want}", body.len()),
+        codec_detail!("tag={t:02x} 的 body 长度 {} 不符：{want}", body.len()),
     )
 }
 
 fn sequence_shape_error(detail: impl Into<String>) -> CodecError {
-    CodecError::new(code::SEQUENCE_SHAPE, detail.into())
+    CodecError::new(code::SEQUENCE_SHAPE, detail)
 }
 
 fn byte_chunk_shape_error(detail: impl Into<String>) -> CodecError {
-    CodecError::new(code::BYTE_CHUNK_SHAPE, detail.into())
+    CodecError::new(code::BYTE_CHUNK_SHAPE, detail)
 }
 
 fn length_overflow_error(detail: impl Into<String>) -> CodecError {
-    CodecError::new(code::LENGTH_OVERFLOW, detail.into())
+    CodecError::new(code::LENGTH_OVERFLOW, detail)
 }
 
 fn byte_extent_error(got: u64, declared: u64) -> CodecError {
     CodecError::new(
         code::BYTE_EXTENT,
-        format!("字节序列实得 {got} 字节，声明 {declared}"),
+        codec_detail!("字节序列实得 {got} 字节，声明 {declared}"),
     )
 }
 
@@ -1583,7 +1879,7 @@ fn is_internal_tag(t: u8) -> bool {
 }
 
 fn unknown_tag_error(t: u8) -> CodecError {
-    CodecError::new(code::UNKNOWN_TAG, format!("未知标签 tag={t:02x}"))
+    CodecError::new(code::UNKNOWN_TAG, codec_detail!("未知标签 tag={t:02x}"))
 }
 
 /// 逻辑值位读到非值标签：已知内部节点 → `value_kind`；未登记标签 → `unknown_tag`。
@@ -1623,13 +1919,13 @@ fn read_checked(
     match source.checked_read(digest)? {
         None => Err(CodecError::new(
             code::NODE_MISSING,
-            format!("节点缺失：{}", root_string(digest)),
+            codec_detail!("节点缺失：{}", root_string(digest)),
         )),
         Some(checked) => {
             if checked.digest() != digest {
                 return Err(CodecError::new(
                     code::NODE_DIGEST,
-                    format!(
+                    codec_detail!(
                         "已核节点摘要与本次请求不符：请求 {}，实算 {}",
                         root_string(digest),
                         root_string(checked.digest())
@@ -1648,13 +1944,13 @@ fn read_scoped_checked<'a>(
     let frame = source.checked_read_scoped(digest)?.ok_or_else(|| {
         CodecError::new(
             code::NODE_MISSING,
-            format!("节点缺失：{}", root_string(digest)),
+            codec_detail!("节点缺失：{}", root_string(digest)),
         )
     })?;
     if frame.digest() != digest {
         return Err(CodecError::new(
             code::NODE_DIGEST,
-            format!(
+            codec_detail!(
                 "已核节点摘要与本次请求不符：请求 {}，实算 {}",
                 root_string(digest),
                 root_string(frame.digest())
@@ -1670,7 +1966,7 @@ fn framed_len(body: &[u8], what: &str) -> Result<u64, CodecError> {
     if body.len() != 40 {
         return Err(CodecError::new(
             code::BODY_SHAPE,
-            format!(
+            codec_detail!(
                 "{what} 的 body 长度 {} ≠ 40（U64 长度 + 32 字节子摘要）",
                 body.len()
             ),
@@ -1678,7 +1974,7 @@ fn framed_len(body: &[u8], what: &str) -> Result<u64, CodecError> {
     }
     let n = be_u64(body);
     if n > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "{what} 声明长度 {n} 超过 2^63-1"
         )));
     }
@@ -1892,7 +2188,10 @@ fn read_body_checked<'capture>(
     trace_capture_body_read(d);
     capture.reads.set(capture.reads.get() + 1);
     let (t, bytes) = capture.original(d).ok_or_else(|| {
-        CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+        CodecError::new(
+            code::NODE_MISSING,
+            codec_detail!("节点缺失：{}", root_string(d)),
+        )
     })?;
     let body = VerifierBody::Borrowed(bytes);
     // 实际原件完整 F 校验，不复用外部成功、不吞读取错误。
@@ -1900,7 +2199,7 @@ fn read_body_checked<'capture>(
     if actual != *d {
         return Err(CodecError::new(
             code::NODE_DIGEST,
-            format!(
+            codec_detail!(
                 "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
                 root_string(d),
                 root_string(&actual)
@@ -1972,7 +2271,7 @@ impl LeafIter {
                     let leaf = digest_at(&body, 0);
                     let (lt, lbody) = read(&leaf)?;
                     if is_sequence_tag(lt) {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "单叶序列的叶不能又是序列节点（tag={lt:02x}）"
                         )));
                     }
@@ -1990,7 +2289,7 @@ impl LeafIter {
                     self.stack.push(left)?;
                 }
                 other => {
-                    return Err(sequence_shape_error(format!(
+                    return Err(sequence_shape_error(codec_detail!(
                         "序列位置读到非序列节点 tag={other:02x}"
                     )))
                 }
@@ -2038,8 +2337,9 @@ impl AuditMemo {
         }
     }
 }
-/// #1481：一次历史请求内的闭包证明，只绑定这一份不可变捕获与工作域。
-/// Public/Template 各用原 Verifier 的 memo；根四字段每次重核，不签持久资格。
+/// #1481：一次历史请求的闭包核验能力，只绑定这一份捕获与工作域。
+/// Native owner 捕获的成功单位并入同生涯 owner codec 证明（#1481:26 止步）；其他捕获用
+/// 请求内 Public/Template memo。根四字段每次重核，不签来源或业务资格。
 #[cfg(feature = "s_incremental")]
 pub struct CapturedRequestVerifier<'a> {
     capture: &'a AuditCapture,
@@ -2084,6 +2384,18 @@ impl<'a> CapturedRequestVerifier<'a> {
         if let Err(error) = self.check_current() {
             self.invalidate();
             return Err(error);
+        }
+        // #1481:26 / AMENDMENT:60：Native owner 已认证的 (摘要, Flavor, Mode) 单位止步，
+        // 只核本请求新增单位；根四字段仍每次真实读取。成功并入同一 owner 生涯的 codec 证明，
+        // 失败撤销该证明与本请求能力。非 Native 捕获无 owner 生涯，保持请求内 memo。
+        if matches!(&self.capture.nodes, CaptureNodes::Native(_)) {
+            let result = self
+                .capture
+                .verify_owner_refview(reference, mode, self.work);
+            if result.is_err() {
+                self.invalidate();
+            }
+            return result;
         }
         let slot = match mode {
             Mode::Public => &mut self.public,
@@ -3039,9 +3351,9 @@ impl AuditCapture {
                     )?;
                 // 字段拥有者先持原许可；证书另在当前域准入三根，fields随即释放。
                 let root = |name| {
-                    let value = fields
-                        .get(name)
-                        .ok_or_else(|| CodecError::new(code::SOURCE, format!("Counts缺{name}")))?;
+                    let value = fields.get(name).ok_or_else(|| {
+                        CodecError::new(code::SOURCE, codec_detail!("Counts缺{name}"))
+                    })?;
                     capture_allocation::native_owned::NativeValue::<ContentRef>::try_from_view(
                         value.as_ref().into(),
                         work,
@@ -3395,11 +3707,7 @@ impl AuditCapture {
         // 须指到这块已物理计费的正文，不再在父账同额物理reserve。
         let source_claim = work.map(|_| SourceClaim::on_body(&body)).transpose()?;
         if native.nodes.len() == native.nodes.capacity() {
-            let capacity = native.nodes.capacity().saturating_mul(2).max(4);
-            let growth = capacity
-                .saturating_mul(2)
-                .saturating_add(16)
-                .saturating_mul(std::mem::size_of::<(NodeDigest, NativeNode)>() + 1);
+            let growth = owner_index_growth(native.nodes.capacity());
             let permit = work.map(|w| w.reserve_native(growth)).transpose()?;
             if growth > cap || native.nodes.try_reserve(1).is_err() {
                 if let Some(work) = work {
@@ -3429,6 +3737,16 @@ impl AuditCapture {
         Ok(true)
     }
 
+    /// #1419 M8D L6：owner 原件索引满时一次扩容的完整申请量 G；局部门比较 `G > j.cap`。
+    #[cfg(feature = "s_incremental")]
+    #[doc(hidden)]
+    pub fn owner_index_next_growth(&self) -> Option<usize> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return None;
+        };
+        (native.nodes.len() == native.nodes.capacity())
+            .then(|| owner_index_growth(native.nodes.capacity()))
+    }
     /// #1394 owner正常追加的热交接：只清本步实际生成过proof的节点。
     /// 完整原件与根证书继续保留；不扫描旧节点求body总量。
     #[cfg(feature = "s_incremental")]
@@ -5296,6 +5614,7 @@ mod native_frame_reuse_tests {
 }
 
 struct Verifier<'a, 'capture> {
+    base_proofs: Option<&'a std::cell::RefCell<sqlite_audit::SuccessTable>>,
     source: CodecContext<'a, 'capture>,
     #[cfg(feature = "s_incremental")]
     owner_codec: Option<&'a NativeOwnerCodecMemo>,
@@ -5341,6 +5660,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         };
         Self {
             source,
+            base_proofs: None,
             #[cfg(feature = "s_incremental")]
             owner_codec: None,
             #[cfg(feature = "s_incremental")]
@@ -5398,6 +5718,13 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
 
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        if self
+            .base_proofs
+            .is_some_and(|proofs| proofs.borrow_mut().contains(&digest, self.mode, flavor))
+        {
+            return Ok(());
+        }
+
         #[cfg(feature = "s_incremental")]
         if let Some(frontier) = self.closure_frontier {
             if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
@@ -5485,12 +5812,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let leaf = digest_at(&body, 0);
                             let (lt, lbody) = self.read_node(&leaf)?;
                             if lt != tag::BYTES_CHUNK {
-                                return Err(byte_chunk_shape_error(format!(
+                                return Err(byte_chunk_shape_error(codec_detail!(
                                     "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
                                 )));
                             }
                             if lbody.is_empty() || lbody.len() > CHUNK_BYTES {
-                                return Err(byte_chunk_shape_error(format!(
+                                return Err(byte_chunk_shape_error(codec_detail!(
                                     "块长度 {} 必须落在 1..=4096",
                                     lbody.len()
                                 )));
@@ -5515,12 +5842,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let n = be_u64(&body);
                             if n > MAX_FRAME_LEN {
-                                return Err(length_overflow_error(format!(
+                                return Err(length_overflow_error(codec_detail!(
                                     "分支序列声明 n={n} 超过 2^63-1"
                                 )));
                             }
                             if n < 2 {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "分支序列 n={n} 必须 ≥ 2"
                                 )));
                             }
@@ -5540,7 +5867,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             })?;
                         }
                         other => {
-                            return Err(sequence_shape_error(format!(
+                            return Err(sequence_shape_error(codec_detail!(
                                 "序列位置读到非序列节点 tag={other:02x}"
                             )))
                         }
@@ -5570,7 +5897,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         .ok_or_else(|| sequence_shape_error("字节序列计数栈缺左子"))?;
                     let k = split_index(n).expect("n ≥ 2");
                     if left.leaves != k || right.leaves != n - k {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "序列分解形状不符：n={n} 要求左 k={k}、右 {}，实得左 {}、右 {}",
                             n - k,
                             left.leaves,
@@ -5640,7 +5967,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let leaf = digest_at(&body, 0);
                             let (lt, _lbody) = self.read_node(&leaf)?;
                             if is_sequence_tag(lt) {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "单叶序列的叶不能又是序列节点（tag={lt:02x}）"
                                 )));
                             }
@@ -5659,12 +5986,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let n = be_u64(&body);
                             if n > MAX_FRAME_LEN {
-                                return Err(length_overflow_error(format!(
+                                return Err(length_overflow_error(codec_detail!(
                                     "分支序列声明 n={n} 超过 2^63-1"
                                 )));
                             }
                             if n < 2 {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "分支序列 n={n} 必须 ≥ 2"
                                 )));
                             }
@@ -5675,7 +6002,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             steps.push(Step::Enter(left))?;
                         }
                         other => {
-                            return Err(sequence_shape_error(format!(
+                            return Err(sequence_shape_error(codec_detail!(
                                 "序列位置读到非序列节点 tag={other:02x}"
                             )))
                         }
@@ -5690,7 +6017,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         .ok_or_else(|| sequence_shape_error("元素序列计数栈缺左子"))?;
                     let k = split_index(n).expect("n ≥ 2");
                     if left != k || right != n - k {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "序列分解形状不符：n={n} 要求左 k={k}、右 {}，实得左 {left}、右 {right}",
                             n - k
                         )));
@@ -5754,7 +6081,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let field = digest_at(&body, 0);
                             let (ft, fbody) = self.read_node(&field)?;
                             if ft != tag::OBJECT_FIELD {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "对象字段序列的叶必须是 0x14 字段节点，读到 tag={ft:02x}"
                                 )));
                             }
@@ -5784,12 +6111,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let n = be_u64(&body);
                             if n > MAX_FRAME_LEN {
-                                return Err(length_overflow_error(format!(
+                                return Err(length_overflow_error(codec_detail!(
                                     "分支序列声明 n={n} 超过 2^63-1"
                                 )));
                             }
                             if n < 2 {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "分支序列 n={n} 必须 ≥ 2"
                                 )));
                             }
@@ -5800,7 +6127,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             steps.push(Step::Enter(left))?;
                         }
                         other => {
-                            return Err(sequence_shape_error(format!(
+                            return Err(sequence_shape_error(codec_detail!(
                                 "序列位置读到非序列节点 tag={other:02x}"
                             )))
                         }
@@ -5815,7 +6142,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         .ok_or_else(|| sequence_shape_error("字段序列计数栈缺左子"))?;
                     let k = split_index(n).expect("n ≥ 2");
                     if left.count != k || right.count != n - k {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "序列分解形状不符：n={n} 要求左 k={k}、右 {}，实得左 {}、右 {}",
                             n - k,
                             left.count,
@@ -5835,13 +6162,13 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         std::cmp::Ordering::Equal => {
                             return Err(CodecError::new(
                                 code::DUPLICATE_KEY,
-                                "对象出现重复键（同一键摘要跨分支重复）".to_string(),
+                                "对象出现重复键（同一键摘要跨分支重复）",
                             ))
                         }
                         std::cmp::Ordering::Greater => {
                             return Err(CodecError::new(
                                 code::OBJECT_KEY_ORDER,
-                                "对象键未按 UTF-8 字节升序".to_string(),
+                                "对象键未按 UTF-8 字节升序",
                             ))
                         }
                     }
@@ -5865,7 +6192,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         if t != tag::STRING {
             return Err(CodecError::new(
                 code::VALUE_KIND,
-                format!("对象键必须是字符串节点（0x03），读到 tag={t:02x}"),
+                codec_detail!("对象键必须是字符串节点（0x03），读到 tag={t:02x}"),
             ));
         }
         let declared = framed_len(&body, "字符串")?;
@@ -5890,7 +6217,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         if t != tag::STRING {
             return Err(CodecError::new(
                 code::VALUE_KIND,
-                format!("对象键必须是字符串节点（0x03），读到 tag={t:02x}"),
+                codec_detail!("对象键必须是字符串节点（0x03），读到 tag={t:02x}"),
             ));
         }
         framed_len(&body, "字符串")?;
@@ -5941,7 +6268,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 match iter_a.next_context(&mut self.source)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
-                            return Err(byte_chunk_shape_error(format!(
+                            return Err(byte_chunk_shape_error(codec_detail!(
                                 "字节序列的叶必须是 0x10 块节点，读到 tag={t:02x}"
                             )));
                         }
@@ -5959,7 +6286,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 match iter_b.next_context(&mut self.source)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
-                            return Err(byte_chunk_shape_error(format!(
+                            return Err(byte_chunk_shape_error(codec_detail!(
                                 "字节序列的叶必须是 0x10 块节点，读到 tag={t:02x}"
                             )));
                         }
@@ -6041,7 +6368,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         if kind != reference.kind() {
             return Err(CodecError::new(
                 code::KIND,
-                format!(
+                codec_detail!(
                     "ContentRef.kind={} 与真实节点 tag={t:02x}（{}）不符",
                     reference.kind().name(),
                     kind.name()
@@ -6052,7 +6379,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         if extent != reference.extent() {
             return Err(CodecError::new(
                 code::EXTENT,
-                format!(
+                codec_detail!(
                     "ContentRef.extent={:?} 与真实节点 header {:?} 不符",
                     reference.extent(),
                     extent
@@ -6097,7 +6424,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     if !num_accepts(agg.num) {
                         return Err(CodecError::new(
                             code::NUMBER_TOKEN,
-                            "数字节点内容不是合法 JSON 数字 token".to_string(),
+                            "数字节点内容不是合法 JSON 数字 token",
                         ));
                     }
                     if !agg.all_but_last_ok {
@@ -6113,7 +6440,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     let declared = framed_len(&body, "数组")?;
                     let count = self.elem_count(&digest_at(&body, 8), flavor)?;
                     if count != declared {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "数组声明 {declared} 个元素，元素序列实得 {count} 叶"
                         )));
                     }
@@ -6122,7 +6449,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     let declared = framed_len(&body, "对象")?;
                     let agg = self.field_agg(&digest_at(&body, 8), flavor)?;
                     if agg.count != declared {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "对象声明 {declared} 个字段，字段序列实得 {} 叶",
                             agg.count
                         )));
@@ -6132,7 +6459,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     if flavor == Flavor::JsonInner {
                         return Err(CodecError::new(
                             code::JSON_TEXT_INTERNAL_KIND,
-                            "json_text 内部不允许再出现文本视图（0x07）".to_string(),
+                            "json_text 内部不允许再出现文本视图（0x07）",
                         ));
                     }
                     if body.len() != 32 {
@@ -6151,13 +6478,13 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     if flavor == Flavor::JsonInner {
                         return Err(CodecError::new(
                             code::JSON_TEXT_INTERNAL_KIND,
-                            "json_text 内部不允许批次占位（0x08）".to_string(),
+                            "json_text 内部不允许批次占位（0x08）",
                         ));
                     }
                     if self.mode != Mode::Template {
                         return Err(CodecError::new(
                             code::TEMPLATE_PLACEHOLDER,
-                            "模板占位（0x08）只在显式模板上下文里允许".to_string(),
+                            "模板占位（0x08）只在显式模板上下文里允许",
                         ));
                     }
                 }
@@ -6453,7 +6780,7 @@ impl Renderer<'_, '_> {
                     if self.escaping {
                         return Err(CodecError::new(
                             code::JSON_TEXT_INTERNAL_KIND,
-                            "渲染遇到嵌套文本视图层".to_string(),
+                            "渲染遇到嵌套文本视图层",
                         ));
                     }
                     self.escaping = true;
@@ -6507,7 +6834,7 @@ impl Renderer<'_, '_> {
                         .next_context(&mut self.source)?
                         .ok_or_else(|| sequence_shape_error("字段序列提前结束"))?;
                     if ft != tag::OBJECT_FIELD || fbody.len() != 64 {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "对象字段序列的叶必须是 0x14 字段节点（64 字节 body），读到 tag={ft:02x}"
                         )));
                     }
@@ -6566,7 +6893,7 @@ impl Renderer<'_, '_> {
                             if flavor == Flavor::JsonInner {
                                 return Err(CodecError::new(
                                     code::JSON_TEXT_INTERNAL_KIND,
-                                    "json_text 内部不允许再出现文本视图（0x07）".to_string(),
+                                    "json_text 内部不允许再出现文本视图（0x07）",
                                 ));
                             }
                             if body.len() != 32 {
@@ -6585,7 +6912,7 @@ impl Renderer<'_, '_> {
                         tag::BATCH_SELF => {
                             return Err(CodecError::new(
                                 code::TEMPLATE_PLACEHOLDER,
-                                "未解析的批次占位（0x08）不渲染".to_string(),
+                                "未解析的批次占位（0x08）不渲染",
                             ))
                         }
                         other => return Err(unsupported_value_tag_error(other)),
@@ -6602,7 +6929,7 @@ impl Renderer<'_, '_> {
         if t != tag::STRING {
             return Err(CodecError::new(
                 code::VALUE_KIND,
-                format!("字符串节点必须是 0x03，读到 tag={t:02x}"),
+                codec_detail!("字符串节点必须是 0x03，读到 tag={t:02x}"),
             ));
         }
         let declared = framed_len(&body, "字符串")?;
@@ -6620,12 +6947,12 @@ impl Renderer<'_, '_> {
                 break;
             };
             if lt != tag::BYTES_CHUNK {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
                 )));
             }
             if lbody.is_empty() || lbody.len() > CHUNK_BYTES {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "块长度 {} 必须落在 1..=4096",
                     lbody.len()
                 )));
@@ -6664,7 +6991,7 @@ impl Renderer<'_, '_> {
         if t != tag::NUMBER {
             return Err(CodecError::new(
                 code::VALUE_KIND,
-                format!("数字 token 必须是 0x04 节点，读到 tag={t:02x}"),
+                codec_detail!("数字 token 必须是 0x04 节点，读到 tag={t:02x}"),
             ));
         }
         let declared = framed_len(&body, "数字 token")?;
@@ -6681,12 +7008,12 @@ impl Renderer<'_, '_> {
                 break;
             };
             if lt != tag::BYTES_CHUNK {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
                 )));
             }
             if lbody.is_empty() || lbody.len() > CHUNK_BYTES {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "块长度 {} 必须落在 1..=4096",
                     lbody.len()
                 )));
@@ -6698,7 +7025,7 @@ impl Renderer<'_, '_> {
             if state == NumState::Dead {
                 return Err(CodecError::new(
                     code::NUMBER_TOKEN,
-                    "数字节点内容不是合法 JSON 数字 token".to_string(),
+                    "数字节点内容不是合法 JSON 数字 token",
                 ));
             }
             self.emit(&lbody)?;
@@ -6706,7 +7033,7 @@ impl Renderer<'_, '_> {
         if !num_accepts(state) {
             return Err(CodecError::new(
                 code::NUMBER_TOKEN,
-                "数字节点内容不是合法 JSON 数字 token".to_string(),
+                "数字节点内容不是合法 JSON 数字 token",
             ));
         }
         if total != declared {
@@ -8911,6 +9238,76 @@ mod native_owner_codec_bridge_tests {
         assert_eq!(tree.retained_layout_bytes(), retained);
     }
 
+    /// #1419/#1481:26：Native owner 的请求闭包只核本请求新增单位，已认证单位跨请求止步；
+    /// 根头每次真实读取，模式不互借，失败撤销请求能力与 owner 证明。
+    #[test]
+    fn h1_request_closure_native_owner_stops_at_certified_units_across_requests() {
+        let mut nodes = MemoryNodes::new();
+        let child = write_value(
+            &mut nodes,
+            &Value::Array((0..32).map(|i| Value::string(format!("c-{i}"))).collect()),
+        )
+        .unwrap();
+        let first = write_value(
+            &mut nodes,
+            &Value::Object(vec![("items".into(), Value::Edge(child.digest))]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut capture = native(nodes);
+        let request = |capture: &AuditCapture, root: &ContentRef, mode: Mode| {
+            let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes());
+            run(&parent, |work| {
+                let before = capture.reads.get();
+                let mut r = CapturedRequestVerifier::new(capture, work)?;
+                r.verify_refview(root.into(), mode)?;
+                Ok(capture.reads.get() - before)
+            })
+        };
+        let cold = request(&capture, &first, Mode::Public).unwrap();
+        assert!(cold > 32, "首个请求完整核闭包");
+        let retained = capture.owner_codec_retained_bytes();
+        assert!(retained > 0, "成功单位并入 owner 证明并计保留");
+        capture = capture.finish_owner_step().unwrap();
+        assert_eq!(
+            request(&capture, &first, Mode::Public).unwrap(),
+            1,
+            "新请求对已认证根只重读根头"
+        );
+        assert_eq!(
+            request(&capture, &first, Mode::Template).unwrap(),
+            cold,
+            "Template 不借 Public 单位"
+        );
+        // 本请求新增根：共享的旧子树止步，只核新增节点与根头。
+        let mut more = MemoryNodes::new();
+        let second = write_value(
+            &mut more,
+            &Value::Object(vec![
+                ("items".into(), Value::Edge(child.digest)),
+                ("n".into(), Value::string("new")),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        append(&mut capture, more);
+        capture = capture.finish_owner_step().unwrap();
+        let delta = request(&capture, &second, Mode::Public).unwrap();
+        assert!(delta < cold, "旧子树单位止步：{delta} < {cold}");
+        // 根头四字段每次重核：错误 kind 拒绝，并撤销 owner 证明（后续 warm 也拒绝）。
+        let mut bad = first.clone();
+        bad.kind = Kind::Array;
+        assert_eq!(
+            operation_error(request(&capture, &bad, Mode::Public).map(|_| ())).code(),
+            code::KIND
+        );
+        assert!(capture.owner_codec.borrow().revoked);
+        assert_eq!(
+            operation_error(request(&capture, &first, Mode::Public).map(|_| ())).code(),
+            code::SOURCE
+        );
+    }
+
     #[test]
     fn b2_owner_codec_successful_verify_then_partial_promotion_failure_revokes_all() {
         let mut nodes = MemoryNodes::new();
@@ -9330,6 +9727,84 @@ mod native_owner_codec_bridge_tests {
         assert_eq!(parent.live.load(Ordering::SeqCst), 0);
     }
 
+    /// #1419 M8D L6：同父余量充足时，局部门恰在一次扩容的完整申请 G 上：cap=G 通过，
+    /// cap=G−1 在父账 reserve 成功后才以 Allocation 拒绝，正文与临时许可全额退回、
+    /// 首错为本门、能力撤销、原件未入；usize::MAX 只作对照臂，与 cap=G 结果相同。
+    #[test]
+    fn m8d_jcap_exact_growth_one_less_and_max_control() {
+        fn count(capture: &AuditCapture) -> usize {
+            let CaptureNodes::Native(native) = &capture.nodes else {
+                unreachable!()
+            };
+            native.nodes.len()
+        }
+        fn append_nth(
+            parent: &Arc<Parent>,
+            capture: &mut AuditCapture,
+            n: usize,
+            cap: usize,
+        ) -> Result<bool, WorkError<CodecError>> {
+            let body = codec_body(parent, format!("fill-{n}").as_bytes());
+            let digest = frame(tag::BYTES_CHUNK, &body);
+            run(parent, |work| {
+                capture.append_original_codec_for_owner(digest, tag::BYTES_CHUNK, body, cap, work)
+            })
+        }
+        /// 追加到第 `filled` 次扩容边界（中途未到边界的追加不比较 cap），返回已追加个数。
+        fn fill_to(parent: &Arc<Parent>, capture: &mut AuditCapture, filled: usize) -> usize {
+            let (mut n, mut grown) = (0, 0);
+            loop {
+                if capture.owner_index_next_growth().is_some() {
+                    if grown == filled {
+                        return n;
+                    }
+                    grown += 1;
+                }
+                assert!(append_nth(parent, capture, n, usize::MAX).unwrap());
+                n += 1;
+            }
+        }
+        let boundary = |filled: usize| {
+            let parent = Parent::new(64 << 20, 0);
+            let mut capture = native(MemoryNodes::new());
+            let n = fill_to(&parent, &mut capture, filled);
+            let g = capture.owner_index_next_growth().unwrap();
+            let live = parent.live.load(Ordering::SeqCst);
+            let failed = append_nth(&parent, &mut capture, n, g - 1);
+            assert!(matches!(
+                failed,
+                Err(WorkError::Resource(ScratchFailure::Allocation))
+            ));
+            assert!(
+                parent.peak.load(Ordering::SeqCst) >= live + g,
+                "父 reserve 先成功、局部门后拒"
+            );
+            assert_eq!(
+                parent.live.load(Ordering::SeqCst),
+                live,
+                "正文与临时许可全退"
+            );
+            assert!(capture.owner_codec.borrow().revoked);
+            assert_eq!(count(&capture), n, "拒绝不入原件");
+            for cap in [g, usize::MAX] {
+                let parent = Parent::new(64 << 20, 0);
+                let mut target = native(MemoryNodes::new());
+                assert_eq!(fill_to(&parent, &mut target, filled), n);
+                assert_eq!(target.owner_index_next_growth(), Some(g));
+                assert!(
+                    append_nth(&parent, &mut target, n, cap).unwrap(),
+                    "cap={cap} 不小于 G 须通过"
+                );
+                assert_eq!(count(&target), n + 1);
+                assert!(!target.owner_codec.borrow().revoked);
+            }
+            g
+        };
+        let first = boundary(0);
+        let later = boundary(2);
+        assert!(later > first, "后续边界的 G 随容量增长");
+    }
+
     #[test]
     fn codec_original_allocation_prototype_capture_remains_rejected() {
         let parent = Parent::new(32 << 20, 0);
@@ -9363,14 +9838,6 @@ impl CodecError {
     #[doc(hidden)]
     pub fn scratch_unscoped_for_test(failure: capture_allocation::scratch::ScratchFailure) -> Self {
         Self::scratch(failure)
-    }
-}
-
-impl CodecError {
-    /// #1488 0072 Display 挂点：生产构建为 `&self.detail` 恒等，testonly 门内登记过桥渲染。
-    #[inline(always)]
-    fn shown(&self) -> &std::borrow::Cow<'static, str> {
-        capture_allocation::scratch::shown(self)
     }
 }
 
@@ -9507,6 +9974,33 @@ mod verified_public_subroots_tests {
             .unwrap_err()
             .code(),
             code::TEMPLATE_PLACEHOLDER
+        );
+    }
+}
+
+#[cfg(test)]
+mod quiet_diagnostics_tests {
+    use super::*;
+
+    #[test]
+    fn quiet_diagnostics_keep_code_and_skip_text() {
+        let loud = parse_root("nope").unwrap_err();
+        let quiet = {
+            let _quiet = QuietDiagnostics::enter();
+            let nested = {
+                let _again = QuietDiagnostics::enter();
+                transport_digest("bad-format", "nope").unwrap_err()
+            };
+            assert_eq!(nested.detail(), QUIET_DETAIL);
+            parse_root("nope").unwrap_err()
+        };
+        assert_eq!(quiet.code(), loud.code());
+        assert_eq!(quiet.detail(), QUIET_DETAIL);
+        assert!(loud.detail().contains("nope"));
+        assert_eq!(parse_root("nope").unwrap_err().detail(), loud.detail());
+        assert_eq!(
+            transport_digest("bad-format", "nope").unwrap_err().detail(),
+            "ContentRef.format 必须是 `s-content/1`，实为 `bad-format`"
         );
     }
 }

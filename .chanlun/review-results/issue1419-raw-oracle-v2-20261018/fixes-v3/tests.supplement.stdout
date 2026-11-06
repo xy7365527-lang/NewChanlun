@@ -1,0 +1,27 @@
+test_changed_api_regressions (__main__.Supplement.test_changed_api_regressions) ... ok
+test_f1_strict_role_encoding_and_null_exclusion (__main__.Supplement.test_f1_strict_role_encoding_and_null_exclusion) ... ok
+test_f2_other_families_keep_shared_dag (__main__.Supplement.test_f2_other_families_keep_shared_dag) ... ok
+test_f4_missing_null_and_center_members (__main__.Supplement.test_f4_missing_null_and_center_members) ... ok
+test_f7_third_pending_element_and_fixed_domains (__main__.Supplement.test_f7_third_pending_element_and_fixed_domains) ... ok
+test_f8_bind_frozen_named_messages (__main__.Supplement.test_f8_bind_frozen_named_messages) ... FAIL
+
+======================================================================
+FAIL: test_f8_bind_frozen_named_messages (__main__.Supplement.test_f8_bind_frozen_named_messages)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v3-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v3/test_supplement.py", line 58, in test_f8_bind_frozen_named_messages
+    self.assertEqual([len(x['payload']['raw_input']['events']) for x in requests],[1,65,65])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [1, 1, 1] != [1, 65, 65]
+
+First differing element 1:
+1
+65
+
+- [1, 1, 1]
++ [1, 65, 65]
+
+----------------------------------------------------------------------
+Ran 6 tests in 3.782s
+
+FAILED (failures=1)

@@ -1,0 +1,30 @@
+diff --git a/AppInspector.RulesEngine/OatExtensions/WithinOperation.cs b/AppInspector.RulesEngine/OatExtensions/WithinOperation.cs
+index af0a230..a355fe9 100644
+--- a/AppInspector.RulesEngine/OatExtensions/WithinOperation.cs
++++ b/AppInspector.RulesEngine/OatExtensions/WithinOperation.cs
+@@ -34,6 +34,8 @@ public class WithinOperation : OatOperation
+             var failed =
+                 new List<(int, Boundary)>();
+ 
++            // All ProcessLambda inputs are fixed in this invocation except target.
++            var sameLineResults = new Dictionary<(int Index, int Length), bool>();
+             foreach (var capture in captures ?? Array.Empty<ClauseCapture>())
+             {
+                 if (capture is TypedClauseCapture<List<(int, Boundary)>> tcc)
+@@ -43,8 +45,14 @@ public class WithinOperation : OatOperation
+                         var boundaryToCheck = GetBoundaryToCheck();
+                         if (boundaryToCheck is not null)
+                         {
+-                            var operationResult = ProcessLambda(boundaryToCheck);
+-                            if (operationResult.Result)
++                            bool matched;
++                            var targetKey = (boundaryToCheck.Index, boundaryToCheck.Length);
++                            if (!wc.SameLineOnly || !sameLineResults.TryGetValue(targetKey, out matched))
++                            {
++                                matched = ProcessLambda(boundaryToCheck).Result;
++                                if (wc.SameLineOnly) sameLineResults[targetKey] = matched;
++                            }
++                            if (matched)
+                             {
+                                 passed.Add((clauseNum, boundary));
+                             }
