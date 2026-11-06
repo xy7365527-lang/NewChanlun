@@ -279,7 +279,7 @@ _Avoid_: 浅链准入（单级过证即算）；跳链准入（并集残留，20
 v1/dual 世代在逐持仓退出决策里向 `closePred` 注入反向析取项，消费单位是持仓决策，不是共享候选集。它与候选过滤门的确认判据同源于 `nest.rs` 的 `n_delta` 递归核，但消费形态分代；v1/dual 及该形态已 deprecated，退役见 #499。
 
 **名分五态（Lineage Status）**:
-仓内代码/文件/工位的世代名分判定：现役 / 新生入口待驱动 / deprecated 待退役 / 孤儿待删 / 垃圾待清。机械判据、现役线名单（引擎 = π、git 线 = main、工位 = 白名单制）与开票门单源见 `docs/agents/generation-constitution.md`（ADR 0004，2026-07-28 裁定；第五格「新生入口待驱动」2026-07-29 #707 裁定，ADR 0004 补充一）。与「代际（Generation, n）」（声部嵌套代数）是两个词——本条指代码谱系的世代。
+仓内代码/文件/工位的世代名分判定：现役 / 新生入口待驱动 / deprecated 待退役 / 孤儿待删 / 垃圾待清。该历史分类的原件见 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/generation-constitution.md`；当前开发与归档流程见 `AGENTS.md`，引擎归属见 ADR 0039 与 ADR 0048（ADR 0004，2026-07-28 裁定；第五格「新生入口待驱动」2026-07-29 #707 裁定，ADR 0004 补充一）。与「代际（Generation, n）」（声部嵌套代数）是两个词——本条指代码谱系的世代。
 _Avoid_: 用「老代码/新代码」口语判名分；触及 deprecated 代码开实施票而不先核名分
 
 **原生 Cand^δ（tower-native candidate）**:

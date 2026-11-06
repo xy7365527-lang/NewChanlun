@@ -1,4 +1,5 @@
 # 世代宪法：名分四态 + 现役线名单单源
+> #1742 归档指针：本文引用的历史纪律原件位于 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/`，保留原文件名及行号。当前开发与证据归档按 `AGENTS.md`；本次归档不改变本文产品裁定。
 
 仓库长期两代代码混居（v1/dual 与 π 同居 `fill.rs`）、`theta_v0` 模块住着 π 引擎、75 worktree + 141 分支的坟场无人收——根因是**名分没有单源**：什么代码是现役、什么该退役、什么是垃圾，全凭口耳相传。#467 原 SPEC 因此误诊（给不可达的 v1/dual 出场门设计迁移方案，实施核证才证伪前提）。我们裁定：立**名分四态**（现役 / deprecated 待退役 / 孤儿待删 / 垃圾待清）的机械判据，并把现役线名单（引擎 = π、git 线 = main、工位 = 白名单制）写成单源文本，落 `docs/agents/generation-constitution.md`；配开票门文本牙——触及 deprecated/孤儿代码的实施票未核名分不得挂 ready-for-agent。
 

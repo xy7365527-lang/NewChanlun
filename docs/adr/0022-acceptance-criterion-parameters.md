@@ -1,4 +1,5 @@
 # ADR 0022：验收判据的参数——成本下降速率的定义、判读纪律与样本门槛
+> #1742 归档指针：本文引用的历史纪律原件位于 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/`，保留原文件名及行号。当前开发与证据归档按 `AGENTS.md`；本次归档不改变本文产品裁定。
 
 **日期**：2026-08-14
 **裁定人**：编排者，走 [grilling 新验收判据的参数 #853](https://github.com/xy7365527-lang/NewChanlun/issues/853)（map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787)）六问全 A 当场拍板
