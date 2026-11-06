@@ -1341,8 +1341,94 @@ fn s_ready(socket: &Path, until: Instant) -> Result<Value, String> {
     serde_json::from_str(text.trim_end()).map_err(|e| format!("reply {text:?}: {e}"))
 }
 
+/// S 回复是 `reply_envelope` 形状的完整信封，Ready 状态在 `payload` 内。信封头与 payload 都须属于本会话
+/// 化身（`session_generation`，不是 payload 的数据 `generation`），且 `payload_hash` 须与 payload 相符。
 fn s_ready_matches(reply: &Value) -> bool {
-    reply["kind"] == "Ready" && reply["session_id"] == SESSION && reply["session_generation"] == "1"
+    let payload = &reply["payload"];
+    let identity = |v: &Value| {
+        v["schema_revision"] == "s-session/3"
+            && v["session_id"] == SESSION
+            && v["session_generation"] == "1"
+    };
+    payload.is_object()
+        && identity(reply)
+        && reply["payload_hash"]
+            == sha256_hex(newchan_rust::session_protocol::canonical_json(payload).as_bytes())
+        && identity(payload)
+        && payload["kind"] == "Ready"
+        && payload["ok"] == true
+}
+
+#[test]
+fn s_ready_matcher_requires_identity_in_envelope_and_payload() {
+    let request = json!({"source_namespace":DECLARED_NS,"source_epoch":"1","message_id":"observe-ready","payload_hash":"h"});
+    let ready = json!({"ok":true,"kind":"Ready","schema_revision":"s-session/3","session_id":SESSION,
+        "session_generation":"1","writer_epoch":"1","generation":"0","structure_cut":"cut-0","index_frontier":""});
+    let envelope = |payload: Value, session_id: &str, session_generation: &str| {
+        newchan_rust::session_protocol::reply_envelope(
+            &request,
+            payload,
+            "s-session/3",
+            session_id,
+            session_generation,
+            "s-session/replies",
+            &format!("S:{session_id}"),
+            "1",
+        )
+    };
+    let with = |key: &str, value: Value| {
+        let mut p = ready.clone();
+        p[key] = value;
+        p
+    };
+    assert!(s_ready_matches(&envelope(ready.clone(), SESSION, "1")));
+
+    let mut tampered = envelope(ready.clone(), SESSION, "1");
+    tampered["payload"]["structure_cut"] = json!("cut-9");
+    let mut wrong_schema = envelope(ready.clone(), SESSION, "1");
+    wrong_schema["schema_revision"] = json!("s-session/2");
+    let rejected = [
+        ("裸 payload", ready.clone()),
+        (
+            "信封缺 payload",
+            json!({"schema_revision":"s-session/3","session_id":SESSION,"session_generation":"1"}),
+        ),
+        ("非对象", json!("Ready")),
+        (
+            "信封 session_id 错",
+            envelope(ready.clone(), "other-session", "1"),
+        ),
+        (
+            "信封 session_generation 错",
+            envelope(ready.clone(), SESSION, "2"),
+        ),
+        ("信封 schema 错", wrong_schema),
+        ("payload_hash 不符", tampered),
+        (
+            "payload session_id 错",
+            envelope(with("session_id", json!("other-session")), SESSION, "1"),
+        ),
+        (
+            "payload session_generation 错",
+            envelope(with("session_generation", json!("0")), SESSION, "1"),
+        ),
+        (
+            "payload 缺 session_generation 只有 generation",
+            envelope(with("session_generation", Value::Null), SESSION, "1"),
+        ),
+        (
+            "payload schema 错",
+            envelope(with("schema_revision", json!("s-session/2")), SESSION, "1"),
+        ),
+        (
+            "非 Ready",
+            envelope(with("kind", json!("Receipt")), SESSION, "1"),
+        ),
+        ("ok=false", envelope(with("ok", json!(false)), SESSION, "1")),
+    ];
+    for (case, reply) in rejected {
+        assert!(!s_ready_matches(&reply), "{case} 不得被当作 Ready：{reply}");
+    }
 }
 
 fn lock_held(db: &Path) -> bool {
