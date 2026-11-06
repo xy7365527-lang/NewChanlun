@@ -468,13 +468,25 @@ def test_stale_publication_preserves_completed_reviews(lane):
     assert [r["verdict"] for r in result["reviews"]] == ["PASS", "PASS"]
 
 
-def test_low_space_stops_before_checkout_or_model(lane, monkeypatch):
+def test_low_space_refuses_registration_before_attempt_or_status(lane, monkeypatch):
     monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
-    result = lane.review_pr(1810)
-    assert result["verdict"] == "FAILED"
-    assert "空间不足" in result["reviews"][0]["reason"]
-    assert not (lane.state_root / "runs" / "launches").exists()
-    assert not list(lane.checkout_root.glob("*/*"))
+    with pytest.raises(IdentityError, match="空间不足：2 份并发快照共需 .*可用 1 bytes；未登记 attempt"):
+        lane.review_pr(1810)
+    assert not list((lane.state_root / "runs").glob("*/target.json"))
+    assert lane.gateway.sent == []
+    assert not lane.checkout_root.exists()
+
+
+def test_admission_counts_every_reviewer_snapshot(lane, monkeypatch):
+    data = module.load_target(lane.gateway, 1810)
+    merge_base = git(lane.source, "merge-base", data["base_sha"], data["head_sha"])
+    probe = module.ReviewTarget(**data, merge_base_sha=merge_base, run_id="probe", attempt=1,
+                                policy_version=module.POLICY, controller_code_head="x", registered_at_ns=0)
+    _, single = module.snapshot_plan(lane.source, probe)
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=single * len(MODELS) - 1))
+    with pytest.raises(IdentityError, match=f"共需 {single * len(MODELS)} bytes"):
+        lane.review_pr(1810)
+    assert lane.gateway.sent == []
 
 
 def test_cleanup_preserves_live_or_unknown_activity(lane, monkeypatch):
@@ -540,7 +552,7 @@ def test_space_exhausted_after_prepare_stops_before_model(lane, monkeypatch):
     def disk_usage(path):
         nonlocal calls
         calls += 1
-        return SimpleNamespace(free=10**12 if calls == 1 else 1)
+        return SimpleNamespace(free=10**12 if calls <= 2 else 1)  # 登记准入与 prepare 各一次
     monkeypatch.setattr(module.shutil, "disk_usage", disk_usage)
     result = lane.review_pr(1810)
     assert result["verdict"] == "FAILED"
@@ -640,3 +652,10 @@ def test_new_attempt_on_reused_head_is_reviewed_again(lane, env):
     again = lane.review_pr(1810, 2)
     assert "reused_from" not in again and len(again["reviews"]) == len(MODELS)
     assert _launches(lane) == 2 * len(MODELS)
+
+
+def test_reuse_needs_no_snapshot_space(lane, env, monkeypatch):
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
+    assert "reused_from" in lane.review_pr(1810)

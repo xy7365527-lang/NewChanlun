@@ -81,7 +81,7 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 无凭据 detached checkout 位于外盘 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/checkouts/external-review/<run-id>/<model>`。每份对象库只保存 base、head、merge-base 的源码树及祖先 commit 元数据，不带无关历史版本的树和 blob。`git merge-base`、完整 PR diff、三端源码和提交元数据可用。其它历史提交的源码不在快照内。Git config、hooks、alternates 和凭据不从源仓复制。
 
-prepare 前按导入对象未压缩大小、head 文件大小及 256 MiB 余量检查空间，模型启动前再次核对余量。空间不足时明确失败，不启动模型。
+登记 attempt 之前先做总准入：单份快照需要导入对象未压缩大小、head 文件大小再加 256 MiB 余量，乘以 reviewer 数（目前是 2，按并发同时存在两份计算），与 checkout_root 所在卷的可用空间比较。不够就不登记 attempt、不写任何状态，报出总需求、单份需求和可用字节数。能沿用旧 PASS 时不建快照，跳过准入。每位 reviewer 在 prepare 前仍按单份需求复查一次，模型启动前再核对 256 MiB 余量，防止排队期间空间被占用；复查不通过时明确失败，不启动模型。
 
 宿主先保存 `prepare.json`，再构造 checkout。prepare 中断且尚无 launch 时，同键重跑只回收本 run 的未启动 checkout 并重建。`launch.json` 之后沿用原收养协议，不自动重复派工。监督在读取 launch、获取锁等启动阶段失败也保存失败终态。已记录的监督进程退出却未写终态时，controller 生成 FAILED 记录并发布 error，不永久停留在 pending。
 

@@ -214,9 +214,8 @@ def patch_identity(source: Path, merge_base: str, head: str) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
-def prepare_review(target: ReviewTarget, source: Path, checkout: Path) -> FrozenReviewInput:
-    if checkout.exists():
-        raise IdentityError("review checkout 已存在，不覆盖旧证据")
+def snapshot_plan(source: Path, target: ReviewTarget) -> tuple[bytes, int]:
+    """单份审阅快照的对象清单与所需字节：对象未压缩大小 + head 文件大小 + SPACE_RESERVE。"""
     for sha in (target.base_sha, target.head_sha, target.merge_base_sha):
         try:
             _git(source, "cat-file", "-e", f"{sha}^{{commit}}")
@@ -232,7 +231,13 @@ def prepare_review(target: ReviewTarget, source: Path, checkout: Path) -> Frozen
     head_files = _git(source, "ls-tree", "-rl", target.head_sha).splitlines()
     worktree_bytes = sum(int(line.split(b"\t", 1)[0].split()[-1]) for line in head_files
                          if line.split()[1] == b"blob")
-    required = sum(int(size) for size in sizes) + worktree_bytes + SPACE_RESERVE
+    return object_ids, sum(int(size) for size in sizes) + worktree_bytes + SPACE_RESERVE
+
+
+def prepare_review(target: ReviewTarget, source: Path, checkout: Path) -> FrozenReviewInput:
+    if checkout.exists():
+        raise IdentityError("review checkout 已存在，不覆盖旧证据")
+    object_ids, required = snapshot_plan(source, target)
     checkout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     free = shutil.disk_usage(checkout.parent).free
     if free < required:
@@ -419,6 +424,8 @@ class ExternalReview:
                               attempt=attempt, policy_version=POLICY, controller_code_head=head,
                               registered_at_ns=time.time_ns(), patch_id=patch, review_contract=REVIEW_CONTRACT)
         folder = self.state_root / "runs" / target.key
+        if not folder.exists() and self.reuse_source(target) is None:
+            self.admit_space(target)
         with _lock(folder):
             if (folder / "target.json").exists():
                 previous = ReviewTarget(**_read(folder / "target.json"))
@@ -427,6 +434,18 @@ class ExternalReview:
                 return previous
             _save(folder / "target.json", asdict(target))
         return target
+
+    def admit_space(self, target: ReviewTarget) -> None:
+        """登记前总准入：所有 reviewer 并发，各要一份快照。不够就不登记 attempt、不写状态。"""
+        _, single = snapshot_plan(self.source, target)
+        required = single * len(MODELS)
+        volume = self.checkout_root
+        while not volume.exists():
+            volume = volume.parent
+        available = shutil.disk_usage(volume).free
+        if available < required:
+            raise IdentityError(f"空间不足：{len(MODELS)} 份并发快照共需 {required} bytes（单份 {single}），"
+                                f"{volume} 可用 {available} bytes；未登记 attempt，未启动模型")
 
     def reuse_source(self, target: ReviewTarget) -> dict | None:
         """同 PR 中可沿用的正式 PASS 原件；规则见模块文档。只认真实双审，不认沿用产生的 success。
