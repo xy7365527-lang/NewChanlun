@@ -1,17 +1,19 @@
-//! 盘背短差观测通道消费入口（#1176 B01 判据块自 `signal.rs` 迁出，零行为）。
+//! 盘背短差观测通道待接线 API（#1176 B01 判据块自 `signal.rs` 迁出，零行为）。
 //!
 //! 承载 [`PanDivShortRetraceObservation`] 投影、通道词汇映射（[`t3_in_c_grade_reason_to_pan_div_subtype`]
-//! / [`pan_div_subtype_channel_reason`]）与消费入口 [`drain_pan_div_short_retrace_observations`]。
-//! 消费面经 `signal` 重导出保持原路径。
+//! / [`pan_div_subtype_channel_reason`]）与观测记录提取函数 [`drain_pan_div_short_retrace_observations`]。
+//! 当前所有调用点仅在测试中，生产驱动源与接线归 #575 后续驱动票（#1635 第6项）。
+//! 测试消费面经 `signal` 重导出保持原路径。
 
 use super::*;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 短差档→盘背观测通道消费入口（票 #639；#575 消费方接线 3/3；与上方 #606 S1
-// 一类点分级 sidecar **位置同构、非管线同构**——判败/分级事件源紧邻放置，通道词汇
-// [`T3InCGrade`]/[`T3InCGradeReason`] 与投影逻辑共处一处，不另起模块；只交消费入口本体
-// （本函数），不起 collector/summary/runner 骨架——`RetraceLedger` 尚无驱动源，骨架无
-// 血肉即死代码，collector 形态归 #575 驱动票按当时真实驱动需要决定）
+// 短差档→盘背观测通道待接线 API（票 #639；#1635 第6项）：当前所有调用点仅在测试中，
+// 生产驱动源与接线归 #575 后续驱动票。与 #606 S1 一类点分级 sidecar
+// **位置同构、非管线同构**——判败/分级事件源紧邻放置，通道词汇
+// [`T3InCGrade`]/[`T3InCGradeReason`] 与投影逻辑共处一处，#639 未另起模块；只交消费函数本体
+// （本函数），不起 collector/summary/runner 骨架——`RetraceLedger` 尚无生产驱动源，骨架无
+// 血肉即死代码，collector 形态归 #575 驱动票按当时真实驱动需要决定。
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// 通道亚型词汇 [`T3InCGradeReason`] → 短差档亚型签 [`PanDivSubtype`] 对拍表（票 #639，固定、
@@ -32,8 +34,8 @@ use super::*;
 /// （`MissingLeave`/`MissingRetest`/`SameDirection`/`LeaveNotOutside`）描述的是「固定首对压根
 /// 未构成」的结构性缺席——账本侧候选已由适配器注册期挡过残废四桶，短差档见到的必是已配对
 /// 成功、只是回抽判败的候选，没有对应判案。本函数对这四桶如实返回 `None`，不造伪对应——**正向
-/// 表（本函数）四桶 `None` 是对拍完备性的诚实立档，不是「五桶皆双向对应」**；生产折入通道词汇
-/// 走的是反向投影 [`pan_div_subtype_channel_reason`]（恒 `Some`），「一一对应」准确所指是
+/// 表（本函数）四桶 `None` 是对拍完备性的诚实立档，不是「五桶皆双向对应」**；折入观测记录的
+/// 通道词汇使用反向投影 [`pan_div_subtype_channel_reason`]（恒 `Some`），「一一对应」准确所指是
 /// `RetestReentered` 这一个映射点上两侧谓词的对应，不是两个五元枚举整体的双射。
 #[allow(
     dead_code,
@@ -102,30 +104,34 @@ impl PanDivShortRetraceObservation {
     }
 }
 
-/// 盘背短差观测通道消费入口（票 #639，#575 消费方接线 3/3）：把 [`RetraceLedger`] 的判败盘背
-/// 记录经 [`ShortRetracePortal`] 三锁增量消费后折入通道词汇。与仓内既有 pan_div 生产主链
+/// 盘背短差观测通道待接线 API（票 #639；#1635 第6项）：把 [`RetraceLedger`] 的判败盘背
+/// 记录经 [`ShortRetracePortal`] 三锁增量消费后折入通道词汇。当前所有调用点仅在测试中，
+/// 生产驱动源与接线归 #575 后续驱动票。与仓内既有 pan_div 链
 /// （`locate_pan_div_structure` → `PanDivCert` → `strategy::oscillation::PanDivTrigger`——
 /// #292 后已降格为可选辅助，`backtest::fill::step_center_oscillation` 不再消费它，见
 /// `fill.rs:761`；中枢震荡交易语义改由次级别买卖点驱动，产出
 /// `strategy::center_oscillation_trade::CenterOscillationTrigger`，024:36/46 上沿减/下沿补语义
-/// 落在该链末端）**零数据/控制流连接**——两条产线并行，互不知情。
+/// 落在该链末端）**零数据/控制流连接**，本观测通道与该链互不知情。
 ///
 /// **驱动源裁定**（编排者 2026-07-29 裁定 B，与 #637 裁定 3A 同口径）：`RetraceLedger` 的生产
-/// 驱动源（喂真实 replay 判败事件）归 #575 后续票；票面「生产调用点 ≥1（grep 可证）」的达标
-/// 口径 = 类型 `ShortRetraceRecord`/`ShortRetracePortal` 出现于生产代码即达标（裁定 B / #637
-/// 裁定 3A 同口径），本函数是该类型出现的生产代码位置之一（非测试专用），不是「本函数已被
-/// 生产调用方驱动」意义上的达标——全窗驱动挂点（接一个流经 replay 循环的 `RetraceLedger`
-/// 实例）留给后续票，本函数不因此改为占位。
+/// 驱动源（喂真实 replay 判败事件）归 #575 后续票。#639 票面「生产调用点 ≥1（grep 可证）」的
+/// 历史达标口径 = 类型 `ShortRetraceRecord`/`ShortRetracePortal` 出现于生产代码即达标（裁定 B /
+/// #637 裁定 3A 同口径）。本函数本身不在 `cfg(test)` 下；`ShortRetraceRecord`/
+/// `ShortRetracePortal` 类型位于生产源码，本函数是这些类型出现的生产源码位置之一，
+/// 是 #639 历史达标口径的落点。该口径只记类型出现位置，不代表已有生产调用。本函数当前
+/// 仅被测试调用；全窗驱动挂点（接一个流经 replay 循环的 `RetraceLedger` 实例）与生产接线
+/// 归 #575 后续驱动票。本函数的投影与消费逻辑已实现。
 ///
-/// **消费顺序（三锁在接线面复验）**：先 `portal.sync(ledger)`（锁二/三：账本判败集合↔门户
+/// **消费顺序（运行时）**：每次调用先 `portal.sync(ledger)`（锁二/三：账本判败集合↔门户
 /// 一一对应、账平）补齐/订正门户内容，再逐身份 `portal.consume`（锁四：幂等消费）——已消费
 /// 身份被 `filter_map` 自然滤除。故本函数天然幂等：同一账本/门户对上重复调用，观测集合只在
 /// 账本新增判败身份时增长，不会对同一身份重复产出观测。账平（锁三）由
 /// [`ShortRetracePortal::balances_with`] 在门户内部把关，本函数只走 `sync`/`consume` 两条既有
 /// 公开入口，不重造锁。**键唯一（锁一，[`ShortRetracePortal::admit`]）在本函数路径上结构性
 /// 空转**：`sync` 只做 `BTreeMap` 身份键 `insert` 订正（同身份覆盖，非冲突），本函数从不调用
-/// `admit`，故这条路径上不可能触发 `DuplicateIdentity`——「键冲突拒绝在接线面复验」由旁证测试
-/// （另起 `admit` 手工调用）验证锁本身未被破坏，不是「本函数会拒绝键冲突」。
+/// `admit`，故这条路径上不可能触发 `DuplicateIdentity`——「键冲突拒绝在接线面复验」
+/// （#639 票面验收②原话）由旁证测试（另起 `admit` 手工调用）验证锁本身未被破坏，
+/// 不是「本函数会拒绝键冲突」。
 ///
 /// **复杂度**：每次调用 = `sync`（全量遍历 `ledger.short_retrace_records()`，O(账本判败条目数)）
 /// + 对该全量集合逐条 `consume`——是**全量重扫**，不是增量扫描。账本判败条目数不会随调用次数
