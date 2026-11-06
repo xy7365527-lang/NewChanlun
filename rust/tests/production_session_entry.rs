@@ -143,6 +143,17 @@ fn run_refusal(cmd: &mut Command) -> Output {
 
 /// v3 init（可带结构源声明）。
 fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
+    let (mut c, db) = s_init_v3_command(space, declared);
+    let out = run(&mut c);
+    assert!(
+        out.status.success(),
+        "S v3 init: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    db
+}
+
+fn s_init_v3_command(space: &Space, declared: Option<&Value>) -> (Command, PathBuf) {
     let db = space.s_db();
     let mut c = Command::new(s_bin());
     c.args(["init", "--protocol-revision", "s-session/3", "--db"])
@@ -158,13 +169,7 @@ fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
         c.arg("--structure-source")
             .arg(write_json(&space.path("source.json"), d));
     }
-    let out = run(&mut c);
-    assert!(
-        out.status.success(),
-        "S v3 init: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    db
+    (c, db)
 }
 
 /// TestOnly 造锚：owner 绑定 + state/s-admission/{limits,binding}.json；返回 limits 路径。
@@ -1073,48 +1078,167 @@ fn production_launcher_does_not_forward_theta_diagnostic_switch() {
     assert_eq!(stop(&mut launcher).code(), Some(0));
 }
 
-// ── #1823 A 观察族：SIGKILL S → 原 manifest 重启的真实读数（只观察，不清理）──
-// 收据经 `std::io::stderr().write_all` 直写（libtest 不截获），log 中缺收据即判「未观测」。
-// 用例只对超时、遗留进程与自身 harness 错误失败；不对任何错误文本或阶段断言。
+// #1823 A 观察族：SIGKILL S → 原 manifest 重启。只观察不清理；收据经 `std::io::stderr().write_all`
+// 直写（libtest 不截获），所有出口共用 `finalize`。只对超时、遗留进程与 harness 错误失败，不对错误文本断言。
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+const OBS_CASE: Duration = Duration::from_secs(150);
+/// 从总期限中预留给异常回收、终态核验与收据的时间。
+const OBS_REAP_RESERVE: Duration = Duration::from_secs(20);
+const OBS_INIT: Duration = Duration::from_secs(20);
 const OBS_READY: Duration = Duration::from_secs(30);
 const OBS_L1_REAP: Duration = Duration::from_secs(30);
 const OBS_L2: Duration = Duration::from_secs(60);
-const OBS_STOP: Duration = Duration::from_secs(20);
-const OBS_CASE: Duration = Duration::from_secs(150);
+const OBS_STOP: Duration = Duration::from_secs(10);
+const OBS_PROBE: Duration = Duration::from_secs(5);
+const OBS_PROBE_LOG: usize = 40;
+
+const OBS_DATA: [(&str, &str, &str); 4] = [
+    (
+        "s.raw_events",
+        "s",
+        "SELECT CAST(COUNT(*) AS TEXT) FROM raw_events",
+    ),
+    (
+        "s.generation",
+        "s",
+        "SELECT value FROM meta WHERE key='generation'",
+    ),
+    (
+        "s.structure_cut",
+        "s",
+        "SELECT value FROM meta WHERE key='structure_cut'",
+    ),
+    (
+        "s.index_frontier",
+        "s",
+        "SELECT value FROM meta WHERE key='index_frontier'",
+    ),
+];
+const OBS_CONTROL: [(&str, &str, &str); 4] = [
+    (
+        "s.writer_epoch",
+        "s",
+        "SELECT value FROM meta WHERE key='writer_epoch'",
+    ),
+    (
+        "e.writer_epoch",
+        "e",
+        "SELECT v FROM meta WHERE k='writer_epoch'",
+    ),
+    (
+        "b.writer_epoch",
+        "b",
+        "SELECT v FROM meta WHERE k='writer_epoch'",
+    ),
+    (
+        "x.writer_epoch",
+        "x",
+        "SELECT value FROM x_meta WHERE key='writer_epoch'",
+    ),
+];
+/// 每行至多归一个标记，按此顺序取第一个命中（S 专属文本先于泛化的 TransportUnavailable）。
+const OBS_MARKERS: [(&str, &str, Option<&str>); 6] = [
+    (
+        "TransportUnavailable：socket路径已占用",
+        "s_args_socket_gate",
+        Some("S"),
+    ),
+    ("Address already in use", "bind_eaddrinuse", None),
+    ("os error 98", "bind_eaddrinuse", None),
+    ("SourceIdentityChanged", "source_identity_changed", None),
+    ("StaleWriter", "stale_writer", None),
+    ("TransportUnavailable", "transport_unavailable", None),
+];
+
+struct Budget {
+    start: Instant,
+    ops_end: Instant,
+    end: Instant,
+}
+
+impl Budget {
+    fn new() -> Self {
+        let start = Instant::now();
+        Self {
+            start,
+            ops_end: start + OBS_CASE - OBS_REAP_RESERVE,
+            end: start + OBS_CASE,
+        }
+    }
+    fn phase(&self, limit: Duration) -> Instant {
+        (Instant::now() + limit).min(self.ops_end)
+    }
+    fn ms(&self) -> u64 {
+        self.start.elapsed().as_millis() as u64
+    }
+}
+
+fn left(until: Instant) -> Duration {
+    until.saturating_duration_since(Instant::now())
+}
+
+/// 在独立线程执行可能阻塞的探针；超时后线程留在测试进程内，只持有自己的 fd，不涉及子进程。
+fn bounded<T: Send + 'static>(
+    limit: Duration,
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    if limit.is_zero() {
+        return Err("NOT_RUN：预算已耗尽".into());
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(work());
+    });
+    rx.recv_timeout(limit)
+        .unwrap_or_else(|_| Err(format!("TIMEOUT：{} ms 内未完成", limit.as_millis())))
+}
 
 /// S v3 只读 `ready`：与 [`s_ingest`] 同一 `s-session/3` 信封，只换 payload。
-fn s_ready(socket: &Path) -> Result<Value, String> {
+fn s_ready(socket: &Path, limit: Duration) -> Result<Value, String> {
     let payload = json!({"op":"ready"});
     let envelope = json!({"schema_revision":"s-session/3","session_id":SESSION,"session_generation":"1",
         "source_namespace":DECLARED_NS,"source_epoch":"1","message_id":"observe-ready","producer_id":"pse-test",
         "producer_epoch":"1","payload_hash":sha256_hex(newchan_rust::session_protocol::canonical_json(&payload).as_bytes()),
         "causal_refs":[],"payload":payload});
-    let mut stream = UnixStream::connect(socket).map_err(|e| format!("connect: {e}"))?;
-    stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
-        .map_err(|e| e.to_string())?;
-    stream
-        .write_all(
-            format!(
-                "{}\n",
-                newchan_rust::session_protocol::canonical_json(&envelope)
-            )
-            .as_bytes(),
-        )
-        .map_err(|e| format!("write: {e}"))?;
-    stream
-        .shutdown(std::net::Shutdown::Write)
-        .map_err(|e| e.to_string())?;
-    let mut reply = String::new();
-    stream
-        .read_to_string(&mut reply)
-        .map_err(|e| format!("read: {e}"))?;
-    serde_json::from_str(reply.trim_end()).map_err(|e| format!("reply {reply:?}: {e}"))
+    let line = format!(
+        "{}\n",
+        newchan_rust::session_protocol::canonical_json(&envelope)
+    );
+    let socket = socket.to_path_buf();
+    bounded(limit, move || {
+        let mut stream = UnixStream::connect(&socket).map_err(|e| format!("connect: {e}"))?;
+        stream
+            .set_read_timeout(Some(limit))
+            .and_then(|_| stream.set_write_timeout(Some(limit)))
+            .map_err(|e| e.to_string())?;
+        stream
+            .write_all(line.as_bytes())
+            .map_err(|e| format!("write: {e}"))?;
+        stream
+            .shutdown(std::net::Shutdown::Write)
+            .map_err(|e| format!("shutdown: {e}"))?;
+        let mut reply = String::new();
+        stream
+            .read_to_string(&mut reply)
+            .map_err(|e| format!("read: {e}"))?;
+        serde_json::from_str(reply.trim_end()).map_err(|e| format!("reply {reply:?}: {e}"))
+    })
 }
 
 fn s_ready_matches(reply: &Value) -> bool {
     reply["kind"] == "Ready" && reply["session_id"] == SESSION && reply["session_generation"] == "1"
+}
+
+fn connect_probe(socket: &Path, limit: Duration) -> Result<(), String> {
+    let socket = socket.to_path_buf();
+    bounded(limit, move || {
+        UnixStream::connect(&socket)
+            .map(drop)
+            .map_err(|e| format!("connect: {e}"))
+    })
 }
 
 fn lock_held(db: &Path) -> bool {
@@ -1123,6 +1247,25 @@ fn lock_held(db: &Path) -> bool {
         .write(true)
         .open(format!("{}.writer.lock", db.display()))
         .is_ok_and(|lock| lock.try_lock().is_err())
+}
+
+fn x_ready(space: &Space) -> bool {
+    lock_held(&space.path("x.db"))
+        && meta(
+            &space.path("x.db"),
+            "SELECT value FROM x_meta WHERE key='writer_epoch'",
+        )
+        .as_deref()
+            == Some("1")
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn status_record(status: std::process::ExitStatus) -> Value {
+    use std::os::unix::process::ExitStatusExt;
+    json!({"display":status.to_string(),"code":status.code(),"signal":status.signal()})
 }
 
 fn lstat_record(path: &Path) -> Value {
@@ -1145,7 +1288,8 @@ fn lstat_record(path: &Path) -> Value {
             } else {
                 "other"
             };
-            json!({"path":path,"kind":kind,"uid":m.uid(),"dev":m.dev(),"inode":m.ino(),"mode":m.mode()&0o7777})
+            json!({"path":path,"kind":kind,"uid":m.uid(),"dev":m.dev(),"inode":m.ino(),"mode":m.mode()&0o7777,
+                "mtime":m.mtime(),"mtime_nsec":m.mtime_nsec()})
         }
     }
 }
@@ -1156,12 +1300,12 @@ fn proc_unix_inode(path: &Path) -> Value {
         Err(e) => json!({"unavailable": e.to_string()}),
         Ok(table) => {
             let want = path.to_string_lossy();
-            let inodes: Vec<&str> = table
+            let inodes: Vec<String> = table
                 .lines()
                 .skip(1)
                 .filter_map(|l| {
                     let cols: Vec<&str> = l.split_whitespace().collect();
-                    (cols.len() >= 8 && cols[7] == want).then(|| cols[6])
+                    (cols.len() >= 8 && cols[7] == want).then(|| cols[6].to_string())
                 })
                 .collect();
             json!({"inodes": inodes})
@@ -1169,218 +1313,469 @@ fn proc_unix_inode(path: &Path) -> Value {
     }
 }
 
-fn boot_and_start(pid: u32) -> Value {
-    let boot = match std::fs::read_to_string("/proc/sys/kernel/random/boot_id") {
-        Ok(s) => json!(s.trim()),
-        Err(e) => json!({"unavailable": e.to_string()}),
-    };
-    let start = std::fs::read_to_string(format!("/proc/{pid}/stat"))
-        .ok()
-        .and_then(|s| {
-            s.rsplit_once(')')
-                .and_then(|(_, rest)| rest.split_whitespace().nth(19).map(str::to_string))
-        });
-    json!({"boot_id":boot,"start_time_ticks":start})
+fn stat_fields(pid: u32) -> Option<Vec<String>> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    Some(
+        stat.rsplit_once(')')?
+            .1
+            .split_whitespace()
+            .map(str::to_string)
+            .collect(),
+    )
 }
 
-fn status_record(status: std::process::ExitStatus) -> Value {
-    use std::os::unix::process::ExitStatusExt;
-    json!({"display":status.to_string(),"code":status.code(),"signal":status.signal()})
+/// 进程身份 = PID + /proc starttime；PID 复用后身份不再匹配。
+#[derive(Clone, Debug, PartialEq)]
+struct ProcId {
+    role: String,
+    pid: u32,
+    start: String,
 }
 
-fn stderr_record(bytes: &[u8]) -> Value {
-    json!({"bytes":bytes.len(),"sha256":sha256_hex(bytes),"text":String::from_utf8_lossy(bytes)})
+impl ProcId {
+    fn capture(role: &str, pid: u32) -> Option<Self> {
+        Some(Self {
+            role: role.into(),
+            pid,
+            start: stat_fields(pid)?.get(19)?.clone(),
+        })
+    }
+    fn state(&self) -> &'static str {
+        match stat_fields(self.pid) {
+            None => "gone",
+            Some(f) if f.get(19) != Some(&self.start) => "pid_reused",
+            Some(f) if f.first().map(String::as_str) == Some("Z") => "zombie",
+            Some(_) => "alive",
+        }
+    }
+    fn json(&self) -> Value {
+        json!({"role":self.role,"pid":self.pid,"start_time_ticks":self.start,"state":self.state()})
+    }
 }
 
-fn launcher_events(stderr: &[u8]) -> Vec<Value> {
-    String::from_utf8_lossy(stderr)
-        .lines()
-        .filter_map(|line| line.strip_prefix("production_session "))
-        .filter_map(|line| serde_json::from_str(line).ok())
-        .collect()
-}
-
-/// 首错阶段按 stderr 标记归类；原始 stderr 同在收据中，可由审查者复核。
-/// `NOT_REACHED` 只在 S 参数解析门已退出时按源码顺序（`writer_cli` 先 `ServeOptions::parse`
-/// 再 admission/epoch/Driver/serve_unix）标出，并写明依据。
-fn first_error_stage(events: &[Value], stderr: &[u8], restarted_ready: bool) -> Value {
-    let text = String::from_utf8_lossy(stderr);
-    let first_exit = events
-        .iter()
-        .find(|e| e["event"] == "exit")
-        .map(|e| e["domain"].clone());
-    let (stage, not_reached) = if events.iter().any(|e| e["event"] == "refused") {
-        ("launcher_refused", vec![])
-    } else if text.contains("TransportUnavailable：socket路径已占用") {
+/// 经 pidfd 发信号：先固定进程引用再核身份，PID 被复用时不发。
+fn signal_identity(p: &ProcId, signal: libc::c_int) -> Value {
+    let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, p.pid as libc::pid_t, 0) };
+    if fd < 0 {
+        return json!({"pid":p.pid,"start_time_ticks":p.start,"signal":signal,"delivered":false,
+            "pidfd_open":fd,"errno":std::io::Error::last_os_error().to_string()});
+    }
+    let fd = fd as libc::c_int;
+    let state = p.state();
+    let (rc, errno) = if state == "alive" {
+        let rc = unsafe {
+            libc::syscall(
+                libc::SYS_pidfd_send_signal,
+                fd,
+                signal,
+                std::ptr::null::<libc::siginfo_t>(),
+                0u32,
+            )
+        };
         (
-            "s_args_socket_gate",
-            vec!["s_admission", "s_epoch", "s_db", "s_bind"],
+            Some(rc),
+            (rc != 0).then(|| std::io::Error::last_os_error().to_string()),
         )
-    } else if text.contains("Address already in use") || text.contains("os error 98") {
-        ("bind_eaddrinuse", vec![])
-    } else if text.contains("SourceIdentityChanged") {
-        ("s_admission", vec![])
-    } else if text.contains("StaleWriter") {
-        ("epoch", vec![])
-    } else if restarted_ready && first_exit.is_none() {
-        ("none", vec![])
     } else {
-        ("other", vec![])
+        (None, None)
     };
-    json!({"stage":stage,"classified_by":"stderr markers","first_exit_domain":first_exit,
-        "not_reached":not_reached.iter().map(|s| json!({"stage":s,
-            "reason":"S 已在 ServeOptions::parse 的 socket 门退出，源码顺序上 admission/epoch/Driver/serve_unix 均在其后"})).collect::<Vec<_>>()})
+    unsafe { libc::close(fd) };
+    json!({"pid":p.pid,"start_time_ticks":p.start,"signal":signal,"state_at_signal":state,
+        "pidfd_send_signal":rc,"errno":errno,"delivered":rc == Some(0)})
+}
+
+/// 持续读入原始字节；超时或异常时也能交出已收到的部分。
+#[derive(Clone)]
+struct Capture {
+    bytes: Arc<Mutex<Vec<u8>>>,
+    eof: Arc<AtomicBool>,
+}
+
+impl Capture {
+    fn start(mut source: impl Read + Send + 'static) -> Self {
+        let cap = Self {
+            bytes: Arc::default(),
+            eof: Arc::default(),
+        };
+        let (bytes, eof) = (cap.bytes.clone(), cap.eof.clone());
+        std::thread::spawn(move || {
+            let mut chunk = [0u8; 8192];
+            loop {
+                match source.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => bytes.lock().unwrap().extend_from_slice(&chunk[..n]),
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => break,
+                }
+            }
+            eof.store(true, Ordering::SeqCst);
+        });
+        cap
+    }
+    fn get(&self) -> Vec<u8> {
+        self.bytes.lock().unwrap().clone()
+    }
+    fn len(&self) -> usize {
+        self.bytes.lock().unwrap().len()
+    }
+    fn json(&self) -> Value {
+        let b = self.get();
+        json!({"bytes":b.len(),"eof":self.eof.load(Ordering::SeqCst),"sha256":sha256_hex(&b),
+            "hex":hex_bytes(&b),"utf8_lossy":String::from_utf8_lossy(&b)})
+    }
+}
+
+/// 按原始到达顺序列出错误标记与 launcher exit 事件。多进程共写一条管道，到达顺序不证明因果先后。
+fn error_timeline(stderr: &[u8], stop_offset: Option<usize>) -> Value {
+    let mut offset = 0;
+    let mut markers = Vec::new();
+    let mut exits = Vec::new();
+    for (line_no, line) in stderr.split(|b| *b == b'\n').enumerate() {
+        let phase = if stop_offset.is_some_and(|s| offset >= s) {
+            "after_active_stop"
+        } else {
+            "observation"
+        };
+        let text = String::from_utf8_lossy(line);
+        let event = text
+            .strip_prefix("production_session ")
+            .and_then(|j| serde_json::from_str::<Value>(j).ok());
+        if let Some(ev) = event {
+            if ev["event"] == "refused" {
+                markers.push(json!({"line":line_no,"offset":offset,"phase":phase,
+                    "marker":"launcher_refused","domain":"launcher","text":text}));
+            } else if ev["event"] == "exit" {
+                exits.push(json!({"line":line_no,"offset":offset,"phase":phase,"event":ev}));
+            }
+        } else if let Some((_, kind, domain)) =
+            OBS_MARKERS.iter().find(|(m, _, _)| text.contains(m))
+        {
+            markers.push(json!({"line":line_no,"offset":offset,"phase":phase,
+                "marker":kind,"domain":domain,"text":text}));
+        }
+        offset += line.len() + 1;
+    }
+    let observed: Vec<&Value> = markers
+        .iter()
+        .filter(|m| m["phase"] == "observation")
+        .collect();
+    let s_gate = observed.iter().any(|m| m["marker"] == "s_args_socket_gate");
+    let s_exit = exits
+        .iter()
+        .any(|e| e["phase"] == "observation" && e["event"]["domain"] == "S");
+    let s_local = if s_gate && s_exit {
+        json!({"stage":"s_args_socket_gate","not_reached":["s_admission","s_epoch","s_db","s_bind"],
+            "basis":"观察窗内同时出现 S 专属 parse 门文本与 launcher 记录的 S exit；writer_cli 中 ServeOptions::parse 先于 admission/epoch/Driver/serve_unix。只陈述 S 局部路径，不陈述 E/B 相对先后"})
+    } else {
+        json!({"stage":"UNKNOWN","basis":"观察窗内未同时出现 S parse 门文本与 S exit"})
+    };
+    json!({"markers":markers,"exits":exits,"active_stop_offset":stop_offset,
+        "earliest_observed_marker":observed.first(),
+        "causal_first_error":{"value":"UNKNOWN","reason":"launcher 与 S/E/B/X 共写同一 stderr 管道，到达顺序不证明跨进程因果先后"},
+        "s_local":s_local})
+}
+
+#[derive(Default)]
+struct Probes {
+    total: usize,
+    log: Vec<Value>,
+}
+
+impl Probes {
+    fn note(&mut self, run: &Launched, budget: &Budget, kind: &str, result: Result<(), String>) {
+        self.total += 1;
+        if self.log.len() < OBS_PROBE_LOG {
+            self.log
+                .push(json!({"launch":run.label,"t_ms":budget.ms(),"kind":kind,
+                "stderr_offset":run.stderr.len(),"error":result.err()}));
+        }
+    }
 }
 
 struct Launched {
+    label: &'static str,
     child: Child,
-    stderr: Option<std::thread::JoinHandle<Vec<u8>>>,
-    kids_seen: Vec<(String, u32)>,
+    launcher: Option<ProcId>,
+    stdout: Capture,
+    stderr: Capture,
+    seen: Vec<ProcId>,
+    status: Option<std::process::ExitStatus>,
+    active_stop: Option<Value>,
 }
 
 impl Launched {
-    fn spawn(manifest: &Path) -> Self {
-        let mut child = spawn_launcher(manifest);
-        let mut pipe = child.stderr.take().unwrap();
-        let stderr = std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            let _ = pipe.read_to_end(&mut buf);
-            buf
-        });
+    fn spawn(label: &'static str, manifest: &Path) -> Self {
+        assert!(
+            std::env::var_os(CREDENTIAL_KEY).is_none(),
+            "测试进程环境不得含哨兵键"
+        );
+        let mut child = Command::new(launcher_bin())
+            .arg("--manifest")
+            .arg(manifest)
+            .env_remove(CREDENTIAL_KEY)
+            .env_remove(THETA_DIAGNOSTIC.0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdout = Capture::start(child.stdout.take().unwrap());
+        let stderr = Capture::start(child.stderr.take().unwrap());
+        let launcher = ProcId::capture("production_session", child.id());
         Self {
+            label,
             child,
-            stderr: Some(stderr),
-            kids_seen: Vec::new(),
+            launcher,
+            stdout,
+            stderr,
+            seen: Vec::new(),
+            status: None,
+            active_stop: None,
         }
     }
 
-    fn note_kids(&mut self) -> Vec<(String, u32)> {
-        let kids = domain_children(self.child.id());
-        for k in &kids {
-            if !self.kids_seen.contains(k) {
-                self.kids_seen.push(k.clone());
+    /// launcher 未被 wait 前其 PID 不会复用，此时按 PPID 记录的子进程身份可信。
+    fn poll(&mut self) -> Option<std::process::ExitStatus> {
+        if self.status.is_none() {
+            for (name, pid) in domain_children(self.child.id()) {
+                if let Some(id) = ProcId::capture(&name, pid) {
+                    if !self.seen.contains(&id) {
+                        self.seen.push(id);
+                    }
+                }
             }
+            self.status = self.child.try_wait().ok().flatten();
         }
-        kids
+        self.status
     }
 
-    fn wait_until(&mut self, deadline: Instant) -> Option<std::process::ExitStatus> {
+    fn wait_exit(&mut self, until: Instant) -> Option<std::process::ExitStatus> {
         loop {
-            self.note_kids();
-            if let Some(status) = self.child.try_wait().unwrap() {
+            if let Some(status) = self.poll() {
                 return Some(status);
             }
-            if Instant::now() >= deadline {
+            if Instant::now() >= until {
                 return None;
             }
             std::thread::sleep(Duration::from_millis(50));
         }
     }
 
-    /// 只回收本用例 launcher 及其直接域子进程。
-    fn reap(&mut self) {
-        for (_, pid) in domain_children(self.child.id()) {
-            unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
-        }
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-
-    /// launcher 已退出后取其 stderr；管道仍被遗留后代持有时不挂住，返回 None。
-    fn take_stderr(&mut self) -> Option<Vec<u8>> {
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let handle = self.stderr.take()?;
-        while !handle.is_finished() {
-            if Instant::now() >= deadline {
-                self.stderr = Some(handle);
-                return None;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-        Some(handle.join().unwrap())
-    }
-
-    /// 本 launcher 拉起过的子进程是否都已消失（PID 不在 /proc 或已非其子）。
-    fn leftover_kids(&self) -> Vec<(String, u32)> {
-        let deadline = Instant::now() + Duration::from_secs(5);
+    /// 等已知后代消失；僵尸只说明已终止、待新父进程收割，最多另等 5 秒。
+    fn wait_terminal(&self, until: Instant) {
+        let zombie_cap = (Instant::now() + Duration::from_secs(5)).min(until);
         loop {
-            let left: Vec<(String, u32)> = self
-                .kids_seen
-                .iter()
-                .filter(|(_, pid)| {
-                    Path::new(&format!("/proc/{pid}")).exists()
-                        && std::fs::read_to_string(format!("/proc/{pid}/stat"))
-                            .map(|s| !s.contains(") Z "))
-                            .unwrap_or(false)
-                })
-                .cloned()
-                .collect();
-            if left.is_empty() || Instant::now() >= deadline {
-                return left;
+            let states: Vec<&str> = self.seen.iter().map(ProcId::state).collect();
+            let alive = states.contains(&"alive");
+            let zombie = states.contains(&"zombie");
+            let now = Instant::now();
+            if (!alive && (!zombie || now >= zombie_cap)) || now >= until {
+                return;
             }
-            std::thread::sleep(Duration::from_millis(100));
+            std::thread::sleep(Duration::from_millis(50));
         }
+    }
+
+    fn alive(&self) -> Vec<Value> {
+        let mut out: Vec<Value> = self
+            .seen
+            .iter()
+            .filter(|p| p.state() == "alive")
+            .map(ProcId::json)
+            .collect();
+        if self.status.is_none() {
+            out.extend(
+                self.launcher
+                    .iter()
+                    .filter(|l| l.state() != "gone")
+                    .map(ProcId::json),
+            );
+        }
+        out
+    }
+
+    /// 先冻结 launcher 使其不再拉起新子进程，按身份杀已知后代，再杀并 wait launcher。
+    fn reap(&mut self, until: Instant) -> Value {
+        let froze = self
+            .poll()
+            .is_none()
+            .then(|| unsafe { libc::kill(self.child.id() as libc::pid_t, libc::SIGSTOP) });
+        self.poll();
+        let signals: Vec<Value> = self
+            .seen
+            .iter()
+            .filter(|p| p.state() == "alive")
+            .map(|p| signal_identity(p, libc::SIGKILL))
+            .collect();
+        let launcher_kill = self
+            .status
+            .is_none()
+            .then(|| format!("{:?}", self.child.kill()));
+        let status = self.wait_exit(until);
+        self.wait_terminal(until);
+        json!({"label":self.label,"sigstop_launcher":froze,"signals":signals,"launcher_kill":launcher_kill,
+            "launcher_status":status.map(status_record),"processes":self.seen.iter().map(ProcId::json).collect::<Vec<_>>(),
+            "alive_after":self.alive()})
+    }
+
+    fn record(&self) -> Value {
+        let stop = self
+            .active_stop
+            .as_ref()
+            .and_then(|v| v["stderr_offset"].as_u64())
+            .map(|n| n as usize);
+        json!({"label":self.label,"launcher":self.launcher.as_ref().map(ProcId::json),
+            "processes":self.seen.iter().map(ProcId::json).collect::<Vec<_>>(),
+            "status":self.status.map(status_record),"active_stop":self.active_stop,
+            "stdout":self.stdout.json(),"stderr":self.stderr.json(),
+            "error_timeline":error_timeline(&self.stderr.get(), stop)})
     }
 }
 
-struct Ready {
-    s_reply: Value,
-    kids: Vec<(String, u32)>,
+enum ReadyOutcome {
+    Ready(Value),
+    Exited(std::process::ExitStatus),
+    Timeout,
 }
 
-/// 四域就绪：S 经 `s_ready` 核身份；E/B 持锁且 socket 可连；X 持锁且 `x_meta.writer_epoch=1`。
-fn poll_ready(
+fn eb_ready(
+    run: &Launched,
+    space: &Space,
+    until: Instant,
+    probes: &mut Probes,
+    budget: &Budget,
+) -> bool {
+    for (kind, db, sock) in [
+        ("connect_e", "e.db", "e.sock"),
+        ("connect_b", "b.db", "b.sock"),
+    ] {
+        if !lock_held(&space.path(db)) {
+            return false;
+        }
+        let r = connect_probe(&space.path(sock), left(until).min(OBS_PROBE));
+        let ok = r.is_ok();
+        probes.note(run, budget, kind, r);
+        if !ok {
+            return false;
+        }
+    }
+    true
+}
+
+/// 四域就绪：S 经 `s_ready` 核身份且持锁；X 持锁且 `x_meta.writer_epoch=1`；E/B 持锁且 socket 可连。
+/// 不以路径存在判 ready（残留路径会让它立即为真）。
+fn wait_ready(
+    run: &mut Launched,
     space: &Space,
     s_db: &Path,
     s_socket: &Path,
-    run: &mut Launched,
-    deadline: Instant,
-) -> Result<Ready, Option<std::process::ExitStatus>> {
+    until: Instant,
+    probes: &mut Probes,
+    budget: &Budget,
+) -> ReadyOutcome {
+    let mut s_reply: Option<Value> = None;
     loop {
-        let kids = run.note_kids();
-        if let Some(status) = run.child.try_wait().unwrap() {
-            return Err(Some(status));
+        if let Some(status) = run.poll() {
+            return ReadyOutcome::Exited(status);
         }
-        let names: Vec<&str> = kids.iter().map(|(n, _)| n.as_str()).collect();
-        if DOMAINS.iter().all(|d| names.contains(d)) {
-            let s = s_ready(s_socket).ok().filter(s_ready_matches);
-            let eb_ok = || {
-                [("e.db", "e.sock"), ("b.db", "b.sock")]
-                    .iter()
-                    .all(|(db, sock)| {
-                        lock_held(&space.path(db)) && UnixStream::connect(space.path(sock)).is_ok()
-                    })
-            };
-            let x_ok = || {
-                lock_held(&space.path("x.db"))
-                    && meta(
-                        &space.path("x.db"),
-                        "SELECT value FROM x_meta WHERE key='writer_epoch'",
-                    )
-                    .as_deref()
-                        == Some("1")
-            };
-            if let Some(s_reply) = s {
-                if lock_held(s_db) && eb_ok() && x_ok() {
-                    return Ok(Ready { s_reply, kids });
+        let alive: Vec<String> = run
+            .seen
+            .iter()
+            .filter(|p| p.state() == "alive")
+            .map(|p| p.role.clone())
+            .collect();
+        if DOMAINS.iter().all(|d| alive.iter().any(|a| a == d)) {
+            if s_reply.is_none() {
+                match s_ready(s_socket, left(until).min(OBS_PROBE)) {
+                    Ok(reply) if s_ready_matches(&reply) => {
+                        probes.note(run, budget, "s_ready", Ok(()));
+                        s_reply = Some(reply);
+                    }
+                    Ok(reply) => {
+                        probes.note(run, budget, "s_ready", Err(format!("身份不匹配：{reply}")))
+                    }
+                    Err(e) => probes.note(run, budget, "s_ready", Err(e)),
+                }
+            }
+            if let Some(reply) = &s_reply {
+                if lock_held(s_db) && x_ready(space) && eb_ready(run, space, until, probes, budget)
+                {
+                    return ReadyOutcome::Ready(reply.clone());
                 }
             }
         }
-        if Instant::now() >= deadline {
-            return Err(None);
+        if Instant::now() >= until {
+            return ReadyOutcome::Timeout;
         }
         std::thread::sleep(Duration::from_millis(100));
     }
 }
 
-struct Observation {
-    scenario: &'static str,
-    started: Instant,
-    receipt: serde_json::Map<String, Value>,
+fn read_field(db: &Path, sql: &str) -> Value {
+    match Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY) {
+        Err(e) => json!({"error": e.to_string()}),
+        Ok(c) => match c.query_row(sql, [], |r| r.get::<_, Option<String>>(0)) {
+            Ok(v) => json!({ "value": v }),
+            Err(rusqlite::Error::QueryReturnedNoRows) => json!({"absent": true}),
+            Err(e) => json!({"error": e.to_string()}),
+        },
+    }
 }
 
-impl Observation {
-    fn new(scenario: &'static str, space: &Space) -> Self {
+fn projection_section(fields: &[(&str, &str, &str)], db: &dyn Fn(&str) -> PathBuf) -> Value {
+    Value::Object(
+        fields
+            .iter()
+            .map(|(name, domain, sql)| ((*name).to_string(), read_field(&db(domain), sql)))
+            .collect(),
+    )
+}
+
+fn compare_projection(baseline: &Value, after: &Value) -> Value {
+    let mut out = serde_json::Map::new();
+    for (section, fields) in [("data", &OBS_DATA), ("control", &OBS_CONTROL)] {
+        let mut cmp = serde_json::Map::new();
+        for (name, _, _) in fields.iter() {
+            let (b, a) = (&baseline[section][*name], &after[section][*name]);
+            let entry = if b.get("value").is_some() && a.get("value").is_some() {
+                json!({"baseline":b["value"],"after":a["value"],"equal":b["value"] == a["value"]})
+            } else {
+                json!({"status":"not_observed","baseline":b,"after":a})
+            };
+            cmp.insert((*name).to_string(), entry);
+        }
+        out.insert(section.into(), Value::Object(cmp));
+    }
+    Value::Object(out)
+}
+
+struct Case {
+    scenario: &'static str,
+    budget: Budget,
+    space: Space,
+    s_db: PathBuf,
+    socket: PathBuf,
+    socket_class: &'static str,
+    receipt: serde_json::Map<String, Value>,
+    steps: Vec<Value>,
+    snapshots: Vec<Value>,
+    probes: Probes,
+    l1: Option<Launched>,
+    l2: Option<Launched>,
+    baseline: Option<Value>,
+}
+
+impl Case {
+    fn new(scenario: &'static str, s_socket: Option<&str>) -> Self {
+        let budget = Budget::new();
+        let space = Space::new();
+        let s_db = space.path("s").join("s.db");
+        let socket = space.path(s_socket.unwrap_or("s.sock"));
+        let socket_class = match s_socket {
+            None => "outside_M",
+            Some(rel) if rel.contains("s-state") => "A_subtree",
+            Some(_) => "basename_family",
+        };
         let env = |k: &str| std::env::var(k).ok();
         let mut receipt = serde_json::Map::new();
         receipt.insert("scenario".into(), json!(scenario));
@@ -1390,13 +1785,23 @@ impl Observation {
                 "github_sha":env("GITHUB_SHA"),"github_head_ref":env("GITHUB_HEAD_REF"),
                 "run_url":env("GITHUB_RUN_ID").map(|id| format!("{}/{}/actions/runs/{id}",
                     env("GITHUB_SERVER_URL").unwrap_or_default(),env("GITHUB_REPOSITORY").unwrap_or_default())),
-                "run_attempt":env("GITHUB_RUN_ATTEMPT"),"job":env("GITHUB_JOB")}),
+                "run_attempt":env("GITHUB_RUN_ATTEMPT"),"job":env("GITHUB_JOB"),
+                "boot_id":std::fs::read_to_string("/proc/sys/kernel/random/boot_id").map(|s| s.trim().to_string()).map_err(|e| e.to_string())}),
         );
-        receipt.insert("fixture_root".into(), json!(space.path("")));
         Self {
             scenario,
-            started: Instant::now(),
+            budget,
+            space,
+            s_db,
+            socket,
+            socket_class,
             receipt,
+            steps: Vec::new(),
+            snapshots: Vec::new(),
+            probes: Probes::default(),
+            l1: None,
+            l2: None,
+            baseline: None,
         }
     }
 
@@ -1404,178 +1809,286 @@ impl Observation {
         self.receipt.insert(key.into(), value);
     }
 
-    fn emit(&mut self) {
-        self.set(
-            "elapsed_ms",
-            json!(self.started.elapsed().as_millis() as u64),
-        );
-        let line = format!(
-            "socket_residue_observe_receipt {}\n",
-            Value::Object(self.receipt.clone())
-        );
-        std::io::stderr().write_all(line.as_bytes()).unwrap();
+    fn step(&mut self, name: &str, detail: Value) {
+        let t = self.budget.ms();
+        self.steps
+            .push(json!({"t_ms":t,"step":name,"detail":detail}));
     }
 
-    fn fail(&mut self, run: Option<&mut Launched>, why: &str) -> ! {
-        if let Some(run) = run {
-            run.reap();
+    fn snapshot(&mut self, when: &str) {
+        let paths = [
+            self.socket.clone(),
+            self.space.path("e.sock"),
+            self.space.path("b.sock"),
+            self.space.path("s"),
+            self.space.path("s/s-state"),
+        ];
+        let entries: Vec<Value> = paths
+            .iter()
+            .map(|p| json!({"lstat":lstat_record(p),"proc_net_unix":proc_unix_inode(p)}))
+            .collect();
+        let t = self.budget.ms();
+        self.snapshots
+            .push(json!({"when":when,"t_ms":t,"paths":entries}));
+    }
+
+    fn projection(&self) -> Value {
+        let db = |domain: &str| {
+            if domain == "s" {
+                self.s_db.clone()
+            } else {
+                self.space.path(&format!("{domain}.db"))
+            }
+        };
+        json!({"t_ms":self.budget.ms(),"data":projection_section(&OBS_DATA, &db),
+            "control":projection_section(&OBS_CONTROL, &db)})
+    }
+
+    /// 与 `simulation` 同一夹具；S init 改为限时拉起，超时只杀本例 init 进程。
+    fn fixture(&mut self) -> Result<PathBuf, String> {
+        let source = declaration("TestOnlyStructure", DECLARED_NS);
+        let (mut init, db) = s_init_v3_command(&self.space, Some(&source));
+        let mut child = init
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("S init 启动失败：{e}"))?;
+        let err = Capture::start(child.stderr.take().unwrap());
+        let until = self.budget.phase(OBS_INIT);
+        let status = loop {
+            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+                break status;
+            }
+            if Instant::now() >= until {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "S init 超时：{}",
+                    String::from_utf8_lossy(&err.get())
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        if !status.success() {
+            return Err(format!(
+                "S init 失败 {status}：{}",
+                String::from_utf8_lossy(&err.get())
+            ));
         }
-        self.set("harness_failure", json!(why));
-        self.emit();
-        panic!("{}：{why}", self.scenario);
+        let limits = anchor(&db);
+        let xp = x_profile(
+            &self.space,
+            "simulation",
+            None,
+            Some("tb09-sentinel"),
+            false,
+        );
+        let manifest = launcher_manifest(&self.space, "simulation", &source, &db, &limits, &xp);
+        if self.socket_class != "outside_M" {
+            let mut m: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+            m["s"]["socket"] = json!(self.socket);
+            write_json(&manifest, &m);
+        }
+        let fixture = json!({"root":self.space.path(""),"manifest":std::fs::read_to_string(&manifest).unwrap(),
+            "s_db":db,"s_socket":self.socket,"P":self.space.path("s"),"A":self.space.path("s/s-state"),
+            "s_socket_class":self.socket_class,"profile":TB02A_PROFILE,"anchor":"TestOnly","credential":false});
+        self.set("fixture", fixture);
+        Ok(manifest)
     }
 }
 
-/// 一次 SIGKILL S → 原 manifest 重启的观察。`s_socket=None` 用现有 fixture（`R/s.sock`，M 外）。
-fn observe_sigkill_restart(scenario: &'static str, s_socket: Option<&str>) {
-    let space = Space::new();
-    let mut obs = Observation::new(scenario, &space);
-    let (manifest, s_db) = simulation(&space, "simulation", false);
-    let socket = match s_socket {
-        None => space.path("s.sock"),
-        Some(rel) => {
-            let path = space.path(rel);
-            let mut m: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
-            m["s"]["socket"] = json!(path);
-            write_json(&manifest, &m);
-            path
+fn run_case(c: &mut Case) -> Result<(), String> {
+    let manifest = c.fixture()?;
+    c.snapshot("initial");
+    c.l1 = Some(Launched::spawn("L1", &manifest));
+    c.step("l1_spawned", Value::Null);
+    let until = c.budget.phase(OBS_READY);
+    let outcome = wait_ready(
+        c.l1.as_mut().unwrap(),
+        &c.space,
+        &c.s_db,
+        &c.socket,
+        until,
+        &mut c.probes,
+        &c.budget,
+    );
+    let ready = match outcome {
+        ReadyOutcome::Ready(reply) => reply,
+        ReadyOutcome::Exited(status) => {
+            c.step("l1_exited_before_ready", status_record(status));
+            c.set("first_start", json!({"ready":false}));
+            return Ok(());
         }
+        ReadyOutcome::Timeout => return Err("L1 首启 30s 内未就绪".into()),
     };
-    let layout_class = match s_socket {
-        None => "outside_M",
-        Some(rel) if rel.contains("s-state") => "A_subtree",
-        Some(_) => "basename_family",
-    };
-    let watched = [socket.clone(), space.path("e.sock"), space.path("b.sock")];
-    let snapshot = |when: &str| -> Value {
-        json!({"when":when,"sockets":watched.iter().map(|p| json!({"lstat":lstat_record(p),"proc_net_unix":proc_unix_inode(p)})).collect::<Vec<_>>()})
-    };
-    obs.set(
-        "fixture",
-        json!({"manifest":std::fs::read_to_string(&manifest).unwrap(),"s_db":s_db,"s_socket":socket,
-            "layout":{"P":space.path("s"),"A":space.path("s/s-state"),
-                "s_socket_class":layout_class},
-            "profile":TB02A_PROFILE,"anchor":"TestOnly","credential":false}),
-    );
+    c.baseline = Some(c.projection());
+    c.set("first_start", json!({"ready":true,"s_ready_reply":ready}));
+    c.snapshot("before_kill");
 
-    // L1：首启并等四域就绪。
-    let mut l1 = Launched::spawn(&manifest);
-    let ready = match poll_ready(&space, &s_db, &socket, &mut l1, Instant::now() + OBS_READY) {
-        Ok(r) => r,
-        Err(Some(status)) => {
-            let Some(stderr) = l1.take_stderr() else {
-                obs.fail(Some(&mut l1), "首启拒绝后 L1 stderr 管道仍被遗留进程持有")
-            };
-            obs.set(
-                "first_start",
-                json!({"ready":false,"l1_status":status_record(status),"l1_stderr":stderr_record(&stderr),
-                    "stage":first_error_stage(&launcher_events(&stderr), &stderr, false)}),
-            );
-            obs.set("sigkill", json!("NOT_REACHED：L1 未就绪即退出"));
-            obs.set("restart", json!("NOT_REACHED：L1 未就绪即退出"));
-            obs.set("restarted_ready", json!(false));
-            let left = l1.leftover_kids();
-            if !left.is_empty() {
-                obs.fail(Some(&mut l1), &format!("首启拒绝后遗留子进程 {left:?}"));
-            }
-            obs.emit();
-            return;
-        }
-        Err(None) => obs.fail(Some(&mut l1), "L1 首启 30s 内未就绪"),
-    };
-    let pids: Vec<Value> = ready
-        .kids
+    let l1 = c.l1.as_mut().unwrap();
+    let s = l1
+        .seen
         .iter()
-        .map(|(n, p)| json!({"domain":n,"pid":p,"identity":boot_and_start(*p)}))
-        .collect();
-    let epoch = |db: &str, sql: &str| meta(&space.path(db), sql);
-    obs.set(
-        "first_start",
-        json!({"ready":true,"launcher_pid":l1.child.id(),"domains":pids,"s_ready_reply":ready.s_reply,
-            "writer_epoch":{"e":epoch("e.db","SELECT v FROM meta WHERE k='writer_epoch'"),
-                "b":epoch("b.db","SELECT v FROM meta WHERE k='writer_epoch'"),
-                "x":epoch("x.db","SELECT value FROM x_meta WHERE key='writer_epoch'")},
-            "before_kill":snapshot("before_kill")}),
-    );
-
-    // 仅向 L1 的 S 子进程发 SIGKILL；L1 自行回收其余域。
-    let s_pid = ready
-        .kids
-        .iter()
-        .find(|(n, _)| n == "s_structure_session")
-        .unwrap()
-        .1;
-    let rc = unsafe { libc::kill(s_pid as libc::pid_t, libc::SIGKILL) };
-    let errno = (rc != 0).then(|| std::io::Error::last_os_error().to_string());
-    obs.set(
-        "sigkill",
-        json!({"target_pid":s_pid,"syscall_return":rc,"errno":errno}),
-    );
-    let Some(l1_status) = l1.wait_until(Instant::now() + OBS_L1_REAP) else {
-        obs.fail(Some(&mut l1), "SIGKILL S 后 L1 30s 内未退出")
-    };
-    let left = l1.leftover_kids();
-    let Some(l1_stderr) = l1.take_stderr() else {
-        obs.fail(Some(&mut l1), "L1 stderr 管道仍被遗留进程持有")
-    };
-    let events = launcher_events(&l1_stderr);
-    obs.set(
-        "l1",
-        json!({"status":status_record(l1_status),"stderr":stderr_record(&l1_stderr),
-            "s_exit":events.iter().find(|e| e["event"]=="exit" && e["domain"]=="S"),
-            "children_seen":l1.kids_seen,"children_left":left,"after_l1":snapshot("after_l1")}),
-    );
-    if !left.is_empty() {
-        obs.fail(None, &format!("L1 子进程未回收 {left:?}"));
+        .find(|p| p.role == "s_structure_session" && p.state() == "alive")
+        .cloned()
+        .ok_or("L1 名下找不到存活的 S")?;
+    l1.active_stop = Some(json!({"action":"SIGKILL S","stderr_offset":l1.stderr.len()}));
+    let kill = signal_identity(&s, libc::SIGKILL);
+    let delivered = kill["delivered"] == true;
+    c.set("sigkill", kill);
+    if !delivered {
+        return Err("SIGKILL S 未送达".into());
     }
+    c.step("s_sigkilled", Value::Null);
+    let until = c.budget.phase(OBS_L1_REAP);
+    let l1 = c.l1.as_mut().unwrap();
+    let Some(status) = l1.wait_exit(until) else {
+        return Err("SIGKILL S 后 L1 30s 内未退出".into());
+    };
+    l1.wait_terminal(until);
+    let alive = l1.alive();
+    c.step("l1_exited", status_record(status));
+    if !alive.is_empty() {
+        return Err(format!("L1 退出后其子进程仍存活：{alive:?}"));
+    }
+    c.snapshot("after_l1");
 
-    // L2：不删、不改任何 socket/manifest/DB/epoch/admission，原 manifest 重启。
-    let mut l2 = Launched::spawn(&manifest);
-    let l2_ready = poll_ready(&space, &s_db, &socket, &mut l2, Instant::now() + OBS_L2);
-    let restarted_ready = l2_ready.is_ok();
-    let (l2_status, l2_reply) = match l2_ready {
-        Ok(r) => {
+    c.l2 = Some(Launched::spawn("L2", &manifest));
+    c.step("l2_spawned", Value::Null);
+    let until = c.budget.phase(OBS_L2);
+    let outcome = wait_ready(
+        c.l2.as_mut().unwrap(),
+        &c.space,
+        &c.s_db,
+        &c.socket,
+        until,
+        &mut c.probes,
+        &c.budget,
+    );
+    match outcome {
+        ReadyOutcome::Ready(reply) => {
+            c.set("restarted_ready", json!(true));
+            c.set("l2_s_ready_reply", reply);
+            let until = c.budget.phase(OBS_STOP);
+            let l2 = c.l2.as_mut().unwrap();
+            l2.active_stop =
+                Some(json!({"action":"SIGTERM launcher","stderr_offset":l2.stderr.len()}));
             unsafe { libc::kill(l2.child.id() as libc::pid_t, libc::SIGTERM) };
-            match l2.wait_until(Instant::now() + OBS_STOP) {
-                Some(status) => (status, r.s_reply),
-                None => obs.fail(Some(&mut l2), "L2 就绪后 SIGTERM 20s 内未停止"),
+            if l2.wait_exit(until).is_none() {
+                return Err("L2 就绪后 SIGTERM 未在限时内停止".into());
             }
+            c.step("l2_stopped", Value::Null);
         }
-        Err(Some(status)) => (status, Value::Null),
-        Err(None) => obs.fail(Some(&mut l2), "L2 60s 内既未就绪也未退出"),
+        ReadyOutcome::Exited(status) => {
+            c.set("restarted_ready", json!(false));
+            c.step("l2_exited", status_record(status));
+        }
+        ReadyOutcome::Timeout => {
+            c.set("restarted_ready", json!(false));
+            return Err("L2 60s 内既未就绪也未退出".into());
+        }
+    }
+    Ok(())
+}
+
+fn finalize(mut c: Case, result: Result<(), String>) {
+    let mut failure = result.err();
+    let end = c.budget.end;
+    let mut reaps = Vec::new();
+    for run in [c.l2.as_mut(), c.l1.as_mut()].into_iter().flatten() {
+        reaps.push(run.reap(end));
+    }
+    let leftovers: Vec<Value> = [c.l1.as_ref(), c.l2.as_ref()]
+        .into_iter()
+        .flatten()
+        .flat_map(Launched::alive)
+        .collect();
+    if failure.is_none() && !leftovers.is_empty() {
+        failure = Some(format!("本例进程未回收：{leftovers:?}"));
+    }
+    c.snapshot("final");
+    let after = if leftovers.is_empty() {
+        c.projection()
+    } else {
+        json!({"not_observed":"仍有本例进程存活，未读持久状态"})
     };
-    let left = l2.leftover_kids();
-    let Some(l2_stderr) = l2.take_stderr() else {
-        obs.fail(Some(&mut l2), "L2 stderr 管道仍被遗留进程持有")
-    };
-    let events = launcher_events(&l2_stderr);
-    let projection = |v: &Value| {
-        json!([
-            v["writer_epoch"].clone(),
-            v["generation"].clone(),
-            v["structure_cut"].clone(),
-            v["index_frontier"].clone()
-        ])
-    };
-    let projection_equal = (!l2_reply.is_null())
-        .then(|| projection(&obs.receipt["first_start"]["s_ready_reply"]) == projection(&l2_reply));
-    obs.set("restarted_ready", json!(restarted_ready));
-    obs.set(
-        "l2",
-        json!({"status":status_record(l2_status),"stderr":stderr_record(&l2_stderr),
-            "domains_spawned":events.iter().filter(|e| e["event"]=="spawn").collect::<Vec<_>>(),
-            "domains_exited":events.iter().filter(|e| e["event"]=="exit").collect::<Vec<_>>(),
-            "s_ready_reply":l2_reply,"projection_equal":projection_equal,
-            "first_error":first_error_stage(&events, &l2_stderr, restarted_ready),
-            "children_seen":l2.kids_seen,"children_left":left,"after_l2":snapshot("after_l2")}),
+    let baseline = c
+        .baseline
+        .clone()
+        .unwrap_or_else(|| json!({"not_observed":"L1 未就绪或未执行到基线读取，未取得基线"}));
+    let comparison = compare_projection(&baseline, &after);
+    c.set(
+        "projection",
+        json!({"baseline":baseline,"after":after,"comparison":comparison}),
     );
-    if !left.is_empty() {
-        obs.fail(None, &format!("L2 子进程未回收 {left:?}"));
+    let records: Vec<(&str, Value)> = [("l1", &c.l1), ("l2", &c.l2)]
+        .into_iter()
+        .map(|(key, run)| {
+            (
+                key,
+                run.as_ref().map_or_else(
+                    || json!({"status":"NOT_REACHED","reason":"未拉起"}),
+                    Launched::record,
+                ),
+            )
+        })
+        .collect();
+    for (key, value) in records {
+        c.set(key, value);
     }
-    if obs.started.elapsed() > OBS_CASE {
-        obs.fail(None, "用例超过 150s 上限");
+    let not_reached = |why: &str| json!({"status":"NOT_REACHED","reason":why});
+    let reason = failure
+        .clone()
+        .unwrap_or_else(|| "L1 未就绪即退出".to_string());
+    if !c.receipt.contains_key("sigkill") {
+        c.set("sigkill", not_reached(&reason));
     }
-    obs.emit();
+    if c.l2.is_none() {
+        c.set("restart", not_reached(&reason));
+    }
+    if !c.receipt.contains_key("restarted_ready") {
+        c.set("restarted_ready", json!(false));
+    }
+    let complete = failure.is_none()
+        && c.receipt
+            .get("first_start")
+            .is_some_and(|f| f["ready"] == true)
+        && c.l2.as_ref().is_some_and(|r| r.status.is_some());
+    c.set("observation_complete", json!(complete));
+    let probes = json!({"total":c.probes.total,"logged":c.probes.log});
+    c.set("probes", probes);
+    let (steps, snapshots) = (json!(c.steps), json!(c.snapshots));
+    c.set("steps", steps);
+    c.set("snapshots", snapshots);
+    c.set("reap", json!({"runs":reaps,"leftovers":leftovers}));
+    if failure.is_none() && c.budget.start.elapsed() > OBS_CASE {
+        failure = Some("用例超过 150s 上限".into());
+    }
+    c.set("harness_failure", json!(failure));
+    c.set("elapsed_ms", json!(c.budget.ms()));
+    let line = format!(
+        "socket_residue_observe_receipt {}\n",
+        Value::Object(c.receipt.clone())
+    );
+    std::io::stderr().write_all(line.as_bytes()).unwrap();
+    if let Some(why) = failure {
+        panic!("{}：{why}", c.scenario);
+    }
+}
+
+fn observe_sigkill_restart(scenario: &'static str, s_socket: Option<&str>) {
+    let mut c = Case::new(scenario, s_socket);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_case(&mut c)))
+        .unwrap_or_else(|panic| {
+            let text = panic
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string()))
+                .unwrap_or_default();
+            Err(format!("harness panic：{text}"))
+        });
+    finalize(c, result);
 }
 
 #[test]
