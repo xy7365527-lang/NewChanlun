@@ -1269,3 +1269,48 @@ jobs:
       - name: Test approval-signing reader
         working-directory: .sandcastle/approval-signing
         run: python -m pytest -q tests
+
+  # #1875 p2m：唯一汇总门。依赖本 workflow 全部作业（macos-session 只在手动触发时跑，不计入）；
+  #   任一作业 failure 或 cancelled 即失败，被 changes 正确跳过的 Rust 作业（skipped）不算失败。
+  #   设为 main 的必需检查后，GitHub auto-merge 会同时等 deepagents/review 和整轮 CI，不会因审查单绿绕过 CI。
+  ci-ok:
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    timeout-minutes: 5
+    needs:
+      - changes
+      - test
+      - rust-check
+      - rust-test-default
+      - rust-test-s-session
+      - rust-test-s-session-coverage
+      - rust-test-s-session-extra-groups
+      - rust-test-s-session-extras
+      - rust-test-production-session
+      - rust-test-backtest-bin
+      - s-sequence-1488
+      - s-fields-native-1488
+      - s-observer
+      - fixture-drift
+      - sandcastle-ts
+      - deepagents-pilot
+    steps:
+      - name: Require every CI job to succeed or be skipped by the path filter
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
+          results = {name: job["result"] for name, job in needs.items()}
+          rust = (needs.get("changes") or {}).get("outputs", {}).get("rust")
+          # 只有 Rust 作业可以 skipped，且必须是 changes 明确判定 rust=false。
+          rust_jobs = {"rust-check", "rust-test-default", "rust-test-s-session", "rust-test-s-session-coverage",
+                       "rust-test-s-session-extra-groups", "rust-test-production-session", "rust-test-backtest-bin",
+                       "s-sequence-1488", "s-fields-native-1488"}
+          bad = {name: r for name, r in results.items()
+                 if not (r == "success" or (r == "skipped" and name in rust_jobs and rust == "false"))}
+          print(json.dumps({"rust": rust, "results": results}, indent=1, sort_keys=True))
+          if bad or results.get("changes") != "success" or rust not in ("true", "false"):
+              sys.exit(f"CI 未通过：{bad}，changes={results.get('changes')}，rust={rust}")
+          PY
