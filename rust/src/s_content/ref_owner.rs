@@ -130,8 +130,11 @@ impl RefDiagnostic<'_> {
     }
     fn into_codec(self) -> CodecError {
         if let Self::Decimal(e) = self {
-            let rendered = e.to_string();
             let code = e.code();
+            if super::quiet_diagnostics() {
+                return CodecError::new(code, "");
+            }
+            let rendered = e.to_string();
             return CodecError::new(
                 code,
                 rendered

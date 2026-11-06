@@ -442,8 +442,11 @@ impl PathDiagnostic<'_> {
         match self {
             Self::Fixed(s) => CodecError::new(INVALID, codec_detail!("{}", s)),
             Self::Decimal(e) => {
-                let rendered = e.to_string();
                 let code = e.code();
+                if super::quiet_diagnostics() {
+                    return CodecError::new(code, "");
+                }
+                let rendered = e.to_string();
                 CodecError::new(
                     code,
                     rendered

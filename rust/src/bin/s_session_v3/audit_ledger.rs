@@ -3642,8 +3642,8 @@ pub(super) mod tests {
         nodes: &'a mut newchan_rust::s_content::MemoryNodes,
         scope: &'a WorkScope,
         fault: Fault,
-        /// 预先读好的根节点：首次读取直接交出，使 source 自身不在被测窗口内分配。
-        prepared: Option<newchan_rust::s_content::NodeRead>,
+        /// 预先读好的节点，按读取顺序从尾部交出，使 source 自身不在被测窗口内分配。
+        prepared: Vec<newchan_rust::s_content::NodeRead>,
     }
 
     #[cfg(feature = "s_incremental")]
@@ -3668,7 +3668,7 @@ pub(super) mod tests {
                 Fault::Budget => drop(self.scope.reserve_native(usize::MAX / 4)?),
                 Fault::Allocation => return Err(self.scope.reject(ScratchFailure::Allocation)),
             }
-            if let Some(found) = self.prepared.take() {
+            if let Some(found) = self.prepared.pop() {
                 return Ok(found);
             }
             newchan_rust::s_content::NodeSource::read(&mut *self.nodes, digest)
@@ -3701,10 +3701,13 @@ pub(super) mod tests {
         prefetch: bool,
     ) -> (Option<LedgerError>, u64) {
         use super::super::audit_owner::allocation_probe::Window;
-        let prepared = prefetch.then(|| {
-            let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
-            newchan_rust::s_content::NodeSource::read(&mut *nodes, &digest).unwrap()
-        });
+        let prepared: Vec<_> = prefetch
+            .then(|| {
+                let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
+                newchan_rust::s_content::NodeSource::read(&mut *nodes, &digest).unwrap()
+            })
+            .into_iter()
+            .collect();
         let mut seen = None;
         let work = budget.codec_work().ok().expect("codec work");
         let _ = work.run(|scope| {
@@ -3718,6 +3721,52 @@ pub(super) mod tests {
             let result = l.verify_delta(&mut source, [root.into(); 4], q).err();
             let probe = window.finish();
             seen = Some((result, probe["allocated_bytes"].as_u64().unwrap()));
+            Ok::<_, ()>(())
+        });
+        seen.expect("verify ran")
+    }
+
+    /// 对完整 `verify_delta` 同时开 Rust 分配窗口与原父 census：返回本次错误、窗口内 Rust
+    /// 分配字节、census 中逐次精确预留（layout 与 permit，含 SQLite 块）的字节和、以及 native
+    /// 结构上界预留的字节和。`reads` 按读取顺序给出 source 要交出的节点。
+    #[cfg(feature = "s_incremental")]
+    fn verify_censused(
+        budget: &super::super::audit_owner::native::Budget,
+        l: &Ledger<Charged>,
+        root: &ContentRef,
+        q: &Qualification,
+        mut reads: Vec<newchan_rust::s_content::NodeRead>,
+    ) -> (Option<LedgerError>, u64, u64, u64) {
+        use super::super::audit_owner::allocation_probe::Window;
+        reads.reverse();
+        let mut nodes = newchan_rust::s_content::MemoryNodes::new();
+        let mut seen = None;
+        let work = budget.codec_work().ok().expect("codec work");
+        let _ = work.run(|scope| {
+            let mut source = Scoped {
+                nodes: &mut nodes,
+                scope,
+                fault: Fault::None,
+                prepared: reads,
+            };
+            budget.census_arm();
+            let window = Window::start();
+            let result = l.verify_delta(&mut source, [root.into(); 4], q).err();
+            let probe = window.finish();
+            let events = budget.census_take();
+            let sum = |kinds: &[&str]| {
+                events
+                    .iter()
+                    .filter(|e| e.reserve && kinds.contains(&e.kind))
+                    .map(|e| e.bytes as u64)
+                    .sum::<u64>()
+            };
+            seen = Some((
+                result,
+                probe["allocated_bytes"].as_u64().unwrap(),
+                sum(&["layout", "permit"]),
+                sum(&["native"]),
+            ));
             Ok::<_, ()>(())
         });
         seen.expect("verify ran")
@@ -4224,6 +4273,55 @@ pub(super) mod tests {
         assert_eq!(kind.0, Some(LedgerError::Invalid("Δ闭包核验失败")));
         assert_eq!(extent.0, Some(LedgerError::Invalid("Δ闭包核验失败")));
         assert_eq!(kind.1, extent.1);
+        // 两条经包装 helper 的完整入口反例：声明长度超界的 STRING（动态诊断），以及指向 body
+        // 只有 31 字节的真实 SEQ_LEAF 的合法 STRING（静态字面量诊断）。整次 verify_delta 的
+        // Rust 分配必须恰好等于原父 census 中逐次精确预留之和，诊断没有无账分配。
+        {
+            use newchan_rust::s_content::{
+                frame, root_string, tag, Kind, NodeRead, CONTENT_FORMAT,
+            };
+            let reference = |digest: &[u8; 32], extent: Option<u64>| ContentRef {
+                format: CONTENT_FORMAT.into(),
+                root: root_string(digest),
+                kind: Kind::String,
+                extent,
+            };
+            let mut overlong = u64::MAX.to_be_bytes().to_vec();
+            overlong.extend_from_slice(&[7; 32]);
+            let overlong_root = reference(&frame(tag::STRING, &overlong), Some(0));
+            let short_leaf = vec![9u8; 31];
+            let leaf_digest = frame(tag::SEQ_LEAF, &short_leaf);
+            let mut string_body = 5u64.to_be_bytes().to_vec();
+            string_body.extend_from_slice(&leaf_digest);
+            let leaf_root = reference(&frame(tag::STRING, &string_body), Some(5));
+            for (root, reads) in [
+                (
+                    overlong_root,
+                    vec![NodeRead::Found {
+                        tag: tag::STRING,
+                        body: overlong,
+                    }],
+                ),
+                (
+                    leaf_root,
+                    vec![
+                        NodeRead::Found {
+                            tag: tag::STRING,
+                            body: string_body,
+                        },
+                        NodeRead::Found {
+                            tag: tag::SEQ_LEAF,
+                            body: short_leaf,
+                        },
+                    ],
+                ),
+            ] {
+                let (error, allocated, reserved, native) =
+                    verify_censused(&current, &l4, &root, &q4, reads);
+                assert_eq!(error, Some(LedgerError::Invalid("Δ闭包核验失败")));
+                assert_eq!(allocated, reserved, "native upper bounds {native}");
+            }
+        }
         arm_trip(&l4, 1);
         let verified = verify_in(&current, &l4, &mut nodes, &root, &q4, Fault::None);
         assert!(TRIPPED.load(Ordering::SeqCst));

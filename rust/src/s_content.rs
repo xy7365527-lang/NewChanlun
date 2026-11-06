@@ -1152,6 +1152,9 @@ impl fmt::Display for DecimalError<'_> {
 fn parse_canonical_u64(text: &str, what: &str) -> Result<u64, CodecError> {
     parse_canonical_u64_typed(text, what).map_err(|e| {
         let code = e.code();
+        if quiet_diagnostics() {
+            return CodecError::new(code, "");
+        }
         let rendered = e.to_string();
         CodecError::new(
             code,
@@ -1846,15 +1849,15 @@ fn body_shape_error(t: u8, body: &[u8], want: &str) -> CodecError {
 }
 
 fn sequence_shape_error(detail: impl Into<String>) -> CodecError {
-    CodecError::new(code::SEQUENCE_SHAPE, detail.into())
+    CodecError::new(code::SEQUENCE_SHAPE, detail)
 }
 
 fn byte_chunk_shape_error(detail: impl Into<String>) -> CodecError {
-    CodecError::new(code::BYTE_CHUNK_SHAPE, detail.into())
+    CodecError::new(code::BYTE_CHUNK_SHAPE, detail)
 }
 
 fn length_overflow_error(detail: impl Into<String>) -> CodecError {
-    CodecError::new(code::LENGTH_OVERFLOW, detail.into())
+    CodecError::new(code::LENGTH_OVERFLOW, detail)
 }
 
 fn byte_extent_error(got: u64, declared: u64) -> CodecError {
@@ -1971,7 +1974,7 @@ fn framed_len(body: &[u8], what: &str) -> Result<u64, CodecError> {
     }
     let n = be_u64(body);
     if n > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "{what} 声明长度 {n} 超过 2^63-1"
         )));
     }
@@ -2268,7 +2271,7 @@ impl LeafIter {
                     let leaf = digest_at(&body, 0);
                     let (lt, lbody) = read(&leaf)?;
                     if is_sequence_tag(lt) {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "单叶序列的叶不能又是序列节点（tag={lt:02x}）"
                         )));
                     }
@@ -2286,7 +2289,7 @@ impl LeafIter {
                     self.stack.push(left)?;
                 }
                 other => {
-                    return Err(sequence_shape_error(format!(
+                    return Err(sequence_shape_error(codec_detail!(
                         "序列位置读到非序列节点 tag={other:02x}"
                     )))
                 }
@@ -5809,12 +5812,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let leaf = digest_at(&body, 0);
                             let (lt, lbody) = self.read_node(&leaf)?;
                             if lt != tag::BYTES_CHUNK {
-                                return Err(byte_chunk_shape_error(format!(
+                                return Err(byte_chunk_shape_error(codec_detail!(
                                     "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
                                 )));
                             }
                             if lbody.is_empty() || lbody.len() > CHUNK_BYTES {
-                                return Err(byte_chunk_shape_error(format!(
+                                return Err(byte_chunk_shape_error(codec_detail!(
                                     "块长度 {} 必须落在 1..=4096",
                                     lbody.len()
                                 )));
@@ -5839,12 +5842,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let n = be_u64(&body);
                             if n > MAX_FRAME_LEN {
-                                return Err(length_overflow_error(format!(
+                                return Err(length_overflow_error(codec_detail!(
                                     "分支序列声明 n={n} 超过 2^63-1"
                                 )));
                             }
                             if n < 2 {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "分支序列 n={n} 必须 ≥ 2"
                                 )));
                             }
@@ -5864,7 +5867,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             })?;
                         }
                         other => {
-                            return Err(sequence_shape_error(format!(
+                            return Err(sequence_shape_error(codec_detail!(
                                 "序列位置读到非序列节点 tag={other:02x}"
                             )))
                         }
@@ -5894,7 +5897,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         .ok_or_else(|| sequence_shape_error("字节序列计数栈缺左子"))?;
                     let k = split_index(n).expect("n ≥ 2");
                     if left.leaves != k || right.leaves != n - k {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "序列分解形状不符：n={n} 要求左 k={k}、右 {}，实得左 {}、右 {}",
                             n - k,
                             left.leaves,
@@ -5964,7 +5967,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let leaf = digest_at(&body, 0);
                             let (lt, _lbody) = self.read_node(&leaf)?;
                             if is_sequence_tag(lt) {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "单叶序列的叶不能又是序列节点（tag={lt:02x}）"
                                 )));
                             }
@@ -5983,12 +5986,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let n = be_u64(&body);
                             if n > MAX_FRAME_LEN {
-                                return Err(length_overflow_error(format!(
+                                return Err(length_overflow_error(codec_detail!(
                                     "分支序列声明 n={n} 超过 2^63-1"
                                 )));
                             }
                             if n < 2 {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "分支序列 n={n} 必须 ≥ 2"
                                 )));
                             }
@@ -5999,7 +6002,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             steps.push(Step::Enter(left))?;
                         }
                         other => {
-                            return Err(sequence_shape_error(format!(
+                            return Err(sequence_shape_error(codec_detail!(
                                 "序列位置读到非序列节点 tag={other:02x}"
                             )))
                         }
@@ -6014,7 +6017,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         .ok_or_else(|| sequence_shape_error("元素序列计数栈缺左子"))?;
                     let k = split_index(n).expect("n ≥ 2");
                     if left != k || right != n - k {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "序列分解形状不符：n={n} 要求左 k={k}、右 {}，实得左 {left}、右 {right}",
                             n - k
                         )));
@@ -6078,7 +6081,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             let field = digest_at(&body, 0);
                             let (ft, fbody) = self.read_node(&field)?;
                             if ft != tag::OBJECT_FIELD {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "对象字段序列的叶必须是 0x14 字段节点，读到 tag={ft:02x}"
                                 )));
                             }
@@ -6108,12 +6111,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             }
                             let n = be_u64(&body);
                             if n > MAX_FRAME_LEN {
-                                return Err(length_overflow_error(format!(
+                                return Err(length_overflow_error(codec_detail!(
                                     "分支序列声明 n={n} 超过 2^63-1"
                                 )));
                             }
                             if n < 2 {
-                                return Err(sequence_shape_error(format!(
+                                return Err(sequence_shape_error(codec_detail!(
                                     "分支序列 n={n} 必须 ≥ 2"
                                 )));
                             }
@@ -6124,7 +6127,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                             steps.push(Step::Enter(left))?;
                         }
                         other => {
-                            return Err(sequence_shape_error(format!(
+                            return Err(sequence_shape_error(codec_detail!(
                                 "序列位置读到非序列节点 tag={other:02x}"
                             )))
                         }
@@ -6139,7 +6142,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                         .ok_or_else(|| sequence_shape_error("字段序列计数栈缺左子"))?;
                     let k = split_index(n).expect("n ≥ 2");
                     if left.count != k || right.count != n - k {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "序列分解形状不符：n={n} 要求左 k={k}、右 {}，实得左 {}、右 {}",
                             n - k,
                             left.count,
@@ -6265,7 +6268,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 match iter_a.next_context(&mut self.source)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
-                            return Err(byte_chunk_shape_error(format!(
+                            return Err(byte_chunk_shape_error(codec_detail!(
                                 "字节序列的叶必须是 0x10 块节点，读到 tag={t:02x}"
                             )));
                         }
@@ -6283,7 +6286,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 match iter_b.next_context(&mut self.source)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
-                            return Err(byte_chunk_shape_error(format!(
+                            return Err(byte_chunk_shape_error(codec_detail!(
                                 "字节序列的叶必须是 0x10 块节点，读到 tag={t:02x}"
                             )));
                         }
@@ -6437,7 +6440,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     let declared = framed_len(&body, "数组")?;
                     let count = self.elem_count(&digest_at(&body, 8), flavor)?;
                     if count != declared {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "数组声明 {declared} 个元素，元素序列实得 {count} 叶"
                         )));
                     }
@@ -6446,7 +6449,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                     let declared = framed_len(&body, "对象")?;
                     let agg = self.field_agg(&digest_at(&body, 8), flavor)?;
                     if agg.count != declared {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "对象声明 {declared} 个字段，字段序列实得 {} 叶",
                             agg.count
                         )));
@@ -6831,7 +6834,7 @@ impl Renderer<'_, '_> {
                         .next_context(&mut self.source)?
                         .ok_or_else(|| sequence_shape_error("字段序列提前结束"))?;
                     if ft != tag::OBJECT_FIELD || fbody.len() != 64 {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "对象字段序列的叶必须是 0x14 字段节点（64 字节 body），读到 tag={ft:02x}"
                         )));
                     }
@@ -6944,12 +6947,12 @@ impl Renderer<'_, '_> {
                 break;
             };
             if lt != tag::BYTES_CHUNK {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
                 )));
             }
             if lbody.is_empty() || lbody.len() > CHUNK_BYTES {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "块长度 {} 必须落在 1..=4096",
                     lbody.len()
                 )));
@@ -7005,12 +7008,12 @@ impl Renderer<'_, '_> {
                 break;
             };
             if lt != tag::BYTES_CHUNK {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
                 )));
             }
             if lbody.is_empty() || lbody.len() > CHUNK_BYTES {
-                return Err(byte_chunk_shape_error(format!(
+                return Err(byte_chunk_shape_error(codec_detail!(
                     "块长度 {} 必须落在 1..=4096",
                     lbody.len()
                 )));

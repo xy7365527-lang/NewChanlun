@@ -317,7 +317,7 @@ fn lookup_array_output_inner<R: RefOutput>(
                 let (t, body) = source.read(&value)?;
                 // 保留 descend_seq 的 M 叶拒绝码；其它内部节点沿旧 Value 角色拒绝。
                 if is_sequence_tag(t) {
-                    return Err(sequence_shape_error(format!(
+                    return Err(sequence_shape_error(codec_detail!(
                         "元素序列的叶不能又是序列节点（tag={t:02x}）"
                     )));
                 }
@@ -1216,7 +1216,7 @@ fn read_seq_node(
     count: u64,
 ) -> Result<SeqNode, CodecError> {
     if count > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "序列期望叶数 {count} 超过 2^63-1"
         )));
     }
@@ -1226,7 +1226,7 @@ fn read_seq_node(
         let empty = frame(tag::SEQ_EMPTY, &[]);
         let (t, body) = source.read(digest)?;
         if t != tag::SEQ_EMPTY || *digest != empty {
-            return Err(sequence_shape_error(format!(
+            return Err(sequence_shape_error(codec_detail!(
                 "叶数为 0 的序列根必须是空序列节点 {}，实得 tag=0x{t:02x}（{}）",
                 root_string(&empty),
                 root_string(digest)
@@ -1240,13 +1240,13 @@ fn read_seq_node(
     let (t, body) = source.read(digest)?;
     if count == 1 {
         if t != tag::SEQ_LEAF {
-            return Err(sequence_shape_error(format!(
+            return Err(sequence_shape_error(codec_detail!(
                 "叶数为 1 的序列根必须是单叶序列节点 0x12，实得 tag=0x{t:02x}（{}）",
                 root_string(digest)
             )));
         }
         if body.len() != 32 {
-            return Err(sequence_shape_error(format!(
+            return Err(sequence_shape_error(codec_detail!(
                 "单叶序列 body 必须是 32 字节叶摘要，实得 {} 字节（{}）",
                 body.len(),
                 root_string(digest)
@@ -1255,13 +1255,13 @@ fn read_seq_node(
         return Ok(SeqNode::Leaf(digest_at(&body, 0)));
     }
     if t != tag::SEQ_BRANCH {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "叶数 {count} ≥ 2 的序列根必须是分支序列节点 0x13，实得 tag=0x{t:02x}（{}）",
             root_string(digest)
         )));
     }
     if body.len() != 72 {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "分支序列 body 必须是 U64(n) + 左右子摘要（72 字节），实得 {} 字节（{}）",
             body.len(),
             root_string(digest)
@@ -1269,13 +1269,13 @@ fn read_seq_node(
     }
     let declared = be_u64(&body);
     if declared > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "分支序列声明 n={declared} 超过 2^63-1（{}）",
             root_string(digest)
         )));
     }
     if declared != count {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "分支序列声明 n={declared} 与期望叶数 {count} 不符（{}）",
             root_string(digest)
         )));
@@ -1323,7 +1323,7 @@ fn descend_seq(
                 // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
                 let (t, _body) = source.read(&leaf)?;
                 if is_sequence_tag(t) {
-                    return Err(sequence_shape_error(format!(
+                    return Err(sequence_shape_error(codec_detail!(
                         "元素序列的叶不能又是序列节点（tag={t:02x}）"
                     )));
                 }
@@ -1378,9 +1378,7 @@ fn boundary_leaf(
     loop {
         match node {
             SeqNode::Empty => {
-                return Err(sequence_shape_error(
-                    "边界下行遇到空序列（期望叶数 ≥ 1）".to_string(),
-                ))
+                return Err(sequence_shape_error("边界下行遇到空序列（期望叶数 ≥ 1）"))
             }
             SeqNode::Leaf(leaf) => return Ok(leaf),
             SeqNode::Branch {
@@ -1417,7 +1415,7 @@ fn read_field(
 ) -> Result<(NodeDigest, NodeDigest), CodecError> {
     let (t, body) = source.read(digest)?;
     if t != tag::OBJECT_FIELD || body.len() != 64 {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "对象字段序列的叶必须是 0x14 字段节点（64 字节 body），读到 tag={t:02x}（{} 字节）",
             body.len()
         )));
@@ -1536,12 +1534,12 @@ fn cmp_key_bytes(
     let mut total: u64 = 0;
     while let Some((lt, _leaf, chunk)) = iter.next_context(source)? {
         if lt != tag::BYTES_CHUNK {
-            return Err(byte_chunk_shape_error(format!(
+            return Err(byte_chunk_shape_error(codec_detail!(
                 "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
             )));
         }
         if chunk.is_empty() || chunk.len() > CHUNK_BYTES {
-            return Err(byte_chunk_shape_error(format!(
+            return Err(byte_chunk_shape_error(codec_detail!(
                 "块长度 {} 必须落在 1..=4096",
                 chunk.len()
             )));
@@ -1638,12 +1636,12 @@ fn cmp_key_nodes(
 
 fn check_chunk(lt: u8, chunk: &[u8]) -> Result<(), CodecError> {
     if lt != tag::BYTES_CHUNK {
-        return Err(byte_chunk_shape_error(format!(
+        return Err(byte_chunk_shape_error(codec_detail!(
             "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
         )));
     }
     if chunk.is_empty() || chunk.len() > CHUNK_BYTES {
-        return Err(byte_chunk_shape_error(format!(
+        return Err(byte_chunk_shape_error(codec_detail!(
             "块长度 {} 必须落在 1..=4096",
             chunk.len()
         )));
@@ -1682,7 +1680,7 @@ fn write_batch_string(
     text: &str,
 ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
     let n = u64::try_from(text.len())
-        .map_err(|_| length_overflow_error("字符串字节数超过 u64 表达".to_string()))?;
+        .map_err(|_| length_overflow_error("字符串字节数超过 u64 表达"))?;
     let digest = write_string_node(&mut *store, text)?;
     Ok((digest, Kind::String, Some(n)))
 }
@@ -2180,7 +2178,7 @@ impl NativeArrayCursor {
                 SeqNode::Leaf(value) => {
                     let (t, body) = source.read(&value)?;
                     if is_sequence_tag(t) {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "元素序列的叶不能又是序列节点（tag={t:02x}）"
                         )));
                     }
@@ -2358,7 +2356,7 @@ mod s4_local_descent_tests {
                     // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
                     let (t, _body) = source.read(&leaf)?;
                     if is_sequence_tag(t) {
-                        return Err(sequence_shape_error(format!(
+                        return Err(sequence_shape_error(codec_detail!(
                             "元素序列的叶不能又是序列节点（tag={t:02x}）"
                         )));
                     }
@@ -2403,9 +2401,7 @@ mod s4_local_descent_tests {
         loop {
             match read_seq_node(source, &digest, n)? {
                 SeqNode::Empty => {
-                    return Err(sequence_shape_error(
-                        "边界下行遇到空序列（期望叶数 ≥ 1）".to_string(),
-                    ))
+                    return Err(sequence_shape_error("边界下行遇到空序列（期望叶数 ≥ 1）"))
                 }
                 SeqNode::Leaf(leaf) => return Ok(leaf),
                 SeqNode::Branch {

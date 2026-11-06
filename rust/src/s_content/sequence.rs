@@ -76,7 +76,7 @@ impl SequenceRef {
     /// `count > 2^63-1` 当场拒绝（不是规范里能表达的叶数）。
     pub fn from_root_text_unchecked(root: &str, count: u64) -> Result<Self, CodecError> {
         if count > MAX_FRAME_LEN {
-            return Err(length_overflow_error(format!(
+            return Err(length_overflow_error(codec_detail!(
                 "序列叶数 {count} 超过 2^63-1"
             )));
         }
@@ -132,7 +132,7 @@ fn read_header(
     count: u64,
 ) -> Result<SeqNode, CodecError> {
     if count > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "序列期望叶数 {count} 超过 2^63-1"
         )));
     }
@@ -140,7 +140,7 @@ fn read_header(
         // 空节点由规范唯一确定：其摘要即身份，无需读取即可判「这个根是不是空序列」。
         let empty = frame(tag::SEQ_EMPTY, &[]);
         if *digest != empty {
-            return Err(sequence_shape_error(format!(
+            return Err(sequence_shape_error(codec_detail!(
                 "叶数为 0 的序列根必须是空序列节点 {}，实为 {}",
                 root_string(&empty),
                 root_string(digest)
@@ -152,13 +152,13 @@ fn read_header(
     let (t, body) = store.read(digest)?;
     if count == 1 {
         if t != tag::SEQ_LEAF {
-            return Err(sequence_shape_error(format!(
+            return Err(sequence_shape_error(codec_detail!(
                 "叶数为 1 的序列根必须是单叶序列节点 0x12，实得 tag=0x{t:02x}（{}）",
                 root_string(digest)
             )));
         }
         if body.len() != 32 {
-            return Err(sequence_shape_error(format!(
+            return Err(sequence_shape_error(codec_detail!(
                 "单叶序列 body 必须是 32 字节叶摘要，实得 {} 字节（{}）",
                 body.len(),
                 root_string(digest)
@@ -167,13 +167,13 @@ fn read_header(
         return Ok(SeqNode::Leaf(digest_at(&body, 0)));
     }
     if t != tag::SEQ_BRANCH {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "叶数 {count} ≥ 2 的序列根必须是分支序列节点 0x13，实得 tag=0x{t:02x}（{}）",
             root_string(digest)
         )));
     }
     if body.len() != 72 {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "分支序列 body 必须是 U64(n) + 左右子摘要（72 字节），实得 {} 字节（{}）",
             body.len(),
             root_string(digest)
@@ -181,13 +181,13 @@ fn read_header(
     }
     let declared = be_u64(&body);
     if declared > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "分支序列声明 n={declared} 超过 2^63-1（{}）",
             root_string(digest)
         )));
     }
     if declared != count {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "分支序列声明 n={declared} 与期望叶数 {count} 不符（{}）",
             root_string(digest)
         )));
@@ -262,9 +262,10 @@ pub fn sequence_concat_with_allocation(
     checked_input(store, left)?;
     checked_input(store, right)?;
     if left.count.checked_add(right.count).is_none() || left.count + right.count > MAX_FRAME_LEN {
-        return Err(length_overflow_error(format!(
+        return Err(length_overflow_error(codec_detail!(
             "合并后叶数 {} + {} 超过 2^63-1",
-            left.count, right.count
+            left.count,
+            right.count
         )));
     }
     concat_core(store, left, right, &mut memo)
@@ -290,7 +291,7 @@ pub fn sequence_split_with_allocation(
     let store = &mut CodecContext::Store(store);
     let mut memo = Memo::new(budget)?;
     if index > seq.count {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "拆分位置 {index} 超过序列长度 {}",
             seq.count
         )));
@@ -363,7 +364,7 @@ pub(super) fn sequence_rebuild_suffix_ctx(
         ));
     }
     if keep > seq.count {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "rebuild_suffix keep {keep} exceeds sequence count {}",
             seq.count
         )));
@@ -373,12 +374,14 @@ pub(super) fn sequence_rebuild_suffix_ctx(
         return Ok(*seq);
     }
     let appended = u64::try_from(leaves.len())
-        .map_err(|_| length_overflow_error("rebuild_suffix leaf count overflow".to_string()))?;
+        .map_err(|_| length_overflow_error("rebuild_suffix leaf count overflow"))?;
     let total = keep
         .checked_add(appended)
         .filter(|t| *t <= MAX_FRAME_LEN)
         .ok_or_else(|| {
-            length_overflow_error(format!("rebuild_suffix total {keep}+{appended} overflow"))
+            length_overflow_error(codec_detail!(
+                "rebuild_suffix total {keep}+{appended} overflow"
+            ))
         })?;
     if total == 0 {
         return empty_node(store);
@@ -402,7 +405,7 @@ pub(super) fn sequence_rebuild_suffix_ctx(
                 }
             }
             _ => {
-                return Err(sequence_shape_error(format!(
+                return Err(sequence_shape_error(codec_detail!(
                     "rebuild_suffix descent reached non-branch with {rest} leaves remaining"
                 )))
             }
@@ -420,7 +423,7 @@ pub(super) fn sequence_rebuild_suffix_ctx(
     }
     let mut acc = stack
         .pop()
-        .ok_or_else(|| sequence_shape_error("rebuild_suffix empty stack".to_string()))?;
+        .ok_or_else(|| sequence_shape_error("rebuild_suffix empty stack"))?;
     while let Some(prev) = stack.pop() {
         let size = prev.1 + acc.1;
         acc = (branch_node(store, &prev.0, &acc.0, size)?, size);
@@ -571,7 +574,7 @@ fn split_core(
     // 0 < index < count ⟹ count ≥ 2，根必须是已被核过的分支节点
     let node = read_seq_node(store, &seq.root, seq.count)?;
     let SeqNode::Branch { k, left, right } = node else {
-        return Err(sequence_shape_error(format!(
+        return Err(sequence_shape_error(codec_detail!(
             "叶数 {} ≥ 2 的序列根必须是分支节点",
             seq.count
         )));
