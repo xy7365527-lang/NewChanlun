@@ -736,20 +736,15 @@ fn read_session<T>(
                 if quick_check {
                     let mut stmt = session
                         .connection()
-                        .prepare("PRAGMA quick_check")
+                        .prepare(fd_wal::QuickCheck::SQL)
                         .map_err(|_| "PrivateSqliteCheckFailed")?;
                     let mut rows = stmt.query([]).map_err(|_| "PrivateSqliteCheckFailed")?;
-                    let mut seen = false;
+                    let mut verdict = fd_wal::QuickCheck::default();
                     while let Some(row) = rows.next().map_err(|_| "PrivateSqliteCheckFailed")? {
                         let text: String = row.get(0).map_err(|_| "PrivateSqliteCheckFailed")?;
-                        if text != "ok" || seen {
-                            return Err("PrivateSqliteIntegrityRejected".into());
-                        }
-                        seen = true;
+                        verdict.row(&text)?;
                     }
-                    if !seen {
-                        return Err("PrivateSqliteIntegrityEmpty".into());
-                    }
+                    verdict.finish()?;
                     drop(rows);
                     drop(stmt);
                 }

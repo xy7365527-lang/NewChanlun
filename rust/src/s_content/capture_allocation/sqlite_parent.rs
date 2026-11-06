@@ -42,6 +42,7 @@ use std::alloc::{alloc, dealloc, Layout};
 use std::cell::Cell;
 use std::ffi::{c_char, c_int, c_void, CStr};
 use std::marker::PhantomData;
+use std::ops::ControlFlow;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
@@ -1496,5 +1497,36 @@ impl GatedStatement<'_> {
         // SAFETY: stmt is live; borrowed values are gone once `f` returned.
         unsafe { ffi::sqlite3_reset(self.stmt) };
         self.binding.settle(mapped)
+    }
+
+    /// 逐行取 `M` 列交 `f` 映射，`f` 返回 `Break` 即停；每行映射前各核一次准入，`f` 中不能再
+    /// 执行 SQL。返回已映射的行数。
+    pub fn for_each_row<const N: usize, const M: usize>(
+        &mut self,
+        params: [&dyn ToSql; N],
+        mut f: impl FnMut([ValueRef<'_>; M]) -> ControlFlow<()>,
+    ) -> Result<usize, SqlGate> {
+        self.ready(params)?;
+        let mut rows = 0;
+        let result = loop {
+            match self.step() {
+                Ok(ffi::SQLITE_ROW) => {}
+                Ok(_) => break Ok(rows),
+                Err(e) => break Err(e),
+            }
+            if let Err(e) = self.admit() {
+                break Err(e);
+            }
+            rows += 1;
+            let mapped = map_row(self.binding, self.db, self.stmt, &mut f);
+            match self.binding.settle(mapped) {
+                Ok(ControlFlow::Continue(())) => {}
+                Ok(ControlFlow::Break(())) => break Ok(rows),
+                Err(e) => break Err(e),
+            }
+        };
+        // SAFETY: stmt is live; borrowed values are gone once `f` returned.
+        unsafe { ffi::sqlite3_reset(self.stmt) };
+        result
     }
 }
