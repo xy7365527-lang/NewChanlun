@@ -948,8 +948,9 @@ pub type AuthorizerFn = unsafe extern "C" fn(
 
 /// 调用方回调及其上下文。安全合同（[`SqliteBinding::open_with`]、[`SqlOps::set_authorizer`]
 /// 与 [`SqliteBinding::register_vfs`] 共用）：
-/// - SQLite 只在开库线程上、于该连接的 `run` / `rollback` / `close` 期间同步调用回调；连接
-///   `!Send`，不会换线程。
+/// - SQLite 只在开库线程上同步调用回调：授权与进度回调在该连接的 `run` / `rollback` / `close`
+///   期间；VFS 方法另在 `open_with` 打开期间与 [`ChargedConnection`] 直接析构时（`xClose` 等）。
+///   连接 `!Send`，析构也在开库线程，不会换线程。
 /// - 上下文从登记起到连接关闭（或析构、或被更换）为止须有效，且在此期间开库线程随时按回调的
 ///   方式访问它都不得与其他线程的访问构成数据竞争；跨线程共享的状态须由调用方自行同步。
 /// - 回调不得重入本连接、不得更改进度回调、不得关闭连接。
