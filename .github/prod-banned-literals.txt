@@ -80,6 +80,7 @@ JSON真实载荷析构归还原许可
 Key 全部 Plain 文本及 Proof Vec 新块须先计入同父域
 K物理live恰好计一次
 Missing 不伪造首读起钟
+Missing 不入表，每次真读
 MissingDependency：Q3CaptureInvalid：x
 MissingDependency：R4
 MissingDependency：R6：
@@ -725,6 +726,7 @@ writer/recover闭合后无SHM
 同一合同项不得重复入O
 同一合法字符串
 同一块在O与U中只计一次
+同一快照内同一摘要不再发 SQL
 同一新record在snapshot/delta只读取一次十字段
 同一时刻只有一个MoveIn
 同一查找第二次复用整次结果
@@ -751,6 +753,7 @@ writer/recover闭合后无SHM
 后续根缺子节点必须拒绝
 命中不重算见证身份
 命中临时 key 和验证工作均归还，不重复持费
+命中仍重新执行 F
 命中副本各自拥有非空 ref 文本，不能共享或偷走 memo 的原件
 四代每个完整record恰好承接kind与core两个source字段定位
 四字段对象不得被当成引用再求值摘要
@@ -1528,6 +1531,7 @@ writer/recover闭合后无SHM
 读 Delta 域模式
 读上一代前沿
 读冻结原始账
+读快照内外部提交不可见
 读状态下纪元稳定
 读语句已预编译、未过期
 读集加入即驱逐旧持久句柄

@@ -1029,6 +1029,59 @@ impl NodeSink for TxStore<'_, '_> {
 pub(super) struct ReadStore<'a> {
     conn: &'a Connection,
     same_material: Option<SameMaterial>,
+    snapshot: SnapshotFrames,
+}
+
+/// #1890 (a)：未写过的读快照内已核原件，键为摘要。只在 `snapshot_epoch()` 给出纪元时
+/// 使用，纪元变化或取不到纪元即整表作废。只收 F 核验通过的 Found；Missing、错误不入表。
+/// 命中时按 OrdinaryAuditMaterials 先例重新执行 F（命中不等于 F 成功）。
+/// 计入字节 = 正文长度 + 每条目固定开销；复制前先按剩余额度筛选。
+#[derive(Default)]
+struct SnapshotFrames {
+    epoch: Option<s_content::lookup_memo::SnapshotEpoch>,
+    frames: std::collections::HashMap<NodeDigest, s_content::job::CheckedFrame>,
+    bytes: usize,
+}
+const SNAPSHOT_FRAME_BYTES: usize = 128 << 20;
+const SNAPSHOT_FRAME_ENTRIES: usize = 1 << 20;
+const SNAPSHOT_FRAME_OVERHEAD: usize = 96;
+impl SnapshotFrames {
+    fn clear(&mut self) {
+        if !self.frames.is_empty() {
+            self.frames = Default::default();
+        }
+        self.bytes = 0;
+    }
+    /// 以此刻纪元取表；None 时整表作废并返回 false。
+    fn at(&mut self, epoch: Option<s_content::lookup_memo::SnapshotEpoch>) -> bool {
+        match epoch {
+            None => {
+                self.clear();
+                self.epoch = None;
+                false
+            }
+            Some(epoch) => {
+                if self.epoch != Some(epoch) {
+                    self.clear();
+                    self.epoch = Some(epoch);
+                }
+                true
+            }
+        }
+    }
+    fn keep(&mut self, digest: &NodeDigest, frame: &s_content::job::CheckedFrame) {
+        let bytes = frame.body().len() + SNAPSHOT_FRAME_OVERHEAD;
+        if self.frames.len() >= SNAPSHOT_FRAME_ENTRIES
+            || self.bytes.saturating_add(bytes) > SNAPSHOT_FRAME_BYTES
+            || self.frames.contains_key(digest)
+        {
+            return;
+        }
+        if let Ok(copy) = frame.checked_same_material(digest, frame.tag(), frame.body().to_vec()) {
+            self.frames.insert(*digest, copy);
+            self.bytes += bytes;
+        }
+    }
 }
 
 impl<'a> ReadStore<'a> {
@@ -1038,6 +1091,7 @@ impl<'a> ReadStore<'a> {
         Ok(Self {
             conn: tx,
             same_material: None,
+            snapshot: SnapshotFrames::default(),
         })
     }
 
@@ -1048,7 +1102,21 @@ impl<'a> ReadStore<'a> {
 }
 
 impl NodeSource for ReadStore<'_> {
+    /// #1890 (a)：未写过的读快照内，已核原件表命中时交出同一 (tag, body)，不再发 SQL，但
+    /// 重新执行 F；未命中照旧真读，不入表（只有核验读通过的原件入表）。
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        if self.snapshot_active() {
+            if let Some(frame) = self.snapshot.frames.get(digest) {
+                // 与核验读同一口径：命中也重新执行 F。
+                let (tag, body) = s_content::job::CheckedFrame::checked(
+                    digest,
+                    frame.tag(),
+                    frame.body().to_vec(),
+                )?
+                .into_parts();
+                return Ok(NodeRead::Found { tag, body });
+            }
+        }
         read_node(self.conn, digest)
     }
 
@@ -1132,7 +1200,37 @@ impl NodeSource for ReadStore<'_> {
         (rc == ffi::SQLITE_OK).then(|| [u64::from(version), self.conn.total_changes()])
     }
 
+    /// #1890 (a)：未写过的读快照内，同一摘要第二次核验读复用第一次 F 核验通过的原件，
+    /// 不再发 SQL，但每次重新执行 F；未命中照旧真读（含 SameMaterial），成功后入表。
     fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        if !self.snapshot_active() {
+            return self.checked_read_uncached(digest);
+        }
+        if let Some(frame) = self.snapshot.frames.get(digest) {
+            return s_content::job::CheckedFrame::checked(
+                digest,
+                frame.tag(),
+                frame.body().to_vec(),
+            )
+            .map(Some);
+        }
+        let frame = self.checked_read_uncached(digest)?;
+        if let Some(frame) = &frame {
+            self.snapshot.keep(digest, frame);
+        }
+        Ok(frame)
+    }
+}
+
+impl ReadStore<'_> {
+    fn snapshot_active(&mut self) -> bool {
+        let epoch = self.snapshot_epoch();
+        self.snapshot.at(epoch)
+    }
+    fn checked_read_uncached(
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
@@ -1307,6 +1405,7 @@ mod tests {
         let mut reader = ReadStore {
             conn: &conn,
             same_material: Some(SameMaterial::default()),
+            snapshot: SnapshotFrames::default(),
         };
         assert!(reader.checked_read(&digest).unwrap().is_some());
         external
@@ -1418,6 +1517,7 @@ mod tests {
         let reader = ReadStore {
             conn: &tx,
             same_material: None,
+            snapshot: SnapshotFrames::default(),
         };
         assert_eq!(
             reader.snapshot_epoch(),
@@ -1451,6 +1551,282 @@ mod tests {
         }
     }
 
+    fn snapshot_frames_fixture() -> (std::path::PathBuf, Connection, NodeDigest) {
+        let path = std::env::temp_dir().join(format!(
+            "nc-1890-snap-{}-{}.sqlite",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut conn = Connection::open(&path).unwrap();
+        conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1, 's-session/3', '1', 'clock', '{}', 1, 'accept')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL").unwrap();
+        let digest = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        TxStore::new(&tx)
+            .unwrap()
+            .put(digest, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        tx.commit().unwrap();
+        (path, conn, digest)
+    }
+    fn sql_reads_during<T>(f: impl FnOnce() -> T) -> (T, u64) {
+        let before = SQL_READS.with(std::cell::Cell::get);
+        let value = f();
+        (value, SQL_READS.with(std::cell::Cell::get) - before)
+    }
+
+    /// #1890 (a)：未写过的读快照内，同一摘要第二次核验读不再发 SQL、重新执行 F，返回
+    /// 同一 (tag, body)；原始读命中同样交出同一正文；Missing 不入表。
+    #[test]
+    fn snapshot_frames_reuse_checked_original_only_in_unwritten_read_snapshot() {
+        let (path, mut conn, digest) = snapshot_frames_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            // 第一次真实读预编译节点读语句；此前没有纪元，不入表。
+            let missing = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+            assert!(reader.checked_read(&missing).unwrap().is_none());
+            let (first, sql) = sql_reads_during(|| reader.checked_read(&digest).unwrap().unwrap());
+            assert_eq!(sql, 1);
+            let frames = s_content::frame_calls_on_thread();
+            let (second, sql) = sql_reads_during(|| reader.checked_read(&digest).unwrap().unwrap());
+            assert_eq!(sql, 0, "同一快照内同一摘要不再发 SQL");
+            assert_eq!(
+                s_content::frame_calls_on_thread() - frames,
+                1,
+                "命中仍重新执行 F"
+            );
+            assert_eq!((first.tag(), first.body()), (second.tag(), second.body()));
+            let (raw, sql) = sql_reads_during(|| reader.read(&digest).unwrap());
+            assert_eq!(sql, 0);
+            assert_eq!(
+                raw,
+                NodeRead::Found {
+                    tag: s_content::tag::BOOL_TRUE,
+                    body: Vec::new()
+                }
+            );
+            for _ in 0..2 {
+                let (read, sql) = sql_reads_during(|| reader.checked_read(&missing).unwrap());
+                assert!(read.is_none());
+                assert_eq!(sql, 1, "Missing 不入表，每次真读");
+            }
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// #1890 (a) 审查反例 A：SAVEPOINT 内写入、读到，再 ROLLBACK TO，必须读成 Missing；
+    /// 读快照内已入表的原件在本事务 DELETE 后必须读成 Missing。
+    #[test]
+    fn snapshot_frames_do_not_survive_savepoint_rollback_or_delete() {
+        let (path, mut conn, digest) = snapshot_frames_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            tx.execute_batch("SAVEPOINT snap1890").unwrap();
+            let fresh = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+            TxStore::new(&tx)
+                .unwrap()
+                .put(fresh, s_content::tag::BOOL_FALSE, &[])
+                .unwrap();
+            assert!(reader.checked_read(&fresh).unwrap().is_some());
+            assert!(reader.checked_read(&fresh).unwrap().is_some());
+            tx.execute_batch("ROLLBACK TO snap1890; RELEASE snap1890")
+                .unwrap();
+            assert!(reader.checked_read(&fresh).unwrap().is_none());
+            assert_eq!(reader.read(&fresh).unwrap(), NodeRead::Missing);
+            tx.execute(
+                "DELETE FROM s_content_nodes WHERE digest=?1",
+                params![&digest[..]],
+            )
+            .unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_none());
+            assert_eq!(reader.read(&digest).unwrap(), NodeRead::Missing);
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// #1890 (a) 审查反例 B：读快照内入表后 DROP TABLE，必须报 SOURCE。
+    #[test]
+    fn snapshot_frames_do_not_hide_dropped_table_source_error() {
+        let (path, mut conn, digest) = snapshot_frames_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            tx.execute_batch("DROP TABLE s_content_nodes").unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::SOURCE
+            );
+            assert_eq!(reader.read(&digest).unwrap_err().code(), code::SOURCE);
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// #1890 (a) 复审反例 D/E（F）：TEMP 同名节点表或视图遮蔽时，已核原件表不得复用：
+    /// 事务内新建（temp 写过），或缓存后经 SQL 结束事务、在 autocommit 下新建再进入 READ，
+    /// 都必须与基线一样读 temp（这里为空）而得到 Missing。
+    #[test]
+    fn snapshot_frames_do_not_survive_temp_shadow() {
+        for ddl in [
+            "CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL)",
+            "CREATE TEMP VIEW s_content_nodes AS SELECT * FROM main.s_content_nodes WHERE 0",
+        ] {
+            for between_transactions in [false, true] {
+                let (path, mut conn, digest) = snapshot_frames_fixture();
+                {
+                    let tx = conn.transaction().unwrap();
+                    let mut reader = ReadStore::new(&tx).unwrap();
+                    assert!(reader.checked_read(&digest).unwrap().is_some());
+                    assert!(reader.checked_read(&digest).unwrap().is_some());
+                    if between_transactions {
+                        tx.execute_batch("COMMIT").unwrap();
+                        tx.execute_batch(ddl).unwrap();
+                        tx.execute_batch("BEGIN").unwrap();
+                        let _: i64 = tx
+                            .query_row("SELECT count(*) FROM s_protocol_meta", [], |r| r.get(0))
+                            .unwrap();
+                    } else {
+                        tx.execute_batch(ddl).unwrap();
+                    }
+                    assert!(
+                        reader.checked_read(&digest).unwrap().is_none(),
+                        "{ddl} between={between_transactions}"
+                    );
+                    assert_eq!(reader.read(&digest).unwrap(), NodeRead::Missing);
+                }
+                drop(conn);
+                std::fs::remove_file(path).unwrap();
+            }
+        }
+    }
+
+    /// #1890 (a) 第 3 轮复审反例 G：新事务只读 temp（main 为 NONE），期间另一连接提交改写；
+    /// 已核原件表不得复用，必须与基线一样读到新正文并报 NODE_DIGEST。
+    #[test]
+    fn snapshot_frames_require_main_snapshot_not_just_temp_read() {
+        let (path, mut conn, digest) = snapshot_frames_fixture();
+        conn.execute_batch("CREATE TEMP TABLE t1890(x)").unwrap();
+        let external = Connection::open(&path).unwrap();
+        {
+            let tx = conn.transaction().unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            for _ in 0..3 {
+                assert!(reader.checked_read(&digest).unwrap().is_some());
+            }
+            tx.execute_batch("COMMIT").unwrap();
+            external
+                .execute(
+                    "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+                    params![&digest[..]],
+                )
+                .unwrap();
+            tx.execute_batch("BEGIN").unwrap();
+            let _: i64 = tx
+                .query_row("SELECT count(*) FROM temp.t1890", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+        }
+        drop(external);
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// #1890 (a) 第 3 轮复审反例 H：入表后换成拒绝一切的 authorizer，必须与基线一样在重新
+    /// 编译读语句时被拒绝（SOURCE）；撤销后照旧读到。
+    #[test]
+    fn snapshot_frames_do_not_hide_authorizer_change() {
+        use rusqlite::hooks::{AuthContext, Authorization};
+        let (path, mut conn, digest) = snapshot_frames_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            for _ in 0..3 {
+                assert!(reader.checked_read(&digest).unwrap().is_some());
+            }
+            tx.authorizer(Some(|_: AuthContext<'_>| Authorization::Deny))
+                .unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::SOURCE
+            );
+            assert_eq!(reader.read(&digest).unwrap_err().code(), code::SOURCE);
+            tx.authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+                .unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// #1890 (a) 审查反例 C：经 SQL 结束事务再 BEGIN，期间另一连接提交改写；新事务读前
+    /// （NONE）与读后（READ）都必须看见改写并报 NODE_DIGEST。
+    #[test]
+    fn snapshot_frames_do_not_revive_across_transaction_restart() {
+        let (path, mut conn, digest) = snapshot_frames_fixture();
+        let external = Connection::open(&path).unwrap();
+        let set_body = |body: &[u8]| {
+            external
+                .execute(
+                    "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                    params![body, &digest[..]],
+                )
+                .unwrap();
+        };
+        {
+            let tx = conn.transaction().unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            set_body(&[1]);
+            assert!(
+                reader.checked_read(&digest).unwrap().is_some(),
+                "读快照内外部提交不可见"
+            );
+            tx.execute_batch("COMMIT; BEGIN").unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+            tx.execute_batch("COMMIT").unwrap();
+            set_body(&[]);
+            tx.execute_batch("BEGIN").unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            tx.execute_batch("COMMIT").unwrap();
+            set_body(&[1]);
+            tx.execute_batch("BEGIN").unwrap();
+            let _: i64 = tx
+                .query_row("SELECT count(*) FROM s_protocol_meta", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+            assert_eq!(reader.read(&digest).unwrap_err().code(), code::NODE_DIGEST);
+        }
+        drop(external);
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
     /// #1890：只有显式事务内、尚未写过的读快照给出纪元；短读夹具没有纪元，上层 reader
     /// 的查找结果表不启用，外部提交照旧可见（上一测试锁住的性质不受影响）。本事务一写即
     /// 不给纪元；提交后新事务的纪元与旧纪元不同。
@@ -1471,6 +1847,7 @@ mod tests {
         let short = ReadStore {
             conn: &conn,
             same_material: None,
+            snapshot: SnapshotFrames::default(),
         };
         assert_eq!(short.snapshot_epoch(), None, "短读来源没有纪元");
         let first = {

@@ -5583,10 +5583,30 @@ pub(super) mod tests {
         tx.commit().unwrap();
         (fixture, root)
     }
+    thread_local! { static PATH_MEMO_SOURCE_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+    /// 数到达来源的读取（含 ReadStore 已核原件表命中），而不是 SQL 行：#1890 (a) 之后
+    /// ReadStore 自己会把重复核验读答掉，SQL 次数不再能区分 path 查找是否复用。
+    struct CountReads<'a>(content_store::ReadStore<'a>);
+    impl NodeSource for CountReads<'_> {
+        fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+            PATH_MEMO_SOURCE_READS.with(|n| n.set(n.get() + 1));
+            self.0.read(d)
+        }
+        fn checked_read(
+            &mut self,
+            d: &NodeDigest,
+        ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+            PATH_MEMO_SOURCE_READS.with(|n| n.set(n.get() + 1));
+            self.0.checked_read(d)
+        }
+        fn snapshot_epoch(&self) -> Option<sc::lookup_memo::SnapshotEpoch> {
+            self.0.snapshot_epoch()
+        }
+    }
     fn sql_reads_during(f: &mut dyn FnMut()) -> u64 {
-        let before = content_store::sql_reads_on_thread();
+        let before = PATH_MEMO_SOURCE_READS.with(std::cell::Cell::get);
         f();
-        content_store::sql_reads_on_thread() - before
+        PATH_MEMO_SOURCE_READS.with(std::cell::Cell::get) - before
     }
 
     /// #1890：未写过的读快照内，同一 reader 的同一查找成功结果复用；首次照旧真读；错误
@@ -5598,7 +5618,7 @@ pub(super) mod tests {
             ("b".into(), V::Bool(true)),
         ]));
         let tx = fixture.conn.transaction().unwrap();
-        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut source = CountReads(content_store::ReadStore::new(&tx).unwrap());
         {
             // 有期限的 reader 不提供表：同一查找每次都真读。
             let mut timed = HashReader::metered(
@@ -5686,7 +5706,7 @@ pub(super) mod tests {
     fn path_memo_does_not_survive_savepoint_rollback_or_delete() {
         let (mut fixture, committed) = path_memo_fixture(&V::Bool(true));
         let tx = fixture.conn.transaction().unwrap();
-        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut source = CountReads(content_store::ReadStore::new(&tx).unwrap());
         let mut reader = HashReader::new(&mut source);
         reader.lookup_ref((&committed).into(), &[]).unwrap();
         tx.execute_batch("SAVEPOINT pm1890").unwrap();
@@ -5723,7 +5743,7 @@ pub(super) mod tests {
     fn path_memo_does_not_hide_dropped_table_source_error() {
         let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
         let tx = fixture.conn.transaction().unwrap();
-        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut source = CountReads(content_store::ReadStore::new(&tx).unwrap());
         let mut reader = HashReader::new(&mut source);
         reader.lookup_field_ref((&root).into(), "a").unwrap();
         reader.lookup_field_ref((&root).into(), "a").unwrap();
@@ -5743,7 +5763,7 @@ pub(super) mod tests {
     fn path_memo_does_not_survive_temp_shadow_created_in_transaction() {
         let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
         let tx = fixture.conn.transaction().unwrap();
-        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut source = CountReads(content_store::ReadStore::new(&tx).unwrap());
         let mut reader = HashReader::new(&mut source);
         reader.lookup_field_ref((&root).into(), "a").unwrap();
         reader.lookup_field_ref((&root).into(), "a").unwrap();
@@ -5776,7 +5796,7 @@ pub(super) mod tests {
         ] {
             let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
             let tx = fixture.conn.transaction().unwrap();
-            let mut source = content_store::ReadStore::new(&tx).unwrap();
+            let mut source = CountReads(content_store::ReadStore::new(&tx).unwrap());
             let mut reader = HashReader::new(&mut source);
             reader.lookup_field_ref((&root).into(), "a").unwrap();
             reader.lookup_field_ref((&root).into(), "a").unwrap();
@@ -5876,7 +5896,7 @@ pub(super) mod tests {
                 .unwrap();
         };
         let tx = fixture.conn.transaction().unwrap();
-        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut source = CountReads(content_store::ReadStore::new(&tx).unwrap());
         let mut reader = HashReader::new(&mut source);
         let a = |r: &mut HashReader<'_>| r.lookup_field_ref((&root).into(), "a");
         a(&mut reader).unwrap();
