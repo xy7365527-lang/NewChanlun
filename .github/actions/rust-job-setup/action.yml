@@ -56,8 +56,6 @@ runs:
           echo "own_crate_opt_level=1"
         fi
         echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
-        # #1875：8 核及以上（Boat large）允许脚本把一组测试拆成 2 个进程同时跑；托管 4 核保持 1。
-        if [ "$(nproc)" -ge 8 ]; then echo "CI_TEST_PROCS=2"; else echo "CI_TEST_PROCS=1"; fi >> "$GITHUB_ENV"
         # #1875 R7/R13：`--jobs 1` 是 #1141 的磁盘预算处置（当时托管 runner 约 14 GB 空闲，并发链接写满磁盘）。
         #   现在按工作区实际空闲决定：≥ 40 GB 按核数并行编译，否则退回 1（release 档退回原来的 4）。
         #   实测托管 runner 根分区 154 GB、作业内最低空闲 83 GB（run 42028458748），Boat large 约 112 GB。

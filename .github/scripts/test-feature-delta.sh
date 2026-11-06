@@ -23,34 +23,18 @@ list_tests() {
   sed -n 's/: test$//p' "$out.raw" | LC_ALL=C sort >"$out"
 }
 
-# #1875：CI_TEST_PROCS>1 时把新增集合按名字轮流分成几份，各起一个 cargo test 进程同时跑（每个进程仍是
-#   RUST_TEST_THREADS 个线程；分进程不共享 fd 表，不放大 #1888 的 native_n1 fd 复用竞态）。测试集合与判定不变：
-#   每个名字恰好进一份，任何一份失败本步即失败；各份日志按份号顺序整段输出。
+# #1875：CI_TEST_PART=i/N 时只执行新增集合中按名字排序后第 i、i+N、i+2N… 个（i 从 0 起）。N 个作业各取一份，
+#   并集恰为新增集合、互不重叠；每个作业的机器上仍是 RUST_TEST_THREADS 个线程，同机负载与不拆时相同。
+#   「新增集合为空即失败」仍按完整集合判定。不设或 0/1 时执行全部。
 run_delta() {
   local target="$1"; shift
-  local procs="${CI_TEST_PROCS:-1}" sel
+  local sel part=() i n k
   if [[ "$target" == lib ]]; then sel=(--lib); else sel=(--bin s_structure_session); fi
-  if (( procs <= 1 || $# < 2 * procs )); then
-    cargo test --locked --features "$base_features,$feature" "${sel[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "$@"
-    return
-  fi
-  local -a pids=() part
-  local i k=0 rc=0
-  local names=("$@")
-  for (( i = 0; i < procs; i++ )); do
-    part=()
-    for (( k = i; k < ${#names[@]}; k += procs )); do part+=("${names[k]}"); done
-    cargo test --locked --features "$base_features,$feature" "${sel[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "${part[@]}" \
-      >"$work/$target.part$i.log" 2>&1 &
-    pids+=($!)
-  done
-  for (( i = 0; i < procs; i++ )); do
-    wait "${pids[i]}" || rc=1
-    echo "::group::feature_delta target=$target part $i/$procs"
-    cat "$work/$target.part$i.log"
-    echo "::endgroup::"
-  done
-  return "$rc"
+  IFS=/ read -r i n <<<"${CI_TEST_PART:-0/1}"
+  for (( k = i; k < $#; k += n )); do part+=("${@:k+1:1}"); done
+  echo "feature_delta target=$target part=$i/$n run=${#part[@]} of $#"
+  (( ${#part[@]} == 0 )) && return 0
+  cargo test --locked --features "$base_features,$feature" "${sel[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "${part[@]}"
 }
 
 total=0
