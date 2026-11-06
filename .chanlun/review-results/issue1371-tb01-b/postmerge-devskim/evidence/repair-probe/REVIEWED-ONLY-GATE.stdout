@@ -1,0 +1,16 @@
+## DevSkim security gate
+
+- **GitHub Security tab:** unavailable under the current repository entitlement. The file below is an ordinary Actions artifact, **not** GitHub Code scanning.
+- **Artifact:** `diagnostic-existing-sarif-projection` (upload outcome: `success`; retention: 14 days)
+- **Scanner outcome:** `success`
+- **DevSkim tool name:** `devskim` (expected: `devskim`)
+- **DevSkim tool version:** `1.0.90+fb2d676ce4` (expected: `1.0.90+fb2d676ce4`)
+- **SARIF findings:** `17484`
+- **Baseline:** `/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/counterfactual-reviewed-only-baseline.json`
+- **Fixed since baseline: 12 finding(s).**
+- **Gate conclusion:** FAIL — scanner, evidence upload, SARIF/tool contract, baseline comparison, or zero-findings requirement failed.
+
+### Failure details
+
+- SARIF contains 1 finding(s) not in the baseline (total 17484). New findings:
+-   - `DS176209|rust/src/theta_v0/nautilus/strategy.rs|314`

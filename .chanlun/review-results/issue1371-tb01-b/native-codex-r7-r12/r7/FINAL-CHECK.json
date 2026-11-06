@@ -1,0 +1,29 @@
+{
+  "kind": "产物与引用只读解析核验，不是产品测试",
+  "candidate": "4922543038fbcfef1a4d711a306708ace3f62e88",
+  "manifest_sha256": "543cba068be3f3da7b215670b88712ce8e6065ff9222d452a3a7536ba0cafeae",
+  "report_evidence_entries_checked": 161,
+  "distinct_evidence_paths": 54,
+  "ac_verdicts": {
+    "PASS": 7,
+    "FAIL": 1
+  },
+  "obligation_verdicts": {
+    "PASS": 13,
+    "FAIL": 4
+  },
+  "native_test_log": {
+    "sha256": "566145f92fcf244bc25a903efe561d10411bcf84cf4bc7140d6680ab8fb91163",
+    "named_tests": 35,
+    "same_line_ok": 34,
+    "interleaved_test": "full_signed_catalog_preserves_both_declared_branch_shapes",
+    "interleaved_location": "L571 test+JSON; L572 ok",
+    "summary": "L778:35 passed; 0 failed"
+  },
+  "artifacts": {
+    "REVIEW.md": "4ab32397cb4c5b1a922760b4f2c338849d96165683dab0aba31f82f7fd5bd7ad",
+    "REVIEW.json": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+    "READING-LOG.json": "c1af3861b40292daef3b8f289f67bf7af70ec7d9fdd06b48c1295e59a768afda"
+  },
+  "errors": []
+}

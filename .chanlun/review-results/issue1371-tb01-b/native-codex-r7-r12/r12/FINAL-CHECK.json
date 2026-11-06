@@ -1,0 +1,31 @@
+{
+  "kind": "final_artifact_and_citation_check_not_product_test",
+  "checked_at": "2026-09-12T12:42:33.249373+00:00",
+  "candidate": "e5b03629adde165610161b4df3e2d62d22163568",
+  "overall": "PASS",
+  "ac_pass": 8,
+  "obligation_pass": 17,
+  "evidence_entries_checked": 518,
+  "distinct_evidence_files": 118,
+  "gui_manifest_files": 220,
+  "original_r7_unchanged": true,
+  "artifacts": {
+    "REVIEW.md": {
+      "sha256": "4aaf77dadce536c1e807b9790ec045f42cb32f2a339afc55aaa572605c30ad43",
+      "bytes": 42351
+    },
+    "REVIEW.json": {
+      "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+      "bytes": 231461
+    },
+    "READING-LOG.json": {
+      "sha256": "4cbe5d5bc5b2f76854ad66116325bdf7880a18b329b918e222624d6d6b9aa3c1",
+      "bytes": 11605
+    },
+    "EXECUTION.json": {
+      "sha256": "931642c7eceae325e5d70f36d22989199c0cde973d868bcf4f7750bbdf62c99a",
+      "bytes": 5881
+    }
+  },
+  "errors": []
+}

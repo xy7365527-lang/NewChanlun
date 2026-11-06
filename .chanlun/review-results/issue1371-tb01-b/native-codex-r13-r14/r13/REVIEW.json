@@ -1,0 +1,3482 @@
+{
+  "schema": "r13_incremental_product_review_v1",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "model": "当前Codex原生代理；不捏造UUID或Prime模型记录",
+  "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+  "incremental_base": "750f933bddffc8251a880555b9beae2cdce75690",
+  "original_base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "overall": "FAIL",
+  "review_complete": true,
+  "scope": "#1371 TB-01-B完整8AC和17来源结构子义务的全增量复审；三P2及关联存储前件。",
+  "counts": {
+    "ac_pass": 7,
+    "ac_fail": 1,
+    "ac_not_verified": 0,
+    "obligations_pass": 16,
+    "obligations_fail": 1,
+    "obligations_not_verified": 0
+  },
+  "ac": [
+    {
+      "id": "AC-1",
+      "verdict": "PASS",
+      "reason": "新b9二进制真实接纳三输入成TOP、同e2新revision成RISING、追加e3成新TOP；大于JS安全整数至i64最大稀疏源坐标不丢精度。Begin内读取与frontier同事务，分类仍在持久Begin之后。launcher与HTML接线沿R12同字节历史证据，未称本轮新跑launcher/GUI。",
+      "evidence_ids": [
+        "E03",
+        "E08",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/0",
+        "reason": "Rust、launcher、只读后端及严格分类源同字节；承接R7已解码核实的正式launcher原回执与native正常发布/更正/追加链。HTML新增两门未改变输入或Begin/解释顺序。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "复用的是已核同字节Linux启动链；本轮没有新执行launcher，不称旧HTML与R11同字节。native正常每个事件一个cut；三杀seed三事件一次cut，不混用。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/0：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-2",
+      "verdict": "PASS",
+      "reason": "非法/碰撞源坐标整批拒绝且全库dump不变；合法同身份更正和重放继续。三新故障臂与各自对照完整Snapshot/Watch相同，旧对象first_known及撤回历史保留。",
+      "evidence_ids": [
+        "E03",
+        "E08",
+        "E12"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/1",
+        "reason": "接纳修订、原identity/receipt、旧对象first_known与撤回史的代码未变；新替代校验不改变这些身份。真实g4及g7完整Map对拍与GUI原TOP撤回佐证无退化。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "object_revision在该内容寻址窗口实现中为1；源revision变化不是复用旧object_id后假改first_known。只核无tie声明域，不扩成任意来源重切模型。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/1：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-3",
+      "verdict": "PASS",
+      "reason": "三臂正常恢复、修订和追加后的Python/Rust完整Snapshot、同轨control和Watch全字段相同；前沿交错取消旧尝试不发布混合cut。R12消费者两个门的同字节HTML/fixture保留且root10项通过。坏库停写缺陷另见AC7。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/2",
+        "reason": "两个原FAIL均闭合：替代清单完整校验、Gap本次会话绑定先于提交；坏响应保留缓存和cursor，同页健康流到A4、健康Gap到B1。原后端原子持久发布和正常Delta证据同字节复用。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "原492254的FAIL保持冻结；本PASS只适用于e5的新候选与本票分配子域。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/2：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+            "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+            "location": "L14–26原HTTP字节和明确g4截取；L28–102真实HTML模拟DOM，六类替代损坏及Gap负例/正控/同页重试"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+            "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+            "location": "/argv,/exit=0,/node_version=v22.23.1；本独评实际执行永久用例"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+            "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+            "location": "/cases/0..9全通过，/failed=[]，HTML/fixture SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FIXTURE-CHECK.json",
+            "sha256": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56",
+            "location": "六份fixture body逐字节对冻结原件；完整source SHA/JSON pointer/body SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-a7-state.json",
+            "sha256": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c",
+            "location": "完整currentState、六Maps、lastAppliedGen、sessionBinding、historyMode"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-b1-state.json",
+            "sha256": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e",
+            "location": "完整B1 currentState及重建六Maps/游标/发布绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+            "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+            "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+            "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+            "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+            "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-review-b\", \"generation\": \"1\", \"structure_cut\": \"cut-1\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"1\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+            "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+            "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+            "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+            "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+            "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-4",
+      "verdict": "PASS",
+      "reason": "本代理用新binary对Begin后、batch后、Commit后各发真实SIGKILL，核marker PID/DB/exe与-9；在原副本recover2并继续至g3，各自对照g2/g3/current/history/watch逐字段相同。旧三杀不冒充新binary。",
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/3",
+        "reason": "三杀Begin/batch/Commit、原库恢复、各自control代码和证据完全不变；增量只在已读HTTP消费者增加验证。沿用原R7三条实际SIGKILL证据，不重跑或混cut。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "是真进程终止，非硬件断电。未重跑；只审原件。不可达批次存在不等于幽灵可达引用。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/3：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-5",
+      "verdict": "PASS",
+      "reason": "Commit后SIGKILL没有advance回执，原业务身份query可读；recover后重试idempotent，不多代；旧epoch拒绝。非法持久与配置epoch分别StorageUnavailable/InvalidDomain，0→i64max合法、等代和旧代StaleWriter。",
+      "evidence_ids": [
+        "E03",
+        "E08",
+        "E15"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/4",
+        "reason": "Commit后DeliveryUnknown、原身份query/replay、严格epoch及幂等前沿代码未变；继承原R7实际终止与持久事实核验。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "DeliveryUnknown是客户端收到/未收到的知识状态，不能由一条缺失stdout反推未提交。进程测试覆盖此明确调度，不称全调度。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/4：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-6",
+      "verdict": "PASS",
+      "reason": "新执行在更正后AsKnown1与自身control完整相等，原TOP历史保留；pending raw不进入已发布历史，合法当前和历史Python/Rust完整相同。未改历史/HTML协议，沿用R12模式及页面门原证据。坏库仍200不是本轮已证明历史事实泄漏，归AC7。",
+      "evidence_ids": [
+        "E04",
+        "E08",
+        "E10",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/5",
+        "reason": "两种历史模式/请求cut验证和渲染代码未改；根28项原字节回放对当前/历史/晚到仍通过，真实GUI错误保留AsKnown3，合法重建明确AsKnown1。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "本项正常显式历史/当前显示通过；Gap错会话另由AC3及OB015/016打回。经济历史没有被生成。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/5：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-7",
+      "verdict": "FAIL",
+      "reason": "R13-M1四反例中未发布raw坐标已损坏，state/snapshot仍成功，accept实存新增raw，recover实存换epoch/history；只有advance拒绝且零Begin。违反S自身存储损坏准确报错并停止相应正式写入；E/B/X保持未启动不能豁免。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E09",
+        "E10",
+        "E17"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/6",
+        "reason": "没有改变进程、库、写路径及scope；E/B/X仍未启动。本轮只执行模拟DOM函数检查并审原GUI，S根/profile损坏停写与21副本证据沿用原R7。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "E/B/X未启动只证本片独立性；不等经济日志/解析器/X分区、ack反压全矩阵。损坏证据是S自身前件，不冒充经济故障。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/6：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "AC-8",
+      "verdict": "PASS",
+      "reason": "保留固定源码/build/commit、完整命令/输入/DB、53个case oracle及四产品反例；真实三杀有marker/信号/恢复及各自对照。8AC/17子义务完整重新定性，未覆盖项与旧证据复用明确，整体FAIL。",
+      "evidence_ids": [
+        "E01",
+        "E02",
+        "E07",
+        "E08",
+        "E09",
+        "E10",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/ac/7",
+        "reason": "原R7全域独评及精确来源记录保持冻结；R12另核4文件增量、两缺陷、永久10项、独立7项、根28项及三组真实GUI。原A oracle/原生恢复仅同字节和原有效域复用，不把函数回放算新增native。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "本项PASS表示要求的本域证据与独立审查已经完成，不表示缺陷修复或票可接收。A旧4测试计数仅引用原已核记录，不冒称R7重跑；本轮手核正常/恢复四比较与见证。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/ac/7：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    }
+  ],
+  "obligations": [
+    {
+      "id": "A-CC-006-03",
+      "verdict": "PASS",
+      "reason": "b9新三杀及各自未中断control在同输入/修订/profile/时钟下完整S Snapshot/Watch相同；沿用原签署受测域，内容身份/first_known不归一化。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/0",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。固定TestOnly输入、source/rule/profile下，三杀每臂与自身control的对象、关系、见证及历史完整深等；内容身份和首知未归一化。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "未证非退化市场投影、CC-006 全对象域/四分支构造、tie/Sel 或后续成笔。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/0：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-CC-006-04",
+      "verdict": "PASS",
+      "reason": "严格local_shape核未改；新正常三点/更正/追加及稀疏大整数链通过真实Rust路径并核源坐标与完整双端输出。其他G语义仍范围外。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/1",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。唯一local_shape计算四类之一、两方向与四严格比较，原始/merged三见证来自同批；R7按整数独算归档窗口并核同源GUI。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "本轨迹实际分支是 TOP/RISING；另外分支及完整构造域不由这一轨迹覆盖。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/1：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-ST-044-02",
+      "verdict": "PASS",
+      "reason": "对象/关系/见证的原子Commit代码未改，新的三杀恢复与Watch/快照对拍覆盖受影响门；撤回历史和旧端点仍可追。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/2",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。发布事务一起写对象、withdrawal、witness与relation；当前与历史端点可追，不将撤回历史见证当活动对象复活。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "GUI 内六集合未独立读取；没有高级扩展对象/全关系形态构造。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/2：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-ST-044-03",
+      "verdict": "PASS",
+      "reason": "新binary实际恢复、继续追加及同cut回读与各自control全字段一致；原浏览器重复不重生效门同字节复用。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/3",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。同会话已提交cursor空重试、健康继续与历史回读的S结构关系一致；三杀恢复保留原历史切面。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "TestOnly Gap 重送不等真实断网、游标真实过期或 C1372 保留/慢消费。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/3：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-ES-15-01",
+      "verdict": "PASS",
+      "reason": "新执行的所有健康快照仍明确structure CompleteCut/economic not_started，未启动域无补造记录；结构历史范围不扩大。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/4",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。CompleteCut明确只属于S，economic=not_started；Gap不是经济ack或经济完整。未启动经济域没有被补造历史。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "完整双域 Complete/Partial/Gap 与经济 AsKnown 未验证，后续 TB 保留。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/4：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-ES-15-02",
+      "verdict": "FAIL",
+      "reason": "合法三杀恢复与epoch拒绝锁通过，但R13-M1坏未发布raw仍允许recover换代，缺少已承接存储前件下不可发生迁移的拒绝锁。仅advance阻止新发布不足。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E10",
+        "E17",
+        "E20"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/5",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。三条Begin/batch/Commit实际故障迁移具备前后记录，旧epoch与未授权Begin推进拒绝；recover先核同根再换代。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "全部 ES-15 分支/合法迁移及跨域迁移没有穷尽运行。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/5：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-RA-04-01",
+      "verdict": "PASS",
+      "reason": "新修订与各自control的AsKnown1/current完整深等，旧对象身份/首次获知与撤回次序保留；未扩展经济计划责任语义。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/6",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。本片承接的S first_known与withdrawal历史保持原顺序和身份，查询更正前cut不能提前看到撤回。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "未发计划、可能调用/已交付、全部在途责任和退出路径无实例，本片不销经济子义务。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/6：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-RA-10-01",
+      "verdict": "PASS",
+      "reason": "健康S的固定cut、Snapshot/Watch及修订史经新b9三臂完整对拍；HTML Gap绑定与R12原件同字节复用。坏未发布raw没有被本轮证明混入历史内容，存储错误行为归AC7。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/7",
+        "reason": "新Gap门把指定cut绑定本次会话；A3遇B-Gap+A1拒绝，原游标重试B1合法。真实四代续接与同cut A7六Maps/完整State深等，原修订史与经济未启动边界保留。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "未新增分页边界/长历史/保留压力；完整经济 AsKnown 与故障时经济事件全域后续闭合。",
+          "原492254的FAIL保持冻结；本PASS只适用于e5的新候选与本票分配子域。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/7：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+            "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+            "location": "L14–26原HTTP字节和明确g4截取；L28–102真实HTML模拟DOM，六类替代损坏及Gap负例/正控/同页重试"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+            "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+            "location": "/argv,/exit=0,/node_version=v22.23.1；本独评实际执行永久用例"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+            "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+            "location": "/cases/0..9全通过，/failed=[]，HTML/fixture SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FIXTURE-CHECK.json",
+            "sha256": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56",
+            "location": "六份fixture body逐字节对冻结原件；完整source SHA/JSON pointer/body SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-a7-state.json",
+            "sha256": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c",
+            "location": "完整currentState、六Maps、lastAppliedGen、sessionBinding、historyMode"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-b1-state.json",
+            "sha256": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e",
+            "location": "完整B1 currentState及重建六Maps/游标/发布绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+            "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+            "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+            "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+            "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+            "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-review-b\", \"generation\": \"1\", \"structure_cut\": \"cut-1\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"1\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+            "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+            "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+            "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+            "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+            "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-I-02-01",
+      "verdict": "PASS",
+      "reason": "此票分配的E/B/X真实未启动、S自身健康时推进/撤回/恢复子域由新native成功链支持。全域故障分区仍未验；自有坏库停写单独AC7为FAIL，不从本项健康前提推导坏库合格。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/8",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。只审本票分配的E/B/X真实未启动子域；S自有持久库可正式修订、撤回、恢复和历史查询。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "分别停止/分区经济日志、解析器、X、订阅者，以及存储/索引/队列/ack/归档反压乘积未运行；没有经济进程不能充当所有分区。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/8：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-004-01",
+      "verdict": "PASS",
+      "reason": "接纳seq与源位置分别持久；新坐标门保一身份一位置，合法revision共享原位置，跨身份占位拒绝且全批回滚；大整数原样输出。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/9",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。源revision、接纳seq、窗口源坐标、object_id及object_revision各自保留；更正新内容身份有旧对象指针，不以新first_known覆旧对象。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "只覆盖本轨迹对象族；跨所有高级构造的替换/复活规则未穷尽。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/9：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-008-01",
+      "verdict": "PASS",
+      "reason": "b9的完整Delta和同cut Snapshot经新Watch/快照对拍；R12 replaces完备门同字节，root10项含漏项/端点/重复/多字段拒绝与合法重试。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/10",
+        "reason": "原replaces漏语义字段缺陷已消除：缺集合/漏项/错双端点/重复/额外字段拒绝；多替代倒序合法；第三条错包时此前暂存增量不提交；健康同游标重试全状态等于原快照。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "重复批次与所有语义字段漏改的全量反例主要在旧函数原件/组件锁；fresh GUI 无六 Map 完整独读，无真实丢包穷尽。",
+          "原492254的FAIL保持冻结；本PASS只适用于e5的新候选与本票分配子域。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/10：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+            "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+            "location": "L14–26原HTTP字节和明确g4截取；L28–102真实HTML模拟DOM，六类替代损坏及Gap负例/正控/同页重试"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+            "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+            "location": "/argv,/exit=0,/node_version=v22.23.1；本独评实际执行永久用例"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+            "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+            "location": "/cases/0..9全通过，/failed=[]，HTML/fixture SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FIXTURE-CHECK.json",
+            "sha256": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56",
+            "location": "六份fixture body逐字节对冻结原件；完整source SHA/JSON pointer/body SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-a7-state.json",
+            "sha256": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c",
+            "location": "完整currentState、六Maps、lastAppliedGen、sessionBinding、historyMode"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-b1-state.json",
+            "sha256": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e",
+            "location": "完整B1 currentState及重建六Maps/游标/发布绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.ax.txt",
+            "sha256": "656572f618362a00536ea745fdfef989b0d3fb08cf6270cb6c3c8a982a1d1cdc",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.json",
+            "sha256": "86bb5203428acf1b60cf97916834685bbf9709deae5418e7d21d39b3be50c4c7",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.ax.txt",
+            "sha256": "c0437ce5879487505917390f6bea46ccabec067334c539ddad050a77828dca11",
+            "location": "AX物理行 8,69,73,75,247,248；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.json",
+            "sha256": "a16df5276197ce282c59359e370db04425be5ca5cbfa23cee6438b04ec869bd6",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.ax.txt",
+            "sha256": "fe312a41719145cda7849f888460fc2a893e1e1e37721a21839007807cb09f61",
+            "location": "AX物理行 68,72,74,167,169,171,356；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"4\", \"structure_cut\": \"cut-4\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"4\", \"活动对象\": \"1\", \"撤回对象\": \"1\", \"witnesses\": \"6\", \"relations\": \"10\", \"raw_history\": \"4\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.json",
+            "sha256": "4d203348de5c87c681b8f81d68802f2e18e3a6c9a9e7686688a403c0f556701e",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/completed.json",
+            "sha256": "daaed9df3fc538bea6d4be460f3b29d10acecc65376d7b2d6be6504a09f2d2fa",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/completed.json",
+            "sha256": "dcfe7bc61f60af2ba68742e6cb840978287af1b665e9d587b3b7556594be3837",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/completed.json",
+            "sha256": "f5c8066f7c2e975a816b9358014e91dac015bd122d21eaeea6df219638449bf3",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.ax.txt",
+            "sha256": "088f4d1d97ba3fa987c5c56b81c76f08f55320cee3e6f27f4588d017bc1f9ae1",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.json",
+            "sha256": "e48ba639edd994cd5593088526da3844525c2268bf83ffe61d125559bd503e08",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.ax.txt",
+            "sha256": "13b2a1054cec90002a5ad2c2f6cf8d622abbe4e567dcca51c717761cd2b26b6f",
+            "location": "AX物理行 8,69,73,75,247,248；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.json",
+            "sha256": "67c4185513eb4a5b77b06a1160d40ce4f75cf882ab9f4500a5b5af66513b1b33",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.ax.txt",
+            "sha256": "a49fbb955852e8e0a34805d5ae705946e710a8808587f7bd12b52df451248b7b",
+            "location": "AX物理行 68,72,74,167,169,171,356；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"4\", \"structure_cut\": \"cut-4\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"4\", \"活动对象\": \"1\", \"撤回对象\": \"1\", \"witnesses\": \"6\", \"relations\": \"10\", \"raw_history\": \"4\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.json",
+            "sha256": "0e9f8edc278a7221a90da69c5980727fc51b8ed792f4f378240e3c00c4d50f7b",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/completed.json",
+            "sha256": "ae9cbf17700b9f337b5a1d4cc0349bb2dc20eae08e47ae2bada48d894fae6afb",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/completed.json",
+            "sha256": "b6395ec5ef2a3b97e44948d187c9ea9c08f8fe0761e982fbdc5160295793f5da",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/completed.json",
+            "sha256": "0d5001069da76237be96c270ca32f6b4a31e55d93583c6a196bee3af59d8f8e7",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+            "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+            "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+            "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+            "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+            "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-review-b\", \"generation\": \"1\", \"structure_cut\": \"cut-1\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"1\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+            "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+            "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+            "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+            "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+            "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-009-01",
+      "verdict": "PASS",
+      "reason": "健康未发布输入在g0/已发布快照不可见，历史AsKnown维持当时记录；新三杀旧TOP与修订后完整历史对拍。R13-M1指坏库不报错，不能伪称本项已出现未来内容。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/11",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。缺右邻只有知识不足；后续更正保留原raw和旧TOP；AsKnown0/更正前3不混入以后profile/目录状态/撤回。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "不等完整跨域历史与所有迟到输入模型已验证。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/11：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-014-01",
+      "verdict": "PASS",
+      "reason": "新更正三杀恢复后仍有旧TOP的身份/first_known/源证据/撤回理由，且与control完整相同；经济撤回/已成交分派仍范围外。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/12",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。只按票面分配的结构撤回可见性审阅：撤旧TOP保留原身份、first_known、区间、证据及理由；不存在的经济事件保持不存在。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "未发计划、可能已发订单、已成部分与责任显示完全未运行，经济子义务保持未验证。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/12：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-015-01",
+      "verdict": "PASS",
+      "reason": "前端pageEpoch/会话门未改且与R12同字节；原真GUI错会话拒绝与合法B会话迁移证据有界继承，root10项函数回归通过，不冒称新GUI。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/13",
+        "reason": "重建State须属于本次Gap声明的逻辑会话，B1合法迁移不会被旧A绑定阻挡；错会话及不完整Gap身份不提交。pageEpoch控制流未削弱，根R11真实原字节回放晚到两项全状态保持原winner。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "fresh 仅单字段 session TestOnly 错投与同页乱序；真实新会话重建来自旧 R6 额外函数原件，未新增实际浏览器跨会话重建轨迹。",
+          "原492254的FAIL保持冻结；本PASS只适用于e5的新候选与本票分配子域。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/13：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+            "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+            "location": "L14–26原HTTP字节和明确g4截取；L28–102真实HTML模拟DOM，六类替代损坏及Gap负例/正控/同页重试"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+            "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+            "location": "/argv,/exit=0,/node_version=v22.23.1；本独评实际执行永久用例"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+            "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+            "location": "/cases/0..9全通过，/failed=[]，HTML/fixture SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FIXTURE-CHECK.json",
+            "sha256": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56",
+            "location": "六份fixture body逐字节对冻结原件；完整source SHA/JSON pointer/body SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-a7-state.json",
+            "sha256": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c",
+            "location": "完整currentState、六Maps、lastAppliedGen、sessionBinding、historyMode"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-b1-state.json",
+            "sha256": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e",
+            "location": "完整B1 currentState及重建六Maps/游标/发布绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+            "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+            "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+            "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+            "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+            "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-review-b\", \"generation\": \"1\", \"structure_cut\": \"cut-1\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"1\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+            "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+            "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+            "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+            "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+            "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-016-01",
+      "verdict": "PASS",
+      "reason": "新生产者Watch连续代与本次三杀control全字段相等；Gap/重建门未动，沿R12原同字节协议证据；不新增retention/长连接压力证明。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/14",
+        "reason": "Gap指定cut、请求模式和新会话绑定三门共同生效；错A1保持A3，原after3重试B1成功，函数级六Map/游标/绑定完整深等。仅承接本票S续接域，不宣称新TCP/retention压力试验。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "无本轮实际 TCP 断线/响应体中断、真实 retention 过期或慢客户端负载。",
+          "原492254的FAIL保持冻结；本PASS只适用于e5的新候选与本票分配子域。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/14：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+            "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+            "location": "L14–26原HTTP字节和明确g4截取；L28–102真实HTML模拟DOM，六类替代损坏及Gap负例/正控/同页重试"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+            "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+            "location": "/argv,/exit=0,/node_version=v22.23.1；本独评实际执行永久用例"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+            "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+            "location": "/cases/0..9全通过，/failed=[]，HTML/fixture SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FIXTURE-CHECK.json",
+            "sha256": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56",
+            "location": "六份fixture body逐字节对冻结原件；完整source SHA/JSON pointer/body SHA"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-a7-state.json",
+            "sha256": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c",
+            "location": "完整currentState、六Maps、lastAppliedGen、sessionBinding、historyMode"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-b1-state.json",
+            "sha256": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e",
+            "location": "完整B1 currentState及重建六Maps/游标/发布绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+            "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b",
+            "location": "AX物理行 68,72,74,246；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+            "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+            "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-session-testonly-001\", \"generation\": \"3\", \"structure_cut\": \"cut-3\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"3\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+            "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+            "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35",
+            "location": "AX物理行 68,72,74,246,247；{\"session_id\": \"s-review-b\", \"generation\": \"1\", \"structure_cut\": \"cut-1\", \"history_mode\": \"AsKnown\", \"as_of_generation\": \"1\", \"活动对象\": \"1\", \"撤回对象\": \"0\", \"witnesses\": \"3\", \"relations\": \"4\", \"raw_history\": \"3\"}"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+            "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52",
+            "location": "/started_at,/finished_at,/tab_id,/ax,/screenshot；实际浏览器描述符"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+            "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+            "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+            "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+            "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44",
+            "location": "/target,/control,/source,/source_container,/operation,/response_body_sha256,/send_result=sendall_completed,/send_finished_at；同目录request.raw/response.header/response.body/response.raw逐字节核验"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-017-01",
+      "verdict": "PASS",
+      "reason": "真实Begin后追加新输入触发frontier变更，原尝试取消不新发cut；废弃batch保留原4条raw，不混入新e3；重试与含5条raw的正常control完整相同。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/15",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。按实际accept/publish前沿停步，确认只在正确cut出现；三杀都与相同原始输入调度control完整S对象/关系/事件深等。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "仅 S 受测轨迹；完整经营双跑不能靠 bars 或空经济域代替。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/15：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    },
+    {
+      "id": "A-OB-020-01",
+      "verdict": "PASS",
+      "reason": "逐项明示新源码/运行、可复用旧壳证据和实际FAIL；保留原R7/R12与750f反例，不把53个oracle成立写成产品PASS。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E13",
+        "E16"
+      ],
+      "base_verdict": "PASS",
+      "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "inherited_review": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "pointer": "/obligations/16",
+        "reason": "继承原R7已完整审阅的本票结构子域判断；生产者/SPEC/历史证据同字节，两项消费者门未改变该义务语义。八AC与17来源ID逐项绑定候选、原件及规范指针；旧R6仍INCOMPLETE，seq28未过，旧丢失与可解码原件分别标明。结果不以17GUI场景代替17来源义务。",
+        "limitations": [
+          "结论仅限#1371明示CC-006/local_shape TestOnly结构子域；完整来源义务及跨TB故事未销项。",
+          "本矩阵是证据导航，不是产品源码全审或 R6 最终结论，不关闭 B/父图。"
+        ],
+        "evidence": [
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+            "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+            "location": "/obligations/16：原完整独评；本行仅继承原明确结构子域"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+            "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+            "location": "/candidate,/base,/files：四个固定Git对象与工作树一致"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+            "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+            "location": "完整492254→e5b036差异；4文件，只有HTML改变产品行为"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+            "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+            "location": "/explicit_critical_source_bindings：8个关键文件base/e5/冻结包三方同字节"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+            "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+            "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+            "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+            "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+            "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+            "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+            "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+            "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+            "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+            "location": "/gui_cases,/gui,/requests：28请求与10AX原件独核"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+            "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+            "location": "L63–114新增断言：真实g3→7、第三条失败不部分提交、replaces倒序、Gap四种非文本/空身份；从真实Snapshot独立构造六Map与完整绑定"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+            "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+            "location": "/exit=0,/script_sha256,/stdout_sha256；本独评实际执行"
+          },
+          {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+            "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+            "location": "/cases/0..6全通过；/full_state_outputs与真实A7/B1完整状态指纹"
+          }
+        ]
+      },
+      "limitations": [
+        "仅本票具名TestOnly结构子域；非全来源义务闭合。",
+        "旧launcher/GUI证据只证明相同外壳与协议既有行为；新Rust/Python不以旧运行替代，已新增native/Handler。"
+      ]
+    }
+  ],
+  "reviewed_P2": [
+    {
+      "comment_id": 3996936242,
+      "status": "SPECIFIC_INPUT_DEFECT_FIXED_WITH_RELATED_AC7_FINDING",
+      "reason": "新请求非法/碰撞源坐标拒绝；所有静默回退和覆盖已消除；Begin前存量校验会阻止advance。但完整修复声明仍受R13-M1限制。",
+      "evidence_ids": [
+        "E03",
+        "E08",
+        "E10"
+      ]
+    },
+    {
+      "comment_id": 3996936244,
+      "status": "CLOSED_IN_B9",
+      "reason": "四表六个代字段的全表1..G真实整数门在两端共享root前置。旧五真实坏库以及zero/real/future 18字段反例、g0索引均拒绝；合法pending input和废弃不可达batch未误伤。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E08",
+        "E14"
+      ]
+    },
+    {
+      "comment_id": 3996936247,
+      "status": "CLOSED_IN_B9",
+      "reason": "存储、配置和恢复目标共用规范非负i64解析，错误域区分且写前拒绝；合法0到i64max后真实接纳推进通过，旧/等epoch拒绝。",
+      "evidence_ids": [
+        "E03",
+        "E08",
+        "E12",
+        "E15"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "R13-M1",
+      "severity": "P2",
+      "verdict": "FAIL",
+      "title": "坏未发布原始源坐标未进入共享完整性门，accept/recover仍写库",
+      "trigger": "G0已有合法接纳但未发布的raw；或G1已发布三输入后另接纳前沿外e3。将其source_coord改为bad或占用他身份坐标2。",
+      "code_locations": [
+        "b9 rust/src/bin/s_structure_session.rs:L926–950 root未调用read_raw_events；L1386/L1390附近accept只核root；L1599–1652校验仅在L2021 advance调用；L3738 recover只核root。",
+        "b9 s_session/s_readonly_server.py:L340–383共享root无原始坐标完整性核；L1126起Handler将其当合法state返回。"
+      ],
+      "actual_consequence": "四反例均state current/AsKnown200和Rust snapshot0；accept另一新事件实存raw+1，recover实存epoch1→2及history+1。advance单独拒绝、dump不变，不能把此局部门当全库前件。",
+      "obligations": [
+        "AC-7",
+        "A-ES-15-02"
+      ],
+      "recommendation": "将完整raw源坐标规范/非负/平台无损整数域及双向identity归属检查纳入Rust/Python共享root，含未发布raw；advance在同一Begin事务复用已读已校验vector，不重复全量读取。读取应503 StorageUnavailable，accept/advance/recover写前同错误且全库事实不变；合法pending raw、原identity revision共享位置、稀疏大整数仍合法。",
+      "evidence_ids": [
+        "E03",
+        "E04",
+        "E09",
+        "E10",
+        "E17",
+        "E19",
+        "E20"
+      ],
+      "counterexamples": [
+        {
+          "pointer": "/cases/0",
+          "id": "g0-coord-bad",
+          "operations": [
+            {
+              "op": "accept",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "recover",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "advance",
+              "exit": 1,
+              "dump_changed": false
+            }
+          ]
+        },
+        {
+          "pointer": "/cases/1",
+          "id": "g0-coord-2",
+          "operations": [
+            {
+              "op": "accept",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "recover",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "advance",
+              "exit": 1,
+              "dump_changed": false
+            }
+          ]
+        },
+        {
+          "pointer": "/cases/2",
+          "id": "g1-coord-bad",
+          "operations": [
+            {
+              "op": "accept",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "recover",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "advance",
+              "exit": 1,
+              "dump_changed": false
+            }
+          ]
+        },
+        {
+          "pointer": "/cases/3",
+          "id": "g1-coord-2",
+          "operations": [
+            {
+              "op": "accept",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "recover",
+              "exit": 0,
+              "dump_changed": true
+            },
+            {
+              "op": "advance",
+              "exit": 1,
+              "dump_changed": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E01",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/SOURCE.json",
+      "sha256": "4c753c2c2095d6dd071f7fbe3b5fd1a47554b8ce1edc68fb701eb30575496955",
+      "bytes": 980,
+      "locator": "/files；Rust/Python/new test/HTML/consumer固定源SHA",
+      "kind": "read"
+    },
+    {
+      "id": "E02",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/COMMIT-BINDING.json",
+      "sha256": "5d1d94ad6368d13c948287b67767061746fdf33074f575535b656fe76cd50215",
+      "bytes": 403,
+      "locator": "/all_five_git_objects_match_manifest=true；750f→b9仅三文件",
+      "kind": "read"
+    },
+    {
+      "id": "E03",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/source/rust/src/bin/s_structure_session.rs",
+      "sha256": "06cfb85b0d47c11c2d562f4aacd4838aedfb5dbc98cffffe4f3075d660c20ab5",
+      "bytes": 246365,
+      "locator": "L107–121,328–352,906–950,1342–1590,1599–1680,1993–2115,2296–2332,2620–2635,3714–3790；增量测试L4429起",
+      "kind": "read"
+    },
+    {
+      "id": "E04",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/source/s_session/s_readonly_server.py",
+      "sha256": "26bc65bc7550fe3929dcabe451f6567d4107801b5d007e7eaf76b60598a67d6d",
+      "bytes": 57819,
+      "locator": "L322–383和L1126–1176；全表代际门已入共享root，未有raw坐标共享检查",
+      "kind": "read"
+    },
+    {
+      "id": "E05",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/source/s_session/tests/r13_integrity.py",
+      "sha256": "f6b5d87a2caa06474c2b23355fb9fc555e2cc1c40523c248fcd9f745d271a6e5",
+      "bytes": 6647,
+      "locator": "完整137行；同源造库、五变异、双端读取和三写拒绝",
+      "kind": "read"
+    },
+    {
+      "id": "E06",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/git-diff.patch",
+      "sha256": "7e8b02a8c55bc45183b0c42541799be165c694ef64f2cbd7c5788259a5ddb762",
+      "bytes": 34216,
+      "locator": "完整750f→冻结源Rust/Python diff；另E05补新文件",
+      "kind": "read"
+    },
+    {
+      "id": "E07",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent.py",
+      "sha256": "410dde55455d42610a771171ae4ee3f26fcc3bf603b6b7600b441c4b5795da71",
+      "bytes": 15618,
+      "locator": "完整独立执行脚本；CLI/Python真实Handler，三次SIGKILL+一次前沿交错",
+      "kind": "read"
+    },
+    {
+      "id": "E08",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/RESULT.json",
+      "sha256": "dfcec13a70009298b09a2a9f4d37833648721a7a125974f72c44b34308cd3572",
+      "bytes": 3845822,
+      "locator": "/cases 49；/calls 178；/handler_calls 78；/failure=null；source_hashes_unchanged=true",
+      "kind": "new_execution"
+    },
+    {
+      "id": "E09",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap.py",
+      "sha256": "72c7643f8e731f0f4e067d8f0ccbeb5f60c18f125c5ae169f88ec6280e5c5a48",
+      "bytes": 6277,
+      "locator": "完整四个待发布原始行损坏的独立反例脚本",
+      "kind": "read"
+    },
+    {
+      "id": "E10",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/RESULT.json",
+      "sha256": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b",
+      "bytes": 982023,
+      "locator": "/cases 4；/calls 18；/handler_calls 8；每case/operations accept/recover发生实存变化、advance零写",
+      "kind": "new_counterexample"
+    },
+    {
+      "id": "E11",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/BUILD-RESULT.json",
+      "sha256": "3bc6d05d18d6ef87c2689c40de7011ff17e24ab56ffd6a390ba147cbcecbacc9",
+      "bytes": 427,
+      "locator": "固定binary sha2299fcc6…及source manifest绑定；构建由root执行",
+      "kind": "read"
+    },
+    {
+      "id": "E12",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/RUST-ALL.log",
+      "sha256": "a4e80284ce418aab84899177e6cb6d8a014d5101a2c5b32e34351abc3d962244",
+      "bytes": 21968,
+      "locator": "L538–582共45条结果均ok；L584总45/0；不是本代理重跑",
+      "kind": "read"
+    },
+    {
+      "id": "E13",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/CONSUMER.log",
+      "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+      "bytes": 1119,
+      "locator": "/cases 10项passed；/failed空；HTML及fixture SHA与R12一致",
+      "kind": "read"
+    },
+    {
+      "id": "E14",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/RESULT.json",
+      "sha256": "6cb655f1aca57474adee23f058c84d63e549592955627b5e7ed09d608ec0a8e0",
+      "bytes": 31793,
+      "locator": "/cases 5；/calls 39；/reads 21（15失败、6健康）；/failure=null；root新运行",
+      "kind": "read"
+    },
+    {
+      "id": "E15",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/RESULT.json",
+      "sha256": "d20db318fd8a05c6dbacc9d8d08f7ca8b65b550a149598c64389315015d72fd9",
+      "bytes": 22082,
+      "locator": "/cases 7；root在新binary下的原epoch反例与正控",
+      "kind": "read"
+    },
+    {
+      "id": "E16",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+      "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+      "bytes": 231461,
+      "locator": "/ac 8、/obligations 17，继承原语义理由/逐项证据与限制，不继承未覆盖缺陷的PASS",
+      "kind": "read"
+    },
+    {
+      "id": "E17",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PERFORMANCE-TRIAGE.json",
+      "sha256": "693ae821b82a0ee50a034887c9a957d3fd58f785ec94df4a06037d1fcb67dcfa",
+      "bytes": 78840,
+      "locator": "/live_issue_captures/1371/body_lines L13/16/17/32/41/51；1372 L11/14/18；性能C限制",
+      "kind": "read"
+    },
+    {
+      "id": "E18",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+      "bytes": 68412,
+      "locator": "L253 Begin/Commit、L311固定cut、L315历史、L325持久可达引用",
+      "kind": "read"
+    },
+    {
+      "id": "E19",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7",
+      "bytes": 10889,
+      "locator": "L13错误、L20–23 S接口、L55本地原子组",
+      "kind": "read"
+    },
+    {
+      "id": "E20",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+      "bytes": 1298462,
+      "locator": "/engineering_state_axes_with_r2_replacements/14/acceptance_points/1 A-ES-15-02；/independent_review_implementation_obligations/1/acceptance_points/0 A-I-02-01；来源8AC/17分配由票面持有",
+      "kind": "read"
+    },
+    {
+      "id": "E21",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-INLINE-REVIEWS-LATEST.json",
+      "sha256": "d5df34370f81e4b5b3c0b0f17b9ba0b017151169c2d38d0ee07d805c18d88779",
+      "bytes": 51618,
+      "locator": "comment3996936242/3996936244/3996936247和性能3996927376",
+      "kind": "read"
+    },
+    {
+      "id": "E22",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-TRIAGE.json",
+      "sha256": "356fac42330c0c22467dcbdfe900007be0b470bf48b13832aaf4d5b93538f76a",
+      "bytes": 113134,
+      "locator": "旧750f真实五类未来索引反例；本轮再复制同SHA源坏库",
+      "kind": "read"
+    }
+  ],
+  "execution": {
+    "session_id": "/root/r7_codex_product_review",
+    "runtime": "codex_native_subagent",
+    "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+    "new_binary_sha256": "2299fcc6a1f416ae79fdde176356dcf46d437a3cf4a710530595b7434ed7f391",
+    "new_execution_groups": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/RESULT.json",
+        "sha256": "dfcec13a70009298b09a2a9f4d37833648721a7a125974f72c44b34308cd3572",
+        "cases": 49,
+        "native_process_entries": 178,
+        "handler_calls": 78,
+        "failure": null,
+        "meaning": "49个受影响域回归检查成立，含3SIGKILL和1受控release交错"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/RESULT.json",
+        "sha256": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b",
+        "cases": 4,
+        "native_process_entries": 18,
+        "handler_calls": 8,
+        "failure": null,
+        "meaning": "四个反例断言成立，实际产品FAIL"
+      }
+    ],
+    "totals": {
+      "distinct_cases": 53,
+      "native_process_entries": 196,
+      "ordinary_cli": 192,
+      "pause_processes": 4,
+      "actual_SIGKILL": 3,
+      "release_interleave": 1,
+      "handler_calls": 86,
+      "http_requests": 0,
+      "servers_started": 0,
+      "new_GUI": 0
+    },
+    "test_results_from_root": {
+      "rust_tests": 45,
+      "consumer_functions": 10,
+      "integrity_cases": 5,
+      "integrity_native_commands": 39,
+      "integrity_python_read_state": 21,
+      "epoch_cases": 7
+    },
+    "no_duplicate_cargo": true,
+    "original_inputs_unchanged": true,
+    "product_modified_by_reviewer": false,
+    "scope": "全部注入/写入/恢复/终止仅本代理owned DB及确切已核PID；Python通过真实Handler捕获输出，非HTTP网络或GUI。源文件SHA在本次脚本结束时未变；随后b9 Git对象逐个与manifest核同字节。",
+    "fault_traces": [
+      {
+        "id": "sigkill_after_begin",
+        "pid": 7614,
+        "signal": "SIGKILL",
+        "exit_code": -9,
+        "marker": "pid=7614\nstage=after_begin\ndb=/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/after_begin-crash.sqlite\nexe=/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/bin/s_structure_session\n",
+        "pointer": "/cases/45"
+      },
+      {
+        "id": "sigkill_after_batch",
+        "pid": 7646,
+        "signal": "SIGKILL",
+        "exit_code": -9,
+        "marker": "pid=7646\nstage=after_batch\ndb=/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/after_batch-crash.sqlite\nexe=/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/bin/s_structure_session\n",
+        "pointer": "/cases/46"
+      },
+      {
+        "id": "sigkill_after_commit",
+        "pid": 7670,
+        "signal": "SIGKILL",
+        "exit_code": -9,
+        "marker": "pid=7670\nstage=after_commit\ndb=/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/after_commit-crash.sqlite\nexe=/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/bin/s_structure_session\n",
+        "pointer": "/cases/47"
+      }
+    ],
+    "case_index": [
+      {
+        "pointer": "/cases/0",
+        "id": "new_native_seed"
+      },
+      {
+        "pointer": "/cases/1",
+        "id": "future_active_object"
+      },
+      {
+        "pointer": "/cases/2",
+        "id": "future_withdrawn_object"
+      },
+      {
+        "pointer": "/cases/3",
+        "id": "future_witness"
+      },
+      {
+        "pointer": "/cases/4",
+        "id": "future_relation"
+      },
+      {
+        "pointer": "/cases/5",
+        "id": "future_observation"
+      },
+      {
+        "pointer": "/cases/6",
+        "id": "boundary_objects_first_known_generation_zero"
+      },
+      {
+        "pointer": "/cases/7",
+        "id": "boundary_objects_first_known_generation_real"
+      },
+      {
+        "pointer": "/cases/8",
+        "id": "boundary_objects_first_known_generation_future"
+      },
+      {
+        "pointer": "/cases/9",
+        "id": "boundary_objects_published_generation_zero"
+      },
+      {
+        "pointer": "/cases/10",
+        "id": "boundary_objects_published_generation_real"
+      },
+      {
+        "pointer": "/cases/11",
+        "id": "boundary_objects_published_generation_future"
+      },
+      {
+        "pointer": "/cases/12",
+        "id": "boundary_objects_withdrawn_generation_zero"
+      },
+      {
+        "pointer": "/cases/13",
+        "id": "boundary_objects_withdrawn_generation_real"
+      },
+      {
+        "pointer": "/cases/14",
+        "id": "boundary_objects_withdrawn_generation_future"
+      },
+      {
+        "pointer": "/cases/15",
+        "id": "boundary_witnesses_published_generation_zero"
+      },
+      {
+        "pointer": "/cases/16",
+        "id": "boundary_witnesses_published_generation_real"
+      },
+      {
+        "pointer": "/cases/17",
+        "id": "boundary_witnesses_published_generation_future"
+      },
+      {
+        "pointer": "/cases/18",
+        "id": "boundary_relations_published_generation_zero"
+      },
+      {
+        "pointer": "/cases/19",
+        "id": "boundary_relations_published_generation_real"
+      },
+      {
+        "pointer": "/cases/20",
+        "id": "boundary_relations_published_generation_future"
+      },
+      {
+        "pointer": "/cases/21",
+        "id": "boundary_observations_published_generation_zero"
+      },
+      {
+        "pointer": "/cases/22",
+        "id": "boundary_observations_published_generation_real"
+      },
+      {
+        "pointer": "/cases/23",
+        "id": "boundary_observations_published_generation_future"
+      },
+      {
+        "pointer": "/cases/24",
+        "id": "g0_published_index"
+      },
+      {
+        "pointer": "/cases/25",
+        "id": "source_invalid_01"
+      },
+      {
+        "pointer": "/cases/26",
+        "id": "source_invalid_-1"
+      },
+      {
+        "pointer": "/cases/27",
+        "id": "source_invalid_bad"
+      },
+      {
+        "pointer": "/cases/28",
+        "id": "source_invalid_9223372036854775808"
+      },
+      {
+        "pointer": "/cases/29",
+        "id": "source_collision_same_batch"
+      },
+      {
+        "pointer": "/cases/30",
+        "id": "source_collision_different_identity"
+      },
+      {
+        "pointer": "/cases/31",
+        "id": "source_collision_moved_revision"
+      },
+      {
+        "pointer": "/cases/32",
+        "id": "stored_source_zero_begin_False_bad"
+      },
+      {
+        "pointer": "/cases/33",
+        "id": "stored_source_zero_begin_False_1"
+      },
+      {
+        "pointer": "/cases/34",
+        "id": "stored_source_zero_begin_True_bad"
+      },
+      {
+        "pointer": "/cases/35",
+        "id": "stored_source_zero_begin_True_1"
+      },
+      {
+        "pointer": "/cases/36",
+        "id": "large_sparse_exact_source"
+      },
+      {
+        "pointer": "/cases/37",
+        "id": "stored_epoch_foo"
+      },
+      {
+        "pointer": "/cases/38",
+        "id": "stored_epoch_01"
+      },
+      {
+        "pointer": "/cases/39",
+        "id": "stored_epoch_-1"
+      },
+      {
+        "pointer": "/cases/40",
+        "id": "stored_epoch_9223372036854775808"
+      },
+      {
+        "pointer": "/cases/41",
+        "id": "configured_epoch_01"
+      },
+      {
+        "pointer": "/cases/42",
+        "id": "configured_epoch_-1"
+      },
+      {
+        "pointer": "/cases/43",
+        "id": "configured_epoch_9223372036854775808"
+      },
+      {
+        "pointer": "/cases/44",
+        "id": "valid_epoch_zero_to_i64max"
+      },
+      {
+        "pointer": "/cases/45",
+        "id": "sigkill_after_begin"
+      },
+      {
+        "pointer": "/cases/46",
+        "id": "sigkill_after_batch"
+      },
+      {
+        "pointer": "/cases/47",
+        "id": "sigkill_after_commit"
+      },
+      {
+        "pointer": "/cases/48",
+        "id": "begin_input_snapshot_frontier_interleave"
+      }
+    ],
+    "first_attempt_errors": [],
+    "artifact_files": [
+      {
+        "path": "independent-run/RESULT.json",
+        "bytes": 3845822,
+        "sha256": "dfcec13a70009298b09a2a9f4d37833648721a7a125974f72c44b34308cd3572"
+      },
+      {
+        "path": "independent-run/after_batch-control.sqlite",
+        "bytes": 221184,
+        "sha256": "ce6be16dc03d769960b44a8e325b99473f7c663f90078db51296e628b0668839"
+      },
+      {
+        "path": "independent-run/after_batch-crash.sqlite",
+        "bytes": 221184,
+        "sha256": "1cc3590036825919fe1af97485dc5762dfd662e00fdebbde931e99702a02dc16"
+      },
+      {
+        "path": "independent-run/after_batch.marker",
+        "bytes": 313,
+        "sha256": "434b114ea1d1026ef7efc109ea3aea3b0d5903ea1657f93787aa84f3296164fa"
+      },
+      {
+        "path": "independent-run/after_begin-control.sqlite",
+        "bytes": 221184,
+        "sha256": "d1b28397163b94456eafd85c0ad05256d05de39b470a7ba41ec313dd0e91b7ba"
+      },
+      {
+        "path": "independent-run/after_begin-crash.sqlite",
+        "bytes": 221184,
+        "sha256": "4ff439abef996bdc3ef240820134cf67b7da17630668626e5a69222a90337249"
+      },
+      {
+        "path": "independent-run/after_begin.marker",
+        "bytes": 313,
+        "sha256": "72b358275eab95b586b39bd65aa3180272aa17feedde52fb30b488f7940671e5"
+      },
+      {
+        "path": "independent-run/after_commit-control.sqlite",
+        "bytes": 221184,
+        "sha256": "6d6ab31e261cb933f41996ccb28b58defc39c5d9afae61a55daf096d4807d19f"
+      },
+      {
+        "path": "independent-run/after_commit-crash.sqlite",
+        "bytes": 221184,
+        "sha256": "b1bf633e1beaecad1a84b863ecc97e9b422d30e4fbbc5ad9f4c5bc314c783ea6"
+      },
+      {
+        "path": "independent-run/after_commit.marker",
+        "bytes": 315,
+        "sha256": "a2eadf840af0b11edeaa896580b1ffb24224d0c70c2d2bcca5c77e53aca700da"
+      },
+      {
+        "path": "independent-run/bad-source-25.sqlite",
+        "bytes": 139264,
+        "sha256": "50bbb2c34b374bcb249ebc86ce37d0d6ca11d45d1753c2db23d40f96d18ac324"
+      },
+      {
+        "path": "independent-run/bad-source-26.sqlite",
+        "bytes": 139264,
+        "sha256": "50bbb2c34b374bcb249ebc86ce37d0d6ca11d45d1753c2db23d40f96d18ac324"
+      },
+      {
+        "path": "independent-run/bad-source-27.sqlite",
+        "bytes": 139264,
+        "sha256": "50bbb2c34b374bcb249ebc86ce37d0d6ca11d45d1753c2db23d40f96d18ac324"
+      },
+      {
+        "path": "independent-run/bad-source-28.sqlite",
+        "bytes": 139264,
+        "sha256": "50bbb2c34b374bcb249ebc86ce37d0d6ca11d45d1753c2db23d40f96d18ac324"
+      },
+      {
+        "path": "independent-run/boundary_objects_first_known_generation_future.sqlite",
+        "bytes": 151552,
+        "sha256": "da40a4ea8979ac3fd2224aee0091958c89f680cffdc4d0eeb65d3856c3cf6b86"
+      },
+      {
+        "path": "independent-run/boundary_objects_first_known_generation_real.sqlite",
+        "bytes": 151552,
+        "sha256": "2600e25f0178408b6d5e6ed4ae11c214f94a720b2bac5e4e65bd9c8682fc4b11"
+      },
+      {
+        "path": "independent-run/boundary_objects_first_known_generation_zero.sqlite",
+        "bytes": 151552,
+        "sha256": "9aa3514a5997f2e6708e96fa24ae41b039623ab6bf9f629286d4bd659ad4d473"
+      },
+      {
+        "path": "independent-run/boundary_objects_published_generation_future.sqlite",
+        "bytes": 151552,
+        "sha256": "59a0ad165b894e2927a230d82d7378e64827377792c6e5860f790d16d859de09"
+      },
+      {
+        "path": "independent-run/boundary_objects_published_generation_real.sqlite",
+        "bytes": 151552,
+        "sha256": "34a17a78e3bf94734e91898e23ee74f68b47133dc704c90775c8f5f06e9aab37"
+      },
+      {
+        "path": "independent-run/boundary_objects_published_generation_zero.sqlite",
+        "bytes": 151552,
+        "sha256": "b0299dd0f780829045a70439e4fe356a441214f93e98fa66fb8c269140c789c6"
+      },
+      {
+        "path": "independent-run/boundary_objects_withdrawn_generation_future.sqlite",
+        "bytes": 151552,
+        "sha256": "b3857cb7919ae51125883a84a33e3b4a203d6bd0baa3c7c74f1e7b732f2f747d"
+      },
+      {
+        "path": "independent-run/boundary_objects_withdrawn_generation_real.sqlite",
+        "bytes": 151552,
+        "sha256": "ac49bceebaf1e66edb6893bcfa69ec8ed01a0bbe099ee433f9821bcdb3070500"
+      },
+      {
+        "path": "independent-run/boundary_objects_withdrawn_generation_zero.sqlite",
+        "bytes": 151552,
+        "sha256": "7cdcd77c45c3d699eb4e1fc245dc690542509860750bd35e7fd673f82b6e7dd4"
+      },
+      {
+        "path": "independent-run/boundary_observations_published_generation_future.sqlite",
+        "bytes": 151552,
+        "sha256": "ad0ebf9aecf27e8fdc727a8242c05c35a82d0b42f236522d96dafee4fbddd8ae"
+      },
+      {
+        "path": "independent-run/boundary_observations_published_generation_real.sqlite",
+        "bytes": 151552,
+        "sha256": "cdab18d4033637786b2be212fd1a7c76b6ebae636546503514cd0c19980ce9ab"
+      },
+      {
+        "path": "independent-run/boundary_observations_published_generation_zero.sqlite",
+        "bytes": 151552,
+        "sha256": "b2db68f8aecfb9285fd05aace273db66c4470c06d5b6c7e1a174410ca78aa414"
+      },
+      {
+        "path": "independent-run/boundary_relations_published_generation_future.sqlite",
+        "bytes": 151552,
+        "sha256": "9ba13f7b67edcebd1dae5f0def41f2648ade5636de432ca8fee8afcf0a508041"
+      },
+      {
+        "path": "independent-run/boundary_relations_published_generation_real.sqlite",
+        "bytes": 151552,
+        "sha256": "ea759e590dfc719c4ae0d94ad08c364a232bae36fa351ae50cc1294cdf300ff8"
+      },
+      {
+        "path": "independent-run/boundary_relations_published_generation_zero.sqlite",
+        "bytes": 151552,
+        "sha256": "efb5f7b35907a7aef9ef64ece2125e4ae93c7d00c2541c5886d58251763773c5"
+      },
+      {
+        "path": "independent-run/boundary_witnesses_published_generation_future.sqlite",
+        "bytes": 151552,
+        "sha256": "37c22442528972603b662a87c89ab55b27811ed36643f670fdab8cc32eb12f9e"
+      },
+      {
+        "path": "independent-run/boundary_witnesses_published_generation_real.sqlite",
+        "bytes": 151552,
+        "sha256": "5bd9a02f0fb085d51854d9d3f9f3a686ebd4558897a1d0d419ef551b6c009cb4"
+      },
+      {
+        "path": "independent-run/boundary_witnesses_published_generation_zero.sqlite",
+        "bytes": 151552,
+        "sha256": "0698c62ce45ea2532ecd047a6bab3373e0747a15b851b969299943005aa67c39"
+      },
+      {
+        "path": "independent-run/collision-different_identity.sqlite",
+        "bytes": 151552,
+        "sha256": "3d250227da90d18e00e745f0071c9047d73d5c234f5c742176a302e1aa155e02"
+      },
+      {
+        "path": "independent-run/collision-moved_revision.sqlite",
+        "bytes": 151552,
+        "sha256": "3d250227da90d18e00e745f0071c9047d73d5c234f5c742176a302e1aa155e02"
+      },
+      {
+        "path": "independent-run/collision-same_batch.sqlite",
+        "bytes": 139264,
+        "sha256": "50bbb2c34b374bcb249ebc86ce37d0d6ca11d45d1753c2db23d40f96d18ac324"
+      },
+      {
+        "path": "independent-run/configured-epoch-41.sqlite",
+        "bytes": 151552,
+        "sha256": "3d250227da90d18e00e745f0071c9047d73d5c234f5c742176a302e1aa155e02"
+      },
+      {
+        "path": "independent-run/configured-epoch-42.sqlite",
+        "bytes": 151552,
+        "sha256": "3d250227da90d18e00e745f0071c9047d73d5c234f5c742176a302e1aa155e02"
+      },
+      {
+        "path": "independent-run/configured-epoch-43.sqlite",
+        "bytes": 151552,
+        "sha256": "3d250227da90d18e00e745f0071c9047d73d5c234f5c742176a302e1aa155e02"
+      },
+      {
+        "path": "independent-run/correction.json",
+        "bytes": 357,
+        "sha256": "78dc9d8cbb66217f29161bbf89968317f53badb714991009e307b6aa921fb98a"
+      },
+      {
+        "path": "independent-run/corrupt-source-False-1.sqlite",
+        "bytes": 139264,
+        "sha256": "6fb1d8a7fd875c09be568a7d3a3dc16bb68de3107bde38125b1de3285ddfef8c"
+      },
+      {
+        "path": "independent-run/corrupt-source-False-bad.sqlite",
+        "bytes": 139264,
+        "sha256": "077ebc036284dd92527a071ce0cf949efc1dcd8c0434a53eef9f3d5e0fe17df0"
+      },
+      {
+        "path": "independent-run/corrupt-source-True-1.sqlite",
+        "bytes": 151552,
+        "sha256": "b450512474e2b65736086e34189e1c1b2d86a253186afeea9a6ab7b6047ecfeb"
+      },
+      {
+        "path": "independent-run/corrupt-source-True-bad.sqlite",
+        "bytes": 151552,
+        "sha256": "e4c2f511c2ad88612a85c744821b8a34c6ba8cf11d0a3933c3dd97b728c02135"
+      },
+      {
+        "path": "independent-run/different-identity.json",
+        "bytes": 522,
+        "sha256": "8769462a5d5d8eb3da98ca268d916092dc110b573913df74e80d0924d77c8c5e"
+      },
+      {
+        "path": "independent-run/empty.sqlite",
+        "bytes": 139264,
+        "sha256": "e85fa9dbeca1991869866d40a46898a7265a0f61d8b445ecd35b4bcb1aa0b5f8"
+      },
+      {
+        "path": "independent-run/extra.json",
+        "bytes": 357,
+        "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+      },
+      {
+        "path": "independent-run/frontier-control.sqlite",
+        "bytes": 208896,
+        "sha256": "99fd6cca8909861014bb7417f1c5707a1045385e0fbb5739aaf70ed26f934c3e"
+      },
+      {
+        "path": "independent-run/frontier-control.sqlite-shm",
+        "bytes": 32768,
+        "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+      },
+      {
+        "path": "independent-run/frontier-control.sqlite-wal",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "independent-run/frontier-interleave.marker",
+        "bytes": 315,
+        "sha256": "00b78aaa3cb0c2462b35c0946d4ad441a8b59c2ea8f13c3f5a055c31bb1ebf77"
+      },
+      {
+        "path": "independent-run/frontier-interleave.sqlite",
+        "bytes": 217088,
+        "sha256": "b374c5d6c6029b789a2f0a3179350f93511587eb4c20b854b3acbae93d1ebb59"
+      },
+      {
+        "path": "independent-run/frontier-interleave.sqlite-shm",
+        "bytes": 32768,
+        "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+      },
+      {
+        "path": "independent-run/frontier-interleave.sqlite-wal",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "independent-run/future_active_object.sqlite",
+        "bytes": 237568,
+        "sha256": "94b1bf74ba2c9e28f155fd0da7a4df2b7714e53d0c1a379f859c2d2e927ab501"
+      },
+      {
+        "path": "independent-run/future_observation.sqlite",
+        "bytes": 237568,
+        "sha256": "7d70a4b4d294104d92368d5c2820304daa87a3f358208f3344b170b07695a1b2"
+      },
+      {
+        "path": "independent-run/future_relation.sqlite",
+        "bytes": 237568,
+        "sha256": "66c298393e1f78340cc51faaabc48e391a458635ef8ecf794efc372bc8a280f0"
+      },
+      {
+        "path": "independent-run/future_withdrawn_object.sqlite",
+        "bytes": 237568,
+        "sha256": "475863360691d3706bf4b5fe8c806b613858877343ea0f552a316f2111981d80"
+      },
+      {
+        "path": "independent-run/future_witness.sqlite",
+        "bytes": 237568,
+        "sha256": "a7e4503a75d611ad240f09f4d07ba26d26ca615ce6b64fee8a9687ca76149a95"
+      },
+      {
+        "path": "independent-run/g0-published-index.sqlite",
+        "bytes": 139264,
+        "sha256": "255caf778f3ae879683be149e4a7876c8edaa0396acd23b6baa090fc1fddb078"
+      },
+      {
+        "path": "independent-run/high-epoch.sqlite",
+        "bytes": 188416,
+        "sha256": "5c0ba56d54951ba035f1b5b3a4b89083eb33f6e6961147a3ad725b1a7f50e588"
+      },
+      {
+        "path": "independent-run/initial.json",
+        "bytes": 677,
+        "sha256": "5bd09890dd80c14452c5302989dc5a10132cae481bdb5d0ab1ab2c2660530692"
+      },
+      {
+        "path": "independent-run/large-positions.json",
+        "bytes": 725,
+        "sha256": "d15eb7555d9823e27f39a6216a2f13b98b319b17108811e24994193e6b5c5a1d"
+      },
+      {
+        "path": "independent-run/large-source.sqlite",
+        "bytes": 155648,
+        "sha256": "ac537b3b45bebeaf0c08d09fa32e49c80367deaacf720f02de5f95596f2613e3"
+      },
+      {
+        "path": "independent-run/large-source.sqlite-shm",
+        "bytes": 32768,
+        "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+      },
+      {
+        "path": "independent-run/large-source.sqlite-wal",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "independent-run/moved-revision.json",
+        "bytes": 357,
+        "sha256": "dded96b01bf4ef25a3ed04ade4ed0e1be974fc08b13039bafeeb3c9f040ba18c"
+      },
+      {
+        "path": "independent-run/old-db-extra.json",
+        "bytes": 376,
+        "sha256": "d5449146b5f87ca42b518dba95809b2001a3b3455f95d34c4d509e3f5bbb4282"
+      },
+      {
+        "path": "independent-run/pending.sqlite",
+        "bytes": 139264,
+        "sha256": "082812ae4e8b94e58e7cce45ec617ed4c744de17be7ca39513963af73b29997c"
+      },
+      {
+        "path": "independent-run/persisted-epoch-37.sqlite",
+        "bytes": 151552,
+        "sha256": "e37cbfed8903dc2e9dc558d7315cc30f98a3fb28d9ed5cd2010399dcaada2ccc"
+      },
+      {
+        "path": "independent-run/persisted-epoch-38.sqlite",
+        "bytes": 151552,
+        "sha256": "c9966edf533f430732700da1f14a3b16c75aeeca82ea28d9509d18d145677502"
+      },
+      {
+        "path": "independent-run/persisted-epoch-39.sqlite",
+        "bytes": 151552,
+        "sha256": "ac4637d06f5e04dbf8b470b03ba192d3512c5390456f7b70126635d95b2061f0"
+      },
+      {
+        "path": "independent-run/persisted-epoch-40.sqlite",
+        "bytes": 151552,
+        "sha256": "6983c3f7bcef9abee1b03f0b65f30fac5585b4ae64a5106ce69e39037b682b7e"
+      },
+      {
+        "path": "independent-run/same-coordinate.json",
+        "bytes": 515,
+        "sha256": "b064f5524a6f0e837af50d9488e0b6974fa3b7880cba41b3d321dbefbffae06a"
+      },
+      {
+        "path": "independent-run/seed.sqlite",
+        "bytes": 151552,
+        "sha256": "dd4493369cd33533fa2180e3fde3c8bbc47e2a6db6dc2abea879952b3df06816"
+      },
+      {
+        "path": "independent-run/source-25.json",
+        "bytes": 521,
+        "sha256": "5a870d7a5f455d76a937a94ad711565db1d913d352f856c97ec7619d4b0ae84a"
+      },
+      {
+        "path": "independent-run/source-26.json",
+        "bytes": 521,
+        "sha256": "976e785b7aea34d2a0ee48a851d4521058da0fc2b92f98f757612cca88764351"
+      },
+      {
+        "path": "independent-run/source-27.json",
+        "bytes": 522,
+        "sha256": "11edebdbb01c5a3b5bb7898ba1c3755dc2eb2bc3c59e69b138f74c7e8d6522ab"
+      },
+      {
+        "path": "independent-run/source-28.json",
+        "bytes": 538,
+        "sha256": "cd680408725b95cb478322190c7a0aea377238e8e3f0d5d6aa2c580ed2293139"
+      },
+      {
+        "path": "raw-integrity-gap/RESULT.json",
+        "bytes": 982023,
+        "sha256": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b"
+      },
+      {
+        "path": "raw-integrity-gap/extra-probe.json",
+        "bytes": 363,
+        "sha256": "aa63e38b3f4dd869084d4e6831de6d2bf3f74b8f1414d39697853933ec02457b"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-2-accept.sqlite",
+        "bytes": 139264,
+        "sha256": "d7ba9435f4954244ccefad6daa1e5de6fedd0823b08f528194a7c06814a4d6a3"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-2-advance.sqlite",
+        "bytes": 139264,
+        "sha256": "13b9cd7a4514c25d9174c82734f01bf518aca08be62752f5935ac5e23da1e881"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-2-recover.sqlite",
+        "bytes": 139264,
+        "sha256": "6a158fc265dfb02e474e248e671e6a954f1a8fde9432b801749a098edd055b7d"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-2.sqlite",
+        "bytes": 139264,
+        "sha256": "13b9cd7a4514c25d9174c82734f01bf518aca08be62752f5935ac5e23da1e881"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-bad-accept.sqlite",
+        "bytes": 139264,
+        "sha256": "4d2b36a513e0ffff86b78d278f6cb7734ae895e3e5d88e39b54f9f526b3779d2"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-bad-advance.sqlite",
+        "bytes": 139264,
+        "sha256": "077ebc036284dd92527a071ce0cf949efc1dcd8c0434a53eef9f3d5e0fe17df0"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-bad-recover.sqlite",
+        "bytes": 139264,
+        "sha256": "f9ed367cf18e82d006c5aea59131f0b50face8b17b67021965c4e92c0919ed3a"
+      },
+      {
+        "path": "raw-integrity-gap/g0-coord-bad.sqlite",
+        "bytes": 139264,
+        "sha256": "077ebc036284dd92527a071ce0cf949efc1dcd8c0434a53eef9f3d5e0fe17df0"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-2-accept.sqlite",
+        "bytes": 151552,
+        "sha256": "21747cedc8e26a0ea8a5e2fb348d7bb03df8750db97e33d6b142c7dff17fd665"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-2-advance.sqlite",
+        "bytes": 151552,
+        "sha256": "7d44e6c6a9d7dc905810a006d62a25ac8587b34dff05f25ecf1fe328362341c8"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-2-pending.json",
+        "bytes": 357,
+        "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-2-recover.sqlite",
+        "bytes": 151552,
+        "sha256": "3ef57872f54a6a18cf010fbf06b55d87ec36f1f820560a0636b440cb84e108e3"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-2.sqlite",
+        "bytes": 151552,
+        "sha256": "7d44e6c6a9d7dc905810a006d62a25ac8587b34dff05f25ecf1fe328362341c8"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-bad-accept.sqlite",
+        "bytes": 151552,
+        "sha256": "2905f3ee8156af05a1d6a6663fcb97931882a2fe407c0918e776183c72fa4c2c"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-bad-advance.sqlite",
+        "bytes": 151552,
+        "sha256": "1c6c8989cb63dfdc65e101a627b8e7eb5ee68dd428eef1ec03e2241b0ecf54d8"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-bad-pending.json",
+        "bytes": 357,
+        "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-bad-recover.sqlite",
+        "bytes": 151552,
+        "sha256": "d9cec4bd5ed24218d429922ee6bd7fe13fb48ba5a25a7e978f3f576eb3071e66"
+      },
+      {
+        "path": "raw-integrity-gap/g1-coord-bad.sqlite",
+        "bytes": 151552,
+        "sha256": "1c6c8989cb63dfdc65e101a627b8e7eb5ee68dd428eef1ec03e2241b0ecf54d8"
+      },
+      {
+        "path": "source/rust/src/bin/s_structure_session.rs",
+        "bytes": 246365,
+        "sha256": "06cfb85b0d47c11c2d562f4aacd4838aedfb5dbc98cffffe4f3075d660c20ab5"
+      },
+      {
+        "path": "source/s_session/browser/index.html",
+        "bytes": 42793,
+        "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+      },
+      {
+        "path": "source/s_session/s_readonly_server.py",
+        "bytes": 57819,
+        "sha256": "26bc65bc7550fe3929dcabe451f6567d4107801b5d007e7eaf76b60598a67d6d"
+      },
+      {
+        "path": "source/s_session/tests/r12_consumer.cjs",
+        "bytes": 6111,
+        "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39"
+      },
+      {
+        "path": "source/s_session/tests/r13_integrity.py",
+        "bytes": 6647,
+        "sha256": "f6b5d87a2caa06474c2b23355fb9fc555e2cc1c40523c248fcd9f745d271a6e5"
+      }
+    ],
+    "artifact_file_count": 103
+  },
+  "reading": {
+    "session_id": "/root/r7_codex_product_review",
+    "runtime": "codex_native_subagent",
+    "candidate": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+    "evidence": [
+      {
+        "id": "E01",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/SOURCE.json",
+        "sha256": "4c753c2c2095d6dd071f7fbe3b5fd1a47554b8ce1edc68fb701eb30575496955",
+        "bytes": 980,
+        "locator": "/files；Rust/Python/new test/HTML/consumer固定源SHA",
+        "kind": "read"
+      },
+      {
+        "id": "E02",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/COMMIT-BINDING.json",
+        "sha256": "5d1d94ad6368d13c948287b67767061746fdf33074f575535b656fe76cd50215",
+        "bytes": 403,
+        "locator": "/all_five_git_objects_match_manifest=true；750f→b9仅三文件",
+        "kind": "read"
+      },
+      {
+        "id": "E03",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/source/rust/src/bin/s_structure_session.rs",
+        "sha256": "06cfb85b0d47c11c2d562f4aacd4838aedfb5dbc98cffffe4f3075d660c20ab5",
+        "bytes": 246365,
+        "locator": "L107–121,328–352,906–950,1342–1590,1599–1680,1993–2115,2296–2332,2620–2635,3714–3790；增量测试L4429起",
+        "kind": "read"
+      },
+      {
+        "id": "E04",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/source/s_session/s_readonly_server.py",
+        "sha256": "26bc65bc7550fe3929dcabe451f6567d4107801b5d007e7eaf76b60598a67d6d",
+        "bytes": 57819,
+        "locator": "L322–383和L1126–1176；全表代际门已入共享root，未有raw坐标共享检查",
+        "kind": "read"
+      },
+      {
+        "id": "E05",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/source/s_session/tests/r13_integrity.py",
+        "sha256": "f6b5d87a2caa06474c2b23355fb9fc555e2cc1c40523c248fcd9f745d271a6e5",
+        "bytes": 6647,
+        "locator": "完整137行；同源造库、五变异、双端读取和三写拒绝",
+        "kind": "read"
+      },
+      {
+        "id": "E06",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/git-diff.patch",
+        "sha256": "7e8b02a8c55bc45183b0c42541799be165c694ef64f2cbd7c5788259a5ddb762",
+        "bytes": 34216,
+        "locator": "完整750f→冻结源Rust/Python diff；另E05补新文件",
+        "kind": "read"
+      },
+      {
+        "id": "E07",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent.py",
+        "sha256": "410dde55455d42610a771171ae4ee3f26fcc3bf603b6b7600b441c4b5795da71",
+        "bytes": 15618,
+        "locator": "完整独立执行脚本；CLI/Python真实Handler，三次SIGKILL+一次前沿交错",
+        "kind": "read"
+      },
+      {
+        "id": "E08",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/RESULT.json",
+        "sha256": "dfcec13a70009298b09a2a9f4d37833648721a7a125974f72c44b34308cd3572",
+        "bytes": 3845822,
+        "locator": "/cases 49；/calls 178；/handler_calls 78；/failure=null；source_hashes_unchanged=true",
+        "kind": "new_execution"
+      },
+      {
+        "id": "E09",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap.py",
+        "sha256": "72c7643f8e731f0f4e067d8f0ccbeb5f60c18f125c5ae169f88ec6280e5c5a48",
+        "bytes": 6277,
+        "locator": "完整四个待发布原始行损坏的独立反例脚本",
+        "kind": "read"
+      },
+      {
+        "id": "E10",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/RESULT.json",
+        "sha256": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b",
+        "bytes": 982023,
+        "locator": "/cases 4；/calls 18；/handler_calls 8；每case/operations accept/recover发生实存变化、advance零写",
+        "kind": "new_counterexample"
+      },
+      {
+        "id": "E11",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/BUILD-RESULT.json",
+        "sha256": "3bc6d05d18d6ef87c2689c40de7011ff17e24ab56ffd6a390ba147cbcecbacc9",
+        "bytes": 427,
+        "locator": "固定binary sha2299fcc6…及source manifest绑定；构建由root执行",
+        "kind": "read"
+      },
+      {
+        "id": "E12",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/RUST-ALL.log",
+        "sha256": "a4e80284ce418aab84899177e6cb6d8a014d5101a2c5b32e34351abc3d962244",
+        "bytes": 21968,
+        "locator": "L538–582共45条结果均ok；L584总45/0；不是本代理重跑",
+        "kind": "read"
+      },
+      {
+        "id": "E13",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/CONSUMER.log",
+        "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+        "bytes": 1119,
+        "locator": "/cases 10项passed；/failed空；HTML及fixture SHA与R12一致",
+        "kind": "read"
+      },
+      {
+        "id": "E14",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/RESULT.json",
+        "sha256": "6cb655f1aca57474adee23f058c84d63e549592955627b5e7ed09d608ec0a8e0",
+        "bytes": 31793,
+        "locator": "/cases 5；/calls 39；/reads 21（15失败、6健康）；/failure=null；root新运行",
+        "kind": "read"
+      },
+      {
+        "id": "E15",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/RESULT.json",
+        "sha256": "d20db318fd8a05c6dbacc9d8d08f7ca8b65b550a149598c64389315015d72fd9",
+        "bytes": 22082,
+        "locator": "/cases 7；root在新binary下的原epoch反例与正控",
+        "kind": "read"
+      },
+      {
+        "id": "E16",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "bytes": 231461,
+        "locator": "/ac 8、/obligations 17，继承原语义理由/逐项证据与限制，不继承未覆盖缺陷的PASS",
+        "kind": "read"
+      },
+      {
+        "id": "E17",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PERFORMANCE-TRIAGE.json",
+        "sha256": "693ae821b82a0ee50a034887c9a957d3fd58f785ec94df4a06037d1fcb67dcfa",
+        "bytes": 78840,
+        "locator": "/live_issue_captures/1371/body_lines L13/16/17/32/41/51；1372 L11/14/18；性能C限制",
+        "kind": "read"
+      },
+      {
+        "id": "E18",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/SPEC.md",
+        "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+        "bytes": 68412,
+        "locator": "L253 Begin/Commit、L311固定cut、L315历史、L325持久可达引用",
+        "kind": "read"
+      },
+      {
+        "id": "E19",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/INTERFACE-CONTRACTS.md",
+        "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7",
+        "bytes": 10889,
+        "locator": "L13错误、L20–23 S接口、L55本地原子组",
+        "kind": "read"
+      },
+      {
+        "id": "E20",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+        "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+        "bytes": 1298462,
+        "locator": "/engineering_state_axes_with_r2_replacements/14/acceptance_points/1 A-ES-15-02；/independent_review_implementation_obligations/1/acceptance_points/0 A-I-02-01；来源8AC/17分配由票面持有",
+        "kind": "read"
+      },
+      {
+        "id": "E21",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-INLINE-REVIEWS-LATEST.json",
+        "sha256": "d5df34370f81e4b5b3c0b0f17b9ba0b017151169c2d38d0ee07d805c18d88779",
+        "bytes": 51618,
+        "locator": "comment3996936242/3996936244/3996936247和性能3996927376",
+        "kind": "read"
+      },
+      {
+        "id": "E22",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-TRIAGE.json",
+        "sha256": "356fac42330c0c22467dcbdfe900007be0b470bf48b13832aaf4d5b93538f76a",
+        "bytes": 113134,
+        "locator": "旧750f真实五类未来索引反例；本轮再复制同SHA源坏库",
+        "kind": "read"
+      }
+    ],
+    "source_reading": [
+      "完整750f→b9三文件增量：Rust548行diff、Python19行、新r13_integrity137行；另读变更所依赖accept/Begin/Commit/recover/root/read_raw的完整函数与测试。",
+      "R12原8AC/17子义务理由/限制，原750f future报告和本次四条PR评论。",
+      "签署SPEC/接口列出的行及A-ES-15-02/A-I-02-01/RA10精确JSON pointer；1371/1372先前本会话归档票面原文。",
+      "新native输出由脚本解析完整JSON并做全字段比较；Handler输出完整解析。root45unit结果行与消费者10JSON结果；root5双端/7epoch报告只作辅助。"
+    ],
+    "not_read_or_executed": [
+      "未重新读取全冻结包、全仓或全部原GUI220件；沿原R7/R12明确原件证据。",
+      "未新跑cargo、完整GUI或正式launcher；没有把本次CLI/Handler冒充这些执行。",
+      "未测试经济域、生产市场输入、非退化OHLC/未定G、全部CC/ST/LC、C的规模性能。",
+      "没有审查或执行尚未冻结的R14。"
+    ],
+    "tool_boundary": "直接读指定冻结文件及b9 Git对象；包外图无该冻结版本保证，未用当前图替代。约束由指令遵守，不是OS沙盒隔离。"
+  },
+  "limits": [
+    "b9仍FAIL；原R7 FAIL、R12 PASS、750f future FAIL均按原字节保留，追加发现修正当前判断。",
+    "Rust/Python发生变化，本轮新native/Handler及SIGKILL均绑定b9新binary；旧运行仅为历史/未变外壳/原坏库来源。",
+    "R12 HTML及consumer不变；原GUI同字节协议行为有界复用，本轮没有新GUI。",
+    "性能P2完整历史重复校验仍属于#1372 C的持续推进/规模义务；本轮不裁新性能目标，不以性能残余豁免AC7。",
+    "完整#1323与来源义务、#1448旧R6同ID迁移均未销项；R6仍INCOMPLETE。",
+    "R14尚未审；不得将b9三杀改标为后续binary运行。"
+  ],
+  "issue1448_satisfied": false,
+  "whole_signed_obligations_closed": false,
+  "created_at": "2026-09-12T17:44:13.003949+00:00"
+}

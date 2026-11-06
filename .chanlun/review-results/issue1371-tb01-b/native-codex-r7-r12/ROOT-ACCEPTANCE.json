@@ -1,0 +1,274 @@
+{
+  "schema": "issue1371.codex-root-bounded-acceptance.v1",
+  "ticket": 1371,
+  "parent_graph": 1323,
+  "created_at": "2026-09-12T12:43:30.686388+00:00",
+  "runtime": "codex_native_root_and_subagents",
+  "product_candidate": "e5b03629adde165610161b4df3e2d62d22163568",
+  "base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "verdict": "PASS_B_BOUNDED_PREMERGE",
+  "ac": [
+    {
+      "id": "AC-1",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-2",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-3",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-4",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-5",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-6",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-7",
+      "verdict": "PASS"
+    },
+    {
+      "id": "AC-8",
+      "verdict": "PASS"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "A-CC-006-03",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-CC-006-04",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-ST-044-02",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-ST-044-03",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-ES-15-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-ES-15-02",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-RA-04-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-RA-10-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-I-02-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-004-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-008-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-009-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-014-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-015-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-016-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-017-01",
+      "verdict": "PASS"
+    },
+    {
+      "id": "A-OB-020-01",
+      "verdict": "PASS"
+    }
+  ],
+  "old_r7": {
+    "candidate": "4922543038fbcfef1a4d711a306708ace3f62e88",
+    "overall": "FAIL",
+    "preserved": true
+  },
+  "closed_findings": [
+    "R7-M1",
+    "R7-M2"
+  ],
+  "validation": {
+    "root_permanent": {
+      "red_pass": 3,
+      "red_fail": 7,
+      "green_pass": 10
+    },
+    "root_legacy_captured_http_replay": 28,
+    "reviewer_permanent": 10,
+    "reviewer_unique_supplement": 7,
+    "gui_groups": 3,
+    "gui_valid_stages": 9,
+    "gui_excluded_failed_seed": 1,
+    "gui_requests": 28,
+    "unchanged_native_tests_reused": 35,
+    "unchanged_real_sigkill_reused": 3,
+    "portable_report_citations_verified": 641,
+    "unique_portable_attachments": 285
+  },
+  "root_checks": [
+    "已读R7完整叙述/25行理由和R12完整叙述/25行判断",
+    "R7的54独立引用SHA，8份源码/SPEC Git对象逐字相同",
+    "GUI220原件以及报告SHA复核",
+    "21项声明与精确Git祖先链一致",
+    "报告具名附件逐项解码SHA/长度和引用可恢复性通过",
+    "根实际观察三组GUI；原报告不回写；R12生产者源码未修改"
+  ],
+  "approval_state": {
+    "push": false,
+    "pull_request_publication": false,
+    "main_merge": false,
+    "ticket_close": false,
+    "C_execution": false
+  },
+  "scope": "仅#1371 CC-006/local_shape TestOnly退化OHLC、严格无包含、首方向已知、无tie。17来源ID仅B分配部分。",
+  "still_open": [
+    "#1323 六Destination",
+    "整个TB-01及其余SPEC义务",
+    "#1372 C分页/保留/慢消费等",
+    "#1448 原R6同ID迁移",
+    "实际main交付CI和工位清理关票门"
+  ],
+  "evidence_artifacts_before_root_report": [
+    {
+      "path": "AUTHORIZATION.json",
+      "bytes": 950,
+      "sha256": "d66f2bb3df29dde2ecf96c2e9f280f5069c0de881dc2d09946d2f26ab8bad6b1"
+    },
+    {
+      "path": "COMMIT-DECLARATIONS.json",
+      "bytes": 126982,
+      "sha256": "d310dd2dc77dae7e484a87993001d4bc0be9a31bc0a208122222c5f48f9b49d6"
+    },
+    {
+      "path": "COMMIT-DECLARATIONS.md",
+      "bytes": 47631,
+      "sha256": "2df917efa28f65389f08e0e011c9058de200dde6b4380b24ffb73a9f449468d2"
+    },
+    {
+      "path": "EVIDENCE-ATTACHMENTS.json",
+      "bytes": 7225466,
+      "sha256": "39a1fbd177458d5fb62c151a6e4bf6377af76c2ed4fab39c5174eff62b2a01be"
+    },
+    {
+      "path": "EVIDENCE-INDEX.json",
+      "bytes": 184460,
+      "sha256": "197d9308c0af5c6c2fc169fcbe17832e5008bf3e26effc6ff3b777eacb814274"
+    },
+    {
+      "path": "GUI-MANIFEST.json",
+      "bytes": 61760,
+      "sha256": "82b9606d9630573c85cc75018126260aa64ffe3ffb57721c75e24fbbf011aa66"
+    },
+    {
+      "path": "GUI-RESULT.json",
+      "bytes": 133582,
+      "sha256": "604cca4fd3c4f4f8aa426dabc4be853157ef3b82c921405347b21e43be308b1e"
+    },
+    {
+      "path": "GUI-RESULT.md",
+      "bytes": 10382,
+      "sha256": "47fe565a73ece2313272b115bdb8f0da494ce899177ae8a6c69c38d2167eca23"
+    },
+    {
+      "path": "IMPLEMENTATION.md",
+      "bytes": 3384,
+      "sha256": "b281da428865ced15a8812d760a5f01adeec69ec24c4cbd59b277cc8bc9685fc"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1919,
+      "sha256": "eec3ce9e3ae9185fe28391f30c04f3d0c1b2b77d4b9bb1b8afe9636981a0adea"
+    },
+    {
+      "path": "r12/EXECUTION.json",
+      "bytes": 5881,
+      "sha256": "931642c7eceae325e5d70f36d22989199c0cde973d868bcf4f7750bbdf62c99a"
+    },
+    {
+      "path": "r12/FINAL-CHECK.json",
+      "bytes": 946,
+      "sha256": "3c657f440a755d1c9d28b3e49b29329e3d65559e178c9f5c73bda552b304dbea"
+    },
+    {
+      "path": "r12/READING-LOG.json",
+      "bytes": 11605,
+      "sha256": "4cbe5d5bc5b2f76854ad66116325bdf7880a18b329b918e222624d6d6b9aa3c1"
+    },
+    {
+      "path": "r12/REVIEW.json",
+      "bytes": 231461,
+      "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0"
+    },
+    {
+      "path": "r12/REVIEW.md",
+      "bytes": 42351,
+      "sha256": "4aaf77dadce536c1e807b9790ec045f42cb32f2a339afc55aaa572605c30ad43"
+    },
+    {
+      "path": "r7/FINAL-CHECK.json",
+      "bytes": 1049,
+      "sha256": "2187dbc8d1a181c2d32409e490b569bbd2beba8e9ca8bc36a96a305d7ceb2b2e"
+    },
+    {
+      "path": "r7/READING-LOG.json",
+      "bytes": 1340977,
+      "sha256": "c1af3861b40292daef3b8f289f67bf7af70ec7d9fdd06b48c1295e59a768afda"
+    },
+    {
+      "path": "r7/REVIEW.json",
+      "bytes": 72360,
+      "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602"
+    },
+    {
+      "path": "r7/REVIEW.md",
+      "bytes": 46684,
+      "sha256": "4ab32397cb4c5b1a922760b4f2c338849d96165683dab0aba31f82f7fd5bd7ad"
+    }
+  ],
+  "limits": [
+    "函数模拟DOM、实际GUI TestOnly输送、真实native分别计数。原字节回放不称新HTTP或后端执行。",
+    "六Maps独立核对来自函数级测试，实际浏览器只观察页面及请求。",
+    "原后端构建、35组件测试和三杀同字节有界复用；旧R5仍丢失大矩阵不冒称恢复。",
+    "独评初补充oracle漏字段失败已保留，修正期望后7通过，不归为产品缺陷。",
+    "图目标仍active；本报告不是main批准、已合入或关票声明。"
+  ],
+  "reviewer_final_pins": {
+    "REVIEW.md": "4aaf77dadce536c1e807b9790ec045f42cb32f2a339afc55aaa572605c30ad43",
+    "REVIEW.json": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+    "READING-LOG.json": "4cbe5d5bc5b2f76854ad66116325bdf7880a18b329b918e222624d6d6b9aa3c1",
+    "EXECUTION.json": "931642c7eceae325e5d70f36d22989199c0cde973d868bcf4f7750bbdf62c99a"
+  }
+}

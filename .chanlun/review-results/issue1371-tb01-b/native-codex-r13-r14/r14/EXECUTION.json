@@ -1,0 +1,320 @@
+{
+  "candidate": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "binary": {
+    "binary": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/bin/s_structure_session",
+    "sha256": "6f2e43d8d02499913855fa7ae9e3f2c79b2cd4b4baf9732ee3156b0d08f4e296",
+    "bytes": 6301848,
+    "source_manifest_sha256": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c",
+    "rust_tests": 46,
+    "build_exit": 0,
+    "rust_fmt_exit": 0
+  },
+  "independent_result": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/RESULT.json",
+    "sha256": "60fdcc8987438dce626eee769901971941e768bb8f5006aac468a5e8d191c196",
+    "cases": 13,
+    "native_process_entries": 84,
+    "ordinary_cli": 82,
+    "actual_SIGKILL": 1,
+    "release_interleave": 1,
+    "handler_calls": 29,
+    "failure": null
+  },
+  "new_network_or_GUI": false,
+  "cargo_executed_by_reviewer": false,
+  "root_validation": {
+    "rust": 46,
+    "integrity_cases": 9,
+    "native_commands": 71,
+    "python_read_state": 37,
+    "rejected_reads": 27,
+    "healthy_reads": 10
+  },
+  "case_index": [
+    {
+      "id": "g0-coord-bad",
+      "pointer": "/cases/0"
+    },
+    {
+      "id": "g0-coord-2",
+      "pointer": "/cases/1"
+    },
+    {
+      "id": "g1-coord-bad",
+      "pointer": "/cases/2"
+    },
+    {
+      "id": "g1-coord-2",
+      "pointer": "/cases/3"
+    },
+    {
+      "id": "pending_domain_-1",
+      "pointer": "/cases/4"
+    },
+    {
+      "id": "pending_domain_01",
+      "pointer": "/cases/5"
+    },
+    {
+      "id": "pending_domain_9223372036854775808",
+      "pointer": "/cases/6"
+    },
+    {
+      "id": "pending_same_identity_two_positions",
+      "pointer": "/cases/7"
+    },
+    {
+      "id": "healthy_empty_and_pending",
+      "pointer": "/cases/8"
+    },
+    {
+      "id": "healthy_revision_replay_append",
+      "pointer": "/cases/9"
+    },
+    {
+      "id": "large_sparse_revision_exact",
+      "pointer": "/cases/10"
+    },
+    {
+      "id": "new_after_begin_sigkill",
+      "pointer": "/cases/11"
+    },
+    {
+      "id": "shared_root_begin_frontier_interleave",
+      "pointer": "/cases/12"
+    }
+  ],
+  "constraints": "仅owned DB副本写入/注入；只向marker已核PID发SIGKILL。原R13四库source SHA前后不变。没有改产品/Git/GH。",
+  "reuse": {
+    "candidate": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+    "base": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+    "checks": {
+      "read_raw_events_and_effective_identical": true,
+      "advance_after_begin_identical": true,
+      "pause_helper_identical": true,
+      "epoch_gate_identical": true
+    },
+    "meaning": "R13 executions stay bound to b9; unchanged control/data transformations support bounded reuse, new root entry must be retested.",
+    "initial_comparison_error": "First epoch slice used the next separator, accidentally included changed root functions; assertion false. Fixed slice ends at next helper heading. No product change or execution before this correction."
+  },
+  "artifact_files": [
+    {
+      "path": "source/rust/src/bin/s_structure_session.rs",
+      "bytes": 249272,
+      "sha256": "9cab566138b96f131711d1f45540dc17bf8c02cdca5757debafa340499c175a3"
+    },
+    {
+      "path": "source/s_session/browser/index.html",
+      "bytes": 42793,
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+    },
+    {
+      "path": "source/s_session/s_readonly_server.py",
+      "bytes": 58800,
+      "sha256": "3739cd7f306eda44994e3939c0388174de65f265923ce19a661f0d7794893ce0"
+    },
+    {
+      "path": "source/s_session/tests/r13_integrity.py",
+      "bytes": 7891,
+      "sha256": "8991739d14a876bbf7d20430ab227e935b8dd968322d30297ba01757bea10e21"
+    },
+    {
+      "path": "independent-run/RESULT.json",
+      "bytes": 2074928,
+      "sha256": "60fdcc8987438dce626eee769901971941e768bb8f5006aac468a5e8d191c196"
+    },
+    {
+      "path": "independent-run/addition.json",
+      "bytes": 357,
+      "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+    },
+    {
+      "path": "independent-run/after-begin-control.sqlite",
+      "bytes": 180224,
+      "sha256": "a725c75bf8a3c7dcfda4bb6365b26f3f07fd513c24f2d965c835b6704e6006b8"
+    },
+    {
+      "path": "independent-run/after-begin-control.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/after-begin-control.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/after-begin-crash.sqlite",
+      "bytes": 180224,
+      "sha256": "e7df165a9ab7c3aa8845628b5a6e248b505095274547e3f42d73b293526e8f61"
+    },
+    {
+      "path": "independent-run/after-begin-crash.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/after-begin-crash.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/after-begin.marker",
+      "bytes": 314,
+      "sha256": "08b2ebf201ae1787e3d9ac4fb0934db8dd5706c26c1fbd6bff9033dc711cd8f8"
+    },
+    {
+      "path": "independent-run/bad-domain-4.sqlite",
+      "bytes": 139264,
+      "sha256": "dd3dea749d3d4af00707da34ed1b0db7d9118b43bc65bf443f75f492a3e5bd1c"
+    },
+    {
+      "path": "independent-run/bad-domain-5.sqlite",
+      "bytes": 139264,
+      "sha256": "a8f043fbd0a409ce954b685142ddd6a96233d7b946489dfedb361be5577822b5"
+    },
+    {
+      "path": "independent-run/bad-domain-6.sqlite",
+      "bytes": 139264,
+      "sha256": "06ae99d301923912e5e8085d457ce603a31832928b5bd642aef8a191fefc9768"
+    },
+    {
+      "path": "independent-run/correction.json",
+      "bytes": 357,
+      "sha256": "78dc9d8cbb66217f29161bbf89968317f53badb714991009e307b6aa921fb98a"
+    },
+    {
+      "path": "independent-run/empty.sqlite",
+      "bytes": 139264,
+      "sha256": "50bbb2c34b374bcb249ebc86ce37d0d6ca11d45d1753c2db23d40f96d18ac324"
+    },
+    {
+      "path": "independent-run/empty.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/empty.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/extra-probe.json",
+      "bytes": 363,
+      "sha256": "aa63e38b3f4dd869084d4e6831de6d2bf3f74b8f1414d39697853933ec02457b"
+    },
+    {
+      "path": "independent-run/frontier-control.sqlite",
+      "bytes": 208896,
+      "sha256": "42e8e4d736b84e8fca7d3096bf5113cb3c9030ac505fe319802993c852a2a6a8"
+    },
+    {
+      "path": "independent-run/frontier-control.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/frontier-control.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/frontier-interleave.marker",
+      "bytes": 316,
+      "sha256": "baa9d49eba3bd5aeba9dc3449eb9cf657aed08f3fbef9dbd3471ffd14744e9b5"
+    },
+    {
+      "path": "independent-run/frontier-interleave.sqlite",
+      "bytes": 217088,
+      "sha256": "4b8c9319a6448b1fe152474c07d6cba6b4eea5854d4f1260f152cffedb44c1ef"
+    },
+    {
+      "path": "independent-run/frontier-interleave.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/frontier-interleave.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/g0-coord-2.sqlite",
+      "bytes": 139264,
+      "sha256": "13b9cd7a4514c25d9174c82734f01bf518aca08be62752f5935ac5e23da1e881"
+    },
+    {
+      "path": "independent-run/g0-coord-bad.sqlite",
+      "bytes": 139264,
+      "sha256": "077ebc036284dd92527a071ce0cf949efc1dcd8c0434a53eef9f3d5e0fe17df0"
+    },
+    {
+      "path": "independent-run/g1-coord-2.sqlite",
+      "bytes": 151552,
+      "sha256": "7d44e6c6a9d7dc905810a006d62a25ac8587b34dff05f25ecf1fe328362341c8"
+    },
+    {
+      "path": "independent-run/g1-coord-bad.sqlite",
+      "bytes": 151552,
+      "sha256": "1c6c8989cb63dfdc65e101a627b8e7eb5ee68dd428eef1ec03e2241b0ecf54d8"
+    },
+    {
+      "path": "independent-run/healthy-pending.sqlite",
+      "bytes": 151552,
+      "sha256": "e6eb3a60be6a0675e6103031f822dcef3915ca41ab6c6b5bf7bbcc77323c8901"
+    },
+    {
+      "path": "independent-run/healthy-pending.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/healthy-pending.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/large-revision.json",
+      "bytes": 375,
+      "sha256": "24ec51c370e41e0f05a856fbe8d965f2e447ea56722d8d8d4bb2473c3e04f8d7"
+    },
+    {
+      "path": "independent-run/large.sqlite",
+      "bytes": 184320,
+      "sha256": "1dfb7981d972f9f983bda6bafecf19d9645f2d2dd6491693be6ba227b3ffbb20"
+    },
+    {
+      "path": "independent-run/large.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/large.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/normal.sqlite",
+      "bytes": 221184,
+      "sha256": "f62ec346a535d60af41ccd29db82dabb3a9fe96be56387a0c2a40d402b9459e7"
+    },
+    {
+      "path": "independent-run/normal.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "independent-run/normal.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "independent-run/same-identity-moved.sqlite",
+      "bytes": 151552,
+      "sha256": "2dc1d21e247a70f681acffe61c385af5a7f5b2bddf8f72a4df4a1da9b74a70e9"
+    }
+  ],
+  "artifact_file_count": 43
+}

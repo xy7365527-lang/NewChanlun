@@ -1,0 +1,554 @@
+{
+  "schema": "newchanlun.issue1371.postmerge-closure-requirements.v1",
+  "created_at_utc": "2026-09-12T19:44:26.458858+00:00",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "status": "READONLY_CLOSURE_PREFLIGHT_NOT_CLOSURE",
+  "fixed_pr_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "reviewed_product": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "parent_supplied_postmerge_state": {
+    "merge_commit": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+    "tree": "6fd745ce161d8c4e4cc341483435bef24b810831",
+    "same_tree_as_256": true,
+    "ci_run": 34714772462,
+    "devskim_run": 34714772442,
+    "both_running_when_reported": true,
+    "independently_polled": false
+  },
+  "sources": [
+    {
+      "id": "DD",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/agents/delivery-discipline.md",
+      "bytes": 11941,
+      "sha256": "efa40109c11f4d57f034fd3919c4cfc90894c93c54568fe92743f9a9a4d9be13",
+      "locator": "11–21;74–82",
+      "version": "256cd822e0d872f1fb65d433ca0b15b01fa621a2同字节纪律文件"
+    },
+    {
+      "id": "GC",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/agents/generation-constitution.md",
+      "bytes": 4593,
+      "sha256": "6871ddb943cbc523c2c5a228bb1046adf9e27072b7c1ba929c7d8c683e23021e",
+      "locator": "20–25;36–37;50–52",
+      "version": "256cd822e0d872f1fb65d433ca0b15b01fa621a2同字节纪律文件"
+    },
+    {
+      "id": "AG",
+      "path": "/Users/silencehan/Projects/NewChanlun/AGENTS.md",
+      "bytes": 27361,
+      "sha256": "f185e3eb6d6750d6168b4e5268282ac9b2dd0cd6514d8fb045151c10b1db2957",
+      "locator": "154;164",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "P13",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PREFLIGHT.md",
+      "bytes": 11394,
+      "sha256": "ad07f01fc1ee6f96e08de98b36d9b4c8784a7e349c5c77a5dc22dc496e056ebf",
+      "locator": "全文；旧13工位快照",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "P13J",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PREFLIGHT.json",
+      "bytes": 55802,
+      "sha256": "70ccf26ef5be755b4f5d47aecee0e9a22fcd93902f1fef1a44b77f4576dd1937",
+      "locator": "/worktrees;/other_worktrees_outside_scope",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "P14",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-R14-PREFLIGHT.json",
+      "bytes": 5972,
+      "sha256": "ef9c4ed1a9592726bfee6e492dd0dbc85e7df53f09b64929018e398b4c7f0e2f",
+      "locator": "/delivery_head;/worktrees/0..13;/protected",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "PM",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/MANIFEST.json",
+      "bytes": 16408,
+      "sha256": "3667deee6cf33c676737f595d736df3b1da716998c8af111a3e1452d388a31fd",
+      "locator": "/entries/0..8;/old_r6_delivery_equivalence",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "DS",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "bytes": 9369,
+      "sha256": "490907cd28637bb8125c98fc8a3f206fd1f1bbbb6bd267243acace5574b14b26",
+      "locator": "全文；固定256分诊结论及限制",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "DSJ",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.json",
+      "bytes": 65909936,
+      "sha256": "78e2b5e6295530fb41ed0d6918785346221782d395f513eecb097fe5794194c3",
+      "locator": "/source;/counts;/coverage;/risk_and_merge_effect",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "F",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY.md",
+      "bytes": 5853,
+      "sha256": "4ecf4612a3d0d975f4b7b955f60388edb8273a2936ab70212e75c56501fc834a",
+      "locator": "全文；不可范围内真实修绿的限定命题",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "FJ",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "bytes": 11182,
+      "sha256": "c47e6e23d855fdd06efd703cc1140a6a1d8737a458c402f8badde34df32bf4ce",
+      "locator": "/head;/verdict;/minimal_impossibility_evidence;/options",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "FD",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/R14-FINAL-DELIVERY.json",
+      "bytes": 2417,
+      "sha256": "0d04c0d3abde60ffaff4aa2ff0ddf3ca9581be8a01709765e239779fa0ad4158",
+      "locator": "/final_head;/kind;/total_commits;/product_identical",
+      "version": "当前读取原件；SHA固定"
+    },
+    {
+      "id": "GREADME",
+      "git_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/README.md",
+      "commit": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 1549,
+      "sha256": "ab94751a3743e836ecc578f664dc2bf181f669e4465e45aa090a69ce3502a333"
+    },
+    {
+      "id": "GROOT",
+      "git_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/ROOT-ACCEPTANCE.md",
+      "commit": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 1849,
+      "sha256": "3b5b3ec0b64595c8cf907cf2350403519a1798910d37d720f7a842ab354e726d"
+    },
+    {
+      "id": "GDECL",
+      "git_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/COMMIT-DECLARATIONS.json",
+      "commit": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 5596,
+      "sha256": "c897b7c6438899583bc95aa1d61db7463ca0d45f22d2a4f3e5d93c70c9d75255"
+    }
+  ],
+  "verified_scope": {
+    "rules_equal_fixed_256": true,
+    "tracked_report_presence": "git ls-tree fixed256；两包及历史报告实体存在",
+    "index_entries": {
+      "native-codex-r7-r12": 423,
+      "native-codex-r13-r14": 213
+    },
+    "indexes_contain_postmerge_or_latest_devskim_or_r14_final_delivery": false,
+    "base_to_256_commits": 25,
+    "product_to_256_diff": "23份报告文件；8680新增行；无产品变化",
+    "existing_full_evidence_not_redecoded": true,
+    "preserved_originals_rehashed": [
+      {
+        "label": "native-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1651,
+        "sha256": "010abbe3535811cd15af25f5c5abfe428cd4dd7680311dc7fe502e889d0f4bd7",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r2-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r2-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1727,
+        "sha256": "272af3ee0617dcb016a0306e360178e3694e474f8ba14f5916fc3069cb208eb7",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r3-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r3-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1732,
+        "sha256": "b90b09d927b498d62cb6ea082ce0f250a7405dc6864188724a0ef68c5e497517",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r4-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r4-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1753,
+        "sha256": "c93203422c44a897fd3fe665bc8560ea17665e3ab9519a051c5b5d7ac4949d1d",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r5-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r5-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1768,
+        "sha256": "9763225ad9f56bf245df5b652b43c854cedb457418f1551e17e22217b4c2f53f",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r6-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r6-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1746,
+        "sha256": "a08aa678a4ed6c71a8d05e05a195bc83e4317431878431576084c81b236e5484",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r7-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r7-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1749,
+        "sha256": "a22505b58d872222f55a25f533576e80fee7c9a6744d1865ca149716a38e1879",
+        "manifest_match": true
+      },
+      {
+        "label": "native-r8-acceptance",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r8-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1746,
+        "sha256": "52fa7fc8e35732b999f84385fdce15159d02e219df2ec2b5679b47a3c26a0c74",
+        "manifest_match": true
+      },
+      {
+        "label": "original-b-review-r6",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/original-b-review-r6/review-r6.json",
+        "bytes": 261509,
+        "sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+        "manifest_match": true
+      }
+    ]
+  },
+  "unmet_or_pending": [
+    {
+      "id": "U1",
+      "status": "NOT_YET_SATISFIED",
+      "item": "D-only本票报告实体须进入Git且交付进入main",
+      "evidence": [
+        "DD:12,16",
+        "DS",
+        "DSJ",
+        "F",
+        "FJ",
+        "FD",
+        "P13",
+        "P13J",
+        "P14"
+      ],
+      "completion": "有限纯文档尾包真实tracked，并以仓内相对路径/可解码附件引用；不得仅D路径或摘要代替报告"
+    },
+    {
+      "id": "U2",
+      "status": "DISTINCT_APPROVAL_REQUIRED_FOR_NEW_MAIN_HEAD",
+      "item": "尾包新提交合入main与报告入仓是两件事",
+      "evidence": [
+        "AG:154,164",
+        "DD:12,16",
+        "parent明确当前授权只覆盖固定256例外"
+      ],
+      "completion": "先做可审阅新纯文档提交，按实际明确main批准门处理；不重复索要已执行256批准，不把其例外外推到新SHA"
+    },
+    {
+      "id": "U3",
+      "status": "PENDING_ROOT_CURRENT_RESULT",
+      "item": "实际origin/main及对应CI最终事实",
+      "evidence": [
+        "DD:11–13,74–80",
+        "parent主线CI34714772462/DevSkim34714772442运行中"
+      ],
+      "completion": "关票时给实际主线SHA、对应run链接及真实结论；红灯保留去向与例外范围，不能写全绿"
+    },
+    {
+      "id": "U4",
+      "status": "NEEDS_FINAL_RECONCILIATION",
+      "item": "逐提交声明覆盖实际resolution集合",
+      "evidence": [
+        "DD:14",
+        "GDECL",
+        "FD"
+      ],
+      "completion": "前21+750f/b9/6189=24；另256第25项纯文档豁免；merge commit及后续尾包提交分别声明性质，不改原表尚未生成字段"
+    },
+    {
+      "id": "U5",
+      "status": "NOT_CLEANED",
+      "item": "14工位现场重核及精确清理",
+      "evidence": [
+        "DD:15",
+        "GC:24–25",
+        "P14"
+      ],
+      "completion": "当前9份指定WIP已保全核SHA；关票收尾重新核状态、祖先、进程、忽略文件和登记，任何新增WIP先处置，不强删"
+    },
+    {
+      "id": "U6",
+      "status": "REQUIRED_AT_CLOSURE",
+      "item": "报告/评审面与关票面一致且声明只写已成事实",
+      "evidence": [
+        "DD:13,17,19–21"
+      ],
+      "completion": "产品停在6189，256及尾包仅文档的git diff证明；有新增代码则补其评审，否则无须重跑产品或重审冻结报告"
+    }
+  ],
+  "minimal_plan": [
+    "保留256、6189、R7/R12/R13/R14全部冻结原字节；记录真实合入及main检查，不改历史未合入/待批准措辞",
+    "在单独具名closure-tail目录准备一个有限纯文档包：本表11份报告/回执原件、必要小型来源材料、当前条件授权与固定来源范围说明",
+    "大JSON可xz+base64内容寻址保全；索引含仓内路径/JSONpointer/原文件名/字节/SHA/编码。解码核相等，不以一段总结或D绝对路径冒充入仓报告。巨大SARIF/zip、DB、二进制、会话导出、全D备份不整包入仓",
+    "纯解析核尾包可恢复、Git diff只有文档、旧产品/报告hash未变；补25项及尾提交文档豁免。报告不自引用尚未存在的提交SHA，最终resolution填写实际SHA",
+    "以新尾提交作为具体可审阅对象处理已有明确main批准门；256的合入批准已经满足，不再为256重复确认，也不把其DevSkim例外自动绑定到新提交",
+    "尾包CI机器回执作为外部CI事实用实际run/SHA链接；不为了归档每条新扫描自身告警再生一轮报告。出现新代码/真实新缺陷/来源变化才重新界定必要审查；不自动屏蔽扫描",
+    "按两条纪律共同执行一次关票状态转换与14工位收尾：先处置WIP和核无独占提交；票关闭后满足残骸条件才删除；完成后发表已删声明，清理失败不能维持收尾完成结论，必要时复开/保留待处理状态"
+  ],
+  "proposed_tail_root": ".chanlun/review-results/issue1371-tb01-b/closure-tail/",
+  "tail_report_entities": [
+    "work/PR1449-DEVSKIM-R14-TRIAGE.md",
+    "work/PR1449-DEVSKIM-R14-TRIAGE.json",
+    "work/DEVSKIM-REPAIR-FEASIBILITY.md",
+    "work/DEVSKIM-REPAIR-FEASIBILITY.json",
+    "R14-FINAL-DELIVERY.json",
+    "work/POSTMERGE-WORKSTATION-PREFLIGHT.md",
+    "work/POSTMERGE-WORKSTATION-PREFLIGHT.json",
+    "work/POSTMERGE-WORKSTATION-R14-PREFLIGHT.json",
+    "work/POSTMERGE-WORKSTATION-PRESERVATION/MANIFEST.json",
+    "work/POSTMERGE-CLOSURE-REQUIREMENTS.md",
+    "work/POSTMERGE-CLOSURE-REQUIREMENTS.json"
+  ],
+  "archive_boundary": {
+    "must_be_in_git_at_closure": "本票测量/调研/评审实体报告，含本预检；可以可恢复原件附件入仓",
+    "may_remain_D": "构建/数据库/二进制/大SARIF及zip原始副本、旧工位保全副本、会话与备份；准确记录未入仓和可恢复报告本身的区别",
+    "protected_history": "R6仍INCOMPLETE；R7/R13 FAIL不改；月度归档不是关票前未入Git的豁免",
+    "no_recursive_capture": "有限报告截点绑定固定256及所引用历史run；后续CI状态链接不自动创造新独立报告实体"
+  },
+  "workstations": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.sandcastle/worktrees/codex-1323-tb01-b-1371",
+      "snapshot_head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "snapshot_status": "? .chanlun/review-results/issue1371-tb01-b/review-r6.json\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12",
+      "snapshot_head": "750f933bddffc8251a880555b9beae2cdce75690",
+      "snapshot_status": "",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-acceptance",
+      "snapshot_head": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "snapshot_status": "1 .M N... 100644 100644 100644 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r10-acceptance",
+      "snapshot_head": "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955",
+      "snapshot_status": "",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r11-acceptance",
+      "snapshot_head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "snapshot_status": "",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r2-acceptance",
+      "snapshot_head": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "snapshot_status": "1 .M N... 100644 100644 100644 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r3-acceptance",
+      "snapshot_head": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "snapshot_status": "1 .M N... 100644 100644 100644 13606cb80c27630665b1c5a7a31af60d5f3bd356 13606cb80c27630665b1c5a7a31af60d5f3bd356 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r4-acceptance",
+      "snapshot_head": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "snapshot_status": "1 .M N... 100644 100644 100644 23636640d70956b2b6b06e2892b3ca2b23803342 23636640d70956b2b6b06e2892b3ca2b23803342 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r5-acceptance",
+      "snapshot_head": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "snapshot_status": "1 .M N... 100644 100644 100644 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r6-acceptance",
+      "snapshot_head": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "snapshot_status": "1 .M N... 100644 100644 100644 e05cf8e8d79f9343b425220818d16e2b63a70359 e05cf8e8d79f9343b425220818d16e2b63a70359 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r7-acceptance",
+      "snapshot_head": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "snapshot_status": "1 .M N... 100644 100644 100644 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r8-acceptance",
+      "snapshot_head": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "snapshot_status": "1 .M N... 100644 100644 100644 f10a9d334e3cece21726fc7c831e31620718bca1 f10a9d334e3cece21726fc7c831e31620718bca1 .chanlun/agent-roster-2026-09-10.md\n",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r9-acceptance",
+      "snapshot_head": "667ce698eacd8c8f50ec5846f24c779b492010a8",
+      "snapshot_status": "",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r13",
+      "snapshot_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "snapshot_status": "",
+      "snapshot_ancestor_of_256": true,
+      "cleanup_performed": false,
+      "must_refresh_before_cleanup": [
+        "registered worktree path and HEAD",
+        "tracked/untracked/ignored status",
+        "head ancestor of actual delivered main; no unmerged commits",
+        "specific PID/argv/cwd and associated ports",
+        "preserved nine files unchanged or revised handling",
+        "not owned by another active ticket/session"
+      ]
+    }
+  ],
+  "branch_scope": [
+    "refs/heads/codex/1323-tb01-b-1371",
+    "refs/heads/codex/1371-codex-r12",
+    "refs/heads/codex/1371-codex-r13"
+  ],
+  "protected": [
+    "/Users/silencehan/Projects/NewChanlun",
+    "/Users/silencehan/Projects/NewChanlun-1323-spec-publication",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z",
+    "全部14条精确名单之外的worktree/branch；旧P13快照为66个，当前数量不得沿用为实时计数",
+    "新发现的在制品/独占commit/其他票工位"
+  ],
+  "cleanup_verification": [
+    "保存前后精确worktree/ref清单及14条逐项结果，不广泛git clean/reset或按进程名广杀",
+    "嵌套原B只删除其精确子树，父#1323树保留；D全部原证据保留",
+    "先解除worktree后按已合入分支判据清3条具名本地分支；远端分支按根发布流程，不能误当仍运行工位",
+    "主仓脏改必须保持；不为同步main checkout/reset用户主仓",
+    "最终有任一不满足，则逐项写待处置而非已清理"
+  ],
+  "actions_not_performed": [
+    "product or test execution",
+    "service or browser",
+    "Git mutation or fetch",
+    "GitHub read polling or write",
+    "worktree cleanup",
+    "Prime",
+    "C research"
+  ]
+}

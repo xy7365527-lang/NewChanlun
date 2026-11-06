@@ -1,0 +1,28 @@
+[
+  {
+    "raw_index": 14596,
+    "rule": "DS117838",
+    "start_zero_based": 224427,
+    "end_exclusive": 9770291,
+    "matched_characters": 9545864,
+    "start_inside_attachment_data": "ec12437325f9f198e23ed3b803a0e21580564445ff4c1ebf723984e811f96e2b",
+    "end_inside_attachment_data": null,
+    "contains_attachment_data_fields": 100,
+    "container_valid_json": true,
+    "all_119_attachments_previously_verified": true,
+    "snippet_sha256": "e2a6eb3fa451f7fb1dd3d7ed0cbaacf21c121700c0301b4b0b47b741129d8a68"
+  },
+  {
+    "raw_index": 14613,
+    "rule": "DS197836",
+    "start_zero_based": 15770,
+    "end_exclusive": 9185222,
+    "matched_characters": 9169452,
+    "start_inside_attachment_data": "0bcaaac7d5bba1a8e66dd3ab96ef504b11fb61cc2cf7d0d69fd84a3d6e2a71aa",
+    "end_inside_attachment_data": "063966cd4ad09613414343bba61e14c619a084e463f43aef99ae3944b0f6028a",
+    "contains_attachment_data_fields": 38,
+    "container_valid_json": true,
+    "all_119_attachments_previously_verified": true,
+    "snippet_sha256": "7bfe51a36cc7ed3a91d9f5f7154b80dff2998a33fe6127c53333bb510d61a73c"
+  }
+]

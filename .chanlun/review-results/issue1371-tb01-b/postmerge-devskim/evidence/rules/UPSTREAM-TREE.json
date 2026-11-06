@@ -1,0 +1,2493 @@
+{
+  "sha": "fb2d676ce475a47c0338966bebd97a47ae566572",
+  "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/fb2d676ce475a47c0338966bebd97a47ae566572",
+  "tree": [
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7d795057912ebedf90acd9f68724f42f2822f29d",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/7d795057912ebedf90acd9f68724f42f2822f29d"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2af0ff9bc011fe4339bd7c3e51e56277334ac076",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/2af0ff9bc011fe4339bd7c3e51e56277334ac076"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "319229cda8b74769e3f5b2887a55fba9f81ce9f2",
+      "size": 666,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/319229cda8b74769e3f5b2887a55fba9f81ce9f2"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/false-positive.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "204a0a26027543141b6f4ef7abe765c027ad0e4e",
+      "size": 395,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/204a0a26027543141b6f4ef7abe765c027ad0e4e"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11fc491ef1dae316f2b06bbb40eaba9c757fdfd1",
+      "size": 604,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/11fc491ef1dae316f2b06bbb40eaba9c757fdfd1"
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2c2a10a4e6a949a0a0f57320c8ae2598d0879401",
+      "size": 5366,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2c2a10a4e6a949a0a0f57320c8ae2598d0879401"
+    },
+    {
+      "path": ".github/workflows",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0ef5e8cedb05b6caaebe5c38fd3bffb2b7fba690",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/0ef5e8cedb05b6caaebe5c38fd3bffb2b7fba690"
+    },
+    {
+      "path": ".github/workflows/changelog.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c45c16fe029405ade022c2b52bb1a18d5ca60116",
+      "size": 346,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c45c16fe029405ade022c2b52bb1a18d5ca60116"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e986add9106f3feb9883bed9d3cd89a31ca9650",
+      "size": 5009,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5e986add9106f3feb9883bed9d3cd89a31ca9650"
+    },
+    {
+      "path": ".vscode",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "614fc946f0795946541fc3ed1e592e42ce5957f3",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/614fc946f0795946541fc3ed1e592e42ce5957f3"
+    },
+    {
+      "path": ".vscode/extensions.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "af515502dfd158060279cdec8c0bb7e54c09af47",
+      "size": 311,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/af515502dfd158060279cdec8c0bb7e54c09af47"
+    },
+    {
+      "path": ".vscode/launch.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "49568788ffea81fba2b6ad0e8a35f7b46889609e",
+      "size": 948,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/49568788ffea81fba2b6ad0e8a35f7b46889609e"
+    },
+    {
+      "path": ".vscode/settings.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eb71540b6c48eaeb67443fdf06b72566877a19c9",
+      "size": 190,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/eb71540b6c48eaeb67443fdf06b72566877a19c9"
+    },
+    {
+      "path": ".vscode/tasks.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "30d41242d1c04c9fe0d81f19da7aac8880fba56b",
+      "size": 1085,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/30d41242d1c04c9fe0d81f19da7aac8880fba56b"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c282e9a1adacca696a4fcb7396cb6f872710fefd",
+      "size": 920,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c282e9a1adacca696a4fcb7396cb6f872710fefd"
+    },
+    {
+      "path": "Changelog.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "23b7cc42d7247527c9edb10286fd45362aa45e4b",
+      "size": 14609,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/23b7cc42d7247527c9edb10286fd45362aa45e4b"
+    },
+    {
+      "path": "DevSkim-DotNet",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f856decd580d68c996312b5892297a98ff5828d8",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/f856decd580d68c996312b5892297a98ff5828d8"
+    },
+    {
+      "path": "DevSkim-DotNet/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4aa4ba9b8654f99c6f2b0f06d130907467537658",
+      "size": 118,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4aa4ba9b8654f99c6f2b0f06d130907467537658"
+    },
+    {
+      "path": "DevSkim-DotNet/.vscode",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ec469699adf17fc5c6efffea9a5af4b7082accbf",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/ec469699adf17fc5c6efffea9a5af4b7082accbf"
+    },
+    {
+      "path": "DevSkim-DotNet/.vscode/launch.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "06aad9cbfcf1597d6dbc31f419186c7f6b94bb61",
+      "size": 844,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/06aad9cbfcf1597d6dbc31f419186c7f6b94bb61"
+    },
+    {
+      "path": "DevSkim-DotNet/.vscode/tasks.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a914fef1305520b36efc0e7a982857156808f09f",
+      "size": 434,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a914fef1305520b36efc0e7a982857156808f09f"
+    },
+    {
+      "path": "DevSkim-DotNet/Content",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8679e610d840364824cf7fc81f2f6318025a27b4",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/8679e610d840364824cf7fc81f2f6318025a27b4"
+    },
+    {
+      "path": "DevSkim-DotNet/Content/LICENSE.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8cb179cdb69492ba3b8285e61a67fc1fbfe82cb2",
+      "size": 1095,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8cb179cdb69492ba3b8285e61a67fc1fbfe82cb2"
+    },
+    {
+      "path": "DevSkim-DotNet/Content/devskim-icon-128.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d26f5d1d923112dfcbb102833f269bce825afdd3",
+      "size": 1615,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d26f5d1d923112dfcbb102833f269bce825afdd3"
+    },
+    {
+      "path": "DevSkim-DotNet/Content/devskim-icon-200.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3fa97538110d62276bdcef88c6709b224e38bcf",
+      "size": 1684,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f3fa97538110d62276bdcef88c6709b224e38bcf"
+    },
+    {
+      "path": "DevSkim-DotNet/Content/devskim-icon-32.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1708b45828a1398b9cef5c901b9babbb06602ad0",
+      "size": 444,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1708b45828a1398b9cef5c901b9babbb06602ad0"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8f28e3f959e46c474b94bc5a12fdc897cee96106",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/8f28e3f959e46c474b94bc5a12fdc897cee96106"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Commands",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "fdbf851edd23ae1c9a406cc26e463a44e97e9fab",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/fdbf851edd23ae1c9a406cc26e463a44e97e9fab"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Commands/AnalyzeCommand.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a6fc565fa67643e480b1afd988ec1336bf405728",
+      "size": 23667,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a6fc565fa67643e480b1afd988ec1336bf405728"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Commands/FixCommand.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "47e50e54fa52e37f8196a676f15644472d668e64",
+      "size": 5442,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/47e50e54fa52e37f8196a676f15644472d668e64"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Commands/SuppressionCommand.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7d03287c24e3c0cd610089b52815489bf7bc96ae",
+      "size": 9171,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7d03287c24e3c0cd610089b52815489bf7bc96ae"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Commands/VerifyCommand.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7df51daee0016fc8e666b9e6d723fb599ad3c209",
+      "size": 3196,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7df51daee0016fc8e666b9e6d723fb599ad3c209"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/ExitCode.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9438b1e2d575421264037537769824b9c94397b",
+      "size": 170,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a9438b1e2d575421264037537769824b9c94397b"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Microsoft.DevSkim.CLI.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3da91a46851576dda94348421c7a7edfa0c0013e",
+      "size": 3110,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3da91a46851576dda94348421c7a7edfa0c0013e"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d3cfd7deac97ac8ecec1124b7de23dbbe8e9f7ad",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/d3cfd7deac97ac8ecec1124b7de23dbbe8e9f7ad"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options/AnalyzeCommandOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "549eec94a26031b36a746155efd801dfcd15fef5",
+      "size": 558,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/549eec94a26031b36a746155efd801dfcd15fef5"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options/BaseAnalyzeCommandOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5286310af6684fd23a3065d16353afac71294f05",
+      "size": 4888,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5286310af6684fd23a3065d16353afac71294f05"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options/FixCommandOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "859fccde12f224d358a7cf91e3809e2987fa61d3",
+      "size": 1273,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/859fccde12f224d358a7cf91e3809e2987fa61d3"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options/SerializedAnalyzeCommandOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c9f1f921c4dc7eb6692c850c2e34a457da23612",
+      "size": 484,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5c9f1f921c4dc7eb6692c850c2e34a457da23612"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options/SuppressionCommandOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "57e705340399a32537049f094d43bab841e54bf6",
+      "size": 2299,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/57e705340399a32537049f094d43bab841e54bf6"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Options/VerifyCommandOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dae1d7630253a512703d66ad17e21f7dc179d758",
+      "size": 906,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/dae1d7630253a512703d66ad17e21f7dc179d758"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Program.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ba1ed1d3fc6c3c7b9841d53fe94357a29bc25b3",
+      "size": 1214,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2ba1ed1d3fc6c3c7b9841d53fe94357a29bc25b3"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9afe728e447867ec93fa83492290b2095b513c55",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/9afe728e447867ec93fa83492290b2095b513c55"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/DummyWriter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "611381b9a6b0ac30c5e797627fff37c6cc1ec00b",
+      "size": 407,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/611381b9a6b0ac30c5e797627fff37c6cc1ec00b"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/JsonWriter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e26d74d99db5070d6b310645f0a6a6831443baed",
+      "size": 3471,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e26d74d99db5070d6b310645f0a6a6831443baed"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/SarifWriter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7f9ee218b78df91a9f8829b1554863fd8b06ec9d",
+      "size": 16647,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7f9ee218b78df91a9f8829b1554863fd8b06ec9d"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/SimpleTextWriter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "abda24085b9cd9be77738db70e5d7755dd6041c3",
+      "size": 3411,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/abda24085b9cd9be77738db70e5d7755dd6041c3"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/Writer.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7a6dc00ad23525dad52e11153b9f3d66685e32d9",
+      "size": 507,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7a6dc00ad23525dad52e11153b9f3d66685e32d9"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/WriterFactory.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd92572569841414cb7a98d6f178dd8a57190819",
+      "size": 1374,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/dd92572569841414cb7a98d6f178dd8a57190819"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d930734040a4c3d57e45de102cbe01fa940a2f28",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/d930734040a4c3d57e45de102cbe01fa940a2f28"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/CodeFixMapping.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "83e2d0d111fc003ae2991309e6d33da2483e2c75",
+      "size": 4131,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/83e2d0d111fc003ae2991309e6d33da2483e2c75"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/CommentStylesEnum.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "80ad17f3e3691bf4c913982a3129e9e233b12998",
+      "size": 126,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/80ad17f3e3691bf4c913982a3129e9e233b12998"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/IDevSkimOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "10a2e7851a878e1e20ef4d7d09bfcb8098658fc2",
+      "size": 1532,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/10a2e7851a878e1e20ef4d7d09bfcb8098658fc2"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/Messages.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5335acfe8629dcf3a72162594b88856f4f1715ac",
+      "size": 395,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5335acfe8629dcf3a72162594b88856f4f1715ac"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/Microsoft.DevSkim.LanguageProtoInterop.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "73627dcd9e13a5e33d38515ca659ee283f484763",
+      "size": 446,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/73627dcd9e13a5e33d38515ca659ee283f484763"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/PortableScannerSettings.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46e25a6eae26c94dca83a2a1547bff587fbf2bf8",
+      "size": 1971,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/46e25a6eae26c94dca83a2a1547bff587fbf2bf8"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageProtoInterop/ValueResultEnum.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6252e11f0c484bbdf7903a6ef93d9eacbee645e1",
+      "size": 1151,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6252e11f0c484bbdf7903a6ef93d9eacbee645e1"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "fd9908f6962bb060e07f11b71efe4c9aa71fe98e",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/fd9908f6962bb060e07f11b71efe4c9aa71fe98e"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/CodeActionHandler.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dd020737d6653c4e68d8185ff5e5bc1d62db7e79",
+      "size": 6902,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/dd020737d6653c4e68d8185ff5e5bc1d62db7e79"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/ConfigHelpers.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e715a3fe051dd37d1b0b6fcda6cd8b60d2feefba",
+      "size": 5908,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e715a3fe051dd37d1b0b6fcda6cd8b60d2feefba"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/DidChangeConfigurationHandler.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58f54aa8a34900e8f547872f338dd0e81b3818a7",
+      "size": 1467,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/58f54aa8a34900e8f547872f338dd0e81b3818a7"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/Microsoft.DevSkim.LanguageServer.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "02116361cd9508f54bb7c76de08f52044cec8cf2",
+      "size": 1242,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/02116361cd9508f54bb7c76de08f52044cec8cf2"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/Program.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cdbedc5664e5d32254162338bb25b6973e7e55e7",
+      "size": 6089,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cdbedc5664e5d32254162338bb25b6973e7e55e7"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/StaticScannerSettings.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c008d8086ad6b53d39526b769ac39e9a55ab90d0",
+      "size": 6353,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c008d8086ad6b53d39526b769ac39e9a55ab90d0"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/TextDocumentSyncHandler.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "50484fd340693dd7d83ab0d385bc7100ce901c10",
+      "size": 11883,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/50484fd340693dd7d83ab0d385bc7100ce901c10"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.LanguageServer/VisualStudioConfigurationHandler.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "955d3f2b29b49a0b0a420997f2b5aceb91f6349c",
+      "size": 1226,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/955d3f2b29b49a0b0a420997f2b5aceb91f6349c"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3fba7b75e75410bac6cc663734bca67061f11630",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/3fba7b75e75410bac6cc663734bca67061f11630"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/AnalyzeTest.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "506e7462dc319db74f3e5ce43c89d0c35759df63",
+      "size": 13385,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/506e7462dc319db74f3e5ce43c89d0c35759df63"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/DefaultRulesTests.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58d29280e611bb2ef4f2299e480e8b08a0d91217",
+      "size": 6196,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/58d29280e611bb2ef4f2299e480e8b08a0d91217"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/Microsoft.DevSkim.Tests.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea7920e6d905fb89c10890798daa8ebed6e4e45e",
+      "size": 813,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ea7920e6d905fb89c10890798daa8ebed6e4e45e"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/OptionsTests.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "266a98b3bc3de47d945a2567eeb1933412b1816c",
+      "size": 19714,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/266a98b3bc3de47d945a2567eeb1933412b1816c"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/PathHelper.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "841931d181ec0f1739cf9844313b0b432e3cb324",
+      "size": 702,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/841931d181ec0f1739cf9844313b0b432e3cb324"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/SarifWriterTests.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fc6c47b356647f19f3f5ee5bd2757361c5a59e2d",
+      "size": 15813,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/fc6c47b356647f19f3f5ee5bd2757361c5a59e2d"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/SuppressionsTest.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9d7cc85d51ad40abdc926c4d76d5eec80b388306",
+      "size": 14770,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/9d7cc85d51ad40abdc926c4d76d5eec80b388306"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.Tests/Usings.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ab67c7ea9df8817660210adb090f7ad0bb1ff3f5",
+      "size": 58,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ab67c7ea9df8817660210adb090f7ad0bb1ff3f5"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "342d4722a6cc15c7cb624789eaf74ebeec237097",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/342d4722a6cc15c7cb624789eaf74ebeec237097"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/.vsextension",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5c2e7d8f68b168d5ea529a9fcf210d9974145a58",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/5c2e7d8f68b168d5ea529a9fcf210d9974145a58"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/.vsextension/string-resources.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8ac5db47f90d735efb85414b161538e36586de51",
+      "size": 5364,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8ac5db47f90d735efb85414b161538e36586de51"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Content",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "69eb71e10847b3ad66dd1752261c398dcc9f6e61",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/69eb71e10847b3ad66dd1752261c398dcc9f6e61"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Content/License.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8cb179cdb69492ba3b8285e61a67fc1fbfe82cb2",
+      "size": 1095,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8cb179cdb69492ba3b8285e61a67fc1fbfe82cb2"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Content/devskim-icon-200.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3fa97538110d62276bdcef88c6709b224e38bcf",
+      "size": 1684,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f3fa97538110d62276bdcef88c6709b224e38bcf"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Content/devskim-icon-32.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1708b45828a1398b9cef5c901b9babbb06602ad0",
+      "size": 444,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1708b45828a1398b9cef5c901b9babbb06602ad0"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Content/devskim.ico",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "61fed4a0eab256b33bfa3d698cb684d4922b05eb",
+      "size": 7406,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/61fed4a0eab256b33bfa3d698cb684d4922b05eb"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Content/readme-gallery.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8841f8f663c6c589c2202b7b23eff525d6082131",
+      "size": 3720,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8841f8f663c6c589c2202b7b23eff525d6082131"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/DevSkimExtension.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e3fa50e46d468457dcff968ae87f1d1fdf5bb082",
+      "size": 1265,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e3fa50e46d468457dcff968ae87f1d1fdf5bb082"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/DevSkimLanguageServerProvider.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f59eaeba05384240b23a1e3936f18892cc8ac967",
+      "size": 20819,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f59eaeba05384240b23a1e3936f18892cc8ac967"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/DevSkimSettingDefinitions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "934042c51c7395e9a812b9f2d5c0cc9c705f4414",
+      "size": 9705,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/934042c51c7395e9a812b9f2d5c0cc9c705f4414"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Microsoft.DevSkim.VisualStudio.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe6e3bf6710b473eef5f79dcfb8e0e9d88aab330",
+      "size": 2303,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/fe6e3bf6710b473eef5f79dcfb8e0e9d88aab330"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Properties",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "010fc14828fc24bebdb51998d61e125cf839f6bd",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/010fc14828fc24bebdb51998d61e125cf839f6bd"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/Properties/launchSettings.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c8ae90571ba2ff0fee55a655db9c684152901ffc",
+      "size": 198,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c8ae90571ba2ff0fee55a655db9c684152901ffc"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.VisualStudio/publish.manifest.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cfc9aadd8046290579464a58ef4e521bda49a1f7",
+      "size": 385,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cfc9aadd8046290579464a58ef4e521bda49a1f7"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim.sln",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "af3b71fd6d7cce61da69b5ab3a79055cb4d36a0c",
+      "size": 5724,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/af3b71fd6d7cce61da69b5ab3a79055cb4d36a0c"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "231fffc6c5bff2cf76b26549ab9a6004e6466a00",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/231fffc6c5bff2cf76b26549ab9a6004e6466a00"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/CodeFix.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cbf671a2f437e6aad6ec94d679ceae9809025930",
+      "size": 1079,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cbf671a2f437e6aad6ec94d679ceae9809025930"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimLanguages.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "563467357fe05b113fd6658aedd2f280c805bd0f",
+      "size": 1439,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/563467357fe05b113fd6658aedd2f280c805bd0f"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRule.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6148d7c847eaba4bed22f457a45bce9535414c1e",
+      "size": 903,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6148d7c847eaba4bed22f457a45bce9535414c1e"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleProcessor.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2bffa7a22cfe0b9ebf1020bdae75d2eec65514ca",
+      "size": 9718,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2bffa7a22cfe0b9ebf1020bdae75d2eec65514ca"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleProcessorOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b61b370432dcebc401942db19c8ecda22cea5203",
+      "size": 395,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b61b370432dcebc401942db19c8ecda22cea5203"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleSet.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3880b51dad24fed8552f4a8ba88716b5c9995aa3",
+      "size": 3260,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3880b51dad24fed8552f4a8ba88716b5c9995aa3"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleVerifier.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fdb7ea3bfac865359ab32c28e3feb2d3ab8b3b82",
+      "size": 883,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/fdb7ea3bfac865359ab32c28e3feb2d3ab8b3b82"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleVerifierOptions.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7046e4af35b2bfb368dadc352a2ab4213125a333",
+      "size": 272,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7046e4af35b2bfb368dadc352a2ab4213125a333"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/DevSkimRulesVerificationResult.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a41b881b54127e8bed33ae22f6fc4221f7da2084",
+      "size": 800,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a41b881b54127e8bed33ae22f6fc4221f7da2084"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/FixType.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20cbc25fe5d7151f5fd489c5bd3dfb8219b32e47",
+      "size": 1183,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/20cbc25fe5d7151f5fd489c5bd3dfb8219b32e47"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/Issue.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6db36f87932982c92a1166a62e40f8a2e5d6afb4",
+      "size": 1434,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6db36f87932982c92a1166a62e40f8a2e5d6afb4"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/IssueRecord.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1b4167af7a41ebfd82e36989ae81bf5fe90e98e1",
+      "size": 736,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1b4167af7a41ebfd82e36989ae81bf5fe90e98e1"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/Microsoft.DevSkim.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ce581caadedacc428b1372d0b345d98f51669a95",
+      "size": 10264,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ce581caadedacc428b1372d0b345d98f51669a95"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/SuppressedIssue.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "18712813e84d960a10fcbe9eb962e318978ed893",
+      "size": 396,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/18712813e84d960a10fcbe9eb962e318978ed893"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/Suppression.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "633e7bbb85d03424a523d6702490219c15ba47a3",
+      "size": 7253,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/633e7bbb85d03424a523d6702490219c15ba47a3"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/SuppressionStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6c609db33b12706facbe5f3099d3882c00dd1c9",
+      "size": 108,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c6c609db33b12706facbe5f3099d3882c00dd1c9"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/resources",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "03aeafa51ff4d135ab615472e9b8a827b2e3e6cd",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/03aeafa51ff4d135ab615472e9b8a827b2e3e6cd"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/resources/comments.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e892c1dd469d156498b031d2f7a5a8123469346f",
+      "size": 1054,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e892c1dd469d156498b031d2f7a5a8123469346f"
+    },
+    {
+      "path": "DevSkim-DotNet/Microsoft.DevSkim/resources/languages.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b4665a5c59aa574dd91baf3b5de628bbdfb18543",
+      "size": 2435,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b4665a5c59aa574dd91baf3b5de628bbdfb18543"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4eb2af9a9e0646ccb6a39b325e9176fcc5b314b3",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/4eb2af9a9e0646ccb6a39b325e9176fcc5b314b3"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c12764234dab48bcb94ecf5ff695df68d5a16b11",
+      "size": 75,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c12764234dab48bcb94ecf5ff695df68d5a16b11"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.npmrc.pipeline",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c088fa604e2423c7255efaa3e0e278b62ece329b",
+      "size": 147,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c088fa604e2423c7255efaa3e0e278b62ece329b"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.vscode",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1feb75051538aa2af99c64457a02762de40aed1a",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/1feb75051538aa2af99c64457a02762de40aed1a"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.vscode/extensions.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "af515502dfd158060279cdec8c0bb7e54c09af47",
+      "size": 311,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/af515502dfd158060279cdec8c0bb7e54c09af47"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.vscode/launch.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3a2cd4951d00a645f360d649afd432819ea03388",
+      "size": 860,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3a2cd4951d00a645f360d649afd432819ea03388"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.vscode/settings.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eb71540b6c48eaeb67443fdf06b72566877a19c9",
+      "size": 190,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/eb71540b6c48eaeb67443fdf06b72566877a19c9"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.vscode/tasks.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "abd68e11c8a7326ef035bbf51042cbb9d5b14d54",
+      "size": 1019,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/abd68e11c8a7326ef035bbf51042cbb9d5b14d54"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/.vscodeignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "becfa87f39946edf4527da6b53849ae872653123",
+      "size": 107,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/becfa87f39946edf4527da6b53849ae872653123"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/License.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "64cf440663b965b8d836e6b3f597cb978fc3e7d5",
+      "size": 1101,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/64cf440663b965b8d836e6b3f597cb978fc3e7d5"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5da1a2bd64266a9be57f34a545021ec469b05f1",
+      "size": 4101,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d5da1a2bd64266a9be57f34a545021ec469b05f1"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/ThirdPartyNotices.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3f6cd2e5346d9551ab57a5fd943a86ded7cde98f",
+      "size": 2024,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3f6cd2e5346d9551ab57a5fd943a86ded7cde98f"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "db57f06ffa68a4ac73cee66da34d8742f425de94",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/db57f06ffa68a4ac73cee66da34d8742f425de94"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/common",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "00273927c06d14037c12c9a2e25f6f877025f303",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/00273927c06d14037c12c9a2e25f6f877025f303"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/common/codeFixMapping.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b11fc7b5b4f72df7551b342b958e71f7a07138f7",
+      "size": 725,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b11fc7b5b4f72df7551b342b958e71f7a07138f7"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/common/devskimSettings.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6d766f841d75444cc1cf833920abfaff279a18e2",
+      "size": 2006,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6d766f841d75444cc1cf833920abfaff279a18e2"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/common/fileVersion.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "365bc37711b0bfa9a2e269783cab6b01b1ae313c",
+      "size": 173,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/365bc37711b0bfa9a2e269783cab6b01b1ae313c"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/common/notificationNames.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5d49bf441ddbc2c11fb6343b2d18526107440fbf",
+      "size": 597,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5d49bf441ddbc2c11fb6343b2d18526107440fbf"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/common/selectors.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca6b03d992457c69583e3d5d42a9fb37dc88a14a",
+      "size": 1359,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ca6b03d992457c69583e3d5d42a9fb37dc88a14a"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/devSkimFixer.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dfe29100d5d5cd4baf0d3c52b370f543428ee1e8",
+      "size": 2976,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/dfe29100d5d5cd4baf0d3c52b370f543428ee1e8"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/extension.ts",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7a092d2651790b33cc0fd4be223f5c5731a51f61",
+      "size": 6689,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7a092d2651790b33cc0fd4be223f5c5731a51f61"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/package-lock.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a5b4264f3af22480d5d519e90a0a2364a35575cb",
+      "size": 32519,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a5b4264f3af22480d5d519e90a0a2364a35575cb"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/package.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cd9117de9c6075893834d1ad93e376d916da4259",
+      "size": 572,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cd9117de9c6075893834d1ad93e376d916da4259"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/client/tsconfig.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "665c96a5a8789129b0b231f636d7aabedc809a3f",
+      "size": 563,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/665c96a5a8789129b0b231f636d7aabedc809a3f"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/devskim.ico",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "780b2e3cfced994a2c49c0cbb33156626bc3b57c",
+      "size": 32606,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/780b2e3cfced994a2c49c0cbb33156626bc3b57c"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/eslint.config.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "12c115dfd2179cf0826103884d9c655869680b7d",
+      "size": 469,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/12c115dfd2179cf0826103884d9c655869680b7d"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/package-lock.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ca165b0074cb78a9a31c47863759d1e528b13e4",
+      "size": 187955,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0ca165b0074cb78a9a31c47863759d1e528b13e4"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/package.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4021ec428b7cc79a6164d3222e16dc9a49c4cfb6",
+      "size": 12595,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4021ec428b7cc79a6164d3222e16dc9a49c4cfb6"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/scripts",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2f1b63c98cf7c60615f5fbed1e6e1389ea8541b7",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/2f1b63c98cf7c60615f5fbed1e6e1389ea8541b7"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/scripts/checkPreReleaseFlag.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17da6ef9bbba92fa3988db9ed051dd1d26ff28eb",
+      "size": 553,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/17da6ef9bbba92fa3988db9ed051dd1d26ff28eb"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/scripts/resetPackageVersion.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea0aebc9bc926b325e76abace5cf64a2c63a1aad",
+      "size": 149,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ea0aebc9bc926b325e76abace5cf64a2c63a1aad"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/scripts/setPackageVersion.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6431ddc36da998e925c9184fe7a413a4d6233769",
+      "size": 477,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6431ddc36da998e925c9184fe7a413a4d6233769"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/scripts/updatePackageLock.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2108a33c9b7c5bcc0334caace764af5f94ceff4",
+      "size": 1349,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a2108a33c9b7c5bcc0334caace764af5f94ceff4"
+    },
+    {
+      "path": "DevSkim-VSCode-Plugin/tsconfig.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d7b8481c2bf440bc0ef3b1b649fedbd12a06a4b1",
+      "size": 365,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d7b8481c2bf440bc0ef3b1b649fedbd12a06a4b1"
+    },
+    {
+      "path": "Directory.Build.props",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "799afe92073de43a1610d78d58da1271c622bb53",
+      "size": 914,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/799afe92073de43a1610d78d58da1271c622bb53"
+    },
+    {
+      "path": "LICENSE.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8cb179cdb69492ba3b8285e61a67fc1fbfe82cb2",
+      "size": 1095,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8cb179cdb69492ba3b8285e61a67fc1fbfe82cb2"
+    },
+    {
+      "path": "NOTICE.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "014964867de386ab2f6d35ad685e45f21e8b8c73",
+      "size": 49773,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/014964867de386ab2f6d35ad685e45f21e8b8c73"
+    },
+    {
+      "path": "Pipelines",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "73b7dcf834780cc9ae78d30db5e830aa4bb0f183",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/73b7dcf834780cc9ae78d30db5e830aa4bb0f183"
+    },
+    {
+      "path": "Pipelines/cli",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8585d3776c29480b75c0173213928c5210dcbb88",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/8585d3776c29480b75c0173213928c5210dcbb88"
+    },
+    {
+      "path": "Pipelines/cli/devskim-cli-pr.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e75f609dadb457ebdbe21353f85070fb2c02f485",
+      "size": 4475,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e75f609dadb457ebdbe21353f85070fb2c02f485"
+    },
+    {
+      "path": "Pipelines/cli/devskim-cli-release.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0d4ada16b2d9495ea7ae551c027258b78f9bd409",
+      "size": 29220,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0d4ada16b2d9495ea7ae551c027258b78f9bd409"
+    },
+    {
+      "path": "Pipelines/vs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "58901dfc75c603347a02e8790aaad28aa4b7402b",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/58901dfc75c603347a02e8790aaad28aa4b7402b"
+    },
+    {
+      "path": "Pipelines/vs/devskim-visualstudio-pr.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "60d49c8d1f8e1156a18528188dba2b634be8d29a",
+      "size": 3260,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/60d49c8d1f8e1156a18528188dba2b634be8d29a"
+    },
+    {
+      "path": "Pipelines/vs/devskim-visualstudio-release.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6ba09c340795b7d60dd790c44c9f71d79ffcdfc3",
+      "size": 10795,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6ba09c340795b7d60dd790c44c9f71d79ffcdfc3"
+    },
+    {
+      "path": "Pipelines/vscode",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "129e19cd3f25fcd18ca4a692ef788cde860af5e3",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/129e19cd3f25fcd18ca4a692ef788cde860af5e3"
+    },
+    {
+      "path": "Pipelines/vscode/devskim-vscode-pr.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd230cd22f67b3949f212ab1b807209fd51082a0",
+      "size": 2218,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/fd230cd22f67b3949f212ab1b807209fd51082a0"
+    },
+    {
+      "path": "Pipelines/vscode/devskim-vscode-release.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eda4fc50a31b37f2938c803c1510b4fef77c6d1c",
+      "size": 9597,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/eda4fc50a31b37f2938c803c1510b4fef77c6d1c"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "99d6ce1e69bf2d24b022158919d1527b940a3e78",
+      "size": 7817,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/99d6ce1e69bf2d24b022158919d1527b940a3e78"
+    },
+    {
+      "path": "SECURITY.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e0dfff56a9569fee0ec4628bb42319f81731b250",
+      "size": 2824,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e0dfff56a9569fee0ec4628bb42319f81731b250"
+    },
+    {
+      "path": "SUPPORT.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fdce1db5bce414aea0db1e140b4edd05df8391b6",
+      "size": 778,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/fdce1db5bce414aea0db1e140b4edd05df8391b6"
+    },
+    {
+      "path": "docfx_project",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "22661ff0630f7bf285ecf9a52e3fe02f68afd0e6",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/22661ff0630f7bf285ecf9a52e3fe02f68afd0e6"
+    },
+    {
+      "path": "docfx_project/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "26e28216184745f3cf40011d8d1f0c8d75a3fc1a",
+      "size": 126,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/26e28216184745f3cf40011d8d1f0c8d75a3fc1a"
+    },
+    {
+      "path": "docfx_project/api",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ed18106b83a8e02f7c695c59e35f29a806e1ff96",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/ed18106b83a8e02f7c695c59e35f29a806e1ff96"
+    },
+    {
+      "path": "docfx_project/api/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "426692ca217653d095e873d65e8792140c4e05a9",
+      "size": 100,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/426692ca217653d095e873d65e8792140c4e05a9"
+    },
+    {
+      "path": "docfx_project/api/index.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f86138be75b4aea4700cc67a5f096fb5e2612387",
+      "size": 92,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f86138be75b4aea4700cc67a5f096fb5e2612387"
+    },
+    {
+      "path": "docfx_project/articles",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b339d4633de661b25c12c7c16f9ecc98730d88c2",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/b339d4633de661b25c12c7c16f9ecc98730d88c2"
+    },
+    {
+      "path": "docfx_project/articles/intro.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "befaf007c0556b8a60fdeac00e82df3c07cdbd66",
+      "size": 119,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/befaf007c0556b8a60fdeac00e82df3c07cdbd66"
+    },
+    {
+      "path": "docfx_project/articles/toc.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ff89ef1fe094643636778644a85ef9db5dfbfd91",
+      "size": 38,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ff89ef1fe094643636778644a85ef9db5dfbfd91"
+    },
+    {
+      "path": "docfx_project/docfx.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "06fe3636e1bf97c54a6382df654fadf4a48b647b",
+      "size": 1072,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/06fe3636e1bf97c54a6382df654fadf4a48b647b"
+    },
+    {
+      "path": "docfx_project/index.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3ae2506361442cdf711e6eb93477c270a622287b",
+      "size": 223,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3ae2506361442cdf711e6eb93477c270a622287b"
+    },
+    {
+      "path": "docfx_project/toc.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "59f801047107089e526a62684d8b7b06ef78ff1c",
+      "size": 99,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/59f801047107089e526a62684d8b7b06ef78ff1c"
+    },
+    {
+      "path": "guidance",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3eb7c33d0cd9d8207b3056779b6e5259edc16398",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/3eb7c33d0cd9d8207b3056779b6e5259edc16398"
+    },
+    {
+      "path": "guidance/DS101159.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7580afd24daf0b930c0aac5288d8770b5e07a4c",
+      "size": 1219,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c7580afd24daf0b930c0aac5288d8770b5e07a4c"
+    },
+    {
+      "path": "guidance/DS104456.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c7bb9aa8d77d571a05b368b381d9010425842bb",
+      "size": 1215,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1c7bb9aa8d77d571a05b368b381d9010425842bb"
+    },
+    {
+      "path": "guidance/DS106864.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31fa7983757a9d0f3725d163ceaa866a33047097",
+      "size": 2216,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/31fa7983757a9d0f3725d163ceaa866a33047097"
+    },
+    {
+      "path": "guidance/DS108330.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "563bded1fe0036eaebb8de43cb9e13bb6258b52f",
+      "size": 1470,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/563bded1fe0036eaebb8de43cb9e13bb6258b52f"
+    },
+    {
+      "path": "guidance/DS109501.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "529ced8e0254391aad0fd4840e7dc12f679ea467",
+      "size": 893,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/529ced8e0254391aad0fd4840e7dc12f679ea467"
+    },
+    {
+      "path": "guidance/DS109733.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5882634889289695424a7962c76354fbc273b645",
+      "size": 1536,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5882634889289695424a7962c76354fbc273b645"
+    },
+    {
+      "path": "guidance/DS111237.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3f1fe04007d0e1cb0c8c99054d3fd5761238c22e",
+      "size": 1302,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3f1fe04007d0e1cb0c8c99054d3fd5761238c22e"
+    },
+    {
+      "path": "guidance/DS112266.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8fb184970eb885c8f83565df64cea234e86dae11",
+      "size": 1098,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8fb184970eb885c8f83565df64cea234e86dae11"
+    },
+    {
+      "path": "guidance/DS112835.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da59eee0bc4e94164e6b72059b06834870486f62",
+      "size": 2733,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/da59eee0bc4e94164e6b72059b06834870486f62"
+    },
+    {
+      "path": "guidance/DS113286.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "96bd07dfbe8050dca414f69274533d102ee217f0",
+      "size": 1365,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/96bd07dfbe8050dca414f69274533d102ee217f0"
+    },
+    {
+      "path": "guidance/DS113853.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0e59cce2cd0b46acca03f6c0c89ddfda258be466",
+      "size": 1056,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0e59cce2cd0b46acca03f6c0c89ddfda258be466"
+    },
+    {
+      "path": "guidance/DS113854.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "238821cab66c5873e6b48ba51a7724548682e5b9",
+      "size": 1375,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/238821cab66c5873e6b48ba51a7724548682e5b9"
+    },
+    {
+      "path": "guidance/DS114352.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2da3921305d596e10417d7da725e9a06e0c4704",
+      "size": 348,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a2da3921305d596e10417d7da725e9a06e0c4704"
+    },
+    {
+      "path": "guidance/DS117838.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d6f20c86039a0fece14b6cc91f22c52676346c46",
+      "size": 591,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d6f20c86039a0fece14b6cc91f22c52676346c46"
+    },
+    {
+      "path": "guidance/DS121708.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9fb48e6452ce8a1208ef0ab309da0b5355c11cd",
+      "size": 1121,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a9fb48e6452ce8a1208ef0ab309da0b5355c11cd"
+    },
+    {
+      "path": "guidance/DS126858.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5d75a587748dbca4686898fa47373d1a7c9cf00b",
+      "size": 1367,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5d75a587748dbca4686898fa47373d1a7c9cf00b"
+    },
+    {
+      "path": "guidance/DS128921.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a64c7ad5ef31ede8935a3378f4193ad5247f6d59",
+      "size": 546,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a64c7ad5ef31ede8935a3378f4193ad5247f6d59"
+    },
+    {
+      "path": "guidance/DS132779.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eba732fd40bf08a3dd5376b4bb54bf0d289be065",
+      "size": 1683,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/eba732fd40bf08a3dd5376b4bb54bf0d289be065"
+    },
+    {
+      "path": "guidance/DS137138.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "644f56432c4bbc48f92bf86c07c2844a7611e393",
+      "size": 1104,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/644f56432c4bbc48f92bf86c07c2844a7611e393"
+    },
+    {
+      "path": "guidance/DS140021.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8697d16afd718a08df4782e448b1aeaea69e58a3",
+      "size": 1472,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8697d16afd718a08df4782e448b1aeaea69e58a3"
+    },
+    {
+      "path": "guidance/DS141863.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9e8ef1ad5c8b78fd1ea7fb497fb3d99a4ce1e93",
+      "size": 1237,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c9e8ef1ad5c8b78fd1ea7fb497fb3d99a4ce1e93"
+    },
+    {
+      "path": "guidance/DS144886.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae08d20534ceaadd0bd3cab42b55220517b5edfe",
+      "size": 499,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ae08d20534ceaadd0bd3cab42b55220517b5edfe"
+    },
+    {
+      "path": "guidance/DS148264.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "42f827cea3ec6e3fb46f3a0fd5918ba0af1200db",
+      "size": 1362,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/42f827cea3ec6e3fb46f3a0fd5918ba0af1200db"
+    },
+    {
+      "path": "guidance/DS149435.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b08026892109559ca9d3f16acbc81f4218f64a8c",
+      "size": 1155,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b08026892109559ca9d3f16acbc81f4218f64a8c"
+    },
+    {
+      "path": "guidance/DS154189.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0368587676d63fe219f577c0ef726bb37e91ecca",
+      "size": 2272,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0368587676d63fe219f577c0ef726bb37e91ecca"
+    },
+    {
+      "path": "guidance/DS156431.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4357ab71f67a86f6727f465b28bc8e70d47b6032",
+      "size": 978,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4357ab71f67a86f6727f465b28bc8e70d47b6032"
+    },
+    {
+      "path": "guidance/DS161085.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "841aa2b2e608802a11abfe9f10d88d394961458a",
+      "size": 1596,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/841aa2b2e608802a11abfe9f10d88d394961458a"
+    },
+    {
+      "path": "guidance/DS162092.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cfed4aee747585361a0e0a626172bbe649fe00b0",
+      "size": 590,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cfed4aee747585361a0e0a626172bbe649fe00b0"
+    },
+    {
+      "path": "guidance/DS163877.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "966c3507eee239bbe99b50568fcef680ea52982c",
+      "size": 948,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/966c3507eee239bbe99b50568fcef680ea52982c"
+    },
+    {
+      "path": "guidance/DS165348.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "60b0baf927e3d55706170e777fab4251888e04f4",
+      "size": 1090,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/60b0baf927e3d55706170e777fab4251888e04f4"
+    },
+    {
+      "path": "guidance/DS165746.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "81e1b3e9abdc3405fac0a07b169435e4273951af",
+      "size": 1373,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/81e1b3e9abdc3405fac0a07b169435e4273951af"
+    },
+    {
+      "path": "guidance/DS169126.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a2e333d8158cda3d9d7caf9f3f24078eca28a8b",
+      "size": 1538,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0a2e333d8158cda3d9d7caf9f3f24078eca28a8b"
+    },
+    {
+      "path": "guidance/DS172411.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e75ec8438fc88433fca7e5acec0d1e50726e0521",
+      "size": 777,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e75ec8438fc88433fca7e5acec0d1e50726e0521"
+    },
+    {
+      "path": "guidance/DS172412.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed61f5fa60f792b55bf07b32cb5d25e40e1c1685",
+      "size": 639,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ed61f5fa60f792b55bf07b32cb5d25e40e1c1685"
+    },
+    {
+      "path": "guidance/DS173237.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "85261065d0b8200ee30df098f83402f1aad6701b",
+      "size": 1153,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/85261065d0b8200ee30df098f83402f1aad6701b"
+    },
+    {
+      "path": "guidance/DS175862.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "15314b9421cc5d06ca0352591c8a4f529de4c332",
+      "size": 813,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/15314b9421cc5d06ca0352591c8a4f529de4c332"
+    },
+    {
+      "path": "guidance/DS176209.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "588cdf40c57953d55d1f4c4052d925a64bd90339",
+      "size": 124,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/588cdf40c57953d55d1f4c4052d925a64bd90339"
+    },
+    {
+      "path": "guidance/DS179924.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "52cb3d9947458b0d379c1902c7c2aafa39e5122b",
+      "size": 709,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/52cb3d9947458b0d379c1902c7c2aafa39e5122b"
+    },
+    {
+      "path": "guidance/DS181021.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0de0adced103436a7be24f944dd63bd375b71a7",
+      "size": 1374,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d0de0adced103436a7be24f944dd63bd375b71a7"
+    },
+    {
+      "path": "guidance/DS181731.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4cf0bac38041524643ca2b7a92e6798d3fe7ef66",
+      "size": 1764,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4cf0bac38041524643ca2b7a92e6798d3fe7ef66"
+    },
+    {
+      "path": "guidance/DS181865.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3095d1250dc6c6b7629be2150edc3cbfeb20f0bb",
+      "size": 1763,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/3095d1250dc6c6b7629be2150edc3cbfeb20f0bb"
+    },
+    {
+      "path": "guidance/DS182720.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b91b80bc9ced52e2ba0c16c0acae443ae81afe78",
+      "size": 1201,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b91b80bc9ced52e2ba0c16c0acae443ae81afe78"
+    },
+    {
+      "path": "guidance/DS184626.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0d9ea0233df11b7e6611569f5fe02b937daab903",
+      "size": 1005,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0d9ea0233df11b7e6611569f5fe02b937daab903"
+    },
+    {
+      "path": "guidance/DS185832.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aeaede8ec383bf65c57f6ba292f4e027cae1c866",
+      "size": 1072,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/aeaede8ec383bf65c57f6ba292f4e027cae1c866"
+    },
+    {
+      "path": "guidance/DS188250.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "86b9b11e8f956e4c3956f5a693152e6a47dad85d",
+      "size": 570,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/86b9b11e8f956e4c3956f5a693152e6a47dad85d"
+    },
+    {
+      "path": "guidance/DS189424.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3dffc31a2d9c83a79fb774393bf49c3b75f1afe",
+      "size": 933,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f3dffc31a2d9c83a79fb774393bf49c3b75f1afe"
+    },
+    {
+      "path": "guidance/DS191340.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed963fc4618fefa94ebddf2df8f28dd2d19c382f",
+      "size": 871,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ed963fc4618fefa94ebddf2df8f28dd2d19c382f"
+    },
+    {
+      "path": "guidance/DS197836.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "415f49d411d65baf06f07f83a4e0e35b2c4c1fcf",
+      "size": 925,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/415f49d411d65baf06f07f83a4e0e35b2c4c1fcf"
+    },
+    {
+      "path": "guidance/DS224000.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1a12f962a67380a1d3f700a7c0b9466d82586c8d",
+      "size": 1739,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1a12f962a67380a1d3f700a7c0b9466d82586c8d"
+    },
+    {
+      "path": "guidance/DS300001.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4a1ae4b6c5eceee1e583e648952532efb5496dc5",
+      "size": 492,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4a1ae4b6c5eceee1e583e648952532efb5496dc5"
+    },
+    {
+      "path": "guidance/DS300005.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "16161ad079486b610123bf003d73884efd6e0816",
+      "size": 507,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/16161ad079486b610123bf003d73884efd6e0816"
+    },
+    {
+      "path": "guidance/DS425000.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "30e650d978848caac644ad66831415ae60c76e2c",
+      "size": 3353,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/30e650d978848caac644ad66831415ae60c76e2c"
+    },
+    {
+      "path": "guidance/DS440000.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e7484c1accfbe6ecaa7b8be8a4e8cdd2a77d2dfe",
+      "size": 4448,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e7484c1accfbe6ecaa7b8be8a4e8cdd2a77d2dfe"
+    },
+    {
+      "path": "guidance/DS440001.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "25bd8f388e5930a5d41a2e501e379e7a6bbcadc3",
+      "size": 972,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/25bd8f388e5930a5d41a2e501e379e7a6bbcadc3"
+    },
+    {
+      "path": "guidance/DS450000.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "54de55165b92ad7d273ed62285bc970a0c3a4705",
+      "size": 1364,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/54de55165b92ad7d273ed62285bc970a0c3a4705"
+    },
+    {
+      "path": "guidance/DS450001.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2983abcd3b4a53faa0699278593acfe9a51b7303",
+      "size": 640,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2983abcd3b4a53faa0699278593acfe9a51b7303"
+    },
+    {
+      "path": "guidance/DS450002.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9b51d9c07fab4ebff238c295003183a24f6860d7",
+      "size": 577,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/9b51d9c07fab4ebff238c295003183a24f6860d7"
+    },
+    {
+      "path": "guidance/DS450003.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e9be5e46d289400df80cb6866e7be3f41cc96d0",
+      "size": 821,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5e9be5e46d289400df80cb6866e7be3f41cc96d0"
+    },
+    {
+      "path": "guidance/DS600100.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "95b7c2e98677707133d2ca67d773424390837b2c",
+      "size": 249,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/95b7c2e98677707133d2ca67d773424390837b2c"
+    },
+    {
+      "path": "guidance/DS610000.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "870f099474d1534e658ae2fc2b7d7ee2fb3174f8",
+      "size": 267,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/870f099474d1534e658ae2fc2b7d7ee2fb3174f8"
+    },
+    {
+      "path": "media",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2836c7fec7536e5e933588185d03dec02ae55447",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/2836c7fec7536e5e933588185d03dec02ae55447"
+    },
+    {
+      "path": "media/1024x1024.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "058bc08bab30451149792102cd85975dce53cb1b",
+      "size": 17545,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/058bc08bab30451149792102cd85975dce53cb1b"
+    },
+    {
+      "path": "media/128x128.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d26f5d1d923112dfcbb102833f269bce825afdd3",
+      "size": 1615,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d26f5d1d923112dfcbb102833f269bce825afdd3"
+    },
+    {
+      "path": "media/16x16.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "194f388ca42f7a3016f598b963d28117b6744de1",
+      "size": 282,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/194f388ca42f7a3016f598b963d28117b6744de1"
+    },
+    {
+      "path": "media/2048x2048.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c2832cbac87834adfa6ed1b8e8ff0eead2dcbec2",
+      "size": 42464,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c2832cbac87834adfa6ed1b8e8ff0eead2dcbec2"
+    },
+    {
+      "path": "media/256x256.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2f1de2725ba34a45a3f7a28c886731884198a748",
+      "size": 3898,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2f1de2725ba34a45a3f7a28c886731884198a748"
+    },
+    {
+      "path": "media/32x32.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1708b45828a1398b9cef5c901b9babbb06602ad0",
+      "size": 444,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1708b45828a1398b9cef5c901b9babbb06602ad0"
+    },
+    {
+      "path": "media/48x48.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ab2ae88243345d24aecf07b535b91963c2d0cd8",
+      "size": 681,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5ab2ae88243345d24aecf07b535b91963c2d0cd8"
+    },
+    {
+      "path": "media/512x512.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7bb2dfffa5ecf9e12f9e850b2fa5345ce25cd41b",
+      "size": 7860,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7bb2dfffa5ecf9e12f9e850b2fa5345ce25cd41b"
+    },
+    {
+      "path": "media/640x640.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "79d4e2c11ab2d5e83b2407444cfc1f04da24233c",
+      "size": 10247,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/79d4e2c11ab2d5e83b2407444cfc1f04da24233c"
+    },
+    {
+      "path": "media/64x64.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "969e115b72a2cf7efd4745b3f62a6fdcfc30b82a",
+      "size": 845,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/969e115b72a2cf7efd4745b3f62a6fdcfc30b82a"
+    },
+    {
+      "path": "media/DevSkim-VisualStudio-Demo-1.gif",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cf662eeecedf069ee15ce721ffb0d4c25a386d64",
+      "size": 144537,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cf662eeecedf069ee15ce721ffb0d4c25a386d64"
+    },
+    {
+      "path": "media/DevSkim-VisualStudio-Suppression-Example.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7c454a585b1309b008f1975c57bca96c2f23aaaa",
+      "size": 26925,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7c454a585b1309b008f1975c57bca96c2f23aaaa"
+    },
+    {
+      "path": "media/devskim logo.psd",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "97ed9dccfec2f87618286e99663fbc7a067e6a0f",
+      "size": 791518,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/97ed9dccfec2f87618286e99663fbc7a067e6a0f"
+    },
+    {
+      "path": "media/devskim.ico",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "780b2e3cfced994a2c49c0cbb33156626bc3b57c",
+      "size": 32606,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/780b2e3cfced994a2c49c0cbb33156626bc3b57c"
+    },
+    {
+      "path": "media/devskim_logo.svg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b32eaf684c76c7fb62acb1e30e1f77135a4d67d3",
+      "size": 111899,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b32eaf684c76c7fb62acb1e30e1f77135a4d67d3"
+    },
+    {
+      "path": "media/github banner.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f8d3f64e12e8d084b1f9cd1d0b614d1b3b58bc38",
+      "size": 17768,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f8d3f64e12e8d084b1f9cd1d0b614d1b3b58bc38"
+    },
+    {
+      "path": "nuget.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "be6dddfa833314b4230b61c58e4564eb667dd764",
+      "size": 269,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/be6dddfa833314b4230b61c58e4564eb667dd764"
+    },
+    {
+      "path": "rules",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ef121f47ca5394b359debd6138d1c7e3e8000a0b",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/ef121f47ca5394b359debd6138d1c7e3e8000a0b"
+    },
+    {
+      "path": "rules/default",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e4a63aa01b53d947b701cb1d9fc225fba8297938",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/e4a63aa01b53d947b701cb1d9fc225fba8297938"
+    },
+    {
+      "path": "rules/default/correctness",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "72d0e217acb180dfd2f747843f30d88ecc060c43",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/72d0e217acb180dfd2f747843f30d88ecc060c43"
+    },
+    {
+      "path": "rules/default/correctness/datetime.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d3e75e9cd93c38584beb6dd962cc0c25cf0d15c1",
+      "size": 986,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d3e75e9cd93c38584beb6dd962cc0c25cf0d15c1"
+    },
+    {
+      "path": "rules/default/security",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e60f3c67108a2ab82fdf58ff33a290fd9014240a",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/e60f3c67108a2ab82fdf58ff33a290fd9014240a"
+    },
+    {
+      "path": "rules/default/security/TLS",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "58e69902674ad2935fecda1083627c1c5d73db1e",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/58e69902674ad2935fecda1083627c1c5d73db1e"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_appconfig.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1917405f8da0aa3fb184bc70e9f948fe0ac2695d",
+      "size": 1985,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1917405f8da0aa3fb184bc70e9f948fe0ac2695d"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_appcontext.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4bb248be8887c13053feabbf8961481c7729eb51",
+      "size": 1303,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4bb248be8887c13053feabbf8961481c7729eb51"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_cobol.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9c162cf46505b4767c205f0bebd249e30ae24b45",
+      "size": 900,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/9c162cf46505b4767c205f0bebd249e30ae24b45"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_functioncall.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5251d891e61cb4ce04972b1d00ab9d4fc8831524",
+      "size": 2122,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5251d891e61cb4ce04972b1d00ab9d4fc8831524"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_generic.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2e10a29e4e9aeb27b5387b9859590259b0193c74",
+      "size": 13542,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2e10a29e4e9aeb27b5387b9859590259b0193c74"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_go.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ce5b5eaa6c50126619d76ccf3f00a1328934963",
+      "size": 1367,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2ce5b5eaa6c50126619d76ccf3f00a1328934963"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_java.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e491b01fdb06806b9d7d9e9549947b72089dfd91",
+      "size": 2370,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/e491b01fdb06806b9d7d9e9549947b72089dfd91"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_javascript.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0125aa55d04b29dd3850f928882b5cc81ca458b3",
+      "size": 1172,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/0125aa55d04b29dd3850f928882b5cc81ca458b3"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_macos.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "084f4627349b0ddd70d5ff20afd906b37c14d69f",
+      "size": 1335,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/084f4627349b0ddd70d5ff20afd906b37c14d69f"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_python.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "76f87ad92cfc2003259495a32028bf8a22bd35d4",
+      "size": 821,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/76f87ad92cfc2003259495a32028bf8a22bd35d4"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_rust.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67538511dfda6016abc215e68001651047978e82",
+      "size": 963,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/67538511dfda6016abc215e68001651047978e82"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_securityprotocol.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7aea63b9eb14abea2229aa295eccf52c10441f98",
+      "size": 4167,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7aea63b9eb14abea2229aa295eccf52c10441f98"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_sslprotocol.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "02f81b6c25880c9645eca5d3f8d57be8a4e24407",
+      "size": 4777,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/02f81b6c25880c9645eca5d3f8d57be8a4e24407"
+    },
+    {
+      "path": "rules/default/security/TLS/tls_win32.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "099844fc7c820fbdf72fdfda182f4aa9ee61e0b1",
+      "size": 8907,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/099844fc7c820fbdf72fdfda182f4aa9ee61e0b1"
+    },
+    {
+      "path": "rules/default/security/api",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "930409754cf77374b718b90ea5182f7fd45db776",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/930409754cf77374b718b90ea5182f7fd45db776"
+    },
+    {
+      "path": "rules/default/security/api/dangerous_api.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c902bed9f65c5f2403fcf04d5124d235ab4b6b3",
+      "size": 12147,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5c902bed9f65c5f2403fcf04d5124d235ab4b6b3"
+    },
+    {
+      "path": "rules/default/security/api/deserialization.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "020ad2096fa9f03d55f65f949d434808750c89ff",
+      "size": 5117,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/020ad2096fa9f03d55f65f949d434808750c89ff"
+    },
+    {
+      "path": "rules/default/security/api/misused_api.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cdecde3cb7d05ecac3b9771e1f3d6a1aa7f37f18",
+      "size": 1937,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/cdecde3cb7d05ecac3b9771e1f3d6a1aa7f37f18"
+    },
+    {
+      "path": "rules/default/security/api/suggested_api.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db008e3360411295e760244930bbb87eb68c5a73",
+      "size": 5089,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/db008e3360411295e760244930bbb87eb68c5a73"
+    },
+    {
+      "path": "rules/default/security/api/t_sql.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ad6768600c94617c84a61d532c9153939f3a3533",
+      "size": 1108,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ad6768600c94617c84a61d532c9153939f3a3533"
+    },
+    {
+      "path": "rules/default/security/attack_surface",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b3ec1870d8cd1f6d1cb23a9dfc636b6a25067b7b",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/b3ec1870d8cd1f6d1cb23a9dfc636b6a25067b7b"
+    },
+    {
+      "path": "rules/default/security/attack_surface/outbound_network.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e192af44118489d39ed8766a0166c48a7ccb36d",
+      "size": 4256,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/8e192af44118489d39ed8766a0166c48a7ccb36d"
+    },
+    {
+      "path": "rules/default/security/control_flow",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1dc7f1cb6a1ac1221acf847719c4a76ffa14c051",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/1dc7f1cb6a1ac1221acf847719c4a76ffa14c051"
+    },
+    {
+      "path": "rules/default/security/control_flow/dynamic_execution.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bc923ca6db04fe9f081552ff0684ea2744e484d2",
+      "size": 1732,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/bc923ca6db04fe9f081552ff0684ea2744e484d2"
+    },
+    {
+      "path": "rules/default/security/control_flow/format_string.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6cf03153b18e301e1fe4490c66533eaf815bff10",
+      "size": 1395,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/6cf03153b18e301e1fe4490c66533eaf815bff10"
+    },
+    {
+      "path": "rules/default/security/control_flow/permission_evelation.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "13be006848c9549ff9f69fb084eca121c0f67021",
+      "size": 3991,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/13be006848c9549ff9f69fb084eca121c0f67021"
+    },
+    {
+      "path": "rules/default/security/cryptography",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a37cbb517a88bdd57990587949702b0b1034da17",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/a37cbb517a88bdd57990587949702b0b1034da17"
+    },
+    {
+      "path": "rules/default/security/cryptography/certificate.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7ce6786b731af621219c41a529b46115c350461",
+      "size": 16182,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f7ce6786b731af621219c41a529b46115c350461"
+    },
+    {
+      "path": "rules/default/security/cryptography/ciphers.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e52698369a45390307c514ee3fb573df9c5758d",
+      "size": 8972,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5e52698369a45390307c514ee3fb573df9c5758d"
+    },
+    {
+      "path": "rules/default/security/cryptography/general.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7558e75978115afdb9524559a4612d5869dd160b",
+      "size": 2129,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7558e75978115afdb9524559a4612d5869dd160b"
+    },
+    {
+      "path": "rules/default/security/cryptography/hardcoded_tls.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "938a870f8adc05bde2891e2fac7504b6f2e855d3",
+      "size": 11370,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/938a870f8adc05bde2891e2fac7504b6f2e855d3"
+    },
+    {
+      "path": "rules/default/security/cryptography/hash_algorithm.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "abd6871cd7eb5ad01b33cee5c2089766a233b2f1",
+      "size": 13388,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/abd6871cd7eb5ad01b33cee5c2089766a233b2f1"
+    },
+    {
+      "path": "rules/default/security/cryptography/initialization_vector.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1d1ef2749d8302bbc727324259122b41c3f77fe9",
+      "size": 2441,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/1d1ef2749d8302bbc727324259122b41c3f77fe9"
+    },
+    {
+      "path": "rules/default/security/cryptography/protocol.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c27ada01c4ad05475e7d50422be8694e3836e869",
+      "size": 13467,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/c27ada01c4ad05475e7d50422be8694e3836e869"
+    },
+    {
+      "path": "rules/default/security/cryptography/random.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ff37d933aae43b11a2721ca37131fa74d066d90",
+      "size": 5408,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/9ff37d933aae43b11a2721ca37131fa74d066d90"
+    },
+    {
+      "path": "rules/default/security/cryptography/underhanded.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "efaaf0ef22d1234e624e2675bf11ca77565001ac",
+      "size": 1309,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/efaaf0ef22d1234e624e2675bf11ca77565001ac"
+    },
+    {
+      "path": "rules/default/security/cryptography/weak_cipher_modes.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "51ccdd839f677723a2a5470791ecae2f80f7dbd3",
+      "size": 2201,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/51ccdd839f677723a2a5470791ecae2f80f7dbd3"
+    },
+    {
+      "path": "rules/default/security/frameworks",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "846ef000cc9a219397633abd288191e7f5a85ec4",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/846ef000cc9a219397633abd288191e7f5a85ec4"
+    },
+    {
+      "path": "rules/default/security/frameworks/android.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2fdc1edf005f7be6590d9b73ce3ab69af6f7bf6d",
+      "size": 4757,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/2fdc1edf005f7be6590d9b73ce3ab69af6f7bf6d"
+    },
+    {
+      "path": "rules/default/security/frameworks/aspnet5.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7525813617ccd6425a2971720489432e3d2d6faf",
+      "size": 2051,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/7525813617ccd6425a2971720489432e3d2d6faf"
+    },
+    {
+      "path": "rules/default/security/frameworks/dotnet_framework.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a63449a53e9c336ca73ac614028d919619905074",
+      "size": 5603,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/a63449a53e9c336ca73ac614028d919619905074"
+    },
+    {
+      "path": "rules/default/security/frameworks/php.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d665281198506dc229768bea9df796638697e609",
+      "size": 3671,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/d665281198506dc229768bea9df796638697e609"
+    },
+    {
+      "path": "rules/default/security/hygiene",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7476b57d43cf42d14bc6851adb80fbd69acfe33d",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/7476b57d43cf42d14bc6851adb80fbd69acfe33d"
+    },
+    {
+      "path": "rules/default/security/hygiene/localhost.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "381a2383b720584fc0a1546d8fc5c4c61cdebe9c",
+      "size": 1049,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/381a2383b720584fc0a1546d8fc5c4c61cdebe9c"
+    },
+    {
+      "path": "rules/default/security/hygiene/todo.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "375901229fd53676df45678a6352b3a3157fd0b6",
+      "size": 758,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/375901229fd53676df45678a6352b3a3157fd0b6"
+    },
+    {
+      "path": "rules/default/security/manualreview",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ed15903a4b08d4042696044975a0cd17ee2025b7",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/ed15903a4b08d4042696044975a0cd17ee2025b7"
+    },
+    {
+      "path": "rules/default/security/manualreview/dynamiccode.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "207e094b8bd8065f109cefbdc117b42c5d225470",
+      "size": 3408,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/207e094b8bd8065f109cefbdc117b42c5d225470"
+    },
+    {
+      "path": "rules/default/security/manualreview/zip_slip.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b067e964d7eabb915019089a7a1dae5084222b88",
+      "size": 1608,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/b067e964d7eabb915019089a7a1dae5084222b88"
+    },
+    {
+      "path": "rules/default/security/privacy",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f4a7c3e62fd662e8206583d45f08d9203b8c589c",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/f4a7c3e62fd662e8206583d45f08d9203b8c589c"
+    },
+    {
+      "path": "rules/default/security/privacy/device_restrictions.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f529e0533477183cc935138e3fa4fa4078381333",
+      "size": 918,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/f529e0533477183cc935138e3fa4fa4078381333"
+    },
+    {
+      "path": "rules/default/security/privacy/secrets.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed44c86593eefebbc7e1061157628e360fba203c",
+      "size": 2888,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ed44c86593eefebbc7e1061157628e360fba203c"
+    },
+    {
+      "path": "rules/default/security/storage",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e1fd5b4dc44417d844d0abb0e1cc0c13f6683cc4",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/e1fd5b4dc44417d844d0abb0e1cc0c13f6683cc4"
+    },
+    {
+      "path": "rules/default/security/storage/secure_storage.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4ce047b96ae30872bc3783b491ea4bace5623141",
+      "size": 2253,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/4ce047b96ae30872bc3783b491ea4bace5623141"
+    },
+    {
+      "path": "rules/default/security/vulnerable_libraries",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c9ac75e597e948389d1a92f03069126a553303c3",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/c9ac75e597e948389d1a92f03069126a553303c3"
+    },
+    {
+      "path": "rules/default/security/vulnerable_libraries/microsoft_nuget.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "66bbaa641cc75588c0e8b4194a99061a26bce519",
+      "size": 8148,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/66bbaa641cc75588c0e8b4194a99061a26bce519"
+    },
+    {
+      "path": "rules/default/security/xml",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c013f89fe962bfe9b1c50374c7d227a428667466",
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/trees/c013f89fe962bfe9b1c50374c7d227a428667466"
+    },
+    {
+      "path": "rules/default/security/xml/external_entities.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e5813317a2c026e3d9605c15a0ee188ded36548",
+      "size": 4233,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/5e5813317a2c026e3d9605c15a0ee188ded36548"
+    },
+    {
+      "path": "rules/default/security/xml/xslt_scripting.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ba27f6a2cf185d4e5bc1d2f0b4b9ed9c38b26340",
+      "size": 1610,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/ba27f6a2cf185d4e5bc1d2f0b4b9ed9c38b26340"
+    },
+    {
+      "path": "version.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "adb2960cc51218a7f380efc0430689d862d07eab",
+      "size": 323,
+      "url": "https://api.github.com/repos/microsoft/DevSkim/git/blobs/adb2960cc51218a7f380efc0430689d862d07eab"
+    }
+  ],
+  "truncated": false
+}

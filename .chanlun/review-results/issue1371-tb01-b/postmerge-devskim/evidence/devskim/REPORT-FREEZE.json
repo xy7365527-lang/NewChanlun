@@ -1,0 +1,23 @@
+{
+  "head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "gate": "FAIL",
+  "report_files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "bytes": 9369,
+      "sha256": "490907cd28637bb8125c98fc8a3f206fd1f1bbbb6bd267243acace5574b14b26"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.json",
+      "bytes": 65909936,
+      "sha256": "78e2b5e6295530fb41ed0d6918785346221782d395f513eecb097fe5794194c3"
+    }
+  ],
+  "checks": {
+    "raw_findings_preserved": true,
+    "unique_input_ids": true,
+    "required_fields_present": true,
+    "actual_defect_count_not_zero_filled": true,
+    "checkout_head_tree_equal": true
+  }
+}

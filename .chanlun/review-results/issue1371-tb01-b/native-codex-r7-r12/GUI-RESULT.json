@@ -1,0 +1,2852 @@
+{
+  "schema": 1,
+  "kind": "R12_GUI_EVIDENCE_RECONCILIATION_BY_TRANSPORT_AUTHOR",
+  "created_at": "2026-09-12T12:36:19Z",
+  "ticket": 1371,
+  "auditor": {
+    "agent": "/root/tb01b_gui_fault_service",
+    "role": "输送工具作者的证据核对",
+    "independent_product_review": false
+  },
+  "conclusion": "现有原件支持三组有界 GUI 链：各自从 A3 种子出发，拒绝错误响应并保留 A3，再同页健康重试；两组 Delta 到 A4，Gap 到合法新会话 B1。字节、来源、控制序号、HTTP 配对和十份界面描述符未发现完整性异常。共九个有效阶段，另保留一个失败 UI 操作。",
+  "candidate": {
+    "commit": "e5b03629adde165610161b4df3e2d62d22163568",
+    "repository": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12",
+    "path": "s_session/browser/index.html",
+    "bytes": 42793,
+    "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+    "verification": "只读固定本地 Git 提交的完整 blob，与实际三次 GET / 的完整响应体逐字节一致；未 checkout 或修改。"
+  },
+  "run_manifest": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/GUI-MANIFEST.json",
+    "bytes": 61760,
+    "sha256": "82b9606d9630573c85cc75018126260aa64ffe3ffb57721c75e24fbbf011aa66"
+  },
+  "counts": {
+    "run_files": 220,
+    "requests": 28,
+    "received_completed_pairs": 28,
+    "http200": 25,
+    "favicon204": 3,
+    "sendall_completed": 28,
+    "gui_descriptors": 10,
+    "ax_files_verified": 10,
+    "jpeg_files_verified": 10,
+    "valid_stages": 9,
+    "excluded_failed_ui_operations": 1,
+    "controls": 9
+  },
+  "audit_methods": [
+    "只读全部 220 个运行文件，按完整原始字节计算长度与 SHA-256；确认无符号链接及多硬链接，未修改运行原件。",
+    "逐一核对 28 组 received/completed，request.raw 的请求行、目标与 Host，以及 response.raw = response.header + response.body；长度、哈希、状态码与 Content-Length 一致，完整响应发送结果均为 sendall_completed。",
+    "核对 source-config 与冻结 SOURCES、八份原 HTTP 来源、来源容器与 JSON 指针、原始正文哈希及每次实际输送变换；prepared DELIVERIES 只用于逐字节对照，不当作实际请求。",
+    "控制序号 0 至 8 连续，逐请求控制快照吻合；九个有效阶段的请求接收及完整发送时间均位于相应 GUI 描述符区间。",
+    "逐一核对十份 AX 和十份 JPEG 的完整字节哈希、同一浏览器 tab 与 URL、时间顺序；读取全部 AX，目视检查六份不同字节的 JPEG，另四份与其中相同画面的完整字节一致。",
+    "只读本地固定提交的 HTML blob，确认实际返回的是 R12 未改页面；未重跑浏览器、服务、测试、native 或数据库。"
+  ],
+  "run_root": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1",
+  "run": {
+    "bind": "127.0.0.1",
+    "candidate_parent": "4922543038fbcfef1a4d711a306708ace3f62e88",
+    "created_at": "2026-09-12T12:17:43.676120+00:00",
+    "html_sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+    "kind": "R12_TestOnlyGUI_archived_HTTP_transport",
+    "pid": 46766,
+    "port": 18962,
+    "scope": "仅实际GUI可见补证；重送已恢复原件，不是新native/TCP故障，不证明六Maps",
+    "sources_sha256": "cb60cb84b7506d1788e7c850b24d3ab9917ce7ccdda5f6399e29c73fbfcba4b4",
+    "tool": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/browser_fault_server.r12.py",
+      "sha256": "24af6b7fbf3fee4593a169b2ef5ba2b42941ce96dd8391503418945ddcd7c170"
+    }
+  },
+  "stop": {
+    "at": "2026-09-12T12:26:49.638539+00:00",
+    "requests_started": 28,
+    "scope": "本工具前台控制退出；不证明GUI完成"
+  },
+  "source_config": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-config.json",
+    "bytes": 9927,
+    "sha256": "cb60cb84b7506d1788e7c850b24d3ab9917ce7ccdda5f6399e29c73fbfcba4b4"
+  },
+  "preparation": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/PREPARATION.json",
+    "bytes": 12570,
+    "sha256": "b3b9b5edf15980be032ce5eab1e3f1ae540e143cec017d2c974d25bfc5854801"
+  },
+  "expected_deliveries": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/DELIVERIES.json",
+    "bytes": 15875,
+    "sha256": "13b93a6f0ed3da59c27d9e6bbd6245387deba7c7e33adf7d3d0b456d918761b9"
+  },
+  "source_count": 8,
+  "controls": [
+    {
+      "label": "初始：原 current A1 → 同源 g1..3 种子",
+      "scenario": "seed3",
+      "sequence": 0,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000000.json",
+        "bytes": 105,
+        "sha256": "00d5779433d9a1bf7a469217d10f76024090c734253ec7c829329d3515f22102"
+      }
+    },
+    {
+      "label": "empty-replaces-reject",
+      "scenario": "delta_replaces_empty",
+      "sequence": 1,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000001.json",
+        "bytes": 94,
+        "sha256": "dc06fe6c22d84e10c1dbda63227f8603fa093a557e4c47d47c9115bb7182650a"
+      }
+    },
+    {
+      "label": "empty-replaces-retry",
+      "scenario": "delta_healthy",
+      "sequence": 2,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000002.json",
+        "bytes": 86,
+        "sha256": "8fb05fe90484bace56c75e90c354b0b25d4445100bddc3a86bdb179f787688cf"
+      }
+    },
+    {
+      "label": "wrong-old-seed",
+      "scenario": "seed3",
+      "sequence": 3,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000003.json",
+        "bytes": 72,
+        "sha256": "afbc87df4b66a685abc0c7e3d90414ac79c66ecd536b69f927567aafbe53458c"
+      }
+    },
+    {
+      "label": "wrong-old-reject",
+      "scenario": "delta_wrong_old",
+      "sequence": 4,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000004.json",
+        "bytes": 84,
+        "sha256": "30b50de0f671f4a03f32be48271ddbf0f2a6e69337ca74d6a99f0f3b0c82bc2f"
+      }
+    },
+    {
+      "label": "wrong-old-retry",
+      "scenario": "delta_healthy",
+      "sequence": 5,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000005.json",
+        "bytes": 81,
+        "sha256": "047621c35083bc66e55766ef1896f8940be751f40bad436f1c51e4f50134d006"
+      }
+    },
+    {
+      "label": "gap-seed",
+      "scenario": "seed3",
+      "sequence": 6,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000006.json",
+        "bytes": 66,
+        "sha256": "333218a9f2c349e2e070374f191aeec72af627d1c02ccf515f419800b98ce20a"
+      }
+    },
+    {
+      "label": "gap-session-reject",
+      "scenario": "gap_wrong_session",
+      "sequence": 7,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000007.json",
+        "bytes": 88,
+        "sha256": "26d0d4385dec59fddb409fc292cea984b1a0bcb9dea39d550c5c563efa2cb5ac"
+      }
+    },
+    {
+      "label": "gap-session-healthy-retry",
+      "scenario": "gap_healthy",
+      "sequence": 8,
+      "file": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000008.json",
+        "bytes": 89,
+        "sha256": "5465bbbacedab73c869c69e28c5f71c54d019b94d151e34774953955cca15805"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "id": 1,
+      "target": "/",
+      "sequence": 0,
+      "scenario": "seed3",
+      "source_key": null,
+      "source_request_matches_target": null,
+      "operation": "frozen_R12_HTML_bytes",
+      "received_at": "2026-09-12T12:17:52.350613+00:00",
+      "send_started_at": "2026-09-12T12:17:52.351089+00:00",
+      "send_finished_at": "2026-09-12T12:17:52.351110+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/request.raw",
+        "bytes": 711,
+        "sha256": "c9a0325e721751b7c982c912e5ae4eab4f512a6cab07b087ef192d9c70d9cca3"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/received.json",
+        "bytes": 609,
+        "sha256": "dfa95541efee8c6f7cc3223d27dc78fbb626a6bbe02264743935ad0f81ae5b99"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/response.header",
+        "bytes": 209,
+        "sha256": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/response.body",
+        "bytes": 42793,
+        "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/response.raw",
+        "bytes": 43002,
+        "sha256": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/completed.json",
+        "bytes": 1158,
+        "sha256": "18b55e8c722a4d49a94639f5ff6a3660f1369b6d2b86a676e696c842f368ac30"
+      },
+      "source": null,
+      "source_container": null,
+      "changed_paths": []
+    },
+    {
+      "id": 2,
+      "target": "/api/state",
+      "sequence": 0,
+      "scenario": "seed3",
+      "source_key": "current_a1",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:17:52.378797+00:00",
+      "send_started_at": "2026-09-12T12:17:52.379563+00:00",
+      "send_finished_at": "2026-09-12T12:17:52.379614+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/request.raw",
+        "bytes": 566,
+        "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/received.json",
+        "bytes": 1740,
+        "sha256": "929fc8ffc792f0e56d5a11afee0f1354218b4a6b9ba0f8a26aa779e92070870f"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/response.header",
+        "bytes": 216,
+        "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/response.body",
+        "bytes": 69999,
+        "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/response.raw",
+        "bytes": 70215,
+        "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/completed.json",
+        "bytes": 2289,
+        "sha256": "6942ad69edb93f466feecd515a7672c453094f103e0e164c82597781056dfec5"
+      },
+      "source": {
+        "body": {
+          "bytes": 69999,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+          "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+        },
+        "container": "api",
+        "pointer": "/results/earlier_current",
+        "receipt": {
+          "bytes": 76218,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+          "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+        },
+        "request_path": "/api/state",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 3,
+      "target": "/favicon.ico",
+      "sequence": 0,
+      "scenario": "seed3",
+      "source_key": null,
+      "source_request_matches_target": null,
+      "operation": "empty_favicon",
+      "received_at": "2026-09-12T12:17:53.597819+00:00",
+      "send_started_at": "2026-09-12T12:17:53.598827+00:00",
+      "send_finished_at": "2026-09-12T12:17:53.598933+00:00",
+      "status": 204,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/request.raw",
+        "bytes": 632,
+        "sha256": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/received.json",
+        "bytes": 612,
+        "sha256": "3c9e4e26c5efe6f07e94146797088512fb6dde73f711ba627aba2b81dd148696"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/response.header",
+        "bytes": 201,
+        "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/response.body",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/response.raw",
+        "bytes": 201,
+        "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/completed.json",
+        "bytes": 1155,
+        "sha256": "f68b616579bcf012ca7a65680c5e3583882078eb7b6ba5c9060289d55d7e52b3"
+      },
+      "source": null,
+      "source_container": null,
+      "changed_paths": []
+    },
+    {
+      "id": 4,
+      "target": "/api/state",
+      "sequence": 0,
+      "scenario": "seed3",
+      "source_key": "current_a1",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:18:33.813864+00:00",
+      "send_started_at": "2026-09-12T12:18:33.814985+00:00",
+      "send_finished_at": "2026-09-12T12:18:33.815033+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/request.raw",
+        "bytes": 566,
+        "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/received.json",
+        "bytes": 1740,
+        "sha256": "a665a8d29be1a7d6aec61555b834ece97183842e9b1ca80b809ea0a3b98c8d0e"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/response.header",
+        "bytes": 216,
+        "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/response.body",
+        "bytes": 69999,
+        "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/response.raw",
+        "bytes": 70215,
+        "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/completed.json",
+        "bytes": 2289,
+        "sha256": "5874fb3c20c8c1883a2437fcc7772879dada15b6def4838ce4be735631a8aaa7"
+      },
+      "source": {
+        "body": {
+          "bytes": 69999,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+          "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+        },
+        "container": "api",
+        "pointer": "/results/earlier_current",
+        "receipt": {
+          "bytes": 76218,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+          "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+        },
+        "request_path": "/api/state",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 5,
+      "target": "/api/delta?after_generation=0",
+      "sequence": 0,
+      "scenario": "seed3",
+      "source_key": "watch0",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g1_to_g3_and_envelope",
+      "received_at": "2026-09-12T12:18:33.853395+00:00",
+      "send_started_at": "2026-09-12T12:18:33.854371+00:00",
+      "send_finished_at": "2026-09-12T12:18:33.854410+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/request.raw",
+        "bytes": 585,
+        "sha256": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/received.json",
+        "bytes": 1848,
+        "sha256": "2e1f617e0b28d9b6feb30ae41481da75d80e3735cb7685dde1a4adb42a221a36"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/response.header",
+        "bytes": 216,
+        "sha256": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/response.body",
+        "bytes": 20459,
+        "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/response.raw",
+        "bytes": 20675,
+        "sha256": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/completed.json",
+        "bytes": 2397,
+        "sha256": "227db6ba966ce6e169640e8bc42ce886eed60d0d34cf5d721029fb4a2396c8fd"
+      },
+      "source": {
+        "body": {
+          "bytes": 64089,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch0.body",
+          "sha256": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd"
+        },
+        "container": "api",
+        "pointer": "/results/watches/0",
+        "receipt": {
+          "bytes": 71711,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch0.json",
+          "sha256": "5800fe7aa1f2e35476e119a87ba7fdbe8d0ce7482a13ddf8fd4e36e4eac01d6a"
+        },
+        "request_path": "/api/delta?after_generation=0",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=0"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 6,
+      "target": "/api/state?as_of=3",
+      "sequence": 0,
+      "scenario": "seed3",
+      "source_key": "a3",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:18:33.858377+00:00",
+      "send_started_at": "2026-09-12T12:18:33.859183+00:00",
+      "send_finished_at": "2026-09-12T12:18:33.859210+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/request.raw",
+        "bytes": 574,
+        "sha256": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/received.json",
+        "bytes": 1733,
+        "sha256": "2f34eabc82f41fd260253866246a682589548330a9fa9ec894ead163a2a9e296"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/response.header",
+        "bytes": 216,
+        "sha256": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/response.body",
+        "bytes": 75776,
+        "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/response.raw",
+        "bytes": 75992,
+        "sha256": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/completed.json",
+        "bytes": 2282,
+        "sha256": "6787a3a213c1fcb4475607eda6bfdd00ef41fa19a1d87325fc9cf3faa30d0d06"
+      },
+      "source": {
+        "body": {
+          "bytes": 75776,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a3.body",
+          "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+        },
+        "container": "api",
+        "pointer": "/results/states/3",
+        "receipt": {
+          "bytes": 82753,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a3.json",
+          "sha256": "6c5ebb91ea136f49808327b31ba78c5fdb325de6512acfb4be31a44ffa207b64"
+        },
+        "request_path": "/api/state?as_of=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state?as_of=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 7,
+      "target": "/api/delta?after_generation=3",
+      "sequence": 1,
+      "scenario": "delta_replaces_empty",
+      "source_key": "watch3",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g4_and_delta_replaces_empty",
+      "received_at": "2026-09-12T12:19:19.141794+00:00",
+      "send_started_at": "2026-09-12T12:19:19.142704+00:00",
+      "send_finished_at": "2026-09-12T12:19:19.142745+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/request.raw",
+        "bytes": 585,
+        "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/received.json",
+        "bytes": 1843,
+        "sha256": "7d0b94261e904b96987e4ec9efee32769e1fc43830da6f27ca4817fda43b7516"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/response.header",
+        "bytes": 216,
+        "sha256": "1c0167583a7b249f74d547b927f0ee05658b82b00e4ad5292d10227ce42a456f"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/response.body",
+        "bytes": 12841,
+        "sha256": "c6baa0a622de1c730a1527efaf7025192652db047eaa75dc04096abd01b37a6b"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/response.raw",
+        "bytes": 13057,
+        "sha256": "ddc75c5e42bef1f514bc49d5e28a4dc6152a9c37a1592c8b7ee4440cc8d0111e"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/completed.json",
+        "bytes": 2392,
+        "sha256": "daaed9df3fc538bea6d4be460f3b29d10acecc65376d7b2d6be6504a09f2d2fa"
+      },
+      "source": {
+        "body": {
+          "bytes": 49986,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch3.body",
+          "sha256": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4"
+        },
+        "container": "api",
+        "pointer": "/results/watches/3",
+        "receipt": {
+          "bytes": 56030,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch3.json",
+          "sha256": "c5730bb28981ef7b6da8444cb9541a2a74eafca33f8596fa998661841ac285bc"
+        },
+        "request_path": "/api/delta?after_generation=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 8,
+      "target": "/api/delta?after_generation=3",
+      "sequence": 2,
+      "scenario": "delta_healthy",
+      "source_key": "watch3",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g4_and_delta_healthy",
+      "received_at": "2026-09-12T12:19:35.536293+00:00",
+      "send_started_at": "2026-09-12T12:19:35.537081+00:00",
+      "send_finished_at": "2026-09-12T12:19:35.537121+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/request.raw",
+        "bytes": 585,
+        "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/received.json",
+        "bytes": 1828,
+        "sha256": "38f46035ca0059468c36b896a7dfddc3ed03fdccf6d72940d048c6c0f471b468"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/response.header",
+        "bytes": 216,
+        "sha256": "bbc205e68b9248eaf4c4feb3fe26502b695d69bc5d6c6aae6fccab9752c827c9"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/response.body",
+        "bytes": 13075,
+        "sha256": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/response.raw",
+        "bytes": 13291,
+        "sha256": "5cd0b9fa69d382ca699bf1561cb71e5e813f749163506a4a9c09b8a77138aafc"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/completed.json",
+        "bytes": 2377,
+        "sha256": "dcfe7bc61f60af2ba68742e6cb840978287af1b665e9d587b3b7556594be3837"
+      },
+      "source": {
+        "body": {
+          "bytes": 49986,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch3.body",
+          "sha256": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4"
+        },
+        "container": "api",
+        "pointer": "/results/watches/3",
+        "receipt": {
+          "bytes": 56030,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch3.json",
+          "sha256": "c5730bb28981ef7b6da8444cb9541a2a74eafca33f8596fa998661841ac285bc"
+        },
+        "request_path": "/api/delta?after_generation=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 9,
+      "target": "/api/state?as_of=4",
+      "sequence": 2,
+      "scenario": "delta_healthy",
+      "source_key": "a4",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:19:35.545879+00:00",
+      "send_started_at": "2026-09-12T12:19:35.546537+00:00",
+      "send_finished_at": "2026-09-12T12:19:35.546568+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/request.raw",
+        "bytes": 574,
+        "sha256": "e0b074462784e37b2772139987998600c580a5edfd3a3c28ca9293b2c2159a0f"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/received.json",
+        "bytes": 1714,
+        "sha256": "4ae4e42c363e8ffc0f71dd1bd1832e8bebd51952f42847521695af8f04d38f22"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/response.header",
+        "bytes": 216,
+        "sha256": "4839d36b8d96482660a4b836388624f2ce6dd428269d3a89bc6b55bd61035e86"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/response.body",
+        "bytes": 81502,
+        "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/response.raw",
+        "bytes": 81718,
+        "sha256": "dcd076282b8d533689858a9cac7caf6401d774f25c7287dc8981b2453cbdcac6"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/completed.json",
+        "bytes": 2263,
+        "sha256": "f5c8066f7c2e975a816b9358014e91dac015bd122d21eaeea6df219638449bf3"
+      },
+      "source": {
+        "body": {
+          "bytes": 81502,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a4.body",
+          "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+        },
+        "container": "api",
+        "pointer": "/results/states/4",
+        "receipt": {
+          "bytes": 89195,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a4.json",
+          "sha256": "af5748b024f67cfb94a2cd4074a0238da7fe180fa8b2e68bc291730770d0bf39"
+        },
+        "request_path": "/api/state?as_of=4",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state?as_of=4"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 10,
+      "target": "/",
+      "sequence": 3,
+      "scenario": "seed3",
+      "source_key": null,
+      "source_request_matches_target": null,
+      "operation": "frozen_R12_HTML_bytes",
+      "received_at": "2026-09-12T12:19:55.369953+00:00",
+      "send_started_at": "2026-09-12T12:19:55.370728+00:00",
+      "send_finished_at": "2026-09-12T12:19:55.370760+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/request.raw",
+        "bytes": 737,
+        "sha256": "ff4ab64977b0c777d9027d43ad7d89bf6ff939b8e141c1972eb73d7f4c37cbd7"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/received.json",
+        "bytes": 577,
+        "sha256": "33873112446eba1af92bdb4d8817b3384cb50a8d914a043912252c4653ec53c7"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/response.header",
+        "bytes": 209,
+        "sha256": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/response.body",
+        "bytes": 42793,
+        "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/response.raw",
+        "bytes": 43002,
+        "sha256": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/completed.json",
+        "bytes": 1126,
+        "sha256": "8de610977280d6de9e593846936fbc0662b51ac6356fd0de16534f87ad4918e3"
+      },
+      "source": null,
+      "source_container": null,
+      "changed_paths": []
+    },
+    {
+      "id": 11,
+      "target": "/api/state",
+      "sequence": 3,
+      "scenario": "seed3",
+      "source_key": "current_a1",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:19:55.407682+00:00",
+      "send_started_at": "2026-09-12T12:19:55.408724+00:00",
+      "send_finished_at": "2026-09-12T12:19:55.408772+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/request.raw",
+        "bytes": 566,
+        "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/received.json",
+        "bytes": 1708,
+        "sha256": "4fed8fd7cb57701152f0a15c2777d034cc8796e7ad7447838fb0667f4d9fff47"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/response.header",
+        "bytes": 216,
+        "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/response.body",
+        "bytes": 69999,
+        "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/response.raw",
+        "bytes": 70215,
+        "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/completed.json",
+        "bytes": 2257,
+        "sha256": "c4110b9854e73df4f9080dcca1059ce34993ca58886297930a73526f28526ddd"
+      },
+      "source": {
+        "body": {
+          "bytes": 69999,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+          "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+        },
+        "container": "api",
+        "pointer": "/results/earlier_current",
+        "receipt": {
+          "bytes": 76218,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+          "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+        },
+        "request_path": "/api/state",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 12,
+      "target": "/favicon.ico",
+      "sequence": 3,
+      "scenario": "seed3",
+      "source_key": null,
+      "source_request_matches_target": null,
+      "operation": "empty_favicon",
+      "received_at": "2026-09-12T12:19:56.746066+00:00",
+      "send_started_at": "2026-09-12T12:19:56.747301+00:00",
+      "send_finished_at": "2026-09-12T12:19:56.747362+00:00",
+      "status": 204,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/request.raw",
+        "bytes": 632,
+        "sha256": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/received.json",
+        "bytes": 580,
+        "sha256": "d3497fde935dad235e7f978466cd71d4ea8975e4f5efc812f6082c0ef3e2db9b"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/response.header",
+        "bytes": 201,
+        "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/response.body",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/response.raw",
+        "bytes": 201,
+        "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/completed.json",
+        "bytes": 1123,
+        "sha256": "c59fa89b453d58122c006e21d227f222595d4ae79a407bda344e6354c898ba5b"
+      },
+      "source": null,
+      "source_container": null,
+      "changed_paths": []
+    },
+    {
+      "id": 13,
+      "target": "/api/state",
+      "sequence": 3,
+      "scenario": "seed3",
+      "source_key": "current_a1",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:20:07.634679+00:00",
+      "send_started_at": "2026-09-12T12:20:07.636031+00:00",
+      "send_finished_at": "2026-09-12T12:20:07.636098+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/request.raw",
+        "bytes": 566,
+        "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/received.json",
+        "bytes": 1708,
+        "sha256": "69322ff73431b51500e0d3a0847f790e74771be8a969c14d5552e47b58d55a17"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/response.header",
+        "bytes": 216,
+        "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/response.body",
+        "bytes": 69999,
+        "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/response.raw",
+        "bytes": 70215,
+        "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/completed.json",
+        "bytes": 2257,
+        "sha256": "ad4dab1b6a2473925486d4edd49c023ca6642fcedb686105994e9a7ed57415ad"
+      },
+      "source": {
+        "body": {
+          "bytes": 69999,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+          "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+        },
+        "container": "api",
+        "pointer": "/results/earlier_current",
+        "receipt": {
+          "bytes": 76218,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+          "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+        },
+        "request_path": "/api/state",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 14,
+      "target": "/api/delta?after_generation=0",
+      "sequence": 3,
+      "scenario": "seed3",
+      "source_key": "watch0",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g1_to_g3_and_envelope",
+      "received_at": "2026-09-12T12:20:20.720745+00:00",
+      "send_started_at": "2026-09-12T12:20:20.721450+00:00",
+      "send_finished_at": "2026-09-12T12:20:20.721479+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/request.raw",
+        "bytes": 585,
+        "sha256": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/received.json",
+        "bytes": 1816,
+        "sha256": "7dc720696764e5f581a9269408f8f2ec0895a557e643ffd72f7b12bc918fac55"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/response.header",
+        "bytes": 216,
+        "sha256": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/response.body",
+        "bytes": 20459,
+        "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/response.raw",
+        "bytes": 20675,
+        "sha256": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/completed.json",
+        "bytes": 2365,
+        "sha256": "a7073c84cd66f56a476f3cdc4b277db23bcb2852a44d9855e1852368f6ee3eb7"
+      },
+      "source": {
+        "body": {
+          "bytes": 64089,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch0.body",
+          "sha256": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd"
+        },
+        "container": "api",
+        "pointer": "/results/watches/0",
+        "receipt": {
+          "bytes": 71711,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch0.json",
+          "sha256": "5800fe7aa1f2e35476e119a87ba7fdbe8d0ce7482a13ddf8fd4e36e4eac01d6a"
+        },
+        "request_path": "/api/delta?after_generation=0",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=0"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 15,
+      "target": "/api/state?as_of=3",
+      "sequence": 3,
+      "scenario": "seed3",
+      "source_key": "a3",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:20:20.726398+00:00",
+      "send_started_at": "2026-09-12T12:20:20.727123+00:00",
+      "send_finished_at": "2026-09-12T12:20:20.727148+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/request.raw",
+        "bytes": 574,
+        "sha256": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/received.json",
+        "bytes": 1701,
+        "sha256": "210951cd7914f6559106af0cd7aad3ca8b2d608b45ad5007f7ebafc3225f5176"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/response.header",
+        "bytes": 216,
+        "sha256": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/response.body",
+        "bytes": 75776,
+        "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/response.raw",
+        "bytes": 75992,
+        "sha256": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/completed.json",
+        "bytes": 2250,
+        "sha256": "1911eb772546207d00eb441d98193289c51de72f62ae7a7223acabf79e8b8fd0"
+      },
+      "source": {
+        "body": {
+          "bytes": 75776,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a3.body",
+          "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+        },
+        "container": "api",
+        "pointer": "/results/states/3",
+        "receipt": {
+          "bytes": 82753,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a3.json",
+          "sha256": "6c5ebb91ea136f49808327b31ba78c5fdb325de6512acfb4be31a44ffa207b64"
+        },
+        "request_path": "/api/state?as_of=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state?as_of=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 16,
+      "target": "/api/delta?after_generation=3",
+      "sequence": 4,
+      "scenario": "delta_wrong_old",
+      "source_key": "watch3",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g4_and_delta_wrong_old",
+      "received_at": "2026-09-12T12:20:38.185658+00:00",
+      "send_started_at": "2026-09-12T12:20:38.186944+00:00",
+      "send_finished_at": "2026-09-12T12:20:38.186992+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/request.raw",
+        "bytes": 585,
+        "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/received.json",
+        "bytes": 1829,
+        "sha256": "dc115c5086fec4aba79d7ef52e1cfdb3810b1851a9ca9bcc11965e3f728b7ba8"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/response.header",
+        "bytes": 216,
+        "sha256": "4f8841c3c7eb2a7b88d033c8b4cb66f055f4576a852f8cb5a4a341930481901d"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/response.body",
+        "bytes": 13030,
+        "sha256": "6a1b9af7fa7413707924d1684139b5987261faa2bbacf4213109491f28bb616e"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/response.raw",
+        "bytes": 13246,
+        "sha256": "21809baab3584283a4591e669d2b4d9c93d8b8b420afb4045d96407034a7cc67"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/completed.json",
+        "bytes": 2378,
+        "sha256": "ae9cbf17700b9f337b5a1d4cc0349bb2dc20eae08e47ae2bada48d894fae6afb"
+      },
+      "source": {
+        "body": {
+          "bytes": 49986,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch3.body",
+          "sha256": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4"
+        },
+        "container": "api",
+        "pointer": "/results/watches/3",
+        "receipt": {
+          "bytes": 56030,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch3.json",
+          "sha256": "c5730bb28981ef7b6da8444cb9541a2a74eafca33f8596fa998661841ac285bc"
+        },
+        "request_path": "/api/delta?after_generation=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 17,
+      "target": "/api/delta?after_generation=3",
+      "sequence": 5,
+      "scenario": "delta_healthy",
+      "source_key": "watch3",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g4_and_delta_healthy",
+      "received_at": "2026-09-12T12:20:57.353179+00:00",
+      "send_started_at": "2026-09-12T12:20:57.353955+00:00",
+      "send_finished_at": "2026-09-12T12:20:57.353985+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/request.raw",
+        "bytes": 585,
+        "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/received.json",
+        "bytes": 1824,
+        "sha256": "887f5d0d80958f17df8571aa6691c678e4fb3dde16cb39ac8a0c600aea38e891"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/response.header",
+        "bytes": 216,
+        "sha256": "bbc205e68b9248eaf4c4feb3fe26502b695d69bc5d6c6aae6fccab9752c827c9"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/response.body",
+        "bytes": 13075,
+        "sha256": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/response.raw",
+        "bytes": 13291,
+        "sha256": "5cd0b9fa69d382ca699bf1561cb71e5e813f749163506a4a9c09b8a77138aafc"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/completed.json",
+        "bytes": 2373,
+        "sha256": "b6395ec5ef2a3b97e44948d187c9ea9c08f8fe0761e982fbdc5160295793f5da"
+      },
+      "source": {
+        "body": {
+          "bytes": 49986,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch3.body",
+          "sha256": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4"
+        },
+        "container": "api",
+        "pointer": "/results/watches/3",
+        "receipt": {
+          "bytes": 56030,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch3.json",
+          "sha256": "c5730bb28981ef7b6da8444cb9541a2a74eafca33f8596fa998661841ac285bc"
+        },
+        "request_path": "/api/delta?after_generation=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 18,
+      "target": "/api/state?as_of=4",
+      "sequence": 5,
+      "scenario": "delta_healthy",
+      "source_key": "a4",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:20:57.359133+00:00",
+      "send_started_at": "2026-09-12T12:20:57.359929+00:00",
+      "send_finished_at": "2026-09-12T12:20:57.359961+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/request.raw",
+        "bytes": 574,
+        "sha256": "e0b074462784e37b2772139987998600c580a5edfd3a3c28ca9293b2c2159a0f"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/received.json",
+        "bytes": 1710,
+        "sha256": "73bf5c901cf95ac3db685786c2cd8ba1161caa2f6405945f747fff29d3efb037"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/response.header",
+        "bytes": 216,
+        "sha256": "4839d36b8d96482660a4b836388624f2ce6dd428269d3a89bc6b55bd61035e86"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/response.body",
+        "bytes": 81502,
+        "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/response.raw",
+        "bytes": 81718,
+        "sha256": "dcd076282b8d533689858a9cac7caf6401d774f25c7287dc8981b2453cbdcac6"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/completed.json",
+        "bytes": 2259,
+        "sha256": "0d5001069da76237be96c270ca32f6b4a31e55d93583c6a196bee3af59d8f8e7"
+      },
+      "source": {
+        "body": {
+          "bytes": 81502,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a4.body",
+          "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+        },
+        "container": "api",
+        "pointer": "/results/states/4",
+        "receipt": {
+          "bytes": 89195,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a4.json",
+          "sha256": "af5748b024f67cfb94a2cd4074a0238da7fe180fa8b2e68bc291730770d0bf39"
+        },
+        "request_path": "/api/state?as_of=4",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state?as_of=4"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 19,
+      "target": "/",
+      "sequence": 6,
+      "scenario": "seed3",
+      "source_key": null,
+      "source_request_matches_target": null,
+      "operation": "frozen_R12_HTML_bytes",
+      "received_at": "2026-09-12T12:21:24.422240+00:00",
+      "send_started_at": "2026-09-12T12:21:24.422973+00:00",
+      "send_finished_at": "2026-09-12T12:21:24.423005+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/request.raw",
+        "bytes": 737,
+        "sha256": "ff4ab64977b0c777d9027d43ad7d89bf6ff939b8e141c1972eb73d7f4c37cbd7"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/received.json",
+        "bytes": 571,
+        "sha256": "16e428c8bf58c54a2eab9aca6b54f9ea06ad07ce9b1475d025b9d5ac34ea934d"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/response.header",
+        "bytes": 209,
+        "sha256": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/response.body",
+        "bytes": 42793,
+        "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/response.raw",
+        "bytes": 43002,
+        "sha256": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/completed.json",
+        "bytes": 1120,
+        "sha256": "a55717bb7f27aa3719e9b40b1e7ca6dcbd5faaca465bb236ee38c5e233e1a866"
+      },
+      "source": null,
+      "source_container": null,
+      "changed_paths": []
+    },
+    {
+      "id": 20,
+      "target": "/api/state",
+      "sequence": 6,
+      "scenario": "seed3",
+      "source_key": "current_a1",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:21:24.447681+00:00",
+      "send_started_at": "2026-09-12T12:21:24.448661+00:00",
+      "send_finished_at": "2026-09-12T12:21:24.448703+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/request.raw",
+        "bytes": 566,
+        "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/received.json",
+        "bytes": 1702,
+        "sha256": "235cff1b1e79d144173fab6c7be5fd0e8c85761be86064b8a8c9c08d6265bafe"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/response.header",
+        "bytes": 216,
+        "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/response.body",
+        "bytes": 69999,
+        "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/response.raw",
+        "bytes": 70215,
+        "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/completed.json",
+        "bytes": 2251,
+        "sha256": "479e315b059870c9d070cce112459e4aa70bf10529cb2a2e2a6fec2dec21abaa"
+      },
+      "source": {
+        "body": {
+          "bytes": 69999,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+          "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+        },
+        "container": "api",
+        "pointer": "/results/earlier_current",
+        "receipt": {
+          "bytes": 76218,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+          "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+        },
+        "request_path": "/api/state",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 21,
+      "target": "/favicon.ico",
+      "sequence": 6,
+      "scenario": "seed3",
+      "source_key": null,
+      "source_request_matches_target": null,
+      "operation": "empty_favicon",
+      "received_at": "2026-09-12T12:21:24.656248+00:00",
+      "send_started_at": "2026-09-12T12:21:24.657338+00:00",
+      "send_finished_at": "2026-09-12T12:21:24.657393+00:00",
+      "status": 204,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/request.raw",
+        "bytes": 632,
+        "sha256": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/received.json",
+        "bytes": 574,
+        "sha256": "c67331e7216e47c7506a11d34b40e85d8aa013b5e375b095b15ace28a7875298"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/response.header",
+        "bytes": 201,
+        "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/response.body",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/response.raw",
+        "bytes": 201,
+        "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/completed.json",
+        "bytes": 1117,
+        "sha256": "60e11623942b6049d0ccf105ed4c4bc81f0030b949d0992781c87471ab9a3c25"
+      },
+      "source": null,
+      "source_container": null,
+      "changed_paths": []
+    },
+    {
+      "id": 22,
+      "target": "/api/state",
+      "sequence": 6,
+      "scenario": "seed3",
+      "source_key": "current_a1",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:21:34.744763+00:00",
+      "send_started_at": "2026-09-12T12:21:34.745715+00:00",
+      "send_finished_at": "2026-09-12T12:21:34.745764+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/request.raw",
+        "bytes": 566,
+        "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/received.json",
+        "bytes": 1702,
+        "sha256": "1c7ce92a6dd6fb07aef88649ad4b75b5f1a08c0db05b084c36d84e224edb832c"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/response.header",
+        "bytes": 216,
+        "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/response.body",
+        "bytes": 69999,
+        "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/response.raw",
+        "bytes": 70215,
+        "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/completed.json",
+        "bytes": 2251,
+        "sha256": "966ff5f0bbd5cd71d26f3057d1d77d4565c80cf58a52f1fbc8db4a64e502ebf1"
+      },
+      "source": {
+        "body": {
+          "bytes": 69999,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+          "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+        },
+        "container": "api",
+        "pointer": "/results/earlier_current",
+        "receipt": {
+          "bytes": 76218,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+          "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+        },
+        "request_path": "/api/state",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 23,
+      "target": "/api/delta?after_generation=0",
+      "sequence": 6,
+      "scenario": "seed3",
+      "source_key": "watch0",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_clip_real_g1_to_g3_and_envelope",
+      "received_at": "2026-09-12T12:21:49.017380+00:00",
+      "send_started_at": "2026-09-12T12:21:49.018328+00:00",
+      "send_finished_at": "2026-09-12T12:21:49.018374+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/request.raw",
+        "bytes": 585,
+        "sha256": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/received.json",
+        "bytes": 1810,
+        "sha256": "277793d6e2cb5f7ee5fa6a826789e970596c2ba7d1f2d58b05e5a43244d18e0b"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/response.header",
+        "bytes": 216,
+        "sha256": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/response.body",
+        "bytes": 20459,
+        "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/response.raw",
+        "bytes": 20675,
+        "sha256": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/completed.json",
+        "bytes": 2359,
+        "sha256": "6156586c1c9cdc8448444b44047f901a777ef8ffac3ea420daa66b1631d2aea9"
+      },
+      "source": {
+        "body": {
+          "bytes": 64089,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch0.body",
+          "sha256": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd"
+        },
+        "container": "api",
+        "pointer": "/results/watches/0",
+        "receipt": {
+          "bytes": 71711,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch0.json",
+          "sha256": "5800fe7aa1f2e35476e119a87ba7fdbe8d0ce7482a13ddf8fd4e36e4eac01d6a"
+        },
+        "request_path": "/api/delta?after_generation=0",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/delta?after_generation=0"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": [
+        "/deltas",
+        "/generation",
+        "/structure_cut"
+      ]
+    },
+    {
+      "id": 24,
+      "target": "/api/state?as_of=3",
+      "sequence": 6,
+      "scenario": "seed3",
+      "source_key": "a3",
+      "source_request_matches_target": true,
+      "operation": "raw_archived_HTTP_body_replay",
+      "received_at": "2026-09-12T12:21:49.023795+00:00",
+      "send_started_at": "2026-09-12T12:21:49.024713+00:00",
+      "send_finished_at": "2026-09-12T12:21:49.024755+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/request.raw",
+        "bytes": 574,
+        "sha256": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/received.json",
+        "bytes": 1695,
+        "sha256": "6e575e825ba372d972f06b2219394a3231581e249e668c78978dd42dd31a2518"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/response.header",
+        "bytes": 216,
+        "sha256": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/response.body",
+        "bytes": 75776,
+        "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/response.raw",
+        "bytes": 75992,
+        "sha256": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/completed.json",
+        "bytes": 2244,
+        "sha256": "ddf7fba2a90dc96293395c1b42151a23ec47755206c43a1075caef5c8042ec48"
+      },
+      "source": {
+        "body": {
+          "bytes": 75776,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a3.body",
+          "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+        },
+        "container": "api",
+        "pointer": "/results/states/3",
+        "receipt": {
+          "bytes": 82753,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a3.json",
+          "sha256": "6c5ebb91ea136f49808327b31ba78c5fdb325de6512acfb4be31a44ffa207b64"
+        },
+        "request_path": "/api/state?as_of=3",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state?as_of=3"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 25,
+      "target": "/api/delta?after_generation=3",
+      "sequence": 7,
+      "scenario": "gap_wrong_session",
+      "source_key": "gap_b",
+      "source_request_matches_target": false,
+      "operation": "TestOnly_replay_original_after99_Gap_on_after3_no_body_change",
+      "received_at": "2026-09-12T12:22:08.566146+00:00",
+      "send_started_at": "2026-09-12T12:22:08.567065+00:00",
+      "send_finished_at": "2026-09-12T12:22:08.567115+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/request.raw",
+        "bytes": 585,
+        "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/received.json",
+        "bytes": 1798,
+        "sha256": "4934017d255337f7869c3deb152f597e1b4ccf99acd833b2516de5a153b5b6b3"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/response.header",
+        "bytes": 214,
+        "sha256": "f23a7d64ef739d70422b40c93bf0b18c195ea0850c32243b02660eb33bcd66cc"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/response.body",
+        "bytes": 203,
+        "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/response.raw",
+        "bytes": 417,
+        "sha256": "08da7b8a640eefd52f85d104752a29e83b1462aea2af6f1e6f9166c431386425"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+        "bytes": 2343,
+        "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da"
+      },
+      "source": {
+        "body": {
+          "bytes": 203,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/gap_b.body",
+          "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+        },
+        "container": "additional",
+        "pointer": "/http/3",
+        "receipt": {
+          "bytes": 412,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/gap_b.json",
+          "sha256": "b4c73911b543f3f3d1e552dd50a254433253f6618e12d83f46d02101e1e952b2"
+        },
+        "request_path": "/api/delta?after_generation=99",
+        "status": 200,
+        "url": "http://127.0.0.1:33519/api/delta?after_generation=99"
+      },
+      "source_container": {
+        "bytes": 1236679,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/review-r6/additional-results.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/additional-results.json",
+        "sha256": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 26,
+      "target": "/api/state?as_of=1",
+      "sequence": 7,
+      "scenario": "gap_wrong_session",
+      "source_key": "a1",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_choose_recorded_a1_for_Gap_B",
+      "received_at": "2026-09-12T12:22:08.572126+00:00",
+      "send_started_at": "2026-09-12T12:22:08.573150+00:00",
+      "send_finished_at": "2026-09-12T12:22:08.573194+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/request.raw",
+        "bytes": 574,
+        "sha256": "26285033db9f86bca4983371ba8a7fa051b872f6b47f3af14d59037fd30f84f7"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/received.json",
+        "bytes": 1725,
+        "sha256": "7ba109b74d31b61123563ee1d06d2c0d00f583352fffcbceabc2f455cbff7443"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/response.header",
+        "bytes": 216,
+        "sha256": "d976545997113af87fb01017725d4a296852c28da25c10ea3648489afb97c18c"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/response.body",
+        "bytes": 69983,
+        "sha256": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/response.raw",
+        "bytes": 70199,
+        "sha256": "b7f23905eed7d33c94267743d4b8efa9fc8c679b2a5abff749af442789f8b96d"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+        "bytes": 2274,
+        "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0"
+      },
+      "source": {
+        "body": {
+          "bytes": 69983,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a1.body",
+          "sha256": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d"
+        },
+        "container": "api",
+        "pointer": "/results/states/1",
+        "receipt": {
+          "bytes": 76212,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a1.json",
+          "sha256": "118f7d342e8d8402100e85421e0f96bfadc141117c9cabfe9193c6846a65febf"
+        },
+        "request_path": "/api/state?as_of=1",
+        "status": 200,
+        "url": "http://127.0.0.1:45565/api/state?as_of=1"
+      },
+      "source_container": {
+        "bytes": 1274190,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/implementation-r11/api-cuts.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+        "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 27,
+      "target": "/api/delta?after_generation=3",
+      "sequence": 8,
+      "scenario": "gap_healthy",
+      "source_key": "gap_b",
+      "source_request_matches_target": false,
+      "operation": "TestOnly_replay_original_after99_Gap_on_after3_no_body_change",
+      "received_at": "2026-09-12T12:22:44.019942+00:00",
+      "send_started_at": "2026-09-12T12:22:44.020783+00:00",
+      "send_finished_at": "2026-09-12T12:22:44.020811+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/request.raw",
+        "bytes": 585,
+        "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/received.json",
+        "bytes": 1799,
+        "sha256": "2e17b7311e6ca0771909a22266cadc10a866bd85fda47f39a6eded5ae0b13cdc"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/response.header",
+        "bytes": 214,
+        "sha256": "f23a7d64ef739d70422b40c93bf0b18c195ea0850c32243b02660eb33bcd66cc"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/response.body",
+        "bytes": 203,
+        "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/response.raw",
+        "bytes": 417,
+        "sha256": "08da7b8a640eefd52f85d104752a29e83b1462aea2af6f1e6f9166c431386425"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+        "bytes": 2344,
+        "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c"
+      },
+      "source": {
+        "body": {
+          "bytes": 203,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/gap_b.body",
+          "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+        },
+        "container": "additional",
+        "pointer": "/http/3",
+        "receipt": {
+          "bytes": 412,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/gap_b.json",
+          "sha256": "b4c73911b543f3f3d1e552dd50a254433253f6618e12d83f46d02101e1e952b2"
+        },
+        "request_path": "/api/delta?after_generation=99",
+        "status": 200,
+        "url": "http://127.0.0.1:33519/api/delta?after_generation=99"
+      },
+      "source_container": {
+        "bytes": 1236679,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/review-r6/additional-results.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/additional-results.json",
+        "sha256": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6"
+      },
+      "changed_paths": []
+    },
+    {
+      "id": 28,
+      "target": "/api/state?as_of=1",
+      "sequence": 8,
+      "scenario": "gap_healthy",
+      "source_key": "b1",
+      "source_request_matches_target": true,
+      "operation": "TestOnly_choose_recorded_b1_for_Gap_B",
+      "received_at": "2026-09-12T12:22:44.026230+00:00",
+      "send_started_at": "2026-09-12T12:22:44.027061+00:00",
+      "send_finished_at": "2026-09-12T12:22:44.027098+00:00",
+      "status": 200,
+      "send_result": "sendall_completed",
+      "request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/request.raw",
+        "bytes": 574,
+        "sha256": "26285033db9f86bca4983371ba8a7fa051b872f6b47f3af14d59037fd30f84f7"
+      },
+      "received": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/received.json",
+        "bytes": 1734,
+        "sha256": "b3dbcfc63e7125218e25bc8753c7690ee43adf6be19de76428901b4c5badd44e"
+      },
+      "header": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/response.header",
+        "bytes": 216,
+        "sha256": "ab764267d647b5345584de73a5a9a45aa3bf1f55dd19505b8494dbfde31088d0"
+      },
+      "body": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/response.body",
+        "bytes": 75450,
+        "sha256": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8"
+      },
+      "raw": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/response.raw",
+        "bytes": 75666,
+        "sha256": "344652c9ff12f7e21aa945fdcc0329f30a144056cdb50e8c67998c714f77d3f3"
+      },
+      "completed": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+        "bytes": 2283,
+        "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44"
+      },
+      "source": {
+        "body": {
+          "bytes": 75450,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/b1.body",
+          "sha256": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8"
+        },
+        "container": "additional",
+        "pointer": "/http/1",
+        "receipt": {
+          "bytes": 82399,
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/b1.json",
+          "sha256": "ba85bb4751a07ec2655b056c28651631eb347e0ff46241bf52ae1452e70c26d0"
+        },
+        "request_path": "/api/state?as_of=1",
+        "status": 200,
+        "url": "http://127.0.0.1:33519/api/state?as_of=1"
+      },
+      "source_container": {
+        "bytes": 1236679,
+        "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/recovered/review-r6/additional-results.json",
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/additional-results.json",
+        "sha256": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6"
+      },
+      "changed_paths": []
+    }
+  ],
+  "gui": [
+    {
+      "label": "empty-seed3",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.json",
+        "bytes": 799,
+        "sha256": "86bb5203428acf1b60cf97916834685bbf9709deae5418e7d21d39b3be50c4c7"
+      },
+      "started_at": "2026-09-12T12:18:33.851Z",
+      "finished_at": "2026-09-12T12:18:34.145Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.ax.txt",
+        "bytes": 10813,
+        "sha256": "656572f618362a00536ea745fdfef989b0d3fb08cf6270cb6c3c8a982a1d1cdc"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.jpg",
+        "bytes": 108304,
+        "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "3",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-3",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "3",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "144 text AsKnown @ generation 3"
+        },
+        {
+          "line": 68,
+          "text": "193 text 浏览范围：结构（S） · CC-006 · cut-3 · AsKnown@3 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 246,
+          "text": "358 text 已提交并验证 generation ≤ 3（session s-session-testonly-001，cut cut-3）"
+        },
+        {
+          "line": 258,
+          "text": "370 text 同源读取 3 个 Delta；应用后与同 cut Snapshot（generation 3）全字段 + 会话/cut/catalog 身份对拍： 1 活动 + 0 撤回 + 3 见证 + 4 关系 + 1 观察 + 3 源事件，逐字段一致（已驱动正式渲染）"
+        }
+      ],
+      "related_request_ids": [
+        5,
+        6
+      ],
+      "control_sequence": 0,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "empty-rejected",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.json",
+        "bytes": 807,
+        "sha256": "a16df5276197ce282c59359e370db04425be5ca5cbfa23cee6438b04ec869bd6"
+      },
+      "started_at": "2026-09-12T12:19:19.139Z",
+      "finished_at": "2026-09-12T12:19:19.419Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.ax.txt",
+        "bytes": 10348,
+        "sha256": "c0437ce5879487505917390f6bea46ccabec067334c539ddad050a77828dca11"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.jpg",
+        "bytes": 90591,
+        "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 22
+        },
+        "generation": {
+          "value": "3",
+          "line": 25
+        },
+        "structure_cut": {
+          "value": "cut-3",
+          "line": 28
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 34
+        },
+        "as_of_generation": {
+          "value": "3",
+          "line": 37
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 8,
+          "text": "390 text 本次续接未验证，页面仅保留上次已提交切面，不代表当前成功。"
+        },
+        {
+          "line": 15,
+          "text": "144 text AsKnown @ generation 3"
+        },
+        {
+          "line": 69,
+          "text": "193 text 浏览范围：结构（S） · CC-006 · cut-3 · AsKnown@3 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 247,
+          "text": "358 text 已提交并验证 generation ≤ 3（session s-session-testonly-001，cut cut-3）"
+        },
+        {
+          "line": 248,
+          "text": "391 text Delta 处理失败：Error: Delta.replaces 与本批 withdrawals 的替代端点不一致"
+        }
+      ],
+      "related_request_ids": [
+        7
+      ],
+      "control_sequence": 1,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "empty-retry4",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.json",
+        "bytes": 802,
+        "sha256": "4d203348de5c87c681b8f81d68802f2e18e3a6c9a9e7686688a403c0f556701e"
+      },
+      "started_at": "2026-09-12T12:19:35.533Z",
+      "finished_at": "2026-09-12T12:19:35.853Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.ax.txt",
+        "bytes": 14416,
+        "sha256": "fe312a41719145cda7849f888460fc2a893e1e1e37721a21839007807cb09f61"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.jpg",
+        "bytes": 116674,
+        "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "4",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-4",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "4",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "372 text AsKnown @ generation 4"
+        },
+        {
+          "line": 68,
+          "text": "421 text 浏览范围：结构（S） · CC-006 · cut-4 · AsKnown@4 · 活动实例 1 / 撤回 1"
+        },
+        {
+          "line": 356,
+          "text": "696 text 已提交并验证 generation ≤ 4（session s-session-testonly-001，cut cut-4）"
+        },
+        {
+          "line": 362,
+          "text": "702 text 同源读取 1 个 Delta；应用后与同 cut Snapshot（generation 4）全字段 + 会话/cut/catalog 身份对拍： 1 活动 + 1 撤回 + 6 见证 + 10 关系 + 1 观察 + 4 源事件，逐字段一致（已驱动正式渲染）"
+        }
+      ],
+      "related_request_ids": [
+        8,
+        9
+      ],
+      "control_sequence": 2,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "wrong-old-seed3",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.json",
+        "bytes": 809,
+        "sha256": "0a4e61aff76d1c2dd2efcc51bc1c0e0505f893fbc349652fdf433891a5ac27a1"
+      },
+      "started_at": "2026-09-12T12:20:07.680Z",
+      "finished_at": "2026-09-12T12:20:07.946Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.ax.txt",
+        "bytes": 6175,
+        "sha256": "e375c6471f471441f973b3a8a8c3186df73806ddef89026723fd2c1910212fa0"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.jpg",
+        "bytes": 81344,
+        "sha256": "0b59c2d9f0b541a392d1c37cf68bb8945fe1041fac86371720aea4940e2494db"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "1",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-1",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "RecomputedWithRevision",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "—",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 68,
+          "text": "123 text 浏览范围：结构（S） · CC-006 · cut-1 · RecomputedWithRevision · 活动实例 0 / 撤回 0"
+        }
+      ],
+      "related_request_ids": [
+        13
+      ],
+      "control_sequence": 3,
+      "counted_valid_stage": false,
+      "timing": "prior_current_A1_response_before_capture_no_after0_until_later_confirmed_stage"
+    },
+    {
+      "label": "wrong-old-seed3-confirmed",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.json",
+        "bytes": 841,
+        "sha256": "e48ba639edd994cd5593088526da3844525c2268bf83ffe61d125559bd503e08"
+      },
+      "started_at": "2026-09-12T12:20:20.717Z",
+      "finished_at": "2026-09-12T12:20:21.011Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.ax.txt",
+        "bytes": 10760,
+        "sha256": "088f4d1d97ba3fa987c5c56b81c76f08f55320cee3e6f27f4588d017bc1f9ae1"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.jpg",
+        "bytes": 108304,
+        "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "3",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-3",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "3",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "74 text AsKnown @ generation 3"
+        },
+        {
+          "line": 68,
+          "text": "123 text 浏览范围：结构（S） · CC-006 · cut-3 · AsKnown@3 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 246,
+          "text": "288 text 已提交并验证 generation ≤ 3（session s-session-testonly-001，cut cut-3）"
+        },
+        {
+          "line": 258,
+          "text": "300 text 同源读取 3 个 Delta；应用后与同 cut Snapshot（generation 3）全字段 + 会话/cut/catalog 身份对拍： 1 活动 + 0 撤回 + 3 见证 + 4 关系 + 1 观察 + 3 源事件，逐字段一致（已驱动正式渲染）"
+        }
+      ],
+      "related_request_ids": [
+        14,
+        15
+      ],
+      "control_sequence": 3,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "wrong-old-rejected",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.json",
+        "bytes": 819,
+        "sha256": "67c4185513eb4a5b77b06a1160d40ce4f75cf882ab9f4500a5b5af66513b1b33"
+      },
+      "started_at": "2026-09-12T12:20:38.182Z",
+      "finished_at": "2026-09-12T12:20:38.476Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.ax.txt",
+        "bytes": 10295,
+        "sha256": "13b2a1054cec90002a5ad2c2f6cf8d622abbe4e567dcca51c717761cd2b26b6f"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.jpg",
+        "bytes": 90591,
+        "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 22
+        },
+        "generation": {
+          "value": "3",
+          "line": 25
+        },
+        "structure_cut": {
+          "value": "cut-3",
+          "line": 28
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 34
+        },
+        "as_of_generation": {
+          "value": "3",
+          "line": 37
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 8,
+          "text": "320 text 本次续接未验证，页面仅保留上次已提交切面，不代表当前成功。"
+        },
+        {
+          "line": 15,
+          "text": "74 text AsKnown @ generation 3"
+        },
+        {
+          "line": 69,
+          "text": "123 text 浏览范围：结构（S） · CC-006 · cut-3 · AsKnown@3 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 247,
+          "text": "288 text 已提交并验证 generation ≤ 3（session s-session-testonly-001，cut cut-3）"
+        },
+        {
+          "line": 248,
+          "text": "321 text Delta 处理失败：Error: Delta.replaces 与本批 withdrawals 的替代端点不一致"
+        }
+      ],
+      "related_request_ids": [
+        16
+      ],
+      "control_sequence": 4,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "wrong-old-retry4",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.json",
+        "bytes": 814,
+        "sha256": "0e9f8edc278a7221a90da69c5980727fc51b8ed792f4f378240e3c00c4d50f7b"
+      },
+      "started_at": "2026-09-12T12:20:57.350Z",
+      "finished_at": "2026-09-12T12:20:57.676Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.ax.txt",
+        "bytes": 14389,
+        "sha256": "a49fbb955852e8e0a34805d5ae705946e710a8808587f7bd12b52df451248b7b"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.jpg",
+        "bytes": 116674,
+        "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "4",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-4",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "4",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "302 text AsKnown @ generation 4"
+        },
+        {
+          "line": 68,
+          "text": "351 text 浏览范围：结构（S） · CC-006 · cut-4 · AsKnown@4 · 活动实例 1 / 撤回 1"
+        },
+        {
+          "line": 356,
+          "text": "626 text 已提交并验证 generation ≤ 4（session s-session-testonly-001，cut cut-4）"
+        },
+        {
+          "line": 362,
+          "text": "632 text 同源读取 1 个 Delta；应用后与同 cut Snapshot（generation 4）全字段 + 会话/cut/catalog 身份对拍： 1 活动 + 1 撤回 + 6 见证 + 10 关系 + 1 观察 + 4 源事件，逐字段一致（已驱动正式渲染）"
+        }
+      ],
+      "related_request_ids": [
+        17,
+        18
+      ],
+      "control_sequence": 5,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "gap-seed3",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+        "bytes": 793,
+        "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d"
+      },
+      "started_at": "2026-09-12T12:21:49.013Z",
+      "finished_at": "2026-09-12T12:21:49.307Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+        "bytes": 10814,
+        "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.jpg",
+        "bytes": 108304,
+        "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "3",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-3",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "3",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "145 text AsKnown @ generation 3"
+        },
+        {
+          "line": 68,
+          "text": "194 text 浏览范围：结构（S） · CC-006 · cut-3 · AsKnown@3 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 246,
+          "text": "359 text 已提交并验证 generation ≤ 3（session s-session-testonly-001，cut cut-3）"
+        },
+        {
+          "line": 258,
+          "text": "371 text 同源读取 3 个 Delta；应用后与同 cut Snapshot（generation 3）全字段 + 会话/cut/catalog 身份对拍： 1 活动 + 0 撤回 + 3 见证 + 4 关系 + 1 观察 + 3 源事件，逐字段一致（已驱动正式渲染）"
+        }
+      ],
+      "related_request_ids": [
+        23,
+        24
+      ],
+      "control_sequence": 6,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "gap-wrong-session-rejected",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+        "bytes": 843,
+        "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f"
+      },
+      "started_at": "2026-09-12T12:22:08.564Z",
+      "finished_at": "2026-09-12T12:22:08.847Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+        "bytes": 10243,
+        "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.jpg",
+        "bytes": 90161,
+        "sha256": "04acacccb744540c334e25947706796addbb6ea133f5de4e99343bfe55679e60"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "3",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-3",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "3",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "145 text AsKnown @ generation 3"
+        },
+        {
+          "line": 68,
+          "text": "194 text 浏览范围：结构（S） · CC-006 · cut-3 · AsKnown@3 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 246,
+          "text": "359 text 已提交并验证 generation ≤ 3（session s-session-testonly-001，cut cut-3）"
+        },
+        {
+          "line": 247,
+          "text": "391 text 重建校验失败（Error: Gap/Snapshot.session_id 不一致）：状态未提交"
+        }
+      ],
+      "related_request_ids": [
+        25,
+        26
+      ],
+      "control_sequence": 7,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    },
+    {
+      "label": "gap-retry-new-session-b1",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+        "bytes": 837,
+        "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52"
+      },
+      "started_at": "2026-09-12T12:22:44.017Z",
+      "finished_at": "2026-09-12T12:22:44.302Z",
+      "tab_id": "304196083",
+      "url": "http://127.0.0.1:18962/",
+      "ax": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+        "bytes": 10186,
+        "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35"
+      },
+      "screenshot": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.jpg",
+        "bytes": 90919,
+        "sha256": "3555c1ac1240aa69c72b752bc29157295125f11cdbbfe744fd1ba957750cfc23"
+      },
+      "scope": "实际浏览器可见状态；不证明内部六Map独立读取",
+      "visible_fields": {
+        "session_id": {
+          "value": "s-review-b",
+          "line": 21
+        },
+        "generation": {
+          "value": "1",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-1",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "AsKnown",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "1",
+          "line": 36
+        }
+      },
+      "ax_excerpts": [
+        {
+          "line": 14,
+          "text": "145 text AsKnown @ generation 1"
+        },
+        {
+          "line": 68,
+          "text": "194 text 浏览范围：结构（S） · CC-006 · cut-1 · AsKnown@1 · 活动实例 1 / 撤回 0"
+        },
+        {
+          "line": 246,
+          "text": "359 text 已从 cut cut-1 重建（session s-review-b）"
+        },
+        {
+          "line": 247,
+          "text": "360 text Gap：{\"reason\":\"cursor_ahead_or_session_rebuilt\",\"rebuild_cut\":\"cut-1\"}。已按指定同 cut Snapshot 重建六集合缓存/游标/完整发布绑定。"
+        }
+      ],
+      "related_request_ids": [
+        27,
+        28
+      ],
+      "control_sequence": 8,
+      "counted_valid_stage": true,
+      "timing": "all_stage_requests_received_and_sent_inside_descriptor_interval"
+    }
+  ],
+  "cases": [
+    {
+      "case": "empty",
+      "valid_stages": [
+        "empty-seed3",
+        "empty-rejected",
+        "empty-retry4"
+      ],
+      "negative_and_retry_after3_request_ids": [
+        7,
+        8
+      ],
+      "same_tab_id": "304196083",
+      "no_document_or_current_load_between_negative_and_retry": true,
+      "visible_result": "拒绝错误 Delta 后保留 A3，同页健康重试到 A4",
+      "scope": "仅 GUI 可见状态和实际 HTTP 轨迹；未独立读取内部六个 Map"
+    },
+    {
+      "case": "wrong-old",
+      "valid_stages": [
+        "wrong-old-seed3-confirmed",
+        "wrong-old-rejected",
+        "wrong-old-retry4"
+      ],
+      "negative_and_retry_after3_request_ids": [
+        16,
+        17
+      ],
+      "same_tab_id": "304196083",
+      "no_document_or_current_load_between_negative_and_retry": true,
+      "visible_result": "拒绝错误 Delta 后保留 A3，同页健康重试到 A4",
+      "scope": "仅 GUI 可见状态和实际 HTTP 轨迹；未独立读取内部六个 Map"
+    },
+    {
+      "case": "gap",
+      "valid_stages": [
+        "gap-seed3",
+        "gap-wrong-session-rejected",
+        "gap-retry-new-session-b1"
+      ],
+      "negative_and_retry_after3_request_ids": [
+        25,
+        27
+      ],
+      "same_tab_id": "304196083",
+      "no_document_or_current_load_between_negative_and_retry": true,
+      "visible_result": "拒绝混源响应后保留 A3，同页健康重试合法重建为 B1",
+      "scope": "仅 GUI 可见状态和实际 HTTP 轨迹；未独立读取内部六个 Map"
+    }
+  ],
+  "recorded_exceptions": [
+    {
+      "kind": "failed_ui_operation_retained_not_counted",
+      "label": "wrong-old-seed3",
+      "counted_valid_stage": false,
+      "reason": "该描述符的 AX 实际仍为 A1、cut-1、RecomputedWithRevision，as_of 为 —。相邻请求 13 仅加载 current A1；after_generation=0 的请求 14 尚未发生。文件名不能替代实际种子状态。",
+      "descriptor": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.json",
+        "bytes": 809,
+        "sha256": "0a4e61aff76d1c2dd2efcc51bc1c0e0505f893fbc349652fdf433891a5ac27a1"
+      },
+      "visible_fields": {
+        "session_id": {
+          "value": "s-session-testonly-001",
+          "line": 21
+        },
+        "generation": {
+          "value": "1",
+          "line": 24
+        },
+        "structure_cut": {
+          "value": "cut-1",
+          "line": 27
+        },
+        "history_mode": {
+          "value": "RecomputedWithRevision",
+          "line": 33
+        },
+        "as_of_generation": {
+          "value": "—",
+          "line": 36
+        }
+      },
+      "related_request": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/completed.json",
+        "bytes": 2257,
+        "sha256": "ad4dab1b6a2473925486d4edd49c023ca6642fcedb686105994e9a7ed57415ad"
+      },
+      "valid_replacement": {
+        "label": "wrong-old-seed3-confirmed",
+        "descriptor": {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.json",
+          "bytes": 841,
+          "sha256": "e48ba639edd994cd5593088526da3844525c2268bf83ffe61d125559bd503e08"
+        },
+        "request_ids": [
+          14,
+          15
+        ],
+        "after0_received_at": "2026-09-12T12:20:20.720745+00:00"
+      }
+    }
+  ],
+  "image_equal_bytes_groups": [
+    {
+      "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314",
+      "labels": [
+        "empty-seed3",
+        "wrong-old-seed3-confirmed",
+        "gap-seed3"
+      ]
+    },
+    {
+      "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905",
+      "labels": [
+        "empty-rejected",
+        "wrong-old-rejected"
+      ]
+    },
+    {
+      "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588",
+      "labels": [
+        "empty-retry4",
+        "wrong-old-retry4"
+      ]
+    }
+  ],
+  "service_stop_receipt": {
+    "file": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/SERVICE-STOP-RECEIPT.json",
+      "bytes": 802,
+      "sha256": "778abfd7e6277eaab09f354da0596537fb4281773a1366040e07c1c3cd8184d1"
+    },
+    "content": {
+      "schema": "issue1371.r12.root-tool-receipt.v1",
+      "runtime": "codex_native_root",
+      "evidence_kind": "structured transcription of actual tool results",
+      "stop": {
+        "tool": "write_stdin",
+        "session_id": 38356,
+        "chars": "Ctrl-C",
+        "result": {
+          "chunk_id": "09224c",
+          "wall_time_seconds": 0.000006459,
+          "exit_code": 0,
+          "original_token_count": 1,
+          "output": "^C"
+        }
+      },
+      "listener_check": {
+        "tool": "exec_command",
+        "cmd": "lsof -nP -iTCP:18962 -sTCP:LISTEN",
+        "result": {
+          "chunk_id": "37cfcf",
+          "wall_time_seconds": 0.000001375,
+          "exit_code": 1,
+          "original_token_count": 0,
+          "output": ""
+        }
+      },
+      "limits": "此文件由根从实际工具返回结构转录，不是平台签名原始会话导出；未重跑服务。"
+    }
+  },
+  "integrity_anomalies": [],
+  "limits": [
+    "实际 GUI 发生于本轮 Chrome 页面；HTTP 正文来自已恢复的历史原件，经明确的 TestOnly 输送复用或有记录的变换。这不是新 native 后台运行，也不证明真实 TCP 故障。",
+    "A = s-session-testonly-001，B = s-review-b。Gap 原 after99 正文在 after3 路由重送；该来源路由不一致已由 source_request_matches_target=false 记录，不伪装新源请求。",
+    "三组各自新载页面并种入 A3；组内拒绝到重试使用同一 tab 和页面，中间没有 document/current 重新加载，错误后健康请求仍为 after3。此结论限外部轨迹，不独立证明内部游标变量或六个 Map 的完整状态。",
+    "AX 中页面自述的全字段对拍、六类缓存或其数量属于页面输出；本报告不把它们提升为审计者独立检查内部数据结构的结果。",
+    "截图仅覆盖当时视口；完整 session/generation/cut 等字段以 AX 对照。相同 JPEG 字节已明确分组，不当作额外独立样本。",
+    "服务停止由 STOPPED.json 与根任务对实际工具返回的结构化转录支撑：Ctrl-C exit 0，监听检查 exit 1 且输出为空。后者不是平台签名原会话；本次核对没有重跑停止或监听命令。",
+    "本报告是工具作者的证据核对，不是独立产品审查，不作整个 B、8AC/17 义务或最终关票通过结论。"
+  ]
+}

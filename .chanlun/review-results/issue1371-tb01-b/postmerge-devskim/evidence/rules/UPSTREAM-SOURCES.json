@@ -1,0 +1,44 @@
+[
+  {
+    "upstream_path": "rules/default/security/privacy/secrets.json",
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/privacy/secrets.json",
+    "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/secrets.json",
+    "bytes": 2888,
+    "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+  },
+  {
+    "upstream_path": "rules/default/security/cryptography/random.json",
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/cryptography/random.json",
+    "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/random.json",
+    "bytes": 5408,
+    "sha256": "10a443c02f38d7d312bb415193c8350802e750bfd62c43c266fbc264c06354cc"
+  },
+  {
+    "upstream_path": "rules/default/security/hygiene/todo.json",
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/hygiene/todo.json",
+    "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/todo.json",
+    "bytes": 758,
+    "sha256": "0ad4d46d25cb3474e46df7ce2fed72a2dbbca0583242adf8def2f232449e1fcc"
+  },
+  {
+    "upstream_path": "guidance/DS176209.md",
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/guidance/DS176209.md",
+    "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS176209.md",
+    "bytes": 124,
+    "sha256": "4d707a0075bf5a29a68681d5b05a52e50835e2c78fa5d0977d7a538a0f54aded"
+  },
+  {
+    "upstream_path": "guidance/DS197836.md",
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/guidance/DS197836.md",
+    "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS197836.md",
+    "bytes": 925,
+    "sha256": "da90ea65c5736563a4a6bff2801a36843fe0071646fff301f3623c0befd5c83a"
+  },
+  {
+    "upstream_path": "rules/default/security/cryptography/hash_algorithm.json",
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/cryptography/hash_algorithm.json",
+    "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/hash_algorithm.json",
+    "bytes": 13388,
+    "sha256": "e19354140b81824a82c5646d1aeaf27490b009cfcacebd81a23dbb50b6fa81a0"
+  }
+]

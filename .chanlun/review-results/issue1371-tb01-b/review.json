@@ -1,0 +1,268 @@
+{
+  "ticket": 1371,
+  "review_kind": "TB-01-B 独立评审",
+  "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
+  "branch": "codex/1323-tb01-b-1371",
+  "reviewed_base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "reviewed_head": "8c868f968c5f937870a4305dca05a0e0162b5131",
+  "verdict": "INCOMPLETE",
+  "verdict_scope": "受测域内（TestOnly 逐笔一对一精确退化 OHLC、相邻严格无包含、前两点定向、无同价端点竞争的 CC-006/local_shape）Linux/aarch64 容器可验证面全部通过、无 H/M 缺陷；真实浏览器 GUI 与 macOS native/fullfsync 两项必需验证在本容器不可达、尚未接回，故不给整体 PASS。",
+  "blocking_reason": "无 H/M 缺陷；必需验证（真实浏览器 GUI、macOS native/fullfsync）尚缺，交根接回。",
+  "platform": "linux-aarch64-container",
+  "rustc": "1.97.1",
+  "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
+  "binary_sha256": "3daf4e5f30bb3c75b7c1fdf1bf9ce327dba074c50b5912d5306dc03b04571a3e",
+  "production_file_sha256": {
+    "rust/src/bin/s_structure_session.rs": "0c110dbea358cbbfaafcc3759cd2b5d9931ae6b2e045b88d070ef18812b638b7",
+    "s_session/s_readonly_server.py": "db8998936c5719539e672a453ac2c1b942e84a46baa87bf7d889edf675b147f5",
+    "s_session/browser/index.html": "5c311db8a9f3577379a7719289b68d34cddc72aa365014fe5573afa3a9bf42f0",
+    "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
+  },
+  "catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+  "profile_sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+  "diff_files": [
+    ".chanlun/agent-roster-2026-09-10.md",
+    ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+    ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+    "rust/src/bin/s_structure_session.rs",
+    "s_session/browser/index.html",
+    "s_session/launch_s.sh",
+    "s_session/s_readonly_server.py"
+  ],
+  "unchanged_verified": [
+    "formal/ 无改动",
+    "rust/src/theta_v0/parser/inclusion.rs 无改动",
+    "rust/src/theta_v0/classifier/local_shape.rs 无改动",
+    "s_session/catalog/signed-catalog.json 无改动（与 A 同 hash）",
+    "s_session/profiles/*.json 无改动（与 A 同 hash）"
+  ],
+  "checks": {
+    "cargo_build_bin": {
+      "exit": 0,
+      "note": "PYO3_PYTHON=uv cpython-3.11 aarch64"
+    },
+    "cargo_fmt_check": {
+      "exit": 0
+    },
+    "cargo_check": {
+      "exit": 0
+    },
+    "cargo_clippy_bin": {
+      "exit": 0,
+      "own_file_hits": 0
+    },
+    "bin_tests": {
+      "exit": 0,
+      "result": "18 passed / 0 failed / 0 ignored"
+    },
+    "lib_local_shape_oracle": {
+      "exit": 0,
+      "result": "4 passed"
+    },
+    "launcher_testonly": {
+      "exit": 0,
+      "result": "init/accept(7)/advance(5 对象)/readonly/api-state 200/stop"
+    }
+  },
+  "run_evidence": {
+    "trajectory_main": "e0/e1/e2=10000/11000/10500 -> TOP@[0,1,2] (gen1); e2 rev2=11500 -> RISING@[0,1,2]+withdraw TOP@[0,1,2] (gen2); e3=10800 -> +TOP@[1,2,3] (gen3)。exit 全 0。",
+    "trajectory_late_arm": "e0..e3 先到 -> TOP@[0,1,2]+BOTTOM@[1,2,3]; e2 rev2 更正 -> RISING@[0,1,2]+TOP@[1,2,3]、撤回 TOP@[0,1,2]+BOTTOM@[1,2,3]；raw_history 5 行仍 4 有效源坐标。",
+    "delta_to_snapshot_full_field": "两轨迹（主 3 代 / 晚到 2 代）独立 Python 复刻 applyStream 后与 snapshot 全字段比较：RESULT PASS（0 差异）。",
+    "kill_point_1_after_begin": {
+      "pid": 2883,
+      "signal": "SIGKILL",
+      "wait_status": 9,
+      "proc_cmdline_verified": true,
+      "after_state": "begun:2883:...:1:2, generation=0, batches=0, objects=0, structure_deltas=0, cut-0",
+      "recovery": "advance(epoch1) 拒绝; recover --new-epoch 2; advance --writer-epoch 2 -> gen1 TOP"
+    },
+    "kill_point_2_after_batch": {
+      "pid": 2890,
+      "signal": "SIGKILL",
+      "wait_status": 9,
+      "after_state": "begun:..., generation=0, batches=1(不可达), objects=0, structure_deltas=0, index_frontier='', cut-0",
+      "recovery": "recover --new-epoch 2; advance --writer-epoch 2 -> gen1 TOP"
+    },
+    "kill_point_3_after_commit": {
+      "pid": 2896,
+      "signal": "SIGKILL",
+      "wait_status": 9,
+      "after_state": "idle, generation=1, batches=1, objects=1, structure_deltas=1, cut-1",
+      "recovery": "同输入 accept 重放 -> 全 replay 原收据; generation 仍 1; raw_events 仍 3"
+    },
+    "writer_epoch": "recover 严格单调; 换代后旧 epoch accept/advance 均 StaleWriter(exit 1, raw_events 计数不变=零写入); 新 epoch 成功; writer_epoch_history 记录 (from,to,generation_at_transition)",
+    "reachable_root_check": "删除已发布 batch 后 recover -> exit 1 StorageUnavailable（可达根无对应 batch）; writer_epoch 仍 1, advance_state 仍 idle（无部分换代）",
+    "gap_detection": "删除 gen1 delta 后 watch --after-generation 0 -> gap.reason=cursor_stale_or_retained_delta_missing, rebuild_cut=cut-3",
+    "storage_corruption": "覆盖库头垃圾字节 -> accept/advance/meta exit 1 'file is not a database'; HTTP /api/state|catalog|snapshot|meta 503 StorageUnavailable",
+    "bigint_roundtrip": "源坐标 9007199254741000-1003、revision 9007199254740993/994 经 CLI 与 HTTP 全程规范十进制字符串，无 f64 舍入"
+  },
+  "ac": {
+    "AC1": {
+      "verdict": "PASS(Linux)",
+      "evidence": "launcher --testonly exit 0；三段修订轨迹 + 晚到臂实测；更正由 Rust 核同事务发布，无前端补造。"
+    },
+    "AC2": {
+      "verdict": "PASS",
+      "evidence": "replay/IdentityConflict/supersedes/旧版不复活/更低 revision InvalidDomain/换源坐标拒绝 全部 CLI 实测。"
+    },
+    "AC3": {
+      "verdict": "PASS",
+      "evidence": "local_shape 4 oracle passed；未改 inclusion/local_shape；--testonly 5 对象分支与 A 一致。"
+    },
+    "AC4": {
+      "verdict": "PASS(Linux)",
+      "evidence": "structure_deltas 完整字段；两轨迹 delta->snapshot 全字段对拍 PASS；重复/乱序 Gap 实测。浏览器真实接流 NOT_RUN（交根）。"
+    },
+    "AC5": {
+      "verdict": "PASS",
+      "evidence": "三点真实 SIGKILL(status=9, /proc cmdline 核实) + 正式入口恢复；不可达 batch 不冒充已发布 cut；可达根完整性 StorageUnavailable。"
+    },
+    "AC6": {
+      "verdict": "PASS(Linux)",
+      "evidence": "AsKnown(缺右邻无 TOP/不回填 first_known) 与 RecomputedWithRevision 分栏实测。浏览器分栏交互 NOT_RUN（交根）。"
+    },
+    "AC7": {
+      "verdict": "PASS(Linux)",
+      "evidence": "E/B/X 未启动 S 独立成功；S 损坏 exit 1 + HTTP 503 StorageUnavailable。"
+    },
+    "AC8": {
+      "verdict": "PASS(Linux)",
+      "evidence": "本评审独立保留命令/退出码/输入/平台/PID/信号/退出/重启/DB/API 证据；GUI/macOS NOT_RUN。"
+    }
+  },
+  "items": {
+    "A-CC-006-03": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "修订轨迹 + 三点真杀恢复；同一 local_shape 核。"
+    },
+    "A-CC-006-04": {
+      "verdict": "PASS(CLI/HTTP)",
+      "evidence_type": "ACTUALLY_RUN+SOURCE_REVIEW",
+      "note": "撤回/RISING/后续 TOP 实测；浏览器 DOM 四比较/三见证/历史渲染 NOT_RUN。"
+    },
+    "A-ST-044-02": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "Delta 原子应用 = 同 cut Snapshot 全字段 PASS。"
+    },
+    "A-ST-044-03": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "三点恢复按原游标接回 + AsKnown；C 压力矩阵留 TB-01-C（票面豁免）。"
+    },
+    "A-ES-15-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "E/B/X 未启动 S 独立成功；结构 frontier 未冒充经济 ack。"
+    },
+    "A-ES-15-02": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "Begin/batch/Commit/DeliveryUnknown/恢复迁移与拒绝，前后持久证据齐全。"
+    },
+    "A-RA-04-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "旧 TOP first_known=1/原身份/证据/撤回史保留；经济责任分派不在本片（票面豁免）。"
+    },
+    "A-RA-10-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "同 cut Snapshot/Delta/AsKnown 一致；RecomputedWithRevision 另具名；完整经济历史留后续 TB。"
+    },
+    "A-I-02-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "经济未启动 S 成功；S 损坏 StorageUnavailable 停写；全域故障乘积留后续 TB。"
+    },
+    "A-OB-004-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "raw revision/object_id/object_revision 分列；supersedes/replaces 链；旧版不复活。"
+    },
+    "A-OB-008-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "Delta 重复/乱序/断连(Gap)/原子应用/同 cut 全字段比较。"
+    },
+    "A-OB-009-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "缺右邻不提前 TOP；晚到更正不回写旧 first_known。"
+    },
+    "A-OB-014-01": {
+      "verdict": "PASS",
+      "evidence_type": "SOURCE_REVIEW",
+      "note": "无经济写入路径；本片不销未发/可能已发/已成交责任（票面豁免）。"
+    },
+    "A-OB-015-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "同一 session/generation；delta gen 严格+1、乱序 Gap、换代后旧 epoch 拒绝。"
+    },
+    "A-OB-016-01": {
+      "verdict": "PASS(数据面)",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "撤回断连、真实恢复后 delta->snapshot 全字段 PASS；浏览器收敛渲染 NOT_RUN。"
+    },
+    "A-OB-017-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN+SOURCE_REVIEW",
+      "note": "对象/边/事件/身份/获知史对照；无未来偷看、无 bars 造经济恢复。"
+    },
+    "A-OB-020-01": {
+      "verdict": "PASS",
+      "evidence_type": "ACTUALLY_RUN",
+      "note": "构建/输入/平台/故障/PID/信号/退出/重启/DB/API 证据保留；GUI NOT_RUN。"
+    }
+  },
+  "findings": [
+    {
+      "severity": "L",
+      "id": "L-1",
+      "title": "无新输入时重复 advance 推进 generation 并重发布未变对象",
+      "files": [
+        "rust/src/bin/s_structure_session.rs"
+      ],
+      "lines": [
+        "1407",
+        "1456",
+        "1658",
+        "cmd_advance 1119"
+      ],
+      "trigger": "对同一 DB 连续两次 advance 且其间无新 accept（正式 launcher 与 AC 轨迹不产生，CLI 可直接产生）",
+      "consequence": "generation +1、产生空 delta（upsert 1 未变对象、seq_range 倒置 from=3 to=2、raw_history_added 0）、未变对象 published_generation 前移；不破坏已提交 cut、不影响 watch 收敛与同 cut 对拍",
+      "fix": "commit 前比较 frontier == last_advance_frontier 且无新输入时返回 no-op（不推进 generation），或显式声明并测试「无新输入 advance 幂等 no-op」",
+      "blocking": false
+    },
+    {
+      "severity": "L",
+      "id": "L-2",
+      "title": "as_of/after_generation 接受负 generation，返回空历史视图而非显式拒绝",
+      "files": [
+        "rust/src/bin/s_structure_session.rs",
+        "s_session/s_readonly_server.py"
+      ],
+      "lines": [
+        "rust:2145-2146, 2595-2596",
+        "py:470-480"
+      ],
+      "trigger": "snapshot --as-of -5 或 GET /api/snapshot?as_of=-5",
+      "consequence": "返回合法 JSON 空视图（无对象/无 raw_history）而非拒绝；不损坏数据、不影响正 generation 查询",
+      "fix": "as_of/after_generation 显式要求 >=0（负值返回 InvalidDomain）",
+      "blocking": false
+    }
+  ],
+  "not_run": [
+    "真实浏览器 GUI DOM 渲染与 AsKnown/Recomputed/Delta 交互（AC4/AC7 必需成功；本容器无 chromium/firefox）",
+    "macOS native 构建 / fullfsync / launcher .dylib（C09.2 平台前件）",
+    "全量 cargo test / 全历史重放（有界验证优先）",
+    "分页 / 保留 / 过期压力矩阵 / 跨域经济 AsKnown / 经济故障隔离（TB-01-C 与后续 TB）",
+    "A-OB-014-01/RA-04 经济计划、已交付/可能调用、已成交责任分派（本片不销项）",
+    "I-02/RA-10 全域故障分区与完整经济 AsKnown（后续 TB）",
+    "A-ST-044-01 高级扩展关系（本片未构造）",
+    ">2^53 精确整数在真实浏览器 DOM 的渲染（CLI/HTTP 已实测字符串往返；DOM 未验）"
+  ],
+  "promise": "COMPLETE"
+}

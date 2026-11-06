@@ -1,0 +1,221 @@
+{
+  "schema": "devskim-repair-feasibility/v1",
+  "created_at": "2026-09-12T19:36:02.592811+00:00",
+  "head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "verdict": "NO_IN_SCOPE_REPAIR_TO_GREEN",
+  "read_only": true,
+  "meaning": "在当前冻结字节、固定scanner/ignore及#1194 baseline键语义不变的条件下，不存在已证实的范围内修复可以使本head真实通过DevSkim。不是说工程上永远不能改规则、治理基线或完成旧交易接口。",
+  "counts_reused": {
+    "baseline_unique": 8201,
+    "outside_baseline_unique": 9233,
+    "not_actionable": 9232,
+    "needs_review": 1,
+    "confirmed_new_scanner_claims": 0,
+    "actual_security_defect_count": null,
+    "immutable_r13_r14_document_keys_sufficient_to_keep_gate_red": 1272
+  },
+  "policy_evidence": {
+    "local_baseline_note": "#1194 (a) 基线：存量 findings 冻结，gate 只拦新增；修复存量只作信息行",
+    "enforced_new_definition": "current SARIF keys minus committed baseline findings, not current PR diff and not prior PR head",
+    "gate_key": "ruleId|first URI without leading file://|startLine",
+    "live_issue_1194_full_text_independently_read": false,
+    "live_issue_review_owner": "root同时核#1194/#1385；本工位依据固定baseline元数据、门禁代码与真实run日志"
+  },
+  "minimal_impossibility_evidence": [
+    "已冻结的新R13/R14文档单独保留1272个baseline外键。",
+    "固定规则会继续匹配这些不变字节；已实际SARIF及精确字段/跨度证明。",
+    "固定baseline不含这些键；现行gate遇任一外键即FAIL。",
+    "因此即使修复其他产品缺陷，也不能在这些约束全部不变时达到零baseline外键。"
+  ],
+  "scanner_assessment": {
+    "upstream_commit": "fb2d676ce475a47c0338966bebd97a47ae566572",
+    "pinned_cli": "1.0.90",
+    "sarif_driver": "1.0.90+fb2d676ce4",
+    "execution_deviation_confirmed": false,
+    "interpretation": "官方规则是词法启发式；已分诊摘要、artifact_key与跨压缩数据匹配符合这些规则。误报本身不证明实现违背固定规则，也不是gate差集计算错误。",
+    "rule_checks": [
+      {
+        "id": "DS173237",
+        "pattern": "[\"'][a-f0-9]{30,}[\"']",
+        "actual_exemptions": [
+          "InternalsVisibleTo assembly/XML同一行",
+          "finding-only全零串"
+        ],
+        "evidence": "固定secrets.json不按sha256字段用途自动排除；实际新增命中全部具名40/64hex。"
+      },
+      {
+        "id": "DS117838",
+        "pattern": "(secret|license|key|pass).*[a-f0-9]{30,}",
+        "evidence": "artifact_key包含key；单行大容器允许贪婪跨度。改为非贪婪不消灭213个真实词法匹配。"
+      },
+      {
+        "id": "DS197836",
+        "pattern": "(MD4|MD5|(SHA(1|224|256|384|512))).*Time",
+        "modifiers": [
+          "i"
+        ],
+        "evidence": "规则不证明函数调用；实报起止在base64数据内部且跨38个data字段。"
+      },
+      {
+        "id": "DS176209",
+        "pattern": "(TODO|FIXME|REMOVEME|HACK|BLACK MAGIC)",
+        "severity": "ManualReview",
+        "evidence": "官方是可疑未完成功能提示，不是已证实漏洞；删除TODO不能完成实际entry映射。"
+      }
+    ]
+  },
+  "strategy_entry_mapping": {
+    "verdict": "NEEDS_REVIEW_OUT_OF_SCOPE_FOR_TB01_B",
+    "locations": [
+      "rust/src/theta_v0/nautilus/strategy.rs:207",
+      "rust/src/theta_v0/nautilus/strategy.rs:217",
+      "rust/src/theta_v0/nautilus/strategy.rs:234",
+      "rust/src/theta_v0/nautilus/strategy.rs:312",
+      "rust/src/theta_v0/nautilus/strategy.rs:316",
+      "rust/src/theta_v0/nautilus/order_adapter.rs:67",
+      "rust/src/theta_v0/nautilus/order_adapter.rs:81",
+      "rust/src/theta_v0/nautilus/order_adapter.rs:94"
+    ],
+    "observed_behavior": "entry_tick_for恒返回None，开仓Buy/Add/Sell意图把传入entry_tick写到price_tick，故填Some(entry)会改变市价/限价意图。",
+    "proof_gap": "Order不携带entry；代码明示decisions与orders非一一。没有本票内证据使任意第一匹配、最近价格、zip或统一限价策略成为既定交易契约。",
+    "minimum_real_repair_boundary": [
+      "保留或增加decision→order可追踪entry归属数据",
+      "明确多对一/冲突时entry选择及订单动作范围",
+      "按既有权威契约核缺失entry行为，并测试订单意图/价格正确性"
+    ],
+    "allowed_to_close_without_new_business_semantics_decision": false,
+    "risk_fully_excluded": false
+  },
+  "options": [
+    {
+      "option": "重试相同scanner/head",
+      "assessment": "不是真实修复；固定字节和规则仍保留1272个不可变文档键。"
+    },
+    {
+      "option": "删除TODO或换词",
+      "assessment": "掩盖待办；None行为未改，不能关闭该问题，也不能使文档键消失。"
+    },
+    {
+      "option": "修改已冻结摘要字段、压缩排版、把证据移走或删掉",
+      "assessment": "破坏已冻结证据字节/归档范围，且没有修复业务缺陷。"
+    },
+    {
+      "option": "扩baseline、路径ignore、字段白名单、筛SARIF、仅扫描PRdiff、改变severity门、continue-on-error",
+      "assessment": "门禁或例外政策变更；不能冒充代码修复，当前约束不允许。"
+    },
+    {
+      "option": "去列号/行号漂移误差",
+      "assessment": "既有门禁只取startLine；已证明1对行移，不是计数错误。改为内容身份会变baseline语义，且不解决1272固定文档键。"
+    },
+    {
+      "option": "升级/补丁scanner规则",
+      "assessment": "需要改变固定scanner版本/规则，形成另一个需验收的政策与扫描器变更；本轮无现成官方修复证据且不在约束内。"
+    },
+    {
+      "option": "按用户条件授权处理固定head例外",
+      "assessment": "可由root按最新用户授权执行并明确保留DevSkim FAIL；这是例外批准，不是安全缺陷清零或检查变绿。"
+    }
+  ],
+  "source_files": [
+    {
+      "path": "scripts/devskim_sarif_gate.sh",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 9389,
+      "sha256": "bb5a293ab036624244eb5b29bc2358c352929fc65ea61845e50b53c7f4e2bd51"
+    },
+    {
+      "path": ".github/workflows/devskim.yml",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 3429,
+      "sha256": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e"
+    },
+    {
+      "path": ".github/devskim-baseline.json",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 1119384,
+      "sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595"
+    },
+    {
+      "path": ".github/devskim/Dockerfile",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 1417,
+      "sha256": "f0b71abb79139549eced074f0af4df14f7cbe55b8be4de6dd5f77d138fe6f375"
+    },
+    {
+      "path": ".github/devskim/entrypoint.sh",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 771,
+      "sha256": "f22f05ca60a85b5eef9aee879d0c34a6743758d2d499281ed0d56d5a16d50135"
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/strategy.rs",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 33004,
+      "sha256": "31425429a9c823b7b958a803a8a0520e306693383e95d13b8cab5e045b3506d8"
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/order_adapter.rs",
+      "revision": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "bytes": 7491,
+      "sha256": "bf30683af3a48bb75cde917d52bb4559ed8e07d3f946b93b8b6abc2f7594aab6"
+    }
+  ],
+  "upstream_sources": [
+    {
+      "upstream_path": "rules/default/security/privacy/secrets.json",
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/privacy/secrets.json",
+      "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "upstream_path": "rules/default/security/cryptography/random.json",
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/cryptography/random.json",
+      "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/random.json",
+      "bytes": 5408,
+      "sha256": "10a443c02f38d7d312bb415193c8350802e750bfd62c43c266fbc264c06354cc"
+    },
+    {
+      "upstream_path": "rules/default/security/hygiene/todo.json",
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/hygiene/todo.json",
+      "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/todo.json",
+      "bytes": 758,
+      "sha256": "0ad4d46d25cb3474e46df7ce2fed72a2dbbca0583242adf8def2f232449e1fcc"
+    },
+    {
+      "upstream_path": "guidance/DS176209.md",
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/guidance/DS176209.md",
+      "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS176209.md",
+      "bytes": 124,
+      "sha256": "4d707a0075bf5a29a68681d5b05a52e50835e2c78fa5d0977d7a538a0f54aded"
+    },
+    {
+      "upstream_path": "guidance/DS197836.md",
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/guidance/DS197836.md",
+      "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS197836.md",
+      "bytes": 925,
+      "sha256": "da90ea65c5736563a4a6bff2801a36843fe0071646fff301f3623c0befd5c83a"
+    },
+    {
+      "upstream_path": "rules/default/security/cryptography/hash_algorithm.json",
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/cryptography/hash_algorithm.json",
+      "local_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/hash_algorithm.json",
+      "bytes": 13388,
+      "sha256": "e19354140b81824a82c5646d1aeaf27490b009cfcacebd81a23dbb50b6fa81a0"
+    }
+  ],
+  "prior_evidence": [
+    "work/PR1449-DEVSKIM-R14-TRIAGE.md",
+    "work/PR1449-DEVSKIM-R14/CHECKOUT-BINDING.json",
+    "work/PR1449-DEVSKIM-R14/COMPARISON.json",
+    "work/PR1449-DEVSKIM-R14/CONTAINER-SPANS.json"
+  ],
+  "actions_not_performed": [
+    "未重读65MB全枚举",
+    "未重扫/构建/测试产品",
+    "未改产品、baseline、ignore、scanner、workflow或Git/GH",
+    "未发表评论",
+    "未启动Prime"
+  ],
+  "discovery_limit": "MCP search_graph对本目标返回project not found or not indexed；随后仅按具名路径读取固定Git blob中的entry调用及adapter片段，未切换到其他checkout旧索引。"
+}

@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 10302193750,
+      "node_id": "MDg6QXJ0aWZhY3QxMDMwMjE5Mzc1MA==",
+      "name": "devskim-sarif",
+      "size_in_bytes": 71962203,
+      "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10302193750",
+      "archive_download_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10302193750/zip",
+      "expired": false,
+      "digest": "sha256:19e96646cfd2db4fdcd8a4941b96c1382da3c55216119a2a869c8270a986f9eb",
+      "created_at": "2026-09-12T18:06:02Z",
+      "updated_at": "2026-09-12T18:06:02Z",
+      "expires_at": "2026-09-26T18:05:58Z",
+      "workflow_run": {
+        "id": 34709866745,
+        "repository_id": 1150335160,
+        "head_repository_id": 1150335160,
+        "head_branch": "codex/1371-codex-r12",
+        "head_sha": "256cd822e0d872f1fb65d433ca0b15b01fa621a2"
+      }
+    }
+  ]
+}

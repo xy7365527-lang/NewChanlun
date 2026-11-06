@@ -1,0 +1,237 @@
+{
+  "ticket": 1371,
+  "review_kind": "TB-01-B 独立评审·增量复审（R1 → 根修复候选）",
+  "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
+  "branch": "codex/1323-tb01-b-1371",
+  "reviewed_base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "reviewed_head": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+  "prior_reviewed_head": "8c868f968c5f937870a4305dca05a0e0162b5131",
+  "prior_report_tip": "6039b83f6a1730daeb0d557f3bb712d8c31c92bd",
+  "verdict": "INCOMPLETE",
+  "verdict_scope": "受测域内（TestOnly 逐笔一对一精确退化 OHLC、相邻严格无包含、前两点定向、无同价端点竞争的 CC-006/local_shape）根评审 REQUEST_CHANGES 的全部 H/M 已修复并经 Linux 实测通过；残留 1 项 L 防御缺口；真实浏览器 GUI 与 macOS native/fullfsync 两项必需验证尚未接回，故不得整体 PASS。",
+  "blocking_reason": "H/M 已全部解决；仅剩必需验证（真实浏览器 GUI、macOS native/fullfsync）尚缺 + 1 L 残留，交根。",
+  "platform": "linux-aarch64-container",
+  "rustc": "1.97.1",
+  "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
+  "binary_sha256": "e500f13f002c5521dba20daff852401588606e67a4405163ae2a29cfab838854",
+  "production_file_sha256": {
+    "rust/src/bin/s_structure_session.rs": "2e06b83eb220934aba6f88f3be31ea876fe21b63984ce0a78dc162549dfdeb9e",
+    "s_session/s_readonly_server.py": "8024b01ca38215a23357afd8354c76b392565c895bac472269617fb531addef1",
+    "s_session/browser/index.html": "bbc86d0158bfebc5a9f5e73070f99a19f89532c4a35f28f477d076c7ca0c5084",
+    "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
+  },
+  "catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+  "profile_sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+  "checks": {
+    "cargo_build_bin": {
+      "exit": 0
+    },
+    "cargo_fmt_check": {
+      "exit": 0
+    },
+    "cargo_check": {
+      "exit": 0
+    },
+    "cargo_clippy_bin": {
+      "exit": 0,
+      "own_file_hits": 0
+    },
+    "bin_tests": {
+      "exit": 0,
+      "result": "22 passed / 0 failed"
+    },
+    "lib_local_shape_oracle": {
+      "exit": 0,
+      "result": "4 passed"
+    }
+  },
+  "findings": [
+    {
+      "severity": "L",
+      "id": "L-NEW-1",
+      "title": "读端 read_delta 对持久 delta 嵌套字段只做形状校验、未做规范字符串整数投影/校验",
+      "files": [
+        "s_session/s_readonly_server.py"
+      ],
+      "lines": [
+        "426-445 (_validate_delta_shape)"
+      ],
+      "trigger": "持久 structure_deltas.delta_json 被人工注入 JSON number（如 object_revision:9007199254740993）时，/api/delta 仍 200 透传 number（实测）；生产 Rust 路径不会产生（已实测 production wire 整数全为 str）",
+      "consequence": "损坏持久值未在 HTTP 层 503 拒绝；浏览器 canonicalFieldCompare 类型比较会报差异（不会静默 PASS），BigInt 防 >2^53 回转，故不产生错误结论",
+      "fix": "_validate_delta_shape（或独立投影）对声明整数字段（object_revision/window_*/first_known_generation/published_generation/withdrawn_generation、seq_range.from/to、witnesses.slot/merged_source_index）校验 TEXT/规范十进制字符串，坏值 503",
+      "blocking": false
+    }
+  ],
+  "r1_findings": [
+    {
+      "id": "L-1",
+      "title": "无新输入重复 advance 推进 generation",
+      "disposition": "已修复",
+      "evidence": "cmd_advance:1178 幂等门；实测连续 advance generation 保持 1；advance_without_new_input_is_idempotent 测试通过"
+    },
+    {
+      "id": "L-2",
+      "title": "负 as_of/after_generation 接受",
+      "disposition": "已修复",
+      "evidence": "Rust --as-of/--after-generation 拒绝负值 exit 1；Python _parse_nonneg 400；实测"
+    }
+  ],
+  "root_findings": [
+    {
+      "id": "ROOT-B-R1-01",
+      "disposition": "已修复",
+      "evidence": "历史头+目录证据按代+对象 batch/pg 首发布稳定；实测 current RISING pg=2 batch=gen2、AsKnown gen1/2 历史头、catalog --as-of 2 evidence=gen2 批次"
+    },
+    {
+      "id": "ROOT-B-R1-02",
+      "disposition": "已修复(代码)",
+      "evidence": "applyStream 验证后 renderAllFromState 驱动正式渲染；真实 DOM NOT_RUN"
+    },
+    {
+      "id": "ROOT-B-R1-03",
+      "disposition": "已修复(代码)",
+      "evidence": "tmp 状态+验证通过才提交游标；空 delta 全字段复核；真实传输故障 GUI NOT_RUN"
+    },
+    {
+      "id": "ROOT-B-R1-04",
+      "disposition": "已修复(代码)",
+      "evidence": "asof-input value=0 + load('current') + 输入校验"
+    },
+    {
+      "id": "ROOT-B-R1-05",
+      "disposition": "已修复",
+      "evidence": "_canonical_gen/_validate_delta_shape/完整连续性/_frontier_at_generation/_frontier_i64/session 绑定；实测全触发"
+    },
+    {
+      "id": "ROOT-B-R1-06",
+      "disposition": "已修复",
+      "evidence": "verify_reachable_root:326 三写入口；实测删 batch 后 accept/advance/recover exit 1，持久状态不变"
+    }
+  ],
+  "native_crash_findings": [
+    {
+      "id": "delivery-unknown-original-identity-query",
+      "disposition": "已修复",
+      "evidence": "cmd_query:2522；实测 query e2 3 修订+latest_published；同 argv advance 幂等"
+    },
+    {
+      "id": "default-snapshot-mixes-unpublished-revision",
+      "disposition": "已修复",
+      "evidence": "current raw_history 以 last_advance_frontier 为界；实测 accept rev3 未 advance 时 raw_history 仍 5"
+    },
+    {
+      "id": "unpublished-as-known-mixed-payload",
+      "disposition": "已修复",
+      "evidence": "frontier_at_generation:2255 缺失→Unavailable；实测 --as-of 5 exit 1"
+    }
+  ],
+  "python_findings": [
+    {
+      "id": "PY-DRAFT-H01",
+      "disposition": "已修复",
+      "evidence": "_canonical_gen:71；实测 broken/缺失→ValueError"
+    },
+    {
+      "id": "PY-DRAFT-H02",
+      "disposition": "已修复",
+      "evidence": "read_delta 完整连续+末端；实测中洞/尾洞 gap"
+    },
+    {
+      "id": "PY-DRAFT-H03",
+      "disposition": "已修复",
+      "evidence": "after>current→gap；sid 不一致→ValueError"
+    },
+    {
+      "id": "PY-DRAFT-H04",
+      "disposition": "已修复",
+      "evidence": "_validate_delta_shape:426；实测 upserts 非数组→ValueError"
+    },
+    {
+      "id": "PY-DRAFT-H05",
+      "disposition": "部分修复（残留 L-NEW-1）",
+      "evidence": "浏览器 BigInt+有界 input 已修；读端 delta 嵌套整数投影未做（生产路径已字符串化）"
+    },
+    {
+      "id": "PY-DRAFT-H06",
+      "disposition": "已修复(代码)",
+      "evidence": "tmp 状态+验证通过才提交；空 delta 全字段复核"
+    },
+    {
+      "id": "PY-DRAFT-M01",
+      "disposition": "已修复",
+      "evidence": "parse_qsl+urlsplit+InvalidQuery；实测编码/重复/坏值 400、未发布 503"
+    },
+    {
+      "id": "PY-DRAFT-M02",
+      "disposition": "已修复",
+      "evidence": "load('current')；node 验证 historyMode=current"
+    },
+    {
+      "id": "PY-8C-H07",
+      "disposition": "已修复",
+      "evidence": "_frontier_i64:85；实测文本/浮点 frontier→ValueError、行缺失→Unavailable"
+    }
+  ],
+  "ac": {
+    "AC1": {
+      "verdict": "PASS(Linux)",
+      "evidence": "launcher --testonly exit 0；三段轨迹+晚到臂实测；先 Begin 再解释"
+    },
+    "AC2": {
+      "verdict": "PASS",
+      "evidence": "replay/IdentityConflict/supersedes/replaces/旧版不复活/换源坐标拒绝"
+    },
+    "AC3": {
+      "verdict": "PASS(Linux 数据面)",
+      "evidence": "delta→snapshot 全字段对拍 PASS；重复/乱序/断连/空增量 Gap；浏览器 DOM NOT_RUN"
+    },
+    "AC4": {
+      "verdict": "PASS",
+      "evidence": "三点真实 SIGKILL(wait=9,/proc cmdline 核)→正式入口恢复；不可达 batch 不冒充已发布"
+    },
+    "AC5": {
+      "verdict": "PASS",
+      "evidence": "query --identity-key 只读+latest_published；同 argv advance 幂等；recover 单调换代+旧 epoch 零写入"
+    },
+    "AC6": {
+      "verdict": "PASS(Linux)",
+      "evidence": "历史头不可变+未发布 cut Unavailable+缺右邻无 TOP+晚到不回写 first_known"
+    },
+    "AC7": {
+      "verdict": "PASS(Linux)",
+      "evidence": "只启动 S+只读外壳；库头损坏 exit 1+可达根损坏阻断写入+503"
+    },
+    "AC8": {
+      "verdict": "PASS(Linux)",
+      "evidence": "独立保留命令/exit/PID/信号/重启/DB/API 读数；GUI/macOS NOT_RUN"
+    }
+  },
+  "items": {
+    "A-CC-006-03": "PASS",
+    "A-CC-006-04": "PASS(CLI/HTTP); GUI NOT_RUN",
+    "A-ST-044-02": "PASS",
+    "A-ST-044-03": "PASS",
+    "A-ES-15-01": "PASS",
+    "A-ES-15-02": "PASS",
+    "A-RA-04-01": "PASS(本片子义务; 经济责任不销项)",
+    "A-RA-10-01": "PASS(本片子义务; 完整经济 AsKnown 留后续)",
+    "A-I-02-01": "PASS(本片子义务; 全域故障分区留后续)",
+    "A-OB-004-01": "PASS",
+    "A-OB-008-01": "PASS",
+    "A-OB-009-01": "PASS",
+    "A-OB-014-01": "PASS(本片子义务; 经济责任不销项)",
+    "A-OB-015-01": "PASS",
+    "A-OB-016-01": "PASS(数据面); GUI NOT_RUN",
+    "A-OB-017-01": "PASS",
+    "A-OB-020-01": "PASS(可复核); GUI 证据 NOT_RUN"
+  },
+  "not_run": [
+    "真实浏览器 GUI DOM 渲染与 AsKnown/Recomputed/Delta 交互（AC3/AC6 浏览器必需成功）",
+    "macOS native 构建 / fullfsync / launcher .dylib（C09.2 平台前件）",
+    ">2^53 精确整数经真实浏览器 DOM 渲染（CLI/HTTP 已实测字符串往返）",
+    "全量 cargo test / 全历史重放（有界验证优先）",
+    "分页/保留/过期压力矩阵、跨域经济 AsKnown、经济故障隔离（TB-01-C 与后续 TB）",
+    "A-OB-014-01/RA-04 经济计划/成交责任分派、I-02/RA-10 全域故障分区、A-ST-044-01 高级扩展关系（后续 TB）"
+  ],
+  "promise": "COMPLETE"
+}

@@ -1,0 +1,161 @@
+{
+  "ticket": 1371,
+  "scope": "根在已复制的仓内尾包独立完整解码校验；无扫描或产品重跑",
+  "result": "PASS",
+  "sources": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "sha256": "490907cd28637bb8125c98fc8a3f206fd1f1bbbb6bd267243acace5574b14b26",
+      "bytes": 9369,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.json",
+      "sha256": "78e2b5e6295530fb41ed0d6918785346221782d395f513eecb097fe5794194c3",
+      "bytes": 65909936,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY.md",
+      "sha256": "4ecf4612a3d0d975f4b7b955f60388edb8273a2936ab70212e75c56501fc834a",
+      "bytes": 5853,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "sha256": "c47e6e23d855fdd06efd703cc1140a6a1d8737a458c402f8badde34df32bf4ce",
+      "bytes": 11182,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/REPORT-FREEZE.json",
+      "sha256": "b76324a2d358375bae4fcf3da23d635034d3bcdf7f17724743f433459f2b4d91",
+      "bytes": 819,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/DOWNLOAD.json",
+      "sha256": "731ae4937bfea895b8303a10832e04ab0131d793e22864418f1b6c97999ae9df",
+      "bytes": 424,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/ARTIFACTS.json",
+      "sha256": "358f0f1b1ab0134bab8d0a9c8eba9aaca55f9572c3f3fbcc6286a7ba243dae4b",
+      "bytes": 917,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/RUN-FINAL.json",
+      "sha256": "1bd7398694690934ba3a9735ae33bcef2315a8a84f2b4f01f8d0db9b0bc88e5a",
+      "bytes": 14848,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/JOBS.json",
+      "sha256": "9c4f4a9bc2e96179ee4cf7b3033098b97ddf34be5984a5c69053ee8c0e2490c0",
+      "bytes": 3234,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/CHECKOUT-BINDING.json",
+      "sha256": "cc5ca41c40cfa9324d3df7a56102dbbcbd356c901973bd3c6b715f64a11bc67d",
+      "bytes": 1987,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/PREPARED-EVIDENCE.json",
+      "sha256": "fb6693720adab9d65a3ec2591fdc7e40f78dca278d54b24cb6bed0d3ba688868",
+      "bytes": 195704,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/CONTAINER-SPANS.json",
+      "sha256": "3c47b13b7935adaa3b81e39c9867806ac279a7df9a557135eeb5eefc9f865c83",
+      "bytes": 1099,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-R14-DEVSKIM-FULL.log",
+      "sha256": "77ee0bb75551c8da1efd7047f81016dd08f43c9568844e4b4246374a34112cf7",
+      "bytes": 1736383,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/REPORT-FREEZE.json",
+      "sha256": "fbdfb115e4c754d58f834e3c84d7703c64ecbacd999f24ba86031fa150323718",
+      "bytes": 585,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/UPSTREAM-SOURCES.json",
+      "sha256": "ef071045fde7e6f7b0a7dc27af451fb2f4ac5a1d2576aa9e69084bc7f34b0a2f",
+      "bytes": 2750,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/UPSTREAM-TREE.json",
+      "sha256": "bec771a5ff1d980e7ddaf6a98656a0dea328a8923a680b72a20db1d2e7cc2b9c",
+      "bytes": 95973,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/secrets.json",
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "bytes": 2888,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/random.json",
+      "sha256": "10a443c02f38d7d312bb415193c8350802e750bfd62c43c266fbc264c06354cc",
+      "bytes": 5408,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/todo.json",
+      "sha256": "0ad4d46d25cb3474e46df7ce2fed72a2dbbca0583242adf8def2f232449e1fcc",
+      "bytes": 758,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/hash_algorithm.json",
+      "sha256": "e19354140b81824a82c5646d1aeaf27490b009cfcacebd81a23dbb50b6fa81a0",
+      "bytes": 13388,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS176209.md",
+      "sha256": "4d707a0075bf5a29a68681d5b05a52e50835e2c78fa5d0977d7a538a0f54aded",
+      "bytes": 124,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS197836.md",
+      "sha256": "da90ea65c5736563a4a6bff2801a36843fe0071646fff301f3623c0befd5c83a",
+      "bytes": 925,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/RESULT.json",
+      "sha256": "19be861e3f44daddcd40c04eddfe9768d783b2487e44ff53f7d9c36ff5afd1ca",
+      "bytes": 1031,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/REVIEWED-ONLY-GATE.stdout",
+      "sha256": "bca62dbb45c67e9aed5f8ec46a6a9750a42016fb11528516112dcc46f46f30ee",
+      "bytes": 1001,
+      "exact": true
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/REVIEWED-ONLY-GATE.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "exact": true
+    }
+  ],
+  "external_sarif_included": false,
+  "product_modified": false,
+  "main_checks": "MAIN-CHECKS.json",
+  "generated_validation_file_self_hash_excluded": true
+}

@@ -1,0 +1,133 @@
+{
+  "ticket": 1371,
+  "observed_at": "2026-09-12T18:05:45.135206+00:00",
+  "delivery_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "previous_preservation_manifest": "POSTMERGE-WORKSTATION-PRESERVATION/MANIFEST.json",
+  "previous_report": "POSTMERGE-WORKSTATION-PREFLIGHT.json",
+  "worktrees": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.sandcastle/worktrees/codex-1323-tb01-b-1371",
+      "head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "? .chanlun/review-results/issue1371-tb01-b/review-r6.json\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12",
+      "head": "750f933bddffc8251a880555b9beae2cdce75690",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-acceptance",
+      "head": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r10-acceptance",
+      "head": "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r11-acceptance",
+      "head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r2-acceptance",
+      "head": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r3-acceptance",
+      "head": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 13606cb80c27630665b1c5a7a31af60d5f3bd356 13606cb80c27630665b1c5a7a31af60d5f3bd356 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r4-acceptance",
+      "head": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 23636640d70956b2b6b06e2892b3ca2b23803342 23636640d70956b2b6b06e2892b3ca2b23803342 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r5-acceptance",
+      "head": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r6-acceptance",
+      "head": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 e05cf8e8d79f9343b425220818d16e2b63a70359 e05cf8e8d79f9343b425220818d16e2b63a70359 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r7-acceptance",
+      "head": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r8-acceptance",
+      "head": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "1 .M N... 100644 100644 100644 f10a9d334e3cece21726fc7c831e31620718bca1 f10a9d334e3cece21726fc7c831e31620718bca1 .chanlun/agent-roster-2026-09-10.md\n",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r9-acceptance",
+      "head": "667ce698eacd8c8f50ec5846f24c779b492010a8",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "",
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r13",
+      "head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "same_as_previous": true,
+      "head_ancestor_of_delivery": true,
+      "status": "",
+      "cleanup_performed": false
+    }
+  ],
+  "scope": "仅补核当前R14实施树及旧13树头祖先关系；未删工作树、未清分支、未同步主仓",
+  "cleanup_preconditions": [
+    "新head合入授权",
+    "实际main合入及main验证",
+    "重新核未提交面和已保全九文件",
+    "按票交付纪律完成收尾"
+  ],
+  "protected": [
+    "/Users/silencehan/Projects/NewChanlun",
+    "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z",
+    "#1323父树及非本票树"
+  ]
+}

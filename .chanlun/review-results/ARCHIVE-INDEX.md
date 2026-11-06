@@ -4,11 +4,11 @@
 
 - 归档位置：`/Volumes/AgentStorage/repo-archive/review-results-closed-9b436af2d2.tar`（tar，保留了 main `9b436af2d2` 时的原始路径，可用 `tar -xf <tar> <目录>` 取回）
 - 归档时间：2026-11-06
+- tar 里另有 `issue1371-tb01-b`，那个目录由 #1908 出仓，本表不收，以免两处重复出仓。
 
 | 目录 | 票 |
 |---|---|
 | 1488-acceptance | #1488 |
-| issue1371-tb01-b | #1371 |
 | issue1372-devskim-summary-20260913 | #1372 |
 | issue1372-main-delivery-20260913 | #1372 |
 | issue1373-tb02a-20260913 | #1373 |
