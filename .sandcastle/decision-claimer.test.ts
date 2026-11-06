@@ -17,6 +17,8 @@ import {
   claudeArgs, MAIN_CONTINUE_LINE, loadTriageDone,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
+import { QUEUE_LABEL, releaseLabel, withQueueAdmission } from "./deepagents-cutover.mts";
+import { withLegacyAdmission } from "./drain-control.mts";
 import { MAIN_SESSION_FILE } from "./main-session.mts";
 
 const pass = (basis = "回查成立") => Object.fromEntries(RULES.map((r) => [r, { verdict: "PASS", basis }]));
@@ -230,6 +232,7 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
   const d: Deps = {
     mode,
     drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-")),
+    stateRoot: mkdtempSync(join(tmpdir(), "decision-state-")),
     gh: guardGh(mode, raw),
     git: (cwd, args) => {
       assert.ok(["rev-parse", "ls-tree", "show"].includes(args[0]), "dry-run 仅允许读取固定原件");
@@ -644,7 +647,8 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
   };
   const gitCalls: string[][] = [];
   const d: Deps = {
-    mode: "live", drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-live-")), gh, me: "me",
+    mode: "live", drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-live-")),
+    stateRoot: mkdtempSync(join(tmpdir(), "decision-state-live-")), gh, me: "me",
     git: (cwd, args) => {
       gitCalls.push(args);
       if (args[0] === "worktree" && args[1] === "add" && failLand) { failLand = false; throw new Error("宿主落地暂时失败"); }
@@ -1216,9 +1220,9 @@ test("冻结保留 P 类 pDone，解冻只补标签和取消认领而不重复�
   assert.deepEqual(h.gitCalls, []);
 });
 
-test("锁：旧入口主循环每轮开始检查 drainRequested", () => {
+test("锁：裁决主循环每轮开始使用共享切流准入判断", () => {
   const source = readFileSync(join(process.cwd(), ".sandcastle", "decision-claimer.mts"), "utf8");
-  assert.match(source, /for \(;;\) \{\s*if \(drainRequested\(d\.drainRoot\)\)/);
+  assert.match(source, /for \(;;\) \{\s*if \(graphAdmissionFrozen\(d\)\)/);
 });
 
 // ───────────── #1785：安全拦截改派与异家族独审 ─────────────
@@ -2538,4 +2542,94 @@ test("A22：轮次检查点提交失败不能发布已完成独审别名", async
   assert.equal(second.phase, "land_t", second.error ?? "");
   assert.deepEqual(cli.calls.map(c => c.role), ["review"]);
   assert.equal(second.attempts, 1);
+});
+
+// #1709/#1742：只用临时根、Git/gh/模型替身验证切流后的裁决面。
+function cutoverFor(d: Deps) {
+  drainCli(d, "freeze");
+  const stateRoot = mkdtempSync(join(tmpdir(), "decision-cutover-"));
+  d.stateRoot = stateRoot;
+  const workers = join(stateRoot, "workers.jsonl");
+  writeFileSync(workers, "");
+  const record = { v: 1, drain_generation: 1, frozen_at: "fixture", legacy_snapshot: [],
+    workers_log_length: 0, workers_log_path: workers, open_claims: [], remote_jobs_idle: true,
+    remote_freeze_var: "1", variable_source: "user-token-readonly", release_label: QUEUE_LABEL,
+    legacy_services_unloaded: ["com.newchanlun.sandcastle-claimer", "com.newchanlun.sandcastle-harvest"],
+    engine_head: "a".repeat(40) };
+  writeFileSync(join(stateRoot, "cutover.json"), JSON.stringify(record));
+  return { stateRoot, workers, record };
+}
+
+for (const klass of ["T", "P"] as const) {
+  test(`切流准入：draining 下 ${klass} 类仍走原独审与落地，旧实施入口保持冻结`, async () => {
+    const h = liveDeps([fence({ class: klass, reason: "合同" }), goodDraft, fence(pass())]);
+    const f = cutoverFor(h.d);
+    const result = await processTicket(1565, h.d);
+    assert.equal(result.error, undefined);
+    assert.equal(result.phase, klass === "T" ? "land_t" : "shadow_p");
+    assert.deepEqual(h.modelCalls.map(c => c.role), ["triage", "draft", "review"]);
+    assert.notEqual(modelFamily(h.modelCalls[1].model), modelFamily(h.modelCalls[2].model));
+    assert.equal(h.gitCalls.some(a => a[0] === "push"), klass === "T");
+    assert.equal(h.ghCalls.some(a => a.includes("needs-approval")), klass === "P");
+    assert.equal(h.comments.some(c => c.body.includes("**resolution**")), klass === "T");
+    assert.ok(!h.ghCalls.filter(isWrite).some(a => a.includes("sandcastle") || a.includes(QUEUE_LABEL)));
+    assert.equal(readFileSync(f.workers, "utf8"), "");
+    assert.equal(releaseLabel(f.stateRoot, h.d.drainRoot), QUEUE_LABEL);
+    await assert.rejects(withLegacyAdmission(() => assert.fail("旧工蜂不得放行"), h.d.drainRoot));
+  });
+}
+test("切流准入：archaeology-only 同样可在 draining 下只读考古", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "T", reason: "只读" })], [goodArch]);
+  cutoverFor(h.d);
+  const result = await archaeologyOnlyAdmission(1355, h.d);
+  assert.equal(result.ticket, 1355);
+  assert.deepEqual(writesOf(h.ghCalls), []);
+  assert.equal(h.archCalls.length, 1);
+});
+
+for (const invalid of ["missing", "malformed", "generation", "open-claims"]) {
+  test(`切流准入：${invalid} 冻结记录不得产生 claim、模型调用或覆盖断点`, async () => {
+    const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
+    h.fail(a => a[1] === "comment" && h.comments.length > 0);
+    await processTicket(1565, h.d);
+    h.stopFail();
+    const dir = join(h.d.outRoot, "1565");
+    const before = readFileSync(join(dir, "summary.json"), "utf8");
+    const f = cutoverFor(h.d);
+    const recordPath = join(f.stateRoot, "cutover.json");
+    if (invalid === "missing") fs.unlinkSync(recordPath);
+    if (invalid === "malformed") writeFileSync(recordPath, "{");
+    if (invalid === "generation") writeFileSync(recordPath, JSON.stringify({ ...f.record, drain_generation: 2 }));
+    if (invalid === "open-claims") writeFileSync(recordPath, JSON.stringify({ ...f.record, open_claims: ["other"] }));
+    h.ghCalls.length = h.modelCalls.length = 0;
+    assert.equal((await processTicket(1565, h.d)).phase, "skipped");
+    assert.equal(readFileSync(join(dir, "summary.json"), "utf8"), before);
+    assert.deepEqual(writesOf(h.ghCalls), []);
+    assert.deepEqual(h.modelCalls, []);
+  });
+}
+test("切流准入：已推送 T 断点只补 resolution，check_ticket 不因裁决消费失效", async () => {
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
+  h.fail(a => (a[1] === "comment" && h.comments.length > 0) || a[3] === "--remove-assignee");
+  const first = await processTicket(1565, h.d);
+  assert.equal(first.stage, "reviewed_pass");
+  assert.ok(first.landedSha);
+  h.stopFail();
+  const f = cutoverFor(h.d);
+  h.ghCalls.length = h.modelCalls.length = h.gitCalls.length = 0;
+  const resumed = await processTicket(1565, h.d);
+  assert.equal(resumed.phase, "land_t");
+  assert.equal(resumed.resumedFrom, "reviewed_pass");
+  assert.deepEqual(writesOf(h.ghCalls), ["issue comment 1565 --body-file"]);
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(h.gitCalls, []);
+  const python = [
+    "import sys; from pathlib import Path",
+    "sys.path.insert(0, '.sandcastle/deepagents-pilot')",
+    "from pilot1742.cutover import CutoverStore",
+    "s = CutoverStore(Path(sys.argv[1]), Path(sys.argv[2]))",
+    "s.check_ticket(1565, s.load())",
+  ].join("; ");
+  execFileSync("python3", ["-c", python, f.stateRoot, h.d.drainRoot!]);
+  await withQueueAdmission(() => {}, f.stateRoot, h.d.drainRoot);
 });
