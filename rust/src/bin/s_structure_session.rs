@@ -468,7 +468,7 @@ fn configure_h1_writer<S: v3::h1_writer_sql::H1WriterSql>(conn: &S) -> Result<()
     conn.batch("PRAGMA fullfsync=ON;")
         .map_err(|e| e.to_string())?;
     let configured = conn
-        .no_checkpoint_on_close(true)
+        .disable_close_checkpoint()
         .map_err(|error| error.to_string())
         .and_then(|disabled| {
             if disabled {
@@ -484,7 +484,7 @@ fn configure_h1_writer<S: v3::h1_writer_sql::H1WriterSql>(conn: &S) -> Result<()
 #[cfg(all(feature = "s_incremental", unix))]
 fn h1_normal_close<S: v3::h1_writer_sql::H1WriterSql>(conn: &S) -> Result<(), String> {
     let disabled = conn
-        .no_checkpoint_on_close(false)
+        .restore_close_checkpoint()
         .map_err(|error| format!("H1恢复关闭检查点失败：{error}"))?;
     if disabled {
         return Err("H1正式写者未恢复关闭检查点".into());

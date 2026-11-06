@@ -14,8 +14,10 @@ pub(crate) trait H1WriterSql {
     fn integer(&self, sql: &str) -> Result<i64, Self::Error>;
     fn flag(&self, sql: &str) -> Result<bool, Self::Error>;
     fn batch(&self, sql: &str) -> Result<(), Self::Error>;
-    /// 设置 NO_CKPT_ON_CLOSE，返回 SQLite 读回的当前值。
-    fn no_checkpoint_on_close(&self, on: bool) -> Result<bool, Self::Error>;
+    /// 置 NO_CKPT_ON_CLOSE=1（交接期间关闭不检查点），返回 SQLite 读回值。
+    fn disable_close_checkpoint(&self) -> Result<bool, Self::Error>;
+    /// 收尾：置 NO_CKPT_ON_CLOSE=0（正常关闭），返回 SQLite 读回值。收费连接上首拒之后仍可执行。
+    fn restore_close_checkpoint(&self) -> Result<bool, Self::Error>;
     /// 有未结束事务时回滚，没有时什么都不做。
     fn rollback_open(&self) -> Result<(), Self::Error>;
 }
@@ -34,8 +36,11 @@ impl H1WriterSql for Connection {
     fn batch(&self, sql: &str) -> Result<(), Self::Error> {
         self.execute_batch(sql)
     }
-    fn no_checkpoint_on_close(&self, on: bool) -> Result<bool, Self::Error> {
-        self.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, on)
+    fn disable_close_checkpoint(&self) -> Result<bool, Self::Error> {
+        self.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+    }
+    fn restore_close_checkpoint(&self) -> Result<bool, Self::Error> {
+        self.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, false)
     }
     fn rollback_open(&self) -> Result<(), Self::Error> {
         if self.is_autocommit() {
@@ -130,11 +135,16 @@ impl H1WriterSql for ChargedWriter<'_> {
             .run(self.connection, |q| q.execute_batch(sql))
             .map_err(Refused)
     }
-    fn no_checkpoint_on_close(&self, on: bool) -> Result<bool, Self::Error> {
+    fn disable_close_checkpoint(&self) -> Result<bool, Self::Error> {
         self.binding
             .run(self.connection, |q| {
-                q.set_db_flag(DbFlag::NoCheckpointOnClose, on)
+                q.set_db_flag(DbFlag::NoCheckpointOnClose, true)
             })
+            .map_err(Refused)
+    }
+    fn restore_close_checkpoint(&self) -> Result<bool, Self::Error> {
+        self.binding
+            .restore_close_checkpoint(self.connection)
             .map_err(Refused)
     }
     fn rollback_open(&self) -> Result<(), Self::Error> {
@@ -359,5 +369,82 @@ mod charged_tests {
         assert_eq!(tight.refusal(), Some(ScratchFailure::Budget));
         assert_eq!(current.live(), base, "refused open leaves no charged bytes");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// dc5 独审 F1：开库并已禁关闭检查点之后，业务中途遇到收费首拒；收尾仍回滚事务、经窄收尾
+    /// 恢复关闭检查点并正常关闭，首拒保留，字节返还。
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn h1_writer_budget_refusal_after_open_still_restores_normal_close() {
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = Budget::fresh(LIMIT).unwrap();
+        let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let (parent, origin) = current.sqlite_parent();
+        let binding = allocator.bind(parent, origin).expect("bind");
+        let dir = std::env::temp_dir().join(format!("h1-writer-refusal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("writer.sqlite3");
+        seed(&binding, &db);
+
+        let base = current.live();
+        let conn = crate::open_db_after_h1_certification_charged(&binding, &db).unwrap();
+        let w = ChargedWriter {
+            binding: &binding,
+            connection: &conn,
+        };
+        assert_eq!(
+            no_checkpoint_on_close(&w),
+            1,
+            "handoff disabled close checkpoint"
+        );
+        let integrity = Cell::new(false);
+        let in_transaction = Cell::new(false);
+        let result = crate::prepare_h1_wal_handoff(
+            &w,
+            || Ok(()),
+            || -> Result<u8, String> {
+                in_transaction.set(!conn.is_autocommit());
+                w.integer("SELECT length(randomblob(134217728))")
+                    .map_err(|e| e.to_string())?;
+                Ok(0)
+            },
+            &integrity,
+        );
+        let budget = Refused(SqlGate::Refused(ScratchFailure::Budget)).to_string();
+        assert_eq!(
+            result,
+            Err(budget),
+            "original error, normal close appended nothing"
+        );
+        assert!(
+            in_transaction.get(),
+            "the failure happened inside the handoff transaction"
+        );
+        assert!(
+            !integrity.get(),
+            "own resource failure is not an integrity refusal"
+        );
+        assert!(conn.is_autocommit(), "handoff transaction rolled back");
+        assert_eq!(binding.refusal(), Some(ScratchFailure::Budget));
+        binding.close(conn).map_err(|(_, e)| e).unwrap();
+        assert!(
+            !wal_path(&db).exists(),
+            "close checkpoint restored: normal close checkpointed and removed the WAL"
+        );
+        assert_eq!(
+            binding.refusal(),
+            Some(ScratchFailure::Budget),
+            "first refusal kept"
+        );
+        assert_eq!(current.live(), base, "all connection bytes returned");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn wal_path(db: &Path) -> std::path::PathBuf {
+        let mut name = db.as_os_str().to_os_string();
+        name.push("-wal");
+        std::path::PathBuf::from(name)
     }
 }

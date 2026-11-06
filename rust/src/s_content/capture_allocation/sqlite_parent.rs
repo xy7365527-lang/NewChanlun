@@ -852,6 +852,29 @@ impl SqliteBinding {
         result
     }
 
+    /// 收尾：把 `NO_CKPT_ON_CLOSE` 恢复为 0（关闭时照常检查点），返回 SQLite 读回值（恢复成功为
+    /// `false`）。只此一项配置；首拒之后仍可执行，不执行任何 SQL，不清除首拒。
+    pub fn restore_close_checkpoint(&self, conn: &ChargedConnection) -> Result<bool, SqlGate> {
+        let running = self.enter_teardown(Some(conn))?;
+        let mut out: c_int = -1;
+        // SAFETY: conn owns a live handle; NO_CKPT_ON_CLOSE takes (int, int*).
+        let rc = unsafe {
+            ffi::sqlite3_db_config(
+                conn.db,
+                ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+                0 as c_int,
+                &mut out as *mut c_int,
+            )
+        };
+        let result = if rc == ffi::SQLITE_OK {
+            Ok(out != 0)
+        } else {
+            Err(SqlGate::Sqlite(last_code(conn.db, rc)))
+        };
+        drop(running);
+        result
+    }
+
     /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行；
     /// `f` 内每次操作再各自核一次。首个收费拒绝之后，后续操作不再进入 SQLite，结果报首拒。
     pub fn run<R>(
@@ -1133,6 +1156,14 @@ const _: fn() = || {
     impl<T: ?Sized + Sync> AmbiguousIfSendOrSync<u16> for T {}
     let _ = <ChargedConnection as AmbiguousIfSendOrSync<_>>::check;
 };
+
+impl ChargedConnection {
+    /// 连接是否处于自动提交（没有未结束事务）。只读连接状态，不执行 SQL、不分配。
+    pub fn is_autocommit(&self) -> bool {
+        // SAFETY: db is a live handle owned by this connection.
+        unsafe { ffi::sqlite3_get_autocommit(self.db) != 0 }
+    }
+}
 
 impl Drop for ChargedConnection {
     fn drop(&mut self) {
