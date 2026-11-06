@@ -67,6 +67,8 @@ mod control_audit;
 mod cross_request_source_cache;
 mod driver;
 mod financial_reader;
+#[cfg(all(feature = "s_incremental", unix))]
+pub(crate) mod h1_writer_sql;
 // #1394 DESIGN-R6 c2 候选：长驻只读财务会话（待 §5.7 多请求一致性修订裁定）。
 #[cfg(unix)]
 mod financial_session;

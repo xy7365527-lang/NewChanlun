@@ -430,17 +430,45 @@ fn open_db_after_h1_certification(db: &Path) -> Result<Connection, String> {
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
     )
     .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
-    conn.execute_batch("PRAGMA synchronous=FULL;")
+    configure_h1_writer(&conn)?;
+    Ok(conn)
+}
+
+/// #1419 3C：同一交接配置经收费组件开库；失败时经组件收尾关闭。
+#[cfg(all(feature = "s_incremental", unix))]
+#[allow(
+    dead_code,
+    reason = "#1419 3C：受管写者交接连接只由全新进程 release 锁消费，Native 一次启用波接入生产"
+)]
+fn open_db_after_h1_certification_charged(
+    binding: &newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteBinding,
+    db: &Path,
+) -> Result<newchan_rust::s_content::capture_allocation::sqlite_parent::ChargedConnection, String> {
+    v3::admission::require_current(db)?;
+    let conn = v3::h1_writer_sql::open_charged(binding, db)?;
+    let configured = configure_h1_writer(&v3::h1_writer_sql::ChargedWriter {
+        binding,
+        connection: &conn,
+    });
+    match configured {
+        Ok(()) => Ok(conn),
+        Err(error) => {
+            let _ = binding.close(conn);
+            Err(error)
+        }
+    }
+}
+
+/// #1481：交接连接配置。连接自身初始化失败须沿普通关闭退出；只有待交接的只读连接保留源字节。
+#[cfg(all(feature = "s_incremental", unix))]
+fn configure_h1_writer<S: v3::h1_writer_sql::H1WriterSql>(conn: &S) -> Result<(), String> {
+    conn.batch("PRAGMA synchronous=FULL;")
         .map_err(|e| e.to_string())?;
     #[cfg(target_os = "macos")]
-    conn.execute_batch("PRAGMA fullfsync=ON;")
+    conn.batch("PRAGMA fullfsync=ON;")
         .map_err(|e| e.to_string())?;
-    // #1481：连接自身初始化失败须沿普通关闭退出；只有待交接的只读连接保留源字节。
     let configured = conn
-        .set_db_config(
-            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
-            true,
-        )
+        .no_checkpoint_on_close(true)
         .map_err(|error| error.to_string())
         .and_then(|disabled| {
             if disabled {
@@ -449,18 +477,14 @@ fn open_db_after_h1_certification(db: &Path) -> Result<Connection, String> {
                 Err("H1交接连接未禁用关闭检查点".into())
             }
         });
-    h1_close_after_failure(&conn, configured, false)?;
-    Ok(conn)
+    h1_close_after_failure(conn, configured, false)
 }
 
 /// #1481：自身暂时失败恢复正常关闭；返回值和 SQLite 实际配置都必须核验。
 #[cfg(all(feature = "s_incremental", unix))]
-fn h1_normal_close(conn: &Connection) -> Result<(), String> {
+fn h1_normal_close<S: v3::h1_writer_sql::H1WriterSql>(conn: &S) -> Result<(), String> {
     let disabled = conn
-        .set_db_config(
-            rusqlite::config::DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
-            false,
-        )
+        .no_checkpoint_on_close(false)
         .map_err(|error| format!("H1恢复关闭检查点失败：{error}"))?;
     if disabled {
         return Err("H1正式写者未恢复关闭检查点".into());
@@ -487,8 +511,8 @@ fn h1_source_integrity_refusal(error: &str) -> bool {
 }
 
 #[cfg(all(feature = "s_incremental", unix))]
-fn h1_close_after_failure<T>(
-    conn: &Connection,
+fn h1_close_after_failure<S: v3::h1_writer_sql::H1WriterSql, T>(
+    conn: &S,
     result: Result<T, String>,
     integrity_refusal: bool,
 ) -> Result<T, String> {
@@ -507,48 +531,50 @@ fn h1_close_after_failure<T>(
 /// 调用方须关闭此一次性连接，再在普通连接的首把写锁内复核凭据，才可迁移与 seed。
 /// 不用 data_version 抵消“自身转换 +1”：首次 WAL 快照可能把外部提交合并成同一次变化。
 #[cfg(all(feature = "s_incremental", unix))]
-fn prepare_h1_wal_handoff<T>(
-    conn: &Connection,
+fn prepare_h1_wal_handoff<S: v3::h1_writer_sql::H1WriterSql, T>(
+    conn: &S,
     authenticate: impl FnOnce() -> Result<(), String>,
     snapshot: impl FnOnce() -> Result<T, String>,
     integrity_refusal: &std::cell::Cell<bool>,
 ) -> Result<Option<T>, String> {
     let result = (|| {
-        let mode: String = conn
-            .query_row("PRAGMA main.journal_mode", [], |row| row.get(0))
+        let mode = conn
+            .text("PRAGMA main.journal_mode")
             .map_err(|error| format!("读取 H1 交接日志模式失败：{error}"))?;
         if mode.eq_ignore_ascii_case("wal") {
             return Ok(None);
         }
-        let locking: String = conn
-            .query_row("PRAGMA main.locking_mode=EXCLUSIVE", [], |row| row.get(0))
+        let locking = conn
+            .text("PRAGMA main.locking_mode=EXCLUSIVE")
             .map_err(|error| format!("固定 H1 转换排他模式失败：{error}"))?;
         if !locking.eq_ignore_ascii_case("exclusive") {
             return Err("H1转换未取得排他模式".into());
         }
-        let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Exclusive)
+        let tx = v3::h1_writer_sql::H1Txn::begin(conn, "BEGIN EXCLUSIVE")
             .map_err(|error| format!("锁定 H1 转换原件失败：{error}"))?;
         // 此处尚未改写主库：坏历史、原件变化或未经准入授权的补列均先拒绝。
         authenticate().inspect_err(|error| {
             integrity_refusal.set(h1_source_integrity_refusal(error));
         })?;
-        if policy_records_missing(&tx)? {
+        if conn
+            .flag(POLICY_RECORDS_MISSING)
+            .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))?
+        {
             v3::admission::require_policy_records_migration()?;
         }
         tx.commit()
             .map_err(|error| format!("结束 H1 转换只读核验失败：{error}"))?;
-        let mode: String = conn
-            .query_row("PRAGMA main.journal_mode=WAL", [], |row| row.get(0))
+        let mode = conn
+            .text("PRAGMA main.journal_mode=WAL")
             .map_err(|error| format!("转换已认证 H1 库到 WAL 失败：{error}"))?;
         if !mode.eq_ignore_ascii_case("wal") {
             return Err("H1已认证库未能转换为WAL".into());
         }
         // 在排他连接上先打开空 WAL，确保凭据也固定转换所建的 WAL 身份。
         // EXCLUSIVE WAL 的索引在 heap，不会留下生产准入禁止的常驻 -shm。
-        let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Immediate)
+        let tx = v3::h1_writer_sql::H1Txn::begin(conn, "BEGIN IMMEDIATE")
             .map_err(|error| format!("锁定 H1 转换后原件失败：{error}"))?;
-        let _: i64 = tx
-            .query_row("SELECT COUNT(*) FROM main.meta", [], |row| row.get(0))
+        conn.integer("SELECT COUNT(*) FROM main.meta")
             .map_err(|error| format!("读取 H1 转换后原件失败：{error}"))?;
         let token = snapshot().inspect_err(|error| {
             integrity_refusal.set(h1_source_integrity_refusal(error));
@@ -587,14 +613,13 @@ pub(crate) enum DeltaShape {
 }
 
 /// #1602 迁移与写前准入共用的判别：表存在且缺 `policy_records` 列。
+const POLICY_RECORDS_MISSING: &str =
+    "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='structure_deltas')
+         AND NOT EXISTS(SELECT 1 FROM pragma_table_info('structure_deltas') WHERE name='policy_records')";
+
 fn policy_records_missing(conn: &Connection) -> Result<bool, String> {
-    conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='structure_deltas')
-         AND NOT EXISTS(SELECT 1 FROM pragma_table_info('structure_deltas') WHERE name='policy_records')",
-        [],
-        |row| row.get(0),
-    )
-    .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))
+    conn.query_row(POLICY_RECORDS_MISSING, [], |row| row.get(0))
+        .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))
 }
 
 /// #1602：同协议旧库只有既有行缺少 `policy_records`；补列时 SQLite 以显式未知值填充，

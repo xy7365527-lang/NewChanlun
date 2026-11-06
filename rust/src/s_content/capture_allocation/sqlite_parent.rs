@@ -1418,6 +1418,21 @@ impl<'a> SqlOps<'a> {
         })
     }
 
+    /// 运行中设置布尔连接配置，返回 SQLite 读回的当前值（`sqlite3_db_config(db, op, int, int*)`）。
+    pub fn set_db_flag(&self, flag: DbFlag, on: bool) -> Result<bool, SqlGate> {
+        self.admit()?;
+        let mut out: c_int = -1;
+        // SAFETY: db is live; every DbFlag op takes (int, int*).
+        let rc = unsafe {
+            ffi::sqlite3_db_config(self.db, flag.op(), c_int::from(on), &mut out as *mut c_int)
+        };
+        self.binding.settle(if rc == ffi::SQLITE_OK {
+            Ok(out != 0)
+        } else {
+            Err(last_code(self.db, rc))
+        })
+    }
+
     /// # Safety
     /// 只用于本操作域内的只读诊断与裸语句操作；不得更改或移除进度回调、不得关闭连接、
     /// 不得把句柄带出本 `run`。经此句柄的操作不受本合同保护。

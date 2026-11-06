@@ -13,3 +13,5 @@ v3::audit_owner::sqlite_parent_tests::sqlite_parent_db_config_accepts_only_boole
 v3::audit_ledger::tests::charged_ledger_same_parent_phase_machine_and_snapshot_interleave
 # #1419 3C 私有快照受管连接：原 VFS/授权/进度/读前序/quick_check 判据经收费组件，同父收费，首拒后收尾撤销 VFS
 v3::admission_private::fd_wal::charged_tests::private_snapshot_charged_keeps_original_vfs_gates_and_same_parent
+# #1419 3C 写者交接连接受管：原交接配置、WAL 转换（排他事务回滚/提交、完整性拒绝与自身失败的关闭语义）、正常关闭经收费组件，同父收费与首拒
+v3::h1_writer_sql::charged_tests::h1_writer_handoff_charged_keeps_original_config_conversion_and_close
