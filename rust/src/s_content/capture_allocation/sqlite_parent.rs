@@ -1261,7 +1261,7 @@ static NEXT_CONNECTION: std::sync::atomic::AtomicU64 = std::sync::atomic::Atomic
 /// 取下一个连接身份；计数用尽时不回绕（回绕会让新连接与旧身份相等），开库按 Ledger 拒绝。
 fn next_connection_id() -> Option<ConnectionId> {
     NEXT_CONNECTION
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
         .ok()
         .map(ConnectionId)
 }

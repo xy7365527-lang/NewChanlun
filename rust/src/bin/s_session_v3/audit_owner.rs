@@ -2279,7 +2279,7 @@ mod tests {
         let mut fixture = Fixture::new();
         let (envelope, token) = fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
         fixture.publish(&envelope, &token).unwrap();
-        let owner = AuditConnection::new(open_db(&fixture.db_path()).unwrap()).unwrap();
+        let owner = <AuditConnection>::new(open_db(&fixture.db_path()).unwrap()).unwrap();
         let first = owner.begin(TransactionBehavior::Deferred).unwrap();
         let version = first.data_version;
         let generation: i64 = first
@@ -2308,7 +2308,7 @@ mod tests {
         assert_ne!(second.data_version, version);
         assert_eq!(meta_i64(second.tx(), "generation").unwrap(), 2);
         second.read_end().unwrap();
-        let reopened = AuditConnection::new(open_db(&fixture.db_path()).unwrap()).unwrap();
+        let reopened = <AuditConnection>::new(open_db(&fixture.db_path()).unwrap()).unwrap();
         assert_ne!(owner.life, reopened.life);
         assert!(reopened.connection.is_autocommit());
     }
