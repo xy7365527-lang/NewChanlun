@@ -23,6 +23,20 @@ list_tests() {
   sed -n 's/: test$//p' "$out.raw" | LC_ALL=C sort >"$out"
 }
 
+# #1875：CI_TEST_PART=i/N 时只执行新增集合中按名字排序后第 i、i+N、i+2N… 个（i 从 0 起）。N 个作业各取一份，
+#   并集恰为新增集合、互不重叠；每个作业的机器上仍是 RUST_TEST_THREADS 个线程，同机负载与不拆时相同。
+#   「新增集合为空即失败」仍按完整集合判定。不设或 0/1 时执行全部。
+run_delta() {
+  local target="$1"; shift
+  local sel part=() i n k
+  if [[ "$target" == lib ]]; then sel=(--lib); else sel=(--bin s_structure_session); fi
+  IFS=/ read -r i n <<<"${CI_TEST_PART:-0/1}"
+  for (( k = i; k < $#; k += n )); do part+=("${@:k+1:1}"); done
+  echo "feature_delta target=$target part=$i/$n run=${#part[@]} of $#"
+  (( ${#part[@]} == 0 )) && return 0
+  cargo test --locked --features "$base_features,$feature" "${sel[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "${part[@]}"
+}
+
 total=0
 for target in lib bin; do
   if [[ "$target" == lib ]]; then
@@ -45,7 +59,7 @@ for target in lib bin; do
     while IFS= read -r name; do
       names+=("$name")
     done <"$work/$target.delta"
-    cargo test --locked --features "$base_features,$feature" "${selector[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "${names[@]}"
+    run_delta "$target" "${names[@]}"
   fi
   total=$(( total + count ))
 done
