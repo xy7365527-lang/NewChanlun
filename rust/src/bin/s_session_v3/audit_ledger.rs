@@ -3282,13 +3282,12 @@ pub(super) mod tests {
                 nodes.insert_unchecked(digest, tag, b"bad".to_vec());
                 let before = dump(&l.path);
                 let q = l.qualification().unwrap();
-                let view = QualifiedSuccessView {
-                    ledger: &l,
-                    qualification: &q,
-                };
+                let view = QualifiedSuccessView::new(&l, &q);
                 let delta_err = cd::verify_four_roots_from(&mut nodes, refs(&r), &view)
                     .err()
                     .unwrap();
+                // 损坏节点是 codec 判据失败，前沿点查没有拒绝；Legacy 前沿错误只有文本，也不留 typed 拒绝。
+                assert!(view.refused.into_inner().is_none());
                 let full_err = cd::verify_four_roots(&mut nodes, refs(&r)).err().unwrap();
                 assert_eq!(delta_err.code(), full_err.code());
                 assert!(l.verify_delta(&mut nodes, refs(&r), &q).is_err());
@@ -3303,12 +3302,11 @@ pub(super) mod tests {
                 l.stage_verified(&token, &delta(&m, &roots), &d, None, Some(&q))
                     .unwrap();
                 assert!(l.verify_delta(&mut nodes, refs(&gens[1]), &q).is_err());
-                let view = QualifiedSuccessView {
-                    ledger: &l,
-                    qualification: &q,
-                };
+                let view = QualifiedSuccessView::new(&l, &q);
                 // 前沿点查失败即整体失败，不当 miss 退回完整核验。
                 assert!(cd::verify_four_roots_from(&mut nodes, refs(&gens[1]), &view).is_err());
+                // Legacy 的点查拒绝（未提交）按原文本经 codec SOURCE 返回，不冒充 typed 拒绝。
+                assert!(view.refused.into_inner().is_none());
                 l.bind(&token, &m, &roots).unwrap();
                 assert!(l.verify_delta(&mut nodes, refs(&gens[1]), &q).is_err());
                 l.content_committed().unwrap();
