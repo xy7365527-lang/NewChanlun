@@ -1808,6 +1808,21 @@ impl Budget {
     pub(crate) fn sqlite_parent(&self) -> (Arc<dyn SqliteParent>, u64) {
         (self.0.clone(), self.1)
     }
+    /// 工作域是否属于本父账的本冻结域（同一父账对象、同一 origin）。
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1419 3C：受管台账核 codec 工作域归属；Native 一次启用波接入生产"
+        )
+    )]
+    pub(crate) fn owns_work(
+        &self,
+        work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+    ) -> bool {
+        let (parent, origin) = work.parent_identity();
+        parent == Arc::as_ptr(&self.0).cast::<()>() && origin == self.1
+    }
 }
 /// 固定 std SwissTable：小表 4/8 桶只空一槽，>=16 桶的装载率 7/8；控制组最多16字节。
 /// 返回下一次实际可用 capacity 的上界，再沿既有 hash_slots 公式结算。

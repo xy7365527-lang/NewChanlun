@@ -559,32 +559,54 @@ pub fn root_string(digest: &NodeDigest) -> String {
     FixedRoot::new(digest).as_str().to_owned()
 }
 
-/// 解析 transport 根文本；前缀、长度、大小写与十六进制字符全部严格。
-pub fn parse_root(root: &str) -> Result<NodeDigest, CodecError> {
-    let hex = root.strip_prefix(ROOT_PREFIX).ok_or_else(|| {
-        CodecError::new(
-            code::ROOT,
-            format!("根文本 `{root}` 缺少前缀 `{ROOT_PREFIX}`"),
-        )
-    })?;
+/// transport 根判据的失败类别；不带文本，不分配。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RootDefect {
+    Format,
+    Prefix,
+    Length,
+    Hex,
+}
+
+/// 与 [`parse_root`] 同一判据，失败只报类别、不生成诊断文本。
+pub fn parse_root_quiet(root: &str) -> Result<NodeDigest, RootDefect> {
+    let hex = root.strip_prefix(ROOT_PREFIX).ok_or(RootDefect::Prefix)?;
     if hex.len() != 64 {
-        return Err(CodecError::new(
-            code::ROOT,
-            format!("根文本 `{root}` 的十六进制长度 {} ≠ 64", hex.len()),
-        ));
+        return Err(RootDefect::Length);
     }
     let mut d = [0u8; 32];
     let bytes = hex.as_bytes();
     for i in 0..32 {
-        let hi = hex_val(bytes[2 * i]).ok_or_else(|| {
-            CodecError::new(code::ROOT, format!("根文本 `{root}` 含非小写十六进制字符"))
-        })?;
-        let lo = hex_val(bytes[2 * i + 1]).ok_or_else(|| {
-            CodecError::new(code::ROOT, format!("根文本 `{root}` 含非小写十六进制字符"))
-        })?;
+        let hi = hex_val(bytes[2 * i]).ok_or(RootDefect::Hex)?;
+        let lo = hex_val(bytes[2 * i + 1]).ok_or(RootDefect::Hex)?;
         d[i] = (hi << 4) | lo;
     }
     Ok(d)
+}
+
+/// 与 `ContentRef::digest`/`RefView::digest` 同一判据，失败只报类别、不生成诊断文本。
+pub fn transport_digest_quiet(format: &str, root: &str) -> Result<NodeDigest, RootDefect> {
+    if format != CONTENT_FORMAT {
+        return Err(RootDefect::Format);
+    }
+    parse_root_quiet(root)
+}
+
+/// 解析 transport 根文本；前缀、长度、大小写与十六进制字符全部严格。
+pub fn parse_root(root: &str) -> Result<NodeDigest, CodecError> {
+    parse_root_quiet(root).map_err(|defect| {
+        let detail = match defect {
+            RootDefect::Prefix => format!("根文本 `{root}` 缺少前缀 `{ROOT_PREFIX}`"),
+            RootDefect::Length => format!(
+                "根文本 `{root}` 的十六进制长度 {} ≠ 64",
+                root.strip_prefix(ROOT_PREFIX).map_or(0, str::len)
+            ),
+            RootDefect::Hex | RootDefect::Format => {
+                format!("根文本 `{root}` 含非小写十六进制字符")
+            }
+        };
+        CodecError::new(code::ROOT, detail)
+    })
 }
 
 fn hex_val(b: u8) -> Option<u8> {

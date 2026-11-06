@@ -612,6 +612,12 @@ impl SqliteBinding {
         }
     }
 
+    /// 本绑定此刻能否开始一次普通操作：为当前绑定（epoch）、allocator 未破损、本域无首拒、
+    /// 冻结域仍存活。只读核对，不进入操作域；拒绝按值返回本次分类。
+    pub fn admitted(&self) -> Result<(), SqlGate> {
+        self.admit(None)
+    }
+
     /// 本绑定是否属于 `parent` 的 `origin` 冻结域。只读核对：不绑定、不改状态、不交出句柄。
     pub fn serves(&self, parent: &Arc<dyn SqliteParent>, origin: u64) -> bool {
         self.origin == origin

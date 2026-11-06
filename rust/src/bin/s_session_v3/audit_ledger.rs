@@ -10,11 +10,13 @@ use super::*;
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content as sc;
 #[cfg(feature = "s_incremental")]
+use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+#[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::sqlite_parent::{
     ChargedConnection, OpenSpec, SqlGate, SqlOps, SqliteBinding,
 };
 use newchan_rust::s_content::capture_allocation::{native_owned::NativeValue, scratch::WorkScope};
-use newchan_rust::s_content::{ContentRef, RefView};
+use newchan_rust::s_content::{CodecError, ContentRef, RefView};
 use rusqlite::types::ValueRef;
 use rusqlite::{OpenFlags, ToSql};
 use std::collections::{BTreeMap, BTreeSet};
@@ -880,6 +882,19 @@ pub(super) trait Backend: sealed::Sealed {
     /// 台账调用的外部核验（来源收据、闭包、根格式）失败：Legacy 原样包装其诊断；Charged 只带
     /// 静态上下文，不复制诊断文本。
     fn external(e: impl std::fmt::Display, context: &'static str) -> Self::Error;
+    /// codec 错误：Legacy 原样包装其诊断；Charged 先保留它自带的 typed scratch 分类（如
+    /// Budget），没有分类时才只带静态上下文。
+    fn codec(e: CodecError, context: &'static str) -> Self::Error;
+    /// stage 前的根格式核验：Legacy 沿用 `ContentRef::digest` 及其诊断；Charged 用同一判据的
+    /// 无分配版本。
+    fn root_digest(r: &ContentRef) -> Result<(), Self::Error>;
+    /// stage_verified 在闭包四根比对之前的根核验：Legacy 不做（保持原比对的短路次序）；
+    /// Charged 用无分配判据先挡住会生成诊断文本的根。
+    fn guard_roots(roots: &[ContentRef; 4]) -> Result<(), Self::Error>;
+    /// 前沿核验的工作域归属：Legacy 不要求；Charged 要求 source 带着本台账原父当前冻结域的
+    /// codec 工作域，否则 verifier 会用无账或他父的工作集。
+    #[cfg(feature = "s_incremental")]
+    fn frontier_source(&self, source: &dyn sc::NodeSource) -> Result<(), Self::Error>;
     /// 来源收据核验失败：Legacy 沿用收据自己的诊断；Charged 只带静态上下文。
     #[cfg(feature = "s_incremental")]
     fn source_receipt(e: sc::ContextError) -> Self::Error;
@@ -992,6 +1007,19 @@ impl Backend for Legacy {
     fn external(e: impl std::fmt::Display, _: &'static str) -> String {
         error(e)
     }
+    fn codec(e: CodecError, _: &'static str) -> String {
+        error(e)
+    }
+    fn root_digest(r: &ContentRef) -> Result<(), String> {
+        r.digest().map(drop).map_err(error)
+    }
+    fn guard_roots(_: &[ContentRef; 4]) -> Result<(), String> {
+        Ok(())
+    }
+    #[cfg(feature = "s_incremental")]
+    fn frontier_source(&self, _: &dyn sc::NodeSource) -> Result<(), String> {
+        Ok(())
+    }
     #[cfg(feature = "s_incremental")]
     fn source_receipt(e: sc::ContextError) -> String {
         e.into_message()
@@ -1103,6 +1131,8 @@ pub(super) enum LedgerError {
     Storage(std::io::ErrorKind),
     /// 原父 Rust 许可不足（分配前预留被拒）。
     Budget,
+    /// codec 工作域报告的非额度 scratch 失败（台账、分配）。
+    Scratch(ScratchFailure),
 }
 
 #[cfg(feature = "s_incremental")]
@@ -1122,6 +1152,7 @@ impl std::fmt::Display for LedgerError {
             Self::Invalid(text) => write!(f, "AuditLedgerStale：{text}"),
             Self::Storage(kind) => write!(f, "AuditLedgerStale：{kind}"),
             Self::Budget => f.write_str("AuditLedgerStale：原父 Rust 许可不足"),
+            Self::Scratch(failure) => write!(f, "AuditLedgerStale：codec 工作域 {failure:?}"),
         }
     }
 }
@@ -1175,10 +1206,18 @@ impl ChargedParent {
         if !binding.serves(&parent, origin) {
             return Err(LedgerError::Gate(SqlGate::WrongParent));
         }
-        Ok(Self { budget, binding })
+        let parent = Self { budget, binding };
+        parent.admit()?;
+        Ok(parent)
     }
-    /// 分配前预留；返回的许可须与载荷同寿命（`Permit::hold`）。
+    /// 此刻能否开始普通工作：绑定仍是当前 epoch、本域无首拒、冻结域存活。任何新持有、文件
+    /// 副作用或 SQL 之前都先过这一关，拒绝按本次分类返回。
+    fn admit(&self) -> Result<(), LedgerError> {
+        self.binding.admitted().map_err(LedgerError::Gate)
+    }
+    /// 分配前预留；先过 [`Self::admit`]，返回的许可须与载荷同寿命（`Permit::hold`）。
     fn reserve(&self, bytes: usize) -> Result<Permit, LedgerError> {
+        self.admit()?;
         self.budget.reserve(bytes).map_err(|_| LedgerError::Budget)
     }
     /// 按十进制文本排好的 `i64` 键条目，索引本身由原父许可持有到调用方释放。
@@ -1312,6 +1351,35 @@ impl Backend for Charged {
     fn external(_: impl std::fmt::Display, context: &'static str) -> LedgerError {
         LedgerError::Invalid(context)
     }
+    fn codec(e: CodecError, context: &'static str) -> LedgerError {
+        match e.scratch_failure() {
+            Some(ScratchFailure::Budget) => LedgerError::Budget,
+            Some(other) => LedgerError::Scratch(other),
+            None => LedgerError::Invalid(context),
+        }
+    }
+    fn root_digest(r: &ContentRef) -> Result<(), LedgerError> {
+        newchan_rust::s_content::transport_digest_quiet(&r.format, &r.root)
+            .map(drop)
+            .map_err(|_| LedgerError::Invalid("台账根格式无效"))
+    }
+    fn guard_roots(roots: &[ContentRef; 4]) -> Result<(), LedgerError> {
+        for r in roots {
+            if r.format != newchan_rust::s_content::CONTENT_FORMAT {
+                return Err(LedgerError::Invalid("闭包单位与待准备事实四根不匹配"));
+            }
+            newchan_rust::s_content::parse_root_quiet(&r.root)
+                .map_err(|_| LedgerError::Invalid("闭包单位四根核验失败"))?;
+        }
+        Ok(())
+    }
+    fn frontier_source(&self, source: &dyn sc::NodeSource) -> Result<(), LedgerError> {
+        self.parent.admit()?;
+        match source.codec_work() {
+            Some(work) if self.parent.budget.owns_work(work) => Ok(()),
+            _ => Err(LedgerError::Gate(SqlGate::WrongParent)),
+        }
+    }
     fn source_receipt(_: sc::ContextError) -> LedgerError {
         LedgerError::Invalid("来源分区收据核验失败")
     }
@@ -1424,10 +1492,18 @@ impl Backend for Charged {
             })
             .ok_or(LedgerError::Budget)?;
         let permit = self.parent.reserve(bytes)?;
-        let mut pending =
-            Pending::new(token, generation, roots, None).map_err(LedgerError::Stale)?;
-        pending.fee = Some(permit);
-        Ok(pending)
+        let copy = |e| <Self as Backend>::codec(e, "Pending 复制失败");
+        Ok(Pending {
+            token: NativeValue::<String>::try_from_str(token, None).map_err(copy)?,
+            generation,
+            roots: [
+                NativeValue::<ContentRef>::try_from_view(roots[0], None).map_err(copy)?,
+                NativeValue::<ContentRef>::try_from_view(roots[1], None).map_err(copy)?,
+                NativeValue::<ContentRef>::try_from_view(roots[2], None).map_err(copy)?,
+                NativeValue::<ContentRef>::try_from_view(roots[3], None).map_err(copy)?,
+            ],
+            fee: Some(permit),
+        })
     }
     type Units = ChargedUnits;
     /// 先数出全部候选单位，按该上界从原父预留，再只放入未提交的单位，不在循环中增长。
@@ -1705,6 +1781,15 @@ impl Ledger {
     pub(super) fn qualification(&self) -> Result<Qualification, String> {
         self.with_committed_qualification(|v| Ok(v.owned()))
     }
+    /// 39P：字符串总字节先对调用方已预留的上界核过，再按精确容量分配（B2）。
+    pub(super) fn qualification_bounded(&self, cap: usize) -> Result<Qualification, String> {
+        self.with_committed_qualification(|v| {
+            if v.string_bytes() > cap {
+                return Err(error("完整资格超过调用方保留上界"));
+            }
+            Ok(v.owned())
+        })
+    }
     /// 永不打开旧台账作可信输入。文件名必须是本次重建的新文件；不覆盖旧诊断原件。
     pub(super) fn fresh(
         path: &Path,
@@ -1763,6 +1848,17 @@ impl Ledger {
 
 #[cfg(feature = "s_incremental")]
 impl Ledger<Charged> {
+    /// 资格的拥有型副本：六段文本的精确字节在复制前从原父预留，许可随返回值持有、随其释放。
+    /// 预留发生在本次已准入的点查映射内，不另做 SQL。
+    pub(super) fn qualification_reserved(&self) -> Result<Reserved<Qualification>, LedgerError> {
+        let budget = &self.store()?.parent.budget;
+        self.with_committed_qualification(|v| {
+            let permit = budget
+                .reserve(v.string_bytes())
+                .map_err(|_| LedgerError::Budget)?;
+            Ok(permit.hold(v.owned()))
+        })
+    }
     /// 受管构造：同一份阶段机与 SQL，连接由 `binding` 当前绑定的原 Native 父账开出，SQLite
     /// 分配向该父账收费。调用方须已在本进程首次 SQLite 初始化前装好 allocator；本构造不安装，
     /// 失败即失败，不改用旧连接。
@@ -1785,10 +1881,12 @@ impl Ledger<Charged> {
         }
         let content = ChargedPath::canonical(content_path, &parent)?;
         let ledger = ChargedPath::new(path, &parent)?;
+        parent.admit()?;
         let rule = parent
             .budget
             .string(&identity.rule_revision)
             .map_err(|_| LedgerError::Budget)?;
+        parent.admit()?;
         Self::fresh_in(
             ledger,
             content,
@@ -1907,15 +2005,6 @@ impl<B: Backend> Ledger<B> {
             },
         )
     }
-    /// 39P：字符串总字节先对调用方已预留的上界核过，再按精确容量分配（B2）。
-    pub(super) fn qualification_bounded(&self, cap: usize) -> Result<Qualification, B::Error> {
-        self.with_committed_qualification(|v| {
-            if v.string_bytes() > cap {
-                return Err(B::invalid("完整资格超过调用方保留上界"));
-            }
-            Ok(v.owned())
-        })
-    }
     fn matches_committed(&self, q: &Qualification) -> Result<bool, B::Error> {
         self.with_committed_qualification(|v| Ok(q.matches(v)))
     }
@@ -1999,6 +2088,7 @@ impl<B: Backend> Ledger<B> {
         roots: [RefView<'_>; 4],
         qualification: &'q Qualification,
     ) -> Result<QualifiedUnits<'q>, B::Error> {
+        self.store()?.frontier_source(source)?;
         if !self.matches_committed(qualification)? {
             return Err(B::invalid("Δ核验资格与当前已提交台账不符"));
         }
@@ -2008,7 +2098,7 @@ impl<B: Backend> Ledger<B> {
             Err(e) => {
                 return Err(match view.refused.into_inner() {
                     Some(typed) => typed,
-                    None => B::external(e, "Δ闭包核验失败"),
+                    None => B::codec(e, "Δ闭包核验失败"),
                 })
             }
         };
@@ -2037,9 +2127,10 @@ impl<B: Backend> Ledger<B> {
                 }
             }
             let verified = &verified.verified;
+            B::guard_roots(&delta.roots)?;
             if !verified
                 .matches_roots(delta.roots.each_ref().map(Into::into))
-                .map_err(|e| B::external(e, "闭包单位四根核验失败"))?
+                .map_err(|e| B::codec(e, "闭包单位四根核验失败"))?
             {
                 return Err(B::invalid("闭包单位与待准备事实四根不匹配"));
             }
@@ -2077,7 +2168,7 @@ impl<B: Backend> Ledger<B> {
             return Err(B::invalid("请求或逐代序号无效"));
         }
         for r in &d.roots {
-            r.digest().map_err(|e| B::external(e, "台账根格式无效"))?;
+            B::root_digest(r)?;
         }
         self.check_storage()?;
         let conn = self.store()?;
@@ -3533,6 +3624,55 @@ pub(super) mod tests {
         ffi::SQLITE_OK
     }
 
+    /// 带工作域的节点来源；`starve` 时每次读取先向工作域申请超额许可，按真实接口在中途失败。
+    #[cfg(feature = "s_incremental")]
+    struct Scoped<'a> {
+        nodes: &'a mut newchan_rust::s_content::MemoryNodes,
+        scope: &'a WorkScope,
+        starve: bool,
+    }
+
+    #[cfg(feature = "s_incremental")]
+    impl newchan_rust::s_content::NodeSource for Scoped<'_> {
+        fn codec_work(&self) -> Option<&WorkScope> {
+            Some(self.scope)
+        }
+        fn read(
+            &mut self,
+            digest: &newchan_rust::s_content::NodeDigest,
+        ) -> Result<newchan_rust::s_content::NodeRead, CodecError> {
+            if self.starve {
+                drop(self.scope.reserve_native(usize::MAX / 4)?);
+            }
+            newchan_rust::s_content::NodeSource::read(&mut *self.nodes, digest)
+        }
+    }
+
+    /// 在 `budget` 的新 codec 工作域里用 `nodes` 调一次 `verify_delta`，只带出错误（成功为
+    /// `None`）；核验结果在工作域内释放。
+    #[cfg(feature = "s_incremental")]
+    fn verify_in(
+        budget: &super::super::audit_owner::native::Budget,
+        l: &Ledger<Charged>,
+        nodes: &mut newchan_rust::s_content::MemoryNodes,
+        root: &ContentRef,
+        q: &Qualification,
+        starve: bool,
+    ) -> Option<LedgerError> {
+        let mut seen = None;
+        let work = budget.codec_work().ok().expect("codec work");
+        let _ = work.run(|scope| {
+            let mut source = Scoped {
+                nodes: &mut *nodes,
+                scope,
+                starve,
+            };
+            seen = Some(l.verify_delta(&mut source, [root.into(); 4], q).err());
+            Ok::<_, ()>(())
+        });
+        seen.expect("verify ran")
+    }
+
     #[cfg(feature = "s_incremental")]
     fn arm_trip(l: &Ledger<Charged>, mode: usize) {
         use newchan_rust::s_content::capture_allocation::sqlite_parent::Callback;
@@ -3672,7 +3812,7 @@ pub(super) mod tests {
         for unit in &d1.new_units {
             assert!(l1.contains_committed_unit(unit).unwrap());
         }
-        assert_eq!(l1.qualification_bounded(1 << 16).unwrap().through, 1);
+        assert_eq!(l1.qualification_reserved().unwrap().through, 1);
         let oracle = legacy_texts(
             &sha256_hex(FORMAT.as_bytes()),
             &d1,
@@ -3768,12 +3908,50 @@ pub(super) mod tests {
             Ledger::fresh_charged(&path2, &content, &identity(), STORE, parent(&current, &b))
                 .unwrap();
         l2.fold_step(token, &d1, &m1, &r1).unwrap();
+
+        // 完整 fresh：Rust 分配恰为预留（两套三份路径、规范检查工作副本、规则），父账读数只多出
+        // 仍持有的许可与该连接的 SQLite 块；stage 出 Pending 后丢弃台账，父账回到 fresh 之前。
+        let id = identity();
+        let fresh_path = c_path("ledger-f.sqlite3");
+        let paths = |len: usize| 3 * len + 3 + "-wal".len() + "-journal".len();
+        let held = paths(fresh_path.as_bytes().len())
+            + paths(content.as_bytes().len())
+            + id.rule_revision.len();
+        let fresh_parent = parent(&current, &b);
+        let (live0, sqlite0) = (current.live(), b.live_bytes());
+        let window = Window::start();
+        let lf = Ledger::fresh_charged(&fresh_path, &content, &id, STORE, fresh_parent);
+        let probe = window.finish();
+        let mut lf = lf.unwrap();
+        assert_eq!(
+            probe["allocated_bytes"],
+            (held + content.as_bytes().len() + 1) as u64,
+            "{probe}"
+        );
+        assert_eq!(current.live() - live0, held + (b.live_bytes() - sqlite0));
+        lf.stage(token, &d1).unwrap();
+        drop(lf);
+        assert_eq!((current.live(), b.live_bytes()), (live0, sqlite0));
+
+        // stage 的非法根：在同一判据下按静态值拒绝，整次调用不生成诊断文本，台账失效。
+        let bad_path = c_path("ledger-g.sqlite3");
+        let mut lg =
+            Ledger::fresh_charged(&bad_path, &content, &id, STORE, parent(&current, &b)).unwrap();
+        let mut bad = delta(&m1, &r1);
+        bad.roots[1].format = "not-a-format".repeat(64);
+        let window = Window::start();
+        let staged = lg.stage(token, &bad);
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert_eq!(staged, Err(LedgerError::Invalid("台账根格式无效")));
+        assert!(lg.connection.is_none());
+        drop((lg, bad));
         let path3 = c_path("ledger-c.sqlite3");
         let mut l3 =
             Ledger::fresh_charged(&path3, &content, &identity(), STORE, parent(&current, &b))
                 .unwrap();
         l3.fold_step(token, &d1, &m1, &r1).unwrap();
-        let q3 = l3.qualification_bounded(1 << 16).unwrap();
+        let q3 = l3.qualification_reserved().unwrap();
         let (m2, r2) = generation(2);
         let d2 = delta(&m2, &r2);
         let reserved = d2.raw.len() * std::mem::size_of::<(i64, &RawFact)>()
@@ -3822,6 +4000,23 @@ pub(super) mod tests {
         });
         assert_eq!(first, Err(SqlGate::Refused(ScratchFailure::Budget)));
         let budget = LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget));
+        let refused_path = c_path("ledger-h.sqlite3");
+        let refused_parent = ChargedParent {
+            budget: current.clone(),
+            binding: b.clone(),
+        };
+        let live = current.live();
+        let window = Window::start();
+        let refused_fresh =
+            Ledger::fresh_charged(&refused_path, &content, &id, STORE, refused_parent);
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert_eq!(
+            refused_fresh.err(),
+            Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget)))
+        );
+        assert!(!dir.join("ledger-h.sqlite3").exists());
+        assert_eq!(current.live(), live);
         // 首拒之后：台账读、受管开库都返回本次 typed 分类，Rust 侧零分配，不进入 SQLite。
         let entered = LEDGER_STATEMENTS.load(Ordering::SeqCst);
         let window = Window::start();
@@ -3854,7 +4049,7 @@ pub(super) mod tests {
             carried.into_failure(),
             super::super::audit_owner::native::Failure::BudgetExceeded
         ));
-        drop(l3);
+        drop((l3, q3));
         let window = Window::start();
         let committed = l2.content_committed();
         let probe = window.finish();
@@ -3899,20 +4094,37 @@ pub(super) mod tests {
             Ledger::fresh_charged(&path4, &content, &identity(), STORE, parent(&current, &c))
                 .unwrap();
         l4.fold_step(token, &d1, &m1, &r1).unwrap();
-        let q4 = l4.qualification_bounded(1 << 16).unwrap();
+        let q4 = l4.qualification_reserved().unwrap();
         let mut nodes = sc::MemoryNodes::new();
         let root = content_root(&mut nodes, "verify");
+        let wrong = Some(LedgerError::Gate(SqlGate::WrongParent));
+        assert_eq!(
+            l4.verify_delta(&mut nodes, [(&root).into(); 4], &q4).err(),
+            wrong
+        );
+        let foreign = Budget::fresh(LIMIT)
+            .unwrap()
+            .bind_frozen(1, LIMIT, 0, 0)
+            .unwrap();
+        assert_eq!(
+            verify_in(&foreign, &l4, &mut nodes, &root, &q4, false),
+            wrong
+        );
+        assert_eq!(
+            verify_in(&current, &l4, &mut nodes, &root, &q4, false),
+            None
+        );
         arm_trip(&l4, 1);
-        let verified = l4.verify_delta(&mut nodes, [(&root).into(); 4], &q4);
+        let verified = verify_in(&current, &l4, &mut nodes, &root, &q4, false);
         assert!(TRIPPED.load(Ordering::SeqCst));
         assert_eq!(
-            verified.err(),
+            verified,
             Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget)))
         );
         assert!(l4.connection.is_some());
         assert_eq!(b.refusal(), None);
         assert_eq!(kept, budget);
-        drop(l4);
+        drop((l4, q4));
         drop(spare);
         c.close(peek).map_err(|(_, e)| e).unwrap();
 
@@ -3924,7 +4136,7 @@ pub(super) mod tests {
             Ledger::fresh_charged(&path5, &content, &identity(), STORE, parent(&current, &dom))
                 .unwrap();
         l5.fold_step(token, &d1, &m1, &r1).unwrap();
-        let q5 = l5.qualification_bounded(1 << 16).unwrap();
+        let q5 = l5.qualification_reserved().unwrap();
         let mut nodes5 = sc::MemoryNodes::new();
         let root5 = content_root(&mut nodes5, "stage");
         let mut m5 = m1.clone();
@@ -3941,7 +4153,7 @@ pub(super) mod tests {
         )
         .unwrap();
         arm_trip(&l5, 2);
-        let staged = l5.stage_verified(token, &d5, &units, None, Some(&q5));
+        let staged = l5.stage_verified(token, &d5, &units, None, Some(&*q5));
         assert!(TRIPPED.load(Ordering::SeqCst));
         let staged = staged.unwrap_err();
         assert_eq!(staged, budget);
@@ -3950,10 +4162,45 @@ pub(super) mod tests {
             super::super::audit_owner::native::Failure::BudgetExceeded
         ));
         assert!(l5.connection.is_none());
-        drop(l5);
-        dom.close(snap).map_err(|(_, e)| e).unwrap();
+        drop((l5, q5));
+
+        // E：source 读取在中途按 codec 工作域额度失败，typed Budget 不被静态诊断抹掉；之后同父
+        // 同 origin 重新绑定，旧 epoch 的完整 fresh 在任何分配与建文件之前被拒。
+        current = current.handoff(5, ROOM).expect("handoff to E");
+        let fifth = bind(&current);
+        let path6 = c_path("ledger-i.sqlite3");
+        let mut l6 =
+            Ledger::fresh_charged(&path6, &content, &id, STORE, parent(&current, &fifth)).unwrap();
+        l6.fold_step(token, &d1, &m1, &r1).unwrap();
+        let q6 = l6.qualification_reserved().unwrap();
+        let mut nodes6 = sc::MemoryNodes::new();
+        let root6 = content_root(&mut nodes6, "starve");
+        let starved = verify_in(&current, &l6, &mut nodes6, &root6, &q6, true).expect("refused");
+        assert_eq!(starved, LedgerError::Budget);
+        assert!(matches!(
+            starved.into_failure(),
+            super::super::audit_owner::native::Failure::BudgetExceeded
+        ));
+        assert!(l6.connection.is_some());
+        drop((l6, q6));
+        let stale = parent(&current, &fifth);
+        let rebound = bind(&current);
+        let stale_path = c_path("ledger-j.sqlite3");
+        let live = current.live();
+        let window = Window::start();
+        let stale_fresh = Ledger::fresh_charged(&stale_path, &content, &id, STORE, stale);
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert_eq!(
+            stale_fresh.err(),
+            Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Ledger)))
+        );
+        assert!(!dir.join("ledger-j.sqlite3").exists());
+        assert_eq!(current.live(), live);
+        rebound.close(snap).map_err(|(_, e)| e).unwrap();
+        drop(dom);
         assert_eq!(unsafe { ffi::sqlite3_shutdown() }, ffi::SQLITE_OK);
-        assert_eq!(dom.live_bytes(), 0);
+        assert_eq!(rebound.live_bytes(), 0);
         assert_eq!(current.live(), base);
         assert!(!allocator.is_broken());
         let _ = std::fs::remove_dir_all(&dir);

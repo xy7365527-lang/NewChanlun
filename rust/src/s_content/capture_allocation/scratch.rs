@@ -472,6 +472,11 @@ impl WorkScope {
         .map_err(|e| self.reject(e))
     }
     /// 实际 Plain 分配之前预留；溢出/容量不足沿当前独占操作域分类。
+    /// 本工作域父账的身份（数据指针）与冻结域 origin；只读，供调用方核对归属。
+    pub fn parent_identity(&self) -> (*const (), u64) {
+        let core = self.handle.core();
+        (Arc::as_ptr(&core.parent).cast::<()>(), core.origin)
+    }
     pub fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.handle.reserve_native(bytes)
     }
