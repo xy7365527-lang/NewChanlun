@@ -171,6 +171,8 @@ jobs:
     # #1406 防遥测采样进程挂死的上限；本 job 拆后只剩检查类步骤，正常约 3 分钟。
     timeout-minutes: 30
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
     defaults:
       run:
@@ -280,6 +282,8 @@ jobs:
     # 拆前本步约 8.8 分钟（run 39358379553）。
     timeout-minutes: 45
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
     defaults:
       run:
@@ -315,6 +319,8 @@ jobs:
       matrix:
         shard: [0, 1, 2, 3]
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
       S_SESSION_SHARDS: "4"
       CI_OWN_OPT_LEVEL1: "1"
@@ -399,6 +405,8 @@ jobs:
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: ${{ startsWith(matrix.group, 'native') && 90 || 60 }}
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
       OWNED_SPLIT: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '1' || '0' }}
       CI_TEST_PART: ${{ endsWith(matrix.group, '-a') && '0/2' || endsWith(matrix.group, '-b') && '1/2' || '0/1' }}
@@ -646,6 +654,8 @@ jobs:
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: 45
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
     defaults:
       run:
@@ -672,6 +682,8 @@ jobs:
     # 拆前本步约 9.3 分钟（run 39358379553）。
     timeout-minutes: 45
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
     defaults:
       run:
@@ -705,6 +717,8 @@ jobs:
     # #1588 约定：每个 Rust job 设上限兼作挂死保护；单 feature 组编 S bin 测试 + 精确锁，对齐 rust-test-s-session-extras。
     timeout-minutes: 60
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
       FEATURES: ${{ matrix.features }}
       # #1875：具名锁在 Boat 上 4 路并行（run-1488-delta-ci.py 每条仍是独立进程 --exact）；托管 runner 保持 1 路串行。
@@ -938,6 +952,8 @@ jobs:
     # #1588 约定：同上，Native 组编译 + 精确锁。
     timeout-minutes: 60
     env:
+      # #1875 H-GITREF：Boat 快照里 ~/nc/.git 是本仓的旧克隆；作业全程把它作为 git 备用对象库，checkout 的浅拉取只下载缺的对象（实测 391 MB→0.9 MB，fetch 20→6 s，checkout 写盘 42→25 s）。托管 runner 上为空，不启用。
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '/home/user/nc/.git/objects' || '' }}
       CARGO_INCREMENTAL: "0"
       FEATURES: s_session,s_capture_native_testonly
       # #1875：具名锁在 Boat 上 4 路并行（run-1488-delta-ci.py 每条仍是独立进程 --exact）；托管 runner 保持 1 路串行。
