@@ -993,3 +993,158 @@ fn sqlite_parent_db_config_accepts_only_boolean_int_pointer_ops() {
         }
     }
 }
+
+/// #1419 3C：3A 受管 reader 在收费组件事务上运行原判据（签发门、域核、同事务点查、读前许可、
+/// 首错粘滞）。SQLite pager/语句分配向同一父账收费；收费首拒按原工作域类型返回，之后零 SELECT。
+#[test]
+#[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+fn charged_step_reader_reads_on_same_parent_and_types_refusal() {
+    use newchan_rust::s_content as sc;
+    use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+    use newchan_rust::s_content::m8d_owner_bridge::{ChargedReadTx, GatedSqlReader, LiveGate};
+    use newchan_rust::s_content::CodecError;
+
+    struct CountingGate(Cell<usize>);
+    impl<'b> LiveGate<ChargedReadTx<'b>> for CountingGate {
+        fn check_live(&self, _: &ChargedReadTx<'b>) -> Result<(), CodecError> {
+            self.0.set(self.0.get() + 1);
+            Ok(())
+        }
+        fn sample(&self) -> Result<(), CodecError> {
+            Ok(())
+        }
+    }
+
+    // SAFETY: this test runs alone in a fresh process before any SQLite use.
+    let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+    let root = Budget::fresh(LIMIT).unwrap();
+    let mut d = Domains {
+        allocator: &allocator,
+        current: root.bind_frozen(1, LIMIT, 0, 0).unwrap(),
+        request: 1,
+    };
+    let dir = std::env::temp_dir().join(format!("charged-reader-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = std::ffi::CString::new(dir.join("nodes.sqlite3").to_str().unwrap()).unwrap();
+
+    let mut nodes = sc::MemoryNodes::new();
+    let reference = sc::write_value(&mut nodes, &sc::Value::String("charged reader".into()))
+        .unwrap()
+        .content_ref();
+    let digest = reference.digest().unwrap();
+    let (tag, body) = nodes.get(&digest).unwrap();
+    let big_digest = [7u8; 32];
+    let big = vec![0u8; 32 << 20];
+
+    let wide = d.rebind();
+    let db = wide.open(&path).unwrap();
+    wide.run(&db, |q| {
+        q.execute_batch(
+            "CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL)",
+        )?;
+        let tag = i64::from(tag);
+        q.execute(
+            "INSERT INTO s_content_nodes VALUES(?1, ?2, ?3)",
+            [&&digest[..] as &dyn ToSql, &tag, &body],
+        )?;
+        q.execute(
+            "INSERT INTO s_content_nodes VALUES(?1, 0, ?2)",
+            [&&big_digest[..] as &dyn ToSql, &&big[..]],
+        )?;
+        q.execute_batch("BEGIN")
+    })
+    .unwrap();
+    drop(big);
+
+    let gate = CountingGate(Cell::new(0));
+    let mut tx = ChargedReadTx::new(&wide, &db);
+    let outcome = d
+        .current
+        .codec_work()
+        .ok()
+        .expect("codec work")
+        .run(|work| {
+            let mut reader = GatedSqlReader::new(&mut tx, work, &gate)?;
+            let found = reader.frame(&digest, |t, b| (t, b.to_vec()))?;
+            let missing = reader.frame(&[9u8; 32], |t, _| t)?;
+            reader.exit()?;
+            Ok::<_, CodecError>((
+                found,
+                missing,
+                reader.node_selects(),
+                reader.metadata_reads(),
+            ))
+        });
+    let Ok((found, missing, selects, metadata)) = outcome else {
+        panic!("charged reader must read in the wide domain");
+    };
+    assert_eq!(found, Some((tag, body.to_vec())));
+    assert_eq!(missing, None);
+    assert_eq!(selects, 2);
+    assert_eq!(
+        metadata, 12,
+        "three PRAGMAs at issue, before each SELECT and at exit"
+    );
+    assert_eq!(
+        gate.0.get(),
+        4,
+        "issuer gate at issue, before each SELECT and at exit"
+    );
+    assert!(
+        wide.live_bytes() > 0,
+        "connection and pager bytes live on the parent"
+    );
+    wide.rollback(&db).unwrap();
+    wide.close(db).map_err(|(_, e)| e).unwrap();
+
+    let tight = d.next(8 << 20);
+    let base = d.current.live();
+    let db = tight.open(&path).unwrap();
+    tight.run(&db, |q| q.execute_batch("BEGIN")).unwrap();
+    let gate = CountingGate(Cell::new(0));
+    let mut tx = ChargedReadTx::new(&tight, &db);
+    let observed = std::cell::RefCell::new(None);
+    let outcome = d
+        .current
+        .codec_work()
+        .ok()
+        .expect("codec work")
+        .run(|work| {
+            let mut reader = GatedSqlReader::new(&mut tx, work, &gate)?;
+            let first = reader.frame(&big_digest, |_, b| b.len());
+            let again = reader.frame(&digest, |t, _| t);
+            *observed.borrow_mut() = Some((
+                first.err().and_then(|e| e.scratch_failure()),
+                again.err().and_then(|e| e.scratch_failure()),
+                reader.node_selects(),
+            ));
+            Ok::<_, CodecError>(())
+        });
+    assert!(
+        matches!(outcome, Err(WorkError::Resource(ScratchFailure::Budget))),
+        "SQLite refusal is the work domain's typed Budget refusal"
+    );
+    assert_eq!(
+        observed.take(),
+        Some((
+            Some(ScratchFailure::Budget),
+            Some(ScratchFailure::Budget),
+            1
+        )),
+        "first refusal sticks and no further SELECT runs"
+    );
+    assert_eq!(tight.refusal(), Some(ScratchFailure::Budget));
+    tight.rollback(&db).unwrap();
+    assert!(
+        db.is_autocommit(),
+        "teardown rolled the read transaction back"
+    );
+    tight.close(db).map_err(|(_, e)| e).unwrap();
+    assert_eq!(
+        d.current.live(),
+        base,
+        "refused read leaves no charged bytes"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

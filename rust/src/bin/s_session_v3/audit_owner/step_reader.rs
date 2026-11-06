@@ -113,8 +113,8 @@ impl OwnerLiveGate<'_> {
     }
 }
 
-impl LiveGate for OwnerLiveGate<'_> {
-    fn check_live(&self, tx: &Transaction<'_>) -> Result<(), CodecError> {
+impl<'c> LiveGate<Transaction<'c>> for OwnerLiveGate<'_> {
+    fn check_live(&self, tx: &Transaction<'c>) -> Result<(), CodecError> {
         self.sample()?;
         // 入核后的失败沿原夹持语义：粘滞退役并清候选，不换源、不重审恢复。
         let result = self.core(tx);

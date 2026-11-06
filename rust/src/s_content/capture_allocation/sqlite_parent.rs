@@ -1163,6 +1163,12 @@ impl ChargedConnection {
         // SAFETY: db is a live handle owned by this connection.
         unsafe { ffi::sqlite3_get_autocommit(self.db) != 0 }
     }
+
+    /// 连接打开以来的累计变更行数（`sqlite3_total_changes64`）。只读连接状态，不执行 SQL、不分配。
+    pub fn total_changes(&self) -> u64 {
+        // SAFETY: db is a live handle owned by this connection.
+        u64::try_from(unsafe { ffi::sqlite3_total_changes64(self.db) }).unwrap_or(0)
+    }
 }
 
 impl Drop for ChargedConnection {

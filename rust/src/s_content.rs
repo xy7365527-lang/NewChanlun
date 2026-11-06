@@ -105,7 +105,7 @@ mod step_reader;
 #[cfg(feature = "s_incremental")]
 #[doc(hidden)]
 pub mod m8d_owner_bridge {
-    pub use super::step_reader::managed_sql::{GatedSqlReader, LiveGate};
+    pub use super::step_reader::managed_sql::{ChargedReadTx, GatedSqlReader, LiveGate, ReaderTx};
 }
 
 /// #1419 M8B：仅现有 Native TestOnly 特性下向 bin 差分锁开放借用回调。
