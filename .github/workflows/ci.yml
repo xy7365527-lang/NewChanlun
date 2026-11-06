@@ -437,7 +437,7 @@ jobs:
       #   ci-macos.yml 作业覆盖。
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: ${{ !cancelled() && matrix.group == 'economic' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs "${CI_CARGO_JOBS:-1}" -- economic_session session_transport session_protocol
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/cargo-test-procs.sh --locked --features s_session --lib --jobs "${CI_CARGO_JOBS:-1}" -- economic_session session_transport session_protocol
 
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
