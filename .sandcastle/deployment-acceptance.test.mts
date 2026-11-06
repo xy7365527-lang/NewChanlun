@@ -24,6 +24,7 @@ const IMG_ID = "sha256:" + "1".repeat(64);
 const IMAGE = "sandcastle:newchanlun";
 const TICKET = 4321;
 const PARTNER_ISSUE = 1840;
+const NONCE_WITH_ROW_SUBSTRING = "dc9a20f8-94ab-4d2e-aa17-147e96c109d9";
 const PROBE = "docs/agents/sandcastle-docker-acceptance-1742.md";
 const OBS = {
   apparmor: "docker-default (enforce)", seccomp: "2", capEff: "0000000000000000", capBnd: "00000000a80425fb",
@@ -55,7 +56,26 @@ function spawnTracked(cmd: string, args: string[]) {
   return { child, done, exited: () => exited, output: () => out };
 }
 
-function world(t: { after: (fn: () => void) => void }, o: { candidatePath?: string } = {}) {
+function isRowClaim(file: string, nonce: string, row: AcceptanceRow): boolean {
+  return file === `used-${nonce}-${row}.json`
+    || file.startsWith(`cp-${nonce}-${row}-`)
+    || file.startsWith(`resume-${nonce}-${row}-`);
+}
+
+test("行消费选择器按完整 nonce 和 row 匹配 used、cp、resume", () => {
+  const nonce = NONCE_WITH_ROW_SUBSTRING;
+  const binding = "a".repeat(64);
+  const names = (n: string, row: string) => [
+    `used-${n}-${row}.json`, `cp-${n}-${row}-${binding}.json`, `resume-${n}-${row}-${binding}-1.json`,
+  ];
+  for (const file of names(nonce, "14")) assert.equal(isRowClaim(file, nonce, "14"), true, file);
+  for (const file of [
+    ...names(nonce, "13"), ...names(nonce, "15"), ...names(nonce, "140"),
+    ...names("00000000-0000-4000-8000-000000000014", "14"),
+  ]) assert.equal(isRowClaim(file, nonce, "14"), false, file);
+});
+
+function world(t: { after: (fn: () => void) => void }, o: { candidatePath?: string; nonce?: string } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "nc-1867-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repo = join(root, "repo"); mkdirSync(repo);
@@ -108,7 +128,15 @@ function world(t: { after: (fn: () => void) => void }, o: { candidatePath?: stri
     },
     ...extra,
   });
-  const issue = (extra: Record<string, unknown> = {}) => issueFrozenReceipt({ image: IMAGE, approval: "https://example.invalid/1867#issuecomment-6603636406", swarmTicket: TICKET, generation: 1, partner, ...ctx, drainRoot, ...extra });
+  const issue = async (extra: Record<string, unknown> = {}) => {
+    const receipt = await issueFrozenReceipt({ image: IMAGE, approval: "https://example.invalid/1867#issuecomment-6603636406", swarmTicket: TICKET, generation: 1, partner, ...ctx, drainRoot, ...extra });
+    if (o.nonce !== undefined) {
+      renameSync(roundDirOf(dir, receipt.nonce), roundDirOf(dir, o.nonce));
+      receipt.nonce = o.nonce;
+      writeFileSync(join(dir, "receipt.json"), JSON.stringify(receipt));
+    }
+    return receipt;
+  };
   const claims = () => readdirSync(dir).filter((f) => /^(used|resume|cp)-/.test(f)).sort();
   const branchOf = (b: string) => { try { return git("rev-parse", "--verify", "-q", `refs/heads/${b}`); } catch { return ""; } };
   const sel = (nonce: string, row: AcceptanceRow): DeploymentSelection => ({ ticket: TICKET, head, nonce, row });
@@ -526,7 +554,7 @@ test("来源最后重核在阻塞检查之后：冲突工蜂最后一次镜像�
 });
 
 test("首次 run 准入：模型预检期间撤回独审 → 不发布准入、不建工位、不消费", async (t) => {
-  const w = world(t); const r = await w.issue();
+  const w = world(t, { nonce: NONCE_WITH_ROW_SUBSTRING }); const r = await w.issue();
   const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
   const plan = await w.bind(r.nonce, c.head);
   const review = readFileSync(plan.candidate.review.file, "utf8");
@@ -537,12 +565,12 @@ test("首次 run 准入：模型预检期间撤回独审 → 不发布准入、�
   assert.equal(existsSync(join(round.roundDir, ROUND_FILES.admission("14"))), false);
   assert.equal(existsSync(plan.runs["14"].cwd), false);
   assert.equal(w.branchOf(plan.runs["14"].manifest.branch), "");
-  assert.deepEqual(w.claims().filter((f) => f.includes("-14")), []);
+  assert.deepEqual(w.claims().filter((f) => isRowClaim(f, r.nonce, "14")), []);
   assert.equal(w.creates.length, 1);
 });
 
 test("首次 run 准入：等待仓库初始化锁期间撤回主控准入 → 不发布准入、不建工位、不消费；恢复后同命令完成", async (t) => {
-  const w = world(t); const r = await w.issue();
+  const w = world(t, { nonce: NONCE_WITH_ROW_SUBSTRING }); const r = await w.issue();
   const c = await runDeploymentAcceptance(w.sel(r.nonce, "13"), w.deps());
   const plan = await w.bind(r.nonce, c.head);
   const admission = readFileSync(plan.candidate.controllerAdmission, "utf8");
@@ -561,7 +589,7 @@ test("首次 run 准入：等待仓库初始化锁期间撤回主控准入 → �
   const round = inspectFrozenRound({ ticket: TICKET, head: w.head, nonce: r.nonce }, w.ctx);
   assert.equal(existsSync(join(round.roundDir, ROUND_FILES.admission("14"))), false);
   assert.equal(existsSync(plan.runs["14"].cwd), false);
-  assert.deepEqual(w.claims().filter((f) => f.includes("-14")), []);
+  assert.deepEqual(w.claims().filter((f) => isRowClaim(f, r.nonce, "14")), []);
   writeFileSync(plan.candidate.controllerAdmission, admission);
   assert.equal((await runDeploymentAcceptance(w.sel(r.nonce, "14"), w.deps())).state, "merge_done");
 });
