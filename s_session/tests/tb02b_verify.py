@@ -70,7 +70,7 @@ def verify(database, case=None, node=None):
         check_snapshot(states[-1]["snapshot"], expected)
     if node:
         script = """const fs=require('node:fs'); const API=require(process.argv[1]);
-const states=JSON.parse(fs.readFileSync(0,'utf8'));
+const states=JSON.parse(fs.readFileSync(0).toString('utf8'));
 (async()=>{for(const s of states){const snapshot={...s.snapshot,rule_revision:s.snapshot.catalog_evidence.rule_revision};const cut=Object.fromEntries(["session_id","generation","structure_cut","catalog_revision","index_frontier"].map(k=>[k,snapshot[k]]));await API.Q3.validateState({...s,snapshot,cut},"s-session/2");}
 console.log(JSON.stringify({validated_cuts:states.length}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
         child = subprocess.run([str(node), "-e", script, str(ROOT / "browser/tb01c-client.js")],
