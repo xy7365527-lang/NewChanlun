@@ -390,14 +390,16 @@ jobs:
       fail-fast: false
       # Boat 上五组同时开工；退回 ubuntu-latest 时取 4（#1875 R12：3 槽时 release-locks 要排队约 19 分钟，任何顺序下界都约 48 分钟；
       #   4 槽按实测时长模拟约 40 分钟，单次 CI 托管 Linux 作业峰值 20，不超过 20，见 run 42019882083）。
-      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 4 }}
+      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 6 || 4 }}
       matrix:
         # 按托管路径实测时长从长到短排，空出的槽先给长的（#1875 R12）。
-        group: [native, release-locks, owned, economic, content]
+        # #1875 P353-5：Boat 上把 owned 的 release 档 H1 各步拆到 owned-h1，与 debug 档各步并行；托管路径不拆（20 并发上限）。
+        group: ${{ fromJSON((vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '["native","release-locks","owned","owned-h1","economic","content"]' || '["native","release-locks","owned","economic","content"]') }}
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.group == 'native' && 90 || 60 }}
     env:
       CARGO_INCREMENTAL: "0"
+      OWNED_SPLIT: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '1' || '0' }}
     defaults:
       run:
         working-directory: rust
@@ -453,7 +455,7 @@ jobs:
         run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}" -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
       - name: H1 私有 FD/WAL 授权边界锁（#1481 S1D）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
         run: |
           set -o pipefail
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
@@ -461,7 +463,7 @@ jobs:
           grep -Fx "test v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
 
       - name: H1 正式准入三层对拍与调用路径锁（#1481 S1）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
         run: |
           set -o pipefail
           # #1481 S1K：接替 history36h 的全部 h1_ release 锁，保留正式准入逐名收据。
@@ -511,7 +513,7 @@ jobs:
 
       # #1481 S1K：临时分支 push 触发移除后，PR CI 保留 history36h 的同 feature/profile 覆盖。
       - name: H1 SQLite commit failure locks（#1481 S1K）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
         run: |
           set -o pipefail
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
@@ -539,10 +541,10 @@ jobs:
           done
 
       - name: 上传 H1 正式准入逐名日志（#1481 S1）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned' || matrix.group == 'owned-h1') }}
         uses: actions/upload-artifact@v4
         with:
-          name: h1-admission-S1
+          name: ${{ (matrix.group == 'owned' && env.OWNED_SPLIT == '1') && 'h1-admission-S1-debug' || 'h1-admission-S1' }}
           path: |
             ${{ runner.temp }}/1481-admission.log
             ${{ runner.temp }}/1481-ledger.log
