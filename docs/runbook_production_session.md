@@ -50,8 +50,13 @@ X 退出只记日志，S/E/B 继续。SIGTERM/SIGINT → 向全部子进程发 S
 - `category` 只认 `UsEquityStockLineTick`、`TestOnlyStructure`（ADR 0020:151-154、ADR 0023:9-34）。
 - `namespaces` 与 `execution_capabilities.namespaces` 相交即 `InvalidDomain`，在拉起 S、创建 S 库之前退出——
   HL 行情即使与美股 bar 同形、类别标成个股线也不进 S。
-- launcher 每次启动在拉起域之前，把 manifest 的规范声明写到 `<state_dir>/structure-source.json`（#1845）。
-- S 库不存在：launcher 以 `init --protocol-revision s-session/3 ... --structure-source <state_dir>/structure-source.json` 建库，
+- launcher 在创建文件或拉起域之前拒绝声明目标与 `s.db` 同路径或同文件，包括未创建目标、符号链接和硬链接（#1845）。
+  `state_dir` 与 S 库父目录相同但文件不同仍合法；不替代 S 自身的 admission 检查。
+- launcher 用独占创建保存 manifest 的规范声明，不覆盖、截断或替换任何既有文件。
+  首选 `<state_dir>/structure-source.json`。内容相同则只读复用；内容不同或损坏则依次尝试
+  `structure-source.1.json`、`structure-source.2.json`，每个候选同样检查与 `s.db` 的冲突。
+  重复启动复用相同内容的文件，旧声明保留。失败写入留下的部分文件也不覆盖，后续启动选择下一个文件。
+- S 库不存在：launcher 以 `init --protocol-revision s-session/3 ... --structure-source <本次选定文件>` 建库，
   声明作为库固定属性落 `meta.structure_source`。
 - launcher 每次调用 S `serve --protocol-revision s-session/3` 都传同一文件的 `--structure-source`。
   S 在取得自身写锁、完成原 admission 后，读取文件并与 `meta.structure_source` 的规范文本逐字比较。
