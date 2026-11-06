@@ -812,10 +812,13 @@ pub(super) fn roots_json_into(out: &mut String, roots: [RefView<'_>; 4]) -> Resu
     Ok(())
 }
 
-struct Pending {
+pub(super) struct Pending {
     token: NativeValue<String>,
     generation: i64,
     roots: [NativeValue<ContentRef>; 4],
+    /// 受管台账为这一代持有的原父许可；放在最后，先释放上面的载荷。
+    #[cfg(feature = "s_incremental")]
+    fee: Option<Permit>,
 }
 impl Pending {
     fn new(
@@ -833,6 +836,8 @@ impl Pending {
                 NativeValue::<ContentRef>::try_from_view(roots[2], work).map_err(error)?,
                 NativeValue::<ContentRef>::try_from_view(roots[3], work).map_err(error)?,
             ],
+            #[cfg(feature = "s_incremental")]
+            fee: None,
         })
     }
 }
@@ -868,8 +873,10 @@ pub(super) trait Backend: sealed::Sealed {
         &self,
         sql: &str,
         params: [&dyn ToSql; N],
-        f: impl FnOnce([ValueRef<'_>; M]) -> Result<T, String>,
+        f: impl FnOnce([ValueRef<'_>; M]) -> Result<T, Self::Error>,
     ) -> Result<T, Self::Error>;
+    /// 行解码失败。
+    fn decode(e: rusqlite::types::FromSqlError) -> Self::Error;
     /// 连接已在失效时丢弃。
     fn detached() -> Self::Error;
     /// 台账判据失败（文本与 Legacy 的 `error(text)` 相同）。
@@ -886,8 +893,35 @@ pub(super) trait Backend: sealed::Sealed {
         units: impl Iterator<Item = &'u Unit> + Clone,
         verifier_revision: &str,
     ) -> Result<StageDigests<Self::Text>, Self::Error>;
+    /// 台账与内容库的持久路径：Legacy 为 `PathBuf`；Charged 为原父许可持有的主文件与旁文件
+    /// NUL 路径。
+    type Path;
+    /// 安装规则文本：Legacy 为 `String`；Charged 为原父许可持有的副本。
+    type Rule: std::ops::Deref<Target = str>;
     /// 数据库文件及其 `-wal`、`-journal` 的合计字节。
-    fn storage_bytes(path: &Path) -> Result<u64, Self::Error>;
+    fn storage_bytes(path: &Self::Path) -> Result<u64, Self::Error>;
+    /// 以 0600 新建台账文件；已存在即失败，不覆盖旧原件。
+    fn create_new(path: &Self::Path) -> Result<(), Self::Error>;
+    /// meta 初始折叠摘要 `sha256(FORMAT)`。
+    fn format_hash() -> Self::Text;
+    /// 待提交一代的持有（token 与四根）。
+    fn pending(
+        &self,
+        token: &str,
+        generation: i64,
+        roots: [RefView<'_>; 4],
+        work: Option<&WorkScope>,
+    ) -> Result<Pending, Self::Error>;
+    /// 核验后的新单位集合（排除已提交单位），供 stage 写 node 与摘要。
+    #[cfg(feature = "s_incremental")]
+    type Units: std::ops::Deref<Target = [Unit]>;
+    #[cfg(feature = "s_incremental")]
+    fn new_units(
+        &self,
+        verified: &sc::closure_delta::VerifiedUnits,
+        work: Option<&WorkScope>,
+        committed: impl Fn(&Unit) -> Result<bool, Self::Error>,
+    ) -> Result<Self::Units, Self::Error>;
     /// stage 时上一代资格与已提交状态不符；`detail` 为查询本身的错误（`None` 为字段不同）。
     fn prior_mismatch(detail: Option<Self::Error>) -> Self::Error;
     /// 前沿点查错误穿过 `CodecError` 接口：`Ok` 为须原样带回调用方的错误，`Err` 为诊断文本。
@@ -946,6 +980,9 @@ impl Backend for Legacy {
             })
             .map_err(error)?
     }
+    fn decode(e: rusqlite::types::FromSqlError) -> String {
+        error(e)
+    }
     fn detached() -> String {
         error("台账已丢弃")
     }
@@ -957,7 +994,7 @@ impl Backend for Legacy {
         self.query_row(
             "SELECT fold_digest FROM meta WHERE singleton=1",
             [],
-            |[v]| text(v).map(str::to_owned),
+            |[v]| text::<Self>(v).map(str::to_owned),
         )
     }
     fn stage_texts<'u>(
@@ -974,8 +1011,56 @@ impl Backend for Legacy {
             fold: sha256_hex(texts.fold.as_bytes()),
         })
     }
-    fn storage_bytes(path: &Path) -> Result<u64, String> {
+    type Path = PathBuf;
+    type Rule = String;
+    fn storage_bytes(path: &PathBuf) -> Result<u64, String> {
         database_bytes(path)
+    }
+    fn create_new(path: &PathBuf) -> Result<(), String> {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)
+            .map(drop)
+            .map_err(error)
+    }
+    fn format_hash() -> String {
+        sha256_hex(FORMAT.as_bytes())
+    }
+    fn pending(
+        &self,
+        token: &str,
+        generation: i64,
+        roots: [RefView<'_>; 4],
+        work: Option<&WorkScope>,
+    ) -> Result<Pending, String> {
+        Pending::new(token, generation, roots, work)
+    }
+    #[cfg(feature = "s_incremental")]
+    type Units = sc::CodecVec<Unit>;
+    #[cfg(feature = "s_incremental")]
+    fn new_units(
+        &self,
+        verified: &sc::closure_delta::VerifiedUnits,
+        work: Option<&WorkScope>,
+        committed: impl Fn(&Unit) -> Result<bool, String>,
+    ) -> Result<sc::CodecVec<Unit>, String> {
+        let mut units = sc::CodecVec::default();
+        verified.try_for_each_unit(|u| -> Result<(), String> {
+            let unit = Unit::of_closure(u);
+            if !committed(&unit)? {
+                match work {
+                    Some(work) => units.try_reserve_native(work, 1),
+                    None => units.try_reserve(1),
+                }
+                .map_err(error)?;
+                units.try_push(unit).map_err(error)?;
+            }
+            Ok(())
+        })?;
+        units.sort_unstable();
+        Ok(units)
     }
     fn prior_mismatch(detail: Option<String>) -> String {
         let detail = detail.unwrap_or_else(|| "字段不同".to_owned());
@@ -1204,10 +1289,12 @@ impl Backend for Charged {
         &self,
         sql: &str,
         params: [&dyn ToSql; N],
-        f: impl FnOnce([ValueRef<'_>; M]) -> Result<T, String>,
+        f: impl FnOnce([ValueRef<'_>; M]) -> Result<T, LedgerError>,
     ) -> Result<T, LedgerError> {
         self.run(|q| q.query_row(sql, params, f))?
-            .map_err(LedgerError::Stale)
+    }
+    fn decode(_: rusqlite::types::FromSqlError) -> LedgerError {
+        LedgerError::Invalid("台账列类型无效")
     }
     fn detached() -> LedgerError {
         LedgerError::Detached
@@ -1221,7 +1308,7 @@ impl Backend for Charged {
         let len = self.query_row(
             "SELECT length(CAST(fold_digest AS BLOB)) FROM meta WHERE singleton=1",
             [],
-            |[v]| int(v),
+            |[v]| int::<Self>(v),
         )?;
         let len = usize::try_from(len).map_err(|_| LedgerError::Invalid("折叠摘要长度无效"))?;
         let permit = self.parent.reserve(len)?;
@@ -1232,7 +1319,7 @@ impl Backend for Charged {
             "SELECT fold_digest FROM meta WHERE singleton=1",
             [],
             |[v]| {
-                let t = text(v)?;
+                let t = text::<Self>(v)?;
                 if t.len() == len {
                     out.push_str(t);
                 }
@@ -1273,12 +1360,86 @@ impl Backend for Charged {
             fold: ChargedText::Hex(fold),
         })
     }
-    fn storage_bytes(path: &Path) -> Result<u64, LedgerError> {
-        stat_bytes(path).map_err(|e| match e {
-            StorageError::Io(e) => LedgerError::Storage(e.kind()),
-            StorageError::Overflow => LedgerError::Invalid("存储计数溢出"),
-            StorageError::Path => LedgerError::Invalid("台账路径过长或含 NUL"),
-        })
+    type Path = ChargedPath;
+    type Rule = ChargedText;
+    fn storage_bytes(path: &ChargedPath) -> Result<u64, LedgerError> {
+        let mut total = 0u64;
+        for file in path.files() {
+            total = total
+                .checked_add(stat_file(file)?)
+                .ok_or(LedgerError::Invalid("存储计数溢出"))?;
+        }
+        Ok(total)
+    }
+    fn create_new(path: &ChargedPath) -> Result<(), LedgerError> {
+        // SAFETY: the path is NUL-terminated and borrowed for the call; the fd is closed here.
+        let fd = unsafe {
+            libc::open(
+                path.main().as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC,
+                0o600,
+            )
+        };
+        if fd < 0 {
+            return Err(LedgerError::Storage(std::io::Error::last_os_error().kind()));
+        }
+        // SAFETY: fd was just opened by this call and is not shared.
+        unsafe { libc::close(fd) };
+        Ok(())
+    }
+    fn format_hash() -> ChargedText {
+        ChargedText::Hex(canonical::Hex::of_bytes(FORMAT.as_bytes()))
+    }
+    /// token 与四根按 `NativeValue` 的精确复制长度先从原父预留，许可随 Pending 释放。
+    fn pending(
+        &self,
+        token: &str,
+        generation: i64,
+        roots: [RefView<'_>; 4],
+        _work: Option<&WorkScope>,
+    ) -> Result<Pending, LedgerError> {
+        let bytes = roots
+            .iter()
+            .try_fold(token.len(), |n, r| {
+                n.checked_add(r.format().len())?.checked_add(r.root().len())
+            })
+            .ok_or(LedgerError::Budget)?;
+        let permit = self.parent.reserve(bytes)?;
+        let mut pending =
+            Pending::new(token, generation, roots, None).map_err(LedgerError::Stale)?;
+        pending.fee = Some(permit);
+        Ok(pending)
+    }
+    type Units = ChargedUnits;
+    /// 先数出全部候选单位，按该上界从原父预留，再只放入未提交的单位，不在循环中增长。
+    fn new_units(
+        &self,
+        verified: &sc::closure_delta::VerifiedUnits,
+        _work: Option<&WorkScope>,
+        committed: impl Fn(&Unit) -> Result<bool, LedgerError>,
+    ) -> Result<ChargedUnits, LedgerError> {
+        let mut total = 0usize;
+        verified.try_for_each_unit(|_| -> Result<(), LedgerError> {
+            total = total.checked_add(1).ok_or(LedgerError::Budget)?;
+            Ok(())
+        })?;
+        let bytes = total
+            .checked_mul(std::mem::size_of::<Unit>())
+            .ok_or(LedgerError::Budget)?;
+        let permit = self.parent.reserve(bytes)?;
+        let mut units = Vec::new();
+        units
+            .try_reserve_exact(total)
+            .map_err(|_| LedgerError::Budget)?;
+        verified.try_for_each_unit(|u| -> Result<(), LedgerError> {
+            let unit = Unit::of_closure(u);
+            if !committed(&unit)? && units.len() < total {
+                units.push(unit);
+            }
+            Ok(())
+        })?;
+        units.sort_unstable();
+        Ok(ChargedUnits(permit.hold(units)))
     }
     /// 查询本身的分类按值透传；只有带文本的判据失败才拼接上下文。
     fn prior_mismatch(detail: Option<LedgerError>) -> LedgerError {
@@ -1348,21 +1509,21 @@ impl StackSql {
 const PRAGMAS: &str =
     "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;";
 
-fn int(v: ValueRef<'_>) -> Result<i64, String> {
-    v.as_i64().map_err(error)
+fn int<B: Backend>(v: ValueRef<'_>) -> Result<i64, B::Error> {
+    v.as_i64().map_err(B::decode)
 }
-fn text(v: ValueRef<'_>) -> Result<&str, String> {
-    v.as_str().map_err(error)
+fn text<B: Backend>(v: ValueRef<'_>) -> Result<&str, B::Error> {
+    v.as_str().map_err(B::decode)
 }
 
-pub(super) struct Ledger<B = Legacy> {
+pub(super) struct Ledger<B: Backend = Legacy> {
     connection: Option<B>,
     phase: Phase,
     coverage: Coverage,
-    path: PathBuf,
-    content_path: PathBuf,
+    path: B::Path,
+    content_path: B::Path,
     max_store_bytes: u64,
-    rule_revision: String,
+    rule_revision: B::Rule,
 }
 
 fn error(e: impl std::fmt::Display) -> String {
@@ -1375,15 +1536,6 @@ fn root_value(r: RefView<'_>) -> Value {
 fn roots_value(roots: &[ContentRef; 4]) -> Value {
     Value::Array(roots.iter().map(|r| root_value(r.into())).collect())
 }
-#[cfg(feature = "s_incremental")]
-/// 存储读数的失败；不带文本，不分配。
-#[derive(Debug)]
-pub(super) enum StorageError {
-    Io(std::io::Error),
-    Overflow,
-    Path,
-}
-
 fn legacy_file_bytes(path: &Path) -> Result<u64, String> {
     match std::fs::metadata(path) {
         Ok(m) => Ok(m.len()),
@@ -1404,40 +1556,116 @@ fn database_bytes(path: &Path) -> Result<u64, String> {
 }
 
 #[cfg(feature = "s_incremental")]
-/// 数据库文件及其 `-wal`、`-journal` 的合计字节。路径在栈上拼接并以 `stat` 读取，不经堆。
-fn stat_bytes(path: &Path) -> Result<u64, StorageError> {
-    use std::os::unix::ffi::OsStrExt;
-    let base = path.as_os_str().as_bytes();
-    let mut total = 0u64;
-    for suffix in [&b""[..], b"-wal", b"-journal"] {
-        total = total
-            .checked_add(file_bytes(base, suffix)?)
-            .ok_or(StorageError::Overflow)?;
+/// 原父许可持有的单位集合。
+pub(super) struct ChargedUnits(Reserved<Vec<Unit>>);
+
+#[cfg(feature = "s_incremental")]
+impl std::ops::Deref for ChargedUnits {
+    type Target = [Unit];
+    fn deref(&self) -> &[Unit] {
+        &self.0
     }
-    Ok(total)
 }
 
 #[cfg(feature = "s_incremental")]
-fn file_bytes(base: &[u8], suffix: &[u8]) -> Result<u64, StorageError> {
-    let mut buf = [0u8; 4096 + 16];
-    let len = base.len() + suffix.len();
-    if len >= buf.len() || base.contains(&0) {
-        return Err(StorageError::Path);
+/// 原父许可持有的数据库路径：主文件、`-wal`、`-journal` 三个 NUL 结尾副本连续存放。读数与
+/// 创建直接借用这些副本，不再拼接，也不设项目自定的长度上限。
+pub(super) struct ChargedPath {
+    bytes: Reserved<Vec<u8>>,
+    base: usize,
+}
+
+#[cfg(feature = "s_incremental")]
+impl ChargedPath {
+    fn new(path: &CStr, parent: &ChargedParent) -> Result<Self, LedgerError> {
+        let base = path.to_bytes().len();
+        let total = base
+            .checked_mul(3)
+            .and_then(|n| n.checked_add(3 + "-wal".len() + "-journal".len()))
+            .ok_or(LedgerError::Budget)?;
+        let permit = parent.reserve(total)?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(total)
+            .map_err(|_| LedgerError::Budget)?;
+        for suffix in [&b""[..], b"-wal", b"-journal"] {
+            bytes.extend_from_slice(path.to_bytes());
+            bytes.extend_from_slice(suffix);
+            bytes.push(0);
+        }
+        Ok(Self {
+            bytes: permit.hold(bytes),
+            base,
+        })
     }
-    buf[..base.len()].copy_from_slice(base);
-    buf[base.len()..len].copy_from_slice(suffix);
+    /// 只接受已规范的绝对路径：以 `/` 开头，无空、`.`、`..` 段与尾随 `/`，且每一级前缀都不是
+    /// 符号链接。逐前缀 `lstat` 在按真实长度预留的工作副本上放置 NUL，不调用 `realpath`。
+    fn canonical(path: &CStr, parent: &ChargedParent) -> Result<Self, LedgerError> {
+        let raw = path.to_bytes();
+        let shaped = raw.first() == Some(&b'/')
+            && (raw.len() == 1 || !raw.ends_with(b"/"))
+            && raw[1..]
+                .split(|b| *b == b'/')
+                .all(|c| !c.is_empty() && c != b"." && c != b"..");
+        if !shaped {
+            return Err(LedgerError::Invalid("内容库路径不是规范绝对路径"));
+        }
+        let held = Self::new(path, parent)?;
+        let permit = parent.reserve(raw.len() + 1)?;
+        let mut work = Vec::new();
+        work.try_reserve_exact(raw.len() + 1)
+            .map_err(|_| LedgerError::Budget)?;
+        work.extend_from_slice(raw);
+        work.push(0);
+        let mut work = permit.hold(work);
+        for end in (1..raw.len())
+            .filter(|&i| raw[i] == b'/')
+            .chain([raw.len()])
+        {
+            work[end] = 0;
+            let prefix = CStr::from_bytes_with_nul(&work[..=end])
+                .map_err(|_| LedgerError::Invalid("内容库路径含 NUL"))?;
+            let mut st = std::mem::MaybeUninit::<libc::stat>::uninit();
+            // SAFETY: prefix is NUL-terminated; st is written by lstat on success.
+            if unsafe { libc::lstat(prefix.as_ptr(), st.as_mut_ptr()) } != 0 {
+                return Err(LedgerError::Storage(std::io::Error::last_os_error().kind()));
+            }
+            // SAFETY: lstat returned 0, so st is initialized.
+            let mode = unsafe { st.assume_init() }.st_mode;
+            if mode & libc::S_IFMT == libc::S_IFLNK {
+                return Err(LedgerError::Invalid("内容库路径含符号链接"));
+            }
+            if end < raw.len() {
+                work[end] = b'/';
+            }
+        }
+        Ok(held)
+    }
+    fn main(&self) -> &CStr {
+        CStr::from_bytes_with_nul(&self.bytes[..=self.base]).unwrap_or_default()
+    }
+    fn files(&self) -> impl Iterator<Item = &CStr> {
+        self.bytes
+            .split_inclusive(|b| *b == 0)
+            .filter_map(|file| CStr::from_bytes_with_nul(file).ok())
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+/// 借用的 NUL 路径上的 `stat`；不存在计 0，不经堆。
+fn stat_file(path: &CStr) -> Result<u64, LedgerError> {
     let mut st = std::mem::MaybeUninit::<libc::stat>::uninit();
-    // SAFETY: buf is NUL-terminated at `len`; st is written by stat on success.
-    if unsafe { libc::stat(buf.as_ptr().cast(), st.as_mut_ptr()) } == 0 {
+    // SAFETY: path is NUL-terminated; st is written by stat on success.
+    if unsafe { libc::stat(path.as_ptr(), st.as_mut_ptr()) } == 0 {
         // SAFETY: stat returned 0, so st is initialized.
         let size = unsafe { st.assume_init() }.st_size;
-        return u64::try_from(size).map_err(|_| StorageError::Overflow);
+        return u64::try_from(size).map_err(|_| LedgerError::Invalid("存储计数溢出"));
     }
     let e = std::io::Error::last_os_error();
     if e.kind() == std::io::ErrorKind::NotFound {
         Ok(0)
     } else {
-        Err(StorageError::Io(e))
+        Err(LedgerError::Storage(e.kind()))
     }
 }
 
@@ -1449,7 +1677,22 @@ impl Ledger {
         identity: Identity,
         max_store_bytes: u64,
     ) -> Result<Self, String> {
-        Self::fresh_in(path, content_path, identity, max_store_bytes, Legacy::open)
+        if identity.rule_revision.is_empty()
+            || identity.content_identity.is_empty()
+            || identity.binary_commit.is_empty()
+        {
+            return Err(error("台账身份字段不能为空"));
+        }
+        let content_path = content_path.canonicalize().map_err(error)?;
+        Self::fresh_in(
+            path.to_owned(),
+            content_path,
+            identity.rule_revision,
+            &identity.content_identity,
+            &identity.binary_commit,
+            max_store_bytes,
+            |path, pages| Legacy::open(path, pages),
+        )
     }
     #[cfg(feature = "s_incremental")]
     pub(super) fn fresh_raw_partition(
@@ -1494,38 +1737,45 @@ impl Ledger<Charged> {
     )]
     pub(super) fn fresh_charged(
         path: &CStr,
-        content_path: &Path,
-        identity: Identity,
+        content_path: &CStr,
+        identity: &Identity,
         max_store_bytes: u64,
         parent: ChargedParent,
     ) -> Result<Self, LedgerError> {
-        use std::os::unix::ffi::OsStrExt;
-        let fs_path = Path::new(std::ffi::OsStr::from_bytes(path.to_bytes()));
+        if identity.rule_revision.is_empty()
+            || identity.content_identity.is_empty()
+            || identity.binary_commit.is_empty()
+        {
+            return Err(LedgerError::Invalid("台账身份字段不能为空"));
+        }
+        let content = ChargedPath::canonical(content_path, &parent)?;
+        let ledger = ChargedPath::new(path, &parent)?;
+        let rule = parent
+            .budget
+            .string(&identity.rule_revision)
+            .map_err(|_| LedgerError::Budget)?;
         Self::fresh_in(
-            fs_path,
-            content_path,
-            identity,
+            ledger,
+            content,
+            ChargedText::Held(rule),
+            &identity.content_identity,
+            &identity.binary_commit,
             max_store_bytes,
-            |_, pages| Charged::open(path, pages, parent),
+            |path, pages| Charged::open(path.main(), pages, parent),
         )
     }
 }
 
 impl<B: Backend> Ledger<B> {
     fn fresh_in(
-        path: &Path,
-        content_path: &Path,
-        identity: Identity,
+        path: B::Path,
+        content_path: B::Path,
+        rule_revision: B::Rule,
+        content_identity: &str,
+        binary_commit: &str,
         max_store_bytes: u64,
-        open: impl FnOnce(&Path, i64) -> Result<B, B::Error>,
+        open: impl FnOnce(&B::Path, i64) -> Result<B, B::Error>,
     ) -> Result<Self, B::Error> {
-        if identity.rule_revision.is_empty()
-            || identity.content_identity.is_empty()
-            || identity.binary_commit.is_empty()
-        {
-            return Err(B::invalid("台账身份字段不能为空"));
-        }
-        let content_path = content_path.canonicalize().map_err(error)?;
         let remaining = max_store_bytes
             .checked_sub(B::storage_bytes(&content_path)?)
             .ok_or_else(|| B::invalid("内容库已超过 max_store_bytes"))?;
@@ -1533,32 +1783,27 @@ impl<B: Backend> Ledger<B> {
         if pages == 0 {
             return Err(B::invalid("没有台账页空间"));
         }
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)
-            .map_err(error)?;
-        let conn = open(path, pages)?;
+        B::create_new(&path)?;
+        let conn = open(&path, pages)?;
         conn.execute_batch(SCHEMA)?;
         conn.execute(
             "INSERT INTO meta VALUES(1,?1,?2,?3,?4,0,?5)",
             [
                 &FORMAT,
-                &identity.rule_revision,
-                &identity.content_identity,
-                &identity.binary_commit,
-                &sha256_hex(FORMAT.as_bytes()),
+                &&*rule_revision,
+                &content_identity,
+                &binary_commit,
+                &&*B::format_hash(),
             ],
         )?;
         let ledger = Self {
             connection: Some(conn),
             phase: Phase::Ready,
             coverage: Coverage::Complete,
-            path: path.to_owned(),
+            path,
             content_path,
             max_store_bytes,
-            rule_revision: identity.rule_revision,
+            rule_revision,
         };
         ledger.check_storage()?;
         Ok(ledger)
@@ -1596,7 +1841,7 @@ impl<B: Backend> Ledger<B> {
     /// 规则取持久 `meta.rule_revision` 并与安装规则同事务核（40H B1），不以内存副本替代。
     fn with_committed_qualification<R>(
         &self,
-        f: impl FnOnce(&QualificationView<'_>) -> Result<R, String>,
+        f: impl FnOnce(&QualificationView<'_>) -> Result<R, B::Error>,
     ) -> Result<R, B::Error> {
         let through = self.committed_through()?;
         if through < 1 {
@@ -1607,22 +1852,22 @@ impl<B: Backend> Ledger<B> {
              m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1",
             [&through],
             |[roots, fold, verifier, meta_fold, content, binary, rule]| {
-                let fold_digest = text(fold)?;
-                if text(meta_fold)? != fold_digest {
-                    return Err(error("完整水位与末代 cert 折叠摘要不一致").into());
+                let fold_digest = text::<B>(fold)?;
+                if text::<B>(meta_fold)? != fold_digest {
+                    return Err(B::invalid("完整水位与末代 cert 折叠摘要不一致"));
                 }
-                let rule_revision = text(rule)?;
-                if rule_revision != self.rule_revision {
-                    return Err(error("台账持久规则与安装规则不一致").into());
+                let rule_revision = text::<B>(rule)?;
+                if rule_revision != &*self.rule_revision {
+                    return Err(B::invalid("台账持久规则与安装规则不一致"));
                 }
                 f(&QualificationView {
                     through,
-                    roots: text(roots)?,
+                    roots: text::<B>(roots)?,
                     fold_digest,
-                    verifier_revision: text(verifier)?,
+                    verifier_revision: text::<B>(verifier)?,
                     rule_revision,
-                    content_identity: text(content)?,
-                    binary_commit: text(binary)?,
+                    content_identity: text::<B>(content)?,
+                    binary_commit: text::<B>(binary)?,
                 })
             },
         )
@@ -1636,7 +1881,7 @@ impl<B: Backend> Ledger<B> {
     pub(super) fn qualification_bounded(&self, cap: usize) -> Result<Qualification, B::Error> {
         self.with_committed_qualification(|v| {
             if v.string_bytes() > cap {
-                return Err(error("完整资格超过调用方保留上界").into());
+                return Err(B::invalid("完整资格超过调用方保留上界"));
             }
             Ok(v.owned())
         })
@@ -1683,7 +1928,7 @@ impl<B: Backend> Ledger<B> {
         self.store()?.query_row(
             "SELECT certified_through_generation FROM meta WHERE singleton=1",
             [],
-            |[v]| int(v),
+            |[v]| int::<B>(v),
         )
     }
     /// 已提交存储读数，不是 U-A 资格；准备中连本连接的未提交行也不暴露。
@@ -1698,7 +1943,7 @@ impl<B: Backend> Ledger<B> {
         self.store()?.query_row(
             "SELECT EXISTS(SELECT 1 FROM node WHERE digest=?1 AND flavor=?2 AND mode=?3 AND first_generation<=?4)",
             [&unit.digest.as_slice(), &unit.flavor(), &unit.mode(), &through],
-            |[v]| int(v).map(|n| n != 0),
+            |[v]| int::<B>(v).map(|n| n != 0),
         )
     }
     pub(super) fn stage(&mut self, token: &str, delta: &GenerationDelta) -> Result<(), B::Error> {
@@ -1768,20 +2013,9 @@ impl<B: Backend> Ledger<B> {
             {
                 return Err(B::invalid("闭包单位与待准备事实四根不匹配"));
             }
-            let mut units = sc::CodecVec::default();
-            verified.try_for_each_unit(|u| -> Result<(), B::Error> {
-                let unit = Unit::of_closure(u);
-                if !self.contains_committed_unit(&unit)? {
-                    match work {
-                        Some(work) => units.try_reserve_native(work, 1),
-                        None => units.try_reserve(1),
-                    }
-                    .map_err(error)?;
-                    units.try_push(unit).map_err(error)?;
-                }
-                Ok(())
-            })?;
-            units.sort_unstable();
+            let units = self
+                .store()?
+                .new_units(verified, work, |unit| self.contains_committed_unit(unit))?;
             self.stage_inner(
                 token,
                 delta,
@@ -1827,7 +2061,9 @@ impl<B: Backend> Ledger<B> {
         }
         let previous = conn.previous_fold()?;
         let mut next: i64 =
-            conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
+            conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| {
+                int::<B>(v)
+            })?;
         for (seq, row) in &d.raw {
             if *seq != next {
                 return Err(B::invalid("raw 只允许连续追加"));
@@ -1907,7 +2143,7 @@ impl<B: Backend> Ledger<B> {
                 }
             }
         }
-        let covered: i64 = conn.query_row("SELECT COUNT(*) FROM cover", [], |[v]| int(v))?;
+        let covered: i64 = conn.query_row("SELECT COUNT(*) FROM cover", [], |[v]| int::<B>(v))?;
         if covered != d.effective {
             return Err(B::invalid("cover 行数不等于本 cut 生效坐标总数"));
         }
@@ -1941,7 +2177,7 @@ impl<B: Backend> Ledger<B> {
             [&d.generation, &&*digests.fold],
         )?;
         self.check_storage()?;
-        self.phase = Phase::Pending(Pending::new(
+        self.phase = Phase::Pending(conn.pending(
             token,
             d.generation,
             d.roots.each_ref().map(Into::into),
@@ -1991,7 +2227,7 @@ impl<B: Backend> Ledger<B> {
         let result = (|| -> Result<(), B::Error> {
             let through = self.partial_through()?;
             if through.checked_add(1) != Some(metadata.generation)
-                || metadata.rule_revision != self.rule_revision
+                || *metadata.rule_revision != *self.rule_revision
             {
                 return Err(B::invalid("raw分区代号或规则不连续"));
             }
@@ -1999,7 +2235,7 @@ impl<B: Backend> Ledger<B> {
                 .check_raw_partition(token, metadata, roots)
                 .map_err(sc::ContextError::into_message)?;
             let r = roots.view();
-            let pending = Pending::new(
+            let pending = self.store()?.pending(
                 token,
                 metadata.generation,
                 [
@@ -2017,7 +2253,9 @@ impl<B: Backend> Ledger<B> {
                 .ok_or_else(|| B::invalid("raw分区已丢弃"))?;
             conn.execute_batch("BEGIN IMMEDIATE")?;
             let mut next: i64 =
-                conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
+                conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| {
+                    int::<B>(v)
+                })?;
             if usize::try_from(next).ok() != Some(range.start) || source.rows().len() != range.len()
             {
                 return Err(B::invalid("raw来源后缀与已提交分区不衔接"));
@@ -2127,7 +2365,7 @@ impl<B: Backend> Ledger<B> {
             Phase::Pending(p) | Phase::Bound(p)
                 if p.token.as_str() == token
                     && p.generation == m.generation
-                    && m.rule_revision == self.rule_revision =>
+                    && m.rule_revision == &*self.rule_revision =>
             {
                 if p.roots.iter().zip(expected).all(|(a, b)| {
                     a.format == b.format()
@@ -3261,8 +3499,9 @@ pub(super) mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let c_path = |name: &str| std::ffi::CString::new(dir.join(name).to_str().unwrap()).unwrap();
-        let content = dir.join("content.sqlite3");
-        std::fs::File::create(&content).unwrap();
+        std::fs::File::create(dir.join("content.sqlite3")).unwrap();
+        let content_real = std::fs::canonicalize(dir.join("content.sqlite3")).unwrap();
+        let content = std::ffi::CString::new(content_real.to_str().unwrap()).unwrap();
         let identity = || Identity {
             rule_revision: "charged-rule".into(),
             content_identity: "charged-content".into(),
@@ -3287,7 +3526,7 @@ pub(super) mod tests {
 
         let path1 = c_path("ledger-a.sqlite3");
         let mut l1 =
-            Ledger::fresh_charged(&path1, &content, identity(), STORE, parent(&current, &a))
+            Ledger::fresh_charged(&path1, &content, &identity(), STORE, parent(&current, &a))
                 .unwrap();
         let pragma = |l: &Ledger<Charged>, sql: &str| {
             charged(l)
@@ -3311,7 +3550,7 @@ pub(super) mod tests {
         assert!(a.live_bytes() > 0);
         let live = a.live_bytes();
         assert!(
-            Ledger::fresh_charged(&path1, &content, identity(), STORE, parent(&current, &a))
+            Ledger::fresh_charged(&path1, &content, &identity(), STORE, parent(&current, &a))
                 .is_err()
         );
         assert_eq!(a.live_bytes(), live);
@@ -3371,12 +3610,12 @@ pub(super) mod tests {
         ));
         let path2 = c_path("ledger-b.sqlite3");
         let mut l2 =
-            Ledger::fresh_charged(&path2, &content, identity(), STORE, parent(&current, &b))
+            Ledger::fresh_charged(&path2, &content, &identity(), STORE, parent(&current, &b))
                 .unwrap();
         l2.fold_step(token, &d1, &m1, &r1).unwrap();
         let path3 = c_path("ledger-c.sqlite3");
         let mut l3 =
-            Ledger::fresh_charged(&path3, &content, identity(), STORE, parent(&current, &b))
+            Ledger::fresh_charged(&path3, &content, &identity(), STORE, parent(&current, &b))
                 .unwrap();
         l3.fold_step(token, &d1, &m1, &r1).unwrap();
         let q3 = l3.qualification().unwrap();
@@ -3549,17 +3788,16 @@ pub(super) mod tests {
         let dir = std::env::temp_dir().join(format!("ledger-bytes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let db = dir.join("db.sqlite3");
-        std::fs::write(&db, [0u8; 300]).unwrap();
-        std::fs::write(dir.join("db.sqlite3-wal"), [0u8; 20]).unwrap();
-        let missing = dir.join("missing.sqlite3");
+        std::fs::write(dir.join("db.sqlite3"), [0u8; 300]).unwrap();
+        let c = |name: &str| std::ffi::CString::new(dir.join(name).to_str().unwrap()).unwrap();
+        let (db, missing) = (c("db.sqlite3"), c("missing.sqlite3"));
         let window = Window::start();
-        let present = stat_bytes(&db);
-        let absent = stat_bytes(&missing);
+        let present = stat_file(&db);
+        let absent = stat_file(&missing);
         let probe = window.finish();
         assert_eq!(probe["allocated_bytes"], 0, "{probe}");
-        assert_eq!(present.ok(), Some(320));
-        assert_eq!(absent.ok(), Some(0));
+        assert_eq!(present, Ok(300));
+        assert_eq!(absent, Ok(0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
