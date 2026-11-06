@@ -7,11 +7,16 @@
 use super::*;
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content as sc;
+use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+    ChargedConnection, OpenSpec, SqlGate, SqlOps, SqliteBinding,
+};
 use newchan_rust::s_content::capture_allocation::{native_owned::NativeValue, scratch::WorkScope};
 use newchan_rust::s_content::{ContentRef, RefView};
-use rusqlite::{params, OpenFlags};
+use rusqlite::types::ValueRef;
+use rusqlite::{OpenFlags, ToSql};
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::OpenOptionsExt;
+use std::rc::Rc;
 
 /// 36M：cover 改以 source_coord 为键并记 Group(object_id)/Pending，schema 整体升为 /2。
 /// 旧 /1 文件不迁移、不读取；`fresh` 只建新文件。
@@ -468,8 +473,143 @@ enum Coverage {
     SourcePartitions { through: i64 },
 }
 
+/// 台账唯一的数据库连接，后端在构造处选定。台账阶段机与 SQL 只经下面几个封闭操作访问它，
+/// 两个后端执行同一份 SQL；受管后端每个操作各占一次短操作域，事务可以跨多个操作域存续。
+enum Store {
+    /// 现行构造：本进程未安装收费 allocator（生产与普通入口沿用）。
+    Legacy(Connection),
+    /// 受管构造：全新进程已装 allocator，连接由原 Native 父账的当前绑定开出。
+    Charged(Charged),
+}
+
+struct Charged {
+    conn: Option<ChargedConnection>,
+    binding: Rc<SqliteBinding>,
+}
+
+impl Drop for Charged {
+    /// 丢弃即回滚未提交的整代再关库，与旧连接析构的结果相同；两步都是收尾域，首拒之后仍执行。
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take() {
+            let _ = self.binding.rollback(&conn);
+            if let Err((conn, _)) = self.binding.close(conn) {
+                drop(conn);
+            }
+        }
+    }
+}
+
+impl Charged {
+    fn run<R>(&self, f: impl FnOnce(&SqlOps<'_>) -> Result<R, SqlGate>) -> Result<R, String> {
+        let conn = self.conn.as_ref().ok_or_else(|| error("台账已丢弃"))?;
+        self.binding
+            .run(conn, f)
+            .map_err(|e| gate(&self.binding, &e))
+    }
+}
+
+/// 收费拒绝报为首拒本身（含 NOMEM 背后的首拒），不以 SQLite 结果码掩盖。
+fn gate(binding: &SqliteBinding, e: &SqlGate) -> String {
+    let refused = match e {
+        SqlGate::Refused(f) => Some(*f),
+        SqlGate::Sqlite(code) => binding.refusal_of(*code),
+        SqlGate::WrongParent => None,
+    };
+    match (refused, e) {
+        (Some(f), _) => error(format_args!("SqliteRefused:{f:?}")),
+        (None, SqlGate::Sqlite(code)) => error(format_args!("SqliteCode:{code}")),
+        (None, other) => error(format_args!("{other:?}")),
+    }
+}
+
+impl Store {
+    fn open_legacy(path: &Path, pages: i64) -> Result<Self, String> {
+        let conn = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(error)?;
+        conn.busy_timeout(std::time::Duration::ZERO)
+            .map_err(error)?;
+        conn.execute_batch(PRAGMAS).map_err(error)?;
+        conn.pragma_update(None, "page_size", 4096).map_err(error)?;
+        conn.pragma_update(None, "max_page_count", pages)
+            .map_err(error)?;
+        Ok(Self::Legacy(conn))
+    }
+    fn open_charged(path: &Path, pages: i64, binding: Rc<SqliteBinding>) -> Result<Self, String> {
+        use std::os::unix::ffi::OsStrExt;
+        let path = std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(error)?;
+        let spec = OpenSpec {
+            flags: rusqlite::ffi::SQLITE_OPEN_READWRITE | rusqlite::ffi::SQLITE_OPEN_NOMUTEX,
+            busy_timeout_ms: Some(0),
+            ..OpenSpec::default()
+        };
+        // SAFETY: the spec carries no caller callbacks, contexts or VFS.
+        let conn = unsafe { binding.open_with(&path, &spec) }.map_err(|e| gate(&binding, &e))?;
+        let store = Charged {
+            conn: Some(conn),
+            binding,
+        };
+        store.run(|q| q.execute_batch(PRAGMAS))?;
+        store.run(|q| q.execute_batch("PRAGMA page_size=4096"))?;
+        let max_pages = format!("PRAGMA max_page_count={pages}");
+        store.run(|q| q.execute_batch(&max_pages))?;
+        Ok(Self::Charged(store))
+    }
+    fn execute_batch(&self, sql: &str) -> Result<(), String> {
+        match self {
+            Store::Legacy(c) => c.execute_batch(sql).map_err(error),
+            Store::Charged(c) => c.run(|q| q.execute_batch(sql)),
+        }
+    }
+    fn execute<const N: usize>(&self, sql: &str, params: [&dyn ToSql; N]) -> Result<usize, String> {
+        match self {
+            Store::Legacy(c) => c.execute(sql, params.as_slice()).map_err(error),
+            Store::Charged(c) => c.run(|q| q.execute(sql, params)),
+        }
+    }
+    /// 取首行 `M` 列交 `f` 解码；`f` 内不能访问数据库，需要带出的值由 `f` 复制。
+    fn query_row<T, const N: usize, const M: usize>(
+        &self,
+        sql: &str,
+        params: [&dyn ToSql; N],
+        f: impl FnOnce([ValueRef<'_>; M]) -> Result<T, String>,
+    ) -> Result<T, String> {
+        match self {
+            Store::Legacy(c) => c
+                .query_row(sql, params.as_slice(), |r| {
+                    let mut row = [ValueRef::Null; M];
+                    for (i, v) in row.iter_mut().enumerate() {
+                        *v = r.get_ref(i)?;
+                    }
+                    Ok(f(row))
+                })
+                .map_err(error)?,
+            Store::Charged(c) => c.run(|q| q.query_row(sql, params, f))?,
+        }
+    }
+    #[cfg(test)]
+    fn legacy(&self) -> &Connection {
+        match self {
+            Store::Legacy(c) => c,
+            Store::Charged(_) => panic!("受管台账没有裸连接"),
+        }
+    }
+}
+
+const PRAGMAS: &str =
+    "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;";
+
+fn int(v: ValueRef<'_>) -> Result<i64, String> {
+    v.as_i64().map_err(error)
+}
+fn text(v: ValueRef<'_>) -> Result<&str, String> {
+    v.as_str().map_err(error)
+}
+
 pub(super) struct Ledger {
-    connection: Option<Connection>,
+    connection: Option<Store>,
     phase: Phase,
     coverage: Coverage,
     path: PathBuf,
@@ -515,6 +655,43 @@ impl Ledger {
         identity: Identity,
         max_store_bytes: u64,
     ) -> Result<Self, String> {
+        Self::fresh_in(
+            path,
+            content_path,
+            identity,
+            max_store_bytes,
+            Store::open_legacy,
+        )
+    }
+    /// 受管构造：同一份阶段机与 SQL，连接由 `binding` 当前绑定的原 Native 父账开出，SQLite
+    /// 分配向该父账收费。调用方须已在本进程首次 SQLite 初始化前装好 allocator；本构造不安装，
+    /// 失败即失败，不改用旧连接。
+    #[allow(
+        dead_code,
+        reason = "#1419 3C：受管台账只由全新进程 release 锁消费，Native 一次启用波接入生产"
+    )]
+    pub(super) fn fresh_charged(
+        path: &Path,
+        content_path: &Path,
+        identity: Identity,
+        max_store_bytes: u64,
+        binding: Rc<SqliteBinding>,
+    ) -> Result<Self, String> {
+        Self::fresh_in(
+            path,
+            content_path,
+            identity,
+            max_store_bytes,
+            |path, pages| Store::open_charged(path, pages, binding),
+        )
+    }
+    fn fresh_in(
+        path: &Path,
+        content_path: &Path,
+        identity: Identity,
+        max_store_bytes: u64,
+        open: impl FnOnce(&Path, i64) -> Result<Store, String>,
+    ) -> Result<Self, String> {
         if identity.rule_revision.is_empty()
             || identity.content_identity.is_empty()
             || identity.binary_commit.is_empty()
@@ -535,32 +712,18 @@ impl Ledger {
             .mode(0o600)
             .open(path)
             .map_err(error)?;
-        let conn = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(error)?;
-        conn.busy_timeout(std::time::Duration::ZERO)
-            .map_err(error)?;
-        conn.execute_batch(
-            "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;",
-        )
-        .map_err(error)?;
-        conn.pragma_update(None, "page_size", 4096).map_err(error)?;
-        conn.pragma_update(None, "max_page_count", pages)
-            .map_err(error)?;
-        conn.execute_batch(SCHEMA).map_err(error)?;
+        let conn = open(path, pages)?;
+        conn.execute_batch(SCHEMA)?;
         conn.execute(
             "INSERT INTO meta VALUES(1,?1,?2,?3,?4,0,?5)",
-            params![
-                FORMAT,
-                identity.rule_revision,
-                identity.content_identity,
-                identity.binary_commit,
-                sha256_hex(FORMAT.as_bytes())
+            [
+                &FORMAT,
+                &identity.rule_revision,
+                &identity.content_identity,
+                &identity.binary_commit,
+                &sha256_hex(FORMAT.as_bytes()),
             ],
-        )
-        .map_err(error)?;
+        )?;
         let ledger = Self {
             connection: Some(conn),
             phase: Phase::Ready,
@@ -581,15 +744,10 @@ impl Ledger {
         max_store_bytes: u64,
     ) -> Result<Self, String> {
         let mut ledger = Self::fresh(path, content_path, identity, max_store_bytes)?;
-        ledger
-            .connection
-            .as_ref()
-            .unwrap()
-            .execute(
-                "UPDATE meta SET format=?1 WHERE singleton=1",
-                [RAW_PARTITION_FORMAT],
-            )
-            .map_err(error)?;
+        ledger.store()?.execute(
+            "UPDATE meta SET format=?1 WHERE singleton=1",
+            [&RAW_PARTITION_FORMAT],
+        )?;
         ledger.coverage = Coverage::RawPartition { through: 0 };
         Ok(ledger)
     }
@@ -601,15 +759,10 @@ impl Ledger {
         max_store_bytes: u64,
     ) -> Result<Self, String> {
         let mut ledger = Self::fresh(path, content_path, identity, max_store_bytes)?;
-        ledger
-            .connection
-            .as_ref()
-            .unwrap()
-            .execute(
-                "UPDATE meta SET format=?1 WHERE singleton=1",
-                [SOURCE_PARTITIONS_FORMAT],
-            )
-            .map_err(error)?;
+        ledger.store()?.execute(
+            "UPDATE meta SET format=?1 WHERE singleton=1",
+            [&SOURCE_PARTITIONS_FORMAT],
+        )?;
         ledger.coverage = Coverage::SourcePartitions { through: 0 };
         Ok(ledger)
     }
@@ -652,33 +805,30 @@ impl Ledger {
         if through < 1 {
             return Err(error("完整台账尚无已提交的一代"));
         }
-        let conn = self.connection.as_ref().unwrap();
-        conn.query_row(
+        self.store()?.query_row(
             "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, \
              m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1",
-            [through],
-            |r| {
-                let text = |i: usize| r.get_ref(i)?.as_str().map_err(rusqlite::Error::from);
-                let fold_digest = text(1)?;
-                if text(3)? != fold_digest {
-                    return Ok(Err(error("完整水位与末代 cert 折叠摘要不一致")));
+            [&through],
+            |[roots, fold, verifier, meta_fold, content, binary, rule]| {
+                let fold_digest = text(fold)?;
+                if text(meta_fold)? != fold_digest {
+                    return Err(error("完整水位与末代 cert 折叠摘要不一致"));
                 }
-                let rule_revision = text(6)?;
+                let rule_revision = text(rule)?;
                 if rule_revision != self.rule_revision {
-                    return Ok(Err(error("台账持久规则与安装规则不一致")));
+                    return Err(error("台账持久规则与安装规则不一致"));
                 }
-                Ok(f(&QualificationView {
+                f(&QualificationView {
                     through,
-                    roots: text(0)?,
+                    roots: text(roots)?,
                     fold_digest,
-                    verifier_revision: text(2)?,
+                    verifier_revision: text(verifier)?,
                     rule_revision,
-                    content_identity: text(4)?,
-                    binary_commit: text(5)?,
-                }))
+                    content_identity: text(content)?,
+                    binary_commit: text(binary)?,
+                })
             },
         )
-        .map_err(error)?
     }
     /// H1 的私有点查资格：绑定已提交完整水位、四根、规则、verifier 与内容库身份。
     /// 不含连接、不可跨进程；任何字段不符即不能用它点查。
@@ -729,16 +879,15 @@ impl Ledger {
         // 丢弃连接也回滚未提交的整代；不重试，也不复原旧进程状态。
         drop(self.connection.take());
     }
+    fn store(&self) -> Result<&Store, String> {
+        self.connection.as_ref().ok_or_else(|| error("台账已丢弃"))
+    }
     pub(super) fn through(&self) -> Result<i64, String> {
-        self.connection
-            .as_ref()
-            .ok_or_else(|| error("台账已丢弃"))?
-            .query_row(
-                "SELECT certified_through_generation FROM meta WHERE singleton=1",
-                [],
-                |r| r.get(0),
-            )
-            .map_err(error)
+        self.store()?.query_row(
+            "SELECT certified_through_generation FROM meta WHERE singleton=1",
+            [],
+            |[v]| int(v),
+        )
     }
     /// 已提交存储读数，不是 U-A 资格；准备中连本连接的未提交行也不暴露。
     pub(super) fn committed_through(&self) -> Result<i64, String> {
@@ -749,10 +898,11 @@ impl Ledger {
     }
     pub(super) fn contains_committed_unit(&self, unit: &Unit) -> Result<bool, String> {
         let through = self.committed_through()?;
-        self.connection.as_ref().ok_or_else(||error("台账已丢弃"))?.query_row(
+        self.store()?.query_row(
             "SELECT EXISTS(SELECT 1 FROM node WHERE digest=?1 AND flavor=?2 AND mode=?3 AND first_generation<=?4)",
-            params![unit.digest.as_slice(), unit.flavor(), unit.mode(), through], |r|r.get(0),
-        ).map_err(error)
+            [&unit.digest.as_slice(), &unit.flavor(), &unit.mode(), &through],
+            |[v]| int(v).map(|n| n != 0),
+        )
     }
     pub(super) fn stage(&mut self, token: &str, delta: &GenerationDelta) -> Result<(), String> {
         let result = self.stage_inner(
@@ -865,8 +1015,8 @@ impl Ledger {
             r.digest().map_err(error)?;
         }
         self.check_storage()?;
-        let conn = self.connection.as_ref().unwrap();
-        conn.execute_batch("BEGIN IMMEDIATE").map_err(error)?;
+        let conn = self.store()?;
+        conn.execute_batch("BEGIN IMMEDIATE")?;
         if let Some(prior) = prior {
             let detail = match self.matches_committed(prior) {
                 Ok(true) => None,
@@ -879,28 +1029,26 @@ impl Ledger {
                 )));
             }
         }
-        let previous: String = conn
-            .query_row("SELECT fold_digest FROM meta WHERE singleton=1", [], |r| {
-                r.get(0)
-            })
-            .map_err(error)?;
-        let mut next: i64 = conn
-            .query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |r| r.get(0))
-            .map_err(error)?;
+        let previous: String = conn.query_row(
+            "SELECT fold_digest FROM meta WHERE singleton=1",
+            [],
+            |[v]| text(v).map(str::to_owned),
+        )?;
+        let mut next: i64 =
+            conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
         for (seq, row) in &d.raw {
             if *seq != next {
                 return Err(error("raw 只允许连续追加"));
             }
             conn.execute(
                 "INSERT INTO raw VALUES(?1,?2,?3,?4)",
-                params![
-                    seq,
-                    row.event_digest.as_slice(),
-                    row.bar_digest.as_slice(),
-                    d.generation
+                [
+                    &seq,
+                    &row.event_digest.as_slice(),
+                    &row.bar_digest.as_slice(),
+                    &d.generation,
                 ],
-            )
-            .map_err(error)?;
+            )?;
             next = next.checked_add(1).ok_or_else(|| error("raw 序号溢出"))?;
         }
         for (id, r) in &d.objects {
@@ -915,24 +1063,21 @@ impl Ledger {
                 first_generation=excluded.first_generation, first_cut=excluded.first_cut,
                 published_generation=excluded.published_generation, source_digest=excluded.source_digest,
                 withdrawn=excluded.withdrawn, certified_generation=excluded.certified_generation",
-                params![id,r.record_digest.as_slice(),r.first_generation,r.first_cut,
-                    r.published_generation,r.source_digest.as_slice(),r.withdrawn,d.generation]).map_err(error)?;
+                [&id, &r.record_digest.as_slice(), &r.first_generation, &r.first_cut, &r.published_generation, &r.source_digest.as_slice(), &r.withdrawn, &d.generation])?;
         }
         for (table, rows) in [("witness", &d.witnesses), ("observation", &d.observations)] {
             for (id, r) in rows {
                 conn.execute(&format!("INSERT INTO {table} VALUES(?1,?2,?3,?4)
                     ON CONFLICT(id) DO UPDATE SET record_digest=excluded.record_digest,
                     source_digest=excluded.source_digest, certified_generation=excluded.certified_generation"),
-                    params![id,r.record_digest.as_slice(),r.source_digest.as_slice(),d.generation]).map_err(error)?;
+                    [&id, &r.record_digest.as_slice(), &r.source_digest.as_slice(), &d.generation])?;
             }
         }
         for id in &d.withdrawals {
-            let changed = conn
-                .execute(
-                    "UPDATE object SET withdrawn=1,certified_generation=?1 WHERE id=?2 AND withdrawn=0",
-                    params![d.generation, id],
-                )
-                .map_err(error)?;
+            let changed = conn.execute(
+                "UPDATE object SET withdrawn=1,certified_generation=?1 WHERE id=?2 AND withdrawn=0",
+                [&d.generation, &id],
+            )?;
             if changed != 1 {
                 return Err(error("撤回身份缺失或已撤回"));
             }
@@ -940,11 +1085,7 @@ impl Ledger {
         for (coord, change) in &d.cover {
             match change {
                 CoverChange::Removed => {
-                    if conn
-                        .execute("DELETE FROM cover WHERE source_coord=?1", [coord])
-                        .map_err(error)?
-                        != 1
-                    {
+                    if conn.execute("DELETE FROM cover WHERE source_coord=?1", [coord])? != 1 {
                         return Err(error("cover 失效坐标不在当前分区"));
                     }
                 }
@@ -957,9 +1098,8 @@ impl Ledger {
                          certified_generation=excluded.certified_generation
                          WHERE seq IS NOT excluded.seq OR owner IS NOT excluded.owner
                          OR object_id IS NOT excluded.object_id",
-                        params![coord, seq, object_id, d.generation],
-                    )
-                    .map_err(error)?;
+                        [&coord, &seq, &object_id, &d.generation],
+                    )?;
                 }
                 CoverChange::Pending { seq } => {
                     conn.execute(
@@ -968,15 +1108,12 @@ impl Ledger {
                          certified_generation=excluded.certified_generation
                          WHERE seq IS NOT excluded.seq OR owner IS NOT excluded.owner
                          OR object_id IS NOT excluded.object_id",
-                        params![coord, seq, d.generation],
-                    )
-                    .map_err(error)?;
+                        [&coord, &seq, &d.generation],
+                    )?;
                 }
             }
         }
-        let covered: i64 = conn
-            .query_row("SELECT COUNT(*) FROM cover", [], |r| r.get(0))
-            .map_err(error)?;
+        let covered: i64 = conn.query_row("SELECT COUNT(*) FROM cover", [], |[v]| int(v))?;
         if covered != d.effective {
             return Err(error("cover 行数不等于本 cut 生效坐标总数"));
         }
@@ -984,14 +1121,13 @@ impl Ledger {
             // new_units 必须真是本代新增集合，重复认证单位拒绝而非静默忽略。
             conn.execute(
                 "INSERT INTO node VALUES(?1,?2,?3,?4)",
-                params![
-                    unit.digest.as_slice(),
-                    unit.flavor(),
-                    unit.mode(),
-                    d.generation
+                [
+                    &unit.digest.as_slice(),
+                    &unit.flavor(),
+                    &unit.mode(),
+                    &d.generation,
                 ],
-            )
-            .map_err(error)?;
+            )?;
         }
         let roots = roots_value(&d.roots);
         let unit_count = new_units.clone().count();
@@ -1008,21 +1144,19 @@ impl Ledger {
         let fold = sha256_hex(canonical_json(&json!([previous, delta])).as_bytes());
         conn.execute(
             "INSERT INTO cert VALUES(?1,?2,?3,?4,?5,?6)",
-            params![
-                d.generation,
-                canonical_json(&roots),
-                sha256_hex(units.as_bytes()),
-                i64::try_from(unit_count).map_err(error)?,
-                fold,
-                verifier_revision
+            [
+                &d.generation,
+                &canonical_json(&roots),
+                &sha256_hex(units.as_bytes()),
+                &i64::try_from(unit_count).map_err(error)?,
+                &fold,
+                &verifier_revision,
             ],
-        )
-        .map_err(error)?;
+        )?;
         conn.execute(
             "UPDATE meta SET certified_through_generation=?1,fold_digest=?2 WHERE singleton=1",
-            params![d.generation, fold],
-        )
-        .map_err(error)?;
+            [&d.generation, &fold],
+        )?;
         self.check_storage()?;
         self.phase = Phase::Pending(Pending::new(
             token,
@@ -1098,10 +1232,9 @@ impl Ledger {
                 .connection
                 .as_ref()
                 .ok_or_else(|| error("raw分区已丢弃"))?;
-            conn.execute_batch("BEGIN IMMEDIATE").map_err(error)?;
-            let mut next: i64 = conn
-                .query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |r| r.get(0))
-                .map_err(error)?;
+            conn.execute_batch("BEGIN IMMEDIATE")?;
+            let mut next: i64 =
+                conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
             if usize::try_from(next).ok() != Some(range.start) || source.rows().len() != range.len()
             {
                 return Err(error("raw来源后缀与已提交分区不衔接"));
@@ -1112,14 +1245,13 @@ impl Ledger {
                 }
                 conn.execute(
                     "INSERT INTO raw VALUES(?1,?2,?3,?4)",
-                    params![
-                        row.seq,
-                        row.event_digest.as_slice(),
-                        row.bar_digest.as_slice(),
-                        metadata.generation
+                    [
+                        &row.seq,
+                        &row.event_digest.as_slice(),
+                        &row.bar_digest.as_slice(),
+                        &metadata.generation,
                     ],
-                )
-                .map_err(error)?;
+                )?;
                 next = next.checked_add(1).ok_or_else(|| error("raw序号溢出"))?;
             }
             if self.is_source_partitions() {
@@ -1129,21 +1261,20 @@ impl Ledger {
                 for row in &rows.objects {
                     conn.execute(
                         "INSERT INTO object VALUES(?1,?2,?3,?4,?5,?6,0,?7)",
-                        params![
-                            row.id.as_str(),
-                            row.record.as_slice(),
-                            row.first_generation,
-                            row.first_cut.as_str(),
-                            row.published_generation,
-                            row.sources.as_slice(),
-                            metadata.generation
+                        [
+                            &row.id.as_str(),
+                            &row.record.as_slice(),
+                            &row.first_generation,
+                            &row.first_cut.as_str(),
+                            &row.published_generation,
+                            &row.sources.as_slice(),
+                            &metadata.generation,
                         ],
-                    )
-                    .map_err(error)?;
+                    )?;
                 }
                 for id in &rows.withdrawals {
                     let changed = conn.execute("UPDATE object SET withdrawn=1,certified_generation=?1 WHERE id=?2 AND withdrawn=0",
-                        params![metadata.generation, id.as_str()]).map_err(error)?;
+                        [&metadata.generation, &id.as_str()])?;
                     if changed != 1 {
                         return Err(error("来源分区撤回身份缺失或已撤回"));
                     }
@@ -1158,14 +1289,13 @@ impl Ledger {
                     for row in values {
                         conn.execute(
                             sql,
-                            params![
-                                row.id.as_str(),
-                                row.record.as_slice(),
-                                row.sources.as_slice(),
-                                metadata.generation
+                            [
+                                &row.id.as_str(),
+                                &row.record.as_slice(),
+                                &row.sources.as_slice(),
+                                &metadata.generation,
                             ],
-                        )
-                        .map_err(error)?;
+                        )?;
                     }
                 }
             }
@@ -1245,11 +1375,7 @@ impl Ledger {
                 return Err(error("台账尚未绑定实际 prepare"));
             }
             self.check_storage()?;
-            self.connection
-                .as_ref()
-                .unwrap()
-                .execute_batch("COMMIT")
-                .map_err(error)?;
+            self.store()?.execute_batch("COMMIT")?;
             self.check_storage()?;
             Ok(())
         })();
@@ -1465,7 +1591,7 @@ pub(super) mod tests {
             folded.fold_step(&token, &d, &m, &r).unwrap();
             assert_eq!(dump(&online.path), dump(&folded.path));
         }
-        let conn = online.connection.as_ref().unwrap();
+        let conn = online.connection.as_ref().unwrap().legacy();
         assert_eq!(
             conn.query_row("SELECT COUNT(*) FROM node", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
@@ -1508,7 +1634,7 @@ pub(super) mod tests {
             ledger.bind(&token, &metadata, &roots).unwrap();
             ledger.content_committed().unwrap();
         }
-        let connection = ledger.connection.as_ref().unwrap();
+        let connection = ledger.connection.as_ref().unwrap().legacy();
         let counts: Vec<i64> = connection
             .prepare("SELECT new_units_count FROM cert ORDER BY generation")
             .unwrap()
@@ -1777,7 +1903,7 @@ pub(super) mod tests {
             let trace = {
                 let counts: Box<Counts> = Box::default();
                 // SAFETY: 句柄来自活台账连接；回调上下文由 Trace 持有到卸载。
-                let db = unsafe { b.connection.as_ref().unwrap().handle() };
+                let db = unsafe { b.connection.as_ref().unwrap().legacy().handle() };
                 let rc = unsafe {
                     rusqlite::ffi::sqlite3_trace_v2(
                         db,
@@ -2255,5 +2381,241 @@ pub(super) mod tests {
         )
         .is_err());
         assert!(!path.exists());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn charged(l: &Ledger) -> &Charged {
+        match l.connection.as_ref().expect("live ledger") {
+            Store::Charged(c) => c,
+            Store::Legacy(_) => panic!("expected a charged ledger"),
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn generation(
+        g: i64,
+    ) -> (
+        content_manifest::ManifestMetadata,
+        content_manifest::ManifestRoots,
+    ) {
+        use newchan_rust::s_content as sc;
+        let mut nodes = sc::MemoryNodes::new();
+        let r = sc::write_value(
+            &mut nodes,
+            &sc::Value::Object(vec![("g".into(), sc::Value::Bool(g % 2 == 0))]),
+        )
+        .unwrap()
+        .content_ref();
+        let m = content_manifest::ManifestMetadata {
+            session_id: "charged-ledger".into(),
+            session_generation: "1".into(),
+            writer_epoch: "1".into(),
+            generation: g,
+            base_cut: "base".into(),
+            structure_cut: "structure".into(),
+            input_frontier: g,
+            source_commit: content_manifest::SourceCommit {
+                source_namespace: "ns".into(),
+                source_epoch: "1".into(),
+                message_id: format!("m{g}"),
+                payload_hash: "h".into(),
+                producer_id: "p".into(),
+                producer_epoch: "1".into(),
+                clock_event_id: "c".into(),
+                attempt_index: 0,
+            },
+            clock_plan_hash: "plan".into(),
+            semantic_commit_ns: "0".into(),
+            profile_id: "profile".into(),
+            profile_hash: "profile-hash".into(),
+            rule_revision: "charged-rule".into(),
+            catalog_revision: "catalog".into(),
+            scope: r.clone(),
+        };
+        let roots = content_manifest::ManifestRoots {
+            generated_state: r.clone(),
+            publication_template: r.clone(),
+            delta_template: r,
+        };
+        (m, roots)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    static LEDGER_STATEMENTS: std::sync::atomic::AtomicUsize =
+        std::sync::atomic::AtomicUsize::new(0);
+
+    #[cfg(feature = "s_incremental")]
+    unsafe extern "C" fn count_ledger_statement(
+        _: std::ffi::c_uint,
+        _: *mut std::ffi::c_void,
+        _: *mut std::ffi::c_void,
+        _: *mut std::ffi::c_void,
+    ) -> std::ffi::c_int {
+        LEDGER_STATEMENTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        0
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn charged_ledger_same_parent_phase_machine_and_snapshot_interleave() {
+        use super::super::audit_owner::native::Budget;
+        use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+        use newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteParentAllocator;
+        use rusqlite::ffi;
+        use std::sync::atomic::Ordering;
+        const LIMIT: usize = 64 << 20;
+        const ROOM: usize = 16 << 20;
+        const STORE: u64 = 64 * 1024 * 1024;
+
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = Budget::fresh(LIMIT).unwrap();
+        let base = root.live();
+        let mut current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let bind = |b: &Budget| {
+            let (parent, origin) = b.sqlite_parent();
+            Rc::new(allocator.bind(parent, origin).expect("bind"))
+        };
+        let dir = std::env::temp_dir().join(format!("charged-ledger-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let c_path = |name: &str| std::ffi::CString::new(dir.join(name).to_str().unwrap()).unwrap();
+        let content = dir.join("content.sqlite3");
+        std::fs::File::create(&content).unwrap();
+        let identity = || Identity {
+            rule_revision: "charged-rule".into(),
+            content_identity: "charged-content".into(),
+            binary_commit: "charged-binary".into(),
+        };
+        let token = "charged-token";
+        let count = |b: &SqliteBinding, conn: &ChargedConnection, sql: &str| {
+            b.run(conn, |q| q.query_row(sql, [], |[v]| v.as_i64()))
+                .expect("count")
+                .expect("integer")
+        };
+
+        // A：快照读事务存续期间开受管台账、完成一代，再回到同一快照事务继续读。
+        let a = bind(&current);
+        let snap = a.open(&c_path("snap.sqlite3")).unwrap();
+        a.run(&snap, |q| {
+            q.execute_batch("CREATE TABLE s(x INTEGER); INSERT INTO s VALUES(1),(2),(3);")
+        })
+        .unwrap();
+        a.run(&snap, |q| q.execute_batch("BEGIN")).unwrap();
+        assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
+
+        let path1 = dir.join("ledger-a.sqlite3");
+        let mut l1 = Ledger::fresh_charged(&path1, &content, identity(), STORE, a.clone()).unwrap();
+        let pragma = |l: &Ledger, sql: &str| {
+            charged(l)
+                .run(|q| {
+                    q.query_row(sql, [], |[v]| match v {
+                        ValueRef::Text(t) => String::from_utf8_lossy(t).into_owned(),
+                        other => format!("{:?}", other.as_i64()),
+                    })
+                })
+                .unwrap()
+        };
+        assert_eq!(pragma(&l1, "PRAGMA journal_mode"), "delete");
+        assert_eq!(pragma(&l1, "PRAGMA synchronous"), "Ok(2)");
+        assert_eq!(pragma(&l1, "PRAGMA foreign_keys"), "Ok(1)");
+        assert_eq!(pragma(&l1, "PRAGMA busy_timeout"), "Ok(0)");
+        assert_eq!(pragma(&l1, "PRAGMA page_size"), "Ok(4096)");
+        assert_eq!(
+            pragma(&l1, "PRAGMA max_page_count"),
+            format!("Ok({})", STORE / 4096)
+        );
+        assert!(a.live_bytes() > 0);
+        let live = a.live_bytes();
+        assert!(Ledger::fresh_charged(&path1, &content, identity(), STORE, a.clone()).is_err());
+        assert_eq!(a.live_bytes(), live);
+
+        let (m1, r1) = generation(1);
+        let d1 = delta(&m1, &r1);
+        l1.stage(token, &d1).unwrap();
+        assert!(l1.committed_through().is_err());
+        let peek = a.open(&c_path("ledger-a.sqlite3")).unwrap();
+        let through = "SELECT certified_through_generation FROM meta WHERE singleton=1";
+        assert_eq!(count(&a, &peek, through), 0);
+        a.run(&snap, |q| {
+            assert_eq!(unsafe { ffi::sqlite3_get_autocommit(q.handle()) }, 0);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
+        l1.bind(token, &m1, &r1).unwrap();
+        assert_eq!(count(&a, &peek, through), 0);
+        l1.content_committed().unwrap();
+        assert_eq!(count(&a, &peek, through), 1);
+        assert_eq!(l1.committed_through().unwrap(), 1);
+        for unit in &d1.new_units {
+            assert!(l1.contains_committed_unit(unit).unwrap());
+        }
+        assert_eq!(l1.qualification().unwrap().through, 1);
+        assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
+        a.run(&snap, |q| q.execute_batch("COMMIT")).unwrap();
+
+        // 失败失效：错误代号整体失败，连接经收尾域回滚并关闭，已提交的一代不受影响。
+        let (m3, r3) = generation(3);
+        assert!(l1.stage(token, &delta(&m3, &r3)).is_err());
+        assert!(l1.connection.is_none());
+        assert!(l1.through().is_err());
+        assert_eq!(count(&a, &peek, through), 1);
+        a.close(peek).map_err(|(_, e)| e).unwrap();
+        drop(l1);
+
+        // B：已 stage 未提交的一代遇本域首拒；此后台账不再进入 SQLite，Commit 被拒并回滚。
+        current = current.handoff(2, ROOM).expect("handoff to B");
+        let b = bind(&current);
+        let path2 = dir.join("ledger-b.sqlite3");
+        let mut l2 = Ledger::fresh_charged(&path2, &content, identity(), STORE, b.clone()).unwrap();
+        l2.fold_step(token, &d1, &m1, &r1).unwrap();
+        let (m2, r2) = generation(2);
+        l2.stage(token, &delta(&m2, &r2)).unwrap();
+        l2.bind(token, &m2, &r2).unwrap();
+        charged(&l2)
+            .run(|q| {
+                let rc = unsafe {
+                    ffi::sqlite3_trace_v2(
+                        q.handle(),
+                        ffi::SQLITE_TRACE_STMT,
+                        Some(count_ledger_statement),
+                        std::ptr::null_mut(),
+                    )
+                };
+                assert_eq!(rc, ffi::SQLITE_OK);
+                Ok(())
+            })
+            .unwrap();
+        let first = b.run(&snap, |_| {
+            assert!(unsafe { ffi::sqlite3_malloc64(ROOM as u64 + 1) }.is_null());
+            Ok(())
+        });
+        assert_eq!(first, Err(SqlGate::Refused(ScratchFailure::Budget)));
+        let entered = LEDGER_STATEMENTS.load(Ordering::SeqCst);
+        let refused = l2.through().unwrap_err();
+        assert!(refused.contains("SqliteRefused:Budget"), "{refused}");
+        assert_eq!(LEDGER_STATEMENTS.load(Ordering::SeqCst), entered);
+        let refused = l2.content_committed().unwrap_err();
+        assert!(refused.contains("SqliteRefused:Budget"), "{refused}");
+        assert!(l2.connection.is_none());
+        assert_eq!(b.refusal(), Some(ScratchFailure::Budget));
+        drop(l2);
+
+        // C：新冻结域里 gen2 已回滚，只剩 gen1；全部关闭后父账回到出生读数。
+        current = current.handoff(3, ROOM).expect("handoff to C");
+        let c = bind(&current);
+        let peek = c.open(&c_path("ledger-b.sqlite3")).unwrap();
+        assert_eq!(count(&c, &peek, through), 1);
+        assert_eq!(count(&c, &peek, "SELECT count(*) FROM cert"), 1);
+        assert_eq!(count(&c, &peek, "SELECT count(*) FROM node"), 3);
+        c.close(peek).map_err(|(_, e)| e).unwrap();
+        c.close(snap).map_err(|(_, e)| e).unwrap();
+        assert_eq!(unsafe { ffi::sqlite3_shutdown() }, ffi::SQLITE_OK);
+        assert_eq!(c.live_bytes(), 0);
+        assert_eq!(current.live(), base);
+        assert!(!allocator.is_broken());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

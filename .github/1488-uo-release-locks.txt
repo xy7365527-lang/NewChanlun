@@ -9,3 +9,5 @@ v3::audit_owner::sqlite_parent_tests::sqlite_parent_charges_same_parent_before_a
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_install_refused_after_sqlite_initialized
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_connection_boundary_keeps_original_open_semantics
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_db_config_accepts_only_boolean_int_pointer_ops
+# #1419 3C 台账受管构造：真实台账阶段机在全新进程装 allocator 后同父收费、首拒后零 SQL、Commit 次序、与快照事务交替
+v3::audit_ledger::tests::charged_ledger_same_parent_phase_machine_and_snapshot_interleave
