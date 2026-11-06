@@ -3014,10 +3014,10 @@ pub(super) mod tests {
             }
         }
 
-        const M8D_LEDGER_EXISTS: &str =
+        pub(super) const M8D_LEDGER_EXISTS: &str =
             "SELECT EXISTS(SELECT 1 FROM node WHERE digest=?1 AND flavor=?2 AND mode=?3 AND first_generation<=?4)";
-        const M8D_LEDGER_QUALIFICATION: &str = "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1";
-        const M8D_LEDGER_THROUGH: &str =
+        pub(super) const M8D_LEDGER_QUALIFICATION: &str = "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, m.binary_commit, m.rule_revision FROM cert c, meta m WHERE c.generation=?1 AND m.singleton=1";
+        pub(super) const M8D_LEDGER_THROUGH: &str =
             "SELECT certified_through_generation FROM meta WHERE singleton=1";
         /// #1419 M8D L9（台账层）：test-only SQLITE_TRACE_STMT 按原语句文本计数。实测冻结：每次
         /// 前沿点查 = 完整键 EXISTS 1 + 资格行（cert×meta）1 + 认证水位 2，共 4 条；verify_delta
@@ -3646,6 +3646,8 @@ pub(super) mod tests {
         requested: Vec<[u8; 32]>,
         /// 某次请求的摘要与当次交出的预备节点不符。
         mismatched: bool,
+        /// 请求数超过窗口外预留的容量；多出的请求未记录，路径锁按失败处理。
+        overflow: bool,
     }
 
     #[cfg(feature = "s_incremental")]
@@ -3665,13 +3667,16 @@ pub(super) mod tests {
             &mut self,
             digest: &newchan_rust::s_content::NodeDigest,
         ) -> Result<newchan_rust::s_content::NodeRead, CodecError> {
+            // 先记请求再按注入失败：被拒的那次读取也属于路径。
+            if self.requested.len() < self.requested.capacity() {
+                self.requested.push(*digest);
+            } else {
+                self.overflow = true;
+            }
             match self.fault {
                 Fault::None => {}
                 Fault::Budget => drop(self.scope.reserve_native(usize::MAX / 4)?),
                 Fault::Allocation => return Err(self.scope.reject(ScratchFailure::Allocation)),
-            }
-            if self.requested.len() < self.requested.capacity() {
-                self.requested.push(*digest);
             }
             if let Some((expected, found)) = self.prepared.pop() {
                 self.mismatched |= expected != *digest;
@@ -3692,7 +3697,7 @@ pub(super) mod tests {
         q: &Qualification,
         fault: Fault,
     ) -> Option<LedgerError> {
-        verify_measured(budget, l, nodes, root, q, fault, false).0
+        verify_measured(budget, l, nodes, root, q, fault, false).error
     }
 
     /// 窗口内 Rust 请求 layout 的拆分：SQLite 块由组件 allocator 以 Rust layout 分配、按块完整
@@ -3744,7 +3749,68 @@ pub(super) mod tests {
         )
     }
 
-    /// 同 [`verify_in`]，可预读根节点；返回错误、Rust 分项和总分配，零分配断言使用总量。
+    /// 只供两项隔离负控：在同一窗口内 `verify_delta` 之后追加一次无账 Rust 临时申请，或一条
+    /// 多余的台账 SQL。
+    #[cfg(feature = "s_incremental")]
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Extra {
+        None,
+        RustTemp,
+        LedgerSql,
+    }
+
+    /// [`verify_measured_with`] 的调用方式。
+    #[cfg(feature = "s_incremental")]
+    #[derive(Clone, Copy)]
+    struct How {
+        fault: Fault,
+        prefetch: bool,
+        extra: Extra,
+    }
+
+    /// 一次完整 `verify_delta` 窗口的同次读数。`total` 是窗口内累计申请字节（含受管组件以
+    /// Rust layout 分配的 SQLite 块；累计申请，不是 live、净增或泄漏）；`sqlite` 是同一窗口
+    /// 原父 census 中逐块 SQLite 预留之和；`rust` 是二者之差，即其他 Rust 分配。`path` 是
+    /// 窗口内台账语句，`requested` 是 source 收到的请求序列。
+    #[cfg(feature = "s_incremental")]
+    struct Measured {
+        error: Option<LedgerError>,
+        rust: u64,
+        sqlite: u64,
+        total: u64,
+        path: SqlPath,
+        requested: Vec<[u8; 32]>,
+        overflow: bool,
+    }
+    #[cfg(feature = "s_incremental")]
+    impl Measured {
+        /// 收费验收：其他 Rust 分配为零，且总申请恰为原父逐块先收费的 SQLite 预留之和。
+        fn accounted(&self) -> bool {
+            self.rust == 0 && self.total == self.sqlite
+        }
+        /// 路径验收：窗口内恰好这些台账语句，source 恰好收到这些请求。
+        fn followed(&self, statements: &[LedgerSql], reads: &[[u8; 32]]) -> bool {
+            self.path.is(statements) && !self.overflow && self.requested == reads
+        }
+    }
+    #[cfg(feature = "s_incremental")]
+    impl std::fmt::Display for Measured {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "error={:?} rust={} sqlite={} total={} path={:?} requested={} overflow={}",
+                self.error,
+                self.rust,
+                self.sqlite,
+                self.total,
+                self.path,
+                self.requested.len(),
+                self.overflow
+            )
+        }
+    }
+
+    /// 同 [`verify_in`]，可预读根节点；返回同次窗口读数（见 [`Measured`]）。
     #[cfg(feature = "s_incremental")]
     fn verify_measured(
         budget: &super::super::audit_owner::native::Budget,
@@ -3754,8 +3820,28 @@ pub(super) mod tests {
         q: &Qualification,
         fault: Fault,
         prefetch: bool,
-    ) -> (Option<LedgerError>, u64, u64) {
-        let prepared: Vec<_> = prefetch
+    ) -> Measured {
+        let how = How {
+            fault,
+            prefetch,
+            extra: Extra::None,
+        };
+        verify_measured_with(budget, l, nodes, root, q, how)
+    }
+
+    /// 对整次 `verify_delta` 开同一个窗口（`rust_window`），同时记下台账语句路径与 source
+    /// 请求。请求容量与路径记录都在窗口外固定预留，窗口内记录不分配。
+    #[cfg(feature = "s_incremental")]
+    fn verify_measured_with(
+        budget: &super::super::audit_owner::native::Budget,
+        l: &Ledger<Charged>,
+        nodes: &mut newchan_rust::s_content::MemoryNodes,
+        root: &ContentRef,
+        q: &Qualification,
+        how: How,
+    ) -> Measured {
+        let prepared: Vec<_> = how
+            .prefetch
             .then(|| {
                 let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
                 let found =
@@ -3770,19 +3856,36 @@ pub(super) mod tests {
             let mut source = Scoped {
                 nodes: &mut *nodes,
                 scope,
-                fault,
+                fault: how.fault,
                 prepared,
-                requested: Vec::new(),
+                requested: Vec::with_capacity(PATH_CAPACITY),
                 mismatched: false,
+                overflow: false,
             };
-            let (result, probe) = rust_window(budget, || {
-                l.verify_delta(&mut source, [root.into(); 4], q).err()
+            SqlPath::reset();
+            let (error, probe) = rust_window(budget, || {
+                let error = l.verify_delta(&mut source, [root.into(); 4], q).err();
+                match how.extra {
+                    Extra::None => {}
+                    Extra::RustTemp => {
+                        let _ = std::hint::black_box(Box::new(0u64));
+                    }
+                    Extra::LedgerSql => {
+                        let _ = std::hint::black_box(l.through());
+                    }
+                }
+                error
             });
-            seen = Some((
-                result,
-                probe.rust,
-                probe.probe["allocated_bytes"].as_u64().unwrap(),
-            ));
+            let path = SqlPath::take();
+            seen = Some(Measured {
+                error,
+                rust: probe.rust,
+                sqlite: probe.sqlite,
+                total: probe.probe["allocated_bytes"].as_u64().unwrap(),
+                path,
+                requested: std::mem::take(&mut source.requested),
+                overflow: source.overflow,
+            });
             Ok::<_, ()>(())
         });
         seen.expect("verify ran")
@@ -3813,6 +3916,7 @@ pub(super) mod tests {
                 prepared: reads,
                 requested: Vec::with_capacity(expected_reads + 4),
                 mismatched: false,
+                overflow: false,
             };
             budget.census_arm();
             let window = Window::start();
@@ -3879,6 +3983,108 @@ pub(super) mod tests {
     ) -> std::ffi::c_int {
         LEDGER_STATEMENTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         0
+    }
+
+    /// 台账语句路径（主控 ledger 零分配订正的路径锁）：SQLITE_TRACE_STMT 按原语句文本归类。
+    /// 记录在窗口外固定容量的静态原子里（16 条 × 4 位），回调只做字节比较与原子写，不分配；
+    /// 超出容量的条数仍计入长度，路径锁因此按失败处理。
+    #[cfg(feature = "s_incremental")]
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum LedgerSql {
+        Through = 1,
+        Qualification = 2,
+        Exists = 3,
+        Other = 15,
+    }
+    #[cfg(feature = "s_incremental")]
+    const PATH_CAPACITY: usize = 16;
+    #[cfg(feature = "s_incremental")]
+    static PATH_CODES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    #[cfg(feature = "s_incremental")]
+    static PATH_LEN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    #[cfg(feature = "s_incremental")]
+    unsafe extern "C" fn record_ledger_statement(
+        _: std::ffi::c_uint,
+        _: *mut std::ffi::c_void,
+        _: *mut std::ffi::c_void,
+        sql: *mut std::ffi::c_void,
+    ) -> std::ffi::c_int {
+        use self::m8d_success::{M8D_LEDGER_EXISTS, M8D_LEDGER_QUALIFICATION, M8D_LEDGER_THROUGH};
+        use std::sync::atomic::Ordering;
+        let text: &[u8] = if sql.is_null() {
+            &[]
+        } else {
+            // SAFETY: for SQLITE_TRACE_STMT SQLite passes the NUL-terminated statement text.
+            unsafe { std::ffi::CStr::from_ptr(sql as *const std::ffi::c_char) }.to_bytes()
+        };
+        let code = if text == M8D_LEDGER_THROUGH.as_bytes() {
+            LedgerSql::Through
+        } else if text == M8D_LEDGER_QUALIFICATION.as_bytes() {
+            LedgerSql::Qualification
+        } else if text == M8D_LEDGER_EXISTS.as_bytes() {
+            LedgerSql::Exists
+        } else {
+            LedgerSql::Other
+        };
+        let at = PATH_LEN.fetch_add(1, Ordering::SeqCst);
+        if at < PATH_CAPACITY {
+            PATH_CODES.fetch_or((code as u64) << (4 * at), Ordering::SeqCst);
+        }
+        0
+    }
+
+    /// 一个窗口内记录的台账语句序列；`len` 含超出容量的条数。
+    #[cfg(feature = "s_incremental")]
+    #[derive(Clone, Copy, Debug)]
+    struct SqlPath {
+        len: usize,
+        codes: u64,
+    }
+    #[cfg(feature = "s_incremental")]
+    impl SqlPath {
+        fn reset() {
+            PATH_CODES.store(0, std::sync::atomic::Ordering::SeqCst);
+            PATH_LEN.store(0, std::sync::atomic::Ordering::SeqCst);
+        }
+        fn take() -> Self {
+            Self {
+                len: PATH_LEN.swap(0, std::sync::atomic::Ordering::SeqCst),
+                codes: PATH_CODES.swap(0, std::sync::atomic::Ordering::SeqCst),
+            }
+        }
+        fn is(&self, expected: &[LedgerSql]) -> bool {
+            self.len == expected.len()
+                && expected
+                    .iter()
+                    .enumerate()
+                    .all(|(i, s)| (self.codes >> (4 * i)) & 0xF == *s as u64)
+        }
+    }
+
+    /// 在台账连接上装或卸语句路径记录；在窗口外调用（`sqlite3_trace_v2` 本身不分配）。
+    #[cfg(feature = "s_incremental")]
+    fn trace_path(l: &Ledger<Charged>, on: bool) {
+        use rusqlite::ffi;
+        charged(l)
+            .run(|q| {
+                // SAFETY: the handle stays inside this operation; the callback keeps no context.
+                let rc = unsafe {
+                    if on {
+                        ffi::sqlite3_trace_v2(
+                            q.handle(),
+                            ffi::SQLITE_TRACE_STMT,
+                            Some(record_ledger_statement),
+                            std::ptr::null_mut(),
+                        )
+                    } else {
+                        ffi::sqlite3_trace_v2(q.handle(), 0, None, std::ptr::null_mut())
+                    }
+                };
+                assert_eq!(rc, ffi::SQLITE_OK);
+                Ok(())
+            })
+            .unwrap();
     }
 
     #[cfg(feature = "s_incremental")]
@@ -4337,10 +4543,15 @@ pub(super) mod tests {
             verify_in(&current, &l4, &mut nodes, &root, &q4, Fault::None),
             None
         );
-        // 共用 verifier 的失败链在静默诊断期不生成文本：坏 format/root 在读节点之前失败，整次
-        // verify_delta 零 Rust 分配；kind/extent 与真实节点不符时，两者只剩同一份合法工作集分配
-        // （根节点已预读，source 不分配），与诊断内容无关。
-        for bad in [
+        // 资格有效后坏 format/root 失败（主控 ledger 零分配订正：撤回 fb0d 对本类整次累计申请
+        // 为零的承诺，原 4359 红锁不登记为已满足）。同一完整窗口内：共用 verifier 的失败链在
+        // 静默诊断期不生成文本，除原父逐块先收费的 SQLite 块外零 Rust 分配，总申请恰为这些
+        // SQLite 预留之和；路径恰为合同规定的两条资格 SQL（认证水位、cert×meta 资格行），坏根在
+        // 读节点之前失败，source 不收到请求。kind/extent 与真实节点不符时，两者只剩同一份合法
+        // 工作集分配（根节点已预读，source 不分配），与诊断内容无关。
+        let qualification = [LedgerSql::Through, LedgerSql::Qualification];
+        let invalid = Some(LedgerError::Invalid("Δ闭包核验失败"));
+        let bads = [
             ContentRef {
                 format: "x\"y".repeat(4096),
                 ..root.clone()
@@ -4353,14 +4564,60 @@ pub(super) mod tests {
                 root: "no-prefix".repeat(512),
                 ..root.clone()
             },
-        ] {
-            let measured =
-                verify_measured(&current, &l4, &mut nodes, &bad, &q4, Fault::None, false);
-            assert_eq!(
-                measured,
-                (Some(LedgerError::Invalid("Δ闭包核验失败")), 0, 0)
-            );
+        ];
+        trace_path(&l4, true);
+        for bad in &bads {
+            let measured = verify_measured(&current, &l4, &mut nodes, bad, &q4, Fault::None, false);
+            assert_eq!(measured.error, invalid, "{measured}");
+            assert!(measured.accounted(), "{measured}");
+            assert!(measured.followed(&qualification, &[]), "{measured}");
         }
+        // 两项隔离负控（同一坏根、同一窗口）：追加一次无账 Rust 临时申请，只有收费验收失败；
+        // 追加一条台账 SQL，只有路径验收失败，其 SQLite 块照常原父收费。
+        let control = |extra| How {
+            fault: Fault::None,
+            prefetch: false,
+            extra,
+        };
+        let rust_temp = verify_measured_with(
+            &current,
+            &l4,
+            &mut nodes,
+            &bads[0],
+            &q4,
+            control(Extra::RustTemp),
+        );
+        assert_eq!(rust_temp.error, invalid, "{rust_temp}");
+        assert!(!rust_temp.accounted(), "{rust_temp}");
+        assert_eq!(
+            rust_temp.rust,
+            std::mem::size_of::<u64>() as u64,
+            "{rust_temp}"
+        );
+        assert!(rust_temp.followed(&qualification, &[]), "{rust_temp}");
+        let extra_sql = verify_measured_with(
+            &current,
+            &l4,
+            &mut nodes,
+            &bads[0],
+            &q4,
+            control(Extra::LedgerSql),
+        );
+        assert_eq!(extra_sql.error, invalid, "{extra_sql}");
+        assert!(extra_sql.accounted(), "{extra_sql}");
+        assert!(!extra_sql.followed(&qualification, &[]), "{extra_sql}");
+        assert!(
+            extra_sql.followed(
+                &[
+                    LedgerSql::Through,
+                    LedgerSql::Qualification,
+                    LedgerSql::Through
+                ],
+                &[]
+            ),
+            "{extra_sql}"
+        );
+        trace_path(&l4, false);
         let mut wrong_kind = root.clone();
         wrong_kind.kind = newchan_rust::s_content::Kind::Array;
         let mut wrong_extent = root.clone();
@@ -4383,9 +4640,9 @@ pub(super) mod tests {
             Fault::None,
             true,
         );
-        assert_eq!(kind.0, Some(LedgerError::Invalid("Δ闭包核验失败")));
-        assert_eq!(extent.0, Some(LedgerError::Invalid("Δ闭包核验失败")));
-        assert_eq!(kind.1, extent.1);
+        assert_eq!(kind.error, invalid);
+        assert_eq!(extent.error, invalid);
+        assert_eq!(kind.rust, extent.rust);
         // 两条经包装 helper 的完整入口反例：声明长度超界的 STRING（动态诊断），以及指向 body
         // 只有 31 字节的真实 SEQ_LEAF 的合法 STRING（静态字面量诊断）。整次 verify_delta 的
         // Rust 分配必须恰好等于原父 census 中逐次精确预留之和，诊断没有无账分配。
@@ -4538,7 +4795,11 @@ pub(super) mod tests {
             super::super::audit_owner::native::Failure::BudgetExceeded
         ));
         assert!(l6.connection.is_some());
-        let (allocation, bytes, total_bytes) = verify_measured(
+        // 资格有效后 source 读取被拒（同一订正）：同一完整窗口内其他 Rust 为零、总申请恰为原父
+        // SQLite 预留之和；路径恰为两条资格 SQL，随后 source 只收到根节点一次请求即被拒。
+        let root6_digest = newchan_rust::s_content::parse_root(&root6.root).unwrap();
+        trace_path(&l6, true);
+        let measured = verify_measured(
             &current,
             &l6,
             &mut nodes6,
@@ -4547,8 +4808,16 @@ pub(super) mod tests {
             Fault::Allocation,
             false,
         );
-        assert_eq!((bytes, total_bytes), (0, 0));
-        let allocation = allocation.expect("refused");
+        trace_path(&l6, false);
+        assert!(measured.accounted(), "{measured}");
+        assert!(
+            measured.followed(
+                &[LedgerSql::Through, LedgerSql::Qualification],
+                &[root6_digest]
+            ),
+            "{measured}"
+        );
+        let allocation = measured.error.expect("refused");
         assert_eq!(allocation, LedgerError::Scratch(ScratchFailure::Allocation));
         assert!(matches!(
             allocation.into_failure(),

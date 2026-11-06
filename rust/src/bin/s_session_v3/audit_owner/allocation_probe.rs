@@ -2,8 +2,9 @@
 //! 按线程记账：每个线程只累计自己发起的 alloc/dealloc，Window 只读开窗线程的本账，
 //! 并发测试线程的分配不会混入读数。被测路径须在开窗线程内同步完成；别的线程替本线程
 //! 释放的块记在释放方，本线程的 live 因而可能为负（读数按 i64 报告，不截断）。
-//! 记录请求 layout 的实时共存值，不声称 allocator 元数据、realloc 内部暂存、SQLite C malloc、
-//! 线程栈或 RSS 已包括在内。
+//! 记录请求 layout 的实时共存值与累计申请，不声称 allocator 元数据、realloc 内部暂存、线程栈
+//! 或 RSS 已包括在内。系统 SQLite 的 C malloc 不经过本 allocator；受管 SQLite 组件以 Rust
+//! layout 分配的块则计入窗口，需要时由调用方按原父 census 的 "sqlite" 预留拆分。
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
