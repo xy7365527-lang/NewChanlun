@@ -1699,6 +1699,12 @@ fn stat_file(path: &CStr) -> Result<u64, LedgerError> {
 }
 
 impl Ledger {
+    /// H1 的私有点查资格：绑定已提交完整水位、四根、规则、verifier 与内容库身份。
+    /// 不含连接、不可跨进程；任何字段不符即不能用它点查。拥有型输出无上界，只开放给
+    /// Legacy；受管台账经调用方预付的 `qualification_bounded` 取得。
+    pub(super) fn qualification(&self) -> Result<Qualification, String> {
+        self.with_committed_qualification(|v| Ok(v.owned()))
+    }
     /// 永不打开旧台账作可信输入。文件名必须是本次重建的新文件；不覆盖旧诊断原件。
     pub(super) fn fresh(
         path: &Path,
@@ -1900,11 +1906,6 @@ impl<B: Backend> Ledger<B> {
                 })
             },
         )
-    }
-    /// H1 的私有点查资格：绑定已提交完整水位、四根、规则、verifier 与内容库身份。
-    /// 不含连接、不可跨进程；任何字段不符即不能用它点查。
-    pub(super) fn qualification(&self) -> Result<Qualification, B::Error> {
-        self.with_committed_qualification(|v| Ok(v.owned()))
     }
     /// 39P：字符串总字节先对调用方已预留的上界核过，再按精确容量分配（B2）。
     pub(super) fn qualification_bounded(&self, cap: usize) -> Result<Qualification, B::Error> {
@@ -3671,7 +3672,7 @@ pub(super) mod tests {
         for unit in &d1.new_units {
             assert!(l1.contains_committed_unit(unit).unwrap());
         }
-        assert_eq!(l1.qualification().unwrap().through, 1);
+        assert_eq!(l1.qualification_bounded(1 << 16).unwrap().through, 1);
         let oracle = legacy_texts(
             &sha256_hex(FORMAT.as_bytes()),
             &d1,
@@ -3772,7 +3773,7 @@ pub(super) mod tests {
             Ledger::fresh_charged(&path3, &content, &identity(), STORE, parent(&current, &b))
                 .unwrap();
         l3.fold_step(token, &d1, &m1, &r1).unwrap();
-        let q3 = l3.qualification().unwrap();
+        let q3 = l3.qualification_bounded(1 << 16).unwrap();
         let (m2, r2) = generation(2);
         let d2 = delta(&m2, &r2);
         let reserved = d2.raw.len() * std::mem::size_of::<(i64, &RawFact)>()
@@ -3898,7 +3899,7 @@ pub(super) mod tests {
             Ledger::fresh_charged(&path4, &content, &identity(), STORE, parent(&current, &c))
                 .unwrap();
         l4.fold_step(token, &d1, &m1, &r1).unwrap();
-        let q4 = l4.qualification().unwrap();
+        let q4 = l4.qualification_bounded(1 << 16).unwrap();
         let mut nodes = sc::MemoryNodes::new();
         let root = content_root(&mut nodes, "verify");
         arm_trip(&l4, 1);
@@ -3923,7 +3924,7 @@ pub(super) mod tests {
             Ledger::fresh_charged(&path5, &content, &identity(), STORE, parent(&current, &dom))
                 .unwrap();
         l5.fold_step(token, &d1, &m1, &r1).unwrap();
-        let q5 = l5.qualification().unwrap();
+        let q5 = l5.qualification_bounded(1 << 16).unwrap();
         let mut nodes5 = sc::MemoryNodes::new();
         let root5 = content_root(&mut nodes5, "stage");
         let mut m5 = m1.clone();
