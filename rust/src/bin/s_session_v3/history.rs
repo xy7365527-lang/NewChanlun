@@ -5797,6 +5797,68 @@ pub(super) mod tests {
         }
     }
 
+    /// #1890 第 3 轮复审反例 G：缓存后经 SQL 结束事务，新事务只读 temp（main 为 NONE），
+    /// 期间另一连接提交改写；同一查找必须与基线一样建立新的 main 快照并报 NODE_DIGEST。
+    #[test]
+    fn path_memo_requires_main_snapshot_not_just_temp_read() {
+        let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Bool(true))]));
+        let path = fixture.conn.path().unwrap().to_owned();
+        let external = rusqlite::Connection::open(&path).unwrap();
+        let leaf = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        fixture
+            .conn
+            .execute_batch("CREATE TEMP TABLE t1890(x)")
+            .unwrap();
+        let tx = fixture.conn.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        tx.execute_batch("COMMIT").unwrap();
+        external
+            .execute(
+                "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+                params![&leaf[..]],
+            )
+            .unwrap();
+        tx.execute_batch("BEGIN").unwrap();
+        let _: i64 = tx
+            .query_row("SELECT count(*) FROM temp.t1890", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            reader
+                .lookup_field_ref((&root).into(), "a")
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    /// #1890 第 3 轮复审反例 H：缓存后换成拒绝一切的 authorizer；同一查找必须与基线一样
+    /// 在重新编译读语句时被拒绝。撤销 authorizer 后照旧成功。
+    #[test]
+    fn path_memo_does_not_hide_authorizer_change() {
+        use rusqlite::hooks::{AuthContext, Authorization};
+        let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
+        let tx = fixture.conn.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        tx.authorizer(Some(|_: AuthContext<'_>| Authorization::Deny))
+            .unwrap();
+        assert_eq!(
+            reader
+                .lookup_field_ref((&root).into(), "a")
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        tx.authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+    }
+
     /// #1890 审查反例 C：事务经 SQL 结束再 BEGIN（ABA），期间另一连接提交改写；无论新事务
     /// 是否已读过（NONE/READ 两种状态），旧结果都不得复活，必须与基线一样报 NODE_DIGEST。
     #[test]

@@ -122,6 +122,11 @@ fn read_material(
         }),
     )
 }
+/// 无工作域时 ReadStore 每次节点读取所用的同一条缓存语句。#1890 的快照纪元以它在本连接上
+/// 已预编译且未过期为前提：authorizer 更换、DDL 等令其过期时，基线的下一次读会重新编译并
+/// 重新询问授权器，查找结果表与已核原件表在此之前都不复用。
+const READ_NODE_SQL: &str = "SELECT tag, body FROM s_content_nodes WHERE digest=?1";
+
 fn read_material_reserved(
     conn: &Connection,
     digest: &NodeDigest,
@@ -131,7 +136,7 @@ fn read_material_reserved(
     SQL_READS.with(|calls| calls.set(calls.get() + 1));
     // 保留无 scope 路线原有的 statement cache；两路只改变正文取得/许可方式。
     let result: Option<(i64, Vec<u8>, Option<NativeReservation>)> = if work.is_none() {
-        conn.prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
+        conn.prepare_cached(READ_NODE_SQL)
             .map_err(storage_error)?
             .query_row(params![&digest[..]], |row| {
                 Ok((row.get(0)?, row.get(1)?, None))
@@ -1064,11 +1069,36 @@ impl NodeSource for ReadStore<'_> {
         if self.conn.is_autocommit() {
             return None;
         }
-        // SAFETY: 句柄只在本次调用内借给只读查询（事务状态、表元数据、pager 数据版本）；
-        // 不关闭、不转移、不改连接状态，也不执行 SQL 语句。库名、表名均为以 NUL 结尾的静态
-        // 字面量；表元数据的输出指针全部传空。
+        // SAFETY: 句柄只在本次调用内借给只读查询（事务状态、表元数据、语句列表与过期标记、
+        // pager 数据版本）；不关闭、不转移、不改连接或语句状态，也不执行 SQL 语句。库名、表名
+        // 均为以 NUL 结尾的静态字面量；表元数据的输出指针全部传空；语句指针只在本连接的
+        // 互斥区内经 `sqlite3_next_stmt` 逐个取得、当场使用，不保留。
         let db = unsafe { self.conn.handle() };
-        if unsafe { ffi::sqlite3_txn_state(db, std::ptr::null()) } != ffi::SQLITE_TXN_READ {
+        // main 本身必须已建立读快照；所有库（含 temp）都不得写过。只看最大状态时，temp 为
+        // READ 而 main 为 NONE 也会得到 READ，那时 main 尚未固定快照。
+        if unsafe { ffi::sqlite3_txn_state(db, c"main".as_ptr()) } != ffi::SQLITE_TXN_READ
+            || unsafe { ffi::sqlite3_txn_state(db, std::ptr::null()) } > ffi::SQLITE_TXN_READ
+        {
+            return None;
+        }
+        // 授权门：基线的下一次节点读取只在缓存语句缺失或已过期（authorizer 更换、DDL 等）时
+        // 才重新编译并询问授权器。只有该语句已在本连接预编译、且所有同文副本都未过期，才给
+        // 纪元；否则交给真实读取去重新编译、照旧接受授权。
+        let mut found = false;
+        let mut stmt = unsafe { ffi::sqlite3_next_stmt(db, std::ptr::null_mut()) };
+        while !stmt.is_null() {
+            let sql = unsafe { ffi::sqlite3_sql(stmt) };
+            if !sql.is_null()
+                && unsafe { std::ffi::CStr::from_ptr(sql) }.to_bytes() == READ_NODE_SQL.as_bytes()
+            {
+                if unsafe { ffi::sqlite3_expired(stmt) } != 0 {
+                    return None;
+                }
+                found = true;
+            }
+            stmt = unsafe { ffi::sqlite3_next_stmt(db, stmt) };
+        }
+        if !found {
             return None;
         }
         let nodes_table_in = |schema: *const std::os::raw::c_char| {
@@ -1305,6 +1335,12 @@ mod tests {
         std::fs::remove_file(path).unwrap();
     }
 
+    /// 一次真实节点读：让本连接预编译节点读语句（快照纪元的前提之一）。
+    fn warm(reader: &mut ReadStore<'_>) {
+        reader
+            .checked_read(&s_content::frame(s_content::tag::BOOL_TRUE, &[]))
+            .unwrap();
+    }
     fn epoch_fixture() -> Connection {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
@@ -1326,16 +1362,68 @@ mod tests {
         let mut conn = epoch_fixture();
         let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let tx = conn.transaction().unwrap();
-        let reader = ReadStore::new(&tx).unwrap();
+        let mut reader = ReadStore::new(&tx).unwrap();
         let seen = calls.clone();
         tx.authorizer(Some(move |_: rusqlite::hooks::AuthContext<'_>| {
             seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            Authorization::Deny
-        }));
+            Authorization::Allow
+        }))
+        .unwrap();
+        // 安装 authorizer 令读语句过期；真实读重新编译时照常询问授权器。
+        warm(&mut reader);
+        let before = calls.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(before > 0, "重新编译读语句询问了授权器");
         assert!(reader.snapshot_epoch().is_some());
         assert!(reader.snapshot_epoch().is_some());
-        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
-        tx.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::SeqCst),
+            before,
+            "取纪元不调用授权器"
+        );
+        tx.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>)
+            .unwrap();
+    }
+
+    /// #1890 第 3 轮复审 HIGH-A/B：main 未建立读快照（只有 temp 在读）时不给纪元；节点读
+    /// 语句尚未预编译、或因 authorizer 更换而过期时不给纪元，真实读重新编译后恢复。
+    #[test]
+    fn snapshot_epoch_requires_main_snapshot_and_live_read_statement() {
+        use rusqlite::hooks::Authorization;
+        let mut conn = epoch_fixture();
+        conn.execute_batch("CREATE TEMP TABLE t1890(x)").unwrap();
+        let tx = conn.transaction().unwrap();
+        let mut reader = ReadStore::new(&tx).unwrap();
+        let digest = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        assert!(reader.checked_read(&digest).unwrap().is_none());
+        assert!(reader.snapshot_epoch().is_some(), "读语句已预编译、未过期");
+        tx.authorizer(Some(|_: rusqlite::hooks::AuthContext<'_>| {
+            Authorization::Allow
+        }))
+        .unwrap();
+        assert_eq!(reader.snapshot_epoch(), None, "authorizer 更换令读语句过期");
+        assert!(reader.checked_read(&digest).unwrap().is_none());
+        assert!(reader.snapshot_epoch().is_some(), "真实读重新编译后恢复");
+        tx.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        assert_eq!(
+            reader.snapshot_epoch(),
+            None,
+            "撤销 authorizer 同样令其过期"
+        );
+        drop(reader);
+        tx.execute_batch("COMMIT; BEGIN").unwrap();
+        let _: i64 = tx
+            .query_row("SELECT count(*) FROM temp.t1890", [], |r| r.get(0))
+            .unwrap();
+        let reader = ReadStore {
+            conn: &tx,
+            same_material: None,
+        };
+        assert_eq!(
+            reader.snapshot_epoch(),
+            None,
+            "只有 temp 在读、main 为 NONE"
+        );
     }
 
     /// #1890 复审 HIGH：TEMP 同名表或视图遮蔽不带库名的 `s_content_nodes` 时不给纪元，
@@ -1349,14 +1437,16 @@ mod tests {
             let mut conn = epoch_fixture();
             {
                 let tx = conn.transaction().unwrap();
-                let reader = ReadStore::new(&tx).unwrap();
+                let mut reader = ReadStore::new(&tx).unwrap();
+                warm(&mut reader);
                 assert!(reader.snapshot_epoch().is_some());
                 tx.execute_batch(ddl).unwrap();
                 assert_eq!(reader.snapshot_epoch(), None, "事务内建 TEMP 同名对象：{ddl}");
             }
             conn.execute_batch(ddl).unwrap();
             let tx = conn.transaction().unwrap();
-            let reader = ReadStore::new(&tx).unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            warm(&mut reader);
             assert_eq!(reader.snapshot_epoch(), None, "autocommit 先建再进入 READ：{ddl}");
         }
     }
@@ -1385,7 +1475,9 @@ mod tests {
         assert_eq!(short.snapshot_epoch(), None, "短读来源没有纪元");
         let first = {
             let tx = conn.transaction().unwrap();
-            let reader = ReadStore::new(&tx).unwrap();
+            let mut reader = ReadStore::new(&tx).unwrap();
+            assert_eq!(reader.snapshot_epoch(), None, "节点读语句尚未预编译");
+            warm(&mut reader);
             let epoch = reader.snapshot_epoch().expect("未写过的读快照有纪元");
             assert_eq!(reader.snapshot_epoch(), Some(epoch), "读状态下纪元稳定");
             TxStore::new(&tx)
@@ -1402,7 +1494,8 @@ mod tests {
             epoch
         };
         let tx = conn.transaction().unwrap();
-        let reader = ReadStore::new(&tx).unwrap();
+        let mut reader = ReadStore::new(&tx).unwrap();
+        warm(&mut reader);
         let second = reader.snapshot_epoch().expect("新读快照有纪元");
         assert_ne!(first, second, "提交后数据版本与写计数都已推进");
     }
