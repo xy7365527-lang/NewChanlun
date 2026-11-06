@@ -3928,7 +3928,11 @@ pub(super) mod tests {
             (held + content.as_bytes().len() + 1) as u64,
             "{probe}"
         );
-        assert_eq!(current.live() - live0, held + (b.live_bytes() - sqlite0));
+        let delta = |now: usize, then: usize| now as i128 - then as i128;
+        assert_eq!(
+            delta(current.live(), live0),
+            held as i128 + delta(b.live_bytes(), sqlite0)
+        );
         lf.stage(token, &d1).unwrap();
         drop(lf);
         assert_eq!((current.live(), b.live_bytes()), (live0, sqlite0));
@@ -3963,11 +3967,21 @@ pub(super) mod tests {
                 .iter()
                 .map(|r| r.format.len() + r.root.len())
                 .sum::<usize>();
+        let pending = token.len()
+            + d2.roots
+                .iter()
+                .map(|r| r.format.len() + r.root.len())
+                .sum::<usize>();
+        let (live0, sqlite0) = (current.live(), b.live_bytes());
         let window = Window::start();
         let staged = l2.stage(token, &d2);
         let probe = window.finish();
         staged.unwrap();
         assert_eq!(probe["allocated_bytes"], reserved as u64, "{probe}");
+        assert_eq!(
+            delta(current.live(), live0),
+            pending as i128 + delta(b.live_bytes(), sqlite0)
+        );
         l2.bind(token, &m2, &r2).unwrap();
         charged(&l2)
             .run(|q| {
@@ -4152,8 +4166,23 @@ pub(super) mod tests {
             sc::closure_delta::verify_four_roots(&mut nodes5, [(&root5).into(); 4]).unwrap(),
         )
         .unwrap();
+        let mut candidates = 0usize;
+        units
+            .verified
+            .try_for_each_unit(|_| -> Result<(), ()> {
+                candidates += 1;
+                Ok(())
+            })
+            .unwrap();
         arm_trip(&l5, 2);
+        let window = Window::start();
         let staged = l5.stage_verified(token, &d5, &units, None, Some(&*q5));
+        let probe = window.finish();
+        assert_eq!(
+            probe["allocated_bytes"],
+            (candidates * std::mem::size_of::<Unit>()) as u64,
+            "{probe}"
+        );
         assert!(TRIPPED.load(Ordering::SeqCst));
         let staged = staged.unwrap_err();
         assert_eq!(staged, budget);
