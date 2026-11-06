@@ -43,14 +43,15 @@ on:
 jobs:
   macos-session:
     if: ${{ !inputs.issue1716_real_s_only && !inputs.issue1717_real_s_only }}
-    # #1875：原单作业串行约 38 分钟（run 42095405599：economic 1369 s、financial 613 s）。拆成三组并行；
-    #   与平台无关的 economic 场景测试（tb03c_kill / tb03c_v2_kill / tb03c_allocation）只在 Linux 跑
-    #   （ci.yml extras economic 组同一过滤器全量执行），macOS 只留走 macOS 专属分支的部分。
+    # #1875：原单作业串行约 38 分钟（run 42095405599：economic 1369 s、financial 613 s）。按步骤拆成五组并行，
+    #   每条测试仍只在 macOS 上执行一次。economic 一步里 tb03c_kill / tb03c_v2_kill / tb03c_allocation 三组约占
+    #   1070 s，单列为 tb03c-a / tb03c-b 两组：它们经真实 store::open 走 macOS 的 APFS/HFS 判定与 F_FULLFSYNC 分支，
+    #   Linux 同名执行不能替代（#1893 非作者审查 F1）。
     name: macos-session (${{ matrix.group }})
     strategy:
       fail-fast: false
       matrix:
-        group: [check-econ, financial, hfs]
+        group: [financial, tb03c-a, tb03c-b, check-econ, hfs]
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -146,12 +147,19 @@ jobs:
           TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" cargo test --locked --features s_session --lib -- --ignored --exact \
             economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_on_fixed_carriers --nocapture
 
-      # #1875：tb03c_kill / tb03c_v2_kill / tb03c_allocation 三组（macOS 上约 1250 s）测的是 SIGKILL 中途恢复与分配逻辑，
-      #   SIGKILL 语义与平台无关；由 ci.yml extras economic 组在 Linux 全量执行。其余模块（store / content_store /
-      #   finance_transport / session_transport 等走 macOS 专属分支的）照旧在 macOS 执行。
+      # #1875：同一过滤器的测试集合按模块分到三组：check-econ 跑除 tb03c 三组外的全部，tb03c-a 跑 tb03c_kill_tests，
+      #   tb03c-b 跑 tb03c_v2_kill_tests 与 tb03c_allocation_tests。三组之并恰为原集合，互不重叠。
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: ${{ !cancelled() && matrix.group == 'check-econ' }}
         run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol --skip economic_session::tb03c_kill_tests --skip economic_session::tb03c_v2_kill_tests --skip economic_session::tb03c_allocation_tests
+
+      - name: cargo test — economic_session::tb03c_kill_tests（macOS 存储栈上的 SIGKILL 恢复，#1394 G-1）
+        if: ${{ !cancelled() && matrix.group == 'tb03c-a' }}
+        run: cargo test --locked --features s_session --lib -- economic_session::tb03c_kill_tests
+
+      - name: cargo test — economic_session::tb03c_v2_kill_tests / tb03c_allocation_tests（macOS 存储栈，#1394 G-1）
+        if: ${{ !cancelled() && matrix.group == 'tb03c-b' }}
+        run: cargo test --locked --features s_session --lib -- economic_session::tb03c_v2_kill_tests economic_session::tb03c_allocation_tests
 
       # #1716：tb03b-finance/4 内容域 cap 激活。economic-session/2 要求 E、B:alpha、B:beta 各占一个本地
       #   可写固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像
