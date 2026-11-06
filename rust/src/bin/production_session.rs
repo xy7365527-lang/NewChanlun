@@ -207,7 +207,6 @@ fn load_manifest(path: &Path) -> Result<Manifest, String> {
     })
 }
 
-// #1845：逐段解析已有链接，再折叠 ..；不存在的尾段也参与同路径判定。
 fn resolved_target(path: &Path, links: &mut usize) -> std::io::Result<PathBuf> {
     let Some(last) = path.components().next_back() else {
         return std::env::current_dir();
@@ -244,7 +243,7 @@ fn resolved_target(path: &Path, links: &mut usize) -> std::io::Result<PathBuf> {
     }
 }
 
-fn check_source_target(decl: &Path, db: &Path) -> Result<(), String> {
+fn source_target_conflicts(decl: &Path, db: &Path) -> Result<bool, String> {
     let error = |e| format!("StorageUnavailable：核对结构源声明路径失败：{e}");
     let resolved_decl = resolved_target(decl, &mut 0).map_err(error)?;
     let resolved_db = resolved_target(db, &mut 0).map_err(error)?;
@@ -257,7 +256,11 @@ fn check_source_target(decl: &Path, db: &Path) -> Result<(), String> {
         (Some(a), Some(b)) => (a.dev(), a.ino()) == (b.dev(), b.ino()),
         _ => false,
     };
-    if resolved_decl == resolved_db || same_file {
+    Ok(resolved_decl == resolved_db || same_file)
+}
+
+fn check_source_target(decl: &Path, db: &Path) -> Result<(), String> {
+    if source_target_conflicts(decl, db)? {
         return Err(format!(
             "InvalidDomain：结构源声明 {} 与 s.db {} 指向同一路径或同一文件",
             decl.display(),
@@ -267,10 +270,9 @@ fn check_source_target(decl: &Path, db: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// #1845：既有文件只读，新文件只用 O_EXCL 创建；路径检查后的替换也不能触发截断。
+// 既有文件只读，新文件只用 O_EXCL 创建；路径检查后的替换也不能触发截断。
 // 相同声明复用，不同声明另存编号文件，仍由 S 持锁裁决与库存声明是否一致。
 fn source_file(state_dir: &Path, db: &Path, canonical: &str) -> Result<PathBuf, String> {
-    check_source_target(&state_dir.join("structure-source.json"), db)?;
     std::fs::create_dir_all(state_dir).map_err(|e| format!("StorageUnavailable：{e}"))?;
     for generation in 0u64.. {
         let name = if generation == 0 {
@@ -279,7 +281,11 @@ fn source_file(state_dir: &Path, db: &Path, canonical: &str) -> Result<PathBuf, 
             format!("structure-source.{generation}.json")
         };
         let path = state_dir.join(name);
-        check_source_target(&path, db)?;
+        if generation == 0 {
+            check_source_target(&path, db)?;
+        } else if source_target_conflicts(&path, db)? {
+            continue;
+        }
         if source_candidate(&path, canonical)? {
             return Ok(path);
         }
@@ -402,6 +408,7 @@ fn run() -> Result<i32, String> {
 
     // ── init：只对尚不存在的库；S 一律带声明 init ──
     let decl = source_file(&m.state_dir, &s_db, &m.source.canonical())?;
+    log("structure_source_file", json!({"path": decl}));
     if !s_db.exists() {
         let mut c = clean(Command::new(&s_bin), &S_PASS);
         c.args(["init", "--protocol-revision", "s-session/3", "--db"])

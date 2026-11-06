@@ -657,6 +657,9 @@ jobs:
       - name: cargo test — production_session_entry
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session_testonly --test production_session_entry --jobs "${CI_CARGO_JOBS:-1}" -- --test-threads 1
 
+      - name: cargo test — production_session source_file_tests
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --bin production_session --jobs "${CI_CARGO_JOBS:-1}" source_file_tests -- --test-threads 1
+
       # 纯生产构建（只开 production_session，#1769 返修 M-3/M-4）：编译生产 launcher、X 骨架与 S bin 的生产 cfg
       #   （含 S_PASS 不转交 TestOnly 开关的分支），并真实执行拒绝类子集：P0 未签拒启两条、生产 S 遇
       #   S_THETA_DIAGNOSTIC_TESTONLY=1 即拒启、生产 launcher 不转交该开关。需 S 开门的测试在此构建由 cfg 排除。
