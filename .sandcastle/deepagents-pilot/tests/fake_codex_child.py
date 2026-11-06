@@ -10,7 +10,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 for name in ("ticket", "parent-thread-id", "manager-agent-id", "checkout", "expected-head", "mode", "model",
-             "idle-timeout-seconds", "timeout-seconds", "prompt-file", "output-dir"):
+             "idle-timeout-seconds", "timeout-seconds", "prompt-file", "output-dir", "output-protocol"):
     parser.add_argument(f"--{name}")
 args = parser.parse_args()
 out = Path(args.output_dir)
@@ -30,12 +30,15 @@ for rel, content in step.get("write", {}).items():
 head = subprocess.run(["git", "-C", args.checkout, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 status = subprocess.run(["git", "-C", args.checkout, "status", "--porcelain=v1", "--untracked-files=all"],
                         capture_output=True, text=True).stdout
+report = ({"confidence": step.get("confidence", "medium"), "caveats": step.get("caveats", ["仅夹具验证"])}
+          if args.output_protocol == "deepagents-self-report-v1" else {})
 summary = step.get("summaries", {}).get(args.expected_head, step.get("summary", "完成"))
 (out / "result.json").write_text(json.dumps({
+    **({"output_protocol": args.output_protocol} if args.output_protocol else {}),
     "ticket": int(args.ticket), "run_id": str(uuid.uuid4()), "status": step.get("status", "completed"),
     "mode": args.mode, "model": args.model, "expected_head": args.expected_head,
     "checkout_after": {"head": head, "status": status}, "external_session_id": "fake-session",
     "external_session_log": "/dev/null", "failure_reason": None,
-    "result": {"status": "completed", "summary": summary, "findings": step.get("findings", []), "validation": step.get("validation", [])},
+    "result": {"status": "completed", "summary": summary, "findings": step.get("findings", []), "validation": step.get("validation", []), **report},
 }))
 sys.exit(0)

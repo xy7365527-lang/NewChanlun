@@ -62,6 +62,17 @@ class Env:
 def env(tmp_path):
     return Env(tmp_path)
 
+@pytest.fixture
+def legacy_boat_runtime(env):
+    """给不执行 TS 的 Boat fake 一个已提交的旧四键 runtime。"""
+    runtime = env.source / ".sandcastle/codex-child.ts"
+    runtime.parent.mkdir(parents=True, exist_ok=True)
+    runtime.write_text('export const OUTPUT_SCHEMA = {required: ["status", "summary", "findings", "validation"]};\n')
+    git(env.source, "add", ".sandcastle/codex-child.ts")
+    git(env.source, "commit", "-qm", "legacy Boat runtime fixture")
+    env.base = parse_sha(git(env.source, "rev-parse", "HEAD"))
+    return env
+
 
 @pytest.fixture(autouse=True)
 def no_operator_credential(monkeypatch):
