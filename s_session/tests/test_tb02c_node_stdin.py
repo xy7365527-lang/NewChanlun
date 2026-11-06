@@ -14,9 +14,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SOURCE_SUFFIXES = {'.py', '.rs', '.js', '.cjs', '.mjs', '.ts', '.mts', '.cts', '.sh'}
 _Q = r"""\\?['"`]"""
-# 记号之间允许空白、宿主字符串里的转义空白（\n \t \r）、/* */ 与 // 行注释；对象只看顶层键（[^{}] 不进嵌套对象），键可带引号。
+# 记号之间允许空白、宿主字符串里的转义空白（\n \t \r）、/* */ 与 // 行注释（行注释整行吃掉，注释里提到的 'utf8' 不算参数）；对象只看顶层键（[^{}] 不进嵌套对象），键可带引号。
 # 注释里写出这种调用也会被拦：这是有意的，仓内说明请换一种措辞。
-_S = r"(?:\s|\\[ntr]|/\*.*?\*/|//[^\n]*)*"
+_S = r"(?:\s|\\[ntr]|/\*.*?\*/|//(?:(?!\\n)[^\n])*(?:\n|\\n|$))*"
 UTF8_STDIN_READ = re.compile(
     r"readFileSync" + _S + r"\(" + _S + r"(?:0|process" + _S + r"\." + _S + r"stdin" + _S + r"\." + _S + r"fd|"
     + _Q + r"/dev/stdin" + _Q + r")" + _S + r"," + _S +
@@ -61,6 +61,7 @@ class NodeStdinReadTests(unittest.TestCase):
         for ok in ("JSON.parse(fs.readFileSync(0).toString('utf8'))",
                    'fs.readFileSync(0, {flag: "r"})',
                    'fs.readFileSync(0, {encoding: null})',
+                   "const value = fs.readFileSync(0, // 'utf8' would return a string; keep a Buffer\n);",
                    "fs.readFileSync(0, {encoding: null, note: {encoding: 'utf8'}})",
                    "fs.readFileSync(path, 'utf8')"):
             self.assertEqual(hits_in(ok), [], ok)
