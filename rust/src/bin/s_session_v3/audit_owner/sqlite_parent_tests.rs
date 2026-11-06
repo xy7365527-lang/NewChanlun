@@ -1335,3 +1335,159 @@ fn sqlite_parent_owner_hooks_flush_and_cells_on_same_parent() {
     assert_eq!(d.current.live(), base, "all connection bytes returned");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// 新 WAL 回调的执行计划：1 只做 PASSIVE；2 先用 `sqlite3_malloc64` 触发收费首拒再 PASSIVE；
+/// 3 先把本域余额借到不足一个最小块再 PASSIVE（checkpoint 自身的分配被拒）。
+static WAL_PLAN: AtomicUsize = AtomicUsize::new(0);
+static WAL_MALLOC_REFUSED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static WAL_PAD_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static WAL_RESULT: std::sync::Mutex<Option<Result<(c_int, c_int), SqlGate>>> =
+    std::sync::Mutex::new(None);
+thread_local! {
+    static WAL_BUDGET: std::cell::RefCell<Option<Budget>> = const { std::cell::RefCell::new(None) };
+}
+
+unsafe extern "C" fn planned_wal_commit(
+    _: *mut c_void,
+    db: *mut ffi::sqlite3,
+    _: *const std::ffi::c_char,
+    _: c_int,
+) -> c_int {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::wal_checkpoint;
+    let mut pad = ptr::null_mut();
+    match WAL_PLAN.load(Ordering::SeqCst) {
+        2 => {
+            // SAFETY: plain SQLite allocation inside the running operation domain.
+            let p = unsafe { ffi::sqlite3_malloc64(128 << 20) };
+            WAL_MALLOC_REFUSED.store(p.is_null(), Ordering::SeqCst);
+            // SAFETY: p is null or a block from sqlite3_malloc64.
+            unsafe { ffi::sqlite3_free(p) };
+        }
+        3 => {
+            let remaining = WAL_BUDGET
+                .with(|b| b.borrow().as_ref().map(Budget::remaining))
+                .unwrap_or(0);
+            // 16 的倍数，SQLite 的取整不再放大；剩余不足一个最小块。
+            let payload = remaining.saturating_sub(64) / 16 * 16;
+            let left = charged_bytes(payload).and_then(|c| remaining.checked_sub(c));
+            // SAFETY: plain SQLite allocation inside the running operation domain.
+            pad = unsafe { ffi::sqlite3_malloc64(payload as u64) };
+            WAL_PAD_HELD.store(
+                !pad.is_null()
+                    && left.is_some_and(|left| charged_bytes(1).is_some_and(|c| c > left)),
+                Ordering::SeqCst,
+            );
+        }
+        _ => {}
+    }
+    // SAFETY: db is the handle SQLite passed to this WAL hook.
+    let result = unsafe { wal_checkpoint(db, ffi::SQLITE_CHECKPOINT_PASSIVE) };
+    // SAFETY: pad is null or a block from sqlite3_malloc64.
+    unsafe { ffi::sqlite3_free(pad) };
+    if let Ok(mut slot) = WAL_RESULT.lock() {
+        *slot = Some(result);
+    }
+    ffi::SQLITE_OK
+}
+
+/// #1419 3C 4da 独审 F1：WAL 回调内 checkpoint 与普通操作同准入、同首拒优先结算。已有首拒时返回
+/// 同一带类型首拒且不进入底层 checkpoint（主库文件不被回填）；checkpoint 自身的收费拒绝返回带类型
+/// 首拒。正控：同一回调在可用额度内 PASSIVE 回填全部帧。
+#[test]
+#[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+fn sqlite_parent_wal_checkpoint_admits_and_settles_first_refusal() {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{Callback, WalFn};
+    // SAFETY: this test runs alone in a fresh process before any SQLite use.
+    let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+    let root = Budget::fresh(LIMIT).unwrap();
+    let mut d = Domains {
+        allocator: &allocator,
+        current: root.bind_frozen(1, LIMIT, 0, 0).unwrap(),
+        request: 1,
+    };
+    let dir = std::env::temp_dir().join(format!("wal-checkpoint-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let db_path = dir.join("wal.sqlite3");
+    let path = std::ffi::CString::new(db_path.to_str().unwrap()).unwrap();
+    let main_len = || std::fs::metadata(&db_path).map_or(0, |m| m.len());
+    let hook = Callback {
+        callback: planned_wal_commit as WalFn,
+        context: ptr::null_mut(),
+    };
+    let take = || WAL_RESULT.lock().unwrap().take();
+    let commit_blob = |b: &SqliteBinding, conn: &_| {
+        b.run(conn, |q| {
+            q.execute_batch("BEGIN IMMEDIATE; INSERT INTO t VALUES(randomblob(20000)); COMMIT;")
+        })
+    };
+
+    let b = d.next(16 << 20);
+    let conn = b.open(&path).unwrap();
+    b.run(&conn, |q| {
+        q.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE t(x BLOB);")?;
+        // SAFETY: the hook uses static state only.
+        unsafe { q.set_wal_hook(Some(hook)) }
+    })
+    .unwrap();
+    WAL_PLAN.store(1, Ordering::SeqCst);
+    let before = main_len();
+    commit_blob(&b, &conn).unwrap();
+    assert!(
+        matches!(take(), Some(Ok((log, done))) if log > 0 && done == log),
+        "PASSIVE inside the hook backfills every frame"
+    );
+    assert!(main_len() > before, "the backfill reached the main file");
+
+    WAL_PLAN.store(2, Ordering::SeqCst);
+    let before = main_len();
+    assert_eq!(
+        commit_blob(&b, &conn),
+        Err(SqlGate::Refused(ScratchFailure::Budget))
+    );
+    assert!(
+        WAL_MALLOC_REFUSED.load(Ordering::SeqCst),
+        "the hook allocation was refused"
+    );
+    assert_eq!(
+        take(),
+        Some(Err(SqlGate::Refused(ScratchFailure::Budget))),
+        "an existing first refusal is returned before SQLite is entered"
+    );
+    assert_eq!(
+        main_len(),
+        before,
+        "no checkpoint ran: the new frames were not backfilled"
+    );
+    b.clear_write_hooks(&conn).unwrap();
+    b.close(conn).map_err(|(_, e)| e).unwrap();
+
+    let b = d.next(16 << 20);
+    WAL_BUDGET.with(|slot| *slot.borrow_mut() = Some(d.current.clone()));
+    let base = d.current.live();
+    let conn = b.open(&path).unwrap();
+    // SAFETY: the hook uses static state only.
+    b.run(&conn, |q| unsafe { q.set_wal_hook(Some(hook)) })
+        .unwrap();
+    WAL_PLAN.store(3, Ordering::SeqCst);
+    assert_eq!(
+        commit_blob(&b, &conn),
+        Err(SqlGate::Refused(ScratchFailure::Budget))
+    );
+    assert!(
+        WAL_PAD_HELD.load(Ordering::SeqCst),
+        "the pad fit and left less than one minimal block"
+    );
+    assert_eq!(
+        take(),
+        Some(Err(SqlGate::Refused(ScratchFailure::Budget))),
+        "the checkpoint's own charged refusal is returned as the typed first refusal"
+    );
+    assert_eq!(b.refusal(), Some(ScratchFailure::Budget));
+    b.clear_write_hooks(&conn).unwrap();
+    b.close(conn).map_err(|(_, e)| e).unwrap();
+    WAL_BUDGET.with(|slot| *slot.borrow_mut() = None);
+    assert_eq!(d.current.live(), base, "pad and connection bytes returned");
+    let _ = std::fs::remove_dir_all(&dir);
+}

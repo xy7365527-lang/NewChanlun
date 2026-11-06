@@ -20,3 +20,5 @@ v3::h1_writer_sql::charged_tests::h1_writer_budget_refusal_after_open_still_rest
 v3::audit_owner::sqlite_parent_tests::charged_step_reader_reads_on_same_parent_and_types_refusal
 # #1419 3C owner 连接家族组件能力：行变更/WAL 提交回调、回调内 checkpoint、cache_flush、按实际列数借行、收尾撤销回调
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_owner_hooks_flush_and_cells_on_same_parent
+# #1419 3C 4da F1：WAL 回调内 checkpoint 的准入与首拒优先结算（已有首拒不进 SQLite，自身收费拒绝带类型返回）
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_wal_checkpoint_admits_and_settles_first_refusal

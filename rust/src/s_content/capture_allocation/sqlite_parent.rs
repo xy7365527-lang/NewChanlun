@@ -170,6 +170,16 @@ thread_local! {
     static IN_ROW_MAP: Cell<bool> = const { Cell::new(false) };
     /// 本线程正处于收尾域（回滚、关闭、撤 VFS）：首拒后仍允许，且不调用调用方进度回调。
     static IN_TEARDOWN: Cell<bool> = const { Cell::new(false) };
+    /// 本线程正在执行的 `run`：绑定身份与连接句柄。只供 WAL 回调内的 [`wal_checkpoint`] 准入与结算。
+    static ACTIVE_RUN: Cell<Option<ActiveRun>> = const { Cell::new(None) };
+}
+
+#[derive(Clone, Copy)]
+struct ActiveRun {
+    epoch: u64,
+    owner: Owner,
+    origin: u64,
+    db: usize,
 }
 
 fn in_teardown() -> bool {
@@ -582,6 +592,44 @@ impl SqliteParentAllocator {
     }
 }
 
+/// `(owner, origin)` 冻结域的首个收费拒绝（[`SqliteBinding::refusal`] 的判据）。
+fn refusal_at(owner: Owner, origin: u64) -> Option<ScratchFailure> {
+    let s = state()?;
+    let sl = &s.slots[owner.slot];
+    if sl.generation != owner.generation {
+        return None;
+    }
+    sl.refusal.filter(|(at, _)| *at == origin).map(|(_, f)| f)
+}
+
+/// 绑定 `epoch` 为当前绑定、父账当前域仍是其 origin、本域无拒绝（收尾除外）、`owner` 归属该父账
+/// （[`SqliteBinding`] 普通与收尾准入的判据）。
+fn admit_epoch(
+    epoch: u64,
+    binding_owner: Owner,
+    owner: Option<Owner>,
+    teardown: bool,
+) -> Result<(), SqlGate> {
+    if IN_ROW_MAP.try_with(Cell::get).unwrap_or(true) {
+        return Err(SqlGate::Refused(ScratchFailure::Ledger));
+    }
+    let s = state().ok_or(SqlGate::Refused(ScratchFailure::Ledger))?;
+    let current = s.current.filter(|b| b.epoch == epoch);
+    let Some(b) = current.filter(|_| !s.broken) else {
+        return Err(SqlGate::Refused(ScratchFailure::Ledger));
+    };
+    if let Some(first) = s.first_refusal(b).filter(|_| !teardown) {
+        return Err(SqlGate::Refused(first));
+    }
+    if !s.origin_live(b) {
+        return Err(SqlGate::Refused(ScratchFailure::Ledger));
+    }
+    if owner.is_some_and(|o| o != binding_owner) {
+        return Err(SqlGate::WrongParent);
+    }
+    Ok(())
+}
+
 /// 当前收费绑定。析构时若仍为当前绑定则解除，此后的分配因无归属而被拒。
 pub struct SqliteBinding {
     epoch: u64,
@@ -594,14 +642,7 @@ impl SqliteBinding {
     /// 同域不清除；只有收尾（[`Self::rollback`]、[`Self::close`]、[`Self::unregister_vfs`]）
     /// 仍可执行，其分配照常向原域预留、不足仍拒，且不覆盖已有首拒。
     pub fn refusal(&self) -> Option<ScratchFailure> {
-        let s = state()?;
-        let sl = &s.slots[self.owner.slot];
-        if sl.generation != self.owner.generation {
-            return None;
-        }
-        sl.refusal
-            .filter(|(origin, _)| *origin == self.origin)
-            .map(|(_, f)| f)
+        refusal_at(self.owner, self.origin)
     }
 
     /// SQLite 报 `SQLITE_NOMEM`（含扩展码）且本域已记收费拒绝时，返回该首个拒绝。
@@ -696,24 +737,7 @@ impl SqliteBinding {
     }
 
     fn admit_mode(&self, owner: Option<Owner>, teardown: bool) -> Result<(), SqlGate> {
-        if IN_ROW_MAP.try_with(Cell::get).unwrap_or(true) {
-            return Err(SqlGate::Refused(ScratchFailure::Ledger));
-        }
-        let s = state().ok_or(SqlGate::Refused(ScratchFailure::Ledger))?;
-        let current = s.current.filter(|b| b.epoch == self.epoch);
-        let Some(b) = current.filter(|_| !s.broken) else {
-            return Err(SqlGate::Refused(ScratchFailure::Ledger));
-        };
-        if let Some(first) = s.first_refusal(b).filter(|_| !teardown) {
-            return Err(SqlGate::Refused(first));
-        }
-        if !s.origin_live(b) {
-            return Err(SqlGate::Refused(ScratchFailure::Ledger));
-        }
-        if owner.is_some_and(|o| o != self.owner) {
-            return Err(SqlGate::WrongParent);
-        }
-        Ok(())
+        admit_epoch(self.epoch, self.owner, owner, teardown)
     }
 
     /// 首拒优先：本域执行中已记收费拒绝时，一律报该首个拒绝（即使 SQLite 层吞掉了错误）。
@@ -896,6 +920,14 @@ impl SqliteBinding {
         f: impl FnOnce(&SqlOps<'_>) -> Result<R, SqlGate>,
     ) -> Result<R, SqlGate> {
         let running = self.enter(Some(conn))?;
+        ACTIVE_RUN.with(|a| {
+            a.set(Some(ActiveRun {
+                epoch: self.epoch,
+                owner: self.owner,
+                origin: self.origin,
+                db: conn.db as usize,
+            }))
+        });
         let ops = SqlOps {
             db: conn.db,
             binding: self,
@@ -956,6 +988,7 @@ impl Drop for Running {
         }
         let _ = IN_RUN.try_with(|r| r.set(false));
         let _ = IN_TEARDOWN.try_with(|t| t.set(false));
+        let _ = ACTIVE_RUN.try_with(|a| a.set(None));
         RUNNING.store(false, Ordering::Release);
     }
 }
@@ -1004,7 +1037,9 @@ pub type WalFn =
     unsafe extern "C" fn(*mut c_void, *mut ffi::sqlite3, *const c_char, c_int) -> c_int;
 
 /// WAL 提交回调内对 `main` 执行 `sqlite3_wal_checkpoint_v2`，返回 `(WAL 帧数, 已回填帧数)`。
-/// 只在本线程某个绑定的操作域内（回调由 COMMIT 同步触发）执行，分配仍向该域收费；否则拒绝。
+/// 准入与结算同普通操作：只在本线程执行中的 `run`（其连接句柄即 `db`）内；进入 SQLite 之前按该
+/// 绑定核当前绑定、当前 origin 与首拒，已有首拒即返回该首拒、不调用 checkpoint；返回之前首拒优先，
+/// checkpoint 自身的收费拒绝同样按带类型首拒返回。不重新进入 `run`，首拒之后没有豁免。
 ///
 /// # Safety
 /// `db` 必须是 SQLite 交给 [`WalFn`] 回调的那个句柄，且只在该回调内调用。
@@ -1012,18 +1047,24 @@ pub unsafe fn wal_checkpoint(
     db: *mut ffi::sqlite3,
     mode: c_int,
 ) -> Result<(c_int, c_int), SqlGate> {
-    if !IN_RUN.with(Cell::get) || IN_ROW_MAP.with(Cell::get) {
+    let active = ACTIVE_RUN.try_with(Cell::get).ok().flatten();
+    let Some(run) = active.filter(|a| a.db == db as usize && in_run() && !in_teardown()) else {
         return Err(SqlGate::Refused(ScratchFailure::Ledger));
-    }
+    };
+    admit_epoch(run.epoch, run.owner, None, false)?;
     let (mut frames, mut backfill) = (-1, -1);
-    // SAFETY: db is the live handle passed to the WAL hook; "main" is a static C string.
+    // SAFETY: db is the live handle passed to the WAL hook of the running connection; "main" is a
+    // static C string.
     let rc = unsafe {
         ffi::sqlite3_wal_checkpoint_v2(db, c"main".as_ptr(), mode, &mut frames, &mut backfill)
     };
+    if let Some(first) = refusal_at(run.owner, run.origin) {
+        return Err(SqlGate::Refused(first));
+    }
     if rc == ffi::SQLITE_OK {
         Ok((frames, backfill))
     } else {
-        Err(SqlGate::Sqlite(rc))
+        Err(SqlGate::Sqlite(last_code(db, rc)))
     }
 }
 
