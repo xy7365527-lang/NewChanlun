@@ -660,7 +660,6 @@ impl SqliteBinding {
         self.admit(None)
     }
 
-    /// 本绑定是否属于 `parent` 的 `origin` 冻结域。只读核对：不绑定、不改状态、不交出句柄。
     /// 调用方在本绑定连接名下持有、向同一父账同一冻结域取得的许可（如 SQLite 行变更回调或节点
     /// 收据的记录容器）遭父账拒绝时，按值记为本冻结域首拒；已有首拒不覆盖。之后本绑定的普通
     /// 操作报此首拒、不再进入 SQLite（执行中的 `run` 结束时同样报它），收尾域照常——与组件自身的
@@ -692,6 +691,7 @@ impl SqliteBinding {
         true
     }
 
+    /// 本绑定是否属于 `parent` 的 `origin` 冻结域。只读核对：不绑定、不改状态、不交出句柄。
     pub fn serves(&self, parent: &Arc<dyn SqliteParent>, origin: u64) -> bool {
         self.origin == origin
             && state().is_some_and(|s| {

@@ -32,3 +32,5 @@ v3::audit_owner::step_reader::charged_tests::charged_sealed_reader_first_refusal
 v3::audit_owner::effects::charged_tests::charged_effects_record_txstore_writes_and_type_first_refusal
 # #1419 3C effects S1 F2/F3：真实受管行写进入更新回调、回调内 journal 同父许可遭拒按值记为首拒：执行中写返回 Budget、后续同拒不进回调、窄收尾撤回调回滚、首拒保留、字节返还
 v3::audit_owner::effects::charged_tests::charged_effects_update_hook_parent_refusal_is_typed_first_refusal
+# #1419 3C effects S1 节点收据：真实 TxStore::put 的 INSERT 成功（完成时无首拒）后，节点收据扩 journal 容器的同父许可遭拒按值记为首拒：本次 put 返回 typed Budget、后续同拒、窄收尾回滚、首拒保留、字节返还
+v3::audit_owner::effects::charged_tests::charged_effects_node_receipt_parent_refusal_is_typed_first_refusal

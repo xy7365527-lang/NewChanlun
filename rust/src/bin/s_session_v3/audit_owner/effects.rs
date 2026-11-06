@@ -1189,10 +1189,10 @@ unsafe extern "C" fn record_update_charged(
     };
     let _ = NODE_JOURNAL.try_with(|slot| {
         let slot = slot.borrow();
-        let Some((owner, journal)) = slot.as_ref() else {
+        let Some((journal_key, journal)) = slot.as_ref() else {
             return;
         };
-        if *owner != key {
+        if *journal_key != key {
             return;
         }
         let Ok(mut j) = journal.lock() else {
@@ -4193,6 +4193,183 @@ mod charged_tests {
         assert!(owner.connection.connection.is_autocommit());
         assert_eq!(f.binding.refusal(), Some(ScratchFailure::Budget));
         PAD.with(|slot| slot.borrow_mut().take());
+        f.close(owner.connection);
+        f.finish();
+    }
+
+    /// `TxStore` 受管写入的原 SQL（`content_store` 中 `put_before_write_inner` 的 INSERT 文本）。
+    const NODE_INSERT: &str = "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)";
+
+    /// 目标节点 INSERT 完成（`SQLITE_TRACE_PROFILE`）时把父账余量压到 `leave` 字节，并记下此刻
+    /// 绑定有无首拒。只动一次。
+    struct Press {
+        budget: native::Budget,
+        binding: Rc<SqliteBinding>,
+        leave: usize,
+        permit: Option<native::Permit>,
+        refusal_at_insert: Option<Option<ScratchFailure>>,
+    }
+    thread_local! {
+        static PRESS: std::cell::RefCell<Option<Press>> = const { std::cell::RefCell::new(None) };
+    }
+    unsafe extern "C" fn press_after_insert(
+        mask: std::ffi::c_uint,
+        _: *mut std::ffi::c_void,
+        statement: *mut std::ffi::c_void,
+        _: *mut std::ffi::c_void,
+    ) -> std::ffi::c_int {
+        if mask != ffi::SQLITE_TRACE_PROFILE {
+            return 0;
+        }
+        // SAFETY: for SQLITE_TRACE_PROFILE the statement pointer is the finishing statement.
+        let sql = unsafe { ffi::sqlite3_sql(statement.cast()) };
+        // SAFETY: sqlite3_sql returns the statement's NUL-terminated original text or null.
+        if sql.is_null()
+            || unsafe { std::ffi::CStr::from_ptr(sql) }.to_bytes() != NODE_INSERT.as_bytes()
+        {
+            return 0;
+        }
+        PRESS.with(|slot| {
+            if let Some(press) = slot.borrow_mut().as_mut().filter(|p| p.permit.is_none()) {
+                press.refusal_at_insert = Some(press.binding.refusal());
+                let bytes = press.budget.remaining().saturating_sub(press.leave);
+                press.permit = press.budget.reserve(bytes).ok();
+            }
+        });
+        0
+    }
+
+    /// 节点收据路径：真实 `TxStore::put` 的 INSERT 成功（完成时尚无首拒）之后，`note_node` 为收据
+    /// 扩 journal 容器向共享原父账取许可遭拒，按值记为首拒；本次 `put` 按值返回 Budget，后续操作
+    /// 同拒，守卫窄收尾撤回调、清 journal、回滚，首拒保留，关后父账归零。
+    ///
+    /// 压额时点在 INSERT 完成通知，其后语句 reset/finalize 还会释放临时块，所以不按「恰差一字节」
+    /// 压：先用真实行写把 journal keys 填到一个大块（下一块约 MiB 级），只留下一块所需的一半，
+    /// 语句临时块的释放远小于这个余量差，拒绝仍必然落在 journal 父账许可上。
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn charged_effects_node_receipt_parent_refusal_is_typed_first_refusal() {
+        let f = Fixture::new("charged-effects-node");
+        let mut nodes = sc::MemoryNodes::new();
+        let (digest, tag, body) = node(&mut nodes, "node receipt");
+        let owner = AuditConnection::<ChargedOwner>::new(f.open()).unwrap();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        let txn = active.transaction.as_ref().unwrap();
+        let tx = OwnerTx::Charged(txn);
+        let key = tx.journal_key();
+        let recording =
+            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &f.current, LIMIT)
+                .unwrap()
+                .expect("journal fits");
+        // 真实行写（一条语句、逐行进入更新回调）把 keys 从首块按倍增填满到 rows。
+        let rows = recording.journal.lock().unwrap().keys.capacity() << 8;
+        let fill = format!(
+            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<{rows})
+             INSERT INTO meta SELECT 'k'||x, 'v' FROM c;"
+        );
+        txn.run(|q| q.execute_batch(&fill)).unwrap();
+        let hooks = {
+            let j = recording.journal.lock().unwrap();
+            assert!(!j.overflow);
+            assert_eq!(j.keys.len(), rows);
+            assert_eq!(
+                j.keys.capacity(),
+                rows,
+                "the next receipt needs a new keys block"
+            );
+            assert!(j.nodes.is_empty());
+            j.coverage.as_ref().unwrap().hook_events
+        };
+        assert_eq!(hooks, rows as u64);
+        let next_keys = vec_bytes::<Key>(rows * 2);
+        let rc = txn
+            .run(|q| {
+                // SAFETY: test-only trace on the guard's live handle; the callback keeps no
+                // context and only reserves from the parent through PRESS.
+                Ok(unsafe {
+                    ffi::sqlite3_trace_v2(
+                        q.handle(),
+                        ffi::SQLITE_TRACE_PROFILE,
+                        Some(press_after_insert),
+                        std::ptr::null_mut(),
+                    )
+                })
+            })
+            .unwrap();
+        assert_eq!(rc, ffi::SQLITE_OK);
+        PRESS.with(|slot| {
+            *slot.borrow_mut() = Some(Press {
+                budget: f.current.clone(),
+                binding: f.binding.clone(),
+                leave: next_keys / 2,
+                permit: None,
+                refusal_at_insert: None,
+            })
+        });
+
+        let before = txn.connection().total_changes();
+        let mut typed = None;
+        let work = f.current.codec_work().ok().expect("codec work");
+        let _ = work.run(|scope| {
+            let mut store = crate::content_store::TxStore::on(tx)
+                .unwrap()
+                .with_work(Some(scope));
+            typed = store.put(digest, tag, &body).unwrap_err().scratch_failure();
+            Ok::<_, ()>(())
+        });
+        assert_eq!(
+            typed,
+            Some(ScratchFailure::Budget),
+            "the current put returns it by value"
+        );
+        PRESS.with(|slot| {
+            let slot = slot.borrow();
+            let press = slot.as_ref().unwrap();
+            assert_eq!(
+                press.refusal_at_insert,
+                Some(None),
+                "the INSERT completed before any first refusal"
+            );
+            assert!(
+                press.permit.is_some(),
+                "pressure applied at the INSERT's completion"
+            );
+        });
+        assert_eq!(
+            txn.connection().total_changes(),
+            before + 1,
+            "the real INSERT took effect"
+        );
+        assert!(f.current.remaining() < next_keys);
+        {
+            let j = recording.journal.lock().unwrap();
+            assert!(j.overflow, "the receipt's container block was not granted");
+            assert_eq!(j.keys.len(), rows, "no receipt key without a permit");
+            assert!(j.nodes.is_empty());
+            assert_eq!(j.coverage.as_ref().unwrap().hook_events, hooks);
+        }
+        assert_eq!(f.binding.refusal(), Some(ScratchFailure::Budget));
+        assert_eq!(
+            txn.run(|q| q.execute("INSERT INTO meta VALUES('after', 'v')", [])),
+            Err(SqlGate::Refused(ScratchFailure::Budget))
+        );
+        assert_eq!(
+            recording
+                .journal
+                .lock()
+                .unwrap()
+                .coverage
+                .as_ref()
+                .unwrap()
+                .hook_events,
+            hooks
+        );
+        assert!(recording.finish(tx, &mut [], 16 << 20).is_err());
+        drop(active);
+        assert!(!has_journal_key(key).unwrap());
+        assert!(owner.connection.connection.is_autocommit());
+        assert_eq!(f.binding.refusal(), Some(ScratchFailure::Budget));
+        PRESS.with(|slot| slot.borrow_mut().take());
         f.close(owner.connection);
         f.finish();
     }
