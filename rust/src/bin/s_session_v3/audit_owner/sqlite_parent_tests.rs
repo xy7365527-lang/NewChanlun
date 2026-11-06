@@ -633,6 +633,31 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert_eq!(d.current.live(), main_live);
     drop(foreign_home);
 
+    // 零存活块的首拒：父 Z 以零额度绑定，打开连接即拒（Budget），Z 名下零块；解除绑定后槽交还
+    // 父句柄，但同父同 origin 重绑仍取回原首拒，开库零执行；Z 换到新冻结域后才开新记录。
+    let zero_root = Budget::fresh(LIMIT).unwrap();
+    let mut zero = zero_root.bind_frozen(1, 0, 0, 0).unwrap();
+    let (zero_parent, zero_origin) = zero.sqlite_parent();
+    let first_bind = allocator.bind(zero_parent.clone(), zero_origin).unwrap();
+    assert_eq!(
+        refused(first_bind.open(c":memory:")),
+        ScratchFailure::Budget
+    );
+    assert_eq!(first_bind.live_blocks(), 0);
+    drop(first_bind);
+    let rebound = allocator.bind(zero_parent.clone(), zero_origin).unwrap();
+    assert_eq!(rebound.refusal(), Some(ScratchFailure::Budget));
+    assert_eq!(refused(rebound.open(c":memory:")), ScratchFailure::Budget);
+    drop(rebound);
+    zero = zero.handoff(2, ROOM).unwrap();
+    let (zero_parent, zero_origin) = zero.sqlite_parent();
+    let fresh = allocator.bind(zero_parent, zero_origin).unwrap();
+    assert_eq!(fresh.refusal(), None);
+    let zero_conn = fresh.open(c":memory:").unwrap();
+    fresh.close(zero_conn).map_err(|(_, e)| e).unwrap();
+    assert_eq!(fresh.live_blocks(), 0);
+    drop(fresh);
+
     // 关闭全部连接并 shutdown 后，主父账回到出生读数，没有残留或破损。
     let home = d.next(ROOM);
     home.run(&main, |_| {

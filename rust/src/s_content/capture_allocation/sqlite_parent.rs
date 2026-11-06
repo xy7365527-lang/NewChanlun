@@ -39,7 +39,7 @@ use std::ffi::{c_int, c_void, CStr};
 use std::marker::PhantomData;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
 /// 原 Native 父账面向 SQLite 的收费口。实现方必须与 Rust 许可共用同一总账、同一冻结域。
 pub trait SqliteParent: Send + Sync {
@@ -79,6 +79,29 @@ struct Slot {
     blocks: usize,
     /// 本父账某冻结域（origin）的首个收费拒绝；只在换到另一 origin 后被新拒绝取代。
     refusal: Option<(u64, ScratchFailure)>,
+    /// 槽已交还父句柄、但首拒所在冻结域仍是父账当前域时，以弱引用保留该父账的身份与首拒，
+    /// 直到父账换域或析构；不延长父账寿命，弱引用也使其地址不会被别的父账复用。
+    retained: Option<Weak<dyn SqliteParent>>,
+}
+
+impl Slot {
+    fn holds(&self, key: *const ()) -> bool {
+        self.parent.as_ref().is_some_and(|p| parent_key(p) == key)
+            || self
+                .retained
+                .as_ref()
+                .is_some_and(|w| Weak::as_ptr(w).cast::<()>() == key)
+    }
+    /// 可分给新父账：无父句柄，且保留的首拒已失效（父账已析构或已换域）。
+    fn reusable(&self) -> bool {
+        self.parent.is_none()
+            && self.retained.as_ref().is_none_or(|w| {
+                w.upgrade().is_none_or(|p| {
+                    self.refusal
+                        .is_none_or(|(origin, _)| !p.admits_sqlite(origin))
+                })
+            })
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -109,6 +132,7 @@ const EMPTY: Slot = Slot {
     live: 0,
     blocks: 0,
     refusal: None,
+    retained: None,
 };
 static STATE: Mutex<State> = Mutex::new(State {
     installed: false,
@@ -188,8 +212,9 @@ impl State {
         let bound = self.current.is_some_and(|b| b.owner.slot == slot);
         let s = &mut self.slots[slot];
         if !bound && s.blocks == 0 {
-            s.refusal = None;
-            s.parent.take()
+            let parent = s.parent.take();
+            s.retained = s.refusal.and(parent.as_ref().map(Arc::downgrade));
+            parent
         } else {
             None
         }
@@ -466,22 +491,27 @@ impl SqliteParentAllocator {
             return Err(ScratchFailure::Ledger);
         }
         let key = parent_key(&parent);
-        let slot = match s
-            .slots
-            .iter()
-            .position(|sl| sl.parent.as_ref().is_some_and(|p| parent_key(p) == key))
-        {
-            Some(slot) => slot,
+        let slot = match s.slots.iter().position(|sl| sl.holds(key)) {
+            Some(slot) => {
+                // 同一父账（含仅以弱引用保留首拒的槽）：沿用代号与首拒。
+                let sl = &mut s.slots[slot];
+                if sl.parent.is_none() {
+                    sl.parent = Some(parent);
+                }
+                sl.retained = None;
+                slot
+            }
             None => {
                 let slot = s
                     .slots
                     .iter()
-                    .position(|sl| sl.parent.is_none())
+                    .position(Slot::reusable)
                     .ok_or(ScratchFailure::Ledger)?;
                 let sl = &mut s.slots[slot];
                 sl.generation = sl.generation.checked_add(1).ok_or(ScratchFailure::Ledger)?;
                 sl.parent = Some(parent);
                 sl.refusal = None;
+                sl.retained = None;
                 slot
             }
         };
@@ -531,7 +561,7 @@ impl SqliteBinding {
     pub fn refusal(&self) -> Option<ScratchFailure> {
         let s = state()?;
         let sl = &s.slots[self.owner.slot];
-        if sl.parent.is_none() || sl.generation != self.owner.generation {
+        if sl.generation != self.owner.generation {
             return None;
         }
         sl.refusal
