@@ -612,6 +612,15 @@ impl SqliteBinding {
         }
     }
 
+    /// 本绑定是否属于 `parent` 的 `origin` 冻结域。只读核对：不绑定、不改状态、不交出句柄。
+    pub fn serves(&self, parent: &Arc<dyn SqliteParent>, origin: u64) -> bool {
+        self.origin == origin
+            && state().is_some_and(|s| {
+                self.slot_of(&s)
+                    .is_some_and(|sl| sl.holds(parent_key(parent)))
+            })
+    }
+
     /// 本父账名下存活的 SQLite 块完整字节数（全部 origin 合计）。
     pub fn live_bytes(&self) -> usize {
         state().map_or(usize::MAX, |s| self.slot_of(&s).map_or(0, |sl| sl.live))

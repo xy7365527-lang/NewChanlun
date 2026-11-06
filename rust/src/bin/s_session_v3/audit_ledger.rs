@@ -4,9 +4,12 @@
 //! 不持裸 Ledger 引用；准入切换仍受 #1645/#1491 门约束。
 #![allow(dead_code)]
 
+#[cfg(feature = "s_incremental")]
+use super::audit_owner::native::{Budget, Permit, Reserved};
 use super::*;
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content as sc;
+#[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::sqlite_parent::{
     ChargedConnection, OpenSpec, SqlGate, SqlOps, SqliteBinding,
 };
@@ -15,8 +18,10 @@ use newchan_rust::s_content::{ContentRef, RefView};
 use rusqlite::types::ValueRef;
 use rusqlite::{OpenFlags, ToSql};
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(feature = "s_incremental")]
 use std::ffi::CStr;
 use std::os::unix::fs::OpenOptionsExt;
+#[cfg(feature = "s_incremental")]
 use std::rc::Rc;
 
 /// 36M：cover 改以 source_coord 为键并记 Group(object_id)/Pending，schema 整体升为 /2。
@@ -109,10 +114,10 @@ impl Unit {
 /// compact JSON，所以这里只按既有键序把字段送进 `json_writer::write_json`；数字、转义与分隔符
 /// 由它给出，不建 `Value`，不建中间文本。`i64` 键的映射由调用方给出按十进制文本排好的条目。
 #[cfg_attr(
-    not(test),
+    all(not(test), not(feature = "s_incremental")),
     allow(
         dead_code,
-        reason = "#1419 3C：检查点 1 只交写出核与逐字节锁，受管 stage 接入在检查点 2"
+        reason = "#1419 3C：只有受管台账（s_incremental）在生产中经此写出"
     )
 )]
 mod canonical {
@@ -375,7 +380,7 @@ mod canonical {
     }
 
     /// 小写十六进制的 SHA-256 文本（与 `sha256_hex` 同字节），栈上 64 字节。
-    pub(super) struct Hex([u8; 64]);
+    pub(crate) struct Hex([u8; 64]);
     impl Hex {
         pub(super) fn of_digest(digest: [u8; 32]) -> Self {
             const DIGITS: &[u8; 16] = b"0123456789abcdef";
@@ -415,6 +420,13 @@ mod canonical {
     ) -> Result<(), json_writer::Error> {
         json_writer::write_json(out, value)
     }
+}
+
+/// 一代写入 cert/meta 的三项：roots 规范文本、new_units 摘要、折叠摘要。
+pub(super) struct StageDigests<T> {
+    roots: T,
+    units: T,
+    fold: T,
 }
 
 /// 一代的三段规范文本：cert.roots、new_units 摘要输入、折叠链输入 `[previous, delta]`。
@@ -862,8 +874,20 @@ pub(super) trait Backend: sealed::Sealed {
     fn detached() -> Self::Error;
     /// 台账判据失败（文本与 Legacy 的 `error(text)` 相同）。
     fn invalid(text: &'static str) -> Self::Error;
-    /// 存储读数失败。
-    fn storage(e: StorageError) -> Self::Error;
+    /// 规范文本与摘要的持有：Legacy 为 `String`；Charged 为原父许可持有的文本或栈上摘要。
+    type Text: std::ops::Deref<Target = str>;
+    /// stage 事务内读取当前已提交的折叠摘要。
+    fn previous_fold(&self) -> Result<Self::Text, Self::Error>;
+    /// 一代的 cert.roots 文本、new_units 摘要与折叠摘要（与 `legacy_texts` 同字节）。
+    fn stage_texts<'u>(
+        &self,
+        previous: &str,
+        d: &GenerationDelta,
+        units: impl Iterator<Item = &'u Unit> + Clone,
+        verifier_revision: &str,
+    ) -> Result<StageDigests<Self::Text>, Self::Error>;
+    /// 数据库文件及其 `-wal`、`-journal` 的合计字节。
+    fn storage_bytes(path: &Path) -> Result<u64, Self::Error>;
     /// stage 时上一代资格与已提交状态不符；`detail` 为查询本身的错误（`None` 为字段不同）。
     fn prior_mismatch(detail: Option<Self::Error>) -> Self::Error;
     /// 前沿点查错误穿过 `CodecError` 接口：`Ok` 为须原样带回调用方的错误，`Err` 为诊断文本。
@@ -871,6 +895,7 @@ pub(super) trait Backend: sealed::Sealed {
 }
 
 impl sealed::Sealed for Legacy {}
+#[cfg(feature = "s_incremental")]
 impl sealed::Sealed for Charged {}
 
 /// 现行构造：本进程未安装收费 allocator（生产与普通入口沿用）。
@@ -927,12 +952,30 @@ impl Backend for Legacy {
     fn invalid(text: &'static str) -> String {
         error(text)
     }
-    fn storage(e: StorageError) -> String {
-        match e {
-            StorageError::Io(e) => error(e),
-            StorageError::Overflow => error("存储计数溢出"),
-            StorageError::Path => error("台账路径过长或含 NUL"),
-        }
+    type Text = String;
+    fn previous_fold(&self) -> Result<String, String> {
+        self.query_row(
+            "SELECT fold_digest FROM meta WHERE singleton=1",
+            [],
+            |[v]| text(v).map(str::to_owned),
+        )
+    }
+    fn stage_texts<'u>(
+        &self,
+        previous: &str,
+        d: &GenerationDelta,
+        units: impl Iterator<Item = &'u Unit> + Clone,
+        verifier_revision: &str,
+    ) -> Result<StageDigests<String>, String> {
+        let texts = legacy_texts(previous, d, units, verifier_revision)?;
+        Ok(StageDigests {
+            roots: texts.roots,
+            units: sha256_hex(texts.units.as_bytes()),
+            fold: sha256_hex(texts.fold.as_bytes()),
+        })
+    }
+    fn storage_bytes(path: &Path) -> Result<u64, String> {
+        database_bytes(path)
     }
     fn prior_mismatch(detail: Option<String>) -> String {
         let detail = detail.unwrap_or_else(|| "字段不同".to_owned());
@@ -947,6 +990,7 @@ impl Backend for Legacy {
 
 /// 受管台账的错误。受管操作口的拒绝与 SQLite 结果码在产生时按值保存为 [`SqlGate`]，
 /// 不分配、不依赖之后可能被其他冻结域改写的绑定首拒槽；文本只在输出边界格式化。
+#[cfg(feature = "s_incremental")]
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum LedgerError {
     /// 台账业务判据或行解码失败（原诊断文本）。
@@ -959,14 +1003,18 @@ pub(super) enum LedgerError {
     Invalid(&'static str),
     /// 存储读数的系统错误类别。
     Storage(std::io::ErrorKind),
+    /// 原父 Rust 许可不足（分配前预留被拒）。
+    Budget,
 }
 
+#[cfg(feature = "s_incremental")]
 impl From<String> for LedgerError {
     fn from(text: String) -> Self {
         Self::Stale(text)
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl std::fmt::Display for LedgerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -975,10 +1023,12 @@ impl std::fmt::Display for LedgerError {
             Self::Detached => f.write_str("AuditLedgerStale：台账已丢弃"),
             Self::Invalid(text) => write!(f, "AuditLedgerStale：{text}"),
             Self::Storage(kind) => write!(f, "AuditLedgerStale：{kind}"),
+            Self::Budget => f.write_str("AuditLedgerStale：原父 Rust 许可不足"),
         }
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl From<LedgerError> for String {
     fn from(e: LedgerError) -> Self {
         match e {
@@ -988,6 +1038,7 @@ impl From<LedgerError> for String {
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl LedgerError {
     /// 接既有冷认证错误层：本次的 Budget 首拒成为 `BudgetExceeded`，其余保留为诊断。
     #[cfg(feature = "s_incremental")]
@@ -998,7 +1049,7 @@ impl LedgerError {
     pub(super) fn into_failure(self) -> super::audit_owner::native::Failure {
         use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
         match self {
-            Self::Gate(SqlGate::Refused(ScratchFailure::Budget)) => {
+            Self::Gate(SqlGate::Refused(ScratchFailure::Budget)) | Self::Budget => {
                 super::audit_owner::native::Failure::BudgetExceeded
             }
             other => super::audit_owner::native::Failure::Invalid(other.into()),
@@ -1007,37 +1058,114 @@ impl LedgerError {
 }
 
 /// 受管构造：全新进程已装 allocator，连接由原 Native 父账的当前绑定开出。
-pub(super) struct Charged {
-    conn: Option<ChargedConnection>,
+#[cfg(feature = "s_incremental")]
+/// 受管台账的原父收费能力：同一 Native 父账当前冻结域的 Rust 许可来源与 SQLite 绑定。构造时
+/// 核对二者属于同一父账、同一 origin；台账的 Rust 持有与 SQLite 分配都只记在这里。
+pub(super) struct ChargedParent {
+    budget: Budget,
     binding: Rc<SqliteBinding>,
 }
 
+#[cfg(feature = "s_incremental")]
+impl ChargedParent {
+    #[allow(
+        dead_code,
+        reason = "#1419 3C：受管台账只由全新进程 release 锁构造，Native 一次启用波接入生产"
+    )]
+    pub(super) fn new(budget: Budget, binding: Rc<SqliteBinding>) -> Result<Self, LedgerError> {
+        let (parent, origin) = budget.sqlite_parent();
+        if !binding.serves(&parent, origin) {
+            return Err(LedgerError::Gate(SqlGate::WrongParent));
+        }
+        Ok(Self { budget, binding })
+    }
+    /// 分配前预留；返回的许可须与载荷同寿命（`Permit::hold`）。
+    fn reserve(&self, bytes: usize) -> Result<Permit, LedgerError> {
+        self.budget.reserve(bytes).map_err(|_| LedgerError::Budget)
+    }
+    /// 按十进制文本排好的 `i64` 键条目，索引本身由原父许可持有到调用方释放。
+    fn sorted<'a, T>(
+        &self,
+        map: &'a BTreeMap<i64, T>,
+    ) -> Result<Reserved<Vec<(i64, &'a T)>>, LedgerError> {
+        let bytes = map
+            .len()
+            .checked_mul(std::mem::size_of::<(i64, &T)>())
+            .ok_or(LedgerError::Budget)?;
+        let permit = self.reserve(bytes)?;
+        let mut entries = Vec::new();
+        entries
+            .try_reserve_exact(map.len())
+            .map_err(|_| LedgerError::Budget)?;
+        entries.extend(map.iter().map(|(k, v)| (*k, v)));
+        canonical::sort_by_decimal(&mut entries);
+        Ok(permit.hold(entries))
+    }
+    /// 写出 `value` 的规范文本到按精确长度预留的缓冲。
+    fn text<T: serde::Serialize + ?Sized>(&self, value: &T) -> Result<ChargedText, LedgerError> {
+        let len = canonical::json_len(value).map_err(|_| LedgerError::Invalid("规范写出失败"))?;
+        let permit = self.reserve(len)?;
+        let mut buf = Vec::new();
+        buf.try_reserve_exact(len)
+            .map_err(|_| LedgerError::Budget)?;
+        canonical::write_into(&mut buf, value).map_err(|_| LedgerError::Invalid("规范写出失败"))?;
+        let text = String::from_utf8(buf).map_err(|_| LedgerError::Invalid("规范写出失败"))?;
+        Ok(ChargedText::Held(permit.finish(text.capacity()).hold(text)))
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+/// 受管台账的文本持有：原父许可持有的文本，或栈上的摘要。
+pub(super) enum ChargedText {
+    Held(Reserved<String>),
+    Hex(canonical::Hex),
+}
+
+#[cfg(feature = "s_incremental")]
+impl std::ops::Deref for ChargedText {
+    type Target = str;
+    fn deref(&self) -> &str {
+        match self {
+            Self::Held(text) => text.as_str(),
+            Self::Hex(hex) => hex.as_str(),
+        }
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+pub(super) struct Charged {
+    conn: Option<ChargedConnection>,
+    parent: ChargedParent,
+}
+
+#[cfg(feature = "s_incremental")]
 impl Drop for Charged {
     /// 丢弃即回滚未提交的整代再关库，与旧连接析构的结果相同；两步都是收尾域，首拒之后仍执行。
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            let _ = self.binding.rollback(&conn);
-            if let Err((conn, _)) = self.binding.close(conn) {
+            let _ = self.parent.binding.rollback(&conn);
+            if let Err((conn, _)) = self.parent.binding.close(conn) {
                 drop(conn);
             }
         }
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl Charged {
     /// 不在 Rust 堆上建任何持有：路径由调用方以其许可借出，SQL 文本为静态串或栈缓冲。
-    fn open(path: &CStr, pages: i64, binding: Rc<SqliteBinding>) -> Result<Self, LedgerError> {
+    fn open(path: &CStr, pages: i64, parent: ChargedParent) -> Result<Self, LedgerError> {
         let spec = OpenSpec {
             flags: rusqlite::ffi::SQLITE_OPEN_READWRITE | rusqlite::ffi::SQLITE_OPEN_NOMUTEX,
             busy_timeout_ms: Some(0),
             ..OpenSpec::default()
         };
         // SAFETY: the spec carries no caller callbacks, contexts or VFS.
-        let conn = unsafe { binding.open_with(path, &spec) }
-            .map_err(|e| LedgerError::Gate(classify(&binding, e)))?;
+        let conn = unsafe { parent.binding.open_with(path, &spec) }
+            .map_err(|e| LedgerError::Gate(classify(&parent.binding, e)))?;
         let store = Self {
             conn: Some(conn),
-            binding,
+            parent,
         };
         store.execute_batch(PRAGMAS)?;
         store.execute_batch("PRAGMA page_size=4096")?;
@@ -1052,12 +1180,14 @@ impl Charged {
     }
     fn run<R>(&self, f: impl FnOnce(&SqlOps<'_>) -> Result<R, SqlGate>) -> Result<R, LedgerError> {
         let conn = self.conn.as_ref().ok_or(LedgerError::Detached)?;
-        self.binding
+        self.parent
+            .binding
             .run(conn, f)
-            .map_err(|e| LedgerError::Gate(classify(&self.binding, e)))
+            .map_err(|e| LedgerError::Gate(classify(&self.parent.binding, e)))
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl Backend for Charged {
     type Error = LedgerError;
     fn execute_batch(&self, sql: &str) -> Result<(), LedgerError> {
@@ -1085,12 +1215,70 @@ impl Backend for Charged {
     fn invalid(text: &'static str) -> LedgerError {
         LedgerError::Invalid(text)
     }
-    fn storage(e: StorageError) -> LedgerError {
-        match e {
+    type Text = ChargedText;
+    /// 先读字节长度、从原父预留，再把摘要复制进预留好的缓冲。
+    fn previous_fold(&self) -> Result<ChargedText, LedgerError> {
+        let len = self.query_row(
+            "SELECT length(CAST(fold_digest AS BLOB)) FROM meta WHERE singleton=1",
+            [],
+            |[v]| int(v),
+        )?;
+        let len = usize::try_from(len).map_err(|_| LedgerError::Invalid("折叠摘要长度无效"))?;
+        let permit = self.parent.reserve(len)?;
+        let mut out = String::new();
+        out.try_reserve_exact(len)
+            .map_err(|_| LedgerError::Budget)?;
+        let copied = self.query_row(
+            "SELECT fold_digest FROM meta WHERE singleton=1",
+            [],
+            |[v]| {
+                let t = text(v)?;
+                if t.len() == len {
+                    out.push_str(t);
+                }
+                Ok(t.len() == len)
+            },
+        )?;
+        if !copied {
+            return Err(LedgerError::Invalid("折叠摘要在两次读取间改变"));
+        }
+        Ok(ChargedText::Held(permit.finish(out.capacity()).hold(out)))
+    }
+    /// 流式写出：排序索引与 roots 文本由原父许可持有，摘要在栈上，不建 `Value`。
+    fn stage_texts<'u>(
+        &self,
+        previous: &str,
+        d: &GenerationDelta,
+        units: impl Iterator<Item = &'u Unit> + Clone,
+        verifier_revision: &str,
+    ) -> Result<StageDigests<ChargedText>, LedgerError> {
+        let raw = self.parent.sorted(&d.raw)?;
+        let cover = self.parent.sorted(&d.cover)?;
+        let written = |_| LedgerError::Invalid("规范写出失败");
+        let fold = canonical::hash_hex(&canonical::Fold {
+            previous,
+            delta: canonical::Delta {
+                d,
+                verifier_revision,
+                units: units.clone(),
+                raw: &raw,
+                cover: &cover,
+            },
+        })
+        .map_err(written)?;
+        let unit_digest = canonical::hash_hex(&canonical::Units(units)).map_err(written)?;
+        Ok(StageDigests {
+            roots: self.parent.text(&canonical::Roots(&d.roots))?,
+            units: ChargedText::Hex(unit_digest),
+            fold: ChargedText::Hex(fold),
+        })
+    }
+    fn storage_bytes(path: &Path) -> Result<u64, LedgerError> {
+        stat_bytes(path).map_err(|e| match e {
             StorageError::Io(e) => LedgerError::Storage(e.kind()),
             StorageError::Overflow => LedgerError::Invalid("存储计数溢出"),
             StorageError::Path => LedgerError::Invalid("台账路径过长或含 NUL"),
-        }
+        })
     }
     /// 查询本身的分类按值透传；只有带文本的判据失败才拼接上下文。
     fn prior_mismatch(detail: Option<LedgerError>) -> LedgerError {
@@ -1113,6 +1301,7 @@ impl Backend for Charged {
 }
 
 /// 本次结果的分类：SQLite 报 NOMEM 且本域已有首拒时记为该首拒，不以结果码掩盖资源拒绝。
+#[cfg(feature = "s_incremental")]
 fn classify(binding: &SqliteBinding, e: SqlGate) -> SqlGate {
     match e {
         SqlGate::Sqlite(code) => binding
@@ -1122,12 +1311,14 @@ fn classify(binding: &SqliteBinding, e: SqlGate) -> SqlGate {
     }
 }
 
+#[cfg(feature = "s_incremental")]
 /// 定长栈缓冲上的 SQL 文本，不经堆。
 struct StackSql {
     bytes: [u8; 48],
     len: usize,
 }
 
+#[cfg(feature = "s_incremental")]
 impl std::fmt::Write for StackSql {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         let end = self
@@ -1141,6 +1332,7 @@ impl std::fmt::Write for StackSql {
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl StackSql {
     fn new() -> Self {
         Self {
@@ -1183,6 +1375,7 @@ fn root_value(r: RefView<'_>) -> Value {
 fn roots_value(roots: &[ContentRef; 4]) -> Value {
     Value::Array(roots.iter().map(|r| root_value(r.into())).collect())
 }
+#[cfg(feature = "s_incremental")]
 /// 存储读数的失败；不带文本，不分配。
 #[derive(Debug)]
 pub(super) enum StorageError {
@@ -1191,8 +1384,28 @@ pub(super) enum StorageError {
     Path,
 }
 
+fn legacy_file_bytes(path: &Path) -> Result<u64, String> {
+    match std::fs::metadata(path) {
+        Ok(m) => Ok(m.len()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(0),
+        Err(e) => Err(error(e)),
+    }
+}
+fn database_bytes(path: &Path) -> Result<u64, String> {
+    let mut n = legacy_file_bytes(path)?;
+    for suffix in ["-wal", "-journal"] {
+        let mut p = path.as_os_str().to_os_string();
+        p.push(suffix);
+        n = n
+            .checked_add(legacy_file_bytes(Path::new(&p))?)
+            .ok_or_else(|| error("存储计数溢出"))?;
+    }
+    Ok(n)
+}
+
+#[cfg(feature = "s_incremental")]
 /// 数据库文件及其 `-wal`、`-journal` 的合计字节。路径在栈上拼接并以 `stat` 读取，不经堆。
-fn database_bytes(path: &Path) -> Result<u64, StorageError> {
+fn stat_bytes(path: &Path) -> Result<u64, StorageError> {
     use std::os::unix::ffi::OsStrExt;
     let base = path.as_os_str().as_bytes();
     let mut total = 0u64;
@@ -1204,6 +1417,7 @@ fn database_bytes(path: &Path) -> Result<u64, StorageError> {
     Ok(total)
 }
 
+#[cfg(feature = "s_incremental")]
 fn file_bytes(base: &[u8], suffix: &[u8]) -> Result<u64, StorageError> {
     let mut buf = [0u8; 4096 + 16];
     let len = base.len() + suffix.len();
@@ -1269,6 +1483,7 @@ impl Ledger {
     }
 }
 
+#[cfg(feature = "s_incremental")]
 impl Ledger<Charged> {
     /// 受管构造：同一份阶段机与 SQL，连接由 `binding` 当前绑定的原 Native 父账开出，SQLite
     /// 分配向该父账收费。调用方须已在本进程首次 SQLite 初始化前装好 allocator；本构造不安装，
@@ -1282,7 +1497,7 @@ impl Ledger<Charged> {
         content_path: &Path,
         identity: Identity,
         max_store_bytes: u64,
-        binding: Rc<SqliteBinding>,
+        parent: ChargedParent,
     ) -> Result<Self, LedgerError> {
         use std::os::unix::ffi::OsStrExt;
         let fs_path = Path::new(std::ffi::OsStr::from_bytes(path.to_bytes()));
@@ -1291,7 +1506,7 @@ impl Ledger<Charged> {
             content_path,
             identity,
             max_store_bytes,
-            |_, pages| Charged::open(path, pages, binding),
+            |_, pages| Charged::open(path, pages, parent),
         )
     }
 }
@@ -1312,7 +1527,7 @@ impl<B: Backend> Ledger<B> {
         }
         let content_path = content_path.canonicalize().map_err(error)?;
         let remaining = max_store_bytes
-            .checked_sub(database_bytes(&content_path).map_err(B::storage)?)
+            .checked_sub(B::storage_bytes(&content_path)?)
             .ok_or_else(|| B::invalid("内容库已超过 max_store_bytes"))?;
         let pages = i64::try_from(remaining / 4096).map_err(error)?;
         if pages == 0 {
@@ -1448,9 +1663,8 @@ impl<B: Backend> Ledger<B> {
         }
     }
     fn check_storage(&self) -> Result<(), B::Error> {
-        let size = database_bytes(&self.content_path)
-            .map_err(B::storage)?
-            .checked_add(database_bytes(&self.path).map_err(B::storage)?)
+        let size = B::storage_bytes(&self.content_path)?
+            .checked_add(B::storage_bytes(&self.path)?)
             .ok_or_else(|| B::invalid("存储合账溢出"))?;
         if size > self.max_store_bytes {
             return Err(B::invalid("内容库/WAL/台账合计超过 max_store_bytes"));
@@ -1611,11 +1825,7 @@ impl<B: Backend> Ledger<B> {
                 Err(e) => return Err(B::prior_mismatch(Some(e))),
             }
         }
-        let previous: String = conn.query_row(
-            "SELECT fold_digest FROM meta WHERE singleton=1",
-            [],
-            |[v]| text(v).map(str::to_owned),
-        )?;
+        let previous = conn.previous_fold()?;
         let mut next: i64 =
             conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
         for (seq, row) in &d.raw {
@@ -1714,22 +1924,21 @@ impl<B: Backend> Ledger<B> {
             )?;
         }
         let unit_count = new_units.clone().count();
-        let texts = legacy_texts(&previous, d, new_units, verifier_revision)?;
-        let fold = sha256_hex(texts.fold.as_bytes());
+        let digests = conn.stage_texts(&previous, d, new_units, verifier_revision)?;
         conn.execute(
             "INSERT INTO cert VALUES(?1,?2,?3,?4,?5,?6)",
             [
                 &d.generation,
-                &texts.roots,
-                &sha256_hex(texts.units.as_bytes()),
+                &&*digests.roots,
+                &&*digests.units,
                 &i64::try_from(unit_count).map_err(error)?,
-                &fold,
+                &&*digests.fold,
                 &verifier_revision,
             ],
         )?;
         conn.execute(
             "UPDATE meta SET certified_through_generation=?1,fold_digest=?2 WHERE singleton=1",
-            [&d.generation, &fold],
+            [&d.generation, &&*digests.fold],
         )?;
         self.check_storage()?;
         self.phase = Phase::Pending(Pending::new(
@@ -3045,6 +3254,9 @@ pub(super) mod tests {
             let (parent, origin) = b.sqlite_parent();
             Rc::new(allocator.bind(parent, origin).expect("bind"))
         };
+        let parent = |b: &Budget, binding: &Rc<SqliteBinding>| {
+            ChargedParent::new(b.clone(), binding.clone()).expect("same parent and origin")
+        };
         let dir = std::env::temp_dir().join(format!("charged-ledger-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -3074,7 +3286,9 @@ pub(super) mod tests {
         assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
 
         let path1 = c_path("ledger-a.sqlite3");
-        let mut l1 = Ledger::fresh_charged(&path1, &content, identity(), STORE, a.clone()).unwrap();
+        let mut l1 =
+            Ledger::fresh_charged(&path1, &content, identity(), STORE, parent(&current, &a))
+                .unwrap();
         let pragma = |l: &Ledger<Charged>, sql: &str| {
             charged(l)
                 .run(|q| {
@@ -3096,7 +3310,10 @@ pub(super) mod tests {
         );
         assert!(a.live_bytes() > 0);
         let live = a.live_bytes();
-        assert!(Ledger::fresh_charged(&path1, &content, identity(), STORE, a.clone()).is_err());
+        assert!(
+            Ledger::fresh_charged(&path1, &content, identity(), STORE, parent(&current, &a))
+                .is_err()
+        );
         assert_eq!(a.live_bytes(), live);
 
         let (m1, r1) = generation(1);
@@ -3140,11 +3357,27 @@ pub(super) mod tests {
         // B：已 stage 未提交的一代遇本域首拒；此后台账不再进入 SQLite，Commit 被拒并回滚。
         current = current.handoff(2, ROOM).expect("handoff to B");
         let b = bind(&current);
+        assert!(matches!(
+            ChargedParent::new(current.clone(), a.clone()),
+            Err(LedgerError::Gate(SqlGate::WrongParent))
+        ));
+        let other = Budget::fresh(LIMIT)
+            .unwrap()
+            .bind_frozen(1, LIMIT, 0, 0)
+            .unwrap();
+        assert!(matches!(
+            ChargedParent::new(other, b.clone()),
+            Err(LedgerError::Gate(SqlGate::WrongParent))
+        ));
         let path2 = c_path("ledger-b.sqlite3");
-        let mut l2 = Ledger::fresh_charged(&path2, &content, identity(), STORE, b.clone()).unwrap();
+        let mut l2 =
+            Ledger::fresh_charged(&path2, &content, identity(), STORE, parent(&current, &b))
+                .unwrap();
         l2.fold_step(token, &d1, &m1, &r1).unwrap();
         let path3 = c_path("ledger-c.sqlite3");
-        let mut l3 = Ledger::fresh_charged(&path3, &content, identity(), STORE, b.clone()).unwrap();
+        let mut l3 =
+            Ledger::fresh_charged(&path3, &content, identity(), STORE, parent(&current, &b))
+                .unwrap();
         l3.fold_step(token, &d1, &m1, &r1).unwrap();
         let q3 = l3.qualification().unwrap();
         let (m2, r2) = generation(2);
@@ -3168,9 +3401,9 @@ pub(super) mod tests {
         let spare_path = c_path("spare.sqlite3");
         std::fs::File::create(dir.join("spare.sqlite3")).unwrap();
         let pages = i64::try_from(STORE / 4096).unwrap();
-        let binding = b.clone();
+        let spare_parent = parent(&current, &b);
         let window = Window::start();
-        let spare = Charged::open(&spare_path, pages, binding);
+        let spare = Charged::open(&spare_path, pages, spare_parent);
         let probe = window.finish();
         let spare = spare.unwrap();
         assert_eq!(probe["allocated_bytes"], 0, "{probe}");
@@ -3190,9 +3423,9 @@ pub(super) mod tests {
         let refused = refused.unwrap_err();
         assert_eq!(refused, budget);
         assert_eq!(LEDGER_STATEMENTS.load(Ordering::SeqCst), entered);
-        let binding = b.clone();
+        let spare_parent = parent(&current, &b);
         let window = Window::start();
-        let reopened = Charged::open(&spare_path, pages, binding);
+        let reopened = Charged::open(&spare_path, pages, spare_parent);
         let probe = window.finish();
         assert_eq!(probe["allocated_bytes"], 0, "{probe}");
         assert_eq!(reopened.err().as_ref(), Some(&budget));
@@ -3286,13 +3519,11 @@ pub(super) mod tests {
         let differs = <Charged as Backend>::prior_mismatch(None);
         let frontier = <Charged as Backend>::frontier_error(inputs.1);
         let stale = <Charged as Backend>::prior_mismatch(Some(LedgerError::Detached));
-        let storage = <Charged as Backend>::storage(StorageError::Overflow);
         let probe = window.finish();
         assert_eq!(probe["allocated_bytes"], 0, "{probe}");
         assert_eq!(prior, inputs.2);
         assert_eq!(frontier, Ok(budget()));
         assert_eq!(stale, LedgerError::Detached);
-        assert_eq!(storage, LedgerError::Invalid("存储计数溢出"));
         assert_eq!(
             String::from(differs),
             <Legacy as Backend>::prior_mismatch(None)
@@ -3323,8 +3554,8 @@ pub(super) mod tests {
         std::fs::write(dir.join("db.sqlite3-wal"), [0u8; 20]).unwrap();
         let missing = dir.join("missing.sqlite3");
         let window = Window::start();
-        let present = database_bytes(&db);
-        let absent = database_bytes(&missing);
+        let present = stat_bytes(&db);
+        let absent = stat_bytes(&missing);
         let probe = window.finish();
         assert_eq!(probe["allocated_bytes"], 0, "{probe}");
         assert_eq!(present.ok(), Some(320));
