@@ -1506,6 +1506,16 @@ impl StackSql {
     }
 }
 
+/// witness、observation 两表同形的 upsert（原按表名格式化拼接的同一文本）。
+const RELATED_UPSERT: [&str; 2] = [
+    "INSERT INTO witness VALUES(?1,?2,?3,?4)
+                    ON CONFLICT(id) DO UPDATE SET record_digest=excluded.record_digest,
+                    source_digest=excluded.source_digest, certified_generation=excluded.certified_generation",
+    "INSERT INTO observation VALUES(?1,?2,?3,?4)
+                    ON CONFLICT(id) DO UPDATE SET record_digest=excluded.record_digest,
+                    source_digest=excluded.source_digest, certified_generation=excluded.certified_generation",
+];
+
 const PRAGMAS: &str =
     "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;";
 
@@ -2095,12 +2105,20 @@ impl<B: Backend> Ledger<B> {
                 withdrawn=excluded.withdrawn, certified_generation=excluded.certified_generation",
                 [&id, &r.record_digest.as_slice(), &r.first_generation, &r.first_cut, &r.published_generation, &r.source_digest.as_slice(), &r.withdrawn, &d.generation])?;
         }
-        for (table, rows) in [("witness", &d.witnesses), ("observation", &d.observations)] {
+        for (sql, rows) in [
+            (RELATED_UPSERT[0], &d.witnesses),
+            (RELATED_UPSERT[1], &d.observations),
+        ] {
             for (id, r) in rows {
-                conn.execute(&format!("INSERT INTO {table} VALUES(?1,?2,?3,?4)
-                    ON CONFLICT(id) DO UPDATE SET record_digest=excluded.record_digest,
-                    source_digest=excluded.source_digest, certified_generation=excluded.certified_generation"),
-                    [&id, &r.record_digest.as_slice(), &r.source_digest.as_slice(), &d.generation])?;
+                conn.execute(
+                    sql,
+                    [
+                        &id,
+                        &r.record_digest.as_slice(),
+                        &r.source_digest.as_slice(),
+                        &d.generation,
+                    ],
+                )?;
             }
         }
         for id in &d.withdrawals {
@@ -3458,6 +3476,62 @@ pub(super) mod tests {
     static LEDGER_STATEMENTS: std::sync::atomic::AtomicUsize =
         std::sync::atomic::AtomicUsize::new(0);
 
+    /// 测试用授权回调：在指定读取处于操作域内申请超额块，使本域首拒恰好落在该次 SQL 上。
+    /// `TRIP_MODE` 1 为首次读 node；2 为看到 BEGIN 之后首次读 meta。只触发一次，不改授权结果。
+    #[cfg(feature = "s_incremental")]
+    static TRIP_MODE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    #[cfg(feature = "s_incremental")]
+    static TRIP_ARMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    #[cfg(feature = "s_incremental")]
+    static TRIPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    #[cfg(feature = "s_incremental")]
+    unsafe extern "C" fn trip_refusal(
+        _: *mut std::ffi::c_void,
+        action: std::ffi::c_int,
+        table: *const std::ffi::c_char,
+        _: *const std::ffi::c_char,
+        _: *const std::ffi::c_char,
+        _: *const std::ffi::c_char,
+    ) -> std::ffi::c_int {
+        use rusqlite::ffi;
+        use std::sync::atomic::Ordering;
+        let mode = TRIP_MODE.load(Ordering::SeqCst);
+        if action == ffi::SQLITE_TRANSACTION && mode == 2 {
+            TRIP_ARMED.store(true, Ordering::SeqCst);
+        }
+        if action == ffi::SQLITE_READ && !table.is_null() {
+            // SAFETY: SQLite passes a NUL-terminated table name for SQLITE_READ.
+            let table = unsafe { std::ffi::CStr::from_ptr(table) };
+            let hit = (mode == 1 && table == c"node")
+                || (mode == 2 && TRIP_ARMED.load(Ordering::SeqCst) && table == c"meta");
+            if hit && !TRIPPED.swap(true, Ordering::SeqCst) {
+                // SAFETY: plain SQLite allocation inside the operation domain; null is expected.
+                let block = unsafe { ffi::sqlite3_malloc64(64 << 20) };
+                // SAFETY: freeing whatever was returned (null is a no-op).
+                unsafe { ffi::sqlite3_free(block) };
+            }
+        }
+        ffi::SQLITE_OK
+    }
+
+    #[cfg(feature = "s_incremental")]
+    fn arm_trip(l: &Ledger<Charged>, mode: usize) {
+        use newchan_rust::s_content::capture_allocation::sqlite_parent::Callback;
+        use std::sync::atomic::Ordering;
+        TRIP_MODE.store(mode, Ordering::SeqCst);
+        TRIP_ARMED.store(false, Ordering::SeqCst);
+        TRIPPED.store(false, Ordering::SeqCst);
+        charged(l)
+            .run(|q| unsafe {
+                q.set_authorizer(Some(Callback {
+                    callback: trip_refusal,
+                    context: std::ptr::null_mut(),
+                }))
+            })
+            .unwrap();
+    }
+
     #[cfg(feature = "s_incremental")]
     unsafe extern "C" fn count_ledger_statement(
         _: std::ffi::c_uint,
@@ -3620,7 +3694,21 @@ pub(super) mod tests {
         l3.fold_step(token, &d1, &m1, &r1).unwrap();
         let q3 = l3.qualification().unwrap();
         let (m2, r2) = generation(2);
-        l2.stage(token, &delta(&m2, &r2)).unwrap();
+        let d2 = delta(&m2, &r2);
+        let reserved = d2.raw.len() * std::mem::size_of::<(i64, &RawFact)>()
+            + d2.cover.len() * std::mem::size_of::<(i64, &CoverChange)>()
+            + canonical::json_len(&canonical::Roots(&d2.roots)).unwrap()
+            + 64
+            + token.len()
+            + d2.roots
+                .iter()
+                .map(|r| r.format.len() + r.root.len())
+                .sum::<usize>();
+        let window = Window::start();
+        let staged = l2.stage(token, &d2);
+        let probe = window.finish();
+        staged.unwrap();
+        assert_eq!(probe["allocated_bytes"], reserved as u64, "{probe}");
         l2.bind(token, &m2, &r2).unwrap();
         charged(&l2)
             .run(|q| {
@@ -3714,18 +3802,77 @@ pub(super) mod tests {
             Err(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Ledger)))
         );
         // C 域再出首拒后，槽改记 C 的 origin，旧绑定读不到 B 的首拒；保存的错误值不变。
-        let second = c.run(&peek, |_| {
-            assert!(unsafe { ffi::sqlite3_malloc64(ROOM as u64 + 1) }.is_null());
-            Ok(())
-        });
-        assert_eq!(second, Err(SqlGate::Refused(ScratchFailure::Budget)));
+        use newchan_rust::s_content as sc;
+        let content_root = |nodes: &mut sc::MemoryNodes, tag: &str| {
+            sc::write_value(
+                nodes,
+                &sc::Value::Object(vec![(tag.into(), sc::Value::Null)]),
+            )
+            .unwrap()
+            .content_ref()
+        };
+        // verify_delta：初始资格核验通过，之后的前沿点查遇本域首拒，按本次 typed 值返回；
+        // 只读失败不使台账失效。
+        let path4 = c_path("ledger-d.sqlite3");
+        let mut l4 =
+            Ledger::fresh_charged(&path4, &content, &identity(), STORE, parent(&current, &c))
+                .unwrap();
+        l4.fold_step(token, &d1, &m1, &r1).unwrap();
+        let q4 = l4.qualification().unwrap();
+        let mut nodes = sc::MemoryNodes::new();
+        let root = content_root(&mut nodes, "verify");
+        arm_trip(&l4, 1);
+        let verified = l4.verify_delta(&mut nodes, [(&root).into(); 4], &q4);
+        assert!(TRIPPED.load(Ordering::SeqCst));
+        assert_eq!(
+            verified.err(),
+            Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget)))
+        );
+        assert!(l4.connection.is_some());
         assert_eq!(b.refusal(), None);
         assert_eq!(kept, budget);
+        drop(l4);
         drop(spare);
         c.close(peek).map_err(|(_, e)| e).unwrap();
-        c.close(snap).map_err(|(_, e)| e).unwrap();
+
+        // stage_verified：BEGIN 之后的上一代资格核验遇本域首拒，typed 值返回且台账失效。
+        current = current.handoff(4, ROOM).expect("handoff to D");
+        let dom = bind(&current);
+        let path5 = c_path("ledger-e.sqlite3");
+        let mut l5 =
+            Ledger::fresh_charged(&path5, &content, &identity(), STORE, parent(&current, &dom))
+                .unwrap();
+        l5.fold_step(token, &d1, &m1, &r1).unwrap();
+        let q5 = l5.qualification().unwrap();
+        let mut nodes5 = sc::MemoryNodes::new();
+        let root5 = content_root(&mut nodes5, "stage");
+        let mut m5 = m1.clone();
+        m5.generation = 2;
+        m5.scope = root5.clone();
+        let r5 = content_manifest::ManifestRoots {
+            generated_state: root5.clone(),
+            publication_template: root5.clone(),
+            delta_template: root5.clone(),
+        };
+        let d5 = delta(&m5, &r5);
+        let units = QualifiedUnits::full(
+            sc::closure_delta::verify_four_roots(&mut nodes5, [(&root5).into(); 4]).unwrap(),
+        )
+        .unwrap();
+        arm_trip(&l5, 2);
+        let staged = l5.stage_verified(token, &d5, &units, None, Some(&q5));
+        assert!(TRIPPED.load(Ordering::SeqCst));
+        let staged = staged.unwrap_err();
+        assert_eq!(staged, budget);
+        assert!(matches!(
+            staged.into_failure(),
+            super::super::audit_owner::native::Failure::BudgetExceeded
+        ));
+        assert!(l5.connection.is_none());
+        drop(l5);
+        dom.close(snap).map_err(|(_, e)| e).unwrap();
         assert_eq!(unsafe { ffi::sqlite3_shutdown() }, ffi::SQLITE_OK);
-        assert_eq!(c.live_bytes(), 0);
+        assert_eq!(dom.live_bytes(), 0);
         assert_eq!(current.live(), base);
         assert!(!allocator.is_broken());
         let _ = std::fs::remove_dir_all(&dir);
