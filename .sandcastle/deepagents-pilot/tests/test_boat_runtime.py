@@ -8,15 +8,16 @@ import pytest
 from conftest import git
 from test_boat import adapter
 
-from pilot1742.domain import parse_sha
+from pilot1742.domain import DEEPAGENTS_OUTPUT_PROTOCOL, parse_sha
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNTIME = ("boat-worker.mts", "codex-child.ts", "docker-isolation.mts", "acceptance-dir.mts",
            "git-environment.ts", "main-model.mts")
 
 
+@pytest.mark.parametrize("protocol", [None, DEEPAGENTS_OUTPUT_PROTOCOL])
 @pytest.mark.parametrize(("scheduler", "missing_record"), [(False, False), (True, False), (True, True)])
-def test_frozen_runtime_package_keeps_its_import_closure(env, tmp_path, scheduler, missing_record):
+def test_frozen_runtime_package_keeps_its_import_closure(env, tmp_path, scheduler, missing_record, protocol):
     paths = ["package.json", "package-lock.json", ".sandcastle/deepagents-pilot/pilot1742/boat_remote.py"]
     paths.extend(".sandcastle/" + name for name in RUNTIME)
     if scheduler:
@@ -53,7 +54,8 @@ def test_frozen_runtime_package_keeps_its_import_closure(env, tmp_path, schedule
     prompt.write_text("fixture")
     intent = run.dir / "intents" / f"{key.name}.json"
     intent.parent.mkdir(exist_ok=True)
-    intent.write_text(json.dumps({"prompt_file": str(prompt), "model": str(run.spec.author_model), "mode": "execute"}))
+    intent.write_text(json.dumps({"prompt_file": str(prompt), "model": str(run.spec.author_model), "mode": "execute",
+                                  **({"output_protocol": protocol} if protocol else {})}))
     try:
         if missing_record:
             with pytest.raises(subprocess.CalledProcessError):
@@ -62,6 +64,9 @@ def test_frozen_runtime_package_keeps_its_import_closure(env, tmp_path, schedule
             assert engine.cli.calls == []
             return
         package = engine._build(key, binding)
+        request = json.loads((package / "request.json").read_text())
+        assert request.get("output_protocol") == protocol
+        assert request["prompt"] == "fixture"
         runtime = package / "runtime/.sandcastle"
         for name in RUNTIME:
             assert (runtime / name).read_text() == git(env.source, "show", f"{env.base}:.sandcastle/{name}") + "\n"

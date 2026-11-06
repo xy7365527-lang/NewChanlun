@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { QUEUE_LABEL, releaseLabel, withQueueAdmission } from "./deepagents-cutover.mts";
+import { QUEUE_LABEL, releaseLabel, withQueueAdmission, graphAdmissionFrozen, withGraphAdmission } from "./deepagents-cutover.mts";
+import { withFileLock, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import { classifyTicket, implLabels, releaseTicket, recheckBeforeRelease, withEngineAdmission } from "../scripts/wayfinder_engine.mts";
 
 function fixture() {
@@ -55,5 +56,38 @@ test("切流后在 draining 锁内能放行，resume 使新准入拒绝", async 
     writeFileSync(join(f.drain, "state.json"), '{"v":1,"mode":"open","generation":1}');
     await assert.rejects(withQueueAdmission(() => { writes++; }, f.state, f.drain));
     assert.equal(writes, 1);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+
+test("engine 与裁决面共享同一准入；切流只放行这两面、不重开旧工蜂", async () => {
+  const f = fixture();
+  const roots = { stateRoot: f.state, drainRoot: f.drain };
+  try {
+    assert.equal(withEngineAdmission, withGraphAdmission);
+    assert.equal(graphAdmissionFrozen(roots), false);
+    await assert.rejects(withLegacyAdmission(() => assert.fail("旧工蜂不能入"), f.drain), DrainFrozenError);
+    rmSync(join(f.state, "cutover.json"));
+    assert.equal(graphAdmissionFrozen(roots), true);
+    await assert.rejects(withGraphAdmission(() => assert.fail("无切流不能入"), roots), DrainFrozenError);
+    writeFileSync(join(f.drain, "state.json"), '{"v":1,"mode":"open","generation":1}');
+    assert.equal(graphAdmissionFrozen(roots), false);
+    assert.equal(await withGraphAdmission(() => "legacy-open", roots), "legacy-open");
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("选定切流到取得 admission 锁之间记录失效：锁内拒绝，不回退旧准入", async () => {
+  const f = fixture();
+  let pending!: Promise<unknown>;
+  let writes = 0;
+  try {
+    await withFileLock(join(f.drain, "admission.lock"), async () => {
+      pending = assert.rejects(withGraphAdmission(() => { writes++; },
+        { stateRoot: f.state, drainRoot: f.drain }), DrainFrozenError);
+      // withGraphAdmission 已同步选中 queue；子进程等锁时记录变为同一冻结下的旧代次。
+      writeFileSync(join(f.state, "cutover.json"), JSON.stringify({ ...f.record, drain_generation: 2 }));
+    });
+    await pending;
+    assert.equal(writes, 0);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -25,6 +26,7 @@ from deepagents.backends import (
 from langchain.agents.middleware import AgentMiddleware, TodoListMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool, tool
 from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
@@ -33,7 +35,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_va
 from .approval import spec_section
 from .boat_execution import ExecutionUnknown
 from .cloud_package import MANUALS_DIR, PROJECT_TARGET, PSTACK_TARGET, RULES_TARGET
-from .domain import Awaiting, CommitReceipt, WorkerReceipt
+from .domain import LEGACY_CAVEAT, Awaiting, CommitReceipt, Terminal, WorkerReceipt
 from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
 
 TOOL_ERRORS: tuple[type[Exception], ...] = (ToolRefusal, Halted, ExecutionUnknown)
@@ -82,9 +84,6 @@ def build_model(slug: str) -> ChatOpenAI:
                       max_retries=2)
 
 
-LEGACY_CAVEAT = "旧工蜂协议未单独采集 confidence 与 caveats；low 是适配器保守标记，不是模型自报。"
-
-
 class SubagentResponse(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -118,6 +117,11 @@ class LegacyWorkerOutput(BaseModel):
     validation: list[str]
 
 
+class DeepAgentsWorkerOutput(LegacyWorkerOutput):
+    confidence: Literal["high", "medium", "low"]
+    caveats: list[str]
+
+
 class ReceiptContent(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -146,7 +150,8 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
         if receipt.status == "completed":
             raise EmptyWorkerResponse("工蜂回执为空，没有可交回主控的结论")
         summary = f"工蜂终态为 {receipt.status}，未返回结论。"
-    caveats = [LEGACY_CAVEAT]
+    report = receipt.self_report
+    caveats = list(report.caveats) if report else ([LEGACY_CAVEAT] if receipt.output_protocol == "legacy" else [])
     if receipt.status != "completed":
         caveats.append(f"工蜂终态为 {receipt.status}，不构成成功结果。")
     if receipt.failure_reason:
@@ -157,7 +162,8 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
         if source.exists():
             raw_output = json.loads(source.read_text()).get("result")
             if raw_output is not None or receipt.status == "completed":
-                LegacyWorkerOutput.model_validate(raw_output)
+                schema = LegacyWorkerOutput if receipt.output_protocol == "legacy" else DeepAgentsWorkerOutput
+                schema.model_validate(raw_output)
         content = ReceiptContent(summary=summary, findings=receipt.findings,
                                  validation=receipt.validation, changed_paths=receipt.changed_paths_after)
         labels = {"author": "作者发现", "review": "独审发现", "judge": "裁判嫁接或拒绝建议",
@@ -166,7 +172,7 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
             conclusion=content.summary,
             evidence=[*content.validation, *(f"{labels[receipt.key.role]}：{f}" for f in content.findings)],
             actions_taken=[f"宿主观察到修改路径：{p}" for p in content.changed_paths],
-            confidence="low", caveats=caveats)
+            confidence=report.confidence if report else "low", caveats=caveats)
         result["response_validated"] = True
     except ValidationError as error:
         result["unvalidated_output"] = raw_output
@@ -177,6 +183,44 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
         result["response_validated"] = False
     result["response"] = response.model_dump()
     return result
+
+
+class FinalCaveatsMiddleware(AgentMiddleware):
+    def __init__(self, run: PilotRun):
+        self.run = run
+
+    def after_agent(self, state, runtime):
+        messages = state.get("messages", [])
+        if not messages or not isinstance(messages[-1], AIMessage) or messages[-1].tool_calls:
+            return None
+        final = messages[-1]
+        sections = []
+        for key, fact in sorted(self.run.facts(reconcile=False).workers.items(), key=lambda row: row[0].name):
+            if not isinstance(fact, Terminal):
+                continue
+            try:
+                caveats = _receipt_json(fact.receipt)["response"]["caveats"]
+            except EmptyWorkerResponse as error:
+                caveats = [str(error)]
+            if caveats:
+                sections.append(f"### {key.role} · 工蜂输入 head：{key.target_head}\n\n" + "\n\n".join(caveats))
+        if not sections:
+            return None
+        appendix = "\n\n## 工蜂局限（逐项原文）\n\n" + "\n\n".join(sections)
+        content = final.content
+        if isinstance(content, str):
+            if content.endswith(appendix):
+                return None
+            content = content + appendix
+        else:
+            block = {"type": "text", "text": appendix}
+            if content and content[-1] == block:
+                return None
+            content = [*content, block]
+        return {"messages": [final.model_copy(update={"content": content})]}
+
+    async def aafter_agent(self, state, runtime):
+        return await asyncio.to_thread(self.after_agent, state, runtime)
 
 
 def _commit_json(run: PilotRun, receipt: CommitReceipt) -> dict:
@@ -343,6 +387,7 @@ def system_prompt(run: PilotRun) -> str:
 {design_mapping(run)}- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
 - 工蜂不 commit；commit_candidate 做宿主受管本地提交并返回 diff，你要自己读 diff 再派独审。
 - 逐份消费 receipt.response 或 receipts[i].response 的 conclusion、evidence、actions_taken、confidence、caveats。用 run_status 与 commit_candidate 返回的事实便宜复核，向用户转述结论时保留全部 caveats；ok=false 时只报告诊断，不作为成功答案。
+- 需求原文与源码冲突时，明确列出差异和未满足项，不得自行缩窄合同，不得要求独审忽略需求差异。主控选择设计不构成需求豁免。最终正文不得把 caveats 中未核实的事项写成已验证。
 - 独审结论只认 VERDICT: PASS/BLOCK。BLOCK 时把完整 findings、validation、response.caveats 写进新的 author brief 返修，再 commit_candidate、再 run_worker(review)。
 {ending}- 一条消息只调用一个业务工具，等它返回再决定下一步。
 
@@ -408,7 +453,8 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
         routes[f"/project/{MANUALS_DIR}/"] = FilesystemBackend(root_dir=str(manuals), virtual_mode=True)
     backend = CompositeBackend(default=StateBackend(), routes=routes)
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
-        FilesystemMiddleware(backend=backend, tools=READ_ONLY_FS_TOOLS), TodoListMiddleware()]
+        FilesystemMiddleware(backend=backend, tools=READ_ONLY_FS_TOOLS), TodoListMiddleware(),
+        FinalCaveatsMiddleware(run)]
     return create_deep_agent(
         model=brain,
         tools=build_tools(run),
