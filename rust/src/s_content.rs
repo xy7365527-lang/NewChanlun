@@ -2,7 +2,7 @@
 //!
 //! 规范正本：`.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md`
 //! 第 5.1（版本、数字和规范字节）、5.2（唯一内容编码）、5.3（身份配方与全文绑定）；
-//! 独立正负向量：同目录 `inputs/content-format-vectors.json`。
+//! 独立正负向量：`s_session/tests/fixtures/s-content-v3/content-format-vectors.json`。
 //!
 //! 边界（照实）：
 //! - 编解码核心不判业务字段语义、不决定模板占位的出生位置（§5.4 的发布模板位置归 S）。

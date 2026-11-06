@@ -92,7 +92,7 @@ test("实际累计越过 u64 不溢出，快照深冻结且不暴露内部可变
 });
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm"), crypto = require("node:crypto");
 const vectors = JSON.parse(fs.readFileSync(path.join(__dirname,
-  "../../.chanlun/review-results/issue1394-content-v3-20260916/inputs/content-format-vectors.json")));
+  "fixtures/s-content-v3/content-format-vectors.json")));
 const nullNode = vectors.nodes.find(n => n.tag === "00");
 const boolNode = vectors.nodes.find(n => n.tag === "01");
 // Rust DOMAIN_SEPARATOR = b"NewChanlun/SContent/1\0"（22 字节），空体 frame 的独立真值为 31。
