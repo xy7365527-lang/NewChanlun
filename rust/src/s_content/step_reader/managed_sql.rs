@@ -85,6 +85,10 @@ impl<'b> ChargedReadTx<'b> {
             connection,
         }
     }
+    /// 本事务视图所在连接的身份；签发方据此核对 reader 确在其私有连接上。
+    pub fn connection_id(&self) -> capture_allocation::sqlite_parent::ConnectionId {
+        self.connection.id()
+    }
 }
 
 /// 组件门的拒绝按原工作域分类：收费首拒沿原类别，归属不符按 Ledger；SQLite 结果码按存储错误。

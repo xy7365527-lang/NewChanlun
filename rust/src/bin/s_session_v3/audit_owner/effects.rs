@@ -3,6 +3,7 @@
 use super::super::audit_retention::{sum, vec_bytes, Retained};
 use super::super::audit_store::CodecRead;
 use super::super::request_audit::{ExactRows, SqlCell};
+use super::owner_sql::JournalKey;
 use super::*;
 use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
@@ -649,7 +650,7 @@ impl Recording {
         NODE_JOURNAL.with(|slot| {
             let mut slot = slot.borrow_mut();
             assert!(slot.is_none(), "同线程不能嵌套 owner 写口");
-            *slot = Some((unsafe { tx.handle() } as usize, journal.clone()));
+            *slot = Some((tx_key(tx), journal.clone()));
         });
         Ok(Some(Self { journal }))
     }
@@ -1042,15 +1043,21 @@ fn verify_storage(tx: &Transaction<'_>, table: Table, row: &[SqlCell]) -> Result
 }
 
 thread_local! {
-    static NODE_JOURNAL: std::cell::RefCell<Option<(usize,Arc<Mutex<Journal>>)>> = const { std::cell::RefCell::new(None) };
+    static NODE_JOURNAL: std::cell::RefCell<Option<(JournalKey,Arc<Mutex<Journal>>)>> = const { std::cell::RefCell::new(None) };
+}
+/// rusqlite 事务所在连接的 journal 键（句柄地址，只比较、不解引用）。
+fn tx_key(tx: &Transaction<'_>) -> JournalKey {
+    // SAFETY: the handle is only compared as an address.
+    JournalKey::Handle(unsafe { tx.handle() } as usize)
 }
 pub(super) fn clear_node_journal(tx: &Transaction<'_>) {
+    clear_node_journal_key(tx_key(tx));
+}
+/// 撤下本线程登记在 `key` 连接上的节点 journal（其他连接的登记不动）。
+pub(super) fn clear_node_journal_key(key: JournalKey) {
     NODE_JOURNAL.with(|slot| {
         let mut slot = slot.borrow_mut();
-        if slot
-            .as_ref()
-            .is_some_and(|(db, _)| *db == unsafe { tx.handle() } as usize)
-        {
+        if slot.as_ref().is_some_and(|(db, _)| *db == key) {
             slot.take();
         }
     });
@@ -1062,7 +1069,7 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
         let Some((db, journal)) = slot.as_ref() else {
             return;
         };
-        if *db != unsafe { tx.handle() } as usize {
+        if *db != tx_key(tx) {
             return;
         }
         let mut j = journal.lock().expect("同步 owner node 效果锁");
@@ -1173,9 +1180,7 @@ fn current_journal(tx: &Transaction<'_>) -> Result<Option<Arc<Mutex<Journal>>>, 
         let slot = slot.borrow();
         match slot.as_ref() {
             None => Ok(None),
-            Some((db, journal)) if *db == unsafe { tx.handle() } as usize => {
-                Ok(Some(journal.clone()))
-            }
+            Some((db, journal)) if *db == tx_key(tx) => Ok(Some(journal.clone())),
             Some(_) => Err(construction_state::stale("集合stage跨事务连接")),
         }
     })
@@ -1314,7 +1319,16 @@ fn record_material_probe(access: &MaterialAccess<'_, '_, '_>) {
 /// 本事务现有 owner 日志；生涯门签发时据此判断材料阶段是否必须绑定真实材料能力。
 #[cfg(all(test, unix))]
 pub(crate) fn has_journal(tx: &Transaction<'_>) -> Result<bool, String> {
-    Ok(current_journal(tx)?.is_some())
+    has_journal_key(tx_key(tx))
+}
+/// 同 [`has_journal`]，按连接键查；其他连接的登记按原判据报跨事务连接。
+#[cfg(all(test, unix))]
+pub(super) fn has_journal_key(key: JournalKey) -> Result<bool, String> {
+    NODE_JOURNAL.with(|slot| match slot.borrow().as_ref() {
+        None => Ok(false),
+        Some((db, _)) if *db == key => Ok(true),
+        Some(_) => Err(construction_state::stale("集合stage跨事务连接")),
+    })
 }
 struct ActualRead<'a, 'db> {
     inner: crate::content_store::TxStore<'a, 'db>,

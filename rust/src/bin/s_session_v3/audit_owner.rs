@@ -315,8 +315,8 @@ pub(crate) struct BoundOriginals {
 
 static NEXT_LIFE: AtomicU64 = AtomicU64::new(1);
 
-pub(super) struct AuditConnection {
-    connection: Connection,
+pub(super) struct AuditConnection<B: owner_sql::OwnerBackend = owner_sql::LegacyOwner> {
+    connection: B::Conn,
     #[cfg(all(feature = "s_incremental", unix))]
     history_clamp: std::cell::RefCell<Option<history_clamp::Clamp>>,
     #[cfg(all(feature = "s_incremental", unix))]
@@ -384,9 +384,9 @@ impl PublishPhase<'_, '_> {
     }
 }
 
-struct AuditTxn<'a> {
-    owner: &'a AuditConnection,
-    transaction: Option<Transaction<'a>>,
+struct AuditTxn<'a, B: owner_sql::OwnerBackend = owner_sql::LegacyOwner> {
+    owner: &'a AuditConnection<B>,
+    transaction: Option<B::Txn<'a>>,
     // 只能随本事务封存；结束后不重新采样。
     data_version: i64,
     schema_version: i64,
@@ -441,40 +441,6 @@ impl AuditConnection {
             ));
         }
         Ok(())
-    }
-
-    fn new(connection: Connection) -> Result<Self, String> {
-        let result = (|| {
-            let life = NEXT_LIFE
-                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
-                .map_err(|_| invalid("连接生涯编号耗尽"))?;
-            if !connection.is_autocommit() {
-                return Err(invalid("不能接管已有活动事务的连接"));
-            }
-            Ok(life)
-        })();
-        #[cfg(all(feature = "s_incremental", unix))]
-        let result = crate::h1_close_after_failure(&connection, result, false);
-        let life = result?;
-        Ok(Self {
-            connection,
-            #[cfg(all(feature = "s_incremental", unix))]
-            history_clamp: Default::default(),
-            #[cfg(all(feature = "s_incremental", unix))]
-            require_historical_certificate: false,
-            life,
-            retired: Cell::new(false),
-            next_transaction: Cell::new(0),
-            write_sequence: Cell::new(0),
-            construction_lease: Default::default(),
-            construction: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            complete: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            source_keeper: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            quiescent: Default::default(),
-        })
     }
 
     /// #1481：只供夹持测试的非资格组件入口。
@@ -1022,15 +988,6 @@ impl AuditConnection {
     }
 
     #[cfg(all(feature = "s_incremental", unix))]
-    fn history_result<T>(&self, result: Result<T, String>) -> Result<T, String> {
-        if result.is_err() {
-            self.retired.set(true);
-            self.clear_candidates();
-        }
-        result
-    }
-
-    #[cfg(all(feature = "s_incremental", unix))]
     fn bind_history_parent(
         &self,
         context: &request_audit::RequestAuditContext,
@@ -1069,30 +1026,6 @@ impl AuditConnection {
         }
     }
 
-    fn invalidate_construction(&self) {
-        self.construction_lease.invalidate();
-        drop(self.construction.borrow_mut().take());
-    }
-
-    fn clear_candidates(&self) {
-        #[cfg(all(feature = "s_incremental", unix))]
-        if self.retired.get() {
-            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() {
-                clamp.retire();
-            }
-        }
-        self.invalidate_construction();
-        self.clear_optional_candidates();
-    }
-
-    fn clear_optional_candidates(&self) {
-        #[cfg(feature = "s_incremental")]
-        {
-            drop(self.source_keeper.borrow_mut().take());
-            drop(self.complete.borrow_mut().take());
-        }
-    }
-
     // #1481：控制观测发生在 begin 内，必须先交接同父冻结域，不能等准入后的候选命中。
     fn begin_in_request(
         &self,
@@ -1106,63 +1039,6 @@ impl AuditConnection {
         #[cfg(not(all(feature = "s_incremental", unix)))]
         let _ = context;
         self.begin(behavior)
-    }
-
-    fn begin(&self, behavior: TransactionBehavior) -> Result<AuditTxn<'_>, String> {
-        if self.retired.get() || !self.connection.is_autocommit() {
-            self.retired.set(true);
-            self.clear_candidates();
-            return Err(invalid("连接已退役或存在未终结事务"));
-        }
-        let transaction_id = self
-            .next_transaction
-            .get()
-            .checked_add(1)
-            .ok_or_else(|| invalid("事务编号耗尽"))?;
-        self.next_transaction.set(transaction_id);
-        let transaction =
-            Transaction::new_unchecked(&self.connection, behavior).map_err(|error| {
-                self.clear_candidates();
-                invalid(error)
-            })?;
-        let mut active = AuditTxn {
-            owner: self,
-            transaction: Some(transaction),
-            data_version: 0,
-            schema_version: 0,
-            transaction_id,
-            write_sequence: self.write_sequence.get(),
-            dirty: Cell::new(false),
-            #[cfg(all(feature = "s_incremental", unix))]
-            history_write: Default::default(),
-            construction: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            complete: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            pending: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            recording: Default::default(),
-            #[cfg(feature = "s_incremental")]
-            effect_limit: Cell::new(0),
-            #[cfg(feature = "s_incremental")]
-            publication_issued: Cell::new(false),
-        };
-        // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
-        let _: i64 = active
-            .tx()
-            .query_row("SELECT COUNT(*) FROM main.meta", [], |r| r.get(0))
-            .map_err(invalid)?;
-        active.data_version = active
-            .tx()
-            .query_row("PRAGMA main.data_version", [], |r| r.get(0))
-            .map_err(invalid)?;
-        active.schema_version = active
-            .tx()
-            .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
-            .map_err(invalid)?;
-        #[cfg(all(feature = "s_incremental", unix))]
-        active.check_history()?;
-        Ok(active)
     }
 
     pub(super) fn startup(
@@ -1779,25 +1655,6 @@ impl AuditConnection {
         self.mark_quiescent();
     }
 
-    /// #1488 P1-1/P1-2：请求局部持有者（context/slot/ended）均已析构后，对保留下来的
-    /// 候选父账与keeper池父账各读一次live，作为下次冻结的来源证明；其后任何未经请求的增减都使映射失效。
-    #[cfg(feature = "s_incremental")]
-    fn mark_quiescent(&self) {
-        let mut marks = Vec::new();
-        if let Some(c) = self.complete.borrow().as_ref() {
-            marks.push(c.resources.quiescent_mark());
-        }
-        if let Some(home) = self
-            .source_keeper
-            .borrow()
-            .as_ref()
-            .and_then(|k| k.source_home())
-        {
-            marks.push(home.quiescent_mark());
-        }
-        *self.quiescent.borrow_mut() = marks;
-    }
-
     pub(super) fn pending_originals(&self) -> Result<Vec<String>, String> {
         let active = self.begin(TransactionBehavior::Deferred)?;
         #[cfg(all(feature = "s_incremental", unix))]
@@ -2005,6 +1862,166 @@ impl AuditTxn<'_> {
         Ok(())
     }
 
+    fn tx(&self) -> &Transaction<'_> {
+        self.transaction.as_ref().unwrap()
+    }
+}
+
+impl<B: owner_sql::OwnerBackend> AuditConnection<B> {
+    fn new(connection: B::Conn) -> Result<Self, String> {
+        let result = (|| {
+            let life = NEXT_LIFE
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                .map_err(|_| invalid("连接生涯编号耗尽"))?;
+            if !B::conn_autocommit(&connection) {
+                return Err(invalid("不能接管已有活动事务的连接"));
+            }
+            Ok(life)
+        })();
+        let result = B::close_after_failure(&connection, result);
+        let life = result?;
+        Ok(Self {
+            connection,
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_clamp: Default::default(),
+            #[cfg(all(feature = "s_incremental", unix))]
+            require_historical_certificate: false,
+            life,
+            retired: Cell::new(false),
+            next_transaction: Cell::new(0),
+            write_sequence: Cell::new(0),
+            construction_lease: Default::default(),
+            construction: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            complete: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            source_keeper: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            quiescent: Default::default(),
+        })
+    }
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn history_result<T>(&self, result: Result<T, String>) -> Result<T, String> {
+        if result.is_err() {
+            self.retired.set(true);
+            self.clear_candidates();
+        }
+        result
+    }
+    fn invalidate_construction(&self) {
+        self.construction_lease.invalidate();
+        drop(self.construction.borrow_mut().take());
+    }
+    fn clear_candidates(&self) {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.retired.get() {
+            if let Some(clamp) = self.history_clamp.borrow_mut().as_mut() {
+                clamp.retire();
+            }
+        }
+        self.invalidate_construction();
+        self.clear_optional_candidates();
+    }
+    fn clear_optional_candidates(&self) {
+        #[cfg(feature = "s_incremental")]
+        {
+            drop(self.source_keeper.borrow_mut().take());
+            drop(self.complete.borrow_mut().take());
+        }
+    }
+    fn begin(&self, behavior: TransactionBehavior) -> Result<AuditTxn<'_, B>, String> {
+        if self.retired.get() || !B::conn_autocommit(&self.connection) {
+            self.retired.set(true);
+            self.clear_candidates();
+            return Err(invalid("连接已退役或存在未终结事务"));
+        }
+        let transaction_id = self
+            .next_transaction
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| invalid("事务编号耗尽"))?;
+        self.next_transaction.set(transaction_id);
+        let transaction = B::begin(&self.connection, behavior).map_err(|error| {
+            self.clear_candidates();
+            invalid(error)
+        })?;
+        let mut active = AuditTxn {
+            owner: self,
+            transaction: Some(transaction),
+            data_version: 0,
+            schema_version: 0,
+            transaction_id,
+            write_sequence: self.write_sequence.get(),
+            dirty: Cell::new(false),
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_write: Default::default(),
+            construction: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            complete: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            pending: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            recording: Default::default(),
+            #[cfg(feature = "s_incremental")]
+            effect_limit: Cell::new(0),
+            #[cfg(feature = "s_incremental")]
+            publication_issued: Cell::new(false),
+        };
+        // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
+        let _ = active
+            .sql()
+            .integer("SELECT COUNT(*) FROM main.meta")
+            .map_err(invalid)?;
+        active.data_version = active
+            .sql()
+            .integer("PRAGMA main.data_version")
+            .map_err(invalid)?;
+        active.schema_version = active
+            .sql()
+            .integer("PRAGMA main.schema_version")
+            .map_err(invalid)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        active.check_history()?;
+        Ok(active)
+    }
+    /// #1488 P1-1/P1-2：请求局部持有者（context/slot/ended）均已析构后，对保留下来的
+    /// 候选父账与keeper池父账各读一次live，作为下次冻结的来源证明；其后任何未经请求的增减都使映射失效。
+    #[cfg(feature = "s_incremental")]
+    fn mark_quiescent(&self) {
+        let mut marks = Vec::new();
+        if let Some(c) = self.complete.borrow().as_ref() {
+            marks.push(c.resources.quiescent_mark());
+        }
+        if let Some(home) = self
+            .source_keeper
+            .borrow()
+            .as_ref()
+            .and_then(|k| k.source_home())
+        {
+            marks.push(home.quiescent_mark());
+        }
+        *self.quiescent.borrow_mut() = marks;
+    }
+    /// 同一请求的 Accept/Begin 已提交结果在下一事务重新绑定，不刷新版本号。
+    pub(super) fn continue_with(&self, ended: Ended) -> Result<(), String> {
+        if ended.life != self.life || self.retired.get() || !B::conn_autocommit(&self.connection) {
+            return Err(invalid("事务结果不属于当前连接生涯"));
+        }
+        #[cfg(feature = "s_incremental")]
+        {
+            *self.complete.borrow_mut() = ended.complete;
+            // 交接点：候选移入owner；请求收尾的finish_source_keeper会在静止点重读覆盖。
+            self.mark_quiescent();
+        }
+        Ok(())
+    }
+}
+
+impl<B: owner_sql::OwnerBackend> AuditTxn<'_, B> {
+    /// 本事务的 SQL 面（夹持观测、连接域核与版本读取共用）。
+    fn sql(&self) -> &dyn owner_sql::OwnerSql {
+        B::txn_sql(self.transaction.as_ref().unwrap())
+    }
     #[cfg(all(feature = "s_incremental", unix))]
     fn check_history(&self) -> Result<(), String> {
         let result = match self.owner.history_clamp.borrow_mut().as_mut() {
@@ -2013,11 +2030,6 @@ impl AuditTxn<'_> {
         };
         self.owner.history_result(result)
     }
-
-    fn tx(&self) -> &Transaction<'_> {
-        self.transaction.as_ref().unwrap()
-    }
-
     fn read_end(mut self) -> Result<Ended, String> {
         #[cfg(all(feature = "s_incremental", unix))]
         self.check_history()?;
@@ -2037,9 +2049,9 @@ impl AuditTxn<'_> {
                 "构造 pending 不可通过只读回滚晋升",
             ));
         }
-        self.owner.connection.flush_prepared_statement_cache();
-        let result = self.transaction.take().unwrap().rollback().map_err(invalid);
-        if result.is_err() || !self.owner.connection.is_autocommit() {
+        B::flush_statements(&self.owner.connection);
+        let result = B::rollback(self.transaction.take().unwrap()).map_err(invalid);
+        if result.is_err() || !B::conn_autocommit(&self.owner.connection) {
             self.owner.retired.set(true);
             self.owner.clear_candidates();
         }
@@ -2057,15 +2069,12 @@ impl AuditTxn<'_> {
             },
         })
     }
-
     fn commit(mut self) -> Result<Ended, String> {
         self.commit_as(false)
     }
-
     fn commit_publication(mut self) -> Result<Ended, String> {
         self.commit_as(true)
     }
-
     fn commit_as(&mut self, publication: bool) -> Result<Ended, String> {
         #[cfg(all(feature = "s_incremental", unix))]
         if self.owner.history_clamp.borrow().is_some() {
@@ -2097,7 +2106,7 @@ impl AuditTxn<'_> {
                     .borrow()
                     .as_ref()
                     .unwrap()
-                    .check_commit(self.construction_seal()?, self.tx().total_changes())
+                    .check_commit(self.construction_seal()?, self.sql().total_changes())
                     .map_err(PublishError::into_message)
             })();
             if let Err(error) = checked {
@@ -2124,11 +2133,10 @@ impl AuditTxn<'_> {
                 .transpose();
             self.owner.history_result(armed)?
         };
-        self.owner.connection.flush_prepared_statement_cache();
-        let mut transaction = self.transaction.take().unwrap();
+        B::flush_statements(&self.owner.connection);
+        let transaction = self.transaction.take().unwrap();
         // 提交失败后的终结由 owner 核实，不依赖 Transaction 析构器的隐式回滚。
-        transaction.set_drop_behavior(rusqlite::DropBehavior::Ignore);
-        let result = transaction.commit().map_err(|e| {
+        let result = B::commit(transaction).map_err(|e| {
             if publication {
                 format!("PublicationInvalid：{e}")
             } else {
@@ -2137,16 +2145,16 @@ impl AuditTxn<'_> {
         });
         if result.is_err() {
             self.owner.clear_candidates();
-            if !self.owner.connection.is_autocommit() {
-                let rollback = self.owner.connection.execute_batch("ROLLBACK");
-                if rollback.is_err() || !self.owner.connection.is_autocommit() {
+            if !B::conn_autocommit(&self.owner.connection) {
+                let rollback = B::rollback_conn(&self.owner.connection);
+                if rollback.is_err() || !B::conn_autocommit(&self.owner.connection) {
                     self.owner.retired.set(true);
                 }
             } else {
                 // 错误返回但已无事务，不视为经 owner 确认的正常回滚。
                 self.owner.retired.set(true);
             }
-        } else if !self.owner.connection.is_autocommit() {
+        } else if !B::conn_autocommit(&self.owner.connection) {
             self.owner.retired.set(true);
             self.owner.clear_candidates();
             return Err(invalid("提交返回后事务仍活动"));
@@ -2184,9 +2192,28 @@ impl AuditTxn<'_> {
             complete: self.complete.borrow_mut().take(),
         })
     }
+    fn construction_seal(&self) -> Result<SnapshotSeal, String> {
+        Ok(SnapshotSeal {
+            life: self.owner.life,
+            transaction_id: self.transaction_id,
+            write_sequence: self.owner.write_sequence.get(),
+            data_version: self
+                .sql()
+                .integer("PRAGMA main.data_version")
+                .map_err(invalid)?,
+            schema_version: self
+                .sql()
+                .integer("PRAGMA main.schema_version")
+                .map_err(invalid)?,
+            domain: self.read_domain()?,
+        })
+    }
+    fn read_domain(&self) -> Result<[i64; 6], String> {
+        read_domain_of(self.sql())
+    }
 }
 
-impl Drop for AuditTxn<'_> {
+impl<B: owner_sql::OwnerBackend> Drop for AuditTxn<'_, B> {
     fn drop(&mut self) {
         if let Some(tx) = self.transaction.take() {
             #[cfg(all(feature = "s_incremental", unix))]
@@ -2196,18 +2223,15 @@ impl Drop for AuditTxn<'_> {
             }
             #[cfg(feature = "s_incremental")]
             {
-                if tx
-                    .update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
-                    .is_err()
-                {
+                if B::clear_write_hooks(&tx).is_err() {
                     self.owner.retired.set(true);
                 }
-                effects::clear_node_journal(&tx);
+                effects::clear_node_journal_key(B::journal_key(&tx));
             }
             self.owner.clear_candidates();
-            self.owner.connection.flush_prepared_statement_cache();
-            // 不依赖 rusqlite 的隐式 Drop 回滚；必须核实终结结果。
-            if tx.rollback().is_err() || !self.owner.connection.is_autocommit() {
+            B::flush_statements(&self.owner.connection);
+            // 不依赖守卫的隐式回滚；必须核实终结结果。
+            if B::rollback(tx).is_err() || !B::conn_autocommit(&self.owner.connection) {
                 self.owner.retired.set(true);
             }
         }
@@ -2691,23 +2715,6 @@ impl AuditConnection {
     }
 }
 impl AuditTxn<'_> {
-    fn construction_seal(&self) -> Result<SnapshotSeal, String> {
-        Ok(SnapshotSeal {
-            life: self.owner.life,
-            transaction_id: self.transaction_id,
-            write_sequence: self.owner.write_sequence.get(),
-            data_version: self
-                .tx()
-                .query_row("PRAGMA main.data_version", [], |r| r.get(0))
-                .map_err(invalid)?,
-            schema_version: self
-                .tx()
-                .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
-                .map_err(invalid)?,
-            domain: self.read_domain()?,
-        })
-    }
-
     #[cfg(feature = "s_incremental")]
     fn issue_publication_resources(
         &self,
@@ -3178,10 +3185,6 @@ impl AuditTxn<'_> {
                 .map_err(|e| failure(native::Failure::from(e)));
         }
         s_allocation::audit_in_request(self.tx(), mode, s_allocation::Phase::Handle, context)
-    }
-
-    fn read_domain(&self) -> Result<[i64; 6], String> {
-        read_domain_of(self.tx())
     }
 }
 
@@ -4174,21 +4177,7 @@ enum FixedOperation {
     #[cfg_attr(not(feature = "s_incremental"), allow(dead_code))]
     Recover(construction_state::RecoverHandoff),
 }
-impl AuditConnection {
-    /// 同一请求的 Accept/Begin 已提交结果在下一事务重新绑定，不刷新版本号。
-    pub(super) fn continue_with(&self, ended: Ended) -> Result<(), String> {
-        if ended.life != self.life || self.retired.get() || !self.connection.is_autocommit() {
-            return Err(invalid("事务结果不属于当前连接生涯"));
-        }
-        #[cfg(feature = "s_incremental")]
-        {
-            *self.complete.borrow_mut() = ended.complete;
-            // 交接点：候选移入owner；请求收尾的finish_source_keeper会在静止点重读覆盖。
-            self.mark_quiescent();
-        }
-        Ok(())
-    }
-}
+impl AuditConnection {}
 impl AuditTxn<'_> {
     fn bind_existing(
         &self,

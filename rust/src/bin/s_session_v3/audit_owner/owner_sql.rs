@@ -20,6 +20,8 @@ pub(super) trait Cells {
 pub(super) enum RowsError {
     Sql(String),
     Row(String),
+    /// 行宽超过收费组件栈缓冲（准入 schema 至多 8 列，只可能来自外部改动的 schema）。
+    Shape(String),
 }
 
 /// 提交观察回调：rusqlite 连接用 `wal_hook` 形式，收费连接用组件的 `WalFn` 形式。
@@ -247,7 +249,10 @@ mod charged {
                             }
                         })
                 })
-                .map_err(|e| RowsError::Sql(gate(e)))?;
+                .map_err(|e| match e {
+                    SqlGate::Sqlite(rusqlite::ffi::SQLITE_RANGE) => RowsError::Shape(gate(e)),
+                    e => RowsError::Sql(gate(e)),
+                })?;
             match failed {
                 Some(e) => Err(RowsError::Row(e)),
                 None => Ok(()),
@@ -265,6 +270,253 @@ mod charged {
             self.binding
                 .run(self.connection, |q| unsafe { q.set_wal_hook(Some(hook)) })
                 .map_err(gate)
+        }
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// effects 节点 journal 的连接键：rusqlite 连接用句柄地址（原口径），收费连接用不复用的
+/// [`ConnectionId`](newchan_rust::s_content::capture_allocation::sqlite_parent::ConnectionId)。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum JournalKey {
+    Handle(usize),
+    #[cfg(feature = "s_incremental")]
+    Charged(newchan_rust::s_content::capture_allocation::sqlite_parent::ConnectionId),
+}
+
+/// #1419 3C U5：owner 连接家族的后端（sealed，同台账 `Backend` 写法）。`AuditConnection` 与
+/// `AuditTxn` 的生命周期判据只有一份，经本 trait 落到 rusqlite 或收费组件连接。
+pub(super) trait OwnerBackend: sealed::Sealed + Sized + 'static {
+    type Conn;
+    type Txn<'c>;
+    fn conn_autocommit(conn: &Self::Conn) -> bool;
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1419 3C U5：只有生涯门（测试编译）按连接取 SQL 面"
+        )
+    )]
+    fn conn_sql(conn: &Self::Conn) -> &dyn OwnerSql;
+    /// 开事务；错误为原错误文本。
+    fn begin(
+        conn: &Self::Conn,
+        behavior: rusqlite::TransactionBehavior,
+    ) -> Result<Self::Txn<'_>, String>;
+    fn txn_sql<'t>(txn: &'t Self::Txn<'_>) -> &'t dyn OwnerSql;
+    /// 收尾前释放预备语句缓存（rusqlite 的缓存；组件不缓存语句）。
+    fn flush_statements(conn: &Self::Conn);
+    /// 回滚并结束守卫。
+    fn rollback(txn: Self::Txn<'_>) -> Result<(), String>;
+    /// COMMIT 并结束守卫；失败时不隐式回滚，由调用方核 autocommit 并经 [`Self::rollback_conn`] 收尾。
+    fn commit(txn: Self::Txn<'_>) -> Result<(), String>;
+    /// 守卫已结束而连接仍在事务内时的显式回滚（收尾）。
+    fn rollback_conn(conn: &Self::Conn) -> Result<(), String>;
+    /// 撤销本事务上登记的写回调（收尾，首拒之后仍可执行）。
+    fn clear_write_hooks(txn: &Self::Txn<'_>) -> Result<(), String>;
+    fn journal_key(txn: &Self::Txn<'_>) -> JournalKey;
+    /// 连接自身初始化失败时的正常关闭（见 `h1_close_after_failure`）。
+    fn close_after_failure<T>(conn: &Self::Conn, result: Result<T, String>) -> Result<T, String>;
+}
+
+/// 现行 owner：私有 rusqlite 连接。只作类型参数，不构造。
+pub(super) enum LegacyOwner {}
+impl sealed::Sealed for LegacyOwner {}
+
+impl OwnerBackend for LegacyOwner {
+    type Conn = Connection;
+    type Txn<'c> = Transaction<'c>;
+    fn conn_autocommit(conn: &Connection) -> bool {
+        conn.is_autocommit()
+    }
+    fn conn_sql(conn: &Connection) -> &dyn OwnerSql {
+        conn
+    }
+    fn begin(
+        conn: &Connection,
+        behavior: rusqlite::TransactionBehavior,
+    ) -> Result<Transaction<'_>, String> {
+        Transaction::new_unchecked(conn, behavior).map_err(|e| e.to_string())
+    }
+    fn txn_sql<'t>(txn: &'t Transaction<'_>) -> &'t dyn OwnerSql {
+        txn
+    }
+    fn flush_statements(conn: &Connection) {
+        conn.flush_prepared_statement_cache();
+    }
+    fn rollback(txn: Transaction<'_>) -> Result<(), String> {
+        txn.rollback().map_err(|e| e.to_string())
+    }
+    fn commit(mut txn: Transaction<'_>) -> Result<(), String> {
+        txn.set_drop_behavior(rusqlite::DropBehavior::Ignore);
+        txn.commit().map_err(|e| e.to_string())
+    }
+    fn rollback_conn(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch("ROLLBACK").map_err(|e| e.to_string())
+    }
+    fn clear_write_hooks(txn: &Transaction<'_>) -> Result<(), String> {
+        txn.update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
+            .map_err(|e| e.to_string())
+    }
+    fn journal_key(txn: &Transaction<'_>) -> JournalKey {
+        // SAFETY: the handle is only compared as an address, never dereferenced.
+        JournalKey::Handle(unsafe { txn.handle() } as usize)
+    }
+    fn close_after_failure<T>(conn: &Connection, result: Result<T, String>) -> Result<T, String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        return crate::h1_close_after_failure(conn, result, false);
+        #[cfg(not(all(feature = "s_incremental", unix)))]
+        {
+            let _ = conn;
+            result
+        }
+    }
+}
+
+#[cfg(feature = "s_incremental")]
+pub(super) use charged_owner::{ChargedOwner, ChargedOwnerConn, ChargedOwnerTxn};
+
+#[cfg(feature = "s_incremental")]
+mod charged_owner {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+        ChargedConnection, SqliteBinding,
+    };
+    use std::rc::Rc;
+
+    /// 收费组件连接上的 owner（同父、逐操作门、首拒后只有窄收尾）。生产 Native 一次启用前只由
+    /// 全新进程 release 锁消费。
+    pub(in super::super) enum ChargedOwner {}
+    impl sealed::Sealed for ChargedOwner {}
+
+    #[allow(
+        dead_code,
+        reason = "#1419 3C U5：受管 owner 只由全新进程 release 锁消费，Native 一次启用波接入生产"
+    )]
+    pub(in super::super) struct ChargedOwnerConn {
+        pub(in super::super) binding: Rc<SqliteBinding>,
+        pub(in super::super) connection: ChargedConnection,
+    }
+
+    impl ChargedOwnerConn {
+        fn sql(&self) -> ChargedOwnerSql<'_> {
+            ChargedOwnerSql {
+                binding: &self.binding,
+                connection: &self.connection,
+            }
+        }
+    }
+
+    impl OwnerSql for ChargedOwnerConn {
+        fn integer(&self, sql: &str) -> Result<i64, String> {
+            self.sql().integer(sql)
+        }
+        fn text(&self, sql: &str) -> Result<String, String> {
+            self.sql().text(sql)
+        }
+        fn int3(&self, sql: &str) -> Result<(i32, i32, i32), String> {
+            self.sql().int3(sql)
+        }
+        fn main_encoding(&self) -> Result<Option<i64>, String> {
+            self.sql().main_encoding()
+        }
+        fn rows(
+            &self,
+            sql: &str,
+            row: &mut dyn FnMut(&dyn Cells) -> Result<(), String>,
+        ) -> Result<(), RowsError> {
+            self.sql().rows(sql, row)
+        }
+        fn total_changes(&self) -> u64 {
+            self.connection.total_changes()
+        }
+        fn install_commit_observer(&self, observer: &CommitObserver) -> Result<(), String> {
+            self.sql().install_commit_observer(observer)
+        }
+    }
+
+    /// 事务守卫：`BEGIN …` 之后持有连接借用；提交与回滚都消费守卫。
+    pub(in super::super) struct ChargedOwnerTxn<'c> {
+        pub(in super::super) conn: &'c ChargedOwnerConn,
+    }
+
+    fn gate(error: newchan_rust::s_content::capture_allocation::sqlite_parent::SqlGate) -> String {
+        format!("受管SQLite拒绝：{error:?}")
+    }
+
+    impl OwnerBackend for ChargedOwner {
+        type Conn = ChargedOwnerConn;
+        type Txn<'c> = ChargedOwnerTxn<'c>;
+        fn conn_autocommit(conn: &ChargedOwnerConn) -> bool {
+            conn.connection.is_autocommit()
+        }
+        fn conn_sql(conn: &ChargedOwnerConn) -> &dyn OwnerSql {
+            conn
+        }
+        fn begin(
+            conn: &ChargedOwnerConn,
+            behavior: rusqlite::TransactionBehavior,
+        ) -> Result<ChargedOwnerTxn<'_>, String> {
+            let sql = match behavior {
+                rusqlite::TransactionBehavior::Deferred => "BEGIN DEFERRED",
+                rusqlite::TransactionBehavior::Immediate => "BEGIN IMMEDIATE",
+                rusqlite::TransactionBehavior::Exclusive => "BEGIN EXCLUSIVE",
+                _ => return Err("未支持的事务方式".into()),
+            };
+            conn.binding
+                .run(&conn.connection, |q| q.execute_batch(sql))
+                .map_err(gate)?;
+            Ok(ChargedOwnerTxn { conn })
+        }
+        fn txn_sql<'t>(txn: &'t ChargedOwnerTxn<'_>) -> &'t dyn OwnerSql {
+            txn.conn
+        }
+        fn flush_statements(_: &ChargedOwnerConn) {}
+        fn rollback(txn: ChargedOwnerTxn<'_>) -> Result<(), String> {
+            txn.conn
+                .binding
+                .rollback(&txn.conn.connection)
+                .map_err(gate)
+        }
+        fn commit(txn: ChargedOwnerTxn<'_>) -> Result<(), String> {
+            txn.conn
+                .binding
+                .run(&txn.conn.connection, |q| q.execute_batch("COMMIT"))
+                .map_err(gate)
+        }
+        fn rollback_conn(conn: &ChargedOwnerConn) -> Result<(), String> {
+            conn.binding.rollback(&conn.connection).map_err(gate)
+        }
+        fn clear_write_hooks(txn: &ChargedOwnerTxn<'_>) -> Result<(), String> {
+            txn.conn
+                .binding
+                .clear_write_hooks(&txn.conn.connection)
+                .map_err(gate)
+        }
+        fn journal_key(txn: &ChargedOwnerTxn<'_>) -> JournalKey {
+            JournalKey::Charged(txn.conn.connection.id())
+        }
+        fn close_after_failure<T>(
+            conn: &ChargedOwnerConn,
+            result: Result<T, String>,
+        ) -> Result<T, String> {
+            #[cfg(unix)]
+            return crate::h1_close_after_failure(
+                &crate::v3::h1_writer_sql::ChargedWriter {
+                    binding: &conn.binding,
+                    connection: &conn.connection,
+                },
+                result,
+                false,
+            );
+            #[cfg(not(unix))]
+            {
+                let _ = conn;
+                result
+            }
         }
     }
 }

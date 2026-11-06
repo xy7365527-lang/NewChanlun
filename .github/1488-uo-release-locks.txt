@@ -24,3 +24,5 @@ v3::audit_owner::sqlite_parent_tests::sqlite_parent_owner_hooks_flush_and_cells_
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_wal_checkpoint_admits_and_settles_first_refusal
 # #1419 3C U5 夹持观测与提交收据经收费组件 owner 连接：连接域核、控制原件、版本与文件、WAL 提交收据，同父收费与首拒
 v3::audit_owner::history_clamp::charged_tests::clamp_observes_and_receipts_commit_on_charged_owner_connection
+# #1419 3C U5 owner 连接、事务守卫与生涯门经收费组件：签发受管 reader 读真实节点、外连接提交 stale、守卫 COMMIT 与首拒后收尾回滚
+v3::audit_owner::step_reader::charged_tests::charged_owner_lifecycle_and_gate_on_same_parent
