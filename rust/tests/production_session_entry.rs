@@ -1641,6 +1641,14 @@ impl Capture {
     fn complete(&self) -> bool {
         self.reader.is_none() && matches!(self.state.lock().unwrap().end, Some(Ok(())))
     }
+    fn contains(&self, needle: &[u8]) -> bool {
+        self.state
+            .lock()
+            .unwrap()
+            .bytes
+            .windows(needle.len())
+            .any(|w| w == needle)
+    }
 }
 
 fn capture_json(bytes: &[u8], end: Value) -> Value {
@@ -2032,6 +2040,51 @@ fn enable_subreaper() -> (Value, Result<(), String>) {
     (record, ok)
 }
 
+/// 启动任何服务前，在本进程自建的牺牲进程上实测回收所需的 pidfd SIGSTOP/SIGKILL 能力。
+fn pidfd_precheck() -> (Value, Result<(), String>) {
+    use std::os::unix::process::ExitStatusExt;
+    let mut child = match Command::new("sleep")
+        .arg("30")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            let record = json!({"spawn_error": e.to_string()});
+            return (record, Err("pidfd 前检无法拉起牺牲进程".into()));
+        }
+    };
+    let until = Instant::now() + Duration::from_secs(5);
+    let probe = ProcId::capture("pidfd_probe", child.id());
+    let (stop, stopped, kill) = match &probe {
+        None => (Value::Null, false, Value::Null),
+        Some(p) => {
+            let stop = signal_identity(p, libc::SIGSTOP);
+            while p.state() != "stopped" && !left(until).is_zero() {
+                sleep_until_at_most(until, Duration::from_millis(10));
+            }
+            let stopped = p.state() == "stopped";
+            (stop, stopped, signal_identity(p, libc::SIGKILL))
+        }
+    };
+    let fallback = (kill["delivered"] != true).then(|| format!("{:?}", child.kill()));
+    let status = wait_child(&mut child, until + Duration::from_secs(2));
+    let killed = status
+        .as_ref()
+        .is_ok_and(|s| s.signal() == Some(libc::SIGKILL));
+    let ok = stop["delivered"] == true && stopped && kill["delivered"] == true && killed;
+    let record = json!({"probe":probe.as_ref().map(ProcId::json),"sigstop":stop,"stopped_confirmed":stopped,
+        "sigkill":kill,"fallback_kill":fallback,"status":format!("{status:?}"),"ok":ok});
+    let result = if ok {
+        Ok(())
+    } else {
+        Err(format!("pidfd 回收能力前检失败：{record}"))
+    };
+    (record, result)
+}
+
 impl Case {
     fn new(scenario: &'static str, s_socket: Option<&str>) -> Self {
         let budget = Budget::new();
@@ -2055,10 +2108,12 @@ impl Case {
                 "run_attempt":env("GITHUB_RUN_ATTEMPT"),"job":env("GITHUB_JOB"),
                 "boot_id":std::fs::read_to_string("/proc/sys/kernel/random/boot_id").map(|s| s.trim().to_string()).map_err(|e| e.to_string())}),
         );
-        let (subreaper, precondition) = enable_subreaper();
+        let (subreaper, subreaper_ok) = enable_subreaper();
+        let (pidfd, pidfd_ok) = pidfd_precheck();
+        let precondition = subreaper_ok.and(pidfd_ok);
         receipt.insert(
             "helper".into(),
-            json!({"pid":std::process::id(),"subreaper":subreaper}),
+            json!({"pid":std::process::id(),"subreaper":subreaper,"pidfd_precheck":pidfd}),
         );
         Self {
             scenario,
@@ -2318,6 +2373,9 @@ fn finalize(mut c: Case, result: Result<(), String>) {
         .flatten()
         .all(|r| r.stdout.complete() && r.stderr.complete())
         && c.init_stderr.as_ref().is_none_or(Capture::complete);
+    if !captures_complete {
+        failures.push("已启动阶段的输出捕获出现读错误或未闭合".into());
+    }
     let init = match &c.init_stderr {
         Some(capture) => {
             let (bytes, end) = capture.frozen();
@@ -2375,6 +2433,14 @@ fn finalize(mut c: Case, result: Result<(), String>) {
     c.set("steps", steps);
     c.set("snapshots", snapshots);
     c.set("reap", json!({"adopted":adopted,"lingering":lingering}));
+    let remaining: Vec<Value> = descendants(std::process::id())
+        .iter()
+        .map(ProcId::json)
+        .collect();
+    if !remaining.is_empty() {
+        failures.push("helper 名下仍有本例后代，转交父测试回收".into());
+    }
+    c.set("helper_descendants_at_end", json!(remaining));
     if c.budget.start.elapsed() > OBS_HELPER_CASE {
         failures.push("helper 用例超过预算".into());
     }
@@ -2398,6 +2464,16 @@ fn finalize(mut c: Case, result: Result<(), String>) {
         Value::Object(c.receipt.clone())
     );
     std::io::stderr().write_all(line.as_bytes()).unwrap();
+    if !remaining.is_empty() {
+        // helper 是本例后代唯一的托管者；先退出会让它们改挂到别处而失去归属，故留在原地交给父测试冻结回收。
+        let handoff = json!({"scenario":c.scenario,"remaining":remaining});
+        std::io::stderr()
+            .write_all(format!("socket_residue_observe_handoff {handoff}\n").as_bytes())
+            .unwrap();
+        loop {
+            std::thread::sleep(Duration::from_secs(1));
+        }
+    }
     if !failures.is_empty() {
         panic!("{}：{}", c.scenario, failures.join("；"));
     }
@@ -2497,6 +2573,14 @@ fn observe_in_helper(scenario: &'static str) {
     let start = Instant::now();
     let end = start + OBS_CASE;
     let mut failures: Vec<String> = Vec::new();
+    let (precheck, precheck_ok) = pidfd_precheck();
+    if let Err(why) = precheck_ok {
+        let wrapper = json!({"scenario":scenario,"parent_pidfd_precheck":precheck,"helper":"NOT_SPAWNED","failures":[why]});
+        std::io::stderr()
+            .write_all(format!("socket_residue_observe_helper {wrapper}\n").as_bytes())
+            .unwrap();
+        panic!("{scenario}：父测试 pidfd 前检失败，未拉起 helper");
+    }
     let mut child = Command::new(std::env::current_exe().unwrap())
         .args([
             OBS_HELPER_TEST,
@@ -2517,10 +2601,27 @@ fn observe_in_helper(scenario: &'static str) {
     let helper = ProcId::capture("helper", child.id());
     let mut out = Capture::start(child.stdout.take().unwrap());
     let mut err = Capture::start(child.stderr.take().unwrap());
-    let (status, tree) = match wait_child(&mut child, start + OBS_HELPER_WAIT) {
-        Ok(status) => (Some(status), Value::Null),
-        Err(_) => {
-            failures.push("helper 未在限时内退出".into());
+    let wait_until = start + OBS_HELPER_WAIT;
+    let (exited, handoff) = loop {
+        if let Some(status) = child.try_wait().ok().flatten() {
+            break (Some(status), false);
+        }
+        if err.contains(b"socket_residue_observe_handoff ") {
+            break (None, true);
+        }
+        if left(wait_until).is_zero() {
+            break (None, false);
+        }
+        sleep_until_at_most(wait_until, Duration::from_millis(50));
+    };
+    let (status, tree) = match exited {
+        Some(status) => (Some(status), Value::Null),
+        None => {
+            failures.push(if handoff {
+                "helper 报告本例后代未闭合，父测试接管回收".into()
+            } else {
+                "helper 未在限时内退出".into()
+            });
             let tree = reap_helper_tree(&mut child, helper.as_ref(), end - OBS_HELPER_REAP_DONE);
             if tree["open"].as_array().is_some_and(|a| !a.is_empty()) || tree["frozen"] != true {
                 failures.push("helper 进程树未闭合".into());
@@ -2552,13 +2653,20 @@ fn observe_in_helper(scenario: &'static str) {
     }) {
         failures.push("helper 收据含 harness 失败".into());
     }
+    if receipts
+        .iter()
+        .any(|r| r["observation_complete"]["captures_complete"] != true)
+    {
+        failures.push("helper 收据显示已启动阶段的输出捕获未闭合".into());
+    }
     if !(out.complete() && err.complete()) {
         failures.push("helper 输出捕获未闭合".into());
     }
     if start.elapsed() > OBS_CASE {
         failures.push("用例超过 150s 上限".into());
     }
-    let wrapper = json!({"scenario":scenario,"helper":helper.as_ref().map(ProcId::json),
+    let wrapper = json!({"scenario":scenario,"parent_pidfd_precheck":precheck,"handoff":handoff,
+        "helper":helper.as_ref().map(ProcId::json),
         "status":status.map(status_record),"tree_reap":tree,
         "helper_stdout":capture_json(&out_bytes, out_end),
         "helper_stderr":{"bytes":err_bytes.len(),"end":err_end,"sha256":sha256_hex(&err_bytes),"relayed_raw_above":true},
