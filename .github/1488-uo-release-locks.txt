@@ -8,3 +8,4 @@ v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_charges_same_parent_before_allocation
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_install_refused_after_sqlite_initialized
 v3::audit_owner::sqlite_parent_tests::sqlite_parent_connection_boundary_keeps_original_open_semantics
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_db_config_accepts_only_boolean_int_pointer_ops

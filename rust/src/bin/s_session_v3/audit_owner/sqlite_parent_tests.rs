@@ -750,7 +750,7 @@ fn sqlite_code(result: Result<impl std::fmt::Debug, SqlGate>) -> c_int {
 #[test]
 #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
 fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
-    use newchan_rust::s_content::capture_allocation::sqlite_parent::{Callback, OpenSpec};
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{Callback, DbFlag, OpenSpec};
     // SAFETY: this test runs alone in a fresh process before any SQLite use.
     let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
     let root = Budget::fresh(LIMIT).unwrap();
@@ -765,7 +765,6 @@ fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    // 以默认方式建一个快照库，供下面按原只读规格打开。
     let wide = d.rebind();
     let seed = wide.open(&path("snap.sqlite3")).unwrap();
     wide.run(&seed, |q| {
@@ -777,7 +776,6 @@ fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
     .unwrap();
     wide.close(seed).map_err(|(_, e)| e).unwrap();
 
-    // 在本父账名下注册私有 VFS（默认 VFS 的同名副本）；注册中的分配记到本父账。
     let mut vfs: ffi::sqlite3_vfs = unsafe { *ffi::sqlite3_vfs_find(ptr::null()) };
     vfs.zName = c"bsql-private".as_ptr();
     let vfs_ptr: *mut ffi::sqlite3_vfs = &mut vfs;
@@ -787,12 +785,10 @@ fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
         vfs_ptr
     );
 
-    // 原私有快照的打开语义：只读、私有缓存、无互斥、指定 VFS；关闭时不 checkpoint、防御模式、
-    // 禁扩展加载、工作线程 0、busy 0；授权门与调用方进度回调都保留。
     let configs = [
-        (ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1),
-        (ffi::SQLITE_DBCONFIG_DEFENSIVE, 1),
-        (ffi::SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, 0),
+        (DbFlag::NoCheckpointOnClose, true),
+        (DbFlag::Defensive, true),
+        (DbFlag::EnableLoadExtension, false),
     ];
     let limits = [(ffi::SQLITE_LIMIT_WORKER_THREADS, 0)];
     let spec = OpenSpec {
@@ -810,7 +806,6 @@ fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
             context: ptr::null_mut(),
         }),
     };
-    // 未知 VFS：原样报 SQLite 错误，不建连接、不留块。
     let live = d.current.live();
     let missing = OpenSpec {
         vfs: Some(c"bsql-missing"),
@@ -834,10 +829,12 @@ fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
         };
         assert_eq!(rc, ffi::SQLITE_OK);
         assert_eq!(used, vfs_ptr);
-        for (op, want) in configs {
+        for (flag, want) in configs {
             let mut out: c_int = -1;
-            let rc = unsafe { ffi::sqlite3_db_config(q.handle(), op, -1, &mut out as *mut c_int) };
-            assert_eq!((rc, out), (ffi::SQLITE_OK, want));
+            let rc = unsafe {
+                ffi::sqlite3_db_config(q.handle(), flag.op(), -1, &mut out as *mut c_int)
+            };
+            assert_eq!((rc, out), (ffi::SQLITE_OK, c_int::from(want)));
         }
         assert_eq!(
             unsafe { ffi::sqlite3_limit(q.handle(), ffi::SQLITE_LIMIT_WORKER_THREADS, -1) },
@@ -953,4 +950,46 @@ fn sqlite_parent_connection_boundary_keeps_original_open_semantics() {
     assert_eq!(d.current.live(), base);
     assert!(!allocator.is_broken());
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+#[ignore = "release lock: run alone with --ignored --exact"]
+fn sqlite_parent_db_config_accepts_only_boolean_int_pointer_ops() {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::DbFlag;
+    for flag in DbFlag::ALL {
+        let op = match flag {
+            DbFlag::NoCheckpointOnClose | DbFlag::Defensive | DbFlag::EnableLoadExtension => {
+                flag.op()
+            }
+        };
+        assert!(
+            op != ffi::SQLITE_DBCONFIG_MAINDBNAME && op != ffi::SQLITE_DBCONFIG_LOOKASIDE,
+            "{flag:?} maps to a non-(int,int*) opcode {op}"
+        );
+    }
+    let mut ops = DbFlag::ALL.map(DbFlag::op);
+    ops.sort_unstable();
+    assert!(
+        ops.windows(2).all(|w| w[0] != w[1]),
+        "duplicate opcode in {ops:?}"
+    );
+
+    let conn = Connection::open_in_memory().unwrap();
+    // SAFETY: the handle belongs to `conn`, which outlives every call below.
+    let db = unsafe { conn.handle() };
+    for flag in DbFlag::ALL {
+        for value in [1, 0, 1] {
+            let mut out: c_int = -1;
+            let rc =
+                unsafe { ffi::sqlite3_db_config(db, flag.op(), value, &mut out as *mut c_int) };
+            assert_eq!((rc, out), (ffi::SQLITE_OK, value), "{flag:?} set {value}");
+            let mut read: c_int = -1;
+            let rc = unsafe { ffi::sqlite3_db_config(db, flag.op(), -1, &mut read as *mut c_int) };
+            assert_eq!(
+                (rc, read),
+                (ffi::SQLITE_OK, value),
+                "{flag:?} read back {value}"
+            );
+        }
+    }
 }

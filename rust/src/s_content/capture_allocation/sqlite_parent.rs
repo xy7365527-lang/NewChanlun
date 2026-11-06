@@ -9,8 +9,11 @@
 //!
 //! 操作域：收费只能挡住新分配，lookaside 与已物化的值不再申请内存，所以连接归属与首拒后零
 //! SQL 由执行边界保证。
-//! - 连接只能经 [`SqliteBinding::open`] 开出，终身归属开它的父账（[`ChargedConnection`]
-//!   不暴露裸连接）；只能经 [`SqliteBinding::run`] / [`SqliteBinding::close`] 使用。
+//! - 连接只能经 [`SqliteBinding::open`] / [`SqliteBinding::open_with`] 开出，终身归属开它的
+//!   父账（[`ChargedConnection`] 不暴露裸连接）；只能经 [`SqliteBinding::run`] 及收尾的
+//!   [`SqliteBinding::rollback`] / [`SqliteBinding::close`] 使用。
+//! - 连接不可跨线程（`!Send`、`!Sync`，编译期断言）：SQLite 只在开库线程上同步调用调用方的
+//!   授权与进度回调，回调上下文因此只需对该线程有效。
 //! - `run` 只交出 [`SqlOps`]，不交出 `rusqlite::Connection`。每次进入 C API 的操作
 //!   （prepare、execute、query_row、语句的 execute / query_row）之前都重新核：本绑定为当前
 //!   绑定、父账当前冻结域仍是本绑定的 origin、连接归属本父账、本父账本 origin 尚无拒绝；
@@ -18,8 +21,10 @@
 //! - `run`（含 open / close）在入口核验通过后，即在父账当前冻结域上持有一个活动作用域，
 //!   与 Rust 许可的作用域同一计数，直到 `run` 结束；持有期间父账 `handoff` / 重新冻结均被拒，
 //!   所以整个操作域内 origin 固定，参数 `ToSql` 等任何回调都无法在操作中途换域。
-//! - 调用方回调（参数 `ToSql`）夹在两次准入之间运行；第二次准入之后到 SQLite 返回的整段只执行
-//!   组件代码。回调里触发的首拒因此在进入 SQLite 前即被拦下；首拒已在时参数不被求值。
+//! - 参数 `ToSql` 回调夹在两次准入之间运行，回调里触发的首拒在进入 SQLite 前即被拦下；首拒已在
+//!   时参数不被求值。第二次准入之后，SQLite 内部还会同步调用连接上的授权回调与进度回调：进度
+//!   回调先过组件门（归属、当前域、首拒），不放行即中止且不调用调用方进度回调；授权回调由
+//!   SQLite 在 prepare 时调用，只能放行或拒绝语句，不能绕过组件门。
 //! - 组件在操作口内不创建 Rust 堆持有：参数求值结果放栈上定长数组（借用调用方内存），结果行以
 //!   `ValueRef` 借给调用方的映射回调，回调期间禁止任何 SQL。需要保留的数据由调用方按其许可复制，
 //!   不由组件代付或代管。
@@ -584,7 +589,9 @@ pub struct SqliteBinding {
 }
 
 impl SqliteBinding {
-    /// 本父账本冻结域的首个收费拒绝。一旦拒绝，此域内一切分配与 SQL 执行均被拒，换绑同域不清除。
+    /// 本父账本冻结域的首个收费拒绝。一旦拒绝，此域内调用方 SQL 与普通操作域的分配均被拒，换绑
+    /// 同域不清除；只有收尾（[`Self::rollback`]、[`Self::close`]、[`Self::unregister_vfs`]）
+    /// 仍可执行，其分配照常向原域预留、不足仍拒，且不覆盖已有首拒。
     pub fn refusal(&self) -> Option<ScratchFailure> {
         let s = state()?;
         let sl = &s.slots[self.owner.slot];
@@ -712,8 +719,8 @@ impl SqliteBinding {
     /// 任一配置未生效即关闭连接并报错。连接终身归属本父账。
     ///
     /// # Safety
-    /// `spec` 中的回调上下文与 VFS 必须在连接关闭（或析构）之前一直有效；回调不得重入本连接、
-    /// 不得更改进度回调或关闭连接。
+    /// 满足 [`Callback`] 的安全合同；`spec.vfs` 命名的 VFS 须已注册并在连接关闭（或析构）之前一直
+    /// 注册且有效。
     pub unsafe fn open_with(
         &self,
         path: &CStr,
@@ -771,7 +778,9 @@ impl SqliteBinding {
     /// 在本父账名下注册 VFS（不设为默认）。注册中 SQLite 的分配向本父账收费。
     ///
     /// # Safety
-    /// `vfs` 必须有效，且在 [`Self::unregister_vfs`] 之前一直有效、不移动。
+    /// `vfs` 必须有效，且在 [`Self::unregister_vfs`] 之前一直有效、不移动。VFS 方法由 SQLite
+    /// 在使用它的连接所在线程上调用；收费 allocator 只让正处于 `run` 的线程分配，连接又不可跨
+    /// 线程，所以 `pAppData` 等 VFS 状态按 [`Callback`] 的安全合同只需对开库线程有效。
     pub unsafe fn register_vfs(&self, vfs: *mut ffi::sqlite3_vfs) -> Result<(), SqlGate> {
         let running = self.enter(None)?;
         // SAFETY: caller guarantees vfs stays valid until unregistered; make_default = 0.
@@ -937,19 +946,50 @@ pub type AuthorizerFn = unsafe extern "C" fn(
     *const c_char,
 ) -> c_int;
 
-/// 调用方回调及其上下文。
+/// 调用方回调及其上下文。安全合同（[`SqliteBinding::open_with`]、[`SqlOps::set_authorizer`]
+/// 与 [`SqliteBinding::register_vfs`] 共用）：
+/// - SQLite 只在开库线程上、于该连接的 `run` / `rollback` / `close` 期间同步调用回调；连接
+///   `!Send`，不会换线程。
+/// - 上下文从登记起到连接关闭（或析构、或被更换）为止须有效，且在此期间开库线程随时按回调的
+///   方式访问它都不得与其他线程的访问构成数据竞争；跨线程共享的状态须由调用方自行同步。
+/// - 回调不得重入本连接、不得更改进度回调、不得关闭连接。
 #[derive(Clone, Copy, Debug)]
 pub struct Callback<F> {
     pub callback: F,
     pub context: *mut c_void,
 }
 
-/// [`SqliteBinding::open_with`] 的开库规格：原打开标志、VFS、连接配置（`op`, 值，打开后读回
-/// 核对）、限额（id, 值，读回核对）、busy 超时、授权回调与调用方进度回调（每 1 条 VM 指令）。
+/// [`OpenSpec`] 可设置的连接配置。只收 `sqlite3_db_config(db, op, int, int*)` 签名的布尔开关；
+/// `MAINDBNAME`、`LOOKASIDE` 等其他签名的 op 不可表达。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DbFlag {
+    NoCheckpointOnClose,
+    Defensive,
+    EnableLoadExtension,
+}
+
+impl DbFlag {
+    pub const ALL: [DbFlag; 3] = [
+        DbFlag::NoCheckpointOnClose,
+        DbFlag::Defensive,
+        DbFlag::EnableLoadExtension,
+    ];
+
+    pub const fn op(self) -> c_int {
+        match self {
+            DbFlag::NoCheckpointOnClose => ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE,
+            DbFlag::Defensive => ffi::SQLITE_DBCONFIG_DEFENSIVE,
+            DbFlag::EnableLoadExtension => ffi::SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
+        }
+    }
+}
+
+/// [`SqliteBinding::open_with`] 的开库规格：原打开标志、VFS、布尔连接配置（打开后读回核对）、
+/// 限额（id, 值，读回核对）、busy 超时、授权回调与调用方进度回调（每 1 条 VM 指令）。
 pub struct OpenSpec<'s> {
     pub flags: c_int,
     pub vfs: Option<&'s CStr>,
-    pub db_config: &'s [(c_int, c_int)],
+    pub db_config: &'s [(DbFlag, bool)],
     pub limits: &'s [(c_int, c_int)],
     pub busy_timeout_ms: Option<c_int>,
     pub authorizer: Option<Callback<AuthorizerFn>>,
@@ -975,9 +1015,10 @@ unsafe fn configure(db: *mut ffi::sqlite3, spec: &OpenSpec<'_>) -> Result<(), c_
     // SAFETY: db is live; contexts are guaranteed by the caller of `open_with`.
     unsafe {
         ffi::sqlite3_extended_result_codes(db, 1);
-        for &(op, value) in spec.db_config {
+        for &(flag, on) in spec.db_config {
+            let value = c_int::from(on);
             let mut out: c_int = -1;
-            let rc = ffi::sqlite3_db_config(db, op, value, &mut out as *mut c_int);
+            let rc = ffi::sqlite3_db_config(db, flag.op(), value, &mut out as *mut c_int);
             if rc != ffi::SQLITE_OK {
                 return Err(last_code(db, rc));
             }
@@ -1065,8 +1106,16 @@ pub struct ChargedConnection {
     hook: Option<usize>,
 }
 
-// SAFETY: the handle is only used inside the exclusive `run` domain; SQLite is built threadsafe.
-unsafe impl Send for ChargedConnection {}
+// ChargedConnection 既非 Send 也非 Sync：实现任一，下面的推断即歧义而编译失败。
+const _: fn() = || {
+    trait AmbiguousIfSendOrSync<A> {
+        fn check() {}
+    }
+    impl<T: ?Sized> AmbiguousIfSendOrSync<()> for T {}
+    impl<T: ?Sized + Send> AmbiguousIfSendOrSync<u8> for T {}
+    impl<T: ?Sized + Sync> AmbiguousIfSendOrSync<u16> for T {}
+    let _ = <ChargedConnection as AmbiguousIfSendOrSync<_>>::check;
+};
 
 impl Drop for ChargedConnection {
     fn drop(&mut self) {
@@ -1335,7 +1384,7 @@ impl<'a> SqlOps<'a> {
     /// 收费与准入合同。
     ///
     /// # Safety
-    /// 回调上下文必须在连接关闭或下次更换之前一直有效。
+    /// 满足 [`Callback`] 的安全合同，期限到连接关闭或下次更换为止。
     pub unsafe fn set_authorizer(
         &self,
         authorizer: Option<Callback<AuthorizerFn>>,
