@@ -13,8 +13,12 @@ mode = (folder.parents[1] / "fake-mode").read_text().strip() if (folder.parents[
 session = str(uuid.uuid4())
 output = {"status": "blocked" if mode == "BLOCK" else "completed", "summary": f"VERDICT: {mode}",
           "findings": [], "validation": ["测试替身"]}
+fence = (folder.parents[1] / "fake-fence").read_text().strip() if (folder.parents[1] / "fake-fence").exists() else ""
+text = json.dumps(output)
+if fence:  # whole：整段一个围栏；prose：围栏前有说明文字
+    text = ("结论如下\n" if fence == "prose" else "") + "```json\n" + text + "\n```"
 events = [{"type": "thread.started", "thread_id": session},
-          {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(output)}},
+          {"type": "item.completed", "item": {"type": "agent_message", "text": text}},
           {"type": "turn.completed"}]
 (folder / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n")
 (folder / "session.jsonl").write_text(json.dumps({"type": "session_meta", "payload": {"id": session}}) + "\n")
