@@ -3059,14 +3059,48 @@ fn socket_residue_harness_timeout_reaps_descendants_before_helper() {
 /// 第一次 waitpid 收割后第二次得 ECHILD 且身份已不存在，归为 EchildGone 而非未回收或归属丢失。
 #[test]
 fn proc_identity_survives_zombie_transition_and_reap_is_single() {
-    let mut sleeper = Command::new("sleep")
-        .arg("30")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-    let pid = sleeper.id();
+    /// 断言失败时也回收本测试的 sleep；本测试自己 waitpid 收割后取走句柄，不再对已收割 PID 发信号。
+    struct Sleeper(Option<Child>);
+    impl Drop for Sleeper {
+        fn drop(&mut self) {
+            if let Some(mut child) = self.0.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+    let cmdline =
+        |pid: u32| std::fs::read(format!("/proc/{pid}/cmdline")).map_err(|e| e.to_string());
+    let mut sleeper = Sleeper(Some(
+        Command::new("sleep")
+            .arg("30")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    ));
+    let pid = sleeper.0.as_ref().unwrap().id();
+    // spawn 返回时 execve 可能尚未把新 argv 装好，cmdline 会短暂为空；有界等到 argv[0] 可见。
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut seen = Vec::new();
+    loop {
+        let raw = cmdline(pid);
+        if raw
+            .as_ref()
+            .is_ok_and(|b| b.split(|c| *c == 0).next() == Some(&b"sleep"[..]))
+        {
+            break;
+        }
+        if seen.last() != Some(&raw) {
+            seen.push(raw);
+        }
+        assert!(
+            !left(deadline).is_zero(),
+            "sleep 的 cmdline 5s 内未可见：{seen:?}"
+        );
+        sleep_until_at_most(deadline, Duration::from_millis(10));
+    }
     let live = ProcId::capture(&exe_name(pid), pid).unwrap();
     assert_eq!(live.role, "sleep");
     assert_eq!(try_reap(&live), ReapOutcome::Running);
@@ -3076,8 +3110,9 @@ fn proc_identity_survives_zombie_transition_and_reap_is_single() {
         assert!(!left(deadline).is_zero(), "SIGKILL 后未进入僵尸态");
         sleep_until_at_most(deadline, Duration::from_millis(10));
     }
+    assert_eq!(cmdline(pid), Ok(Vec::new()), "僵尸的 cmdline 应可读且为空");
     let zombie = ProcId::capture(&exe_name(pid), pid).unwrap();
-    assert_eq!(zombie.role, "", "僵尸的 cmdline 应为空");
+    assert_eq!(zombie.role, "");
     assert_eq!(live, zombie, "身份只看 pid+starttime");
     let mut pending = vec![live.clone()];
     if !pending.contains(&zombie) {
@@ -3085,8 +3120,9 @@ fn proc_identity_survives_zombie_transition_and_reap_is_single() {
     }
     assert_eq!(pending.len(), 1, "同一身份不得重复入队");
     assert!(matches!(try_reap(&zombie), ReapOutcome::Reaped(_)));
+    // 已由本测试收割：丢弃句柄（Child 的 drop 不发信号），守卫不再触碰该 PID。
+    drop(sleeper.0.take());
     assert_eq!(try_reap(&live), ReapOutcome::EchildGone);
-    assert!(sleeper.try_wait().is_err() || sleeper.try_wait().unwrap().is_none());
 }
 
 #[test]
