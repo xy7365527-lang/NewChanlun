@@ -23,6 +23,20 @@ runs:
         echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
         "${{ steps.setup-python.outputs.python-path }}" -V
 
+    # #1875 TB02C：Rust 测试会以 PATH 上的 `node` 跑校验脚本（tb02c_verify.py 等）。Boat 上的 node 来自平台系统根
+    #   ~/.nvm，由平台在 VM 运行或分配时改写（默认版本 2026-11-05T19:46 被换、分配时刻重写 npm/npx），版本也与托管
+    #   镜像不同（v24.22.1 对 v24.22.2）；main 上该 node 子进程两次以 glibc free() 中止。固定到托管镜像同版本，
+    #   装在作业自己的 toolcache 里，作业期间不再依赖平台可变的 node。
+    - name: Pin Node.js for tests that spawn node (#1875)
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24.22.2"
+
+    - name: Record the node that tests will spawn (#1875)
+      shell: bash
+      run: |
+        n=$(command -v node); echo "node=$n -> $(readlink -f "$n") $(node --version) sha=$(sha256sum "$(readlink -f "$n")" | cut -c1-16)"
+
     # #1875：Boat 快照里的 rustup stable 停在快照保存那天，GitHub 托管镜像则随时升级；#1608 约定工具链随
     #   stable（新 lint 由 -D warnings 暴露），所以两种 runner 都先对齐到当前 stable，版本记录在下一步。
     - name: Align Rust toolchain with current stable (#1875)
