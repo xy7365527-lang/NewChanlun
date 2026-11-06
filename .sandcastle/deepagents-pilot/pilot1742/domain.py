@@ -65,6 +65,32 @@ def parse_key_name(run_id: RunId, name: str) -> WorkerKey:
     return WorkerKey(run_id, parse_role(role), parse_sha(head))
 
 
+DEEPAGENTS_OUTPUT_PROTOCOL = "deepagents-self-report-v1"
+LEGACY_CAVEAT = "旧工蜂协议未单独采集 confidence 与 caveats；low 是适配器保守标记，不是模型自报。"
+Confidence = Literal["high", "medium", "low"]
+
+
+@dataclass(frozen=True)
+class WorkerSelfReport:
+    confidence: Confidence
+    caveats: tuple[str, ...]
+
+
+def parse_self_report(result: dict, protocol: str) -> WorkerSelfReport | None:
+    if protocol not in ("legacy", DEEPAGENTS_OUTPUT_PROTOCOL):
+        raise ValueError("未知工蜂输出协议")
+    has_report = "confidence" in result or "caveats" in result
+    if protocol == "legacy":
+        if has_report:
+            raise ValueError("共享四键协议不接受自报字段")
+        return None
+    confidence, caveats = result.get("confidence"), result.get("caveats")
+    if confidence not in ("high", "medium", "low") or not isinstance(caveats, list) or any(
+            not isinstance(item, str) for item in caveats):
+        raise ValueError("Deep Agents 自报 confidence/caveats 不合法或不完整")
+    return WorkerSelfReport(cast(Confidence, confidence), tuple(caveats))
+
+
 @dataclass(frozen=True)
 class WorkerReceipt:
     """codex-child result.json 的终态，模型取实记值而非请求值。"""
@@ -83,6 +109,8 @@ class WorkerReceipt:
     validation: tuple[str, ...]
     failure_reason: str | None
     output_dir: str
+    output_protocol: str = "legacy"
+    self_report: WorkerSelfReport | None = None
 
 
 @dataclass(frozen=True)

@@ -54,7 +54,7 @@ def test_block_rework_pass_then_gate_binds_exact_head(env):
     run.run_worker("author", "按 findings 返修")
     rework_prompt = (run.dir / "prompts" / f"author-{first.commit}.md").read_text()
     assert "缺测试" in rework_prompt and "只核查本地候选" in rework_prompt
-    assert "未单独采集 confidence 与 caveats" in rework_prompt
+    assert '"confidence": "medium"' in rework_prompt and "仅夹具验证" in rework_prompt
     assert "不直接与用户对话" in rework_prompt
     second = run.commit_candidate()
     assert second.intent.parent == first.commit
@@ -241,7 +241,8 @@ def test_design_arena_runs_two_fixed_readonly_slots_then_judge_before_author(env
     assert "设计包甲" in judge_prompt and "设计包乙" in judge_prompt and "rubric：简单、可测" in judge_prompt
     assert "claude-opus-5-5" not in judge_prompt and "gpt-6.1-sol" not in judge_prompt
     assert "核查甲" in judge_prompt and "核查乙" in judge_prompt
-    assert "未单独采集 confidence 与 caveats" in judge_prompt
+    assert judge_prompt.count('"confidence": "medium"') == 2
+    assert judge_prompt.count("仅夹具验证") == 2
     assert "不直接与用户对话" in judge_prompt
     assert "fake-session" not in judge_prompt and "/workers/" not in judge_prompt
     with pytest.raises(ToolRefusal, match="BASE"):
