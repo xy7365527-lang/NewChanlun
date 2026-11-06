@@ -24,7 +24,7 @@ from .domain import (
     parse_run_id,
     parse_sha,
 )
-from .run import PilotRun, TaskSpec, _ps_rows
+from .run import InsufficientSpace, PilotRun, TaskSpec, _ps_rows, require_free_space
 from .workunit import (
     RELEASE_LABEL,
     Queued,
@@ -287,6 +287,11 @@ class QueueIntake:
                         results[ticket] = {'phase': 'awaiting_human', 'run_id': unit.run_id,
                                            'reason': _stop_reason(run_dir)}
                         continue
+                    try:
+                        require_free_space(self.state_root)
+                    except InsufficientSpace as error:
+                        results[ticket] = {'phase': 'queued', 'run_id': unit.run_id, 'reason': str(error)}
+                        break
                     code = run(unit)
                     state = delivery_status(run_dir)
                     phase = state['phase']

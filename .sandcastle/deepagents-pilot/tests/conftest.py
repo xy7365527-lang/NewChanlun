@@ -99,6 +99,14 @@ def isolated_skill_source(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def dispatch_space_not_under_test(monkeypatch):
+    """派工磁盘门的阈值是生产卷的事实，测试临时目录所在卷与它无关；门本身由专门用例压低剩余空间来测。"""
+    from pilot1742 import run
+
+    monkeypatch.setattr(run, "DISPATCH_FREE_BYTES", 0)
+
+
+@pytest.fixture(autouse=True)
 def local_execution_fixture(monkeypatch):
     from pilot1742 import run
     from pilot1742.boat_execution import HistoricalLocal

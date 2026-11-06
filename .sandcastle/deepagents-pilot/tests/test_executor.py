@@ -22,7 +22,7 @@ from pilot1742.executor import (
     release_claim,
 )
 from pilot1742.github_app import IdentityError, OutcomeUnknown, RequestNotSent
-from pilot1742.run import Busy, Halted, PilotRun
+from pilot1742.run import Busy, Halted, InsufficientSpace, PilotRun
 from pilot1742.workunit import Takeover, WorkUnit
 
 BRANCH = f"codex/deepagents/t{TICKET}"
@@ -119,6 +119,24 @@ def test_v2_run_refuses_side_effects_without_executor(v2):
     with pytest.raises(Halted, match="新执行器"):
         bare.run_worker("author", "绕过执行器")
     assert v2.claims() == []
+
+
+def test_low_disk_refuses_new_claim_and_checkout_then_same_run_retries(v2, monkeypatch):
+    from types import SimpleNamespace
+
+    from pilot1742 import run as module
+    unit = v2.register()
+    monkeypatch.setattr(module, "DISPATCH_FREE_BYTES", 100)
+    free = SimpleNamespace(free=99)
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda _path: free)
+    with pytest.raises(InsufficientSpace, match="派工门槛"):
+        v2.run(unit)
+    assert not (v2.claims_root / f"{TICKET}.json").exists()
+    assert not (v2.home / "checkouts" / unit.run_id).exists() and v2.writes() == []
+    free.free = 100
+    v2.run(unit).release()
+    assert v2.claim_record()["run_id"] == unit.run_id
+    assert (v2.home / "checkouts" / unit.run_id / "author").is_dir()
 
 
 def test_two_run_ids_race_for_one_ticket_only_one_dispatches(v2):
@@ -757,3 +775,27 @@ def test_new_generation_accepts_collected_boat_worker_without_remote_calls(v2, m
     assert second.generation == 2
     assert cli.calls == []
     second.release()
+
+
+def test_executor_run_maps_mid_graph_low_disk_to_retryable_exit(tmp_path, monkeypatch, capsys):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from pilot1742 import cli, run
+    from pilot1742 import executor as module
+
+    def low_disk(*_args, **_kwargs):
+        raise InsufficientSpace("派工门槛")
+
+    models = tmp_path / "models.md"
+    models.write_text("")
+    monkeypatch.setattr(run, "PSTACK_MODELS", models)
+    monkeypatch.setattr(module, "_client", lambda _args: nullcontext(object()))
+    monkeypatch.setattr(module, "RepoGateway", lambda _client: None)
+    monkeypatch.setattr(module, "load_unit", lambda *_args: (SimpleNamespace(run_id="t1-1"), None))
+    monkeypatch.setattr(module, "TicketExecutor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "open_v2_run", lambda *_args: SimpleNamespace())
+    monkeypatch.setattr(cli, "drive", low_disk)
+    code = module.main(["--state-root", str(tmp_path), "--drain-root", str(tmp_path), "run", "--run-id", "t1-1",
+                        "--private-key", str(tmp_path / "unused.pem")])
+    assert code == 75 and "派工门槛" in capsys.readouterr().err

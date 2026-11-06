@@ -10,10 +10,10 @@
 python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
   --source . \
   --base <base_sha> --head <head_sha> --merge-base <merge_base_sha> \
-  --checkout-root /Users/silencehan/.sandcastle-host/external-review-checkouts
+  --checkout-root /Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/checkouts/external-review
 ```
 
-- `--checkout-root` 填正式 attempt 将传给 `ExternalReview(checkout_root=...)` 的同一路径。
+- `--checkout-root` 填正式 attempt 将传给 `ExternalReview(checkout_root=...)` 的同一路径；示例是其缺省值 `external_review.CHECKOUT_ROOT`，位于外卷。
 - 三个 SHA 与 attempt 的 target 相同；`--source` 是 controller 读候选对象的仓库。
 - 其余参数有默认值：`--image sandcastle:newchanlun`、`--proxy-url http://127.0.0.1:8318`、`--proxy-log-dir ~/Library/Application Support/CLIProxyLocal/auth/logs`、`--codex-home $CODEX_HOME 或 ~/.codex`、`--codex-bin codex`、`--deadline 55`。
 

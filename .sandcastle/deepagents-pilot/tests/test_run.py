@@ -324,3 +324,31 @@ def test_parse_result_preserves_supported_model(tmp_path, model):
     parsed = parse_result(key, data, tmp_path)
     assert parsed.model == model
     assert parsed.key == key and parsed.status == "completed"
+
+
+def test_low_disk_mid_graph_dispatch_stops_before_intent_and_resumes_from_checkpoint(env, monkeypatch):
+    import sqlite3
+    from types import SimpleNamespace
+
+    from langchain_core.messages import AIMessage
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    from test_agent import call, scripted
+
+    from pilot1742 import run as module
+    from pilot1742.agent import build_agent
+
+    run = env.create(task=DESIGN_TASK)
+    env.control(DESIGNS)
+    monkeypatch.setattr(module, "DISPATCH_FREE_BYTES", 100)
+    free = SimpleNamespace(free=99)
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda _path: free)
+    model = scripted(call("run_worker", role="design", brief="设计"), AIMessage("设计完成"))
+    agent = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)), model)
+    config = {"configurable": {"thread_id": "r1"}}
+    with pytest.raises(module.InsufficientSpace, match="派工门槛"):
+        agent.invoke({"messages": [("user", "开始")]}, config, durability="sync")
+    assert agent.get_state(config).next == ("tools",)
+    assert not (run.dir / "intents").exists() and env.claims() == []
+    free.free = 100
+    agent.invoke(None, config, durability="sync")
+    assert sorted(env.claims()) == [f"design-a-{env.base}", f"design-b-{env.base}"]

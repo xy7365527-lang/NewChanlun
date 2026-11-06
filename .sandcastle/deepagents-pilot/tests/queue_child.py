@@ -39,7 +39,8 @@ executor = TicketExecutor(unit, gateway, claims=ClaimStore(Path(config['claims']
                           approvals=SignedApprovals(authority_root=Path(config['authority'])),
                           cutover=CutoverStore(home, Path(config['drain']), Path(config['workers'])),
                           crash=_sigkill_at(config['crash']), status_locks=home / 'status-locks')
-with patch('pilot1742.run.new_execution', return_value=HistoricalLocal('test-launcher')):
+with (patch('pilot1742.run.new_execution', return_value=HistoricalLocal('test-launcher')),
+      patch('pilot1742.run.DISPATCH_FREE_BYTES', 0)):
     run = open_v2_run(home, unit, task, executor, MODELS, launcher=FAKE, source_repo=Path(config['source']))
 try:
     if not run.facts().commits:
