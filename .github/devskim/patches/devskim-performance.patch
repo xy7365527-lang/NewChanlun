@@ -1,0 +1,122 @@
+diff --git a/DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/SarifWriter.cs b/DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/SarifWriter.cs
+index 7f9ee21..6cf254b 100644
+--- a/DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/SarifWriter.cs
++++ b/DevSkim-DotNet/Microsoft.DevSkim.CLI/Writers/SarifWriter.cs
+@@ -1,4 +1,4 @@
+-﻿using System;
++using System;
+ using Microsoft.CodeAnalysis.Sarif;
+ using System.Collections.Concurrent;
+ using System.Collections.Generic;
+@@ -70,47 +70,50 @@ namespace Microsoft.DevSkim.CLI.Writers
+ 
+             // Begin Workaround for https://github.com/microsoft/sarif-sdk/issues/2024
+ 
+-            // Save the sarif log to a stream
+-            var stream = new MemoryStream();
+-            sarifLog.Save(stream);
+-            stream.Position = 0;
+-            // Read the saved log back in
+-            var reReadLog = JObject.Parse(new StreamReader(stream).ReadToEnd());
+-            // Find results with levels that are not set
+-            var resultsWithoutLevels =
+-                reReadLog.SelectTokens("$.runs[*].results[*]").Where(t => t["level"] == null).ToList();
+-            // For each result with no level set its level to warning
+-            foreach (var result in resultsWithoutLevels)
+-            {
+-                result["level"] = "warning";
+-            }
+-
+-            // Rules which had a default configuration of Warning will also not have the field populated
+-            var rulesWithoutDefaultConfiguration = reReadLog.SelectTokens("$.runs[*].tool.driver.rules[*]")
+-                .Where(t => t["defaultConfiguration"] == null).ToList();
+-            // For each result with no default configuration option, add one with the level warning
+-            foreach (var rule in rulesWithoutDefaultConfiguration)
++            // Keep the same default-level normalization without a full JSON DOM.
++            string temporaryPath = Path.GetTempFileName();
++            using var jsonWriter = new JsonTextWriter(TextWriter);
++            try
+             {
+-                rule["defaultConfiguration"] = new JObject { { "level", "warning" } };
++                using (var stream = File.Create(temporaryPath))
++                {
++                    sarifLog.Save(stream);
++                }
++                using var input = File.OpenText(temporaryPath);
++                using var reader = new JsonTextReader(input);
++                var recordPath = new System.Text.RegularExpressions.Regex(
++                    @"^runs\[\d+\]\.(results|tool\.driver\.rules)\[\d+\]$");
++                while (reader.Read())
++                {
++                    if (reader.TokenType == JsonToken.StartObject && recordPath.IsMatch(reader.Path))
++                    {
++                        bool isResult = reader.Path.Contains(".results[");
++                        var record = JObject.Load(reader);
++                        if (isResult)
++                        {
++                            if (record["level"] == null) record["level"] = "warning";
++                        }
++                        else
++                        {
++                            if (record["defaultConfiguration"] == null)
++                                record["defaultConfiguration"] = new JObject { { "level", "warning" } };
++                            if (record["defaultConfiguration"] is JObject configuration && configuration["level"] == null)
++                                configuration["level"] = "warning";
++                        }
++                        record.WriteTo(jsonWriter);
++                    }
++                    else
++                    {
++                        jsonWriter.WriteToken(reader, writeChildren: false);
++                    }
++                }
++                TextWriter.WriteLine();
+             }
+-
+-            // Rules with a DefaultConfiguration object, but where that object has no level also should be set
+-            //  DevSkim should always populate this object with a level, but potentially
+-            var rulesWithoutDefaultConfigurationLevel = reReadLog.SelectTokens("$.runs[*].tool.driver.rules[*].defaultConfiguration")
+-                .Where(t => t["level"] == null).ToList();
+-            // For each result with a default configuration object that has no level
+-            //  add a level property equal to warning
+-            foreach (var rule in rulesWithoutDefaultConfigurationLevel)
++            finally
+             {
+-                rule["level"] = "warning";
++                File.Delete(temporaryPath);
+             }
+ 
+-            // Write out the fixed sarif
+-            using var jsonWriter = new JsonTextWriter(TextWriter);
+-            reReadLog.WriteTo(jsonWriter);
+-            // Add a newline at the end to make logging messages cleaner
+-            TextWriter.WriteLine();
+-
+             // End Workarounds
+             TextWriter.Flush();
+         }
+diff --git a/DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleProcessor.cs b/DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleProcessor.cs
+index 2bffa7a..cff0d6a 100644
+--- a/DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleProcessor.cs
++++ b/DevSkim-DotNet/Microsoft.DevSkim/DevSkimRuleProcessor.cs
+@@ -35,6 +35,7 @@ namespace Microsoft.DevSkim
+                 List<MatchRecord> matchRecords = _aiProcessor.AnalyzeFile(textContainer, new FileEntry(fileName, new MemoryStream()),
+                     info, null, numLinesContext: -1);
+                 // Apply suppressions
++                var lineSuppressions = new Dictionary<int, Suppression>();
+                 foreach (MatchRecord matchRecord in matchRecords)
+                 {
+                     if (matchRecord.Rule is DevSkimRule devSkimRule)
+@@ -48,7 +49,11 @@ namespace Microsoft.DevSkim
+                         issue.Confidence = matchRecord.Confidence == Confidence.Unspecified ? devSkimRule.Confidence : matchRecord.Confidence;
+                         if (_processorOptions.EnableSuppressions)
+                         {
+-                            Suppression supp = new(textContainer, issue.StartLocation.Line);
++                            if (!lineSuppressions.TryGetValue(issue.StartLocation.Line, out Suppression? supp))
++                            {
++                                supp = new Suppression(textContainer, issue.StartLocation.Line);
++                                lineSuppressions.Add(issue.StartLocation.Line, supp);
++                            }
+                             SuppressedIssue? supissue = supp.GetSuppressedIssue(issue.Rule.Id);
+                             if (supissue is null)
+                             {

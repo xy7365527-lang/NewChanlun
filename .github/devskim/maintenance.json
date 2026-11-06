@@ -1,0 +1,12 @@
+{
+  "maintenanceRevision": "1.0.90-nc-perf1",
+  "upstreamPackage": "Microsoft.CST.DevSkim.Cli/1.0.90",
+  "upstreamSarifVersion": "1.0.90+fb2d676ce4",
+  "devskimCommit": "fb2d676ce475a47c0338966bebd97a47ae566572",
+  "applicationInspectorCommit": "8ba537cf659a50ccc557b6ccc63e13d96af2dad0",
+  "patches": ["engine-cache.patch", "devskim-performance.patch"],
+  "targetFramework": "net8.0",
+  "signAssembly": false,
+  "signingIdentity": "local maintenance build; not Microsoft signed",
+  "scope": "same-line caches and streaming SARIF normalization; upstream rules unchanged"
+}
