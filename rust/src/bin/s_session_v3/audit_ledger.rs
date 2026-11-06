@@ -105,6 +105,350 @@ impl Unit {
     }
 }
 
+/// 与 `canonical_json(Value)` 同字节的借用写出视图。`canonical_json` 等于按字节序排好对象键的
+/// compact JSON，所以这里只按既有键序把字段送进 `json_writer::write_json`；数字、转义与分隔符
+/// 由它给出，不建 `Value`，不建中间文本。`i64` 键的映射由调用方给出按十进制文本排好的条目。
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1419 3C：检查点 1 只交写出核与逐字节锁，受管 stage 接入在检查点 2"
+    )
+)]
+mod canonical {
+    use super::{CoverChange, GenerationDelta, ObjectFact, RawFact, Unit};
+    use newchan_rust::s_content::json_writer;
+    use newchan_rust::s_content::{ContentRef, RefView};
+    use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+    use sha2::{Digest, Sha256};
+    use std::collections::BTreeMap;
+
+    /// 十进制文本，栈上至多 20 字节（含 `i64::MIN` 的负号与 `u64::MAX`）。
+    pub(super) struct Decimal {
+        bytes: [u8; 20],
+        start: usize,
+    }
+
+    impl Decimal {
+        pub(super) fn of_i64(n: i64) -> Self {
+            Self::of_magnitude(n.unsigned_abs(), n < 0)
+        }
+        pub(super) fn of_u64(n: u64) -> Self {
+            Self::of_magnitude(n, false)
+        }
+        fn of_magnitude(mut m: u64, negative: bool) -> Self {
+            let mut bytes = [0u8; 20];
+            let mut start = bytes.len();
+            loop {
+                start -= 1;
+                bytes[start] = b'0' + (m % 10) as u8;
+                m /= 10;
+                if m == 0 {
+                    break;
+                }
+            }
+            if negative {
+                start -= 1;
+                bytes[start] = b'-';
+            }
+            Self { bytes, start }
+        }
+        pub(super) fn as_str(&self) -> &str {
+            std::str::from_utf8(&self.bytes[self.start..]).unwrap_or_default()
+        }
+    }
+
+    /// 按十进制文本排序 `i64` 键的映射条目（`canonical_json` 对字符串键排序，`"10"` 在 `"2"` 前）。
+    pub(super) fn sort_by_decimal<T>(entries: &mut [(i64, &T)]) {
+        entries.sort_unstable_by(|a, b| {
+            Decimal::of_i64(a.0)
+                .as_str()
+                .cmp(Decimal::of_i64(b.0).as_str())
+        });
+    }
+
+    struct Root<'a>(RefView<'a>);
+    impl Serialize for Root<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let r = self.0;
+            let mut m = s.serialize_map(Some(4))?;
+            match r.extent() {
+                Some(n) => m.serialize_entry("extent", Decimal::of_u64(n).as_str())?,
+                None => m.serialize_entry("extent", &())?,
+            }
+            m.serialize_entry("format", r.format())?;
+            m.serialize_entry("kind", r.kind().name())?;
+            m.serialize_entry("root", r.root())?;
+            m.end()
+        }
+    }
+
+    pub(super) struct Roots<'a>(pub &'a [ContentRef; 4]);
+    impl Serialize for Roots<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut seq = s.serialize_seq(Some(4))?;
+            for r in self.0 {
+                seq.serialize_element(&Root(r.into()))?;
+            }
+            seq.end()
+        }
+    }
+
+    struct Raw<'a>(&'a RawFact);
+    impl Serialize for Raw<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut m = s.serialize_map(Some(2))?;
+            m.serialize_entry("bar_digest", &self.0.bar_digest)?;
+            m.serialize_entry("event_digest", &self.0.event_digest)?;
+            m.end()
+        }
+    }
+
+    struct Object<'a>(&'a ObjectFact);
+    impl Serialize for Object<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let o = self.0;
+            let mut m = s.serialize_map(Some(6))?;
+            m.serialize_entry("first_cut", o.first_cut.as_str())?;
+            m.serialize_entry("first_generation", &o.first_generation)?;
+            m.serialize_entry("published_generation", &o.published_generation)?;
+            m.serialize_entry("record_digest", &o.record_digest)?;
+            m.serialize_entry("source_digest", &o.source_digest)?;
+            m.serialize_entry("withdrawn", &o.withdrawn)?;
+            m.end()
+        }
+    }
+
+    struct Group<'a> {
+        object_id: &'a str,
+        seq: i64,
+    }
+    impl Serialize for Group<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut m = s.serialize_map(Some(2))?;
+            m.serialize_entry("object_id", self.object_id)?;
+            m.serialize_entry("seq", &self.seq)?;
+            m.end()
+        }
+    }
+
+    struct Seq(i64);
+    impl Serialize for Seq {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut m = s.serialize_map(Some(1))?;
+            m.serialize_entry("seq", &self.0)?;
+            m.end()
+        }
+    }
+
+    struct Cover<'a>(&'a CoverChange);
+    impl Serialize for Cover<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            match self.0 {
+                CoverChange::Group { seq, object_id } => {
+                    let mut m = s.serialize_map(Some(1))?;
+                    m.serialize_entry(
+                        "Group",
+                        &Group {
+                            object_id,
+                            seq: *seq,
+                        },
+                    )?;
+                    m.end()
+                }
+                CoverChange::Pending { seq } => {
+                    let mut m = s.serialize_map(Some(1))?;
+                    m.serialize_entry("Pending", &Seq(*seq))?;
+                    m.end()
+                }
+                CoverChange::Removed => s.serialize_str("Removed"),
+            }
+        }
+    }
+
+    struct RawMap<'a>(&'a [(i64, &'a RawFact)]);
+    impl Serialize for RawMap<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut m = s.serialize_map(Some(self.0.len()))?;
+            for (k, v) in self.0 {
+                m.serialize_entry(Decimal::of_i64(*k).as_str(), &Raw(v))?;
+            }
+            m.end()
+        }
+    }
+
+    struct CoverMap<'a>(&'a [(i64, &'a CoverChange)]);
+    impl Serialize for CoverMap<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut m = s.serialize_map(Some(self.0.len()))?;
+            for (k, v) in self.0 {
+                m.serialize_entry(Decimal::of_i64(*k).as_str(), &Cover(v))?;
+            }
+            m.end()
+        }
+    }
+
+    struct ObjectMap<'a>(&'a BTreeMap<String, ObjectFact>);
+    impl Serialize for ObjectMap<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut m = s.serialize_map(Some(self.0.len()))?;
+            for (k, v) in self.0 {
+                m.serialize_entry(k.as_str(), &Object(v))?;
+            }
+            m.end()
+        }
+    }
+
+    pub(super) struct Units<U>(pub U);
+    impl<'u, U: Iterator<Item = &'u Unit> + Clone> Serialize for Units<U> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut seq = s.serialize_seq(None)?;
+            for unit in self.0.clone() {
+                seq.serialize_element(unit)?;
+            }
+            seq.end()
+        }
+    }
+
+    /// 一代的规范 delta；`units` 为实际写入 node 的新单位（核验后筛选的集合），不是
+    /// `d.new_units`。`raw`、`cover` 须是 [`sort_by_decimal`] 排好的同一映射全部条目。
+    pub(super) struct Delta<'a, U> {
+        pub d: &'a GenerationDelta,
+        pub verifier_revision: &'a str,
+        pub units: U,
+        pub raw: &'a [(i64, &'a RawFact)],
+        pub cover: &'a [(i64, &'a CoverChange)],
+    }
+    impl<'a, 'u, U: Iterator<Item = &'u Unit> + Clone> Serialize for Delta<'a, U> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let d = self.d;
+            let mut m = s.serialize_map(Some(11))?;
+            m.serialize_entry("cover", &CoverMap(self.cover))?;
+            m.serialize_entry("effective", &d.effective)?;
+            m.serialize_entry("generation", &d.generation)?;
+            m.serialize_entry("new_units", &Units(self.units.clone()))?;
+            m.serialize_entry("objects", &ObjectMap(&d.objects))?;
+            m.serialize_entry("observations", &d.observations)?;
+            m.serialize_entry("raw", &RawMap(self.raw))?;
+            m.serialize_entry("roots", &Roots(&d.roots))?;
+            m.serialize_entry("verifier_revision", self.verifier_revision)?;
+            m.serialize_entry("withdrawals", &d.withdrawals)?;
+            m.serialize_entry("witnesses", &d.witnesses)?;
+            m.end()
+        }
+    }
+
+    /// 折叠链输入 `[previous, delta]`。
+    pub(super) struct Fold<'a, U> {
+        pub previous: &'a str,
+        pub delta: Delta<'a, U>,
+    }
+    impl<'a, 'u, U: Iterator<Item = &'u Unit> + Clone> Serialize for Fold<'a, U> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut seq = s.serialize_seq(Some(2))?;
+            seq.serialize_element(self.previous)?;
+            seq.serialize_element(&self.delta)?;
+            seq.end()
+        }
+    }
+
+    struct HashWriter(Sha256);
+    impl std::io::Write for HashWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.update(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct CountWriter(usize);
+    impl std::io::Write for CountWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.saturating_add(bytes.len());
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// 小写十六进制的 SHA-256 文本（与 `sha256_hex` 同字节），栈上 64 字节。
+    pub(super) struct Hex([u8; 64]);
+    impl Hex {
+        pub(super) fn of_digest(digest: [u8; 32]) -> Self {
+            const DIGITS: &[u8; 16] = b"0123456789abcdef";
+            let mut out = [0u8; 64];
+            for (i, b) in digest.iter().enumerate() {
+                out[2 * i] = DIGITS[usize::from(b >> 4)];
+                out[2 * i + 1] = DIGITS[usize::from(b & 0x0f)];
+            }
+            Self(out)
+        }
+        pub(super) fn of_bytes(bytes: &[u8]) -> Self {
+            Self::of_digest(Sha256::digest(bytes).into())
+        }
+        pub(super) fn as_str(&self) -> &str {
+            std::str::from_utf8(&self.0).unwrap_or_default()
+        }
+    }
+
+    /// `sha256_hex(canonical_json(value))` 的同字节结果，不建中间文本。
+    pub(super) fn hash_hex<T: Serialize + ?Sized>(value: &T) -> Result<Hex, json_writer::Error> {
+        let mut out = HashWriter(Sha256::new());
+        json_writer::write_json(&mut out, value)?;
+        Ok(Hex::of_digest(out.0.finalize().into()))
+    }
+
+    /// 写出字节数，供分配前按精确容量预留。
+    pub(super) fn json_len<T: Serialize + ?Sized>(value: &T) -> Result<usize, json_writer::Error> {
+        let mut out = CountWriter(0);
+        json_writer::write_json(&mut out, value)?;
+        Ok(out.0)
+    }
+
+    /// 写进调用方已按 [`json_len`] 预留好容量的缓冲。
+    pub(super) fn write_into<T: Serialize + ?Sized>(
+        out: &mut Vec<u8>,
+        value: &T,
+    ) -> Result<(), json_writer::Error> {
+        json_writer::write_json(out, value)
+    }
+}
+
+/// 一代的三段规范文本：cert.roots、new_units 摘要输入、折叠链输入 `[previous, delta]`。
+struct StageTexts {
+    roots: String,
+    units: String,
+    fold: String,
+}
+
+/// 现行 stage 规范文本（经 `Value` 与 `canonical_json`）。
+fn legacy_texts<'u>(
+    previous: &str,
+    d: &GenerationDelta,
+    new_units: impl Iterator<Item = &'u Unit> + Clone,
+    verifier_revision: &str,
+) -> Result<StageTexts, String> {
+    let roots = roots_value(&d.roots);
+    let unit_values = Value::Array(
+        new_units
+            .map(serde_json::to_value)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(error)?,
+    );
+    let units = canonical_json(&unit_values);
+    let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":verifier_revision,
+        "raw":d.raw,"objects":d.objects,"witnesses":d.witnesses,"observations":d.observations,
+        "withdrawals":d.withdrawals,"cover":d.cover,"effective":d.effective,"new_units":unit_values});
+    Ok(StageTexts {
+        roots: canonical_json(&roots),
+        units,
+        fold: canonical_json(&json!([previous, delta])),
+    })
+}
+
 /// 来源及闭包生产者的交接数据，不是可由此类型独立证明的审计结论。
 /// roots 固定为 scope、generated_state、publication_template、delta_template。
 #[derive(Clone)]
@@ -1369,25 +1713,15 @@ impl<B: Backend> Ledger<B> {
                 ],
             )?;
         }
-        let roots = roots_value(&d.roots);
         let unit_count = new_units.clone().count();
-        let unit_values = Value::Array(
-            new_units
-                .map(serde_json::to_value)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(error)?,
-        );
-        let units = canonical_json(&unit_values);
-        let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":verifier_revision,
-            "raw":d.raw,"objects":d.objects,"witnesses":d.witnesses,"observations":d.observations,
-            "withdrawals":d.withdrawals,"cover":d.cover,"effective":d.effective,"new_units":unit_values});
-        let fold = sha256_hex(canonical_json(&json!([previous, delta])).as_bytes());
+        let texts = legacy_texts(&previous, d, new_units, verifier_revision)?;
+        let fold = sha256_hex(texts.fold.as_bytes());
         conn.execute(
             "INSERT INTO cert VALUES(?1,?2,?3,?4,?5,?6)",
             [
                 &d.generation,
-                &canonical_json(&roots),
-                &sha256_hex(units.as_bytes()),
+                &texts.roots,
+                &sha256_hex(texts.units.as_bytes()),
                 &i64::try_from(unit_count).map_err(error)?,
                 &fold,
                 &verifier_revision,
@@ -2996,5 +3330,182 @@ pub(super) mod tests {
         assert_eq!(present.ok(), Some(320));
         assert_eq!(absent.ok(), Some(0));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn canonical_case(g: i64, keys: &[i64], text: &str, extent: Option<u64>) -> GenerationDelta {
+        use newchan_rust::s_content as sc;
+        let mut nodes = sc::MemoryNodes::new();
+        let value = sc::Value::Object(vec![(text.into(), sc::Value::Bool(g % 2 == 0))]);
+        let mut r = sc::write_value(&mut nodes, &value).unwrap().content_ref();
+        r.extent = extent;
+        let raw = keys
+            .iter()
+            .map(|&k| {
+                let fill = k.unsigned_abs() as u8;
+                (
+                    k,
+                    RawFact {
+                        event_digest: [fill; 32],
+                        bar_digest: [fill.wrapping_add(1); 32],
+                    },
+                )
+            })
+            .collect();
+        let cover = keys
+            .iter()
+            .enumerate()
+            .map(|(i, &k)| {
+                let change = match i % 3 {
+                    0 => CoverChange::Group {
+                        seq: k,
+                        object_id: text.into(),
+                    },
+                    1 => CoverChange::Pending { seq: k },
+                    _ => CoverChange::Removed,
+                };
+                (k, change)
+            })
+            .collect();
+        let objects = if keys.is_empty() {
+            BTreeMap::new()
+        } else {
+            BTreeMap::from([
+                (
+                    text.to_owned(),
+                    ObjectFact {
+                        record_digest: [3; 32],
+                        first_generation: i64::MIN,
+                        first_cut: text.into(),
+                        published_generation: i64::MAX,
+                        source_digest: [4; 32],
+                        withdrawn: g % 2 == 1,
+                    },
+                ),
+                (
+                    "a".to_owned(),
+                    ObjectFact {
+                        record_digest: [5; 32],
+                        first_generation: 1,
+                        first_cut: String::new(),
+                        published_generation: 2,
+                        source_digest: [6; 32],
+                        withdrawn: false,
+                    },
+                ),
+            ])
+        };
+        let related = || {
+            BTreeMap::from([(
+                text.to_owned(),
+                RelatedFact {
+                    record_digest: [7; 32],
+                    source_digest: [8; 32],
+                },
+            )])
+        };
+        GenerationDelta {
+            generation: g,
+            roots: [r.clone(), r.clone(), r.clone(), r],
+            verifier_revision: text.into(),
+            raw,
+            objects,
+            witnesses: related(),
+            observations: if keys.is_empty() {
+                BTreeMap::new()
+            } else {
+                related()
+            },
+            withdrawals: BTreeSet::from([text.to_owned(), "z".to_owned()]),
+            cover,
+            effective: g,
+            new_units: BTreeSet::from([
+                Unit {
+                    digest: [1; 32],
+                    flavor: Flavor::Value,
+                    mode: Mode::Public,
+                },
+                Unit {
+                    digest: [2; 32],
+                    flavor: Flavor::JsonInner,
+                    mode: Mode::Template,
+                },
+            ]),
+        }
+    }
+
+    #[test]
+    fn canonical_stream_matches_canonical_json_byte_for_byte() {
+        let long = "长".repeat(3000);
+        let texts = [
+            "plain",
+            "quote\" backslash\\ ctrl\u{1}\n\t",
+            "中文与 emoji 😀🧪",
+            long.as_str(),
+            "",
+        ];
+        let key_sets: [&[i64]; 4] = [
+            &[],
+            &[10, 2, 100, 9],
+            &[-1, -10, 0, 3, i64::MIN, i64::MAX],
+            &[1],
+        ];
+        for (g, (text, keys)) in texts.iter().zip(key_sets.iter().cycle()).enumerate() {
+            for extent in [None, Some(0), Some(u64::MAX)] {
+                let d = canonical_case(g as i64 + 1, keys, text, extent);
+                let previous = format!("prev-{text}");
+                for units in [d.new_units.iter().take(0), d.new_units.iter().take(2)] {
+                    let oracle = legacy_texts(&previous, &d, units.clone(), text).unwrap();
+                    let mut raw: Vec<_> = d.raw.iter().map(|(k, v)| (*k, v)).collect();
+                    canonical::sort_by_decimal(&mut raw);
+                    let mut cover: Vec<_> = d.cover.iter().map(|(k, v)| (*k, v)).collect();
+                    canonical::sort_by_decimal(&mut cover);
+                    let fold = canonical::Fold {
+                        previous: &previous,
+                        delta: canonical::Delta {
+                            d: &d,
+                            verifier_revision: text,
+                            units: units.clone(),
+                            raw: &raw,
+                            cover: &cover,
+                        },
+                    };
+                    let mut fold_text = Vec::new();
+                    canonical::write_into(&mut fold_text, &fold).unwrap();
+                    assert_eq!(String::from_utf8(fold_text).unwrap(), oracle.fold);
+                    let mut units_text = Vec::new();
+                    canonical::write_into(&mut units_text, &canonical::Units(units.clone()))
+                        .unwrap();
+                    assert_eq!(String::from_utf8(units_text).unwrap(), oracle.units);
+                    let mut roots_text = Vec::new();
+                    canonical::write_into(&mut roots_text, &canonical::Roots(&d.roots)).unwrap();
+                    assert_eq!(String::from_utf8(roots_text).unwrap(), oracle.roots);
+                    assert_eq!(
+                        canonical::json_len(&canonical::Roots(&d.roots)).unwrap(),
+                        oracle.roots.len()
+                    );
+                    assert_eq!(
+                        canonical::hash_hex(&fold).unwrap().as_str(),
+                        sha256_hex(oracle.fold.as_bytes())
+                    );
+                    assert_eq!(
+                        canonical::hash_hex(&canonical::Units(units))
+                            .unwrap()
+                            .as_str(),
+                        sha256_hex(oracle.units.as_bytes())
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            canonical::Hex::of_bytes(FORMAT.as_bytes()).as_str(),
+            sha256_hex(FORMAT.as_bytes())
+        );
+        for n in [0, 9, 10, -1, i64::MIN, i64::MAX] {
+            assert_eq!(canonical::Decimal::of_i64(n).as_str(), n.to_string());
+        }
+        assert_eq!(
+            canonical::Decimal::of_u64(u64::MAX).as_str(),
+            u64::MAX.to_string()
+        );
     }
 }
