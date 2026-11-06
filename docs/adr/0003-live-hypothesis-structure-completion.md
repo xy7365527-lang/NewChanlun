@@ -36,18 +36,24 @@
 
 **问题。** 破坏事实在 bar 94 已知并已留档；依赖该中枢的活假设在 bar 95 首次出生并登记。I4 组件（PR #1833，merge `60133aca03`）登记时不重评已留档事实，之后重送时门卫钟已大于 94，返回 `LatePendingRecovery`，不在出生这一步清账。这只说明当前组件没有在出生当步清账，不说明旧版本的恢复义务可以免除。
 
-### 一、具名版本 `[新缠论:选择]`
+### 一、具名版本与绑定
 
 | 版本 | 语义 |
 |---|---|
 | `#1719/center-break-completion/v1` | PR #1833 组件现行语义的登记名，冻结。出生当步不重评已留档事实；迟到判据保持 `entry.last_as_of > fact.known_at()`，不以对象曾推进或消费较晚替代该关系。 |
 | `#1719/center-break-completion/v2` | v1 加本节第二条的出生当步规则，其余与 v1 相同。 |
 
-`CompletionPolicy.version` 取上表完整字符串。映射到 ADR 0051 裁定一的 `policy_ref` 时，`policy_id` 取该字符串，`version` 取末段（`v1`/`v2`），`profile_id` 为 `null`，`content_hash` 按 ADR 0051 `content_hash_algo` 计算。登记前在 main `9ae28877b3`、PR #1855 head `a7a7102587` 与 PR #1898 head `15fc698155` 上查过，仓内没有已登记的完成政策版本，只有测试用 `synthetic-*` 字符串。
+`CompletionPolicy.version` 取上表完整字符串。映射到 ADR 0051 裁定一的 `policy_ref` 时，`policy_id` 取该字符串，`version` 取末段（`v1`/`v2`），`profile_id` 为 `null`，`content_hash` 按 ADR 0051 `content_hash_algo` 对政策记录 `{policy_id, version, anchor}` 三字段的 JCS 字节计算，`anchor` 取绑定里的完成锚。登记前在 main `9ae28877b3`、PR #1855 head `a7a7102587` 与 PR #1898 head `15fc698155` 上查过，仓内没有已登记的完成政策版本，只有测试用 `synthetic-*` 字符串。
 
 只有绑定 v2 的对象适用出生当步规则。绑定 v1 的对象保持 v1 语义。生产版本解析只接受可解析的具名已签政策，未知或未签版本不得默认为 v1。旧组件的 opaque 版本字符串调用合同及 `synthetic-*` 测试夹具在原使用条件内保留，不据此把任意字符串登记为生产 v1 别名；已有对象按原绑定及原可解析定义恢复，不改写版本值。不在 v1 判定失败后改用 v2，不把在途对象的绑定从 v1 换成 v2；换版本只能走 ADR 0051 裁定一末段的显式迁移事件。组件已有的 `PolicyFrozen` 拒绝同对象换政策，保持不变。
 
-### 二、v2 出生当步规则
+**绑定时点与粒度。** 版本在对象首次登记时随绑定写入：`pan.rs:241-269` 在选中真实 B 的位置以当时的 `as_of` 作 `registered_at` 生成绑定，`book.rs:315-320` 只在 `registered_at == observed_at` 时接受首次登记。此后同一对象不换政策（`PolicyFrozen`）。按本文件第 5 行（#1599），一次运行只读一个已签完成政策版本，运行内所有绑定都取该版本；对象级 `PolicyFrozen` 是这条规则的防线，不授权一次运行里混用 v1 与 v2。改版本即新运行按新版本重推导；旧运行的对象、旧黄金与持久历史保持原版本，恢复与 seek 读原绑定版本。
+
+**两版在同一输入上的差别。** 输入为 K94 留档、O95 首次出生时，v1 运行的 seek(95) 是 Provisional，该事实之后重送判 `LatePendingRecovery` 并待恢复；v2 运行的 seek(95) 是 Invalidated。两版输出不同，不是同一判据的两种写法。两个运行的读数不互比，也不互为兜底或对照。
+
+**未裁项（#799 / ADR 0041）。** 对同一份（事实，对象，步骤），v2 等于 v1 加一条 `Applied` 分支。若按 AGENTS.md 收敛通则（#799）与 ADR 0041 裁定二判别句，这属于同一判断的宽严两档，v1 与 v2 就不能同时作为新运行的可选版本，事前单选也不行。裁决评论 6679867936 裁了「新增具名版本、旧对象版本冻结、严格失败不兜底」，没有裁新运行能否选 v1，也没有给 ADR 0041 第三条要求的默认值。本节因此只登记版本名与已绑定对象的冻结和恢复规则，不授权新运行选用 v1，也不指定默认版本；center_break 的生产启用条件仍是第 7 行的接桥。该项待主控裁定后在本节追加。
+
+### 二、v2 出生当步规则 `[新缠论:选择]`
 
 前提全部成立时适用：
 
@@ -71,22 +77,24 @@
 ### 四、责任与写区
 
 - **I4 合同/组件线**（#1719）：版本分派、v2 窄规则、`RecomputedWithRevision` 结果合同、组件测试。
-- **S 结构域单写者**（#1419）：真实出生步骤、留档事实匹配、持久化与恢复。账本属 S 结构观察域（ADR 0027 裁定的结构域唯一 owner），不按 B 原子持久派给 B owner，也不新增第二个结构事实权威。
+- **S 结构域单写者**（#1419）：真实出生步骤、留档事实匹配、持久化与恢复。这项归属由裁决评论 6679867936 指定，不是 ADR 0027 已裁的内容：ADR 0027:25-28 只把纵向主干塔与唯一 Classification 划给结构判定域，全文不提活假设账本。裁决依据是 `book.rs:20-22`（本 book 是观察记录，不进交易输入）、ADR 0037:12（S 发布已有 `observations` 等版本内容出口）与 ADR 0027:32（任何结构事实或操作状态只有一个生产 owner）。仓内 `.chanlun/review-results/issue1719-recovery-20261026/REPORT.md:90,181` 曾写「B 原子持久」，按裁决不据此派给 B owner，也不新增第二个结构事实权威。
 - **事实来源**（#1434，连同 #1419）：真实 `Broken`、稳定对象修订、source_coord 到 `physical_bar` 与 `known_at` 的映射。
 - **launcher 消费**（#1523、#1769）：正式回放与 paper 同核证据。
 - PR #1855 的在飞写区（含 `nest_lifecycle.rs`、`nest_lifecycle/window.rs`、ADR 0037）不另派竞争写者；写区交接由主控安排。两阶段提交等布局由技术 owner 证明结果一致，本节不规定事务数量。
 
 ### 五、受影响代码（行号固定到 main `9ae28877b3`；`nest_lifecycle/` 目录与 merge `60133aca03` 逐字相同）
 
-路径前缀 `rust/src/theta_v0/classifier/nest_lifecycle/`。仓内除 `nest_lifecycle.rs:141` 的再导出外，没有生产调用方调用 `apply_center_breaks`、`feed_replay_bar_with_bridges` 或构造 `CompletionPolicy`。
+路径前缀 `rust/src/theta_v0/classifier/nest_lifecycle/`。仓内除 `nest_lifecycle.rs:140-144`、`:149-153` 的再导出和 `#[cfg(test)]` 模块外，没有生产调用方调用 `provide_active_pan_live_windows_with_policy`、`feed_replay_bar_with_bridges`、`apply_center_breaks`、`register_center_bridge` 或构造 `CompletionPolicy`。Python 与 Lean 零命中：`git grep -n -P '\bcenter_break\b|CenterBreak|CompletionPolicy|completion_anchor|HypothesisBridge|apply_center_break|LatePendingRecovery' 9ae28877b3 -- '*.py' '*.lean'` 无输出。
 
 - `center_break.rs:14-19` `CompletionPolicy`：版本字符串须能解析到第一条的登记名。
 - `center_break.rs:21-28` `CenterBreakFact`：只存事件、`physical_bar`、`known_at`，不能证明「出生前已留档」。v2 需要可查的留档先后证据。
 - `center_break.rs:118-123` `BreakApplicationKey`：去重键含 `policy_version`，同事实重送须返回原应用或 `AlreadyApplied`。
-- `center_break.rs:125-134` `CenterBreakAudit`：现有 `consumed_at` 一个钟，v2 须分存 `fact_known_at` 与 `application_at`。
+- `center_break.rs:125-134` `CenterBreakAudit`：已含 `fact`（带 `known_at`、`physical_bar`）、`bridge.registered_at` 与 `consumed_at`，缺 `application_at`。v1 的应用钟等于 `known_at`，不等于 `consumed_at`；v2 须单独存 `application_at`。
 - `center_break.rs:144-155` `CenterBreakOutcome`：v1 分支保持。
+- `pan.rs:241-269` `provide_active_pan_live_windows_with_policy`：绑定与政策的真实入口，`policy.clone()` 写入绑定，`registered_at = as_of`。版本在此随绑定固定。
 - `book.rs:270-322` `register_center_bridge`：首次登记要求 `registered_at == observed_at`，登记不重评事实。v2 的出生当步匹配落在这一步或同一逻辑步骤内。
-- `book.rs:324-415` `apply_center_break`：`:390-393` 迟到分支保持 v1 语义；`:400-411` 以 `fact.known_at()` 调 `admit` 与 `invalidate`，v2 出生当步须以 t 作应用钟并保留 K。
+- `book.rs:324-442` `apply_center_break`：`:390-393` 迟到分支保持 v1 语义；`:400-411` 以 `fact.known_at()` 调 `admit` 与 `invalidate`，v2 出生当步须以 t 作应用钟并保留 K；`:412-419` 写审计，v2 须写入 `application_at`；`:421-438` 追加 attempts；`:439-440` 在 debug 构建调用不变量检查。
+- `book.rs:765-775` `assert_invariants` 的 `CenterBreak` 分支：`:768-770` 要求存在 `audit.fact.known_at() == invalidated` 的审计，`:771-774` 要求 `invalidated <= last_as_of`。v1 保留这条时钟关系；v2 下 `invalidated_at = 95`、`fact_known_at = 94`，原断言会失败，须按版本分派，改为核 `application_at == invalidated` 并另核 `fact_known_at` 原值。
 - `feed.rs:255-286` `feed_replay_bar_with_bridges`：先 `feed_replay_bar` 再登记绑定，出生当步匹配的调用顺序在此。
 - `feed.rs:288-299` `apply_center_breaks`：调用方须处理待恢复与未就绪，不能只收集修订。
 
