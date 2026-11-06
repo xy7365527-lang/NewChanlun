@@ -19,7 +19,7 @@ from pilot1742 import agent as agent_module
 from pilot1742 import approval, boat_execution, cli
 from pilot1742 import run as run_module
 from pilot1742.boat_execution import ExecutionUnknown, ForkIntent, new_execution
-from pilot1742.domain import EffectUnknown, WorkerKey
+from pilot1742.domain import DEEPAGENTS_OUTPUT_PROTOCOL, EffectUnknown, WorkerKey
 from pilot1742.executor import ApprovalRequired, load_unit, open_v2_run, release_claim
 from pilot1742.run import Halted, PilotRun
 
@@ -487,6 +487,17 @@ def test_repeated_unknown_resume_keeps_one_binding_and_formal_stop(bench):
         assert len(bench.forks.intents) == 1
 
 
+def receipt_for_intent(run, key, record):
+    intent = json.loads((run.dir / 'intents' / f'{key.name}.json').read_text())
+    protocol = intent.get('output_protocol', 'legacy')
+    assert protocol in ('legacy', DEEPAGENTS_OUTPUT_PROTOCOL)
+    record['result']['status'] = 'completed'
+    if protocol == DEEPAGENTS_OUTPUT_PROTOCOL:
+        record['output_protocol'] = protocol
+        record['result'].update(confidence='medium', caveats=['仅夹具验证'])
+    return record
+
+
 def collect_completed(bench, key):
     run, engine = bench.run, bench.run.execution
     run._prepare_dispatch(key, '夹具', run.facts())
@@ -502,6 +513,7 @@ def collect_completed(bench, key):
                                                                 'status': '?? demo/a.py' if author else ''},
                           'result': {'summary': '完成' if author else 'VERDICT: PASS\n审阅通过',
                                      'findings': [], 'validation': []}}}
+    receipt['record'] = receipt_for_intent(run, key, receipt['record'])
     with run._fence('dispatch'):
         engine.collect(key, receipt)
     return json.loads((run.dir / 'boat/packages' / binding.package_id / 'request.json').read_text())['spec']
@@ -578,13 +590,14 @@ def test_spec_resigned_between_publish_effects_stops_before_the_next_write(bench
 
 def completed_author_receipt(bench):
     binding, model = bench.binding(), str(bench.run.spec.author_model)
+    record = {'ticket': TICKET, 'status': 'completed', 'expected_head': bench.key.target_head,
+              'model': model, 'actual_model': model, 'mode': 'execute', 'run_id': 'child',
+              'process_exit': {'code': 0, 'signal': None},
+              'checkout_after': {'head': bench.key.target_head, 'status': '?? demo/a.py'},
+              'result': {'summary': '完成', 'findings': [], 'validation': []}}
     return {'identity': binding.identity, 'package_id': binding.package_id, 'state': 'terminal', 'exit_code': 0,
             'files': [{'path': 'demo/a.py', 'mode': '100644', 'content': 'eA=='}],
-            'record': {'ticket': TICKET, 'status': 'completed', 'expected_head': bench.key.target_head,
-                       'model': model, 'actual_model': model, 'mode': 'execute', 'run_id': 'child',
-                       'process_exit': {'code': 0, 'signal': None},
-                       'checkout_after': {'head': bench.key.target_head, 'status': '?? demo/a.py'},
-                       'result': {'summary': '完成', 'findings': [], 'validation': []}}}
+            'record': receipt_for_intent(bench.run, bench.key, record)}
 
 
 def author_submitted_under_spec_a(bench):
@@ -597,8 +610,14 @@ def author_submitted_under_spec_a(bench):
     bench.boat.stage_receipt(completed_author_receipt(bench))
 
 
-def test_same_spec_receipt_is_collected_once_through_the_tool_chain(bench):
+@pytest.mark.parametrize('legacy_intent', [False, True])
+def test_same_spec_receipt_is_collected_once_through_the_tool_chain(bench, legacy_intent):
+    if legacy_intent:
+        bench.monkeypatch.setattr(bench.run, '_output_protocol', lambda: 'legacy')
     author_submitted_under_spec_a(bench)
+    record = bench.boat.receipt['record']
+    assert ('output_protocol' not in record) is legacy_intent
+    assert ('confidence' not in record['result']) is legacy_intent
     bench.release()
     bench.brain(AIMessage('作者完成'))
     explicit_resume(bench)

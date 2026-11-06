@@ -30,6 +30,14 @@ node --import tsx .sandcastle/codex-child.mts \
 
 入口写出 `state.json`、`events.jsonl`、原始输出与 `result.json`，后者绑定前后版本、实际退出状态和外部会话。运行完成与任务审查通过是两件事：即使外部工蜂正常退出，仍须读取结果中的发现并解决阻断项。取消或失败保留工作区与证据，管理者负责后续处置。
 
+## Deep Agents 的自报字段
+
+默认结果 schema 严格保持 `status`、`summary`、`findings`、`validation` 四键。Deep Agents 派工通过 `--output-protocol deepagents-self-report-v1` 选择独立六键 schema，额外要求 `confidence` 为 `high`、`medium` 或 `low`，`caveats` 为字符串数组。没有局限时返回空数组。
+
+Boat 派工按 run 冻结的 `runtime_head` 中 `codex-child.ts` 的协议声明选择 schema；旧运行时的新工蜂仍用四键，提示词也保持四键，控制端升级不会改变这一点。本地 launcher 使用当前控制端的运行时。Deep Agents 把选择固定在派工 intent 中，Boat 封包把它带进 request；新协议的本地与云端回执记录 `output_protocol`。恢复核对回执与 intent 的协议，拒绝删除标记来降级结果。无协议标记的旧 intent 和旧回执仍走四键，不重派已有工蜂。
+
+主控工具投影及设计裁判、返修提示保留模型自报值。旧回执仍投影为 `low` 并说明它来自适配器。自报字段不参与 PASS、签批或发布准入。
+
 ## 一次收齐交付材料
 
 每片先收齐必要代码、验证和实体报告，再请求具体版本的合入。顺序如下：

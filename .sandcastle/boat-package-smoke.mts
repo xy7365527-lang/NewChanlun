@@ -1,12 +1,13 @@
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import type { BindMountSandboxHandle } from "@ai-hero/sandcastle";
+import { codex, type BindMountSandboxHandle } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { assertContainerIsolationContract, hardenProvider } from "./docker-isolation.mts";
+import { CodexTranscript, DEEPAGENTS_OUTPUT_PROTOCOL, outputProtocol, workerOutputSchema } from "./codex-child.ts";
 
-const [source, image] = process.argv.slice(2);
+const [source, image, requestFile] = process.argv.slice(2);
 if (!source || !image) throw new Error("需要技能包目录和冻结image ID");
 const root = resolve(source);
 const repo = mkdtempSync(join(tmpdir(), "boat-package-smoke-"));
@@ -27,6 +28,29 @@ const handle = await provider.create({ worktreePath: repo, hostRepoPath: repo, e
   { hostPath: join(root, "project-skills"), sandboxPath: "/workspace/repo/.agents/skills", readonly: true },
 ] });
 try {
+  if (requestFile) {
+    const request = JSON.parse(readFileSync(requestFile, "utf8"));
+    const protocol = outputProtocol(request.output_protocol);
+    if (protocol !== DEEPAGENTS_OUTPUT_PROTOCOL || !request.prompt.includes("confidence")
+      || !request.prompt.includes("caveats")) throw new Error("Deep Agents 提示与协议不一致");
+    const output = { status: "completed", summary: "零模型回执", findings: [], validation: [],
+      confidence: "medium", caveats: ["夹具只验证协议"] };
+    const schemaFile = join(repo, "output-smoke.json");
+    writeFileSync(schemaFile, JSON.stringify({ schema: workerOutputSchema(protocol), output }));
+    await handle.copyFileIn(schemaFile, "/tmp/output-smoke.json");
+    const probe = await handle.exec("bun -e 'const {schema,output}=await Bun.file(\"/tmp/output-smoke.json\").json();"
+      + "if(schema.additionalProperties!==false || schema.required.sort().join()!==Object.keys(output).sort().join())process.exit(1);"
+      + "console.log(JSON.stringify(output));'");
+    if (probe.exitCode !== 0) throw new Error(`云端六键 schema smoke 失败 (${probe.exitCode})：${probe.stderr}`);
+    const transcript = new CodexTranscript(codex("gpt-6.1-sol"), protocol);
+    for (const event of [
+      { type: "thread.started", thread_id: "smoke-session" },
+      { type: "item.completed", item: { type: "agent_message", text: probe.stdout.trim() } },
+      { type: "turn.completed" },
+    ]) transcript.accept(JSON.stringify(event));
+    if (JSON.stringify(transcript.output()) !== JSON.stringify(output)) throw new Error("自报字段往返不一致");
+    console.log(JSON.stringify({ outputProtocol: protocol, fixture: true, realModel: false, output: transcript.output() }));
+  }
   const result = await handle.exec(`set -eu
 pstack=$(find /opt/newchanlun/pstack/installed/skills -name SKILL.md | wc -l)
 project=$(find /workspace/repo/.agents/skills -name SKILL.md | wc -l)
