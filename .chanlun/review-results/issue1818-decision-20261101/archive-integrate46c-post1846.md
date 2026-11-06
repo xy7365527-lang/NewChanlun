@@ -1,0 +1,9 @@
+# PR1843 对新 main 的集成核验
+
+PR head保持55d012bf223ef2cff70abef648996b464966d433。新main为PR1846合入eab5dd106c42daf1ee5cbc3898a08898479e7f9b。
+
+真实GitHub compare显示新增main只动6个Rust及运行手册文件；PR1843的25文件为1818报告、ADR0059与DevSkim登记，两侧无文件交集。
+
+作者工位status --short为空。fetch后执行 git merge-tree --write-tree 55d012bf223ef2cff70abef648996b464966d433 eab5dd106c42daf1ee5cbc3898a08898479e7f9b 成功，树609e4908560987eb2b86339fb84cff4833752461。
+
+原源审及并集增量审继续有效。PR完整CI仍剩native/owned/release-locks；全部成功后再核head/main，无变化即可合入。此检查未修改分支或工作文件。
