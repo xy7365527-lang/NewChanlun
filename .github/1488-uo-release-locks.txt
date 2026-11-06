@@ -28,5 +28,7 @@ v3::audit_owner::history_clamp::charged_tests::clamp_observes_and_receipts_commi
 v3::audit_owner::step_reader::charged_tests::charged_owner_lifecycle_and_gate_on_same_parent
 # #1419 3C U5 F2/F3：封印 reader 在夹持 SQL 内首拒按值为 Budget、窄收尾撤封后回滚、首拒保持、字节返还
 v3::audit_owner::step_reader::charged_tests::charged_sealed_reader_first_refusal_in_clamp_sql_is_typed_and_rolls_back
-# #1419 3C effects S1：effects 写记录与 TxStore 经受管 owner 守卫真实读写（节点收据与 C 行回调同一 journal、finish 精确覆盖），首拒后节点读按值 Budget、窄收尾撤回调并回滚、字节返还
+# #1419 3C effects S1：effects 写记录与 TxStore 经受管 owner 守卫真实读写（节点收据与 C 行回调同一 journal、finish 精确覆盖）；负控：域已预置首拒时节点读按值 Budget、窄收尾撤回调并回滚、字节返还
 v3::audit_owner::effects::charged_tests::charged_effects_record_txstore_writes_and_type_first_refusal
+# #1419 3C effects S1 F2/F3：真实受管行写进入更新回调、回调内 journal 同父许可遭拒按值记为首拒：执行中写返回 Budget、后续同拒不进回调、窄收尾撤回调回滚、首拒保留、字节返还
+v3::audit_owner::effects::charged_tests::charged_effects_update_hook_parent_refusal_is_typed_first_refusal

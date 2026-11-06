@@ -380,6 +380,8 @@ impl Journal {
             Ok(permit) => permit,
             Err(_) => {
                 self.overflow = true;
+                #[cfg(all(test, unix))]
+                let _ = JOURNAL_PARENT_REFUSED.try_with(|refused| refused.set(true));
                 #[cfg(test)]
                 self.observe_failure("journal-parent-reserve", Some(new_blocks), None, None, None);
                 return false;
@@ -624,14 +626,14 @@ impl Recording {
                 }))
                 .map_err(invalid)?;
             }
-            // 受管守卫：C 回调借用守卫所在连接作上下文（不新建 Rust 持有），记录进本线程已登记的
+            // 受管守卫：C 回调借用守卫所在连接（及其绑定）作上下文（不新建 Rust 持有），记录进本线程已登记的
             // 同一 journal（`NODE_JOURNAL`，键为该连接的 `ConnectionId`）。回调由 `finish` 或守卫
             // 的窄收尾（`clear_write_hooks`）撤下，二者都在连接被守卫借用期间。
             #[cfg(all(test, feature = "s_incremental", unix))]
             OwnerTx::Charged(txn) => {
                 let hook = newchan_rust::s_content::capture_allocation::sqlite_parent::Callback {
                     callback: record_update_charged,
-                    context: std::ptr::from_ref(txn.connection())
+                    context: std::ptr::from_ref(txn.conn)
                         .cast_mut()
                         .cast::<std::ffi::c_void>(),
                 };
@@ -1164,11 +1166,14 @@ unsafe extern "C" fn record_update_charged(
     table: *const std::ffi::c_char,
     rowid: i64,
 ) {
-    use newchan_rust::s_content::capture_allocation::sqlite_parent::ChargedConnection;
     // SAFETY: start_inner installs the guard's connection as context and removes the hook before
     // the guard releases it.
-    let key =
-        JournalKey::Charged(unsafe { &*context.cast_const().cast::<ChargedConnection>() }.id());
+    let owner = unsafe {
+        &*context
+            .cast_const()
+            .cast::<super::owner_sql::ChargedOwnerConn>()
+    };
+    let key = JournalKey::Charged(owner.connection.id());
     /// # Safety
     /// `p` is null or a NUL-terminated string that outlives `'a`.
     unsafe fn name<'a>(p: *const std::ffi::c_char) -> Option<&'a str> {
@@ -1193,6 +1198,7 @@ unsafe extern "C" fn record_update_charged(
         let Ok(mut j) = journal.lock() else {
             return;
         };
+        JOURNAL_PARENT_REFUSED.set(false);
         record_update(
             &mut j,
             rusqlite::hooks::Action::from(action),
@@ -1200,7 +1206,46 @@ unsafe extern "C" fn record_update_charged(
             table,
             rowid,
         );
+        latch_journal_refusal(&owner.binding, &owner.connection, &j);
     });
+}
+
+thread_local! {
+    /// 受管守卫：本线程 journal 刚有一次同父许可遭拒（`reserve_one` 记，受管行回调与节点收据各在
+    /// 自己的预留前清、预留后取）。不进 `Journal`，不改变其布局与按 `size_of` 结算的 journal 账。
+    #[cfg(all(test, unix))]
+    static JOURNAL_PARENT_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// 受管守卫上 journal 的同父许可刚遭拒：按值记为该绑定冻结域的首拒，由执行中的操作返回、后续
+/// 准入同拒，收尾照常。只认共享原父账的 journal（私有子账的拒绝是自身帽，仍按原 overflow 处理）；
+/// 不执行 SQL、不分配（父账句柄为引用计数复制）。
+#[cfg(all(test, unix))]
+fn latch_journal_refusal(
+    binding: &newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteBinding,
+    connection: &newchan_rust::s_content::capture_allocation::sqlite_parent::ChargedConnection,
+    j: &Journal,
+) {
+    if !JOURNAL_PARENT_REFUSED
+        .try_with(|refused| refused.replace(false))
+        .unwrap_or(false)
+    {
+        return;
+    }
+    let Some((parent, origin)) = j
+        .resources
+        .as_ref()
+        .filter(|r| r.shared_parent)
+        .map(|r| r.budget.sqlite_parent())
+    else {
+        return;
+    };
+    binding.latch_parent_refusal(
+        connection,
+        &parent,
+        origin,
+        sc::capture_allocation::scratch::ScratchFailure::Budget,
+    );
 }
 
 thread_local! {
@@ -1274,7 +1319,13 @@ pub(crate) fn note_node(tx: OwnerTx<'_>, digest: [u8; 32], before: u64, inserted
         };
         let fresh = existed.is_none();
         let set = j.set_required;
+        #[cfg(all(test, unix))]
+        let _ = JOURNAL_PARENT_REFUSED.try_with(|refused| refused.set(false));
         if !j.reserve_receipt(fresh, fresh, set) {
+            #[cfg(all(test, unix))]
+            if let OwnerTx::Charged(txn) = tx {
+                latch_journal_refusal(txn.binding(), txn.connection(), &j);
+            }
             return;
         }
         if fresh {
@@ -3808,77 +3859,118 @@ fn publish_stale(detail: &str) -> PublishError {
 }
 
 /// #1419 3C effects S1：effects 写记录与 `TxStore` 在受管 owner 守卫上的真实读写（真实父账、
-/// 全新进程）。行变更回调与节点收据记入同一 journal，`finish` 精确覆盖实际写；守卫所在连接上
-/// 首拒之后，节点读按值带 Budget，回调由守卫窄收尾撤下并回滚。
+/// 全新进程，各锁一个进程）。
 #[cfg(all(test, unix))]
 mod charged_tests {
     use super::super::owner_sql::{ChargedOwner, ChargedOwnerConn};
     use super::*;
     use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
     use newchan_rust::s_content::capture_allocation::sqlite_parent::{
-        SqlGate, SqliteParentAllocator,
+        SqlGate, SqliteBinding, SqliteParentAllocator,
     };
     use newchan_rust::s_content::{NodeRead, NodeSink, NodeSource};
-    use rusqlite::TransactionBehavior;
+    use rusqlite::{ffi, TransactionBehavior};
     use std::rc::Rc;
 
     const LIMIT: usize = 64 << 20;
 
+    /// 装 allocator、出生父账与冻结域、建受管库（`content_store::SCHEMA` 与 meta/协议表）。
+    /// 字段按析构次序：绑定、冻结域、根父账，allocator 最后（同各锁局部变量的析构次序）。
+    struct Fixture {
+        binding: Rc<SqliteBinding>,
+        current: native::Budget,
+        _root: native::Budget,
+        allocator: SqliteParentAllocator,
+        dir: std::path::PathBuf,
+        path: std::ffi::CString,
+        base: usize,
+    }
+    impl Fixture {
+        fn new(name: &str) -> Self {
+            // SAFETY: each lock runs alone in a fresh process before any SQLite use.
+            let allocator =
+                unsafe { SqliteParentAllocator::install() }.expect("install before init");
+            let root = native::Budget::fresh(LIMIT).unwrap();
+            let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+            let (parent, origin) = current.sqlite_parent();
+            let binding = Rc::new(allocator.bind(parent, origin).expect("bind"));
+            let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let path = std::ffi::CString::new(dir.join("owner.sqlite3").to_str().unwrap()).unwrap();
+            let base = current.live();
+            let fixture = Self {
+                allocator,
+                current,
+                binding,
+                dir,
+                path,
+                base,
+                _root: root,
+            };
+            let schema = format!(
+                "PRAGMA journal_mode=WAL;
+                 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY, protocol_revision TEXT NOT NULL);
+                 INSERT INTO s_protocol_meta VALUES(1, 's-session/3');
+                 {}
+                 INSERT INTO s_content_meta VALUES(1, '{}');",
+                crate::content_store::SCHEMA,
+                sc::CONTENT_FORMAT
+            );
+            let seed = fixture.open();
+            fixture
+                .binding
+                .run(&seed.connection, |q| q.execute_batch(&schema))
+                .unwrap();
+            fixture.close(seed);
+            fixture
+        }
+        fn open(&self) -> ChargedOwnerConn {
+            ChargedOwnerConn {
+                binding: self.binding.clone(),
+                connection: self.binding.open(&self.path).unwrap(),
+            }
+        }
+        fn close(&self, conn: ChargedOwnerConn) {
+            self.binding.clear_write_hooks(&conn.connection).unwrap();
+            self.binding
+                .close(conn.connection)
+                .map_err(|(_, e)| e)
+                .unwrap();
+        }
+        fn finish(self) {
+            assert_eq!(
+                self.current.live(),
+                self.base,
+                "every block returned to the parent"
+            );
+            assert!(!self.allocator.is_broken());
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn node(nodes: &mut sc::MemoryNodes, text: &str) -> ([u8; 32], u8, Vec<u8>) {
+        let digest = sc::write_value(nodes, &sc::Value::String(text.into()))
+            .unwrap()
+            .content_ref()
+            .digest()
+            .unwrap();
+        let (tag, body) = nodes.get(&digest).unwrap();
+        (digest, tag, body.to_vec())
+    }
+
+    /// 成功段：同一受管事务上 journal 记下节点写（TxStore 收据）与行写（C 回调），finish 精确覆盖。
+    /// 负控段：域已先首拒（预置，非回调故障）时节点读按值带 Budget，撤回调被拒，守卫窄收尾回滚。
     #[test]
     #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
     fn charged_effects_record_txstore_writes_and_type_first_refusal() {
-        // SAFETY: this test runs alone in a fresh process before any SQLite use.
-        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
-        let root = native::Budget::fresh(LIMIT).unwrap();
-        let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
-        let (parent, origin) = current.sqlite_parent();
-        let binding = Rc::new(allocator.bind(parent, origin).expect("bind"));
-        let dir = std::env::temp_dir().join(format!("charged-effects-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let db = dir.join("owner.sqlite3");
-        let path = std::ffi::CString::new(db.to_str().unwrap()).unwrap();
-
+        let f = Fixture::new("charged-effects");
         let mut nodes = sc::MemoryNodes::new();
-        let mut node = |text: &str| {
-            let digest = sc::write_value(&mut nodes, &sc::Value::String(text.into()))
-                .unwrap()
-                .content_ref()
-                .digest()
-                .unwrap();
-            let (tag, body) = nodes.get(&digest).unwrap();
-            (digest, tag, body.to_vec())
-        };
-        let (first, first_tag, first_body) = node("charged effects");
-        let (second, second_tag, second_body) = node("after first refusal");
+        let (first, first_tag, first_body) = node(&mut nodes, "charged effects");
+        let (second, second_tag, second_body) = node(&mut nodes, "after first refusal");
 
-        let base = current.live();
-        let open = || ChargedOwnerConn {
-            binding: binding.clone(),
-            connection: binding.open(&path).unwrap(),
-        };
-        let close = |conn: ChargedOwnerConn| {
-            binding.clear_write_hooks(&conn.connection).unwrap();
-            binding.close(conn.connection).map_err(|(_, e)| e).unwrap();
-        };
-        let schema = format!(
-            "PRAGMA journal_mode=WAL;
-             CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-             CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY, protocol_revision TEXT NOT NULL);
-             INSERT INTO s_protocol_meta VALUES(1, 's-session/3');
-             {}
-             INSERT INTO s_content_meta VALUES(1, '{}');",
-            crate::content_store::SCHEMA,
-            sc::CONTENT_FORMAT
-        );
-        let seed = open();
-        binding
-            .run(&seed.connection, |q| q.execute_batch(&schema))
-            .unwrap();
-        close(seed);
-
-        // 成功：同一受管事务上 journal 记下节点写（TxStore 收据）与行写（C 回调），finish 精确覆盖。
-        let owner = AuditConnection::<ChargedOwner>::new(open()).unwrap();
+        let owner = AuditConnection::<ChargedOwner>::new(f.open()).unwrap();
         let active = owner.begin(TransactionBehavior::Immediate).unwrap();
         let txn = active.transaction.as_ref().unwrap();
         let tx = OwnerTx::Charged(txn);
@@ -3887,13 +3979,13 @@ mod charged_tests {
             Table::Meta.original_sql(),
             [],
             1 << 20,
-            &current,
+            &f.current,
         )
         .unwrap()
         .expect("meta originals fit");
         let mut originals = [meta];
         let recording =
-            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &current, LIMIT)
+            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &f.current, LIMIT)
                 .unwrap()
                 .expect("journal fits");
         assert!(has_journal_key(tx.journal_key()).unwrap());
@@ -3922,30 +4014,29 @@ mod charged_tests {
         assert_eq!(changes.len(), 2);
         assert!(changes.contains(&(Table::Meta, false, true)));
         assert!(changes.contains(&(Table::Node, false, true)));
-        assert!(binding.live_bytes() > 0, "owner bytes live on the parent");
+        assert!(f.binding.live_bytes() > 0, "owner bytes live on the parent");
         drop(effects);
         drop(originals);
         drop(active);
         assert!(!owner.retired.get());
 
-        // 首拒：节点读按值带 Budget；撤回调被拒，守卫的窄收尾撤下回调、清 journal 并回滚。
         let active = owner.begin(TransactionBehavior::Immediate).unwrap();
         let txn = active.transaction.as_ref().unwrap();
         let tx = OwnerTx::Charged(txn);
         let key = tx.journal_key();
         let recording =
-            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &current, LIMIT)
+            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &f.current, LIMIT)
                 .unwrap()
                 .expect("journal fits");
         let mut typed = None;
-        let work = current.codec_work().ok().expect("codec work");
+        let work = f.current.codec_work().ok().expect("codec work");
         let _ = work.run(|scope| {
             let mut store = crate::content_store::TxStore::on(tx)
                 .unwrap()
                 .with_work(Some(scope));
             let refused = txn.run(|_| {
                 // SAFETY: plain SQLite allocation inside the operation domain; null is expected.
-                assert!(unsafe { rusqlite::ffi::sqlite3_malloc64(LIMIT as u64 + 1) }.is_null());
+                assert!(unsafe { ffi::sqlite3_malloc64(LIMIT as u64 + 1) }.is_null());
                 Ok(())
             });
             assert_eq!(refused, Err(SqlGate::Refused(ScratchFailure::Budget)));
@@ -3963,10 +4054,146 @@ mod charged_tests {
         drop(active);
         assert!(!has_journal_key(key).unwrap());
         assert!(owner.connection.connection.is_autocommit());
-        assert_eq!(binding.refusal(), Some(ScratchFailure::Budget));
-        close(owner.connection);
-        assert_eq!(current.live(), base, "every block returned to the parent");
-        assert!(!allocator.is_broken());
-        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(f.binding.refusal(), Some(ScratchFailure::Budget));
+        f.close(owner.connection);
+        f.finish();
+    }
+
+    /// `pad()` 被调用时（语句执行中、行写与其更新回调之前）把父账余量压到 `leave` 字节。
+    struct Pad {
+        budget: native::Budget,
+        leave: usize,
+        permit: Option<native::Permit>,
+    }
+    thread_local! {
+        static PAD: std::cell::RefCell<Option<Pad>> = const { std::cell::RefCell::new(None) };
+    }
+    unsafe extern "C" fn pad(
+        context: *mut ffi::sqlite3_context,
+        _: std::ffi::c_int,
+        _: *mut *mut ffi::sqlite3_value,
+    ) {
+        PAD.with(|slot| {
+            if let Some(pad) = slot.borrow_mut().as_mut() {
+                let bytes = pad.budget.remaining().saturating_sub(pad.leave);
+                pad.permit = pad.budget.reserve(bytes).ok();
+            }
+        });
+        // SAFETY: context is the live function context SQLite passed in.
+        unsafe { ffi::sqlite3_result_int64(context, 7) };
+    }
+
+    /// 真实受管行写触发更新回调，回调内 journal keys 扩块向共享原父账取许可遭拒：首拒按值记在
+    /// 绑定冻结域；执行中的写操作返回它，后续操作同拒且不再进入回调；撤回调被拒，守卫窄收尾撤回调、
+    /// 清 journal、回滚；首拒保留；关后父账归零。
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn charged_effects_update_hook_parent_refusal_is_typed_first_refusal() {
+        let f = Fixture::new("charged-effects-hook");
+        let owner = AuditConnection::<ChargedOwner>::new(f.open()).unwrap();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        let txn = active.transaction.as_ref().unwrap();
+        let tx = OwnerTx::Charged(txn);
+        let key = tx.journal_key();
+        let rc = txn
+            .run(|q| {
+                // SAFETY: test-only scalar on the guard's live handle, inside this operation.
+                Ok(unsafe {
+                    ffi::sqlite3_create_function_v2(
+                        q.handle(),
+                        c"pad".as_ptr(),
+                        0,
+                        ffi::SQLITE_UTF8,
+                        std::ptr::null_mut(),
+                        Some(pad),
+                        None,
+                        None,
+                        None,
+                    )
+                })
+            })
+            .unwrap();
+        assert_eq!(rc, ffi::SQLITE_OK);
+        let recording =
+            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &f.current, LIMIT)
+                .unwrap()
+                .expect("journal fits");
+        let first_block = recording.journal.lock().unwrap().keys.capacity();
+        for i in 0..first_block {
+            let name = format!("k{i}");
+            txn.run(|q| q.execute("INSERT INTO meta VALUES(?1, 'v')", [&name]))
+                .unwrap();
+        }
+        {
+            let j = recording.journal.lock().unwrap();
+            assert_eq!(
+                j.keys.len(),
+                j.keys.capacity(),
+                "next row needs a new keys block"
+            );
+            assert!(!j.overflow);
+            assert_eq!(j.coverage.as_ref().unwrap().hook_events, first_block as u64);
+        }
+        assert_eq!(f.binding.refusal(), None);
+        let next_block = vec_bytes::<Key>(first_block * 2);
+        PAD.with(|slot| {
+            *slot.borrow_mut() = Some(Pad {
+                budget: f.current.clone(),
+                leave: next_block - 1,
+                permit: None,
+            })
+        });
+        let refused = txn.run(|q| q.execute("INSERT INTO meta VALUES('over', pad())", []));
+        assert_eq!(
+            refused,
+            Err(SqlGate::Refused(ScratchFailure::Budget)),
+            "the running write returns the callback's typed refusal"
+        );
+        assert!(
+            PAD.with(|slot| slot.borrow().as_ref().is_some_and(|p| p.permit.is_some())),
+            "pad() ran inside the statement before the row hook"
+        );
+        {
+            let j = recording.journal.lock().unwrap();
+            assert_eq!(
+                j.coverage.as_ref().unwrap().hook_events,
+                first_block as u64 + 1,
+                "the update hook was entered"
+            );
+            assert!(j.overflow, "the keys block was not granted");
+            assert_eq!(
+                j.keys.len(),
+                first_block,
+                "no key recorded without a permit"
+            );
+        }
+        assert_eq!(f.binding.refusal(), Some(ScratchFailure::Budget));
+        // 后续普通操作同拒，不再进入 SQLite 与回调。
+        assert_eq!(
+            txn.run(|q| q.execute("INSERT INTO meta VALUES('after', 'v')", [])),
+            Err(SqlGate::Refused(ScratchFailure::Budget))
+        );
+        assert_eq!(
+            recording
+                .journal
+                .lock()
+                .unwrap()
+                .coverage
+                .as_ref()
+                .unwrap()
+                .hook_events,
+            first_block as u64 + 1
+        );
+        assert!(
+            recording.finish(tx, &mut [], 16 << 20).is_err(),
+            "removing the hook is an ordinary operation, refused after the first refusal"
+        );
+        drop(active);
+        assert!(!has_journal_key(key).unwrap());
+        assert!(owner.connection.connection.is_autocommit());
+        assert_eq!(f.binding.refusal(), Some(ScratchFailure::Budget));
+        PAD.with(|slot| slot.borrow_mut().take());
+        f.close(owner.connection);
+        f.finish();
     }
 }

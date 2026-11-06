@@ -959,11 +959,8 @@ impl ExactRows {
         })
     }
 }
-#[cfg_attr(
-    not(feature = "s_incremental"),
-    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
-)]
-/// [`ExactRows::read_native_attempt`] 的语句面。
+/// [`ExactRows::read_native_attempt`] 的语句面（消费者只在增量构建）。
+#[cfg(feature = "s_incremental")]
 trait ExactStatement {
     fn column_name(&self, i: usize) -> Result<&str, String>;
     /// 执行并逐行交 `row`；`row` 的错误原样返回并停止。
@@ -973,14 +970,17 @@ trait ExactStatement {
     ) -> Result<(), String>;
 }
 /// 一行的列借用。
+#[cfg(feature = "s_incremental")]
 trait ExactRow {
     fn get_ref(&self, i: usize) -> Result<ValueRef<'_>, String>;
 }
 /// 现行 rusqlite 语句：逐字原调用（`column_name`、`query`、`next`、`get_ref`）。
+#[cfg(feature = "s_incremental")]
 struct LegacyExact<'s, 'c, P: Params> {
     stmt: &'s mut rusqlite::Statement<'c>,
     params: Option<P>,
 }
+#[cfg(feature = "s_incremental")]
 impl<P: Params> ExactStatement for LegacyExact<'_, '_, P> {
     fn column_name(&self, i: usize) -> Result<&str, String> {
         self.stmt.column_name(i).map_err(storage)
@@ -1000,6 +1000,7 @@ impl<P: Params> ExactStatement for LegacyExact<'_, '_, P> {
         Ok(())
     }
 }
+#[cfg(feature = "s_incremental")]
 impl ExactRow for rusqlite::Row<'_> {
     fn get_ref(&self, i: usize) -> Result<ValueRef<'_>, String> {
         rusqlite::Row::get_ref(self, i).map_err(storage)
@@ -1043,6 +1044,10 @@ impl ExactRow for &[ValueRef<'_>] {
             .ok_or_else(|| storage(rusqlite::Error::InvalidColumnIndex(i)))
     }
 }
+#[cfg_attr(
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
+)]
 fn storage(e: impl std::fmt::Display) -> String {
     format!("StorageUnavailable：历史原件绑定读取失败：{e}")
 }

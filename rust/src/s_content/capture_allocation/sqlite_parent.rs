@@ -661,6 +661,37 @@ impl SqliteBinding {
     }
 
     /// 本绑定是否属于 `parent` 的 `origin` 冻结域。只读核对：不绑定、不改状态、不交出句柄。
+    /// 调用方在本绑定连接名下持有、向同一父账同一冻结域取得的许可（如 SQLite 行变更回调或节点
+    /// 收据的记录容器）遭父账拒绝时，按值记为本冻结域首拒；已有首拒不覆盖。之后本绑定的普通
+    /// 操作报此首拒、不再进入 SQLite（执行中的 `run` 结束时同样报它），收尾域照常——与组件自身的
+    /// 收费拒绝同一后果。只在本绑定为当前、`conn` 归属本绑定、`parent`/`origin` 即本绑定服务的
+    /// 父账与冻结域时记下，否则返回 `false`。不执行 SQL、不分配；可在本连接的 SQLite 回调内调用。
+    pub fn latch_parent_refusal(
+        &self,
+        conn: &ChargedConnection,
+        parent: &Arc<dyn SqliteParent>,
+        origin: u64,
+        failure: ScratchFailure,
+    ) -> bool {
+        if conn.owner != self.owner || origin != self.origin {
+            return false;
+        }
+        let Some(mut s) = state() else {
+            return false;
+        };
+        let current = s
+            .current
+            .filter(|b| b.epoch == self.epoch && b.owner == self.owner && b.origin == origin);
+        let Some(b) = current.filter(|_| {
+            self.slot_of(&s)
+                .is_some_and(|sl| sl.holds(parent_key(parent)))
+        }) else {
+            return false;
+        };
+        s.latch(b, failure);
+        true
+    }
+
     pub fn serves(&self, parent: &Arc<dyn SqliteParent>, origin: u64) -> bool {
         self.origin == origin
             && state().is_some_and(|s| {

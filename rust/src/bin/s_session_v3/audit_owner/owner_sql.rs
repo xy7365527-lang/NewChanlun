@@ -457,6 +457,9 @@ mod charged_owner {
         pub(crate) fn connection(&self) -> &'c ChargedConnection {
             &self.conn.connection
         }
+        pub(crate) fn binding(&self) -> &'c SqliteBinding {
+            &self.conn.binding
+        }
     }
 
     fn gate(error: SqlGate) -> String {

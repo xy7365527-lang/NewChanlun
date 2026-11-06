@@ -9,7 +9,9 @@
 // 非增量构建没有 effects 消费者（与 `owner_sql` 同一写法）。
 #![cfg_attr(not(feature = "s_incremental"), allow(dead_code))]
 #[cfg(feature = "s_incremental")]
-use rusqlite::types::{FromSql, ValueRef};
+use rusqlite::types::FromSql;
+#[cfg(all(test, feature = "s_incremental", unix))]
+use rusqlite::types::ValueRef;
 use rusqlite::{Connection, Transaction};
 
 /// owner 事务所在连接（借用）。

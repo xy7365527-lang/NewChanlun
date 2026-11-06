@@ -1197,6 +1197,16 @@ impl TxStore<'_, '_> {
         }
         #[cfg(feature = "s_incremental")]
         crate::v3::audit_owner::note_persisted_node(self.tx, digest, before, inserted);
+        // 受管守卫：节点收据的 journal 同父许可遭拒已记为首拒，本次写按值报它。
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        if let OwnerTx::Charged(txn) = self.tx {
+            if let Some(failure) = txn.binding().refusal() {
+                return Err(charged_error(
+                    s_content::capture_allocation::sqlite_parent::SqlGate::Refused(failure),
+                    self.work,
+                ));
+            }
+        }
         Ok(())
     }
 }
