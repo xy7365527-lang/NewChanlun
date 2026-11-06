@@ -905,6 +905,21 @@ impl SqliteBinding {
         result
     }
 
+    /// 收尾：撤销连接上的授权回调（例如 reader 生涯的只读封印），使收尾回滚不被它拒绝、调用方
+    /// 可以安全释放其上下文。首拒之后仍可执行；不执行 SQL、不分配、不清除首拒。首拒之后普通
+    /// 操作仍在准入处被拒，撤销授权器不放行任何调用方 SQL。
+    pub fn clear_authorizer(&self, conn: &ChargedConnection) -> Result<(), SqlGate> {
+        let running = self.enter_teardown(Some(conn))?;
+        // SAFETY: conn owns a live handle; clearing the authorizer takes no context.
+        let rc = unsafe { ffi::sqlite3_set_authorizer(conn.db, None, ptr::null_mut()) };
+        drop(running);
+        if rc == ffi::SQLITE_OK {
+            Ok(())
+        } else {
+            Err(SqlGate::Sqlite(rc))
+        }
+    }
+
     /// 收尾：撤销连接上的行变更与 WAL 提交回调，使调用方可以安全释放其上下文。首拒之后仍可
     /// 执行，不执行 SQL、不分配、不清除首拒。
     pub fn clear_write_hooks(&self, conn: &ChargedConnection) -> Result<(), SqlGate> {

@@ -10,14 +10,14 @@ use rusqlite::{Connection, Transaction};
 use std::ffi::c_int;
 
 /// 一行的列借用，只在 [`OwnerSql::rows`] 的回调期内有效。
-pub(super) trait Cells {
+pub(in crate::v3) trait Cells {
     fn len(&self) -> usize;
     fn value(&self, column: usize) -> Result<ValueRef<'_>, String>;
     fn integer(&self, column: usize) -> Result<i64, String>;
 }
 
 /// [`OwnerSql::rows`] 的失败：SQL 本身的错误（原错误文本），或回调返回的错误（原样）。
-pub(super) enum RowsError {
+pub(in crate::v3) enum RowsError {
     Sql(String),
     Row(String),
     /// 行宽超过收费组件栈缓冲（准入 schema 至多 8 列，只可能来自外部改动的 schema）。
@@ -25,13 +25,13 @@ pub(super) enum RowsError {
 }
 
 /// 提交观察回调：rusqlite 连接用 `wal_hook` 形式，收费连接用组件的 `WalFn` 形式。
-pub(super) struct CommitObserver {
-    pub(super) legacy: fn(&rusqlite::hooks::Wal, c_int) -> rusqlite::Result<()>,
+pub(in crate::v3) struct CommitObserver {
+    pub(in crate::v3) legacy: fn(&rusqlite::hooks::Wal, c_int) -> rusqlite::Result<()>,
     #[cfg(feature = "s_incremental")]
-    pub(super) charged: newchan_rust::s_content::capture_allocation::sqlite_parent::WalFn,
+    pub(in crate::v3) charged: newchan_rust::s_content::capture_allocation::sqlite_parent::WalFn,
 }
 
-pub(super) trait OwnerSql {
+pub(in crate::v3) trait OwnerSql {
     /// 单行首列整数。
     fn integer(&self, sql: &str) -> Result<i64, String>;
     /// 单行首列文本。
@@ -278,10 +278,12 @@ mod sealed {
     pub trait Sealed {}
 }
 
+// 可见性与 `AuditConnection`（v3 内消费）一致：默认后端 `LegacyOwner` 及其 trait 接口进入 v3 侧的
+// 类型 `AuditConnection` 时不得比它更窄。
 /// effects 节点 journal 的连接键：rusqlite 连接用句柄地址（原口径），收费连接用不复用的
 /// [`ConnectionId`](newchan_rust::s_content::capture_allocation::sqlite_parent::ConnectionId)。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum JournalKey {
+pub(in crate::v3) enum JournalKey {
     Handle(usize),
     #[cfg(feature = "s_incremental")]
     Charged(newchan_rust::s_content::capture_allocation::sqlite_parent::ConnectionId),
@@ -289,7 +291,7 @@ pub(super) enum JournalKey {
 
 /// #1419 3C U5：owner 连接家族的后端（sealed，同台账 `Backend` 写法）。`AuditConnection` 与
 /// `AuditTxn` 的生命周期判据只有一份，经本 trait 落到 rusqlite 或收费组件连接。
-pub(super) trait OwnerBackend: sealed::Sealed + Sized + 'static {
+pub(in crate::v3) trait OwnerBackend: sealed::Sealed + Sized + 'static {
     type Conn;
     type Txn<'c>;
     fn conn_autocommit(conn: &Self::Conn) -> bool;
@@ -323,7 +325,7 @@ pub(super) trait OwnerBackend: sealed::Sealed + Sized + 'static {
 }
 
 /// 现行 owner：私有 rusqlite 连接。只作类型参数，不构造。
-pub(super) enum LegacyOwner {}
+pub(in crate::v3) enum LegacyOwner {}
 impl sealed::Sealed for LegacyOwner {}
 
 impl OwnerBackend for LegacyOwner {

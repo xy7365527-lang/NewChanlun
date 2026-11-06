@@ -169,11 +169,9 @@ impl GateBackend for ChargedOwner {
             .map_err(|e| history_clamp::stale(format!("受管SQLite拒绝：{e:?}")))
     }
     fn unseal(conn: &super::owner_sql::ChargedOwnerConn) {
-        // 首拒之后撤销被拒时授权器留在连接上，只会继续拒写，不会放宽。
-        // SAFETY: removing the authorizer takes no context.
-        let _ = conn
-            .binding
-            .run(&conn.connection, |q| unsafe { q.set_authorizer(None) });
+        // 经组件窄收尾撤销本封印：首拒之后也能撤，收尾回滚因而不被只读授权器拒绝；普通 SQL
+        // 仍在组件准入处被首拒挡住。撤销失败（绑定已非当前）时授权器留在连接上，只会继续拒绝。
+        let _ = conn.binding.clear_authorizer(&conn.connection);
     }
     fn cache_flush(txn: &super::owner_sql::ChargedOwnerTxn<'_>) -> Result<(), String> {
         txn.conn
@@ -651,6 +649,139 @@ mod charged_tests {
             current.live(),
             base,
             "all owner and connection bytes returned"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// U5 独审 F2/F3：封印中的受管 reader 在下一次生涯检查的夹持 SQL 内首次被收费拒绝。读者按值
+    /// 得到工作域的 Budget 拒绝（不是 SOURCE），工作域据此报资源失败；owner 退役；封印经窄收尾撤销，
+    /// 事务因而能回滚；首拒保留，字节返还。
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn charged_sealed_reader_first_refusal_in_clamp_sql_is_typed_and_rolls_back() {
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = native::Budget::fresh(LIMIT).unwrap();
+        let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let (parent, origin) = current.sqlite_parent();
+        let binding = Rc::new(allocator.bind(parent, origin).expect("bind"));
+        let dir = std::env::temp_dir().join(format!("charged-seal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("owner.sqlite3");
+        let path = std::ffi::CString::new(db.to_str().unwrap()).unwrap();
+        let mut nodes = sc::MemoryNodes::new();
+        let reference = sc::write_value(&mut nodes, &sc::Value::String("sealed reader".into()))
+            .unwrap()
+            .content_ref();
+        let digest = reference.digest().unwrap();
+        let (tag, body) = nodes.get(&digest).unwrap();
+
+        let base = current.live();
+        let seed = ChargedOwnerConn {
+            binding: binding.clone(),
+            connection: binding.open(&path).unwrap(),
+        };
+        binding
+            .run(&seed.connection, |q| {
+                q.execute_batch(
+                    "PRAGMA journal_mode=WAL;
+                     CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                     INSERT INTO meta VALUES('rule_revision', 'r');
+                     CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+                       protocol_revision TEXT NOT NULL, session_generation TEXT NOT NULL,
+                       clock_plan_hash TEXT NOT NULL, clock_plan_json TEXT NOT NULL,
+                       next_attempt_ordinal INTEGER NOT NULL, logical_phase_frontier TEXT NOT NULL);
+                     INSERT INTO s_protocol_meta VALUES(1, 's-session/3', 'g', 'h', '{}', 1, 'f');
+                     CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL,
+                       body BLOB NOT NULL);",
+                )?;
+                let tag = i64::from(tag);
+                q.execute(
+                    "INSERT INTO s_content_nodes VALUES(?1, ?2, ?3)",
+                    [&&digest[..] as &dyn rusqlite::ToSql, &tag, &body],
+                )
+                .map(drop)
+            })
+            .unwrap();
+
+        let owner = AuditConnection::<ChargedOwner>::new(ChargedOwnerConn {
+            binding: binding.clone(),
+            connection: binding.open(&path).unwrap(),
+        })
+        .unwrap();
+        let refusal = std::cell::Cell::new(false);
+        *owner.history_clamp.borrow_mut() = Some(
+            history_clamp::Clamp::open_in_parent_with_refusal(
+                &owner.connection,
+                &db,
+                1 << 20,
+                Some(current.clone()),
+                &refusal,
+                None,
+            )
+            .unwrap(),
+        );
+        let mut active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        let mut pad: *mut c_void = std::ptr::null_mut();
+        let mut observed = None;
+        let issued = active.with_step_reader(&current, None, None, |reader| {
+            // 封印已装、reader 已签发：把本冻结域余额借到不足一个最小块，下一次 SQLite 分配
+            // 就落在生涯门的夹持观测 SQL 里。
+            let payload = current.remaining().saturating_sub(64) / 16 * 16;
+            binding
+                .run(&owner.connection.connection, |_| {
+                    // SAFETY: plain SQLite allocation inside the operation domain.
+                    pad = unsafe { rusqlite::ffi::sqlite3_malloc64(payload as u64) };
+                    Ok(())
+                })
+                .unwrap();
+            observed = Some(
+                reader
+                    .frame(&digest, |t, b| (t, b.to_vec()))
+                    .err()
+                    .map(|e| (e.scratch_failure(), e.code())),
+            );
+        });
+        assert!(!pad.is_null(), "the pad fit inside the domain");
+        let (failure, code) = observed.flatten().expect("the gate check refused the read");
+        assert_eq!(
+            failure,
+            Some(ScratchFailure::Budget),
+            "typed Budget, by value"
+        );
+        assert_ne!(code, code::SOURCE, "not reported as a SOURCE error");
+        let issued = issued
+            .err()
+            .expect("the work domain reports the resource failure");
+        assert!(issued.contains("reader 工作域超过父账额度"), "{issued}");
+        assert_eq!(
+            binding.refusal(),
+            Some(ScratchFailure::Budget),
+            "first refusal kept"
+        );
+        assert!(
+            owner.retired.get(),
+            "the failed lifetime check retires the owner"
+        );
+
+        drop(active);
+        assert!(
+            owner.connection.connection.is_autocommit(),
+            "seal removed in teardown, so the teardown rollback ran"
+        );
+        // SAFETY: pad is a block from sqlite3_malloc64; freeing needs no operation domain.
+        unsafe { rusqlite::ffi::sqlite3_free(pad) };
+        let close = |conn: ChargedOwnerConn| {
+            binding.clear_write_hooks(&conn.connection).unwrap();
+            binding.close(conn.connection).map_err(|(_, e)| e).unwrap();
+        };
+        close(owner.connection);
+        close(seed);
+        assert_eq!(
+            current.live(),
+            base,
+            "pad, owner and connection bytes returned"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

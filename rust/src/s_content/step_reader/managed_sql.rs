@@ -13,6 +13,9 @@ use std::ops::ControlFlow;
 pub trait ReaderTx {
     fn in_autocommit(&self) -> bool;
     fn change_count(&self) -> u64;
+    /// 本事务所在连接上已记下的首个收费拒绝（rusqlite 事务没有，恒为 `None`）。签发方门报错时
+    /// 据此按值把错误归为工作域的同类拒绝，不经文字。
+    fn refusal(&self) -> Option<ScratchFailure>;
     fn scalar(&self, sql: &'static str, work: &WorkScope) -> Result<i64, CodecError>;
     /// 取摘要对应的一行，`(tag, body)` 只在回调期内借出；无行为 `None`。
     fn node<R>(
@@ -32,6 +35,9 @@ impl ReaderTx for Transaction<'_> {
     }
     fn change_count(&self) -> u64 {
         Connection::total_changes(self)
+    }
+    fn refusal(&self) -> Option<ScratchFailure> {
+        None
     }
     fn scalar(&self, sql: &'static str, _work: &WorkScope) -> Result<i64, CodecError> {
         self.query_row(sql, [], |row| row.get::<_, i64>(0))
@@ -106,6 +112,9 @@ impl ReaderTx for ChargedReadTx<'_> {
     }
     fn change_count(&self) -> u64 {
         self.connection.total_changes()
+    }
+    fn refusal(&self) -> Option<ScratchFailure> {
+        self.binding.refusal()
     }
     fn scalar(&self, sql: &'static str, work: &WorkScope) -> Result<i64, CodecError> {
         self.binding
@@ -226,7 +235,7 @@ impl<'tx, 'conn, 'work, T: ReaderTx> ManagedSqlStep<'tx, 'conn, 'work, T> {
         work: &'work WorkScope,
         gate: Gate<'work, T>,
     ) -> Result<Self, CodecError> {
-        gate.live(tx)?;
+        gate.live(tx).map_err(|e| typed_gate_error(e, &*tx, work))?;
         work.check_current()?;
         if tx.in_autocommit() {
             return Err(work.reject(ScratchFailure::Ledger));
@@ -280,7 +289,9 @@ impl<'tx, 'conn, 'work, T: ReaderTx> ManagedSqlStep<'tx, 'conn, 'work, T> {
         {
             return Err(work.reject(ScratchFailure::Ledger));
         }
-        self.gate.live(self.tx)?;
+        self.gate
+            .live(self.tx)
+            .map_err(|e| typed_gate_error(e, &*self.tx, work))?;
         let (read_uncommitted, main_schema, temp_schema) =
             sql_identity(&*self.tx, work, &self.metadata_reads)?;
         if read_uncommitted != 0 || (main_schema, temp_schema) != self.schema {
@@ -331,6 +342,15 @@ impl<'tx, 'conn, 'work, T: ReaderTx> ManagedSqlStep<'tx, 'conn, 'work, T> {
             #[cfg(test)]
             drop_observer: None,
         })
+    }
+}
+
+/// 签发方门报错时，事务所在连接若已记下收费首拒，按值归为工作域的同类拒绝（与节点读的
+/// `gate_error` 同一归类）；否则原样返回门的错误。rusqlite 事务没有收费首拒，原样返回。
+fn typed_gate_error<T: ReaderTx>(error: CodecError, tx: &T, work: &WorkScope) -> CodecError {
+    match tx.refusal() {
+        Some(failure) => work.reject(failure),
+        None => error,
     }
 }
 

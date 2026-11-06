@@ -26,3 +26,5 @@ v3::audit_owner::sqlite_parent_tests::sqlite_parent_wal_checkpoint_admits_and_se
 v3::audit_owner::history_clamp::charged_tests::clamp_observes_and_receipts_commit_on_charged_owner_connection
 # #1419 3C U5 owner 连接、事务守卫与生涯门经收费组件：签发受管 reader 读真实节点、外连接提交 stale、守卫 COMMIT 与首拒后收尾回滚
 v3::audit_owner::step_reader::charged_tests::charged_owner_lifecycle_and_gate_on_same_parent
+# #1419 3C U5 F2/F3：封印 reader 在夹持 SQL 内首拒按值为 Budget、窄收尾撤封后回滚、首拒保持、字节返还
+v3::audit_owner::step_reader::charged_tests::charged_sealed_reader_first_refusal_in_clamp_sql_is_typed_and_rolls_back
