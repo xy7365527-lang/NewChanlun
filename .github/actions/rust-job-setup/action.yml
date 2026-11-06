@@ -32,6 +32,15 @@ runs:
       with:
         node-version: "24.22.2"
 
+    - name: "verification branch only: run the pinned node under glibc 2.43 (ubuntu:26.04 container)"
+      shell: bash
+      run: |
+        docker pull -q ubuntu:26.04 >/dev/null
+        real=$(readlink -f "$(command -v node)"); w="$RUNNER_TEMP/node-glibc243"; mkdir -p "$w"
+        printf '%s\n' '#!/bin/bash' "exec docker run --rm -i --user \$(id -u):\$(id -g) -v /home:/home -v /tmp:/tmp -v \"$RUNNER_TEMP\":\"$RUNNER_TEMP\" -v /opt/hostedtoolcache:/opt/hostedtoolcache -w \"\$PWD\" ubuntu:26.04 $real \"\$@\"" > "$w/node"
+        chmod +x "$w/node"; echo "$w" >> "$GITHUB_PATH"
+        "$w/node" -e 'console.log("wrapped", process.version)'; docker run --rm ubuntu:26.04 ldd --version | head -1
+
     - name: Record the node that tests will spawn (#1875)
       shell: bash
       run: |

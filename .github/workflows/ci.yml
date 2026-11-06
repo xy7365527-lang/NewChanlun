@@ -1,4 +1,4 @@
-# #1875 verification branch only: shard 1 x20 on Boat with the pinned-node fix (32002ac58a)
+# #1875 verification branch only: shard 1 x20 on Boat, node under glibc 2.43 container (A/B vs hillclimb/tb02c-verify20)
 name: CI
 'on':
   workflow_dispatch: null
@@ -7,7 +7,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   rust-test-s-session:
-    name: tb02c verify shard ${{ matrix.shard }} rep ${{ matrix.rep }}
+    name: tb02c glibc243 shard ${{ matrix.shard }} rep ${{ matrix.rep }}
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: 110
     strategy:
