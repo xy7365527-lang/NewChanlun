@@ -775,3 +775,27 @@ def test_new_generation_accepts_collected_boat_worker_without_remote_calls(v2, m
     assert second.generation == 2
     assert cli.calls == []
     second.release()
+
+
+def test_executor_run_maps_mid_graph_low_disk_to_retryable_exit(tmp_path, monkeypatch, capsys):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from pilot1742 import cli, run
+    from pilot1742 import executor as module
+
+    def low_disk(*_args, **_kwargs):
+        raise InsufficientSpace("派工门槛")
+
+    models = tmp_path / "models.md"
+    models.write_text("")
+    monkeypatch.setattr(run, "PSTACK_MODELS", models)
+    monkeypatch.setattr(module, "_client", lambda _args: nullcontext(object()))
+    monkeypatch.setattr(module, "RepoGateway", lambda _client: None)
+    monkeypatch.setattr(module, "load_unit", lambda *_args: (SimpleNamespace(run_id="t1-1"), None))
+    monkeypatch.setattr(module, "TicketExecutor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "open_v2_run", lambda *_args: SimpleNamespace())
+    monkeypatch.setattr(cli, "drive", low_disk)
+    code = module.main(["--state-root", str(tmp_path), "--drain-root", str(tmp_path), "run", "--run-id", "t1-1",
+                        "--private-key", str(tmp_path / "unused.pem")])
+    assert code == 75 and "派工门槛" in capsys.readouterr().err

@@ -941,7 +941,7 @@ def main(argv: list[str] | None = None) -> int:
                                       crash=_sigkill_at(args.crash_at), cutover=cutover_store)
             try:
                 pilot = open_v2_run(args.state_root, unit, task, executor, PSTACK_MODELS.read_text())
-            except (Busy, InsufficientSpace) as error:
+            except Busy as error:
                 print(str(error), file=sys.stderr)
                 return EXIT_BUSY
             if args.resume:
@@ -950,6 +950,11 @@ def main(argv: list[str] | None = None) -> int:
     except ApprovalRequired as required:
         print(json.dumps({"phase": "awaiting_human", "approval": decision_json(required.decision)}, ensure_ascii=False))
         return 0
+    except InsufficientSpace as error:
+        # 图运行中派工建 checkout 时也会触发；检查点停在该工具调用之前，下一轮恢复同一 run 重做。
+        from .cli import EXIT_BUSY
+        print(str(error), file=sys.stderr)
+        return EXIT_BUSY
     except (*EXECUTOR_ERRORS, Halted, ToolRefusal, ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f"{type(error).__name__}: {error}", file=sys.stderr)
         return 2
