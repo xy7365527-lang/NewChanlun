@@ -8,6 +8,7 @@ import { join, resolve, sep } from "node:path";
 import {
   assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, snapshotCheckout, workerEnvironment,
+  DEEPAGENTS_OUTPUT_PROTOCOL, outputProtocol, workerOutputSchema, type OutputProtocol,
   type ChildOptions,
 } from "./codex-child.ts";
 import { gitEnvironment } from "./git-environment.ts";
@@ -685,4 +686,49 @@ test("snapshotCheckout keeps the status column of the first porcelain line", () 
   assert.equal(status.split("\n")[0], " M source.txt");
   assert.ok(status.endsWith('"\\346\\226\\260 \\346\\226\\207\\344\\273\\266.md"'));
   f.clean();
+});
+
+test("Deep Agents 独立六键协议不放宽默认四键协议", async () => {
+  const provider = await boundedCodex("review", "/tmp/schema.json");
+  const reported = { ...goodResult, confidence: "high", caveats: ["未核实线上行为"] };
+  const parse = (result: unknown, protocol?: OutputProtocol) => {
+    const transcript = new CodexTranscript(provider, protocol);
+    for (const event of [
+      { type: "thread.started", thread_id: sessionId },
+      { type: "item.completed", item: { type: "agent_message", text: JSON.stringify(result) } },
+      { type: "turn.completed" },
+    ]) transcript.accept(JSON.stringify(event));
+    return transcript.output();
+  };
+  assert.deepEqual(parse(goodResult), goodResult);
+  assert.throws(() => parse(reported), /契约/);
+  for (const confidence of ["high", "medium", "low"]) {
+    for (const caveats of [[], ["一", "二\n三"]]) {
+      const output = { ...goodResult, confidence, caveats };
+      assert.deepEqual(parse(output, DEEPAGENTS_OUTPUT_PROTOCOL), output);
+    }
+  }
+  for (const invalid of [
+    goodResult, { ...reported, confidence: undefined }, { ...reported, caveats: undefined },
+    { ...reported, confidence: null }, { ...reported, confidence: "certain" },
+    { ...reported, caveats: null }, { ...reported, caveats: "not array" },
+    { ...reported, caveats: [1] }, { ...reported, extra: true },
+  ]) assert.throws(() => parse(invalid, DEEPAGENTS_OUTPUT_PROTOCOL), /契约/);
+  assert.deepEqual(workerOutputSchema().required, ["status", "summary", "findings", "validation"]);
+  assert.equal(workerOutputSchema().additionalProperties, false);
+  assert.throws(() => outputProtocol("unknown"), /未知/);
+});
+
+test("显式 Deep Agents 协议固定到 schema 与最终回执", async () => {
+  const f = fixture();
+  const output = { ...goodResult, confidence: "medium", caveats: ["不能核实生产"] };
+  try {
+    f.fake(`session(); complete(${JSON.stringify(output)});`);
+    const result = await runCodexChild({ ...f.options, outputProtocol: DEEPAGENTS_OUTPUT_PROTOCOL }, { env: f.env });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    assert.equal(result.output_protocol, DEEPAGENTS_OUTPUT_PROTOCOL);
+    assert.deepEqual(result.result, output);
+    const schema = JSON.parse(readFileSync(join(f.options.outputDir, "output.schema.json"), "utf8"));
+    assert.deepEqual(schema, workerOutputSchema(DEEPAGENTS_OUTPUT_PROTOCOL));
+  } finally { f.clean(); }
 });

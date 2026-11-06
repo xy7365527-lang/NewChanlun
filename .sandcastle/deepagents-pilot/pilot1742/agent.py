@@ -33,7 +33,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_va
 from .approval import spec_section
 from .boat_execution import ExecutionUnknown
 from .cloud_package import MANUALS_DIR, PROJECT_TARGET, PSTACK_TARGET, RULES_TARGET
-from .domain import Awaiting, CommitReceipt, WorkerReceipt
+from .domain import LEGACY_CAVEAT, Awaiting, CommitReceipt, WorkerReceipt
 from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
 
 TOOL_ERRORS: tuple[type[Exception], ...] = (ToolRefusal, Halted, ExecutionUnknown)
@@ -82,9 +82,6 @@ def build_model(slug: str) -> ChatOpenAI:
                       max_retries=2)
 
 
-LEGACY_CAVEAT = "旧工蜂协议未单独采集 confidence 与 caveats；low 是适配器保守标记，不是模型自报。"
-
-
 class SubagentResponse(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -118,6 +115,11 @@ class LegacyWorkerOutput(BaseModel):
     validation: list[str]
 
 
+class DeepAgentsWorkerOutput(LegacyWorkerOutput):
+    confidence: Literal["high", "medium", "low"]
+    caveats: list[str]
+
+
 class ReceiptContent(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -146,7 +148,8 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
         if receipt.status == "completed":
             raise EmptyWorkerResponse("工蜂回执为空，没有可交回主控的结论")
         summary = f"工蜂终态为 {receipt.status}，未返回结论。"
-    caveats = [LEGACY_CAVEAT]
+    report = receipt.self_report
+    caveats = list(report.caveats) if report else ([LEGACY_CAVEAT] if receipt.output_protocol == "legacy" else [])
     if receipt.status != "completed":
         caveats.append(f"工蜂终态为 {receipt.status}，不构成成功结果。")
     if receipt.failure_reason:
@@ -157,7 +160,8 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
         if source.exists():
             raw_output = json.loads(source.read_text()).get("result")
             if raw_output is not None or receipt.status == "completed":
-                LegacyWorkerOutput.model_validate(raw_output)
+                schema = LegacyWorkerOutput if receipt.output_protocol == "legacy" else DeepAgentsWorkerOutput
+                schema.model_validate(raw_output)
         content = ReceiptContent(summary=summary, findings=receipt.findings,
                                  validation=receipt.validation, changed_paths=receipt.changed_paths_after)
         labels = {"author": "作者发现", "review": "独审发现", "judge": "裁判嫁接或拒绝建议",
@@ -166,7 +170,7 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
             conclusion=content.summary,
             evidence=[*content.validation, *(f"{labels[receipt.key.role]}：{f}" for f in content.findings)],
             actions_taken=[f"宿主观察到修改路径：{p}" for p in content.changed_paths],
-            confidence="low", caveats=caveats)
+            confidence=report.confidence if report else "low", caveats=caveats)
         result["response_validated"] = True
     except ValidationError as error:
         result["unvalidated_output"] = raw_output
