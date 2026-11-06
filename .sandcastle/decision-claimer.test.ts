@@ -1045,12 +1045,12 @@ test("考古不合格：带问题重跑一次；仍不合格则问题交审查�
   (lazy.points[2] as Record<string, unknown>).searched_keywords = ["一个"];
   const { d, archCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), goodDraft, fence(pass())], [fence(lazy), fence(lazy), fence(lazy), fence(lazy)]);
   const s = await processTicket(1531, d);
-  assert.match(archCalls[1].prompt, /上一次考古产物没过机械校验[\s\S]*Q3：C 类须列出至少两个/);
+  assert.match(archCalls[1].prompt, /上一次考古的机械校验或独审反馈[\s\S]*Q3：C 类须列出至少两个/);
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.attempt1.json"), "utf8"));
   assert.equal(rv.verdict, "BLOCK");
   assert.ok(rv.problems.some((x: string) => /^考古：Q3/.test(x)));
   assert.equal(archCalls.length, 4, "重做时重跑考古");
-  assert.match(archCalls[2].prompt, /上一次考古产物没过机械校验[\s\S]*Q3：C 类须列出至少两个/, "重跑首次即带上轮问题");
+  assert.match(archCalls[2].prompt, /上一次考古的机械校验或独审反馈[\s\S]*Q3：C 类须列出至少两个/, "重跑首次即带上轮问题");
   assert.equal(archCalls[2].model, MODEL_MAIN, "工具步骤始终走主控模型");
   assert.notEqual(s.phase, "land_t");
 });
@@ -2632,4 +2632,224 @@ test("切流准入：已推送 T 断点只补 resolution，check_ticket 不因�
   ].join("; ");
   execFileSync("python3", ["-c", python, f.stateRoot, h.d.drainRoot!]);
   await withQueueAdmission(() => {}, f.stateRoot, h.d.drainRoot);
+});
+
+// #1742 / #1535：反馈原件与标题层级回归，全部使用隔离假模型。
+const r8Block = fence({ ...pass(), R8: { verdict: "BLOCK", basis: "Q1 命中路径错误：old/store.rs:659 不存在，应查 new/store.rs:659" } });
+const correctedArch = fence({ points: goodArchObj.points.map((p) => p.id === "Q1" ? { ...p, citation: "new/store.rs:659", hits: [{ source: "new/store.rs:659", excerpt: "已核更正" }] } : p) });
+
+test("feedback1535：三级子标题保留，节外及代码块假 Q 不补覆盖", () => {
+  const a = parseArchaeology(goodArch)!;
+  assert.deepEqual(archaeologyCoverageProblems("## 考古对照\n### 查询范围\n说明\n### 逐点对照\nQ1 Q2 Q3\n## 后续\n", a), []);
+  for (const fake of ["## 后续\nQ3", "# 后续\nQ3", "```text\nQ3\n```", "~~~text\nQ3\n~~~", "    Q3", "```canonical_edit\n" + JSON.stringify({ content: "Q3" }) + "\n```", "````text\n```\nQ3\n````"]) {
+    assert.match(archaeologyCoverageProblems("## 考古对照\nQ1 Q2\n" + fake, a).join(), /Q3/, fake);
+  }
+  assert.match(archaeologyCoverageProblems("```text\n## 考古对照\nQ1 Q2 Q3\n```", a).join(), /缺/);
+});
+
+test("feedback1535：已解析 R8 BLOCK 返修原件并由下一轮独审实际消费", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "固定政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, correctedArch]);
+  const s = await processTicket(1531, h.d);
+  assert.equal(s.attempts, 2);
+  assert.deepEqual(s.rounds!.map(r => r.verdict), ["BLOCK", "PASS"]);
+  assert.equal(h.archCalls.length, 2);
+  assert.match(h.archCalls[1].prompt, /本次不再分级：分级已定为 P/);
+  assert.match(h.archCalls[1].prompt, /R8 BLOCK.*old\/store/);
+  assert.match(h.archCalls[1].prompt, /禁止修改任何文件/);
+  const reviews = h.modelCalls.filter(c => c.role === "review");
+  assert.match(reviews[1].prompt, /new\/store.rs:659/);
+  assert.ok(!reviews[0].prompt.includes("new/store.rs:659"));
+  const dir = join(h.d.outRoot, "1531");
+  const current = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  const cp = JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8"));
+  assert.deepEqual(cp.archaeology.record, current);
+  assert.equal(cp.archaeology.md, readFileSync(join(dir, "archaeology.md"), "utf8"));
+  assert.equal(JSON.parse(readFileSync(join(dir, "archaeology.attempt1.json"), "utf8")).points[0].citation, "docs/adr/0016-x.md:96");
+  assert.equal(JSON.parse(readFileSync(join(dir, "archaeology.attempt2.json"), "utf8")).points[0].citation, "new/store.rs:659");
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).reason, "固定政策");
+});
+
+
+for (const point of ["receipt", "repair-json", "checkpoint", "alias-json", "alias-md", "draft", "review"] as const) {
+  for (const timing of ["before", "after"] as const) {
+    if ((point === "draft" || point === "review") && timing === "after") continue;
+    test(`feedback1535：${point}/${timing} 中断恢复，原件一致且不重发考古调用或额度`, async () => {
+      const h = fakeDeps("dry-run", [fence({ class: "P", reason: "固定政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, correctedArch]);
+      const dir = join(h.d.outRoot, "1531");
+      let injected = false;
+      const crash = (operation: () => void) => {
+        injected = true;
+        if (timing === "after") operation();
+        throw new Error("feedback1535 注入中断");
+      };
+      const rename = fs.renameSync;
+      const write = fs.writeFileSync;
+      const model = h.d.model;
+      fs.renameSync = ((from, to) => {
+        const target = String(to);
+        if (!injected) {
+          const match = point === "receipt" ? target === join(dir, "archaeology.repair2/call1.result.json")
+            : point === "repair-json" ? target === join(dir, "archaeology.repair2/archaeology.json")
+            : point === "checkpoint" ? target === join(dir, "main-rounds.json") && JSON.parse(readFileSync(from, "utf8")).archaeology?.attempt === 2
+            : point === "alias-json" ? target === join(dir, "archaeology.json") && JSON.parse(readFileSync(from, "utf8")).points?.[0]?.citation === "new/store.rs:659"
+            : false;
+          if (match) return crash(() => rename(from, to));
+        }
+        return rename(from, to);
+      }) as typeof fs.renameSync;
+      fs.writeFileSync = ((path, data, ...args) => {
+        if (!injected && point === "alias-md" && String(path) === join(dir, "archaeology.md") && String(data).includes("new/store.rs:659")) {
+          return crash(() => write(path, data, ...args));
+        }
+        return write(path, data, ...args);
+      }) as typeof fs.writeFileSync;
+      h.d.model = async c => {
+        if (!injected && c.role === point && h.archCalls.length === 2) return crash(() => {});
+        return model(c);
+      };
+      syncBuiltinESMExports();
+      let first;
+      try { first = await processTicket(1531, h.d); }
+      finally { fs.renameSync = rename; fs.writeFileSync = write; h.d.model = model; syncBuiltinESMExports(); }
+      assert.ok(injected);
+      assert.equal(first.phase, "error");
+      const cpBefore = JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8"));
+      assert.equal(cpBefore.state.attempt, 2);
+      assert.equal(cpBefore.state.upgraded, true);
+      const second = await processTicket(1531, h.d);
+      assert.equal(h.archCalls.length, 2, "首轮+返修各一次，不自动重放未知调用");
+      if (point === "receipt" && timing === "before") {
+        assert.equal(second.phase, "error");
+        assert.match(second.error ?? "", /调用结果未知/);
+        assert.equal(JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8")).state.attempt, 2);
+        assert.equal(h.modelCalls.filter(c => c.role === "draft").length, 1);
+        return;
+      }
+      assert.equal(second.phase, "shadow_p", second.error ?? "");
+      assert.equal(second.attempts, 2);
+      assert.deepEqual(second.rounds!.map(r => r.verdict), ["BLOCK", "PASS"]);
+      assert.equal(h.modelCalls.filter(c => c.role === "draft").length, 2);
+      assert.equal(h.modelCalls.filter(c => c.role === "review").length, 2);
+      const cp = JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8"));
+      assert.deepEqual(cp.archaeology.record, JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")));
+      assert.equal(cp.archaeology.md, readFileSync(join(dir, "archaeology.md"), "utf8"));
+      assert.equal(cp.archaeology.attempt, 2);
+      assert.equal(JSON.parse(readFileSync(join(dir, "archaeology.attempt1.json"), "utf8")).points[0].citation, "docs/adr/0016-x.md:96");
+      assert.equal(JSON.parse(readFileSync(join(dir, "review.attempt1.json"), "utf8")).verdict, "BLOCK");
+      assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
+    });
+  }
+}
+
+test("feedback1535：R3、缺 R8 与 R8 无依据不触发考古返修", async () => {
+  const noR8 = pass(); delete noR8.R8;
+  for (const block of [r3Block, fence(noR8), fence({ ...pass(), R8: { verdict: "BLOCK", basis: "" } })]) {
+    const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, block, goodDraft, fence(pass())]);
+    const s = await processTicket(1531, h.d);
+    assert.equal(s.attempts, 2);
+    assert.equal(h.archCalls.length, 1);
+  }
+});
+
+test("feedback1535：返修自身形状重试保留 R8 反馈，固定 P 不接受回答中的 T", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, "无法解析", fence({ ...extractJson(correctedArch) as object, class: "T", reason: "试图改判" })]);
+  const s = await processTicket(1531, h.d);
+  assert.equal(s.klass, "P");
+  assert.equal(s.attempts, 2);
+  assert.equal(h.archCalls.length, 3);
+  assert.match(h.archCalls[2].prompt, /R8 BLOCK.*old\/store/);
+  assert.match(h.archCalls[2].prompt, /本次不再分级：分级已定为 P/);
+});
+
+test("feedback1535：第二轮仍 R8 BLOCK 到终态，重入零模型调用且不追加额度", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block, goodDraft, r8Block], [goodArch, correctedArch]);
+  const first = await processTicket(1531, h.d);
+  assert.equal(first.phase, "shadow_p");
+  assert.equal(first.attempts, 2);
+  assert.deepEqual(first.rounds!.map(r => r.verdict), ["BLOCK", "BLOCK"]);
+  const calls = h.modelCalls.length;
+  const archCalls = h.archCalls.length;
+  const second = await processTicket(1531, h.d);
+  assert.equal(second.phase, "shadow_p");
+  assert.equal(second.attempts, 2);
+  assert.equal(h.modelCalls.length, calls);
+  assert.equal(h.archCalls.length, archCalls);
+  assert.deepEqual(second.rounds, first.rounds);
+});
+
+
+test("feedback1535：回执落盘后票上新增分级评论，仍消费冻结请求不重复调用", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, correctedArch]);
+  const dir = join(h.d.outRoot, "1531");
+  const rename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = ((from, to) => {
+    rename(from, to);
+    if (!injected && String(to) === join(dir, "archaeology.repair2/call1.result.json")) {
+      injected = true;
+      throw new Error("回执已落盘，别名未发布");
+    }
+  }) as typeof fs.renameSync;
+  syncBuiltinESMExports();
+  try { assert.equal((await processTicket(1531, h.d)).phase, "error"); }
+  finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+  const gh = h.d.gh;
+  h.d.gh = (args, input) => {
+    const value = gh(args, input);
+    if (args[0] !== "issue" || args[1] !== "view") return value;
+    const t = JSON.parse(value);
+    t.comments.push({ author: { login: "me" }, body: "分级：P — 政策" });
+    return JSON.stringify(t);
+  };
+  const s = await processTicket(1531, h.d);
+  assert.equal(s.phase, "shadow_p", s.error ?? "");
+  assert.deepEqual(s.rounds!.map(r => r.verdict), ["BLOCK", "PASS"]);
+  assert.equal(h.archCalls.length, 2);
+});
+
+test("feedback1535：R8 返修第二次形状调用回执恢复，不重发两次调用", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, "无法解析", correctedArch]);
+  const dir = join(h.d.outRoot, "1531");
+  const rename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = ((from, to) => {
+    rename(from, to);
+    if (!injected && String(to) === join(dir, "archaeology.repair2/call2.result.json")) {
+      injected = true;
+      throw new Error("第二回执已保存");
+    }
+  }) as typeof fs.renameSync;
+  syncBuiltinESMExports();
+  try { assert.equal((await processTicket(1531, h.d)).phase, "error"); }
+  finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+  const s = await processTicket(1531, h.d);
+  assert.equal(s.phase, "shadow_p", s.error ?? "");
+  assert.deepEqual(s.rounds!.map(r => r.verdict), ["BLOCK", "PASS"]);
+  assert.equal(h.archCalls.length, 3);
+  assert.equal(s.attempts, 2);
+});
+
+
+test("feedback1535：旧版待 redo 检查点无考古字段，仍补 R8 返修且不重审首轮", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, correctedArch]);
+  const dir = join(h.d.outRoot, "1531");
+  const rename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = ((from, to) => {
+    rename(from, to);
+    if (!injected && String(to) === join(dir, "review.json")) { injected = true; throw new Error("首轮独审已提交"); }
+  }) as typeof fs.renameSync;
+  syncBuiltinESMExports();
+  try { assert.equal((await processTicket(1531, h.d)).phase, "error"); }
+  finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+  const cpPath = join(dir, "main-rounds.json");
+  const cp = JSON.parse(readFileSync(cpPath, "utf8"));
+  delete cp.archaeology; // 旧版 version:1 的真实字段集合。
+  writeFileSync(cpPath, JSON.stringify(cp));
+  const s = await processTicket(1531, h.d);
+  assert.equal(s.phase, "shadow_p", s.error ?? "");
+  assert.deepEqual(s.rounds!.map(r => r.verdict), ["BLOCK", "PASS"]);
+  assert.equal(h.archCalls.length, 2);
+  assert.equal(h.modelCalls.filter(c => c.role === "review").length, 2);
+  assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
 });
