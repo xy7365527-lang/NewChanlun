@@ -1126,6 +1126,13 @@ impl NodeSource for StoreView<'_, '_> {
     fn max_render_bytes(&self) -> Option<u64> {
         self.source().max_render_bytes()
     }
+    /// #1890：读取、索引门均纯转发，同一 reader 的查找结果表随之转发。
+    fn path_lookup_memo(&mut self) -> Option<&mut sc::lookup_memo::LookupMemo> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.path_lookup_memo(),
+            Backend::Audit(s) => s.path_lookup_memo(),
+        }
+    }
 }
 impl NodeSink for StoreView<'_, '_> {
     fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {

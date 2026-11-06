@@ -492,6 +492,10 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
     fn max_render_bytes(&self) -> Option<u64> {
         self.source.max_render_bytes()
     }
+    /// #1890：读取、索引门纯转发；本层改写的 full-array/trace 角色进入查找键。
+    fn path_lookup_memo(&mut self) -> Option<&mut sc::lookup_memo::LookupMemo> {
+        self.source.path_lookup_memo()
+    }
 }
 impl NodeSink for ArrayAuditSource<'_, '_, '_, '_> {
     fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {

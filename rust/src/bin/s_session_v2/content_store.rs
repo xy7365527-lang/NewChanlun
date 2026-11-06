@@ -1047,6 +1047,14 @@ impl NodeSource for ReadStore<'_> {
         read_node(self.conn, digest)
     }
 
+    /// #1890：生产 `new` 只接 `&Transaction` 并已在其中读过一次（`ensure_format`），读快照
+    /// 自此固定，外部提交不可见；`is_autocommit()` 再按连接实况确认仍在显式事务内。纪元取
+    /// 本连接 `total_changes()`：本连接任何写都使上层 reader 的查找结果表整表作废。
+    /// 不在事务里的短读（私有夹具字面量）没有纪元，外部提交在下一次读时照旧可见。
+    fn snapshot_epoch(&self) -> Option<u64> {
+        (!self.conn.is_autocommit()).then(|| self.conn.total_changes())
+    }
+
     fn checked_read(
         &mut self,
         digest: &NodeDigest,
@@ -1248,6 +1256,37 @@ mod tests {
         drop(external);
         drop(conn);
         std::fs::remove_file(path).unwrap();
+    }
+
+    /// #1890：只有显式事务内的 ReadStore 给出快照纪元；短读夹具没有纪元，上层 reader
+    /// 的查找结果表不启用，外部提交照旧可见（上一测试锁住的性质不受影响）。
+    #[test]
+    fn snapshot_epoch_only_inside_transaction_and_advances_on_write() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1, 's-session/3', '1', 'clock', '{}', 1, 'accept')",
+            [],
+        )
+        .unwrap();
+        let short = ReadStore {
+            conn: &conn,
+            same_material: None,
+        };
+        assert_eq!(short.snapshot_epoch(), None, "短读来源没有纪元");
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let reader = ReadStore::new(&tx).unwrap();
+        let before = reader.snapshot_epoch().expect("事务内 reader 有纪元");
+        TxStore::new(&tx)
+            .unwrap()
+            .put(
+                s_content::frame(s_content::tag::BOOL_TRUE, &[]),
+                s_content::tag::BOOL_TRUE,
+                &[],
+            )
+            .unwrap();
+        assert_ne!(reader.snapshot_epoch(), Some(before), "本连接写入推进纪元");
     }
 
     #[test]

@@ -3193,6 +3193,8 @@ pub(crate) struct HashReader<'a> {
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
     audit_full_arrays: bool,
+    /// #1890：同一 reader 内整次 path 查找结果表；资格见 `path_lookup_memo`。
+    path_memo: sc::lookup_memo::LookupMemo,
 }
 struct AuditObserver<'a> {
     budget: Option<&'a dyn super::audit_budget::Budget>,
@@ -3529,6 +3531,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
             history_public_roots: None,
+            path_memo: Default::default(),
         }
     }
     #[cfg(test)]
@@ -3559,6 +3562,7 @@ impl<'a> HashReader<'a> {
         }
     }
     pub(crate) fn clear_overlay(&mut self) {
+        self.path_memo.clear();
         if let Some(owner) = &mut self.owned {
             owner.clear_overlay();
         } else {
@@ -3640,6 +3644,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
             history_public_roots: None,
+            path_memo: Default::default(),
         }
     }
     #[cfg(test)]
@@ -3662,6 +3667,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
             history_public_roots: None,
+            path_memo: Default::default(),
         }
     }
     #[cfg(test)]
@@ -3685,6 +3691,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
             history_public_roots: None,
+            path_memo: Default::default(),
         }
     }
     #[cfg(all(test, feature = "s_incremental"))]
@@ -3712,6 +3719,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
             history_public_roots: None,
+            path_memo: Default::default(),
         }
     }
 }
@@ -3743,6 +3751,58 @@ impl NodeSource for HashReader<'_> {
         self.read_scoped(d)?.into_plain()
     }
     fn read_scoped(&mut self, d: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
+        let result = self.read_scoped_once(d);
+        if result.is_err() {
+            // #1890：reader 读取失败，查找结果表整表作废。
+            self.path_memo.clear();
+        }
+        result
+    }
+
+    fn checked_read(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        self.checked_read_scoped(d)
+            .and_then(|frame| frame.map(sc::job::ScopedFrame::into_frame).transpose())
+    }
+    fn checked_read_scoped(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        let result = self.checked_read_scoped_once(d);
+        if result.is_err() {
+            self.path_memo.clear();
+        }
+        result
+    }
+    /// #1890：资格——无 Owned 容器、无工作域、无审计预算与期限、普通策略、动态来源且来源
+    /// 给出快照纪元。任一不满足就无表，每次查找照旧真实执行（计费次数不变）。
+    fn path_lookup_memo(&mut self) -> Option<&mut sc::lookup_memo::LookupMemo> {
+        if self.owned.is_some()
+            || self.work.is_some()
+            || self.budget.is_some()
+            || self.deadline.is_some()
+            || self.policy != SourcePolicy::Ordinary
+        {
+            return None;
+        }
+        #[cfg(feature = "s_incremental")]
+        if self.native_budget.is_some() {
+            return None;
+        }
+        let ReadOwner::Dynamic(source) = &self.source else {
+            return None;
+        };
+        let epoch = source.snapshot_epoch()?;
+        Some(self.path_memo.at_epoch(epoch))
+    }
+}
+impl HashReader<'_> {
+    fn read_scoped_once(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
         #[cfg(all(test, feature = "s_incremental", unix))]
         {
             let marker = 0_u8;
@@ -3783,14 +3843,7 @@ impl NodeSource for HashReader<'_> {
         Ok(sc::job::ScopedNodeRead::from_plain(value, permit))
     }
 
-    fn checked_read(
-        &mut self,
-        d: &NodeDigest,
-    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
-        self.checked_read_scoped(d)
-            .and_then(|frame| frame.map(sc::job::ScopedFrame::into_frame).transpose())
-    }
-    fn checked_read_scoped(
+    fn checked_read_scoped_once(
         &mut self,
         d: &NodeDigest,
     ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
@@ -3897,6 +3950,14 @@ impl NodeSink for HashReader<'_> {
         }
         if let Some(owner) = &mut self.owned {
             return owner.raw_put(digest, tag, body);
+        }
+        // #1890：已入表的查找只读过 F 核验成立的原件；放入不满足 F(tag, body) = 摘要的
+        // overlay 节点（违反 NodeSink 合同）可能改变之后的真实读取结果，故整表作废。
+        if !self.path_memo.is_empty()
+            && self.overlay.get(&digest) != Some((tag, body))
+            && sc::frame(tag, body) != digest
+        {
+            self.path_memo.clear();
         }
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if !self.native_measured() {
@@ -5508,6 +5569,97 @@ pub(super) mod tests {
                 .unwrap_err()
                 .code(),
             sc::code::NODE_MISSING
+        );
+    }
+
+    /// #1890：同一 reader、同一事务快照纪元内，同一查找的成功结果复用；首次照旧真读；
+    /// 错误不入表且清表；本连接一写即推进纪元，之后的改写在下一次查找时照旧暴露。
+    #[test]
+    fn path_memo_reuses_only_successful_same_lookup_within_snapshot_epoch() {
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let root = sc::write_value(
+            &mut content_store::TxStore::new(&tx).unwrap(),
+            &V::Object(vec![("a".into(), V::Null), ("b".into(), V::Bool(true))]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let reads = |f: &mut dyn FnMut()| {
+            let before = content_store::sql_reads_on_thread();
+            f();
+            content_store::sql_reads_on_thread() - before
+        };
+        {
+            let mut reader = HashReader::new(&mut source);
+            let mut first = None;
+            let cold =
+                reads(&mut || first = Some(reader.lookup_field_ref((&root).into(), "a").unwrap()));
+            assert!(cold > 0, "首次查找逐节点真读");
+            let mut second = None;
+            let warm =
+                reads(&mut || second = Some(reader.lookup_field_ref((&root).into(), "a").unwrap()));
+            assert_eq!(warm, 0, "同一查找第二次复用整次结果");
+            assert!(first == second);
+            // 不同查找键（另一字段名、另一入口）各自真读一次。
+            assert!(
+                reads(&mut || {
+                    reader.lookup_field_ref((&root).into(), "b").unwrap();
+                }) > 0
+            );
+            assert!(
+                reads(&mut || {
+                    reader
+                        .lookup_subset_ref((&root).into(), &["a", "b"])
+                        .unwrap();
+                }) > 0
+            );
+            // 错误不入表：每次都重新执行，错误码不变；并清空整表。
+            let mut codes = Vec::new();
+            for _ in 0..2 {
+                let n = reads(&mut || {
+                    codes.push(
+                        reader
+                            .lookup_field_ref((&root).into(), "zz")
+                            .unwrap_err()
+                            .code()
+                            .to_owned(),
+                    )
+                });
+                assert!(n > 0, "失败查找每次真读");
+            }
+            assert_eq!(codes[0], sc::path::path_code::PATH_FIELD_MISSING);
+            assert_eq!(codes[0], codes[1]);
+            assert!(
+                reads(&mut || {
+                    reader.lookup_field_ref((&root).into(), "a").unwrap();
+                }) > 0,
+                "失败后表已清空"
+            );
+            // overlay 重置同样清表。
+            reader.lookup_field_ref((&root).into(), "a").unwrap();
+            reader.clear_overlay();
+            assert!(
+                reads(&mut || {
+                    reader.lookup_field_ref((&root).into(), "a").unwrap();
+                }) > 0
+            );
+        }
+        let mut reader = HashReader::new(&mut source);
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        let null = sc::frame(sc::tag::NULL, &[]);
+        tx.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            params![&null[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            reader
+                .lookup_field_ref((&root).into(), "a")
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST,
+            "本连接写入推进纪元，改写在下一次查找照旧暴露"
         );
     }
 

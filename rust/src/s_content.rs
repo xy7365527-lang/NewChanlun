@@ -68,6 +68,8 @@ pub use sequence::{
     NodeStore, SequenceRef,
 };
 
+/// #1890：同一 reader 内整次 path 查找结果表（合同论证见模块文档）。
+pub mod lookup_memo;
 /// §5.4/§5.6 的路径定位与本批占位（0x08）定点替换（#1394 采纳 C）。
 pub mod path;
 
@@ -530,6 +532,20 @@ pub trait NodeSource {
 
     /// 审计源可显式限制单次渲染物化；普通流式源不擅自填默认上限。
     fn max_render_bytes(&self) -> Option<u64> {
+        None
+    }
+
+    /// #1890：本 reader 的整次 path 查找结果表（合同论证见 [`lookup_memo`] 模块文档）。
+    /// 默认无表：来源或包装器不显式提供/转发，就逐次真实执行每一次查找。只有自身读路径
+    /// 无计费、无期限、无工作域、无逐次观察副作用，且底层来源给出 [`Self::snapshot_epoch`]
+    /// 的 reader 才可返回 Some；纯转发的包装器可转发内层的表。
+    fn path_lookup_memo(&mut self) -> Option<&mut lookup_memo::LookupMemo> {
+        None
+    }
+
+    /// #1890：来源快照纪元。Some(e) 声明：纪元仍为 e 期间，同一摘要的存储原件不会消失或
+    /// 改变（显式事务读快照内、本连接未再写）。不在事务里的短读来源必须返回 None。
+    fn snapshot_epoch(&self) -> Option<u64> {
         None
     }
 }

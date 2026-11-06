@@ -2015,26 +2015,40 @@ mod fixed_fields_tests {
 }
 
 /// #1488 与旧 path/refview 共核；原 reserve token 直接随 Plain 引用返回。
+/// #1890：以下 `*_native` 查找入口先查来源提供的 reader 级结果表（默认无表）；未命中时
+/// 原查找核照旧逐节点真读、真核，只有成功结果入表。合同论证见 `lookup_memo` 模块文档。
 pub fn lookup_path_native(
     source: &mut dyn NodeSource,
     reference: RefView<'_>,
     path: &[PathStep],
 ) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
-    lookup_path_output(&mut CodecContext::Source(source), reference, path)
+    super::lookup_memo::lookup_ref(
+        source,
+        reference,
+        || super::lookup_memo::Op::path_view(&path),
+        |source| lookup_path_output(&mut CodecContext::Source(source), reference, path),
+    )
 }
 pub fn lookup_path_view_native(
     source: &mut dyn NodeSource,
     reference: RefView<'_>,
     path: &dyn PathView,
 ) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
-    lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false)
+    super::lookup_memo::lookup_ref(
+        source,
+        reference,
+        || super::lookup_memo::Op::path_view(path),
+        |source| lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false),
+    )
 }
 pub fn lookup_optional_field_native(
     source: &mut dyn NodeSource,
     reference: RefView<'_>,
     name: &str,
 ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
-    lookup_optional_field_output(&mut CodecContext::Source(source), reference, name)
+    super::lookup_memo::lookup_optional(source, reference, name, |source| {
+        lookup_optional_field_output(&mut CodecContext::Source(source), reference, name)
+    })
 }
 pub fn lookup_array_items_native(
     source: &mut dyn NodeSource,
@@ -2043,7 +2057,9 @@ pub fn lookup_array_items_native(
     super::CodecVec<super::capture_allocation::native_owned::NativeValue<ContentRef>>,
     CodecError,
 > {
-    lookup_array_output(&mut CodecContext::Source(source), reference)
+    super::lookup_memo::lookup_items(source, reference, |source| {
+        lookup_array_output(&mut CodecContext::Source(source), reference)
+    })
 }
 pub fn replace_batch_placeholder_native(
     store: &mut dyn NodeStore,
@@ -2060,7 +2076,9 @@ pub fn lookup_fields_native(
     names: &[&str],
     subset: bool,
 ) -> Result<super::capture_allocation::native_owned::NativeRefFields, CodecError> {
-    object_fields_output(&mut CodecContext::Source(source), reference, names, !subset)
+    super::lookup_memo::lookup_fields(source, reference, names, !subset, |source| {
+        object_fields_output(&mut CodecContext::Source(source), reference, names, !subset)
+    })
 }
 
 /// #1488 原 content_ref_ctx 共核；不经过擦除许可的旧 ContentRef 返回口。
