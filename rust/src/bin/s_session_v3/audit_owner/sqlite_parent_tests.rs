@@ -635,8 +635,13 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
 
     // 零存活块的首拒：父 Z 以零额度绑定，打开连接即拒（Budget），Z 名下零块；解除绑定后槽交还
     // 父句柄，但同父同 origin 重绑仍取回原首拒，开库零执行；Z 换到新冻结域后才开新记录。
+    // 首次绑定须取根的完整额度，再换到零额度冻结域（与 `Domains::next(0)` 同法）。
     let zero_root = Budget::fresh(LIMIT).unwrap();
-    let mut zero = zero_root.bind_frozen(1, 0, 0, 0).unwrap();
+    let mut zero = zero_root
+        .bind_frozen(1, LIMIT, 0, 0)
+        .unwrap()
+        .handoff(2, 0)
+        .unwrap();
     let (zero_parent, zero_origin) = zero.sqlite_parent();
     let first_bind = allocator.bind(zero_parent.clone(), zero_origin).unwrap();
     assert_eq!(
@@ -649,7 +654,7 @@ fn sqlite_parent_charges_same_parent_before_allocation() {
     assert_eq!(rebound.refusal(), Some(ScratchFailure::Budget));
     assert_eq!(refused(rebound.open(c":memory:")), ScratchFailure::Budget);
     drop(rebound);
-    zero = zero.handoff(2, ROOM).unwrap();
+    zero = zero.handoff(3, ROOM).unwrap();
     let (zero_parent, zero_origin) = zero.sqlite_parent();
     let fresh = allocator.bind(zero_parent, zero_origin).unwrap();
     assert_eq!(fresh.refusal(), None);
