@@ -390,14 +390,18 @@ jobs:
       fail-fast: false
       # Boat 上五组同时开工；退回 ubuntu-latest 时取 4（#1875 R12：3 槽时 release-locks 要排队约 19 分钟，任何顺序下界都约 48 分钟；
       #   4 槽按实测时长模拟约 40 分钟，单次 CI 托管 Linux 作业峰值 20，不超过 20，见 run 42019882083）。
-      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 4 }}
+      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 8 || 4 }}
       matrix:
         # 按托管路径实测时长从长到短排，空出的槽先给长的（#1875 R12）。
-        group: [native, release-locks, owned, economic, content]
+        # #1875 P353-5/7：Boat 上把 owned 的 release 档 H1 各步拆到 owned-h1；native、economic 的测试按名字分成 a/b 两份
+        #   （CI_TEST_PART），各占一台机器，同机负载与不拆时相同。托管路径不拆（20 并发上限）。
+        group: ${{ fromJSON((vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '["native-a","native-b","release-locks","owned","owned-h1","economic-a","economic-b","content"]' || '["native","release-locks","owned","economic","content"]') }}
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
-    timeout-minutes: ${{ matrix.group == 'native' && 90 || 60 }}
+    timeout-minutes: ${{ startsWith(matrix.group, 'native') && 90 || 60 }}
     env:
       CARGO_INCREMENTAL: "0"
+      OWNED_SPLIT: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '1' || '0' }}
+      CI_TEST_PART: ${{ endsWith(matrix.group, '-a') && '0/2' || endsWith(matrix.group, '-b') && '1/2' || '0/1' }}
     defaults:
       run:
         working-directory: rust
@@ -434,14 +438,14 @@ jobs:
       #   编译的 1 条（half_close_during_large_frame_drain_observes_actual_eof）与各 macOS 专属分支由
       #   ci-macos.yml 作业覆盖。
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
-        if: ${{ !cancelled() && matrix.group == 'economic' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs "${CI_CARGO_JOBS:-1}" -- economic_session session_transport session_protocol
+        if: ${{ !cancelled() && startsWith(matrix.group, 'economic') }}
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/cargo-test-part.sh --locked --features s_session --lib --jobs "${CI_CARGO_JOBS:-1}" -- economic_session session_transport session_protocol
 
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
       #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
       - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
-        if: ${{ !cancelled() && matrix.group == 'native' }}
+        if: ${{ !cancelled() && startsWith(matrix.group, 'native') }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
 
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
@@ -453,7 +457,7 @@ jobs:
         run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}" -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
       - name: H1 私有 FD/WAL 授权边界锁（#1481 S1D）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
         run: |
           set -o pipefail
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
@@ -461,7 +465,7 @@ jobs:
           grep -Fx "test v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
 
       - name: H1 正式准入三层对拍与调用路径锁（#1481 S1）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
         run: |
           set -o pipefail
           # #1481 S1K：接替 history36h 的全部 h1_ release 锁，保留正式准入逐名收据。
@@ -511,7 +515,7 @@ jobs:
 
       # #1481 S1K：临时分支 push 触发移除后，PR CI 保留 history36h 的同 feature/profile 覆盖。
       - name: H1 SQLite commit failure locks（#1481 S1K）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
         run: |
           set -o pipefail
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
@@ -539,10 +543,10 @@ jobs:
           done
 
       - name: 上传 H1 正式准入逐名日志（#1481 S1）
-        if: ${{ !cancelled() && matrix.group == 'owned' }}
+        if: ${{ !cancelled() && (matrix.group == 'owned' || matrix.group == 'owned-h1') }}
         uses: actions/upload-artifact@v4
         with:
-          name: h1-admission-S1
+          name: ${{ (matrix.group == 'owned' && env.OWNED_SPLIT == '1') && 'h1-admission-S1-debug' || 'h1-admission-S1' }}
           path: |
             ${{ runner.temp }}/1481-admission.log
             ${{ runner.temp }}/1481-ledger.log
@@ -703,6 +707,8 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       FEATURES: ${{ matrix.features }}
+      # #1875：具名锁在 Boat 上 4 路并行（run-1488-delta-ci.py 每条仍是独立进程 --exact）；托管 runner 保持 1 路串行。
+      CI_1488_TEST_JOBS: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '4' || '1' }}
     defaults:
       run:
         shell: bash
@@ -934,6 +940,8 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       FEATURES: s_session,s_capture_native_testonly
+      # #1875：具名锁在 Boat 上 4 路并行（run-1488-delta-ci.py 每条仍是独立进程 --exact）；托管 runner 保持 1 路串行。
+      CI_1488_TEST_JOBS: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '4' || '1' }}
     defaults:
       run:
         shell: bash

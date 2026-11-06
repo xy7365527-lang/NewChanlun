@@ -13,10 +13,18 @@ on:
   schedule:
     - cron: '36 18 * * 1'
 
+# #1875：同一 PR 推新 head 时取消旧 head 的扫描（与 ci.yml 同一写法）；push main 与定时任务按 run_id 各自成组，
+#   不互相取消。扫描曾卡死并跑满 6 小时默认时限、占住托管 runner；成功运行实测最长 889 s（近 24 次，中位 725 s），
+#   故设 30 分钟上限。扫描内容、零发现门与误报清单不变。
+concurrency:
+  group: devskim-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     name: DevSkim
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
