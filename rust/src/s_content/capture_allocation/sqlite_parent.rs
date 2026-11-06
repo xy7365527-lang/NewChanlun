@@ -1290,6 +1290,13 @@ impl ChargedConnection {
         u64::try_from(unsafe { ffi::sqlite3_total_changes64(self.db) }).unwrap_or(0)
     }
 
+    /// 最近一条完成的 INSERT/UPDATE/DELETE 的直接变更行数（`sqlite3_changes64`）。只读连接状态，
+    /// 不执行 SQL、不分配。
+    pub fn changes(&self) -> u64 {
+        // SAFETY: db is a live handle owned by this connection.
+        u64::try_from(unsafe { ffi::sqlite3_changes64(self.db) }).unwrap_or(0)
+    }
+
     /// 本连接的身份，见 [`ConnectionId`]。
     pub fn id(&self) -> ConnectionId {
         self.id
@@ -1697,6 +1704,31 @@ impl Drop for GatedStatement<'_> {
 impl GatedStatement<'_> {
     fn admit(&self) -> Result<(), SqlGate> {
         self.binding.admit(Some(self.owner))
+    }
+
+    /// 结果列数（`sqlite3_column_count`）。只读语句元数据，不执行 SQL、不分配。
+    pub fn column_count(&self) -> usize {
+        // SAFETY: stmt is live.
+        usize::try_from(unsafe { ffi::sqlite3_column_count(self.stmt) }).unwrap_or(0)
+    }
+
+    /// 第 `i` 列的列名，借自语句。只读语句元数据，不执行 SQL；列名在 prepare 时已按 UTF-8 物化，
+    /// 读取不分配。越界报 `SQLITE_RANGE`，非 UTF-8 报 `SQLITE_MISMATCH`。
+    pub fn column_name(&self, i: usize) -> Result<&str, SqlGate> {
+        let index = c_int::try_from(i).map_err(|_| SqlGate::Sqlite(ffi::SQLITE_RANGE))?;
+        if i >= self.column_count() {
+            return Err(SqlGate::Sqlite(ffi::SQLITE_RANGE));
+        }
+        // SAFETY: stmt is live and index is in range; the name lives until the statement is
+        // finalized, which `&self` outlives.
+        let name = unsafe { ffi::sqlite3_column_name(self.stmt, index) };
+        if name.is_null() {
+            return Err(SqlGate::Sqlite(ffi::SQLITE_NOMEM));
+        }
+        // SAFETY: SQLite returns a NUL-terminated UTF-8 name owned by the statement.
+        unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .map_err(|_| SqlGate::Sqlite(ffi::SQLITE_MISMATCH))
     }
 
     /// 求值参数（前后各一次准入）并绑定；成功后语句处于可 step 状态。

@@ -4,6 +4,7 @@ use super::super::audit_retention::{sum, vec_bytes, Retained};
 use super::super::audit_store::CodecRead;
 use super::super::request_audit::{ExactRows, SqlCell};
 use super::owner_sql::JournalKey;
+use super::owner_tx::{OwnerRow, OwnerTx};
 use super::*;
 use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
@@ -499,28 +500,34 @@ impl Recording {
     /// 无共享父：journal 私有子账（上限 cap）先出生，首笔许可先于任何 journal 分配。
     /// #1488 P3-b：生产唯一入口是 start_on；本入口只剩测试调用方，仅测试编译。
     #[cfg(test)]
-    pub(super) fn start(
-        tx: &Transaction<'_>,
+    pub(super) fn start<'t>(
+        tx: impl Into<OwnerTx<'t>>,
         operation: Operation,
         cap: usize,
         strict: bool,
     ) -> Result<Option<Self>, String> {
-        Self::start_inner(tx, operation, cap, strict, None)
+        Self::start_inner(tx.into(), operation, cap, strict, None)
     }
     /// #1488 P2-2：生产入口。journal 许可在 Journal 控制块与首个 keys 块分配之前从共享父取得，
     /// 随 journal 持有；之后每个新块仍由 reserve_one 先预留再分配。
-    pub(super) fn start_on(
-        tx: &Transaction<'_>,
+    pub(super) fn start_on<'t>(
+        tx: impl Into<OwnerTx<'t>>,
         operation: Operation,
         cap: usize,
         strict: bool,
         budget: &native::Budget,
         parent_limit: usize,
     ) -> Result<Option<Self>, String> {
-        Self::start_inner(tx, operation, cap, strict, Some((budget, parent_limit)))
+        Self::start_inner(
+            tx.into(),
+            operation,
+            cap,
+            strict,
+            Some((budget, parent_limit)),
+        )
     }
     fn start_inner(
-        tx: &Transaction<'_>,
+        tx: OwnerTx<'_>,
         operation: Operation,
         cap: usize,
         strict: bool,
@@ -608,61 +615,61 @@ impl Recording {
             return Ok(None);
         }
         let journal = Arc::new(Mutex::new(journal));
-        let hook = journal.clone();
-        tx.update_hook(Some(move |action, db: &str, table: &str, rowid| {
-            let mut j = hook.lock().expect("同步 owner 效果记录锁");
-            if let Some(c) = j.coverage.as_mut() {
-                match c.hook_events.checked_add(1) {
-                    Some(n) => c.hook_events = n,
-                    None => c.exact = false,
-                }
+        match tx {
+            OwnerTx::Legacy(conn) => {
+                let hook = journal.clone();
+                conn.update_hook(Some(move |action, db: &str, table: &str, rowid| {
+                    let mut j = hook.lock().expect("同步 owner 效果记录锁");
+                    record_update(&mut j, action, db, table, rowid);
+                }))
+                .map_err(invalid)?;
             }
-            let Some(table) = Table::parse(table) else {
-                j.unexpected = true;
-                return;
-            };
-            if db != "main" || !j.operation.permits(table, action) {
-                j.unexpected = true;
-                return;
+            // 受管守卫：C 回调借用守卫所在连接作上下文（不新建 Rust 持有），记录进本线程已登记的
+            // 同一 journal（`NODE_JOURNAL`，键为该连接的 `ConnectionId`）。回调由 `finish` 或守卫
+            // 的窄收尾（`clear_write_hooks`）撤下，二者都在连接被守卫借用期间。
+            #[cfg(all(test, feature = "s_incremental", unix))]
+            OwnerTx::Charged(txn) => {
+                let hook = newchan_rust::s_content::capture_allocation::sqlite_parent::Callback {
+                    callback: record_update_charged,
+                    context: std::ptr::from_ref(txn.connection())
+                        .cast_mut()
+                        .cast::<std::ffi::c_void>(),
+                };
+                // SAFETY: the context is the guard's connection, alive and unmoved while the
+                // transaction guard borrows it; the hook is removed before the guard ends.
+                txn.run(|q| unsafe { q.set_update_hook(Some(hook)) })
+                    .map_err(|error| invalid(format!("受管SQLite拒绝：{error:?}")))?;
             }
-            let set = j.set_required;
-            let Some(receipt) = Receipt::row(j.keys.len()) else {
-                j.overflow = true;
-                return;
-            };
-            if !j.reserve_receipt(true, false, set) {
-                return;
-            }
-            let material_epoch = j.material_epoch;
-            j.keys.push(Key {
-                table,
-                rowid,
-                digest: [0; 32],
-                action: Some(action),
-                material_epoch,
-                node_write: None,
-            });
-            if set {
-                j.events.push(receipt);
-            }
-        }))
-        .map_err(invalid)?;
+        }
         NODE_JOURNAL.with(|slot| {
             let mut slot = slot.borrow_mut();
             assert!(slot.is_none(), "同线程不能嵌套 owner 写口");
-            *slot = Some((tx_key(tx), journal.clone()));
+            *slot = Some((tx.journal_key(), journal.clone()));
         });
         Ok(Some(Self { journal }))
     }
-    pub(super) fn finish(
+    pub(super) fn finish<'t>(
         self,
-        tx: &Transaction<'_>,
+        tx: impl Into<OwnerTx<'t>>,
         originals: &mut [ExactRows],
         cap: usize,
     ) -> Result<Option<Effects>, PublishError> {
-        tx.update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
-            .map_err(publish_err)?;
-        clear_node_journal(tx);
+        let tx = tx.into();
+        match tx {
+            OwnerTx::Legacy(conn) => {
+                conn.update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
+                    .map_err(publish_err)?;
+            }
+            // 只撤行变更回调（与 Legacy 同），不动夹持的 WAL 提交回调；首拒之后这里失败，守卫的
+            // 窄收尾随后撤下全部写回调。
+            #[cfg(all(test, feature = "s_incremental", unix))]
+            OwnerTx::Charged(txn) => {
+                // SAFETY: removing the hook installs no context.
+                txn.run(|q| unsafe { q.set_update_hook(None) })
+                    .map_err(|error| publish_err(format!("受管SQLite拒绝：{error:?}")))?;
+            }
+        }
+        clear_node_journal_key(tx.journal_key());
         let mut journal = Arc::try_unwrap(self.journal)
             .map_err(|_| publish_err("效果日志仍有外借"))?
             .into_inner()
@@ -729,22 +736,42 @@ impl Recording {
             if let Some((budget, _limit)) = &parent {
                 remaining = remaining.min(budget.remaining());
             }
-            let loaded = if key.table == Table::Node {
-                ExactRows::read_optional_bounded_params_in_parent(
-                    tx,
-                    sql,
-                    [&key.digest[..]],
-                    remaining,
-                    parent.as_ref().map(|(budget, _)| budget),
-                )?
-            } else {
-                ExactRows::read_optional_bounded_params_in_parent(
+            let loaded = match tx {
+                OwnerTx::Legacy(tx) if key.table == Table::Node => {
+                    ExactRows::read_optional_bounded_params_in_parent(
+                        tx,
+                        sql,
+                        [&key.digest[..]],
+                        remaining,
+                        parent.as_ref().map(|(budget, _)| budget),
+                    )?
+                }
+                OwnerTx::Legacy(tx) => ExactRows::read_optional_bounded_params_in_parent(
                     tx,
                     sql,
                     [key.rowid],
                     remaining,
                     parent.as_ref().map(|(budget, _)| budget),
-                )?
+                )?,
+                #[cfg(all(test, feature = "s_incremental", unix))]
+                OwnerTx::Charged(txn) => {
+                    let digest: &[u8] = &key.digest[..];
+                    let param: &dyn rusqlite::ToSql = if key.table == Table::Node {
+                        &digest
+                    } else {
+                        &key.rowid
+                    };
+                    let (budget, _) = parent.as_ref().ok_or_else(|| {
+                        publish_stale("受管 owner 的 effects 读行须在共享原父账内")
+                    })?;
+                    ExactRows::read_optional_charged_in_parent(
+                        txn,
+                        sql,
+                        [param],
+                        remaining,
+                        budget,
+                    )?
+                }
             };
             let Some((mut rows, read_peak)) = loaded else {
                 return Ok(None);
@@ -1005,15 +1032,58 @@ pub(super) fn optional_integer(c: &SqlCell) -> Result<Option<i64>, String> {
         integer(c).map(Some)
     }
 }
-fn verify_storage(tx: &Transaction<'_>, table: Table, row: &[SqlCell]) -> Result<(), String> {
-    use rusqlite::types::Type;
-    let mut stmt = tx
-        .prepare("SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid")
-        .map_err(invalid)?;
-    let mut columns = stmt.query([table.name()]).map_err(invalid)?;
+fn verify_storage<'t>(
+    tx: impl Into<OwnerTx<'t>>,
+    table: Table,
+    row: &[SqlCell],
+) -> Result<(), String> {
+    const SQL: &str = "SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid";
     let mut count = 0;
-    while let Some(c) = columns.next().map_err(invalid)? {
-        count += 1;
+    match tx.into() {
+        OwnerTx::Legacy(tx) => {
+            let mut stmt = tx.prepare(SQL).map_err(invalid)?;
+            let mut columns = stmt.query([table.name()]).map_err(invalid)?;
+            while let Some(c) = columns.next().map_err(invalid)? {
+                count += 1;
+                verify_storage_column(table, row, count, &OwnerRow::Legacy(c))?;
+            }
+        }
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        OwnerTx::Charged(txn) => {
+            let name = table.name();
+            let mut failed = None;
+            txn.run(|q| {
+                q.prepare(SQL)?.for_each_cells([&name], |cells| {
+                    count += 1;
+                    match verify_storage_column(table, row, count, &OwnerRow::Charged(cells)) {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(error) => {
+                            failed = Some(error);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            })
+            .map_err(|error| invalid(format!("受管SQLite拒绝：{error:?}")))?;
+            if let Some(error) = failed {
+                return Err(error);
+            }
+        }
+    }
+    if count + 1 != row.len() {
+        return Err(invalid("效果原件列数不符"));
+    }
+    Ok(())
+}
+/// 一列的实际类型/非空约束核对（两种连接同一判据）。
+fn verify_storage_column(
+    table: Table,
+    row: &[SqlCell],
+    count: usize,
+    c: &OwnerRow<'_>,
+) -> Result<(), String> {
+    use rusqlite::types::Type;
+    {
         let cell = row.get(count).ok_or_else(|| invalid("效果原件缺列"))?;
         let (kind, bytes) = match cell {
             SqlCell::Null => (Type::Null, None),
@@ -1023,7 +1093,7 @@ fn verify_storage(tx: &Transaction<'_>, table: Table, row: &[SqlCell]) -> Result
             SqlCell::Blob(_) => (Type::Blob, None),
         };
         if !v2::valid_storage_cell(
-            &c.get::<_, String>(0).map_err(invalid)?,
+            &c.get::<String>(0).map_err(invalid)?,
             c.get(1).map_err(invalid)?,
             c.get(2).map_err(invalid)?,
             kind,
@@ -1036,10 +1106,101 @@ fn verify_storage(tx: &Transaction<'_>, table: Table, row: &[SqlCell]) -> Result
             )));
         }
     }
-    if count + 1 != row.len() {
-        return Err(invalid("效果原件列数不符"));
-    }
     Ok(())
+}
+
+/// 一次行变更回调：两种连接上的同一判据（原 rusqlite 闭包体）。
+fn record_update(
+    j: &mut Journal,
+    action: rusqlite::hooks::Action,
+    db: &str,
+    table: &str,
+    rowid: i64,
+) {
+    if let Some(c) = j.coverage.as_mut() {
+        match c.hook_events.checked_add(1) {
+            Some(n) => c.hook_events = n,
+            None => c.exact = false,
+        }
+    }
+    let Some(table) = Table::parse(table) else {
+        j.unexpected = true;
+        return;
+    };
+    if db != "main" || !j.operation.permits(table, action) {
+        j.unexpected = true;
+        return;
+    }
+    let set = j.set_required;
+    let Some(receipt) = Receipt::row(j.keys.len()) else {
+        j.overflow = true;
+        return;
+    };
+    if !j.reserve_receipt(true, false, set) {
+        return;
+    }
+    let material_epoch = j.material_epoch;
+    j.keys.push(Key {
+        table,
+        rowid,
+        digest: [0; 32],
+        action: Some(action),
+        material_epoch,
+        node_write: None,
+    });
+    if set {
+        j.events.push(receipt);
+    }
+}
+
+/// 受管守卫上的行变更回调（`UpdateFn`）。只记入本线程登记在同一受管连接上的 journal；名称非
+/// UTF-8 或 journal 锁中毒时与 rusqlite 回调同样丢弃本事件（rusqlite 的 `expect_utf8`/`expect`
+/// 在 `catch_unwind` 内），覆盖计数因此不齐，`finish` 判不精确。
+#[cfg(all(test, feature = "s_incremental", unix))]
+unsafe extern "C" fn record_update_charged(
+    context: *mut std::ffi::c_void,
+    action: std::ffi::c_int,
+    db: *const std::ffi::c_char,
+    table: *const std::ffi::c_char,
+    rowid: i64,
+) {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::ChargedConnection;
+    // SAFETY: start_inner installs the guard's connection as context and removes the hook before
+    // the guard releases it.
+    let key =
+        JournalKey::Charged(unsafe { &*context.cast_const().cast::<ChargedConnection>() }.id());
+    /// # Safety
+    /// `p` is null or a NUL-terminated string that outlives `'a`.
+    unsafe fn name<'a>(p: *const std::ffi::c_char) -> Option<&'a str> {
+        if p.is_null() {
+            return None;
+        }
+        // SAFETY: guaranteed by the caller.
+        unsafe { std::ffi::CStr::from_ptr(p) }.to_str().ok()
+    }
+    // SAFETY: SQLite passes NUL-terminated names valid for the duration of the callback.
+    let (Some(db), Some(table)) = (unsafe { name(db) }, unsafe { name(table) }) else {
+        return;
+    };
+    let _ = NODE_JOURNAL.try_with(|slot| {
+        let slot = slot.borrow();
+        let Some((owner, journal)) = slot.as_ref() else {
+            return;
+        };
+        if *owner != key {
+            return;
+        }
+        let Ok(mut j) = journal.lock() else {
+            return;
+        };
+        record_update(
+            &mut j,
+            rusqlite::hooks::Action::from(action),
+            db,
+            table,
+            rowid,
+        );
+    });
 }
 
 thread_local! {
@@ -1063,13 +1224,13 @@ pub(super) fn clear_node_journal_key(key: JournalKey) {
     });
 }
 /// 仅固定 TxStore 在实际 INSERT 成功或逐 tuple Noop 校验成功后调用。
-pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, inserted: bool) {
+pub(crate) fn note_node(tx: OwnerTx<'_>, digest: [u8; 32], before: u64, inserted: bool) {
     NODE_JOURNAL.with(|slot| {
         let slot = slot.borrow();
         let Some((db, journal)) = slot.as_ref() else {
             return;
         };
-        if *db != tx_key(tx) {
+        if *db != tx.journal_key() {
             return;
         }
         let mut j = journal.lock().expect("同步 owner node 效果锁");
@@ -3644,4 +3805,168 @@ fn publish_err(error: impl Into<PublishError>) -> PublishError {
 
 fn publish_stale(detail: &str) -> PublishError {
     construction_state::stale(detail).into()
+}
+
+/// #1419 3C effects S1：effects 写记录与 `TxStore` 在受管 owner 守卫上的真实读写（真实父账、
+/// 全新进程）。行变更回调与节点收据记入同一 journal，`finish` 精确覆盖实际写；守卫所在连接上
+/// 首拒之后，节点读按值带 Budget，回调由守卫窄收尾撤下并回滚。
+#[cfg(all(test, unix))]
+mod charged_tests {
+    use super::super::owner_sql::{ChargedOwner, ChargedOwnerConn};
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+        SqlGate, SqliteParentAllocator,
+    };
+    use newchan_rust::s_content::{NodeRead, NodeSink, NodeSource};
+    use rusqlite::TransactionBehavior;
+    use std::rc::Rc;
+
+    const LIMIT: usize = 64 << 20;
+
+    #[test]
+    #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+    fn charged_effects_record_txstore_writes_and_type_first_refusal() {
+        // SAFETY: this test runs alone in a fresh process before any SQLite use.
+        let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+        let root = native::Budget::fresh(LIMIT).unwrap();
+        let current = root.bind_frozen(1, LIMIT, 0, 0).unwrap();
+        let (parent, origin) = current.sqlite_parent();
+        let binding = Rc::new(allocator.bind(parent, origin).expect("bind"));
+        let dir = std::env::temp_dir().join(format!("charged-effects-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("owner.sqlite3");
+        let path = std::ffi::CString::new(db.to_str().unwrap()).unwrap();
+
+        let mut nodes = sc::MemoryNodes::new();
+        let mut node = |text: &str| {
+            let digest = sc::write_value(&mut nodes, &sc::Value::String(text.into()))
+                .unwrap()
+                .content_ref()
+                .digest()
+                .unwrap();
+            let (tag, body) = nodes.get(&digest).unwrap();
+            (digest, tag, body.to_vec())
+        };
+        let (first, first_tag, first_body) = node("charged effects");
+        let (second, second_tag, second_body) = node("after first refusal");
+
+        let base = current.live();
+        let open = || ChargedOwnerConn {
+            binding: binding.clone(),
+            connection: binding.open(&path).unwrap(),
+        };
+        let close = |conn: ChargedOwnerConn| {
+            binding.clear_write_hooks(&conn.connection).unwrap();
+            binding.close(conn.connection).map_err(|(_, e)| e).unwrap();
+        };
+        let schema = format!(
+            "PRAGMA journal_mode=WAL;
+             CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY, protocol_revision TEXT NOT NULL);
+             INSERT INTO s_protocol_meta VALUES(1, 's-session/3');
+             {}
+             INSERT INTO s_content_meta VALUES(1, '{}');",
+            crate::content_store::SCHEMA,
+            sc::CONTENT_FORMAT
+        );
+        let seed = open();
+        binding
+            .run(&seed.connection, |q| q.execute_batch(&schema))
+            .unwrap();
+        close(seed);
+
+        // 成功：同一受管事务上 journal 记下节点写（TxStore 收据）与行写（C 回调），finish 精确覆盖。
+        let owner = AuditConnection::<ChargedOwner>::new(open()).unwrap();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        let txn = active.transaction.as_ref().unwrap();
+        let tx = OwnerTx::Charged(txn);
+        let (meta, _) = ExactRows::read_optional_charged_in_parent(
+            txn,
+            Table::Meta.original_sql(),
+            [],
+            1 << 20,
+            &current,
+        )
+        .unwrap()
+        .expect("meta originals fit");
+        let mut originals = [meta];
+        let recording =
+            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &current, LIMIT)
+                .unwrap()
+                .expect("journal fits");
+        assert!(has_journal_key(tx.journal_key()).unwrap());
+        let mut store = crate::content_store::TxStore::on(tx).unwrap();
+        store.put(first, first_tag, &first_body).unwrap();
+        // 同摘要同原件：不再 INSERT，只记 Noop 收据。
+        store.put(first, first_tag, &first_body).unwrap();
+        assert!(matches!(
+            store.read(&first).unwrap(),
+            NodeRead::Found { tag, body } if tag == first_tag && body == first_body
+        ));
+        drop(store);
+        txn.run(|q| q.execute("INSERT INTO meta VALUES('charged', 'effects')", []))
+            .unwrap();
+        let effects = recording
+            .finish(tx, &mut originals, 16 << 20)
+            .unwrap()
+            .expect("effects fit");
+        assert!(effects.has_exact_coverage(txn.connection().total_changes()));
+        assert!(!has_journal_key(tx.journal_key()).unwrap());
+        let changes: Vec<_> = effects
+            .changes
+            .iter()
+            .map(|c| (c.table, c.old.is_some(), c.new.is_some()))
+            .collect();
+        assert_eq!(changes.len(), 2);
+        assert!(changes.contains(&(Table::Meta, false, true)));
+        assert!(changes.contains(&(Table::Node, false, true)));
+        assert!(binding.live_bytes() > 0, "owner bytes live on the parent");
+        drop(effects);
+        drop(originals);
+        drop(active);
+        assert!(!owner.retired.get());
+
+        // 首拒：节点读按值带 Budget；撤回调被拒，守卫的窄收尾撤下回调、清 journal 并回滚。
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        let txn = active.transaction.as_ref().unwrap();
+        let tx = OwnerTx::Charged(txn);
+        let key = tx.journal_key();
+        let recording =
+            Recording::start_on(tx, Operation::Publish, 16 << 20, true, &current, LIMIT)
+                .unwrap()
+                .expect("journal fits");
+        let mut typed = None;
+        let work = current.codec_work().ok().expect("codec work");
+        let _ = work.run(|scope| {
+            let mut store = crate::content_store::TxStore::on(tx)
+                .unwrap()
+                .with_work(Some(scope));
+            let refused = txn.run(|_| {
+                // SAFETY: plain SQLite allocation inside the operation domain; null is expected.
+                assert!(unsafe { rusqlite::ffi::sqlite3_malloc64(LIMIT as u64 + 1) }.is_null());
+                Ok(())
+            });
+            assert_eq!(refused, Err(SqlGate::Refused(ScratchFailure::Budget)));
+            typed = store
+                .put(second, second_tag, &second_body)
+                .unwrap_err()
+                .scratch_failure();
+            Ok::<_, ()>(())
+        });
+        assert_eq!(typed, Some(ScratchFailure::Budget));
+        assert!(
+            recording.finish(tx, &mut [], 16 << 20).is_err(),
+            "removing the hook is an ordinary operation, refused after the first refusal"
+        );
+        drop(active);
+        assert!(!has_journal_key(key).unwrap());
+        assert!(owner.connection.connection.is_autocommit());
+        assert_eq!(binding.refusal(), Some(ScratchFailure::Budget));
+        close(owner.connection);
+        assert_eq!(current.live(), base, "every block returned to the parent");
+        assert!(!allocator.is_broken());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

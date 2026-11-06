@@ -775,6 +775,7 @@ writer/recover闭合后无SHM
 发布索引行被删除
 取消后不能重建成功scope
 取行后本连接页缓存须增长
+受管 owner 的 effects 读行须在共享原父账内
 受管 owner 的材料期 reader 归 effects 状态函数单元，尚未接线
 受管 reader 需要 owner 夹持
 变化JSON不是普通数组
@@ -1233,6 +1234,7 @@ writer/recover闭合后无SHM
 普通投递引用被删除
 普通路径没有keeper
 普通追加不得使旧 prefix 失效
+暂存 TxStore 只由 rusqlite 事务构造
 暂存owner不属于当前事务连接
 暂存owner已失败，不可重试
 暂存必须属于尚未完成的事务

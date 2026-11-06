@@ -383,24 +383,24 @@ impl OwnerBackend for LegacyOwner {
 }
 
 #[cfg(all(test, feature = "s_incremental", unix))]
-pub(super) use charged_owner::{ChargedOwner, ChargedOwnerConn, ChargedOwnerTxn};
+pub(crate) use charged_owner::{ChargedOwner, ChargedOwnerConn, ChargedOwnerTxn};
 
 #[cfg(all(test, feature = "s_incremental", unix))]
 mod charged_owner {
     use super::*;
     use newchan_rust::s_content::capture_allocation::sqlite_parent::{
-        ChargedConnection, SqliteBinding,
+        ChargedConnection, SqlGate, SqlOps, SqliteBinding,
     };
     use std::rc::Rc;
 
     /// 收费组件连接上的 owner（同父、逐操作门、首拒后只有窄收尾）。生产 Native 一次启用前只由
     /// 全新进程 release 锁消费。
-    pub(in super::super) enum ChargedOwner {}
+    pub(crate) enum ChargedOwner {}
     impl sealed::Sealed for ChargedOwner {}
 
-    pub(in super::super) struct ChargedOwnerConn {
-        pub(in super::super) binding: Rc<SqliteBinding>,
-        pub(in super::super) connection: ChargedConnection,
+    pub(crate) struct ChargedOwnerConn {
+        pub(crate) binding: Rc<SqliteBinding>,
+        pub(crate) connection: ChargedConnection,
     }
 
     impl ChargedOwnerConn {
@@ -441,11 +441,25 @@ mod charged_owner {
     }
 
     /// 事务守卫：`BEGIN …` 之后持有连接借用；提交与回滚都消费守卫。
-    pub(in super::super) struct ChargedOwnerTxn<'c> {
-        pub(in super::super) conn: &'c ChargedOwnerConn,
+    pub(crate) struct ChargedOwnerTxn<'c> {
+        pub(crate) conn: &'c ChargedOwnerConn,
     }
 
-    fn gate(error: newchan_rust::s_content::capture_allocation::sqlite_parent::SqlGate) -> String {
+    // #1419 3C effects S1：effects 与 `TxStore` 在守卫所在连接上的操作面（见 `owner_tx`）。
+    impl<'c> ChargedOwnerTxn<'c> {
+        /// 守卫所在连接上的一次普通操作：经组件逐操作门，首拒之后不进入 SQLite。
+        pub(crate) fn run<R>(
+            &self,
+            f: impl FnOnce(&SqlOps<'_>) -> Result<R, SqlGate>,
+        ) -> Result<R, SqlGate> {
+            self.conn.binding.run(&self.conn.connection, f)
+        }
+        pub(crate) fn connection(&self) -> &'c ChargedConnection {
+            &self.conn.connection
+        }
+    }
+
+    fn gate(error: SqlGate) -> String {
         format!("受管SQLite拒绝：{error:?}")
     }
 

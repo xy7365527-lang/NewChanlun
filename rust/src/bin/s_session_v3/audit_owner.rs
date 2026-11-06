@@ -92,7 +92,9 @@ mod history_clamp;
 pub(crate) mod native;
 // #1419 M8D 3B：SQLite 同父分配前收费合同；全新进程逐条 --ignored --exact 运行。
 // #1419 3C U5：owner 连接上的 SQL 面（rusqlite 与收费组件各一份实现）。
-mod owner_sql;
+pub(crate) mod owner_sql;
+// #1419 3C effects S1：effects 与 TxStore 在 owner 事务上的 SQL 面（Legacy 与受管守卫）。
+pub(crate) mod owner_tx;
 #[cfg(all(test, feature = "s_incremental"))]
 mod sqlite_parent_tests;
 #[cfg(all(test, feature = "s_incremental", unix))]
@@ -4577,7 +4579,7 @@ impl AuditTxn<'_> {
 
 #[cfg(feature = "s_incremental")]
 pub(crate) fn note_persisted_node(
-    tx: &Transaction<'_>,
+    tx: owner_tx::OwnerTx<'_>,
     digest: [u8; 32],
     before: u64,
     inserted: bool,

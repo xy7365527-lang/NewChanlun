@@ -28,3 +28,5 @@ v3::audit_owner::history_clamp::charged_tests::clamp_observes_and_receipts_commi
 v3::audit_owner::step_reader::charged_tests::charged_owner_lifecycle_and_gate_on_same_parent
 # #1419 3C U5 F2/F3：封印 reader 在夹持 SQL 内首拒按值为 Budget、窄收尾撤封后回滚、首拒保持、字节返还
 v3::audit_owner::step_reader::charged_tests::charged_sealed_reader_first_refusal_in_clamp_sql_is_typed_and_rolls_back
+# #1419 3C effects S1：effects 写记录与 TxStore 经受管 owner 守卫真实读写（节点收据与 C 行回调同一 journal、finish 精确覆盖），首拒后节点读按值 Budget、窄收尾撤回调并回滚、字节返还
+v3::audit_owner::effects::charged_tests::charged_effects_record_txstore_writes_and_type_first_refusal

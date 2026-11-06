@@ -3,6 +3,9 @@
 //! s-content/1 与旧 evidence-graph 码本分表；只有新 s-session/3 域可以初始化或读取。
 //! 本层保存节点，不发布 cut、不核业务出生许可；完整闭包和独立索引仍由发布者核验。
 
+#[cfg(feature = "s_incremental")]
+use crate::v3::audit_owner::owner_tx::OwnerRow;
+use crate::v3::audit_owner::owner_tx::OwnerTx;
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{self, code, CodecError, NodeDigest, NodeRead, NodeSink, NodeSource};
 use rusqlite::{params, Connection, Transaction};
@@ -11,6 +14,21 @@ use std::collections::BTreeMap;
 
 fn storage_error(error: impl std::fmt::Display) -> CodecError {
     CodecError::new(code::SOURCE, format!("S3 内容存储：{error}"))
+}
+
+/// #1419 3C effects S1：受管 owner 事务上的 SQL 失败。收费拒绝按值进入工作域（typed，同 3A
+/// reader 的 `typed_gate_error`）；没有工作域时首拒仍由绑定的 `refusal()` 按类型给出，这里只带
+/// 门的类别文本，不经文本分类。
+#[cfg(all(test, feature = "s_incremental", unix))]
+fn charged_error(
+    error: s_content::capture_allocation::sqlite_parent::SqlGate,
+    work: Option<&WorkScope>,
+) -> CodecError {
+    use s_content::capture_allocation::sqlite_parent::SqlGate;
+    match (error, work) {
+        (SqlGate::Refused(failure), Some(work)) => work.reject(failure),
+        (error, _) => storage_error(format!("受管SQLite拒绝：{error:?}")),
+    }
 }
 
 /// 实际 SELECT 自有 guard 在文本转换内部先核 NOMEM，再开放借用。
@@ -36,14 +54,22 @@ fn query_text_equals(
     Ok(result)
 }
 
+/// 单行首列文本是否等于期望值；无行为 `None`。
+type TextEquals<'f> =
+    dyn FnMut(&std::ffi::CStr, &'static str, &str) -> Result<Option<bool>, CodecError> + 'f;
+
 fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
-    let protocol = query_text_equals(
-        conn,
+    ensure_domain_with(&mut |sql, column, expected| {
+        query_text_equals(conn, sql, column, expected).map_err(storage_error)
+    })
+}
+
+fn ensure_domain_with(text_equals: &mut TextEquals<'_>) -> Result<(), CodecError> {
+    let protocol = text_equals(
         c"SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
         "protocol_revision",
         "s-session/3",
-    )
-    .map_err(storage_error)?;
+    )?;
     if protocol != Some(true) {
         return Err(CodecError::new(
             code::FORMAT,
@@ -54,14 +80,35 @@ fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
 }
 
 pub(super) fn ensure_format(conn: &Connection) -> Result<(), CodecError> {
-    ensure_domain(conn)?;
-    let format = query_text_equals(
-        conn,
+    ensure_format_with(&mut |sql, column, expected| {
+        query_text_equals(conn, sql, column, expected).map_err(storage_error)
+    })
+}
+
+/// `TxStore` 的格式门。Legacy 即 [`ensure_format`]；受管守卫上用同一判据与次序。
+fn ensure_format_on(tx: OwnerTx<'_>) -> Result<(), CodecError> {
+    match tx {
+        OwnerTx::Legacy(conn) => ensure_format(conn),
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        OwnerTx::Charged(txn) => ensure_format_with(&mut |sql, _column, expected| {
+            use s_content::capture_allocation::sqlite_parent::SqlGate;
+            let sql = sql.to_str().map_err(storage_error)?;
+            match txn.run(|q| q.query_row(sql, [], |[v]| v.as_str().map(|text| text == expected))) {
+                Ok(equal) => equal.map(Some).map_err(storage_error),
+                Err(SqlGate::Sqlite(rusqlite::ffi::SQLITE_DONE)) => Ok(None),
+                Err(error) => Err(charged_error(error, None)),
+            }
+        }),
+    }
+}
+
+fn ensure_format_with(text_equals: &mut TextEquals<'_>) -> Result<(), CodecError> {
+    ensure_domain_with(text_equals)?;
+    let format = text_equals(
         c"SELECT content_format FROM s_content_meta WHERE singleton=1",
         "content_format",
         s_content::CONTENT_FORMAT,
-    )
-    .map_err(storage_error)?;
+    )?;
     if format != Some(true) {
         return Err(CodecError::new(
             code::FORMAT,
@@ -152,6 +199,14 @@ fn read_material_reserved(
         statement.finalize().map_err(storage_error)?;
         row
     };
+    material_row(digest, result)
+}
+
+/// 读出的 `(tag, body, 许可)` 的共同收尾：tag 范围与测试读集登记。
+fn material_row(
+    digest: &NodeDigest,
+    result: Option<(i64, Vec<u8>, Option<NativeReservation>)>,
+) -> Result<Option<(u8, Vec<u8>, Option<NativeReservation>)>, CodecError> {
     let Some(row) = result else {
         return Ok(None);
     };
@@ -204,12 +259,65 @@ pub(super) fn native_tree_storage<K, V>(
     }
 }
 
+/// 受管守卫上的同一节点读：同一 SQL；正文复制与许可同 Legacy 有工作域路线
+/// （`native_body_reserved`：许可先于复制，无工作域时为普通 Vec，与 Legacy 无工作域路线相同）。
+#[cfg(all(test, feature = "s_incremental", unix))]
+fn read_material_charged(
+    txn: &crate::v3::audit_owner::owner_sql::ChargedOwnerTxn<'_>,
+    digest: &NodeDigest,
+    work: Option<&WorkScope>,
+) -> Result<Option<(u8, Vec<u8>, Option<NativeReservation>)>, CodecError> {
+    use rusqlite::ToSql;
+    use s_content::capture_allocation::sqlite_parent::SqlGate;
+    SQL_READS.with(|calls| calls.set(calls.get() + 1));
+    let key: &[u8] = &digest[..];
+    let params: [&dyn ToSql; 1] = [&key];
+    let fetched = txn.run(|q| {
+        q.query_row(
+            "SELECT tag, body FROM s_content_nodes WHERE digest=?1",
+            params,
+            |[tag, body]| -> Result<(i64, Vec<u8>, Option<NativeReservation>), CodecError> {
+                let tag = tag.as_i64().map_err(storage_error)?;
+                let (body, permit) =
+                    native_body_reserved(work, body.as_blob().map_err(storage_error)?)?;
+                Ok((tag, body, permit))
+            },
+        )
+    });
+    let row = match fetched {
+        Ok(row) => Some(row?),
+        Err(SqlGate::Sqlite(rusqlite::ffi::SQLITE_DONE)) => None,
+        Err(error) => return Err(charged_error(error, work)),
+    };
+    material_row(digest, row)
+}
+
 fn read_checked_node_scoped(
     conn: &Connection,
     digest: &NodeDigest,
     work: Option<&WorkScope>,
 ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
-    match read_material_reserved(conn, digest, work)? {
+    scoped_frame(digest, read_material_reserved(conn, digest, work)?)
+}
+
+/// `TxStore` 的节点读：Legacy 即 [`read_checked_node_scoped`]。
+fn read_checked_node_scoped_on(
+    tx: OwnerTx<'_>,
+    digest: &NodeDigest,
+    work: Option<&WorkScope>,
+) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+    match tx {
+        OwnerTx::Legacy(conn) => read_checked_node_scoped(conn, digest, work),
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        OwnerTx::Charged(txn) => scoped_frame(digest, read_material_charged(txn, digest, work)?),
+    }
+}
+
+fn scoped_frame(
+    digest: &NodeDigest,
+    material: Option<(u8, Vec<u8>, Option<NativeReservation>)>,
+) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+    match material {
         None => Ok(None),
         Some((tag, body, permit)) => {
             let frame = s_content::job::CheckedFrame::checked(digest, tag, body)?;
@@ -348,11 +456,16 @@ impl SameMaterial {
 /// 所有行严格取型并读到末尾；正常空列表仅在列名/列数已核实后才成立。
 #[cfg(feature = "s_incremental")]
 fn native_pragma_rows<T>(
-    conn: &Connection,
+    conn: OwnerTx<'_>,
     sql: &str,
     columns: &[&str],
-    mut decode: impl FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    mut decode: impl FnMut(&OwnerRow<'_>) -> rusqlite::Result<T>,
 ) -> Result<Vec<T>, CodecError> {
+    let conn = match conn {
+        OwnerTx::Legacy(conn) => conn,
+        #[cfg(all(test, feature = "s_incremental", unix))]
+        OwnerTx::Charged(txn) => return native_pragma_rows_charged(txn, sql, columns, decode),
+    };
     let mut stmt = conn.prepare(sql).map_err(storage_error)?;
     let result = (|| {
         if stmt.column_names() != columns {
@@ -361,7 +474,7 @@ fn native_pragma_rows<T>(
         let mut rows = stmt.query([]).map_err(storage_error)?;
         let mut values = Vec::new();
         while let Some(row) = rows.next().map_err(storage_error)? {
-            values.push(decode(row).map_err(storage_error)?);
+            values.push(decode(&OwnerRow::Legacy(row)).map_err(storage_error)?);
         }
         Ok(values)
     })();
@@ -371,16 +484,58 @@ fn native_pragma_rows<T>(
     Ok(values)
 }
 
+/// 受管守卫上的同一 PRAGMA 证据读：同一列名核对、逐行严格取型并读到末尾。列名借自语句
+/// （不复制）；行值 Vec 与 Legacy 同为调用方业务持有。
+#[cfg(all(test, feature = "s_incremental", unix))]
+fn native_pragma_rows_charged<T>(
+    txn: &crate::v3::audit_owner::owner_sql::ChargedOwnerTxn<'_>,
+    sql: &str,
+    columns: &[&str],
+    mut decode: impl FnMut(&OwnerRow<'_>) -> rusqlite::Result<T>,
+) -> Result<Vec<T>, CodecError> {
+    let mut values = Vec::new();
+    let mut failed = None;
+    let named = txn
+        .run(|q| {
+            let mut stmt = q.prepare(sql)?;
+            let count = stmt.column_count();
+            if count != columns.len()
+                || (0..count).any(|i| stmt.column_name(i).ok() != Some(columns[i]))
+            {
+                return Ok(false);
+            }
+            stmt.for_each_cells([], |cells| match decode(&OwnerRow::Charged(cells)) {
+                Ok(value) => {
+                    values.push(value);
+                    std::ops::ControlFlow::Continue(())
+                }
+                Err(error) => {
+                    failed = Some(error);
+                    std::ops::ControlFlow::Break(())
+                }
+            })?;
+            Ok(true)
+        })
+        .map_err(|error| charged_error(error, None))?;
+    if !named {
+        return Err(storage_error(format!("Native PRAGMA metadata 不符：{sql}")));
+    }
+    if let Some(error) = failed {
+        return Err(storage_error(error));
+    }
+    Ok(values)
+}
+
 /// #1488 owner effects 复用同一节点保持判据，不另造宽严两档。
 #[cfg(feature = "s_incremental")]
-pub(crate) fn owner_node_insert_gate(tx: &Transaction<'_>) -> Result<bool, CodecError> {
+pub(crate) fn owner_node_insert_gate(tx: OwnerTx<'_>) -> Result<bool, CodecError> {
     native_insert_can_preserve(tx)
 }
 
 #[cfg(feature = "s_incremental")]
-fn native_insert_can_preserve(conn: &Connection) -> Result<bool, CodecError> {
+fn native_insert_can_preserve(conn: OwnerTx<'_>) -> Result<bool, CodecError> {
     fn tables(
-        conn: &Connection,
+        conn: OwnerTx<'_>,
         schema: &str,
     ) -> Result<Vec<(String, String, String, i64, i64, i64)>, CodecError> {
         native_pragma_rows(
@@ -577,17 +732,19 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         if tx.is_autocommit() {
             return Err(storage_error("Native读取租约要求活动事务"));
         }
-        let isolation: Vec<i64> =
-            native_pragma_rows(tx, "PRAGMA read_uncommitted", &["read_uncommitted"], |r| {
-                r.get(0)
-            })?;
+        let isolation: Vec<i64> = native_pragma_rows(
+            OwnerTx::Legacy(tx),
+            "PRAGMA read_uncommitted",
+            &["read_uncommitted"],
+            |r| r.get(0),
+        )?;
         if isolation.as_slice() != [0] {
             return Err(storage_error(
                 "Native读取租约要求read_uncommitted=0；不修改配置",
             ));
         }
         ensure_format(tx)?;
-        let insert_can_preserve = native_insert_can_preserve(tx)?;
+        let insert_can_preserve = native_insert_can_preserve(OwnerTx::Legacy(tx))?;
         Ok(Self {
             tx,
             work,
@@ -754,10 +911,13 @@ impl NodeSink for NativeReadLease<'_, '_> {
         let preserve = self.insert_can_preserve;
         let mut parked = None;
         let result = TxStore {
-            tx,
+            tx: OwnerTx::Legacy(tx),
             work: self.work,
             #[cfg(all(test, feature = "s_incremental"))]
             stage: None,
+            #[cfg(all(test, feature = "s_incremental"))]
+            stage_tx: None,
+            _conn: std::marker::PhantomData,
         }
         .put_before_write(digest, tag, body, || {
             let mut old = std::mem::take(material);
@@ -821,10 +981,13 @@ pub(super) fn publication_put(
 ) -> Result<PublicationPutEffect, CodecError> {
     let mut before_write = None;
     TxStore {
-        tx,
+        tx: OwnerTx::Legacy(tx),
         work,
         #[cfg(all(test, feature = "s_incremental"))]
         stage,
+        #[cfg(all(test, feature = "s_incremental"))]
+        stage_tx: stage.map(|_| tx),
+        _conn: std::marker::PhantomData,
     }
     .put_before_write(digest, tag, body, || {
         before_write = Some(tx.total_changes())
@@ -847,10 +1010,14 @@ pub(super) fn publication_put(
 }
 
 pub(super) struct TxStore<'a, 'conn> {
-    tx: &'a Transaction<'conn>,
+    tx: OwnerTx<'a>,
     work: Option<&'a WorkScope>,
     #[cfg(all(test, feature = "s_incremental"))]
     stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
+    /// 暂存 owner（仅测试）按 rusqlite 事务核身份；只由 rusqlite 事务构造时存在。
+    #[cfg(all(test, feature = "s_incremental"))]
+    stage_tx: Option<&'a Transaction<'conn>>,
+    _conn: std::marker::PhantomData<&'conn ()>,
 }
 
 impl<'a, 'conn> TxStore<'a, 'conn> {
@@ -859,12 +1026,19 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
         self
     }
     pub(super) fn new(tx: &'a Transaction<'conn>) -> Result<Self, CodecError> {
-        ensure_format(tx)?;
+        Self::on(OwnerTx::Legacy(tx))
+    }
+    /// 同 [`Self::new`]，事务所在连接为现行 rusqlite 连接或受管 owner 守卫。
+    pub(super) fn on(tx: OwnerTx<'a>) -> Result<Self, CodecError> {
+        ensure_format_on(tx)?;
         Ok(Self {
             tx,
             work: None,
             #[cfg(all(test, feature = "s_incremental"))]
             stage: None,
+            #[cfg(all(test, feature = "s_incremental"))]
+            stage_tx: None,
+            _conn: std::marker::PhantomData,
         })
     }
     #[cfg(all(test, feature = "s_incremental"))]
@@ -877,7 +1051,12 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
             owner.check_transaction(tx)?;
         }
         store.stage = stage;
+        store.stage_tx = Some(tx);
         Ok(store)
+    }
+    #[cfg(all(test, feature = "s_incremental"))]
+    fn stage_tx(&self) -> &'a Transaction<'conn> {
+        self.stage_tx.expect("暂存 TxStore 只由 rusqlite 事务构造")
     }
 }
 
@@ -897,9 +1076,9 @@ impl NodeSource for TxStore<'_, '_> {
         let result = (|| {
             #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = self.stage {
-                stage.check_transaction(self.tx)?;
+                stage.check_transaction(self.stage_tx())?;
             }
-            let current = read_checked_node_scoped(self.tx, d, self.work)?;
+            let current = read_checked_node_scoped_on(self.tx, d, self.work)?;
             #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = self.stage {
                 if let Some(frame) = &current {
@@ -969,12 +1148,12 @@ impl TxStore<'_, '_> {
         check_digest(&digest, tag, body)?;
         #[cfg(all(test, feature = "s_incremental"))]
         if let Some(stage) = self.stage {
-            stage.check_transaction(self.tx)?;
+            stage.check_transaction(self.stage_tx())?;
             stage.check_original(&digest, tag, body)?;
         }
         #[cfg(feature = "s_incremental")]
         let before = self.tx.total_changes();
-        let current = read_checked_node_scoped(self.tx, &digest, self.work)?;
+        let current = read_checked_node_scoped_on(self.tx, &digest, self.work)?;
         #[cfg(feature = "s_incremental")]
         let inserted = current.is_none();
         match current {
@@ -992,13 +1171,28 @@ impl TxStore<'_, '_> {
                 if let Some(stage) = self.stage {
                     return stage.put_new(digest, tag, body);
                 }
-                self.tx
-                    .prepare_cached(
-                        "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)",
-                    )
-                    .map_err(storage_error)?
-                    .execute(params![&digest[..], i64::from(tag), body])
-                    .map_err(storage_error)?;
+                match self.tx {
+                    OwnerTx::Legacy(tx) => {
+                        tx.prepare_cached(
+                            "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)",
+                        )
+                        .map_err(storage_error)?
+                        .execute(params![&digest[..], i64::from(tag), body])
+                        .map_err(storage_error)?;
+                    }
+                    #[cfg(all(test, feature = "s_incremental", unix))]
+                    OwnerTx::Charged(txn) => {
+                        let key: &[u8] = &digest[..];
+                        let tag = i64::from(tag);
+                        txn.run(|q| {
+                            q.execute(
+                                "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)",
+                                [&key, &tag, &body],
+                            )
+                        })
+                        .map_err(|error| charged_error(error, self.work))?;
+                    }
+                }
             }
         }
         #[cfg(feature = "s_incremental")]
