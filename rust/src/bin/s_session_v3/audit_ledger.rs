@@ -344,16 +344,34 @@ impl QualifiedUnits<'static> {
 }
 /// 已提交合格单位前沿：每次点查都经原 `contains_qualified_unit`（资格逐字段核 + 完整键 EXISTS）。
 #[cfg(feature = "s_incremental")]
-struct QualifiedSuccessView<'a, B> {
+struct QualifiedSuccessView<'a, B: Backend> {
     ledger: &'a Ledger<B>,
     qualification: &'a Qualification,
+    /// 本次点查遇到的 typed 错误，按值留给 `verify_delta` 原样返回。
+    refused: std::cell::RefCell<Option<B::Error>>,
+}
+#[cfg(feature = "s_incremental")]
+impl<'a, B: Backend> QualifiedSuccessView<'a, B> {
+    fn new(ledger: &'a Ledger<B>, qualification: &'a Qualification) -> Self {
+        Self {
+            ledger,
+            qualification,
+            refused: std::cell::RefCell::new(None),
+        }
+    }
 }
 #[cfg(feature = "s_incremental")]
 impl<B: Backend> sc::closure_delta::Frontier for QualifiedSuccessView<'_, B> {
     fn contains(&self, unit: sc::closure_delta::Unit) -> Result<bool, sc::CodecError> {
         self.ledger
             .contains_qualified_unit(self.qualification, &Unit::of_closure(unit))
-            .map_err(|e| sc::CodecError::new(sc::code::SOURCE, e.to_string()))
+            .map_err(|e| match B::frontier_error(e) {
+                Ok(typed) => {
+                    *self.refused.borrow_mut() = Some(typed);
+                    sc::CodecError::new(sc::code::SOURCE, String::new())
+                }
+                Err(text) => sc::CodecError::new(sc::code::SOURCE, text),
+            })
     }
 }
 #[cfg(feature = "s_incremental")]
@@ -474,9 +492,13 @@ enum Coverage {
     SourcePartitions { through: i64 },
 }
 
-/// 台账连接后端，模块内只有 [`Legacy`] 与 [`Charged`] 两个实现，在构造处选定且不切换。
-/// 台账阶段机与 SQL 只经这三个操作访问数据库，两个后端执行同一份 SQL。
-pub(super) trait Backend {
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// 台账连接后端，在构造处选定且不切换。私有 `sealed` 只在本模块为 [`Legacy`] 与 [`Charged`]
+/// 实现，其他模块无法新增后端。台账阶段机与 SQL 只经这三个操作访问数据库。
+pub(super) trait Backend: sealed::Sealed {
     /// Legacy 沿用原 `String` 诊断；Charged 为 [`LedgerError`]，带本次操作的 typed 分类。
     type Error: From<String> + std::fmt::Display;
     fn execute_batch(&self, sql: &str) -> Result<(), Self::Error>;
@@ -494,7 +516,18 @@ pub(super) trait Backend {
     ) -> Result<T, Self::Error>;
     /// 连接已在失效时丢弃。
     fn detached() -> Self::Error;
+    /// 台账判据失败（文本与 Legacy 的 `error(text)` 相同）。
+    fn invalid(text: &'static str) -> Self::Error;
+    /// 存储读数失败。
+    fn storage(e: StorageError) -> Self::Error;
+    /// stage 时上一代资格与已提交状态不符；`detail` 为查询本身的错误（`None` 为字段不同）。
+    fn prior_mismatch(detail: Option<Self::Error>) -> Self::Error;
+    /// 前沿点查错误穿过 `CodecError` 接口：`Ok` 为须原样带回调用方的错误，`Err` 为诊断文本。
+    fn frontier_error(e: Self::Error) -> Result<Self::Error, String>;
 }
+
+impl sealed::Sealed for Legacy {}
+impl sealed::Sealed for Charged {}
 
 /// 现行构造：本进程未安装收费 allocator（生产与普通入口沿用）。
 pub(super) struct Legacy(Connection);
@@ -547,6 +580,25 @@ impl Backend for Legacy {
     fn detached() -> String {
         error("台账已丢弃")
     }
+    fn invalid(text: &'static str) -> String {
+        error(text)
+    }
+    fn storage(e: StorageError) -> String {
+        match e {
+            StorageError::Io(e) => error(e),
+            StorageError::Overflow => error("存储计数溢出"),
+            StorageError::Path => error("台账路径过长或含 NUL"),
+        }
+    }
+    fn prior_mismatch(detail: Option<String>) -> String {
+        let detail = detail.unwrap_or_else(|| "字段不同".to_owned());
+        error(format!(
+            "上一代资格与台账当前已提交状态不符，不续写折叠链：{detail}"
+        ))
+    }
+    fn frontier_error(e: String) -> Result<String, String> {
+        Err(e)
+    }
 }
 
 /// 受管台账的错误。受管操作口的拒绝与 SQLite 结果码在产生时按值保存为 [`SqlGate`]，
@@ -559,6 +611,10 @@ pub(super) enum LedgerError {
     Gate(SqlGate),
     /// 连接已在失效时丢弃。
     Detached,
+    /// 台账判据失败，静态文本。
+    Invalid(&'static str),
+    /// 存储读数的系统错误类别。
+    Storage(std::io::ErrorKind),
 }
 
 impl From<String> for LedgerError {
@@ -573,6 +629,8 @@ impl std::fmt::Display for LedgerError {
             Self::Stale(text) => f.write_str(text),
             Self::Gate(gate) => write!(f, "AuditLedgerStale：{gate:?}"),
             Self::Detached => f.write_str("AuditLedgerStale：台账已丢弃"),
+            Self::Invalid(text) => write!(f, "AuditLedgerStale：{text}"),
+            Self::Storage(kind) => write!(f, "AuditLedgerStale：{kind}"),
         }
     }
 }
@@ -680,6 +738,34 @@ impl Backend for Charged {
     fn detached() -> LedgerError {
         LedgerError::Detached
     }
+    fn invalid(text: &'static str) -> LedgerError {
+        LedgerError::Invalid(text)
+    }
+    fn storage(e: StorageError) -> LedgerError {
+        match e {
+            StorageError::Io(e) => LedgerError::Storage(e.kind()),
+            StorageError::Overflow => LedgerError::Invalid("存储计数溢出"),
+            StorageError::Path => LedgerError::Invalid("台账路径过长或含 NUL"),
+        }
+    }
+    /// 查询本身的分类按值透传；只有带文本的判据失败才拼接上下文。
+    fn prior_mismatch(detail: Option<LedgerError>) -> LedgerError {
+        match detail {
+            None => {
+                LedgerError::Invalid("上一代资格与台账当前已提交状态不符，不续写折叠链：字段不同")
+            }
+            Some(LedgerError::Stale(detail)) => LedgerError::Stale(error(format!(
+                "上一代资格与台账当前已提交状态不符，不续写折叠链：{detail}"
+            ))),
+            Some(typed) => typed,
+        }
+    }
+    fn frontier_error(e: LedgerError) -> Result<LedgerError, String> {
+        match e {
+            LedgerError::Stale(text) => Err(text),
+            typed => Ok(typed),
+        }
+    }
 }
 
 /// 本次结果的分类：SQLite 报 NOMEM 且本域已有首拒时记为该首拒，不以结果码掩盖资源拒绝。
@@ -753,23 +839,48 @@ fn root_value(r: RefView<'_>) -> Value {
 fn roots_value(roots: &[ContentRef; 4]) -> Value {
     Value::Array(roots.iter().map(|r| root_value(r.into())).collect())
 }
-fn file_bytes(path: &Path) -> Result<u64, String> {
-    match std::fs::metadata(path) {
-        Ok(m) => Ok(m.len()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(0),
-        Err(e) => Err(error(e)),
-    }
+/// 存储读数的失败；不带文本，不分配。
+#[derive(Debug)]
+pub(super) enum StorageError {
+    Io(std::io::Error),
+    Overflow,
+    Path,
 }
-fn database_bytes(path: &Path) -> Result<u64, String> {
-    let mut n = file_bytes(path)?;
-    for suffix in ["-wal", "-journal"] {
-        let mut p = path.as_os_str().to_os_string();
-        p.push(suffix);
-        n = n
-            .checked_add(file_bytes(Path::new(&p))?)
-            .ok_or_else(|| error("存储计数溢出"))?;
+
+/// 数据库文件及其 `-wal`、`-journal` 的合计字节。路径在栈上拼接并以 `stat` 读取，不经堆。
+fn database_bytes(path: &Path) -> Result<u64, StorageError> {
+    use std::os::unix::ffi::OsStrExt;
+    let base = path.as_os_str().as_bytes();
+    let mut total = 0u64;
+    for suffix in [&b""[..], b"-wal", b"-journal"] {
+        total = total
+            .checked_add(file_bytes(base, suffix)?)
+            .ok_or(StorageError::Overflow)?;
     }
-    Ok(n)
+    Ok(total)
+}
+
+fn file_bytes(base: &[u8], suffix: &[u8]) -> Result<u64, StorageError> {
+    let mut buf = [0u8; 4096 + 16];
+    let len = base.len() + suffix.len();
+    if len >= buf.len() || base.contains(&0) {
+        return Err(StorageError::Path);
+    }
+    buf[..base.len()].copy_from_slice(base);
+    buf[base.len()..len].copy_from_slice(suffix);
+    let mut st = std::mem::MaybeUninit::<libc::stat>::uninit();
+    // SAFETY: buf is NUL-terminated at `len`; st is written by stat on success.
+    if unsafe { libc::stat(buf.as_ptr().cast(), st.as_mut_ptr()) } == 0 {
+        // SAFETY: stat returned 0, so st is initialized.
+        let size = unsafe { st.assume_init() }.st_size;
+        return u64::try_from(size).map_err(|_| StorageError::Overflow);
+    }
+    let e = std::io::Error::last_os_error();
+    if e.kind() == std::io::ErrorKind::NotFound {
+        Ok(0)
+    } else {
+        Err(StorageError::Io(e))
+    }
 }
 
 impl Ledger {
@@ -853,15 +964,15 @@ impl<B: Backend> Ledger<B> {
             || identity.content_identity.is_empty()
             || identity.binary_commit.is_empty()
         {
-            return Err(error("台账身份字段不能为空").into());
+            return Err(B::invalid("台账身份字段不能为空"));
         }
         let content_path = content_path.canonicalize().map_err(error)?;
         let remaining = max_store_bytes
-            .checked_sub(database_bytes(&content_path)?)
-            .ok_or_else(|| error("内容库已超过 max_store_bytes"))?;
+            .checked_sub(database_bytes(&content_path).map_err(B::storage)?)
+            .ok_or_else(|| B::invalid("内容库已超过 max_store_bytes"))?;
         let pages = i64::try_from(remaining / 4096).map_err(error)?;
         if pages == 0 {
-            return Err(error("没有台账页空间").into());
+            return Err(B::invalid("没有台账页空间"));
         }
         std::fs::OpenOptions::new()
             .write(true)
@@ -906,7 +1017,7 @@ impl<B: Backend> Ledger<B> {
                 Phase::Ready,
                 Coverage::RawPartition { through } | Coverage::SourcePartitions { through },
             ) => Ok(*through),
-            _ => Err(error("不是已提交的来源分区").into()),
+            _ => Err(B::invalid("不是已提交的来源分区")),
         }
     }
     pub(super) fn is_raw_partition(&self) -> bool {
@@ -930,7 +1041,7 @@ impl<B: Backend> Ledger<B> {
     ) -> Result<R, B::Error> {
         let through = self.committed_through()?;
         if through < 1 {
-            return Err(error("完整台账尚无已提交的一代").into());
+            return Err(B::invalid("完整台账尚无已提交的一代"));
         }
         self.store()?.query_row(
             "SELECT c.roots, c.fold_digest, c.verifier_revision, m.fold_digest, m.content_identity, \
@@ -981,7 +1092,7 @@ impl<B: Backend> Ledger<B> {
         unit: &Unit,
     ) -> Result<bool, B::Error> {
         if !self.matches_committed(q)? {
-            return Err(error("点查资格与当前已提交台账不符").into());
+            return Err(B::invalid("点查资格与当前已提交台账不符"));
         }
         self.contains_committed_unit(unit)
     }
@@ -989,15 +1100,16 @@ impl<B: Backend> Ledger<B> {
     pub(super) fn raw_partition_through(&self) -> Result<i64, B::Error> {
         match (&self.phase, &self.coverage) {
             (Phase::Ready, Coverage::RawPartition { through }) => Ok(*through),
-            _ => Err(error("不是已提交的raw分区").into()),
+            _ => Err(B::invalid("不是已提交的raw分区")),
         }
     }
     fn check_storage(&self) -> Result<(), B::Error> {
-        let size = database_bytes(&self.content_path)?
-            .checked_add(database_bytes(&self.path)?)
-            .ok_or_else(|| error("存储合账溢出"))?;
+        let size = database_bytes(&self.content_path)
+            .map_err(B::storage)?
+            .checked_add(database_bytes(&self.path).map_err(B::storage)?)
+            .ok_or_else(|| B::invalid("存储合账溢出"))?;
         if size > self.max_store_bytes {
-            return Err(error("内容库/WAL/台账合计超过 max_store_bytes").into());
+            return Err(B::invalid("内容库/WAL/台账合计超过 max_store_bytes"));
         }
         Ok(())
     }
@@ -1019,7 +1131,7 @@ impl<B: Backend> Ledger<B> {
     /// 已提交存储读数，不是 U-A 资格；准备中连本连接的未提交行也不暴露。
     pub(super) fn committed_through(&self) -> Result<i64, B::Error> {
         if !matches!(self.phase, Phase::Ready) || !matches!(self.coverage, Coverage::Complete) {
-            return Err(error("完整台账尚未提交或仅有raw分区").into());
+            return Err(B::invalid("完整台账尚未提交或仅有raw分区"));
         }
         self.through()
     }
@@ -1055,14 +1167,18 @@ impl<B: Backend> Ledger<B> {
         qualification: &'q Qualification,
     ) -> Result<QualifiedUnits<'q>, B::Error> {
         if !self.matches_committed(qualification)? {
-            return Err(error("Δ核验资格与当前已提交台账不符").into());
+            return Err(B::invalid("Δ核验资格与当前已提交台账不符"));
         }
-        let view = QualifiedSuccessView {
-            ledger: self,
-            qualification,
+        let view = QualifiedSuccessView::new(self, qualification);
+        let verified = match sc::closure_delta::verify_four_roots_from(source, roots, &view) {
+            Ok(verified) => verified,
+            Err(e) => {
+                return Err(match view.refused.into_inner() {
+                    Some(typed) => typed,
+                    None => error(e).into(),
+                })
+            }
         };
-        let verified =
-            sc::closure_delta::verify_four_roots_from(source, roots, &view).map_err(error)?;
         Ok(QualifiedUnits {
             verified,
             frontier: Some(qualification),
@@ -1084,7 +1200,7 @@ impl<B: Backend> Ledger<B> {
             self.committed_through()?;
             if let Some(bound) = verified.frontier {
                 if prior != Some(bound) {
-                    return Err(error("Δ单位绑定资格与上一代资格不符").into());
+                    return Err(B::invalid("Δ单位绑定资格与上一代资格不符"));
                 }
             }
             let verified = &verified.verified;
@@ -1092,7 +1208,7 @@ impl<B: Backend> Ledger<B> {
                 .matches_roots(delta.roots.each_ref().map(Into::into))
                 .map_err(error)?
             {
-                return Err(error("闭包单位与待准备事实四根不匹配").into());
+                return Err(B::invalid("闭包单位与待准备事实四根不匹配"));
             }
             let mut units = sc::CodecVec::default();
             verified.try_for_each_unit(|u| -> Result<(), B::Error> {
@@ -1130,13 +1246,13 @@ impl<B: Backend> Ledger<B> {
         prior: Option<&Qualification>,
     ) -> Result<(), B::Error> {
         if !matches!(self.phase, Phase::Ready) || !matches!(self.coverage, Coverage::Complete) {
-            return Err(error("台账不在完整事实可准备状态").into());
+            return Err(B::invalid("台账不在完整事实可准备状态"));
         }
         if token.is_empty()
             || verifier_revision.is_empty()
             || self.through()?.checked_add(1) != Some(d.generation)
         {
-            return Err(error("请求或逐代序号无效").into());
+            return Err(B::invalid("请求或逐代序号无效"));
         }
         for r in &d.roots {
             r.digest().map_err(error)?;
@@ -1145,16 +1261,10 @@ impl<B: Backend> Ledger<B> {
         let conn = self.store()?;
         conn.execute_batch("BEGIN IMMEDIATE")?;
         if let Some(prior) = prior {
-            let detail = match self.matches_committed(prior) {
-                Ok(true) => None,
-                Ok(false) => Some("字段不同".to_owned()),
-                Err(e) => Some(e.to_string()),
-            };
-            if let Some(detail) = detail {
-                return Err(error(format!(
-                    "上一代资格与台账当前已提交状态不符，不续写折叠链：{detail}"
-                ))
-                .into());
+            match self.matches_committed(prior) {
+                Ok(true) => {}
+                Ok(false) => return Err(B::prior_mismatch(None)),
+                Err(e) => return Err(B::prior_mismatch(Some(e))),
             }
         }
         let previous: String = conn.query_row(
@@ -1166,7 +1276,7 @@ impl<B: Backend> Ledger<B> {
             conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
         for (seq, row) in &d.raw {
             if *seq != next {
-                return Err(error("raw 只允许连续追加").into());
+                return Err(B::invalid("raw 只允许连续追加"));
             }
             conn.execute(
                 "INSERT INTO raw VALUES(?1,?2,?3,?4)",
@@ -1177,14 +1287,16 @@ impl<B: Backend> Ledger<B> {
                     &d.generation,
                 ],
             )?;
-            next = next.checked_add(1).ok_or_else(|| error("raw 序号溢出"))?;
+            next = next
+                .checked_add(1)
+                .ok_or_else(|| B::invalid("raw 序号溢出"))?;
         }
         for (id, r) in &d.objects {
             if r.first_generation < 1
                 || r.first_generation > r.published_generation
                 || r.published_generation > d.generation
             {
-                return Err(error("对象代戳无效").into());
+                return Err(B::invalid("对象代戳无效"));
             }
             conn.execute("INSERT INTO object VALUES(?1,?2,?3,?4,?5,?6,?7,?8)
                 ON CONFLICT(id) DO UPDATE SET record_digest=excluded.record_digest,
@@ -1207,14 +1319,14 @@ impl<B: Backend> Ledger<B> {
                 [&d.generation, &id],
             )?;
             if changed != 1 {
-                return Err(error("撤回身份缺失或已撤回").into());
+                return Err(B::invalid("撤回身份缺失或已撤回"));
             }
         }
         for (coord, change) in &d.cover {
             match change {
                 CoverChange::Removed => {
                     if conn.execute("DELETE FROM cover WHERE source_coord=?1", [coord])? != 1 {
-                        return Err(error("cover 失效坐标不在当前分区").into());
+                        return Err(B::invalid("cover 失效坐标不在当前分区"));
                     }
                 }
                 // 行只在 (seq, owner, object_id) 变化时推进 certified_generation：Native 增量只列
@@ -1243,7 +1355,7 @@ impl<B: Backend> Ledger<B> {
         }
         let covered: i64 = conn.query_row("SELECT COUNT(*) FROM cover", [], |[v]| int(v))?;
         if covered != d.effective {
-            return Err(error("cover 行数不等于本 cut 生效坐标总数").into());
+            return Err(B::invalid("cover 行数不等于本 cut 生效坐标总数"));
         }
         for unit in new_units.clone() {
             // new_units 必须真是本代新增集合，重复认证单位拒绝而非静默忽略。
@@ -1305,7 +1417,7 @@ impl<B: Backend> Ledger<B> {
     ) -> Result<(), B::Error> {
         if !self.is_raw_partition() {
             self.invalidate();
-            return Err(error("来源分区格式不匹配").into());
+            return Err(B::invalid("来源分区格式不匹配"));
         }
         self.stage_partial(token, metadata, roots, source, work)
     }
@@ -1320,7 +1432,7 @@ impl<B: Backend> Ledger<B> {
     ) -> Result<(), B::Error> {
         if !self.is_source_partitions() {
             self.invalidate();
-            return Err(error("来源分区格式不匹配").into());
+            return Err(B::invalid("来源分区格式不匹配"));
         }
         self.stage_partial(token, metadata, roots, source, work)
     }
@@ -1338,7 +1450,7 @@ impl<B: Backend> Ledger<B> {
             if through.checked_add(1) != Some(metadata.generation)
                 || metadata.rule_revision != self.rule_revision
             {
-                return Err(error("raw分区代号或规则不连续").into());
+                return Err(B::invalid("raw分区代号或规则不连续"));
             }
             let range = source
                 .check_raw_partition(token, metadata, roots)
@@ -1359,17 +1471,17 @@ impl<B: Backend> Ledger<B> {
             let conn = self
                 .connection
                 .as_ref()
-                .ok_or_else(|| error("raw分区已丢弃"))?;
+                .ok_or_else(|| B::invalid("raw分区已丢弃"))?;
             conn.execute_batch("BEGIN IMMEDIATE")?;
             let mut next: i64 =
                 conn.query_row("SELECT COALESCE(MAX(seq),-1)+1 FROM raw", [], |[v]| int(v))?;
             if usize::try_from(next).ok() != Some(range.start) || source.rows().len() != range.len()
             {
-                return Err(error("raw来源后缀与已提交分区不衔接").into());
+                return Err(B::invalid("raw来源后缀与已提交分区不衔接"));
             }
             for row in source.rows() {
                 if row.seq != next {
-                    return Err(error("raw来源后缀不连续").into());
+                    return Err(B::invalid("raw来源后缀不连续"));
                 }
                 conn.execute(
                     "INSERT INTO raw VALUES(?1,?2,?3,?4)",
@@ -1380,7 +1492,9 @@ impl<B: Backend> Ledger<B> {
                         &metadata.generation,
                     ],
                 )?;
-                next = next.checked_add(1).ok_or_else(|| error("raw序号溢出"))?;
+                next = next
+                    .checked_add(1)
+                    .ok_or_else(|| B::invalid("raw序号溢出"))?;
             }
             if self.is_source_partitions() {
                 let rows = source
@@ -1404,7 +1518,7 @@ impl<B: Backend> Ledger<B> {
                     let changed = conn.execute("UPDATE object SET withdrawn=1,certified_generation=?1 WHERE id=?2 AND withdrawn=0",
                         [&metadata.generation, &id.as_str()])?;
                     if changed != 1 {
-                        return Err(error("来源分区撤回身份缺失或已撤回").into());
+                        return Err(B::invalid("来源分区撤回身份缺失或已撤回"));
                     }
                 }
                 for (sql, values) in [
@@ -1443,7 +1557,7 @@ impl<B: Backend> Ledger<B> {
         if matches!(self.phase, Phase::Pending(_) | Phase::Bound(_)) {
             Ok(())
         } else {
-            Err(error("发布缺本请求台账变化或台账已失效").into())
+            Err(B::invalid("发布缺本请求台账变化或台账已失效"))
         }
     }
     pub(super) fn bind(
@@ -1480,10 +1594,10 @@ impl<B: Backend> Ledger<B> {
                 }) {
                     Ok(())
                 } else {
-                    Err(error("台账四根与本请求 prepare 不一致").into())
+                    Err(B::invalid("台账四根与本请求 prepare 不一致"))
                 }
             }
-            _ => Err(error("台账请求、规则或代号不一致").into()),
+            _ => Err(B::invalid("台账请求、规则或代号不一致")),
         };
         if result.is_err() {
             self.invalidate();
@@ -1500,7 +1614,7 @@ impl<B: Backend> Ledger<B> {
     pub(super) fn content_committed(&mut self) -> Result<(), B::Error> {
         let result = (|| -> Result<(), B::Error> {
             if !matches!(self.phase, Phase::Bound(_)) {
-                return Err(error("台账尚未绑定实际 prepare").into());
+                return Err(B::invalid("台账尚未绑定实际 prepare"));
             }
             self.check_storage()?;
             self.store()?.execute_batch("COMMIT")?;
@@ -1819,7 +1933,7 @@ pub(super) mod tests {
         }
         /// 只计前沿点查（每次点查 = 资格逐字段核 + 完整键 EXISTS 两条台账 SQL）。
         struct CountingFrontier<'a> {
-            inner: QualifiedSuccessView<'a>,
+            inner: QualifiedSuccessView<'a, Legacy>,
             lookups: std::cell::Cell<u64>,
         }
         impl cd::Frontier for CountingFrontier<'_> {
@@ -1957,10 +2071,7 @@ pub(super) mod tests {
                     }
                     assert!(delta_reads < full_reads, "g{generation} Δ未止步");
                     let counted = CountingFrontier {
-                        inner: QualifiedSuccessView {
-                            ledger: &b,
-                            qualification: &qb,
-                        },
+                        inner: QualifiedSuccessView::new(&b, &qb),
                         lookups: std::cell::Cell::new(0),
                     };
                     cd::verify_four_roots_from(&mut nodes, refs(r), &counted).unwrap();
@@ -2070,10 +2181,7 @@ pub(super) mod tests {
                 let lookup_sql = trace.take();
                 // 同一输入再经计数前沿走一遍，只为取逻辑点查次数；其 SQL 不计入上面的桶。
                 let counted = CountingFrontier {
-                    inner: QualifiedSuccessView {
-                        ledger: &b,
-                        qualification: &q,
-                    },
+                    inner: QualifiedSuccessView::new(&b, &q),
                     lookups: std::cell::Cell::new(0),
                 };
                 cd::verify_four_roots_from(&mut nodes, refs(r), &counted).unwrap();
@@ -2672,7 +2780,11 @@ pub(super) mod tests {
         assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
         l1.bind(token, &m1, &r1).unwrap();
         assert_eq!(count(&a, &peek, through), 0);
-        l1.content_committed().unwrap();
+        let window = Window::start();
+        let committed = l1.content_committed();
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        committed.unwrap();
         assert_eq!(count(&a, &peek, through), 1);
         assert_eq!(l1.committed_through().unwrap(), 1);
         for unit in &d1.new_units {
@@ -2697,6 +2809,10 @@ pub(super) mod tests {
         let path2 = c_path("ledger-b.sqlite3");
         let mut l2 = Ledger::fresh_charged(&path2, &content, identity(), STORE, b.clone()).unwrap();
         l2.fold_step(token, &d1, &m1, &r1).unwrap();
+        let path3 = c_path("ledger-c.sqlite3");
+        let mut l3 = Ledger::fresh_charged(&path3, &content, identity(), STORE, b.clone()).unwrap();
+        l3.fold_step(token, &d1, &m1, &r1).unwrap();
+        let q3 = l3.qualification().unwrap();
         let (m2, r2) = generation(2);
         l2.stage(token, &delta(&m2, &r2)).unwrap();
         l2.bind(token, &m2, &r2).unwrap();
@@ -2746,7 +2862,29 @@ pub(super) mod tests {
         let probe = window.finish();
         assert_eq!(probe["allocated_bytes"], 0, "{probe}");
         assert_eq!(reopened.err().as_ref(), Some(&budget));
-        let committed = l2.content_committed().unwrap_err();
+        let unit = newchan_rust::s_content::closure_delta::Unit {
+            digest: [1; 32],
+            context: newchan_rust::s_content::closure_delta::Context::Value,
+            mode: newchan_rust::s_content::closure_delta::VerificationMode::Public,
+        };
+        let view = QualifiedSuccessView::new(&l3, &q3);
+        let window = Window::start();
+        let lookup = newchan_rust::s_content::closure_delta::Frontier::contains(&view, unit);
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert!(lookup.is_err());
+        let carried = view.refused.into_inner().expect("typed refusal carried");
+        assert_eq!(carried, budget);
+        assert!(matches!(
+            carried.into_failure(),
+            super::super::audit_owner::native::Failure::BudgetExceeded
+        ));
+        drop(l3);
+        let window = Window::start();
+        let committed = l2.content_committed();
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let committed = committed.unwrap_err();
         assert_eq!(committed, budget);
         assert!(l2.connection.is_none());
         assert_eq!(l2.through().unwrap_err(), LedgerError::Detached);
@@ -2784,6 +2922,79 @@ pub(super) mod tests {
         assert_eq!(c.live_bytes(), 0);
         assert_eq!(current.live(), base);
         assert!(!allocator.is_broken());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn backend_is_sealed_to_two_implementations() {
+        let source = include_str!("audit_ledger.rs");
+        assert!(source.contains(concat!("\nmod ", "sealed {")));
+        assert!(!source.contains(concat!("pub ", "mod sealed")));
+        assert!(!source.contains(concat!("pub(super) ", "mod sealed")));
+        assert!(!source.contains(concat!("pub(crate) ", "mod sealed")));
+        assert_eq!(
+            source
+                .matches(concat!("impl sealed", "::Sealed for "))
+                .count(),
+            2
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn charged_boundary_errors_keep_their_class_without_allocating() {
+        use super::super::audit_owner::allocation_probe::Window;
+        use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+        let budget = || LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget));
+        let inputs = (budget(), budget(), budget());
+        let window = Window::start();
+        let prior = <Charged as Backend>::prior_mismatch(Some(inputs.0));
+        let differs = <Charged as Backend>::prior_mismatch(None);
+        let frontier = <Charged as Backend>::frontier_error(inputs.1);
+        let stale = <Charged as Backend>::prior_mismatch(Some(LedgerError::Detached));
+        let storage = <Charged as Backend>::storage(StorageError::Overflow);
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert_eq!(prior, inputs.2);
+        assert_eq!(frontier, Ok(budget()));
+        assert_eq!(stale, LedgerError::Detached);
+        assert_eq!(storage, LedgerError::Invalid("存储计数溢出"));
+        assert_eq!(
+            String::from(differs),
+            <Legacy as Backend>::prior_mismatch(None)
+        );
+        assert_eq!(
+            <Legacy as Backend>::prior_mismatch(Some("x".to_owned())),
+            error("上一代资格与台账当前已提交状态不符，不续写折叠链：x")
+        );
+        assert_eq!(
+            <Legacy as Backend>::frontier_error("t".to_owned()),
+            Err("t".to_owned())
+        );
+        assert_eq!(
+            String::from(LedgerError::Invalid("台账已丢弃")),
+            error("台账已丢弃")
+        );
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn storage_reading_does_not_allocate() {
+        use super::super::audit_owner::allocation_probe::Window;
+        let dir = std::env::temp_dir().join(format!("ledger-bytes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("db.sqlite3");
+        std::fs::write(&db, [0u8; 300]).unwrap();
+        std::fs::write(dir.join("db.sqlite3-wal"), [0u8; 20]).unwrap();
+        let missing = dir.join("missing.sqlite3");
+        let window = Window::start();
+        let present = database_bytes(&db);
+        let absent = database_bytes(&missing);
+        let probe = window.finish();
+        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert_eq!(present.ok(), Some(320));
+        assert_eq!(absent.ok(), Some(0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
