@@ -877,6 +877,12 @@ pub(super) trait Backend: sealed::Sealed {
     ) -> Result<T, Self::Error>;
     /// 行解码失败。
     fn decode(e: rusqlite::types::FromSqlError) -> Self::Error;
+    /// 台账调用的外部核验（来源收据、闭包、根格式）失败：Legacy 原样包装其诊断；Charged 只带
+    /// 静态上下文，不复制诊断文本。
+    fn external(e: impl std::fmt::Display, context: &'static str) -> Self::Error;
+    /// 来源收据核验失败：Legacy 沿用收据自己的诊断；Charged 只带静态上下文。
+    #[cfg(feature = "s_incremental")]
+    fn source_receipt(e: sc::ContextError) -> Self::Error;
     /// 连接已在失效时丢弃。
     fn detached() -> Self::Error;
     /// 台账判据失败（文本与 Legacy 的 `error(text)` 相同）。
@@ -982,6 +988,13 @@ impl Backend for Legacy {
     }
     fn decode(e: rusqlite::types::FromSqlError) -> String {
         error(e)
+    }
+    fn external(e: impl std::fmt::Display, _: &'static str) -> String {
+        error(e)
+    }
+    #[cfg(feature = "s_incremental")]
+    fn source_receipt(e: sc::ContextError) -> String {
+        e.into_message()
     }
     fn detached() -> String {
         error("台账已丢弃")
@@ -1295,6 +1308,12 @@ impl Backend for Charged {
     }
     fn decode(_: rusqlite::types::FromSqlError) -> LedgerError {
         LedgerError::Invalid("台账列类型无效")
+    }
+    fn external(_: impl std::fmt::Display, context: &'static str) -> LedgerError {
+        LedgerError::Invalid(context)
+    }
+    fn source_receipt(_: sc::ContextError) -> LedgerError {
+        LedgerError::Invalid("来源分区收据核验失败")
     }
     fn detached() -> LedgerError {
         LedgerError::Detached
@@ -1789,7 +1808,7 @@ impl<B: Backend> Ledger<B> {
         let remaining = max_store_bytes
             .checked_sub(B::storage_bytes(&content_path)?)
             .ok_or_else(|| B::invalid("内容库已超过 max_store_bytes"))?;
-        let pages = i64::try_from(remaining / 4096).map_err(error)?;
+        let pages = i64::try_from(remaining / 4096).map_err(|e| B::external(e, "台账页数溢出"))?;
         if pages == 0 {
             return Err(B::invalid("没有台账页空间"));
         }
@@ -1988,7 +2007,7 @@ impl<B: Backend> Ledger<B> {
             Err(e) => {
                 return Err(match view.refused.into_inner() {
                     Some(typed) => typed,
-                    None => error(e).into(),
+                    None => B::external(e, "Δ闭包核验失败"),
                 })
             }
         };
@@ -2019,7 +2038,7 @@ impl<B: Backend> Ledger<B> {
             let verified = &verified.verified;
             if !verified
                 .matches_roots(delta.roots.each_ref().map(Into::into))
-                .map_err(error)?
+                .map_err(|e| B::external(e, "闭包单位四根核验失败"))?
             {
                 return Err(B::invalid("闭包单位与待准备事实四根不匹配"));
             }
@@ -2057,7 +2076,7 @@ impl<B: Backend> Ledger<B> {
             return Err(B::invalid("请求或逐代序号无效"));
         }
         for r in &d.roots {
-            r.digest().map_err(error)?;
+            r.digest().map_err(|e| B::external(e, "台账根格式无效"))?;
         }
         self.check_storage()?;
         let conn = self.store()?;
@@ -2185,7 +2204,7 @@ impl<B: Backend> Ledger<B> {
                 &d.generation,
                 &&*digests.roots,
                 &&*digests.units,
-                &i64::try_from(unit_count).map_err(error)?,
+                &i64::try_from(unit_count).map_err(|e| B::external(e, "单位计数溢出"))?,
                 &&*digests.fold,
                 &verifier_revision,
             ],
@@ -2251,7 +2270,7 @@ impl<B: Backend> Ledger<B> {
             }
             let range = source
                 .check_raw_partition(token, metadata, roots)
-                .map_err(sc::ContextError::into_message)?;
+                .map_err(B::source_receipt)?;
             let r = roots.view();
             let pending = self.store()?.pending(
                 token,
@@ -2296,9 +2315,7 @@ impl<B: Backend> Ledger<B> {
                     .ok_or_else(|| B::invalid("raw序号溢出"))?;
             }
             if self.is_source_partitions() {
-                let rows = source
-                    .business_rows()
-                    .map_err(sc::ContextError::into_message)?;
+                let rows = source.business_rows().map_err(B::source_receipt)?;
                 for row in &rows.objects {
                     conn.execute(
                         "INSERT INTO object VALUES(?1,?2,?3,?4,?5,?6,0,?7)",
@@ -2342,7 +2359,7 @@ impl<B: Backend> Ledger<B> {
             }
             source
                 .check_raw_partition(token, metadata, roots)
-                .map_err(sc::ContextError::into_message)?;
+                .map_err(B::source_receipt)?;
             self.check_storage()?;
             self.phase = Phase::Pending(pending);
             Ok(())
@@ -3655,6 +3672,34 @@ pub(super) mod tests {
             assert!(l1.contains_committed_unit(unit).unwrap());
         }
         assert_eq!(l1.qualification().unwrap().through, 1);
+        let oracle = legacy_texts(
+            &sha256_hex(FORMAT.as_bytes()),
+            &d1,
+            d1.new_units.iter(),
+            &d1.verifier_revision,
+        )
+        .unwrap();
+        let written = a
+            .run(&peek, |q| {
+                q.query_row(
+                    "SELECT c.roots, c.new_units_digest, c.fold_digest, m.fold_digest \
+                     FROM cert c, meta m WHERE c.generation=1 AND m.singleton=1",
+                    [],
+                    |[roots, units, fold, meta]| {
+                        [roots, units, fold, meta].map(|v| v.as_str().unwrap().to_owned())
+                    },
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            written,
+            [
+                oracle.roots.clone(),
+                sha256_hex(oracle.units.as_bytes()),
+                sha256_hex(oracle.fold.as_bytes()),
+                sha256_hex(oracle.fold.as_bytes()),
+            ]
+        );
         assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
         a.run(&snap, |q| q.execute_batch("COMMIT")).unwrap();
 
@@ -3682,6 +3727,41 @@ pub(super) mod tests {
             ChargedParent::new(other, b.clone()),
             Err(LedgerError::Gate(SqlGate::WrongParent))
         ));
+        let pb = parent(&current, &b);
+        let room = current.remaining();
+        assert!(matches!(pb.reserve(room + 1), Err(LedgerError::Budget)));
+        drop(pb.reserve(room).unwrap());
+        assert!(matches!(
+            ChargedPath::canonical(c"relative/content.sqlite3", &pb),
+            Err(LedgerError::Invalid(_))
+        ));
+        let dotted = std::ffi::CString::new(format!(
+            "{}/./content.sqlite3",
+            content_real.parent().unwrap().display()
+        ))
+        .unwrap();
+        assert!(matches!(
+            ChargedPath::canonical(&dotted, &pb),
+            Err(LedgerError::Invalid(_))
+        ));
+        let linked_dir = dir.join("linked");
+        std::os::unix::fs::symlink(content_real.parent().unwrap(), &linked_dir).unwrap();
+        let through_link =
+            std::ffi::CString::new(linked_dir.join("content.sqlite3").to_str().unwrap()).unwrap();
+        assert_eq!(
+            ChargedPath::canonical(&through_link, &pb).err(),
+            Some(LedgerError::Invalid("内容库路径含符号链接"))
+        );
+        let hard = content_real.with_file_name("content-hard.sqlite3");
+        std::fs::hard_link(&content_real, &hard).unwrap();
+        let hard = std::ffi::CString::new(hard.to_str().unwrap()).unwrap();
+        let by_hard = ChargedPath::canonical(&hard, &pb).unwrap();
+        let by_content = ChargedPath::canonical(&content, &pb).unwrap();
+        assert_ne!(
+            by_hard.files().collect::<Vec<_>>(),
+            by_content.files().collect::<Vec<_>>()
+        );
+        drop((by_hard, by_content, pb));
         let path2 = c_path("ledger-b.sqlite3");
         let mut l2 =
             Ledger::fresh_charged(&path2, &content, &identity(), STORE, parent(&current, &b))
@@ -4123,5 +4203,47 @@ pub(super) mod tests {
             canonical::Decimal::of_u64(u64::MAX).as_str(),
             u64::MAX.to_string()
         );
+    }
+
+    #[test]
+    fn legacy_storage_reading_keeps_metadata_semantics() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = std::env::temp_dir().join(format!("ledger-legacy-bytes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("db.sqlite3");
+        std::fs::write(&file, [0u8; 300]).unwrap();
+        std::fs::write(dir.join("db.sqlite3-journal"), [0u8; 7]).unwrap();
+        let link = dir.join("link.sqlite3");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        let dangling = dir.join("dangling.sqlite3");
+        std::os::unix::fs::symlink(dir.join("absent"), &dangling).unwrap();
+        assert_eq!(database_bytes(&file), Ok(307));
+        assert_eq!(database_bytes(&link), Ok(300));
+        assert_eq!(database_bytes(&dangling), Ok(0));
+        assert_eq!(database_bytes(&dir.join("missing.sqlite3")), Ok(0));
+        let nul = Path::new(std::ffi::OsStr::from_bytes(b"has\0nul"));
+        assert_eq!(
+            database_bytes(nul),
+            Err(error(std::fs::metadata(nul).unwrap_err()))
+        );
+        let long = dir.join("x".repeat(5000));
+        assert_eq!(
+            database_bytes(&long),
+            Err(error(std::fs::metadata(&long).unwrap_err()))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn charged_stat_leaves_long_paths_to_the_platform() {
+        let long = std::ffi::CString::new(format!("/{}", "x".repeat(5000))).unwrap();
+        let result = stat_file(&long);
+        let expected = std::fs::metadata(std::path::Path::new(long.to_str().unwrap()))
+            .map(|_| ())
+            .unwrap_err()
+            .kind();
+        assert_eq!(result, Err(LedgerError::Storage(expected)));
     }
 }
