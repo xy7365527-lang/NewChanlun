@@ -1,0 +1,33 @@
+{
+  "author": [
+    "未执行 tsx 清单生成命令或 main-swarm 归并命令，未验证真实远端与 Docker 路径。",
+    "按明确要求保留“本指南不声称 Docker 冲突路径已验收”，因此 grep 对“已验收”有一处否定声明命中。"
+  ],
+  "design-a": [
+    "本 checkout 没有 node_modules，所以没有实际运行 npx tsx 生成脚本，也没有跑 accepted-merge-drain 测试。build-manifest 中 dynamic import 加 pathToFileURL 的写法未经执行验证。",
+    "本 checkout 没有 docs/agents/ 目录，无从对照该目录现有文档的风格和文件命名约定；README.md 这个文件名是推断。",
+    "需求说「冲突时……停下交主控」，但源码在 Docker 预检通过后会自动派冲突工蜂继续。指南该按代码描述还是另设操作规约，需要主控裁定。",
+    "「必需 CI」的判定来源和核对工具源码未见；单票验收记录的存放位置和格式源码也未定义，只要求 verificationEvidence 非空。",
+    "没有访问 GitHub、Docker 或 nc-remote，远端事实读取与冲突路径的实际行为只来自源码阅读。",
+    "git fetch origin <分支> 会更新 refs/remotes/origin/<分支>，这一点依赖默认 fetch refspec，在目标宿主仓上未核实。",
+    "没有读 pstack-upstream-how/arena 等被 SKILL.md 引用的其他技能文件；本任务只授权读 architect 目录下这几份文件。"
+  ],
+  "design-b": [
+    "当前只读 checkout 没有 docs/agents/，无法核实该目录已有的命名、导航及文风约定；建议文件名依据写集和现有 Markdown 形态选定。",
+    "命令和恢复行为按源码静态核对，未执行实际生成、App 远端读取、组合归并、必需 CI、Docker、生产冻结或生产切换，不能据本设计宣称这些环境已经验收。",
+    "源码未规定统一的必需 CI 名称或单票验收记录格式；deepAgentsMergeInput 只检查证据指针非空，具体 CI 与验收事实须由主控提供并核实。",
+    "现有入口会尝试自动解决冲突，不能仅靠文档保证任何冲突都立即暂停；若需求要求无条件冲突暂停，将超出本次文档写集。",
+    "换清单使用新 runId 是指南应执行的操作规程；源码对已有检查点严格比较恢复合同，但首个检查点前不能宣称同等强度的统一硬校验。"
+  ],
+  "judge": [
+    "checkout 没有 node_modules；两种 tsx 生成方式均未实际执行，--eval 的兼容性判断保留为未核实风险。",
+    "未验证 App 远端读取、Docker、nc-remote 或真实中断恢复；运行行为结论来自基线源码与测试静态核对。",
+    "当前代码没有无条件冲突暂停开关；若需求坚持任何冲突都立即停下，需由主控处理这一范围冲突，不能靠文档承诺满足。",
+    "docs/agents/ 不存在，无法核实目标目录既有导航、命名和文风惯例。"
+  ],
+  "review": [
+    "本 checkout 没有 node_modules，沙箱也不能写 /tmp，所以没有真正用 npx tsx 跑生成脚本，也没有运行 accepted-merge-drain.test.mts。脚本的可运行性是靠 Node 22 类型剥离加相同的动态 import 写法间接验证的。",
+    "没有真实的 DeepAgents run 目录和 App 远端事实，所以 deepAgentsMergeInput 的读文件路径和 main-swarm 的端到端行为只做了源码静态核对。",
+    "中文标题锚点按 GitHub slug 规则推断，没有在渲染器里实际点击验证。"
+  ]
+}

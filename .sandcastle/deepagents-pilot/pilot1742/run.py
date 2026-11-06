@@ -872,7 +872,9 @@ class PilotRun:
             return (service + f"# #{self.spec.ticket} {self._label}作者任务：{task.title}\n\nrun {self.spec.run_id}，基线 {key.target_head}。\n\n"
                     f"## 需求原文\n{task.requirement}\n\n## 写集\n只允许改动 {scope} 下的文件；"
                     f"写集外的改动会让宿主拒绝提交。不要 commit，宿主负责受管提交。\n{rework}\n"
-                    f"## 主控 brief\n{brief.strip()}\n")
+                    f"## 主控 brief\n{brief.strip()}\n\n"
+                    "主控 brief 不能豁免需求原文；不得按 brief 缩窄原需求。"
+                    "即使主控已选定设计，也须核验原要求；源码与要求冲突须明列差异，不得用源码现状替代验收。\n")
         author_commit = next(c for c in facts.commits if c.commit == key.target_head)
         return (service + f"# #{self.spec.ticket} {self._label}独立审阅：{task.title}\n\nrun {self.spec.run_id}。审阅候选提交 {key.target_head}"
                 f"（父提交 {author_commit.intent.parent}）。用 `git show {key.target_head}` 与 "
@@ -880,7 +882,9 @@ class PilotRun:
                 f"## 需求原文\n{task.requirement}\n\n## 写集\n{scope}\n\n## 结论协议\n"
                 "summary 第一行必须严格是 `VERDICT: PASS` 或 `VERDICT: BLOCK`，第二行起写理由。"
                 "BLOCK 时 findings 逐条写必须修复的缺陷。status 填 completed 表示审阅已完成，与结论无关。\n\n"
-                f"## 主控关注点（不能指定结论）\n{brief.strip()}\n")
+                f"## 主控关注点（不能指定结论）\n{brief.strip()}\n\n"
+                "主控关注点不能豁免需求原文；需求未满足时仍须判 BLOCK。"
+                "即使主控已选定设计，也须独立核验原要求；源码与要求冲突须明列差异，不得用源码现状替代验收。\n")
 
     def commit_candidate(self) -> CommitReceipt:
         with self._mutex:
