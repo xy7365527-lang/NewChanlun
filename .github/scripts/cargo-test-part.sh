@@ -20,13 +20,17 @@ fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cargo test "${cargo_args[@]}" -- "${filters[@]}" --list >"$work/list.raw"
-mapfile -t names < <(sed -n 's/: test$//p' "$work/list.raw" | LC_ALL=C sort -u)
-if (( ${#names[@]} == 0 )); then
+# bash 3.2（macOS 自带）没有 mapfile；空数组在 set -u 下不可展开，故先数行再建数组。
+sed -n 's/: test$//p' "$work/list.raw" | LC_ALL=C sort -u >"$work/names"
+count=$(wc -l <"$work/names" | tr -d ' ')
+names=()
+while IFS= read -r name; do names+=("$name"); done <"$work/names"
+if (( count == 0 )); then
   echo "::error title=Empty test list::cargo test ${cargo_args[*]} -- ${filters[*]} listed no tests" >&2
   exit 1
 fi
 part=()
-for (( k = i; k < ${#names[@]}; k += n )); do part+=("${names[k]}"); done
-echo "cargo-test-part: part $i/$n runs ${#part[@]} of ${#names[@]} tests"
-(( ${#part[@]} == 0 )) && exit 0
+for (( k = i; k < count; k += n )); do part+=("${names[k]}"); done
+echo "cargo-test-part: part $i/$n of $count tests"
+(( count <= i )) && exit 0
 exec cargo test "${cargo_args[@]}" -- --exact "${part[@]}"
