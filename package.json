@@ -2,8 +2,11 @@
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
     "@standard-schema/spec": "^1.1.0",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^26.2.0",
     "mdast-util-from-markdown": "^2.1.0",
+    "mdast-util-gfm-table": "^2.0.1",
+    "micromark-extension-gfm-table": "^2.1.2",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"

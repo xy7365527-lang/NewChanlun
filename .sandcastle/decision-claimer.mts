@@ -18,6 +18,8 @@
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { gfmTable } from "micromark-extension-gfm-table";
+import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { Nodes } from "mdast";
 import { useScheduler } from "./scheduler-config.mts";
 import { execFileSync, spawn } from "node:child_process";
@@ -839,7 +841,9 @@ export function archaeologyCoverageProblems(draft: string, a: Archaeology): stri
     if (node.type === "text" || node.type === "inlineCode") return node.value;
     return "children" in node ? node.children.map(child => text(child)).join(" ") : "";
   };
-  const nodes = fromMarkdown(draft).children;
+  const nodes = fromMarkdown(draft, {
+    extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()],
+  }).children;
   const start = nodes.findIndex(node => node.type === "heading" &&
     text(node).replace(/^\d+[.、]\s*/, "").trim() === ARCH_SECTION);
   const heading = nodes[start];

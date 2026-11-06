@@ -2856,6 +2856,14 @@ test("feedback1535：旧版待 redo 检查点无考古字段，仍补 R8 返修�
 
 
 // PR1905 独审 B1/B2、根裁决 N1/N2/N3 的确定性反例。
+test("repair1905：GFM 表格紧邻分隔线保留，节外假点仍拒绝", () => {
+  const a = parseArchaeology(goodArch)!;
+  const table = "| 点 | 说明 |\n| --- | --- |\n| Q1 | 一 |\n| Q2 | 二 |\n| Q3 | 三 |";
+  assert.deepEqual(archaeologyCoverageProblems("## 考古对照\n" + table + "\n---", a), []);
+  const missing = table.replace("| Q3 | 三 |", "| 无 | 三 |");
+  assert.match(archaeologyCoverageProblems("## 考古对照\n" + missing + "\n---\n## 后续\nQ3", a).join(), /Q3/);
+  assert.match(archaeologyCoverageProblems("## 考古对照\n" + missing + "\n---\n\n```text\nQ3\n```", a).join(), /Q3/);
+});
 test("repair1905：CommonMark 嵌套列表和段落续行保留", () => {
   const a = parseArchaeology(goodArch)!;
   for (const body of ["- Q1\n- Q2\n    - Q3 嵌套列表", "Q1 Q2\n    Q3 段落续行", "- Q1 Q2\n\n    Q3 列表续段", "- Q1 Q2\n\tQ3 列表续行"]) {
