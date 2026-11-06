@@ -1095,6 +1095,8 @@ const OBS_HELPER_REAP_DONE: Duration = Duration::from_secs(3);
 const OBS_HELPER_SETTLE_DONE: Duration = Duration::from_secs(1);
 const OBS_HELPER_ENV: &str = "PSE_OBS_HELPER_SCENARIO";
 const OBS_HELPER_TEST: &str = "socket_residue_observe_helper";
+/// 父测试接管时请 helper 收割已终结孩子的信号。
+const OBS_DRAIN_SIGNAL: libc::c_int = libc::SIGUSR1;
 const OBS_SCENARIOS: [(&str, Option<&str>); 3] = [
     ("OBS-OUT", None),
     ("OBS-IN-A", Some("s/s-state/diagnostic.sock")),
@@ -1412,10 +1414,11 @@ fn s_ready_matcher_requires_identity_in_envelope_and_payload() {
             "payload session_generation 错",
             envelope(with("session_generation", json!("0")), SESSION, "1"),
         ),
-        (
-            "payload 缺 session_generation 只有 generation",
-            envelope(with("session_generation", Value::Null), SESSION, "1"),
-        ),
+        ("payload 缺 session_generation 只有 generation", {
+            let mut p = ready.clone();
+            p.as_object_mut().unwrap().remove("session_generation");
+            envelope(p, SESSION, "1")
+        }),
         (
             "payload schema 错",
             envelope(with("schema_revision", json!("s-session/2")), SESSION, "1"),
@@ -1431,12 +1434,30 @@ fn s_ready_matcher_requires_identity_in_envelope_and_payload() {
     }
 }
 
-fn lock_held(db: &Path) -> bool {
-    std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(format!("{}.writer.lock", db.display()))
-        .is_ok_and(|lock| lock.try_lock().is_err())
+/// 只读观察域写锁：查 `/proc/locks` 里该锁文件 inode 上的 FLOCK WRITE 记录，不打开锁文件、不尝试加锁。
+/// 域进程以一次性 `try_lock` 取锁（`session_transport::process_lock`），探针若先拿到锁会让它以 StaleWriter 拒启。
+/// 设备号与 inode 都相符，或 inode 相符且持锁 PID 属本次 launcher 的存活域进程，才算持有。
+fn lock_observed(db: &Path, holders: &[u32]) -> Result<bool, String> {
+    let path = PathBuf::from(format!("{}.writer.lock", db.display()));
+    let m = match std::fs::metadata(&path) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(format!("stat {}: {e}", path.display())),
+    };
+    let dev = format!("{:02x}:{:02x}", libc::major(m.dev()), libc::minor(m.dev()));
+    let ino = m.ino().to_string();
+    let table = std::fs::read_to_string("/proc/locks")
+        .map_err(|e| format!("/proc/locks 不可读，锁状态未观测：{e}"))?;
+    Ok(table.lines().any(|line| {
+        let c: Vec<&str> = line.split_whitespace().collect();
+        if c.len() < 6 || c[1] != "FLOCK" || c[3] != "WRITE" {
+            return false;
+        }
+        let Some((d, i)) = c[5].rsplit_once(':') else {
+            return false;
+        };
+        i == ino && (d == dev || c[4].parse::<u32>().is_ok_and(|pid| holders.contains(&pid)))
+    }))
 }
 
 /// SQLite 只读读取：busy 等待不超过剩余绝对预算（替换库默认的 5s busy handler）。
@@ -1463,14 +1484,13 @@ fn read_field(db: &Path, sql: &str, until: Instant) -> Value {
     }
 }
 
-fn x_ready(space: &Space, until: Instant) -> bool {
-    lock_held(&space.path("x.db"))
-        && read_field(
-            &space.path("x.db"),
-            "SELECT value FROM x_meta WHERE key='writer_epoch'",
-            until,
-        )["value"]
-            == "1"
+fn x_epoch_ready(space: &Space, until: Instant) -> bool {
+    read_field(
+        &space.path("x.db"),
+        "SELECT value FROM x_meta WHERE key='writer_epoch'",
+        until,
+    )["value"]
+        == "1"
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
@@ -1538,12 +1558,49 @@ fn stat_fields(pid: u32) -> Option<Vec<String>> {
     )
 }
 
-/// 进程身份 = PID + /proc starttime；PID 复用后身份不再匹配。
-#[derive(Clone, Debug, PartialEq)]
+/// 进程身份 = PID + /proc starttime；PID 复用后身份不再匹配。`role` 取自 cmdline，进程成僵尸后变空，
+/// 只作展示，不参与相等比较。
+#[derive(Clone, Debug)]
 struct ProcId {
     role: String,
     pid: u32,
     start: String,
+}
+
+impl PartialEq for ProcId {
+    fn eq(&self, other: &Self) -> bool {
+        self.pid == other.pid && self.start == other.start
+    }
+}
+
+#[derive(Debug, PartialEq)]
+enum ReapOutcome {
+    Reaped(libc::c_int),
+    Running,
+    /// ECHILD 且身份已不存在：进程已终结并被收割，但不是本次调用收割的。
+    EchildGone,
+    /// ECHILD 但身份仍存在：它已不是本进程的孩子，归属丢失。
+    Lost(&'static str),
+    Error(String),
+}
+
+/// 按身份对本进程的一个孩子做一次非阻塞 waitpid。
+fn try_reap(p: &ProcId) -> ReapOutcome {
+    let mut status: libc::c_int = 0;
+    let rc = unsafe { libc::waitpid(p.pid as libc::pid_t, &mut status, libc::WNOHANG) };
+    if rc == p.pid as libc::pid_t {
+        return ReapOutcome::Reaped(status);
+    }
+    if rc == 0 {
+        return ReapOutcome::Running;
+    }
+    let e = std::io::Error::last_os_error();
+    match (e.raw_os_error(), p.state()) {
+        (Some(libc::EINTR), _) => ReapOutcome::Running,
+        (Some(libc::ECHILD), "gone" | "pid_reused") => ReapOutcome::EchildGone,
+        (Some(libc::ECHILD), state) => ReapOutcome::Lost(state),
+        _ => ReapOutcome::Error(e.to_string()),
+    }
 }
 
 impl ProcId {
@@ -1634,32 +1691,53 @@ fn stable_children(parent: u32, until: Instant) -> (Vec<ProcId>, bool) {
 fn reap_adopted(exclude: &[u32], until: Instant) -> Value {
     let me = std::process::id();
     let mut signals = Vec::new();
-    let mut reaped = Vec::new();
+    let mut handled: Vec<ProcId> = Vec::new();
+    let (mut reaped, mut echild_gone, mut lost, mut errors) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let mut pending: Vec<ProcId> = Vec::new();
     loop {
         let (now, stable) = stable_children(me, until);
         for p in now.into_iter().filter(|p| !exclude.contains(&p.pid)) {
-            if !pending.contains(&p) && !reaped.iter().any(|r: &Value| r["pid"] == p.pid) {
+            if !pending.contains(&p) && !handled.contains(&p) {
                 signals.push(signal_identity(&p, libc::SIGKILL));
                 pending.push(p);
             }
         }
-        pending.retain(|p| {
-            let mut status: libc::c_int = 0;
-            let rc = unsafe { libc::waitpid(p.pid as libc::pid_t, &mut status, libc::WNOHANG) };
-            if rc == p.pid as libc::pid_t {
-                reaped.push(json!({"role":p.role,"pid":p.pid,"start_time_ticks":p.start,"wait_status":status}));
-                false
-            } else {
-                true
+        let mut still = Vec::new();
+        for p in pending.drain(..) {
+            let entry = |extra: Value| json!({"role":p.role,"pid":p.pid,"start_time_ticks":p.start,"detail":extra});
+            match try_reap(&p) {
+                ReapOutcome::Running => {
+                    still.push(p);
+                    continue;
+                }
+                ReapOutcome::Reaped(status) => reaped.push(entry(json!({"wait_status":status}))),
+                ReapOutcome::EchildGone => echild_gone.push(entry(Value::Null)),
+                ReapOutcome::Lost(state) => lost.push(entry(json!({"state":state}))),
+                ReapOutcome::Error(e) => {
+                    if errors.len() < OBS_PROBE_LOG {
+                        errors.push(entry(json!(e)));
+                    }
+                    still.push(p);
+                    continue;
+                }
             }
-        });
+            handled.push(p);
+        }
+        pending = still;
         if (pending.is_empty() && stable) || left(until).is_zero() {
             let pending: Vec<Value> = pending.iter().map(ProcId::json).collect();
-            return json!({"subreaper_scan_stable":stable,"signals":signals,"reaped":reaped,"unreaped":pending});
+            return json!({"subreaper_scan_stable":stable,"signals":signals,"reaped":reaped,
+                "echild_gone":echild_gone,"lost":lost,"wait_errors":errors,"unreaped":pending});
         }
         sleep_until_at_most(until, Duration::from_millis(20));
     }
+}
+
+fn adoption_open(adopted: &Value) -> bool {
+    ["unreaped", "lost"]
+        .iter()
+        .any(|k| adopted[*k].as_array().is_some_and(|a| !a.is_empty()))
 }
 
 struct CaptureState {
@@ -1978,13 +2056,7 @@ fn eb_ready(
     probes: &mut Probes,
     budget: &Budget,
 ) -> bool {
-    for (kind, db, sock) in [
-        ("connect_e", "e.db", "e.sock"),
-        ("connect_b", "b.db", "b.sock"),
-    ] {
-        if !lock_held(&space.path(db)) {
-            return false;
-        }
+    for (kind, sock) in [("connect_e", "e.sock"), ("connect_b", "b.sock")] {
         let r = unix_connect(&space.path(sock), probe_until(until)).map(drop);
         let ok = r.is_ok();
         probes.note(run, budget, kind, r);
@@ -1995,7 +2067,8 @@ fn eb_ready(
     true
 }
 
-/// 四域就绪：S 经 `s_ready` 核身份且持锁；X 持锁且 `x_meta.writer_epoch=1`；E/B 持锁且 socket 可连。
+/// 四域就绪：S 经 `s_ready` 核身份；四域写锁经 `/proc/locks` 只读观察为已持有；X `x_meta.writer_epoch=1`；
+/// E/B socket 可连。
 /// 不以路径存在判 ready（残留路径会让它立即为真）。
 fn wait_ready(
     run: &mut Launched,
@@ -2031,8 +2104,35 @@ fn wait_ready(
                 }
             }
             if let Some(reply) = &s_reply {
-                if lock_held(s_db)
-                    && x_ready(space, probe_until(until))
+                let holders: Vec<u32> = run
+                    .seen
+                    .iter()
+                    .filter(|p| p.state() == "alive")
+                    .map(|p| p.pid)
+                    .collect();
+                let mut locks_held = true;
+                for (domain, db) in [
+                    ("s", s_db.to_path_buf()),
+                    ("x", space.path("x.db")),
+                    ("e", space.path("e.db")),
+                    ("b", space.path("b.db")),
+                ] {
+                    match lock_observed(&db, &holders) {
+                        Ok(true) => {}
+                        Ok(false) => locks_held = false,
+                        Err(e) => {
+                            probes.note(
+                                run,
+                                budget,
+                                "lock_observation",
+                                Err(format!("{domain}: {e}")),
+                            );
+                            locks_held = false;
+                        }
+                    }
+                }
+                if locks_held
+                    && x_epoch_ready(space, probe_until(until))
                     && eb_ready(run, space, until, probes, budget)
                 {
                     return ReadyOutcome::Ready(reply.clone());
@@ -2077,7 +2177,7 @@ fn compare_projection(baseline: &Value, after: &Value) -> Value {
     Value::Object(out)
 }
 
-/// 有界等待直接子进程（init）；到期仍未退出则 SIGKILL 后在同一期限内再等。
+/// 有界轮询等待直接子进程；到期返回 TIMEOUT，不发任何信号，回收由调用方负责。
 fn wait_child(child: &mut Child, until: Instant) -> Result<std::process::ExitStatus, String> {
     loop {
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
@@ -2358,9 +2458,7 @@ fn run_case(c: &mut Case) -> Result<(), String> {
     c.step("l1_exited", status_record(status));
     let adopted = reap_adopted(&[], until);
     let adopted_any = adopted["signals"].as_array().is_some_and(|a| !a.is_empty());
-    let adopted_open = adopted["unreaped"]
-        .as_array()
-        .is_some_and(|a| !a.is_empty());
+    let adopted_open = adoption_open(&adopted);
     c.set("l1_adopted_after_exit", adopted);
     if !lingering.is_empty() || adopted_any || adopted_open {
         return Err(format!("L1 退出后仍有本例后代存在或被托管：{lingering:?}"));
@@ -2418,13 +2516,10 @@ fn finalize(mut c: Case, result: Result<(), String>) {
         .map(|r| r.child.id())
         .collect();
     let adopted = reap_adopted(&exclude, reap_until);
-    if adopted["unreaped"]
-        .as_array()
-        .is_some_and(|a| !a.is_empty())
-    {
+    if adoption_open(&adopted) {
         failures.push(format!(
-            "subreaper 下仍有未收割的本例后代：{}",
-            adopted["unreaped"]
+            "subreaper 下仍有未收割或归属丢失的本例后代：unreaped={} lost={}",
+            adopted["unreaped"], adopted["lost"]
         ));
     }
     let lingering: Vec<Value> = [c.l1.as_ref(), c.l2.as_ref()]
@@ -2601,57 +2696,121 @@ fn descendants(root: u32) -> Vec<ProcId> {
     out
 }
 
-/// helper 超时：逐轮 SIGSTOP 整棵树直至成员全部停止且两次遍历一致，再按身份 SIGKILL，并有界 wait helper。
-fn reap_helper_tree(child: &mut Child, root: Option<&ProcId>, until: Instant) -> Value {
-    let mut members: Vec<ProcId> = root.cloned().into_iter().collect();
-    let mut stop_signals = Vec::new();
-    let frozen = loop {
-        let before = descendants(child.id());
-        for p in &before {
+/// helper 内的排空处理器：收割 helper 名下全部已终结孩子。只在父测试接管回收时由父测试触发；
+/// 此时本例已判失败，抢走 launcher 句柄的退出状态无碍。
+extern "C" fn drain_children(_: libc::c_int) {
+    unsafe {
+        let saved = *libc::__errno_location();
+        while libc::waitpid(-1, std::ptr::null_mut(), libc::WNOHANG) > 0 {}
+        *libc::__errno_location() = saved;
+    }
+}
+
+fn install_drain_handler() -> Result<(), String> {
+    let prev = unsafe {
+        libc::signal(
+            OBS_DRAIN_SIGNAL,
+            drain_children as *const () as libc::sighandler_t,
+        )
+    };
+    if prev == libc::SIG_ERR {
+        Err(format!(
+            "排空处理器安装失败：{}",
+            std::io::Error::last_os_error()
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// 按身份 SIGSTOP 并确认进入停止态。
+fn freeze_identity(p: &ProcId, until: Instant) -> (Value, bool) {
+    let sent = signal_identity(p, libc::SIGSTOP);
+    while p.state() != "stopped" && !left(until).is_zero() {
+        sleep_until_at_most(until, Duration::from_millis(10));
+    }
+    let state = p.state();
+    (json!({"signal":sent,"state":state}), state == "stopped")
+}
+
+/// 冻结 `root` 的全部后代：反复 SIGSTOP 存活成员，直到两次遍历一致且没有仍在运行的成员。
+fn freeze_descendants(root: u32, until: Instant) -> (Vec<ProcId>, bool) {
+    loop {
+        let before = descendants(root);
+        for p in before.iter().filter(|p| p.state() == "alive") {
+            signal_identity(p, libc::SIGSTOP);
+        }
+        sleep_until_at_most(until, Duration::from_millis(20));
+        let after = descendants(root);
+        let settled = after.iter().all(|p| p.state() != "alive");
+        if after == before && settled {
+            return (after, true);
+        }
+        if left(until).is_zero() {
+            return (after, false);
+        }
+    }
+}
+
+/// 父测试接管 helper 树。helper 是本例后代唯一的托管者，必须最后一个死：
+/// 每轮先冻结 helper（它停着就不能再拉起进程），再冻结并遍历它的后代；后代非空则按身份 SIGKILL，
+/// 然后 SIGCONT helper 并发排空信号让它收割僵尸。直到 helper 停止态下后代为空，才按身份杀 helper 并 wait。
+/// 僵尸不算已回收；期限内收不干净就如实列在 `open`。
+fn reap_helper_tree(child: &mut Child, helper: Option<&ProcId>, until: Instant) -> Value {
+    let Some(helper) = helper else {
+        let kill = format!("{:?}", child.kill());
+        let status = wait_child(child, until);
+        return json!({"closed":false,"reason":"未取得 helper 身份，无法安全接管后代",
+            "helper_kill":kill,"helper_status":format!("{status:?}"),"members":[],"open":[]});
+    };
+    let mut members: Vec<ProcId> = Vec::new();
+    let mut rounds = Vec::new();
+    let (closed, reason) = loop {
+        let (freeze, stopped) = freeze_identity(helper, until);
+        if !stopped {
+            break (false, format!("helper 未能确认停止：{freeze}"));
+        }
+        let (desc, stable) = freeze_descendants(helper.pid, until);
+        for p in &desc {
             if !members.contains(p) {
                 members.push(p.clone());
             }
         }
-        for p in members.iter().filter(|p| p.state() == "alive") {
-            stop_signals.push(signal_identity(p, libc::SIGSTOP));
+        let states: Vec<Value> = desc.iter().map(ProcId::json).collect();
+        if desc.is_empty() && stable {
+            rounds.push(json!({"helper_freeze":freeze,"descendants":states}));
+            break (true, "helper 停止态下后代为空".into());
         }
-        sleep_until_at_most(until, Duration::from_millis(20));
-        let after = descendants(child.id());
-        let settled = members
+        let kills: Vec<Value> = desc
             .iter()
-            .all(|p| matches!(p.state(), "stopped" | "zombie" | "gone" | "pid_reused"));
-        if after == before && settled {
-            break true;
-        }
+            .filter(|p| matches!(p.state(), "alive" | "stopped"))
+            .map(|p| signal_identity(p, libc::SIGKILL))
+            .collect();
+        let cont = signal_identity(helper, libc::SIGCONT);
+        let drain = signal_identity(helper, OBS_DRAIN_SIGNAL);
+        rounds.push(
+            json!({"helper_freeze":freeze,"descendants":states,"stable":stable,
+            "kills":kills,"helper_cont":cont,"drain":drain}),
+        );
         if left(until).is_zero() {
-            break false;
+            break (false, "期限内未能在 helper 停止态下见到空后代集".into());
         }
+        sleep_until_at_most(until, Duration::from_millis(50));
     };
-    let kill_signals: Vec<Value> = members
-        .iter()
-        .filter(|p| matches!(p.state(), "alive" | "stopped"))
-        .map(|p| signal_identity(p, libc::SIGKILL))
-        .collect();
+    let helper_kill = signal_identity(helper, libc::SIGKILL);
     let helper_status = wait_child(child, until);
-    while members
-        .iter()
-        .any(|p| matches!(p.state(), "alive" | "stopped"))
-        && !left(until).is_zero()
-    {
-        sleep_until_at_most(until, Duration::from_millis(20));
-    }
     let open: Vec<Value> = members
         .iter()
-        .filter(|p| matches!(p.state(), "alive" | "stopped"))
+        .filter(|p| p.exists())
         .map(ProcId::json)
         .collect();
-    json!({"frozen":frozen,"stop_signals":stop_signals,"kill_signals":kill_signals,
-        "helper_status":format!("{helper_status:?}"),"members":members.iter().map(ProcId::json).collect::<Vec<_>>(),
-        "open":open})
+    json!({"closed":closed && open.is_empty() && helper_status.is_ok(),"reason":reason,
+        "rounds":rounds,"helper_kill":helper_kill,"helper_status":format!("{helper_status:?}"),
+        "members":members.iter().map(ProcId::json).collect::<Vec<_>>(),"open":open})
 }
 
-/// 父测试：只拉起并看管一个 helper；自身不设 subreaper，不回收 helper 树以外的任何进程。
-fn observe_in_helper(scenario: &'static str) {
+/// 拉起并看管一个 helper；父测试自身不设 subreaper，不回收 helper 树以外的任何进程。返回包装收据与失败项。
+fn run_helper(scenario: &str, wait: Duration) -> (Value, Vec<String>) {
     assert!(
         std::env::var_os(OBS_HELPER_ENV).is_none(),
         "helper 内不得再起 helper"
@@ -2661,11 +2820,9 @@ fn observe_in_helper(scenario: &'static str) {
     let mut failures: Vec<String> = Vec::new();
     let (precheck, precheck_ok) = pidfd_precheck();
     if let Err(why) = precheck_ok {
-        let wrapper = json!({"scenario":scenario,"parent_pidfd_precheck":precheck,"helper":"NOT_SPAWNED","failures":[why]});
-        std::io::stderr()
-            .write_all(format!("socket_residue_observe_helper {wrapper}\n").as_bytes())
-            .unwrap();
-        panic!("{scenario}：父测试 pidfd 前检失败，未拉起 helper");
+        failures.push(format!("父测试 pidfd 前检失败，未拉起 helper：{why}"));
+        let wrapper = json!({"scenario":scenario,"parent_pidfd_precheck":precheck,"helper":"NOT_SPAWNED","failures":failures});
+        return (wrapper, failures);
     }
     let mut child = Command::new(std::env::current_exe().unwrap())
         .args([
@@ -2687,7 +2844,7 @@ fn observe_in_helper(scenario: &'static str) {
     let helper = ProcId::capture("helper", child.id());
     let mut out = Capture::start(child.stdout.take().unwrap());
     let mut err = Capture::start(child.stderr.take().unwrap());
-    let wait_until = start + OBS_HELPER_WAIT;
+    let wait_until = (start + wait).min(start + OBS_HELPER_WAIT);
     let (exited, handoff) = loop {
         if let Some(status) = child.try_wait().ok().flatten() {
             break (Some(status), false);
@@ -2709,7 +2866,7 @@ fn observe_in_helper(scenario: &'static str) {
                 "helper 未在限时内退出".into()
             });
             let tree = reap_helper_tree(&mut child, helper.as_ref(), end - OBS_HELPER_REAP_DONE);
-            if tree["open"].as_array().is_some_and(|a| !a.is_empty()) || tree["frozen"] != true {
+            if tree["closed"] != true {
                 failures.push("helper 进程树未闭合".into());
             }
             (child.try_wait().ok().flatten(), tree)
@@ -2760,17 +2917,138 @@ fn observe_in_helper(scenario: &'static str) {
     std::io::stderr()
         .write_all(format!("socket_residue_observe_helper {wrapper}\n").as_bytes())
         .unwrap();
+    (wrapper, failures)
+}
+
+fn observe_in_helper(scenario: &'static str) {
+    let (_, failures) = run_helper(scenario, OBS_HELPER_WAIT);
     if !failures.is_empty() {
         panic!("{scenario}：{}", failures.join("；"));
     }
 }
 
+/// 回收自检用的故障 helper：留下一个直接孩子和一个托管孙进程（sh 退出后改挂 helper），不自行回收。
+/// HANDOFF 写交接行后挂起；TIMEOUT 什么也不写直接挂起。
+fn fault_helper(scenario: &str) {
+    enable_subreaper()
+        .1
+        .expect("故障 helper 须先确认 subreaper");
+    let quiet = |c: &mut Command| {
+        c.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+    };
+    let mut direct = Command::new("sleep");
+    direct.arg("60");
+    quiet(&mut direct);
+    drop(direct.spawn().unwrap());
+    let mut orphaner = Command::new("sh");
+    orphaner.args(["-c", "sleep 60 & exit 0"]);
+    quiet(&mut orphaner);
+    assert!(orphaner.status().unwrap().success());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while descendants(std::process::id()).len() < 2 && !left(deadline).is_zero() {
+        sleep_until_at_most(deadline, Duration::from_millis(20));
+    }
+    let kids: Vec<Value> = descendants(std::process::id())
+        .iter()
+        .map(ProcId::json)
+        .collect();
+    let mut line = format!(
+        "socket_residue_harness_fault {}\n",
+        json!({"scenario":scenario,"left_behind":kids})
+    );
+    if scenario == "FAULT-HANDOFF" {
+        line.push_str(&format!(
+            "socket_residue_observe_handoff {}\n",
+            json!({"scenario":scenario,"remaining":kids})
+        ));
+    }
+    std::io::stderr().write_all(line.as_bytes()).unwrap();
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+    }
+}
+
+fn assert_parent_takes_over(scenario: &str, wait: Duration) {
+    let (wrapper, failures) = run_helper(scenario, wait);
+    let tree = &wrapper["tree_reap"];
+    assert_eq!(tree["closed"], true, "{scenario} 树未闭合：{wrapper}");
+    let others: Vec<&Value> = tree["members"].as_array().unwrap().iter().collect();
+    assert!(
+        others.len() >= 2,
+        "{scenario} 应接管故障 helper 留下的两个后代：{wrapper}"
+    );
+    for m in others {
+        assert!(
+            matches!(m["state"].as_str(), Some("gone" | "pid_reused")),
+            "{scenario} 后代须已被收割而非留作僵尸：{m}"
+        );
+    }
+    assert_eq!(tree["open"], json!([]), "{wrapper}");
+    assert!(
+        !failures.iter().any(|f| f.contains("未闭合")),
+        "{scenario}：{failures:?}"
+    );
+}
+
+/// 交接分支：helper 声明后代未闭合并挂起，父测试冻结、按身份杀后代、让 helper 收割僵尸，最后才杀 helper。
 #[test]
-#[ignore = "仅由 socket_residue_observe_* 以独立 helper 进程调用"]
+fn socket_residue_harness_handoff_reaps_descendants_before_helper() {
+    assert_parent_takes_over("FAULT-HANDOFF", OBS_HELPER_WAIT);
+}
+
+/// 超时分支：helper 不写交接行也不退出，父测试到期后走同一接管路径。
+#[test]
+fn socket_residue_harness_timeout_reaps_descendants_before_helper() {
+    assert_parent_takes_over("FAULT-TIMEOUT", Duration::from_secs(3));
+}
+
+/// 同一进程从存活变僵尸后 cmdline 变空、role 随之改变，身份仍须相等；重复观察只入队一次，
+/// 第一次 waitpid 收割后第二次得 ECHILD 且身份已不存在，归为 EchildGone 而非未回收或归属丢失。
+#[test]
+fn proc_identity_survives_zombie_transition_and_reap_is_single() {
+    let mut sleeper = Command::new("sleep")
+        .arg("30")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let pid = sleeper.id();
+    let live = ProcId::capture(&exe_name(pid), pid).unwrap();
+    assert_eq!(live.role, "sleep");
+    assert_eq!(try_reap(&live), ReapOutcome::Running);
+    unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while live.state() != "zombie" {
+        assert!(!left(deadline).is_zero(), "SIGKILL 后未进入僵尸态");
+        sleep_until_at_most(deadline, Duration::from_millis(10));
+    }
+    let zombie = ProcId::capture(&exe_name(pid), pid).unwrap();
+    assert_eq!(zombie.role, "", "僵尸的 cmdline 应为空");
+    assert_eq!(live, zombie, "身份只看 pid+starttime");
+    let mut pending = vec![live.clone()];
+    if !pending.contains(&zombie) {
+        pending.push(zombie.clone());
+    }
+    assert_eq!(pending.len(), 1, "同一身份不得重复入队");
+    assert!(matches!(try_reap(&zombie), ReapOutcome::Reaped(_)));
+    assert_eq!(try_reap(&live), ReapOutcome::EchildGone);
+    assert!(sleeper.try_wait().is_err() || sleeper.try_wait().unwrap().is_none());
+}
+
+#[test]
+#[ignore = "仅由 socket_residue_observe_* / socket_residue_harness_* 以独立 helper 进程调用"]
 fn socket_residue_observe_helper() {
     let Ok(scenario) = std::env::var(OBS_HELPER_ENV) else {
         return;
     };
+    install_drain_handler().expect("helper 须先装好排空处理器");
+    if scenario.starts_with("FAULT-") {
+        fault_helper(&scenario);
+        return;
+    }
     let (name, socket) = OBS_SCENARIOS
         .iter()
         .copied()
