@@ -18,3 +18,5 @@ v3::h1_writer_sql::charged_tests::h1_writer_handoff_charged_keeps_original_confi
 v3::h1_writer_sql::charged_tests::h1_writer_budget_refusal_after_open_still_restores_normal_close
 # #1419 3C 3A 受管 reader 经收费组件事务：同父收费、原判据与首错粘滞、收费首拒按工作域类型返回
 v3::audit_owner::sqlite_parent_tests::charged_step_reader_reads_on_same_parent_and_types_refusal
+# #1419 3C owner 连接家族组件能力：行变更/WAL 提交回调、回调内 checkpoint、cache_flush、按实际列数借行、收尾撤销回调
+v3::audit_owner::sqlite_parent_tests::sqlite_parent_owner_hooks_flush_and_cells_on_same_parent

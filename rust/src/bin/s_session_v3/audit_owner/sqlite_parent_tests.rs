@@ -1148,3 +1148,190 @@ fn charged_step_reader_reads_on_same_parent_and_types_refusal() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+static HOOK_UPDATES: AtomicUsize = AtomicUsize::new(0);
+static HOOK_LAST_ROWID: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+static HOOK_COMMITS: AtomicUsize = AtomicUsize::new(0);
+static HOOK_FRAMES: AtomicUsize = AtomicUsize::new(0);
+static HOOK_CHECKPOINT: std::sync::Mutex<Option<Result<(c_int, c_int), SqlGate>>> =
+    std::sync::Mutex::new(None);
+
+unsafe extern "C" fn record_update(
+    _: *mut c_void,
+    _: c_int,
+    _: *const std::ffi::c_char,
+    _: *const std::ffi::c_char,
+    rowid: i64,
+) {
+    HOOK_UPDATES.fetch_add(1, Ordering::SeqCst);
+    HOOK_LAST_ROWID.store(rowid, Ordering::SeqCst);
+}
+
+unsafe extern "C" fn record_wal_commit(
+    _: *mut c_void,
+    db: *mut ffi::sqlite3,
+    _: *const std::ffi::c_char,
+    frames: c_int,
+) -> c_int {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::wal_checkpoint;
+    HOOK_COMMITS.fetch_add(1, Ordering::SeqCst);
+    // SAFETY: db is the handle SQLite passed to this WAL hook.
+    let noop = unsafe { wal_checkpoint(db, ffi::SQLITE_CHECKPOINT_NOOP) };
+    HOOK_FRAMES.store(usize::try_from(frames).unwrap_or(0), Ordering::SeqCst);
+    if let Ok(mut slot) = HOOK_CHECKPOINT.lock() {
+        *slot = Some(noop);
+    }
+    ffi::SQLITE_OK
+}
+
+/// #1419 3C：owner 连接家族所需的组件能力（行变更与 WAL 提交回调、回调内 checkpoint、
+/// cache_flush、按实际列数借行、收尾撤销回调）在真实父账上的合同。
+#[test]
+#[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
+fn sqlite_parent_owner_hooks_flush_and_cells_on_same_parent() {
+    use newchan_rust::s_content::capture_allocation::sqlite_parent::{
+        wal_checkpoint, Callback, MAX_ROW_COLUMNS,
+    };
+    use std::ops::ControlFlow;
+    // SAFETY: this test runs alone in a fresh process before any SQLite use.
+    let allocator = unsafe { SqliteParentAllocator::install() }.expect("install before init");
+    let root = Budget::fresh(LIMIT).unwrap();
+    let d = Domains {
+        allocator: &allocator,
+        current: root.bind_frozen(1, LIMIT, 0, 0).unwrap(),
+        request: 1,
+    };
+    let dir = std::env::temp_dir().join(format!("owner-hooks-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let db_path = dir.join("owner.sqlite3");
+    let mut wal_path = db_path.as_os_str().to_os_string();
+    wal_path.push("-wal");
+    let path = std::ffi::CString::new(db_path.to_str().unwrap()).unwrap();
+
+    let base = d.current.live();
+    let b = d.rebind();
+    let conn = b.open(&path).unwrap();
+    b.run(&conn, |q| {
+        q.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE t(x INTEGER);")
+    })
+    .unwrap();
+    let update = Callback {
+        callback: record_update
+            as newchan_rust::s_content::capture_allocation::sqlite_parent::UpdateFn,
+        context: ptr::null_mut(),
+    };
+    let wal = Callback {
+        callback: record_wal_commit
+            as newchan_rust::s_content::capture_allocation::sqlite_parent::WalFn,
+        context: ptr::null_mut(),
+    };
+    // SAFETY: both hooks use static state only.
+    b.run(&conn, |q| unsafe {
+        q.set_update_hook(Some(update))?;
+        q.set_wal_hook(Some(wal))
+    })
+    .unwrap();
+    let commits = HOOK_COMMITS.load(Ordering::SeqCst);
+    let wal_len = || std::fs::metadata(&wal_path).map_or(0, |m| m.len());
+    let before_flush = wal_len();
+    b.run(&conn, |q| {
+        q.execute_batch("BEGIN IMMEDIATE; INSERT INTO t VALUES(10); INSERT INTO t VALUES(20);")
+    })
+    .unwrap();
+    assert_eq!(
+        wal_len(),
+        before_flush,
+        "uncommitted pages stay in the page cache"
+    );
+    b.run(&conn, |q| q.cache_flush()).unwrap();
+    assert!(
+        wal_len() > before_flush,
+        "cache_flush wrote the open transaction's dirty pages to the WAL"
+    );
+    assert_eq!(HOOK_UPDATES.load(Ordering::SeqCst), 2);
+    assert_eq!(HOOK_LAST_ROWID.load(Ordering::SeqCst), 2);
+    b.run(&conn, |q| q.execute_batch("COMMIT")).unwrap();
+    assert_eq!(
+        HOOK_COMMITS.load(Ordering::SeqCst),
+        commits + 1,
+        "one WAL hook per COMMIT"
+    );
+    assert!(
+        HOOK_FRAMES.load(Ordering::SeqCst) > 0,
+        "WAL hook saw the committed frames"
+    );
+    let checkpoint = HOOK_CHECKPOINT.lock().unwrap().take();
+    assert!(
+        matches!(checkpoint, Some(Ok((frames, _))) if frames > 0),
+        "checkpoint inside the WAL hook runs in the operation domain: {checkpoint:?}"
+    );
+    assert_eq!(
+        unsafe { wal_checkpoint(ptr::null_mut(), ffi::SQLITE_CHECKPOINT_NOOP) },
+        Err(SqlGate::Refused(ScratchFailure::Ledger)),
+        "checkpoint outside any operation domain is refused before touching SQLite"
+    );
+
+    let mut rows = Vec::new();
+    b.run(&conn, |q| {
+        q.prepare("SELECT rowid, * FROM t ORDER BY rowid")?
+            .for_each_cells([], |cells| {
+                rows.push((cells.len(), cells[0].as_i64().ok(), cells[1].as_i64().ok()));
+                ControlFlow::Continue(())
+            })
+    })
+    .unwrap();
+    assert_eq!(rows, [(2, Some(1), Some(10)), (2, Some(2), Some(20))]);
+    let wide: String = (0..=MAX_ROW_COLUMNS).map(|i| format!("{i},")).collect();
+    let wide = format!("SELECT {}", wide.trim_end_matches(','));
+    assert_eq!(
+        b.run(&conn, |q| q
+            .prepare(&wide)?
+            .for_each_cells([], |_| ControlFlow::Continue(()))),
+        Err(SqlGate::Sqlite(ffi::SQLITE_RANGE)),
+        "rows wider than the stack buffer are refused without allocating"
+    );
+
+    b.clear_write_hooks(&conn).unwrap();
+    let updates = HOOK_UPDATES.load(Ordering::SeqCst);
+    let commits = HOOK_COMMITS.load(Ordering::SeqCst);
+    b.run(&conn, |q| q.execute_batch("INSERT INTO t VALUES(30);"))
+        .unwrap();
+    assert_eq!(
+        (
+            HOOK_UPDATES.load(Ordering::SeqCst),
+            HOOK_COMMITS.load(Ordering::SeqCst)
+        ),
+        (updates, commits),
+        "teardown cleared both hooks"
+    );
+
+    // SAFETY: both hooks use static state only.
+    b.run(&conn, |q| unsafe {
+        q.set_update_hook(Some(update))?;
+        q.set_wal_hook(Some(wal))
+    })
+    .unwrap();
+    let refused = b.run(&conn, |q| {
+        q.query_row("SELECT length(randomblob(134217728))", [], |[v]| v.as_i64())
+    });
+    assert_eq!(
+        refused.map(drop),
+        Err(SqlGate::Refused(ScratchFailure::Budget))
+    );
+    assert_eq!(
+        b.run(&conn, |q| unsafe { q.set_update_hook(None) }),
+        Err(SqlGate::Refused(ScratchFailure::Budget)),
+        "ordinary hook changes stay behind the first refusal"
+    );
+    b.clear_write_hooks(&conn).unwrap();
+    assert_eq!(
+        b.refusal(),
+        Some(ScratchFailure::Budget),
+        "first refusal kept"
+    );
+    b.close(conn).map_err(|(_, e)| e).unwrap();
+    drop(b);
+    assert_eq!(d.current.live(), base, "all connection bytes returned");
+    let _ = std::fs::remove_dir_all(&dir);
+}

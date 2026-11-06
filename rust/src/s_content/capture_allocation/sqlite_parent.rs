@@ -875,6 +875,19 @@ impl SqliteBinding {
         result
     }
 
+    /// 收尾：撤销连接上的行变更与 WAL 提交回调，使调用方可以安全释放其上下文。首拒之后仍可
+    /// 执行，不执行 SQL、不分配、不清除首拒。
+    pub fn clear_write_hooks(&self, conn: &ChargedConnection) -> Result<(), SqlGate> {
+        let running = self.enter_teardown(Some(conn))?;
+        // SAFETY: conn owns a live handle; clearing hooks takes no context.
+        unsafe {
+            ffi::sqlite3_update_hook(conn.db, None, ptr::null_mut());
+            ffi::sqlite3_wal_hook(conn.db, None, ptr::null_mut());
+        }
+        drop(running);
+        Ok(())
+    }
+
     /// 在本操作域执行 `f`。连接须归属本父账、本绑定须为当前、本域须无拒绝，否则 `f` 不执行；
     /// `f` 内每次操作再各自核一次。首个收费拒绝之后，后续操作不再进入 SQLite，结果报首拒。
     pub fn run<R>(
@@ -984,6 +997,35 @@ pub type AuthorizerFn = unsafe extern "C" fn(
     *const c_char,
     *const c_char,
 ) -> c_int;
+/// 调用方的行变更回调（`sqlite3_update_hook` 形式）。
+pub type UpdateFn = unsafe extern "C" fn(*mut c_void, c_int, *const c_char, *const c_char, i64);
+/// 调用方的 WAL 提交回调（`sqlite3_wal_hook` 形式）。
+pub type WalFn =
+    unsafe extern "C" fn(*mut c_void, *mut ffi::sqlite3, *const c_char, c_int) -> c_int;
+
+/// WAL 提交回调内对 `main` 执行 `sqlite3_wal_checkpoint_v2`，返回 `(WAL 帧数, 已回填帧数)`。
+/// 只在本线程某个绑定的操作域内（回调由 COMMIT 同步触发）执行，分配仍向该域收费；否则拒绝。
+///
+/// # Safety
+/// `db` 必须是 SQLite 交给 [`WalFn`] 回调的那个句柄，且只在该回调内调用。
+pub unsafe fn wal_checkpoint(
+    db: *mut ffi::sqlite3,
+    mode: c_int,
+) -> Result<(c_int, c_int), SqlGate> {
+    if !IN_RUN.with(Cell::get) || IN_ROW_MAP.with(Cell::get) {
+        return Err(SqlGate::Refused(ScratchFailure::Ledger));
+    }
+    let (mut frames, mut backfill) = (-1, -1);
+    // SAFETY: db is the live handle passed to the WAL hook; "main" is a static C string.
+    let rc = unsafe {
+        ffi::sqlite3_wal_checkpoint_v2(db, c"main".as_ptr(), mode, &mut frames, &mut backfill)
+    };
+    if rc == ffi::SQLITE_OK {
+        Ok((frames, backfill))
+    } else {
+        Err(SqlGate::Sqlite(rc))
+    }
+}
 
 /// 调用方回调及其上下文。安全合同（[`SqliteBinding::open_with`]、[`SqlOps::set_authorizer`]
 /// 与 [`SqliteBinding::register_vfs`] 共用）：
@@ -1281,13 +1323,49 @@ fn map_row<T, const M: usize>(
     stmt: *mut ffi::sqlite3_stmt,
     f: impl FnOnce([ValueRef<'_>; M]) -> T,
 ) -> Result<T, c_int> {
-    // SAFETY: stmt is live and positioned on a row; returned slices stay valid until the next
-    // step/reset/finalize on stmt, all of which happen after `f` returns.
+    let mut refs = [ValueRef::Null; M];
+    // SAFETY: stmt is live and positioned on a row; see `fill_row`.
+    unsafe { fill_row(binding, db, stmt, &mut refs)? };
+    let _mapping = RowMapping::enter();
+    Ok(f(refs))
+}
+
+/// 一行最多可借出的列数；超过即 `SQLITE_RANGE`，不为列缓冲分配。
+pub const MAX_ROW_COLUMNS: usize = 32;
+
+/// 按语句实际列数借出当前行，交 `f` 映射；规则同 [`map_row`]。
+fn map_cells<T>(
+    binding: &SqliteBinding,
+    db: *mut ffi::sqlite3,
+    stmt: *mut ffi::sqlite3_stmt,
+    f: impl FnOnce(&[ValueRef<'_>]) -> T,
+) -> Result<T, c_int> {
+    // SAFETY: stmt is live.
+    let columns = usize::try_from(unsafe { ffi::sqlite3_column_count(stmt) })
+        .ok()
+        .filter(|n| *n <= MAX_ROW_COLUMNS)
+        .ok_or(ffi::SQLITE_RANGE)?;
+    let mut refs = [ValueRef::Null; MAX_ROW_COLUMNS];
+    let refs = &mut refs[..columns];
+    // SAFETY: stmt is live and positioned on a row; see `fill_row`.
+    unsafe { fill_row(binding, db, stmt, refs)? };
+    let _mapping = RowMapping::enter();
+    Ok(f(refs))
+}
+
+/// # Safety
+/// stmt is live and positioned on a row; the returned slices stay valid until the next
+/// step/reset/finalize on stmt, all of which happen after the caller's mapping returns.
+unsafe fn fill_row<'r>(
+    binding: &SqliteBinding,
+    db: *mut ffi::sqlite3,
+    stmt: *mut ffi::sqlite3_stmt,
+    refs: &mut [ValueRef<'r>],
+) -> Result<(), c_int> {
     unsafe {
-        if usize::try_from(ffi::sqlite3_column_count(stmt)).ok() != Some(M) {
+        if usize::try_from(ffi::sqlite3_column_count(stmt)).ok() != Some(refs.len()) {
             return Err(ffi::SQLITE_RANGE);
         }
-        let mut refs = [ValueRef::Null; M];
         for (i, slot) in refs.iter_mut().enumerate() {
             if binding.refusal().is_some() {
                 return Err(ffi::SQLITE_NOMEM);
@@ -1322,9 +1400,8 @@ fn map_row<T, const M: usize>(
         if binding.refusal().is_some() {
             return Err(ffi::SQLITE_NOMEM);
         }
-        let _mapping = RowMapping::enter();
-        Ok(f(refs))
     }
+    Ok(())
 }
 
 /// 行映射回调期间置位；其间一切 SQL 操作在准入处拒绝。
@@ -1455,6 +1532,46 @@ impl<'a> SqlOps<'a> {
         })
     }
 
+    /// 把本连接的脏页写入数据库文件或 WAL（`sqlite3_db_cacheflush`），不结束事务。
+    pub fn cache_flush(&self) -> Result<(), SqlGate> {
+        self.admit()?;
+        // SAFETY: db is live.
+        let rc = unsafe { ffi::sqlite3_db_cacheflush(self.db) };
+        self.binding.settle(if rc == ffi::SQLITE_OK {
+            Ok(())
+        } else {
+            Err(last_code(self.db, rc))
+        })
+    }
+
+    /// 登记或撤销行变更回调（`sqlite3_update_hook`）。回调在本连接的写语句执行期间同步调用。
+    /// 撤销另见收尾能力 [`SqliteBinding::clear_write_hooks`]（首拒之后仍可执行）。
+    ///
+    /// # Safety
+    /// 满足 [`Callback`] 的安全合同，期限到连接关闭、撤销或下次更换为止。
+    pub unsafe fn set_update_hook(&self, hook: Option<Callback<UpdateFn>>) -> Result<(), SqlGate> {
+        self.admit()?;
+        let (callback, context) =
+            hook.map_or((None, ptr::null_mut()), |h| (Some(h.callback), h.context));
+        // SAFETY: db is live; the caller guarantees the context's lifetime.
+        unsafe { ffi::sqlite3_update_hook(self.db, callback, context) };
+        self.binding.settle(Ok(()))
+    }
+
+    /// 登记或撤销 WAL 提交回调（`sqlite3_wal_hook`）。回调在本连接 COMMIT 写入 WAL 之后同步调用；
+    /// 作为本合同的唯一重入例外，回调可在 SQLite 交给它的句柄上调用 [`wal_checkpoint`]。
+    ///
+    /// # Safety
+    /// 满足 [`Callback`] 的安全合同（上述 checkpoint 例外之外），期限同 [`Self::set_update_hook`]。
+    pub unsafe fn set_wal_hook(&self, hook: Option<Callback<WalFn>>) -> Result<(), SqlGate> {
+        self.admit()?;
+        let (callback, context) =
+            hook.map_or((None, ptr::null_mut()), |h| (Some(h.callback), h.context));
+        // SAFETY: db is live; the caller guarantees the context's lifetime.
+        unsafe { ffi::sqlite3_wal_hook(self.db, callback, context) };
+        self.binding.settle(Ok(()))
+    }
+
     /// 运行中设置布尔连接配置，返回 SQLite 读回的当前值（`sqlite3_db_config(db, op, int, int*)`）。
     pub fn set_db_flag(&self, flag: DbFlag, on: bool) -> Result<bool, SqlGate> {
         self.admit()?;
@@ -1571,6 +1688,36 @@ impl GatedStatement<'_> {
             }
             rows += 1;
             let mapped = map_row(self.binding, self.db, self.stmt, &mut f);
+            match self.binding.settle(mapped) {
+                Ok(ControlFlow::Continue(())) => {}
+                Ok(ControlFlow::Break(())) => break Ok(rows),
+                Err(e) => break Err(e),
+            }
+        };
+        // SAFETY: stmt is live; borrowed values are gone once `f` returned.
+        unsafe { ffi::sqlite3_reset(self.stmt) };
+        result
+    }
+
+    /// 同 [`Self::for_each_row`]，但按语句实际列数（至多 [`MAX_ROW_COLUMNS`]）借出整行。
+    pub fn for_each_cells<const N: usize>(
+        &mut self,
+        params: [&dyn ToSql; N],
+        mut f: impl FnMut(&[ValueRef<'_>]) -> ControlFlow<()>,
+    ) -> Result<usize, SqlGate> {
+        self.ready(params)?;
+        let mut rows = 0;
+        let result = loop {
+            match self.step() {
+                Ok(ffi::SQLITE_ROW) => {}
+                Ok(_) => break Ok(rows),
+                Err(e) => break Err(e),
+            }
+            if let Err(e) = self.admit() {
+                break Err(e);
+            }
+            rows += 1;
+            let mapped = map_cells(self.binding, self.db, self.stmt, &mut f);
             match self.binding.settle(mapped) {
                 Ok(ControlFlow::Continue(())) => {}
                 Ok(ControlFlow::Break(())) => break Ok(rows),
