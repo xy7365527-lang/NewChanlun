@@ -40,12 +40,12 @@
 
 | 版本 | 语义 |
 |---|---|
-| `#1719/center-break-completion/v1` | PR #1833 组件现行语义的登记名，冻结。出生当步不重评已留档事实；对象已推进后到达或重评的事实一律走迟到恢复。 |
+| `#1719/center-break-completion/v1` | PR #1833 组件现行语义的登记名，冻结。出生当步不重评已留档事实；迟到判据保持 `entry.last_as_of > fact.known_at()`，不以对象曾推进或消费较晚替代该关系。 |
 | `#1719/center-break-completion/v2` | v1 加本节第二条的出生当步规则，其余与 v1 相同。 |
 
 `CompletionPolicy.version` 取上表完整字符串。映射到 ADR 0051 裁定一的 `policy_ref` 时，`policy_id` 取该字符串，`version` 取末段（`v1`/`v2`），`profile_id` 为 `null`，`content_hash` 按 ADR 0051 `content_hash_algo` 计算。登记前在 main `9ae28877b3`、PR #1855 head `a7a7102587` 与 PR #1898 head `15fc698155` 上查过，仓内没有已登记的完成政策版本，只有测试用 `synthetic-*` 字符串。
 
-只有绑定 v2 的对象适用出生当步规则。绑定 v1、任何 `synthetic-*` 或其他字符串的对象保持 v1 语义。不在 v1 判定失败后改用 v2，不把在途对象的绑定从 v1 换成 v2；换版本只能走 ADR 0051 裁定一末段的显式迁移事件。组件已有的 `PolicyFrozen` 拒绝同对象换政策，保持不变。
+只有绑定 v2 的对象适用出生当步规则。绑定 v1 的对象保持 v1 语义。生产版本解析只接受可解析的具名已签政策，未知或未签版本不得默认为 v1。旧组件的 opaque 版本字符串调用合同及 `synthetic-*` 测试夹具在原使用条件内保留，不据此把任意字符串登记为生产 v1 别名；已有对象按原绑定及原可解析定义恢复，不改写版本值。不在 v1 判定失败后改用 v2，不把在途对象的绑定从 v1 换成 v2；换版本只能走 ADR 0051 裁定一末段的显式迁移事件。组件已有的 `PolicyFrozen` 拒绝同对象换政策，保持不变。
 
 ### 二、v2 出生当步规则
 
@@ -90,7 +90,7 @@
 - `feed.rs:255-286` `feed_replay_bar_with_bridges`：先 `feed_replay_bar` 再登记绑定，出生当步匹配的调用顺序在此。
 - `feed.rs:288-299` `apply_center_breaks`：调用方须处理待恢复与未就绪，不能只收集修订。
 
-**测试交棒。** `i4_bridge_tests.rs:424-473` `i4_bridge_fact_before_binding_is_retained_for_matching_and_recovery` 在 as_of=110 留档、对象 observed_at=95、111 重送，不是「94 留档、95 出生同一步」的时序。它作为 v1/晚到负控保留，期望不改。v2 正控另行新增：K=94 留档，O 在 95 首次出生并同一步应用。只查 `registered_at == observed_at` 或 `last_as_of == 95` 不够，必须同时证明事实此前已留档、应用发生在首次出生的逻辑步骤内。
+**测试交棒。** `i4_bridge_tests.rs:424-473` `i4_bridge_fact_before_binding_is_retained_for_matching_and_recovery` 在 as_of=110 留档、对象 observed_at=95、111 重送，不是「94 留档、95 出生同一步」的时序。其中 K94 分支保持 `LatePendingRecovery`，K100 分支保持 `Applied` 且 `invalidated_at=100`；两支原期望均不改。v2 正控另行新增：K=94 留档，O 在 95 首次出生并同一步应用。只查 `registered_at == observed_at` 或 `last_as_of == 95` 不够，必须同时证明事实此前已留档、应用发生在首次出生的逻辑步骤内。
 
 ### 六、验收（实施未完成，以下均待交付）
 
