@@ -1,3 +1,4 @@
+# #1875 tb02c probe branch only: full main CI + node diagnostics in the s_session shards
 name: CI
 
 on:
@@ -29,6 +30,7 @@ concurrency:
 #   Boat 与 GitHub 托管 runner 的工作目录深度不同，两边各存各的。
 jobs:
   test:
+    if: false
     runs-on: ubuntu-latest
 
     steps:
@@ -326,8 +328,16 @@ jobs:
 
       - uses: ./.github/actions/rust-job-setup
 
+      - name: tb02c probe diagnostics setup
+        run: |
+          sudo -n sysctl -w kernel.core_pattern="$RUNNER_TEMP/cores/core.%p" || true
+          mkdir -p "$RUNNER_TEMP/cores" "$RUNNER_TEMP/tb02c-diag"
+          echo "TB02C_DIAG=$RUNNER_TEMP/tb02c-diag" >> "$GITHUB_ENV"
+          echo "node=$(command -v node) $(node --version) sha=$(sha256sum "$(readlink -f "$(command -v node)")" | cut -c1-16) host=$(uname -n)"
+
       - name: cargo test — s_session 正式结构会话 分片 ${{ matrix.shard }}（#1370、#1588）
         run: >-
+          ulimit -c unlimited &&
           ../.github/scripts/run-cargo-with-telemetry.sh
           python3 ../.github/scripts/test-shard.py run
           --index ${{ matrix.shard }} --count "$S_SESSION_SHARDS"
@@ -335,6 +345,19 @@ jobs:
           --out "$RUNNER_TEMP/s-session-shard"
           --skip v3::financial_session
           -- --locked --features s_session --bin s_structure_session --jobs 1
+
+      - name: Pack tb02c diagnostics (probe)
+        if: always()
+        run: tar czf "$RUNNER_TEMP/tb02c-diag.tgz" -C "$RUNNER_TEMP" tb02c-diag cores || true
+
+      - name: Upload tb02c diagnostics (probe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tb02c-diag-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/tb02c-diag.tgz
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload shard plan and results (#1588)
         if: ${{ !cancelled() }}
@@ -1042,10 +1065,11 @@ jobs:
   #   economic_session 等库测试），一次触发拿全套读数。push main 不经本作业，由 ci-macos.yml 自身的
   #   paths 过滤决定是否运行，控制 macOS 计费。
   macos-session:
-    if: github.event_name == 'workflow_dispatch'
+    if: false
     uses: ./.github/workflows/ci-macos.yml
 
   s-observer:
+    if: false
     # #1372：执行只读观察、生命周期和取证边界回归；完整160输入/浏览器验收另存具名证据。
     runs-on: ubuntu-latest
     steps:
@@ -1107,6 +1131,7 @@ jobs:
           python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse
 
   fixture-drift:
+    if: false
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。
     # 锁的漂移窗口：Lean 源改了值、fixture 未重落盘时 parity 测试静默全绿。
     # 核心件 = #263 的 scripts/check_fixture_drift.py（本 job 只是把它包进 CI）。
@@ -1139,6 +1164,7 @@ jobs:
         run: python3 scripts/check_fixture_drift.py
 
   sandcastle-ts:
+    if: false
     # #1588：Sandcastle 编排层（.sandcastle/*.ts|mts）类型检查与 node:test 单测。
     # 含评审提示体积闸（review-context）与本机 cargo 垫片（cargo-guard）回归；
     # 此前这些测试只在本机跑，CI 不覆盖。nc-remote 静态核在 runner 上无该脚本时 skip。
@@ -1158,6 +1184,7 @@ jobs:
         run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
 
   deepagents-pilot:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
