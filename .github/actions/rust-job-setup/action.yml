@@ -23,6 +23,51 @@ runs:
         echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
         "${{ steps.setup-python.outputs.python-path }}" -V
 
+    # #1875 TB02C：Rust 测试会以 PATH 上的 `node` 跑校验脚本（tb02c_verify.py 等）。Boat 上的 node 来自平台系统根
+    #   ~/.nvm，由平台在 VM 运行或分配时改写（默认版本 2026-11-05T19:46 被换、分配时刻重写 npm/npx），版本也与托管
+    #   镜像不同（v24.22.1 对 v24.22.2）；main 上该 node 子进程两次以 glibc free() 中止。固定到托管镜像同版本，
+    #   装在作业自己的 toolcache 里，作业期间不再依赖平台可变的 node。
+    - name: Pin Node.js for tests that spawn node (#1875)
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24.22.2"
+
+    - name: Record the node that tests will spawn (#1875)
+      shell: bash
+      run: |
+        n=$(command -v node); echo "node=$n -> $(readlink -f "$n") $(node --version) sha=$(sha256sum "$(readlink -f "$n")" | cut -c1-16)"
+
+    # #1875：Boat 快照里的 rustup stable 停在快照保存那天，GitHub 托管镜像则随时升级；#1608 约定工具链随
+    #   stable（新 lint 由 -D warnings 暴露），所以两种 runner 都先对齐到当前 stable，版本记录在下一步。
+    - name: Align Rust toolchain with current stable (#1875)
+      shell: bash
+      run: flock "${RUSTUP_HOME:-$HOME/.rustup}/.stable-install.lock" sh -c 'rustup toolchain install stable --profile minimal --no-self-update && rustup default stable'
+
+    # #1875 R4：本仓 crate 测试构建 opt-level 1（断言与溢出检查显式保持开启）；libtest 线程数与 GitHub
+    #   托管 runner 的 4 核一致（Boat large 为 8 核，8 线程会放大测试里按 fd 号/计时判断的竞态，FL1/R4b）。
+    - name: Optimize own crate in test builds and pin test threads (#1875 R4)
+      shell: bash
+      run: |
+        # 只对测试执行时间远大于编译时间的作业开（s_session 分片，tb02w 28→14 分钟）；多 feature 反复编译的作业
+        #   （extras native/owned/content）opt-level 1 的编译更慢，反而拖长（R4c：native 17→29 分钟）。
+        #   用作业级环境变量而非写 $CARGO_HOME/config.toml，不会泄漏到共用 CARGO_HOME 的其他作业。
+        if [ "${CI_OWN_OPT_LEVEL1:-}" = 1 ]; then
+          { echo "CARGO_PROFILE_DEV_OPT_LEVEL=1"; echo "CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=true"; echo "CARGO_PROFILE_DEV_OVERFLOW_CHECKS=true"; } >> "$GITHUB_ENV"
+          echo "own_crate_opt_level=1"
+        fi
+        echo "RUST_TEST_THREADS=4" >> "$GITHUB_ENV"
+        # #1875 R7/R13：`--jobs 1` 是 #1141 的磁盘预算处置（当时托管 runner 约 14 GB 空闲，并发链接写满磁盘）。
+        #   现在按工作区实际空闲决定：≥ 40 GB 按核数并行编译，否则退回 1（release 档退回原来的 4）。
+        #   实测托管 runner 根分区 154 GB、作业内最低空闲 83 GB（run 42028458748），Boat large 约 112 GB。
+        #   构建并行度不改变产物与测试结论；遥测包装器的 2 GB 下限照旧兜底。
+        avail_kb=$(df -Pk "${GITHUB_WORKSPACE:-.}" | awk 'NR==2 {print $4}') || avail_kb=0
+        if [ "${avail_kb:-0}" -ge 39062500 ]; then
+          echo "CI_CARGO_JOBS=$(nproc)"; echo "CI_CARGO_JOBS_RELEASE=$(nproc)"
+        else
+          echo "CI_CARGO_JOBS=1"; echo "CI_CARGO_JOBS_RELEASE=4"
+        fi >> "$GITHUB_ENV"
+        echo "cargo_jobs_disk_avail_kb=${avail_kb:-unknown}"
+
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash
       working-directory: rust
@@ -63,16 +108,32 @@ runs:
     # 不是已证实的固定对象损坏或 rust-lld regression。处置只压低磁盘峰值：
     # 不恢复 target、不生成 incremental、测试串行编译；runner/toolchain/linker 不钉死。
     # #1588：拆 job 后每个 job 在独立 runner 上，各自只编自己那档 feature，磁盘峰值低于拆前单 job。
+    # #1875 R10：Boat 快照 hc-gate-base 已预装 cargo registry；Boat 到 GitHub cache 上传约 0.3 MB/s，
+    #   新分支首轮保存 100 MB 要在作业尾部多耗 5 分多钟（run 42004333964），故自托管 runner 不用此缓存。
     - name: Cache cargo registry + git only (#1141)
       id: cargo-cache
+      if: runner.environment != 'self-hosted'
       uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
-        key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ runner.environment }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-registry-v1-
+          ${{ runner.os }}-${{ runner.environment }}-cargo-registry-v1-
+
+    # #1875：只在 CI 里给第三方依赖开优化（本仓 crate 仍为 debug，debug-assertions/溢出检查不变；
+    #   release 档本就 opt-level 3，不受影响）。debug 测试的长单测（tb02w 单线程约 40–75 分钟）大量时间
+    #   耗在 -O0 的 bundled SQLite（C）、sha2、serde_json 上；同一提交实测 tb02w 75→46 分钟，全部指纹不变
+    #   （run 41829351939 对 41784385074）。写在 $CARGO_HOME，不改仓内 Cargo.toml；幂等且加锁，同一台机器
+    #   上多个作业共用 CARGO_HOME 时不会重复追加（重复的表会让 cargo 解析失败）。
+    - name: Optimize third-party dependencies in test builds (#1875)
+      shell: bash
+      run: |
+        cfg="${CARGO_HOME:-$HOME/.cargo}/config.toml"
+        mkdir -p "$(dirname "$cfg")"
+        flock "$cfg.lock" bash -c 'grep -qF "[profile.dev.package.\"*\"]" "$1" 2>/dev/null || printf "[profile.dev.package.\"*\"]\nopt-level = 2\n" >> "$1"' _ "$cfg"
+        cat "$cfg" 2>/dev/null || echo "(no $cfg yet)"
 
     # 遥测包装器的边界快照对 `du target` 失败即判红；拆 job 后首个 cargo 步可能就是被包装的那一步，
     # 此时 target 尚不存在，故预先建空目录（不影响构建产物）。
@@ -80,7 +141,7 @@ runs:
       shell: bash
       working-directory: rust
       run: |
-        echo "cache_primary_key=${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}"
+        echo "cache_primary_key=${{ runner.os }}-${{ runner.environment }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}"
         echo "cache_hit=${{ steps.cargo-cache.outputs.cache-hit }}"
         mkdir -p target
         free -b

@@ -48,7 +48,7 @@ trap 'rm -rf "$work"' EXIT
 list_tests() {
   local features="$1" out="$2"
   shift 2
-  cargo test --locked --features "$features" "$@" --jobs 1 -- --list >"$out.raw"
+  cargo test --locked --features "$features" "$@" --jobs "${CI_CARGO_JOBS:-1}" -- --list >"$out.raw"
   sed -n 's/: test$//p' "$out.raw" | LC_ALL=C sort >"$out"
 }
 
@@ -130,7 +130,7 @@ partition_delta() {
       else
         selector=(--bin s_structure_session)
       fi
-      cargo test --locked --features "$base_features,$feature" "${selector[@]}" --jobs 1 -- --exact "${names[@]}"
+      cargo test --locked --features "$base_features,$feature" "${selector[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "${names[@]}"
     fi
   done
 }
@@ -163,7 +163,7 @@ for target in lib bin; do
     while IFS= read -r name; do
       names+=("$name")
     done <"$work/$target.delta"
-    cargo test --locked --features "$base_features,$feature" "${selector[@]}" --jobs 1 -- --exact "${names[@]}"
+    cargo test --locked --features "$base_features,$feature" "${selector[@]}" --jobs "${CI_CARGO_JOBS:-1}" -- --exact "${names[@]}"
   fi
   total=$(( total + count ))
 done

@@ -73,9 +73,11 @@ def verify(database, case, node=None):
     for prefix in (15, 27):
         check(states[prefix]['snapshot'], prefix, case)
     if node:
+        # 28 个 cut 的完整校验在 64 MB 输入上单跑约 50 s；与其他测试并发时会超过原来的 60 s（#1875 TB02C 实测 5/6 超时），
+        # 上限放到 600 s（同 tb02w_runtime.py）。只是资源上限，校验内容与判定不变。
         script = """const fs=require('node:fs'), A=require(process.argv[1]);
 (async()=>{for(const s of JSON.parse(fs.readFileSync(0,'utf8'))){await A.validateTB02Catalog(s.catalog);await A.validateTB02CutSources(s.snapshot);await A.validateTB02Axes(s.snapshot.catalog_evidence.axes,s.snapshot.objects);}console.log('28 cuts');})().catch(e=>{console.error(e);process.exitCode=1;});"""
-        result = subprocess.run([str(node), '-e', script, str(ROOT / 'browser/tb01c-client.js')], input=json.dumps(states), text=True, capture_output=True, timeout=60)
+        result = subprocess.run([str(node), '-e', script, str(ROOT / 'browser/tb01c-client.js')], input=json.dumps(states), text=True, capture_output=True, timeout=600)
         if result.returncode:
             raise ValueError(result.stderr)
     return {'status': 'passed', 'cuts': len(states), 'case': case, 'scope': '真实持久库公共Q/观察器合同，不替代HTTP与GUI'}
