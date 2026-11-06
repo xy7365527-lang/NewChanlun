@@ -1,0 +1,2252 @@
+{
+  "60min": {
+    "bar_count": 874,
+    "stroke_count": 71,
+    "segment_count": 1,
+    "strokes": [
+      {
+        "index": 0,
+        "direction": "down",
+        "i0": 4,
+        "i1": 9,
+        "high": 649.48,
+        "low": 634.92,
+        "p0": 649.48,
+        "p1": 634.92,
+        "confirmed": true
+      },
+      {
+        "index": 1,
+        "direction": "up",
+        "i0": 9,
+        "i1": 14,
+        "high": 644.21,
+        "low": 634.92,
+        "p0": 634.92,
+        "p1": 644.21,
+        "confirmed": true
+      },
+      {
+        "index": 2,
+        "direction": "down",
+        "i0": 14,
+        "i1": 18,
+        "high": 644.21,
+        "low": 640.46,
+        "p0": 644.21,
+        "p1": 640.46,
+        "confirmed": true
+      },
+      {
+        "index": 3,
+        "direction": "up",
+        "i0": 18,
+        "i1": 25,
+        "high": 652.21,
+        "low": 640.46,
+        "p0": 640.46,
+        "p1": 652.21,
+        "confirmed": true
+      },
+      {
+        "index": 4,
+        "direction": "down",
+        "i0": 25,
+        "i1": 29,
+        "high": 652.21,
+        "low": 643.33,
+        "p0": 652.21,
+        "p1": 644.61,
+        "confirmed": true
+      },
+      {
+        "index": 5,
+        "direction": "up",
+        "i0": 29,
+        "i1": 43,
+        "high": 654.55,
+        "low": 644.61,
+        "p0": 644.61,
+        "p1": 654.55,
+        "confirmed": true
+      },
+      {
+        "index": 6,
+        "direction": "down",
+        "i0": 43,
+        "i1": 48,
+        "high": 654.55,
+        "low": 650.63,
+        "p0": 654.55,
+        "p1": 650.63,
+        "confirmed": true
+      },
+      {
+        "index": 7,
+        "direction": "up",
+        "i0": 48,
+        "i1": 66,
+        "high": 661.78,
+        "low": 650.63,
+        "p0": 650.63,
+        "p1": 661.78,
+        "confirmed": true
+      },
+      {
+        "index": 8,
+        "direction": "down",
+        "i0": 66,
+        "i1": 75,
+        "high": 661.78,
+        "low": 654.3,
+        "p0": 661.78,
+        "p1": 654.3,
+        "confirmed": true
+      },
+      {
+        "index": 9,
+        "direction": "up",
+        "i0": 75,
+        "i1": 80,
+        "high": 664.89,
+        "low": 654.3,
+        "p0": 654.3,
+        "p1": 664.23,
+        "confirmed": true
+      },
+      {
+        "index": 10,
+        "direction": "down",
+        "i0": 80,
+        "i1": 84,
+        "high": 664.23,
+        "low": 660.37,
+        "p0": 664.23,
+        "p1": 660.37,
+        "confirmed": true
+      },
+      {
+        "index": 11,
+        "direction": "up",
+        "i0": 84,
+        "i1": 95,
+        "high": 667.34,
+        "low": 660.37,
+        "p0": 660.37,
+        "p1": 667.34,
+        "confirmed": true
+      },
+      {
+        "index": 12,
+        "direction": "down",
+        "i0": 95,
+        "i1": 109,
+        "high": 667.34,
+        "low": 654.405,
+        "p0": 667.34,
+        "p1": 654.405,
+        "confirmed": true
+      },
+      {
+        "index": 13,
+        "direction": "up",
+        "i0": 109,
+        "i1": 114,
+        "high": 665.28,
+        "low": 654.405,
+        "p0": 654.405,
+        "p1": 665.28,
+        "confirmed": true
+      },
+      {
+        "index": 14,
+        "direction": "down",
+        "i0": 114,
+        "i1": 121,
+        "high": 665.28,
+        "low": 661.61,
+        "p0": 665.28,
+        "p1": 661.61,
+        "confirmed": true
+      },
+      {
+        "index": 15,
+        "direction": "up",
+        "i0": 121,
+        "i1": 142,
+        "high": 672.675,
+        "low": 661.61,
+        "p0": 661.61,
+        "p1": 672.675,
+        "confirmed": true
+      },
+      {
+        "index": 16,
+        "direction": "down",
+        "i0": 142,
+        "i1": 151,
+        "high": 672.675,
+        "low": 667.67,
+        "p0": 672.675,
+        "p1": 667.67,
+        "confirmed": true
+      },
+      {
+        "index": 17,
+        "direction": "up",
+        "i0": 151,
+        "i1": 167,
+        "high": 673.95,
+        "low": 667.67,
+        "p0": 667.67,
+        "p1": 673.95,
+        "confirmed": true
+      },
+      {
+        "index": 18,
+        "direction": "down",
+        "i0": 167,
+        "i1": 172,
+        "high": 673.95,
+        "low": 652.84,
+        "p0": 673.95,
+        "p1": 652.84,
+        "confirmed": true
+      },
+      {
+        "index": 19,
+        "direction": "up",
+        "i0": 172,
+        "i1": 183,
+        "high": 670.23,
+        "low": 652.84,
+        "p0": 652.84,
+        "p1": 670.23,
+        "confirmed": true
+      },
+      {
+        "index": 20,
+        "direction": "down",
+        "i0": 183,
+        "i1": 193,
+        "high": 670.23,
+        "low": 657.11,
+        "p0": 670.23,
+        "p1": 657.11,
+        "confirmed": true
+      },
+      {
+        "index": 21,
+        "direction": "up",
+        "i0": 193,
+        "i1": 207,
+        "high": 672.99,
+        "low": 657.11,
+        "p0": 657.11,
+        "p1": 672.99,
+        "confirmed": true
+      },
+      {
+        "index": 22,
+        "direction": "down",
+        "i0": 207,
+        "i1": 214,
+        "high": 672.99,
+        "low": 663.3,
+        "p0": 672.99,
+        "p1": 663.3,
+        "confirmed": true
+      },
+      {
+        "index": 23,
+        "direction": "up",
+        "i0": 214,
+        "i1": 239,
+        "high": 689.7,
+        "low": 663.3,
+        "p0": 663.3,
+        "p1": 689.7,
+        "confirmed": true
+      },
+      {
+        "index": 24,
+        "direction": "down",
+        "i0": 239,
+        "i1": 249,
+        "high": 689.7,
+        "low": 679.24,
+        "p0": 689.7,
+        "p1": 679.24,
+        "confirmed": true
+      },
+      {
+        "index": 25,
+        "direction": "up",
+        "i0": 249,
+        "i1": 255,
+        "high": 685.8,
+        "low": 679.24,
+        "p0": 679.24,
+        "p1": 684.23,
+        "confirmed": true
+      },
+      {
+        "index": 26,
+        "direction": "down",
+        "i0": 255,
+        "i1": 263,
+        "high": 684.23,
+        "low": 674.58,
+        "p0": 684.23,
+        "p1": 674.58,
+        "confirmed": true
+      },
+      {
+        "index": 27,
+        "direction": "up",
+        "i0": 263,
+        "i1": 267,
+        "high": 680.86,
+        "low": 674.58,
+        "p0": 674.58,
+        "p1": 680.86,
+        "confirmed": true
+      },
+      {
+        "index": 28,
+        "direction": "down",
+        "i0": 267,
+        "i1": 279,
+        "high": 680.86,
+        "low": 661.205,
+        "p0": 680.86,
+        "p1": 661.205,
+        "confirmed": true
+      },
+      {
+        "index": 29,
+        "direction": "up",
+        "i0": 279,
+        "i1": 297,
+        "high": 684.96,
+        "low": 661.205,
+        "p0": 661.205,
+        "p1": 684.96,
+        "confirmed": true
+      },
+      {
+        "index": 30,
+        "direction": "down",
+        "i0": 297,
+        "i1": 309,
+        "high": 684.96,
+        "low": 663.265,
+        "p0": 684.96,
+        "p1": 663.265,
+        "confirmed": true
+      },
+      {
+        "index": 31,
+        "direction": "up",
+        "i0": 309,
+        "i1": 313,
+        "high": 675.66,
+        "low": 663.265,
+        "p0": 663.265,
+        "p1": 675.12,
+        "confirmed": true
+      },
+      {
+        "index": 32,
+        "direction": "down",
+        "i0": 313,
+        "i1": 321,
+        "high": 675.12,
+        "low": 655.86,
+        "p0": 675.12,
+        "p1": 655.86,
+        "confirmed": true
+      },
+      {
+        "index": 33,
+        "direction": "up",
+        "i0": 321,
+        "i1": 331,
+        "high": 675.56,
+        "low": 655.86,
+        "p0": 655.86,
+        "p1": 675.56,
+        "confirmed": true
+      },
+      {
+        "index": 34,
+        "direction": "down",
+        "i0": 331,
+        "i1": 336,
+        "high": 675.56,
+        "low": 650.85,
+        "p0": 675.56,
+        "p1": 650.85,
+        "confirmed": true
+      },
+      {
+        "index": 35,
+        "direction": "up",
+        "i0": 336,
+        "i1": 361,
+        "high": 683.0,
+        "low": 650.85,
+        "p0": 650.85,
+        "p1": 683.0,
+        "confirmed": true
+      },
+      {
+        "index": 36,
+        "direction": "down",
+        "i0": 361,
+        "i1": 368,
+        "high": 683.82,
+        "low": 678.74,
+        "p0": 683.0,
+        "p1": 679.3275,
+        "confirmed": true
+      },
+      {
+        "index": 37,
+        "direction": "up",
+        "i0": 368,
+        "i1": 376,
+        "high": 684.91,
+        "low": 679.3275,
+        "p0": 679.3275,
+        "p1": 684.91,
+        "confirmed": true
+      },
+      {
+        "index": 38,
+        "direction": "down",
+        "i0": 376,
+        "i1": 380,
+        "high": 684.91,
+        "low": 681.34,
+        "p0": 684.91,
+        "p1": 681.34,
+        "confirmed": true
+      },
+      {
+        "index": 39,
+        "direction": "up",
+        "i0": 380,
+        "i1": 385,
+        "high": 688.39,
+        "low": 681.34,
+        "p0": 681.34,
+        "p1": 686.97,
+        "confirmed": true
+      },
+      {
+        "index": 40,
+        "direction": "down",
+        "i0": 385,
+        "i1": 391,
+        "high": 686.97,
+        "low": 681.57,
+        "p0": 686.97,
+        "p1": 681.57,
+        "confirmed": true
+      },
+      {
+        "index": 41,
+        "direction": "up",
+        "i0": 391,
+        "i1": 395,
+        "high": 685.385,
+        "low": 681.57,
+        "p0": 681.57,
+        "p1": 685.385,
+        "confirmed": true
+      },
+      {
+        "index": 42,
+        "direction": "down",
+        "i0": 395,
+        "i1": 400,
+        "high": 685.385,
+        "low": 681.31,
+        "p0": 685.385,
+        "p1": 681.31,
+        "confirmed": true
+      },
+      {
+        "index": 43,
+        "direction": "up",
+        "i0": 400,
+        "i1": 408,
+        "high": 689.25,
+        "low": 681.31,
+        "p0": 681.31,
+        "p1": 689.25,
+        "confirmed": true
+      },
+      {
+        "index": 44,
+        "direction": "down",
+        "i0": 408,
+        "i1": 412,
+        "high": 689.25,
+        "low": 679.1744,
+        "p0": 689.25,
+        "p1": 679.1744,
+        "confirmed": true
+      },
+      {
+        "index": 45,
+        "direction": "up",
+        "i0": 412,
+        "i1": 416,
+        "high": 684.34,
+        "low": 679.1744,
+        "p0": 679.1744,
+        "p1": 683.06,
+        "confirmed": true
+      },
+      {
+        "index": 46,
+        "direction": "down",
+        "i0": 416,
+        "i1": 429,
+        "high": 683.06,
+        "low": 671.195,
+        "p0": 683.06,
+        "p1": 671.195,
+        "confirmed": true
+      },
+      {
+        "index": 47,
+        "direction": "up",
+        "i0": 429,
+        "i1": 453,
+        "high": 691.66,
+        "low": 671.195,
+        "p0": 671.195,
+        "p1": 691.66,
+        "confirmed": true
+      },
+      {
+        "index": 48,
+        "direction": "down",
+        "i0": 453,
+        "i1": 459,
+        "high": 691.66,
+        "low": 686.07,
+        "p0": 691.66,
+        "p1": 686.07,
+        "confirmed": true
+      },
+      {
+        "index": 49,
+        "direction": "up",
+        "i0": 459,
+        "i1": 464,
+        "high": 688.62,
+        "low": 686.07,
+        "p0": 686.07,
+        "p1": 687.94,
+        "confirmed": true
+      },
+      {
+        "index": 50,
+        "direction": "down",
+        "i0": 464,
+        "i1": 471,
+        "high": 687.94,
+        "low": 680.28,
+        "p0": 687.94,
+        "p1": 680.28,
+        "confirmed": true
+      },
+      {
+        "index": 51,
+        "direction": "up",
+        "i0": 471,
+        "i1": 487,
+        "high": 693.96,
+        "low": 680.28,
+        "p0": 680.28,
+        "p1": 693.96,
+        "confirmed": true
+      },
+      {
+        "index": 52,
+        "direction": "down",
+        "i0": 487,
+        "i1": 492,
+        "high": 693.96,
+        "low": 687.49,
+        "p0": 693.96,
+        "p1": 687.49,
+        "confirmed": true
+      },
+      {
+        "index": 53,
+        "direction": "up",
+        "i0": 492,
+        "i1": 508,
+        "high": 696.09,
+        "low": 687.49,
+        "p0": 687.49,
+        "p1": 696.09,
+        "confirmed": true
+      },
+      {
+        "index": 54,
+        "direction": "down",
+        "i0": 508,
+        "i1": 515,
+        "high": 696.09,
+        "low": 686.04,
+        "p0": 696.09,
+        "p1": 686.04,
+        "confirmed": true
+      },
+      {
+        "index": 55,
+        "direction": "up",
+        "i0": 515,
+        "i1": 520,
+        "high": 695.45,
+        "low": 686.04,
+        "p0": 686.04,
+        "p1": 695.45,
+        "confirmed": true
+      },
+      {
+        "index": 56,
+        "direction": "down",
+        "i0": 520,
+        "i1": 536,
+        "high": 695.45,
+        "low": 676.57,
+        "p0": 695.45,
+        "p1": 676.57,
+        "confirmed": true
+      },
+      {
+        "index": 57,
+        "direction": "up",
+        "i0": 536,
+        "i1": 543,
+        "high": 691.125,
+        "low": 676.57,
+        "p0": 676.57,
+        "p1": 691.125,
+        "confirmed": true
+      },
+      {
+        "index": 58,
+        "direction": "down",
+        "i0": 543,
+        "i1": 548,
+        "high": 691.125,
+        "low": 687.16,
+        "p0": 691.125,
+        "p1": 687.73,
+        "confirmed": true
+      },
+      {
+        "index": 59,
+        "direction": "up",
+        "i0": 548,
+        "i1": 556,
+        "high": 696.53,
+        "low": 687.73,
+        "p0": 687.73,
+        "p1": 696.53,
+        "confirmed": true
+      },
+      {
+        "index": 60,
+        "direction": "down",
+        "i0": 556,
+        "i1": 565,
+        "high": 697.84,
+        "low": 684.83,
+        "p0": 696.53,
+        "p1": 684.83,
+        "confirmed": true
+      },
+      {
+        "index": 61,
+        "direction": "up",
+        "i0": 565,
+        "i1": 578,
+        "high": 696.93,
+        "low": 684.83,
+        "p0": 684.83,
+        "p1": 696.93,
+        "confirmed": true
+      },
+      {
+        "index": 62,
+        "direction": "down",
+        "i0": 578,
+        "i1": 592,
+        "high": 696.93,
+        "low": 675.79,
+        "p0": 696.93,
+        "p1": 675.79,
+        "confirmed": true
+      },
+      {
+        "index": 63,
+        "direction": "up",
+        "i0": 592,
+        "i1": 609,
+        "high": 696.54,
+        "low": 675.79,
+        "p0": 675.79,
+        "p1": 696.54,
+        "confirmed": true
+      },
+      {
+        "index": 64,
+        "direction": "down",
+        "i0": 609,
+        "i1": 613,
+        "high": 696.54,
+        "low": 689.18,
+        "p0": 696.54,
+        "p1": 689.18,
+        "confirmed": true
+      },
+      {
+        "index": 65,
+        "direction": "up",
+        "i0": 613,
+        "i1": 617,
+        "high": 695.35,
+        "low": 689.18,
+        "p0": 689.18,
+        "p1": 695.35,
+        "confirmed": true
+      },
+      {
+        "index": 66,
+        "direction": "down",
+        "i0": 617,
+        "i1": 628,
+        "high": 695.35,
+        "low": 675.78,
+        "p0": 695.35,
+        "p1": 675.78,
+        "confirmed": true
+      },
+      {
+        "index": 67,
+        "direction": "up",
+        "i0": 628,
+        "i1": 636,
+        "high": 689.15,
+        "low": 675.78,
+        "p0": 675.78,
+        "p1": 689.15,
+        "confirmed": true
+      },
+      {
+        "index": 68,
+        "direction": "down",
+        "i0": 636,
+        "i1": 646,
+        "high": 690.06,
+        "low": 680.371,
+        "p0": 689.15,
+        "p1": 680.371,
+        "confirmed": true
+      },
+      {
+        "index": 69,
+        "direction": "up",
+        "i0": 646,
+        "i1": 659,
+        "high": 693.68,
+        "low": 680.371,
+        "p0": 680.371,
+        "p1": 693.68,
+        "confirmed": true
+      },
+      {
+        "index": 70,
+        "direction": "down",
+        "i0": 659,
+        "i1": 664,
+        "high": 693.68,
+        "low": 681.64,
+        "p0": 693.68,
+        "p1": 681.64,
+        "confirmed": false
+      }
+    ],
+    "diagnosis": {
+      "label": "SPY 60min",
+      "stroke_count": 71,
+      "steps": [
+        {
+          "type": "overlap_start",
+          "seg_start": 0,
+          "overlap": [
+            640.46,
+            644.21
+          ]
+        },
+        {
+          "type": "initial_direction",
+          "direction": "down"
+        }
+      ],
+      "segments_produced": [
+        {
+          "seg_index": 0,
+          "s0": 0,
+          "s1": 70,
+          "direction": "down",
+          "confirmed": false,
+          "note": "last_unconfirmed"
+        }
+      ],
+      "diagnosis": "特征序列产生了 6 次分型触发,但全部被拒绝。拒绝原因: {'L78 顶高于底违反': 6}。需要逐个检查每个拒绝是否合理。",
+      "actual_segments": [
+        {
+          "s0": 0,
+          "s1": 70,
+          "direction": "down",
+          "confirmed": false,
+          "kind": "settled",
+          "ep0_price": 649.48,
+          "ep1_price": 681.64,
+          "ep0_type": "top",
+          "ep1_type": "bottom",
+          "break_evidence": null
+        }
+      ],
+      "trigger_statistics": {
+        "total_triggers": 6,
+        "rejected": 6,
+        "accepted": 0,
+        "rejection_reasons": {
+          "L78 顶高于底违反": 6
+        }
+      },
+      "trigger_attempts": [
+        {
+          "cursor": 15,
+          "stroke_direction": "up",
+          "stroke_high": 672.675,
+          "stroke_low": 661.61,
+          "feat_action": "appended",
+          "feat_len": 8,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 13,
+            "fractal_abc": [
+              5,
+              6,
+              7
+            ],
+            "gap_type": "none",
+            "end_stroke": 12
+          },
+          "rejection_reason": "L78 顶高于底违反: dir=down, ep0=649.4800(top), ep1=654.4050(bottom)"
+        },
+        {
+          "cursor": 21,
+          "stroke_direction": "up",
+          "stroke_high": 672.99,
+          "stroke_low": 657.11,
+          "feat_action": "appended",
+          "feat_len": 11,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 19,
+            "fractal_abc": [
+              8,
+              9,
+              10
+            ],
+            "gap_type": "none",
+            "end_stroke": 18
+          },
+          "rejection_reason": "L78 顶高于底违反: dir=down, ep0=649.4800(top), ep1=652.8400(bottom)"
+        },
+        {
+          "cursor": 37,
+          "stroke_direction": "up",
+          "stroke_high": 684.91,
+          "stroke_low": 679.3275,
+          "feat_action": "appended",
+          "feat_len": 15,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 35,
+            "fractal_abc": [
+              12,
+              13,
+              14
+            ],
+            "gap_type": "none",
+            "end_stroke": 34
+          },
+          "rejection_reason": "L78 顶高于底违反: dir=down, ep0=649.4800(top), ep1=650.8500(bottom)"
+        },
+        {
+          "cursor": 49,
+          "stroke_direction": "up",
+          "stroke_high": 688.62,
+          "stroke_low": 686.07,
+          "feat_action": "appended",
+          "feat_len": 18,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 47,
+            "fractal_abc": [
+              15,
+              16,
+              17
+            ],
+            "gap_type": "none",
+            "end_stroke": 46
+          },
+          "rejection_reason": "L78 顶高于底违反: dir=down, ep0=649.4800(top), ep1=671.1950(bottom)"
+        },
+        {
+          "cursor": 59,
+          "stroke_direction": "up",
+          "stroke_high": 696.53,
+          "stroke_low": 687.73,
+          "feat_action": "appended",
+          "feat_len": 22,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 57,
+            "fractal_abc": [
+              19,
+              20,
+              21
+            ],
+            "gap_type": "none",
+            "end_stroke": 56
+          },
+          "rejection_reason": "L78 顶高于底违反: dir=down, ep0=649.4800(top), ep1=676.5700(bottom)"
+        },
+        {
+          "cursor": 69,
+          "stroke_direction": "up",
+          "stroke_high": 693.68,
+          "stroke_low": 680.371,
+          "feat_action": "appended",
+          "feat_len": 25,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 67,
+            "fractal_abc": [
+              22,
+              23,
+              24
+            ],
+            "gap_type": "none",
+            "end_stroke": 66
+          },
+          "rejection_reason": "L78 顶高于底违反: dir=down, ep0=649.4800(top), ep1=675.7800(bottom)"
+        }
+      ]
+    },
+    "feature_sequence_detail": {
+      "seg_dir": "down",
+      "reverse_stroke_count": 35,
+      "standard_feature_seq_length": 25,
+      "elements": [
+        {
+          "index": 0,
+          "high": 644.21,
+          "low": 634.92,
+          "stroke_idx": 1,
+          "merged_from": [
+            1
+          ]
+        },
+        {
+          "index": 1,
+          "high": 652.21,
+          "low": 640.46,
+          "stroke_idx": 3,
+          "merged_from": [
+            3
+          ]
+        },
+        {
+          "index": 2,
+          "high": 654.55,
+          "low": 644.61,
+          "stroke_idx": 5,
+          "merged_from": [
+            5
+          ]
+        },
+        {
+          "index": 3,
+          "high": 661.78,
+          "low": 650.63,
+          "stroke_idx": 7,
+          "merged_from": [
+            7
+          ]
+        },
+        {
+          "index": 4,
+          "high": 664.89,
+          "low": 654.3,
+          "stroke_idx": 9,
+          "merged_from": [
+            9
+          ]
+        },
+        {
+          "index": 5,
+          "high": 667.34,
+          "low": 660.37,
+          "stroke_idx": 11,
+          "merged_from": [
+            11
+          ]
+        },
+        {
+          "index": 6,
+          "high": 665.28,
+          "low": 654.405,
+          "stroke_idx": 13,
+          "merged_from": [
+            13
+          ]
+        },
+        {
+          "index": 7,
+          "high": 672.675,
+          "low": 661.61,
+          "stroke_idx": 15,
+          "merged_from": [
+            15
+          ]
+        },
+        {
+          "index": 8,
+          "high": 673.95,
+          "low": 667.67,
+          "stroke_idx": 17,
+          "merged_from": [
+            17
+          ]
+        },
+        {
+          "index": 9,
+          "high": 670.23,
+          "low": 652.84,
+          "stroke_idx": 19,
+          "merged_from": [
+            19
+          ]
+        },
+        {
+          "index": 10,
+          "high": 672.99,
+          "low": 657.11,
+          "stroke_idx": 21,
+          "merged_from": [
+            21
+          ]
+        },
+        {
+          "index": 11,
+          "high": 689.7,
+          "low": 679.24,
+          "stroke_idx": 25,
+          "merged_from": [
+            23,
+            25
+          ]
+        },
+        {
+          "index": 12,
+          "high": 675.66,
+          "low": 661.205,
+          "stroke_idx": 31,
+          "merged_from": [
+            27,
+            29,
+            31
+          ]
+        },
+        {
+          "index": 13,
+          "high": 675.56,
+          "low": 650.85,
+          "stroke_idx": 35,
+          "merged_from": [
+            33,
+            35
+          ]
+        },
+        {
+          "index": 14,
+          "high": 684.91,
+          "low": 679.3275,
+          "stroke_idx": 37,
+          "merged_from": [
+            37
+          ]
+        },
+        {
+          "index": 15,
+          "high": 689.25,
+          "low": 681.57,
+          "stroke_idx": 43,
+          "merged_from": [
+            39,
+            41,
+            43
+          ]
+        },
+        {
+          "index": 16,
+          "high": 684.34,
+          "low": 671.195,
+          "stroke_idx": 47,
+          "merged_from": [
+            45,
+            47
+          ]
+        },
+        {
+          "index": 17,
+          "high": 693.96,
+          "low": 686.07,
+          "stroke_idx": 51,
+          "merged_from": [
+            49,
+            51
+          ]
+        },
+        {
+          "index": 18,
+          "high": 696.09,
+          "low": 687.49,
+          "stroke_idx": 53,
+          "merged_from": [
+            53
+          ]
+        },
+        {
+          "index": 19,
+          "high": 695.45,
+          "low": 686.04,
+          "stroke_idx": 55,
+          "merged_from": [
+            55
+          ]
+        },
+        {
+          "index": 20,
+          "high": 691.125,
+          "low": 676.57,
+          "stroke_idx": 57,
+          "merged_from": [
+            57
+          ]
+        },
+        {
+          "index": 21,
+          "high": 696.93,
+          "low": 687.73,
+          "stroke_idx": 61,
+          "merged_from": [
+            59,
+            61
+          ]
+        },
+        {
+          "index": 22,
+          "high": 695.35,
+          "low": 675.79,
+          "stroke_idx": 65,
+          "merged_from": [
+            63,
+            65
+          ]
+        },
+        {
+          "index": 23,
+          "high": 689.15,
+          "low": 675.78,
+          "stroke_idx": 67,
+          "merged_from": [
+            67
+          ]
+        },
+        {
+          "index": 24,
+          "high": 693.68,
+          "low": 680.371,
+          "stroke_idx": 69,
+          "merged_from": [
+            69
+          ]
+        }
+      ],
+      "fractals_found": [
+        {
+          "index": 5,
+          "type": "顶",
+          "a": {
+            "high": 664.890015,
+            "low": 654.299988
+          },
+          "b": {
+            "high": 667.340027,
+            "low": 660.369995
+          },
+          "c": {
+            "high": 665.280029,
+            "low": 654.405029
+          },
+          "b_stroke_idx": 11
+        },
+        {
+          "index": 6,
+          "type": "底",
+          "a": {
+            "high": 667.340027,
+            "low": 660.369995
+          },
+          "b": {
+            "high": 665.280029,
+            "low": 654.405029
+          },
+          "c": {
+            "high": 672.674988,
+            "low": 661.609985
+          },
+          "b_stroke_idx": 13
+        },
+        {
+          "index": 8,
+          "type": "顶",
+          "a": {
+            "high": 672.674988,
+            "low": 661.609985
+          },
+          "b": {
+            "high": 673.950012,
+            "low": 667.669983
+          },
+          "c": {
+            "high": 670.22998,
+            "low": 652.840027
+          },
+          "b_stroke_idx": 17
+        },
+        {
+          "index": 9,
+          "type": "底",
+          "a": {
+            "high": 673.950012,
+            "low": 667.669983
+          },
+          "b": {
+            "high": 670.22998,
+            "low": 652.840027
+          },
+          "c": {
+            "high": 672.98999,
+            "low": 657.109985
+          },
+          "b_stroke_idx": 19
+        },
+        {
+          "index": 11,
+          "type": "顶",
+          "a": {
+            "high": 672.98999,
+            "low": 657.109985
+          },
+          "b": {
+            "high": 689.700012,
+            "low": 679.23999
+          },
+          "c": {
+            "high": 675.659973,
+            "low": 661.205017
+          },
+          "b_stroke_idx": 25
+        },
+        {
+          "index": 13,
+          "type": "底",
+          "a": {
+            "high": 675.659973,
+            "low": 661.205017
+          },
+          "b": {
+            "high": 675.559998,
+            "low": 650.849976
+          },
+          "c": {
+            "high": 684.909973,
+            "low": 679.327515
+          },
+          "b_stroke_idx": 35
+        },
+        {
+          "index": 15,
+          "type": "顶",
+          "a": {
+            "high": 684.909973,
+            "low": 679.327515
+          },
+          "b": {
+            "high": 689.25,
+            "low": 681.570007
+          },
+          "c": {
+            "high": 684.340027,
+            "low": 671.195007
+          },
+          "b_stroke_idx": 43
+        },
+        {
+          "index": 16,
+          "type": "底",
+          "a": {
+            "high": 689.25,
+            "low": 681.570007
+          },
+          "b": {
+            "high": 684.340027,
+            "low": 671.195007
+          },
+          "c": {
+            "high": 693.960022,
+            "low": 686.070007
+          },
+          "b_stroke_idx": 47
+        },
+        {
+          "index": 18,
+          "type": "顶",
+          "a": {
+            "high": 693.960022,
+            "low": 686.070007
+          },
+          "b": {
+            "high": 696.090027,
+            "low": 687.48999
+          },
+          "c": {
+            "high": 695.450012,
+            "low": 686.039978
+          },
+          "b_stroke_idx": 53
+        },
+        {
+          "index": 20,
+          "type": "底",
+          "a": {
+            "high": 695.450012,
+            "low": 686.039978
+          },
+          "b": {
+            "high": 691.125,
+            "low": 676.570007
+          },
+          "c": {
+            "high": 696.929993,
+            "low": 687.72998
+          },
+          "b_stroke_idx": 57
+        },
+        {
+          "index": 21,
+          "type": "顶",
+          "a": {
+            "high": 691.125,
+            "low": 676.570007
+          },
+          "b": {
+            "high": 696.929993,
+            "low": 687.72998
+          },
+          "c": {
+            "high": 695.349976,
+            "low": 675.789978
+          },
+          "b_stroke_idx": 61
+        },
+        {
+          "index": 23,
+          "type": "底",
+          "a": {
+            "high": 695.349976,
+            "low": 675.789978
+          },
+          "b": {
+            "high": 689.150024,
+            "low": 675.780029
+          },
+          "c": {
+            "high": 693.679993,
+            "low": 680.370972
+          },
+          "b_stroke_idx": 67
+        }
+      ]
+    }
+  },
+  "daily": {
+    "bar_count": 502,
+    "stroke_count": 36,
+    "segment_count": 3,
+    "strokes": [
+      {
+        "index": 0,
+        "direction": "down",
+        "i0": 7,
+        "i1": 11,
+        "high": 505.718,
+        "low": 496.2326,
+        "p0": 505.718,
+        "p1": 497.4024,
+        "confirmed": true
+      },
+      {
+        "index": 1,
+        "direction": "up",
+        "i0": 11,
+        "i1": 18,
+        "high": 513.5446,
+        "low": 497.4024,
+        "p0": 497.4024,
+        "p1": 513.5446,
+        "confirmed": true
+      },
+      {
+        "index": 2,
+        "direction": "down",
+        "i0": 18,
+        "i1": 30,
+        "high": 513.5446,
+        "low": 483.4432,
+        "p0": 513.5446,
+        "p1": 483.4432,
+        "confirmed": true
+      },
+      {
+        "index": 3,
+        "direction": "up",
+        "i0": 30,
+        "i1": 51,
+        "high": 520.3481,
+        "low": 483.4432,
+        "p0": 483.4432,
+        "p1": 520.3481,
+        "confirmed": true
+      },
+      {
+        "index": 4,
+        "direction": "down",
+        "i0": 51,
+        "i1": 56,
+        "high": 520.3481,
+        "low": 507.4264,
+        "p0": 520.3481,
+        "p1": 507.4264,
+        "confirmed": true
+      },
+      {
+        "index": 5,
+        "direction": "up",
+        "i0": 56,
+        "i1": 78,
+        "high": 555.0241,
+        "low": 507.4264,
+        "p0": 507.4264,
+        "p1": 555.0241,
+        "confirmed": true
+      },
+      {
+        "index": 6,
+        "direction": "down",
+        "i0": 78,
+        "i1": 89,
+        "high": 555.0241,
+        "low": 501.1186,
+        "p0": 555.0241,
+        "p1": 501.1186,
+        "confirmed": true
+      },
+      {
+        "index": 7,
+        "direction": "up",
+        "i0": 89,
+        "i1": 104,
+        "high": 554.0814,
+        "low": 501.1186,
+        "p0": 501.1186,
+        "p1": 554.0814,
+        "confirmed": true
+      },
+      {
+        "index": 8,
+        "direction": "down",
+        "i0": 104,
+        "i1": 108,
+        "high": 554.0814,
+        "low": 529.7653,
+        "p0": 554.0814,
+        "p1": 529.7653,
+        "confirmed": true
+      },
+      {
+        "index": 9,
+        "direction": "up",
+        "i0": 108,
+        "i1": 119,
+        "high": 566.134,
+        "low": 529.7653,
+        "p0": 529.7653,
+        "p1": 566.134,
+        "confirmed": true
+      },
+      {
+        "index": 10,
+        "direction": "down",
+        "i0": 119,
+        "i1": 124,
+        "high": 566.134,
+        "low": 556.8348,
+        "p0": 566.134,
+        "p1": 558.1745,
+        "confirmed": true
+      },
+      {
+        "index": 11,
+        "direction": "up",
+        "i0": 124,
+        "i1": 130,
+        "high": 577.3737,
+        "low": 558.1745,
+        "p0": 558.1745,
+        "p1": 577.3737,
+        "confirmed": true
+      },
+      {
+        "index": 12,
+        "direction": "down",
+        "i0": 130,
+        "i1": 138,
+        "high": 577.3737,
+        "low": 559.4158,
+        "p0": 577.3737,
+        "p1": 559.4158,
+        "confirmed": true
+      },
+      {
+        "index": 13,
+        "direction": "up",
+        "i0": 138,
+        "i1": 158,
+        "high": 599.9813,
+        "low": 559.4158,
+        "p0": 559.4158,
+        "p1": 599.9813,
+        "confirmed": true
+      },
+      {
+        "index": 14,
+        "direction": "down",
+        "i0": 158,
+        "i1": 177,
+        "high": 599.9813,
+        "low": 568.672,
+        "p0": 599.9813,
+        "p1": 568.672,
+        "confirmed": true
+      },
+      {
+        "index": 15,
+        "direction": "up",
+        "i0": 177,
+        "i1": 185,
+        "high": 603.6907,
+        "low": 568.672,
+        "p0": 568.672,
+        "p1": 603.6907,
+        "confirmed": true
+      },
+      {
+        "index": 16,
+        "direction": "down",
+        "i0": 185,
+        "i1": 190,
+        "high": 603.6907,
+        "low": 583.6362,
+        "p0": 603.6907,
+        "p1": 583.6362,
+        "confirmed": true
+      },
+      {
+        "index": 17,
+        "direction": "up",
+        "i0": 190,
+        "i1": 198,
+        "high": 606.1123,
+        "low": 583.6362,
+        "p0": 583.6362,
+        "p1": 606.1123,
+        "confirmed": true
+      },
+      {
+        "index": 18,
+        "direction": "down",
+        "i0": 198,
+        "i1": 211,
+        "high": 606.1123,
+        "low": 543.2999,
+        "p0": 606.1123,
+        "p1": 543.2999,
+        "confirmed": true
+      },
+      {
+        "index": 19,
+        "direction": "up",
+        "i0": 211,
+        "i1": 218,
+        "high": 571.4334,
+        "low": 543.2999,
+        "p0": 543.2999,
+        "p1": 571.4334,
+        "confirmed": true
+      },
+      {
+        "index": 20,
+        "direction": "down",
+        "i0": 218,
+        "i1": 227,
+        "high": 571.4334,
+        "low": 477.6403,
+        "p0": 571.4334,
+        "p1": 477.6403,
+        "confirmed": true
+      },
+      {
+        "index": 21,
+        "direction": "up",
+        "i0": 227,
+        "i1": 245,
+        "high": 590.3983,
+        "low": 477.6403,
+        "p0": 477.6403,
+        "p1": 590.3983,
+        "confirmed": true
+      },
+      {
+        "index": 22,
+        "direction": "down",
+        "i0": 245,
+        "i1": 251,
+        "high": 590.3983,
+        "low": 570.6305,
+        "p0": 590.3983,
+        "p1": 578.2046,
+        "confirmed": true
+      },
+      {
+        "index": 23,
+        "direction": "up",
+        "i0": 251,
+        "i1": 258,
+        "high": 599.8362,
+        "low": 578.2046,
+        "p0": 578.2046,
+        "p1": 599.8362,
+        "confirmed": true
+      },
+      {
+        "index": 24,
+        "direction": "down",
+        "i0": 258,
+        "i1": 262,
+        "high": 599.8362,
+        "low": 588.5146,
+        "p0": 599.8362,
+        "p1": 588.5146,
+        "confirmed": true
+      },
+      {
+        "index": 25,
+        "direction": "up",
+        "i0": 262,
+        "i1": 294,
+        "high": 642.5049,
+        "low": 588.5146,
+        "p0": 588.5146,
+        "p1": 642.5049,
+        "confirmed": true
+      },
+      {
+        "index": 26,
+        "direction": "down",
+        "i0": 294,
+        "i1": 298,
+        "high": 642.5049,
+        "low": 629.3404,
+        "p0": 642.5049,
+        "p1": 629.3404,
+        "confirmed": true
+      },
+      {
+        "index": 27,
+        "direction": "up",
+        "i0": 298,
+        "i1": 322,
+        "high": 671.9644,
+        "low": 629.3404,
+        "p0": 629.3404,
+        "p1": 671.9644,
+        "confirmed": true
+      },
+      {
+        "index": 28,
+        "direction": "down",
+        "i0": 322,
+        "i1": 328,
+        "high": 671.9644,
+        "low": 651.2456,
+        "p0": 671.9644,
+        "p1": 661.3458,
+        "confirmed": true
+      },
+      {
+        "index": 29,
+        "direction": "up",
+        "i0": 328,
+        "i1": 332,
+        "high": 687.668,
+        "low": 661.3458,
+        "p0": 661.3458,
+        "p1": 687.668,
+        "confirmed": true
+      },
+      {
+        "index": 30,
+        "direction": "down",
+        "i0": 332,
+        "i1": 347,
+        "high": 687.668,
+        "low": 648.9324,
+        "p0": 687.668,
+        "p1": 648.9324,
+        "confirmed": true
+      },
+      {
+        "index": 31,
+        "direction": "up",
+        "i0": 347,
+        "i1": 376,
+        "high": 696.09,
+        "low": 648.9324,
+        "p0": 648.9324,
+        "p1": 696.09,
+        "confirmed": true
+      },
+      {
+        "index": 32,
+        "direction": "down",
+        "i0": 376,
+        "i1": 380,
+        "high": 696.09,
+        "low": 676.57,
+        "p0": 696.09,
+        "p1": 676.57,
+        "confirmed": true
+      },
+      {
+        "index": 33,
+        "direction": "up",
+        "i0": 380,
+        "i1": 385,
+        "high": 697.84,
+        "low": 676.57,
+        "p0": 676.57,
+        "p1": 697.84,
+        "confirmed": true
+      },
+      {
+        "index": 34,
+        "direction": "down",
+        "i0": 385,
+        "i1": 395,
+        "high": 697.84,
+        "low": 675.78,
+        "p0": 697.84,
+        "p1": 675.78,
+        "confirmed": true
+      },
+      {
+        "index": 35,
+        "direction": "up",
+        "i0": 395,
+        "i1": 401,
+        "high": 693.68,
+        "low": 675.78,
+        "p0": 675.78,
+        "p1": 693.68,
+        "confirmed": false
+      }
+    ],
+    "diagnosis": {
+      "label": "SPY Daily",
+      "stroke_count": 36,
+      "steps": [
+        {
+          "type": "overlap_start",
+          "seg_start": 0,
+          "overlap": [
+            497.4024,
+            505.718
+          ]
+        },
+        {
+          "type": "initial_direction",
+          "direction": "down"
+        }
+      ],
+      "segments_produced": [
+        {
+          "seg_index": 0,
+          "s0": 0,
+          "s1": 6,
+          "direction": "down",
+          "break_k": 7,
+          "gap_type": "none"
+        },
+        {
+          "seg_index": 1,
+          "s0": 7,
+          "s1": 17,
+          "direction": "up",
+          "break_k": 18,
+          "gap_type": "none"
+        },
+        {
+          "seg_index": 2,
+          "s0": 18,
+          "s1": 35,
+          "direction": "down",
+          "confirmed": false,
+          "note": "last_unconfirmed"
+        }
+      ],
+      "diagnosis": "段引擎产出 3 段, 不是71→1。数据可能已变。",
+      "actual_segments": [
+        {
+          "s0": 0,
+          "s1": 6,
+          "direction": "down",
+          "confirmed": true,
+          "kind": "settled",
+          "ep0_price": 505.718,
+          "ep1_price": 501.1186,
+          "ep0_type": "top",
+          "ep1_type": "bottom",
+          "break_evidence": {
+            "trigger_stroke_k": 7,
+            "fractal_abc": [
+              1,
+              2,
+              3
+            ],
+            "gap_type": "none"
+          }
+        },
+        {
+          "s0": 7,
+          "s1": 17,
+          "direction": "up",
+          "confirmed": true,
+          "kind": "settled",
+          "ep0_price": 501.1186,
+          "ep1_price": 606.1123,
+          "ep0_type": "bottom",
+          "ep1_type": "top",
+          "break_evidence": {
+            "trigger_stroke_k": 18,
+            "fractal_abc": [
+              3,
+              4,
+              5
+            ],
+            "gap_type": "none"
+          }
+        },
+        {
+          "s0": 18,
+          "s1": 35,
+          "direction": "down",
+          "confirmed": false,
+          "kind": "settled",
+          "ep0_price": 606.1123,
+          "ep1_price": 675.78,
+          "ep0_type": "top",
+          "ep1_type": "bottom",
+          "break_evidence": null
+        }
+      ],
+      "trigger_statistics": {
+        "total_triggers": 2,
+        "rejected": 0,
+        "accepted": 2,
+        "rejection_reasons": {}
+      },
+      "trigger_attempts": [
+        {
+          "cursor": 9,
+          "stroke_direction": "up",
+          "stroke_high": 566.134,
+          "stroke_low": 529.7653,
+          "feat_action": "appended",
+          "feat_len": 4,
+          "seg_dir": "down",
+          "seg_start": 0,
+          "trigger_result": {
+            "k": 7,
+            "fractal_abc": [
+              1,
+              2,
+              3
+            ],
+            "gap_type": "none",
+            "end_stroke": 6
+          },
+          "rejection_reason": null
+        },
+        {
+          "cursor": 20,
+          "stroke_direction": "down",
+          "stroke_high": 571.4334,
+          "stroke_low": 477.6403,
+          "feat_action": "appended",
+          "feat_len": 6,
+          "seg_dir": "up",
+          "seg_start": 7,
+          "trigger_result": {
+            "k": 18,
+            "fractal_abc": [
+              3,
+              4,
+              5
+            ],
+            "gap_type": "none",
+            "end_stroke": 17
+          },
+          "rejection_reason": null
+        }
+      ]
+    },
+    "feature_sequence_detail": {
+      "seg_dir": "down",
+      "reverse_stroke_count": 18,
+      "standard_feature_seq_length": 15,
+      "elements": [
+        {
+          "index": 0,
+          "high": 513.5446,
+          "low": 483.4432,
+          "stroke_idx": 3,
+          "merged_from": [
+            1,
+            3
+          ]
+        },
+        {
+          "index": 1,
+          "high": 555.0241,
+          "low": 507.4264,
+          "stroke_idx": 5,
+          "merged_from": [
+            5
+          ]
+        },
+        {
+          "index": 2,
+          "high": 554.0814,
+          "low": 501.1186,
+          "stroke_idx": 7,
+          "merged_from": [
+            7
+          ]
+        },
+        {
+          "index": 3,
+          "high": 566.134,
+          "low": 529.7653,
+          "stroke_idx": 9,
+          "merged_from": [
+            9
+          ]
+        },
+        {
+          "index": 4,
+          "high": 577.3737,
+          "low": 558.1745,
+          "stroke_idx": 11,
+          "merged_from": [
+            11
+          ]
+        },
+        {
+          "index": 5,
+          "high": 599.9813,
+          "low": 559.4158,
+          "stroke_idx": 13,
+          "merged_from": [
+            13
+          ]
+        },
+        {
+          "index": 6,
+          "high": 603.6907,
+          "low": 568.672,
+          "stroke_idx": 15,
+          "merged_from": [
+            15
+          ]
+        },
+        {
+          "index": 7,
+          "high": 606.1123,
+          "low": 583.6362,
+          "stroke_idx": 17,
+          "merged_from": [
+            17
+          ]
+        },
+        {
+          "index": 8,
+          "high": 571.4334,
+          "low": 477.6403,
+          "stroke_idx": 21,
+          "merged_from": [
+            19,
+            21
+          ]
+        },
+        {
+          "index": 9,
+          "high": 599.8362,
+          "low": 578.2046,
+          "stroke_idx": 23,
+          "merged_from": [
+            23
+          ]
+        },
+        {
+          "index": 10,
+          "high": 642.5049,
+          "low": 588.5146,
+          "stroke_idx": 25,
+          "merged_from": [
+            25
+          ]
+        },
+        {
+          "index": 11,
+          "high": 671.9644,
+          "low": 629.3404,
+          "stroke_idx": 27,
+          "merged_from": [
+            27
+          ]
+        },
+        {
+          "index": 12,
+          "high": 696.09,
+          "low": 661.3458,
+          "stroke_idx": 31,
+          "merged_from": [
+            29,
+            31
+          ]
+        },
+        {
+          "index": 13,
+          "high": 697.84,
+          "low": 676.57,
+          "stroke_idx": 33,
+          "merged_from": [
+            33
+          ]
+        },
+        {
+          "index": 14,
+          "high": 693.68,
+          "low": 675.78,
+          "stroke_idx": 35,
+          "merged_from": [
+            35
+          ]
+        }
+      ],
+      "fractals_found": [
+        {
+          "index": 1,
+          "type": "顶",
+          "a": {
+            "high": 513.544605,
+            "low": 483.443192
+          },
+          "b": {
+            "high": 555.0241,
+            "low": 507.426434
+          },
+          "c": {
+            "high": 554.081372,
+            "low": 501.118573
+          },
+          "b_stroke_idx": 5
+        },
+        {
+          "index": 2,
+          "type": "底",
+          "a": {
+            "high": 555.0241,
+            "low": 507.426434
+          },
+          "b": {
+            "high": 554.081372,
+            "low": 501.118573
+          },
+          "c": {
+            "high": 566.13402,
+            "low": 529.76534
+          },
+          "b_stroke_idx": 7
+        },
+        {
+          "index": 7,
+          "type": "顶",
+          "a": {
+            "high": 603.690711,
+            "low": 568.671974
+          },
+          "b": {
+            "high": 606.112302,
+            "low": 583.636196
+          },
+          "c": {
+            "high": 571.433449,
+            "low": 477.64032
+          },
+          "b_stroke_idx": 17
+        },
+        {
+          "index": 8,
+          "type": "底",
+          "a": {
+            "high": 606.112302,
+            "low": 583.636196
+          },
+          "b": {
+            "high": 571.433449,
+            "low": 477.64032
+          },
+          "c": {
+            "high": 599.83622,
+            "low": 578.204586
+          },
+          "b_stroke_idx": 21
+        },
+        {
+          "index": 13,
+          "type": "顶",
+          "a": {
+            "high": 696.090027,
+            "low": 661.345777
+          },
+          "b": {
+            "high": 697.840027,
+            "low": 676.570007
+          },
+          "c": {
+            "high": 693.679993,
+            "low": 675.780029
+          },
+          "b_stroke_idx": 33
+        }
+      ]
+    }
+  },
+  "price_direction_conflict": false,
+  "tail_window_issue": true,
+  "missed_fractals_outside_window": [
+    {
+      "element_index": 6,
+      "b_stroke_idx": 13
+    },
+    {
+      "element_index": 9,
+      "b_stroke_idx": 19
+    },
+    {
+      "element_index": 13,
+      "b_stroke_idx": 35
+    },
+    {
+      "element_index": 16,
+      "b_stroke_idx": 47
+    }
+  ],
+  "conclusion": {
+    "verdict": "BUG",
+    "bug_location": "a_segment_v1.py:segments_from_strokes_v1, line 488",
+    "bug_description": "segments_from_strokes_v1 用 strokes[seg_start].direction 作为初始段方向。当第一笔是 down 且位于整个序列的绝对底部时，引擎承诺构建一个 down 段，但后续所有反向笔（up笔）的价格都高于起始 top 价格，导致 L78 约束（顶高于底）拒绝每一个特征序列分型触发。结果：引擎无法断段，71笔压缩为1个未确认段。",
+    "mechanism": [
+      "1. _find_overlap_start(strokes, 0) 返回 0（笔0,1,2有重叠）",
+      "2. seg_dir = strokes[0].direction = \"down\"",
+      "3. 特征序列取 up 笔，寻找底分型",
+      "4. 底分型确实被找到（6次），但每次 _try_trigger_segment 被 L78 拒绝",
+      "5. L78 检查: 对于 down 段, ep0_price(top)=649.48 必须 > ep1_price(bottom)",
+      "6. 但市场在笔0之后持续上涨，所有底分型的 bottom 价格都 > 649.48",
+      "7. 所以 L78 正确地拒绝了这些无意义的 down 段（顶低于底的段不合法）",
+      "8. 但引擎没有机制来放弃一个永远无法完成的初始段方向"
+    ],
+    "evidence": {
+      "stroke_0": {
+        "direction": "down",
+        "p0": 649.48,
+        "p1": 634.92
+      },
+      "market_trend": "+4.95% over 71 strokes",
+      "absolute_bottom": "634.92 (stroke 0 end) is the lowest price in entire sequence",
+      "all_6_rejections": "All by L78: top(649.48) < bottom(654.41, 652.84, 650.85, 671.20, 676.57, 675.78)",
+      "control_experiment": "Starting from stroke 1 (up direction): 70 strokes → 7 segments"
+    },
+    "root_cause": "段引擎缺少对初始段方向不可行性的检测/回退机制。当初始段方向因为市场结构导致永远无法满足 L78 时，引擎应当尝试下一个可行的起始点或反转方向。缠论定义中，78课说\"线段的端点不一定是最高/最低点\"，但没有规定必须从绝对第一笔开始。实际上，第67课的答疑中缠师说\"一般都是从图K线中近期的最高或最低点开始\"。",
+    "secondary_finding": {
+      "tail_window": "FeatureSeqState.TAIL_WINDOW=7 在标准特征序列长度=25时可能遗漏早期分型。但在本案例中不影响结果，因为所有分型都被 L78 拒绝。此问题在其他数据上可能造成额外的漏段。",
+      "daily_last_segment_L78": "Daily 案例的最后一段（未确认 down 段 s0=18→s1=35）也违反 L78（top=606.11 < bottom=675.78）。引擎对未确认段允许 L78 违反（只 warning），但这意味着该段在确认时必然失败——这是同一 bug 的较轻形式。"
+    }
+  }
+}

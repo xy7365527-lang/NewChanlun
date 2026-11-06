@@ -251,7 +251,7 @@ history36h 是精确 head 运行；四个 PR CI 日志显示 checkout 为 `09327
 5. **P1-B**：`s_session_v3/admission_provider.rs:118` 精确登记 `.audit-ledger.sqlite`、`.audit-ledger.sqlite-wal`、`.audit-ledger.sqlite-shm`、`.audit-ledger.sqlite-journal`，`:297` 接入原完整枚举，不用通配或跳过枚举。四名必须是普通单链接文件，仍经原 `Pinned` FD/路径身份核验及 `:191` 的 `st_blocks * 512` 原 store 账、原 `max_store_bytes` 和 64 GiB 帽；它们不决定内容库的 medium，不进入主库/WAL 内容权威。`:358` 删除前再核固定身份及在场集合；`audit_owner.rs:516`–`:531` 仅在已有 WriterScope 双锁内精确清理这四名，再释放旧缓存 FD，随后才 fresh 新台账。释放仅作用于独立缓存 pins，不动主库、WAL、控制文件；避免 unlink 后旧 inode 仍被 FD 持有而与新台账叠加占盘。真正未知名字继续拒绝，原 `known_control_lock_does_not_allow_unknown_sidecars` 保留。
 6. **P1-A**：`s_session_v3/audit_owner.rs:708` 在 seed、资格移交及 Runtime adopt 成功后，把 `NO_CKPT_ON_CLOSE` 设回 false 并核返回值；拒绝路径继续保持 true，关闭连接不能顺手 checkpoint 源库。`audit_owner/admission_tests.rs:40` 移除常驻 `f.conn`，`:48` 改为作用域短连接。此前 `f.conn` 自己会建立并保留 `-shm`，与 `admission_provider.rs` 对源库既存 `-shm` 的生产拒绝判据冲突，不能代表“全连接退出后的重启”。现在正式 Driver 每次重新开门前检查 `-wal/-shm` 均不存在；新锁 `:880` 用真实子进程写入、正常退出，再用另一子进程重启同库，并核子进程实际执行 1 test 的收据。旧交接拒绝锁 `:331` 强化为外写连接先真正关闭，留下非空 WAL，再核拒绝后的主库/WAL 原字节。
 
-第 5 项依据为 `.chanlun/review-results/issue1644-p6-audit-ledger-20261021/AMENDMENT.md:37` 的写者旁挂、`:39` 的同一存储帽、`:45` 及 `:48`–`:49` 的旧台账非权威/丢弃重建合同。未扩大可删除文件集合到这四名以外。
+第 5 项依据为 `docs/adr/0061-s-writer-audit-ledger-delta-reading.md:37`（原 `issue1644-p6-audit-ledger-20261021/AMENDMENT.md`，逐字迁入、行号不变） 的写者旁挂、`:39` 的同一存储帽、`:45` 及 `:48`–`:49` 的旧台账非权威/丢弃重建合同。未扩大可删除文件集合到这四名以外。
 
 ### 第 7–9 项修复与依据
 

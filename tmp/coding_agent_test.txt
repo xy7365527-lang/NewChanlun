@@ -1,0 +1,276 @@
+======================================================================
+TOPOLOGICAL CODING AGENT TEST
+======================================================================
+
+Workspace: C:\Users\hanju\NewChanlun\topological-computation
+Code complex: 1143 vertices, 1231 edges
+
+======================================================================
+TEST 1: agent.analyze()
+======================================================================
+{
+  "graph_stats": {
+    "active_vertices": 1143,
+    "active_edges": 1231,
+    "beta_1": 648
+  },
+  "modules": {
+    "auto_feed": 11,
+    "<import>": 116,
+    "code_ingest": 16,
+    "code_search": 9,
+    "code_topology": 17,
+    "code_transform": 9,
+    "code_transplant": 11,
+    "coding_agent": 7,
+    "concept_registry": 6,
+    "daemon": 28,
+    "encounter_log": 8,
+    "engine": 43,
+    "execution_callback": 5,
+    "experiment": 9,
+    "experiment_adorno": 17,
+    "experiment_benjamin": 19,
+    "experiment_chanlun": 5,
+    "experiment_dev": 11,
+    "experiment_f_criterion": 17,
+    "experiment_hegel": 2,
+    "experiment_hegel_full": 25,
+    "experiment_hegel_multi_chapter": 6,
+    "experiment_hegel_v2": 3,
+    "experiment_heidegger": 29,
+    "experiment_holderlin": 16,
+    "experiment_lacan_ecrits": 18,
+    "experiment_lacan_full": 47,
+    "experiment_lacan_seminars": 25,
+    "experiment_lenin": 32,
+    "experiment_long_run": 9,
+    "experiment_mao": 37,
+    "experiment_mao_full": 67,
+    "experiment_marx": 32,
+    "experiment_merge_hegel_lacan": 6,
+    "experiment_merleau_ponty": 17,
+    "experiment_phenomenology_full": 17,
+    "experiment_postman": 13,
+    "experiment_real": 17,
+    "experiment_schelling": 22,
+    "experiment_simmel": 32,
+    "experiment_spinoza": 13,
+    "experiment_wittgenstein": 24,
+    "experiment_zizek": 27,
+    "genealogy_loader": 8,
+    "interactive": 18,
+    "llm_encounter": 6,
+    "morse": 4,
+    "nlp_preprocess": 12,
+    "nlp_preprocess_zh": 11,
+    "persistence": 13,
+    "phi_L": 13,
+    "phi_L_batch": 6,
+    "psi_L": 7,
+    "psi_L_importance": 10,
+    "psi_L_narrative": 12,
+    "psi_L_topological": 13,
+    "query_interface": 10,
+    "terrain_display": 8,
+    "test_code_topology": 2,
+    "test_coding_agent": 3,
+    "test_engine": 26,
+    "test_persistence": 6,
+    "test_phi_L": 5,
+    "test_phi_L_zh_batch": 17,
+    "traversal": 13,
+    "verify_fg_corrected": 3,
+    "verify_fg_predictions": 17
+  },
+  "edge_type_distribution": {
+    "dependency": 1231
+  },
+  "fold_candidates": [
+    {
+      "vertex_a": "auto_feed.<module>",
+      "vertex_b": "llm_encounter.<module>",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.<module>",
+      "vertex_b": "daemon.main",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.<module>",
+      "vertex_b": "experiment_hegel.<module>",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_wikipedia",
+      "vertex_b": "experiment_long_run.CrossComponentTraversal.run_step",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_wikipedia",
+      "vertex_b": "llm_encounter.LLMEncounterResult",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_wikipedia",
+      "vertex_b": "auto_feed.search_semantic_scholar",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_semantic_scholar",
+      "vertex_b": "experiment_long_run.CrossComponentTraversal.run_step",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_semantic_scholar",
+      "vertex_b": "llm_encounter.LLMEncounterResult",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_semantic_scholar",
+      "vertex_b": "engine.SettlementTracker._is_settled",
+      "similarity": 1.0
+    },
+    {
+      "vertex_a": "auto_feed.search_brave",
+      "vertex_b": "experiment_long_run.CrossComponentTraversal.run_step",
+      "similarity": 1.0
+    }
+  ],
+  "isolated_vertices": [
+    "code_search._vertex_profile",
+    "daemon.graph_to_dict",
+    "engine.VertexStatus",
+    "engine.EdgeType",
+    "execution_callback.run_script",
+    "experiment_adorno.work_kierkegaard",
+    "experiment_adorno.work_dialectic_of_enlightenment",
+    "experiment_adorno.work_philosophy_of_new_music",
+    "experiment_adorno.work_minima_moralia",
+    "experiment_adorno.work_authoritarian_personality",
+    "experiment_adorno.work_prisms",
+    "experiment_adorno.work_against_epistemology",
+    "experiment_adorno.work_jargon_of_authenticity",
+    "experiment_adorno.work_notes_to_literature",
+    "experiment_adorno.work_introduction_sociology_of_music",
+    "experiment_adorno.work_negative_dialectics",
+    "experiment_adorno.work_aesthetic_theory",
+    "experiment_adorno.work_critical_models",
+    "experiment_adorno.work_positivism_dispute",
+    "experiment_adorno.work_mahler"
+  ],
+  "total_isolated": 528
+}
+
+======================================================================
+TEST 2: agent.execute_command('python -m pytest test_engine.py -v')
+======================================================================
+{
+  "returncode": 0,
+  "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0 -- C:\\Python314\\python.exe\ncachedir: .pytest_cache\nrootdir: C:\\Users\\hanju\\NewChanlun\nconfigfile: pyproject.toml\nplugins: asyncio-1.3.0, anyio-4.12.1, cov-7.0.0\nasyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 22 items\n\ntest_engine.py::test_beta1_empty PASSED                                  [  4%]\ntest_engine.py::test_beta1_single_vertex PASSED                          [  9%]\ntest_engine.py::test_beta1_line PASSED                                   [ 13%]\ntest_engine.py::test_beta1_triangle PASSED                               [ 18%]\ntest_engine.py::test_beta1_two_cycles PASSED                             [ 22%]\ntest_engine.py::test_beta1_self_loop PASSED                              [ 27%]\ntest_engine.py::test_fold_basic PASSED                                   [ 31%]\ntest_engine.py::test_fold_creates_loop PASSED                            [ 36%]\ntest_engine.py::test_negate_case_a PASSED                                [ 40%]\ntest_engine.py::test_negate_case_b PASSED                                [ 45%]\ntest_engine.py::test_negate_case_b_no_path PASSED                        [ 50%]\ntest_engine.py::test_sublate_after_negate PASSED                         [ 54%]\ntest_engine.py::test_sublate_requires_negation PASSED                    [ 59%]\ntest_engine.py::test_settlement_tracking PASSED                          [ 63%]\ntest_engine.py::test_settlement_blocking PASSED                          [ 68%]\ntest_engine.py::test_settlement_does_not_block_unrelated PASSED          [ 72%]\ntest_engine.py::test_negate_b_position PASSED                            [ 77%]\ntest_engine.py::test_sublate_position PASSED                             [ 81%]\ntest_engine.py::test_kfull_only_grows PASSED                             [ 86%]\ntest_engine.py::test_mor",
+  "stderr": ""
+}
+
+======================================================================
+TEST 3: agent.task('add a /status HTTP endpoint to daemon.py')
+======================================================================
+{
+  "task": "add a /status HTTP endpoint to daemon.py",
+  "search_hits": 150,
+  "top_matches": [
+    {
+      "vertex": "test_coding_agent.<module>",
+      "content_preview": "Test script for the Topological Coding Agent.\n\nRuns three tests:\n1. agent.analyze() \u2014 graph stats, f",
+      "in_neighbors": [],
+      "out_neighbors": [
+        "<import>.coding_agent.CodingAgent",
+        "<import>.json",
+        "<import>.os",
+        "<import>.sys"
+      ],
+      "match_keywords": [
+        "add",
+        "/status",
+        "http",
+        "endpoint",
+        "daemon.py"
+      ]
+    },
+    {
+      "vertex": "test_coding_agent.main",
+      "content_preview": "def main():\n    workspace = script_dir\n    output_lines = []\n\n    def log(msg):\n        print(msg)\n ",
+      "in_neighbors": [],
+      "out_neighbors": [
+        "test_coding_agent.main.log"
+      ],
+      "match_keywords": [
+        "add",
+        "/status",
+        "http",
+        "endpoint",
+        "daemon.py"
+      ]
+    },
+    {
+      "vertex": "auto_feed.<module>",
+      "content_preview": "auto_feed: Autonomous feeding module for TopologicalDaemon.\n\nThree-layer search (Wikipedia -> Semant",
+      "in_neighbors": [],
+      "out_neighbors": [
+        "<import>.__future__.annotations",
+        "<import>.dataclasses.dataclass",
+        "<import>.engine.Graph",
+        "<import>.json",
+        "<import>.os",
+        "<import>.sys",
+        "<import>.urllib.error",
+        "<import>.urllib.parse",
+        "<import>.urllib.request"
+      ],
+      "match_keywords": [
+        "http",
+        "daemon.py"
+      ]
+    },
+    {
+      "vertex": "psi_L_topological.generate_topological_narrative",
+      "content_preview": "def generate_topological_narrative(\n    graph: Graph,\n    terrain: dict[tuple[str, str], str] | None",
+      "in_neighbors": [
+        "psi_L_topological.run_comparison"
+      ],
+      "out_neighbors": [
+        "psi_L_topological._classify_cut",
+        "psi_L_topological._edge_type_label",
+        "psi_L_topological.generate_topological_narrative.name",
+        "psi_L_topological.linearize_complex"
+      ],
+      "match_keywords": [
+        "add",
+        "endpoint"
+      ]
+    },
+    {
+      "vertex": "phi_L.phi_L",
+      "content_preview": "def phi_L(text: str) -> Graph:\n    \"\"\"Complete pipeline: text -> typed directed simplicial complex.\n",
+      "in_neighbors": [],
+      "out_neighbors": [
+        "phi_L.extract_edges",
+        "phi_L.extract_negations",
+        "phi_L.extract_vertices",
+        "phi_L.merge_cross_sentence"
+      ],
+      "match_keywords": [
+        "add",
+        "endpoint"
+      ]
+    }
+  ],
+  "graph_stats": {
+    "active_vertices": 1143,
+    "active_edges": 1231,
+    "beta_1": 648
+  },
+  "status": "analysis_complete"
+}
+
+Results written to C:\Users\hanju\NewChanlun\tmp\coding_agent_test.txt

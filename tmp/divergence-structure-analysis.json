@@ -1,0 +1,1429 @@
+{
+  "summary": {
+    "total_events": 540,
+    "divergence_events": 120,
+    "non_divergence_events": 420,
+    "divergence_rate": 0.2222222222222222
+  },
+  "sign_divergence_in_divergence_events": {
+    "count": 120,
+    "total": 120,
+    "rate": 1.0,
+    "description": "分歧事件中 sign(product_polarity) != sign(fiber_polarity) 的占比"
+  },
+  "sign_divergence_in_non_divergence_events": {
+    "count": 80,
+    "total": 420,
+    "rate": 0.19047619047619047,
+    "description": "非分歧事件中 sign(product_polarity) != sign(fiber_polarity) 的占比"
+  },
+  "hypothesis_236": {
+    "verified": true,
+    "description": "236号假设：分歧事件 100% 对应 C-R 方向不一致 (sign(product_polarity) != sign(fiber_polarity))",
+    "detail": "120/120 分歧事件的 product/fiber polarity 符号不同"
+  },
+  "fiber_correction_scope": {
+    "only_on_sign_divergence": false,
+    "description": "纤维丛修正是否只在 C-R 方向不一致时产生决策差异",
+    "non_div_with_sign_divergence": 80
+  },
+  "sign_combo_distribution": {
+    "divergence_events": {
+      "P=+1,F=+0": 20,
+      "P=+1,F=-1": 20,
+      "P=+0,F=-1": 20,
+      "P=+0,F=+1": 20,
+      "P=-1,F=+1": 20,
+      "P=-1,F=+0": 20
+    },
+    "non_divergence_events": {
+      "P=+1,F=+1": 140,
+      "P=+1,F=+0": 20,
+      "P=+0,F=+0": 60,
+      "P=+0,F=-1": 20,
+      "P=-1,F=-1": 140,
+      "P=+0,F=+1": 20,
+      "P=-1,F=+0": 20
+    }
+  },
+  "config_distribution": {
+    "divergent_configs": [
+      "(+,-,+)",
+      "(+,-,0)",
+      "(+,0,+)",
+      "(+,0,0)",
+      "(-,+,-)",
+      "(-,+,0)",
+      "(-,0,-)",
+      "(-,0,0)",
+      "(0,+,-)",
+      "(0,-,+)"
+    ],
+    "configs_with_decision_diffs": {
+      "(+,0,+)": 10,
+      "(+,0,0)": 10,
+      "(+,-,+)": 20,
+      "(+,-,0)": 10,
+      "(0,+,-)": 10,
+      "(0,-,+)": 10,
+      "(-,+,0)": 10,
+      "(-,+,-)": 20,
+      "(-,0,0)": 10,
+      "(-,0,-)": 10
+    },
+    "configs_with_sign_divergence": [
+      "(+,-,+)",
+      "(+,-,0)",
+      "(+,0,+)",
+      "(+,0,0)",
+      "(-,+,-)",
+      "(-,+,0)",
+      "(-,0,-)",
+      "(-,0,0)",
+      "(0,+,-)",
+      "(0,-,+)"
+    ]
+  },
+  "divergence_event_details": {
+    "(+,0,+)": [
+      {
+        "bsp_idx": 1,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 3,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 5,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 7,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 9,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 11,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 13,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 15,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 17,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 19,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 2,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      }
+    ],
+    "(+,0,0)": [
+      {
+        "bsp_idx": 1,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 3,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 5,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 7,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 9,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 11,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 13,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 15,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 17,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 19,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": 0,
+        "product_sign": 1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      }
+    ],
+    "(+,-,+)": [
+      {
+        "bsp_idx": 0,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 1,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 2,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 3,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 4,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 5,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 6,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 7,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 8,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 9,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 10,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 11,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 12,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 13,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 14,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 15,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 16,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 17,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 18,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 19,
+        "bsp_type": "1S",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": 1,
+        "fiber_polarity": -1,
+        "product_sign": 1,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      }
+    ],
+    "(+,-,0)": [
+      {
+        "bsp_idx": 0,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 2,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 4,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 6,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 8,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 10,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 12,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 14,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 16,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 18,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -1,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      }
+    ],
+    "(0,+,-)": [
+      {
+        "bsp_idx": 1,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 3,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 5,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 7,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 9,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 11,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 13,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 15,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 17,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 19,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 2,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      }
+    ],
+    "(0,-,+)": [
+      {
+        "bsp_idx": 0,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 2,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 4,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 6,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 8,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 10,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 12,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 14,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 16,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 18,
+        "bsp_type": "1B",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": -2,
+        "product_sign": 0,
+        "fiber_sign": -1,
+        "sign_divergent": true
+      }
+    ],
+    "(-,+,0)": [
+      {
+        "bsp_idx": 1,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 3,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 5,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 7,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 9,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 11,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 13,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 15,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 17,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 19,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": 0,
+        "fiber_polarity": 1,
+        "product_sign": 0,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      }
+    ],
+    "(-,+,-)": [
+      {
+        "bsp_idx": 0,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 1,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 2,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 3,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 4,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 5,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 6,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 7,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 8,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 9,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 10,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 11,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 12,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 13,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 14,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 15,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 16,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 17,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 18,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 19,
+        "bsp_type": "1S",
+        "product_resonates": true,
+        "fiber_resonates": false,
+        "product_polarity": -1,
+        "fiber_polarity": 1,
+        "product_sign": -1,
+        "fiber_sign": 1,
+        "sign_divergent": true
+      }
+    ],
+    "(-,0,0)": [
+      {
+        "bsp_idx": 0,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 2,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 4,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 6,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 8,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 10,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 12,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 14,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 16,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 18,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -1,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      }
+    ],
+    "(-,0,-)": [
+      {
+        "bsp_idx": 0,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 2,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 4,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 6,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 8,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 10,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 12,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 14,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 16,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      },
+      {
+        "bsp_idx": 18,
+        "bsp_type": "1B",
+        "product_resonates": false,
+        "fiber_resonates": true,
+        "product_polarity": -2,
+        "fiber_polarity": 0,
+        "product_sign": -1,
+        "fiber_sign": 0,
+        "sign_divergent": true
+      }
+    ]
+  }
+}

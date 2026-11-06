@@ -1,0 +1,48 @@
+{
+  "ticker": "SPY",
+  "date_range": [
+    "2007-03-01",
+    "2026-02-27"
+  ],
+  "n_bars": 4779,
+  "summary": {
+    "max_level_reached": 2,
+    "levels_with_divergence_candidates": 0,
+    "l1_info": {
+      "segments": 6,
+      "zhongshus": 1,
+      "moves": 1,
+      "settled_moves": 0
+    },
+    "l1_divergences": {
+      "total_comparisons": 0,
+      "unique_divergences": 0
+    },
+    "per_level": {},
+    "aggregate": {
+      "total_candidates": 0,
+      "amplitude_divergences": 0,
+      "directional_divergences": 0,
+      "agreement_count": 0,
+      "only_amplitude": 0,
+      "only_directional": 0,
+      "both_divergent": 0,
+      "neither_divergent": 0,
+      "agreement_rate": 0,
+      "reachability_improvement": "无递归级别背驰候选——确认 237号诊断：递归深度=1 是结构性约束"
+    },
+    "structural_finding": {
+      "diagnosis": "237号确认——递归深度=1 是 D2 弱方向吸收的递归累积效应",
+      "l1_settled_moves": 0,
+      "explanation": "SPY 日线 4779 bars 仅产出 6 segments / 1 zhongshu / 1 move / 0 settled moves。level 2 无可用组件。这不是力度指标的问题，而是构造层数据不足。方向性力度的价值在于：当多 TF 输入绕过 D2 递归压缩后，level 2+ 的力度判断不再受 ker(D) 约束。"
+    }
+  },
+  "l1_divergence_comparisons": [],
+  "level_details": {},
+  "genealogy": "239号——T6 可达性验证（方向性力度 vs 振幅力度）",
+  "theoretical_basis": {
+    "237": "T6 递归深度=1 的根因：_amplitude_force in ker(D)",
+    "235": "离散化算子 D 系统性吸收幅度信息",
+    "239": "方向性力度 not in ker(D) 替代振幅力度"
+  }
+}

@@ -1,0 +1,705 @@
+{
+  "summary": {
+    "total_configs": 27,
+    "polarity_divergence_count": 16,
+    "polarity_divergence_rate": 0.5925925925925926,
+    "direction_flip_count": 10,
+    "direction_flip_rate": 0.37037037037037035,
+    "override_count": 16,
+    "override_rate": 0.5925925925925926,
+    "effective_dimension": 2.9144163765667246,
+    "global_kl_divergence": 0.09402322041254048
+  },
+  "divergence_details": [
+    {
+      "config": [
+        1,
+        1,
+        0
+      ],
+      "product_polarity": 2,
+      "fiber_polarity": 3,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        1,
+        1,
+        -1
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 3,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        1,
+        0,
+        1
+      ],
+      "product_polarity": 2,
+      "fiber_polarity": 0,
+      "product_direction": "buy",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        1,
+        0,
+        0
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 0,
+      "product_direction": "buy",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        1,
+        -1,
+        1
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": -1,
+      "product_direction": "buy",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        1,
+        -1,
+        0
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": -1,
+      "product_direction": "neutral",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        0,
+        1,
+        0
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 2,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        1,
+        -1
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 2,
+      "product_direction": "neutral",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        -1,
+        1
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": -2,
+      "product_direction": "neutral",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        -1,
+        0
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": -2,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        -1,
+        1,
+        0
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 1,
+      "product_direction": "neutral",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        -1,
+        1,
+        -1
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": 1,
+      "product_direction": "sell",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        -1,
+        0,
+        0
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": 0,
+      "product_direction": "sell",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        -1,
+        0,
+        -1
+      ],
+      "product_polarity": -2,
+      "fiber_polarity": 0,
+      "product_direction": "sell",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        1
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": -3,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        0
+      ],
+      "product_polarity": -2,
+      "fiber_polarity": -3,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    }
+  ],
+  "all_configs": [
+    {
+      "config": [
+        1,
+        1,
+        1
+      ],
+      "product_polarity": 3,
+      "fiber_polarity": 3,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        1,
+        1,
+        0
+      ],
+      "product_polarity": 2,
+      "fiber_polarity": 3,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        1,
+        1,
+        -1
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 3,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        1,
+        0,
+        1
+      ],
+      "product_polarity": 2,
+      "fiber_polarity": 0,
+      "product_direction": "buy",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        1,
+        0,
+        0
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 0,
+      "product_direction": "buy",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        1,
+        0,
+        -1
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 0,
+      "product_direction": "neutral",
+      "fiber_direction": "neutral",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        1,
+        -1,
+        1
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": -1,
+      "product_direction": "buy",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        1,
+        -1,
+        0
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": -1,
+      "product_direction": "neutral",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        1,
+        -1,
+        -1
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": -1,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        0,
+        1,
+        1
+      ],
+      "product_polarity": 2,
+      "fiber_polarity": 2,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        1,
+        0
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 2,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        1,
+        -1
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 2,
+      "product_direction": "neutral",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        0,
+        1
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 1,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.0,
+      "correction_magnitude": 0.0
+    },
+    {
+      "config": [
+        0,
+        0,
+        0
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 0,
+      "product_direction": "neutral",
+      "fiber_direction": "neutral",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.0,
+      "correction_magnitude": 0.0
+    },
+    {
+      "config": [
+        0,
+        0,
+        -1
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": -1,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.0,
+      "correction_magnitude": 0.0
+    },
+    {
+      "config": [
+        0,
+        -1,
+        1
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": -2,
+      "product_direction": "neutral",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        -1,
+        0
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": -2,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        0,
+        -1,
+        -1
+      ],
+      "product_polarity": -2,
+      "fiber_polarity": -2,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.1409757591255078,
+      "correction_magnitude": 0.23637051990937424
+    },
+    {
+      "config": [
+        -1,
+        1,
+        1
+      ],
+      "product_polarity": 1,
+      "fiber_polarity": 1,
+      "product_direction": "buy",
+      "fiber_direction": "buy",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        -1,
+        1,
+        0
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 1,
+      "product_direction": "neutral",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        -1,
+        1,
+        -1
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": 1,
+      "product_direction": "sell",
+      "fiber_direction": "buy",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 0.1471219659783224,
+      "correction_magnitude": 0.24180779454809892
+    },
+    {
+      "config": [
+        -1,
+        0,
+        1
+      ],
+      "product_polarity": 0,
+      "fiber_polarity": 0,
+      "product_direction": "neutral",
+      "fiber_direction": "neutral",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        -1,
+        0,
+        0
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": 0,
+      "product_direction": "sell",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        -1,
+        0,
+        -1
+      ],
+      "product_polarity": -2,
+      "fiber_polarity": 0,
+      "product_direction": "sell",
+      "fiber_direction": "neutral",
+      "polarity_divergence": true,
+      "direction_flipped": true,
+      "should_override": true,
+      "kl_divergence": 9.262368830573967e-05,
+      "correction_magnitude": 0.005571861296444158
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        1
+      ],
+      "product_polarity": -1,
+      "fiber_polarity": -3,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        0
+      ],
+      "product_polarity": -2,
+      "fiber_polarity": -3,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": true,
+      "direction_flipped": false,
+      "should_override": true,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    },
+    {
+      "config": [
+        -1,
+        -1,
+        -1
+      ],
+      "product_polarity": -3,
+      "fiber_polarity": -3,
+      "product_direction": "sell",
+      "fiber_direction": "sell",
+      "polarity_divergence": false,
+      "direction_flipped": false,
+      "should_override": false,
+      "kl_divergence": 0.1349141430642961,
+      "correction_magnitude": 0.23090117059443277
+    }
+  ]
+}

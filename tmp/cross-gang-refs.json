@@ -1,0 +1,1090 @@
+{
+  "total_genealogy": 341,
+  "total_depends_on_edges": 907,
+  "cross_gang_edges": 107,
+  "same_gang_edges": 272,
+  "unmapped_edges": 528,
+  "cross_gang_details": [
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "291",
+      "to_title": "元观察——v132-swarm ceremony 中途编排者任务注入",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "298",
+      "to_title": "折叠拓扑的有限元对应——镜子不是工具",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "299",
+      "to_title": "时空有限元与折叠生命周期——Gemini 空间力学类比的时间维度补完",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "300",
+      "to_title": "测度论与折叠拓扑的统一——度量骨架与拓扑骨架的互构",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "297",
+      "to_title": "同一存在论与折叠的统一——域不能安息于域",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "295",
+      "to_title": "操盘主体的第四层——形式系统穷尽后的剩余决断",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "301",
+      "from_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "296",
+      "to_title": "新域诞生形式条件——质变不可形式化 + 数据作为候选新域 + 局部完备性 vs 全局运动",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "302",
+      "from_title": "元观察——区块拓扑内容级升级 session 二阶观察",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "303",
+      "from_title": "元观察——Phase 2 否定/扬弃拓扑方案讨论 session（context compaction 后延续）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "304",
+      "from_title": "元观察——Phase 2 同调全局表达力 Gemini 讨论 session（context compaction 后延续）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "305",
+      "from_title": "元观察——Phase 2 否定/扬弃拓扑升级实现 session（context compaction 后延续）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "306",
+      "from_title": "元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant 接口预留）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "307",
+      "from_title": "元观察——Phase 2 regex 扩展 + enrichment 首次执行 session（否定8模式+修正三层策略+KeyError防御+拓扑跃变）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "307",
+      "from_title": "元观察——Phase 2 regex 扩展 + enrichment 首次执行 session（否定8模式+修正三层策略+KeyError防御+拓扑跃变）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "308",
+      "from_title": "元观察——Phase 2 精度校准三轮 + 审计六信号 + 异质审查启动 session",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "308",
+      "from_title": "元观察——Phase 2 精度校准三轮 + 审计六信号 + 异质审查启动 session",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "309",
+      "from_title": "Phase 2 异质审查裁定——四议题处置 + 概念注册表提出 + 关系分层引入",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "309",
+      "from_title": "Phase 2 异质审查裁定——四议题处置 + 概念注册表提出 + 关系分层引入",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "310",
+      "from_title": "元观察——309号异质审查裁定执行 + 关系分层代码实现 + block-topology 302-308 补建",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "312",
+      "from_title": "Phase 3 穿越基础设施裁定——Gemini+Codex 讨论 5 共识确认 + 3 分歧裁定 + 1 补充裁定",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "273",
+      "to_title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "317",
+      "from_title": "折叠内在性检验——Cu/Au × FCX 日线 L2 否定（0/3）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "317",
+      "from_title": "折叠内在性检验——Cu/Au × FCX 日线 L2 否定（0/3）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "290",
+      "to_title": "元观察——v132 session 蜂群自主实验推进 + context恢复后的ceremony续行",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "319",
+      "from_title": "层内折叠否定——断裂事件统计独立，ratio序列不折回自身",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "292",
+      "to_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "321",
+      "from_title": "折叠第三轮——历史性的位置：事件外注入，易感性内生产",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "292",
+      "to_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "322",
+      "from_title": "元观察——R3附加检验 session：编排者理论洞察→即时实验验证 + context compaction 后状态恢复",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "290",
+      "to_title": "元观察——v132 session 蜂群自主实验推进 + context恢复后的ceremony续行",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "323",
+      "from_title": "折叠内在性检验：理论结算——触发外在/条件内在/基本面是事后命名",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "292",
+      "to_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "326",
+      "from_title": "元观察——v142-swarm 三条并行数据线：代理选择伪影发现 + percentile全局约束 + QE分群一致性",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "327",
+      "from_title": "元观察——v143-swarm 五工位并行：有效一维部分解释 + QE方向性PARTIAL_PASS + P0映射修复 + 拓扑工具结构性伪影",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "328",
+      "from_title": "元观察——C3 三线并行 session：阈值非不变量 + 坍缩质量分化 + 可逆/不可逆初步形式化",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "322",
+      "from_title": "元观察——R3附加检验 session：编排者理论洞察→即时实验验证 + context compaction 后状态恢复",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "260",
+      "to_title": "元观察——v108-swarm 实验蜂群 + context compaction 后 team 状态丢失 + 编排者概念层洞察的嵌入路径",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "302",
+      "from_title": "元观察——区块拓扑内容级升级 session 二阶观察",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "303",
+      "from_title": "元观察——Phase 2 否定/扬弃拓扑方案讨论 session（context compaction 后延续）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "304",
+      "from_title": "元观察——Phase 2 同调全局表达力 Gemini 讨论 session（context compaction 后延续）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "305",
+      "from_title": "元观察——Phase 2 否定/扬弃拓扑升级实现 session（context compaction 后延续）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "306",
+      "from_title": "元观察——Phase 2 图不变量实现 session（compute_graph_invariants + is_structurally_significant 接口预留）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "307",
+      "from_title": "元观察——Phase 2 regex 扩展 + enrichment 首次执行 session（否定8模式+修正三层策略+KeyError防御+拓扑跃变）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "308",
+      "from_title": "元观察——Phase 2 精度校准三轮 + 审计六信号 + 异质审查启动 session",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "310",
+      "from_title": "元观察——309号异质审查裁定执行 + 关系分层代码实现 + block-topology 302-308 补建",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "311",
+      "from_title": "元观察——v134-swarm Phase 2→Phase 3 过渡 + 方向变更（flag complex 取消→穿越基础设施）",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "313",
+      "from_title": "元观察——v134-swarm Phase 3 讨论 + 总方针工作线分析",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "218",
+      "to_title": "Lead 并行化——割掉 RTAS 的串行尾巴",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "316",
+      "from_title": "元观察——上下文丢失中断恢复 + 蜂群残留状态处理模式",
+      "from_gang": "block-topology",
+      "from_mu": "block-topology-eng",
+      "to_id": "226",
+      "to_title": "Lead 中断问题完整根因——三类断裂 + 角色边界僭越",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "265",
+      "from_title": "操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "265",
+      "from_title": "操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "264",
+      "to_title": "定理1最终撤销——两版三轮全否 + \"不测而测\"消解层间过渡问题",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "265",
+      "from_title": "操作方法论——帕萨卡利亚模型（三层条件设定 + 多重赋格）",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "255",
+      "to_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "266",
+      "from_title": "元观察——v113-swarm 定理6一轮否定速度 + Claude自否定Gemini重构方向 + YAML解析边界修复 + downstream清零机制",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "263",
+      "to_title": "元观察——v111-swarm Gemini 模型升级决断路径 + 新定理1 fail 的本体论影响 + ceremony_scan 状态解析修复",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "266",
+      "from_title": "元观察——v113-swarm 定理6一轮否定速度 + Claude自否定Gemini重构方向 + YAML解析边界修复 + downstream清零机制",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "258",
+      "to_title": "元观察——v107-swarm 纯理论蜂群首例 + ceremony_scan 输入域边界 + Gemini 否定质量跃升 + 选择类分类正当性",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "266",
+      "from_title": "元观察——v113-swarm 定理6一轮否定速度 + Claude自否定Gemini重构方向 + YAML解析边界修复 + downstream清零机制",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "264",
+      "to_title": "定理1最终撤销——两版三轮全否 + \"不测而测\"消解层间过渡问题",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "267",
+      "from_title": "操作方法论 v1——满仓满融降成本体系",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "268",
+      "from_title": "元观察——v114-swarm 操作方法论内部推导首例 + 252号引用错位 + 概率论扬弃推导链完整性",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "269",
+      "from_title": "开放问题5四轮Gemini质询——从\"不可观测\"到\"三重联立候选判据+待回测\"",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "269",
+      "from_title": "开放问题5四轮Gemini质询——从\"不可观测\"到\"三重联立候选判据+待回测\"",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "257",
+      "to_title": "254号定理2——E-$_USD移出ker(D)判据：代理变量范畴错误+相变阈值缺失",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "279",
+      "from_title": "(无标题)",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "282",
+      "from_title": "元观察——v127-swarm 终止 session（无新发现）",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "260",
+      "to_title": "元观察——v108-swarm 实验蜂群 + context compaction 后 team 状态丢失 + 编排者概念层洞察的嵌入路径",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "284",
+      "from_title": "开放问题 v2——D 算子 + 背驰判断的联合阅读",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "292",
+      "from_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "292",
+      "from_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "255",
+      "to_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "293",
+      "from_title": "星形拓扑——霸权的拓扑定义",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "254",
+      "to_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "297",
+      "from_title": "同一存在论与折叠的统一——域不能安息于域",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "255",
+      "to_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "to_gang": "simatrix-quanyu",
+      "to_mu": "k4-engineering"
+    },
+    {
+      "from_id": "231",
+      "from_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "k4-independence-fiber",
+      "to_id": "222",
+      "to_title": "v4 §2.3 加法守恒范畴错误——将离散流向拓扑约束误判为近似",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "231",
+      "from_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "k4-independence-fiber",
+      "to_id": "223",
+      "to_title": "v4 §5.4 模式D派生边分类不完备——遗漏混合状态",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "278",
+      "from_title": "元观察——v122-swarm 编排者辩证INTERRUPT + 已结算定义执行漂移",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "216",
+      "to_title": "元观察——v55-swarm 异质诊断相关失败 + 任务粒度默认偏小",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "285",
+      "from_title": "元观察——v129-swarm 编排者语言清洗 + OQ v2 实验脚本重写",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "219",
+      "to_title": "元观察——v60-swarm 缠论语言封闭性违反 + F3术语修正 + risk残留断裂",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "291",
+      "from_title": "元观察——v132-swarm ceremony 中途编排者任务注入",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "224",
+      "to_title": "ceremony push→rescan 原子性断裂——用户消息中断 ceremony 序列",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "291",
+      "from_title": "元观察——v132-swarm ceremony 中途编排者任务注入",
+      "from_gang": "shipen-bihuan",
+      "from_mu": "operational-methodology",
+      "to_id": "225",
+      "to_title": "ceremony rescan→evaluate 原子性断裂——rescan 完成后被用户消息中断",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "329",
+      "from_title": "K4折叠内在性检验：最终结算——从全部否定到向心坍缩交汇",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "323",
+      "to_title": "折叠内在性检验：理论结算——触发外在/条件内在/基本面是事后命名",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "329",
+      "from_title": "K4折叠内在性检验：最终结算——从全部否定到向心坍缩交汇",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "321",
+      "to_title": "折叠第三轮——历史性的位置：事件外注入，易感性内生产",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "329",
+      "from_title": "K4折叠内在性检验：最终结算——从全部否定到向心坍缩交汇",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "319",
+      "to_title": "层内折叠否定——断裂事件统计独立，ratio序列不折回自身",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "329",
+      "from_title": "K4折叠内在性检验：最终结算——从全部否定到向心坍缩交汇",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "317",
+      "to_title": "折叠内在性检验——Cu/Au × FCX 日线 L2 否定（0/3）",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "331",
+      "from_title": "Stagnation审计——ceremony外编排者直驱产出不触发stagnation信号",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "327",
+      "to_title": "元观察——v143-swarm 五工位并行：有效一维部分解释 + QE方向性PARTIAL_PASS + P0映射修复 + 拓扑工具结构性伪影",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "331",
+      "from_title": "Stagnation审计——ceremony外编排者直驱产出不触发stagnation信号",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "314",
+      "to_title": "Stagnation 审计——v136 Codex 审查阶段的误报分析",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "332",
+      "from_title": "元观察——v144-swarm：C1-C3最终结算后首轮 ceremony + 编排者理论推进中断处理",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "328",
+      "to_title": "元观察——C3 三线并行 session：阈值非不变量 + 坍缩质量分化 + 可逆/不可逆初步形式化",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "341",
+      "from_title": "偶遇定义精化：从时间性绑定到结构性标准",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "301",
+      "to_title": "元观察——v133-swarm FEM 镜像三谱系 + 编排者分岔修正的覆盖缺口",
+      "to_gang": "block-topology",
+      "to_mu": "block-topology-eng"
+    },
+    {
+      "from_id": "253",
+      "from_title": "双管道真实 BSP 回测对比——22.2% 分歧率在真实数据复现",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "252",
+      "to_title": "递归 1min 深度验证",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "253",
+      "from_title": "双管道真实 BSP 回测对比——22.2% 分歧率在真实数据复现",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "241",
+      "to_title": "共振双管道——_build_resonance_signals 从双层简化升级为双模型并行共振构建",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "253",
+      "from_title": "双管道真实 BSP 回测对比——22.2% 分歧率在真实数据复现",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "244",
+      "to_title": "纤维丛管道自洽后回测对比——矛盾操作归零 + 裁决翻转为平局",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "253",
+      "from_title": "双管道真实 BSP 回测对比——22.2% 分歧率在真实数据复现",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "233",
+      "to_title": "离散化算子 D 的核结构——缠论的内在选择性原理",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "254",
+      "from_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "254",
+      "from_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "232",
+      "to_title": "ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "254",
+      "from_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "233",
+      "to_title": "离散化算子 D 的核结构——缠论的内在选择性原理",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "254",
+      "from_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "234",
+      "to_title": "ker(D) L2 交叉验证——K4 完全图全六条边",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "254",
+      "from_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "235",
+      "to_title": "离散化算子 D 的三态分类——吸收/保留/放大",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "254",
+      "from_title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "245",
+      "to_title": "22.2%分歧事件结构特征——与C-R方向不一致100%重合",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "255",
+      "from_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "252",
+      "to_title": "递归 1min 深度验证",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "255",
+      "from_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "241",
+      "to_title": "共振双管道——_build_resonance_signals 从双层简化升级为双模型并行共振构建",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "255",
+      "from_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "232",
+      "to_title": "ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "255",
+      "from_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "233",
+      "to_title": "离散化算子 D 的核结构——缠论的内在选择性原理",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "255",
+      "from_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "234",
+      "to_title": "ker(D) L2 交叉验证——K4 完全图全六条边",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "255",
+      "from_title": "编排者-Claude 推导对话——从操盘方法到多经济体本体论",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "235",
+      "to_title": "离散化算子 D 的三态分类——吸收/保留/放大",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "256",
+      "from_title": "254号定理1——三态逆序递归顺序的形式化跳跃（双轮质询确认）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "233",
+      "to_title": "离散化算子 D 的核结构——缠论的内在选择性原理",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "256",
+      "from_title": "254号定理1——三态逆序递归顺序的形式化跳跃（双轮质询确认）",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "235",
+      "to_title": "离散化算子 D 的三态分类——吸收/保留/放大",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "257",
+      "from_title": "254号定理2——E-$_USD移出ker(D)判据：代理变量范畴错误+相变阈值缺失",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "233",
+      "to_title": "离散化算子 D 的核结构——缠论的内在选择性原理",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "257",
+      "from_title": "254号定理2——E-$_USD移出ker(D)判据：代理变量范畴错误+相变阈值缺失",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "234",
+      "to_title": "ker(D) L2 交叉验证——K4 完全图全六条边",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "259",
+      "from_title": "黄金折叠剥离实验——C-$ 吸收是 C 类资产的一般性质",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "234",
+      "to_title": "ker(D) L2 交叉验证——K4 完全图全六条边",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "259",
+      "from_title": "黄金折叠剥离实验——C-$ 吸收是 C 类资产的一般性质",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "235",
+      "to_title": "离散化算子 D 的三态分类——吸收/保留/放大",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "259",
+      "from_title": "黄金折叠剥离实验——C-$ 吸收是 C 类资产的一般性质",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "232",
+      "to_title": "ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "262",
+      "from_title": "v109 结算通道可观测性实验——代理敏感性与六条边稳定性分类",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "234",
+      "to_title": "ker(D) L2 交叉验证——K4 完全图全六条边",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "262",
+      "from_title": "v109 结算通道可观测性实验——代理敏感性与六条边稳定性分类",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "235",
+      "to_title": "离散化算子 D 的三态分类——吸收/保留/放大",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "329",
+      "from_title": "K4折叠内在性检验：最终结算——从全部否定到向心坍缩交汇",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "292",
+      "to_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "329",
+      "from_title": "K4折叠内在性检验：最终结算——从全部否定到向心坍缩交汇",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "330",
+      "from_title": "K4拓扑与资本循环映射：金融循环的拓扑，不是资本循环的拓扑",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "292",
+      "to_title": "折叠拓扑本体论——分类学之前的存在论结构",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "330",
+      "from_title": "K4拓扑与资本循环映射：金融循环的拓扑，不是资本循环的拓扑",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "231",
+      "to_title": "形式化有效域规则——有效域 ≠ 定义域 + 认识论等级标注",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "k4-independence-fiber"
+    },
+    {
+      "from_id": "338",
+      "from_title": "操作方法论 v2——267号四项否定修正",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "267",
+      "to_title": "操作方法论 v1——满仓满融降成本体系",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "338",
+      "from_title": "操作方法论 v2——267号四项否定修正",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-regime-analysis",
+      "to_id": "295",
+      "to_title": "操盘主体的第四层——形式系统穷尽后的剩余决断",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "operational-methodology"
+    },
+    {
+      "from_id": "258",
+      "from_title": "元观察——v107-swarm 纯理论蜂群首例 + ceremony_scan 输入域边界 + Gemini 否定质量跃升 + 选择类分类正当性",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "228",
+      "to_title": "元观察——v77-swarm ceremony-step-guard 爆炸半径 + stagnation 诊断收敛 + 227号集成缺口部分修复",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "258",
+      "from_title": "元观察——v107-swarm 纯理论蜂群首例 + ceremony_scan 输入域边界 + Gemini 否定质量跃升 + 选择类分类正当性",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "221",
+      "to_title": "元观察——v3质询双向收敛 + 编排者第0条洞察（等价关系级别依赖性）",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "260",
+      "from_title": "元观察——v108-swarm 实验蜂群 + context compaction 后 team 状态丢失 + 编排者概念层洞察的嵌入路径",
+      "from_gang": "simatrix-quanyu",
+      "from_mu": "k4-engineering",
+      "to_id": "221",
+      "to_title": "元观察——v3质询双向收敛 + 编排者第0条洞察（等价关系级别依赖性）",
+      "to_gang": "swarm-infra",
+      "to_mu": "swarm-architecture-v2"
+    },
+    {
+      "from_id": "216",
+      "from_title": "元观察——v55-swarm 异质诊断相关失败 + 任务粒度默认偏小",
+      "from_gang": "swarm-infra",
+      "from_mu": "swarm-architecture-v2",
+      "to_id": "205",
+      "to_title": "(无标题)",
+      "to_gang": "shipen-bihuan",
+      "to_mu": "code-pipeline"
+    }
+  ],
+  "gang_pair_summary": {
+    "simatrix-quanyu -> shipen-bihuan": 31,
+    "block-topology -> shipen-bihuan": 29,
+    "shipen-bihuan -> simatrix-quanyu": 17,
+    "block-topology -> swarm-infra": 11,
+    "simatrix-quanyu -> block-topology": 8,
+    "shipen-bihuan -> swarm-infra": 6,
+    "simatrix-quanyu -> swarm-infra": 3,
+    "swarm-infra -> shipen-bihuan": 1,
+    "block-topology -> simatrix-quanyu": 1
+  }
+}
