@@ -495,11 +495,11 @@ pub(crate) fn with_sql_root<T>(
 pub struct GatedSqlReader<'tx, 'conn, 'work, T: ReaderTx = Transaction<'conn>> {
     inner: ManagedSqlStep<'tx, 'conn, 'work, T>,
 }
-impl<'tx, 'conn, 'work, T: ReaderTx> GatedSqlReader<'tx, 'conn, 'work, T> {
+impl<'tx, 'conn, 'work, Tx: ReaderTx> GatedSqlReader<'tx, 'conn, 'work, Tx> {
     pub fn new(
-        tx: &'tx mut T,
+        tx: &'tx mut Tx,
         work: &'work WorkScope,
-        gate: &'work dyn LiveGate<T>,
+        gate: &'work dyn LiveGate<Tx>,
     ) -> Result<Self, CodecError> {
         Ok(Self {
             inner: ManagedSqlStep::with_gate(tx, work, gate)?,
