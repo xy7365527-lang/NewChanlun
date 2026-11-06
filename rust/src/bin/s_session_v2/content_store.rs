@@ -1047,20 +1047,47 @@ impl NodeSource for ReadStore<'_> {
         read_node(self.conn, digest)
     }
 
-    /// #1890：只在显式事务内、main 处于 `SQLITE_TXN_READ`（已建立读快照、本事务尚未写过）
-    /// 时给出纪元 (`SQLITE_FCNTL_DATA_VERSION`, `total_changes()`)。写过（含 SAVEPOINT 后
-    /// 写再回滚、DDL）即为 WRITE，不给纪元；事务经 SQL 结束再开时，读前为 NONE，读后数据
-    /// 版本随任何连接的提交推进。全部走 FFI，不执行 SQL，审计授权器不介入。不在事务里的
+    /// #1890：只在以下条件同时成立时给出纪元 (`SQLITE_FCNTL_DATA_VERSION`, `total_changes()`)：
+    /// - 显式事务内，且所有 schema（含 temp）的最大事务状态为 `SQLITE_TXN_READ`：已建立读
+    ///   快照、本事务在任何库（含 temp）都尚未写过。写过（含 SAVEPOINT 后写再回滚、DDL、
+    ///   建 TEMP 表）即为 WRITE，不给纪元。
+    /// - 读取用的不带库名表名 `s_content_nodes` 解析到 main 的表：SQLite 按 temp、main、
+    ///   attached 顺序解析，ATTACH 的库排在 main 之后遮蔽不了 main，所以只需确认 temp 里
+    ///   没有同名表或视图（同名视图令无库名查询失败，同名表令 temp 查询成功）。
+    ///
+    /// 事务经 SQL 结束再开时，读前为 NONE；读后数据版本随任何连接的提交推进。全部走 FFI，
+    /// 不执行 SQL 语句；表元数据查询只在需要时加载 schema（加载期间 SQLite 不调用授权器），
+    /// 审计授权器不介入（`snapshot_epoch_does_not_invoke_authorizer` 锁住）。不在事务里的
     /// 短读（私有夹具字面量）没有纪元，外部提交在下一次读时照旧可见。
     fn snapshot_epoch(&self) -> Option<s_content::lookup_memo::SnapshotEpoch> {
         use rusqlite::ffi;
         if self.conn.is_autocommit() {
             return None;
         }
-        // SAFETY: 句柄只在本次调用内借给两个只读查询（事务状态、pager 数据版本）；不关闭、
-        // 不转移、不改连接状态，也不执行 SQL。`c"main"` 是以 NUL 结尾的静态库名。
+        // SAFETY: 句柄只在本次调用内借给只读查询（事务状态、表元数据、pager 数据版本）；
+        // 不关闭、不转移、不改连接状态，也不执行 SQL 语句。库名、表名均为以 NUL 结尾的静态
+        // 字面量；表元数据的输出指针全部传空。
         let db = unsafe { self.conn.handle() };
-        if unsafe { ffi::sqlite3_txn_state(db, c"main".as_ptr()) } != ffi::SQLITE_TXN_READ {
+        if unsafe { ffi::sqlite3_txn_state(db, std::ptr::null()) } != ffi::SQLITE_TXN_READ {
+            return None;
+        }
+        let nodes_table_in = |schema: *const std::os::raw::c_char| {
+            let rc = unsafe {
+                ffi::sqlite3_table_column_metadata(
+                    db,
+                    schema,
+                    c"s_content_nodes".as_ptr(),
+                    std::ptr::null(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            };
+            rc == ffi::SQLITE_OK
+        };
+        if !nodes_table_in(std::ptr::null()) || nodes_table_in(c"temp".as_ptr()) {
             return None;
         }
         let mut version: u32 = 0;
@@ -1276,6 +1303,62 @@ mod tests {
         drop(external);
         drop(conn);
         std::fs::remove_file(path).unwrap();
+    }
+
+    fn epoch_fixture() -> Connection {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1, 's-session/3', '1', 'clock', '{}', 1, 'accept')",
+            [],
+        )
+        .unwrap();
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        tx.commit().unwrap();
+        conn
+    }
+
+    /// #1890：取纪元只走 FFI；在拒绝一切的授权器下照常给出纪元，授权器一次也没被调用。
+    #[test]
+    fn snapshot_epoch_does_not_invoke_authorizer() {
+        use rusqlite::hooks::Authorization;
+        let mut conn = epoch_fixture();
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let tx = conn.transaction().unwrap();
+        let reader = ReadStore::new(&tx).unwrap();
+        let seen = calls.clone();
+        tx.authorizer(Some(move |_: rusqlite::hooks::AuthContext<'_>| {
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Authorization::Deny
+        }));
+        assert!(reader.snapshot_epoch().is_some());
+        assert!(reader.snapshot_epoch().is_some());
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        tx.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
+    }
+
+    /// #1890 复审 HIGH：TEMP 同名表或视图遮蔽不带库名的 `s_content_nodes` 时不给纪元，
+    /// 包括事务内新建（temp 写过）与 autocommit 下先建、再进入 READ 两种情况。
+    #[test]
+    fn snapshot_epoch_refuses_temp_shadow_of_nodes_table() {
+        for ddl in [
+            "CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL)",
+            "CREATE TEMP VIEW s_content_nodes AS SELECT * FROM main.s_content_nodes WHERE 0",
+        ] {
+            let mut conn = epoch_fixture();
+            {
+                let tx = conn.transaction().unwrap();
+                let reader = ReadStore::new(&tx).unwrap();
+                assert!(reader.snapshot_epoch().is_some());
+                tx.execute_batch(ddl).unwrap();
+                assert_eq!(reader.snapshot_epoch(), None, "事务内建 TEMP 同名对象：{ddl}");
+            }
+            conn.execute_batch(ddl).unwrap();
+            let tx = conn.transaction().unwrap();
+            let reader = ReadStore::new(&tx).unwrap();
+            assert_eq!(reader.snapshot_epoch(), None, "autocommit 先建再进入 READ：{ddl}");
+        }
     }
 
     /// #1890：只有显式事务内、尚未写过的读快照给出纪元；短读夹具没有纪元，上层 reader

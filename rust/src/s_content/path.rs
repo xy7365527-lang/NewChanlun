@@ -2025,6 +2025,7 @@ pub fn lookup_path_native(
     super::lookup_memo::lookup_ref(
         source,
         reference,
+        super::lookup_memo::Op::path_view_bytes(&path),
         || super::lookup_memo::Op::path_view(&path),
         |source| lookup_path_output(&mut CodecContext::Source(source), reference, path),
     )
@@ -2037,6 +2038,7 @@ pub fn lookup_path_view_native(
     super::lookup_memo::lookup_ref(
         source,
         reference,
+        super::lookup_memo::Op::path_view_bytes(path),
         || super::lookup_memo::Op::path_view(path),
         |source| lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false),
     )

@@ -18,8 +18,9 @@
 //!    都已按 F 核过。所以在同一一致读集内，同一查找第二次执行只可能逐字重放第一次的读，
 //!    得到同一结果。本表只在来源能**证明**读集一致的期间生效：
 //!    - 来源必须通过 [`NodeSource::snapshot_epoch`] 给出纪元，**每次取表都重取**。目前
-//!      只有 `ReadStore`（只能由 `&Transaction` 构造）给出，且只在 main 库处于
-//!      `SQLITE_TXN_READ`（显式事务已建立读快照、**本事务尚未写过**）时给出；纪元为
+//!      只有 `ReadStore`（只能由 `&Transaction` 构造）给出，且只在所有库（含 temp）的最大
+//!      事务状态为 `SQLITE_TXN_READ`（显式事务已建立读快照、**本事务尚未写过**）、并且
+//!      temp 里没有遮蔽 `s_content_nodes` 的同名表或视图时给出；纪元为
 //!      (`SQLITE_FCNTL_DATA_VERSION`, `total_changes()`)。读状态下读快照固定，外部提交
 //!      不可见，本连接也没有写：节点不会被改写、删除、回滚掉，表结构不会变。一旦本事务
 //!      写过（含 SAVEPOINT 后写入再 `ROLLBACK TO`、DDL 如 `DROP TABLE`），状态变为
@@ -87,6 +88,19 @@ impl Op {
                 .map(|i| path.step(i).map_or(Step::Missing, Step::from))
                 .collect(),
         )
+    }
+    /// 建键之前估算本形状的堆字节，供复制前的限额检查。
+    pub(super) fn path_view_bytes(path: &dyn super::path::PathView) -> usize {
+        (0..path.len())
+            .map(|i| match path.step(i) {
+                Some(PathStepView::Field(name)) => name.len(),
+                _ => 0,
+            })
+            .sum::<usize>()
+            + path.len() * std::mem::size_of::<Step>()
+    }
+    pub(super) fn fields_bytes(names: &[&str]) -> usize {
+        names.iter().map(|n| n.len()).sum::<usize>() + names.len() * std::mem::size_of::<Box<str>>()
     }
     pub(super) fn fields(names: &[&str], exact: bool) -> Self {
         Self::Fields {
@@ -200,6 +214,14 @@ impl LookupMemo {
         }
         self
     }
+    /// 本纪元下能否为一个堆字节约为 `key_bytes` 的键建键（建键之前调用）。
+    fn admits_key(&self, epoch: Option<SnapshotEpoch>, key_bytes: usize) -> bool {
+        epoch.is_some()
+            && self.epoch == epoch
+            && self.map.len() < MAX_ENTRIES
+            && key_bytes.saturating_add(std::mem::size_of::<(Key, Value)>())
+                <= MAX_BYTES.saturating_sub(self.bytes)
+    }
     /// 本纪元下还能为 `key` 再收多少字节的结果；不能再收（条目满、纪元已变、键本身超额）
     /// 时为 None，调用方不复制结果。
     fn room(&self, epoch: Option<SnapshotEpoch>, key: &Key) -> Option<usize> {
@@ -229,6 +251,7 @@ impl LookupMemo {
 fn memoized<T>(
     source: &mut dyn NodeSource,
     reference: RefView<'_>,
+    op_bytes: usize,
     op: impl FnOnce() -> Op,
     hit: impl FnOnce(&Value) -> Option<Result<T, CodecError>>,
     store: impl FnOnce(&T, usize) -> Result<Option<Value>, CodecError>,
@@ -243,6 +266,11 @@ fn memoized<T>(
         return run(source);
     };
     let epoch = memo.epoch;
+    // 键也先按限额筛选再复制：表满或额度不足时不建键，本次照旧真实执行（不入表、不命中）。
+    let key_bytes = reference.format().len() + reference.root().len() + op_bytes;
+    if !memo.admits_key(epoch, key_bytes) {
+        return run(source);
+    }
     let key = Key {
         root: Root {
             format: reference.format().into(),
@@ -284,12 +312,14 @@ fn memoized<T>(
 pub(super) fn lookup_ref(
     source: &mut dyn NodeSource,
     reference: RefView<'_>,
+    op_bytes: usize,
     op: impl FnOnce() -> Op,
     run: impl FnOnce(&mut dyn NodeSource) -> Result<NativeValue<ContentRef>, CodecError>,
 ) -> Result<NativeValue<ContentRef>, CodecError> {
     memoized(
         source,
         reference,
+        op_bytes,
         op,
         |value| match value {
             Value::Ref(c) => Some(Ok(rebuild(c))),
@@ -309,6 +339,7 @@ pub(super) fn lookup_optional(
     memoized(
         source,
         reference,
+        name.len(),
         || Op::OptionalField(name.into()),
         |value| match value {
             Value::Ref(c) => Some(Ok(Some(rebuild(c)))),
@@ -332,6 +363,7 @@ pub(super) fn lookup_fields(
     memoized(
         source,
         reference,
+        Op::fields_bytes(names),
         || Op::fields(names, exact),
         |value| match value {
             Value::Fields(fields) => {
@@ -373,6 +405,7 @@ pub(super) fn lookup_items(
     memoized(
         source,
         reference,
+        0,
         || Op::ArrayItems,
         |value| match value {
             Value::Items(items) => {

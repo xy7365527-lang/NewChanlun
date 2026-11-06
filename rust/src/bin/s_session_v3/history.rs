@@ -5737,6 +5737,66 @@ pub(super) mod tests {
         );
     }
 
+    /// #1890 复审反例 D：读快照内缓存成功后，事务内新建 TEMP 同名节点表；同一查找必须与
+    /// 基线一样读到空的 temp 表、报 NODE_MISSING。
+    #[test]
+    fn path_memo_does_not_survive_temp_shadow_created_in_transaction() {
+        let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
+        let tx = fixture.conn.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        reader.lookup_field_ref((&root).into(), "a").unwrap();
+        tx.execute_batch(
+            "CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL)",
+        )
+        .unwrap();
+        assert_eq!(
+            reader
+                .lookup_field_ref((&root).into(), "a")
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_MISSING
+        );
+    }
+
+    /// #1890 复审反例 E：缓存后经 SQL 结束事务，在 autocommit 下建 TEMP 同名表或视图，再
+    /// BEGIN 并进入 READ；main 的数据版本与写计数都没变，同一查找仍必须与基线一致。
+    #[test]
+    fn path_memo_does_not_survive_temp_shadow_created_between_transactions() {
+        for (ddl, expected) in [
+            (
+                "CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL)",
+                sc::code::NODE_MISSING,
+            ),
+            (
+                "CREATE TEMP VIEW s_content_nodes AS SELECT * FROM main.s_content_nodes WHERE 0",
+                sc::code::NODE_MISSING,
+            ),
+        ] {
+            let (mut fixture, root) = path_memo_fixture(&V::Object(vec![("a".into(), V::Null)]));
+            let tx = fixture.conn.transaction().unwrap();
+            let mut source = content_store::ReadStore::new(&tx).unwrap();
+            let mut reader = HashReader::new(&mut source);
+            reader.lookup_field_ref((&root).into(), "a").unwrap();
+            reader.lookup_field_ref((&root).into(), "a").unwrap();
+            tx.execute_batch("COMMIT").unwrap();
+            tx.execute_batch(ddl).unwrap();
+            tx.execute_batch("BEGIN").unwrap();
+            let _: i64 = tx
+                .query_row("SELECT count(*) FROM s_protocol_meta", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(
+                reader
+                    .lookup_field_ref((&root).into(), "a")
+                    .unwrap_err()
+                    .code(),
+                expected,
+                "{ddl}"
+            );
+        }
+    }
+
     /// #1890 审查反例 C：事务经 SQL 结束再 BEGIN（ABA），期间另一连接提交改写；无论新事务
     /// 是否已读过（NONE/READ 两种状态），旧结果都不得复活，必须与基线一样报 NODE_DIGEST。
     #[test]
