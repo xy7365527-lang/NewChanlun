@@ -35,6 +35,14 @@ export const PROVIDER_DEFINITION = {
   requires_openai_auth: true,
   env_key: PROVIDER_KEY_ENV,
 } as const;
+export const DEEPAGENTS_OUTPUT_PROTOCOL = "deepagents-self-report-v1";
+export type OutputProtocol = "legacy" | typeof DEEPAGENTS_OUTPUT_PROTOCOL;
+
+export function outputProtocol(value: unknown = "legacy"): OutputProtocol {
+  if (value !== "legacy" && value !== DEEPAGENTS_OUTPUT_PROTOCOL) throw new Error("未知工蜂输出协议");
+  return value;
+}
+
 export type ChildMode = "review" | "execute";
 export type ChildStatus = "running" | "completed" | "failed" | "cancelled";
 /** 输出渠道等监督设施失败属于 failed，不冒充管理者主动取消。 */
@@ -50,6 +58,7 @@ export interface ChildOptions {
   promptFile: string;
   outputDir: string;
   model?: ChildModel;
+  outputProtocol?: OutputProtocol;
   /** 管理者所在 checkout；默认为启动入口的 cwd。不能同时也是工蜂 checkout。 */
   controllerCheckout?: string;
   idleTimeoutSeconds?: number;
@@ -61,6 +70,11 @@ export interface WorkerOutput {
   summary: string;
   findings: string[];
   validation: string[];
+}
+
+export interface DeepAgentsWorkerOutput extends WorkerOutput {
+  confidence: "high" | "medium" | "low";
+  caveats: string[];
 }
 
 export interface CheckoutSnapshot {
@@ -105,7 +119,8 @@ export interface ChildRecord {
   stderr_log: string;
   events_log: string;
   prompt_sha256: string | null;
-  result: WorkerOutput | null;
+  output_protocol?: OutputProtocol;
+  result: WorkerOutput | DeepAgentsWorkerOutput | null;
   failure_reason: string | null;
 }
 
@@ -120,6 +135,20 @@ export const OUTPUT_SCHEMA = {
   },
   required: ["status", "summary", "findings", "validation"],
 } as const;
+
+export const DEEPAGENTS_OUTPUT_SCHEMA = {
+  ...OUTPUT_SCHEMA,
+  properties: {
+    ...OUTPUT_SCHEMA.properties,
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    caveats: { type: "array", items: { type: "string" } },
+  },
+  required: [...OUTPUT_SCHEMA.required, "confidence", "caveats"],
+} as const;
+
+export function workerOutputSchema(protocol: OutputProtocol = "legacy") {
+  return outputProtocol(protocol) === DEEPAGENTS_OUTPUT_PROTOCOL ? DEEPAGENTS_OUTPUT_SCHEMA : OUTPUT_SCHEMA;
+}
 
 function shellQuote(value: string): string {
   return "'" + value.replaceAll("'", "'\\''") + "'";
@@ -170,6 +199,7 @@ export function validateOptions(options: ChildOptions): void {
   if (!/^[a-f0-9]{40}$/.test(options.expectedHead)) throw new Error("expected-head 必须是完整的 40 位小写提交 SHA");
   if (options.mode !== "review" && options.mode !== "execute") throw new Error("mode 只能是 review 或 execute");
   if (options.model !== undefined) assertRoute(options.model);
+  outputProtocol(options.outputProtocol);
   for (const [name, path] of [["checkout", options.checkout], ["prompt-file", options.promptFile], ["output-dir", options.outputDir]]) {
     if (!path || !isAbsolute(path)) throw new Error(`${name} 必须是绝对路径`);
   }
@@ -294,7 +324,9 @@ export class CodexTranscript {
   turnCompleted = false;
   failure: string | null = null;
   private reconnectPending = false;
-  constructor(private readonly provider: AgentProvider) {}
+  constructor(private readonly provider: AgentProvider, private readonly protocol: OutputProtocol = "legacy") {
+    outputProtocol(protocol);
+  }
 
   accept(line: string): void {
     if (!line.trim()) return;
@@ -334,19 +366,23 @@ export class CodexTranscript {
     }
   }
 
-  output(): WorkerOutput {
+  output(): WorkerOutput | DeepAgentsWorkerOutput {
     if (this.failure) throw new Error(this.failure);
     if (this.reconnectPending) throw new Error("Codex 重连后未完成");
     if (!this.sessionId || !this.turnCompleted || !this.finalText?.trim()) throw new Error("缺少 session_id、turn.completed 或最终结果");
     let value: unknown;
     try { value = JSON.parse(this.finalText); } catch { throw new Error("Codex 最终结果不是有效 JSON"); }
-    const result = value as Partial<WorkerOutput> | null;
+    const result = value as Partial<DeepAgentsWorkerOutput> | null;
+    const selfReport = this.protocol === DEEPAGENTS_OUTPUT_PROTOCOL;
     if (!result || typeof result !== "object" || Array.isArray(result)
       || !["completed", "blocked", "failed"].includes(result.status ?? "")
       || typeof result.summary !== "string" || !result.summary.trim()
       || !Array.isArray(result.findings) || result.findings.some((x) => typeof x !== "string")
       || !Array.isArray(result.validation) || result.validation.some((x) => typeof x !== "string")
-      || Object.keys(result).sort().join(",") !== "findings,status,summary,validation") {
+      || Object.keys(result).sort().join(",") !== (selfReport
+        ? "caveats,confidence,findings,status,summary,validation" : "findings,status,summary,validation")
+      || selfReport && (!["high", "medium", "low"].includes(result.confidence ?? "")
+        || !Array.isArray(result.caveats) || result.caveats.some((x) => typeof x !== "string"))) {
       throw new Error("Codex 最终结果不符合工蜂结果契约");
     }
     return result as WorkerOutput;
@@ -557,6 +593,7 @@ export async function runCodexChild(
     output_dir: outputDir, stdout_log: join(outputDir, "codex.stdout.jsonl"),
     stderr_log: join(outputDir, "codex.stderr.log"), events_log: join(outputDir, "events.jsonl"),
     prompt_sha256: null, result: null, failure_reason: null,
+    ...(options.outputProtocol ? { output_protocol: options.outputProtocol } : {}),
   };
   const persistState = () => {
     writeFileSync(join(outputDir, "state.json.tmp"), JSON.stringify(record, null, 2) + "\n", { mode: 0o600 });
@@ -603,7 +640,7 @@ export async function runCodexChild(
     record.prompt_sha256 = createHash("sha256").update(prompt).digest("hex");
     writeFileSync(join(outputDir, "prompt.md"), prompt, { flag: "wx", mode: 0o600 });
     const schemaPath = join(outputDir, "output.schema.json");
-    writeFileSync(schemaPath, JSON.stringify(OUTPUT_SCHEMA), { flag: "wx", mode: 0o600 });
+    writeFileSync(schemaPath, JSON.stringify(workerOutputSchema(options.outputProtocol)), { flag: "wx", mode: 0o600 });
     // 密钥缺失在任何进程启动前失败；env 只交给子进程，不进入 record。
     // 覆盖白名单透传的宿主 CODEX_HOME，确保进程与 sessionStorage 使用同一隔离 home。
     const env = providerEnvironment({
@@ -611,7 +648,7 @@ export async function runCodexChild(
       CODEX_HOME: codexHome,
     }, control.keyLookup);
     provider = await boundedCodex(options.mode, schemaPath, env, record.model);
-    transcript = new CodexTranscript(provider);
+    transcript = new CodexTranscript(provider, options.outputProtocol);
     const command = provider.buildPrintCommand({ prompt, dangerouslySkipPermissions: false });
     // 最后一次预检紧邻 spawn；不以最初快照代替当前状态。
     preflightCheckout(options);

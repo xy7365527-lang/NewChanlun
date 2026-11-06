@@ -184,7 +184,7 @@ def test_malformed_execution_has_value_error_boundary(raw):
         parse_execution(raw)
 
 
-def test_boat_design_prompt_uses_cloud_root_with_custom_source(env, monkeypatch):
+def test_boat_design_prompt_uses_cloud_root_with_custom_source(env, legacy_boat_runtime, monkeypatch):
     from test_boat import adapter
     run, engine, key, _ = adapter(env)
     from dataclasses import replace

@@ -10,9 +10,12 @@ SERVICE = "你由另一个代理作为工具调用，只向主控交回结果，
 CLOUD_SKILLS = "/opt/newchanlun/pstack/installed/skills/"
 
 
+@pytest.mark.parametrize("legacy", [False, True])
 @pytest.mark.parametrize("cloud", [False, True])
-def test_design_and_judge_keep_backend_paths_and_each_candidates_limits(env, cloud):
+def test_design_and_judge_keep_backend_paths_and_each_candidates_limits(env, cloud, legacy, monkeypatch):
     run = env.create(task=DESIGN_TASK)
+    if legacy:
+        monkeypatch.setattr(run, "_output_protocol", lambda: "legacy")
     env.control({
         "design-a": {"summary": "设计甲", "findings": ["甲拒绝项"], "validation": ["甲核查"]},
         "design-b": {"summary": "设计乙", "findings": ["乙拒绝项"], "validation": ["乙核查"]},
@@ -39,16 +42,20 @@ def test_design_and_judge_keep_backend_paths_and_each_candidates_limits(env, clo
     ):
         package = judge.split("## " + label + "\n", 1)[1].split("\n## 候选", 1)[0]
         assert all(value in package for value in (summary, rejected, validation, reason))
-        assert "未单独采集 confidence 与 caveats" in package
+        assert ("未单独采集 confidence 与 caveats" if legacy else '"caveats": ["仅夹具验证"]') in package
+        assert ("并自报 confidence" in judge) is not legacy
     if cloud:
         assert SKILLS_ROOT not in judge
     run.execution = None
     run.release()
 
 
+@pytest.mark.parametrize("legacy", [False, True])
 @pytest.mark.parametrize("cloud", [False, True])
-def test_author_rework_keeps_review_validation_and_failure_reason(env, cloud):
+def test_author_rework_keeps_review_validation_and_failure_reason(env, cloud, legacy, monkeypatch):
     run = env.create()
+    if legacy:
+        monkeypatch.setattr(run, "_output_protocol", lambda: "legacy")
     env.control({"author": {"write": {"demo/a.py": "x = 1\n"}},
                  "review": {"summary": "VERDICT: BLOCK\n缺边界", "findings": ["补空值测试"],
                             "validation": ["只跑本地靶向"]}})
@@ -61,10 +68,11 @@ def test_author_rework_keeps_review_validation_and_failure_reason(env, cloud):
     prompt = run._prompt(WorkerKey(run.spec.run_id, "author", head), "按独审返修", facts)
     assert prompt.startswith(SERVICE)
     for value in ("VERDICT: BLOCK", "补空值测试", "只跑本地靶向", "未验真实 provider",
-                  "未单独采集 confidence 与 caveats"):
+                  "未单独采集 confidence 与 caveats" if legacy else '"caveats": ["仅夹具验证"]'):
         assert value in prompt
     review_prompt = run._prompt(WorkerKey(run.spec.run_id, "review", head), "独审", facts)
     assert review_prompt.startswith(SERVICE)
+    assert ("并自报 confidence" in review_prompt) is not legacy
     assert head in review_prompt
     run.execution = None
     run.release()
