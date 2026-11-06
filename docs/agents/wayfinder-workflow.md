@@ -100,17 +100,17 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 
 ## 管线自动化（2026-08-18，[#1078](https://github.com/xy7365527-lang/NewChanlun/issues/1078) 裁定）
 
-图清后管道自动汇入主干：**机器走管道，人守三闸**（spec 批准 / 不预授权决策 / 合入 main）。
+图清后管道自动汇入主干：**机器走管道，人守合入 main**。spec 与决策（T/P）经起草与非作者独审 PASS 由代理裁定（[#1909](https://github.com/xy7365527-lang/NewChanlun/issues/1909)，用户直接授权；原「spec 批准 / 不预授权决策」两闸删除）。
 
 - **形态**：graph 语义 + loop 壳。DAG 走查器 = 纯函数（tracker 状态 → 触发动作）；壳 = 4 分钟轮询（watcher.sh / dispatcher 子代理先例）；日后可换事件驱动不动内核。
 - **宿主**：独立件 `scripts/wayfinder_engine`（控制面）；spec 草案 = 主控同型起草子代理（Claude Code CLI 无头、`--bare`、禁工具，经 CLIProxyLocal；默认与唯一允许值均为 `gpt-6.1-sol`，其它值启动即 fail-loud；只读文书，#1000 例外类；#1588 / #1617 更新）；实装票派 sandcastle 工蜂（既有两段式通道）。
 - **状态**：stateless——tracker 即账本，每轮重算 ready 集、天然幂等，不建状态库。
 - **自动动作边界**：
-  1. 图清（子票全关、frontier 空）→ 自动起草 spec 草案、开图内 spec 票、@编排者批【闸一】；
-  2. spec 批准 → 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
+  1. 图清（子票全关、frontier 空）→ 自动起草 spec 草案、开图内 spec 票，待非作者独审；
+  2. spec 有效「SPEC 独审裁定：PASS」记录（非作者、绑定正文摘要，格式见 `.sandcastle/docs/graph-engineering.md`「SPEC 裁定」）→ 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
   3. 实装票全关 + 图关判据满足（destination 达成、残雾三去处核实）→ 自动起草图关 comment + close。
-- **不碰决策票（v1）**：决策票（含 Notes N-k 预授权照判）一律人工——机器不替人裁；v2 观察项 = 预授权影子模式（自动起草 resolution、不关票，人批才发）。
-  - **v2 裁决面**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)）：本条只约束 wayfinder_engine 本体。图在 Notes 写明技术类预授权时，由独立组件 decision-claimer 分级（T/P）、考古、起草、独审：T 类审查通过即按预授权裁定，P 类走影子模式待人批。起草前先考古（用户 2026-10-20 令「所有的裁决票都要先考古」）：每个待决点两路搜，已裁的沿用，只把真没设计过的决定交给人，每问附出处与推荐值。流程正本 `.sandcastle/docs/graph-engineering.md`「2. 考古」。
+- **engine 不碰决策票**：wayfinder_engine 本体不裁决策票。
+  - **裁决面**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)，#1909 更新）：独立组件 decision-claimer 分级（T/P）、考古、起草、非作者独审；T/P 两类审查全 PASS 即由代理裁定落地，BLOCK 用尽或考古有事实缺口则暂停（held）不放行，票上「退回：…」评论后整链重跑。起草前先考古（用户 2026-10-20 令「所有的裁决票都要先考古」）：每个待决点两路搜，已裁的沿用，真没设计过的决定由起草者按推荐答案与推导裁定、交独审核对。流程正本 `.sandcastle/docs/graph-engineering.md`「2. 考古」。
 - **队列交棒（#1084 追加）**：控制面每轮只给合资格实装票（已批准 spec/DAG + 未 assign + 无 open blocker）挂 `sandcastle`，不把全部历史 `ready-for-agent` 无差别放行；每轮五桶分明（扫描集 `ready-for-agent` ∪ `wayfinder:impl` / 已获 `sandcastle` 拾取权 / blocked / claimed / running）；批准态沿 SPEC 子树递归（2026-10-20 修正，判据细则见 `.sandcastle/docs/graph-engineering.md`「解锁」）。控制面为受管常驻服务（launchd KeepAlive，`.sandcastle/install-wayfinder-engine.sh`），gh 查询有限重试 + 指数退避 + fail-loud，无 runnable 票 sleep 后重查、不退出。
 - 实装票：[#1084](https://github.com/xy7365527-lang/NewChanlun/issues/1084)（sandcastle 通道）。
 
