@@ -1,6 +1,6 @@
 {
   "id": "venue-profile-P0",
-  "version": 2,
+  "version": 3,
   "kind": "venue_profile",
   "profile_id": "P0",
   "symbol": "BTC",
@@ -21,18 +21,18 @@
     "slippage_bps": {
       "value": "AwaitingPolicy",
       "unit": "bp/side",
-      "source": "ADR 0057 裁定二、四：回放撮合滑点与成本门滑点是两个量；仓内无 P0 逐笔滑点观测，1m OHLCV 测不出盘口滑点。退场条件：带日期与哈希的实测来源，或用户按 [新缠论:选择] 另签回放撮合假设值。不拿诊断夹具 2.0 或未标定常数凑数（ADR 0035:44 被否方案）"
+      "source": "ADR 0057 裁定二、九；https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6697804941。回放撮合滑点与成本门滑点是两个量；仓内无 P0 逐笔滑点观测，保持 AwaitingPolicy。退场条件：具名测量证据经识别范围审查后签值，或另行裁定为具名模型假设并写明代价；不外推 synthetic 零值，不拿诊断夹具或成本门数值补齐。"
     },
     "tax_bps": {
-      "value": "AwaitingPolicy",
+      "value": 0,
       "unit": "bp/side",
-      "source": "ADR 0057 裁定四：无可回查的场所原件给出现货交易税，税务取决于账户主体辖区。`fee_schedule` 互斥约束（config.rs）是结构理由，不是签署来源，不据此代填 0"
+      "source": "ADR 0057 裁定九；https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6697804941；生效 2026-11-07。[新缠论:选择] 模型范围约定：本 profile 无账户主体，不建模逐笔交易税，不是 Binance 或账户辖区的税务事实；fee_schedule 互斥不是来源。有账户主体的 profile 须按辖区另行签值。"
     },
     "entry_delay_bars": {
-      "value": "AwaitingPolicy",
+      "value": 1,
       "unit": "基础 K 根数",
-      "source": "ADR 0057 裁定五：撮合模型参数，版本化可配置；默认 AwaitingPolicy，不得静默取 1；夹具值 1 与 #907 DELAYERR 不作证据。由本 profile 的使用方提请用户按 [新缠论:选择] 签值进新版本"
+      "source": "ADR 0057 裁定九；https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6697804941；生效 2026-11-07。[新缠论:选择] 模型假设：批量臂从信号后第一根可交易 bar 成交，不是真实场所延迟；合法值为非负整数根数，改值即出新版本，不允许失败换值兜底。夹具值 1 与 #907 DELAYERR 不作签值证据。"
     }
   },
-  "cost": "本版 tick_size 已签（ADR 0057 R1），三项成本未签：生产与验收回放停在 AwaitingPolicy{cost_inputs}；签署任一项即出新版本（version +1）"
+  "cost": "v3 的 delay=1、tax=0 是具名模型选择；slippage 仍未签，P0 继续拒启于 AwaitingPolicy{cost_inputs}，影子臂尚不能改用此 profile。tick_size 与 commission 及来源不变。改值须出新版本。"
 }

@@ -177,3 +177,27 @@ synthetic 记录头 `symbol: null`、`usage: "s_structure_writer"`、继承 `not
 
 - 裁定七三项零值：`[新缠论:选择]`（用户 2026-10-31 批）；`commission_bps` 继承：裁定一既有口径，非新签。
 - 裁定八 B1+B2 与 P0 别名归属：`[新缠论:选择]`（用户 2026-10-31 批）。
+
+
+## 追加修订：replay v3 的延迟与税模型选择（#1774，2026-11-07）
+
+### 九、两个具名选择，滑点仍未签
+
+本节依据 [#1774 评论 6697804941](https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6697804941) 的自主裁定及非作者修订稿独审 PASS，追加而不改写历史裁定。生效日为 2026-11-07。记录 `venue-profile-P0` 从 v2 升为 v3，仍以 `profile_id=P0`、`symbol=BTC` 绑定 `replay_binance_spot_1m`，不加 `usage` 头。
+
+| 字段 | v3 状态或值 | 来源与代价 |
+|---|---|---|
+| `tick_size`、`commission_bps` | 0.01、10 bp/side | 维持既有值和来源，未扩大快照日的事实射程 |
+| `entry_delay_bars` | 1 根 | `[新缠论:选择]`。批量模型从信号后第一根可交易 bar 成交的假设，不是真实场所延迟。保留非负整数的版本化可配置性，改值出新版本，不允许失败后换值兜底；夹具值和 #907 测量不作签值证据 |
+| `tax_bps` | 0 bp/side | `[新缠论:选择]`。该无账户主体模拟 profile 不建模逐笔税，不是 Binance 或账户辖区的税务事实；`fee_schedule` 互斥约束不是来源。有账户主体的 profile 须按辖区另行签值 |
+| `slippage_bps` | `AwaitingPolicy` | 缺少具名测量依据；不得借 synthetic 零值、诊断夹具或成本门数值补齐。具名测量须先核识别范围，或另行裁定为具名模型假设并写明代价 |
+
+P0 仍因滑点未签拒启，symbol 与 profile 两路只报 `cost_inputs`，缺字段恰为 `slippage_bps`。影子臂尚不能使用此 profile；本节不宣称正式完整历史回放已具备。synthetic、B1+B2、准入门、成本门及 `research-override` 边界不变。
+
+### 十、正式回放合同与实际实现分开验收
+
+ADR 0052/0056 要求的正式输入、X 受控撮合、费用来源及整数规则仍由 #1381 实现。基线 `9b436af2d2` 的 `production_session` 启动 S/E/B/X；S 经 `for_s_structure_writer` 选择 synthetic，而 X 的 submit/cancel 仍固定返回 `UnsupportedCapability`。P0 签值不解除这些缺口。费用模型的 `fee_profile` 引用属于 #1381 原有合同，#1418 消费模型和报告证据，不另建重复实现线。
+
+本节影响 `policy_records/venue-profile-P0.json` 的记录及 `run_records.rs`、`config.rs`、`tests/test_theta_pyo3_bridge.py` 的测试；不改成交、策略、流式、NT 或 FFI 实现。实际选择链、原 synthetic 锁及旧已签记录兼容锁继续保留。
+
+Linux 验收分别运行 `cargo test --release --locked --lib theta_v0::run_records` 与 `cargo test --release --locked --lib theta_v0::config`。Python 按既有 CI 的 `pip install ./rust` 入口构建精确候选扩展，记录候选 SHA 和加载路径，目标测试实际执行、零 skip。测试临时补入的滑点数值只验证记录读回，不构成签值。实施精确 head 的非作者独审、必要 CI、主线合入和 #1640 原运行义务仍分别验收。
