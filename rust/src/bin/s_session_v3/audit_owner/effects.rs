@@ -632,7 +632,8 @@ impl Recording {
             #[cfg(all(test, feature = "s_incremental", unix))]
             OwnerTx::Charged(txn) => {
                 let hook = newchan_rust::s_content::capture_allocation::sqlite_parent::Callback {
-                    callback: record_update_charged,
+                    callback: record_update_charged
+                        as newchan_rust::s_content::capture_allocation::sqlite_parent::UpdateFn,
                     context: std::ptr::from_ref(txn.conn)
                         .cast_mut()
                         .cast::<std::ffi::c_void>(),

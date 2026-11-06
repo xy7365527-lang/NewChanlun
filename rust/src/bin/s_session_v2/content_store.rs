@@ -199,12 +199,14 @@ fn read_material_reserved(
         statement.finalize().map_err(storage_error)?;
         row
     };
-    material_row(digest, result)
+    let material = material_row(result)?;
+    #[cfg(all(test, feature = "s_incremental"))]
+    note_runtime_read(digest, &material);
+    Ok(material)
 }
 
-/// 读出的 `(tag, body, 许可)` 的共同收尾：tag 范围与测试读集登记。
+/// 读出的 `(tag, body, 许可)` 的共同收尾：tag 范围。
 fn material_row(
-    digest: &NodeDigest,
     result: Option<(i64, Vec<u8>, Option<NativeReservation>)>,
 ) -> Result<Option<(u8, Vec<u8>, Option<NativeReservation>)>, CodecError> {
     let Some(row) = result else {
@@ -214,13 +216,23 @@ fn material_row(
     let tag = u8::try_from(row.0)
         .map_err(|_| CodecError::new(code::NODE_DIGEST, "节点 tag 超过一个字节"))?;
     let (_, body, permit) = row;
-    #[cfg(all(test, feature = "s_incremental"))]
+    Ok(Some((tag, body, permit)))
+}
+
+/// 测试读集登记：只记实际读到的节点（同原 `read_material_reserved` 尾部）。
+#[cfg(all(test, feature = "s_incremental"))]
+fn note_runtime_read(
+    digest: &NodeDigest,
+    material: &Option<(u8, Vec<u8>, Option<NativeReservation>)>,
+) {
+    if material.is_none() {
+        return;
+    }
     RUNTIME_READS.with(|reads| {
         if let Some(reads) = reads.borrow_mut().as_mut() {
             reads.insert(*digest);
         }
     });
-    Ok(Some((tag, body, permit)))
 }
 
 pub(super) fn native_body_reserved(
@@ -289,7 +301,9 @@ fn read_material_charged(
         Err(SqlGate::Sqlite(rusqlite::ffi::SQLITE_DONE)) => None,
         Err(error) => return Err(charged_error(error, work)),
     };
-    material_row(digest, row)
+    let material = material_row(row)?;
+    note_runtime_read(digest, &material);
+    Ok(material)
 }
 
 fn read_checked_node_scoped(
