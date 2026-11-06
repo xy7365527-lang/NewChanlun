@@ -47,12 +47,12 @@
 1. 每个自由度多一个字段、一个默认值和一段出处，记录变长，签署面变大；默认值仍须有人推导和负责。
 2. 可选值组合增多，验收与回放要标明所用版本；不同版本的读数不可直接比较。
 3. 「合法取值」与「真错」的分界需要逐条判断，判错的方向两边都有：把真错当合法会放进违规值，把合法当真错就回到排除式。审查规则（graph-engineering R2）因此增一条 BLOCK 情形。
-4. 签署门字段在用户签署前一直处于 `AwaitingPolicy`，对应动作不跑；推荐值写进签署单只降低确认成本，不缩短这段等待。
+4. 签署门字段在签署前一直处于 `AwaitingPolicy`，对应动作不跑；推荐值写进签署单只降低确认成本，不缩短这段等待。（#1909 补记：签署者由用户改为该字段的 P 类决策票，经起草与非作者独审 PASS 由代理裁定。）
 5. 既有裁定不追溯自动改写：#1586 只列候选，逐条另开票或并入既有票处理。
 
 ## 受影响清单
 
-- 流程：`.sandcastle/docs/graph-engineering.md`（起草与 R2）、`.sandcastle/decision-claimer.mts`（起草提示第 11 条、审查 R2）、`.agents/skills/graph-approve/SKILL.md`（呈现步）。
+- 流程：`.sandcastle/docs/graph-engineering.md`（起草与 R2）、`.sandcastle/decision-claimer.mts`（起草提示第 11 条、审查 R2）。原呈现步 `.agents/skills/graph-approve/SKILL.md` 已随 #1909 删除。
 - 词汇：`CONTEXT.md`「自由度」「可调字段」。
 - 既有裁定与代码：候选清单见 `.chanlun/review-results/dof-audit-20261020/candidates.md`，为 #1586 初稿输入。
 

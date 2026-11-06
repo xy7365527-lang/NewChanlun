@@ -35,6 +35,12 @@ import {
   DEFAULT_SPEC_MODEL,
   DEFAULT_SPEC_PROVIDER,
   SUPPORTED_SPEC_MODELS,
+  SPEC_RULING_CUTOVER,
+  parseSpecRuling,
+  specBodyDigest,
+  specRulingBody,
+  specRulingCli,
+  specRulingProblem,
 } from "./wayfinder_engine.mts";
 import type {
   ChildIssue,
@@ -107,13 +113,13 @@ test("图清态：决策票全关、无 spec/实装 → draft_spec", () => {
   assert.deepEqual(walkGraph(m, OPTS), [{ kind: "draft_spec", map: 42 }]);
 });
 
-test("批准态：spec 存在且被编排者批 → split_impl_tickets", () => {
+test("批准态：spec 已裁定放行（切换前的用户批准） → split_impl_tickets", () => {
   const m = map({
     number: 42,
     children: [decision(101), spec(500, "OPEN", [approvalComment()])],
   });
   const a = analyzeMap(m, OPTS);
-  assert.equal(a.phase.includes("已批准"), true);
+  assert.equal(a.phase.includes("已裁定 PASS"), true);
   assert.deepEqual(a.actions, [{ kind: "split_impl_tickets", map: 42, spec: 500 }]);
 });
 
@@ -260,6 +266,58 @@ test("isSpecApproved：只认编排者、驳回优先、时间序推进", () => 
     isSpecApproved(spec(1, "OPEN", [{ author: ORCH, body: "不通过。", createdAt: "2026-08-18T12:00:00Z" }]), ORCH),
     false,
   );
+});
+
+// ── #1909：SPEC 由起草 + 非作者独审 PASS 记录裁定，不再认事后的自由文本批准 ──
+
+const SPEC_BODY = "本 spec 是 map #42 的实施总单。\n\n## Solution\n做 X。\n";
+const after = (minutes: number) => new Date(Date.parse(SPEC_RULING_CUTOVER) + minutes * 60_000).toISOString();
+const ruling = (over: Partial<Parameters<typeof specRulingBody>[0]> = {}, at = after(5), author = ORCH): IssueComment => ({
+  author,
+  createdAt: at,
+  body: specRulingBody({ verdict: "PASS", author: "gpt-6.1-sol spec 起草子代理", reviewer: "claude-opus-5-5 独审进程", digest: specBodyDigest(SPEC_BODY), evidence: "/Volumes/AgentStorage/x_y/review.json", ...over }),
+});
+const specWith = (comments: IssueComment[], body = SPEC_BODY) => ({ ...spec(7, "OPEN", comments), body });
+
+test("SPEC 裁定（#1909）：有效非作者 PASS 记录放行；摘要绑定当前正文，改正文即失效", () => {
+  assert.equal(isSpecApproved(specWith([ruling()]), ORCH), true);
+  assert.equal(isSpecApproved(specWith([ruling()], SPEC_BODY + "\n改了一句"), ORCH), false, "独审后正文改动");
+  assert.equal(isSpecApproved(specWith([ruling()], SPEC_BODY.replace(/\n/g, "\r\n") + "  \n"), ORCH), true, "CRLF 与末尾空白不算改动");
+  assert.equal(isSpecApproved(specWith([ruling({ reviewer: "GPT-6.1-SOL spec 起草子代理" })]), ORCH), false, "独审就是作者");
+  assert.equal(isSpecApproved(specWith([ruling({ evidence: "" })]), ORCH), false, "缺独审原件");
+  assert.equal(isSpecApproved(specWith([ruling({ digest: "" })]), ORCH), false, "缺摘要");
+  assert.equal(isSpecApproved(specWith([ruling({}, after(5), "someone")]), ORCH), false, "非编排者账号");
+  assert.equal(isSpecApproved(specWith([ruling(), ruling({ verdict: "BLOCK" }, after(6))]), ORCH), false, "后来的 BLOCK 撤销");
+  assert.equal(isSpecApproved(specWith([ruling({ verdict: "BLOCK" }), ruling({}, after(6))]), ORCH), true, "返修后再 PASS");
+  assert.equal(isSpecApproved(specWith([ruling(), { author: ORCH, body: "驳回，重写 §2。", createdAt: after(7) }]), ORCH), false, "驳回词照旧撤销");
+  assert.equal(specRulingProblem(parseSpecRuling(ruling().body)!, SPEC_BODY), null);
+  assert.equal(parseSpecRuling(ruling().body)!.evidence, "/Volumes/AgentStorage/x_y/review.json", "路径下划线保留");
+  assert.equal(parseSpecRuling("批准。照此执行。"), null);
+});
+
+test("SPEC 裁定（#1909）：切换时刻之后的自由文本「批准」不能冒充 PASS；之前的用户批准仍有效", () => {
+  assert.equal(isSpecApproved(specWith([{ author: ORCH, body: "批准。照此执行。", createdAt: after(1) }]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([{ author: ORCH, body: "LGTM", createdAt: after(1) }]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([approvalComment()]), ORCH), true, "2026-08 用户批准沿用");
+  assert.equal(isSpecApproved(specWith([approvalComment(), ruling({ verdict: "BLOCK" })]), ORCH), false);
+  // 引擎拆票与子树放行都消费同一判据。
+  const m = map({ number: 42, children: [decision(1, "CLOSED"), specWith([{ author: ORCH, body: "批准", createdAt: after(1) }])] });
+  assert.deepEqual(walkGraph(m, { orchestrator: ORCH }), []);
+  assert.match(analyzeMap(m, { orchestrator: ORCH }).phase, /待非作者独审裁定/);
+  const ok = map({ number: 42, children: [decision(1, "CLOSED"), specWith([ruling()])] });
+  assert.deepEqual(walkGraph(ok, { orchestrator: ORCH }), [{ kind: "split_impl_tickets", map: 42, spec: 7 }]);
+});
+
+test("specRulingCli：按 SPEC 当前正文算摘要生成评论；独审是作者或参数缺失即拒绝", () => {
+  const argv = ["--spec-ruling", "#7", "--verdict", "pass", "--author", "起草A", "--reviewer", "独审B", "--evidence", "/Volumes/AgentStorage/r.json"];
+  const body = specRulingCli(argv, (n) => (assert.equal(n, 7), SPEC_BODY));
+  const r = parseSpecRuling(body)!;
+  assert.deepEqual(r, { verdict: "PASS", author: "起草A", reviewer: "独审B", digest: specBodyDigest(SPEC_BODY), evidence: "/Volumes/AgentStorage/r.json" });
+  assert.equal(isSpecApproved(specWith([{ author: ORCH, body, createdAt: after(1) }]), ORCH), true);
+  assert.throws(() => specRulingCli(argv.map((a) => (a === "独审B" ? "起草A" : a)), () => SPEC_BODY), /独审与作者相同/);
+  assert.throws(() => specRulingCli(argv.slice(0, 8), () => SPEC_BODY), /缺 --evidence/);
+  assert.throws(() => specRulingCli(argv.map((a) => (a === "pass" ? "ok" : a)), () => SPEC_BODY), /PASS 或 BLOCK/);
+  assert.equal(parseSpecRuling(specRulingCli(argv.map((a) => (a === "pass" ? "BLOCK" : a)), () => SPEC_BODY))!.verdict, "BLOCK");
 });
 
 test("unresolvedFog：有去向的雾不算残雾", () => {
