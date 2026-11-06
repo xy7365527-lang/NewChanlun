@@ -1134,6 +1134,63 @@ fn s_serve_explicit_source_rejects_mismatch_with_both_canonical_declarations() {
     assert_source_refusal("mismatch", "不一致");
 }
 
+// #1845：锁冲突优先于声明校验；释放竞争者后，同一错误声明仍必须拒启。
+#[test]
+fn s_serve_explicit_source_lock_conflict_precedes_mismatch() {
+    let space = Space::new();
+    let (db, limits, file) = structure_source_fixture(&space, "mismatch");
+    let before = raw_rows_offline(&db);
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(format!("{}.writer.lock", db.display()))
+        .unwrap();
+    lock.try_lock().unwrap();
+    assert_lock_held(&db);
+
+    let blocked = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!blocked.status.success());
+    let stderr = String::from_utf8_lossy(&blocked.stderr);
+    assert!(
+        stderr.contains("StaleWriter：S独占进程锁不可得"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("InvalidDomain"), "{stderr}");
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&db), before);
+    assert_lock_held(&db);
+
+    drop(lock);
+    let rejected = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!rejected.status.success());
+    let stderr = String::from_utf8_lossy(&rejected.stderr);
+    assert!(stderr.contains("InvalidDomain：S 库结构源声明"), "{stderr}");
+    assert!(stderr.contains("不一致"), "{stderr}");
+    assert!(!stderr.contains("StaleWriter"), "{stderr}");
+    for ns in [DECLARED_NS, "testonly.other"] {
+        let canonical = newchan_rust::structure_source::Declaration::parse(&declaration(
+            "TestOnlyStructure",
+            ns,
+        ))
+        .unwrap()
+        .canonical();
+        let encoded = serde_json::to_string(&canonical).unwrap();
+        assert!(stderr.contains(&encoded[1..encoded.len() - 1]), "{stderr}");
+    }
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&db), before);
+}
+
 #[test]
 fn s_serve_explicit_source_rejects_corrupt_file() {
     assert_source_refusal("file_corrupt", "结构源声明 JSON 解析失败");
