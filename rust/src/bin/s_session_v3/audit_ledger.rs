@@ -3695,6 +3695,55 @@ pub(super) mod tests {
         verify_measured(budget, l, nodes, root, q, fault, false).0
     }
 
+    /// 窗口内 Rust 请求 layout 的拆分：SQLite 块由组件 allocator 以 Rust layout 分配、按块完整
+    /// 字节经同父 census 记为 "sqlite" 预留，窗口读数减去它们即其余 Rust 分配。
+    #[cfg(feature = "s_incremental")]
+    struct RustWindow {
+        rust: u64,
+        sqlite: u64,
+        probe: serde_json::Value,
+    }
+    #[cfg(feature = "s_incremental")]
+    impl std::fmt::Display for RustWindow {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "rust={} sqlite={} {}",
+                self.rust, self.sqlite, self.probe
+            )
+        }
+    }
+    /// 对 `run` 同时开 Rust 分配窗口与原父 census，把窗口读数拆成 SQLite 块与其余 Rust 分配。
+    #[cfg(feature = "s_incremental")]
+    fn rust_window<R>(
+        budget: &super::super::audit_owner::native::Budget,
+        run: impl FnOnce() -> R,
+    ) -> (R, RustWindow) {
+        use super::super::audit_owner::allocation_probe::Window;
+        budget.census_arm();
+        let window = Window::start();
+        let result = run();
+        let probe = window.finish();
+        let sqlite = budget
+            .census_take()
+            .iter()
+            .filter(|e| e.reserve && e.kind == "sqlite")
+            .map(|e| e.bytes as u64)
+            .sum::<u64>();
+        let allocated = probe["allocated_bytes"].as_u64().unwrap();
+        let rust = allocated
+            .checked_sub(sqlite)
+            .expect("每个 SQLite 块都是窗口内的一次 Rust layout 分配");
+        (
+            result,
+            RustWindow {
+                rust,
+                sqlite,
+                probe,
+            },
+        )
+    }
+
     /// 同 [`verify_in`]，可预读根节点，并只对完整 `verify_delta` 调用开 Rust 分配窗口。
     #[cfg(feature = "s_incremental")]
     fn verify_measured(
@@ -3706,7 +3755,6 @@ pub(super) mod tests {
         fault: Fault,
         prefetch: bool,
     ) -> (Option<LedgerError>, u64) {
-        use super::super::audit_owner::allocation_probe::Window;
         let prepared: Vec<_> = prefetch
             .then(|| {
                 let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
@@ -3727,10 +3775,10 @@ pub(super) mod tests {
                 requested: Vec::new(),
                 mismatched: false,
             };
-            let window = Window::start();
-            let result = l.verify_delta(&mut source, [root.into(); 4], q).err();
-            let probe = window.finish();
-            seen = Some((result, probe["allocated_bytes"].as_u64().unwrap()));
+            let (result, probe) = rust_window(budget, || {
+                l.verify_delta(&mut source, [root.into(); 4], q).err()
+            });
+            seen = Some((result, probe.rust));
             Ok::<_, ()>(())
         });
         seen.expect("verify ran")
@@ -3777,7 +3825,7 @@ pub(super) mod tests {
             seen = Some(Censused {
                 error: result,
                 allocated: probe["allocated_bytes"].as_u64().unwrap(),
-                reserved: sum(&["layout", "permit"]),
+                reserved: sum(&["layout", "permit", "sqlite"]),
                 native: sum(&["native"]),
                 requested: std::mem::take(&mut source.requested),
                 unread: source.prepared.len(),
@@ -3833,7 +3881,6 @@ pub(super) mod tests {
     #[test]
     #[ignore = "fresh process only: installs the global SQLite allocator; run alone with --ignored --exact"]
     fn charged_ledger_same_parent_phase_machine_and_snapshot_interleave() {
-        use super::super::audit_owner::allocation_probe::Window;
         use super::super::audit_owner::native::Budget;
         use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
         use newchan_rust::s_content::capture_allocation::sqlite_parent::SqliteParentAllocator;
@@ -3930,10 +3977,8 @@ pub(super) mod tests {
         assert_eq!(count(&a, &snap, "SELECT count(*) FROM s"), 3);
         l1.bind(token, &m1, &r1).unwrap();
         assert_eq!(count(&a, &peek, through), 0);
-        let window = Window::start();
-        let committed = l1.content_committed();
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (committed, probe) = rust_window(&current, || l1.content_committed());
+        assert_eq!(probe.rust, 0, "{probe}");
         committed.unwrap();
         assert_eq!(count(&a, &peek, through), 1);
         assert_eq!(l1.committed_through().unwrap(), 1);
@@ -4047,12 +4092,12 @@ pub(super) mod tests {
             + id.rule_revision.len();
         let fresh_parent = parent(&current, &b);
         let (live0, sqlite0) = (current.live(), b.live_bytes());
-        let window = Window::start();
-        let lf = Ledger::fresh_charged(&fresh_path, &content, &id, STORE, fresh_parent);
-        let probe = window.finish();
+        let (lf, probe) = rust_window(&current, || {
+            Ledger::fresh_charged(&fresh_path, &content, &id, STORE, fresh_parent)
+        });
         let mut lf = lf.unwrap();
         assert_eq!(
-            probe["allocated_bytes"],
+            probe.rust,
             (held + content.as_bytes().len() + 1) as u64,
             "{probe}"
         );
@@ -4071,10 +4116,8 @@ pub(super) mod tests {
             Ledger::fresh_charged(&bad_path, &content, &id, STORE, parent(&current, &b)).unwrap();
         let mut bad = delta(&m1, &r1);
         bad.roots[1].format = "not-a-format".repeat(64);
-        let window = Window::start();
-        let staged = lg.stage(token, &bad);
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (staged, probe) = rust_window(&current, || lg.stage(token, &bad));
+        assert_eq!(probe.rust, 0, "{probe}");
         assert_eq!(staged, Err(LedgerError::Invalid("台账根格式无效")));
         assert!(lg.connection.is_none());
         drop((lg, bad));
@@ -4101,11 +4144,9 @@ pub(super) mod tests {
                 .map(|r| r.format.len() + r.root.len())
                 .sum::<usize>();
         let (live0, sqlite0) = (current.live(), b.live_bytes());
-        let window = Window::start();
-        let staged = l2.stage(token, &d2);
-        let probe = window.finish();
+        let (staged, probe) = rust_window(&current, || l2.stage(token, &d2));
         staged.unwrap();
-        assert_eq!(probe["allocated_bytes"], reserved as u64, "{probe}");
+        assert_eq!(probe.rust, reserved as u64, "{probe}");
         assert_eq!(
             live_delta(current.live(), live0),
             pending as i128 + live_delta(b.live_bytes(), sqlite0)
@@ -4130,11 +4171,10 @@ pub(super) mod tests {
         std::fs::File::create(dir.join("spare.sqlite3")).unwrap();
         let pages = i64::try_from(STORE / 4096).unwrap();
         let spare_parent = parent(&current, &b);
-        let window = Window::start();
-        let spare = Charged::open(&spare_path, pages, spare_parent);
-        let probe = window.finish();
+        let (spare, probe) =
+            rust_window(&current, || Charged::open(&spare_path, pages, spare_parent));
         let spare = spare.unwrap();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        assert_eq!(probe.rust, 0, "{probe}");
 
         let first = b.run(&snap, |_| {
             assert!(unsafe { ffi::sqlite3_malloc64(ROOM as u64 + 1) }.is_null());
@@ -4148,11 +4188,10 @@ pub(super) mod tests {
             binding: b.clone(),
         };
         let live = current.live();
-        let window = Window::start();
-        let refused_fresh =
-            Ledger::fresh_charged(&refused_path, &content, &id, STORE, refused_parent);
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (refused_fresh, probe) = rust_window(&current, || {
+            Ledger::fresh_charged(&refused_path, &content, &id, STORE, refused_parent)
+        });
+        assert_eq!(probe.rust, 0, "{probe}");
         assert_eq!(
             refused_fresh.err(),
             Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Budget)))
@@ -4161,18 +4200,15 @@ pub(super) mod tests {
         assert_eq!(current.live(), live);
         // 首拒之后：台账读、受管开库都返回本次 typed 分类，Rust 侧零分配，不进入 SQLite。
         let entered = LEDGER_STATEMENTS.load(Ordering::SeqCst);
-        let window = Window::start();
-        let refused = l2.through();
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (refused, probe) = rust_window(&current, || l2.through());
+        assert_eq!(probe.rust, 0, "{probe}");
         let refused = refused.unwrap_err();
         assert_eq!(refused, budget);
         assert_eq!(LEDGER_STATEMENTS.load(Ordering::SeqCst), entered);
         let spare_parent = parent(&current, &b);
-        let window = Window::start();
-        let reopened = Charged::open(&spare_path, pages, spare_parent);
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (reopened, probe) =
+            rust_window(&current, || Charged::open(&spare_path, pages, spare_parent));
+        assert_eq!(probe.rust, 0, "{probe}");
         assert_eq!(reopened.err().as_ref(), Some(&budget));
         let unit = newchan_rust::s_content::closure_delta::Unit {
             digest: [1; 32],
@@ -4180,10 +4216,10 @@ pub(super) mod tests {
             mode: newchan_rust::s_content::closure_delta::VerificationMode::Public,
         };
         let view = QualifiedSuccessView::new(&l3, &q3);
-        let window = Window::start();
-        let lookup = newchan_rust::s_content::closure_delta::Frontier::contains(&view, unit);
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (lookup, probe) = rust_window(&current, || {
+            newchan_rust::s_content::closure_delta::Frontier::contains(&view, unit)
+        });
+        assert_eq!(probe.rust, 0, "{probe}");
         assert!(lookup.is_err());
         let carried = view.refused.into_inner().expect("typed refusal carried");
         assert_eq!(carried, budget);
@@ -4192,10 +4228,8 @@ pub(super) mod tests {
             super::super::audit_owner::native::Failure::BudgetExceeded
         ));
         drop((l3, q3));
-        let window = Window::start();
-        let committed = l2.content_committed();
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (committed, probe) = rust_window(&current, || l2.content_committed());
+        assert_eq!(probe.rust, 0, "{probe}");
         let committed = committed.unwrap_err();
         assert_eq!(committed, budget);
         assert!(l2.connection.is_none());
@@ -4417,11 +4451,11 @@ pub(super) mod tests {
             })
             .unwrap();
         arm_trip(&l5, 2);
-        let window = Window::start();
-        let staged = l5.stage_verified(token, &d5, &units, None, Some(&*q5));
-        let probe = window.finish();
+        let (staged, probe) = rust_window(&current, || {
+            l5.stage_verified(token, &d5, &units, None, Some(&*q5))
+        });
         assert_eq!(
-            probe["allocated_bytes"],
+            probe.rust,
             (candidates * std::mem::size_of::<Unit>()) as u64,
             "{probe}"
         );
@@ -4475,10 +4509,10 @@ pub(super) mod tests {
         let rebound = bind(&current);
         let stale_path = c_path("ledger-j.sqlite3");
         let live = current.live();
-        let window = Window::start();
-        let stale_fresh = Ledger::fresh_charged(&stale_path, &content, &id, STORE, stale);
-        let probe = window.finish();
-        assert_eq!(probe["allocated_bytes"], 0, "{probe}");
+        let (stale_fresh, probe) = rust_window(&current, || {
+            Ledger::fresh_charged(&stale_path, &content, &id, STORE, stale)
+        });
+        assert_eq!(probe.rust, 0, "{probe}");
         assert_eq!(
             stale_fresh.err(),
             Some(LedgerError::Gate(SqlGate::Refused(ScratchFailure::Ledger)))

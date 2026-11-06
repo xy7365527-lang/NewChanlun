@@ -1035,7 +1035,6 @@ fn charged_step_reader_reads_on_same_parent_and_types_refusal() {
     let digest = reference.digest().unwrap();
     let (tag, body) = nodes.get(&digest).unwrap();
     let big_digest = [7u8; 32];
-    let big = vec![0u8; 32 << 20];
 
     let wide = d.rebind();
     let db = wide.open(&path).unwrap();
@@ -1048,14 +1047,15 @@ fn charged_step_reader_reads_on_same_parent_and_types_refusal() {
             "INSERT INTO s_content_nodes VALUES(?1, ?2, ?3)",
             [&&digest[..] as &dyn ToSql, &tag, &body],
         )?;
+        // 32 MiB 正文以 zeroblob 写入：SQLite 直接写零页，不在内存中组装整行，准备阶段没有
+        // 32 MiB 级分配；读回时才整块装入，由窄域的读来触发收费首拒。
         q.execute(
-            "INSERT INTO s_content_nodes VALUES(?1, 0, ?2)",
-            [&&big_digest[..] as &dyn ToSql, &&big[..]],
+            "INSERT INTO s_content_nodes VALUES(?1, 0, zeroblob(33554432))",
+            [&&big_digest[..] as &dyn ToSql],
         )?;
         q.execute_batch("BEGIN")
     })
     .unwrap();
-    drop(big);
 
     let gate = CountingGate(Cell::new(0));
     let mut tx = ChargedReadTx::new(&wide, &db);

@@ -360,8 +360,32 @@ pub(crate) struct CensusEvent {
 /// 普查容量预留，记账期间不得引发分配/realloc；超额即判普查失效。
 #[cfg(test)]
 const CENSUS_CAPACITY: usize = 1 << 20;
+// #1419 3C：经 `SqliteParent` 收取的 SQLite 块另记为 "sqlite"。它们与 Rust 许可同走总账，但块由
+// 组件 allocator 以 Rust layout 分配，测试的 Rust 分配窗口也会读到；分开登记才能把窗口读数拆成
+// SQLite 块与其余 Rust 分配逐项对账。只是普查标签，不改预留本身。
+#[cfg(test)]
+thread_local! {
+    static CENSUS_SQLITE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+#[cfg(test)]
+struct SqliteCensus(bool);
+#[cfg(test)]
+impl SqliteCensus {
+    fn enter() -> Self {
+        Self(CENSUS_SQLITE.with(|c| c.replace(true)))
+    }
+}
+#[cfg(test)]
+impl Drop for SqliteCensus {
+    fn drop(&mut self) {
+        CENSUS_SQLITE.with(|c| c.set(self.0));
+    }
+}
 #[cfg(test)]
 fn census_kind(kind: Option<ScratchCharge>) -> &'static str {
+    if kind.is_none() && CENSUS_SQLITE.with(std::cell::Cell::get) {
+        return "sqlite";
+    }
     match kind {
         None => "permit",
         Some(ScratchCharge::Metadata) => "metadata",
@@ -1768,9 +1792,13 @@ impl ScratchParent for Ledger {
 /// 不改 Ledger 布局；旧 origin 返还只降累计占用。
 impl SqliteParent for Ledger {
     fn reserve_sqlite(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
+        #[cfg(test)]
+        let _census = SqliteCensus::enter();
         self.reserve_total(bytes, Some(expected))
     }
     fn release_sqlite(&self, bytes: usize, origin: u64) -> Result<(), ScratchFailure> {
+        #[cfg(test)]
+        let _census = SqliteCensus::enter();
         self.release_total(bytes, origin)
     }
     fn invalidate_sqlite(&self) {

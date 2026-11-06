@@ -1384,6 +1384,7 @@ writer/recover闭合后无SHM
 段关系载荷是文本
 每cut不得重排序
 每一代都必须真实发布
+每个 SQLite 块都是窗口内的一次 Rust layout 分配
 每个实际节点读仍核本次F
 每个真实对象kind及core各一次字段定位均消除
 每代真实 owner 销毁后归还原许可
