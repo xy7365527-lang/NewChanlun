@@ -1559,7 +1559,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       Object.assign(summary, {
         klass: p.klass, convertedToP: p.convertedToP, attempts: p.attempts, durationsMs: { ...p.durationsMs },
         reclassNotes: p.reclassNotes, reviewCounts: p.reviewCounts, rounds: p.rounds, landingRedrafts: p.landingRedrafts,
-        stage: p.stage, landedSha: p.landedSha, canonicalPlan: p.canonicalPlan, committedSha: p.committedSha, commitBase: p.commitBase, heldDone: p.heldDone ?? [], resumedFrom: p.stage, held: p.held,
+        stage: p.stage, landedSha: p.landedSha, canonicalPlan: p.canonicalPlan, committedSha: p.committedSha, commitBase: p.commitBase, heldDone: p.heldDone ?? [], resumedFrom: p.stage, held: p.held, commentsSeen: p.commentsSeen,
         modelSwitches: p.modelSwitches, archaeology: p.archaeology,
       });
       delete summary.durationsMs.total;

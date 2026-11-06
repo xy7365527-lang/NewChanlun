@@ -3161,3 +3161,27 @@ test("repair1905：机械解析失败后只补考古不重用失败代回执", a
   assert.equal(second.attempts, 2);
   assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
 });
+
+test('held_pending 恢复后不得把历史退回当成新退回', async () => {
+  const block = fence({ ...pass(), R3: { verdict: 'BLOCK', basis: '验收项不可执行' } });
+  const h = liveDeps([fence({ class: 'P', reason: '资金参数' }), goodDraft, block, goodDraft, block]);
+  h.label(['wayfinder:grilling', LEGACY_APPROVAL_LABEL]);
+  h.comments.push({author:{login:'xy7365527-lang'},body:'退回：上一稿修订'});
+  h.fail((a) => a[3] === '--remove-label');
+  const first = await processTicket(1565,h.d);
+  assert.equal(first.stage,'held_pending');
+  assert.equal(first.commentsSeen,1);
+  h.stopFail();
+  const resumed = await processTicket(1565,h.d);
+  assert.equal(resumed.phase,'held');
+  const saved = JSON.parse(readFileSync(join(h.d.outRoot,'1565','summary.json'),'utf8'));
+  assert.equal(saved.commentsSeen, 1);
+  assert.deepEqual(pickUnresolved(h.d.gh, [1565], 3, () => {}, h.d.outRoot), []);
+  execFileSync('git',['-C',h.d.srcDir,'commit','--allow-empty','-m','unrelated main advance'],{encoding:'utf8'});
+  h.replies.push(fence({class:'P',reason:'资金参数'}),goodDraft,fence(pass()));
+  h.modelCalls.length=0;
+  const next=await processTicket(1565,h.d);
+  assert.equal(h.modelCalls.length, 0);
+  assert.equal(next.phase,'skipped','没有新退回不得重新独审并落地');
+  assert.equal(saved.commentsSeen,1,'恢复后必须保留旧水印');
+});
