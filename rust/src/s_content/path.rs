@@ -865,7 +865,7 @@ fn replace_output_inner<R: RefOutput>(
     if path.iter().any(|step| matches!(step, PathStep::JsonText)) {
         return Err(CodecError::new(
             path_code::PATH_JSON_TEXT,
-            "替换路径不允许进入 json_text 文本视图".to_string(),
+            "替换路径不允许进入 json_text 文本视图",
         ));
     }
 
@@ -874,7 +874,7 @@ fn replace_output_inner<R: RefOutput>(
     if descent.tag != tag::BATCH_SELF {
         return Err(CodecError::new(
             code::VALUE_KIND,
-            format!(
+            codec_detail!(
                 "替换目标必须是 0x08 模板占位，实得 tag=0x{:02x}（{}）",
                 descent.tag,
                 Kind::from_tag(descent.tag).map_or("内部节点", Kind::name)
@@ -983,7 +983,7 @@ fn navigate_path_view<'capture>(
     if root_kind != reference.kind() {
         return Err(CodecError::new(
             code::KIND,
-            format!(
+            codec_detail!(
                 "ContentRef.kind={} 与真实节点 tag={cur_tag:02x}（{}）不符",
                 reference.kind().name(),
                 root_kind.name()
@@ -994,7 +994,7 @@ fn navigate_path_view<'capture>(
     if root_extent != reference.extent() {
         return Err(CodecError::new(
             code::EXTENT,
-            format!(
+            codec_detail!(
                 "ContentRef.extent={:?} 与真实节点 header {:?} 不符",
                 reference.extent(),
                 root_extent
@@ -1047,7 +1047,7 @@ fn navigate_path_view<'capture>(
                 if forbid_json_text {
                     return Err(CodecError::new(
                         path_code::PATH_JSON_TEXT,
-                        "替换路径不允许进入 json_text 文本视图".to_string(),
+                        "替换路径不允许进入 json_text 文本视图",
                     ));
                 }
                 if cur_tag != tag::JSON_TEXT {
@@ -1098,7 +1098,7 @@ fn read_value_node<'capture>(
             tag::BATCH_SELF => {
                 return Err(CodecError::new(
                     code::JSON_TEXT_INTERNAL_KIND,
-                    "json_text 内部不允许批次占位（0x08）".to_string(),
+                    "json_text 内部不允许批次占位（0x08）",
                 ))
             }
             _ => {}
@@ -1110,28 +1110,28 @@ fn read_value_node<'capture>(
 fn json_inner_nested_text_error() -> CodecError {
     CodecError::new(
         code::JSON_TEXT_INTERNAL_KIND,
-        "json_text 内部不允许再出现文本视图（0x07）".to_string(),
+        "json_text 内部不允许再出现文本视图（0x07）",
     )
 }
 
 fn step_kind_error(step: &str, want: &str, got: u8) -> CodecError {
     CodecError::new(
         path_code::PATH_STEP_KIND,
-        format!("{step} 步骤要求 {want} 节点，实得 tag=0x{got:02x}"),
+        codec_detail!("{step} 步骤要求 {want} 节点，实得 tag=0x{got:02x}"),
     )
 }
 
 fn index_range_error(index: u64, count: u64) -> CodecError {
     CodecError::new(
         path_code::PATH_INDEX_RANGE,
-        format!("数组位置 {index} 不小于声明元素数 {count}"),
+        codec_detail!("数组位置 {index} 不小于声明元素数 {count}"),
     )
 }
 
 fn field_missing_error(name: &str) -> CodecError {
     CodecError::new(
         path_code::PATH_FIELD_MISSING,
-        format!("对象里没有字段 `{name}`"),
+        codec_detail!("对象里没有字段 `{name}`"),
     )
 }
 
@@ -1473,13 +1473,13 @@ fn find_field_optional(
                     Ordering::Equal => {
                         return Err(CodecError::new(
                             code::DUPLICATE_KEY,
-                            "对象出现重复键（同一键摘要跨分支重复）".to_string(),
+                            "对象出现重复键（同一键摘要跨分支重复）",
                         ))
                     }
                     Ordering::Greater => {
                         return Err(CodecError::new(
                             code::OBJECT_KEY_ORDER,
-                            "对象键未按 UTF-8 字节升序".to_string(),
+                            "对象键未按 UTF-8 字节升序",
                         ))
                     }
                 }
@@ -1516,7 +1516,7 @@ fn read_string_header(
     if t != tag::STRING {
         return Err(CodecError::new(
             code::VALUE_KIND,
-            format!("对象键必须是字符串节点（0x03），读到 tag={t:02x}"),
+            codec_detail!("对象键必须是字符串节点（0x03），读到 tag={t:02x}"),
         ));
     }
     let declared = framed_len(&body, "字符串")?;
@@ -1658,7 +1658,7 @@ fn check_batch_id(batch_id: &str) -> Result<(), CodecError> {
     let bad = |why: &str| {
         CodecError::new(
             path_code::BATCH_ID,
-            format!("batch_id `{batch_id}` 非法：{why}"),
+            codec_detail!("batch_id `{batch_id}` 非法：{why}"),
         )
     };
     let hex = batch_id

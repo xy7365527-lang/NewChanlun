@@ -59,6 +59,7 @@ CROSS_REQUEST_SOURCE_CACHE_REPORT
 CaptureDeadline😀prototype_audit_allocation_limit
 Commit 取样倒退必须拒绝
 ContentRef 出现 exact 四字段之外的键 `extra`
+ContentRef.format 必须是 `s-content/1`，实为 `bad-format`
 DB不得硬链到封存原件
 DB不得经symlink
 DEBUG_SHAPE

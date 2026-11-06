@@ -406,7 +406,10 @@ impl<'capture> ClosedCapturedOwner<'capture> {
         self.capture.reads.set(self.capture.reads.get() + 1);
         // 借用只来自本 owner 的不可变 capture，生命周期不依赖 overlay 或 &mut self。
         let (t, bytes) = self.capture.original(d).ok_or_else(|| {
-            CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+            CodecError::new(
+                code::NODE_MISSING,
+                codec_detail!("节点缺失：{}", root_string(d)),
+            )
         })?;
         Ok((t, VerifierBody::Borrowed(bytes)))
     }
@@ -428,7 +431,7 @@ impl<'capture> ClosedCapturedOwner<'capture> {
         if actual != *d {
             return Err(CodecError::new(
                 code::NODE_DIGEST,
-                format!(
+                codec_detail!(
                     "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
                     root_string(d),
                     root_string(&actual)
@@ -779,13 +782,16 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 trace_capture_body_read(d);
                 capture.reads.set(capture.reads.get().saturating_add(1));
                 let (tag, body) = capture.original(d).ok_or_else(|| {
-                    CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+                    CodecError::new(
+                        code::NODE_MISSING,
+                        codec_detail!("节点缺失：{}", root_string(d)),
+                    )
                 })?;
                 let actual = frame(tag, body);
                 if actual != *d {
                     return Err(CodecError::new(
                         code::NODE_DIGEST,
-                        format!(
+                        codec_detail!(
                             "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
                             root_string(d),
                             root_string(&actual)

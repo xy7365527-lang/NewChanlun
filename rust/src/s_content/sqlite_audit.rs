@@ -122,7 +122,7 @@ pub fn read_sql_material(
     .transpose()
 }
 fn storage_error(error: impl std::fmt::Display) -> CodecError {
-    CodecError::new(super::code::SOURCE, format!("S3 内容存储：{error}"))
+    CodecError::new(super::code::SOURCE, codec_detail!("S3 内容存储：{error}"))
 }
 
 /// 本次封闭写前审计的固定 SQL 基础域。材料与成功表均从空开始，不接受外部材料或成功条目。

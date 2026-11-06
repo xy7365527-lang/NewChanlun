@@ -147,7 +147,7 @@ impl RefDiagnostic<'_> {
                 self.0.fmt_detail(f)
             }
         }
-        CodecError::new(self.code(), Detail(&self).to_string())
+        CodecError::new(self.code(), codec_detail!("{}", Detail(&self)))
     }
 }
 impl std::fmt::Display for RefDiagnostic<'_> {

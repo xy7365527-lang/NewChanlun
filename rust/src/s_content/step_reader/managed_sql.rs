@@ -188,7 +188,7 @@ impl<'tx, 'conn, 'work> ManagedSqlStep<'tx, 'conn, 'work> {
 }
 
 fn storage_error(error: impl std::fmt::Display) -> CodecError {
-    CodecError::new(code::SOURCE, format!("S3 内容存储：{error}"))
+    CodecError::new(code::SOURCE, codec_detail!("S3 内容存储：{error}"))
 }
 
 fn sql_identity(tx: &Transaction<'_>, reads: &Cell<u64>) -> Result<(i64, i64, i64), CodecError> {

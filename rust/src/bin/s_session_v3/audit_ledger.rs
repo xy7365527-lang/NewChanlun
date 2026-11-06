@@ -895,6 +895,9 @@ pub(super) trait Backend: sealed::Sealed {
     /// codec 工作域，否则 verifier 会用无账或他父的工作集。
     #[cfg(feature = "s_incremental")]
     fn frontier_source(&self, source: &dyn sc::NodeSource) -> Result<(), Self::Error>;
+    /// 共用 codec 核验期间的诊断方式：Legacy 照常生成诊断文本；Charged 进入静默诊断期，
+    /// codec 错误只带 `code` 与 scratch 分类，诊断文本不在原父账之外生成。
+    fn diagnostics(&self) -> Option<newchan_rust::s_content::QuietDiagnostics>;
     /// 来源收据核验失败：Legacy 沿用收据自己的诊断；Charged 只带静态上下文。
     #[cfg(feature = "s_incremental")]
     fn source_receipt(e: sc::ContextError) -> Self::Error;
@@ -1019,6 +1022,9 @@ impl Backend for Legacy {
     #[cfg(feature = "s_incremental")]
     fn frontier_source(&self, _: &dyn sc::NodeSource) -> Result<(), String> {
         Ok(())
+    }
+    fn diagnostics(&self) -> Option<newchan_rust::s_content::QuietDiagnostics> {
+        None
     }
     #[cfg(feature = "s_incremental")]
     fn source_receipt(e: sc::ContextError) -> String {
@@ -1176,17 +1182,17 @@ impl LedgerError {
         reason = "#1419 3C：冷认证接受管台账时经此接 cold_failure，首单元只由锁消费"
     )]
     pub(super) fn into_failure(self) -> super::audit_owner::native::Failure {
-        use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
         match self {
-            Self::Gate(SqlGate::Refused(ScratchFailure::Budget)) | Self::Budget => {
-                super::audit_owner::native::Failure::BudgetExceeded
-            }
+            Self::Budget => ScratchFailure::Budget.into(),
+            Self::Scratch(failure)
+            | Self::Gate(SqlGate::Refused(
+                failure @ (ScratchFailure::Budget | ScratchFailure::Allocation),
+            )) => failure.into(),
             other => super::audit_owner::native::Failure::Invalid(other.into()),
         }
     }
 }
 
-/// 受管构造：全新进程已装 allocator，连接由原 Native 父账的当前绑定开出。
 #[cfg(feature = "s_incremental")]
 /// 受管台账的原父收费能力：同一 Native 父账当前冻结域的 Rust 许可来源与 SQLite 绑定。构造时
 /// 核对二者属于同一父账、同一 origin；台账的 Rust 持有与 SQLite 分配都只记在这里。
@@ -1373,6 +1379,9 @@ impl Backend for Charged {
         }
         Ok(())
     }
+    fn diagnostics(&self) -> Option<newchan_rust::s_content::QuietDiagnostics> {
+        Some(newchan_rust::s_content::QuietDiagnostics::enter())
+    }
     fn frontier_source(&self, source: &dyn sc::NodeSource) -> Result<(), LedgerError> {
         self.parent.admit()?;
         match source.codec_work() {
@@ -1492,7 +1501,7 @@ impl Backend for Charged {
             })
             .ok_or(LedgerError::Budget)?;
         let permit = self.parent.reserve(bytes)?;
-        let copy = |e| <Self as Backend>::codec(e, "Pending 复制失败");
+        let copy = |_| LedgerError::Scratch(ScratchFailure::Allocation);
         Ok(Pending {
             token: NativeValue::<String>::try_from_str(token, None).map_err(copy)?,
             generation,
@@ -2093,7 +2102,10 @@ impl<B: Backend> Ledger<B> {
             return Err(B::invalid("Δ核验资格与当前已提交台账不符"));
         }
         let view = QualifiedSuccessView::new(self, qualification);
-        let verified = match sc::closure_delta::verify_four_roots_from(source, roots, &view) {
+        let quiet = self.store()?.diagnostics();
+        let verified = sc::closure_delta::verify_four_roots_from(source, roots, &view);
+        drop(quiet);
+        let verified = match verified {
             Ok(verified) => verified,
             Err(e) => {
                 return Err(match view.refused.into_inner() {
@@ -2128,10 +2140,10 @@ impl<B: Backend> Ledger<B> {
             }
             let verified = &verified.verified;
             B::guard_roots(&delta.roots)?;
-            if !verified
-                .matches_roots(delta.roots.each_ref().map(Into::into))
-                .map_err(|e| B::codec(e, "闭包单位四根核验失败"))?
-            {
+            let quiet = self.store()?.diagnostics();
+            let matched = verified.matches_roots(delta.roots.each_ref().map(Into::into));
+            drop(quiet);
+            if !matched.map_err(|e| B::codec(e, "闭包单位四根核验失败"))? {
                 return Err(B::invalid("闭包单位与待准备事实四根不匹配"));
             }
             let units = self
@@ -3629,7 +3641,17 @@ pub(super) mod tests {
     struct Scoped<'a> {
         nodes: &'a mut newchan_rust::s_content::MemoryNodes,
         scope: &'a WorkScope,
-        starve: bool,
+        fault: Fault,
+        /// 预先读好的根节点：首次读取直接交出，使 source 自身不在被测窗口内分配。
+        prepared: Option<newchan_rust::s_content::NodeRead>,
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Fault {
+        None,
+        Budget,
+        Allocation,
     }
 
     #[cfg(feature = "s_incremental")]
@@ -3641,8 +3663,13 @@ pub(super) mod tests {
             &mut self,
             digest: &newchan_rust::s_content::NodeDigest,
         ) -> Result<newchan_rust::s_content::NodeRead, CodecError> {
-            if self.starve {
-                drop(self.scope.reserve_native(usize::MAX / 4)?);
+            match self.fault {
+                Fault::None => {}
+                Fault::Budget => drop(self.scope.reserve_native(usize::MAX / 4)?),
+                Fault::Allocation => return Err(self.scope.reject(ScratchFailure::Allocation)),
+            }
+            if let Some(found) = self.prepared.take() {
+                return Ok(found);
             }
             newchan_rust::s_content::NodeSource::read(&mut *self.nodes, digest)
         }
@@ -3657,17 +3684,40 @@ pub(super) mod tests {
         nodes: &mut newchan_rust::s_content::MemoryNodes,
         root: &ContentRef,
         q: &Qualification,
-        starve: bool,
+        fault: Fault,
     ) -> Option<LedgerError> {
+        verify_measured(budget, l, nodes, root, q, fault, false).0
+    }
+
+    /// 同 [`verify_in`]，可预读根节点，并只对完整 `verify_delta` 调用开 Rust 分配窗口。
+    #[cfg(feature = "s_incremental")]
+    fn verify_measured(
+        budget: &super::super::audit_owner::native::Budget,
+        l: &Ledger<Charged>,
+        nodes: &mut newchan_rust::s_content::MemoryNodes,
+        root: &ContentRef,
+        q: &Qualification,
+        fault: Fault,
+        prefetch: bool,
+    ) -> (Option<LedgerError>, u64) {
+        use super::super::audit_owner::allocation_probe::Window;
+        let prepared = prefetch.then(|| {
+            let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
+            newchan_rust::s_content::NodeSource::read(&mut *nodes, &digest).unwrap()
+        });
         let mut seen = None;
         let work = budget.codec_work().ok().expect("codec work");
         let _ = work.run(|scope| {
             let mut source = Scoped {
                 nodes: &mut *nodes,
                 scope,
-                starve,
+                fault,
+                prepared,
             };
-            seen = Some(l.verify_delta(&mut source, [root.into(); 4], q).err());
+            let window = Window::start();
+            let result = l.verify_delta(&mut source, [root.into(); 4], q).err();
+            let probe = window.finish();
+            seen = Some((result, probe["allocated_bytes"].as_u64().unwrap()));
             Ok::<_, ()>(())
         });
         seen.expect("verify ran")
@@ -3928,10 +3978,10 @@ pub(super) mod tests {
             (held + content.as_bytes().len() + 1) as u64,
             "{probe}"
         );
-        let delta = |now: usize, then: usize| now as i128 - then as i128;
+        let live_delta = |now: usize, then: usize| now as i128 - then as i128;
         assert_eq!(
-            delta(current.live(), live0),
-            held as i128 + delta(b.live_bytes(), sqlite0)
+            live_delta(current.live(), live0),
+            held as i128 + live_delta(b.live_bytes(), sqlite0)
         );
         lf.stage(token, &d1).unwrap();
         drop(lf);
@@ -3979,8 +4029,8 @@ pub(super) mod tests {
         staged.unwrap();
         assert_eq!(probe["allocated_bytes"], reserved as u64, "{probe}");
         assert_eq!(
-            delta(current.live(), live0),
-            pending as i128 + delta(b.live_bytes(), sqlite0)
+            live_delta(current.live(), live0),
+            pending as i128 + live_delta(b.live_bytes(), sqlite0)
         );
         l2.bind(token, &m2, &r2).unwrap();
         charged(&l2)
@@ -4121,15 +4171,61 @@ pub(super) mod tests {
             .bind_frozen(1, LIMIT, 0, 0)
             .unwrap();
         assert_eq!(
-            verify_in(&foreign, &l4, &mut nodes, &root, &q4, false),
+            verify_in(&foreign, &l4, &mut nodes, &root, &q4, Fault::None),
             wrong
         );
         assert_eq!(
-            verify_in(&current, &l4, &mut nodes, &root, &q4, false),
+            verify_in(&current, &l4, &mut nodes, &root, &q4, Fault::None),
             None
         );
+        // 共用 verifier 的失败链在静默诊断期不生成文本：坏 format/root 在读节点之前失败，整次
+        // verify_delta 零 Rust 分配；kind/extent 与真实节点不符时，两者只剩同一份合法工作集分配
+        // （根节点已预读，source 不分配），与诊断内容无关。
+        for bad in [
+            ContentRef {
+                format: "x\"y".repeat(4096),
+                ..root.clone()
+            },
+            ContentRef {
+                root: format!("sc1-{}", "Z".repeat(64)),
+                ..root.clone()
+            },
+            ContentRef {
+                root: "no-prefix".repeat(512),
+                ..root.clone()
+            },
+        ] {
+            let measured =
+                verify_measured(&current, &l4, &mut nodes, &bad, &q4, Fault::None, false);
+            assert_eq!(measured, (Some(LedgerError::Invalid("Δ闭包核验失败")), 0));
+        }
+        let mut wrong_kind = root.clone();
+        wrong_kind.kind = newchan_rust::s_content::Kind::Array;
+        let mut wrong_extent = root.clone();
+        wrong_extent.extent = Some(u64::MAX);
+        let kind = verify_measured(
+            &current,
+            &l4,
+            &mut nodes,
+            &wrong_kind,
+            &q4,
+            Fault::None,
+            true,
+        );
+        let extent = verify_measured(
+            &current,
+            &l4,
+            &mut nodes,
+            &wrong_extent,
+            &q4,
+            Fault::None,
+            true,
+        );
+        assert_eq!(kind.0, Some(LedgerError::Invalid("Δ闭包核验失败")));
+        assert_eq!(extent.0, Some(LedgerError::Invalid("Δ闭包核验失败")));
+        assert_eq!(kind.1, extent.1);
         arm_trip(&l4, 1);
-        let verified = verify_in(&current, &l4, &mut nodes, &root, &q4, false);
+        let verified = verify_in(&current, &l4, &mut nodes, &root, &q4, Fault::None);
         assert!(TRIPPED.load(Ordering::SeqCst));
         assert_eq!(
             verified,
@@ -4204,13 +4300,30 @@ pub(super) mod tests {
         let q6 = l6.qualification_reserved().unwrap();
         let mut nodes6 = sc::MemoryNodes::new();
         let root6 = content_root(&mut nodes6, "starve");
-        let starved = verify_in(&current, &l6, &mut nodes6, &root6, &q6, true).expect("refused");
+        let starved =
+            verify_in(&current, &l6, &mut nodes6, &root6, &q6, Fault::Budget).expect("refused");
         assert_eq!(starved, LedgerError::Budget);
         assert!(matches!(
             starved.into_failure(),
             super::super::audit_owner::native::Failure::BudgetExceeded
         ));
         assert!(l6.connection.is_some());
+        let (allocation, bytes) = verify_measured(
+            &current,
+            &l6,
+            &mut nodes6,
+            &root6,
+            &q6,
+            Fault::Allocation,
+            false,
+        );
+        assert_eq!(bytes, 0);
+        let allocation = allocation.expect("refused");
+        assert_eq!(allocation, LedgerError::Scratch(ScratchFailure::Allocation));
+        assert!(matches!(
+            allocation.into_failure(),
+            super::super::audit_owner::native::Failure::BudgetExceeded
+        ));
         drop((l6, q6));
         let stale = parent(&current, &fifth);
         let rebound = bind(&current);
