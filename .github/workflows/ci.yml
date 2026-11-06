@@ -293,7 +293,7 @@ jobs:
       # #1563：--no-fail-fast——lib 目标的既有红（m3_partition_synthetic_holds，归 #1487/#1493）
       # 不再让其后的 bin / tests 目标被跳过；本步仍按任一失败判红，不掩盖。
       - name: cargo test — default targets
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --no-fail-fast --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --no-fail-fast --jobs "${CI_CARGO_JOBS:-1}"
 
   # #1370：s_session 的 required-features 不在 default/backtest_bin 中启用。
   # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
@@ -317,6 +317,7 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       S_SESSION_SHARDS: "4"
+      CI_OWN_OPT_LEVEL1: "1"
     defaults:
       run:
         working-directory: rust
@@ -334,7 +335,7 @@ jobs:
           --weights ../.github/scripts/s-session-test-weights.tsv
           --out "$RUNNER_TEMP/s-session-shard"
           --skip v3::financial_session
-          -- --locked --features s_session --bin s_structure_session --jobs 1
+          -- --locked --features s_session --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}"
 
       - name: Upload shard plan and results (#1588)
         if: ${{ !cancelled() }}
@@ -387,10 +388,12 @@ jobs:
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
-      # Boat 上五组同时开工；退回 ubuntu-latest 时取 3（单次 CI 峰值 19 个托管作业，不超过 20，见 #1875 R1）。
-      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 3 }}
+      # Boat 上五组同时开工；退回 ubuntu-latest 时取 4（#1875 R12：3 槽时 release-locks 要排队约 19 分钟，任何顺序下界都约 48 分钟；
+      #   4 槽按实测时长模拟约 40 分钟，单次 CI 托管 Linux 作业峰值 20，不超过 20，见 run 42019882083）。
+      max-parallel: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 5 || 4 }}
       matrix:
-        group: [content, economic, native, owned, release-locks]
+        # 按托管路径实测时长从长到短排，空出的槽先给长的（#1875 R12）。
+        group: [native, release-locks, owned, economic, content]
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.group == 'native' && 90 || 60 }}
     env:
@@ -408,7 +411,7 @@ jobs:
       #   #1588：该用例同时在 S bin 分片里执行（拆前即两处执行），本步保留其独立可见的信号。
       - name: cargo test — TB-02-C member source binding
         if: ${{ !cancelled() && matrix.group == 'content' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs "${CI_CARGO_JOBS:-1}"
 
       # #1608：#1394 的两个编译负例只在 --cfg 下编译；此处断言它们仍被类型边界拒绝（E0308 落在负例块内）。
       #   放在 TB-02-C 单测之后复用已编好的 s_session 依赖；负例在类型检查阶段即失败，不做代码生成。
@@ -419,11 +422,11 @@ jobs:
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       - name: cargo test — 完整内容编码与共享图校验（#1394）
         if: ${{ !cancelled() && matrix.group == 'content' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs "${CI_CARGO_JOBS:-1}" s_content
 
       - name: cargo test — 内容向量、持久序列与累计资源（#1394）
         if: ${{ !cancelled() && matrix.group == 'content' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs "${CI_CARGO_JOBS:-1}"
 
       # #1394 G-1：economic_session（含 P-14 读法锁、finance、content_store、store、finance_transport）
       #   与 session_transport / session_protocol 的库测试此前没有任何 CI 步执行。2026-10-14 在 Linux
@@ -432,7 +435,7 @@ jobs:
       #   ci-macos.yml 作业覆盖。
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: ${{ !cancelled() && matrix.group == 'economic' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 -- economic_session session_transport session_protocol
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs "${CI_CARGO_JOBS:-1}" -- economic_session session_transport session_protocol
 
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
@@ -447,13 +450,13 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         env:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
-        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
+        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS:-1}" -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
       - name: H1 私有 FD/WAL 授权边界锁（#1481 S1D）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-fd-wal.log"
           grep -Fx "test v3::admission_private::fd_wal::authorization_tests::full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
           grep -Fx "test v3::admission_private::fd_wal::authorization_tests::count_scan_reads_are_limited_to_business_tables ... ok" "$RUNNER_TEMP/1481-fd-wal.log"
 
@@ -462,7 +465,7 @@ jobs:
         run: |
           set -o pipefail
           # #1481 S1K：接替 history36h 的全部 h1_ release 锁，保留正式准入逐名收据。
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-admission.log"
           for test in \
             h1_admission_cold_prefixes_match_full_canonical \
             h1_admission_cold_negative_classes_match_full_oracle \
@@ -487,7 +490,7 @@ jobs:
           do
             grep -Fx "test v3::audit_owner::construction_tests::$test ... ok" "$RUNNER_TEMP/1481-admission.log"
           done
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 h1_ledger_cache_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ledger.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_ledger_cache_ -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ledger.log"
           for test in \
             h1_ledger_cache_sidecars_are_pinned_and_physically_counted \
             h1_ledger_cache_registration_still_rejects_unknown_sidecars \
@@ -499,10 +502,10 @@ jobs:
           do
             grep -Fx "test v3::admission_provider::control_lock_tests::$test ... ok" "$RUNNER_TEMP/1481-ledger.log"
           done
-          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs 4 h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
+          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job ... ok" "$RUNNER_TEMP/1481-e6.log"
 
@@ -511,7 +514,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs 4 -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
           for test in \
             v3::audit_owner::construction_tests::h1_sqlite_commit_failure_does_not_advance_clamp \
             v3::commit::tests::prepared_commit_sqlite_commit_failure_returns_no_receipt_and_rolls_back \
@@ -525,7 +528,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: |
           set -o pipefail
-          cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- --test-threads 1 --show-output --format pretty --color never v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_ 2>&1 | tee "$RUNNER_TEMP/1481-native-debug.log"
+          cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --test-threads 1 --show-output --format pretty --color never v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_ 2>&1 | tee "$RUNNER_TEMP/1481-native-debug.log"
           for test in \
             v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix \
             v3::source_audit::source_receipt::tests::p6_raw_receipt_expired_before_binding_releases_budget \
@@ -555,7 +558,7 @@ jobs:
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
       - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs "${CI_CARGO_JOBS:-1}"
 
       # #1640：release-only 锁（S4 等，#[ignore = "release-only: …"]）此前只在 issue-1488-uo-iter.yml 执行，
       #   该 workflow 只在 codex/1488-uo-ci-20261019 推送时触发，PR 候选不覆盖。此处照搬其 release 步命令、
@@ -564,15 +567,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
         run: |
           set -o pipefail
-          ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4 2>&1 | tee ../build-release.log
-
-      # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
-      #   复用 release-only 构建的 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。
-      - name: 生产增量 release 产物无测试钩子（#1640）
-        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
-        run: |
-          ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1
-          ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" 2>&1 | tee ../build-release.log
 
       - name: release-only locks (each exact, --release --ignored)（#1640）
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
@@ -582,6 +577,13 @@ jobs:
           fail=0
           : > ../locks.tsv
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --list --format terse --ignored > ../list-release.txt 2>&1
+          # #1875 R5：产物机检的 bin 构建（固定 --jobs 1，约 3 分钟；R5b：已被锁的时长盖住，多核只会与锁争 CPU）与单线程的锁并行：等锁的测试进程起来（cargo 此时已放开
+          #   target 目录锁）再在同一 rust/target 后台构建，结论由下一步「产物无测试钩子」收取并决定成败。
+          rm -f ../artifact.rc
+          setsid nohup bash -c 'for _ in $(seq 120); do pgrep -f "deps/s_structure_session-[0-9a-f]+ --ignored --exact" >/dev/null && break; sleep 1; done
+            ../.github/scripts/run-cargo-with-telemetry.sh cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 \
+              && ../.github/scripts/check-prod-artifact-hooks.sh target/release/s_structure_session
+            echo $? > ../artifact.rc.tmp && mv ../artifact.rc.tmp ../artifact.rc' > ../artifact.log 2>&1 < /dev/null &
           total=0
           while IFS= read -r t; do
             [ -z "$t" ] && continue
@@ -598,6 +600,18 @@ jobs:
           cat ../locks.tsv
           exit $fail
 
+      # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
+      #   复用 release-only 构建的 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。
+      #   构建与检查在上一步后台进行（#1875 R5），此处等其结束并以其退出码为本步结论。
+      - name: 生产增量 release 产物无测试钩子（#1640）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
+        timeout-minutes: 30
+        run: |
+          for _ in $(seq 330); do [ -f ../artifact.rc ] && break; sleep 5; done
+          cat ../artifact.log
+          if [ ! -f ../artifact.rc ]; then echo "::error title=Artifact build did not finish::no exit status after 27.5 min"; exit 1; fi
+          exit "$(cat ../artifact.rc)"
+
       - name: Upload release-only lock logs（#1640）
         if: ${{ always() && matrix.group == 'release-locks' }}
         uses: actions/upload-artifact@v4
@@ -608,6 +622,7 @@ jobs:
             list-release.txt
             locks.tsv
             out-release-*.log
+            artifact.log
           if-no-files-found: warn
 
   # #1722：保留原 check 名称。仅全矩阵成功可绿；失败、取消、跳过或无结果均拒绝。
@@ -640,13 +655,13 @@ jobs:
       # production_session_testonly：入口测试显式走 S 的 TestOnly 诊断 theta 臂（P0 未签期间正式配置必拒，
       #   由 unsigned_p0_refuses_s_serve_* 两条测试锁住）；生产构建不含该臂，遇开关即拒绝启动。
       - name: cargo test — production_session_entry
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session_testonly --test production_session_entry --jobs 1 -- --test-threads 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session_testonly --test production_session_entry --jobs "${CI_CARGO_JOBS:-1}" -- --test-threads 1
 
       # 纯生产构建（只开 production_session，#1769 返修 M-3/M-4）：编译生产 launcher、X 骨架与 S bin 的生产 cfg
       #   （含 S_PASS 不转交 TestOnly 开关的分支），并真实执行拒绝类子集：P0 未签拒启两条、生产 S 遇
       #   S_THETA_DIAGNOSTIC_TESTONLY=1 即拒启、生产 launcher 不转交该开关。需 S 开门的测试在此构建由 cfg 排除。
       - name: cargo test — production_session_entry（纯生产构建）
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs 1 -- --test-threads 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs "${CI_CARGO_JOBS:-1}" -- --test-threads 1
 
   rust-test-backtest-bin:
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
@@ -668,7 +683,7 @@ jobs:
         # --all-targets 在 feature 下额外编 56 个探针 bin 的 test 目标（各链 nautilus 套件，
         # 本地实测 debug 全 target 55G ⟹ 14G 盘必爆）。改 --lib：backtest 模块测试（含
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs "${CI_CARGO_JOBS:-1}"
 
   # #1488：独立运行两种构建的序列与真实 memo 锁，不等待 rust-check 的完整回归。
   # 依赖预取单列为联网步骤；后续 --offline 只约束测试阶段，不代表全程离线。
