@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 3. **查放行**。对每张该放没放的票，对照 `.sandcastle/logs/wayfinder-status.md` 与 `scripts/wayfinder_engine.mts` 的 `classifyTicket`，指出卡在哪一条：open blocker、assignee、票型、SPEC 裁定。真阻塞留着；缺 blocking 边、缺决策票、FU 未建的当场补，建票前先搜重（`gh issue list --search "<词>" --state all` 加 `grep -rn` 推论层）。已有负责人在做的票保留 assignee，不挂 `sandcastle`。完成标准：每张未放行票一个原因。
 
-   - **SPEC 待裁定**：派非起草者独审，只给 SPEC 正文、所引决策票 resolution 与仓内源文件，原件落 `/Volumes/AgentStorage/`。按 graph-engineering「SPEC 裁定」用 `npx tsx scripts/wayfinder_engine.mts --spec-ruling <号> --verdict PASS --author … --reviewer … --evidence …` 生成记录并发到 SPEC 票；BLOCK 同样记录，交起草者返修后重审。不以自由文本“批准”代替结构化裁定。
+   - **SPEC 待裁定**：派一个不是起草者的独审进程，只给 SPEC 正文、所引决策票 resolution 与仓内源文件，按 graph-engineering「SPEC 裁定」逐条给结论，原件 JSON 落 `/Volumes/AgentStorage/`，必须含 `specNumber`、所审正文的 `digest`、作者与独审进程身份 `author`/`reviewer`、`verdict`，格式见 graph-engineering「SPEC 裁定」。用 `npx tsx scripts/wayfinder_engine.mts --spec-ruling <号> --review-file <独审原件.json> > <仓外裁定.md> && gh issue comment <号> --body-file <仓外裁定.md>` 校验原件并发布。正文或票号不匹配须重审，不能在发布时重算原件摘要；BLOCK 同样发记录，把意见交回起草者返修后重审。不发自由文本「批准」，引擎不认。
    - **held 决策票**：`fact_gap` 按缺口清单开 research/探针票并接 blocking 边，补齐后发「退回：事实已补 #…」；`review_blocked` / `invalid_landing` 写明改法后发「退回：…」。claimer 整链重跑，非作者独审 PASS 才落地。
    - **旧 `needs-approval`**：grilling 票由 claimer 按新流程处理后摘。实施票逐张核依赖、owner 与所属 SPEC 裁定，不批量摘标签。
 
