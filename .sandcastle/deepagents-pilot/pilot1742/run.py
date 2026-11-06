@@ -107,6 +107,24 @@ class Busy(Exception):
     """同一 run 已有控制进程持锁。"""
 
 
+# 实测一个 run 的写入峰值约 11.7 GiB：t1758-1 两份 checkout 共 7.0 GiB，t1863-1 的 Boat 回收 4.7 GiB。
+DISPATCH_FREE_BYTES = 16 << 30
+
+
+class InsufficientSpace(Exception):
+    """写入卷剩余空间低于派工门槛；未领取、未建 checkout，空间恢复后同一入口原样重试。"""
+
+
+def require_free_space(path: Path) -> None:
+    existing = path.absolute()
+    while not existing.exists():
+        existing = existing.parent
+    free = shutil.disk_usage(existing).free
+    if free < DISPATCH_FREE_BYTES:
+        raise InsufficientSpace(f"{existing} 所在卷可用 {free} bytes，低于派工门槛 {DISPATCH_FREE_BYTES} bytes；"
+                                "未领取、未派工，空间恢复后重试")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -476,6 +494,7 @@ class PilotRun:
         run = cls(home, spec, executor=executor, **kw)
         run.acquire()
         try:
+            require_free_space(home)
             run.bind_claim()
             if not (run.dir / "run.json").exists():
                 _write_once(run.dir / "run.json", spec.to_json())
@@ -591,6 +610,7 @@ class PilotRun:
     def _ensure_checkout(self, role: Role, head: Sha) -> None:
         path, branch = self.spec.checkout_for(role), self.spec.branch_for(role)
         if not path.exists():
+            require_free_space(path.parent)
             path.parent.mkdir(parents=True, exist_ok=True)
             exists = subprocess.run(["git", "-C", str(self.source_repo), "rev-parse", "--verify", "-q",
                                      f"refs/heads/{branch}"], capture_output=True).returncode == 0

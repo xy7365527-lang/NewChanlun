@@ -691,3 +691,33 @@ def test_background_approval_recheck_preserves_operator_interrupt(queued, monkey
     assert invoke(common + ['run', '--run-id', unit.run_id, '--resume'] + resources) == 0
     assert v2.claims() == [f'author-{v2.base}']
     assert v2.claim_record()['run_id'] == unit.run_id
+
+
+def _low_disk(monkeypatch, free):
+    from types import SimpleNamespace
+
+    from pilot1742 import run
+    monkeypatch.setattr(run, 'DISPATCH_FREE_BYTES', 100)
+    monkeypatch.setattr(run.shutil, 'disk_usage', lambda _path: SimpleNamespace(free=free))
+
+
+def test_low_disk_leaves_ticket_queued_without_claim_then_dispatches_when_space_returns(queued, monkeypatch):
+    v2, cutover, intake, signer = queued
+    _low_disk(monkeypatch, 99)
+    rows = intake.once(lambda _: pytest.fail('dispatched below the disk threshold'))
+    assert rows[TICKET]['phase'] == 'queued' and '派工门槛' in rows[TICKET]['reason']
+    assert json.loads((v2.home / 'queue-status.json').read_text())[str(TICKET)]['phase'] == 'queued'
+    assert not (v2.claims_root / f'{TICKET}.json').exists() and v2.writes() == []
+    _low_disk(monkeypatch, 100)
+    seen = []
+    intake.once(lambda unit: seen.append(unit.run_id) or 75)
+    assert seen == [f't{TICKET}-1']
+
+
+def test_low_disk_still_reconciles_delivered_run(delivered, monkeypatch):
+    v2, intake, unit, head, run_dir = delivered
+    (number,) = v2.github.pulls
+    v2.github.merge_pull(number)
+    _low_disk(monkeypatch, 0)
+    rows = intake.once(lambda _: pytest.fail('merged run dispatched again'))
+    assert rows[TICKET]['delivery_phase'] == 'merged' and rows[TICKET]['phase'] == 'awaiting_merge'

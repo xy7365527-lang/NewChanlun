@@ -69,6 +69,7 @@ from .github_app import WRITE_PERMISSIONS, AppIdentity, GitHubAppClient, Identit
 from .run import (
     Busy,
     Halted,
+    InsufficientSpace,
     PilotRun,
     TaskSpec,
     ToolRefusal,
@@ -940,7 +941,7 @@ def main(argv: list[str] | None = None) -> int:
                                       crash=_sigkill_at(args.crash_at), cutover=cutover_store)
             try:
                 pilot = open_v2_run(args.state_root, unit, task, executor, PSTACK_MODELS.read_text())
-            except Busy as error:
+            except (Busy, InsufficientSpace) as error:
                 print(str(error), file=sys.stderr)
                 return EXIT_BUSY
             if args.resume:

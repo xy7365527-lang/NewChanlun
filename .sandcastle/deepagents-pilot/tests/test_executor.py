@@ -22,7 +22,7 @@ from pilot1742.executor import (
     release_claim,
 )
 from pilot1742.github_app import IdentityError, OutcomeUnknown, RequestNotSent
-from pilot1742.run import Busy, Halted, PilotRun
+from pilot1742.run import Busy, Halted, InsufficientSpace, PilotRun
 from pilot1742.workunit import Takeover, WorkUnit
 
 BRANCH = f"codex/deepagents/t{TICKET}"
@@ -119,6 +119,24 @@ def test_v2_run_refuses_side_effects_without_executor(v2):
     with pytest.raises(Halted, match="新执行器"):
         bare.run_worker("author", "绕过执行器")
     assert v2.claims() == []
+
+
+def test_low_disk_refuses_new_claim_and_checkout_then_same_run_retries(v2, monkeypatch):
+    from types import SimpleNamespace
+
+    from pilot1742 import run as module
+    unit = v2.register()
+    monkeypatch.setattr(module, "DISPATCH_FREE_BYTES", 100)
+    free = SimpleNamespace(free=99)
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda _path: free)
+    with pytest.raises(InsufficientSpace, match="派工门槛"):
+        v2.run(unit)
+    assert not (v2.claims_root / f"{TICKET}.json").exists()
+    assert not (v2.home / "checkouts" / unit.run_id).exists() and v2.writes() == []
+    free.free = 100
+    v2.run(unit).release()
+    assert v2.claim_record()["run_id"] == unit.run_id
+    assert (v2.home / "checkouts" / unit.run_id / "author").is_dir()
 
 
 def test_two_run_ids_race_for_one_ticket_only_one_dispatches(v2):

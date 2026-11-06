@@ -155,10 +155,11 @@ class GitHubAppClient:
     def _refresh(self) -> None:
         identity = self.identity
         try:
-            signed = jwt.encode(
-                {"iat": int(time.time()) - 60, "exp": int(time.time()) + 540, "iss": str(identity.app_id)},
-                _read_private_key(identity.private_key_path), algorithm="RS256",
-            )
+            # 读私钥可能阻塞很久（#1896 等系统授权），声明时刻必须取在读完之后。
+            key = _read_private_key(identity.private_key_path)
+            now = int(time.time())
+            signed = jwt.encode({"iat": now - 60, "exp": now + 540, "iss": str(identity.app_id)},
+                                key, algorithm="RS256")
         except (ValueError, TypeError, jwt.PyJWTError):
             raise IdentityError("指定文件不是可用的 GitHub App RSA 私钥") from None
         app = self._request("GET", "/app", signed)
