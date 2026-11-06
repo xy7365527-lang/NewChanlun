@@ -3642,8 +3642,12 @@ pub(super) mod tests {
         nodes: &'a mut newchan_rust::s_content::MemoryNodes,
         scope: &'a WorkScope,
         fault: Fault,
-        /// 预先读好的节点，按读取顺序从尾部交出，使 source 自身不在被测窗口内分配。
-        prepared: Vec<newchan_rust::s_content::NodeRead>,
+        /// 预先读好的 `(摘要, 节点)`，按读取顺序从尾部交出，使 source 自身不在被测窗口内分配。
+        prepared: Vec<([u8; 32], newchan_rust::s_content::NodeRead)>,
+        /// 实际请求的摘要序列；容量在窗口外预留，窗口内追加不扩容。
+        requested: Vec<[u8; 32]>,
+        /// 某次请求的摘要与当次交出的预备节点不符。
+        mismatched: bool,
     }
 
     #[cfg(feature = "s_incremental")]
@@ -3668,7 +3672,11 @@ pub(super) mod tests {
                 Fault::Budget => drop(self.scope.reserve_native(usize::MAX / 4)?),
                 Fault::Allocation => return Err(self.scope.reject(ScratchFailure::Allocation)),
             }
-            if let Some(found) = self.prepared.pop() {
+            if self.requested.len() < self.requested.capacity() {
+                self.requested.push(*digest);
+            }
+            if let Some((expected, found)) = self.prepared.pop() {
+                self.mismatched |= expected != *digest;
                 return Ok(found);
             }
             newchan_rust::s_content::NodeSource::read(&mut *self.nodes, digest)
@@ -3704,7 +3712,9 @@ pub(super) mod tests {
         let prepared: Vec<_> = prefetch
             .then(|| {
                 let digest = newchan_rust::s_content::parse_root(&root.root).unwrap();
-                newchan_rust::s_content::NodeSource::read(&mut *nodes, &digest).unwrap()
+                let found =
+                    newchan_rust::s_content::NodeSource::read(&mut *nodes, &digest).unwrap();
+                (digest, found)
             })
             .into_iter()
             .collect();
@@ -3716,6 +3726,8 @@ pub(super) mod tests {
                 scope,
                 fault,
                 prepared,
+                requested: Vec::new(),
+                mismatched: false,
             };
             let window = Window::start();
             let result = l.verify_delta(&mut source, [root.into(); 4], q).err();
@@ -3735,9 +3747,10 @@ pub(super) mod tests {
         l: &Ledger<Charged>,
         root: &ContentRef,
         q: &Qualification,
-        mut reads: Vec<newchan_rust::s_content::NodeRead>,
-    ) -> (Option<LedgerError>, u64, u64, u64) {
+        mut reads: Vec<([u8; 32], newchan_rust::s_content::NodeRead)>,
+    ) -> Censused {
         use super::super::audit_owner::allocation_probe::Window;
+        let expected_reads = reads.len();
         reads.reverse();
         let mut nodes = newchan_rust::s_content::MemoryNodes::new();
         let mut seen = None;
@@ -3748,6 +3761,8 @@ pub(super) mod tests {
                 scope,
                 fault: Fault::None,
                 prepared: reads,
+                requested: Vec::with_capacity(expected_reads + 4),
+                mismatched: false,
             };
             budget.census_arm();
             let window = Window::start();
@@ -3761,15 +3776,31 @@ pub(super) mod tests {
                     .map(|e| e.bytes as u64)
                     .sum::<u64>()
             };
-            seen = Some((
-                result,
-                probe["allocated_bytes"].as_u64().unwrap(),
-                sum(&["layout", "permit"]),
-                sum(&["native"]),
-            ));
+            seen = Some(Censused {
+                error: result,
+                allocated: probe["allocated_bytes"].as_u64().unwrap(),
+                reserved: sum(&["layout", "permit"]),
+                native: sum(&["native"]),
+                requested: std::mem::take(&mut source.requested),
+                unread: source.prepared.len(),
+                mismatched: source.mismatched,
+            });
             Ok::<_, ()>(())
         });
         seen.expect("verify ran")
+    }
+
+    /// [`verify_censused`] 的结果：本次错误、窗口内 Rust 分配、精确预留、native 上界预留，以及
+    /// source 实际收到的请求摘要序列、未交出的预备节点数、是否有请求与预备节点摘要不符。
+    #[cfg(feature = "s_incremental")]
+    struct Censused {
+        error: Option<LedgerError>,
+        allocated: u64,
+        reserved: u64,
+        native: u64,
+        requested: Vec<[u8; 32]>,
+        unread: usize,
+        mismatched: bool,
     }
 
     #[cfg(feature = "s_incremental")]
@@ -4288,38 +4319,57 @@ pub(super) mod tests {
             };
             let mut overlong = u64::MAX.to_be_bytes().to_vec();
             overlong.extend_from_slice(&[7; 32]);
-            let overlong_root = reference(&frame(tag::STRING, &overlong), Some(0));
+            let overlong_digest = frame(tag::STRING, &overlong);
+            let overlong_root = reference(&overlong_digest, Some(0));
             let short_leaf = vec![9u8; 31];
             let leaf_digest = frame(tag::SEQ_LEAF, &short_leaf);
             let mut string_body = 5u64.to_be_bytes().to_vec();
             string_body.extend_from_slice(&leaf_digest);
-            let leaf_root = reference(&frame(tag::STRING, &string_body), Some(5));
-            for (root, reads) in [
+            let string_digest = frame(tag::STRING, &string_body);
+            let leaf_root = reference(&string_digest, Some(5));
+            let string_node = || NodeRead::Found {
+                tag: tag::STRING,
+                body: string_body.clone(),
+            };
+            let cases = [
                 (
                     overlong_root,
-                    vec![NodeRead::Found {
-                        tag: tag::STRING,
-                        body: overlong,
-                    }],
+                    vec![(
+                        overlong_digest,
+                        NodeRead::Found {
+                            tag: tag::STRING,
+                            body: overlong,
+                        },
+                    )],
+                    vec![overlong_digest],
                 ),
                 (
                     leaf_root,
                     vec![
-                        NodeRead::Found {
-                            tag: tag::STRING,
-                            body: string_body,
-                        },
-                        NodeRead::Found {
-                            tag: tag::SEQ_LEAF,
-                            body: short_leaf,
-                        },
+                        (string_digest, string_node()),
+                        (string_digest, string_node()),
+                        (
+                            leaf_digest,
+                            NodeRead::Found {
+                                tag: tag::SEQ_LEAF,
+                                body: short_leaf,
+                            },
+                        ),
                     ],
+                    vec![string_digest, string_digest, leaf_digest],
                 ),
-            ] {
-                let (error, allocated, reserved, native) =
-                    verify_censused(&current, &l4, &root, &q4, reads);
-                assert_eq!(error, Some(LedgerError::Invalid("Δ闭包核验失败")));
-                assert_eq!(allocated, reserved, "native upper bounds {native}");
+            ];
+            for (root, reads, path) in cases {
+                let run = verify_censused(&current, &l4, &root, &q4, reads);
+                assert_eq!(run.error, Some(LedgerError::Invalid("Δ闭包核验失败")));
+                assert_eq!(run.requested, path, "the failing read is the expected node");
+                assert_eq!(run.unread, 0);
+                assert!(!run.mismatched);
+                assert_eq!(
+                    run.allocated, run.reserved,
+                    "native upper bounds {}",
+                    run.native
+                );
             }
         }
         arm_trip(&l4, 1);
