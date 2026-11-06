@@ -1095,6 +1095,11 @@ const OBS_HELPER_REAP_DONE: Duration = Duration::from_secs(3);
 const OBS_HELPER_SETTLE_DONE: Duration = Duration::from_secs(1);
 const OBS_HELPER_ENV: &str = "PSE_OBS_HELPER_SCENARIO";
 const OBS_HELPER_TEST: &str = "socket_residue_observe_helper";
+/// 父测试进入接管回收的两种触发原因；真实观察用例遇到任一都判失败。
+const OBS_TRIGGER_HANDOFF: &str = "helper 请求交接本例后代，父测试接管回收";
+const OBS_TRIGGER_TIMEOUT: &str = "helper 未在限时内退出，父测试接管回收";
+/// 接管回收之后仍有后代存在或 helper 未被 wait。
+const OBS_TREE_OPEN: &str = "helper 进程树未闭合";
 /// 父测试接管时请 helper 收割已终结孩子的信号。
 const OBS_DRAIN_SIGNAL: libc::c_int = libc::SIGUSR1;
 const OBS_SCENARIOS: [(&str, Option<&str>); 3] = [
@@ -1436,8 +1441,8 @@ fn s_ready_matcher_requires_identity_in_envelope_and_payload() {
 
 /// 只读观察域写锁：查 `/proc/locks` 里该锁文件 inode 上的 FLOCK WRITE 记录，不打开锁文件、不尝试加锁。
 /// 域进程以一次性 `try_lock` 取锁（`session_transport::process_lock`），探针若先拿到锁会让它以 StaleWriter 拒启。
-/// 设备号与 inode 都相符，或 inode 相符且持锁 PID 属本次 launcher 的存活域进程，才算持有。
-fn lock_observed(db: &Path, holders: &[u32]) -> Result<bool, String> {
+/// 设备号与 inode 必须同时相符才算同一锁文件；对不上即未就绪，不以持锁 PID 推断对象。
+fn lock_observed(db: &Path) -> Result<bool, String> {
     let path = PathBuf::from(format!("{}.writer.lock", db.display()));
     let m = match std::fs::metadata(&path) {
         Ok(m) => m,
@@ -1448,16 +1453,49 @@ fn lock_observed(db: &Path, holders: &[u32]) -> Result<bool, String> {
     let ino = m.ino().to_string();
     let table = std::fs::read_to_string("/proc/locks")
         .map_err(|e| format!("/proc/locks 不可读，锁状态未观测：{e}"))?;
-    Ok(table.lines().any(|line| {
+    Ok(lock_table_holds_write(&table, &dev, &ino))
+}
+
+/// `/proc/locks` 中是否有生效（非阻塞等待）的 FLOCK WRITE 记录落在 `dev`（`MAJ:MIN`，十六进制）上的 `ino`。
+fn lock_table_holds_write(table: &str, dev: &str, ino: &str) -> bool {
+    table.lines().any(|line| {
         let c: Vec<&str> = line.split_whitespace().collect();
         if c.len() < 6 || c[1] != "FLOCK" || c[3] != "WRITE" {
             return false;
         }
-        let Some((d, i)) = c[5].rsplit_once(':') else {
-            return false;
-        };
-        i == ino && (d == dev || c[4].parse::<u32>().is_ok_and(|pid| holders.contains(&pid)))
-    }))
+        c[5].rsplit_once(':') == Some((dev, ino))
+    })
+}
+
+#[test]
+fn lock_table_requires_same_device_and_inode() {
+    let held = "1: FLOCK  ADVISORY  WRITE 4242 08:01:123 0 EOF\n";
+    assert!(lock_table_holds_write(held, "08:01", "123"));
+    for (case, table) in [
+        (
+            "设备不同 inode 相同",
+            "1: FLOCK  ADVISORY  WRITE 4242 08:02:123 0 EOF\n",
+        ),
+        (
+            "inode 不同",
+            "1: FLOCK  ADVISORY  WRITE 4242 08:01:124 0 EOF\n",
+        ),
+        ("读锁", "1: FLOCK  ADVISORY  READ 4242 08:01:123 0 EOF\n"),
+        (
+            "POSIX 锁",
+            "1: POSIX  ADVISORY  WRITE 4242 08:01:123 0 EOF\n",
+        ),
+        (
+            "阻塞等待项",
+            "1: -> FLOCK  ADVISORY  WRITE 4243 08:01:123 0 EOF\n",
+        ),
+        ("空表", ""),
+    ] {
+        assert!(
+            !lock_table_holds_write(table, "08:01", "123"),
+            "{case} 不得判为持有"
+        );
+    }
 }
 
 /// SQLite 只读读取：busy 等待不超过剩余绝对预算（替换库默认的 5s busy handler）。
@@ -2104,12 +2142,6 @@ fn wait_ready(
                 }
             }
             if let Some(reply) = &s_reply {
-                let holders: Vec<u32> = run
-                    .seen
-                    .iter()
-                    .filter(|p| p.state() == "alive")
-                    .map(|p| p.pid)
-                    .collect();
                 let mut locks_held = true;
                 for (domain, db) in [
                     ("s", s_db.to_path_buf()),
@@ -2117,7 +2149,7 @@ fn wait_ready(
                     ("e", space.path("e.db")),
                     ("b", space.path("b.db")),
                 ] {
-                    match lock_observed(&db, &holders) {
+                    match lock_observed(&db) {
                         Ok(true) => {}
                         Ok(false) => locks_held = false,
                         Err(e) => {
@@ -2861,13 +2893,13 @@ fn run_helper(scenario: &str, wait: Duration) -> (Value, Vec<String>) {
         Some(status) => (Some(status), Value::Null),
         None => {
             failures.push(if handoff {
-                "helper 报告本例后代未闭合，父测试接管回收".into()
+                OBS_TRIGGER_HANDOFF.into()
             } else {
-                "helper 未在限时内退出".into()
+                OBS_TRIGGER_TIMEOUT.into()
             });
             let tree = reap_helper_tree(&mut child, helper.as_ref(), end - OBS_HELPER_REAP_DONE);
             if tree["closed"] != true {
-                failures.push("helper 进程树未闭合".into());
+                failures.push(OBS_TREE_OPEN.into());
             }
             (child.try_wait().ok().flatten(), tree)
         }
@@ -2970,8 +3002,31 @@ fn fault_helper(scenario: &str) {
     }
 }
 
-fn assert_parent_takes_over(scenario: &str, wait: Duration) {
+/// 故障自检：只接受本场景预期的触发原因，以及故障 helper 被杀、未写收据带来的两条必然失败；
+/// 回收未闭合、捕获未闭合、超时上限或另一种触发原因一律判红。
+fn assert_parent_takes_over(scenario: &str, wait: Duration, expect_handoff: bool) {
     let (wrapper, failures) = run_helper(scenario, wait);
+    assert_eq!(
+        wrapper["handoff"],
+        json!(expect_handoff),
+        "{scenario} 触发方式不符：{wrapper}"
+    );
+    let (trigger, other) = if expect_handoff {
+        (OBS_TRIGGER_HANDOFF, OBS_TRIGGER_TIMEOUT)
+    } else {
+        (OBS_TRIGGER_TIMEOUT, OBS_TRIGGER_HANDOFF)
+    };
+    assert!(
+        failures.iter().any(|f| f == trigger),
+        "{scenario} 缺预期触发原因：{failures:?}"
+    );
+    assert!(!failures.iter().any(|f| f == other), "{failures:?}");
+    for f in &failures {
+        assert!(
+            f == trigger || f.starts_with("helper 退出状态") || f == "helper 收据条数 0（须为 1）",
+            "{scenario} 出现非预期失败：{f}；全部：{failures:?}"
+        );
+    }
     let tree = &wrapper["tree_reap"];
     assert_eq!(tree["closed"], true, "{scenario} 树未闭合：{wrapper}");
     let others: Vec<&Value> = tree["members"].as_array().unwrap().iter().collect();
@@ -2986,22 +3041,18 @@ fn assert_parent_takes_over(scenario: &str, wait: Duration) {
         );
     }
     assert_eq!(tree["open"], json!([]), "{wrapper}");
-    assert!(
-        !failures.iter().any(|f| f.contains("未闭合")),
-        "{scenario}：{failures:?}"
-    );
 }
 
 /// 交接分支：helper 声明后代未闭合并挂起，父测试冻结、按身份杀后代、让 helper 收割僵尸，最后才杀 helper。
 #[test]
 fn socket_residue_harness_handoff_reaps_descendants_before_helper() {
-    assert_parent_takes_over("FAULT-HANDOFF", OBS_HELPER_WAIT);
+    assert_parent_takes_over("FAULT-HANDOFF", OBS_HELPER_WAIT, true);
 }
 
 /// 超时分支：helper 不写交接行也不退出，父测试到期后走同一接管路径。
 #[test]
 fn socket_residue_harness_timeout_reaps_descendants_before_helper() {
-    assert_parent_takes_over("FAULT-TIMEOUT", Duration::from_secs(3));
+    assert_parent_takes_over("FAULT-TIMEOUT", Duration::from_secs(3), false);
 }
 
 /// 同一进程从存活变僵尸后 cmdline 变空、role 随之改变，身份仍须相等；重复观察只入队一次，
