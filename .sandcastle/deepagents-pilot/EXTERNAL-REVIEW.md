@@ -33,7 +33,11 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 ## 看结果与恢复
 
-先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。第一位 reviewer FAILED 后不再调用第二个模型。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，保留已完成的 reviews，不将旧 PASS 迁到新 SHA。
+先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。第一位 reviewer FAILED 后不再调用第二个模型。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，保留已完成的 reviews，旧 run 不把状态写到新 SHA。
+
+新 head 可以沿用旧 PASS，不调用模型，条件是同 PR 某个旧 head 的正式双审为 PASS 且已发布 success，并且 `patch_id`、`policy_version`、`review_contract` 三者都相同。这时新 run 在新 head 上先写 pending 再写 success，描述带 `reuse=<原 run_id> p=<patch_id 前 12 位>`，`outcome.json` 的 `reused_from` 留原 run 的 SHA、patch_id、双审结论和原发布记录。以下情况照常双审：当前 head 上已经有过别的 run（对同一 head 再发 attempt 就是要求重新独审）；补丁不同；原结论是 BLOCK、FAILED 或 STALE；同一补丁出现过 BLOCK；policy、模型或提示词有变；找不到可重算补丁身份的原 run；原 run 本身就是沿用来的。
+
+`patch_id` 是 `merge_base..head` 每个改动路径的路径、前后 mode、前后 blob 清单的 sha256，补丁逐字相同时才相等。不用 `git patch-id`，因为它忽略空白。main 只改了 PR 没碰的文件时 `patch_id` 不变；冲突解决，或 main 也改了 PR 碰过的文件，都会让它变化并触发重审。残余风险：同一补丁放到新 base 上语义可能变（例如 main 改了被调用的函数）。重审时模型会读新 base 上的相关源码，沿用时不读。CI 会在新 head 上重跑，但目前 CI 不是 main 的必需检查，失败不拦合入；要让 CI 兜住这一点，需要把它设为必需检查。
 
 退出码：PASS 或离线命令成功为 0，BLOCK/FAILED/STALE 为 1，输入、身份或待对账错误为 2。
 
