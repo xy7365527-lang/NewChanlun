@@ -5,7 +5,8 @@ set -euo pipefail
 #   出会执行的测试名（去重排序），只跑第 i、i+N、i+2N… 个。N 个作业各取一份：并集恰为原集合、互不重叠；
 #   每台机器上仍是 RUST_TEST_THREADS 个线程，同机负载与不拆时相同。
 # libtest 参数分两类：选名字的（裸过滤词、--skip X、--exact）只用于列举，名单已经体现了它们；
-#   决定怎么执行的（--ignored、--include-ignored、--test-threads N、--nocapture 等）列举和执行都带上，
+#   决定怎么执行的（--ignored、--include-ignored、--test-threads N、--nocapture、--report-time 等）列举和执行都带上；
+#   只有确实带值的选项（--test-threads --format --color --logfile -Z --shuffle-seed）才连同下一个参数一起取，
 #   这样 ignored 测试在分片后仍按原命令的语义执行或跳过。
 # 用法（在 rust/ 下）：cargo-test-part.sh <cargo test 参数…> -- <libtest 参数…>
 # 门：完整列表为空即失败。不设或 0/1 时原样执行一条 cargo test。
@@ -28,7 +29,7 @@ while (( k < ${#libtest[@]} )); do
   case "$a" in
     --skip) k=$((k + 2)); continue ;;
     --exact) ;;
-    --test-threads|--format|--color|--logfile|-Z|--shuffle-seed|--report-time)
+    --test-threads|--format|--color|--logfile|-Z|--shuffle-seed)
       run_opts+=("$a")
       if (( k + 1 < ${#libtest[@]} )); then run_opts+=("${libtest[k + 1]}"); fi
       k=$((k + 2)); continue ;;
