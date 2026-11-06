@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import threading
 from collections import Counter
 import hashlib
 import json
@@ -1303,10 +1305,13 @@ def run_target(rust: Path, target_dir: Path, output: Path, target: str, mode: st
         require_listed(list_log.read_text(), names)
         same_binary(binary)
         failures = []
-        for number, lock in enumerate(locks):
+        failures_lock = threading.Lock()
+        # #1875：每条锁各自一个进程、各自 --exact；CI_1488_TEST_JOBS>1 时用线程池并行执行同一流程
+        #   （Boat large 8 核上取 4，与 RUST_TEST_THREADS=4 同口径）。未设或为 1 时与原串行完全一致。
+        workers = max(1, int(os.environ.get("CI_1488_TEST_JOBS", "1")))
+
+        def run_one(number: int, lock: dict, test_result: dict) -> None:
             name = lock["name"]
-            test_result = {"name": name, "lane": lock["lane"], "success": False}
-            result["tests"].append(test_result)
             same_binary(binary)
             test_log = output / f"{target}-{number:02d}.log"
             code = run_logged([binary["path"], name, "--exact", "--format", "pretty",
@@ -1320,7 +1325,22 @@ def run_target(rust: Path, target_dir: Path, output: Path, target: str, mode: st
                 test_result["success"] = True
             except ValueError as exc:
                 test_result["error"] = str(exc)
-                failures.append(name)
+                with failures_lock:
+                    failures.append(name)
+
+        planned = []
+        for number, lock in enumerate(locks):
+            test_result = {"name": lock["name"], "lane": lock["lane"], "success": False}
+            result["tests"].append(test_result)
+            planned.append((number, lock, test_result))
+        if workers == 1:
+            for item in planned:
+                run_one(*item)
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+                for future in [pool.submit(run_one, *item) for item in planned]:
+                    future.result()
+        failures.sort(key=[lock["name"] for lock in locks].index)
         same_binary(binary)
         result["binary_hash_after_run"] = sha256(Path(binary["path"]))
         if failures:
