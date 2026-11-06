@@ -1,5 +1,6 @@
 import copy
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -467,13 +468,13 @@ def test_stale_publication_preserves_completed_reviews(lane):
     assert [r["verdict"] for r in result["reviews"]] == ["PASS", "PASS"]
 
 
-def test_low_space_stops_before_checkout_or_model(lane, monkeypatch):
+def test_low_space_refuses_registration_before_attempt_or_status(lane, monkeypatch):
     monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
-    result = lane.review_pr(1810)
-    assert result["verdict"] == "FAILED"
-    assert "空间不足" in result["reviews"][0]["reason"]
-    assert not (lane.state_root / "runs" / "launches").exists()
-    assert not list(lane.checkout_root.glob("*/*"))
+    with pytest.raises(IdentityError, match="空间不足：单份快照需要 .*可用 1 bytes；未登记 attempt"):
+        lane.review_pr(1810)
+    assert not list((lane.state_root / "runs").glob("*/target.json"))
+    assert lane.gateway.sent == []
+    assert not lane.checkout_root.exists()
 
 
 def test_cleanup_preserves_live_or_unknown_activity(lane, monkeypatch):
@@ -539,10 +540,94 @@ def test_space_exhausted_after_prepare_stops_before_model(lane, monkeypatch):
     def disk_usage(path):
         nonlocal calls
         calls += 1
-        return SimpleNamespace(free=10**12 if calls == 1 else 1)
+        return SimpleNamespace(free=10**12 if calls <= 2 else 1)  # 登记预检与 prepare 各一次
     monkeypatch.setattr(module.shutil, "disk_usage", disk_usage)
     result = lane.review_pr(1810)
     assert result["verdict"] == "FAILED"
     assert "模型启动前" in result["reviews"][0]["reason"]
     assert not (lane.state_root / "runs" / "launches").exists()
     assert not list(lane.checkout_root.iterdir())
+
+
+def _launches(lane):
+    path = lane.state_root / "runs" / "launches"
+    return len(path.read_text().splitlines()) if path.exists() else 0
+
+
+def _advance_main(lane, env, *, conflict=False, rewrite=None):
+    """main 前进后把 main 合进 PR head，模拟 strict 下的追平。"""
+    src, head = lane.source, git(lane.source, "rev-parse", "HEAD")
+    git(src, "checkout", "-q", "-b", f"main-{len(lane.gateway.rows)}", str(env.base))
+    (src / ("changed-0" if conflict else "unrelated")).write_text("main side\n")
+    git(src, "add", ".")
+    git(src, "commit", "-qm", "main advances")
+    base = git(src, "rev-parse", "HEAD")
+    git(src, "checkout", "-q", head)
+    if conflict:
+        assert subprocess.run(["git", "-C", str(src), "merge", "-q", "--no-edit", base],
+                              capture_output=True).returncode != 0
+        (src / "changed-0").write_text("0\nmain side\n")
+        git(src, "add", ".")
+        git(src, "commit", "-qm", "resolve conflict")
+    else:
+        git(src, "merge", "-q", "--no-edit", base)
+    if rewrite is not None:
+        (src / "changed-1").write_text(rewrite)
+        git(src, "commit", "-qam", "patch changes")
+    lane.gateway.pr["base"]["sha"], lane.gateway.pr["head"]["sha"] = base, git(src, "rev-parse", "HEAD")
+
+
+def test_same_patch_on_new_base_reuses_pass_without_model(lane, env):
+    first = lane.review_pr(1810)
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and result["reviews"] == []
+    assert result["reused_from"]["run_id"] == first["run_id"]
+    assert result["target"]["patch_id"] == first["target"]["patch_id"]
+    assert result["target"]["merge_base_sha"] != first["target"]["merge_base_sha"]
+    assert _launches(lane) == len(MODELS)
+    assert lane.gateway.sent == ["pending", "success", "pending", "success"]
+    row = lane.gateway.rows[0]
+    assert row["sha"] == lane.gateway.pr["head"]["sha"]
+    assert f"reuse={first['run_id']} p={first['target']['patch_id'][7:19]}" in row["description"]
+    assert len(row["description"]) <= 140
+    assert lane.review_pr(1810)["publication"]["id"] == row["id"]  # 重跑只读回，不重发
+    assert lane.gateway.sent == ["pending", "success", "pending", "success"]
+
+
+# 只改空白也必须重审：git patch-id 会忽略空白，所以补丁身份不用它。
+@pytest.mark.parametrize("change", ["patch", "whitespace", "conflict"])
+def test_changed_patch_or_conflict_resolution_is_reviewed_again(lane, env, change):
+    first = lane.review_pr(1810)
+    _advance_main(lane, env, conflict=change == "conflict",
+                  rewrite={"patch": "changed again\n", "whitespace": " 1"}.get(change))
+    result = lane.review_pr(1810)
+    assert result["target"]["patch_id"] != first["target"]["patch_id"]
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+    assert _launches(lane) == 2 * len(MODELS)
+
+
+@pytest.mark.parametrize("first_verdict", ["BLOCK", "FAILED"])
+def test_non_pass_conclusion_is_not_reused(lane, env, first_verdict):
+    launcher = lane.launcher
+    if first_verdict == "BLOCK":
+        (lane.state_root / "runs").mkdir(parents=True)
+        (lane.state_root / "runs" / "fake-mode").write_text("BLOCK")
+    else:
+        lane.launcher = ["/nonexistent-fixture-launcher"]
+    assert lane.review_pr(1810)["verdict"] == first_verdict
+    (lane.state_root / "runs" / "fake-mode").unlink(missing_ok=True)
+    lane.launcher = launcher
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and "reused_from" not in result
+    assert len(result["reviews"]) == len(MODELS)
+
+
+@pytest.mark.parametrize("field", ["POLICY", "REVIEW_CONTRACT"])
+def test_policy_or_contract_change_is_not_reused(lane, env, monkeypatch, field):
+    lane.review_pr(1810)
+    monkeypatch.setattr(module, field, "changed")
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)

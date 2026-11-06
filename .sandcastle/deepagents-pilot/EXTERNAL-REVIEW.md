@@ -33,7 +33,11 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 ## 看结果与恢复
 
-先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。第一位 reviewer FAILED 后不再调用第二个模型。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，保留已完成的 reviews，不将旧 PASS 迁到新 SHA。
+先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。第一位 reviewer FAILED 后不再调用第二个模型。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，保留已完成的 reviews，旧 run 不把状态写到新 SHA。
+
+新 head 可以沿用旧 PASS，不调用模型，条件是同 PR 某个旧 head 的正式双审为 PASS 且已发布 success，并且 `patch_id`、`policy_version`、`review_contract` 三者都相同。这时新 run 在新 head 上先写 pending 再写 success，描述带 `reuse=<原 run_id> p=<patch_id 前 12 位>`，`outcome.json` 的 `reused_from` 留原 run 的 SHA、patch_id、双审结论和原发布记录。以下情况照常双审：补丁不同；原结论是 BLOCK、FAILED 或 STALE；同一补丁出现过 BLOCK；policy、模型或提示词有变；找不到可重算补丁身份的原 run；原 run 本身就是沿用来的。
+
+`patch_id` 是 `merge_base..head` 每个改动路径的路径、前后 mode、前后 blob 清单的 sha256，补丁逐字相同时才相等。不用 `git patch-id`，因为它忽略空白。main 只改了 PR 没碰的文件时 `patch_id` 不变；冲突解决，或 main 也改了 PR 碰过的文件，都会让它变化并触发重审。残余风险：同一补丁放到新 base 上语义可能变（例如 main 改了被调用的函数）。这一点可以接受：strict 要求 CI 在新 base 上重跑，行为回归由 CI 门拦住，这里的审查判断的是补丁本身。
 
 退出码：PASS 或离线命令成功为 0，BLOCK/FAILED/STALE 为 1，输入、身份或待对账错误为 2。
 
@@ -77,7 +81,7 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 无凭据 detached checkout 位于外盘 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/checkouts/external-review/<run-id>/<model>`。每份对象库只保存 base、head、merge-base 的源码树及祖先 commit 元数据，不带无关历史版本的树和 blob。`git merge-base`、完整 PR diff、三端源码和提交元数据可用。其它历史提交的源码不在快照内。Git config、hooks、alternates 和凭据不从源仓复制。
 
-prepare 前按导入对象未压缩大小、head 文件大小及 256 MiB 余量检查空间，模型启动前再次核对余量。空间不足时明确失败，不启动模型。
+登记 attempt 时先按导入对象未压缩大小、head 文件大小及 256 MiB 余量（单份 `required_single`）对 checkout_root 所在卷的 `available` 预检，不够就不登记、不写状态，并报出所需和可用字节数；可沿用时不需要快照，跳过预检。prepare 前和模型启动前仍各核一次，防止排队期间空间被占用。
 
 宿主先保存 `prepare.json`，再构造 checkout。prepare 中断且尚无 launch 时，同键重跑只回收本 run 的未启动 checkout 并重建。`launch.json` 之后沿用原收养协议，不自动重复派工。监督在读取 launch、获取锁等启动阶段失败也保存失败终态。已记录的监督进程退出却未写终态时，controller 生成 FAILED 记录并发布 error，不永久停留在 pending。
 
