@@ -2641,7 +2641,7 @@ const correctedArch = fence({ points: goodArchObj.points.map((p) => p.id === "Q1
 test("feedback1535：三级子标题保留，节外及代码块假 Q 不补覆盖", () => {
   const a = parseArchaeology(goodArch)!;
   assert.deepEqual(archaeologyCoverageProblems("## 考古对照\n### 查询范围\n说明\n### 逐点对照\nQ1 Q2 Q3\n## 后续\n", a), []);
-  for (const fake of ["## 后续\nQ3", "# 后续\nQ3", "```text\nQ3\n```", "~~~text\nQ3\n~~~", "    Q3", "```canonical_edit\n" + JSON.stringify({ content: "Q3" }) + "\n```", "````text\n```\nQ3\n````"]) {
+  for (const fake of ["## 后续\nQ3", "# 后续\nQ3", "```text\nQ3\n```", "~~~text\nQ3\n~~~", "\n    Q3", "```canonical_edit\n" + JSON.stringify({ content: "Q3" }) + "\n```", "````text\n```\nQ3\n````"]) {
     assert.match(archaeologyCoverageProblems("## 考古对照\nQ1 Q2\n" + fake, a).join(), /Q3/, fake);
   }
   assert.match(archaeologyCoverageProblems("```text\n## 考古对照\nQ1 Q2 Q3\n```", a).join(), /缺/);
@@ -2851,5 +2851,185 @@ test("feedback1535：旧版待 redo 检查点无考古字段，仍补 R8 返修�
   assert.deepEqual(s.rounds!.map(r => r.verdict), ["BLOCK", "PASS"]);
   assert.equal(h.archCalls.length, 2);
   assert.equal(h.modelCalls.filter(c => c.role === "review").length, 2);
+  assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
+});
+
+
+// PR1905 独审 B1/B2、根裁决 N1/N2/N3 的确定性反例。
+test("repair1905：CommonMark 嵌套列表和段落续行保留", () => {
+  const a = parseArchaeology(goodArch)!;
+  for (const body of ["- Q1\n- Q2\n    - Q3 嵌套列表", "Q1 Q2\n    Q3 段落续行", "- Q1 Q2\n\n    Q3 列表续段", "- Q1 Q2\n\tQ3 列表续行"]) {
+    assert.deepEqual(archaeologyCoverageProblems("## 考古对照\n" + body, a), [], body);
+  }
+});
+for (const fake of ["\n    Q3", "\n\tQ3", "<!-- Q3 -->", "> ```text\n> Q3\n> ```", "后续\n---\nQ3", "后续\n===\nQ3", "```canonical_edit\n{\"content\":\"Q3\"}\n```", "- 示例\n\n      Q3"]) {
+  test(`repair1905：伪覆盖拒绝 ${JSON.stringify(fake)}`, () => {
+    assert.match(archaeologyCoverageProblems("## 考古对照\nQ1 Q2\n\n" + fake, parseArchaeology(goodArch)!).join(), /Q3/);
+  });
+}
+
+test("repair1905：调用失败事实跨恢复保留，安全原因且不重发", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block], [goodArch]);
+  const model = h.d.model;
+  let failedCalls = 0;
+  h.d.model = async c => {
+    if (c.role === "triage" && h.archCalls.length) { failedCalls++; throw new Error("HTTP 429 quota exhausted after retries Authorization: Bearer secret-fixture-123 token=secret-fixture-456 arbitrary-private-text"); }
+    return model(c);
+  };
+  const first = await processTicket(1531, h.d);
+  assert.equal(first.phase, "error");
+  const dir = join(h.d.outRoot, "1531", "archaeology.repair2");
+  const raw = readFileSync(join(dir, "call1.error.json"), "utf8");
+  const failure = JSON.parse(raw);
+  assert.equal(failure.callIndex, 1);
+  assert.equal(failure.intent, join(dir, "call1.intent.json"));
+  assert.ok(Number.isFinite(Date.parse(failure.observedAt)));
+  assert.equal(failure.reason, "rate_limit");
+  assert.equal(failure.retryable, true);
+  assert.ok(!/secret-fixture|arbitrary-private-text|Authorization/.test(raw));
+  for (let i = 0; i < 2; i++) {
+    const resumed = await processTicket(1531, h.d);
+    assert.match(resumed.error ?? "", /已观察到调用失败.*rate_limit/);
+    assert.ok(resumed.error!.includes(failure.intent));
+    assert.equal(readFileSync(join(dir, "call1.error.json"), "utf8"), raw);
+  }
+  assert.equal(failedCalls, 1);
+});
+
+test("repair1905：机械返修发布后 checkpoint 前中断恢复不重调不混代", async () => {
+  const bad = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r3Block, goodDraft, fence(pass())], [bad, bad, correctedArch]);
+  const dir = join(h.d.outRoot, "1531");
+  const rename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = ((from, to) => {
+    rename(from, to);
+    if (!injected && String(to).endsWith("/archaeology.json") && JSON.parse(readFileSync(String(to), "utf8")).points?.[0]?.citation === "new/store.rs:659") {
+      injected = true; throw new Error("机械新原件已发布，checkpoint 未提交");
+    }
+  }) as typeof fs.renameSync;
+  syncBuiltinESMExports();
+  try { assert.equal((await processTicket(1531, h.d)).phase, "error"); }
+  finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+  assert.ok(injected);
+  assert.equal(h.archCalls.length, 3);
+  const second = await processTicket(1531, h.d);
+  assert.equal(h.archCalls.length, 3, "基线同窗口不重复调用");
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.equal(second.attempts, 2);
+  assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
+  const cp = JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8"));
+  assert.deepEqual(cp.archaeology.record, JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")));
+  assert.equal(cp.archaeology.md, readFileSync(join(dir, "archaeology.md"), "utf8"));
+});
+
+test("repair1905：旧 checkpoint 第2轮原件不伪标 attempt1", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r8Block, goodDraft, fence(pass())], [goodArch, correctedArch]);
+  await processTicket(1531, h.d);
+  const dir = join(h.d.outRoot, "1531");
+  const cpPath = join(dir, "main-rounds.json");
+  const cp = JSON.parse(readFileSync(cpPath, "utf8"));
+  delete cp.archaeology;
+  writeFileSync(cpPath, JSON.stringify(cp));
+  // 真正旧版本没有 attempt 原件；别名可能已经是第二轮，旧账本无法证明来源。
+  for (const f of fs.readdirSync(dir).filter(f => /^archaeology\.attempt/.test(f))) fs.rmSync(join(dir, f));
+  const count = h.archCalls.length;
+  const second = await processTicket(1531, h.d);
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.equal(h.archCalls.length, count);
+  assert.equal(existsSync(join(dir, "archaeology.attempt1.json")), false);
+  const saved = JSON.parse(readFileSync(cpPath, "utf8")).archaeology;
+  assert.equal(saved.attempt, null);
+  assert.equal(saved.origin, "legacy");
+  assert.equal(saved.record.points[0].citation, "new/store.rs:659");
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "archaeology.legacy.json"), "utf8")), saved.record);
+});
+
+for (const point of ["receipt", "alias-md", "checkpoint-before", "checkpoint-after"] as const) {
+  test(`repair1905：机械返修 ${point} 恢复复用回执`, async () => {
+    const bad = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
+    const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r3Block, goodDraft, fence(pass())], [bad, bad, correctedArch]);
+    const dir = join(h.d.outRoot, "1531");
+    const rename = fs.renameSync, write = fs.writeFileSync;
+    let injected = false;
+    fs.renameSync = ((from, to) => {
+      const target = String(to);
+      const match = point === "receipt" ? target === join(dir, "archaeology.mechanical2-1/call1.result.json")
+        : point.startsWith("checkpoint") && target === join(dir, "main-rounds.json") && JSON.parse(readFileSync(from, "utf8")).archaeology?.mechanicalGeneration === 1;
+      if (!injected && match) {
+        injected = true;
+        if (point !== "checkpoint-before") rename(from, to);
+        throw new Error("机械故障注入");
+      }
+      return rename(from, to);
+    }) as typeof fs.renameSync;
+    fs.writeFileSync = ((path, data, ...args) => {
+      if (!injected && point === "alias-md" && String(path) === join(dir, "archaeology.md") && String(data).includes("new/store.rs:659")) {
+        injected = true; throw new Error("半组别名发布前");
+      }
+      return write(path, data, ...args);
+    }) as typeof fs.writeFileSync;
+    syncBuiltinESMExports();
+    try { assert.equal((await processTicket(1531, h.d)).phase, "error"); }
+    finally { fs.renameSync = rename; fs.writeFileSync = write; syncBuiltinESMExports(); }
+    assert.ok(injected);
+    const second = await processTicket(1531, h.d);
+    assert.equal(second.phase, "shadow_p", second.error ?? "");
+    assert.equal(h.archCalls.length, 3);
+    assert.equal(second.attempts, 2);
+    const cp = JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8"));
+    assert.deepEqual(cp.archaeology.record, JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")));
+    assert.equal(cp.archaeology.md, readFileSync(join(dir, "archaeology.md"), "utf8"));
+    assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
+  });
+}
+
+test("repair1905：机械失败无回执仍沿用原恢复条件", async () => {
+  const bad = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r3Block, goodDraft, fence(pass())], [bad, bad, correctedArch]);
+  const model = h.d.model;
+  let failed = false;
+  h.d.model = async c => {
+    if (!failed && c.role === "triage" && h.archCalls.length === 2) { failed = true; throw new Error("ETIMEDOUT"); }
+    return model(c);
+  };
+  assert.equal((await processTicket(1531, h.d)).phase, "error");
+  const second = await processTicket(1531, h.d);
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.equal(h.archCalls.length, 3);
+});
+
+
+test("repair1905：机械已提交但仍不合格的恢复使用下一代而非旧回执", async () => {
+  const bad = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r3Block, goodDraft, fence(pass())], [bad, bad, bad, bad, correctedArch]);
+  const model = h.d.model;
+  let crashed = false;
+  h.d.model = async c => {
+    if (!crashed && c.role === "draft" && h.archCalls.length === 4) { crashed = true; throw new Error("机械返修已提交后起草中断"); }
+    return model(c);
+  };
+  assert.equal((await processTicket(1531, h.d)).phase, "error");
+  const second = await processTicket(1531, h.d);
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.equal(h.archCalls.length, 5);
+  assert.equal(second.attempts, 2);
+  const dir = join(h.d.outRoot, "1531");
+  assert.ok(existsSync(join(dir, "archaeology.mechanical2-1/call2.result.json")));
+  assert.ok(existsSync(join(dir, "archaeology.mechanical2-2/call1.result.json")));
+  assert.equal(JSON.parse(readFileSync(join(dir, "main-rounds.json"), "utf8")).archaeology.mechanicalGeneration, 2);
+});
+
+
+test("repair1905：机械解析失败后只补考古不重用失败代回执", async () => {
+  const bad = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
+  const h = fakeDeps("dry-run", [fence({ class: "P", reason: "政策" }), goodDraft, r3Block, goodDraft, fence(pass())], [bad, bad, "无 JSON", "无 JSON", bad, bad, correctedArch]);
+  assert.equal((await processTicket(1531, h.d)).phase, "error");
+  assert.equal(h.archCalls.length, 4);
+  const second = await processTicket(1531, h.d);
+  assert.equal(second.phase, "shadow_p", second.error ?? "");
+  assert.equal(second.resumedFrom, "triaged");
+  assert.equal(h.archCalls.length, 7);
+  assert.equal(second.attempts, 2);
   assert.match(h.modelCalls.filter(c => c.role === "review")[1].prompt, /new\/store.rs:659/);
 });

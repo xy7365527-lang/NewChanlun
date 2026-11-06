@@ -47,7 +47,11 @@
 
 独审指出考古路径、行号或命中表述错误时，已解析且有依据的 **R8 BLOCK** 会在既有 `redo` 轮内回流给同一 MAIN 会话的 `triage`：固定当前 T/P 分级，携带 R8 原文和机械问题，宿主解析返回值后更新考古原件，再交起草和下一轮独审。缺 R8、R8 缺依据、解析失败或仅其他规则 BLOCK 不触发此回流；已有机械不合格返修保留原恢复方式。语义返修不新增重做额度，不开放模型 Edit/Write；两轮 BLOCK 后的终态仍须走正式退回与归档流程，不提供终态同 session 追加轮次。
 
-考古版本保存在 `archaeology.attempt<N>.json/md`（N 为产生该版本的起草轮号），旧版本与旧审查不改写。R8 返修另在 `archaeology.repair<N>/` 保存每次调用的冻结 intent、返回回执和新原件。`main-rounds.json` 先绑定完整 json/md 版本，再发布顶层别名；恢复时从检查点补齐别名，下一轮 review 使用该版本。回执已保存而原件发布中断时复用回执，不重复模型调用；仅有 intent、尚无已保存回执时停止自动续接，保留结果未知证据待核实，不以自动重试消耗第二次调用。检查点仍沿用原重做与引用专修额度。这些返修原件随 MAIN 会话一起退役留档。
+考古版本保存在 `archaeology.attempt<N>.json/md`（N 为产生该版本的起草轮号），旧版本与旧审查不改写。R8 返修另在 `archaeology.repair<N>/` 保存每次调用的冻结 intent、返回回执和新原件。`main-rounds.json` 先绑定完整 json/md 版本，再发布顶层别名；恢复时从检查点补齐别名，下一轮 review 使用该版本。回执已保存而原件发布中断时复用回执，不重复模型调用；仅有 intent、尚无已保存回执时停止自动续接，不以自动重试消耗第二次调用。若 runner 已抛错，宿主另存 `call<N>.error.json`：观察时间、调用序号、intent 路径、固定原因枚举（限流、超时、网络、护栏、其他上游临时错误或其他）和沿用既有 `isRetryable` 判据的布尔值；不存任意原始错误文本。恢复错误区分“已观察到调用失败”与“无回执、结果未知”，均给出 call 序号和 intent 路径。检查点仍沿用原重做与引用专修额度。这些返修原件随 MAIN 会话一起退役留档。
+
+机械不合格返修在 `archaeology.mechanical<轮号>-<代号>/` 缓存返回回执；别名发布后、检查点提交前中断，复用同代回执恢复 json/md 与检查点，不再调用。已提交一代但仍机械不合格的恢复可开始下一代；无回执的机械失败仍沿用原有恢复条件，不套用 R8 的未知结果停点。旧检查点没有绑定考古来源时，现存别名仅标 `origin: legacy`、`attempt: null`，保存为 `archaeology.legacy.json/md`，不能推定它属于第1轮。
+
+回执以首次落盘的 intent 为审计依据：恢复校验 model/role/cwd，不因票面新增普通分级评论导致 prompt 重算不同而重发；R8 intent 的冻结提示保持原样，不改写为当前提示。
 
 完成标准：`/Volumes/AgentStorage/decisions/<票号>/archaeology.md` 与 `archaeology.json` 落盘，每个待决点有查询词、命令、命中与归类。只验考古：`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket <号> --out <目录>`（不看票是否已关，不写 GitHub）。
 
@@ -59,7 +63,7 @@
 
 遇缠师原文无定论、有多个可行候选的待决点（`[新缠论:选择]` 或参数类），按 [ADR 0041](../../docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md) 优先裁为「可调字段 + 默认值」：落进具名版本化记录，写默认值与出处、可选值及代价，改值即新版本；另一种合法取值保留为可选值。已裁定签署前不得代填的字段（资金、量档、容量、成本门 θ、风险阈值等），默认值写 `AwaitingPolicy`（不签不跑、无备用值），数值只以「推荐值＋出处」列进签署单待用户确认。违原文、违已裁推论、被实测否证、属 #799 兜底或与现行判据构成同一判断宽严两档的候选照旧排除。
 
-起草按考古处置待决点：只有 C 类 `decision` 列为真正待决；B 类写成默认值待确认；C 类 `research`/`probe` 写成要开的票。草稿末尾附「考古对照」表，每个考古点号一行。覆盖检查按该标题层级取段，保留三级等从属子标题，只在同级或更高级标题结束；节外文字、代码块（含 `canonical_edit`）与缩进代码中的 Q 编号不补覆盖。
+起草按考古处置待决点：只有 C 类 `decision` 列为真正待决；B 类写成默认值待确认；C 类 `research`/`probe` 写成要开的票。草稿末尾附「考古对照」表，每个考古点号一行。覆盖检查使用 CommonMark 语法树，保留三级等从属子标题、合法嵌套列表和段落续行，在同级或更高级 ATX/setext 标题结束。节外文字、HTML 注释、真实缩进代码块和 fenced 代码块（包括引用内代码与 `canonical_edit`）中的 Q 编号不补覆盖。
 
 七段与流程表之后只附一个 `canonical_edit` 代码块，且只声明一个 `正本落点：<路径>`。目标仍限 `.chanlun/definitions/`、`docs/adr/` 或 `CONTEXT.md`，新建和修订都可用。
 
