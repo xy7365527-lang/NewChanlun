@@ -4225,7 +4225,22 @@ pub(super) mod tests {
         let refused = refused.unwrap_err();
         assert_eq!(refused, budget);
         assert_eq!(LEDGER_STATEMENTS.load(Ordering::SeqCst), entered);
-        let spare_parent = parent(&current, &b);
+        // 首拒之后 `ChargedParent::new` 自身按当前准入拒绝（核身份后再核准入），零分配、不进入
+        // SQLite；受管开库自己的拒绝则用同父直接构造的参数核，与上面的 `refused_parent` 同法。
+        let (constructed, probe) = rust_window(&current, || {
+            ChargedParent::new(current.clone(), b.clone()).err()
+        });
+        assert_eq!(
+            probe.probe["allocated_bytes"].as_u64().unwrap(),
+            0,
+            "{probe}"
+        );
+        assert_eq!(constructed.as_ref(), Some(&budget));
+        assert_eq!(LEDGER_STATEMENTS.load(Ordering::SeqCst), entered);
+        let spare_parent = ChargedParent {
+            budget: current.clone(),
+            binding: b.clone(),
+        };
         let (reopened, probe) =
             rust_window(&current, || Charged::open(&spare_path, pages, spare_parent));
         assert_eq!(
