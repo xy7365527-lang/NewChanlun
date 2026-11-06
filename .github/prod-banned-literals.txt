@@ -772,7 +772,6 @@ writer/recover闭合后无SHM
 取消后不能重建成功scope
 取行后本连接页缓存须增长
 受管 reader 需要 owner 夹持
-受管台账没有裸连接
 变化JSON不是普通数组
 变化原件不得沿用旧证明
 变形 flag 不得创建库
