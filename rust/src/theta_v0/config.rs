@@ -1024,7 +1024,7 @@ mod tests {
     }
 
     /// #1602 专项验收（#1774 AC5 收敛）：生产与验收回放的配置入口对所有品种都停在 AwaitingPolicy——
-    /// BTC（P0）tick 已签（ADR 0057 R1）、三项成本未签，只剩 `cost_inputs`；其余品种是生产表里没有
+    /// BTC（P0）v3 仅滑点未签，只剩 `cost_inputs`；其余品种是生产表里没有
     /// 场所 profile，两槽 `venue_profile` 与 `cost_inputs` 都报。
     #[test]
     fn production_config_awaits_venue_profile_and_cost_inputs() {
@@ -1046,6 +1046,10 @@ mod tests {
             "{e}"
         );
         assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
+        let message = e.to_string();
+        assert!(message.contains("slippage_bps"), "{message}");
+        assert!(!message.contains("tax_bps"), "{message}");
+        assert!(!message.contains("entry_delay_bars"), "{message}");
     }
 
     /// #1774 AC2 第二层 + AC4 + AC9：S 专用构造最终 admissible 且 record_labels 带 synthetic 签署版本；

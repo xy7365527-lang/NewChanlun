@@ -115,12 +115,16 @@ SYNTHETIC_PROFILE = "production_synthetic_ohlc_integer_tb02a_v1"
 
 
 def test_production_profile_awaits_policy_and_fixture_is_labelled():
-    # #1602 负控：没有场所 profile ⟹ 两槽；P0（replay）tick 已签、三项成本未签 ⟹ 只剩 cost_inputs
+    # #1602 负控：没有场所 profile ⟹ 两槽；P0（replay）v3 仅滑点未签 ⟹ 只剩 cost_inputs
     # （#1774 AC5）。都是 ValueError(AwaitingPolicy)，不回退旧常数。
     with pytest.raises(ValueError, match=r"AwaitingPolicy\{venue_profile, cost_inputs\}"):
         newchan_rust.ThetaStream()
-    with pytest.raises(ValueError, match=r"AwaitingPolicy\{cost_inputs\}"):
+    with pytest.raises(ValueError, match=r"AwaitingPolicy\{cost_inputs\}") as info:
         newchan_rust.ThetaStream(venue_profile="P0", funding_profile="P0")
+    message = str(info.value)
+    assert "slippage_bps" in message
+    assert "tax_bps" not in message
+    assert "entry_delay_bars" not in message
     with pytest.raises(ValueError):
         newchan_rust.ThetaStream(preset="nope")
     s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")

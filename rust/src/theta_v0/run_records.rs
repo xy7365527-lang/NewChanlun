@@ -628,24 +628,52 @@ mod tests {
     }
 
     /// #1774 AC3/AC5（B1 负控 + 旧用法兼容）：replay 记录 tick 已签（ADR 0057 R1），BTC 与 `P0` 两路
-    /// 都选中 replay 记录并因三项成本未签停在 AwaitingPolicy{cost_inputs}；缺字段恰为三项。
+    /// 都选中 replay v3 记录并仅因滑点未签停在 AwaitingPolicy{cost_inputs}。
     #[test]
     fn production_p0_awaits_cost_inputs_only() {
-        let e = production_venue_for_symbol("BTC").expect_err("P0 三项成本未签，必须停");
+        let e = production_venue_for_symbol("BTC").expect_err("P0 滑点未签，必须停");
         assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
         assert!(e.is_awaiting_policy());
         assert_eq!(
             awaiting_fields(&e),
-            vec![
-                (VENUE_PROFILE_P0_ID, "slippage_bps"),
-                (VENUE_PROFILE_P0_ID, "tax_bps"),
-                (VENUE_PROFILE_P0_ID, "entry_delay_bars")
-            ]
+            vec![(VENUE_PROFILE_P0_ID, "slippage_bps")]
         );
         assert!(e.to_string().starts_with("AwaitingPolicy{cost_inputs}"));
         let by_profile = production_venue_for_profile("P0").unwrap_err();
         assert_eq!(by_profile.slots, e.slots);
         assert_eq!(by_profile.causes, e.causes);
+    }
+
+    #[test]
+    fn replay_v3_reads_signed_delay_and_tax_when_test_slippage_is_supplied() {
+        let mut record: Value = serde_json::from_str(VENUE_PROFILE_P0_JSON).unwrap();
+        assert_eq!(record["version"], 3);
+        assert!(record.get("usage").is_none());
+        assert_eq!(record["fields"]["slippage_bps"]["value"], "AwaitingPolicy");
+        record["fields"]["slippage_bps"]["value"] = serde_json::json!(4);
+        let text = serde_json::to_string(&record).unwrap();
+        let table = [(VENUE_PROFILE_P0_ID, text.as_str())];
+        let by_symbol = production_venue_from_records(&table, VenueUsage::General, |_, symbol| {
+            symbol == Some("BTC")
+        })
+        .unwrap();
+        let by_profile =
+            production_venue_from_records(&table, VenueUsage::General, |profile, _| {
+                profile == "P0"
+            })
+            .unwrap();
+        assert_eq!(by_symbol, by_profile);
+        assert_eq!(by_symbol.entry_delay_bars, 1);
+        assert_eq!(by_symbol.tax_bps, 0.0);
+        assert_eq!(by_symbol.slippage_bps, 4.0);
+        let config = super::super::config::ThetaConfig::from_records(
+            Ok(by_symbol),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        )
+        .unwrap();
+        assert!(config.admissible());
+        assert!(config.record_labels().contains("venue-profile-P0/3"));
     }
 
     /// #1774 AC2 第一层：S 专用选择器返回签齐的 synthetic 记录（三值 0/0/0 为模型假设、tick 1）。
