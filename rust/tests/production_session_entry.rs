@@ -143,7 +143,10 @@ fn run_refusal(cmd: &mut Command) -> Output {
 
 /// v3 init（可带结构源声明）。
 fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
-    let db = space.s_db();
+    s_init_v3_at(space, space.s_db(), declared)
+}
+
+fn s_init_v3_at(space: &Space, db: PathBuf, declared: Option<&Value>) -> PathBuf {
     let mut c = Command::new(s_bin());
     c.args(["init", "--protocol-revision", "s-session/3", "--db"])
         .arg(&db)
@@ -654,6 +657,413 @@ fn s_rejects_same_shape_bars_from_undeclared_source() {
     s.wait().unwrap();
 }
 
+fn recording_launcher(space: &Space) -> (PathBuf, PathBuf) {
+    let bin = space.path("bin");
+    std::fs::create_dir(&bin).unwrap();
+    let launcher = bin.join("production_session");
+    std::fs::copy(launcher_bin(), &launcher).unwrap();
+    let calls = space.path("domain-calls");
+    for domain in DOMAINS {
+        let script = bin.join(domain);
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> '{}'\n[ \"$1\" = init ] && exit 0\n[ \"{}\" = s_structure_session ] && exit 91\nexec sleep 30\n",
+                calls.display(), domain
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    (launcher, calls)
+}
+
+fn manifest_with_state(space: &Space, db: &Path, state: &Path, source: &Value) -> PathBuf {
+    let xp = x_profile(space, "simulation", None, Some("tb09-sentinel"), false);
+    let manifest = launcher_manifest(
+        space,
+        "simulation",
+        source,
+        db,
+        &space.path("limits.json"),
+        &xp,
+    );
+    let mut raw: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    raw["state_dir"] = json!(state);
+    write_json(&manifest, &raw)
+}
+
+#[test]
+fn production_session_rejects_source_database_aliases_without_writes_or_spawn() {
+    for case in [
+        "existing",
+        "missing",
+        "directory_link",
+        "missing_directory_link",
+        "file_link",
+        "database_link",
+        "hardlink",
+        "dangling_source",
+        "dangling_database",
+        "link_dotdot",
+        "relative",
+    ] {
+        let space = Space::new();
+        let (launcher, calls) = recording_launcher(&space);
+        let root = space.path("state");
+        std::fs::create_dir(&root).unwrap();
+        let mut state = root.clone();
+        let mut db = root.join("structure-source.json");
+        let missing = matches!(
+            case,
+            "missing" | "missing_directory_link" | "dangling_source" | "dangling_database"
+        );
+        if matches!(case, "missing" | "missing_directory_link") {
+            state = root.join("new/nested");
+            db = state.join("structure-source.json");
+        }
+        if matches!(case, "file_link" | "hardlink" | "dangling_source") {
+            db = root.join("s.db");
+        }
+        if !missing {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE sentinel (value TEXT); INSERT INTO sentinel VALUES ('unchanged');",
+            )
+            .unwrap();
+            conn.close().unwrap();
+        }
+        let original_db = db.clone();
+        match case {
+            "directory_link" | "missing_directory_link" => {
+                let link = space.path("state-link");
+                std::os::unix::fs::symlink(&root, &link).unwrap();
+                state = if missing {
+                    link.join("new/nested")
+                } else {
+                    link
+                };
+            }
+            "file_link" | "dangling_source" => {
+                std::os::unix::fs::symlink("s.db", state.join("structure-source.json")).unwrap();
+            }
+            "database_link" | "dangling_database" => {
+                db = root.join("s.db");
+                std::os::unix::fs::symlink("structure-source.json", &db).unwrap();
+            }
+            "hardlink" => {
+                std::fs::hard_link(&db, state.join("structure-source.json")).unwrap();
+            }
+            "link_dotdot" => {
+                let sub = root.join("sub");
+                std::fs::create_dir(&sub).unwrap();
+                let link = space.path("outside-link");
+                std::os::unix::fs::symlink(&sub, &link).unwrap();
+                state = link.join("..");
+            }
+            "relative" => {
+                state = PathBuf::from("state/.");
+                db = PathBuf::from("state/structure-source.json");
+            }
+            _ => {}
+        }
+        let mut before = Vec::new();
+        if !missing {
+            before.push((original_db.clone(), std::fs::read(&original_db).unwrap()));
+            for suffix in [
+                "-wal",
+                "-shm",
+                "-journal",
+                ".writer.lock",
+                ".control-owner.json",
+                ".audit-ledger.sqlite",
+                ".audit-ledger.sqlite-wal",
+                ".audit-ledger.sqlite-shm",
+                ".audit-ledger.sqlite-journal",
+            ] {
+                let path = PathBuf::from(format!("{}{suffix}", original_db.display()));
+                let bytes = format!("unchanged {case} {suffix}").into_bytes();
+                std::fs::write(&path, &bytes).unwrap();
+                before.push((path, bytes));
+            }
+        }
+        let links: Vec<_> = [
+            root.join("structure-source.json"),
+            root.join("s.db"),
+            space.path("state-link"),
+            space.path("outside-link"),
+        ]
+        .into_iter()
+        .filter_map(|path| std::fs::read_link(&path).ok().map(|target| (path, target)))
+        .collect();
+        let manifest = manifest_with_state(
+            &space,
+            &db,
+            &state,
+            &declaration("TestOnlyStructure", DECLARED_NS),
+        );
+        let out = run_refusal(
+            Command::new(&launcher)
+                .arg("--manifest")
+                .arg(&manifest)
+                .current_dir(space.path("")),
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{case}: {stderr}");
+        assert!(stderr.contains("同一路径或同一文件"), "{case}: {stderr}");
+        assert!(
+            stderr.contains("s.db") && stderr.contains("structure-source"),
+            "{case}: {stderr}"
+        );
+        assert!(!calls.exists(), "{case}: 拒绝之前已 spawn 域进程");
+        for (path, bytes) in before {
+            assert_eq!(
+                std::fs::read(&path).unwrap(),
+                bytes,
+                "{case}: {}",
+                path.display()
+            );
+        }
+        for (path, target) in links {
+            assert_eq!(std::fs::read_link(path).unwrap(), target, "{case}");
+        }
+        if missing {
+            assert!(!original_db.exists(), "{case}: 不得用声明冒充新 S 库");
+            assert!(!root.join("new").exists(), "{case}: 不得先创建目标父目录");
+        }
+    }
+}
+
+fn assert_selected_source(stderr: &[u8], path: &Path) {
+    let events: Vec<Value> = String::from_utf8_lossy(stderr)
+        .lines()
+        .filter_map(|line| line.strip_prefix("production_session "))
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .filter(|event: &Value| event["event"] == "structure_source_file")
+        .collect();
+    assert_eq!(
+        events,
+        vec![json!({"event": "structure_source_file", "path": path})]
+    );
+}
+
+#[test]
+fn production_session_skips_numbered_database_aliases_without_changing_bytes() {
+    for alias in ["same_path", "hardlink", "symlink", "missing"] {
+        let space = Space::new();
+        let (launcher, calls) = recording_launcher(&space);
+        let state = space.path("state");
+        std::fs::create_dir(&state).unwrap();
+        let numbered = state.join("structure-source.1.json");
+        let db = if matches!(alias, "same_path" | "missing") {
+            numbered.clone()
+        } else {
+            state.join("s.db")
+        };
+        let fixed = state.join("structure-source.json");
+        std::fs::write(&fixed, "{").unwrap();
+        let mut before = vec![(fixed, b"{".to_vec())];
+        if alias != "missing" {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch("CREATE TABLE sentinel (value TEXT);")
+                .unwrap();
+            conn.close().unwrap();
+            before.push((db.clone(), std::fs::read(&db).unwrap()));
+            for suffix in [
+                "-wal",
+                "-shm",
+                "-journal",
+                ".writer.lock",
+                ".control-owner.json",
+                ".audit-ledger.sqlite",
+                ".audit-ledger.sqlite-wal",
+                ".audit-ledger.sqlite-shm",
+                ".audit-ledger.sqlite-journal",
+            ] {
+                let path = PathBuf::from(format!("{}{suffix}", db.display()));
+                let bytes = format!("unchanged {suffix}").into_bytes();
+                std::fs::write(&path, &bytes).unwrap();
+                before.push((path, bytes));
+            }
+        }
+        match alias {
+            "hardlink" => std::fs::hard_link(&db, &numbered).unwrap(),
+            "symlink" => std::os::unix::fs::symlink(&db, &numbered).unwrap(),
+            _ => {}
+        }
+        let manifest = manifest_with_state(
+            &space,
+            &db,
+            &state,
+            &declaration("TestOnlyStructure", DECLARED_NS),
+        );
+        for _ in 0..2 {
+            let out = run_refusal(Command::new(&launcher).arg("--manifest").arg(&manifest));
+            assert_eq!(
+                out.status.code(),
+                Some(1),
+                "{alias}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            let selected = state.join("structure-source.2.json");
+            assert_selected_source(&out.stderr, &selected);
+            let recorded = std::fs::read_to_string(&calls).unwrap();
+            let source_arg = format!("--structure-source {}", selected.display());
+            for command in if alias == "missing" {
+                vec!["s_structure_session init", "s_structure_session serve"]
+            } else {
+                vec!["s_structure_session serve"]
+            } {
+                assert!(
+                    recorded
+                        .lines()
+                        .any(|line| line.contains(command) && line.ends_with(&source_arg)),
+                    "{alias}: {recorded}"
+                );
+            }
+            std::fs::remove_file(&calls).unwrap();
+            for (path, bytes) in &before {
+                assert_eq!(
+                    &std::fs::read(path).unwrap(),
+                    bytes,
+                    "{alias}: {}",
+                    path.display()
+                );
+            }
+            if alias == "missing" {
+                assert!(
+                    !db.exists(),
+                    "替身 init 不创建库，launcher 不得创建冒充库的声明"
+                );
+            } else if alias == "hardlink" {
+                let a = std::fs::metadata(&db).unwrap();
+                let b = std::fs::metadata(&numbered).unwrap();
+                assert_eq!((a.dev(), a.ino()), (b.dev(), b.ino()));
+            } else if alias == "symlink" {
+                assert_eq!(std::fs::read_link(&numbered).unwrap(), db);
+            }
+        }
+        assert!(!state.join("structure-source.3.json").exists());
+    }
+}
+
+#[test]
+fn production_session_does_not_skip_numbered_candidate_io_errors() {
+    let space = Space::new();
+    let (launcher, calls) = recording_launcher(&space);
+    let state = space.path("state");
+    std::fs::create_dir(&state).unwrap();
+    std::fs::write(state.join("structure-source.json"), "{").unwrap();
+    std::os::unix::fs::symlink(
+        "structure-source.1.json",
+        state.join("structure-source.1.json"),
+    )
+    .unwrap();
+    let db = state.join("s.db");
+    std::fs::write(&db, "database sentinel").unwrap();
+    let manifest = manifest_with_state(
+        &space,
+        &db,
+        &state,
+        &declaration("TestOnlyStructure", DECLARED_NS),
+    );
+    let out = run_refusal(Command::new(&launcher).arg("--manifest").arg(&manifest));
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("StorageUnavailable"));
+    assert!(!calls.exists());
+    assert!(!state.join("structure-source.2.json").exists());
+    assert_eq!(std::fs::read(&db).unwrap(), b"database sentinel");
+}
+
+#[test]
+fn production_session_same_directory_reuses_declarations_and_preserves_old_files() {
+    let space = Space::new();
+    let (launcher, calls) = recording_launcher(&space);
+    let state = space.path("state");
+    std::fs::create_dir(&state).unwrap();
+    let db = state.join("s.db");
+    let original = b"database sentinel";
+    std::fs::write(&db, original).unwrap();
+    let first = declaration("TestOnlyStructure", DECLARED_NS);
+    let second = declaration("TestOnlyStructure", "testonly.changed");
+    let mut first_identity = None;
+    for (source, name) in [
+        (&first, "structure-source.json"),
+        (&first, "structure-source.json"),
+        (&second, "structure-source.1.json"),
+        (&second, "structure-source.1.json"),
+    ] {
+        let manifest = manifest_with_state(&space, &db, &state, source);
+        let out = run_refusal(Command::new(&launcher).arg("--manifest").arg(&manifest));
+        assert_eq!(
+            out.status.code(),
+            Some(1),
+            "替身 serve 退出 91，launcher 应按监督合同退出 1"
+        );
+        assert_selected_source(&out.stderr, &state.join(name));
+        let recorded = std::fs::read_to_string(&calls).unwrap();
+        let source_arg = format!("--structure-source {}", state.join(name).display());
+        assert!(
+            recorded
+                .lines()
+                .any(|line| line.contains("s_structure_session serve")
+                    && line.ends_with(&source_arg)),
+            "{recorded}"
+        );
+        std::fs::remove_file(&calls).unwrap();
+        let canonical = newchan_rust::structure_source::Declaration::parse(source)
+            .unwrap()
+            .canonical();
+        assert_eq!(
+            std::fs::read_to_string(state.join(name)).unwrap(),
+            canonical
+        );
+        let meta = std::fs::metadata(state.join("structure-source.json")).unwrap();
+        let identity = (meta.dev(), meta.ino(), meta.mtime(), meta.mtime_nsec());
+        assert_eq!(*first_identity.get_or_insert(identity), identity);
+        assert_eq!(std::fs::read(&db).unwrap(), original);
+    }
+    assert_eq!(
+        std::fs::read_to_string(state.join("structure-source.json")).unwrap(),
+        newchan_rust::structure_source::Declaration::parse(&first)
+            .unwrap()
+            .canonical()
+    );
+    assert!(!state.join("structure-source.2.json").exists());
+}
+
+#[test]
+fn production_session_new_database_uses_one_fresh_declaration_without_rewriting_corrupt_file() {
+    let space = Space::new();
+    let (launcher, calls) = recording_launcher(&space);
+    let state = space.path("state");
+    std::fs::create_dir(&state).unwrap();
+    let fixed = state.join("structure-source.json");
+    std::fs::write(&fixed, "{").unwrap();
+    let manifest = manifest_with_state(
+        &space,
+        &state.join("s.db"),
+        &state,
+        &declaration("TestOnlyStructure", DECLARED_NS),
+    );
+    let out = run_refusal(Command::new(&launcher).arg("--manifest").arg(&manifest));
+    assert_eq!(out.status.code(), Some(1));
+    let recorded = std::fs::read_to_string(calls).unwrap();
+    let source_arg = format!(
+        "--structure-source {}",
+        state.join("structure-source.1.json").display()
+    );
+    for command in ["s_structure_session init", "s_structure_session serve"] {
+        assert!(
+            recorded
+                .lines()
+                .any(|line| line.contains(command) && line.ends_with(&source_arg)),
+            "{recorded}"
+        );
+    }
+    assert_eq!(std::fs::read_to_string(fixed).unwrap(), "{");
+}
+
 // #1845：所有声明负控使用同一 v3/profile/clock/resource/admission 夹具，避免旧库版本先拒启。
 fn structure_source_fixture(space: &Space, fault: &str) -> (PathBuf, PathBuf, PathBuf) {
     let source = declaration("TestOnlyStructure", DECLARED_NS);
@@ -722,6 +1132,63 @@ fn s_serve_explicit_source_rejects_missing_stored_declaration() {
 #[test]
 fn s_serve_explicit_source_rejects_mismatch_with_both_canonical_declarations() {
     assert_source_refusal("mismatch", "不一致");
+}
+
+// #1845：锁冲突优先于声明校验；释放竞争者后，同一错误声明仍必须拒启。
+#[test]
+fn s_serve_explicit_source_lock_conflict_precedes_mismatch() {
+    let space = Space::new();
+    let (db, limits, file) = structure_source_fixture(&space, "mismatch");
+    let before = raw_rows_offline(&db);
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(format!("{}.writer.lock", db.display()))
+        .unwrap();
+    lock.try_lock().unwrap();
+    assert_lock_held(&db);
+
+    let blocked = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!blocked.status.success());
+    let stderr = String::from_utf8_lossy(&blocked.stderr);
+    assert!(
+        stderr.contains("StaleWriter：S独占进程锁不可得"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("InvalidDomain"), "{stderr}");
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&db), before);
+    assert_lock_held(&db);
+
+    drop(lock);
+    let rejected = run_refusal(
+        s_serve_command(&space, &db, &limits)
+            .arg("--structure-source")
+            .arg(&file),
+    );
+    assert!(!rejected.status.success());
+    let stderr = String::from_utf8_lossy(&rejected.stderr);
+    assert!(stderr.contains("InvalidDomain：S 库结构源声明"), "{stderr}");
+    assert!(stderr.contains("不一致"), "{stderr}");
+    assert!(!stderr.contains("StaleWriter"), "{stderr}");
+    for ns in [DECLARED_NS, "testonly.other"] {
+        let canonical = newchan_rust::structure_source::Declaration::parse(&declaration(
+            "TestOnlyStructure",
+            ns,
+        ))
+        .unwrap()
+        .canonical();
+        let encoded = serde_json::to_string(&canonical).unwrap();
+        assert!(stderr.contains(&encoded[1..encoded.len() - 1]), "{stderr}");
+    }
+    assert!(!space.path("s.sock").exists());
+    assert_eq!(raw_rows_offline(&db), before);
 }
 
 #[test]
@@ -801,7 +1268,7 @@ fn s_serve_standalone_without_source_does_not_check_corrupt_declaration() {
     assert_source_listens("stored_corrupt", false);
 }
 
-fn assert_launcher_source_failure(fault: &str) {
+fn assert_launcher_source_failure(fault: &str, previous_declaration: bool) {
     let space = Space::new();
     let (db, limits, _) = structure_source_fixture(&space, fault);
     let before = raw_rows_offline(&db);
@@ -815,7 +1282,21 @@ fn assert_launcher_source_failure(fault: &str) {
     );
     let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
     let manifest = launcher_manifest(&space, "simulation", &source, &db, &limits, &xp);
+    let previous = space.path("launcher-state/structure-source.json");
+    let original = newchan_rust::structure_source::Declaration::parse(&declaration(
+        "TestOnlyStructure",
+        DECLARED_NS,
+    ))
+    .unwrap()
+    .canonical();
+    if previous_declaration {
+        std::fs::create_dir_all(previous.parent().unwrap()).unwrap();
+        std::fs::write(&previous, &original).unwrap();
+    }
     let out = run_refusal(Command::new(launcher_bin()).arg("--manifest").arg(manifest));
+    if previous_declaration {
+        assert_eq!(std::fs::read_to_string(previous).unwrap(), original);
+    }
     assert_eq!(out.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&out.stderr);
     let events: Vec<Value> = stderr
@@ -841,17 +1322,140 @@ fn assert_launcher_source_failure(fault: &str) {
 
 #[test]
 fn production_session_refuses_s_db_without_source_declaration() {
-    assert_launcher_source_failure("missing");
+    assert_launcher_source_failure("missing", false);
 }
 
 #[test]
 fn production_session_refuses_s_db_with_mismatched_source_declaration() {
-    assert_launcher_source_failure("mismatch");
+    assert_launcher_source_failure("mismatch", false);
 }
 
 #[test]
 fn production_session_refuses_s_db_with_corrupt_source_declaration() {
-    assert_launcher_source_failure("stored_corrupt");
+    assert_launcher_source_failure("stored_corrupt", false);
+}
+
+#[test]
+fn production_session_changed_manifest_still_reaches_s_source_mismatch() {
+    assert_launcher_source_failure("mismatch", true);
+}
+
+#[test]
+fn production_session_same_directory_distinct_files_starts_real_s() {
+    let space = Space::new();
+    let (manifest, db) = simulation(&space, "simulation", false);
+    let mut raw: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    raw["state_dir"] = json!(db.parent().unwrap());
+    write_json(&manifest, &raw);
+    let mut launcher = spawn_launcher(&manifest);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !space.path("s.sock").exists() {
+        if let Some(status) = launcher.try_wait().unwrap() {
+            panic!(
+                "同目录合法布局提前退出 {status}：{}",
+                launcher_stderr(&mut launcher)
+            );
+        }
+        if Instant::now() >= deadline {
+            stop(&mut launcher);
+            panic!("同目录合法布局 S 未监听");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(stop(&mut launcher).code(), Some(0));
+}
+
+fn numbered_database_launcher(changed: bool) {
+    let space = Space::new();
+    let state = space.s_db().parent().unwrap().to_path_buf();
+    let source = declaration("TestOnlyStructure", DECLARED_NS);
+    let db = s_init_v3_at(&space, state.join("structure-source.1.json"), Some(&source));
+    let limits = anchor(&db);
+    let expected = if changed {
+        declaration("TestOnlyStructure", "testonly.other")
+    } else {
+        source.clone()
+    };
+    let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
+    let manifest = launcher_manifest(&space, "simulation", &expected, &db, &limits, &xp);
+    let mut raw: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    raw["state_dir"] = json!(state);
+    write_json(&manifest, &raw);
+    let first = state.join("structure-source.json");
+    let original = if changed {
+        newchan_rust::structure_source::Declaration::parse(&source)
+            .unwrap()
+            .canonical()
+    } else {
+        "{".to_string()
+    };
+    std::fs::write(&first, &original).unwrap();
+    let selected = state.join("structure-source.2.json");
+    if changed {
+        let before = raw_rows_offline(&db);
+        let out = run_refusal(
+            Command::new(launcher_bin())
+                .arg("--manifest")
+                .arg(&manifest),
+        );
+        assert_eq!(
+            out.status.code(),
+            Some(1),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_selected_source(&out.stderr, &selected);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains("不一致"), "{stderr}");
+        let events: Vec<Value> = stderr
+            .lines()
+            .filter_map(|line| line.strip_prefix("production_session "))
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect();
+        assert!(
+            events
+                .iter()
+                .any(|e| e["event"] == "exit" && e["domain"] == "S" && e["critical"] == true),
+            "{stderr}"
+        );
+        assert!(!space.path("s.sock").exists());
+        assert_eq!(raw_rows_offline(&db), before);
+    } else {
+        let mut launcher = spawn_launcher(&manifest);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !space.path("s.sock").exists() {
+            if let Some(status) = launcher.try_wait().unwrap() {
+                panic!(
+                    "编号库合法布局提前退出 {status}：{}",
+                    launcher_stderr(&mut launcher)
+                );
+            }
+            if Instant::now() >= deadline {
+                stop(&mut launcher);
+                panic!("编号库合法布局 S 未监听");
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert_eq!(stop(&mut launcher).code(), Some(0));
+        assert_selected_source(launcher_stderr(&mut launcher).as_bytes(), &selected);
+    }
+    assert_eq!(std::fs::read_to_string(first).unwrap(), original);
+    assert_eq!(
+        std::fs::read_to_string(selected).unwrap(),
+        newchan_rust::structure_source::Declaration::parse(&expected)
+            .unwrap()
+            .canonical()
+    );
+}
+
+#[test]
+fn production_session_numbered_database_with_corrupt_first_declaration_starts_real_s() {
+    numbered_database_launcher(false);
+}
+
+#[test]
+fn production_session_numbered_database_changed_manifest_reaches_s_exit_one() {
+    numbered_database_launcher(true);
 }
 
 #[test]

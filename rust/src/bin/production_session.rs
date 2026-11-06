@@ -16,7 +16,9 @@
 use newchan_rust::structure_source::Declaration;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -190,14 +192,145 @@ fn load_manifest(path: &Path) -> Result<Manifest, String> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .map(|value| (credential_env, value));
+    let state_dir = PathBuf::from(text(&raw, "state_dir")?);
+    check_source_target(
+        &state_dir.join("structure-source.json"),
+        Path::new(text(&raw, "s.db")?),
+    )?;
     Ok(Manifest {
-        state_dir: PathBuf::from(text(&raw, "state_dir")?),
+        state_dir,
         raw,
         profile,
         source,
         x_profile,
         credential,
     })
+}
+
+fn resolved_target(path: &Path, links: &mut usize) -> std::io::Result<PathBuf> {
+    let Some(last) = path.components().next_back() else {
+        return std::env::current_dir();
+    };
+    if last == Component::RootDir {
+        return Ok(PathBuf::from("/"));
+    }
+    let mut parent = resolved_target(path.parent().unwrap_or(Path::new("")), links)?;
+    match last {
+        Component::ParentDir => {
+            parent.pop();
+            Ok(parent)
+        }
+        Component::CurDir => Ok(parent),
+        Component::Normal(name) => {
+            let target = parent.join(name);
+            match std::fs::symlink_metadata(&target) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    *links += 1;
+                    if *links > 40 {
+                        return Err(std::io::Error::from_raw_os_error(libc::ELOOP));
+                    }
+                    resolved_target(&parent.join(std::fs::read_link(&target)?), links)
+                }
+                Ok(_) => target.canonicalize(),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(target),
+                Err(e) => Err(e),
+            }
+        }
+        _ => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "不支持的声明路径",
+        )),
+    }
+}
+
+fn source_target_conflicts(decl: &Path, db: &Path) -> Result<bool, String> {
+    let error = |e| format!("StorageUnavailable：核对结构源声明路径失败：{e}");
+    let resolved_decl = resolved_target(decl, &mut 0).map_err(error)?;
+    let resolved_db = resolved_target(db, &mut 0).map_err(error)?;
+    let metadata = |path: &Path| match std::fs::metadata(path) {
+        Ok(meta) => Ok(Some(meta)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(error(e)),
+    };
+    let same_file = match (metadata(decl)?, metadata(db)?) {
+        (Some(a), Some(b)) => (a.dev(), a.ino()) == (b.dev(), b.ino()),
+        _ => false,
+    };
+    Ok(resolved_decl == resolved_db || same_file)
+}
+
+fn check_source_target(decl: &Path, db: &Path) -> Result<(), String> {
+    if source_target_conflicts(decl, db)? {
+        return Err(format!(
+            "InvalidDomain：结构源声明 {} 与 s.db {} 指向同一路径或同一文件",
+            decl.display(),
+            db.display()
+        ));
+    }
+    Ok(())
+}
+
+// 既有文件只读，新文件只用 O_EXCL 创建；路径检查后的替换也不能触发截断。
+// 相同声明复用，不同声明另存编号文件，仍由 S 持锁裁决与库存声明是否一致。
+fn source_file(state_dir: &Path, db: &Path, canonical: &str) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(state_dir).map_err(|e| format!("StorageUnavailable：{e}"))?;
+    for generation in 0u64.. {
+        let name = if generation == 0 {
+            "structure-source.json".to_string()
+        } else {
+            format!("structure-source.{generation}.json")
+        };
+        let path = state_dir.join(name);
+        if generation == 0 {
+            check_source_target(&path, db)?;
+        } else if source_target_conflicts(&path, db)? {
+            continue;
+        }
+        if source_candidate(&path, canonical)? {
+            return Ok(path);
+        }
+    }
+    Err("StorageUnavailable：结构源声明文件编号耗尽".into())
+}
+
+fn source_candidate(path: &Path, canonical: &str) -> Result<bool, String> {
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            file.write_all(canonical.as_bytes())
+                .map_err(|e| format!("StorageUnavailable：写结构源声明失败：{e}"))?;
+            return Ok(true);
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            let file = std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(path)
+                .map_err(|e| format!("StorageUnavailable：读既有结构源声明失败：{e}"))?;
+            if !file
+                .metadata()
+                .map_err(|e| format!("StorageUnavailable：{e}"))?
+                .is_file()
+            {
+                return Err(format!(
+                    "InvalidDomain：结构源声明 {} 不是普通文件",
+                    path.display()
+                ));
+            }
+            let mut bytes = Vec::new();
+            file.take(canonical.len() as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|e| format!("StorageUnavailable：读既有结构源声明失败：{e}"))?;
+            if bytes == canonical.as_bytes() {
+                return Ok(true);
+            }
+        }
+        Err(e) => return Err(format!("StorageUnavailable：创建结构源声明失败：{e}")),
+    }
+    Ok(false)
 }
 
 fn sibling(name: &str) -> Result<PathBuf, String> {
@@ -274,9 +407,8 @@ fn run() -> Result<i32, String> {
     }
 
     // ── init：只对尚不存在的库；S 一律带声明 init ──
-    std::fs::create_dir_all(&m.state_dir).map_err(|e| format!("StorageUnavailable：{e}"))?;
-    let decl = m.state_dir.join("structure-source.json");
-    std::fs::write(&decl, m.source.canonical()).map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let decl = source_file(&m.state_dir, &s_db, &m.source.canonical())?;
+    log("structure_source_file", json!({"path": decl}));
     if !s_db.exists() {
         let mut c = clean(Command::new(&s_bin), &S_PASS);
         c.args(["init", "--protocol-revision", "s-session/3", "--db"])
@@ -321,7 +453,7 @@ fn run() -> Result<i32, String> {
 
     // ── 拉起：每域独立进程；中途失败也先回收已拉起的子进程再报错，不留孤儿 ──
     let mut children: Vec<Supervised> = Vec::new();
-    let spawned = spawn_domains(&m, &s_bin, &e_bin, &b_bin, &x_bin, &mut children);
+    let spawned = spawn_domains(&m, &decl, &s_bin, &e_bin, &b_bin, &x_bin, &mut children);
     let mut failed = spawned.is_err();
 
     // ── 监督 ──
@@ -370,6 +502,7 @@ fn run() -> Result<i32, String> {
 /// 按 S、E、各 Bᵢ、X 顺序拉起；已拉起的子进程即刻登记进 `children`，供调用方统一回收。
 fn spawn_domains(
     m: &Manifest,
+    decl: &Path,
     s_bin: &Path,
     e_bin: &Path,
     b_bin: &Path,
@@ -409,7 +542,7 @@ fn spawn_domains(
         .args(["--socket", text(raw, "s.socket")?])
         .args(["--resource-config", text(raw, "s.resource_config")?])
         .arg("--structure-source")
-        .arg(m.state_dir.join("structure-source.json"));
+        .arg(decl);
     spawn("S".into(), s, true)?;
     let e_epoch = text(raw, "economic.e.epoch")?;
     let mut e = clean(Command::new(e_bin), &[]);
@@ -455,6 +588,34 @@ fn main() {
             log("refused", json!({"error": e}));
             eprintln!("{e}");
             std::process::exit(2);
+        }
+    }
+}
+
+#[cfg(test)]
+mod source_file_tests {
+    use super::*;
+
+    #[test]
+    fn candidate_does_not_overwrite_file_inserted_after_path_check() {
+        for alias in ["regular", "symlink", "hardlink"] {
+            let dir = tempfile::tempdir().unwrap();
+            let db = dir.path().join("s.db");
+            let decl = dir.path().join("structure-source.json");
+            let original = b"SQLite format 3\0original database bytes";
+            std::fs::write(&db, original).unwrap();
+            check_source_target(&decl, &db).unwrap();
+            match alias {
+                "regular" => std::fs::rename(&db, &decl).unwrap(),
+                "symlink" => std::os::unix::fs::symlink(&db, &decl).unwrap(),
+                "hardlink" => std::fs::hard_link(&db, &decl).unwrap(),
+                _ => unreachable!(),
+            }
+            assert!(!source_candidate(&decl, "{}").unwrap(), "{alias}");
+            assert_eq!(std::fs::read(&decl).unwrap(), original, "{alias}");
+            if alias != "regular" {
+                assert_eq!(std::fs::read(&db).unwrap(), original, "{alias}");
+            }
         }
     }
 }

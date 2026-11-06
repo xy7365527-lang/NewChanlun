@@ -50,8 +50,17 @@ X 退出只记日志，S/E/B 继续。SIGTERM/SIGINT → 向全部子进程发 S
 - `category` 只认 `UsEquityStockLineTick`、`TestOnlyStructure`（ADR 0020:151-154、ADR 0023:9-34）。
 - `namespaces` 与 `execution_capabilities.namespaces` 相交即 `InvalidDomain`，在拉起 S、创建 S 库之前退出——
   HL 行情即使与美股 bar 同形、类别标成个股线也不进 S。
-- launcher 每次启动在拉起域之前，把 manifest 的规范声明写到 `<state_dir>/structure-source.json`（#1845）。
-- S 库不存在：launcher 以 `init --protocol-revision s-session/3 ... --structure-source <state_dir>/structure-source.json` 建库，
+- launcher 在创建文件或拉起域之前拒绝首选声明目标 `structure-source.json` 与 `s.db` 同路径或同文件，包括未创建目标、符号链接和硬链接（#1845）。
+  `state_dir` 与 S 库父目录相同但文件不同仍合法；不替代 S 自身的 admission 检查。
+- launcher 用独占创建保存 manifest 的规范声明，不覆盖、截断或替换任何既有文件。
+  首选 `<state_dir>/structure-source.json`。内容相同则只读复用；内容不同或损坏则依次尝试
+  `structure-source.1.json`、`structure-source.2.json`。编号候选与 `s.db` 同路径或同 inode 时跳过，不打开该候选；
+  其他路径检查、创建或读取错误仍拒启。
+  重复启动复用相同内容的文件，旧声明保留。写入失败会留下空文件或残片，后续启动不覆盖它们。
+  磁盘/配额耗尽时，自动重启可能不断留下残片，使文件数和逐个扫描成本增长；先停止自动重试，检查
+  launcher 的写入错误、磁盘容量与配额，记录候选文件的路径、类型、设备号/inode、大小和 mtime。
+  保留现场并核对文件归属与运行实例引用，不能仅凭编号或损坏内容删除文件。
+- S 库不存在：launcher 以 `init --protocol-revision s-session/3 ... --structure-source <本次选定文件>` 建库，
   声明作为库固定属性落 `meta.structure_source`。
 - launcher 每次调用 S `serve --protocol-revision s-session/3` 都传同一文件的 `--structure-source`。
   S 在取得自身写锁、完成原 admission 后，读取文件并与 `meta.structure_source` 的规范文本逐字比较。
@@ -89,6 +98,9 @@ production_session --manifest production.json   # 前台运行；Ctrl-C / SIGTER
 dry-run 与 simulation 同一流程：X 不需要凭据，不连接端点。
 
 ## 日志
+
+成功选定声明后，`structure_source_file` 事件的 `path` 字段记录本次实际交给 S init/serve 的文件路径；
+选定失败时没有该事件，按启动错误诊断。固定首选文件不代表最近一次声明。
 
 launcher 日志写 stderr，每行 `production_session {json}`，经 `redact` 过滤（移植 `381fda3f`
 `trading_system/execution/hl_paper_launcher.py:46-53` 的 `_redact`）：键名含
