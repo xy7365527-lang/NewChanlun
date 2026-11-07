@@ -532,6 +532,38 @@ def test_earning_reaction_off_master_closes():
     assert trades[0].exit_reason == "exit_move(L1)_type1sell"
 
 
+def test_earning_full_frac_osc_still_eod_closes():
+    """INV-1：earning 后满仓 osc 开腿把 total_shares 扣到 0，腿仍开放。
+    EOD 必须清腿并落 trade，不得静默吞掉整笔。"""
+    tape = entry_prefix(entry_close=100.0) + [
+        bar(200.0, sell_any=(1,)),   # osc 开 @200
+        bar(94.0),                   # ZD 回补 → cost_basis≤0 → earning
+        bar(150.0, sell_any=(1,)),   # earning 满仓再开 osc → total_shares=0
+    ]
+    trades, extra = _run(tape, OrganicConfig())
+    assert extra["counters"]["n_osc_open"] == 2
+    assert extra["counters"]["n_osc_zd_close"] == 1
+    assert len(trades) == 1
+    assert trades[0].exit_reason == "eod_close"
+    assert extra["counters"]["n_earning_reached"] == 1
+    # 金额守恒回补：末 bar 价=开腿价 → 股数回到满仓，再叠加第一腿落袋
+    assert trades[0].pnl_pct > 0
+
+
+def test_earning_full_frac_osc_then_type1_sell_closes():
+    """同上态再遇 master type1 卖：必须清仓，不得早退成 0 trades。"""
+    tape = entry_prefix(entry_close=100.0) + [
+        bar(200.0, sell_any=(1,)),
+        bar(94.0),
+        bar(150.0, sell_any=(1,)),
+        bar(160.0, sell1=(3,)),
+    ]
+    trades, extra = _run(tape, OrganicConfig())
+    assert len(trades) == 1
+    assert trades[0].exit_reason == "exit_move(L1)_type1sell"
+    assert extra["counters"]["n_earning_reached"] == 1
+
+
 # ════════════════════════════════════════════════════════════
 # 7. 能力守卫（声明=能力）
 # ════════════════════════════════════════════════════════════

@@ -183,6 +183,12 @@ impl OrganicLedger {
         self.legs.iter().map(|(k, _)| *k).collect()
     }
 
+    /// 是否仍有未闭合腿。Earning 金额守恒满仓开腿后 `total_shares==0`
+    /// 但是本值为 true——INV-1 合法态，不是空仓。
+    pub fn has_open_legs(&self) -> bool {
+        !self.legs.is_empty()
+    }
+
     /// 开腿（高抛/REV 先卖）。返回是否实际开启（LOU 状态转换依赖）。
     /// 与 Python `open_diff` 逐句对应；stopped 集在 organic_fugue.py 中无写入方
     /// （恒空），故不建模——声明=能力。
@@ -535,10 +541,25 @@ mod tests {
         // earning 开腿：即时扣减 total_shares（INV-1 构造保证）
         assert!(led.open_diff(SlotKey::rev(2, 2), 0.5, 10.0, 3, anchor()));
         assert_eq!(led.total_shares, 50.0);
+        assert!(led.has_open_legs());
         // 金额守恒回补：卖 50×10=500 → 买 @5 得 100 股 → total = 50+100 = 150
         led.close_diff(SlotKey::rev(2, 2), 5.0, 4);
         assert_eq!(led.total_shares, 150.0);
         assert!(led.phase.is_earning()); // 不可逆
+    }
+
+    #[test]
+    fn earning_full_frac_open_leaves_zero_shares_with_open_leg() {
+        let mut led = OrganicLedger::new(1.0, 100.0, 1.0, false);
+        assert!(led.open_diff(SlotKey::osc(2), 1.0, 10.0, 1, anchor()));
+        led.close_diff(SlotKey::osc(2), 5.0, 2);
+        assert!(led.phase.is_earning());
+        assert!(led.open_diff(SlotKey::osc(3), 1.0, 20.0, 3, anchor()));
+        assert_eq!(led.total_shares, 0.0);
+        assert!(led.has_open_legs());
+        led.close_diff(SlotKey::osc(3), 20.0, 4);
+        assert_eq!(led.total_shares, 100.0);
+        assert!(!led.has_open_legs());
     }
 
     #[test]
