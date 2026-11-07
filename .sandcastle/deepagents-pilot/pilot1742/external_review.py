@@ -456,6 +456,27 @@ class ExternalReview:
             raise IdentityError(f"空间不足：{len(MODELS)} 份并发快照共需 {required} bytes（单份 {single}），"
                                 f"{volume} 可用 {available} bytes；未登记 attempt，未启动模型")
 
+    @staticmethod
+    def _dispatched_unfinished(folder: Path) -> list[str]:
+        """已派发（有 launch.json）却还没有回执的 reviewer。只做过 prepare、从未派发的不算。"""
+        return [m for m in MODELS if (folder / m / "launch.json").exists() and not (folder / m / "receipt.json").exists()]
+
+    def _settled(self, row: dict) -> bool:
+        """可参与沿用判断的完结 run：顶层 outcome 存在，且所有已派发 reviewer 都有可读回执（证据完整）。
+        outcome 存在本身不算完结：它可能写于另一位 reviewer 仍在运行时（例如 STALE，或旧版本的恢复聚合）。"""
+        if not row["outcome"]:
+            return False
+        folder = self.state_root / "runs" / ReviewTarget(**row["target"]).key
+        if self._dispatched_unfinished(folder):
+            return False
+        try:
+            for model in MODELS:
+                if (folder / model / "receipt.json").exists():
+                    _read(folder / model / "receipt.json")
+        except (OSError, ValueError, IdentityError):
+            return False
+        return True
+
     def _reviewer_blocked(self, row: dict) -> bool:
         """该 run 任一 reviewer 留下过 BLOCK 证据就算，不只看汇总：outcome 的整轮与逐位结论、各 worker 的
         receipt 结果，以及 events 里的最终消息（receipt 未能消费结果时，例如 transcript 失败或汇总前中断）。"""
@@ -478,8 +499,8 @@ class ExternalReview:
                         if (event.get("type") == "item.completed" and item.get("type") == "agent_message"
                                 and re.search(r"VERDICT:\s*BLOCK", str(item.get("text", "")))):
                             return True
-            except (OSError, ValueError, AttributeError):
-                return True  # 证据读不了按 BLOCK 处理
+            except (OSError, ValueError, AttributeError, IdentityError):
+                return True  # 证据读不了（含 _read 的权限、属主、符号链接拒绝）按 BLOCK 处理
         return False
 
     def _patch_of(self, old: dict) -> str | None:
@@ -504,15 +525,20 @@ class ExternalReview:
         if any(row["target"].get("head_sha") == target.head_sha and row["target"].get("run_id") != target.run_id
                for row in rows):
             return None
-        # 同一补丁（补丁身份算不出的按同补丁）只要有 run 未到终态（在途、中断、待对账），
-        # 或任一 reviewer 留下过 BLOCK 证据，就不沿用（fail closed）。
+        # 同一补丁（补丁身份算不出的按同补丁）只要有 run 未完结（见 _settled：所有已派发 reviewer 都有
+        # 可读回执才算，不看 outcome 是否存在），或任一 reviewer 留下过 BLOCK 证据，就不沿用（fail closed）。
         same = [row for row in rows if row["target"].get("run_id") != target.run_id
                 and self._patch_of(row["target"]) in (target.patch_id, None)]
-        if any(not row["outcome"] or self._reviewer_blocked(row) for row in same):
+        if any(not self._settled(row) or self._reviewer_blocked(row) for row in same):
             return None
-        for row in rows:
+        # 最新有效裁定：来源只能是同补丁最晚登记的那次真实双 PASS；在它之后登记的同补丁 run
+        # （例如以 FAILED、STALE 收场的显式重审）只要不是 PASS，旧 PASS 就已被取代，不得复活。
+        def registered(row: dict) -> int:
+            return int(row["target"].get("registered_at_ns", 0))
+        for row in sorted(rows, key=registered, reverse=True):
             saved, old = row["outcome"], row["target"]
-            if (not saved or old["run_id"] == target.run_id or old["repository_id"] != target.repository_id
+            if (not saved or not self._settled(row) or old["run_id"] == target.run_id
+                    or old["repository_id"] != target.repository_id
                     or saved.get("verdict") != "PASS" or saved.get("state") != "success" or "reused_from" in saved
                     or (saved.get("publication") or {}).get("state") != "success"
                     or [(r["model"], r["verdict"]) for r in saved.get("reviews", [])]
@@ -527,6 +553,9 @@ class ExternalReview:
                     continue
             except subprocess.CalledProcessError:
                 continue
+            if any(registered(other) > registered(row) and (other["outcome"] or {}).get("verdict") != "PASS"
+                   for other in same):
+                return None
             return saved
         return None
 
@@ -647,20 +676,21 @@ class ExternalReview:
 
     def run_reviewers(self, target: ReviewTarget, folder: Path) -> list[ReviewOutcome]:
         """全新派发时各 reviewer 并发（各用自己的 worker 目录和 checkout），全部结束后再汇总。
-        已有任何 worker 状态即为恢复，按原顺序串行：第一位 FAILED 不派第二位，待对账立即上抛。"""
+        已有任何 worker 状态即为恢复，按原顺序串行：第一位 FAILED 后不再派发新的 reviewer，但已派发的照样收养到终态
+        （否则会在另一位仍在运行时写出 outcome）；待对账立即上抛。"""
+        self._stop.clear()  # 同一实例上次被中断后，恢复不能卡在旧的停止标志上
         if any((folder / model).exists() for model in MODELS):
-            outcomes = []
+            outcomes: list[ReviewOutcome] = []
             for model in MODELS:
+                if any(o.verdict == "FAILED" for o in outcomes) and not (folder / model / "launch.json").exists():
+                    continue
                 try:
                     outcomes.append(self.run_review(target, model, folder))
                 except EffectPending:
                     raise
                 except Exception as error:
                     outcomes.append(ReviewOutcome(model, "FAILED", None, str(error)))
-                if outcomes[-1].verdict == "FAILED":
-                    break
             return outcomes
-        self._stop.clear()
         with ThreadPoolExecutor(max_workers=len(MODELS)) as pool:
             futures = [pool.submit(self.run_review, target, model, folder) for model in MODELS]
             try:
@@ -710,6 +740,8 @@ class ExternalReview:
                     _save(folder / "outcome.json", result)
                     return result
                 outcomes = self.run_reviewers(target, folder)
+                if self._dispatched_unfinished(folder):  # 不变量：已派发 reviewer 全部到终态才汇总
+                    raise EffectPending("仍有已派发 reviewer 未到终态，不汇总")
                 sessions = [o.session_id for o in outcomes if o.session_id]
                 if len(sessions) != len(set(sessions)):
                     outcomes = [ReviewOutcome(o.model, "FAILED", o.session_id, "两独审复用了 session") for o in outcomes]

@@ -887,3 +887,95 @@ def test_ctrl_c_during_concurrent_review_returns_without_waiting_for_receipts(la
     finally:
         for process in (lane.state_root / "runs").glob("*/*/process.json"):
             os.killpg(json.loads(process.read_text())["pid"], signal.SIGKILL)
+
+
+def _dispatched_without_receipt(folder, model, run_id):
+    worker = folder / model
+    worker.mkdir(parents=True, exist_ok=True)
+    (worker / "launch.json").write_text(json.dumps({"run_id": run_id, "model": model, "launch_id": "x"}))
+    (worker / "process.json").write_text(json.dumps({"pid": 2 ** 22 + 7, "launch_id": "x"}))  # 监督进程已不在
+
+
+def test_interleave_resume_adopts_dispatched_second_reviewer_after_first_failed(lane, monkeypatch):
+    """D5 9842a6d5 Sol：恢复时首位 FAILED、次位已派发未出回执，不得提前聚合；次位须收养到终态再汇总。"""
+    target = lane.target(1810, 1)
+    folder = lane.state_root / "runs" / target.key
+    _modes(lane, **{MODELS[0]: "failed"})
+    real = lane.run_review
+    def first_only(t, model, f):
+        if model == MODELS[1]:
+            _dispatched_without_receipt(f, model, t.run_id)
+            raise module.EffectPending("模拟：次位已派发，控制器中断")
+        return real(t, model, f)
+    monkeypatch.setattr(lane, "run_review", first_only)
+    with pytest.raises(module.EffectPending):
+        lane.review_pr(1810)
+    assert not (folder / "outcome.json").exists()
+    monkeypatch.setattr(lane, "run_review", real)
+    result = lane.review_pr(1810)
+    assert [r["model"] for r in result["reviews"]] == list(MODELS)
+    assert result["verdict"] == "FAILED" and (folder / MODELS[1] / "receipt.json").exists()
+
+
+def test_interleave_outcome_with_unfinished_dispatched_reviewer_never_counts_as_settled(lane, env):
+    """旧聚合可能在次位仍运行时写出 outcome：这样的 run 不算完结，同补丁新 head 不沿用；次位之后补出 BLOCK 也不沿用。"""
+    first = lane.review_pr(1810)
+    second = lane.target(1810, 2)
+    folder = lane.state_root / "runs" / second.key
+    _dispatched_without_receipt(folder, MODELS[1], second.run_id)
+    (folder / "outcome.json").write_text(json.dumps({"run_id": second.run_id, "verdict": "FAILED", "state": "error",
+        "target": first["target"], "reviews": [{"model": MODELS[0], "verdict": "FAILED"}]}))
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+    (folder / MODELS[1] / "receipt.json").write_text(json.dumps(
+        {"status": "completed", "result": {"status": "blocked", "summary": "VERDICT: BLOCK\n迟到"}}))
+    _advance_main(lane, env)
+    later = lane.review_pr(1810)
+    assert "reused_from" not in later and len(later["reviews"]) == len(MODELS)
+
+
+def test_prepared_but_never_dispatched_reviewer_does_not_keep_run_unsettled(lane):
+    first = lane.review_pr(1810)
+    second = lane.target(1810, 2)
+    folder = lane.state_root / "runs" / second.key
+    (folder / MODELS[0]).mkdir(parents=True)
+    (folder / MODELS[0] / "prepare.json").write_text(json.dumps({"run_id": second.run_id}))
+    (folder / "outcome.json").write_text(json.dumps({"run_id": second.run_id, "verdict": "FAILED", "state": "error",
+        "target": first["target"], "reviews": [{"model": MODELS[0], "verdict": "FAILED"}]}))
+    row = next(r for r in lane.status(1810) if r["target"]["run_id"] == second.run_id)
+    assert lane._settled(row)  # 未派发的 prepare 不让 run 永远处于未完结
+    _dispatched_without_receipt(folder, MODELS[1], second.run_id)
+    assert not lane._settled(next(r for r in lane.status(1810) if r["target"]["run_id"] == second.run_id))
+
+
+@pytest.mark.parametrize("ending", ["FAILED", "STALE"])
+def test_superseding_reattempt_without_block_keeps_old_pass_from_reviving(lane, env, monkeypatch, ending):
+    """D5 d47722cf Opus：同补丁显式重审以 FAILED/STALE 收场且无 BLOCK，更早的 PASS 不得在追平后复活。"""
+    _, second = _second_opinion(lane, env, monkeypatch, ["FAILED", "FAILED"] if ending == "FAILED" else ["PASS", "PASS"],
+                                stale=ending == "STALE")
+    assert second["verdict"] == ending
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_unreadable_evidence_vetoes_reuse_without_blocking_registration(lane, env):
+    """_read 对权限、属主不符抛 IdentityError：按 BLOCK 处理（不沿用），但不能让登记失败。"""
+    first = lane.review_pr(1810)
+    other = lane.target(1810, 2)
+    worker = lane.state_root / "runs" / other.key / MODELS[0]
+    worker.mkdir(parents=True)
+    (worker / "receipt.json").write_text("{}")
+    (worker / "receipt.json").chmod(0o666)  # 组/他人可写：_read 抛 IdentityError
+    (lane.state_root / "runs" / other.key / "outcome.json").write_text(json.dumps(
+        {"run_id": other.run_id, "verdict": "PASS", "state": "success", "target": first["target"], "reviews": []}))
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_serial_resume_after_interrupt_is_not_stuck_on_stale_stop_flag(lane):
+    target = lane.target(1810, 1)
+    (lane.state_root / "runs" / target.key / MODELS[0]).mkdir()  # 走串行恢复
+    lane._stop.set()                                                # 同一实例上一次被 Ctrl-C
+    assert lane.review_pr(1810)["verdict"] == "PASS"
