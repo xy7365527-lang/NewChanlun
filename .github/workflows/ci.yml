@@ -1235,8 +1235,10 @@ jobs:
         run: python -m ruff check --select F,E9,B,I .
       - name: Mypy
         run: python -m mypy pilot1742
+      # #1875：本步串行约 9.3 min，是只改 .sandcastle 的 PR 的 CI 下限。-n 4 与托管 runner 4 核一致；
+      #   Belay 上串行与两轮 -n 4 的失败/错误集合逐项相同（84 项，均为环境依赖），耗时 655 → 252/209 s。
       - name: Test pilot and Studio without external workers
-        run: python -m pytest -q tests
+        run: python -m pytest -q -n 4 tests
       - name: Test approval-signing reader
         working-directory: .sandcastle/approval-signing
         run: python -m pytest -q tests
