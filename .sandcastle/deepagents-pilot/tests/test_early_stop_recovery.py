@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pytest
 import test_queue
-from approval_signing.protocol import Decision
 from conftest import FAKE, MODELS, git
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from test_agent import call, scripted
 from test_boat import config
-from test_queue import SPEC, authorize, executor
+from test_queue import SPEC, authorize, executor, publish_ruling
 from v2env import TICKET, SimulatedCrash
 
 from pilot1742 import agent as agent_module
@@ -397,10 +396,13 @@ def test_signed_spec_is_frozen_only_after_an_approved_check(queued):
     with pytest.raises(ApprovalRequired):
         executor(v2, cutover, unit).claim(run_dir)
     assert not (run_dir / 'spec').exists()
-    signer.publish(run_dir / 'approvals' / 'spec_authorization.request', Decision.REJECT)
+    publish_ruling(v2, 'BLOCK')
     with pytest.raises(ApprovalRequired):
         executor(v2, cutover, unit).claim(run_dir)
     assert not (run_dir / 'spec').exists()
+    publish_ruling(v2)
+    executor(v2, cutover, unit).claim(run_dir)
+    assert (run_dir / f'spec/{SPEC}.md').read_bytes() == v2.github.issues[SPEC]['body'].encode()
 
 
 def approve_changed_spec(bench, body):
@@ -408,7 +410,7 @@ def approve_changed_spec(bench, body):
     bench.v2.github.issues[SPEC]['body'] = body
     with pytest.raises(ApprovalRequired):
         bench.open()
-    bench.signer.publish(bench.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+    publish_ruling(bench.v2)
 
 
 def packaged_request(bench):
@@ -573,7 +575,7 @@ def test_spec_resigned_between_publish_effects_stops_before_the_next_write(bench
             return
         bench.v2.github.issues[SPEC]['body'] = SPEC_BODY + f'\n发布中途（{resign_after} 之后）新增要求 B。\n'
         assert executor_.spec_approval(run.dir, run.generation) is not None
-        bench.signer.publish(run.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+        publish_ruling(bench.v2)
 
     executor_.crash = resign
     before = len(bench.v2.writes())
@@ -688,7 +690,7 @@ def test_spec_freeze_interrupted_between_body_and_note_converges_on_the_next_app
     bench.v2.github.issues[SPEC]['body'] = SPEC_BODY + 'B\n'
     with pytest.raises(ApprovalRequired):
         bench.open()
-    bench.signer.publish(bench.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+    publish_ruling(bench.v2)
     monkeypatch.setattr(approval, '_replace_bytes', killed_before_note)
     with pytest.raises(SimulatedCrash):
         bench.open()
