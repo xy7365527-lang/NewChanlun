@@ -32,6 +32,7 @@
 //! - 本模块只读：不写任何 SQLite 行，也不把 overlay 当写入通道。
 
 use super::*;
+use crate::content_store::{ReadSnapshot, SnapshotQuery};
 use newchan_rust::s_content as sc;
 #[cfg(test)]
 use newchan_rust::s_content::ContentRef;
@@ -926,6 +927,8 @@ fn audit_core_fresh_with_policy(
     let mut materials = ordinary_materials_qualified.then(|| {
         super::ordinary_materials::OrdinaryAuditMaterials::new(OrdinaryAuditSeal { _private: () })
     });
+    // #1890：首个节点读者之前进入只读快照作用域；同名遮蔽后本函数再拿不到事务本身。
+    let tx = &ReadSnapshot::new(tx);
     let verified_history = history::read_verified_public_history(
         tx,
         raw.view(),
@@ -952,7 +955,7 @@ fn audit_core_fresh_with_policy(
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
-    let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
+    let mut reader = tx.store().map_err(err)?;
     if policy == history::SourcePolicy::NativeMeasured || budget.is_none() {
         reader.enable_audit_same_material();
     }
@@ -1961,7 +1964,7 @@ impl HistoricalCertificate {
         let raw = super::business_json::RawEvents::from_json_owner(
             crate::read_raw_events_until_admitted_measured(tx, deadline, work, budget)?,
         )?;
-        audit_profile_id_admitted(tx, None, work)?;
+        audit_profile_id_admitted(&ReadSnapshot::new(tx), None, work)?;
         let mut sources = HistoricalSourceFold {
             raw: raw.view(),
             source: Some(source_audit::NativeSourceAudit::new_with_records_measured(
@@ -1997,7 +2000,7 @@ impl HistoricalCertificate {
             budget,
             &mut cold_sources,
         )?;
-        verify_unrun_catalog_admitted(tx, indexed.cuts.is_empty(), None, work)?;
+        verify_unrun_catalog_admitted(&ReadSnapshot::new(tx), indexed.cuts.is_empty(), None, work)?;
         let mut store = history::HashReader::captured_for_audit(&capture, None)
             .map_err(err)?
             .with_audit_gate(budget, deadline)
@@ -2006,7 +2009,7 @@ impl HistoricalCertificate {
             .map_err(err)?;
         if let Some(last) = indexed.cuts.last() {
             let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-            catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+            catalog_evidence::verify_current_for_audit(&ReadSnapshot::new(tx), &mut store, &axes)?;
         }
         history::check_deadline(deadline)?;
         let raw_sources = cold_sources
@@ -2282,14 +2285,15 @@ fn audit_profile_id(
     tx: &Transaction<'_>,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<super::business_json::TextValue, String> {
-    audit_profile_id_admitted(tx, allocation, None)
+    audit_profile_id_admitted(&ReadSnapshot::new(tx), allocation, None)
 }
 fn audit_profile_id_admitted(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<super::business_json::TextValue, String> {
-    let profile_id = v2::control_meta_text_admitted(tx, "profile_id", allocation, work)?
+    let profile_id = snap
+        .control_meta_text_admitted("profile_id", allocation, work)?
         .ok_or_else(|| err("缺冻结字段 profile_id"))?;
     if profile_id != tb02a::PROFILE {
         return Err(err(format!(
@@ -2310,20 +2314,16 @@ fn verify_unrun_catalog(
     initial: bool,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<(), String> {
-    verify_unrun_catalog_admitted(tx, initial, allocation, None)
+    verify_unrun_catalog_admitted(&ReadSnapshot::new(tx), initial, allocation, None)
 }
 fn verify_unrun_catalog_admitted(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     initial: bool,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<(), String> {
     use super::business_json::TextValue;
-    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
-        tx,
-        c"SELECT catalog_id,impl_status,proof_status,run_status,evidence_json FROM catalog",
-    )
-    .map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::CATALOG_ALL).map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         // 与旧 r.get::<_,String> 同列、同序、同类型核验；复制落到调用方真实预算。
         // checked FFI的通用type错误省略列名，此固定SQL仍保留原r.get诊断字节。
@@ -3875,7 +3875,7 @@ impl AuditedState {
             .with_codec_work(work, native);
         let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(&ReadSnapshot::new(tx), &mut store, &axes)?;
         if certified {
             source_check
                 .ok_or_else(|| err("历史认证在线缺同请求来源收据"))?

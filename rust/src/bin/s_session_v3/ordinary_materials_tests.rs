@@ -386,7 +386,7 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
     let mut f = commit::tests::fixture();
     let reference = {
         let tx = f.conn.transaction().unwrap();
-        assert!(OrdinaryAuditMaterials::for_readonly_history(&tx).is_err());
+        assert!(OrdinaryAuditMaterials::for_readonly_history(&ReadSnapshot::new(&tx)).is_err());
         let reference = sc::write_value(
             &mut content_store::TxStore::new(&tx).unwrap(),
             &sc::Value::Array(vec![
@@ -406,7 +406,8 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
     .unwrap();
     let tx = conn.transaction().unwrap();
     for fail_at in [usize::MAX, 1, 4, 9, 25] {
-        let mut pool = OrdinaryAuditMaterials::for_readonly_history(&tx).unwrap();
+        let mut pool =
+            OrdinaryAuditMaterials::for_readonly_history(&ReadSnapshot::new(&tx)).unwrap();
         // 先让原件命中，再比较实际 Some 门，不靠冷读分支掩盖命中漏门。
         sc::verify(
             &mut pool.source(content_store::ReadStore::new(&tx).unwrap()),
@@ -452,7 +453,7 @@ fn ordinary_material_pool_actual_heap_released_after_readonly_scope() {
     let tx = conn.transaction().unwrap();
     let heap = crate::v3::audit_owner::allocation_probe::Window::start();
     let before = crate::v3::audit_owner::allocation_probe::live_bytes();
-    let pool = OrdinaryAuditMaterials::for_readonly_history(&tx).unwrap();
+    let pool = OrdinaryAuditMaterials::for_readonly_history(&ReadSnapshot::new(&tx)).unwrap();
     let retained = crate::v3::audit_owner::allocation_probe::live_bytes() - before;
     assert_eq!(retained, pool.slab.capacity() as i64);
     assert!(pool.stats.retained_capacity_highwater <= CAP);

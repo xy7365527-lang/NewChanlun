@@ -2218,7 +2218,12 @@ pub(crate) mod tests {
                 originals.push((entry, original));
             }
             let mut source = audit_store::StoreView::generic(&mut store);
-            let aux = aux_index::load(&tx, &mut source, g).unwrap();
+            let aux = aux_index::load(
+                &crate::content_store::ReadSnapshot::new(&tx),
+                &mut source,
+                g,
+            )
+            .unwrap();
             for (table, entries) in [
                 (
                     "witness",
