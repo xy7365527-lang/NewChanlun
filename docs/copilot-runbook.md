@@ -40,14 +40,7 @@ copilot
 
 1. `/model` 选 Claude 系模型（见 §4）。
 2. CLI 自动加载 `.github/copilot-instructions.md` 与根 `AGENTS.md`（两者同时存在时都会被使用，AGENTS.md 为 primary）。`.claude/skills/` 下的 60+ 个 skill 会被自动发现、按 description 相关性懒加载；`/skills` 可查看清单。
-3. 发出第一条指令（触发 ceremony）：
-
-```
-先读根目录 CLAUDE.md 作为基因组，然后执行：
-python scripts/ceremony_state.py write 1 initial
-python scripts/ceremony_scan.py
-把 scan 输出的 ready 工位报给我，之后按 .claude/commands/goal.md 的运行协议循环推进。
-```
+3. 发出第一条指令：先读根目录 `AGENTS.md`，再按其中的派发与开工纪律推进。早年的 ceremony 启动序（`ceremony_state.py`/`ceremony_scan.py`）已随 #1952 退役。
 
 工具面差异参考（本机 `~/.claude/skills/superpowers/skills/using-superpowers/references/copilot-tools.md`）：Claude Code 的 `Task` 对应 CLI 的 `task`（agent_type: general-purpose/explore），`TodoWrite` 对应内置 `sql` todos 表，无 `WebSearch`（用 `web_fetch` 代替），无 plan mode。CLI 独有：异步 bash 会话（`bash async` + `read_bash`/`write_bash`）。
 

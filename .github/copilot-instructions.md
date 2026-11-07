@@ -22,13 +22,6 @@
 
 ## 第三条：蜂群工作流入口
 
-- **ceremony 启动序**（进入蜂群循环前执行）：
-
-```bash
-python scripts/ceremony_state.py write 1 initial
-python scripts/ceremony_scan.py
-```
-
 - **Lead/goal 协议**：协议文本在 `.claude/commands/goal.md`，goal 事件账本在 `.chanlun/goals/events.jsonl`。Copilot 无 Claude Code 的 slash 命令机制——需人工把 goal.md 作为指令读入后按协议执行。
 - 平台能力差异与降级说明：`docs/copilot-runbook.md`。
 
