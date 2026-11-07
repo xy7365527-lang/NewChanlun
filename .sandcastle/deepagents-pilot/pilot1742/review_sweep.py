@@ -1,6 +1,6 @@
 """#1742 正式审查的自动触发与（可选）合入。未上线：仓内没有消费者，由 owner 挂进既有常驻循环。
 
-每轮 tick 列出指向 main 的开放 PR（非草稿、同仓；只对 max_age 内有活动的派新审，闲置的照常参与追平与合入），逐个隔离处理，单个 PR 的异常不影响其他 PR，
+每轮 tick 列出指向 main 的开放 PR（max_age 内有活动、非草稿、同仓），逐个隔离处理，单个 PR 的异常不影响其他 PR，
 主循环遇到异常也不退出。
 
 审查（按 head 判定，不按 base；main 前进不会把已审完的同一 head 拉回 pending）：
@@ -51,6 +51,7 @@ Spawn = Callable[[int, int, str, Path], int]
 Sync = Callable[[int, str, str], None]
 GATE = frozenset({"deepagents/review", "ci-ok"})
 LAUNCH_BACKOFF_SECONDS = 600
+MIN_LOOP_SECONDS = 180
 MERGE_CHECKS = ("deepagents/review", "ci-ok", "DevSkim")
 FILES_CAP = 3000
 
@@ -173,7 +174,7 @@ class GhCli:
         if rules.get("strict") is not True:
             return set()
         return {c["context"] for c in rules.get("checks", [])
-                if isinstance(c.get("app_id"), int) and c["app_id"] > 0}
+                if type(c.get("app_id")) is int and c["app_id"] > 0}  # bool 是 int 的子类，排除
 
     def pr_files(self, number: int) -> list[dict[str, Any]]:
         return self._json_lines("api", "--paginate", f"repos/{self.repository}/pulls/{number}/files?per_page=100",
@@ -314,16 +315,13 @@ class Sweep:
             entry: dict[str, Any] = {"pr": pr["number"], "head": pr["head"]["sha"]}
             try:
                 skip = self._eligible(pr)
-                if skip and skip != "stale-pr":
+                if skip:  # 闲置超过活动窗的 PR 整个跳过：不读接口、不追平（不在闲置分支上压合并提交、触发整套 CI）
                     actions.append({**entry, "action": skip})
                     continue
                 behind = False
-                if self.auto_merge:  # 活动窗只限制派新审；闲置的 PR 照常参与追平与合入
+                if self.auto_merge:
                     states[pr["number"]] = self.github.pr(pr["number"])
                     behind = states[pr["number"]]["mergeable_state"] == "behind"
-                if skip:
-                    actions.append({**entry, "action": skip})
-                    continue
                 action, record = self.decide(pr, busy, running, behind)
                 started = action in ("launch", "resume-review", "resume-publish")
                 running += started
@@ -450,10 +448,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pilot1742.review_sweep")
     parser.add_argument("--private-key", required=True, type=Path, help="只原样交给审查子进程")
     parser.add_argument("--max-running", type=int, default=2)
-    parser.add_argument("--loop", type=float, default=0, help="大于 0 时按此秒数循环；0 只跑一轮")
+    parser.add_argument("--loop", type=float, default=0,
+                        help=f"0 只跑一轮；循环时间隔至少 {MIN_LOOP_SECONDS:g} 秒（每轮每个 PR 约 4 次读接口，受 GitHub 核心限额约束）")
     parser.add_argument("--auto-merge", action="store_true",
                         help="用宿主 gh 凭据追平与合入（须 ci-ok 为必需检查；人工确认三类除外）")
     args = parser.parse_args(argv)
+    if 0 < args.loop < MIN_LOOP_SECONDS:
+        parser.error(f"--loop 须为 0 或至少 {MIN_LOOP_SECONDS:g} 秒")
     sweep = Sweep(GhCli(), ExternalReview(None), spawner(args.private_key), max_running=args.max_running,
                   auto_merge=args.auto_merge)
     while True:

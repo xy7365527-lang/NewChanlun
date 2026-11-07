@@ -434,7 +434,7 @@ def test_main_loop_survives_tick_errors(monkeypatch, capsys):
     monkeypatch.setattr(module, "Sweep", Boom)
     monkeypatch.setattr(module.time, "sleep", lambda s: None)
     with pytest.raises(SystemExit):
-        module.main(["--private-key", "/k", "--loop", "1"])
+        module.main(["--private-key", "/k", "--loop", "180"])
     assert len(ticks) == 2 and "tick-error" in capsys.readouterr().out
 
 
@@ -476,7 +476,8 @@ def test_main_advance_then_catch_up_costs_no_extra_model_calls(lane, env):
     actions = sweep.tick()
     assert "launch" in acts(actions)
     assert (lane.state_root / "runs" / "launches").read_text() == launches   # 新 head 沿用，不再调用模型
-    assert lane.status(1810)[-1]["outcome"].get("reused_from")
+    # 目录名以 base 开头，按名字排序取 [-1] 是随机的；按 head 找追平后的那个 run
+    assert next(r for r in lane.status(1810) if r["target"]["head_sha"] == caught_up)["outcome"].get("reused_from")
 
 
 # ---- 第二轮独审（d0fa06f9）I1/I2 与 Nit ----
@@ -549,16 +550,10 @@ def test_child_dying_before_registration_backs_off(lane):
     assert acts(sweep.tick()) == ["launch"] and len(host.spawned) == 2
 
 
-def test_idle_green_pr_is_still_merged(lane):
-    """Nit 3：活动窗只限制派新审；闲置超过窗口、三项全绿的 PR 照常合入。"""
-    sweep, _, github = make(lane, auto_merge=True)
-    sweep.tick()  # 先在窗口内审完
-    head = lane.gateway.pr["head"]["sha"]
-    green(github, head)
-    lane.gateway.pr["updated_at"] = "2026-01-01T00:00:00Z"
-    sweep.now = lambda: datetime(2026, 11, 7, tzinfo=timezone.utc)
-    actions = sweep.tick()
-    assert acts(actions) == ["stale-pr", "merged"] and github.calls == [("merge", 1810, head)]
+def test_loop_interval_must_respect_api_rate_limit():
+    """r3 Nit 2：每轮每个 PR 约 4 次读接口；循环间隔低于 3 分钟会超过 GitHub 每小时 5000 次的核心限额。"""
+    with pytest.raises(SystemExit):
+        module.main(["--private-key", "/k", "--loop", "60"])
 
 
 @pytest.mark.parametrize("path", ["deploy/.envrc", ".netrc", "web/.npmrc", "home/.ssh/id_ed25519", "id_rsa",
