@@ -657,7 +657,13 @@ test("已有负责人：不论 assignee 最近是否活跃，引擎都不放行�
 test("releaseTicket：写前复核读到负责人 / blocker 不发 --add-label；干净才发", () => {
   const run = (view: object) => {
     const writes: string[] = [];
-    const why = releaseTicket(1524, { read: () => JSON.stringify(view), write: (a) => (writes.push(a), "") });
+    const why = releaseTicket(1524, { specs: [7], orchestrator: "fixture" }, {
+      read: args => JSON.stringify(args.startsWith("issue view 1524") ? view : args.startsWith("issue view 7")
+        ? { number: 7, title: "SPEC: fixture", body: "", state: "OPEN" }
+        : [{ user: { login: "fixture" }, created_at: "2026-11-07", body: specRulingBody({ specNumber: 7,
+          verdict: "PASS", author: "draft", reviewer: "review", digest: specBodyDigest(""), evidence: "/fixture/review.json" }) }]),
+      write: (a) => (writes.push(a), ""),
+    }, "sandcastle");
     return { why, writes };
   };
   const busy = run({ state: "OPEN", labels: [], assignees: [{ login: "xy7365527-lang" }], blockedBy: { nodes: [] } });

@@ -53,8 +53,8 @@ function runEngine(failCount: number, maxAttempts: number): string {
   try {
     // 重试日志走 console.error（stderr），一轮收尾走 stdout，两路合并后一起断言。
     const r = spawnSync(
-      "npx",
-      ["tsx", "scripts/wayfinder_engine.mts", "--once", "--dry-run"],
+      process.execPath,
+      ["--experimental-strip-types", "scripts/wayfinder_engine.mts", "--once", "--dry-run"],
       { cwd: repoRoot, env, encoding: "utf8", timeout: 30_000 },
     );
     if (r.status !== 0) {
@@ -123,7 +123,11 @@ test("切流壳：draining 下引擎向假 gh 发出新队列标签，不经过�
       variable_source: "user-token-readonly", release_label: "deepagents:queue", engine_head: "a".repeat(40),
       legacy_services_unloaded: ["com.newchanlun.sandcastle-claimer", "com.newchanlun.sandcastle-harvest"] }));
     writeFileSync(join(root, "gh"), `#!/usr/bin/env bash
-if [ "$1 $2" = "issue view" ]; then
+if [ "$1 $2 $3" = "issue view 2" ]; then
+  echo '{"number":2,"title":"SPEC: fixture","body":"","state":"OPEN"}'
+elif [ "$1 $2" = "api --paginate" ]; then
+  cat "$D6_FIXTURE_LOG.comments"
+elif [ "$1 $2" = "issue view" ]; then
   echo '{"state":"OPEN","labels":[],"assignees":[]}'
 elif [ "$1 $2" = "issue edit" ]; then
   printf '%s\\n' "$*" >> "$D6_FIXTURE_LOG"
@@ -131,12 +135,14 @@ else
   exit 71
 fi
 `, { mode: 0o755 });
+    writeFileSync(log + ".comments", JSON.stringify([{ user: { login: "fixture" }, created_at: "2026-11-07",
+      body: specRulingBody({ specNumber: 2, verdict: "PASS", author: "draft", reviewer: "review", digest: specBodyDigest(""), evidence: "/fixture/review.json" }) }]));
     const script = `import {execFileSync} from 'node:child_process';
       const m = await import(process.argv[1]);
       const roots = {stateRoot: process.argv[2], drainRoot: process.argv[3]};
       const io = {read: args => execFileSync('gh', args.split(' '), {encoding:'utf8'}),
                   write: args => execFileSync('gh', args.split(' '), {encoding:'utf8'})};
-      await m.withEngineAdmission(() => m.releaseTicket(99, io, m.releaseLabel(roots.stateRoot, roots.drainRoot)), roots);`;
+      await m.withEngineAdmission(() => m.releaseTicket(99, {specs:[2], orchestrator:"fixture"}, io, m.releaseLabel(roots.stateRoot, roots.drainRoot)), roots);`;
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script,
       new URL("./wayfinder_engine.mts", import.meta.url).href, state, drain], {
       cwd: repoRoot, env: { ...process.env, PATH: `${root}:${process.env.PATH}`, D6_FIXTURE_LOG: log },
@@ -199,7 +205,9 @@ case "$1 $2" in
       *) exit 71 ;;
     esac ;;
   "issue view")
-    if [ -s "$WFE_FIXTURE/writes" ]; then
+    if [ "$3" = "2" ]; then
+      echo '{"number":2,"title":"SPEC: fixture","body":"","state":"OPEN"}'
+    elif [ -s "$WFE_FIXTURE/writes" ]; then
       echo '{"state":"OPEN","labels":[{"name":"deepagents:queue"}],"assignees":[]}'
     else echo '{"state":"OPEN","labels":[],"assignees":[]}'; fi ;;
   "issue edit") printf '%s\\n' "$*" >> "$WFE_FIXTURE/writes" ;;

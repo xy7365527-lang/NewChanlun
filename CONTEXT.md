@@ -33,7 +33,7 @@ _Avoid_: 默认方向 UP；用 close/open 推断初始方向（#1286 冻结的�
 _Avoid_: 多头重、空头重（把方向当作重的固定属性）
 
 **量档 policy**:
-具名版本化记录（`#1355/quantity-tier-policy/v1`），绑定 profile/标的/操作级别；Q_amount 为逐重资金金额，Q_units 为版本冻结的资产数量；q_ref 绑定资金授权身份及版本，不能作算术量（ADR 0049）；逐档 w 为整数对并带来源域，`tier_quantity` 为版本内冻结的整数动作量；逐级容量默认 UserSigned；ProbeAuto 仅在已签域和证据门均满足时可用（ADR 0034，#1598），Unknown ≠ 无限。未定档只阻该深度（`AwaitingPolicy{tier}`）。
+具名版本化记录（`#1355/quantity-tier-policy/v1`），绑定 profile/标的/操作级别；Q_amount 为逐重资金金额，Q_units 为版本冻结的资产数量；q_ref 绑定资金授权身份及版本，不能作算术量（ADR 0049）；逐档 w 为整数对并带来源域，`tier_quantity` 为版本内冻结的整数动作量；资金与交易政策的逐级容量默认 UserSigned（只指用户实际授权，代理独审裁定不冒充此来源；普通研发授权见 ADR 0041「授权来源与生效边界」）；ProbeAuto 仅在已签域和证据门均满足时可用（ADR 0034，#1598），Unknown ≠ 无限。未定档只阻该深度（`AwaitingPolicy{tier}`）。
 _Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户权益或市值替代固定 Q 或容量；这不排除已签同量纲换算后的 mark_value 溢出观测（ADR 0034）。
 
 **增长权益 G**:
@@ -46,7 +46,7 @@ _Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户
 改写固定 Q 的唯一事件，是一次政策版本，前件 growth_eligible 且新 Q ≤ 已签容量。
 
 **成本停止 policy**:
-具名版本化记录（`#1354/cost-stop-policy/v1`）：费率/滑点/延迟/持有成本四项输入各带 Known|ProxyLowerBound|Missing 状态，ROUNDTRIP 波幅逐级带单边 95% 下界，阈值 θ 由用户签署，通过 = 下界比值 ≥ θ 且证据门满足。缺项是状态（NotEvaluable），不是 0；代理下界只能判失败。第一层 = L0 余量 + 延伸后复测；第二层 = 到底份额下界 > 判不出背驰份额上界。首份签署记录见 [ADR 0044](docs/adr/0044-cost-stop-policy-signed-instance-v1.md)（[#1559](https://github.com/xy7365527-lang/NewChanlun/issues/1559)，P0 / P1-hl-testnet 两版 v1，θ = 2/1，滑点 Missing ⟹ 成本门仍 NotEvaluable）。
+具名版本化记录（`#1354/cost-stop-policy/v1`）：费率/滑点/延迟/持有成本四项输入各带 Known|ProxyLowerBound|Missing 状态，ROUNDTRIP 波幅逐级带单边 95% 下界，真实交易阈值 θ 保留用户授权硬门，普通研发选择按 ADR 0041 的代理裁定合同记来源；通过 = 下界比值 ≥ θ 且证据门满足。缺项是状态（NotEvaluable），不是 0；代理下界只能判失败。第一层 = L0 余量 + 延伸后复测；第二层 = 到底份额下界 > 判不出背驰份额上界。首份签署记录见 [ADR 0044](docs/adr/0044-cost-stop-policy-signed-instance-v1.md)（[#1559](https://github.com/xy7365527-lang/NewChanlun/issues/1559)，P0 / P1-hl-testnet 两版 v1，θ = 2/1，滑点 Missing ⟹ 成本门仍 NotEvaluable）。
 _Avoid_: 用中位数读成本门；把 #907 的 2.59× 当当前通过证据；缺费率时代 0 下钻。
 
 **经营统计样本**:
@@ -63,7 +63,7 @@ experiment/production profile 下 growth_eligible 首次为真的同源 AsKnown 
 阶段能力许可 = growth_eligible（事实）∧ PostGatePolicy 版本已落盘 ∧ 首次启用记录；无版本只记事实不放行。
 
 **共同资金上限（Common Cap）**（2026-10-13 [#1349](https://github.com/xy7365527-lang/NewChanlun/issues/1349) 裁定，[ADR 0029](docs/adr/0029-common-cap-contention-policy.md)）:
-全部重的毛锁额（数量×限价+费用尾，净省不计）加既有责任不得超过的人工具名数额，带版本与有效期、绑定场所 profile；数值由用户随激活签署，不设默认。注入/取出/改额都是新版本；取出只限空闲部分。它是 ADR 0024 裁定五「毛 cap 管杠杆暴露」的参数来源，不是账户权益。签署记录与重推导见 ADR 0040。
+全部重的毛锁额（数量×限价+费用尾，净省不计）加既有责任不得超过的人工具名数额，带版本与有效期、绑定场所 profile；资金数值由用户随激活签署，不设默认；这是独立资金硬门，不是普通 P/SPEC 审批（后继边界见 ADR 0041「授权来源与生效边界」）。注入/取出/改额都是新版本；取出只限空闲部分。它是 ADR 0024 裁定五「毛 cap 管杠杆暴露」的参数来源，不是账户权益。签署记录与重推导见 ADR 0040。
 
 **资金时点（Slot）**（同上）:
 同一 S 稳定点提交的全部资金申请的集合。同点争用按整 slot 原子等待：全体放得下才一起授信，否则整体等待；等待无时钟时限，失效只来自申请者自己的结构事实或政策版本到期；后来 slot 不越过；跨 slot 次序取 S 稳定点的结构顺序（显式选择，不是默认 FIFO）。
@@ -389,7 +389,7 @@ _Avoid_: 把模式差异写进核心判定；把域间传输或 SQLite/WAL 持�
 _Avoid_: 把原文语义称作「可选项」；把另一个合法取值写成「被否」。
 
 **可调字段（Configurable Field）**（同上）:
-自由度在具名版本化记录里的落点：带默认值、出处与可选值集合，一次运行只读一个值，改值即新版本。已裁定签署前不得代填的字段（资金、量档、容量、成本门 θ、风险阈值等），默认值就是 `AwaitingPolicy`（不签不跑），数值推荐值只写进签署单待确认。
+自由度在具名版本化记录里的落点：带默认值、出处与可选值集合，一次运行只读一个值，改值即新版本。已裁定签署前不得代填的字段（资金、量档、容量、成本门 θ、风险阈值等），默认值就是 `AwaitingPolicy`（不签不跑），数值推荐值写进具名版本记录：普通研发选择经非作者独审 PASS 由代理裁定，真实资金/交易/凭据权限仍取得对应用户授权（ADR 0041「授权来源与生效边界」）；代理裁定不记为 UserSigned。
 _Avoid_: 「配置开关」「运行时切换」——运行中改值是 #799 所禁的失败兜底；同一判断的宽严两档本身不是自由度。
 
 **唯一真账（Single Authority Ledger）**（2026-11-02 [#1539](https://github.com/xy7365527-lang/NewChanlun/issues/1539) 裁定，[ADR 0060](docs/adr/0060-fill-position-single-authority-and-crosswalk.md)）:

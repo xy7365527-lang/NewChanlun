@@ -571,6 +571,8 @@ export function explainTicket(t: ReadyTicket): string {
 export interface SpecTreeFacts {
   approved: Map<number, boolean>;
   underSpec: Set<number>;
+  /** 本票批准态依赖的 SPEC 身份；执行时重新读取，不复用批准布尔值。 */
+  requiredSpecs: Map<number, number[]>;
 }
 
 /**
@@ -585,27 +587,30 @@ export interface SpecTreeFacts {
 export function buildSpecTreeFacts(maps: MapState[], orchestrator: string): SpecTreeFacts {
   const approved = new Map<number, boolean>();
   const underSpec = new Set<number>();
-  const specOk = (s: ChildIssue) => s.state === "OPEN" && isSpecApproved(s, orchestrator);
+  const requiredSpecs = new Map<number, number[]>();
+  const specOk = (s: ChildIssue) => currentSpecApproved(s, s.number, orchestrator);
   for (const m of maps) {
     if (m.state !== "OPEN") continue;
     const spec = m.children.find(isSpecTicket);
     const mapApproved = spec !== undefined && specOk(spec);
     const visited = new Set<number>();
     // chain：祖先链上的 SPEC 情况；null = 链上尚无 SPEC。
-    const visit = (node: ChildIssue, chain: boolean | null) => {
+    const visit = (node: ChildIssue, chain: boolean | null, ancestors: number[]) => {
       if (visited.has(node.number)) return;
       visited.add(node.number);
       const value = chain === null ? mapApproved : chain;
       // 同一票若被多处挂（理论上 sub_issue 单父），任一路径未批准即按未批准，宁严勿宽。
       const prev = approved.get(node.number);
       approved.set(node.number, prev === undefined ? value : prev && value);
+      const required = chain === null ? (spec ? [spec.number] : []) : ancestors;
+      requiredSpecs.set(node.number, [...new Set([...(requiredSpecs.get(node.number) ?? []), ...required])]);
       if (chain !== null) underSpec.add(node.number);
       const next = isSpecTicket(node) ? (chain === null ? specOk(node) : chain && specOk(node)) : chain;
-      for (const c of node.children ?? []) visit(c, next);
+      for (const c of node.children ?? []) visit(c, next, isSpecTicket(node) ? [...ancestors, node.number] : ancestors);
     };
-    for (const c of m.children) visit(c, null);
+    for (const c of m.children) visit(c, null, []);
   }
-  return { approved, underSpec };
+  return { approved, underSpec, requiredSpecs };
 }
 
 /** 兼容旧签名：只要批准态。 */
@@ -783,15 +788,26 @@ function fetchChildren(
   });
 }
 
-function fetchComments(issueNumber: number): IssueComment[] {
+function fetchComments(issueNumber: number, read: (args: string) => string = gh): IssueComment[] {
   const raw = JSON.parse(
-    gh(`api --paginate repos/${GH_ENV.GH_REPO}/issues/${issueNumber}/comments`),
+    read(`api --paginate repos/${GH_ENV.GH_REPO}/issues/${issueNumber}/comments`),
   ) as RawComment[];
   return raw.map((c) => ({
     author: c.user.login,
     body: c.body ?? "",
     createdAt: c.created_at,
   }));
+}
+
+/** 写前从 tracker 取当前正文及全部评论，复用扫描阶段的唯一裁定合同。 */
+function readCurrentSpec(number: number, read: (args: string) => string = gh): ChildIssue {
+  const v = JSON.parse(read(`issue view ${number} --json number,title,body,state`));
+  return { number: v.number, title: v.title, body: v.body ?? "", state: normalizeState(v.state),
+    labels: [], assignees: [], blockedBy: 0, comments: fetchComments(number, read) };
+}
+
+function currentSpecApproved(spec: ChildIssue, number: number, orchestrator: string): boolean {
+  return spec.number === number && isSpecTicket(spec) && spec.state === "OPEN" && isSpecApproved(spec, orchestrator);
 }
 
 export function fetchOpenMaps(): MapState[] {
@@ -876,16 +892,23 @@ export function recheckBeforeRelease(v: {
 
 /**
  * 释放一张合资格实装票：挂 sandcastle（add-label 幂等，写路径 ghOnce）。
- * 挂前重读单票，缩小「扫描后才被人认领 / 新增 blocker」的竞态窗口。返回 null = 已挂。
+ * 挂前重读单票与批准态依赖的全部 SPEC；身份来自同一遍子树遍历，批准布尔值不跨写入复用。返回 null = 已挂。
  */
 export function releaseTicket(
   number: number,
+  authorization: { specs: number[]; orchestrator: string },
   io: { read: (args: string) => string; write: (args: string) => string } = { read: gh, write: ghOnce },
   label = releaseLabel(),
 ): string | null {
   const v = JSON.parse(io.read(`issue view ${number} --json state,labels,assignees,blockedBy`));
   const why = recheckBeforeRelease(v, label);
   if (why) return why;
+  if (!authorization.specs.length) return "缺父 SPEC 身份，不能沿用扫描批准态";
+  for (const spec of authorization.specs) {
+    if (!currentSpecApproved(readCurrentSpec(spec, io.read), spec, authorization.orchestrator)) {
+      return `SPEC #${spec} 当前无有效 PASS`;
+    }
+  }
   io.write(`issue edit ${number} --add-label ${label}`);
   return null;
 }
@@ -1148,12 +1171,22 @@ function actDraftSpec(a: Extract<Action, { kind: "draft_spec" }>, cfg: EngineCon
 }
 
 /** 动作 2：spec 批准 → 拆 tracer-bullet 实装票 + blocking 边 + sandcastle 标签。 */
-function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, _cfg: EngineConfig): void {
+function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: EngineConfig): void {
   const mapNumber = a.map;
   const specNumber = a.spec;
-  const specBody = JSON.parse(
-    gh(`issue view ${specNumber} --json body`),
-  ).body as string;
+  const spec = readCurrentSpec(specNumber);
+  if (!currentSpecApproved(spec, specNumber, cfg.orchestrator)) {
+    console.log(`  · SPEC #${specNumber} 当前无有效 PASS，不拆票`);
+    return;
+  }
+  const specBody = spec.body;
+  // 每次创建前重新核对；新正文即使已有新 PASS，也留到下一轮重新解析计划。
+  const stillApproved = () => {
+    const current = readCurrentSpec(specNumber);
+    const ok = current.body === specBody && currentSpecApproved(current, specNumber, cfg.orchestrator);
+    if (!ok) console.log(`  · SPEC #${specNumber} 裁定或正文已变，停止本轮拆票`);
+    return ok;
+  };
   const plan = parseSplitPlan(specBody);
   if (!plan) {
     console.error(
@@ -1183,6 +1216,7 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, _cfg: 
       `Part of [SPEC #${specNumber}](${issueUrl(specNumber)})（map [#${mapNumber}](${issueUrl(mapNumber)}) 图内实施票）。` +
       (rulings ? `决策链：${rulings}。` : "") +
       `\n\n## 目标（spec ${t.id}）\n\n${t.summary ?? "（见 spec 对应条目）"}\n`;
+    if (!stillApproved()) return;
     const created = createIssue(`[impl] ${t.id} ${t.title}`, ticketBody, implLabels());
     addSubIssue(mapNumber, created.id);
     createdByPlanId.set(t.id, created);
@@ -1199,6 +1233,7 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, _cfg: 
         console.error(`  ✗ ${t.id} depends_on 未知 id ${depId}，跳过该边（人工补接）`);
         continue;
       }
+      if (!stillApproved()) return;
       addBlockingEdge(child.number, dep.id);
       console.log(`  ✓ blocking 边：#${child.number} blocked by #${dep.number}（${depId}）`);
     }
@@ -1270,10 +1305,11 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
   console.log(`\n[wayfinder_engine] ${stamp} 一轮开始（${cfg.dryRun ? "dry-run" : "live"}）`);
   let maps: MapState[];
   let ready: ReadyTicket[];
+  let facts: SpecTreeFacts;
   try {
     maps = fetchOpenMaps();
     // 队列交棒视图：全仓 ready-for-agent × 父图 spec 批准态。
-    const facts = buildSpecTreeFacts(maps, cfg.orchestrator);
+    facts = buildSpecTreeFacts(maps, cfg.orchestrator);
     ready = withSpecApproval(fetchReadyTickets(), facts.approved, buildOpenChildIndex(maps), facts.underSpec);
   } catch (e) {
     console.error(`[wayfinder_engine] 拉取 tracker 状态失败（网络/鉴权？已重试，本轮跳过）：${e}`);
@@ -1315,7 +1351,7 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
       console.log(`    [dry-run] 将释放（挂 ${releaseLabel()}）：#${n}`);
     } else {
       try {
-        const why = await withEngineAdmission(() => releaseTicket(n));
+        const why = await withEngineAdmission(() => releaseTicket(n, { specs: facts.requiredSpecs.get(n) ?? [], orchestrator: cfg.orchestrator }));
         if (why) console.log(`    · 写前复核不放行 #${n}：${why}`);
         else console.log(`    ✓ 已释放（挂 ${releaseLabel()}）：#${n}`);
       } catch (e) {

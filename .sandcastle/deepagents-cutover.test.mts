@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { QUEUE_LABEL, releaseLabel, withQueueAdmission, graphAdmissionFrozen, withGraphAdmission } from "./deepagents-cutover.mts";
 import { withFileLock, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
-import { classifyTicket, implLabels, releaseTicket, recheckBeforeRelease, withEngineAdmission } from "../scripts/wayfinder_engine.mts";
+import { specRulingBody, specBodyDigest, classifyTicket, implLabels, releaseTicket, recheckBeforeRelease, withEngineAdmission } from "../scripts/wayfinder_engine.mts";
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "cutover-1742-"));
@@ -42,7 +42,11 @@ test("新标签分类、复核与释放使用同一标签，旧标签不混领",
   assert.deepEqual(implLabels(QUEUE_LABEL), ["ready-for-agent"]);
   assert.deepEqual(implLabels("sandcastle"), ["ready-for-agent", "sandcastle"]);
   const writes: string[] = [];
-  assert.equal(releaseTicket(1, { read: () => JSON.stringify({ labels: [], assignees: [], state: "OPEN" }),
+  assert.equal(releaseTicket(1, { specs: [2], orchestrator: "fixture" }, { read: args => JSON.stringify(
+    args.startsWith("issue view 1") ? { labels: [], assignees: [], state: "OPEN" }
+      : args.startsWith("issue view 2") ? { number: 2, title: "SPEC: fixture", body: "", state: "OPEN" }
+      : [{ user: { login: "fixture" }, created_at: "2026-11-07", body: specRulingBody({ specNumber: 2,
+        verdict: "PASS", author: "draft", reviewer: "review", digest: specBodyDigest(""), evidence: "/fixture/review.json" }) }]),
     write: cmd => { writes.push(cmd); return ""; } }, QUEUE_LABEL), null);
   assert.deepEqual(writes, ["issue edit 1 --add-label deepagents:queue"]);
 });

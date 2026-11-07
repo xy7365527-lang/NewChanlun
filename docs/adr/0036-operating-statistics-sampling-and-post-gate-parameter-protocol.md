@@ -26,7 +26,8 @@ C_before 只从该重 book 同源读；统计单位 = 重，汇总只作报告�
 在 experiment/production 证据类 profile 下，Applied 真实原件使 `growth_eligible` 首次为真，B/E 同源 AsKnown 记录 `{chong_id, profile_id, evidence_class, known_at, stable_point, K, P, P_recovered | ΣM_b 与 Π, triggering_fact_refs, policy_versions, verified_by}`；触发原件未全部 Applied / 有 Pending 覆盖 / 对账不一致 ⟹ `GateReachedCandidate`。TestOnly 与历史双跑 ⟹ `SimulatedGateReached`，可演练不激活。
 ### 八、触达后、启用前
 只阻闸门后正式评价输出（`AwaitingPolicy{post_gate_params}`）与阶段能力首次启用；`growth_enabled = growth_eligible ∧ 参数版本已落盘 ∧ 启用记录`，事实与许可分列。闸门前统计、事实账、G 累积、既有 Voice 经营、结构发布不受阻。
-### 九、PostGatePolicy 槽位（全部 Unset 直到用户签署）
+### 九、PostGatePolicy 槽位（全部 Unset 直到适用授权完成）
+普通研发参数在触达证据具备后可由代理独审裁定，来源如实记为代理裁定；真实账户阶段能力首次启用与其资金/风险参数仍需用户授权（ADR 0041「授权来源与生效边界」）。不把代理裁定记成 UserSigned，不代填缺失证据，不改变下节三记录时序。
 `net_position_value.{window, benchmark_ref, reading(固定=ADR 0022 下界), pass_rule(下界与基准的序关系)}`、`frequency.min_evidence_ref`（独立门）、`growth_enable.{conditions, rollback}`（K 回正为固定回退项）、`shift_threshold_ref`（只引用 #1355 容量）。
 ### 十、时序与有效域
 `触达.known_at < 版本.authorized_at < 首次启用.known_at`，三者持久互引；无版本不得启用；早于触达的版本拒收；改参数开新版本只对之后评价窗生效；有效域随签署时 profile，experiment 版本不自动迁移到 production；TB-11 关图须出示三条记录。
