@@ -891,3 +891,106 @@ def test_claim_halted_when_authorized_scope_changes(queued, body):
             pytest.fail('scope change must fence dispatch')
     assert v2.claim_record()['state'] == 'halted'
     assert v2.writes() == before
+
+
+@pytest.mark.parametrize('body', ['# SPEC\ndeepagents-scope: other/\n', '# SPEC\n'])
+def test_restart_persists_scope_fence(queued, body):
+    from conftest import FAKE, MODELS
+
+    from pilot1742.executor import load_unit, open_v2_run
+    v2, cutover, intake, _ = queued
+    unit = intake.register(TICKET)
+    publish_ruling(v2)
+    task = load_unit(v2.home, unit.run_id)[1]
+    run = open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS,
+                      launcher=FAKE, source_repo=v2.source)
+    run.release()
+    v2.github.issues[SPEC]['body'] = body
+    publish_ruling(v2)
+    before = v2.writes()
+    with pytest.raises((AdmissionRefused, QueueWaiting, Halted)):
+        open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS,
+                    launcher=FAKE, source_repo=v2.source)
+    assert v2.claim_record()['state'] == 'halted'
+    assert v2.writes() == before
+
+
+def test_restart_pending_ruling_keeps_claim_and_resumes(queued):
+    from conftest import FAKE, MODELS
+
+    from pilot1742.executor import load_unit, open_v2_run
+    v2, cutover, intake, _ = queued
+    unit = intake.register(TICKET)
+    publish_ruling(v2)
+    task = load_unit(v2.home, unit.run_id)[1]
+    def reopen():
+        return open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS,
+                           launcher=FAKE, source_repo=v2.source)
+    reopen().release()
+    publish_ruling(v2, 'BLOCK')
+    before = v2.writes()
+    with pytest.raises(ApprovalRequired):
+        reopen()
+    assert v2.claim_record()['state'] == 'active'
+    publish_ruling(v2)
+    reopen().release()
+    assert v2.writes() == before
+
+
+def test_low_disk_restart_collects_submitted_boat_without_new_dispatch(queued, monkeypatch):
+    from dataclasses import replace
+    from pathlib import Path
+
+    from conftest import FAKE, MODELS
+    from test_boat import FakeBoat, config, payload
+
+    from pilot1742.boat_execution import BoatBinding, BoatConfig, BoatExecution, BoatRun
+    from pilot1742.domain import Terminal, WorkerKey
+    from pilot1742.executor import load_unit, open_v2_run
+    from pilot1742.run import InsufficientSpace
+    v2, cutover, intake, _ = queued
+    unit = intake.register(TICKET)
+    publish_ruling(v2)
+    task = load_unit(v2.home, unit.run_id)[1]
+    run = open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS,
+                      launcher=FAKE, source_repo=v2.source)
+    run.spec = replace(run.spec, execution=BoatRun(BoatConfig.parse(config()), v2.base))
+    (run.dir / 'run.json').write_text(json.dumps(run.spec.to_json()))
+    run.execution = BoatExecution(run)
+    key = WorkerKey(unit.run_id, 'author', v2.base)
+    (run.dir / 'intents').mkdir(exist_ok=True)
+    (run.dir / 'intents' / f'{key.name}.json').write_text('{}')
+    binding = BoatBinding(run.execution._identity(key), 'vm-author', 'p1', '/home/user/fixture/p1',
+                          'submitted', sandbox_id='bx_fixture')
+    run.execution._store(key, binding)
+    receipt = payload(run, run.execution, key, [dict(path='demo/recovered', mode='100644', content='b2s=')])
+    run.release()
+    stops = []
+    def scp(source, target):
+        Path(target).write_text(json.dumps(receipt))
+        return []
+    cli = FakeBoat(info=lambda: {'state': 'stopped' if stops else 'running'}, scp=scp,
+                   stop=lambda *a: stops.append(a) or [{'operation': {'id': 'stop_1'}}],
+                   exec=lambda command: {} if command.startswith('rm -f') else
+                   {'identity': binding.identity, 'package_id': 'p1', 'state': 'receipt'})
+    _low_disk(monkeypatch, 0)
+    seen = []
+    def child(current):
+        seen.append(current.run_id)
+        recovered = open_v2_run(v2.home, current, task, executor(v2, cutover, current), MODELS,
+                                launcher=FAKE, source_repo=v2.source)
+        try:
+            recovered.execution.cli = cli
+            assert isinstance(recovered.execution.observe(key), Terminal)
+            assert (recovered.spec.author_checkout / 'demo/recovered').read_text() == 'ok'
+            assert recovered.execution.load(key).stop_confirmed
+            with pytest.raises(InsufficientSpace):
+                recovered.execution.submit(WorkerKey(unit.run_id, 'review', v2.base))
+        finally:
+            recovered.release()
+        return 75
+    intake.once(child)
+    assert seen == [unit.run_id], 'low disk must not block recovery of submitted workers'
+    before = list(cli.calls)
+    intake.once(child)
+    assert len(stops) == 1 and cli.calls == before, 'terminal adoption must not repeat remote work'
