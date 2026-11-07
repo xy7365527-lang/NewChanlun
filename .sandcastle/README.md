@@ -64,11 +64,11 @@ node --import tsx --test .sandcastle/scheduler-config.test.mts
 `scripts/wayfinder_engine.mts` 是图清自动汇入主干的常驻控制面（tracker 即账本，stateless）：
 每 4 分钟一轮，跑三件事——
 
-1. **DAG 走查**：图清 → 起草 spec 草案开票（@编排者批【闸一】）；spec 批准 → 拆实装票（blocking 边 + 逐条挂裁定票）；实装全关 → 起草图关 comment + close map。
+1. **DAG 走查**：图清 → 起草 spec 草案开票（待非作者独审）；当前 spec 有绑定正文的有效 PASS → 拆实装票（blocking 边 + 逐条挂裁定票）；实装全关 → 起草图关 comment + close map。
 2. **队列交棒**：只给合资格实装票（已批准 spec/DAG + 未 assign + 无 open blocker）挂 `sandcastle`，不把全部历史 `ready-for-agent` 无差别放行；每轮五桶分明（ready-for-agent / sandcastle 拾取权 / blocked / claimed / running）。
 3. **状态页**：写 `.sandcastle/logs/wayfinder-status.md`，不再把 `sandcastle` 空误写成 `ready-for-agent` 全空。
 
-gh 查询有限重试 + 指数退避 + fail-loud；无 runnable 票 sleep 后重查、不退出。人工闸三处不动（spec 批准 / 不预授权决策票 / 合入 main）。
+gh 查询有限重试 + 指数退避 + fail-loud；无 runnable 票 sleep 后重查、不退出。普通 P/SPEC 已由 #1909 改为起草 + 非作者独审 PASS 代理裁定，合入 main 人闸保留；真实资金与权限边界见 ADR 0041。拆票与排队前重读当前 SPEC 裁定；DeepAgents 执行器迁移仍依赖 Queued PR，见 graph-engineering.md「#1742 执行面依赖」。
 
 **部署成受管常驻服务**（launchd KeepAlive，默认真实执行 `--live`）：
 

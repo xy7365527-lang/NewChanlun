@@ -13,6 +13,8 @@ ADR 0016 裁定三/四/五与 ADR 0017 裁定二/五/六/七/八已定量层形�
 ### 一、量档 policy 记录（#1355 Q1）
 政策 id 族 `#1355/quantity-tier-policy/v1`。记录 ⟨policy_id, version, profile_id, symbol, operation_level, q_ref（资金授权身份引用及 version；逐重 Q_amount 按同签版与 (S,ℓ) 确定派生，禁止以总 cap 代每重金额；ADR 0049）, tiers[{d≥1, w 整数对 | Unmeasured, source: Measured{probe_run_ref, 粒度, impact_form, δ, 统计口径, n, 最大月簇, 窗} | UserSigned, tier_quantity 整数版本内冻结, valid_through}], capacities[{level, C | Unknown, source: UserSigned(可引探针) | ProbeAuto{probe_run_ref, domain_ref}, domain{粒度, impact_form, δ, x, Y, σ 口径}, valid_through}], frequency_evidence_ref, authorizer, authorized_at, valid_through, supersedes⟩。w(0)≡1 不入档；来源域与 profile 不一致即 Unmeasured；0.32 不写入记录，只可作 Measured 来源被引用。
 
+本记录的 `UserSigned` 是来源类型，不是审批阶段名。普通研发方法与离线参数可由代理独审裁定，但不能以 `UserSigned` 写入本资金政策；现有已签版本、ProbeAuto 证据门和实际账户有效域保持不变。
+
 ### 二、未定档只阻该深度（#1355 Q2）
 `AwaitingPolicy{tier:d}` 只阻深度 d 的短差动作；基线与已定档照常；不以 0.32/1.0 代填。
 
@@ -20,11 +22,11 @@ ADR 0016 裁定三/四/五与 ADR 0017 裁定二/五/六/七/八已定量层形�
 触发：新探针读数（满足 ADR 0022 裁定七窗口纪律并带不确定性带）、用户签署、到期回 Unmeasured。版本对生效后投影的命令起作用；在途与已冻结 L 不重测；回本前同量回补按原卖出冻结的版本与数量；旧版本不删，AsKnown 不回填。
 
 ### 四、容量来源按签署版本选择；Q_total 只来自资金授权（#1355 Q4、#1598）
-默认 UserSigned；ProbeAuto 的签署域、证据及有效域前置见下。Q_amount ≤ C_amount(ℓ) 在开重与换档激活时校验；数量域另按 Q_units 与 C_units 同维比较；C(ℓ) Unknown ⟹ `AwaitingPolicy{capacity}`，未知不是无限；溢出部分按 ADR 0016 裁定五(c) 归上一级，账目走裁定六。频率门独立。取整 `tier_quantity = ⌊Q_units·num/den⌋`（quantum 单位），残量不累积，整数运算。
+资金与交易政策容量来源默认 UserSigned（只指真实用户授权，不能记代理裁定）；普通研发选择的后继合同见 ADR 0041「授权来源与生效边界」。ProbeAuto 的签署域、证据及有效域前置见下。Q_amount ≤ C_amount(ℓ) 在开重与换档激活时校验；数量域另按 Q_units 与 C_units 同维比较；C(ℓ) Unknown ⟹ `AwaitingPolicy{capacity}`，未知不是无限；溢出部分按 ADR 0016 裁定五(c) 归上一级，账目走裁定六。频率门独立。取整 `tier_quantity = ⌊Q_units·num/den⌋`（quantum 单位），残量不累积，整数运算。
 
 > 2026-10-26 用户批准 #1598：本节将合法选择落为具名版本字段；未签数值与未标定能力不因方法批准自动生效。
 
-`capacities[].source` 可选值：{`UserSigned{probe_run_ref | direct}`（默认，出处：ADR 0034 裁定四容量须用户签署、ADR 0040:135 P0 已签 L0–L2 容量），`ProbeAuto{probe_run_ref, domain_ref}`（待标定，前置未满足）}。`ProbeAuto` 前置条件两条：①该 profile 的 {粒度, δ, x, Y, σ 口径} 已由用户签署（ADR 0040:135 P0 已满足）；②探针输出满足 ADR 0022 裁定七窗口纪律并带不确定性带（#1444 待补，当前不满足 ⟹ 选中时容量记 Unknown ⟹ AwaitingPolicy）。适用域只限 ADR 0017 裁定七干净区间 L1–L2（`capacities[].level ∈ {L1, L2}`），其余级别仍 Unknown（不回落旧数）。代价：容量随探针读数漂移，每次新读数即新版本（ADR 0034 裁定三「新探针读数是版本触发」），在途重继续使用开重时冻结的已签版本，新版本不追改在途记录。ADR 0040 同步保留该合法候选；缺前置不自动生效。
+`capacities[].source` 可选值：{`UserSigned{probe_run_ref | direct}`（默认，出处：本节资金与交易政策容量的用户授权硬门；ADR 0040:135 P0 已签 L0–L2 容量是历史签署实例，保留原来源），`ProbeAuto{probe_run_ref, domain_ref}`（待标定，前置未满足）}。`ProbeAuto` 前置条件两条：①该 profile 的 {粒度, δ, x, Y, σ 口径} 已由用户签署（ADR 0040:135 P0 已满足）；②探针输出满足 ADR 0022 裁定七窗口纪律并带不确定性带（#1444 待补，当前不满足 ⟹ 选中时容量记 Unknown ⟹ AwaitingPolicy）。适用域只限 ADR 0017 裁定七干净区间 L1–L2（`capacities[].level ∈ {L1, L2}`），其余级别仍 Unknown（不回落旧数）。代价：容量随探针读数漂移，每次新读数即新版本（ADR 0034 裁定三「新探针读数是版本触发」），在途重继续使用开重时冻结的已签版本，新版本不追改在途记录。ADR 0040 同步保留该合法候选；缺前置不自动生效。
 
 ### 五、固定 Q 与增长权益分账（#1357 Q1）
 五账分列：Q_units（固定资产数量，动作基；Q_amount 为对应逐重资金金额，二者按 ADR 0049 分维）、q_actual、原始义务（同量回补配对）、G 增长权益 `{units_g, cash_g, cost_g}`、L。G 的来源只有回本后资本化 A、回本后抛出再接回多出的筹码（`031:169`）、留存的现金分红净额；空头重只有 cash_g。Q_units 只能由已授权 `q_rebase` 新版本或既裁拆股路径改变；q_rebase 前件为 growth_eligible 且新基值不超过同维已签容量（ADR 0049），不能把金额与数量互比。G 不是本金（ADR 0031 裁定一）。

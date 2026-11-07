@@ -18,7 +18,7 @@
 
 1. **版本化记录字段**——放进该量所属的具名版本化记录（签署记录、policy 记录或场所 profile），不另建配置面；
 2. **默认值**——每个字段必须有默认值，附推导依据（原文锚、ADR 或在案读数）；
-   **签署门字段的默认值 ＝ `AwaitingPolicy`**（用户 2026-10-20 批复 B-10，见 [#1586](https://github.com/xy7365527-lang/NewChanlun/issues/1586)）。凡已裁定「签署前不给值、不得代填」的字段——资金 cap（[ADR 0029](0029-common-cap-contention-policy.md) 裁定四）、量档与逐级容量（[ADR 0034](0034-quantity-tier-policy-growth-equity-shift.md) 的 `AwaitingPolicy{tier:d}`／`AwaitingPolicy{capacity}`）、成本门 θ 与成本输入（[ADR 0035](0035-cost-stop-policy-instance-and-base-extension-evidence.md)）、闸门后参数槽位（[ADR 0036](0036-operating-statistics-sampling-and-post-gate-parameter-protocol.md) 裁定九），以及其他已裁定由用户签署的风险阈值——运行时默认值就是 `AwaitingPolicy{<字段>}`：未签署则该字段所阻的动作不跑，不回退任何备用值。数值默认值只以「推荐值＋出处」写进签署单供用户确认，签署前不自动生效。这样满足本条「每个字段有默认值」，也不违上述代填禁令；`AwaitingPolicy` 是等待签署的状态，不是第二个取值，因此不构成第二条所禁的备用值。
+   **签署门字段的默认值 ＝ `AwaitingPolicy`**（用户 2026-10-20 批复 B-10，见 [#1586](https://github.com/xy7365527-lang/NewChanlun/issues/1586)）。凡已裁定「签署前不给值、不得代填」的字段——资金 cap（[ADR 0029](0029-common-cap-contention-policy.md) 裁定四）、量档与逐级容量（[ADR 0034](0034-quantity-tier-policy-growth-equity-shift.md) 的 `AwaitingPolicy{tier:d}`／`AwaitingPolicy{capacity}`）、成本门 θ 与成本输入（[ADR 0035](0035-cost-stop-policy-instance-and-base-extension-evidence.md)）、闸门后参数槽位（[ADR 0036](0036-operating-statistics-sampling-and-post-gate-parameter-protocol.md) 裁定九），以及其他已裁定由用户签署的风险阈值——运行时默认值就是 `AwaitingPolicy{<字段>}`：未签署则该字段所阻的动作不跑，不回退任何备用值。数值默认值只以「推荐值＋出处」写进版本记录，按「授权来源与生效边界」节取得适用授权后生效；真实资金与账户权限仍须用户确认。这样满足本条「每个字段有默认值」，也不违上述代填禁令；`AwaitingPolicy` 是等待签署的状态，不是第二个取值，因此不构成第二条所禁的备用值。
 3. **出处**——字段说明写明可选值集合、各值的来源与代价；
 4. **改签即新版本**——改值 ＝ 新版本，改后按新值重推导，不在旧版本内热改。
 
@@ -33,8 +33,19 @@
 
 - [#830](https://github.com/xy7365527-lang/NewChanlun/issues/830) 基底自由（[ADR 0013](0013-partition-machine-bidirectional-form.md) 裁定七）：`084-第84课.md:54`【正文】「关于第一条，其实，可以随意设置任何的，都不会改变中枢定义的递归性」⟹ 底可选线段／成交笔／K 线，是本仓最早的「可选而非二选一」裁定。缠论笔作底已由 `.chanlun/definitions/zhongshu.md:136` 判为缠师明文否决（`083-第83课.md:14`「稳定性极差」），`level_recursion.md:93` 撤销其 `[新缠论:选择]` 名分——按第一条属已裁原文否决，维持排除；要翻须重开 zhongshu 裁定票。
 - [ADR 0006](0006-n0-native-cand-and-sub-edge.md) 被否「力度确认进候选身份」，理由之一是「剥夺各级门政策的选择自由」。
-- [ADR 0034](0034-quantity-tier-policy-growth-equity-shift.md)、[ADR 0035](0035-cost-stop-policy-instance-and-base-extension-evidence.md) 已把量档与成本门阈值 θ 落为具名版本化记录、由用户签署。
+- [ADR 0034](0034-quantity-tier-policy-growth-equity-shift.md)、[ADR 0035](0035-cost-stop-policy-instance-and-base-extension-evidence.md) 当时已把量档与成本门阈值 θ 落为具名版本化记录、由用户签署（历史事实保留；现行普通研发授权见「授权来源与生效边界」节，真实资金硬门保留）。
 - #1557 Q5：ℓ_start 落为签署记录可调字段，默认 L0（ADR 0016 裁定三「最低可行级别」），可签 L1。
+
+## 授权来源与生效边界（#1909 / PR #1915，2026-11-07）
+
+用户本次明确要求「保留 DeepAgents 并去普通人工审批」，同时要求不误放真实交易、凭据权限。普通 P 类取舍、SPEC 实施授权、离线研究方法与不产生真实账户外效的参数选择，均以起草 + 非作者独审 PASS 由代理裁定；不再逐项等用户签署。PASS 必须绑定实际获审版本，不能复用正文变化后的旧 PASS。
+
+授权分两层，不能把文书裁定当成外部操作许可：
+
+- **代理裁定**：来源记为「代理独审裁定」，记录票号、作者、独审身份、获审版本、原件位置与生效域。它不是 `UserSigned`，不得填入只接受 `UserSigned` 的交易政策来源字段。普通开发/SPEC 走 #1909 合同，不以运行时资金记录能否消费为前置。
+- **独立资金与权限硬门**：真实资金投入/取出/改额、账户/场所激活、真实交易的量档与容量、成本/风险阈值，以及凭据和权限授予，仍须对应用户授权。代理可裁定方法、形成推荐值和实现方案；独审 PASS 不代签具体外部操作。只接受 `UserSigned` 的现有政策消费方保持原合同；缺授权仍 `AwaitingPolicy`，缺证据仍不启用。已授权值在原版本与有效域内使用不重复索要签署，扩大域或改值才重新取得对应授权。
+
+ADR 0029 的 cap、0034 的资金/容量来源、0035 的交易成本阈值与 0036 的真实账户阶段启用，适用上述独立硬门；普通研发选择适用代理裁定。历史用户批复、已签实例与其 `UserSigned` 来源不回写。新增代理裁定不能冒充这些历史签名，也不自动迁移到 production。
 
 ## 被比较的方案
 
@@ -47,13 +58,16 @@
 1. 每个自由度多一个字段、一个默认值和一段出处，记录变长，签署面变大；默认值仍须有人推导和负责。
 2. 可选值组合增多，验收与回放要标明所用版本；不同版本的读数不可直接比较。
 3. 「合法取值」与「真错」的分界需要逐条判断，判错的方向两边都有：把真错当合法会放进违规值，把合法当真错就回到排除式。审查规则（graph-engineering R2）因此增一条 BLOCK 情形。
-4. 签署门字段在用户签署前一直处于 `AwaitingPolicy`，对应动作不跑；推荐值写进签署单只降低确认成本，不缩短这段等待。
+4. 签署门字段在适用授权完成前一直处于 `AwaitingPolicy`，对应动作不跑。普通研发授权由代理独审裁定完成；真实资金与权限硬门不会因 P 类 PASS 自动消失（见「授权来源与生效边界」）。
 5. 既有裁定不追溯自动改写：#1586 只列候选，逐条另开票或并入既有票处理。
 
 ## 受影响清单
 
-- 流程：`.sandcastle/docs/graph-engineering.md`（起草与 R2）、`.sandcastle/decision-claimer.mts`（起草提示第 11 条、审查 R2）、`.agents/skills/graph-approve/SKILL.md`（呈现步）。
-- 词汇：`CONTEXT.md`「自由度」「可调字段」。
+- 流程：`.sandcastle/docs/graph-engineering.md`（起草与 R2）、`.sandcastle/decision-claimer.mts`（起草提示第 11 条、审查 R2）。原呈现步 `.agents/skills/graph-approve/SKILL.md` 已随 #1909 删除。
+- 正本：ADR 0029 裁定四、0034 裁定一/四、0035 裁定一/四、0036 裁定九；`CONTEXT.md`「量档 policy」「成本停止 policy」「共同资金上限」「可调字段」。
+- 控制面：`scripts/wayfinder_engine.mts:261`（`isSpecApproved`）、`:1174`（`actSplitImpl`）、`:897`（`releaseTicket`）；普通 SPEC 用同一裁定合同，拆票与挂队列前重读当前版本。
+- 执行面依赖：#1742 Queued owner 的独立 PR 负责 `deepagents-pilot/pilot1742/executor.py` 与 `approval.py` 的普通 SPEC 准入迁移。PR #1915 不改这些消费方、不单独部署；该依赖通过集成验收前，不能声称首次队列执行已贯通。
+- 交易政策来源类型与资金消费代码本次不改；`UserSigned` 仍只记录用户实际授权，不新增可冒充用户签名的分支。
 - 既有裁定与代码：候选清单见 `.chanlun/review-results/dof-audit-20261020/candidates.md`，为 #1586 初稿输入。
 
 ## 溯源标签
