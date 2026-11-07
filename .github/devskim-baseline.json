@@ -63625,7 +63625,7 @@
     {
       "issue": 1742,
       "pull_request": 1916,
-      "source_head": "b334f1f1d644f6b6685bbbfaa53601ff4547caee",
+      "source_head": "b334f1f1d644",
       "added_findings": 0,
       "relocated_findings": 111,
       "scope": [
@@ -63644,7 +63644,7 @@
           "findings": 2
         }
       ],
-      "reason": "产品fixture从过程证据目录迁至测试输入目录；两份输入与迁移前原件逐字相同，111个规则/行号键仅改路径，未扩大豁免。旧路径对应文件已出仓，故移除旧键而非保留死条目。source_head为独审候选；S86原件来自3d61fb72944f577ea3b758b54001c2a7544b04dc。"
+      "reason": "产品fixture从过程证据目录迁至测试输入目录；两份输入与迁移前原件逐字相同，111个规则/行号键仅改路径，未扩大豁免。旧路径对应文件已出仓，故移除旧键而非保留死条目。source_head为独审候选；S86原件来自3d61fb72944f。"
     }
   ]
 }
