@@ -1023,33 +1023,38 @@ mod tests {
         assert_eq!(ThetaConfig::try_from_active_records().unwrap(), a);
     }
 
-    /// #1602 专项验收（#1774 AC5 收敛）：生产与验收回放的配置入口对所有品种都停在 AwaitingPolicy——
-    /// BTC（P0）v3 仅滑点未签，只剩 `cost_inputs`；其余品种是生产表里没有
-    /// 场所 profile，两槽 `venue_profile` 与 `cost_inputs` 都报。
+    /// #1602 专项验收（#1774 v4 验收 3）：BTC（P0 v4）三项成本均已签，配置可组装且 admissible，
+    /// 记录引用写签署版本 `venue-profile-P0/4`；其余品种生产表里没有场所 profile，两槽
+    /// `venue_profile` 与 `cost_inputs` 都报。
     #[test]
-    fn production_config_awaits_venue_profile_and_cost_inputs() {
+    fn production_config_admits_signed_p0_and_awaits_other_symbols() {
         use super::super::backtest::data::SYMBOLS;
-        use super::super::run_records::{SLOT_COST_INPUTS, SLOT_VENUE_PROFILE};
+        use super::super::policy_records::PolicyVersion;
+        use super::super::run_records::{
+            SLOT_COST_INPUTS, SLOT_VENUE_PROFILE, VENUE_PROFILE_P0_ID,
+        };
         for (sym, _, _) in SYMBOLS {
+            if sym == "BTC" {
+                continue;
+            }
             let e = ThetaConfig::for_production_symbol(sym)
                 .expect_err("生产场所 profile 未签，不得产出配置");
-            if sym == "BTC" {
-                assert_eq!(e.slots, vec![SLOT_COST_INPUTS], "{sym}");
-            } else {
-                assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS], "{sym}");
-            }
+            assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS], "{sym}");
             assert!(e.is_awaiting_policy(), "{sym}: {e}");
         }
-        let e = ThetaConfig::for_production_profile("P0").unwrap_err();
-        assert!(
-            e.to_string().starts_with("AwaitingPolicy{cost_inputs}"),
-            "{e}"
-        );
-        assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
-        let message = e.to_string();
-        assert!(message.contains("slippage_bps"), "{message}");
-        assert!(!message.contains("tax_bps"), "{message}");
-        assert!(!message.contains("entry_delay_bars"), "{message}");
+        let by_symbol = ThetaConfig::for_production_symbol("BTC").expect("P0 v4 已签");
+        let by_profile = ThetaConfig::for_production_profile("P0").expect("P0 v4 已签");
+        assert_eq!(by_symbol, by_profile);
+        assert!(by_symbol.admissible());
+        let venue_ref = by_symbol
+            .record_refs()
+            .into_iter()
+            .find(|r| r.id == VENUE_PROFILE_P0_ID)
+            .expect("记录引用含 P0 场所 profile");
+        assert_eq!(venue_ref.version, PolicyVersion::Signed(4));
+        let labels = by_symbol.record_labels();
+        assert!(labels.contains("venue-profile-P0/4"), "{labels}");
+        assert!(!labels.contains("research-override"), "{labels}");
     }
 
     /// #1774 AC2 第二层 + AC4 + AC9：S 专用构造最终 admissible 且 record_labels 带 synthetic 签署版本；

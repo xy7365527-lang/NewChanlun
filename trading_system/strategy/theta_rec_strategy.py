@@ -28,7 +28,9 @@ class ThetaRecStrategyConfig(StrategyConfig, frozen=True):
     """theta_v0 π 目标敞口跟踪策略配置。
 
     min_rebalance_units : 目标敞口变化阈值——小于此不提单（避免微小 churn / size 精度噪声）。
-    venue_profile       : 生产场所 profile；未签则停止，不回退诊断夹具（#1602）。
+    venue_profile       : 生产场所 profile；未签则停止，不回退诊断夹具（#1602）。仅作 ThetaStream 准入门与
+                          决策核配置；NT 撮合费用和滑点来自 NT instrument 与 FillModel，不读本 profile
+                          成本项（#1774 I-3）。
     preset              : diagnostic-fixture 为显式诊断场所，不参与准入（#1602）。
     funding_profile     : ADR 0040 funding-record 的 profile（如 "P0"）。无默认（#1601）：未给 ⟹
                           构造 `ThetaStream` 报 AwaitingPolicy{funding_record}，策略不构造、不下单；

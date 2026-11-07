@@ -353,14 +353,24 @@ mod tests {
     fn funding_and_venue_profiles_are_independent_and_both_required() {
         pyo3::prepare_freethreaded_python();
         assert!(PyThetaStream::new(None, Some("P0"), None).is_err());
-        let venue_error = PyThetaStream::new(None, Some("P0"), Some("P0".into()))
+        let venue_error = PyThetaStream::new(None, Some("P0"), Some("P2".into()))
             .err()
-            .expect("unsigned venue cannot borrow funding authorization");
+            .expect("missing venue cannot borrow funding authorization");
         assert!(
             venue_error
                 .to_string()
-                .contains("AwaitingPolicy{cost_inputs}"),
+                .contains("AwaitingPolicy{venue_profile, cost_inputs}"),
             "{venue_error}"
+        );
+        // #1774 v4：P0 场所已签，缺资金记录仍单独拒启，不借场所准入。
+        let funding_error = PyThetaStream::new(None, None, Some("P0".into()))
+            .err()
+            .expect("signed venue cannot stand in for funding record");
+        assert!(
+            funding_error
+                .to_string()
+                .contains("AwaitingPolicy{funding_record"),
+            "{funding_error}"
         );
         // #1774 B2：显式给 synthetic id 的通用调用被 usage 门拒绝（InvalidPolicy，不是缺资金）。
         let synthetic_error = PyThetaStream::new(

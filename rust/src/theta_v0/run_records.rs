@@ -627,11 +627,71 @@ mod tests {
             .collect()
     }
 
-    /// #1774 AC3/AC5（B1 负控 + 旧用法兼容）：replay 记录 tick 已签（ADR 0057 R1），BTC 与 `P0` 两路
-    /// 都选中 replay v3 记录并仅因滑点未签停在 AwaitingPolicy{cost_inputs}。
+    /// v4 记录正文，只把 `slippage_bps.value` 换成给定值（仅测试内使用，不构成签值）。
+    fn p0_with_slippage(value: Value) -> String {
+        let mut record: Value = serde_json::from_str(VENUE_PROFILE_P0_JSON).unwrap();
+        assert_eq!(record["version"], 4);
+        record["fields"]["slippage_bps"]["value"] = value;
+        serde_json::to_string(&record).unwrap()
+    }
+
+    fn select_p0(text: &str) -> Result<VenueProfile, RunPolicyError> {
+        production_venue_from_records(
+            &[(VENUE_PROFILE_P0_ID, text)],
+            VenueUsage::General,
+            |_, symbol| symbol == Some("BTC"),
+        )
+    }
+
+    /// #1774 v4 验收 2（ADR 0057 裁定十一）：replay P0 v4 三项成本均已签，BTC 与 `P0` 两路都选中
+    /// 同一份 admissible 记录，五项值按位等于记录。
     #[test]
-    fn production_p0_awaits_cost_inputs_only() {
-        let e = production_venue_for_symbol("BTC").expect_err("P0 滑点未签，必须停");
+    fn production_p0_v4_is_signed_and_selectable() {
+        let by_symbol = production_venue_for_symbol("BTC").expect("P0 v4 已签，可选");
+        let by_profile = production_venue_for_profile("P0").expect("P0 v4 已签，可选");
+        assert_eq!(by_symbol, by_profile);
+        assert_eq!(by_symbol.record.label(), "venue-profile-P0/4");
+        assert_eq!(by_symbol.usage, VenueUsage::General);
+        assert!(by_symbol.admissible);
+        assert_eq!(
+            (
+                by_symbol.tick_size.to_bits(),
+                by_symbol.commission_bps.to_bits(),
+                by_symbol.slippage_bps.to_bits(),
+                by_symbol.tax_bps.to_bits(),
+                by_symbol.entry_delay_bars
+            ),
+            (
+                0.01_f64.to_bits(),
+                10.0_f64.to_bits(),
+                2.0_f64.to_bits(),
+                0.0_f64.to_bits(),
+                1
+            )
+        );
+        let record: Value = serde_json::from_str(VENUE_PROFILE_P0_JSON).unwrap();
+        assert!(record.get("usage").is_none());
+    }
+
+    /// #1774 v4 验收 5：读回正控与负控。滑点换成 7 ⟹ 读回 7（值来自记录，不是常数）；换回
+    /// `AwaitingPolicy` ⟹ 两路都只因滑点停在 AwaitingPolicy{cost_inputs}。
+    #[test]
+    fn replay_v4_slippage_is_read_from_record() {
+        let seven = p0_with_slippage(serde_json::json!(7));
+        let v = select_p0(&seven).unwrap();
+        assert_eq!(v.slippage_bps.to_bits(), 7.0_f64.to_bits());
+        assert_eq!((v.tax_bps, v.entry_delay_bars), (0.0, 1));
+        let config = super::super::config::ThetaConfig::from_records(
+            Ok(v),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        )
+        .unwrap();
+        assert!(config.admissible());
+        assert!(config.record_labels().contains("venue-profile-P0/4"));
+
+        let awaiting = p0_with_slippage(serde_json::json!("AwaitingPolicy"));
+        let e = select_p0(&awaiting).expect_err("滑点未签，必须停");
         assert_eq!(e.slots, vec![SLOT_COST_INPUTS]);
         assert!(e.is_awaiting_policy());
         assert_eq!(
@@ -639,41 +699,13 @@ mod tests {
             vec![(VENUE_PROFILE_P0_ID, "slippage_bps")]
         );
         assert!(e.to_string().starts_with("AwaitingPolicy{cost_inputs}"));
-        let by_profile = production_venue_for_profile("P0").unwrap_err();
-        assert_eq!(by_profile.slots, e.slots);
-        assert_eq!(by_profile.causes, e.causes);
-    }
-
-    #[test]
-    fn replay_v3_reads_signed_delay_and_tax_when_test_slippage_is_supplied() {
-        let mut record: Value = serde_json::from_str(VENUE_PROFILE_P0_JSON).unwrap();
-        assert_eq!(record["version"], 3);
-        assert!(record.get("usage").is_none());
-        assert_eq!(record["fields"]["slippage_bps"]["value"], "AwaitingPolicy");
-        record["fields"]["slippage_bps"]["value"] = serde_json::json!(4);
-        let text = serde_json::to_string(&record).unwrap();
-        let table = [(VENUE_PROFILE_P0_ID, text.as_str())];
-        let by_symbol = production_venue_from_records(&table, VenueUsage::General, |_, symbol| {
-            symbol == Some("BTC")
-        })
-        .unwrap();
-        let by_profile =
-            production_venue_from_records(&table, VenueUsage::General, |profile, _| {
-                profile == "P0"
-            })
-            .unwrap();
-        assert_eq!(by_symbol, by_profile);
-        assert_eq!(by_symbol.entry_delay_bars, 1);
-        assert_eq!(by_symbol.tax_bps, 0.0);
-        assert_eq!(by_symbol.slippage_bps, 4.0);
-        let config = super::super::config::ThetaConfig::from_records(
-            Ok(by_symbol),
-            Some(ACTIVE_THETA_RISK_JSON),
-            Some(ACTIVE_DATA_PROFILE_JSON),
+        let by_profile = production_venue_from_records(
+            &[(VENUE_PROFILE_P0_ID, awaiting.as_str())],
+            VenueUsage::General,
+            |profile, _| profile == "P0",
         )
-        .unwrap();
-        assert!(config.admissible());
-        assert!(config.record_labels().contains("venue-profile-P0/3"));
+        .unwrap_err();
+        assert_eq!(by_profile.causes, e.causes);
     }
 
     /// #1774 AC2 第一层：S 专用选择器返回签齐的 synthetic 记录（三值 0/0/0 为模型假设、tick 1）。
@@ -936,7 +968,8 @@ mod tests {
     /// 收齐：场所缺口与其余记录缺口同时出现时一次全报。
     #[test]
     fn collect_reports_every_slot_at_once() {
-        let e = collect_run_records(production_venue_for_symbol("BTC"), None, None).unwrap_err();
+        let awaiting = p0_with_slippage(serde_json::json!("AwaitingPolicy"));
+        let e = collect_run_records(select_p0(&awaiting), None, None).unwrap_err();
         assert_eq!(
             e.slots,
             vec![SLOT_COST_INPUTS, SLOT_THETA_RISK, SLOT_DATA_PROFILE]

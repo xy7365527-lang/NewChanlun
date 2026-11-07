@@ -13,7 +13,7 @@ import pytest
 
 newchan_rust = pytest.importorskip("newchan_rust")
 
-# #1602：生产场所 profile（P0）tick/成本未签 ⟹ 构造即报 AwaitingPolicy；行为测试用诊断夹具。
+# #1602：未给场所 profile ⟹ 构造即报 AwaitingPolicy；P0 v4 已签（#1774）。行为测试用诊断夹具。
 FIXTURE = "diagnostic-fixture"
 
 
@@ -115,16 +115,14 @@ SYNTHETIC_PROFILE = "production_synthetic_ohlc_integer_tb02a_v1"
 
 
 def test_production_profile_awaits_policy_and_fixture_is_labelled():
-    # #1602 负控：没有场所 profile ⟹ 两槽；P0（replay）v3 仅滑点未签 ⟹ 只剩 cost_inputs
-    # （#1774 AC5）。都是 ValueError(AwaitingPolicy)，不回退旧常数。
+    # #1602 负控：没有场所 profile ⟹ 两槽 ValueError(AwaitingPolicy)，不回退旧常数。
+    # #1774 v4 验收 4：P0（replay）三项成本均已签 ⟹ 可构造、admissible，记录写签署版本。
     with pytest.raises(ValueError, match=r"AwaitingPolicy\{venue_profile, cost_inputs\}"):
         newchan_rust.ThetaStream()
-    with pytest.raises(ValueError, match=r"AwaitingPolicy\{cost_inputs\}") as info:
-        newchan_rust.ThetaStream(venue_profile="P0", funding_profile="P0")
-    message = str(info.value)
-    assert "slippage_bps" in message
-    assert "tax_bps" not in message
-    assert "entry_delay_bars" not in message
+    p0 = newchan_rust.ThetaStream(venue_profile="P0", funding_profile="P0")
+    assert p0.admissible() is True
+    assert "venue-profile-P0/4" in p0.records()
+    assert not any("research-override" in r for r in p0.records())
     with pytest.raises(ValueError):
         newchan_rust.ThetaStream(preset="nope")
     s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")

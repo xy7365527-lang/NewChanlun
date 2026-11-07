@@ -80,6 +80,16 @@ def load_btc_bars(
     return bars, closes
 
 
+def cost_provenance(instrument, fill_model) -> str:
+    """NT 撮合实际所用的成本来源（#1774 I-3）。取值读自传给 add_instrument / add_venue 的同一对象。"""
+    return (
+        f"NT {instrument.id} maker_fee={instrument.maker_fee} taker_fee={instrument.taker_fee} "
+        f"price_increment={instrument.price_increment}; FillModel prob_slippage={fill_model.prob_slippage}; "
+        "fee_model=NT 默认（按 instrument maker/taker 费率）；"
+        "venue-profile 成本项（commission/slippage/tax/entry_delay）未被 NT 撮合使用"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="theta_v0 π 回路 × NautilusTrader BTC 回测")
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
@@ -129,13 +139,14 @@ def main() -> int:
             logging=LoggingConfig(log_level=args.log_level),
         ),
     )
+    fill_model = FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0)
     engine.add_venue(
         venue=venue,
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         base_currency=USDC,
         starting_balances=[Money(q_total, USDC)],
-        fill_model=FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0),
+        fill_model=fill_model,
     )
     engine.add_instrument(instrument)
 
@@ -160,7 +171,8 @@ def main() -> int:
     d = strategy.engine.finish_full()
     print("\n========== theta_v0 π × NautilusTrader BTC 回测 ==========")
     print(f"bars={len(bars)}  run={run_secs:.1f}s")
-    print(f"记录: {', '.join(strategy.engine.records())}")
+    print(f"准入记录: {', '.join(strategy.engine.records())}")
+    print(f"撮合成本来源: {cost_provenance(instrument, fill_model)}")
     if not strategy.engine.admissible():
         print("准入: 诊断夹具，不参与准入")
     print(f"资金记录: {strategy.engine.funding_record}")

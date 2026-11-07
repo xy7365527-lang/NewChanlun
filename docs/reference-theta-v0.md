@@ -50,7 +50,7 @@
 
 ## Θ_exec（执行）
 - 信号确认后延迟 1 根基础 K，以下一根 open 成交；无下一根等下一可交易 open。[设计选择,默认值]
-- **费用**：commission `1bp/side`，slippage `2bp/side`，tax `0bp`；买入加 slippage、卖出减。[设计选择,默认值;L3经验待标定]〔#1602 订正：费用三项与入场延迟只从场所 profile 记录读取；上述值只留在诊断夹具记录。replay P0 v3 的 commission 取 ADR 0044 的 10bp，delay=1、tax=0 为 #1774 具名模型选择，slippage 仍未签，入口继续停在 `AwaitingPolicy{cost_inputs}`；该影子 profile 不替代正式完整回放。〕
+- **费用**：commission `1bp/side`，slippage `2bp/side`，tax `0bp`；买入加 slippage、卖出减。[设计选择,默认值;L3经验待标定]〔#1602 订正：费用三项与入场延迟只从场所 profile 记录读取；上述值只留在诊断夹具记录。P0 v4：commission 10、slippage 2（#917 平方根律在 P0 规模上的模型假设）、tax 0、delay 1（ADR 0057 第九、十一节）；该影子 profile 不替代正式完整回放。〕
 - **止损成交**：long bar open 低于止损按 open 出，否则 low 触及止损按 stop 出；short 镜像。[设计选择,默认值]
 - **不可交易**：缺 OHLC、`high<max(open,close,low)`、`low>min(open,close,high)`、volume=0、halt flag、或显式 limit flag 阻止该方向。[设计选择,默认值]
 - **冲突顺序**：止损/退出先于开仓；高 level 先于低 level；同 level 按 1/2/3 类顺序；仍平局按 timestamp/source_index。[设计选择,默认值]
