@@ -3217,3 +3217,28 @@ test("旧影子退役到最终持久化由同一票锁覆盖，处理和纯考�
   assert.ok(!existsSync(join(dir, ".lock")));
   assert.ok(existsSync(join(dir, "summary.json")));
 });
+
+test("DECISION_ORCHESTRATOR 缺省读 queue-policy.json 的 orchestrator_login，环境变量仍可覆盖", async () => {
+  const { copyFileSync, readdirSync, symlinkSync } = await import("node:fs");
+  const { spawnSync } = await import("node:child_process");
+  const here = join(process.cwd(), ".sandcastle");
+  const root = mkdtempSync(join(tmpdir(), "claimer-login-"));
+  try {
+    const sandcastle = join(root, ".sandcastle");
+    mkdirSync(sandcastle);
+    for (const name of readdirSync(here)) if (/\.(mts|ts|json|py)$/.test(name)) copyFileSync(join(here, name), join(sandcastle, name));
+    symlinkSync(join(here, "..", "node_modules"), join(root, "node_modules"));
+    const policy = JSON.parse(readFileSync(join(here, "queue-policy.json"), "utf8"));
+    writeFileSync(join(sandcastle, "queue-policy.json"), JSON.stringify({ ...policy, orchestrator_login: "fixture-orchestrator" }));
+    const orchestrator = (env: Record<string, string>) => {
+      const { DECISION_ORCHESTRATOR: _drop, ...base } = process.env;
+      const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "--eval",
+        "const m = await import('./.sandcastle/decision-claimer.mts'); console.log(JSON.stringify(m.ORCHESTRATOR));"],
+        { cwd: root, encoding: "utf8", timeout: 60_000, env: { ...base, ...env } });
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout.trim().split("\n").at(-1)!);
+    };
+    assert.equal(orchestrator({}), "fixture-orchestrator");
+    assert.equal(orchestrator({ DECISION_ORCHESTRATOR: "override-login" }), "override-login");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

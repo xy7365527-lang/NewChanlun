@@ -177,12 +177,20 @@ class QueueIntake:
     def _merged_run(self, units: list[WorkUnit]) -> str | None:
         """已合入的交付不因释放而重派。释放可能早于队列观察到合入，所以本机未记 merged 时也读 PR。"""
         from .executor import delivery_status
+        from .github_app import IdentityError
         for unit in units:
             delivery = delivery_status(PilotRun.run_dir(self.state_root, unit.run_id))
-            number = ((delivery['state'] or {}).get('pr') or {}).get('number')
-            if delivery['phase'] == 'merged' or (type(number) is int
-                                                 and self.gateway.get_pr(number).get('merged') is True):
+            if delivery['phase'] == 'merged':
                 return unit.run_id
+            number = ((delivery['state'] or {}).get('pr') or {}).get('number')
+            if type(number) is int:
+                try:
+                    merged = self.gateway.get_pr(number).get('merged') is True
+                except IdentityError as error:
+                    raise QueueWaiting(f'delivery read failed; retry next round: run {unit.run_id} PR #{number}: '
+                                       f'{error}') from None
+                if merged:
+                    return unit.run_id
         return None
 
     def once(self, run: Callable[[WorkUnit], int]) -> dict[int, dict[str, Any]]:

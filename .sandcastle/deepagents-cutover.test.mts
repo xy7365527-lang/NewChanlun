@@ -93,3 +93,28 @@ test("选定切流到取得 admission 锁之间记录失效：锁内拒绝，不
     assert.equal(writes, 0);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
+
+test("orchestrator_login 不是非空字符串时 import 即失败，不静默 fail-closed", async () => {
+  const { copyFileSync, readFileSync } = await import("node:fs");
+  const { spawnSync } = await import("node:child_process");
+  const here = new URL(".", import.meta.url).pathname;
+  const policy = JSON.parse(readFileSync(join(here, "queue-policy.json"), "utf8"));
+  const root = mkdtempSync(join(tmpdir(), "cutover-login-"));
+  try {
+    for (const name of ["deepagents-cutover.mts", "drain-control.mts", "drain-control.py"]) copyFileSync(join(here, name), join(root, name));
+    const load = (login: unknown) => {
+      writeFileSync(join(root, "queue-policy.json"), JSON.stringify({ ...policy, orchestrator_login: login }));
+      return spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "--eval",
+        "const m = await import('./deepagents-cutover.mts'); console.log(JSON.stringify(m.ORCHESTRATOR_LOGIN));"],
+        { cwd: root, encoding: "utf8", timeout: 30_000 });
+    };
+    const control = load("fixture-orchestrator");
+    assert.equal(control.status, 0, control.stderr);
+    assert.equal(JSON.parse(control.stdout.trim()), "fixture-orchestrator");
+    for (const login of [undefined, null, "", 123, ["xy7365527-lang"]]) {
+      const result = load(login);
+      assert.notEqual(result.status, 0, `login=${JSON.stringify(login)} 应启动即失败`);
+      assert.match(result.stderr, /orchestrator_login/);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
