@@ -7,7 +7,7 @@
 
 **仓内仍提到归档目录的地方**（2026-11-07 全树核对）：review-results 以外只有 ADR 0061 的出处说明，以及 `rust/src/theta_v0/parser/stroke_tb02v_tests.rs` 的 `#[ignore]` 说明（已改为指向本索引）。保留草稿里的历史路径会失效（§5 接受）：`issue1626-closeout-20261026/`（README、1734-ARCHIVE-INDEPENDENT-REVIEW26X、1626-WORKTREE-*）、`issue1657-closeout-20261028/CLAUSE4-EXCEPTION.md`、`eng-debt-20261020/`（P3-SWEEP、tests/REPORT）。`issue1481-h1-managed43r/REPORT.md` 原引 AMENDMENT 的那处已改指 ADR 0061。
 
-**后续验收仍要用的归档件**（ADR 0042 切片 5 / #1645、ADR 0061 P6 验收引用，归档不影响它们的效力，届时按下面的方式取回）：`1488-acceptance/s86/compare_s86.py`、`1488-acceptance/degrade-0065/s86/compare_s86.py`（S86 INVARIANT 对拍），`1488-acceptance/degrade-0065/min12/`（MIN12 的 input、oracle、tools），`1488-acceptance/degrade-0065/REPORT.md`（ADR 0042:173 引用的 0065 在案读数）。取回：`tar -xf /Volumes/AgentStorage/repo-archive/review-results-closed-9b436af2d2.tar .chanlun/review-results/1488-acceptance/<路径>`，或 `git show 3d61fb7294:.chanlun/review-results/1488-acceptance/<路径>`。
+**后续验收仍要用的归档件**（ADR 0042 切片 5 / #1645、ADR 0061 P6 验收引用，归档不影响它们的效力，届时按下面的方式取回）：`1488-acceptance/s86/compare_s86.py`、`1488-acceptance/degrade-0065/s86/compare_s86.py`（S86 INVARIANT 对拍），`1488-acceptance/degrade-0065/min12/`（MIN12 的 input、oracle、tools），`1488-acceptance/close-0085/receipts/reports/workers__degrade-0065__REPORT.md.md`（ADR 0042:173 引用的 0065 在案读数）。取回：`tar -xf /Volumes/AgentStorage/repo-archive/review-results-closed-9b436af2d2.tar .chanlun/review-results/1488-acceptance/<路径>`，或 `git show 3d61fb7294:.chanlun/review-results/1488-acceptance/<路径>`。
 
 **取回**：
 - review-results：`/Volumes/AgentStorage/repo-archive/review-results-closed-9b436af2d2.tar`（tar，保留原路径，`tar -xf <tar> <目录>`；tar 里另有 `issue1371-tb01-b`，那个目录由 #1908 出仓，本表不收）。也可直接 `git show 3d61fb7294:<路径>`。
