@@ -400,6 +400,14 @@ _Avoid_: 把场所净仓或 book image 叫真账；从场所净仓覆写或重�
 同一外效在五类身份记录之间持久、可逆的四跳逐跳映射：场所身份 ↔ X 观测记录 ↔ E 原件 ↔ 逐重分配 ↔ Bᵢ application。每跳由所在域的唯一写者持久化，不设第二权威写入口；物化汇总只能是可重算、不反写的只读投影；审计由 `Q.ReadEconomicView` 双向逐跳拼接，缺跳报缺项。
 _Avoid_: 与 `IMPLEMENTATION-CROSSWALK.json`（故事↔验收映射）、ADR 0037 crosswalk oracle（S 布局对拍锁）、旧→新迁移 crosswalk（归 #1535）混称。
 
+**凭据作用域版本（Credential Scope Version）**（2026-11-07 [#1540](https://github.com/Newchanlun/NewChanlun/issues/1540) 裁定，[ADR 0061](docs/adr/0061-fu18-venue-account-permission-binding.md)）:
+TB-09 指纹的一项组成 ＝ `(profile_id@version, venue_profile_sha256)`，取整份场所 profile 记录的 sha256；记录的 `credential_scope` 含 `class`、`source`、`public_id`（API wallet 公开地址），换钥匙即新版本。凭据值不记录、不落库、不派生持久标识。
+_Avoid_: 把部署管道 `credential_source.{env,file}` 叫 `credential_scope`（挪文件路径不是作用域变更）；用凭据值哈希作版本。
+
+**权限证据三层（Permission Evidence Layers）**（同上，ADR 0061 裁定三）:
+「凭据作用域固定」的证明分三层、互不替代：授权声明（profile `credential_scope.class` 与 `authorization` 行）、场所权限事实（能力记录 `session_permission` 来源栏，带 URL、日期、sha256）、运行时核验（X 在任何写请求前由钥匙推出公开地址比对 `public_id`，并以无签名只读查询核其为 `account` 名下的 agent）。
+_Avoid_: 把 `trade_no_transfer` 读成「场所保证 API wallet 不能划转」（HL agent 可签 `agentSendAsset`、`vaultTransfer`）；用声明或文档代替运行时核验；划转探针。
+
 ### 出场判定
 
 **谓词（Predicate, P_j）**:

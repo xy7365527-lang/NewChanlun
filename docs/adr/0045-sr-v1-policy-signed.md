@@ -80,3 +80,11 @@ SR-1 动作取冻结为 `[新缠论:选择]`；SR-1 可观察字段、SR-2 映�
 ## #1599 批复与受影响清单
 
 [用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。
+
+## 修订（#1540，SR-3 前提读法，2026-11-07）
+
+（append-only：签署值与以上各节原文不改。依据 #1540 主控裁定 [裁定评论 6702983888](https://github.com/Newchanlun/NewChanlun/issues/1540#issuecomment-6702983888)，正本 [ADR 0061](0061-fu18-venue-account-permission-binding.md)。）
+
+1. **签署值不变。** SR-3 在 P1 上仍不触发，P2 激活时生效。ADR 0061 的发送门拒发是发送前件，不生成退出授权记录。
+2. **前提读法改变。** :24 自标 `[新缠论:推论]` 的前提「ADR 0028:46 机器层只限 `production`」不再成立：机器层对 `experiment` 同样生效（ADR 0061 裁定五，Q5 = A）。
+3. **回退。** 用户如要维持「机器层只限 production」的读法，说一句即回退成 Q5 = B。代价是 TB-09 无法在 P1 上满足 AT-09「被真实部署阻止」。
