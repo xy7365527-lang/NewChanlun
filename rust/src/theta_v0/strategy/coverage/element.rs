@@ -416,7 +416,8 @@ pub(crate) fn rmove_side(m: &RMove) -> VoiceSide {
 
 // ════════════════════════════════════════════════════════════════════════════
 //  §2b 买卖点候选 → 真元素树附着（638 hostOf：本级右端点命中，非区间包含）
-//  谱系：.chanlun/genealogy/pending/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
+//  谱系：已随 #1952 归档出仓，原路径 .chanlun/genealogy/settled/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
+//  归档位置：/Volumes/AgentStorage/repo-archive/0b3e7f3cf5-swarm/archive/group3-data.tar（同路径）
 // ════════════════════════════════════════════════════════════════════════════
 
 /// 把一个买卖点候选 g 按 **638 hostOf 判准**附着到 [`extract_elements`] 建出的真元素树。
