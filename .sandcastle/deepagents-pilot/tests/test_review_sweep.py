@@ -125,9 +125,12 @@ def test_process_identity_rejects_pid_reuse_and_zombies():
 
 
 class FakeMerge:
-    def __init__(self, required, states, files=None):
+    def __init__(self, required, states, files=None, contents=None):
         self.required, self.states, self.calls = set(required), states, []
-        self.files = files or {}
+        self.files, self.contents = files or {}, contents or {}
+
+    def file_at(self, ref, path):
+        return self.contents.get((ref, path))
 
     def pr_files(self, number):
         return self.files.get(number, [".sandcastle/x.py"])
@@ -223,11 +226,14 @@ def test_stale_on_current_base_is_not_done(lane):
 
 
 @pytest.mark.parametrize(("path", "category"), [
+    ("rust/src/bin/x_execution_session.rs", "live-trading-or-funds"),   # 用户原例：下单逻辑
+    ("rust/src/economic_session/book.rs", "live-trading-or-funds"),     # 账本
+    ("rust/src/bin/production_session.rs", "live-trading-or-funds"),
+    ("trading_system/execution/lmt_executor.py", "live-trading-or-funds"),
     (".github/workflows/ci.yml", "ci-or-branch-protection"),
-    ("rust/src/trading/order.rs", "live-trading-or-funds"),
-    ("scripts/hl_paper_launcher.py", "live-trading-or-funds"),
-    ("docs/ci_secrets.md", "secrets-or-credentials"),
+    (".github/1488-uo-locks.txt", "ci-or-branch-protection"),
     ("deploy/.env.production", "secrets-or-credentials"),
+    ("keys/app.pem", "secrets-or-credentials"),
 ])
 def test_human_gated_pr_is_never_auto_merged_and_existing_auto_merge_is_withdrawn(lane, path, category):
     """用户选择的窄口子：实盘下单或资金、密钥或凭证、CI 与分支保护配置，须人工确认。"""
@@ -240,7 +246,30 @@ def test_human_gated_pr_is_never_auto_merged_and_existing_auto_merge_is_withdraw
     assert merge.calls == [("disable", 1810)]  # 撤掉已开的 auto-merge，也不追平
 
 
-def test_ordinary_reviewer_code_is_not_human_gated():
+@pytest.mark.parametrize("path", [
+    ".sandcastle/deepagents-pilot/pilot1742/external_review.py", ".sandcastle/codex-child.ts",
+    "docs/adr/0061-x.md", ".github/copilot-instructions.md", ".github/PULL_REQUEST_TEMPLATE.md",
+    "topological-computation/frontend/src/tokens.ts", "rust/src/diagnostic_fill.rs", "docs/ci_secrets.md",
+    "src/newchan/data_ibkr.py", "rust/src/bin/s_structure_session.rs"])
+def test_ordinary_code_and_docs_are_not_human_gated(path):
     from pilot1742.review_sweep import human_gated
-    assert human_gated([".sandcastle/deepagents-pilot/pilot1742/external_review.py",
-                        ".sandcastle/codex-child.ts", "docs/adr/0061-x.md"]) == {}
+    assert human_gated([path]) == {}
+
+
+@pytest.mark.parametrize(("base_keys", "head_keys", "gated"), [
+    (["A|x|1", "B|y|2"], ["A|x|1"], False),        # 只删条目（文件出仓）：不放宽
+    (["A|x|1"], ["A|x|1", "C|z|3"], True),         # 新增被放行的发现：放宽，须确认
+    (["A|x|139"], ["A|x|138"], False),             # 同一发现行号迁移：不放宽
+    (["A|x|1"], ["A|x|1", "A|x|9"], True),         # 同一文件同一规则多放行一条：放宽
+])
+def test_devskim_baseline_is_gated_only_when_admission_widens(lane, base_keys, head_keys, gated):
+    head, base = lane.gateway.pr["head"]["sha"], lane.gateway.pr["base"]["sha"]
+    path = ".github/devskim-baseline.json"
+    doc = lambda keys: json.dumps({"schema": "devskim-baseline/v1", "findings": keys})
+    merge = FakeMerge({"deepagents/review", "ci-ok"}, {1810: _merge_state(head)}, files={1810: [path]},
+                      contents={(head, path): doc(head_keys), (base, path): doc(base_keys)})
+    sweep, _ = make(lane, merge=merge, max_running=0)
+    actions = [a["action"] for a in sweep.tick()]
+    assert ("needs-human-confirm" in actions) == gated
+
+

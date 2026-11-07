@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -46,25 +47,53 @@ Rows = list[tuple[int, int, str, str]]
 Spawn = Callable[[int, int, Path], int]
 Sync = Callable[[int, str, str], None]
 GATE = frozenset({"deepagents/review", "ci-ok"})
-# 按路径判定、宁宽勿窄：多判只是多一次人工确认，漏判才是风险。
+# 人工确认的边界按仓库实际入口定（2026-11-07 核对），不按名字猜；新增同类入口时更新本表。
+#   实盘下单或资金：X 执行域、E 经济、B 域、唯一生产 launcher（会话命名约定 x_/e_/b_/production_），
+#     E/B 经济事实库（账本 book、allocation、finance……）、trading、funding_record，Python 实盘 runner 与执行器。
+#     不含：diagnostic_fill（头注释：不产生正式成交或持仓）、回测与行情抓取。
+#   CI 与分支保护：CI 实际执行或读取的配置（workflows、actions、scripts、devskim 配置、CI 清单）；
+#     不含 PR 或 issue 模板、copilot 说明。DevSkim 基线与误报清单按内容判（只在放宽扫描准入时确认）。
+#   密钥或凭证：密钥材料与凭证配置文件本身；不含讲到 token 的普通代码或文档。
 HUMAN_GATED: dict[str, re.Pattern[str]] = {
-    "ci-or-branch-protection": re.compile(r"^\.github/"),
     "live-trading-or-funds": re.compile(
-        r"^(rust/src/trading/|src/newchan/trading/|trading_system/|rust/src/funding_record/)"
-        r"|launcher|risk[-_]?gate|hyperliquid|ibkr|broker", re.IGNORECASE),
+        r"^rust/src/bin/(x_|e_|b_|production_)[^/]*session[^/]*\.rs$"
+        r"|^rust/src/(economic_session|trading|funding_record)/|^rust/src/funding_record\.rs$"
+        r"|^trading_system/(live|execution)/|^src/newchan/trading/|^tws_margin_check\.py$"),
+    "ci-or-branch-protection": re.compile(
+        r"^\.github/(workflows|actions|scripts|devskim)/|^\.github/[^/]+\.txt$"),
     "secrets-or-credentials": re.compile(
-        r"secret|credential|private[-_]?key|token|\.pem$|(^|/)\.env(\.|$)", re.IGNORECASE),
+        r"\.(pem|key|p12|pfx)$|(^|/)\.env(\.[^/]*)?$|(^|/)(secrets?|credentials?)\.(json|ya?ml|toml|ini)$",
+        re.IGNORECASE),
 }
+SCAN_ADMISSION = (".github/devskim-baseline.json", ".github/devskim-reviewed-1488.json")
 
 
-def human_gated(files: list[str]) -> dict[str, list[str]]:
-    """命中人工确认三类的文件，按类别列出；空表示不需要人工确认。"""
+def human_gated(files: list[str], widened: Callable[[str], bool] = lambda path: True) -> dict[str, list[str]]:
+    """命中人工确认三类的文件，按类别列出；空表示不需要人工确认。DevSkim 基线与误报清单只在
+    widened(path) 为真（本 PR 新增了被放行的发现）时算 CI 配置改动。"""
     hits: dict[str, list[str]] = {}
     for name in files:
+        if name in SCAN_ADMISSION:
+            if widened(name):
+                hits.setdefault("ci-or-branch-protection", []).append(name)
+            continue
         for category, pattern in HUMAN_GATED.items():
             if pattern.search(name):
                 hits.setdefault(category, []).append(name)
     return hits
+
+
+def admission_keys(path: str, text: str | None) -> Counter[str]:
+    """扫描准入文件里被放行的发现计数。基线按（规则，文件）计数：行号迁移不算放宽，同一文件同一规则
+    多放行一条才算；误报清单按（文件，内容哈希，规则结果）计：文件内容变了还继续放行也算放宽。"""
+    if not text:
+        return Counter()
+    data = json.loads(text)
+    if path.endswith("devskim-baseline.json"):
+        return Counter(key.rsplit("|", 1)[0] for key in data.get("findings", []))
+    # 误报清单：files[].results[] 每条是对某个文件内容（sha256）某条规则的放行。
+    return Counter(json.dumps([entry["path"], entry["sha256_bytes"], result], sort_keys=True)
+                   for entry in data["files"] for result in entry.get("results", []))
 
 
 class MergePort(Protocol):
@@ -75,6 +104,7 @@ class MergePort(Protocol):
     def disable_auto_merge(self, number: int) -> None: ...
     def update_branch(self, number: int, head: str) -> None: ...
     def pr_files(self, number: int) -> list[str]: ...
+    def file_at(self, ref: str, path: str) -> str | None: ...
 
 
 class GhCli:
@@ -106,6 +136,13 @@ class GhCli:
     def update_branch(self, number: int, head: str) -> None:
         self._gh("api", "-X", "PUT", f"repos/{self.repository}/pulls/{number}/update-branch",
                  "-f", f"expected_head_sha={head}")
+
+    def file_at(self, ref: str, path: str) -> str | None:
+        try:
+            return self._gh("api", f"repos/{self.repository}/contents/{path}?ref={ref}",
+                            "-H", "Accept: application/vnd.github.raw")
+        except subprocess.CalledProcessError:
+            return None
 
     def pr_files(self, number: int) -> list[str]:
         out = self._gh("api", "--paginate", f"repos/{self.repository}/pulls/{number}/files?per_page=100",
@@ -225,7 +262,14 @@ class Sweep:
             state = self.merge.pr_state(number)
             if state["head"] != head:
                 continue  # 本轮读到的 head 已变，下轮再说
-            gated = human_gated(self.merge.pr_files(number))
+            port = self.merge
+            def widened(path: str, base: str = pr["base"]["sha"], head: str = head, port: MergePort = port) -> bool:
+                try:
+                    return bool(admission_keys(path, port.file_at(head, path))
+                                - admission_keys(path, port.file_at(base, path)))
+                except (ValueError, AttributeError, TypeError):
+                    return True  # 读不懂就按放宽处理，交人工确认
+            gated = human_gated(self.merge.pr_files(number), widened)
             if gated:
                 if state["auto_merge"]:
                     self.merge.disable_auto_merge(number)
