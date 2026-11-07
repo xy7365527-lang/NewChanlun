@@ -177,7 +177,22 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      # #1875：Rust 作业用 sparse checkout，不拉 Rust 构建与测试从不读取的大目录（topological-computation 约 620 MB
+      #   的词典语料与运行日志、根目录与 docs 下的 PDF、p7_inputs）。核对过 rust/、s_session/、.github/scripts 与本作业步骤
+      #   均不引用这些路径（formal/ 里只在注释中提到 PDF 文件名）；只拉需要的 blob（filter: blob:none）。
+      - &rust-checkout
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/topological-computation*/
+            !/p7_inputs/
+            !/docs/chanlun/
+            !/docs/pdfs/
+            !/docs/formal-chain/
+            !/*.pdf
 
       - name: Test cargo telemetry wrapper (#1141)
         run: ../.github/scripts/test-run-cargo-with-telemetry.sh
@@ -286,7 +301,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -323,7 +338,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -407,7 +422,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -652,7 +667,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -678,7 +693,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -714,7 +729,7 @@ jobs:
         shell: bash
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -947,7 +962,7 @@ jobs:
         shell: bash
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
