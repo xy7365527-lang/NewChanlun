@@ -465,7 +465,7 @@ export function analyzeMap(map: MapState, opts: WalkOptions): Analysis {
         actions: [],
       };
     }
-    return { phase: "实装中（工蜂拾取 / 评审 / 独审与 CI 后合入）", actions: [] };
+    return { phase: "实装中（工蜂拾取 / 评审 / 人工闸合入）", actions: [] };
   }
 
   // 有 spec、无实装票、且 spec 已关（异常）。
@@ -1307,7 +1307,7 @@ async function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, 
   }
 }
 
-/** 动作 3：实装票全关 + 判据满足 → 起草图关 comment + close map（不碰合入 main）。 */
+/** 动作 3：实装票全关 + 判据满足 → 起草图关 comment + close map（合入 main 人工闸不动）。 */
 function actCloseGraph(a: Extract<Action, { kind: "close_graph" }>, _cfg: EngineConfig): void {
   const mapNumber = a.map;
   const ctx = fetchMapContext(mapNumber);
@@ -1330,7 +1330,7 @@ function actCloseGraph(a: Extract<Action, { kind: "close_graph" }>, _cfg: Engine
   lines.push(`- **实装票全关**：${impl.map((c) => `[#${c.number}](${issueUrl(c.number)})`).join(" / ") || "（无）"}`);
   lines.push(`- **残雾去向核实**：${fog.length === 0 ? "无残留（Not yet specified 已清空或全部有去向）" : `⚠ 仍有 ${fog.length} 条（不应发生）`}`);
   lines.push("");
-  lines.push("（本提交由 wayfinder_engine 自动起草；合入 main 由非作者独审与适用 CI 把关，本引擎不碰。）");
+  lines.push("（本提交由 wayfinder_engine 自动起草；合入 main 为人工闸【闸二】，本引擎不碰。）");
 
   const comment = lines.join("\n");
   // spec 非持久：实装落地即关。
