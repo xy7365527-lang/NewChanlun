@@ -290,7 +290,7 @@ def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: P
             kind = event.get("type")
             if kind == "error":
                 reconnect = re.fullmatch(
-                    r"Reconnecting\.\.\. ([1-9]\d*)/([1-9]\d*) \(stream disconnected before completion(?:: [^\r\n]+)?\)",
+                    r"Reconnecting\.\.\. ([1-9]\d*)/([1-9]\d*) \([^\r\n]+\)",  # 原因可为限流、401 等（#1913 run f19adb21）
                     event.get("message", ""), re.ASCII)
                 if not reconnect or int(reconnect[1]) > int(reconnect[2]):
                     return failed("stdout 有失败终态")

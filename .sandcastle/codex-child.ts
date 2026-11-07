@@ -348,7 +348,7 @@ export class CodexTranscript {
       return;
     }
     const reconnect = event.type === "error" && typeof event.message === "string"
-      ? /^Reconnecting\.\.\. ([1-9]\d*)\/([1-9]\d*) \(stream disconnected before completion(?:: [^\r\n]+)?\)$/.exec(event.message) : null;
+      ? /^Reconnecting\.\.\. ([1-9]\d*)\/([1-9]\d*) \([^\r\n]+\)$/.exec(event.message) : null;
     if (reconnect && BigInt(reconnect[1]) <= BigInt(reconnect[2])) {
       this.reconnectPending = true;
       this.turnCompleted = false;
