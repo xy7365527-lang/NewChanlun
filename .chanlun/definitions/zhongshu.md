@@ -1,5 +1,8 @@
 # 中枢（Zhongshu / Center / 缠中说禅走势中枢）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是 中枢 的教义正本。
 > 最后裁定：[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)（2026-10-21，§2.1 新增「a₀ 构件值域」段：`a₀` 构件值域的全仓唯一正本，其余各处改指针；不改判 S-5）；此前 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)（2026-10-13，S-7 落码补齐与 §4.1 端点）；此前 [#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)（2026-07-31）
 > 受影响代码清单：本文件 §9（#1627 见 §9.6；Rust / Lean / Python 三侧，点名到行号；#1478 补齐 R21–R27、L9–L11、P14–P16 与 §9.0 行号订正，工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1478-AFFECTED-CODE.md`，票关后随归档出仓）

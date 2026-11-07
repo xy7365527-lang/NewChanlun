@@ -1,5 +1,9 @@
 # ADR 0058：#1304 回放外壳映射与旧回放件终态
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+> #1742 归档指针：本文引用的历史纪律原件位于 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/`，保留原文件名及行号。当前开发与证据归档按 `AGENTS.md`；本次归档不改变本文产品裁定。
+
 > 正本：本文件是 #1550（FU-19）#1304 回放外壳与唯一 launcher `production_session` 之间的 seam、外壳输出合同映射、旧回放件终态表、#1528/#1607 处置与 AT-14 实体报告（`at14-report/1`）载体、路径和判定口径的正本。
 > 最后裁定：#1550（FU-19，2026-10-31，#1323 Notes N-1 预授权 T 类判定）
 > 受影响代码清单：见本文「受影响票与 blocking 边变化」节（`rust/src/bin/production_session.rs:25-26`、`rust/src/bin/x_execution_session.rs:22/:55`、`rust/src/bin/replay_compare.rs:94`、`rust/src/trading/replay_comparator.rs:151`、`rust/src/trading/replay.rs`、`rust/tests/replay_compare_test.rs`、`scripts/replay_compare.sh`、`.github/workflows/ci.yml:516-523`；实施归 #1769、#1381、#1411、#1413、#1418）

@@ -1,5 +1,8 @@
 # 笔（Bi / Stroke）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是 笔 的教义正本。
 > 最后裁定：#1343（2026-10-14，同价端点与极值根集）；此前 #813（2026-08-05）
 > 受影响代码清单：见本文件 §11「受影响代码清单」（T-1～T-23）与 §7.1 末「#1343 受影响代码清单」

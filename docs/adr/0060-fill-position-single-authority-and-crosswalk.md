@@ -1,5 +1,8 @@
 # ADR 0060：成交/持仓唯一写者分工与 crosswalk
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是成交/持仓唯一写者分工与 crosswalk 的正本。
 > 最后裁定：#1539（2026-11-02，用户 P 类批准，[批复评论](https://github.com/xy7365527-lang/NewChanlun/issues/1539#issuecomment-6564138279)）
 > 受影响代码清单：见「受影响票与 blocking 边变化」节
