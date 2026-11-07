@@ -133,9 +133,10 @@ cat .chanlun/escalate/cycle-*.json | python3 -m json.tool
 # S_net 统计（语料摄入成果）
 curl http://localhost:9765/topology | python3 -m json.tool
 
-# systemd 日志
+# systemd 日志（服务启停记录在 journal；程序输出按 unit 的 StandardOutput 追加到 /var/log，不放仓内 tmp/：systemd 在启动进程前就要打开该文件，目录不存在会 209/STDOUT）
 journalctl -u fengliang -f
 journalctl -u openclaw -f
+tail -f /var/log/fengliang-daemon.log /var/log/openclaw-scheduler.log
 ```
 
 ## 双重耦合循环

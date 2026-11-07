@@ -109,7 +109,7 @@
     "DS162092|scripts/dev.ps1|53",
     "DS162092|scripts/hk_index_cdp_fetch.py|33",
     "DS162092|scripts/ipfs_deploy.py|250",
-    "DS162092|scripts/openclaw_scheduler.py|139",
+    "DS162092|scripts/openclaw_scheduler.py|138",
     "DS162092|scripts/realtime_server.py|237",
     "DS162092|scripts/realtime_server.py|238",
     "DS162092|scripts/start_claude_via_sanitizer.ps1|19",

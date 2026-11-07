@@ -122,7 +122,7 @@ APPROVED-SOURCE :91（第 4 节第 4 条）要求的「暖/冷/超预算缓存�
 
 ## 四、验收清单（二值）
 
-记 `R=xy7365527-lang/NewChanlun`；`P6` 为本票裁定后新开的实施票号；`AM` 为修订记录文件路径。
+记 `R=xy7365527-lang/NewChanlun`；`P6` 为本票裁定后新开的实施票号；`AM` 为修订记录文件路径，即本文件 `docs/adr/0061-s-writer-audit-ledger-delta-reading.md`（不是迁移前的旧路径）。
 
 本票（#1644）关票门：
 1. 用户 spec 批准：记本草案评论时间 `T0=$(gh api repos/$R/issues/1644/comments --jq '[.[]|select(.body|contains("spec 修订草案"))][0].created_at')`；批复评论须以固定标记「**用户批复（#1644 spec 批准）**」开头（主控转录用户原话时用此标记，同 #1612 评论 6307519196 先例「**用户 2026-10-21 批复**」）：`gh api repos/$R/issues/1644/comments --jq "[.[]|select(.created_at>\"$T0\" and (.user.login==\"xy7365527-lang\") and (.body|startswith(\"**用户批复（#1644 spec 批准）**\")))]|length"` ≥ 1。

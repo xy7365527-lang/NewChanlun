@@ -10,8 +10,8 @@ WorkingDirectory=/root/NewChanlun
 ExecStart=/usr/bin/python3 scripts/openclaw_scheduler.py --loop --interval 1800
 Restart=on-failure
 RestartSec=60
-StandardOutput=append:/root/NewChanlun/tmp/openclaw-scheduler.log
-StandardError=append:/root/NewChanlun/tmp/openclaw-scheduler.log
+StandardOutput=append:/var/log/openclaw-scheduler.log
+StandardError=append:/var/log/openclaw-scheduler.log
 
 [Install]
 WantedBy=multi-user.target
