@@ -177,7 +177,22 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      # #1875：Rust 作业用 sparse checkout，不拉 Rust 构建与测试从不读取的大目录（topological-computation 约 620 MB
+      #   的词典语料与运行日志、根目录与 docs 下的 PDF、p7_inputs）。核对过 rust/、s_session/、.github/scripts 与本作业步骤
+      #   均不引用这些路径（formal/ 里只在注释中提到 PDF 文件名）；只拉需要的 blob（filter: blob:none）。
+      - &rust-checkout
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/topological-computation*/
+            !/p7_inputs/
+            !/docs/chanlun/
+            !/docs/pdfs/
+            !/docs/formal-chain/
+            !/*.pdf
 
       - name: Test cargo telemetry wrapper (#1141)
         run: ../.github/scripts/test-run-cargo-with-telemetry.sh
@@ -281,12 +296,15 @@ jobs:
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
+      # #1875：本作业测试执行（lib 约 8.8 min，长尾为 a3_oracle_minparts_reentry 与 inclusion completeness）远大于编译，
+      #   按 R4 的规则开本仓 crate opt-level 1（断言与溢出检查保持开启），与 s_session 分片相同。
+      CI_OWN_OPT_LEVEL1: "1"
     defaults:
       run:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -323,7 +341,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -407,7 +425,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -652,7 +670,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -678,7 +696,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -714,7 +732,7 @@ jobs:
         shell: bash
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -947,7 +965,7 @@ jobs:
         shell: bash
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -1217,8 +1235,10 @@ jobs:
         run: python -m ruff check --select F,E9,B,I .
       - name: Mypy
         run: python -m mypy pilot1742
+      # #1875：本步串行约 9.3 min，是只改 .sandcastle 的 PR 的 CI 下限。-n 4 与托管 runner 4 核一致；
+      #   Belay 上串行与两轮 -n 4 的失败/错误集合逐项相同（84 项，均为环境依赖），耗时 655 → 252/209 s。
       - name: Test pilot and Studio without external workers
-        run: python -m pytest -q tests
+        run: python -m pytest -q -n 4 tests
       - name: Test approval-signing reader
         working-directory: .sandcastle/approval-signing
         run: python -m pytest -q tests
