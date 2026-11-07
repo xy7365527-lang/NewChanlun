@@ -3,7 +3,7 @@
 
 配方与 rust/src/bin/s_session_v3/driver.rs `testonly_s3_prefix_measurement`
 （S3_CONTENT_MEASURE_PREFIX）逐字段一致；并逐行核对仓内 receipt
-.chanlun/review-results/issue1394-financial-owner-20260930/current-build-inputs/
+s_session/tests/fixtures/s86/
 018-FULL9011-MATERIAL-RECHECK.json.raw.json 的 ordered_request_hashes 前 86 项。
 
 用法：
@@ -21,7 +21,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[3]
 PREFIX = 86
 SOURCE_SHA256 = "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087"
-RECEIPT = REPO / ".chanlun/review-results/issue1394-financial-owner-20260930/current-build-inputs/018-FULL9011-MATERIAL-RECHECK.json.raw.json"
+RECEIPT = REPO / "s_session/tests/fixtures/s86/018-FULL9011-MATERIAL-RECHECK.json.raw.json"
 SESSION = "s-session-testonly-001"
 PROFILE = "ohlc_integer_tb02a_v1"
 

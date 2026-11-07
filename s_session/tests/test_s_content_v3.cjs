@@ -6,7 +6,7 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 const vectorsPath = path.join(
   __dirname,
-  "../../.chanlun/review-results/issue1394-content-v3-20260916/inputs/content-format-vectors.json",
+  "fixtures/s-content-v3/content-format-vectors.json",
 );
 const raw = fs.readFileSync(vectorsPath);
 const vectors = JSON.parse(raw);

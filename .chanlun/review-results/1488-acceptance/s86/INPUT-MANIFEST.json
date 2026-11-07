@@ -27,7 +27,7 @@
   "params_sha256": "ffb54d8b92867142bc34b18620af195b96a0bc59d0f2134a97f350e17e328f3f（generator issue1394-gen/2, seed 139605）",
   "archive": "/Volumes/AgentStorage/issue1394-cleanup-archive-20261020/worktrees/Users__silencehan__Projects__NewChanlun-1394-tb03b/untracked.tar.zst → .scratch/issue1394-long-source-search/runs/",
   "full9011_envelopes_archive": "/Volumes/AgentStorage/issue1394-cleanup-archive-20261020/worktrees/Users__silencehan__Projects__NewChanlun-1394-content-v3/untracked.tar.zst → .scratch/issue1394-full-history-formal-prep-20261001/inputs/",
-  "in_repo_receipt": ".chanlun/review-results/issue1394-financial-owner-20260930/current-build-inputs/018-FULL9011-MATERIAL-RECHECK.json.raw.json"
+  "in_repo_receipt": "s_session/tests/fixtures/s86/018-FULL9011-MATERIAL-RECHECK.json.raw.json"
  },
  "frozen_copies": {
   "signed-catalog.json": "s_session/catalog/signed-catalog.json @ main 6badaa6049",

@@ -112,9 +112,8 @@ fn pairwise_concat(store: &mut dyn s_content::NodeStore, parts: Vec<SequenceRef>
 // ── 独立向量 oracle ──────────────────────────────────────────────────────────
 
 fn vectors_path() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../.chanlun/review-results/issue1394-content-v3-20260916/inputs/content-format-vectors.json",
-    )
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../s_session/tests/fixtures/s-content-v3/content-format-vectors.json")
 }
 
 fn vector_doc() -> J {

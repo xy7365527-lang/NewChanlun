@@ -119,9 +119,8 @@ fn template_batch_rechecks_root_claims_and_json_inner_flavor() {
 }
 
 fn vectors_path() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../.chanlun/review-results/issue1394-content-v3-20260916/inputs/content-format-vectors.json",
-    )
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../s_session/tests/fixtures/s-content-v3/content-format-vectors.json")
 }
 
 fn hex_of(bytes: &[u8]) -> String {
