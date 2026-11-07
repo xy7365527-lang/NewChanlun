@@ -447,7 +447,7 @@ Claude / Gemini / Codex 三个异质主体的受控碰撞，防止系统在自�
 ### 安装
 
 ```bash
-git clone https://github.com/xy7365527-lang/NewChanlun.git
+git clone https://github.com/Newchanlun/NewChanlun.git
 cd NewChanlun
 
 python -m venv .venv

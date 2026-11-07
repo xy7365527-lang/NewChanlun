@@ -130,7 +130,7 @@ test("main-swarm 接线：校验先于认领；notify 与 gh 都带 GH_CLEAN_ENV
   assert.match(src, /claimIssue\(hostGh\(GH_CLEAN_ENV\), issue\)/);
   assert.match(src, /notify: ghIssueNotifier\(GH_CLEAN_ENV\), gh: hostGh\(GH_CLEAN_ENV\), fetchIssue: ghIssueFetcher\(GH_CLEAN_ENV\)/);
   assert.match(readFileSync(new URL("./swarm-ticket.mts", import.meta.url), "utf8"), /gh: channels\.gh, agent: undefined, notify: channels\.notify/, "单票生命周期沿用调用方的 gh 与通知通道");
-  assert.match(src, /GH_REPO: "xy7365527-lang\/NewChanlun"/);
+  assert.match(src, /GH_REPO: "Newchanlun\/NewChanlun"/);
   assert.doesNotMatch(src, /notify: \(\) =>\s*\{/);
   assert.match(src, /notify: ghIssueNotifier\(GH_CLEAN_ENV\)/);
 });

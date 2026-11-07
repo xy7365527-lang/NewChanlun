@@ -66,9 +66,9 @@ export const CITATION_SECTION = "引用自证";
 export const LANDING_ROOTS = [".chanlun/definitions/", "docs/adr/", "CONTEXT.md"];
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const GH_REPO = process.env.GH_REPO ?? "xy7365527-lang/NewChanlun";
+const GH_REPO = process.env.GH_REPO ?? "Newchanlun/NewChanlun";
 /** 取远端 main 用 ssh 地址：本机 https 拉取会卡死。 */
-export const FETCH_URL = process.env.DECISION_FETCH_URL ?? "git@github.com:xy7365527-lang/NewChanlun.git";
+export const FETCH_URL = process.env.DECISION_FETCH_URL ?? "git@github.com:Newchanlun/NewChanlun.git";
 export const MAIN_REF = "refs/remotes/origin/main";
 /** 草稿里 ADR 一律写占位编号，独审前分配真实编号。 */
 export const ADR_PLACEHOLDER = "NNNN";

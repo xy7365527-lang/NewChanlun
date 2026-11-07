@@ -16,8 +16,8 @@ printf '%s\n' '# #1742 D6 切流命令预览。本脚本只打印，不执行。
 print_command cd /
 print_command "$venv/bin/python" "$repo/.sandcastle/drain-control.py" freeze
 printf '%s\n' '# 确认 deepagents:queue 标签已存在；缺失时由部署 owner 创建后再启动 engine。'
-print_command gh label list --search deepagents:queue --repo xy7365527-lang/NewChanlun
-print_command gh variable set SANDCASTLE_LEGACY_FREEZE --body 1 --repo xy7365527-lang/NewChanlun
+print_command gh label list --search deepagents:queue --repo Newchanlun/NewChanlun
+print_command gh variable set SANDCASTLE_LEGACY_FREEZE --body 1 --repo Newchanlun/NewChanlun
 printf '%s\n' '# 先停健康监控的周期自愈；已在飞的 monitor 由后续进程快照跟踪到退出。'
 print_command launchctl bootout "gui/$UID/com.newchanlun.health-monitor"
 print_command "${executor[@]}" cutover snapshot --workers-log "$repo/.sandcastle/logs/workers.jsonl"

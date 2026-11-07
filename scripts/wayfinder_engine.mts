@@ -72,7 +72,7 @@ const GH_ENV: NodeJS.ProcessEnv = {
   CLICOLOR: "0",
   FORCE_COLOR: "0",
   CLICOLOR_FORCE: "0",
-  GH_REPO: process.env.GH_REPO ?? "xy7365527-lang/NewChanlun",
+  GH_REPO: process.env.GH_REPO ?? "Newchanlun/NewChanlun",
 };
 
 // ── 类型（tracker 状态的归一化视图，纯函数只吃这些） ─────────────────────────
@@ -651,7 +651,7 @@ function shellQuote(s: string): string {
 }
 
 function issueUrl(number: number): string {
-  const repo = GH_ENV.GH_REPO ?? "xy7365527-lang/NewChanlun";
+  const repo = GH_ENV.GH_REPO ?? "Newchanlun/NewChanlun";
   return `https://github.com/${repo}/issues/${number}`;
 }
 

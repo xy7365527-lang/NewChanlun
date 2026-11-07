@@ -472,7 +472,7 @@ test("ensureSrc：在 srcDir 的库里用 ssh 地址 fetch，HEAD 与远端 main
 });
 
 test("取证工具：起草/审查可只读 gh api 查评论，写形态一律拒", () => {
-  assert.ok(READ_TOOLS.includes("Bash(gh api repos/xy7365527-lang/NewChanlun/issues/comments/*)"));
+  assert.ok(READ_TOOLS.includes("Bash(gh api repos/Newchanlun/NewChanlun/issues/comments/*)"));
   const ro = toolArgs();
   const dis = ro.slice(ro.indexOf("--disallowedTools") + 1);
   for (const w of ["Edit", "Write", ...GH_API_WRITE_DENY]) assert.ok(dis.includes(w), w);
@@ -495,7 +495,7 @@ test("审查提示：R1 先对照引用自证表，表缺失即 BLOCK，可 gh a
   const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
   const p = reviewPrompt(t, { klass: "T", reason: "r", parsed: true }, "草稿");
   assert.match(p, /R1 .*引用自证」表：表缺失或为空，R1 直接 BLOCK/);
-  assert.match(p, /gh api repos\/xy7365527-lang\/NewChanlun\/issues\/comments\/<id>/);
+  assert.match(p, /gh api repos\/Newchanlun\/NewChanlun\/issues\/comments\/<id>/);
 });
 
 test("引用自证表：缺段或只有表头不算；缺表的草稿即使审查全 PASS 也 BLOCK", async () => {

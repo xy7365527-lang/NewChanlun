@@ -9,7 +9,7 @@ from typing import Any, Literal, cast
 from .approval import SpecAuthorization
 from .domain import RunId, Sha, parse_run_id, parse_sha
 
-REPO = "xy7365527-lang/NewChanlun"
+REPO = "Newchanlun/NewChanlun"
 FORBIDDEN_LABELS = frozenset({"sandcastle", "ready-for-agent", "wayfinder:impl", "wayfinder:grilling"})
 FORBIDDEN_PREFIX = "agent:"
 MIRROR_LABEL = "deepagents"

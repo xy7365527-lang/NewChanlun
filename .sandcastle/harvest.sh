@@ -17,7 +17,7 @@
 # no worktree on main, no auto close/merge).
 #
 # Env: SANDCASTLE_HOST_REPO (repo root, default = parent of this script's dir),
-#      HARVEST_GH_REPO (default xy7365527-lang/NewChanlun), SKIP_ISSUES (space separated),
+#      HARVEST_GH_REPO (default Newchanlun/NewChanlun), SKIP_ISSUES (space separated),
 #      HARVEST_DRY_RUN=1 (print actions, push/PR/comment nothing), HARVEST_GH_CWD (default /tmp),
 #      HARVEST_TOKEN_MARKERS (space separated token-rotation marker paths).
 # Pure ASCII, bash 3.2 compatible.
@@ -25,7 +25,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO="${SANDCASTLE_HOST_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-GH_SLUG="${HARVEST_GH_REPO:-xy7365527-lang/NewChanlun}"
+GH_SLUG="${HARVEST_GH_REPO:-Newchanlun/NewChanlun}"
 GH_CWD="${HARVEST_GH_CWD:-/tmp}"
 SKIP_ISSUES="${SKIP_ISSUES:-1024 1025}"
 DRY="${HARVEST_DRY_RUN:-0}"

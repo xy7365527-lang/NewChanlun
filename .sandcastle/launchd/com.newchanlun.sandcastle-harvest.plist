@@ -37,7 +37,7 @@
         <key>SANDCASTLE_HOST_REPO</key>
         <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host</string>
         <key>HARVEST_GH_REPO</key>
-        <string>xy7365527-lang/NewChanlun</string>
+        <string>Newchanlun/NewChanlun</string>
         <key>NO_COLOR</key>
         <string>1</string>
     </dict>

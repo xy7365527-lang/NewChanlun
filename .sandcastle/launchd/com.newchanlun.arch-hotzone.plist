@@ -41,7 +41,7 @@
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>GH_REPO</key>
-        <string>xy7365527-lang/NewChanlun</string>
+        <string>Newchanlun/NewChanlun</string>
         <key>ARCH_HOTZONE_AUTO_UPDATE</key>
         <string>1</string>
         <key>NO_COLOR</key>

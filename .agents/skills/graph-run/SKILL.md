@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## 一轮
 
-1. **对账**。读图正文的 Destination、Notes、Decisions so far，再查子票实况（`gh api --paginate repos/xy7365527-lang/NewChanlun/issues/<图号>/sub_issues`，必要时下钻 SPEC 与 TB 汇总票）。完成标准：open 票按「frontier / 被阻塞 / 已认领 / needs-approval」四桶列出计数与票号。
+1. **对账**。读图正文的 Destination、Notes、Decisions so far，再查子票实况（`gh api --paginate repos/Newchanlun/NewChanlun/issues/<图号>/sub_issues`，必要时下钻 SPEC 与 TB 汇总票）。完成标准：open 票按「frontier / 被阻塞 / 已认领 / needs-approval」四桶列出计数与票号。
 
 2. **修 red**。读宿主 `NewChanlun-sandcastle-host/.sandcastle/logs/health-report.json`。服务停摆由 `--heal` 重启的，核对日志确认恢复；宿主脏树、外盘不足、凭据失效这类 `--heal` 不碰的，主控处理或列给用户。完成标准：每个 red 有处置或明确的待用户事项。
 

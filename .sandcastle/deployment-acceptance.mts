@@ -38,7 +38,7 @@ export interface DeploymentDeps extends Omit<DeploymentMergeDeps, "logWorker" | 
   barrier?: (point: string) => Promise<void> | void;
 }
 
-const GH_ENV = { ...process.env, NO_COLOR: "1", CLICOLOR: "0", FORCE_COLOR: "0", CLICOLOR_FORCE: "0", GH_REPO: "xy7365527-lang/NewChanlun" };
+const GH_ENV = { ...process.env, NO_COLOR: "1", CLICOLOR: "0", FORCE_COLOR: "0", CLICOLOR_FORCE: "0", GH_REPO: "Newchanlun/NewChanlun" };
 function ticketOnlyGh(ticket: number, gh: HostGh = hostGh(GH_ENV)): HostGh {
   return (args) => {
     if (args[0] !== "issue" || args[1] !== "view" || args[2] !== String(ticket)) throw new Error(`[FAIL-loud #1867] 冻结验收只允许读取专票 #${ticket}，拒绝 gh ${args.slice(0, 3).join(" ")}`);
