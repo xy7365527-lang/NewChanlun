@@ -1,5 +1,8 @@
 # 线段（Xianduan / Segment）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是 线段 的教义正本。
 > 最后裁定：[#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)（2026-10-21，§6 相切边界落为可调字段 `tangency`，默认 `closed` 承 [#246](https://github.com/xy7365527-lang/NewChanlun/issues/246) 既有裁定，§6.2／§6.3）；此前 [#1493](https://github.com/xy7365527-lang/NewChanlun/issues/1493)（2026-10-20，主控裁定四项：同段候选按序判定、有缺口 c ⊂ b 合并保 b、PENDING_CASE_ONE 与最少笔数口径、合同层版本/阻断载体/归叶表，§7.1 第 1/3/4/6/7/8 条）；此前 [#1490](https://github.com/xy7365527-lang/NewChanlun/issues/1490)（2026-10-14，第一种情况的终结候选三态、转折点窗、先破判据、段端门去向与流首段起点定义，§7.1）、[#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344)（2026-10-13，G-5a）、#813（2026-08-05）
 > 受影响代码清单：见本文件 §15「受影响代码清单」（X-1～X-20、X-25～X-38；#1600 的 X-38；#1490 的 X-25～X-32；#1493 的 X-33～X-37；X-21～X-24 预留给 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) §8 段区间，随其合入补入；工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1490-AFFECTED-CODE.md`，票关后随归档出仓）

@@ -11,8 +11,8 @@
 #      then comment a delivery registration on the ticket.
 #
 # It never merges, never pushes main, never closes tickets and never deletes branches:
-# merging is the human gate (#1003 ruling 3) and a partial slice must not close its ticket
-# (AGENTS.md). Build and tests run in CI; no local cargo (#1588).
+# merging requires independent review, applicable CI and the current task authorization.
+# Partial delivery must not close the whole ticket. No local cargo (#1588).
 # History: #1003 scripted gate -> #1098 rc/ancestor fixes -> #1660 PR mode (host clone,
 # no worktree on main, no auto close/merge).
 #

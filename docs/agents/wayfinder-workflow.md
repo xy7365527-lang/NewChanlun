@@ -5,7 +5,7 @@ Wayfinder 用图处理尚不清楚的依赖与决定。已知步骤的任务直�
 ## 开图与走图
 
 1. 搜 tracker 全部状态及仓内相关材料，复用已有票与裁定。开图写清 Destination、Notes 和 Not yet specified；先列 frontier，再接真正的 blocking 边。
-2. 默认决策与实施同图。纯决策图在 Notes 写明理由及图外承接位置；长驻台账写明不预期关闭，否则到达目的地即关图。
+2. 默认决策与实施同图。纯决策图在 Notes 使用精确声明「本图为纯决策图，不带实装——理由：…」，并写明图外承接位置；长驻台账写明不预期关闭，否则到达目的地即关图。
 3. 每轮先核子票与 Decisions so far，补缺失索引。查询子票、评论及 blocker 使用 `gh api --paginate`，不能把第一页当全集。
 4. 选择 open、无 open blocker、未认领的票，先 claim 再处理。已有 owner 的票不重复派工；有写入的并行任务用独立 worktree，并明确写区。GitHub assign 不是互斥锁，写入前仍要核 owner。
 5. 按票型取得结果，在 resolution comment 留结论、依据、验证与产物位置，再关闭已完成的票。图正文只补一句 gist 和链接；因本票而明确的雾转为具体任务。
@@ -27,7 +27,9 @@ T/P 两类决策均经过考古、起草和非作者独审，全 PASS 后由代�
 
 图内一批决策已解决、下游工作不再依赖未决问题时，按 `/to-spec` → `/to-tickets` → `/implement` 交棒，不等长驻图全部结束。终点本身就是一份文档时，票内明确的产出要求可直接作为实施输入。
 
-SPEC 由非作者独审。有效放行记录为编排者账号发布的结构化「SPEC 独审裁定：PASS」，绑定正文摘要、作者、不同于作者的 reviewer 及证据。使用 `scripts/wayfinder_engine.mts --spec-ruling` 生成记录，格式和切换规则见 graph-engineering「SPEC 裁定」。自由文本“批准”不替代结构化记录；正文变更须重新绑定独审。BLOCK 交回起草者返修后重审。
+SPEC 由非作者独审。有效放行记录为编排者账号发布的结构化「SPEC 独审裁定：PASS」，绑定正文摘要、作者、不同于作者的 reviewer 及证据。使用 `npx tsx scripts/wayfinder_engine.mts --spec-ruling <号> --review-file <独审原件.json>` 校验并生成记录；原件必须包含 specNumber、digest、author、reviewer、verdict，票号和所审正文须匹配，发布时不得重算原件 digest，格式和切换规则见 graph-engineering「SPEC 裁定」。自由文本“批准”不替代结构化记录；正文变更须重新绑定独审。BLOCK 交回起草者返修后重审。
+
+开发流程裁定不授权真实资金、交易、账户或凭据操作；这些能力仍受 ADR 0041 及具体任务授权约束，图的 Notes 不代签。
 
 有效 SPEC 裁定后拆 tracer-bullet 实施票、接 blocking 边并逐票执行。只有符合票型、未认领、无 open blocker 且满足所属 SPEC/DAG 条件的票获得 `sandcastle` 标签；不把历史 `ready-for-agent` 全部放行。SPEC 裁定沿子树递归，控制面从 tracker 重算 ready 集。
 
