@@ -2,6 +2,7 @@
 //! 保存内部记录、生成态、不可变内容和出生 wire 四根；所有来源/载荷保持内容边。
 //! 本层证明索引与这些原件互相绑定；原件是否由真实源按正确业务规则产生仍归来源审计。
 use super::audit_store::RefValue;
+use crate::content_store::{ReadSnapshot, SnapshotQuery};
 // Re-export only the opaque type; its fields and constructor stay history-private.
 use super::audit_store::NativeTree;
 use super::business_json::{self as bj, TextValue};
@@ -27,7 +28,6 @@ use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore,
     Value as V,
 };
-use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
@@ -977,12 +977,12 @@ impl HistoryObjects<'_> {
 
     pub(super) fn at_cut_bound_births(
         &mut self,
-        tx: &Transaction<'_>,
+        snap: &ReadSnapshot<'_>,
         s: &mut super::history::HashReader<'_>,
         g: i64,
         budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<(Built, Built, Built), String> {
-        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?
+        if !snap.is_readonly_main().map_err(err)?
             || !s.ordinary_bound_births_qualified()
             || self.native.is_some()
         {
@@ -1881,7 +1881,7 @@ pub(super) fn load(
     latest: i64,
 ) -> Result<sc::CodecVec<Entry>, String> {
     load_in_store(
-        tx,
+        &ReadSnapshot::new(tx),
         &mut super::audit_store::StoreView::generic(s),
         latest,
         None,
@@ -1899,7 +1899,7 @@ pub(super) fn load_for_audit(
 ) -> Result<sc::CodecVec<Entry>, String> {
     let capture = s.native_projection_capture();
     load_in_store(
-        tx,
+        &ReadSnapshot::new(tx),
         &mut super::audit_store::StoreView::for_audit(s),
         latest,
         capture,
@@ -1907,16 +1907,16 @@ pub(super) fn load_for_audit(
     )
 }
 pub(super) fn load_for_history<'capture>(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     s: &mut super::history::HashReader<'capture>,
     latest: i64,
 ) -> Result<HistoryObjects<'capture>, String> {
     // 不接受外部旧 index/memo。先全核本事务原件，成功之后才能开当前索引的两个槽。
-    let layout = Layout::of_library(tx).map_err(err)?;
+    let layout = snap.layout().map_err(err)?;
     let capture = s.native_projection_capture();
     let mut events = None;
     let entries = load_in_store(
-        tx,
+        snap,
         &mut super::audit_store::StoreView::for_audit(s),
         latest,
         capture,
@@ -2016,7 +2016,7 @@ fn decode_persisted_entry(
 }
 
 fn load_in_store(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     s: &mut super::audit_store::StoreView<'_, '_>,
     latest: i64,
     capture: Option<&sc::AuditCapture>,
@@ -2026,7 +2026,7 @@ fn load_in_store(
         capture,
         successful: bj::new_map(None),
     });
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::OBJECTS).map_err(err)?;
     let allocation = s.allocation_budget();
     let mut out = bj::new_work(allocation.as_ref());
     while let Some(mut row) = stmt.next().map_err(err)? {
@@ -2148,7 +2148,7 @@ pub(super) fn update_from_owner(
     let events =
         NativeArc::get_mut(&mut sweep.events).ok_or_else(|| err("对象事件仍被旧 facade 借用"))?;
     for rowid in rowids {
-        let mut q = CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects WHERE rowid=?1").map_err(err)?;
+        let mut q = newchan_rust::sqlite_checked::CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects WHERE rowid=?1").map_err(err)?;
         q.bind_integer(1, *rowid).map_err(err)?;
         let mut row = q
             .next()
@@ -3942,7 +3942,7 @@ mod tests {
         let mut native = ordinary();
         native.enable_full_arrays_for_test();
         let (actual, native_checks) =
-            leaf_checks(|| load_for_history(&tx, &mut native, 1).unwrap());
+            leaf_checks(|| load_for_history(&ReadSnapshot::new(&tx), &mut native, 1).unwrap());
         assert_eq!(format!("{:?}", actual.entries()), format!("{expected:?}"));
         assert_eq!(native_checks, unique.len());
         assert!(native_checks < ordinary_checks);
@@ -4074,7 +4074,7 @@ mod tests {
         let capture = sc::AuditCapture::new(damaged);
         let mut native = super::super::history::HashReader::captured(&capture, None);
         native.enable_full_arrays_for_test();
-        assert!(load_for_history(&tx, &mut native, 1)
+        assert!(load_for_history(&ReadSnapshot::new(&tx), &mut native, 1)
             .err()
             .unwrap()
             .contains(sc::code::NODE_DIGEST));
@@ -5971,28 +5971,28 @@ mod tests {
         let tx = readonly.transaction().unwrap();
         let mut source = content_store::ReadStore::new(&tx).unwrap();
         let mut reader = crate::v3::history::HashReader::new(&mut source);
-        let mut loaded = load_for_history(&tx, &mut reader, 0).unwrap();
+        let mut loaded = load_for_history(&ReadSnapshot::new(&tx), &mut reader, 0).unwrap();
         loaded
-            .at_cut_bound_births(&tx, &mut reader, 0, None)
+            .at_cut_bound_births(&ReadSnapshot::new(&tx), &mut reader, 0, None)
             .unwrap();
         let capture = content_store::capture_for_prototype(&tx).unwrap();
         let mut captured =
             crate::v3::history::HashReader::captured_for_audit(&capture, None).unwrap();
         assert!(loaded
-            .at_cut_bound_births(&tx, &mut captured, 0, None)
+            .at_cut_bound_births(&ReadSnapshot::new(&tx), &mut captured, 0, None)
             .is_err());
         #[cfg(feature = "s_incremental")]
         {
             captured.enable_full_arrays_for_test();
-            let mut native = load_for_history(&tx, &mut captured, 0).unwrap();
+            let mut native = load_for_history(&ReadSnapshot::new(&tx), &mut captured, 0).unwrap();
             assert!(native.native.is_some());
             assert!(native
-                .at_cut_bound_births(&tx, &mut reader, 0, None)
+                .at_cut_bound_births(&ReadSnapshot::new(&tx), &mut reader, 0, None)
                 .is_err());
         }
         let writable = fixture.conn.transaction().unwrap();
         assert!(loaded
-            .at_cut_bound_births(&writable, &mut reader, 0, None)
+            .at_cut_bound_births(&ReadSnapshot::new(&writable), &mut reader, 0, None)
             .is_err());
     }
     #[test]
@@ -6451,7 +6451,8 @@ mod tests {
                 let capture = content_store::capture_for_prototype(&tx).unwrap();
                 let mut captured = super::super::history::HashReader::captured(&capture, None);
                 captured.enable_full_arrays_for_test();
-                let mut current = load_for_history(&tx, &mut captured, g).unwrap();
+                let mut current =
+                    load_for_history(&ReadSnapshot::new(&tx), &mut captured, g).unwrap();
                 projection_sweep_positive_event_counts(current.entries());
                 let dual = current
                     .native_dual_at_cut(&mut captured, g, &batch)
@@ -6478,7 +6479,7 @@ mod tests {
                 );
 
                 // 同一完整load/capture，合法修订和撤回后覆盖单调、重复、跳跃及回退cut。
-                let mut scan = load_for_history(&tx, &mut captured, g).unwrap();
+                let mut scan = load_for_history(&ReadSnapshot::new(&tx), &mut captured, g).unwrap();
                 let before = current.native_sweep().unwrap();
                 assert!(
                     NativeArc::ptr_eq(
@@ -6558,7 +6559,8 @@ mod tests {
                 }
                 let mut ordinary_store =
                     super::super::history::HashReader::captured(&capture, None);
-                let ordinary = load_for_history(&tx, &mut ordinary_store, g).unwrap();
+                let ordinary =
+                    load_for_history(&ReadSnapshot::new(&tx), &mut ordinary_store, g).unwrap();
                 assert!(
                     ordinary.native.is_none(),
                     "普通 captured reader 不能取得 memo"

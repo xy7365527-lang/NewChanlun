@@ -10,6 +10,7 @@ use super::business_json::TextValue;
 use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
+use crate::content_store::{ReadSnapshot, SnapshotQuery};
 use crate::v3::audit_store::{CodecRead, CodecStore};
 #[cfg(all(test, feature = "s_incremental"))]
 use content_manifest::ManifestRoots;
@@ -19,7 +20,6 @@ use newchan_rust::s_content::{
     self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
     Value as V,
 };
-use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
 #[cfg(feature = "s_allocation_json_testonly")]
 use sc::capture_allocation::audit_json::OwnedJson;
@@ -35,7 +35,7 @@ pub(super) use native_record_fields::{native_record_field_stats, reset_native_re
 /// No constructor accepts caller-provided arrays, SQL-index substitutes, or authority bools.
 pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
     capture: &'capture sc::AuditCapture,
-    transaction: &'scope Transaction<'connection>,
+    transaction: &'scope ReadSnapshot<'connection>,
     batch: bj::TextValue,
     binding: sc::CodecVec<bj::TextValue>,
     arrays: [(sc::Built, sc::Built); 5],
@@ -129,7 +129,7 @@ impl NativeCutProjection<'_, '_, '_> {
         batch: &str,
         previous: i64,
     ) -> Result<(), String> {
-        if !std::ptr::eq(self.transaction, tx)
+        if !self.transaction.reads(tx)
             || self.batch != batch
             || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
             || !s
@@ -147,7 +147,7 @@ impl NativeCutProjection<'_, '_, '_> {
     }
 }
 fn native_cut_projection<'scope, 'connection, 'capture>(
-    tx: &'scope Transaction<'connection>,
+    snap: &'scope ReadSnapshot<'connection>,
     s: &mut HashReader<'capture>,
     objects: &mut object_index::HistoryObjects<'capture>,
     aux: &aux_index::Index,
@@ -179,7 +179,7 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     let delta_public = public_array(s, &delta_members[2])?;
     Ok(Some(NativeCutProjection {
         capture,
-        transaction: tx,
+        transaction: snap,
         batch: s.native_text(batch)?,
         binding: native_cut_binding(s, m, roots, previous)?,
         arrays: [
@@ -382,7 +382,7 @@ pub(super) fn read_indexed_history(
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
-        tx,
+        &ReadSnapshot::new(tx),
         raw.into(),
         control,
         deadline,
@@ -412,7 +412,7 @@ pub(super) fn read_indexed_history_for_audit(
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
-        tx,
+        &ReadSnapshot::new(tx),
         raw.into(),
         control,
         deadline,
@@ -523,7 +523,7 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_with_policy(
-        tx,
+        &ReadSnapshot::new(tx),
         raw,
         control,
         deadline,
@@ -549,7 +549,7 @@ pub(super) fn fold_certified_history(
     certify: &mut dyn CutSourceVerifier,
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
-        tx,
+        &ReadSnapshot::new(tx),
         raw,
         control,
         deadline,
@@ -567,7 +567,7 @@ pub(super) fn fold_certified_history(
 }
 
 pub(super) fn read_indexed_history_with_policy<'a>(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     raw: impl Into<RawEventsView<'a>>,
     control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
@@ -581,7 +581,7 @@ pub(super) fn read_indexed_history_with_policy<'a>(
 ) -> Result<IndexedHistory, String> {
     // 清除失败 history 的部分交接材料；不会交给后续 source 审计。
     let result = read_indexed_history_inner(
-        tx,
+        snap,
         raw.into(),
         control,
         deadline,
@@ -654,7 +654,7 @@ pub(super) fn without_ordinary_materials_for_test<T>(action: impl FnOnce() -> T)
 
 pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
     history: IndexedHistory,
-    transaction: &'scope Transaction<'tx>,
+    transaction: &'scope ReadSnapshot<'tx>,
     qualified: bool,
     materials: Option<std::cell::RefCell<super::ordinary_materials::OrdinaryAuditMaterials>>,
 }
@@ -677,7 +677,7 @@ impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
 
     pub(super) fn audit_cut<R>(
         &self,
-        tx: &Transaction<'_>,
+        snap: &ReadSnapshot<'_>,
         cut: &PublishedCut,
         deadline: Option<std::time::Instant>,
         max: Option<u64>,
@@ -685,7 +685,7 @@ impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
         action: impl FnOnce(&mut HashReader<'_>) -> Result<R, String>,
     ) -> Result<R, String> {
         if !self.qualified
-            || !std::ptr::eq(tx, self.transaction)
+            || !snap.same(self.transaction)
             || !self
                 .history
                 .cuts
@@ -694,7 +694,7 @@ impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
         {
             return Err(err("Public覆盖事务/cut绑定不符"));
         }
-        let mut source = Some(content_store::ReadStore::new(tx).map_err(err)?);
+        let mut source = Some(snap.store().map_err(err)?);
         let mut pool = self.materials.as_ref().map(std::cell::RefCell::borrow_mut);
         let mut material_source = pool
             .as_mut()
@@ -718,7 +718,7 @@ pub(super) struct OrdinarySourceSession<'audit, 'scope, 'tx> {
 impl OrdinarySourceSession<'_, '_, '_> {
     pub(super) fn audit_cut<R>(
         &mut self,
-        tx: &Transaction<'_>,
+        snap: &ReadSnapshot<'_>,
         cut: &PublishedCut,
         deadline: Option<std::time::Instant>,
         max: Option<u64>,
@@ -734,7 +734,7 @@ impl OrdinarySourceSession<'_, '_, '_> {
             .ok_or_else(|| err("ordinary来源session已拒绝"))?;
         let result = self
             .history
-            .audit_cut(tx, cut, deadline, max, budget, |store| {
+            .audit_cut(snap, cut, deadline, max, budget, |store| {
                 action(store, proofs)
             });
         match result {
@@ -751,7 +751,7 @@ impl OrdinarySourceSession<'_, '_, '_> {
 }
 
 pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
-    tx: &'scope Transaction<'tx>,
+    snap: &'scope ReadSnapshot<'tx>,
     raw: impl Into<RawEventsView<'raw>>,
     control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
@@ -767,17 +767,17 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
         && capture.is_none()
         && work.is_none()
         && materials.is_none()
-        && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
+        && snap.is_readonly_main().map_err(err)?;
     let mut originals = (qualified
         && records.is_none()
         && ordinary_proofs_enabled()
         && ordinary_materials_enabled())
-    .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(tx))
+    .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(snap))
     .transpose()
     .map_err(err)?;
     let history = if let Some(pool) = originals.as_mut() {
         read_indexed_history_inner(
-            tx,
+            snap,
             raw.into(),
             control,
             deadline,
@@ -794,7 +794,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
         )?
     } else {
         read_indexed_history_with_policy(
-            tx,
+            snap,
             raw,
             control,
             deadline,
@@ -809,28 +809,28 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     };
     Ok(VerifiedPublicHistory {
         history,
-        transaction: tx,
+        transaction: snap,
         qualified,
         materials: originals.map(std::cell::RefCell::new),
     })
 }
 
 struct VerifiedObjectOriginals<'a, 'tx> {
-    transaction: &'a Transaction<'tx>,
+    transaction: &'a ReadSnapshot<'tx>,
     reader: *const (),
     entries: &'a [object_index::Entry],
 }
 impl VerifiedObjectOriginals<'_, '_> {
     fn verify_public(
         &self,
-        tx: &Transaction<'_>,
+        snap: &ReadSnapshot<'_>,
         store: &mut HashReader<'_>,
         roots: &[RefValue],
     ) -> Result<(), sc::CodecError> {
-        if !std::ptr::eq(tx, self.transaction)
+        if !snap.same(self.transaction)
             || self.reader != (store as *const HashReader<'_>).cast()
-            || !tx
-                .is_readonly(rusqlite::MAIN_DB)
+            || !snap
+                .is_readonly_main()
                 .map_err(|e| sc::CodecError::new(sc::code::SOURCE, e.to_string()))?
             || !store.ordinary_bound_births_qualified()
         {
@@ -857,7 +857,7 @@ impl VerifiedObjectOriginals<'_, '_> {
 }
 
 struct VerifiedManifestRoots<'a, 'tx> {
-    transaction: &'a Transaction<'tx>,
+    transaction: &'a ReadSnapshot<'tx>,
     roots: &'a [RefValue],
     public: &'a [RefValue],
 }
@@ -865,11 +865,11 @@ struct VerifiedManifestRoots<'a, 'tx> {
 impl VerifiedManifestRoots<'_, '_> {
     fn verify_resolved_public(
         &self,
-        tx: &Transaction<'_>,
+        snap: &ReadSnapshot<'_>,
         store: &mut HashReader<'_>,
         roots: &[RefValue],
     ) -> Result<(), sc::CodecError> {
-        if !std::ptr::eq(tx, self.transaction) || !store.ordinary_bound_births_qualified() {
+        if !snap.same(self.transaction) || !store.ordinary_bound_births_qualified() {
             return Err(sc::CodecError::new(
                 sc::code::SOURCE,
                 "解析根不属于当前普通事务Public证明",
@@ -906,8 +906,35 @@ impl<'a, 'source> VerifiedManifestAssembly<'a, 'source> {
     }
 }
 
+// #1890 编译负例：只读快照作用域内拿不到连接或事务，改不了 authorizer/limit，执行不了白名单外的
+// SQL，也不能借它另开节点读者或从读者取回连接。每行各报一条错。
+// cargo rustc --features s_session --bin s_structure_session -- --cfg issue1890_read_snapshot_refusal
+#[cfg(issue1890_read_snapshot_refusal)]
+fn read_snapshot_must_not_reach_connection(snap: &ReadSnapshot<'_>) {
+    let _: &rusqlite::Connection = snap;
+    let _: &rusqlite::Transaction<'_> = snap;
+    let _ = snap.tx;
+    let _ = snap.execute_batch("DROP TABLE s_content_nodes");
+    let _ = snap
+        .authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization>);
+    let _ = snap.set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH, 1);
+    let _ = snap.prepare(c"DROP TABLE s_content_nodes");
+    let _ = content_store::ReadStore::new(snap);
+    let _ = snap.store().map(|reader| reader.conn);
+}
+// 白名单外自拼 SnapshotQuery 也不行（私有字段）。私有性检查排在类型检查之后，与上面的类型
+// 错误放在一起会被掩盖，所以单列一个负例。
+// cargo rustc --features s_session --bin s_structure_session -- --cfg issue1890_snapshot_query_refusal
+#[cfg(issue1890_snapshot_query_refusal)]
+fn snapshot_query_must_come_from_whitelist(snap: &ReadSnapshot<'_>) {
+    let _ = snap.prepare(SnapshotQuery {
+        sql: c"DROP TABLE s_content_nodes",
+    });
+}
+
+/// 作用域入口之一：整个函数只经由 `snap` 读取（#1890）。
 fn read_indexed_history_inner(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     raw: RawEventsView<'_>,
     mut control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
@@ -925,18 +952,18 @@ fn read_indexed_history_inner(
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work)?;
+        verify_required_meta_admitted(snap, work)?;
     } else {
-        verify_required_meta(tx)?;
+        snap.verify_required_meta()?;
     }
     #[cfg(not(feature = "s_incremental"))]
-    verify_required_meta(tx)?;
+    snap.verify_required_meta()?;
     let bound_births_qualified = policy == SourcePolicy::Ordinary
         && capture.is_none()
         && work.is_none()
         && (materials.is_none() || sealed_ordinary_materials)
-        && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
-    let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
+        && snap.is_readonly_main().map_err(err)?;
+    let mut reader = snap.store().map_err(err)?;
     if audit_same_material {
         reader.enable_audit_same_material();
     }
@@ -972,12 +999,12 @@ fn read_indexed_history_inner(
     let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
-    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
-    let auxiliary = aux_index::load(tx, &mut store, aux_generation)?;
+    let aux_generation = meta_i64_in_store(&store, snap, "generation", allocation.as_ref())?;
+    let auxiliary = aux_index::load(snap, &mut store, aux_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
-    let mut objects = object_index::load_for_history(tx, &mut store, object_generation)?;
+    let object_generation = meta_i64_in_store(&store, snap, "generation", allocation.as_ref())?;
+    let mut objects = object_index::load_for_history(snap, &mut store, object_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
     store.clear_overlay();
@@ -986,7 +1013,9 @@ fn read_indexed_history_inner(
     #[cfg(test)]
     super::state::trace_event("history_public_closures", None);
     let public_roots = {
-        let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.snapshot_root,p.delta_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+        let mut stmt = snap
+            .prepare(SnapshotQuery::PUBLICATION_PUBLIC_ROOTS)
+            .map_err(err)?;
         let mut roots = bj::new_work(allocation.as_ref());
         while let Some(mut row) = stmt.next().map_err(err)? {
             check_deadline(deadline)?;
@@ -1007,7 +1036,9 @@ fn read_indexed_history_inner(
         && matches!(store.source, ReadOwner::Dynamic(_));
     let mut public_roots = public_roots;
     let template_roots = {
-        let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+        let mut stmt = snap
+            .prepare(SnapshotQuery::PUBLICATION_MANIFESTS)
+            .map_err(err)?;
         let mut roots = bj::new_work(allocation.as_ref());
         while let Some(mut row) = stmt.next().map_err(err)? {
             check_deadline(deadline)?;
@@ -1020,22 +1051,13 @@ fn read_indexed_history_inner(
         roots
     };
     #[cfg(test)]
-    super::admission_private::s4_read_trace::audit_window(tx, "template", "begin", "pending");
+    snap.trace_window("template", "begin", true);
     let template_result = store.verify_many_ref(
         template_roots.iter().map(RefValue::view),
         sc::Mode::Template,
     );
     #[cfg(test)]
-    super::admission_private::s4_read_trace::audit_window(
-        tx,
-        "template",
-        "end",
-        if template_result.is_ok() {
-            "ok"
-        } else {
-            "error"
-        },
-    );
+    snap.trace_window("template", "end", template_result.is_ok());
     template_result.map_err(err)?;
     // manifest 先过完整 Template 才解码；其 scope/generated_state 并入同一次 Public 联合全核。
     if manifest_coverage {
@@ -1048,27 +1070,22 @@ fn read_indexed_history_inner(
         }
     }
     #[cfg(test)]
-    super::admission_private::s4_read_trace::audit_window(tx, "public", "begin", "pending");
+    snap.trace_window("public", "begin", true);
     let public_result = if bound_births_qualified {
         VerifiedObjectOriginals {
-            transaction: tx,
+            transaction: snap,
             reader: (&store as *const HashReader<'_>).cast(),
             entries: objects.entries(),
         }
-        .verify_public(tx, &mut store, &public_roots)
+        .verify_public(snap, &mut store, &public_roots)
     } else {
         store.verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
     };
     #[cfg(test)]
-    super::admission_private::s4_read_trace::audit_window(
-        tx,
-        "public",
-        "end",
-        if public_result.is_ok() { "ok" } else { "error" },
-    );
+    snap.trace_window("public", "end", public_result.is_ok());
     public_result.map_err(err)?;
     let verified_templates = VerifiedManifestRoots {
-        transaction: tx,
+        transaction: snap,
         roots: &template_roots,
         public: &public_roots,
     };
@@ -1076,7 +1093,7 @@ fn read_indexed_history_inner(
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
-        Some(content_publication::PublicationProjection::new(tx, &store)?)
+        Some(snap.publication_projection(&store)?)
     } else {
         None
     };
@@ -1087,10 +1104,10 @@ fn read_indexed_history_inner(
     let mut previous = -1i64;
     let mut output = bj::new_work(allocation.as_ref());
     let mut resolved_roots = bj::new_work(allocation.as_ref());
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::PUBLICATION_ROWS).map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let cut = audit_one_published_cut(
-            tx,
+            snap,
             Some(&verified_templates),
             &mut row,
             &mut store,
@@ -1128,31 +1145,17 @@ fn read_indexed_history_inner(
     stmt.finalize().map_err(err)?;
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
     #[cfg(test)]
-    super::admission_private::s4_read_trace::audit_window(
-        tx,
-        "resolved_public",
-        "begin",
-        "pending",
-    );
+    snap.trace_window("resolved_public", "begin", true);
     let resolved_result = if bound_births_qualified && manifest_coverage {
-        verified_templates.verify_resolved_public(tx, &mut store, &resolved_roots)
+        verified_templates.verify_resolved_public(snap, &mut store, &resolved_roots)
     } else {
         store.verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
     };
     #[cfg(test)]
-    super::admission_private::s4_read_trace::audit_window(
-        tx,
-        "resolved_public",
-        "end",
-        if resolved_result.is_ok() {
-            "ok"
-        } else {
-            "error"
-        },
-    );
+    snap.trace_window("resolved_public", "end", resolved_result.is_ok());
     resolved_result.map_err(err)?;
     let control_facts = control.into_facts()?;
-    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())?;
+    verify_current_frontiers(&store, snap, &output, previous, allocation.as_ref())?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
     let raw_prefixes = match (native_prefix, ordered_raw) {
         (Some(prefixes), Some(ordered)) => Some(NativeRawPrefixes {
@@ -1187,7 +1190,7 @@ fn read_indexed_history_inner(
 /// cold 与 owner warm 必须调用同一单代判据；调用方负责当前 Q、材料资格与末尾闭合。
 /// 返回成功之前不改变已核前沿，派生根仍须由调用方统一核 Public 闭包。
 fn audit_one_published_cut<'capture>(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     verified_templates: Option<&VerifiedManifestRoots<'_, '_>>,
     row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
     store: &mut HashReader<'capture>,
@@ -1234,7 +1237,7 @@ fn audit_one_published_cut<'capture>(
             && matches!(store.source, ReadOwner::Dynamic(_))
     }) {
         let manifest_digest = manifest.view().digest().map_err(err)?;
-        if !std::ptr::eq(tx, verified_templates.transaction)
+        if !snap.same(verified_templates.transaction)
             || !verified_templates
                 .roots
                 .iter()
@@ -1302,7 +1305,7 @@ fn audit_one_published_cut<'capture>(
     let dual = if native_publication {
         Some(
             native_cut_projection(
-                tx,
+                snap,
                 store,
                 objects,
                 auxiliary,
@@ -1317,8 +1320,7 @@ fn audit_one_published_cut<'capture>(
         None
     };
     let resolved = if let Some(projection) = &dual {
-        content_publication::resolve_native_dual_templates_pending_view(
-            tx,
+        snap.resolve_native_dual_templates_pending_view(
             store,
             m.view(),
             roots.view(),
@@ -1327,8 +1329,7 @@ fn audit_one_published_cut<'capture>(
             projection,
         )?
     } else if let Some(projection) = ordinary_publication.as_deref_mut() {
-        content_publication::resolve_ordinary_indexed_templates_pending_view(
-            tx,
+        snap.resolve_ordinary_indexed_templates_pending_view(
             store,
             m.view(),
             roots.view(),
@@ -1337,8 +1338,7 @@ fn audit_one_published_cut<'capture>(
             projection,
         )?
     } else {
-        content_publication::resolve_indexed_templates_pending_view(
-            tx,
+        snap.resolve_indexed_templates_pending_view(
             store,
             m.view(),
             roots.view(),
@@ -1355,7 +1355,7 @@ fn audit_one_published_cut<'capture>(
     #[cfg(test)]
     super::state::trace_event("history_object_members", Some(generation));
     #[cfg(test)]
-    super::admission_private::s4_read_trace::begin(tx, "ord_obj_members");
+    snap.trace_begin("ord_obj_members");
     if let Some(sweep) = object_sweep.as_mut() {
         sweep.advance_admitted(generation, store)?;
     }
@@ -1368,7 +1368,7 @@ fn audit_one_published_cut<'capture>(
         records.as_deref_mut(),
     );
     #[cfg(test)]
-    super::admission_private::s4_read_trace::end(tx, "ord_obj_members", &members_result);
+    snap.trace_end("ord_obj_members", &members_result);
     members_result?;
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
@@ -1378,14 +1378,14 @@ fn audit_one_published_cut<'capture>(
         )
     } else {
         #[cfg(test)]
-        super::admission_private::s4_read_trace::begin(tx, "ord_obj_at_cut");
+        snap.trace_begin("ord_obj_at_cut");
         let at_cut = if bound_births_qualified {
-            objects.at_cut_bound_births(tx, store, generation, budget)
+            objects.at_cut_bound_births(snap, store, generation, budget)
         } else {
             objects.at_cut(store, generation, budget)
         };
         #[cfg(test)]
-        super::admission_private::s4_read_trace::end(tx, "ord_obj_at_cut", &at_cut);
+        snap.trace_end("ord_obj_at_cut", &at_cut);
         at_cut?
     };
     for (public, key, expected) in [
@@ -1396,13 +1396,13 @@ fn audit_one_published_cut<'capture>(
         same_digest(store, public, key, expected)?;
     }
     #[cfg(test)]
-    super::admission_private::s4_read_trace::begin(tx, "ord_obj_changes");
+    snap.trace_begin("ord_obj_changes");
     let changes = match &object_sweep {
         Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation),
         None => object_index::changes_at_admitted(store, objects.entries(), generation, allocation),
     };
     #[cfg(test)]
-    super::admission_private::s4_read_trace::end(tx, "ord_obj_changes", &changes);
+    snap.trace_end("ord_obj_changes", &changes);
     let (withdrawals, replaces) = changes?;
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
     for v in withdrawals
@@ -1456,14 +1456,14 @@ fn audit_one_published_cut<'capture>(
                 ("ord_aux_members_snapshot", "ord_aux_compare_snapshot")
             };
             #[cfg(test)]
-            super::admission_private::s4_read_trace::begin(tx, members_label);
+            snap.trace_begin(members_label);
             let members =
                 aux_index::cut_members_metered(auxiliary, layout, generation, is_delta, budget);
             #[cfg(test)]
-            super::admission_private::s4_read_trace::end(tx, members_label, &members);
+            snap.trace_end(members_label, &members);
             let members = members?;
             #[cfg(test)]
-            super::admission_private::s4_read_trace::begin(tx, compare_label);
+            snap.trace_begin(compare_label);
             // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
             for (name, nodes) in ["witnesses", "relations", "observations"]
                 .into_iter()
@@ -1473,12 +1473,12 @@ fn audit_one_published_cut<'capture>(
                     compare_cut_array(store, public, name, &nodes, deadline, budget, allocation);
                 #[cfg(test)]
                 if compared.is_err() {
-                    super::admission_private::s4_read_trace::end(tx, compare_label, &compared);
+                    snap.trace_end(compare_label, &compared);
                 }
                 compared?;
             }
             #[cfg(test)]
-            super::admission_private::s4_read_trace::end(tx, compare_label, &Ok::<(), ()>(()));
+            snap.trace_end(compare_label, &Ok::<(), ()>(()));
         }
     }
     for (key, actual) in [
@@ -1488,18 +1488,18 @@ fn audit_one_published_cut<'capture>(
         ("rule_revision", &m.rule_revision),
         ("catalog_revision", &m.catalog_revision),
     ] {
-        if meta_text_in_store(store, tx, key, allocation)?.as_deref() != Some(actual.as_str()) {
+        if meta_text_in_store(store, snap, key, allocation)?.as_deref() != Some(actual.as_str()) {
             return Err(err(format!("manifest.{key} 与冻结域不符")));
         }
     }
     let scope_text =
-        meta_text_in_store(store, tx, "scope", allocation)?.ok_or_else(|| err("缺scope"))?;
+        meta_text_in_store(store, snap, "scope", allocation)?.ok_or_else(|| err("缺scope"))?;
     let scope = history_decode_in_store(store, scope_text.as_bytes(), allocation)?;
     if m.scope.digest().map_err(err)? != hash_json_in_store(store, scope.view(), deadline, budget)?
     {
         return Err(err("manifest.scope 与冻结域不符"));
     }
-    verify_source(store, tx, &m, allocation)?;
+    verify_source(store, snap, &m, allocation)?;
     control.consume_header(
         generation,
         &batch_id,
@@ -1916,16 +1916,16 @@ fn hash_current_raw(
 }
 fn verify_current_frontiers(
     store: &(impl CodecRead + ?Sized),
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     output: &sc::CodecVec<PublishedCut>,
     previous: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    if meta_i64_in_store(store, tx, "last_advance_frontier", allocation)? != previous {
+    if meta_i64_in_store(store, snap, "last_advance_frontier", allocation)? != previous {
         return Err(err("根前沿与完整发布史不符"));
     }
     if let Some(last) = output.last() {
-        if meta_text_in_store(store, tx, "index_frontier", allocation)?.as_deref()
+        if meta_text_in_store(store, snap, "index_frontier", allocation)?.as_deref()
             != Some(last.batch_id.as_str())
         {
             return Err(err("根批次与完整发布史末代不符"));
@@ -1986,7 +1986,7 @@ pub(super) fn revalidate_current_for_reuse_measured(
 ) -> Result<(), String> {
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work)?;
+        verify_required_meta_admitted(&ReadSnapshot::new(tx), work)?;
     } else {
         verify_required_meta(tx)?;
     }
@@ -2012,7 +2012,7 @@ pub(super) fn revalidate_current_for_reuse_measured(
     control.finish()?;
     verify_current_frontiers(
         &store,
-        tx,
+        &ReadSnapshot::new(tx),
         cuts,
         cuts.last().map_or(-1, |c| c.metadata.input_frontier),
         None,
@@ -2021,12 +2021,12 @@ pub(super) fn revalidate_current_for_reuse_measured(
 
 fn verify_source(
     store: &(impl CodecRead + ?Sized),
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     m: &AuditMetadata,
     allocation: Option<&OwnedBudget>,
 ) -> Result<(), String> {
     let s = &m.source_commit;
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::INPUT_MESSAGE).map_err(err)?;
     stmt.bind_text(1, &s.source_namespace).map_err(err)?;
     stmt.bind_text(2, &s.source_epoch).map_err(err)?;
     stmt.bind_text(3, &s.message_id).map_err(err)?;
@@ -2063,10 +2063,10 @@ fn verify_source(
     {
         return Err(err("manifest clock 与真实消息不符"));
     }
-    if writer_for_generation(store, tx, m.generation, allocation)? != m.writer_epoch {
+    if writer_for_generation(store, snap, m.generation, allocation)? != m.writer_epoch {
         return Err(err("manifest写者与本代实际换代史不同"));
     }
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::CLOCK_COMMIT).map_err(err)?;
     stmt.bind_text(1, &s.clock_event_id).map_err(err)?;
     stmt.bind_integer(2, s.attempt_index).map_err(err)?;
     let (g, ns) = {
@@ -2089,11 +2089,11 @@ fn verify_source(
 /// 已核换代史的本代归属；allocator由actualstore显式传入，空历史也不猜metadata预算。
 fn writer_for_generation(
     store: &(impl CodecRead + ?Sized),
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     generation: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
-    let mut stmt = CheckedStatement::prepare(tx, c"SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::WRITER_EPOCHS).map_err(err)?;
     let mut result = None;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let from = sql_text_in_store(store, &mut row, 0, allocation).map_err(err)?;
@@ -2112,7 +2112,7 @@ fn writer_for_generation(
     }
     stmt.finalize().map_err(err)?;
     result.map(Ok).unwrap_or_else(|| {
-        meta_text_in_store(store, tx, "writer_epoch", allocation)?
+        meta_text_in_store(store, snap, "writer_epoch", allocation)?
             .ok_or_else(|| err("缺writer_epoch"))
     })
 }
@@ -2138,16 +2138,15 @@ fn sql_text_in_store(
 }
 fn meta_text_in_store(
     store: &(impl CodecRead + ?Sized),
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     key: &str,
     allocation: Option<&OwnedBudget>,
 ) -> Result<Option<TextValue>, String> {
     if store.codec_work().is_none() {
-        return v2::control_meta_text(tx, key, allocation);
+        return snap.control_meta_text_admitted(key, allocation, None);
     }
     let error = |e| format!("读 meta.{key} 失败：{e}");
-    let mut stmt =
-        CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(error)?;
+    let mut stmt = snap.prepare(SnapshotQuery::META_VALUE).map_err(error)?;
     stmt.bind_text(1, key).map_err(error)?;
     let value = match stmt.next().map_err(error)? {
         Some(mut row) => Some(sql_text_in_store(store, &mut row, 0, allocation)?),
@@ -2158,14 +2157,14 @@ fn meta_text_in_store(
 }
 fn meta_i64_in_store(
     store: &(impl CodecRead + ?Sized),
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     key: &str,
     allocation: Option<&OwnedBudget>,
 ) -> Result<i64, String> {
     if store.codec_work().is_none() {
-        return v2::control_meta_i64(tx, key, allocation);
+        return snap.control_meta_i64(key, allocation);
     }
-    let value = meta_text_in_store(store, tx, key, allocation)?
+    let value = meta_text_in_store(store, snap, key, allocation)?
         .ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
     let label = store
         .native_format(format_args!("meta.{key}"))
@@ -6068,6 +6067,23 @@ pub(super) mod tests {
         read_history(&tx, &raw, control)
     }
 
+    /// #1890：只读快照作用域内能执行的 SQL 只有白名单这些固定文本；每条都在真实发布过的库上
+    /// 编译成单条只读 SELECT（白名单混入写语句、多语句或拼错表名都会在这里失败）。
+    #[test]
+    fn read_snapshot_queries_are_single_readonly_selects() {
+        let mut f = published();
+        let tx = f.conn.transaction().unwrap();
+        let snap = ReadSnapshot::new(&tx);
+        for query in SnapshotQuery::ALL {
+            assert!(
+                query.sql().to_bytes().starts_with(b"SELECT "),
+                "{:?}",
+                query.sql()
+            );
+            snap.prepare(query).unwrap().finalize().unwrap();
+        }
+    }
+
     #[test]
     fn history_public_coverage_binds_readonly_transaction_cut_and_mode() {
         let f = published();
@@ -6079,8 +6095,9 @@ pub(super) mod tests {
         let tx = conn.transaction().unwrap();
         let control = control_audit::prepare_s3_control_history(&tx).unwrap();
         let raw = read_raw_events(&tx).unwrap();
+        let snap = ReadSnapshot::new(&tx);
         let verified = read_verified_public_history(
-            &tx,
+            &snap,
             &raw,
             control,
             None,
@@ -6096,7 +6113,7 @@ pub(super) mod tests {
         assert!(verified.qualified());
         let cut = &verified.history().cuts[0];
         verified
-            .audit_cut(&tx, cut, None, None, None, |reader| {
+            .audit_cut(&ReadSnapshot::new(&tx), cut, None, None, None, |reader| {
                 let r = cut.roots.generated_state.view();
                 reader
                     .verify_history_public_root(r, sc::Mode::Public)
@@ -6132,12 +6149,19 @@ pub(super) mod tests {
         .unwrap();
         let other_tx = other.transaction().unwrap();
         assert!(verified
-            .audit_cut(&other_tx, cut, None, None, None, |_| Ok(()))
+            .audit_cut(
+                &ReadSnapshot::new(&other_tx),
+                cut,
+                None,
+                None,
+                None,
+                |_| Ok(())
+            )
             .is_err());
         let control = control_audit::prepare_s3_control_history(&other_tx).unwrap();
         let raw = read_raw_events(&other_tx).unwrap();
         let other_history = read_indexed_history_with_policy(
-            &other_tx,
+            &ReadSnapshot::new(&other_tx),
             &raw,
             control,
             None,
@@ -6151,7 +6175,14 @@ pub(super) mod tests {
         )
         .unwrap();
         assert!(verified
-            .audit_cut(&tx, &other_history.cuts[0], None, None, None, |_| Ok(()))
+            .audit_cut(
+                &ReadSnapshot::new(&tx),
+                &other_history.cuts[0],
+                None,
+                None,
+                None,
+                |_| Ok(())
+            )
             .is_err());
     }
 
@@ -6200,8 +6231,9 @@ pub(super) mod tests {
         let tx = conn.transaction().unwrap();
         let control = control_audit::prepare_s3_control_history(&tx).unwrap();
         let raw = read_raw_events(&tx).unwrap();
+        let snap = ReadSnapshot::new(&tx);
         let verified = read_verified_public_history(
-            &tx,
+            &snap,
             &raw,
             control,
             None,
@@ -6231,32 +6263,46 @@ pub(super) mod tests {
         };
         super::source_audit::reset_ordinary_proof_stats();
         session
-            .audit_cut(&tx, cut, None, None, None, audit)
+            .audit_cut(&ReadSnapshot::new(&tx), cut, None, None, None, audit)
             .unwrap();
         let first = super::source_audit::ordinary_proof_stats();
         assert!(first.executions > 0);
         session
-            .audit_cut(&tx, cut, None, None, None, audit)
+            .audit_cut(&ReadSnapshot::new(&tx), cut, None, None, None, audit)
             .unwrap();
         let second = super::source_audit::ordinary_proof_stats();
         assert!(second.hits > first.hits);
         assert_eq!(first.executions, second.executions);
         let failure = session
-            .audit_cut(&tx, cut, None, None, None, |reader, proofs| {
-                audit(reader, proofs)?;
-                Err::<(), _>(err("catalog sentinel"))
-            })
+            .audit_cut(
+                &ReadSnapshot::new(&tx),
+                cut,
+                None,
+                None,
+                None,
+                |reader, proofs| {
+                    audit(reader, proofs)?;
+                    Err::<(), _>(err("catalog sentinel"))
+                },
+            )
             .unwrap_err();
         assert!(failure.contains("catalog sentinel"));
         assert!(session.proofs.is_none());
         assert!(session
-            .audit_cut(&tx, cut, None, None, None, |_, _| Ok(()))
+            .audit_cut(
+                &ReadSnapshot::new(&tx),
+                cut,
+                None,
+                None,
+                None,
+                |_, _| Ok(())
+            )
             .unwrap_err()
             .contains("已拒绝"));
         super::source_audit::reset_ordinary_proof_stats();
         let mut reopened = verified.ordinary_source_session().unwrap();
         reopened
-            .audit_cut(&tx, cut, None, None, None, audit)
+            .audit_cut(&ReadSnapshot::new(&tx), cut, None, None, None, audit)
             .unwrap();
         assert_eq!(super::source_audit::ordinary_proof_stats().hits, 0);
         assert_eq!(
@@ -6270,24 +6316,38 @@ pub(super) mod tests {
         .unwrap();
         let foreign_tx = foreign.transaction().unwrap();
         assert!(reopened
-            .audit_cut(&foreign_tx, cut, None, None, None, |_, _| Ok(()))
+            .audit_cut(
+                &ReadSnapshot::new(&foreign_tx),
+                cut,
+                None,
+                None,
+                None,
+                |_, _| Ok(())
+            )
             .is_err());
         assert!(reopened.proofs.is_none());
         let mut expired = verified.ordinary_source_session().unwrap();
         let deadline = std::time::Instant::now() - std::time::Duration::from_secs(1);
         assert!(expired
-            .audit_cut(&tx, cut, Some(deadline), None, None, |reader, proofs| {
-                super::source_audit::audit_generated_with_proofs(
-                    reader,
-                    cut.roots.generated_state.view(),
-                    (&raw).into(),
-                    &cut.metadata.profile_id,
-                    &cut.metadata.rule_revision,
-                    Some(deadline),
-                    None,
-                    proofs,
-                )
-            })
+            .audit_cut(
+                &ReadSnapshot::new(&tx),
+                cut,
+                Some(deadline),
+                None,
+                None,
+                |reader, proofs| {
+                    super::source_audit::audit_generated_with_proofs(
+                        reader,
+                        cut.roots.generated_state.view(),
+                        (&raw).into(),
+                        &cut.metadata.profile_id,
+                        &cut.metadata.rule_revision,
+                        Some(deadline),
+                        None,
+                        proofs,
+                    )
+                }
+            )
             .is_err());
         assert!(expired.proofs.is_none());
         struct Reject(&'static str);
@@ -6314,29 +6374,36 @@ pub(super) mod tests {
         for code in ["budget_exceeded", "cancelled"] {
             let mut session = verified.ordinary_source_session().unwrap();
             session
-                .audit_cut(&tx, cut, None, None, None, audit)
+                .audit_cut(&ReadSnapshot::new(&tx), cut, None, None, None, audit)
                 .unwrap();
             let gate = Reject(code);
             let error = session
-                .audit_cut(&tx, cut, None, None, Some(&gate), |reader, proofs| {
-                    super::source_audit::audit_generated_with_proofs(
-                        reader,
-                        cut.roots.generated_state.view(),
-                        (&raw).into(),
-                        &cut.metadata.profile_id,
-                        &cut.metadata.rule_revision,
-                        None,
-                        Some(&gate),
-                        proofs,
-                    )
-                })
+                .audit_cut(
+                    &ReadSnapshot::new(&tx),
+                    cut,
+                    None,
+                    None,
+                    Some(&gate),
+                    |reader, proofs| {
+                        super::source_audit::audit_generated_with_proofs(
+                            reader,
+                            cut.roots.generated_state.view(),
+                            (&raw).into(),
+                            &cut.metadata.profile_id,
+                            &cut.metadata.rule_revision,
+                            None,
+                            Some(&gate),
+                            proofs,
+                        )
+                    },
+                )
                 .unwrap_err();
             assert!(error.contains(code), "{error}");
             assert!(session.proofs.is_none());
         }
         let mut malformed = verified.ordinary_source_session().unwrap();
         malformed
-            .audit_cut(&tx, cut, None, None, None, audit)
+            .audit_cut(&ReadSnapshot::new(&tx), cut, None, None, None, audit)
             .unwrap();
         let original = cut.roots.generated_state.view();
         let mut bad = ContentRef {
@@ -6347,18 +6414,25 @@ pub(super) mod tests {
         };
         bad.kind = Kind::Array;
         assert!(malformed
-            .audit_cut(&tx, cut, None, None, None, |reader, proofs| {
-                super::source_audit::audit_generated_with_proofs(
-                    reader,
-                    (&bad).into(),
-                    (&raw).into(),
-                    &cut.metadata.profile_id,
-                    &cut.metadata.rule_revision,
-                    None,
-                    None,
-                    proofs,
-                )
-            })
+            .audit_cut(
+                &ReadSnapshot::new(&tx),
+                cut,
+                None,
+                None,
+                None,
+                |reader, proofs| {
+                    super::source_audit::audit_generated_with_proofs(
+                        reader,
+                        (&bad).into(),
+                        (&raw).into(),
+                        &cut.metadata.profile_id,
+                        &cut.metadata.rule_revision,
+                        None,
+                        None,
+                        proofs,
+                    )
+                }
+            )
             .is_err());
         assert!(malformed.proofs.is_none());
     }
@@ -6492,7 +6566,7 @@ pub(super) mod tests {
         let mut s = content_store::TxStore::new(&tx).unwrap();
         let latest = *generations.last().unwrap();
         let entries = object_index::load(&tx, &mut s, latest).unwrap();
-        let auxiliary = aux_index::load(&tx, &mut s, latest).unwrap();
+        let auxiliary = aux_index::load(&ReadSnapshot::new(&tx), &mut s, latest).unwrap();
         generations
             .iter()
             .map(|&g| {
@@ -6517,7 +6591,12 @@ pub(super) mod tests {
         use super::layout::Layout;
         let tx = conn.transaction().unwrap();
         let mut s = content_store::TxStore::new(&tx).unwrap();
-        let auxiliary = aux_index::load(&tx, &mut s, *generations.last().unwrap()).unwrap();
+        let auxiliary = aux_index::load(
+            &ReadSnapshot::new(&tx),
+            &mut s,
+            *generations.last().unwrap(),
+        )
+        .unwrap();
         let mut crossed = false;
         for (family, table, column) in [
             (0, "s_content_witnesses", "wire_root"),
@@ -6684,26 +6763,26 @@ pub(super) mod tests {
             // 夹具的旧事实在本闭包内创建，以免其 capture 不变生命周期逃出 scope。
             let mut base = HashReader::captured_for_audit(&capture, None).unwrap();
             base.audit_full_arrays = true;
-            let auxiliary = aux_index::load(&tx, &mut base, 1).unwrap();
-            let mut objects = object_index::load_for_history(&tx, &mut base, 1).unwrap();
+            let auxiliary = aux_index::load(&ReadSnapshot::new(&tx), &mut base, 1).unwrap();
+            let mut objects = object_index::load_for_history(&ReadSnapshot::new(&tx), &mut base, 1).unwrap();
             let mut sweep = objects.native_sweep();
             let mut aux = aux_index::NativeAuxAudit::from_loaded(&base, &auxiliary, raw_view);
             let mut prefixes = NativeHistoryPrefixes::new(&base, raw_view, None);
             let mut ordered = Some(bj::RawPrefixIndex::new(raw_view));
             let (raw_nodes, wire_nodes) = hash_current_raw(&base, raw_view, None, None).unwrap();
             let before = budget.live();
-            assert_eq!(verify_required_meta_admitted(&tx, scope)?, 1);
+            assert_eq!(verify_required_meta_admitted(&ReadSnapshot::new(&tx), scope)?, 1);
             let mut store = HashReader::captured_for_audit(&capture, None).map_err(err)?
                 .with_codec_work(scope, &budget);
             store.audit_full_arrays = true;
             let mut effective = bj::new_map(None);
             let mut resolved = bj::new_work(None);
-            let mut stmt = CheckedStatement::prepare(&tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=1").map_err(err)?;
+            let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(&tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=1").map_err(err)?;
             let mut row = stmt.next().map_err(err)?.unwrap();
             let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
             let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
             let cut = audit_one_published_cut(
-                &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
+                &ReadSnapshot::new(&tx), None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
                 &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None, &mut None,
             )?;
@@ -6720,7 +6799,7 @@ pub(super) mod tests {
             let mut cuts = bj::new_work(None);
             store.native_codec_room(&mut cuts, 1).map_err(err)?;
             cuts.try_push(cut).map_err(err)?;
-            verify_current_frontiers(&store, &tx, &cuts, 0, None)?;
+            verify_current_frontiers(&store, &ReadSnapshot::new(&tx), &cuts, 0, None)?;
             assert!(budget.live() > before);
             assert!(scope.snapshot().attempts > 0);
             Ok::<_, String>(())
@@ -7123,8 +7202,9 @@ pub(super) mod tests {
         }
         let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
         reader.audit_full_arrays = true;
-        let auxiliary = aux_index::load(&tx, &mut reader, 4).unwrap();
-        let mut objects = object_index::load_for_history(&tx, &mut reader, 4).unwrap();
+        let auxiliary = aux_index::load(&ReadSnapshot::new(&tx), &mut reader, 4).unwrap();
+        let mut objects =
+            object_index::load_for_history(&ReadSnapshot::new(&tx), &mut reader, 4).unwrap();
         let (bytes, batch): (Vec<u8>, String) = tx
             .query_row(
                 "SELECT manifest_root,batch_id FROM s_content_publications WHERE generation=1",
@@ -7134,8 +7214,9 @@ pub(super) mod tests {
             .unwrap();
         let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
         let (m, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
+        let snap = ReadSnapshot::new(&tx);
         let mut projection = native_cut_projection(
-            &tx,
+            &snap,
             &mut reader,
             &mut objects,
             &auxiliary,
@@ -7499,11 +7580,13 @@ pub(super) mod tests {
         {
             let mut fast = HashReader::captured_for_audit(&capture, None).unwrap();
             fast.audit_full_arrays = true;
-            let aux = aux_index::load(&tx, &mut fast, 4).unwrap();
-            let mut objects = object_index::load_for_history(&tx, &mut fast, 4).unwrap();
+            let aux = aux_index::load(&ReadSnapshot::new(&tx), &mut fast, 4).unwrap();
+            let mut objects =
+                object_index::load_for_history(&ReadSnapshot::new(&tx), &mut fast, 4).unwrap();
             // Bind THIS case's actual roots; expected arrays still derive from the real indexes.
+            let snap = ReadSnapshot::new(&tx);
             let projection = native_cut_projection(
-                &tx,
+                &snap,
                 &mut fast,
                 &mut objects,
                 &aux,
@@ -7679,7 +7762,7 @@ pub(super) mod tests {
         let tx = f.conn.transaction().unwrap();
         assert!(verify_source(
             &super::super::audit_store::NativeAdmission(None),
-            &tx,
+            &ReadSnapshot::new(&tx),
             &cuts[0].metadata,
             None
         )
@@ -8442,7 +8525,7 @@ mod owner_retention {
 /// 会构造的文本和 scope 树预留；不复制判据，不在失败后换另一套检查。
 #[cfg(feature = "s_incremental")]
 fn verify_required_meta_admitted(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     work: &sc::capture_allocation::scratch::WorkScope,
 ) -> Result<i64, String> {
     use super::audit_owner::native::JsonShape;
@@ -8458,8 +8541,7 @@ fn verify_required_meta_admitted(
         "last_advance_frontier",
         "scope",
     ] {
-        let mut stmt =
-            CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(err)?;
+        let mut stmt = snap.prepare(SnapshotQuery::META_VALUE).map_err(err)?;
         stmt.bind_text(1, key).map_err(err)?;
         if let Some(mut row) = stmt.next().map_err(err)? {
             let text = row.text(0).map_err(err)?;
@@ -8493,7 +8575,7 @@ fn verify_required_meta_admitted(
         .ok_or_else(|| err(admission.native_overflow()))?;
     let _temporaries = admission.native_reservation(reserved_bytes).map_err(err)?;
     // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
-    verify_required_meta(tx)
+    snap.verify_required_meta()
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
@@ -8517,7 +8599,7 @@ pub(super) fn append_owner_cut(
     super::audit_owner::native::Failure,
 > {
     let mut retained = super::audit_retention::RetainedDelta::default();
-    verify_required_meta_admitted(tx, work)?;
+    verify_required_meta_admitted(&ReadSnapshot::new(tx), work)?;
     let previous = old.cuts.last().map_or(-1, |c| c.metadata.input_frontier);
     if generation != old.cuts.len() as i64 + 1 {
         return Err(err("owner 后缀非连续一代").into());
@@ -8598,7 +8680,7 @@ pub(super) fn append_owner_cut(
         &store,
     )?;
     let mut resolved = bj::new_work(None);
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
+    let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
     stmt.bind_integer(1, generation).map_err(err)?;
     let mut row = stmt
         .next()
@@ -8616,7 +8698,7 @@ pub(super) fn append_owner_cut(
         .verify_many_ref([manifest.view()], sc::Mode::Template)
         .map_err(err)?;
     let cut = audit_one_published_cut(
-        tx,
+        &ReadSnapshot::new(tx),
         None,
         &mut row,
         &mut store,
@@ -8665,7 +8747,7 @@ pub(super) fn append_owner_cut(
         ));
     });
     let facts = control.into_facts()?;
-    verify_current_frontiers(&store, tx, &old.cuts, frontier, None)?;
+    verify_current_frontiers(&store, &ReadSnapshot::new(tx), &old.cuts, frontier, None)?;
     let auxiliary_facts = native_aux.map(|aux| aux.into_facts_retained(&mut retained));
     let prefixes = prefixes.unwrap();
     retained.release_bytes(sequence_bytes);
@@ -8769,11 +8851,13 @@ mod manifest_template_coverage_tests {
         let roots = [RefValue::from(root.clone())];
         let mut reader = HashReader::new(&mut nodes);
         let proof = VerifiedObjectOriginals {
-            transaction: &tx,
+            transaction: &ReadSnapshot::new(&tx),
             reader: (&reader as *const HashReader<'_>).cast(),
             entries: &[],
         };
-        proof.verify_public(&tx, &mut reader, &roots).unwrap();
+        proof
+            .verify_public(&ReadSnapshot::new(&tx), &mut reader, &roots)
+            .unwrap();
         let mut other = Connection::open_with_flags(
             fixture.conn.path().unwrap(),
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -8782,7 +8866,7 @@ mod manifest_template_coverage_tests {
         let other_tx = other.transaction().unwrap();
         assert_eq!(
             proof
-                .verify_public(&other_tx, &mut reader, &roots)
+                .verify_public(&ReadSnapshot::new(&other_tx), &mut reader, &roots)
                 .unwrap_err()
                 .code(),
             sc::code::SOURCE
@@ -8792,7 +8876,7 @@ mod manifest_template_coverage_tests {
         let mut captured = HashReader::captured(&capture, None);
         assert_eq!(
             proof
-                .verify_public(&tx, &mut captured, &roots)
+                .verify_public(&ReadSnapshot::new(&tx), &mut captured, &roots)
                 .unwrap_err()
                 .code(),
             sc::code::SOURCE
@@ -8800,13 +8884,13 @@ mod manifest_template_coverage_tests {
         nodes.insert_unchecked(root.digest().unwrap(), sc::tag::ARRAY, vec![0]);
         let mut reader = HashReader::new(&mut nodes);
         let proof = VerifiedObjectOriginals {
-            transaction: &tx,
+            transaction: &ReadSnapshot::new(&tx),
             reader: (&reader as *const HashReader<'_>).cast(),
             entries: &[],
         };
         assert_eq!(
             proof
-                .verify_public(&tx, &mut reader, &roots)
+                .verify_public(&ReadSnapshot::new(&tx), &mut reader, &roots)
                 .unwrap_err()
                 .code(),
             sc::code::NODE_DIGEST
@@ -8829,7 +8913,7 @@ mod manifest_template_coverage_tests {
         let tx = conn.transaction().unwrap();
         let roots = [RefValue::from(root.clone())];
         let proof = VerifiedManifestRoots {
-            transaction: &tx,
+            transaction: &ReadSnapshot::new(&tx),
             roots: &[],
             public: &roots,
         };
@@ -8844,7 +8928,7 @@ mod manifest_template_coverage_tests {
             .unwrap();
         let before = reads.get();
         proof
-            .verify_resolved_public(&tx, &mut reader, &roots)
+            .verify_resolved_public(&ReadSnapshot::new(&tx), &mut reader, &roots)
             .unwrap();
         assert_eq!(reads.get() - before, 1);
         for wrong in [
@@ -8864,7 +8948,11 @@ mod manifest_template_coverage_tests {
         ] {
             assert_eq!(
                 proof
-                    .verify_resolved_public(&tx, &mut reader, &[RefValue::from(wrong)])
+                    .verify_resolved_public(
+                        &ReadSnapshot::new(&tx),
+                        &mut reader,
+                        &[RefValue::from(wrong)]
+                    )
                     .unwrap_err()
                     .code(),
                 sc::code::SOURCE
@@ -8875,7 +8963,7 @@ mod manifest_template_coverage_tests {
         assert!(!captured.ordinary_bound_births_qualified());
         assert_eq!(
             proof
-                .verify_resolved_public(&tx, &mut captured, &roots)
+                .verify_resolved_public(&ReadSnapshot::new(&tx), &mut captured, &roots)
                 .unwrap_err()
                 .code(),
             sc::code::SOURCE
@@ -8884,7 +8972,7 @@ mod manifest_template_coverage_tests {
         let other_tx = other_conn.transaction().unwrap();
         assert_eq!(
             proof
-                .verify_resolved_public(&other_tx, &mut reader, &roots)
+                .verify_resolved_public(&ReadSnapshot::new(&other_tx), &mut reader, &roots)
                 .unwrap_err()
                 .code(),
             sc::code::SOURCE
@@ -8896,7 +8984,7 @@ mod manifest_template_coverage_tests {
         let mut reader = HashReader::new(&mut source);
         assert_eq!(
             proof
-                .verify_resolved_public(&tx, &mut reader, &roots)
+                .verify_resolved_public(&ReadSnapshot::new(&tx), &mut reader, &roots)
                 .unwrap_err()
                 .code(),
             sc::code::NODE_DIGEST

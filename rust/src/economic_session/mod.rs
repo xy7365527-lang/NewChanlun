@@ -61,3 +61,25 @@ mod tb03c_kill_tests;
 mod tb03c_rf01_tests;
 #[cfg(test)]
 mod tb03c_v2_kill_tests;
+
+/// 测试专用：写出桩脚本并设为可执行。内容先在本进程写到暂存文件，再由 `/bin/cp` 子进程复制成
+/// 真正被执行的文件：本进程从不持有该文件的写句柄，并行测试线程 fork 出的子进程就不会继承它，
+/// 执行时也就不会因 ETXTBSY（文本文件忙）失败。
+/// 不要改成 `std::fs::copy` 或直接 `std::fs::write`：两者都在本进程打开目标文件写入，竞态会原样回来。
+#[cfg(test)]
+pub(crate) fn write_test_executable(path: &std::path::Path, body: &str, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let staged = path.with_file_name(format!(
+        "{}.staged",
+        path.file_name().unwrap().to_str().unwrap()
+    ));
+    std::fs::write(&staged, body).unwrap();
+    let copied = std::process::Command::new("/bin/cp")
+        .arg(&staged)
+        .arg(path)
+        .status()
+        .unwrap();
+    std::fs::remove_file(&staged).unwrap();
+    assert!(copied.success(), "复制桩脚本失败：{copied}");
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+}

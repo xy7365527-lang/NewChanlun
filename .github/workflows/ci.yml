@@ -28,6 +28,35 @@ concurrency:
 #   或不可用时不必改代码；revert PR 本身也会被派到 Boat）。cargo registry 缓存 key 含 runner.environment，
 #   Boat 与 GitHub 托管 runner 的工作目录深度不同，两边各存各的。
 jobs:
+  # #1875 p2m：只改 .sandcastle/**、package.json、package-lock.json、tsconfig.sandcastle.json 的 PR 跳过 Rust 作业。
+  #   依据（2026-11-07 全量核对）：rust/、s_session/、.github/scripts 与 Rust 作业步骤不引用这些路径；
+  #   遍历目录的测试只遍历 rust/src、formal/Origin、s_session。docs/、.chanlun/ 有 Rust 测试读取，不在跳过集。
+  #   push main、手动触发总是全跑；重命名同时计旧路径；文件数达到 API 上限（3000）按需跑处理。
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ]; then echo rust=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/files"
+          total=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .changed_files)
+          other=$(grep -c -v -E '^(\.sandcastle/.+|package\.json|package-lock\.json|tsconfig\.sandcastle\.json)$' "$RUNNER_TEMP/files" || true)
+          if [ "$total" -ge 3000 ] || [ ! -s "$RUNNER_TEMP/files" ] || [ "$other" -ne 0 ]; then rust=true; else rust=false; fi
+          echo "changed=$total other=$other rust=$rust"
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+
   test:
     runs-on: ubuntu-latest
 
@@ -167,6 +196,8 @@ jobs:
   # PR run 39382771454 落在 EPYC 9V45，tb02w 1755s、job 31 分钟；PR run 39386754336 落在 EPYC 7763，tb02w 3877s、job 67 分钟。
   # 拆前 timeout 150（7e914f1e55，容纳单 job 全程）；拆后按各 job 实测分别设上限，仍兼作 #1406 挂死保护。
   rust-check:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # #1406 防遥测采样进程挂死的上限；本 job 拆后只剩检查类步骤，正常约 3 分钟。
     timeout-minutes: 30
@@ -177,7 +208,22 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      # #1875：Rust 作业用 sparse checkout，不拉 Rust 构建与测试从不读取的大目录（topological-computation 约 620 MB
+      #   的词典语料与运行日志、根目录与 docs 下的 PDF、p7_inputs）。核对过 rust/、s_session/、.github/scripts 与本作业步骤
+      #   均不引用这些路径（formal/ 里只在注释中提到 PDF 文件名）；只拉需要的 blob（filter: blob:none）。
+      - &rust-checkout
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/topological-computation*/
+            !/p7_inputs/
+            !/docs/chanlun/
+            !/docs/pdfs/
+            !/docs/formal-chain/
+            !/*.pdf
 
       - name: Test cargo telemetry wrapper (#1141)
         run: ../.github/scripts/test-run-cargo-with-telemetry.sh
@@ -276,17 +322,22 @@ jobs:
   # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
   # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
   rust-test-default:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 拆前本步约 8.8 分钟（run 39358379553）。
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
+      # #1875：本作业测试执行（lib 约 8.8 min，长尾为 a3_oracle_minparts_reentry 与 inclusion completeness）远大于编译，
+      #   按 R4 的规则开本仓 crate opt-level 1（断言与溢出检查保持开启），与 s_session 分片相同。
+      CI_OWN_OPT_LEVEL1: "1"
     defaults:
       run:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -305,6 +356,8 @@ jobs:
   #   .github/scripts/s-session-test-weights.tsv 的实测耗时做 LPT 分配；权重只管均衡、不管覆盖，
   #   表外新测试取中位数权重照常入片。改片数须同时改 matrix.shard 与 S_SESSION_SHARDS。
   rust-test-s-session:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: rust-test-s-session (shard ${{ matrix.shard }})
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 最慢那片只含 tb02w 一条长测试：独占 runner 实测 31 分钟（EPYC 9V45）到 67 分钟（EPYC 7763，已见最慢机型），含编译。
@@ -323,7 +376,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -352,8 +405,8 @@ jobs:
   #   这里拿各片实际产物再核一次，并确认各片看到的全集一致、片数齐全（某片被取消或漏传产物即红）。
   rust-test-s-session-coverage:
     runs-on: ubuntu-latest
-    needs: rust-test-s-session
-    if: ${{ !cancelled() }}
+    needs: [changes, rust-test-s-session]
+    if: ${{ !cancelled() && needs.changes.outputs.rust == 'true' }}
     timeout-minutes: 10
     env:
       S_SESSION_SHARDS: "4"
@@ -385,6 +438,8 @@ jobs:
           "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
 
   rust-test-s-session-extra-groups:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
@@ -407,7 +462,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -446,7 +501,16 @@ jobs:
       #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
       - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
         if: ${{ !cancelled() && startsWith(matrix.group, 'native') }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+        # #1875：#1488 Native 作业已用相同 features 逐名执行的锁（同为 dev 档，但它的依赖优化级别与进程模型不同：每条单独进程、
+        #   --exact），这里不再重跑。清单按「目标 测试名」取自该作业自己的计划（run-1488-delta-ci.py --print-plan），两边不会漂移。
+        #   实测重叠 59 条，其中含约 455 s 的 b2_native_warm_cold。两个作业的 if/needs/paths 门控须同步，见 s-fields-native-1488。
+        run: |
+          python3 ../.github/scripts/run-1488-delta-ci.py --mode Native --print-plan \
+            | python3 -c 'import json, sys; print("\n".join(lock["target"] + " " + lock["name"] for lock in json.load(sys.stdin)["locks"]))' \
+            > "$RUNNER_TEMP/native-1488-locks.txt"
+          echo "skip list: $(wc -l < "$RUNNER_TEMP/native-1488-locks.txt") Native locks run by #1488"
+          CI_DELTA_SKIP_FILE="$RUNNER_TEMP/native-1488-locks.txt" \
+            ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
 
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
       #   D-A：pager_probe 锁在此步设缓存实验输入执行，生产构建须不读、不生效（requested_cache_kib 为 null）。
@@ -506,8 +570,6 @@ jobs:
           do
             grep -Fx "test v3::admission_provider::control_lock_tests::$test ... ok" "$RUNNER_TEMP/1481-ledger.log"
           done
-          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
-          grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
@@ -527,6 +589,16 @@ jobs:
           do
             grep -Fx "test $test ... ok" "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
           done
+
+      # #1875：带 s_capture_native_testonly 的 release 构建单独放在所有 s_session,s_incremental release 命令之后。
+      #   原先它夹在 H1 三层对拍步骤中间，后面的 release 命令只好把 s_session,s_incremental 重新编一遍
+      #   （托管机 run 42340127421 实测多编 3m27s）。只调整顺序，覆盖面、features、档位与逐名核对不变。
+      - name: H1 Native-feature release lock（#1481 S1）
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
+          grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
 
       - name: H1 Native debug source suffix and receipt expiry locks（#1481 S1K）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
@@ -632,17 +704,21 @@ jobs:
   # #1722：保留原 check 名称。仅全矩阵成功可绿；失败、取消、跳过或无结果均拒绝。
   rust-test-s-session-extras:
     runs-on: ubuntu-latest
-    needs: rust-test-s-session-extra-groups
+    needs: [changes, rust-test-s-session-extra-groups]
     if: ${{ always() }}
     timeout-minutes: 5
     steps:
       - name: Require all extras groups to succeed (#1722)
+        # 只在 changes 明确判定不需要 Rust 时才接受 skipped；changes 失败时 RUST 为空，这里照样失败。
         env:
           EXTRAS_RESULT: ${{ needs.rust-test-s-session-extra-groups.result }}
-        run: test "$EXTRAS_RESULT" = success
+          RUST: ${{ needs.changes.outputs.rust }}
+        run: test "$EXTRAS_RESULT" = success || { test "$EXTRAS_RESULT" = skipped && test "$RUST" = false; }
 
   # #1769（ADR 0039 迁移步骤 1，C-L 验收第 4 项）：唯一生产 launcher 与 X 骨架入口测试。
   rust-test-production-session:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: 45
     env:
@@ -652,7 +728,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -668,6 +744,8 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs "${CI_CARGO_JOBS:-1}" -- --test-threads 1
 
   rust-test-backtest-bin:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 拆前本步约 9.3 分钟（run 39358379553）。
     timeout-minutes: 45
@@ -678,7 +756,7 @@ jobs:
         working-directory: rust
 
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
 
       - uses: ./.github/actions/rust-job-setup
 
@@ -692,6 +770,8 @@ jobs:
   # #1488：独立运行两种构建的序列与真实 memo 锁，不等待 rust-check 的完整回归。
   # 依赖预取单列为联网步骤；后续 --offline 只约束测试阶段，不代表全程离线。
   s-sequence-1488:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "#1488 序列与真实 memo (${{ matrix.mode }})"
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     strategy:
@@ -714,7 +794,7 @@ jobs:
         shell: bash
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -932,7 +1012,11 @@ jobs:
           if-no-files-found: error
 
   # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
+  # #1875：rust-test-s-session-extras (native) 不再重跑本作业 A/B/C 锁单里的测试（CI_DELTA_SKIP_FILE）。
+  #   两个作业的 if/needs/paths 等门控必须同步修改：只有本作业被跳过、extras 照跑时，这批锁在该轮 CI 里就一次都没执行。
   s-fields-native-1488:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "#1488 固定字段共享核 (Native)"
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # #1588 约定：同上，Native 组编译 + 精确锁。
@@ -947,7 +1031,7 @@ jobs:
         shell: bash
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - *rust-checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -1178,7 +1262,8 @@ jobs:
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
       - name: node:test — Sandcastle + wayfinder
-        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
+        # #1915：wayfinder_engine 的测试按通配纳入（含 split-publication、action-recheck 等交错测试），新增同类测试无需再改这里。
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine*.test.mts
 
   deepagents-pilot:
     runs-on: ubuntu-latest
@@ -1217,8 +1302,55 @@ jobs:
         run: python -m ruff check --select F,E9,B,I .
       - name: Mypy
         run: python -m mypy pilot1742
+      # #1875：本步串行约 9.3 min，是只改 .sandcastle 的 PR 的 CI 下限。-n 4 与托管 runner 4 核一致；
+      #   Belay 上串行与两轮 -n 4 的失败/错误集合逐项相同（84 项，均为环境依赖），耗时 655 → 252/209 s。
       - name: Test pilot and Studio without external workers
-        run: python -m pytest -q tests
+        run: python -m pytest -q -n 4 tests
       - name: Test approval-signing reader
         working-directory: .sandcastle/approval-signing
         run: python -m pytest -q tests
+
+  # #1875 p2m：唯一汇总门。依赖本 workflow 全部作业（macos-session 只在手动触发时跑，不计入）；
+  #   任一作业 failure 或 cancelled 即失败，被 changes 正确跳过的 Rust 作业（skipped）不算失败。
+  #   设为 main 的必需检查后，GitHub auto-merge 会同时等 deepagents/review 和整轮 CI，不会因审查单绿绕过 CI。
+  ci-ok:
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    timeout-minutes: 5
+    needs:
+      - changes
+      - test
+      - rust-check
+      - rust-test-default
+      - rust-test-s-session
+      - rust-test-s-session-coverage
+      - rust-test-s-session-extra-groups
+      - rust-test-s-session-extras
+      - rust-test-production-session
+      - rust-test-backtest-bin
+      - s-sequence-1488
+      - s-fields-native-1488
+      - s-observer
+      - fixture-drift
+      - sandcastle-ts
+      - deepagents-pilot
+    steps:
+      - name: Require every CI job to succeed or be skipped by the path filter
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
+          results = {name: job["result"] for name, job in needs.items()}
+          rust = (needs.get("changes") or {}).get("outputs", {}).get("rust")
+          # 只有 Rust 作业可以 skipped，且必须是 changes 明确判定 rust=false。
+          rust_jobs = {"rust-check", "rust-test-default", "rust-test-s-session", "rust-test-s-session-coverage",
+                       "rust-test-s-session-extra-groups", "rust-test-production-session", "rust-test-backtest-bin",
+                       "s-sequence-1488", "s-fields-native-1488"}
+          bad = {name: r for name, r in results.items()
+                 if not (r == "success" or (r == "skipped" and name in rust_jobs and rust == "false"))}
+          print(json.dumps({"rust": rust, "results": results}, indent=1, sort_keys=True))
+          if bad or results.get("changes") != "success" or rust not in ("true", "false"):
+              sys.exit(f"CI 未通过：{bad}，changes={results.get('changes')}，rust={rust}")
+          PY
