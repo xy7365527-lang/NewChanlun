@@ -1336,3 +1336,108 @@ def test_superseded_old_run_does_not_dispatch_models(lane):
     result = lane.review_pr(1810, 1)
     assert result["verdict"] == "STALE" and lane.gateway.sent == []
     assert not (lane.state_root / "runs" / "launches").exists()
+
+
+def _unknown_success_then_reconciled(lane, attempt=1):
+    """终态 success 写入结果不明且读回不见（401 形态），主控按流程 reconcile 为未生效。"""
+    real = lane.gateway.set_status
+    def set_status(sha, context, state, description):
+        if state == "success":
+            lane.gateway.sent.append(state)
+            raise OutcomeUnknown("已发送结果不明")
+        return real(sha, context, state, description)
+    lane.gateway.set_status = set_status
+    with pytest.raises(EffectPending):
+        lane.review_pr(1810, attempt)
+    lane.gateway.set_status = real
+    head = lane.gateway.pr["head"]["sha"]
+    target = next(json.loads(p.read_text()) for p in (lane.state_root / "runs").glob(f"*-a{attempt}/target.json")
+                  if json.loads(p.read_text())["head_sha"] == head)
+    lane.reconcile(target["run_id"], "主控已核实 GitHub 上没有该 success")
+    return list(lane.gateway.sent)
+
+
+def test_reconciled_reuse_success_regates_admission_before_resend(lane, env):
+    """#1913 独审 B1：对账为未生效后恢复，沿用结果必须重做部署准入；准入失效就不发 success。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    sent = _unknown_success_then_reconciled(lane)
+    (lane.source / ".git" / "fake-admission").write_text("fail")
+    result = lane.review_pr(1810)
+    assert "success" not in lane.gateway.sent[len(sent):] and result["verdict"] == "STALE"
+
+
+def test_reconciled_success_is_not_resent_after_newer_same_head_attempt(lane):
+    """#1913 独审 B1：对账为未生效后，同 head 已登记更晚 attempt，旧 run 不再发 success。"""
+    sent = _unknown_success_then_reconciled(lane)
+    lane.target(1810, 2)
+    result = lane.review_pr(1810, 1)
+    assert "success" not in lane.gateway.sent[len(sent):] and result["verdict"] == "STALE"
+
+
+def test_reconciled_success_passing_the_gate_is_resent(lane):
+    """B1 正向：对账为未生效、门仍成立时照常补发。"""
+    _unknown_success_then_reconciled(lane)
+    result = lane.review_pr(1810)
+    assert result["publication"]["state"] == "success"
+
+
+def test_migration_is_retryable_after_transient_failure_mid_publish(lane, monkeypatch):
+    """#1913 独审 N-a：迁移已重验写下结论、发布时读 PR 401；认证恢复后再迁移能补发，不必重跑模型。"""
+    folder = _legacy_auth_stale(lane)
+    git(lane.source, "commit", "--allow-empty", "-qm", "controller redeployed")
+    real_get = lane.gateway.get_pr
+    calls = {"n": 0}
+    def get_pr(number):
+        calls["n"] += 1
+        if calls["n"] == 3:  # load_target、recover_stale.check_current 之后：publish 内的 check_current
+            raise IdentityError("GitHub 返回 HTTP 401")
+        return real_get(number)
+    monkeypatch.setattr(lane.gateway, "get_pr", get_pr)
+    before = list(lane.gateway.sent)
+    with pytest.raises(EffectPending):
+        lane.migrate_stale(1810, 1)
+    monkeypatch.setattr(lane.gateway, "get_pr", real_get)
+    assert lane.gateway.sent == before
+    launches = (lane.state_root / "runs" / "launches").read_text()
+    result = lane.migrate_stale(1810, 1)
+    assert result["publication"]["state"] == "success" and result["recovered_from_stale"]["reason"].startswith("GitHub")
+    assert (lane.state_root / "runs" / "launches").read_text() == launches
+    with pytest.raises(IdentityError, match="只迁移未发布"):
+        lane.migrate_stale(1810, 1)  # 已发布的不再迁移
+    assert json.loads((folder / "outcome.json").read_text())["publication"]["state"] == "success"
+
+
+def test_refused_migration_leaves_stale_on_disk(lane):
+    """#1913 独审 N-b：迁移被同 head 更晚 attempt 取代时，磁盘 outcome 回到 STALE，不留未发布的 PASS。"""
+    folder = _legacy_auth_stale(lane)
+    git(lane.source, "commit", "--allow-empty", "-qm", "controller redeployed")
+    lane.target(1810, 2)
+    sent = list(lane.gateway.sent)
+    result = lane.migrate_stale(1810, 1)
+    assert "migration_refused" in result and lane.gateway.sent == sent
+    assert json.loads((folder / "outcome.json").read_text())["verdict"] == "STALE"
+
+
+def test_migration_refuses_changed_review_contract(lane, monkeypatch):
+    """#1913 独审 N-c：合同（policy、模型、提示词）已变的旧结论不迁移，须新审。"""
+    _legacy_auth_stale(lane)
+    git(lane.source, "commit", "--allow-empty", "-qm", "controller redeployed with new contract")
+    monkeypatch.setattr(module, "REVIEW_CONTRACT", "sha256:" + "f" * 64)
+    with pytest.raises(IdentityError, match="合同"):
+        lane.migrate_stale(1810, 1)
+
+
+def test_migration_of_contractless_legacy_target_checks_dispatched_prompt(lane, monkeypatch):
+    """旧 controller 登记的 target 未记合同：以实际派发给模型的提示词核对，提示词不同就不迁移。"""
+    folder = _legacy_auth_stale(lane)
+    target = json.loads((folder / "target.json").read_text())
+    target["review_contract"] = ""
+    (folder / "target.json").write_text(json.dumps(target))
+    git(lane.source, "commit", "--allow-empty", "-qm", "controller redeployed")
+    original = module.PROMPT
+    monkeypatch.setattr(module, "PROMPT", original + "\n新增一条审查要求")
+    with pytest.raises(IdentityError, match="合同"):
+        lane.migrate_stale(1810, 1)
+    monkeypatch.setattr(module, "PROMPT", original)
+    assert lane.migrate_stale(1810, 1)["publication"]["state"] == "success"

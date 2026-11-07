@@ -293,9 +293,12 @@ def prepare_review(target: ReviewTarget, source: Path, checkout: Path) -> Frozen
         raise IdentityError("merge-base 不符")
     names = tuple(x.decode() for x in _git(checkout, "diff", "--name-only", "-z", "--no-ext-diff",
                                           target.merge_base_sha, target.head_sha).split(b"\0") if x)
-    prompt = PROMPT.format(pr=target.pr_number, base=target.base_sha, merge_base=target.merge_base_sha,
-                           head=target.head_sha, names=json.dumps(names, ensure_ascii=False))
-    return FrozenReviewInput(checkout, names, prompt)
+    return FrozenReviewInput(checkout, names, review_prompt(target, names))
+
+
+def review_prompt(target: ReviewTarget, names: tuple[str, ...]) -> str:
+    return PROMPT.format(pr=target.pr_number, base=target.base_sha, merge_base=target.merge_base_sha,
+                         head=target.head_sha, names=json.dumps(names, ensure_ascii=False))
 
 
 def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: Path) -> ReviewOutcome:
@@ -768,8 +771,10 @@ class ExternalReview:
         真实双审走 _publish_final；沿用结果重新做部署准入，并在 PR 锁内重读历史、确认来源未变，任何一项
         失效都不发布 success，记 STALE（原 outcome 另存为历史），由新 attempt 接手。"""
         reused = saved.get("reused_from") or {}
-        if Journal(folder / "effects").load(f"status-{saved['state']}") is not None:
-            # 终态已发出或已发布（journal 为 pending 或 done）：只对账。publish 先读回远端，读到即认领；pending 读不到
+        record = Journal(folder / "effects").load(f"status-{saved['state']}")
+        if record is not None and record["state"] in ("pending", "done"):
+            # 终态已发出或已发布（journal 为 pending 或 done）：只对账。主控对账为 reconciled_not_applied 的
+            # 等同未发布，下面照常过门（取代检查、沿用重做准入），不直接重发。publish 先读回远端，读到即认领；pending 读不到
             # 上抛待对账、不重发；done 被覆盖也上抛待对账。不重新过门，免得把远端已有的 success 记成「未发布」。
             saved["publication"] = publisher.publish(saved["state"], reused.get("run_id"))
             return saved
@@ -949,9 +954,21 @@ class ExternalReview:
         admission = self._deployment_admission(publisher_head)
         if admission is None:
             raise IdentityError("当前发布者未通过部署准入，不迁移")
+        if target.policy_version != POLICY or target.review_contract not in ("", REVIEW_CONTRACT):
+            raise IdentityError("审查 policy 或合同已变更，须新审，不迁移")
+        names = tuple(x.decode() for x in _git(self.source, "diff", "--name-only", "-z", "--no-ext-diff",
+                                              target.merge_base_sha, target.head_sha).split(b"\0") if x)
+        expected_prompt = review_prompt(target, names)
+        for model in MODELS:  # 合同 = policy + 模型 + 提示词；旧 run 的 target 未记合同，以实际派发的提示词为准
+            launch = folder / model / "launch.json"
+            if not launch.exists() or _read(launch).get("prompt") != expected_prompt:
+                raise IdentityError("原审查不是在当前审查合同下产生（模型或提示词不同），须新审，不迁移")
         with _lock(folder):
             saved = _read(folder / "outcome.json") if (folder / "outcome.json").exists() else {}
-            if saved.get("verdict") != "STALE":
+            if saved.get("migrated") and "publication" not in saved:
+                # 上次迁移已重验并写下结论，但发布中途失败（认证或传输）：取回原 STALE 记录从头再迁移。
+                saved = _read(folder / saved["recovered_from_stale"]["history"])
+            if saved.get("verdict") != "STALE" or "publication" in saved:
                 raise IdentityError("只迁移未发布终态的 STALE run")
             publisher = StatusPublisher(self.gateway, target, folder, self.state_root / "status-locks",
                                         controller=publisher_head)
@@ -960,7 +977,9 @@ class ExternalReview:
             try:
                 return self.recover_stale(target, folder, publisher, saved, migration)
             except Stale as error:
-                return {**saved, "migration_refused": str(error)}
+                refused = {**saved, "migration_refused": str(error)}
+                _save(folder / "outcome.json", refused)  # 已写下的迁移结论作废，磁盘回到 STALE
+                return refused
 
     def status(self, number: int) -> list[dict]:
         if number <= 0:
