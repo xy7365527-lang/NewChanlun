@@ -217,7 +217,19 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
   if (!ownsLock) throw new Error("独审监督启动失败，终态已保存");
 }
 
+/** 沿用旧 PASS 前的部署准入：与正式派发同一组检查（controller 已提交、ready() 核当前镜像的 accepted 记录并做容器隔离合同观测），不建审阅容器、不调模型。 */
+export function checkReviewAdmission(deps: Pick<WorkerDependencies, "identity" | "ready"> = dependencies):
+  { controller_code_head: string; image_id: string } {
+  const identity = deps.identity();
+  if (identity.dirty) throw new Error("controller 代码未提交");
+  return { controller_code_head: identity.head, image_id: deps.ready(REVIEW_IMAGE) };
+}
+
 async function main(): Promise<void> {
+  if (process.argv.length === 3 && process.argv[2] === "--admission-only") {
+    process.stdout.write(JSON.stringify(checkReviewAdmission()) + "\n");
+    return;
+  }
   if (process.argv.length !== 4 || process.argv[2] !== "--output-dir") throw new Error("只接受宿主 --output-dir");
   const folder = resolve(process.argv[3]!);
   if (folder !== realpathSync(folder)) throw new Error("回执目录含符号链接");
