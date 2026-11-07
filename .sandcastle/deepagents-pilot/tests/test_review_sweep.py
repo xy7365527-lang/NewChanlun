@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from datetime import datetime, timezone
 
 import pytest
@@ -476,3 +477,91 @@ def test_main_advance_then_catch_up_costs_no_extra_model_calls(lane, env):
     assert "launch" in acts(actions)
     assert (lane.state_root / "runs" / "launches").read_text() == launches   # 新 head 沿用，不再调用模型
     assert lane.status(1810)[-1]["outcome"].get("reused_from")
+
+
+# ---- 第二轮独审（d0fa06f9）I1/I2 与 Nit ----
+
+def _advance_main_mid_flight(lane):
+    git(lane.source, "checkout", "-q", "-b", "main-moved", lane.gateway.pr["base"]["sha"])
+    (lane.source / "unrelated-moved").write_text("main moved\n")
+    git(lane.source, "add", ".")
+    git(lane.source, "commit", "-qm", "main moved")
+    lane.gateway.pr["base"]["sha"] = git(lane.source, "rev-parse", "HEAD")
+    git(lane.source, "checkout", "-q", lane.gateway.pr["head"]["sha"])
+
+
+def _stale_mid_flight(lane, github, **kwargs):
+    """审查进行中 main 前进：终态判 Stale，GitHub 上该 head 停在 pending，strict 下 PR 落后。"""
+    sweep, host, _ = make(lane, github=github, **kwargs)
+    head = lane.gateway.pr["head"]["sha"]
+    lane.gateway.after_write = lambda: lane.gateway.sent == ["pending"] and _advance_main_mid_flight(lane)
+    assert "launch" in acts(sweep.tick())
+    lane.gateway.after_write = None
+    assert lane.gateway.sent == ["pending"] and lane.status(1810)[-1]["outcome"]["verdict"] == "STALE"
+    github.checks_by_head[head] = {"deepagents/review": "pending", "ci-ok": "success", "DevSkim": "success"}
+    github.states[1810] = {"mergeable_state": "behind"}
+    return sweep, host, head
+
+
+def test_stale_mid_flight_behind_pr_is_caught_up_not_deadlocked(lane):
+    """I1：GitHub 上停住的 pending 不再挡追平；本地没有在途审查就追平，追平后的新 head 由下一轮重审。"""
+    github = FakeGitHub(lane)
+    sweep, host, head = _stale_mid_flight(lane, github, auto_merge=True)
+    assert acts(sweep.tick()) == ["behind-awaiting-update", "update-branch"]
+    assert github.calls == [("update", 1810, head)] and len(host.spawned) == 1
+
+
+def test_live_local_reviewer_still_blocks_catch_up(lane):
+    """I1 反向：本地确有该 PR 的审查进程在跑时，落后也不追平。"""
+    github = FakeGitHub(lane)
+    github.states[1810] = {"mergeable_state": "behind"}
+    sweep, host, _ = make(lane, run=False, github=github, auto_merge=True)
+    host.rows.append((4999, 4999, "S", " ".join(module.run_review_command(1810, 1, "a" * 40, "/k")[1:])))
+    result = next(a for a in sweep.tick() if a["action"] == "behind-waiting")
+    assert result["reviewing"] is True and github.calls == []
+
+
+@pytest.mark.parametrize(("rules", "trusted"), [
+    ({"strict": True, "checks": [{"context": "deepagents/review", "app_id": 5486877},
+                                 {"context": "ci-ok", "app_id": 15368}]}, {"deepagents/review", "ci-ok"}),
+    ({"strict": False, "checks": [{"context": "deepagents/review", "app_id": 5486877},
+                                  {"context": "ci-ok", "app_id": 15368}]}, set()),
+    ({"strict": True, "checks": [{"context": "deepagents/review", "app_id": 5486877},
+                                 {"context": "ci-ok", "app_id": None}, {"context": "x", "app_id": -1}]},
+     {"deepagents/review"}),
+])
+def test_required_checks_count_only_strict_and_app_bound(monkeypatch, rules, trusted):
+    """I2：strict 关着一个都不算（会拿旧 base 上的结论合入）；没绑定来源 app 的检查谁都能伪造，不算。"""
+    cli = module.GhCli("Newchanlun/NewChanlun")
+    monkeypatch.setattr(cli, "_gh", lambda *args: json.dumps(rules))
+    assert cli.required_checks() == trusted
+
+
+def test_child_dying_before_registration_backs_off(lane):
+    """Nit 2：子进程登记前就退出，同一 attempt 退避一段时间再派，不每轮派一个必死的子进程。"""
+    sweep, host, _ = make(lane, run=False)
+    assert acts(sweep.tick()) == ["launch"]
+    host.rows.clear()  # 子进程没登记就退出
+    assert acts(sweep.tick()) == ["launch-backoff"] and len(host.spawned) == 1
+    for marker in (lane.state_root / "sweep").glob("*.launched"):
+        old = marker.stat().st_mtime - module.LAUNCH_BACKOFF_SECONDS - 1
+        os.utime(marker, (old, old))
+    assert acts(sweep.tick()) == ["launch"] and len(host.spawned) == 2
+
+
+def test_idle_green_pr_is_still_merged(lane):
+    """Nit 3：活动窗只限制派新审；闲置超过窗口、三项全绿的 PR 照常合入。"""
+    sweep, _, github = make(lane, auto_merge=True)
+    sweep.tick()  # 先在窗口内审完
+    head = lane.gateway.pr["head"]["sha"]
+    green(github, head)
+    lane.gateway.pr["updated_at"] = "2026-01-01T00:00:00Z"
+    sweep.now = lambda: datetime(2026, 11, 7, tzinfo=timezone.utc)
+    actions = sweep.tick()
+    assert acts(actions) == ["stale-pr", "merged"] and github.calls == [("merge", 1810, head)]
+
+
+@pytest.mark.parametrize("path", ["deploy/.envrc", ".netrc", "web/.npmrc", "home/.ssh/id_ed25519", "id_rsa",
+                                  "keys/AuthKey_ABC.p8"])
+def test_more_credential_files_are_human_gated(path):
+    assert human_gated([path]) == {"secrets-or-credentials": [path]}
