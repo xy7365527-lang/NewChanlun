@@ -17,6 +17,10 @@ Infer the repo from `git remote -v` — `gh` does this automatically when run in
 
 Git 线名分与基线以 [`generation-constitution.md` §2](generation-constitution.md#2-现役线名单) 为唯一正本。本 tracker 的操作差分：新 PR 的 base 选 `main`；验收/关票引用 `main` 对应的 CI run；查旧 issue、PR 或 run 时，`main-rewritten` 只作为历史分支名检索。
 
+## 开 PR 前的证据
+
+沿用 pstack、Matt 和 Deep Agents 的既有作者流程，按根 [REVIEW.md](../../REVIEW.md) 前置可运行验证，并尽早安排 fresh-context 非作者独审；需要 PR 的入口可先开 draft，有效独审不重复。PR 采用 [测试、风险与回滚模板](../../.github/pull_request_template.md)；CLI 或自动创建的 PR 可链接同等交付证据，不因缺模板标题重做验证。未完成独审不得合入。
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
