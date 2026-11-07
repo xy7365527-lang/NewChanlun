@@ -28,6 +28,35 @@ concurrency:
 #   或不可用时不必改代码；revert PR 本身也会被派到 Boat）。cargo registry 缓存 key 含 runner.environment，
 #   Boat 与 GitHub 托管 runner 的工作目录深度不同，两边各存各的。
 jobs:
+  # #1875 p2m：只改 .sandcastle/**、package.json、package-lock.json、tsconfig.sandcastle.json 的 PR 跳过 Rust 作业。
+  #   依据（2026-11-07 全量核对）：rust/、s_session/、.github/scripts 与 Rust 作业步骤不引用这些路径；
+  #   遍历目录的测试只遍历 rust/src、formal/Origin、s_session。docs/、.chanlun/ 有 Rust 测试读取，不在跳过集。
+  #   push main、手动触发总是全跑；重命名同时计旧路径；文件数达到 API 上限（3000）按需跑处理。
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ]; then echo rust=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/files"
+          total=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .changed_files)
+          other=$(grep -c -v -E '^(\.sandcastle/.+|package\.json|package-lock\.json|tsconfig\.sandcastle\.json)$' "$RUNNER_TEMP/files" || true)
+          if [ "$total" -ge 3000 ] || [ ! -s "$RUNNER_TEMP/files" ] || [ "$other" -ne 0 ]; then rust=true; else rust=false; fi
+          echo "changed=$total other=$other rust=$rust"
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+
   test:
     runs-on: ubuntu-latest
 
@@ -167,6 +196,8 @@ jobs:
   # PR run 39382771454 落在 EPYC 9V45，tb02w 1755s、job 31 分钟；PR run 39386754336 落在 EPYC 7763，tb02w 3877s、job 67 分钟。
   # 拆前 timeout 150（7e914f1e55，容纳单 job 全程）；拆后按各 job 实测分别设上限，仍兼作 #1406 挂死保护。
   rust-check:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # #1406 防遥测采样进程挂死的上限；本 job 拆后只剩检查类步骤，正常约 3 分钟。
     timeout-minutes: 30
@@ -276,6 +307,8 @@ jobs:
   # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
   # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
   rust-test-default:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 拆前本步约 8.8 分钟（run 39358379553）。
     timeout-minutes: 45
@@ -305,6 +338,8 @@ jobs:
   #   .github/scripts/s-session-test-weights.tsv 的实测耗时做 LPT 分配；权重只管均衡、不管覆盖，
   #   表外新测试取中位数权重照常入片。改片数须同时改 matrix.shard 与 S_SESSION_SHARDS。
   rust-test-s-session:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: rust-test-s-session (shard ${{ matrix.shard }})
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 最慢那片只含 tb02w 一条长测试：独占 runner 实测 31 分钟（EPYC 9V45）到 67 分钟（EPYC 7763，已见最慢机型），含编译。
@@ -352,8 +387,8 @@ jobs:
   #   这里拿各片实际产物再核一次，并确认各片看到的全集一致、片数齐全（某片被取消或漏传产物即红）。
   rust-test-s-session-coverage:
     runs-on: ubuntu-latest
-    needs: rust-test-s-session
-    if: ${{ !cancelled() }}
+    needs: [changes, rust-test-s-session]
+    if: ${{ !cancelled() && needs.changes.outputs.rust == 'true' }}
     timeout-minutes: 10
     env:
       S_SESSION_SHARDS: "4"
@@ -385,6 +420,8 @@ jobs:
           "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
 
   rust-test-s-session-extra-groups:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: rust-test-s-session-extras (${{ matrix.group }})
     strategy:
       fail-fast: false
@@ -632,17 +669,21 @@ jobs:
   # #1722：保留原 check 名称。仅全矩阵成功可绿；失败、取消、跳过或无结果均拒绝。
   rust-test-s-session-extras:
     runs-on: ubuntu-latest
-    needs: rust-test-s-session-extra-groups
+    needs: [changes, rust-test-s-session-extra-groups]
     if: ${{ always() }}
     timeout-minutes: 5
     steps:
       - name: Require all extras groups to succeed (#1722)
+        # 只在 changes 明确判定不需要 Rust 时才接受 skipped；changes 失败时 RUST 为空，这里照样失败。
         env:
           EXTRAS_RESULT: ${{ needs.rust-test-s-session-extra-groups.result }}
-        run: test "$EXTRAS_RESULT" = success
+          RUST: ${{ needs.changes.outputs.rust }}
+        run: test "$EXTRAS_RESULT" = success || { test "$EXTRAS_RESULT" = skipped && test "$RUST" = false; }
 
   # #1769（ADR 0039 迁移步骤 1，C-L 验收第 4 项）：唯一生产 launcher 与 X 骨架入口测试。
   rust-test-production-session:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     timeout-minutes: 45
     env:
@@ -668,6 +709,8 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs "${CI_CARGO_JOBS:-1}" -- --test-threads 1
 
   rust-test-backtest-bin:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # 拆前本步约 9.3 分钟（run 39358379553）。
     timeout-minutes: 45
@@ -692,6 +735,8 @@ jobs:
   # #1488：独立运行两种构建的序列与真实 memo 锁，不等待 rust-check 的完整回归。
   # 依赖预取单列为联网步骤；后续 --offline 只约束测试阶段，不代表全程离线。
   s-sequence-1488:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "#1488 序列与真实 memo (${{ matrix.mode }})"
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     strategy:
@@ -933,6 +978,8 @@ jobs:
 
   # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
   s-fields-native-1488:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: "#1488 固定字段共享核 (Native)"
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
     # #1588 约定：同上，Native 组编译 + 精确锁。
@@ -1178,7 +1225,8 @@ jobs:
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
       - name: node:test — Sandcastle + wayfinder
-        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
+        # #1915：wayfinder_engine 的测试按通配纳入（含 split-publication、action-recheck 等交错测试），新增同类测试无需再改这里。
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine*.test.mts
 
   deepagents-pilot:
     runs-on: ubuntu-latest
@@ -1222,3 +1270,48 @@ jobs:
       - name: Test approval-signing reader
         working-directory: .sandcastle/approval-signing
         run: python -m pytest -q tests
+
+  # #1875 p2m：唯一汇总门。依赖本 workflow 全部作业（macos-session 只在手动触发时跑，不计入）；
+  #   任一作业 failure 或 cancelled 即失败，被 changes 正确跳过的 Rust 作业（skipped）不算失败。
+  #   设为 main 的必需检查后，GitHub auto-merge 会同时等 deepagents/review 和整轮 CI，不会因审查单绿绕过 CI。
+  ci-ok:
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    timeout-minutes: 5
+    needs:
+      - changes
+      - test
+      - rust-check
+      - rust-test-default
+      - rust-test-s-session
+      - rust-test-s-session-coverage
+      - rust-test-s-session-extra-groups
+      - rust-test-s-session-extras
+      - rust-test-production-session
+      - rust-test-backtest-bin
+      - s-sequence-1488
+      - s-fields-native-1488
+      - s-observer
+      - fixture-drift
+      - sandcastle-ts
+      - deepagents-pilot
+    steps:
+      - name: Require every CI job to succeed or be skipped by the path filter
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
+          results = {name: job["result"] for name, job in needs.items()}
+          rust = (needs.get("changes") or {}).get("outputs", {}).get("rust")
+          # 只有 Rust 作业可以 skipped，且必须是 changes 明确判定 rust=false。
+          rust_jobs = {"rust-check", "rust-test-default", "rust-test-s-session", "rust-test-s-session-coverage",
+                       "rust-test-s-session-extra-groups", "rust-test-production-session", "rust-test-backtest-bin",
+                       "s-sequence-1488", "s-fields-native-1488"}
+          bad = {name: r for name, r in results.items()
+                 if not (r == "success" or (r == "skipped" and name in rust_jobs and rust == "false"))}
+          print(json.dumps({"rust": rust, "results": results}, indent=1, sort_keys=True))
+          if bad or results.get("changes") != "success" or rust not in ("true", "false"):
+              sys.exit(f"CI 未通过：{bad}，changes={results.get('changes')}，rust={rust}")
+          PY
