@@ -201,3 +201,28 @@ ADR 0052/0056 要求的正式输入、X 受控撮合、费用来源及整数规�
 本节影响 `policy_records/venue-profile-P0.json` 的记录及 `run_records.rs`、`config.rs`、`tests/test_theta_pyo3_bridge.py` 的测试；不改成交、策略、流式、NT 或 FFI 实现。实际选择链、原 synthetic 锁及旧已签记录兼容锁继续保留。
 
 Linux 验收分别运行 `cargo test --release --locked --lib theta_v0::run_records` 与 `cargo test --release --locked --lib theta_v0::config`。Python 按既有 CI 的 `pip install ./rust` 入口构建精确候选扩展，记录候选 SHA 和加载路径，目标测试实际执行、零 skip。测试临时补入的滑点数值只验证记录读回，不构成签值。实施精确 head 的非作者独审、必要 CI、主线合入和 #1640 原运行义务仍分别验收。
+
+## 追加修订：replay v4 的滑点模型假设（#1774，2026-11-07）
+
+### 十一、slippage_bps 签为 2 bp/side 模型假设，NT 路径先拆成本标签
+
+本节依据 [#1774 评论 6702153508](https://github.com/Newchanlun/NewChanlun/issues/1774#issuecomment-6702153508) 的自主裁定（采纳补稿方案 S1），追加而不改写历史裁定。补稿为 `/Volumes/AgentStorage/issue1774-replay-policy/slippage-addendum/draft.md`（sha256 `3440d88ee6f8d48ed16269248adf583af7430398f05409af4fecc9f9425f8058`），非作者独审为同目录 `review.md`（VERDICT: PASS，sha256 `fe9a7e32073340e1540754c0f1c8c658867709a6d01aaa288144b80e7f61f8bc`）。生效日为 2026-11-07。记录 `venue-profile-P0` 从 v3 升为 v4，仍以 `profile_id=P0`、`symbol=BTC` 绑定 `replay_binance_spot_1m`，不加 `usage` 头；`tick_size`、`commission_bps`、`tax_bps`、`entry_delay_bars` 的值与来源与 v3 逐字节相同。
+
+| 字段 | v4 值 | 来源与代价 |
+|---|---|---|
+| `slippage_bps` | 2 bp/side | `[新缠论:选择]` 模型假设，非测量、非场所事实。#917 平方根律 `Y·σ_日·sqrt(Q/V_日)`：Y=0.9（Donier & Bonart 2015 §4.3），δ=0.5，σ_日=GK 中位 2.531%，V_日=中位 1.2255e9 USDT（本仓 1m 全史），Q=100,000 USDC（ADR 0040 裁定三、四，P0 单重 L0 开局批），得 2.057，取最近整数为 2。与 ADR 0040 C(L0)=1,110,000 同公式同输入。半价差已评估，2020 年以后约 1 tick，不单列 |
+
+依据是裁定四退场条件的第二路：「按 `[新缠论:选择]` 单独签一个回放撮合假设值并写明代价」。不签的现状不是「未知」，而是影子臂经诊断夹具无来源地用 2 bp 滑点和 1 bp 佣金；签值后三项成本都有具名来源。
+
+四条限制写进记录 source，读数须一并携带：
+
+1. P0 的 Q/V_日 ≈ 8.2e-5，低于平方根律已测下界 1e-3（Bucci 等 2019），属外推；按线性外推只有 0.59 bp，所以 2 bp 是偏保守的一侧。
+2. Binance 现货 aggTrades 四个样本日只作量级核对：2025、2026 年约 0.07 bp，2022 年压力日 1.43 bp，2018 年约 3.5 bp（VWAP 落差均值加半价差中位，口径混合）。
+3. 逐日代入的年中位从 2017 年约 39 bp 到 2025 年约 1.2 bp。常数表达不了逐年变化；按时间变化的冲击模型需要新的模型身份并改 `fill.rs`，不在本节（U-2）。
+4. 2 bp 只描述 P0 规模（10 万 USDC）的成本。批量臂起始 NAV 为首价 × 1e4（BTC 约 4,260 万），是 sizing 尺度匹配值，不得据此把 2 bp 读成该规模下的成本。规模增长或换向合单不触发改签（U-4）。
+
+不变项：ADR 0018 裁定五照旧，限价被动成交与开盘越过成交不扣本值；成本门 slippage 仍为 `Missing`，本值不是成本门数值（裁定二）；诊断夹具、synthetic 零值与成本门数值都不是来源（裁定四）。准入门与 `admissible()` 判定逻辑、synthetic 记录及 B1+B2、诊断夹具记录、ADR 0044 成本门四项不变。正式完整回放在成本口径上的前置仍是 #1381 的 `fee_profile` 与 G-2；本推导可作 #1381 的候选来源，不代替它。I-4 测量票的范围改为在 Binance 上自标 Y（U-3），不再是签值前置。
+
+**I-3 处置（同一 PR，排在签值之前）**。NT/Python 路径（`trading_system/backtest/theta_backtest_py.py`）的撮合成本来自 NT instrument（`BTC-USD-PERP.HYPERLIQUID`，maker 1 bp、taker 3.5 bp、tick 0.001）、NT 默认费用模型与 `FillModel(prob_slippage=0.0)`，不读 venue profile 的成本项。P0 变为 admissible 后，原「记录:」行会让读者以为成本按 P0 计算。处置为只改标签：输出拆成「准入记录」与「撮合成本来源」两行，后者无论 admissible 与否都打印，取值来自实际传给 `add_venue` 与 `add_instrument` 的对象；`ThetaRecStrategyConfig.venue_profile` 文档写明 NT 不读其成本项。撮合、策略、流式、NT 与 FFI 实现零改动。Rust ⑥段已标 `research-override`，本节不改；为它补一行成本来源标签登记为非阻塞建议（U-7）。
+
+本节影响 `policy_records/venue-profile-P0.json` 的记录，`run_records.rs`、`config.rs`、`tests/test_theta_pyo3_bridge.py` 的测试，`theta_backtest_py.py` 的输出标签与新增 `tests/test_theta_nt_cost_provenance.py`。Linux 验收命令同第十节。实施精确 head 的非作者独审、必要 CI 与主线合入分别验收。

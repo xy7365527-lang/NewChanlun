@@ -1,6 +1,6 @@
 {
   "id": "venue-profile-P0",
-  "version": 3,
+  "version": 4,
   "kind": "venue_profile",
   "profile_id": "P0",
   "symbol": "BTC",
@@ -19,9 +19,9 @@
       "source": "ADR 0044 P0 签署记录 fee: Known，Binance 现货 VIP0 taker 1/1000（analysis/data_cache/venue_fee_binance_spot_20260726.json，ADR 0044:24）；ADR 0057 裁定一维持不动"
     },
     "slippage_bps": {
-      "value": "AwaitingPolicy",
+      "value": 2,
       "unit": "bp/side",
-      "source": "ADR 0057 裁定二、九；https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6697804941。回放撮合滑点与成本门滑点是两个量；仓内无 P0 逐笔滑点观测，保持 AwaitingPolicy。退场条件：具名测量证据经识别范围审查后签值，或另行裁定为具名模型假设并写明代价；不外推 synthetic 零值，不拿诊断夹具或成本门数值补齐。"
+      "source": "ADR 0057 裁定十一；https://github.com/Newchanlun/NewChanlun/issues/1774#issuecomment-6702153508；生效 2026-11-07。[新缠论:选择] 模型假设，非测量、非场所事实。公式为 #917 平方根律 I = Y·σ_日·sqrt(Q/V_日)：Y=0.9（Donier & Bonart 2015 §4.3，BTC/MtGox 标定），δ=0.5，σ_日=GK 中位 2.531%，V_日=中位 1.2255e9 USDT（本仓 analysis/data_cache/btc_1m_full.json，4,613,599 根 1m bar，sha256 16ea13d55f2ae7edcfc503f604a14961fd1a378227afd37c63f23386e894707b），Q=100,000 USDC（ADR 0040 裁定三、四：P0 单重 ⟨BTC, L0⟩ 开局批）⟹ 2.057 bp；取整规则为取最近整数，得 2。与 ADR 0040 C(L0)=1,110,000 同公式同输入，不另立冲击模型。半价差已评估：2020 年以后约 1 tick，数值可忽略，不单列。限制：(1) Q/V_日=8.2e-5，低于平方根律已测下界 1e-3（Bucci 等 2019），属外推，线性外推只有 0.59 bp；(2) Binance 现货 aggTrades 四个样本日的单笔吃单量级核对：2025、2026 年约 0.07 bp，2022 年压力日 1.43 bp，2018 年约 3.5 bp（3.5 = VWAP 落差均值 2.60 + 半价差中位 0.93，口径混合，只作量级核对）；(3) 逐日代入的年中位从 2017 年约 39 bp 到 2025 年约 1.2 bp，常数表达不了逐年变化（U-2，需新模型身份）；(4) 只适用于 P0 规模（10 万 USDC），不是批量臂起始 NAV（首价 × 1e4，约 4,260 万）规模下的成本；规模增长或换向合单不触发改签。ADR 0018 裁定五：限价被动成交与开盘越过成交不扣本值。成本门 slippage 仍为 Missing（ADR 0044、ADR 0057 裁定二），本值不是成本门数值。诊断夹具的 2 不是来源（ADR 0057:62），synthetic 零值与成本门数值亦不是。证据：/Volumes/AgentStorage/issue1774-replay-policy/slippage-addendum/draft.md sha256 3440d88ee6f8d48ed16269248adf583af7430398f05409af4fecc9f9425f8058；非作者独审 review.md sha256 fe9a7e32073340e1540754c0f1c8c658867709a6d01aaa288144b80e7f61f8bc。"
     },
     "tax_bps": {
       "value": 0,
@@ -34,5 +34,5 @@
       "source": "ADR 0057 裁定九；https://github.com/xy7365527-lang/NewChanlun/issues/1774#issuecomment-6697804941；生效 2026-11-07。[新缠论:选择] 模型假设：批量臂从信号后第一根可交易 bar 成交，不是真实场所延迟；合法值为非负整数根数，改值即出新版本，不允许失败换值兜底。夹具值 1 与 #907 DELAYERR 不作签值证据。"
     }
   },
-  "cost": "v3 的 delay=1、tax=0 是具名模型选择；slippage 仍未签，P0 继续拒启于 AwaitingPolicy{cost_inputs}，影子臂尚不能改用此 profile。tick_size 与 commission 及来源不变。改值须出新版本。"
+  "cost": "v4 的 slippage=2、tax=0、delay=1 三项均为具名模型选择，P0 admissible；读数仍带 [L1机制/费率未标定]。批量臂起始 NAV（首价 × 1e4，约 4,260 万）是 sizing 尺度匹配值，不是 P0 规模，不得据此把 2 bp 读成该规模下的成本。tick_size 与 commission 及来源不变。改值须出新版本。"
 }
