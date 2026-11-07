@@ -1148,12 +1148,15 @@ def test_legacy_auth_stale_with_tampered_receipt_is_not_recovered(lane):
     assert lane.gateway.sent == sent
 
 
-def test_real_drift_stale_is_left_alone(lane):
+def test_stale_recovery_is_decided_by_reverification_not_reason_text(lane):
+    """恢复与否只看重验：原因文案写成漂移，但 PR、controller、取代关系与回执都仍成立时照常补发；
+    真漂移（head 已动）由 test_legacy_auth_stale_is_not_recovered_after_real_drift 覆盖。"""
     folder = _legacy_auth_stale(lane)
     saved = json.loads((folder / "outcome.json").read_text())
     saved["reason"] = "PR base、head 或目标已漂移"
     (folder / "outcome.json").write_text(json.dumps(saved))
-    assert lane.review_pr(1810)["verdict"] == "STALE"
+    (folder / "outcome.json").chmod(0o600)
+    assert lane.review_pr(1810)["verdict"] == "PASS"
 
 
 def _interrupt_before_reuse_success(lane, env, monkeypatch):
@@ -1232,3 +1235,104 @@ def test_wrongly_typed_history_outcome_does_not_block_registration(lane, env):
     _advance_main(lane, env)
     result = lane.review_pr(1810)
     assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+
+def _dirty_executing_checkout(tmp_path):
+    repo = tmp_path / "exec-checkout"
+    (repo / ".sandcastle").mkdir(parents=True)
+    git(tmp_path, "init", "-q", "-b", "main", str(repo))
+    git(repo, "config", "user.name", "x")
+    git(repo, "config", "user.email", "x@example.invalid")
+    (repo / ".sandcastle" / "controller.py").write_text("# committed\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-qm", "controller B")
+    (repo / ".sandcastle" / "controller.py").write_text("# committed\n# uncommitted edit\n")
+    return repo
+
+
+def test_controller_identity_is_the_executing_checkout_not_the_object_source(lane, monkeypatch, tmp_path):
+    """D5 外独审 P1：执行代码所在检出不干净时拒绝；对象来源（source）不能替它出具身份。"""
+    monkeypatch.setattr(module, "SOURCE_REPO", _dirty_executing_checkout(tmp_path))
+    with pytest.raises(IdentityError, match="未提交"):
+        lane.review_pr(1810)
+    assert lane.gateway.sent == []
+
+
+def test_cli_has_no_source_override():
+    with pytest.raises(SystemExit):
+        module.main(["review-pr", "--pr", "1810", "--private-key", "/never-read.pem", "--source", "/x"])
+
+
+def test_migration_records_both_identities_requires_admission_and_is_never_reused(lane, env):
+    """新部署补发旧 controller 下的 STALE：记录原审查与当前发布者两个身份，发布者须过部署准入，不冒充旧 controller。"""
+    folder = _legacy_auth_stale(lane)
+    review_controller = json.loads((folder / "target.json").read_text())["controller_code_head"]
+    git(lane.source, "commit", "--allow-empty", "-qm", "controller redeployed")  # 新部署
+    publisher = git(lane.source, "rev-parse", "HEAD")
+    (lane.source / ".git" / "fake-admission").write_text("fail")
+    with pytest.raises(IdentityError, match="部署准入"):
+        lane.migrate_stale(1810, 1)
+    (lane.source / ".git" / "fake-admission").unlink()
+    launches = (lane.state_root / "runs" / "launches").read_text()
+    result = lane.migrate_stale(1810, 1)
+    assert result["verdict"] == "PASS" and result["publication"]["state"] == "success"
+    assert result["migrated"]["review_controller"] == review_controller
+    assert result["migrated"]["publisher_controller"] == publisher != review_controller
+    assert json.loads((folder / "target.json").read_text())["controller_code_head"] == review_controller
+    assert (lane.state_root / "runs" / "launches").read_text() == launches  # 不重跑模型
+    _advance_main(lane, env)
+    git(lane.source, "checkout", "-q", publisher)
+    later = lane.review_pr(1810)
+    assert "reused_from" not in later and len(later["reviews"]) == len(MODELS)  # 迁移结论不作沿用来源
+
+
+def test_reuse_success_delivered_but_journal_pending_is_claimed_not_restaled(lane, env, monkeypatch):
+    """D5 外独审 N1：沿用 success 已送达、journal 仍 pending 时中断；恢复时即使准入失效，也先读回认领，不改记 STALE、不重发。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    def crash():
+        if lane.gateway.sent[-1:] == ["success"]:
+            raise KeyboardInterrupt
+    lane.gateway.after_write = crash
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810)
+    lane.gateway.after_write = None
+    (lane.source / ".git" / "fake-admission").write_text("fail")
+    sent = list(lane.gateway.sent)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and result["publication"]["state"] == "success"
+    assert lane.gateway.sent == sent
+
+
+def test_any_pr_read_failure_at_final_publish_is_pending_not_stale(lane, monkeypatch):
+    """D5 外独审 N2：按出处分类——最终发布时读取 PR 失败（如 token 刷新时安装身份不符）不判 STALE；恢复后同 attempt 补发。"""
+    broken = {"on": False}
+    real_get = lane.gateway.get_pr
+    def get_pr(number):
+        if broken["on"]:
+            raise IdentityError("安装身份不符，字段 permissions")
+        return real_get(number)
+    monkeypatch.setattr(lane.gateway, "get_pr", get_pr)
+    real_publish = module.StatusPublisher.publish
+    def publish(self, state, *args):
+        if state == "success" and not broken.get("done"):
+            broken["on"] = broken["done"] = True
+        return real_publish(self, state, *args)
+    monkeypatch.setattr(module.StatusPublisher, "publish", publish)
+    with pytest.raises(EffectPending, match="未判定漂移"):
+        lane.review_pr(1810)
+    broken["on"] = False
+    launches = (lane.state_root / "runs" / "launches").read_text()
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and result["publication"]["state"] == "success"
+    assert (lane.state_root / "runs" / "launches").read_text() == launches
+
+
+def test_superseded_old_run_does_not_dispatch_models(lane):
+    """D5 外独审 N3：同 head 更晚的 attempt 已登记时，旧 attempt 不发 pending、不派模型。"""
+    lane.target(1810, 1)
+    lane.target(1810, 2)
+    result = lane.review_pr(1810, 1)
+    assert result["verdict"] == "STALE" and lane.gateway.sent == []
+    assert not (lane.state_root / "runs" / "launches").exists()

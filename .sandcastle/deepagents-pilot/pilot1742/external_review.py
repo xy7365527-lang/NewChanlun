@@ -39,8 +39,6 @@ from .github_app import (
     AppIdentity,
     GitHubAppClient,
     IdentityError,
-    OutcomeUnknown,
-    RequestNotSent,
 )
 from .run import DEFAULT_HOME, SOURCE_REPO, _ps_rows, supervisor_alive
 
@@ -201,11 +199,10 @@ def _git(root: Path, *args: str, data: bytes | None = None) -> bytes:
                           check=True, capture_output=True).stdout
 
 
-def check_controller(expected: str | None = None, source: Path | None = None) -> str:
-    """HOST controller 的代码 head；source 默认是本模块所在仓库，受管恢复可指向 HOST 仓库。"""
-    source = source or SOURCE_REPO
-    head = _git(source, "rev-parse", "HEAD").decode().strip()
-    if _git(source, "status", "--porcelain", "--", ".sandcastle").strip():
+def check_controller(expected: str | None = None) -> str:
+    """正在执行的 controller 代码身份：本模块所在仓库的 HEAD，且 .sandcastle 干净。不可由参数替换。"""
+    head = _git(SOURCE_REPO, "rev-parse", "HEAD").decode().strip()
+    if _git(SOURCE_REPO, "status", "--porcelain", "--", ".sandcastle").strip():
         raise IdentityError("controller .sandcastle 有未提交改动")
     if expected is not None and head != expected:
         raise IdentityError("controller 代码 head 已漂移")
@@ -215,7 +212,11 @@ def check_controller(expected: str | None = None, source: Path | None = None) ->
 def load_target(gateway: RepoGateway, pr_number: int) -> dict[str, Any]:
     if type(pr_number) is not int or pr_number <= 0:
         raise ValueError("PR 号必须是正整数")
-    pr = gateway.get_pr(pr_number)
+    return parse_target(gateway, gateway.get_pr(pr_number), pr_number)
+
+
+def parse_target(gateway: RepoGateway, pr: dict[str, Any], pr_number: int) -> dict[str, Any]:
+    """从已读到的 PR 内容得出冻结目标；这里的不符是内容漂移，与读取时的认证或传输故障分开。"""
     try:
         base, head = pr["base"], pr["head"]
         repository_id = gateway.client.identity.repository_id
@@ -372,26 +373,27 @@ def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: P
         return failed("缺日志、解析失败或日志不符")
 
 
-def _transport_failure(error: BaseException | str) -> bool:
-    """GitHub 读写的认证或传输失败（连接、5xx、非 2xx 如 401/403/404），不是 PR 或 controller 漂移。"""
-    if isinstance(error, (RequestNotSent, OutcomeUnknown)):
-        return True
-    return str(error).startswith(("GitHub 返回 HTTP", "GitHub 请求失败"))
-
-
 class StatusPublisher:
     def __init__(self, gateway: RepoGateway, target: ReviewTarget, folder: Path, locks: Path,
-                 source: Path | None = None):
-        self.gateway, self.target, self.folder, self.locks, self.source = gateway, target, folder, locks, source
+                 controller: str | None = None):
+        """controller：发布者（正在执行的代码）应有的身份，默认就是本 run 登记时的 controller；
+        受管迁移由新部署补发旧 run 时，传入已准入的当前 controller。"""
+        self.gateway, self.target, self.folder, self.locks = gateway, target, folder, locks
+        self.controller = controller or target.controller_code_head
 
     def check_current(self) -> None:
         try:
-            check_controller(self.target.controller_code_head, self.source)
-            current = load_target(self.gateway, self.target.pr_number)
+            check_controller(self.controller)
         except IdentityError as error:
-            if _transport_failure(error):
-                # 读不到不等于漂移：不写 STALE，已保存的结论留待认证恢复后同 attempt 重跑补发（不重跑模型）。
-                raise EffectPending(f"{error}；未判定漂移，认证恢复后用同一 attempt 重跑以重验并补发") from error
+            raise Stale(str(error)) from error
+        try:
+            pr = self.gateway.get_pr(self.target.pr_number)
+        except IdentityError as error:
+            # 按出处分类：向 GitHub/App 读取 PR 时的任何失败（认证、token 刷新、安装、传输）都不是漂移。
+            raise EffectPending(f"{error}；读取 PR 失败，未判定漂移，恢复后用同一 attempt 重跑以重验并补发") from error
+        try:
+            current = parse_target(self.gateway, pr, self.target.pr_number)
+        except IdentityError as error:
             raise Stale(str(error)) from error
         if any(getattr(self.target, key) != value for key, value in current.items()):
             raise Stale("PR base、head 或目标已漂移")
@@ -438,8 +440,9 @@ class ExternalReview:
                  checkout_root: Path = CHECKOUT_ROOT, source: Path = SOURCE_REPO,
                  launcher: list[str] | None = None, poll_seconds: float = 1):
         self.gateway, self.state_root, self.checkout_root, self.source = gateway, state_root, checkout_root, source
-        self.launcher = launcher or [str(source / "node_modules" / ".bin" / "tsx"),
-                                     str(source / ".sandcastle" / "external-review-worker.mts")]
+        # worker 与 controller 同源：都取正在执行的代码所在仓库（SOURCE_REPO），不随对象来源 source 变化。
+        self.launcher = launcher or [str(SOURCE_REPO / "node_modules" / ".bin" / "tsx"),
+                                     str(SOURCE_REPO / ".sandcastle" / "external-review-worker.mts")]
         self.poll_seconds = poll_seconds
         self._stop = threading.Event()
 
@@ -457,7 +460,7 @@ class ExternalReview:
             patch = patch_identity(self.source, merge_base[0], data["head_sha"])
         except subprocess.CalledProcessError:
             raise IdentityError("needs_source_sync") from None
-        head = check_controller(source=self.source)
+        head = check_controller()
         target = ReviewTarget(**data, merge_base_sha=str(parse_sha(merge_base[0])), run_id=str(uuid.uuid4()),
                               attempt=attempt, policy_version=POLICY, controller_code_head=head,
                               registered_at_ns=time.time_ns(), patch_id=patch, review_contract=REVIEW_CONTRACT)
@@ -596,6 +599,7 @@ class ExternalReview:
             if (not saved or not self._settled(row) or old["run_id"] == target.run_id
                     or old["repository_id"] != target.repository_id
                     or saved.get("verdict") != "PASS" or saved.get("state") != "success" or "reused_from" in saved
+                    or "migrated" in saved
                     or (saved.get("publication") or {}).get("state") != "success"
                     or [(r["model"], r["verdict"]) for r in saved.get("reviews", [])]
                     != [(m, "PASS") for m in MODELS]
@@ -621,18 +625,25 @@ class ExternalReview:
         admission = self.reuse_admission(target, source) if source is not None else None
         return (source, admission) if source is not None and admission is not None else None
 
-    def reuse_admission(self, target: ReviewTarget, source: dict) -> dict | None:
-        """沿用前过一遍与正式派发相同的部署准入（worker --admission-only：controller 已提交且 head 相符、
-        当前镜像有 accepted 记录），并要求准入镜像与原 run 两份回执的镜像相同。任一不符就不沿用，照常双审。"""
+    def _deployment_admission(self, controller: str) -> dict | None:
+        """与正式派发同一组部署准入（worker --admission-only，在正在执行的代码所在仓库运行）：controller 已提交、
+        head 等于 controller，当前镜像有 accepted 记录。不通过返回 None。"""
         env = {k: os.environ[k] for k in ("PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG") if k in os.environ}
         try:
-            done = subprocess.run([*self.launcher, "--admission-only"], env=env, cwd=self.source, stdin=subprocess.DEVNULL,
+            done = subprocess.run([*self.launcher, "--admission-only"], env=env, cwd=SOURCE_REPO, stdin=subprocess.DEVNULL,
                                   capture_output=True, text=True, timeout=300)
             admission = json.loads(done.stdout) if done.returncode == 0 else None
         except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
             return None
-        if (not isinstance(admission, dict) or admission.get("controller_code_head") != target.controller_code_head
+        if (not isinstance(admission, dict) or admission.get("controller_code_head") != controller
                 or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(admission.get("image_id", "")))):
+            return None
+        return {"controller_code_head": controller, "image_id": admission["image_id"]}
+
+    def reuse_admission(self, target: ReviewTarget, source: dict) -> dict | None:
+        """沿用前过一遍与正式派发相同的部署准入，并要求准入镜像与原 run 两份回执的镜像相同。任一不符就不沿用，照常双审。"""
+        admission = self._deployment_admission(target.controller_code_head)
+        if admission is None:
             return None
         try:
             old_folder = self.state_root / "runs" / ReviewTarget(**source["target"]).key
@@ -757,8 +768,9 @@ class ExternalReview:
         真实双审走 _publish_final；沿用结果重新做部署准入，并在 PR 锁内重读历史、确认来源未变，任何一项
         失效都不发布 success，记 STALE（原 outcome 另存为历史），由新 attempt 接手。"""
         reused = saved.get("reused_from") or {}
-        if Journal(folder / "effects").done(f"status-{saved['state']}"):
-            # 终态已发布：只对账（publish 在 journal done 时只 probe 核对远端，被覆盖则上抛待对账），不重新判定。
+        if Journal(folder / "effects").load(f"status-{saved['state']}") is not None:
+            # 终态已发出或已发布（journal 为 pending 或 done）：只对账。publish 先读回远端，读到即认领；pending 读不到
+            # 上抛待对账、不重发；done 被覆盖也上抛待对账。不重新过门，免得把远端已有的 success 记成「未发布」。
             saved["publication"] = publisher.publish(saved["state"], reused.get("run_id"))
             return saved
         if not reused:
@@ -834,15 +846,14 @@ class ExternalReview:
         assert self.gateway is not None
         folder = self.state_root / "runs" / target.key
         with _lock(folder):
-            publisher = StatusPublisher(self.gateway, target, folder, self.state_root / "status-locks", self.source)
+            publisher = StatusPublisher(self.gateway, target, folder, self.state_root / "status-locks")
             try:
                 publisher.check_current()
                 if (folder / "outcome.json").exists():
                     saved = _read(folder / "outcome.json")
                     if saved["verdict"] == "STALE":
-                        if _transport_failure(saved.get("reason", "")):
-                            return self.recover_stale(target, folder, publisher, saved)
-                        return saved
+                        # 不看原因文案：recover_stale 重验目标、controller、取代关系与全部回执，任何一项不满足原样返回。
+                        return self.recover_stale(target, folder, publisher, saved)
                     return self._resume_publication(target, folder, publisher, saved)
                 reuse = self.reusable(target) if target.reuse_planned else None
                 if reuse is not None:
@@ -854,6 +865,8 @@ class ExternalReview:
                             return self._publish_reuse(target, folder, publisher, source, admission)
                 if target.reuse_planned and not any((folder / model).exists() for model in MODELS):
                     self.admit_space(target)  # 登记时因可沿用跳过了总准入，现在退回双审，补做
+                if self._superseded_on_head(target):  # 已被同 head 更晚的 attempt 取代：不发 pending、不派模型
+                    raise Stale("同 head 已有更晚登记的 attempt，本 run 不再派发")
                 publisher.publish("pending")
                 outcomes = self.run_reviewers(target, folder)
                 if self._dispatched_unfinished(folder):  # 不变量：已派发 reviewer 全部到终态才汇总
@@ -885,7 +898,8 @@ class ExternalReview:
                 if run_checkouts.is_dir() and not run_checkouts.is_symlink() and not any(run_checkouts.iterdir()):
                     run_checkouts.rmdir()
 
-    def recover_stale(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher, saved: dict) -> dict:
+    def recover_stale(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher, saved: dict,
+                      migration: dict | None = None) -> dict:
         """受管恢复：旧版本把 GitHub 认证/传输失败误记为 STALE（双审完整却没发布终态）。
         不重跑模型、不改旧记录：确认 PR 与 controller 仍是冻结目标，逐个重验已有回执且与原记录一致，
         原 STALE 记录另存为历史，再发布终态。任何一项不满足就原样返回 STALE。"""
@@ -912,9 +926,41 @@ class ExternalReview:
         _save(folder / history, saved)
         result = {"run_id": target.run_id, "verdict": verdict, "state": state, "target": asdict(target),
                   "reviews": [asdict(o) for o in outcomes],
-                  "recovered_from_stale": {"reason": saved.get("reason"), "history": history}}
+                  "recovered_from_stale": {"reason": saved.get("reason"), "history": history},
+                  **({"migrated": migration} if migration else {})}
         _save(folder / "outcome.json", result)
         return self._publish_final(target, folder, publisher, result)
+
+    def migrate_stale(self, number: int, attempt: int) -> dict:
+        """显式受管迁移：新部署的 controller 补发旧 controller 下双审完整却未发布终态的 STALE run。
+        发布者身份取正在执行的代码（干净、已通过部署准入），与原审查 controller 分开记录，不冒充旧 controller；
+        重验全部回执、当前 PR 与取代关系后补发，不重跑模型。迁移出的结论不作为沿用来源。"""
+        assert self.gateway is not None
+        current = load_target(self.gateway, number)
+        matches = [p for p in (self.state_root / "runs").glob(
+                   f"r{current['repository_id']}-p{number}-{current['base_sha']}-{current['head_sha']}-*-a{attempt}/target.json")]
+        if len(matches) != 1:
+            raise IdentityError("当前 PR base/head 下找不到唯一的该 attempt 旧 run")
+        folder = matches[0].parent
+        target = ReviewTarget(**_read(folder / "target.json"))
+        publisher_head = check_controller()
+        if publisher_head == target.controller_code_head:
+            return self.review_pr(number, attempt)  # controller 未变：普通的同 controller 恢复
+        admission = self._deployment_admission(publisher_head)
+        if admission is None:
+            raise IdentityError("当前发布者未通过部署准入，不迁移")
+        with _lock(folder):
+            saved = _read(folder / "outcome.json") if (folder / "outcome.json").exists() else {}
+            if saved.get("verdict") != "STALE":
+                raise IdentityError("只迁移未发布终态的 STALE run")
+            publisher = StatusPublisher(self.gateway, target, folder, self.state_root / "status-locks",
+                                        controller=publisher_head)
+            migration = {"review_controller": target.controller_code_head, "publisher_controller": publisher_head,
+                         "publisher_admission": admission}
+            try:
+                return self.recover_stale(target, folder, publisher, saved, migration)
+            except Stale as error:
+                return {**saved, "migration_refused": str(error)}
 
     def status(self, number: int) -> list[dict]:
         if number <= 0:
@@ -952,8 +998,10 @@ def main(argv: list[str] | None = None) -> int:
     review.add_argument("--pr", required=True, type=_positive)
     review.add_argument("--attempt", type=_positive, default=1)
     review.add_argument("--private-key", required=True, type=Path)
-    review.add_argument("--source", type=Path, default=None,
-                        help="HOST 仓库路径（受管恢复从另一检出运行时，controller 按它核对）")
+    migrate = sub.add_parser("migrate-stale", help="新部署补发旧 controller 下双审完整却未发布终态的 STALE run")
+    migrate.add_argument("--pr", required=True, type=_positive)
+    migrate.add_argument("--attempt", type=_positive, default=1)
+    migrate.add_argument("--private-key", required=True, type=Path)
     status_cmd = sub.add_parser("status")
     status_cmd.add_argument("--pr", required=True, type=_positive)
     reconcile = sub.add_parser("reconcile")
@@ -962,13 +1010,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     result: dict | list[dict]
     try:
-        if args.command == "review-pr":
+        if args.command in ("review-pr", "migrate-stale"):
             identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
                                    "newchanlun-deepagents-1742", args.private_key)
             with GitHubAppClient(identity, permissions=TOKEN_PERMISSIONS) as client:
                 client.verify()
-                lane = ExternalReview(RepoGateway(client), source=args.source or SOURCE_REPO)
-                result = lane.review_pr(args.pr, args.attempt)
+                lane = ExternalReview(RepoGateway(client))
+                result = (lane.review_pr(args.pr, args.attempt) if args.command == "review-pr"
+                          else lane.migrate_stale(args.pr, args.attempt))
         else:
             lane = ExternalReview(None)  # 本地 status、对账不获取或读取任何凭据。
             result = lane.status(args.pr) if args.command == "status" else lane.reconcile(args.run_id, args.note)
