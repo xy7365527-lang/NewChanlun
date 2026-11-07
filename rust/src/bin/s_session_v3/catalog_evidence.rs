@@ -1126,7 +1126,7 @@ mod owned_catalog_temp_tests {
                     assert!(matches!(&e.run_status, TextValue::Owned(_)));
                     assert!(matches!(&e.evidence, RefValue::Owned(_)));
                 }
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&ReadSnapshot::new(&tx), store, axes.view()).unwrap();
                 let axis = field_ref(store, axes.view(), "CC-001").unwrap();
                 let retained = budget.snapshot().live_requested_layout_bytes;
                 assert!(retained > capture_live);
@@ -1144,7 +1144,7 @@ mod owned_catalog_temp_tests {
                 assert_eq!(entries[0].evidence.digest().unwrap(), expected[0].4);
                 drop(ballast);
                 assert_eq!(budget.snapshot().live_requested_layout_bytes, retained);
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&ReadSnapshot::new(&tx), store, axes.view()).unwrap();
             },
         );
         drop(capture);

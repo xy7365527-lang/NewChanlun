@@ -3275,7 +3275,7 @@ mod tests {
         let mut conn = owned_aux_fixture();
         let tx = conn.transaction().unwrap();
         let mut normal = content_store::TxStore::new(&tx).unwrap();
-        let expected = load(&tx, &mut normal, 1).unwrap();
+        let expected = load(&ReadSnapshot::new(&tx), &mut normal, 1).unwrap();
         let expected_values = aux_values(&expected);
         let expected_members = cut_members(&expected, Layout::Sorted, 1, false).unwrap();
         let mut normal_runtime = Runtime::default();
@@ -3337,7 +3337,7 @@ mod tests {
             512 * 1024,
             |store| {
                 assert!(store.allocation_budget().is_some());
-                let actual = load(&tx, store, 1).unwrap();
+                let actual = load(&ReadSnapshot::new(&tx), store, 1).unwrap();
                 assert_eq!(aux_values(&actual), expected_values);
                 let mut runtime = Runtime::default();
                 let mut constructed = Index::new(store.allocation_budget());
@@ -3400,8 +3400,8 @@ mod tests {
                 drop(runtime);
                 tx.execute("UPDATE s_content_witnesses SET slot=1", [])
                     .unwrap();
-                let owned_error = load(&tx, store, 1).err().unwrap();
-                let normal_error = load(&tx, &mut normal, 1).err().unwrap();
+                let owned_error = load(&ReadSnapshot::new(&tx), store, 1).err().unwrap();
+                let normal_error = load(&ReadSnapshot::new(&tx), &mut normal, 1).err().unwrap();
                 assert_eq!(
                     owned_error, normal_error,
                     "同一错误SQL元数据的拒绝判据/错误不漂移"
@@ -3515,7 +3515,7 @@ mod tests {
             &budget,
             4096,
             512 * 1024,
-            |store| load(&tx, store, 1).unwrap(),
+            |store| load(&ReadSnapshot::new(&tx), store, 1).unwrap(),
         );
         let before = aux_values(&actual);
         let live = budget.snapshot().live_requested_layout_bytes;
