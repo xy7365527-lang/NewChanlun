@@ -13,7 +13,7 @@ def test_ts_python_ruling_protocol():
     for body in bodies:
         ruling = (f'**SPEC 独审裁定：PASS**\nSPEC：1340\n作者：author\n独审：reviewer\n'
                   f'正文 sha256：{spec_ruling_digest(body)}\n证据：/review_file.json\n')
-        for variant in [ruling, ruling.replace('reviewer', 'AUTHOR'), ruling.replace('/review_file.json', ''),
+        for variant in [ruling, 'nac\u212a', ruling.replace('reviewer', 'AUTHOR'), ruling.replace('/review_file.json', ''),
                         ruling.replace('PASS', 'BLOCK'), ruling.replace('1340', '1341'), '批准 通过',
                         ruling.replace('PASS**', 'BLOCK中文**'),
                         ruling.replace('PASS**', 'BLOCK\u0085**'),

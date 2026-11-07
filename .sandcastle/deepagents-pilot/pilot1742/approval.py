@@ -217,7 +217,7 @@ def spec_section(spec: SignedSpec) -> str:
 
 # ECMAScript trimEnd 的空白集合；Python str.rstrip 另含 U+0085 等，不是同一协议。
 _JS_SPACE = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
-_REJECT = re.compile(r"不批准|不通过|打回|驳回|重写|reject|deny|nack|暂不", re.IGNORECASE)
+_REJECT = re.compile(r"不批准|不通过|打回|驳回|重写|reject|deny|nack|暂不", re.IGNORECASE | re.ASCII)
 
 
 def spec_ruling_digest(body: str) -> str:

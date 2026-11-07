@@ -873,3 +873,21 @@ def test_typescript_release_and_python_intake_share_hold_policy(queued, label):
         with pytest.raises(AdmissionRefused):
             intake.register(TICKET)
         assert not v2.writes()
+
+
+@pytest.mark.parametrize('body', ['# SPEC\ndeepagents-scope: other/\n', '# SPEC\n'])
+def test_claim_halted_when_authorized_scope_changes(queued, body):
+    v2, cutover, intake, _ = queued
+    unit = intake.register(TICKET)
+    publish_ruling(v2)
+    ex = executor(v2, cutover, unit)
+    run_dir = PilotRun.run_dir(v2.home, unit.run_id)
+    claim = ex.claim(run_dir)
+    v2.github.issues[SPEC]['body'] = body
+    publish_ruling(v2)
+    before = v2.writes()
+    with pytest.raises(Halted):
+        with ex.action('dispatch', run_dir, claim.generation):
+            pytest.fail('scope change must fence dispatch')
+    assert v2.claim_record()['state'] == 'halted'
+    assert v2.writes() == before

@@ -412,7 +412,12 @@ class TicketExecutor:
             if pr_hits:
                 return "pr_forbidden_label:" + ",".join(pr_hits)
         if not isinstance(self.unit.admission, DedicatedPilot):
-            pending = self.spec_approval(run_dir, generation)
+            try:
+                pending = self.spec_approval(run_dir, generation)
+            except (ClaimRefused, ValueError) as error:
+                if isinstance(self.unit.admission, Queued):
+                    return str(error)
+                raise
             if pending is not None:
                 if isinstance(self.unit.admission, Queued):
                     raise ApprovalRequired(pending)
