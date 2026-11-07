@@ -23,12 +23,13 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +78,7 @@ class ReviewTarget:
     registered_at_ns: int
     patch_id: str = ""
     review_contract: str = ""
+    reuse_planned: bool = False  # 登记时判定可沿用（因而跳过总空间准入）；派发时只在此为真时才考虑沿用
 
     @property
     def key(self) -> str:
@@ -211,7 +213,8 @@ def load_target(gateway: RepoGateway, pr_number: int) -> dict[str, Any]:
 
 
 def patch_identity(source: Path, merge_base: str, head: str) -> str:
-    raw = _git(source, "diff", "--raw", "-z", "--no-renames", "--no-abbrev", merge_base, head)
+    # plumbing：不受 diff.ignoreSubmodules、diff.orderFile 等本地配置影响。
+    raw = _git(source, "diff-tree", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", merge_base, head)
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
@@ -405,6 +408,7 @@ class ExternalReview:
         self.launcher = launcher or [str(SOURCE_REPO / "node_modules" / ".bin" / "tsx"),
                                      str(SOURCE_REPO / ".sandcastle" / "external-review-worker.mts")]
         self.poll_seconds = poll_seconds
+        self._stop = threading.Event()
 
     def target(self, number: int, attempt: int) -> ReviewTarget:
         if type(attempt) is not int or attempt <= 0:
@@ -426,8 +430,11 @@ class ExternalReview:
                               registered_at_ns=time.time_ns(), patch_id=patch, review_contract=REVIEW_CONTRACT)
         folder = self.state_root / "runs" / target.key
         # 以有效 target.json 判断是否已登记：_lock 会先建目录，建目录后、写 target.json 前中断时仍须准入。
-        if not (folder / "target.json").exists() and self.reusable(target) is None:
-            self.admit_space(target)
+        if not (folder / "target.json").exists():
+            planned = self.reusable(target) is not None
+            if not planned:
+                self.admit_space(target)
+            target = replace(target, reuse_planned=planned)
         with _lock(folder):
             if (folder / "target.json").exists():
                 previous = ReviewTarget(**_read(folder / "target.json"))
@@ -449,14 +456,34 @@ class ExternalReview:
             raise IdentityError(f"空间不足：{len(MODELS)} 份并发快照共需 {required} bytes（单份 {single}），"
                                 f"{volume} 可用 {available} bytes；未登记 attempt，未启动模型")
 
-    @staticmethod
-    def _has_block(row: dict) -> bool:
-        """任一 reviewer 完整审阅给出过 BLOCK 就算，不看整轮结论：BLOCK 可能被同轮 FAILED 或发布时的 STALE 盖住。"""
+    def _reviewer_blocked(self, row: dict) -> bool:
+        """该 run 任一 reviewer 留下过 BLOCK 证据就算，不只看汇总：outcome 的整轮与逐位结论、各 worker 的
+        receipt 结果，以及 events 里的最终消息（receipt 未能消费结果时，例如 transcript 失败或汇总前中断）。"""
         saved = row["outcome"] or {}
-        return saved.get("verdict") == "BLOCK" or any(r.get("verdict") == "BLOCK" for r in saved.get("reviews", []))
+        if saved.get("verdict") == "BLOCK" or any(r.get("verdict") == "BLOCK" for r in saved.get("reviews", [])):
+            return True
+        folder = self.state_root / "runs" / ReviewTarget(**row["target"]).key
+        for model in MODELS:
+            worker = folder / model
+            try:
+                receipt = _read(worker / "receipt.json") if (worker / "receipt.json").exists() else {}
+                found = receipt.get("result")
+                result: dict = found if isinstance(found, dict) else {}
+                if result.get("status") == "blocked" or str(result.get("summary", "")).startswith("VERDICT: BLOCK"):
+                    return True
+                if (worker / "events.jsonl").exists():
+                    for line in (worker / "events.jsonl").read_text().splitlines():
+                        event = json.loads(line) if line.strip() else {}
+                        item = event.get("item") or {}
+                        if (event.get("type") == "item.completed" and item.get("type") == "agent_message"
+                                and re.search(r"VERDICT:\s*BLOCK", str(item.get("text", "")))):
+                            return True
+            except (OSError, ValueError, AttributeError):
+                return True  # 证据读不了按 BLOCK 处理
+        return False
 
     def _patch_of(self, old: dict) -> str | None:
-        """旧 run 的补丁身份；没有 patch_id 字段的旧 run 按其冻结 SHA 现场重算，算不出时返回 None。"""
+        """旧 run 的补丁身份；没有 patch_id 字段的旧 run 按其冻结 SHA 现场重算，算不出时返回 None（调用方按同补丁处理）。"""
         if old.get("patch_id"):
             return old["patch_id"]
         try:
@@ -469,12 +496,19 @@ class ExternalReview:
         同一补丁只要有过 BLOCK，就不沿用任何 PASS。"""
         if not target.patch_id or target.review_contract != REVIEW_CONTRACT:
             return None
+        # 本 run 已有任何 worker 状态：双审已经开始，只能恢复双审，不能改走沿用。
+        if any((self.state_root / "runs" / target.key / model).exists() for model in MODELS):
+            return None
         rows = self.status(target.pr_number)
         # 当前 head 上已有别的 run，说明这是对同一 head 的再次 attempt，即要求重新独审，不沿用。
         if any(row["target"].get("head_sha") == target.head_sha and row["target"].get("run_id") != target.run_id
                for row in rows):
             return None
-        if any(self._has_block(row) and self._patch_of(row["target"]) == target.patch_id for row in rows):
+        # 同一补丁（补丁身份算不出的按同补丁）只要有 run 未到终态（在途、中断、待对账），
+        # 或任一 reviewer 留下过 BLOCK 证据，就不沿用（fail closed）。
+        same = [row for row in rows if row["target"].get("run_id") != target.run_id
+                and self._patch_of(row["target"]) in (target.patch_id, None)]
+        if any(not row["outcome"] or self._reviewer_blocked(row) for row in same):
             return None
         for row in rows:
             saved, old = row["outcome"], row["target"]
@@ -563,6 +597,8 @@ class ExternalReview:
                 raise EffectPending("prepare 仍有活动进程，不回收或重复派工")
             _save(worker / "prepare.json", {"run_id": target.run_id, "checkout": str(checkout)})
             frozen = prepare_review(target, self.source, checkout)
+            if self._stop.is_set():
+                raise EffectPending("控制器中断：未派发，prepare 留待同键重跑回收")
             if shutil.disk_usage(checkout).free < SPACE_RESERVE:
                 raise IdentityError("空间不足：模型启动前剩余空间低于 256 MiB；未启动模型")
             launch = {"run_id": target.run_id, "launch_id": str(uuid.uuid4()), "pr_number": target.pr_number,
@@ -585,6 +621,8 @@ class ExternalReview:
             process = None
         launch = _read(worker / "launch.json")
         while not (worker / "receipt.json").exists():
+            if self._stop.is_set():
+                raise EffectPending("控制器中断：已派发的 reviewer 留待按 launch 收养")
             rows = _ps_rows()
             if not supervisor_alive(worker, rows):
                 if (worker / "receipt.json").exists():
@@ -622,9 +660,16 @@ class ExternalReview:
                 if outcomes[-1].verdict == "FAILED":
                     break
             return outcomes
+        self._stop.clear()
         with ThreadPoolExecutor(max_workers=len(MODELS)) as pool:
             futures = [pool.submit(self.run_review, target, model, folder) for model in MODELS]
-            wait(futures)
+            try:
+                wait(futures)
+            except BaseException:
+                # Ctrl-C 等落在主线程：通知线程不再等回执，已派发的 reviewer 之后按 launch 收养（与串行时一致）。
+                self._stop.set()
+                wait(futures)
+                raise
         outcomes = []
         for model, future in zip(MODELS, futures, strict=True):
             failure = future.exception()
@@ -648,7 +693,9 @@ class ExternalReview:
                     reused = (saved.get("reused_from") or {}).get("run_id")
                     saved["publication"] = publisher.publish(saved["state"], reused)
                     return saved
-                reuse = self.reusable(target)
+                reuse = self.reusable(target) if target.reuse_planned else None
+                if target.reuse_planned and reuse is None:
+                    self.admit_space(target)  # 登记时因可沿用跳过了总准入，现在退回双审，补做
                 publisher.publish("pending")
                 if reuse is not None:
                     source, admission = reuse

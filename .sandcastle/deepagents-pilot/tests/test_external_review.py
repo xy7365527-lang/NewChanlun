@@ -590,7 +590,8 @@ def _advance_main(lane, env, *, conflict=False, rewrite=None):
     """main 前进后把 main 合进 PR head，模拟 strict 下的追平。"""
     src, head = lane.source, git(lane.source, "rev-parse", "HEAD")
     git(src, "checkout", "-q", "-b", f"main-{len(lane.gateway.rows)}", str(env.base))
-    (src / ("changed-0" if conflict else "unrelated")).write_text("main side\n")
+    # 每次前进写不同内容，免得同一秒内两次前进生成同一个提交（head 不变就测不到「新 head」）。
+    (src / ("changed-0" if conflict else "unrelated")).write_text("main side\n" if conflict else f"main side {len(lane.gateway.rows)}\n")
     git(src, "add", ".")
     git(src, "commit", "-qm", "main advances")
     base = git(src, "rev-parse", "HEAD")
@@ -752,3 +753,137 @@ def test_reuse_records_admission(lane, env):
     result = lane.review_pr(1810)
     assert result["reused_from"]["admission"] == {"controller_code_head": git(lane.source, "rev-parse", "HEAD"),
                                                   "image_id": "sha256:" + "1" * 64}
+
+
+
+def _interrupt_before_aggregation(lane, monkeypatch):
+    """reviewer 全部写完回执后、汇总写 outcome.json 前控制器中断。"""
+    real = lane.run_reviewers
+    def interrupted(target, folder):
+        real(target, folder)
+        raise KeyboardInterrupt
+    monkeypatch.setattr(lane, "run_reviewers", interrupted)
+    return real
+
+
+def _modes(lane, **by_model):
+    runs = lane.state_root / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    for model, mode in by_model.items():
+        (runs / f"fake-mode-{model}").write_text(mode)
+
+
+def _clear_modes(lane):
+    for p in (lane.state_root / "runs").glob("fake-mode-*"):
+        p.unlink()
+
+
+def test_seq_sol_interrupted_reattempt_with_unaggregated_block_vetoes_reuse(lane, env, monkeypatch):
+    """D5 c24b9537 Sol：同补丁双 PASS 后显式重审得 [FAILED, BLOCK]，汇总前中断；新 head 不得沿用。"""
+    lane.review_pr(1810)
+    _modes(lane, **{MODELS[0]: "failed", MODELS[1]: "BLOCK"})
+    real = _interrupt_before_aggregation(lane, monkeypatch)
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810, 2)
+    monkeypatch.setattr(lane, "run_reviewers", real)
+    _clear_modes(lane)
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_seq_opus_current_run_with_worker_state_never_reuses(lane, env, monkeypatch):
+    """D5 c24b9537 Opus-1：本 run 已有 reviewer BLOCK 回执、未汇总即中断，恢复时不得改走沿用。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    (lane.source / ".git" / "fake-admission").write_text("fail")   # 首轮准入抖动 → 全新双审
+    _modes(lane, **{MODELS[0]: "BLOCK"})
+    real = _interrupt_before_aggregation(lane, monkeypatch)
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810)
+    monkeypatch.setattr(lane, "run_reviewers", real)
+    (lane.source / ".git" / "fake-admission").unlink()             # 准入恢复
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and result["verdict"] == "BLOCK"
+
+
+def test_seq_opus_in_flight_reattempt_of_same_patch_vetoes_reuse(lane, env):
+    """D5 c24b9537 Opus-2：同补丁显式重审仍在途（无终态），新 head 不得沿用。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    assert "reused_from" in lane.review_pr(1810)
+    in_flight = lane.target(1810, 2)
+    (lane.state_root / "runs" / in_flight.key / MODELS[0]).mkdir()
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_block_run_with_unknown_patch_vetoes_reuse(lane, env, monkeypatch):
+    """补丁身份算不出的 BLOCK run 按同补丁处理（fail closed）。"""
+    _, second = _second_opinion(lane, env, monkeypatch, ["BLOCK", "BLOCK"])
+    path = lane.state_root / "runs" / ReviewTarget(**second["target"]).key / "target.json"
+    legacy = json.loads(path.read_text())
+    legacy.pop("patch_id"), legacy.pop("review_contract")
+    legacy["head_sha"] = "e" * 40                                   # 冻结 head 已不在对象库
+    path.write_text(json.dumps(legacy))
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_block_only_in_events_of_failed_receipt_vetoes_reuse(lane, env):
+    """#1912 run 75aad755 的形状：receipt 停在 transcript 失败、result=None，BLOCK 只在 events 的最终消息里。"""
+    first = lane.review_pr(1810)
+    second = lane.target(1810, 2)
+    worker = lane.state_root / "runs" / second.key / MODELS[1]
+    worker.mkdir(parents=True)
+    (worker / "receipt.json").write_text(json.dumps({"status": "failed", "phase": "transcript", "result": None}))
+    message = "```json\n" + json.dumps({"status": "blocked", "summary": "VERDICT: BLOCK\nx"}) + "\n```"
+    (worker / "events.jsonl").write_text(json.dumps({"type": "item.completed",
+                                                     "item": {"type": "agent_message", "text": message}}) + "\n")
+    (lane.state_root / "runs" / second.key / "outcome.json").write_text(json.dumps(
+        {"run_id": second.run_id, "verdict": "FAILED", "state": "error", "target": first["target"], "reviews": []}))
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_planned_reuse_falling_back_to_review_runs_total_space_admission(lane, env, monkeypatch):
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    target = lane.target(1810, 1)
+    assert target.reuse_planned
+    (lane.source / ".git" / "fake-admission").write_text("fail")
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
+    sent = list(lane.gateway.sent)
+    with pytest.raises(IdentityError, match="共需"):
+        lane.review_pr(1810)
+    assert lane.gateway.sent == sent  # 没有为本 run 发 pending
+
+
+def test_ctrl_c_during_concurrent_review_returns_without_waiting_for_receipts(lane, monkeypatch):
+    import os
+    import signal
+    import time as clock
+    lane.launcher = [sys.executable, "-c", "import time; time.sleep(120)"]
+    calls = []
+    real_wait = module.wait
+    def interrupted(futures):
+        calls.append(1)
+        if len(calls) == 1:
+            clock.sleep(1)  # 让两位都已派发
+            raise KeyboardInterrupt
+        return real_wait(futures)
+    monkeypatch.setattr(module, "wait", interrupted)
+    started = clock.monotonic()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            lane.review_pr(1810)
+        assert clock.monotonic() - started < 30
+        target = ReviewTarget(**json.loads(next((lane.state_root / "runs").glob("*/target.json")).read_text()))
+        folder = lane.state_root / "runs" / target.key
+        assert all((folder / m / "launch.json").exists() for m in MODELS)  # 已派发，留待收养
+        assert not (folder / "outcome.json").exists()
+    finally:
+        for process in (lane.state_root / "runs").glob("*/*/process.json"):
+            os.killpg(json.loads(process.read_text())["pid"], signal.SIGKILL)

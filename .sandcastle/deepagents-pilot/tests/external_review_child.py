@@ -17,7 +17,9 @@ folder = Path(sys.argv[sys.argv.index("--output-dir") + 1])
 launch = json.loads((folder / "launch.json").read_text())
 with open(folder.parents[1] / "launches", "a") as log:
     log.write(launch["model"] + "\n")
-mode = (folder.parents[1] / "fake-mode").read_text().strip() if (folder.parents[1] / "fake-mode").exists() else "PASS"
+per_model = folder.parents[1] / f"fake-mode-{launch['model']}"  # 按模型覆盖，造混合结论
+mode_file = per_model if per_model.exists() else folder.parents[1] / "fake-mode"
+mode = mode_file.read_text().strip() if mode_file.exists() else "PASS"
 session = str(uuid.uuid4())
 output = {"status": "blocked" if mode == "BLOCK" else "completed", "summary": f"VERDICT: {mode}",
           "findings": [], "validation": ["测试替身"]}

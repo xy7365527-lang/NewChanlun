@@ -217,7 +217,7 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
   if (!ownsLock) throw new Error("独审监督启动失败，终态已保存");
 }
 
-/** 沿用旧 PASS 前的部署准入：与正式派发同一组检查（controller 已提交、当前镜像有 accepted 记录），不建容器、不调模型。 */
+/** 沿用旧 PASS 前的部署准入：与正式派发同一组检查（controller 已提交、ready() 核当前镜像的 accepted 记录并做容器隔离合同观测），不建审阅容器、不调模型。 */
 export function checkReviewAdmission(deps: Pick<WorkerDependencies, "identity" | "ready"> = dependencies):
   { controller_code_head: string; image_id: string } {
   const identity = deps.identity();
