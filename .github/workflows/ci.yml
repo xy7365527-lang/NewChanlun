@@ -296,6 +296,9 @@ jobs:
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
+      # #1875：本作业测试执行（lib 约 8.8 min，长尾为 a3_oracle_minparts_reentry 与 inclusion completeness）远大于编译，
+      #   按 R4 的规则开本仓 crate opt-level 1（断言与溢出检查保持开启），与 s_session 分片相同。
+      CI_OWN_OPT_LEVEL1: "1"
     defaults:
       run:
         working-directory: rust
