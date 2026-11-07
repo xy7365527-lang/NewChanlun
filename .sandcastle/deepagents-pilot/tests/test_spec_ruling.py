@@ -27,7 +27,7 @@ def test_ts_python_ruling_protocol(wayfinder_engine_path):
                 cases.append({'body': body, 'comments': comments})
     runner = """import {readFileSync} from 'node:fs';
       const m = await import(process.argv[1]);
-      const cases = JSON.parse(readFileSync(0, 'utf8'));
+      const cases = JSON.parse(readFileSync(0).toString('utf8'));
       console.log(JSON.stringify(cases.map(c => ({digest: m.specBodyDigest(c.body),
         approved: m.isSpecApproved({number:1340, body:c.body,
           comments:c.comments.map(x => ({body:x.body, author:x.user.login, createdAt:x.created_at}))}, 'owner')}))));"""
