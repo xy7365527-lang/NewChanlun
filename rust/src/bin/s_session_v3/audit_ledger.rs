@@ -2,6 +2,7 @@
 //! 调用者只能送入已核验的单代变化；#1481 的冷折叠与在线生产者共用 stage。
 //! 完整台账的事实由同次 prepare 的来源收据生产（36M cover 勘误），H1 只经 `Qualification` 点查，
 //! 不持裸 Ledger 引用；准入切换仍受 #1645/#1491 门约束。
+//! 台账与写前闭包核验的 Δ 读法正本：docs/adr/0061-s-writer-audit-ledger-delta-reading.md（#1644）。
 #![allow(dead_code)]
 
 use super::*;

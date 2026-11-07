@@ -566,7 +566,7 @@ fn compact_full(bars: &[Bar], config: &ParseConfig) -> StrokeFacts {
 /// `analysis/data_cache/btc_1m_full.json` 尾 50,000 根（sha256 `4c005de4…601f`，先校验）。
 /// 不得改断言修绿：不符先核 Python 移植（诊断 `port.py` + #1343 `ruling_replay.py`）再核实装。
 #[test]
-#[ignore = "外部数据：TB02V_BTC_TAIL50K=<btc_tail50k.json>；收据见 .chanlun/review-results/issue1405-*"]
+#[ignore = "外部数据：TB02V_BTC_TAIL50K=<btc_tail50k.json>；收据已归档：.chanlun/review-results/ARCHIVE-INDEX.md 的 issue1405-tb02v-20261014 行"]
 fn tb02v_btc_tail50k_reading_and_prefix_ladder() {
     use crate::theta_v0::env_registry::TB02V_BTC_TAIL50K;
     use sha2::{Digest, Sha256};

@@ -638,6 +638,7 @@ def main() -> None:
         ]
 
     results_path = ROOT / "tmp" / "oq1-interlayer-timing-results.json"
+    results_path.parent.mkdir(parents=True, exist_ok=True)  # tmp/ 不入库，新检出没有
     with open(results_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"  结果 -> {results_path}")

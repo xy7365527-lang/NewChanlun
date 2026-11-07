@@ -201,6 +201,8 @@ def recommend_reading(sparse_pairs, gangmu_data, dag_data, cross_data):
 
 def main():
     gangmu = load_yaml(GANGMU)
+    if not CROSS_REFS.exists():  # tmp/ 不入库：它是 scan_cross_gang_refs.py 的产物
+        raise SystemExit(f"缺少 {CROSS_REFS}；先运行 python3 scripts/scan_cross_gang_refs.py 生成")
     cross = load_json(CROSS_REFS)
     dag = load_yaml(DAG)
 
@@ -240,6 +242,7 @@ def main():
         ],
     }
 
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 

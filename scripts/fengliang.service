@@ -9,8 +9,8 @@ WorkingDirectory=/root/NewChanlun/topological-computation
 ExecStart=/usr/bin/python3 start_fengliang.py --instances 3 --multiproc --autonomous --port 9765 --ws-port 8765
 Restart=on-failure
 RestartSec=30
-StandardOutput=append:/root/NewChanlun/tmp/fengliang-daemon.log
-StandardError=append:/root/NewChanlun/tmp/fengliang-daemon.log
+StandardOutput=append:/var/log/fengliang-daemon.log
+StandardError=append:/var/log/fengliang-daemon.log
 
 [Install]
 WantedBy=multi-user.target

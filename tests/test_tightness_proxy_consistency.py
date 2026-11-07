@@ -11,7 +11,7 @@
 认识论等级：
 - test_structural_divergence_*: L0（从定义推导排序不一致的充分条件）
 - test_pipeline_*: L1（管线正确性，不验证排序相关性假设）
-- L2 验证方案见 tmp/tightness-proxy-l2-plan.md
+- L2 验证方案见归档 `git show 3d61fb7294:tmp/tightness-proxy-l2-plan.md`（tmp/ 已出仓）
 
 谱系引用：350号收敛紧度、366号下游推论3。
 """

@@ -57,7 +57,7 @@ logging.basicConfig(
 logger = logging.getLogger("dual_pipeline_backtest_v106")
 
 
-# ── 252号 BSP 数据（从 tmp/recursive-1min-v105.json 提取） ───────
+# ── 252号 BSP 数据（从 tmp/recursive-1min-v105.json 提取，原件见 git show 3d61fb7294:tmp/recursive-1min-v105.json） ───────
 
 _BSP_RAW = [
     {"kind": "type3", "side": "sell", "seg_idx": 6, "price": 690.85, "confirmed": True},
