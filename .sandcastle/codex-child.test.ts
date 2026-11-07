@@ -6,7 +6,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFile
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
-  assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
+  assertRoute, boundedCodex, CodexTranscript, unwrapJsonFence, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, snapshotCheckout, workerEnvironment,
   DEEPAGENTS_OUTPUT_PROTOCOL, outputProtocol, workerOutputSchema, type OutputProtocol,
   type ChildOptions,
@@ -731,4 +731,28 @@ test("显式 Deep Agents 协议固定到 schema 与最终回执", async () => {
     const schema = JSON.parse(readFileSync(join(f.options.outputDir, "output.schema.json"), "utf8"));
     assert.deepEqual(schema, workerOutputSchema(DEEPAGENTS_OUTPUT_PROTOCOL));
   } finally { f.clean(); }
+});
+
+// 与 deepagents-pilot/tests/test_review_fence.py 同一组用例。
+const FENCE_CASES: Array<[string, string]> = [
+  ['{"a":1}', '{"a":1}'],
+  ['```json\n{"a":1}\n```', '{"a":1}'],
+  ['  ```\n{"a":1}\n```\n', '{"a":1}'],
+  ['```json\r\n{"a":1}\r\n```', '{"a":1}'],
+  ['说明\n```json\n{"a":1}\n```', '说明\n```json\n{"a":1}\n```'],
+  ['```json\n{"a":1}\n```\n补充', '```json\n{"a":1}\n```\n补充'],
+  ['```json\n{"a":1}\n```\n```json\n{"b":2}\n```', '{"a":1}\n```\n```json\n{"b":2}'],
+];
+test("最终结果只剥整段一个 json 围栏，围栏外有文字或多个围栏仍拒绝", async () => {
+  for (const [input, expected] of FENCE_CASES) assert.equal(unwrapJsonFence(input), expected);
+  const fenced = new CodexTranscript(await boundedCodex("review", "/tmp/schema.json"));
+  fenced.accept(JSON.stringify({ type: "thread.started", thread_id: "a" }));
+  fenced.accept(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "```json\n" + JSON.stringify(goodResult) + "\n```" } }));
+  fenced.accept(JSON.stringify({ type: "turn.completed" }));
+  assert.deepEqual(fenced.output(), goodResult);
+  const prose = new CodexTranscript(await boundedCodex("review", "/tmp/schema.json"));
+  prose.accept(JSON.stringify({ type: "thread.started", thread_id: "a" }));
+  prose.accept(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "结论如下\n```json\n" + JSON.stringify(goodResult) + "\n```" } }));
+  prose.accept(JSON.stringify({ type: "turn.completed" }));
+  assert.throws(() => prose.output(), /不是有效 JSON/);
 });

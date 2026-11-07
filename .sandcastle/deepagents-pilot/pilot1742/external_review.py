@@ -243,6 +243,12 @@ def prepare_review(target: ReviewTarget, source: Path, checkout: Path) -> Frozen
     return FrozenReviewInput(checkout, names, prompt)
 
 
+def unwrap_json_fence(text: str) -> str:
+    """与 codex-child.ts unwrapJsonFence 同一规则：只剥整段一个 ```json 围栏，围栏外有其他文字原样返回。"""
+    fenced = re.fullmatch(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", text.strip(), re.DOTALL)
+    return fenced[1] if fenced else text
+
+
 def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: Path) -> ReviewOutcome:
     model = launch["model"]
     def failed(reason: str) -> ReviewOutcome:
@@ -284,7 +290,7 @@ def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: P
             kind = event.get("type")
             if kind == "error":
                 reconnect = re.fullmatch(
-                    r"Reconnecting\.\.\. ([1-9]\d*)/([1-9]\d*) \(stream disconnected before completion(?:: [^\r\n]+)?\)",
+                    r"Reconnecting\.\.\. ([1-9]\d*)/([1-9]\d*) \([^\r\n]+\)",  # 原因可为限流、401 等（#1913 run f19adb21）
                     event.get("message", ""), re.ASCII)
                 if not reconnect or int(reconnect[1]) > int(reconnect[2]):
                     return failed("stdout 有失败终态")
@@ -301,7 +307,7 @@ def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: P
         if sessions != {session}:
             return failed("stdout session 不符")
         output = receipt["result"]
-        if final_text is None or json.loads(final_text) != output:
+        if final_text is None or json.loads(unwrap_json_fence(final_text)) != output:
             return failed("结果与监督 stdout 不符")
         if (set(output) != {"status", "summary", "findings", "validation"}
                 or not isinstance(output["summary"], str)
