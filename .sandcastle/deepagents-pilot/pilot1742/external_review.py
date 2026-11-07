@@ -101,6 +101,20 @@ class ReviewOutcome:
     reason: str
 
 
+def _message_blocks(text: str) -> bool:
+    """最终消息是否为 BLOCK：能解析成结果对象就按 status 与 summary 首行判定（与 validate_review 同口径，
+    说明里引用「VERDICT: BLOCK」不算）；解析不了才退回整段文本匹配（fail closed）。"""
+    fenced = re.fullmatch(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", text.strip(), re.DOTALL)
+    try:
+        value = json.loads(fenced[1] if fenced else text)
+    except ValueError:
+        return re.search(r"VERDICT:\s*BLOCK", text) is not None
+    if not isinstance(value, dict):
+        return re.search(r"VERDICT:\s*BLOCK", text) is not None
+    first = str(value.get("summary", "")).splitlines()[:1]
+    return value.get("status") == "blocked" or first == ["VERDICT: BLOCK"]
+
+
 def _read(path: Path) -> dict:
     if path.parent.resolve() != path.parent.absolute():
         raise IdentityError("宿主回执目录含符号链接")
@@ -441,8 +455,22 @@ class ExternalReview:
                 if previous.controller_code_head != target.controller_code_head:
                     raise IdentityError("controller 已变更，请用新 attempt 保留旧证据")
                 return previous
-            _save(folder / "target.json", asdict(target))
+            with self._pr_lock(target.pr_number):
+                _save(folder / "target.json", asdict(target))
         return target
+
+    @contextmanager
+    def _pr_lock(self, number: int) -> Iterator[None]:
+        """同一 PR 的登记与沿用发布串行化（跨进程、跨 head、阻塞等待）。
+        合同：发布沿用 success 时，所依据的历史读于本锁内，读后到发布前不可能再有同 PR 的新登记。"""
+        folder = self.state_root / "pr-locks"
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        fd = os.open(folder / f"p{number}.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)
 
     def admit_space(self, target: ReviewTarget) -> None:
         """登记前总准入：所有 reviewer 并发，各要一份快照。不够就不登记 attempt、不写状态。"""
@@ -497,7 +525,7 @@ class ExternalReview:
                         event = json.loads(line) if line.strip() else {}
                         item = event.get("item") or {}
                         if (event.get("type") == "item.completed" and item.get("type") == "agent_message"
-                                and re.search(r"VERDICT:\s*BLOCK", str(item.get("text", "")))):
+                                and _message_blocks(str(item.get("text", "")))):
                             return True
             except (OSError, ValueError, AttributeError, IdentityError):
                 return True  # 证据读不了（含 _read 的权限、属主、符号链接拒绝）按 BLOCK 处理
@@ -514,7 +542,14 @@ class ExternalReview:
 
     def reuse_source(self, target: ReviewTarget) -> dict | None:
         """同 PR 中可沿用的正式 PASS 原件；规则见模块文档。只认真实双审，不认沿用产生的 success。
-        同一补丁只要有过 BLOCK，就不沿用任何 PASS。"""
+        同一补丁只要有过 BLOCK，就不沿用任何 PASS。历史读不了（JSON 损坏、权限、属主、符号链接）一律不沿用，
+        登记和双审照常进行。"""
+        try:
+            return self._reuse_source(target)
+        except (OSError, ValueError, KeyError, TypeError, IdentityError):
+            return None
+
+    def _reuse_source(self, target: ReviewTarget) -> dict | None:
         if not target.patch_id or target.review_contract != REVIEW_CONTRACT:
             return None
         # 本 run 已有任何 worker 状态：双审已经开始，只能恢复双审，不能改走沿用。
@@ -674,6 +709,21 @@ class ExternalReview:
         self.cleanup_checkout(target, model, folder)
         return outcome
 
+    def _publish_reuse(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher,
+                       source: dict, admission: dict) -> dict:
+        """在 _pr_lock 内调用：发布 pending、写 outcome、发布沿用 success。"""
+        publisher.publish("pending")
+        old = source["target"]
+        reused_from = {"run_id": source["run_id"], "reviews": source["reviews"],
+                       "publication": source["publication"], "admission": admission,
+                       **{k: old[k] for k in ("head_sha", "base_sha", "merge_base_sha", "patch_id")}}
+        result: dict[str, Any] = {"run_id": target.run_id, "verdict": "PASS", "state": "success",
+                                  "target": asdict(target), "reviews": [], "reused_from": reused_from}
+        _save(folder / "outcome.json", result)
+        result["publication"] = publisher.publish("success", source["run_id"])
+        _save(folder / "outcome.json", result)
+        return result
+
     def run_reviewers(self, target: ReviewTarget, folder: Path) -> list[ReviewOutcome]:
         """全新派发时各 reviewer 并发（各用自己的 worker 目录和 checkout），全部结束后再汇总。
         已有任何 worker 状态即为恢复，按原顺序串行：第一位 FAILED 后不再派发新的 reviewer，但已派发的照样收养到终态
@@ -724,21 +774,16 @@ class ExternalReview:
                     saved["publication"] = publisher.publish(saved["state"], reused)
                     return saved
                 reuse = self.reusable(target) if target.reuse_planned else None
-                if target.reuse_planned and reuse is None:
-                    self.admit_space(target)  # 登记时因可沿用跳过了总准入，现在退回双审，补做
-                publisher.publish("pending")
                 if reuse is not None:
                     source, admission = reuse
-                    old = source["target"]
-                    reused_from = {"run_id": source["run_id"], "reviews": source["reviews"],
-                                   "publication": source["publication"], "admission": admission,
-                                   **{k: old[k] for k in ("head_sha", "base_sha", "merge_base_sha", "patch_id")}}
-                    result: dict[str, Any] = {"run_id": target.run_id, "verdict": "PASS", "state": "success",
-                                              "target": asdict(target), "reviews": [], "reused_from": reused_from}
-                    _save(folder / "outcome.json", result)
-                    result["publication"] = publisher.publish("success", source["run_id"])
-                    _save(folder / "outcome.json", result)
-                    return result
+                    with self._pr_lock(target.pr_number):
+                        # 部署准入在锁外，可能耗时；锁内重读历史，来源仍是同一个才发布。
+                        current = self.reuse_source(target)
+                        if current is not None and current["run_id"] == source["run_id"]:
+                            return self._publish_reuse(target, folder, publisher, source, admission)
+                if target.reuse_planned:
+                    self.admit_space(target)  # 登记时因可沿用跳过了总准入，现在退回双审，补做
+                publisher.publish("pending")
                 outcomes = self.run_reviewers(target, folder)
                 if self._dispatched_unfinished(folder):  # 不变量：已派发 reviewer 全部到终态才汇总
                     raise EffectPending("仍有已派发 reviewer 未到终态，不汇总")

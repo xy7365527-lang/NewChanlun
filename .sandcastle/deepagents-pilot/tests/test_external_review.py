@@ -2,6 +2,7 @@ import copy
 import json
 import subprocess
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -979,3 +980,86 @@ def test_serial_resume_after_interrupt_is_not_stuck_on_stale_stop_flag(lane):
     (lane.state_root / "runs" / target.key / MODELS[0]).mkdir()  # 走串行恢复
     lane._stop.set()                                                # 同一实例上一次被 Ctrl-C
     assert lane.review_pr(1810)["verdict"] == "PASS"
+
+
+def test_race_superseding_registration_during_reuse_admission_blocks_reuse(lane, env, monkeypatch):
+    """D5 f19adb21 Sol P1：H2 读完历史、等部署准入时，另一进程登记同补丁 H1 attempt2 并以 STALE 收场；H2 不得发布沿用。"""
+    lane.review_pr(1810)
+    h1 = lane.gateway.pr["head"]["sha"]
+    _advance_main(lane, env)
+    h2 = lane.gateway.pr["head"]["sha"]
+    real = lane.reuse_admission
+    calls = []
+    def racing(target, source):
+        calls.append(1)
+        if len(calls) == 1:                           # 登记时那次判定不插入；竞态窗口在派发阶段读完历史之后
+            return real(target, source)
+        lane.gateway.pr["head"]["sha"] = h1           # 另一进程眼中的 PR 仍在 H1
+        late = lane.target(1810, 2)
+        lane.gateway.pr["head"]["sha"] = h2
+        folder = lane.state_root / "runs" / late.key
+        (folder / "outcome.json").write_text(json.dumps({"run_id": late.run_id, "verdict": "STALE",
+                                                          "target": asdict(late), "reviews": []}))
+        (folder / "outcome.json").chmod(0o600)
+        return real(target, source)
+    monkeypatch.setattr(lane, "reuse_admission", racing)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_pass_message_quoting_block_is_not_block_evidence(lane, env):
+    """D5 f19adb21 Sol P2：合法 PASS 在说明里提到 VERDICT: BLOCK，不得被当成 BLOCK 证据。"""
+    first = lane.review_pr(1810)
+    worker = lane.state_root / "runs" / ReviewTarget(**first["target"]).key / MODELS[0]
+    text = json.dumps({"status": "completed", "summary": "VERDICT: PASS\n未发现会导致 VERDICT: BLOCK 的问题",
+                       "findings": [], "validation": ["检查过 VERDICT: BLOCK 的触发条件"]})
+    (worker / "events.jsonl").write_text(json.dumps({"type": "item.completed",
+                                                     "item": {"type": "agent_message", "text": text}}) + "\n")
+    _advance_main(lane, env)
+    assert lane.review_pr(1810)["reused_from"]["run_id"] == first["run_id"]
+
+
+@pytest.mark.parametrize("damage", ["json", "mode"])
+def test_damaged_history_outcome_vetoes_reuse_but_registration_proceeds(lane, env, damage):
+    """D5 f19adb21 Sol P2：status() 读到损坏的历史 outcome 时退回双审，不让登记失败。"""
+    first = lane.review_pr(1810)
+    outcome = lane.state_root / "runs" / ReviewTarget(**first["target"]).key / "outcome.json"
+    if damage == "json":
+        outcome.write_text("{broken")
+    else:
+        outcome.chmod(0o666)
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)
+
+
+def test_registration_waits_for_inflight_reuse_publication(lane, env, monkeypatch):
+    """并发合同：沿用从重读历史到发布 success 持有 PR 锁；期间另一实例的同 PR 登记必须等到发布之后。"""
+    import threading
+    import time as clock
+    lane.review_pr(1810)
+    h1 = lane.gateway.pr["head"]["sha"]
+    _advance_main(lane, env)
+    other_gateway = copy.copy(lane.gateway)
+    other_gateway.pr = copy.deepcopy(lane.gateway.pr)
+    other_gateway.pr["head"]["sha"] = h1
+    other = ExternalReview(other_gateway, source=lane.source, state_root=lane.state_root,
+                           checkout_root=lane.checkout_root, launcher=lane.launcher, poll_seconds=0.01)
+    registered = {}
+    def register():
+        registered["target"] = other.target(1810, 2)
+        registered["at"] = clock.monotonic()
+    real = lane._publish_reuse
+    def publishing(*args):
+        thread = threading.Thread(target=register)
+        thread.start()
+        clock.sleep(0.5)
+        assert "at" not in registered, "持 PR 锁期间另一实例完成了登记"
+        result = real(*args)
+        registered["published"] = clock.monotonic()
+        publishing.thread = thread
+        return result
+    monkeypatch.setattr(lane, "_publish_reuse", publishing)
+    result = lane.review_pr(1810)
+    publishing.thread.join(30)
+    assert "reused_from" in result and registered["at"] >= registered["published"] - 0.05
