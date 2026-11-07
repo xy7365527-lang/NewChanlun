@@ -8,7 +8,7 @@ import { specBodyDigest, specRulingBody } from './wayfinder_engine.mts';
 
 const repo = new URL('../', import.meta.url);
 for (const label of ['sandcastle', 'deepagents:queue']) {
-  for (const fault of ['create', 'link', 'link-ack', 'edge', 'edge-ack', 'block', 'receipt', 'publish', 'title-only', 'title-only-edge', 'unknown-dependency', 'cycle', 'none']) {
+  for (const fault of ['create', 'link', 'link-ack', 'edge', 'edge-ack', 'block', 'receipt', 'publish', 'title-only', 'title-only-edge', 'title-only-held', 'unknown-dependency', 'cycle', 'none']) {
     test(`${label} 拆票事务：${fault} 中断后恢复，依赖完整才发布且不重复创建`, () => {
       const root = mkdtempSync(join(tmpdir(), 'split-publication-'));
       try {
@@ -18,7 +18,7 @@ for (const label of ['sandcastle', 'deepagents:queue']) {
         for (const f of ['scripts/wayfinder_engine.mts', '.sandcastle/cliproxy-env.mts', '.sandcastle/main-model.mts', '.sandcastle/scheduler-config.mts', '.sandcastle/scheduler-config.json']) writeFileSync(join(root, f), readFileSync(f === 'scripts/wayfinder_engine.mts' && process.env.SPLIT_ENGINE_SOURCE ? process.env.SPLIT_ENGINE_SOURCE : new URL(f, repo)));
         const body = '<!-- wayfinder-split -->\n```json\n'+JSON.stringify({tickets:[{id:'S1',title:'first',depends_on:fault==='cycle'?['S2']:[]},{id:'S2',title:'second',depends_on:[fault==='unknown-dependency'?'missing':'S1']}]})+'\n```';
         const ruling = (verdict: 'PASS'|'BLOCK') => ({user:{login:'fixture'}, body:specRulingBody({specNumber:2,verdict,author:'draft',reviewer:'review',digest:specBodyDigest(body),evidence:'/fake/review'}),created_at:verdict==='PASS'?'2026-11-07T01:00:00Z':'2026-11-07T02:00:00Z'});
-        writeFileSync(join(root, 'state.json'), JSON.stringify({body,pass:ruling('PASS'),block:ruling('BLOCK'),issues:fault.startsWith('title-only')?[{number:101,title:'[impl] S1 first',body:'原实施票的额外验收条件',labels:[]},{number:102,title:'[impl] S2 second',body:'',labels:[]}]:[],links:fault.startsWith('title-only')?[101,102]:[],edges:[],fault:fault==='title-only-edge'?'edge':fault,used:false,blocked:false,violations:[]}));
+        writeFileSync(join(root, 'state.json'), JSON.stringify({body,pass:ruling('PASS'),block:ruling('BLOCK'),issues:fault.startsWith('title-only')?[{number:101,title:'[impl] S1 first',body:'原实施票的额外验收条件',labels:fault==='title-only-held'?['deepagents','deepagents:queue']:[]},{number:102,title:'[impl] S2 second',body:'',labels:[]}]:[],links:fault.startsWith('title-only')?[101,102]:[],edges:fault==='title-only-held'?[[102,101]]:[],fault:fault==='title-only-edge'?'edge':fault,used:false,blocked:false,violations:[]}));
         writeFileSync(join(root, 'gh'), `#!${process.execPath}
 const fs=require('node:fs'), p=process.env.FIXTURE+'/state.json', s=JSON.parse(fs.readFileSync(p)), a=process.argv.slice(2), cmd=a.join(' ');
 const val=k=>a[a.indexOf(k)+1], save=()=>fs.writeFileSync(p,JSON.stringify(s));
@@ -47,6 +47,20 @@ else if(a[0]==='api') {
         const read = () => JSON.parse(readFileSync(join(root,'state.json'),'utf8'));
         const first=run(); assert.equal(first.status,0,first.stderr);
         assert.deepEqual(read().violations,[], '依赖不完整期间已经可消费');
+        if (fault==='title-only-held') {
+          for (let n=0;n<2;n++) {
+            const held=read().issues[0];
+            assert.deepEqual(held.labels,['deepagents','deepagents:queue'],'迁移不得摘除在途持有的放行标签');
+            assert.equal(held.body,'原实施票的额外验收条件','持有期间不改实施合同');
+            if(n===0) run();
+          }
+          const released=read(); released.issues[0].labels=[]; writeFileSync(join(root,'state.json'),JSON.stringify(released));
+          for(let n=0;n<3;n++) run();
+          assert.equal(read().issues.length,2,'释放后恢复迁移，不重复建票');
+          assert.match(read().issues[0].body,/wayfinder-published:/,'释放后完成发布');
+          return;
+        }
+
         if (fault==='unknown-dependency' || fault==='cycle') {
           assert.equal(read().issues.length,0,'无效依赖计划不得部分发布');
           assert.match(first.stderr,/拆票计划/);
