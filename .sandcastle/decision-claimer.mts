@@ -1133,11 +1133,27 @@ export function heldWaiting(prev: Partial<Pick<Summary, "phase" | "stage" | "com
   return prev.phase === "held" && !prev.stage && !resumeStaleBecauseReopen(prev, comments);
 }
 
+function acquireTicketLock(outRoot: string, n: number): (() => void) | null {
+  mkdirSync(outRoot, { recursive: true });
+  // 锁留在不会被退役的父目录，覆盖迁移、重建、处理和最终持久化。
+  const path = join(outRoot, `.${n}.lock`);
+  try { writeFileSync(path, String(process.pid), { flag: "wx" }); }
+  catch (e) { if ((e as NodeJS.ErrnoException).code === "EEXIST") return null; throw e; }
+  return () => rmSync(path);
+}
+
 /**
  * 旧影子模式（shadow_p / shadow_p_pending，#1909 前）的本地原件整目录改名留档，票按新流程整链重跑。
  * 旧 P 稿把 C 类决定留给用户批复，不能当作代理裁定直接落地。正在处理（有 .lock）时不动。
  */
 export function retireLegacyShadow(outRoot: string, n: number): string | null {
+  const release = acquireTicketLock(outRoot, n);
+  if (!release) return null;
+  try { return retireLegacyShadowLocked(outRoot, n); }
+  finally { release(); }
+}
+
+function retireLegacyShadowLocked(outRoot: string, n: number): string | null {
   const dir = join(outRoot, String(n));
   const prev = prevSummary(dir) as { phase?: string; stage?: string };
   if (prev.phase !== "shadow_p" && prev.stage !== "shadow_p_pending") return null;
@@ -1428,6 +1444,13 @@ export function factGaps(a: Archaeology): string[] {
 
 /** 只跑考古（不分级、不起草、不写 GitHub），不看票是否已关：用来对已关决策票验证考古产物形状。 */
 export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: number; dir: string; problems: string[]; counts: Record<ArchClass, number> }> {
+  const release = acquireTicketLock(d.outRoot, n);
+  if (!release) throw new Error("本地锁已存在，另一进程正在处理");
+  try { return await archaeologyOnlyLocked(n, d); }
+  finally { release(); }
+}
+
+async function archaeologyOnlyLocked(n: number, d: Deps): Promise<{ ticket: number; dir: string; problems: string[]; counts: Record<ArchClass, number> }> {
   const dir = join(d.outRoot, String(n));
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, ".lock");
@@ -1449,8 +1472,15 @@ export async function archaeologyOnlyAdmission(n: number, d: Deps) {
 }
 
 export async function processTicket(n: number, raw: Deps): Promise<Summary> {
+  const release = acquireTicketLock(raw.outRoot, n);
+  if (!release) return { ticket: n, mode: raw.mode, phase: "error", attempts: 0, durationsMs: {}, plannedWrites: [], error: "本地锁已存在，另一进程正在处理" };
+  try { return await processTicketLocked(n, raw); }
+  finally { release(); }
+}
+
+async function processTicketLocked(n: number, raw: Deps): Promise<Summary> {
   const dir = join(raw.outRoot, String(n));
-  const retiredShadow = retireLegacyShadow(raw.outRoot, n);
+  const retiredShadow = retireLegacyShadowLocked(raw.outRoot, n);
   if (retiredShadow) log(`#${n} 旧影子模式原件已留档 ${retiredShadow}，按新流程整链重跑`);
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, ".lock");

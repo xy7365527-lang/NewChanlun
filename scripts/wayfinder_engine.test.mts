@@ -189,7 +189,7 @@ test("批准后拆到一半（计划内缺票）→ 补拆（幂等再触发）"
   assert.deepEqual(walkGraph(m, OPTS), [{ kind: "split_impl_tickets", map: 42, spec: 500 }]);
 });
 
-test("批准且拆齐（计划全覆盖）→ 不再拆，落入实装中", () => {
+test("批准且标题齐全但无发布凭据 → 恢复依赖与发布", () => {
   const planBody = [
     "<!-- wayfinder-split -->",
     "```json",
@@ -202,6 +202,9 @@ test("批准且拆齐（计划全覆盖）→ 不再拆，落入实装中", () =
     number: 42,
     children: [decision(101), s, child({ number: 201, title: "[impl] S1 a", state: "OPEN" })],
   });
+  assert.deepEqual(walkGraph(m, OPTS), [{ kind: "split_impl_tickets", map: 42, spec: 500 }]);
+  m.children[2]!.body = `<!-- wayfinder-published:500:${specBodyDigest(planBody)}:S1 -->`;
+  m.children[2]!.labels = ["ready-for-agent"];
   assert.deepEqual(walkGraph(m, OPTS), []);
 });
 
@@ -728,4 +731,19 @@ test("起草子代理 env：剔除继承的 ANTHROPIC_API_KEY（防绕开 CLIPro
   assert.equal(env.ANTHROPIC_AUTH_TOKEN, "fixture-proxy-token");
   assert.equal(env.PATH, "/fixture/bin");
   assert.equal(base.ANTHROPIC_API_KEY, "fixture-api-key");
+});
+
+
+test("releaseTicket：计划票只有标题与 ready 标签，未补完整依赖凭据仍拒绝放行", () => {
+  const body = '<!-- wayfinder-split -->\n```json\n{"tickets":[{"id":"S1","title":"a"}]}\n```';
+  const approval = approvalComment(7, body);
+  const writes: string[] = [];
+  const result = releaseTicket(1524, { specs: [7], orchestrator: OPTS.orchestrator }, {
+    read: args => args.includes('/comments') ? JSON.stringify([{ user: { login: approval.author }, body: approval.body, created_at: approval.createdAt }])
+      : args.startsWith('issue view 7 ') ? JSON.stringify({ number: 7, title: 'SPEC: test', body, state: 'OPEN' })
+      : JSON.stringify({ title: '[impl] S1 a', body: '', state: 'OPEN', labels: [{name:'ready-for-agent'}], assignees: [], blockedBy: {nodes:[]} }),
+    write: args => { writes.push(args); return ''; },
+  }, 'sandcastle');
+  assert.match(result!, /拆票尚未完整发布/);
+  assert.deepEqual(writes, []);
 });

@@ -3185,3 +3185,29 @@ test('held_pending 恢复后不得把历史退回当成新退回', async () => {
   assert.equal(next.phase,'skipped','没有新退回不得重新独审并落地');
   assert.equal(saved.commentsSeen,1,'恢复后必须保留旧水印');
 });
+
+test("旧影子退役到最终持久化由同一票锁覆盖，处理和纯考古互斥", async () => {
+  const h = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
+  const dir = join(h.d.outRoot, "1531");
+  mkdirSync(dir);
+  writeFileSync(join(dir, "summary.json"), JSON.stringify({ phase: "shadow_p" }));
+  let entered!: () => void, resume!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const gate = new Promise<void>(resolve => { resume = resolve; });
+  const model = h.d.model;
+  h.d.model = async call => { entered(); await gate; return model(call); };
+  const first = processTicket(1531, h.d);
+  await reached;
+  try {
+    assert.ok(existsSync(join(h.d.outRoot, ".1531.lock")));
+    assert.ok(existsSync(join(dir, ".lock")));
+    assert.ok(existsSync(`${dir}.shadow-p-retired-1`));
+    assert.equal((await processTicket(1531, h.d)).phase, "error");
+    await assert.rejects(archaeologyOnly(1531, h.d), /本地锁已存在/);
+    assert.equal(retireLegacyShadow(h.d.outRoot, 1531), null);
+    assert.ok(existsSync(join(dir, ".lock")));
+  } finally { resume(); await first; }
+  assert.ok(!existsSync(join(h.d.outRoot, ".1531.lock")));
+  assert.ok(!existsSync(join(dir, ".lock")));
+  assert.ok(existsSync(join(dir, "summary.json")));
+});

@@ -49,6 +49,7 @@ if(args[0]==='issue' && args[1]==='list') {
 } else if(args[0]==='api' && args[1]==='--paginate') {
   const endpoint=args[2];
   if(endpoint.endsWith('/1/sub_issues')) out(f.nested ? [spec(2)] : [spec(2), ...(f.path==='queue'?[ticket]:[])]);
+  else if(endpoint.includes('/issues?') || endpoint.endsWith('/dependencies/blocked_by')) out([]);
   else if(endpoint.endsWith('/2/sub_issues')) out([spec(3)]);
   else if(endpoint.endsWith('/3/sub_issues')) out([ticket]);
   else if(endpoint.endsWith('/2/comments')) out([f.pass,...(changed && f.change==='block'?[f.block]:[])]);
@@ -86,7 +87,7 @@ for (const path of ["split", "queue"] as const) {
   });
   test(`${path}：当前合法 PASS 仍可执行`, () => {
     const result = run(path, "valid");
-    const actions = result.writes.filter(a => a[0] === "issue");
+    const actions = result.writes.filter(a => a[0] === "issue" && (path !== "split" || a[1] === "create"));
     assert.equal(actions.length, path === "split" ? 2 : 1, result.out);
     assert.equal(actions[0]![1], path === "split" ? "create" : "edit");
   });

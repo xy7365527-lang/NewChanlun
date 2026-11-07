@@ -12,7 +12,7 @@
  *   1. 图清（子票全关、frontier 空）→ 派主控同型起草子代理（经 CLIProxyLocal，#1588 / #1617）起草 spec 草案 → 开图内 spec 票
  *      → 待非作者独审；
  *   2. spec 裁定（编排者账号发结构化「SPEC 独审裁定：PASS」，非作者、绑定当前正文摘要，#1909）→ 自动拆 tracer-bullet 实装票
- *      （blocking 边 + 票面逐条挂裁定票）+ 挂 sandcastle 标签 → 工蜂拾取；
+ *      （blocking 边 + 票面逐条挂裁定票）→ 发布 ready-for-agent → 按依赖释放拾取标签；
  *   3. 实装票全关 + 图关判据满足 → 自动起草图关 comment + close map。
  *
  * 本引擎不裁决策票，也不处理纯决策图；决策票由 decision-claimer 起草并经非作者独审裁定。
@@ -59,11 +59,6 @@ export const DEFAULT_SPEC_MODEL = MAIN_MODEL;
 export const DEFAULT_SPEC_PROVIDER = "claude-cliproxy";
 /** WAYFINDER_SPEC_MODEL 只接受主控同型；非法值 fail-loud，不回退旧模型。 */
 export const SUPPORTED_SPEC_MODELS = SUPPORTED_MAIN_MODELS;
-// 实装票标签：ready-for-agent（已就绪）+ sandcastle（工蜂拾取闸，main.mts 读取）。
-export function implLabels(label = releaseLabel()): string[] {
-  return label === QUEUE_LABEL ? ["ready-for-agent"] : ["ready-for-agent", "sandcastle"];
-}
-
 // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉（main.mts 同款）。
 const GH_ENV: NodeJS.ProcessEnv = {
   ...process.env,
@@ -437,7 +432,9 @@ export function analyzeMap(map: MapState, opts: WalkOptions): Analysis {
         }
       } else {
         const complete = plan.every((t) =>
-          impl.some((i) => i.title.startsWith(`[impl] ${t.id} `)),
+          impl.some((i) => i.title.startsWith(`[impl] ${t.id} `) &&
+            i.body.includes(splitReceipt(s.number, s.body, t.id)) &&
+            (i.state === "CLOSED" || i.labels.includes("ready-for-agent"))),
         );
         if (!complete) {
           return {
@@ -900,13 +897,22 @@ export function releaseTicket(
   io: { read: (args: string) => string; write: (args: string) => string } = { read: gh, write: ghOnce },
   label = releaseLabel(),
 ): string | null {
-  const v = JSON.parse(io.read(`issue view ${number} --json state,labels,assignees,blockedBy`));
+  const v = JSON.parse(io.read(`issue view ${number} --json title,body,state,labels,assignees,blockedBy`));
   const why = recheckBeforeRelease(v, label);
   if (why) return why;
   if (!authorization.specs.length) return "缺父 SPEC 身份，不能沿用扫描批准态";
   for (const spec of authorization.specs) {
-    if (!currentSpecApproved(readCurrentSpec(spec, io.read), spec, authorization.orchestrator)) {
+    const current = readCurrentSpec(spec, io.read);
+    if (!currentSpecApproved(current, spec, authorization.orchestrator)) {
       return `SPEC #${spec} 当前无有效 PASS`;
+    }
+    const tagged = (v.body ?? "").includes(`<!-- wayfinder-ticket:${spec}:`);
+    const item = parseSplitPlan(current.body)?.find(t => tagged
+      ? (v.body ?? "").includes(splitIdentity(spec, t.id))
+      : v.title?.startsWith(`[impl] ${t.id} `));
+    if (tagged && !item) return `SPEC #${spec} 不再包含该拆票身份`;
+    if (item && !(v.body ?? "").includes(splitReceipt(spec, current.body, item.id))) {
+      return `SPEC #${spec} 拆票尚未完整发布`;
     }
   }
   io.write(`issue edit ${number} --add-label ${label}`);
@@ -1170,73 +1176,102 @@ function actDraftSpec(a: Extract<Action, { kind: "draft_spec" }>, cfg: EngineCon
   console.log(`  ✓ 已开图内 spec 票 #${created.number} → 待非作者独审裁定`);
 }
 
-/** 动作 2：spec 批准 → 拆 tracer-bullet 实装票 + blocking 边 + sandcastle 标签。 */
+/** 身份在 create 内一起提交，关联失败或响应丢失后仍能从 REST 账本找回。 */
+function splitIdentity(spec: number, id: string): string {
+  return `<!-- wayfinder-ticket:${spec}:${encodeURIComponent(id)} -->`;
+}
+
+function splitReceipt(spec: number, body: string, id: string): string {
+  return `<!-- wayfinder-published:${spec}:${specBodyDigest(body)}:${encodeURIComponent(id)} -->`;
+}
+
+/** 动作 2：先准备完整依赖图，再将实施票发布到现有释放流程。 */
 function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: EngineConfig): void {
-  const mapNumber = a.map;
-  const specNumber = a.spec;
-  const spec = readCurrentSpec(specNumber);
-  if (!currentSpecApproved(spec, specNumber, cfg.orchestrator)) {
-    console.log(`  · SPEC #${specNumber} 当前无有效 PASS，不拆票`);
-    return;
-  }
-  const specBody = spec.body;
-  // 每次创建前重新核对；新正文即使已有新 PASS，也留到下一轮重新解析计划。
-  const stillApproved = () => {
-    const current = readCurrentSpec(specNumber);
-    const ok = current.body === specBody && currentSpecApproved(current, specNumber, cfg.orchestrator);
-    if (!ok) console.log(`  · SPEC #${specNumber} 裁定或正文已变，停止本轮拆票`);
-    return ok;
-  };
-  const plan = parseSplitPlan(specBody);
+  const spec = readCurrentSpec(a.spec);
+  if (!currentSpecApproved(spec, a.spec, cfg.orchestrator)) return;
+  const plan = parseSplitPlan(spec.body);
   if (!plan) {
-    console.error(
-      `  ✗ spec #${specNumber} 无机器可读拆票节（wayfinder-split），无法自动拆票 → 留人工。`,
-    );
+    console.error(`  ✗ spec #${a.spec} 无机器可读拆票节（wayfinder-split），无法自动拆票 → 留人工。`);
     return;
   }
-
-  const existingImpl = fetchChildren(mapNumber).filter(isImplTicket);
-  const existingTitle = new Set(existingImpl.map((c) => c.title));
-  const createdByPlanId = new Map<string, { number: number; id: number }>();
-
-  // 幂等：已存在的实装票（按标题含 [impl] <id> 判定）跳过，补建缺失的。
-  for (const t of plan) {
-    const expected = `[impl] ${t.id} `;
-    const already = [...existingTitle].some((title) => title.startsWith(expected));
-    if (already) {
-      console.log(`  · 实装票 ${t.id} 已存在，跳过（幂等）`);
-      const match = existingImpl.find((c) => c.title.startsWith(expected));
-      if (match) createdByPlanId.set(t.id, { number: match.number, id: issueDbId(match.number) });
-      continue;
-    }
-    const rulings = t.rulings
-      .map((n) => `[#${n}](${issueUrl(n)})`)
-      .join(" + ");
-    const ticketBody =
-      `Part of [SPEC #${specNumber}](${issueUrl(specNumber)})（map [#${mapNumber}](${issueUrl(mapNumber)}) 图内实施票）。` +
-      (rulings ? `决策链：${rulings}。` : "") +
-      `\n\n## 目标（spec ${t.id}）\n\n${t.summary ?? "（见 spec 对应条目）"}\n`;
-    if (!stillApproved()) return;
-    const created = createIssue(`[impl] ${t.id} ${t.title}`, ticketBody, implLabels());
-    addSubIssue(mapNumber, created.id);
-    createdByPlanId.set(t.id, created);
-    console.log(`  ✓ 已开实装票 #${created.number}（${t.id}，${implLabels().join("+")}）`);
+  const ids = new Set(plan.map(t => t.id));
+  if (ids.size !== plan.length || plan.some(t => !t.id || t.dependsOn.some(d => !ids.has(d) || d === t.id))) {
+    throw new Error("拆票计划含重复身份或无效依赖，不创建票");
   }
-
-  // blocking 边：depends_on 引用本计划内的 id。
+  const visiting = new Set<string>(), visited = new Set<string>();
+  const visit = (id: string) => {
+    if (visiting.has(id)) throw new Error("拆票计划存在依赖环，不创建票");
+    if (visited.has(id)) return;
+    visiting.add(id);
+    for (const dep of plan.find(t => t.id === id)!.dependsOn) visit(dep);
+    visiting.delete(id); visited.add(id);
+  };
+  for (const id of ids) visit(id);
+  const stillApproved = () => {
+    const current = readCurrentSpec(a.spec);
+    return current.body === spec.body && currentSpecApproved(current, a.spec, cfg.orchestrator);
+  };
+  const linked = fetchChildren(a.map).filter(isImplTicket);
+  // REST 分页列举不用搜索索引；create 成功但未关联的票也在同一恢复集合里。
+  const repositoryIssues = JSON.parse(gh(`api --paginate ${shellQuote(`repos/${GH_ENV.GH_REPO}/issues?state=all&per_page=100`)} --slurp`)) as RawChild[][];
+  const allIssues = repositoryIssues.flat();
+  const tickets = new Map<string, { number: number; id: number; body: string; state: string; labels: string[] }>();
   for (const t of plan) {
-    const child = createdByPlanId.get(t.id);
-    if (!child) continue;
-    for (const depId of t.dependsOn) {
-      const dep = createdByPlanId.get(depId);
-      if (!dep) {
-        console.error(`  ✗ ${t.id} depends_on 未知 id ${depId}，跳过该边（人工补接）`);
-        continue;
-      }
-      if (!stillApproved()) return;
-      addBlockingEdge(child.number, dep.id);
-      console.log(`  ✓ blocking 边：#${child.number} blocked by #${dep.number}（${depId}）`);
+    const identity = splitIdentity(a.spec, t.id);
+    const marked = allIssues.filter(i => (i.body ?? "").includes(identity));
+    const legacy = linked.filter(i => i.title.startsWith(`[impl] ${t.id} `) && !i.body.includes("<!-- wayfinder-ticket:"));
+    const candidates = [...new Map([...marked, ...legacy].map(i => [i.number, i])).values()];
+    if (candidates.length > 1) throw new Error(`拆票身份 ${t.id} 对应多张票，不能自动选择`);
+    let existing = candidates[0];
+    const receipt = splitReceipt(a.spec, spec.body, t.id);
+    if (existing && /<!-- wayfinder-published:/.test(existing.body ?? "") && !(existing.body ?? "").includes(receipt)) {
+      throw new Error(`已发布 #${existing.number} 属于另一版 SPEC，须显式修订实施合同`);
     }
+    const rulings = t.rulings.map(n => `[#${n}](${issueUrl(n)})`).join(" + ");
+    const plannedBody = `${identity}\nPart of [SPEC #${a.spec}](${issueUrl(a.spec)})（map [#${a.map}](${issueUrl(a.map)}) 图内实施票）。` +
+      (rulings ? `决策链：${rulings}。` : "") + `\n\n## 目标（spec ${t.id}）\n\n${t.summary ?? "（见 spec 对应条目）"}\n`;
+    const body = existing?.body
+      ? (existing.body.includes(identity) ? existing.body : `${identity}\n${existing.body}`)
+      : plannedBody;
+    if (!existing) {
+      if (!stillApproved()) return;
+      const created = createIssue(`[impl] ${t.id} ${t.title}`, body, []);
+      existing = { ...created, title: `[impl] ${t.id} ${t.title}`, body, state: "OPEN", labels: [] };
+    }
+    const number = existing.number;
+    let names = (existing.labels ?? []).map(l => typeof l === "string" ? l : l.name);
+    const published = (existing.body ?? "").includes(receipt);
+    if (!published) {
+      if ((existing.assignees ?? []).length) throw new Error(`未完整发布的 #${number} 已被认领，须先停止旧执行者`);
+      // 回收旧版本留下的提前发布标签；不引入另一套 consumer 准入规则。
+      const exposed = names.filter(l => ["ready-for-agent", "sandcastle", QUEUE_LABEL, IMPL_LABEL].includes(l));
+      if (exposed.length) ghOnce(`issue edit ${number} --remove-label ${shellQuote(exposed.join(","))}`);
+      names = names.filter(l => !exposed.includes(l));
+      if ((existing.body ?? "") !== body) ghOnce(`issue edit ${number} --body ${shellQuote(body)}`);
+    }
+    const id = issueDbId(number);
+    if (!linked.some(i => i.number === number)) addSubIssue(a.map, id);
+    tickets.set(t.id, { number, id, body: published ? existing.body! : body, state: existing.state, labels: names });
+  }
+  // 补边是准备态收敛，不授予执行权；即使 PASS 撤销也完成已创建票的安全依赖。
+  for (const t of plan) {
+    const child = tickets.get(t.id)!;
+    const pages = JSON.parse(gh(`api --paginate repos/${GH_ENV.GH_REPO}/issues/${child.number}/dependencies/blocked_by --slurp`)) as Array<Array<{ id: number }>>;
+    const edges = pages.flat();
+    for (const dep of new Set(t.dependsOn)) {
+      const blocker = tickets.get(dep)!;
+      if (!edges.some(e => e.id === blocker.id)) addBlockingEdge(child.number, blocker.id);
+    }
+  }
+  // 每票发布前重验当前裁定；失败后保持已准备图，下一轮补余下的发布。
+  for (const t of plan) {
+    const child = tickets.get(t.id)!;
+    if (!stillApproved()) return;
+    const receipt = splitReceipt(a.spec, spec.body, t.id);
+    if (!child.body.includes(receipt)) ghOnce(`issue edit ${child.number} --body ${shellQuote(`${child.body}\n${receipt}\n`)}`);
+    if (normalizeState(child.state) === "CLOSED") continue;
+    if (!stillApproved()) return;
+    if (!child.labels.includes("ready-for-agent")) ghOnce(`issue edit ${child.number} --add-label ready-for-agent`);
   }
 }
 
