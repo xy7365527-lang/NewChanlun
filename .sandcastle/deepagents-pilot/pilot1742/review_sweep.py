@@ -1,6 +1,7 @@
 """#1742 正式审查的自动触发：PR 推送或追平后，不经人工转发，在最新 head 上发起 review-pr。
 
-每轮 tick 列出指向 main 的开放 PR，按（PR，当前 head）决定一件事：
+每轮 tick 列出指向 main 的开放 PR，按（PR，当前 base，当前 head）决定一件事（审查期间 main 前进时 run 记为
+STALE、不发布终态；STALE 不算完成，base 变了就在新 base 下重新发起，否则 PR 会永远停在 pending）：
 - 没有任何 run：并发未满时以子进程发起 attempt 1；
 - 本 head 的审查进程还活着：等待；
 - 有 run 但没有结论、进程已不在（中断）：同一 attempt 续跑一次，再次中断交操作员；
@@ -105,11 +106,11 @@ class Sweep:
     def open_pulls(self) -> list[dict[str, Any]]:
         return self.gateway.client.paginate(self.gateway._p("/pulls"), {"state": "open", "base": "main"})
 
-    def _record_path(self, number: int, head: str) -> Path:
-        return self.folder / f"p{number}-{head}.json"
+    def _record_path(self, number: int, base: str, head: str) -> Path:
+        return self.folder / f"p{number}-{base[:12]}-{head}.json"
 
-    def _read(self, number: int, head: str) -> dict | None:
-        path = self._record_path(number, head)
+    def _read(self, number: int, base: str, head: str) -> dict | None:
+        path = self._record_path(number, base, head)
         return json.loads(path.read_text()) if path.exists() else None
 
     def _has_commits(self, *shas: str) -> bool:
@@ -126,47 +127,51 @@ class Sweep:
             return 0
         return sum(process_alive(json.loads(p.read_text()), rows) for p in self.folder.glob("p*.json"))
 
-    def _launch(self, number: int, head: str, attempt: int, resumes: int) -> dict:
+    def _launch(self, number: int, base: str, head: str, attempt: int, resumes: int) -> dict:
         self.folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         pid = self.spawn(number, attempt, self.folder / "logs" / f"p{number}-{head[:12]}-a{attempt}.log")
-        record = {"pr": number, "head": head, "attempt": attempt, "pid": pid, "resumes": resumes,
+        record = {"pr": number, "base": base, "head": head, "attempt": attempt, "pid": pid, "resumes": resumes,
                   "started_at": time.time()}
-        tmp = self._record_path(number, head).with_suffix(".tmp")
+        tmp = self._record_path(number, base, head).with_suffix(".tmp")
         tmp.write_text(json.dumps(record))
-        os.replace(tmp, self._record_path(number, head))
+        os.replace(tmp, self._record_path(number, base, head))
         return record
 
     def decide(self, pr: dict[str, Any], rows: Rows, running: int) -> tuple[str, dict | None]:
-        number, head = pr["number"], pr["head"]["sha"]
+        number, head, base = pr["number"], pr["head"]["sha"], pr["base"]["sha"]
         if pr.get("draft"):
             return "draft", None
         if (pr["head"].get("repo") or {}).get("id") != pr["base"]["repo"]["id"]:
             return "foreign-head", None
         if not self._recent(pr):
             return "stale-pr", None
-        record = self._read(number, head)
+        record = self._read(number, base, head)
         if process_alive(record, rows):
             return "running", None
-        runs = [row for row in self.lane.status(number) if row["target"].get("head_sha") == head]
-        if any(row["outcome"] for row in runs):
+        runs = [row for row in self.lane.status(number)
+                if row["target"].get("head_sha") == head and row["target"].get("base_sha") == base]
+        if any(row["outcome"] and row["outcome"].get("verdict") != "STALE" for row in runs):
             return "done", None
+        live = [row for row in runs if not row["outcome"]]  # STALE 不续跑，只看未到终态的
         if running >= self.max_running:
             return "queued", None
-        base = pr["base"]["sha"]
         if not self._has_commits(base, head):
             if self.sync is None:
                 return "needs-source-sync", None
             self.sync(number, base, head)
             if not self._has_commits(base, head):
                 return "needs-source-sync", None
-        if not runs and record is None:
-            return "launch", self._launch(number, head, 1, 0)
+        if not live:
+            # 本 base/head 没有在途 run：首次发起，或此前只有 STALE（同一 base 下发布前 head/目标漂移），取下一个 attempt。
+            attempt = max((row["target"]["attempt"] for row in runs), default=0) + 1
+            if record is None or record["attempt"] < attempt:
+                return "launch", self._launch(number, base, head, attempt, 0)
         # 有登记无结论、进程已不在：中断。只续跑记录过的那个 attempt，且只续一次。
-        attempt = record["attempt"] if record else max(row["target"]["attempt"] for row in runs)
+        attempt = record["attempt"] if record else max(row["target"]["attempt"] for row in live)
         resumes = record["resumes"] if record else 0
         if resumes >= 1:
             return "needs-operator", None
-        return "resume", self._launch(number, head, attempt, resumes + 1)
+        return "resume", self._launch(number, base, head, attempt, resumes + 1)
 
     def _recent(self, pr: dict[str, Any]) -> bool:
         updated = pr.get("updated_at")

@@ -1,10 +1,12 @@
 import copy
+import json
 
 import pytest
 import test_external_review as _external_review
 from conftest import git
 
 from pilot1742 import review_sweep as module
+from pilot1742.external_review import ReviewTarget
 from pilot1742.review_sweep import Sweep, process_alive
 
 lane = _external_review.lane  # 复用真实审查 lane 与 PR 替身
@@ -182,3 +184,32 @@ def test_stale_and_draft_pulls_are_neither_reviewed_nor_merged(lane):
     sweep, host = make(lane, pulls=[stale, draft], merge=merge, now=lambda: datetime(2026, 11, 7, tzinfo=timezone.utc))
     assert [a["action"] for a in sweep.tick()] == ["stale-pr", "draft"]
     assert host.spawned == [] and merge.calls == []
+
+
+def test_stale_outcome_after_base_drift_is_reviewed_again_on_current_base(lane):
+    """Codex P1（#1939）：审查期间 main 前进，结果记为 STALE 且不发布终态；不能把它当作完成而永久卡在 pending。"""
+    sweep, host = make(lane)
+    assert [a["action"] for a in sweep.tick()] == ["launch"]
+    first = lane.status(1810)[0]
+    outcome = lane.state_root / "runs" / ReviewTarget(**first["target"]).key / "outcome.json"
+    stale = json.loads(outcome.read_text())
+    stale["verdict"] = "STALE"
+    outcome.write_text(json.dumps(stale))
+    git(lane.source, "checkout", "-q", "-b", "main-next", lane.gateway.pr["base"]["sha"])
+    (lane.source / "unrelated").write_text("main moved\n")
+    git(lane.source, "add", ".")
+    git(lane.source, "commit", "-qm", "main moved")
+    lane.gateway.pr["base"]["sha"] = git(lane.source, "rev-parse", "HEAD")
+    git(lane.source, "checkout", "-q", lane.gateway.pr["head"]["sha"])
+    assert [a["action"] for a in sweep.tick()] == ["launch"]
+    assert [a["action"] for a in sweep.tick()] == ["done"]
+
+
+def test_stale_on_current_base_is_not_done(lane):
+    sweep, host = make(lane, run=False)
+    sweep.tick()
+    target = lane.target(1810, 1)
+    folder = lane.state_root / "runs" / target.key
+    (folder / "outcome.json").write_text(json.dumps({"run_id": target.run_id, "verdict": "STALE"}))
+    host.rows.clear()
+    assert [a["action"] for a in sweep.tick()] != ["done"]
