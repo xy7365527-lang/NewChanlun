@@ -1,5 +1,8 @@
 # ADR 0051：逐 bar 域事件外壳、身份与生命周期合同
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是逐 bar 域事件外壳、身份、epoch 分词、去重与因果、撤回与恢复幂等、snapshot/delta 续接与持久边界的教义正本。
 > 最后裁定：#1534（FU-11，2026-10-28 落地；用户 2026-10-27 批复）
 > 受影响代码清单：见本文「受影响票与 blocking 边变化」节

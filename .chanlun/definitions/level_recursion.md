@@ -1,5 +1,8 @@
 # 级别递归（Level Recursion / 走势级别的递归构造）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是**级别**的教义正本（「级别 ＝ 由递归定义，不由数据聚类的簇定义」）。
 > 最后裁定：[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)（2026-10-21，「现行裁定」中的 `a₀` 值域改为指向 `zhongshu.md` §2.1.1）；[#815](https://github.com/xy7365527-lang/NewChanlun/issues/815)（2026-08-03，M-3）
 > 受影响代码清单：见 [`qushi.md`](qushi.md) 末节「#815 受影响代码清单（四组汇总）」——#815 四组共用一份，本文件不另立。

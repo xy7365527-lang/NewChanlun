@@ -1,5 +1,8 @@
 # ADR 0059：生产会话布局合同（S admission 测量域与并发写域库目录）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是 #1818 `production_session` 布局合同的正本，涵盖 S admission 测量域 M 的边界、并发写域库目录的启动前拒绝规则、路径比较语义与 owner 落点。
 > 最后裁定：#1818（2026-11-01，T 类，依 #1323 Notes N-1 预授权判定）
 > 受影响代码清单：`rust/src/bin/production_session.rs:125`（`load_manifest`，拒绝检查落点）；`rust/tests/production_session_entry.rs`（验收测试）；`docs/runbook_production_session.md:35`、`:40`、`:53`、`:59`（runbook 订正）。实施归 #1781。

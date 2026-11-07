@@ -1,5 +1,8 @@
 # 背驰（Beichi / Divergence）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是背驰的教义正本。
 > 最后裁定：[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)（2026-10-21，「唯一仍属「选择」的那一样」节：`a₀` 构件改指 `zhongshu.md` §2.1.1，数据周期 1 分钟 K 线单列）；[#815](https://github.com/xy7365527-lang/NewChanlun/issues/815) M-4（2026-08-03，**「小转大」＝ 转折二分类第二支的俗称，不是独立概念，不设独立正本词条**——正本落本文件「小转大」节）、[#873](https://github.com/xy7365527-lang/NewChanlun/issues/873)（2026-08-03，**力度的精确定义 = 速度净增量；[#859](https://github.com/xy7365527-lang/NewChanlun/issues/859) D-2「原文空白只能自选」已整体改判为 `[新缠论:推论]`**）、[#859](https://github.com/xy7365527-lang/NewChanlun/issues/859)、[#865](https://github.com/xy7365527-lang/NewChanlun/issues/865)、[#869](https://github.com/xy7365527-lang/NewChanlun/issues/869)（均 2026-08-03，map [#854](https://github.com/xy7365527-lang/NewChanlun/issues/854)）、[#862](https://github.com/xy7365527-lang/NewChanlun/issues/862)（2026-08-03）、[#814](https://github.com/xy7365527-lang/NewChanlun/issues/814)（2026-08-03，编排者裁定 D-2/D-3/D-4/D-5）
 > 受影响代码清单：**#815 M-4 那一组见 [`qushi.md`](qushi.md) 末节「#815 受影响代码清单（四组汇总）」**（#815 四组共用一份，本文件不另立）；此外见 #862、#814 resolution；本文件「力度是什么」§受影响代码（五套实现的处置）+ 各裁定小节内嵌代码清单（D-2/D-3/D-5）。**#873 的定义尚未落到任何代码上**——对接归 [#872](https://github.com/xy7365527-lang/NewChanlun/issues/872)。
