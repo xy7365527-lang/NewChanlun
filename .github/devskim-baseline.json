@@ -5519,7 +5519,7 @@
     "DS176209|trading_system/strategy/signal_bridge.py|184",
     "DS197836|rust/src/lav_seal/bundle.rs|299",
     "DS197836|rust/src/lav_seal/comparison_set.rs|227",
-    "DS148264|.github/devskim-baseline.json|860",
+    "DS148264|.github/devskim-baseline.json|792",
     "DS117838|.chanlun/review-results/issue1370-tb01-a/acceptance/payload/evidence/native-r5/bigint/launcher-run.json|18",
     "DS117838|.chanlun/review-results/issue1370-tb01-a/acceptance/payload/evidence/native-r5/bigint/state-verified.json|1",
     "DS117838|.chanlun/review-results/issue1370-tb01-a/acceptance/payload/evidence/native-r5/fault-ui/healthy-http-state.json|1",
