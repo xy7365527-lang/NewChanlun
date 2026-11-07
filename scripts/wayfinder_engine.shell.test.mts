@@ -13,6 +13,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSy
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { specRulingBody, specBodyDigest, isSpecApproved } from "./wayfinder_engine.mts";
 import { MAIN_MODEL } from "../.sandcastle/main-model.mts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,8 +53,8 @@ function runEngine(failCount: number, maxAttempts: number): string {
   try {
     // 重试日志走 console.error（stderr），一轮收尾走 stdout，两路合并后一起断言。
     const r = spawnSync(
-      "npx",
-      ["tsx", "scripts/wayfinder_engine.mts", "--once", "--dry-run"],
+      process.execPath,
+      ["--experimental-strip-types", "scripts/wayfinder_engine.mts", "--once", "--dry-run"],
       { cwd: repoRoot, env, encoding: "utf8", timeout: 30_000 },
     );
     if (r.status !== 0) {
@@ -122,7 +123,11 @@ test("切流壳：draining 下引擎向假 gh 发出新队列标签，不经过�
       variable_source: "user-token-readonly", release_label: "deepagents:queue", engine_head: "a".repeat(40),
       legacy_services_unloaded: ["com.newchanlun.sandcastle-claimer", "com.newchanlun.sandcastle-harvest"] }));
     writeFileSync(join(root, "gh"), `#!/usr/bin/env bash
-if [ "$1 $2" = "issue view" ]; then
+if [ "$1 $2 $3" = "issue view 2" ]; then
+  echo '{"number":2,"title":"SPEC: fixture","body":"","state":"OPEN"}'
+elif [ "$1 $2" = "api --paginate" ]; then
+  cat "$D6_FIXTURE_LOG.comments"
+elif [ "$1 $2" = "issue view" ]; then
   echo '{"state":"OPEN","labels":[],"assignees":[]}'
 elif [ "$1 $2" = "issue edit" ]; then
   printf '%s\\n' "$*" >> "$D6_FIXTURE_LOG"
@@ -130,12 +135,14 @@ else
   exit 71
 fi
 `, { mode: 0o755 });
+    writeFileSync(log + ".comments", JSON.stringify([{ user: { login: "fixture" }, created_at: "2026-11-07",
+      body: specRulingBody({ specNumber: 2, verdict: "PASS", author: "draft", reviewer: "review", digest: specBodyDigest(""), evidence: "/fixture/review.json" }) }]));
     const script = `import {execFileSync} from 'node:child_process';
       const m = await import(process.argv[1]);
       const roots = {stateRoot: process.argv[2], drainRoot: process.argv[3]};
       const io = {read: args => execFileSync('gh', args.split(' '), {encoding:'utf8'}),
                   write: args => execFileSync('gh', args.split(' '), {encoding:'utf8'})};
-      await m.withEngineAdmission(() => m.releaseTicket(99, io, m.releaseLabel(roots.stateRoot, roots.drainRoot)), roots);`;
+      await m.withEngineAdmission(() => m.releaseTicket(99, {specs:[2], orchestrator:"fixture"}, io, m.releaseLabel(roots.stateRoot, roots.drainRoot)), roots);`;
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", script,
       new URL("./wayfinder_engine.mts", import.meta.url).href, state, drain], {
       cwd: repoRoot, env: { ...process.env, PATH: `${root}:${process.env.PATH}`, D6_FIXTURE_LOG: log },
@@ -178,7 +185,7 @@ async function runLiveLoop(record: "valid" | "missing" | "malformed" | "stale", 
     for (const [name, value] of Object.entries({
       maps: [{ number: 1, title: "fixture map", state: "OPEN", labels: [] }],
       children: [{ number: 2, title: "SPEC: fixture", state: "OPEN" }, ticket],
-      comments: [{ user: { login: "fixture-orchestrator" }, body: "批准", created_at: "2026-01-01" }],
+      comments: [{ user: { login: "fixture-orchestrator" }, body: specRulingBody({ specNumber: 2, verdict: "PASS", author: "fixture-draft", reviewer: "fixture-review", digest: specBodyDigest(""), evidence: "/fixtures/review.json" }), created_at: "2026-01-01" }],
       tickets: [ticket],
     })) writeFileSync(join(root, name), JSON.stringify(value));
     writeFileSync(log, "");
@@ -198,7 +205,9 @@ case "$1 $2" in
       *) exit 71 ;;
     esac ;;
   "issue view")
-    if [ -s "$WFE_FIXTURE/writes" ]; then
+    if [ "$3" = "2" ]; then
+      echo '{"number":2,"title":"SPEC: fixture","body":"","state":"OPEN"}'
+    elif [ -s "$WFE_FIXTURE/writes" ]; then
       echo '{"state":"OPEN","labels":[{"name":"deepagents:queue"}],"assignees":[]}'
     else echo '{"state":"OPEN","labels":[],"assignees":[]}'; fi ;;
   "issue edit") printf '%s\\n' "$*" >> "$WFE_FIXTURE/writes" ;;
@@ -252,4 +261,47 @@ test("单轮入口：有效切流记录仍放行新队列且只运行一轮", as
   const result = await runLiveLoop("valid", true);
   assert.equal(result.writes, "issue edit 99 --add-label deepagents:queue\n", result.out);
   assert.equal((result.out.match(/一轮结束/g) ?? []).length, 1);
+});
+
+
+test("SPEC CLI：真实读取审查文件，只比较所审摘要，不改写绑定或调用模型", () => {
+  const root = mkdtempSync(join(tmpdir(), "wfe-spec-review-"));
+  try {
+    const body = "SPEC v1\n";
+    const reviewPath = join(root, "review.json");
+    const review = { specNumber: 7, verdict: "PASS", author: "draft-session", reviewer: "review-session", digest: specBodyDigest(body) };
+    writeFileSync(reviewPath, JSON.stringify(review));
+    writeFileSync(join(root, "body.json"), JSON.stringify({ body }));
+    writeFileSync(join(root, "gh"), `#!/bin/sh
+if [ "$1 $2 $3" != "issue view 7" ]; then exit 71; fi
+cat "$WFE_FIXTURE/body.json"
+`, { mode: 0o755 });
+    const run = () => spawnSync(process.execPath, ["--experimental-strip-types", "scripts/wayfinder_engine.mts",
+      "--spec-ruling", "7", "--review-file", reviewPath], {
+      cwd: repoRoot, env: { ...process.env, PATH: `${root}:${process.env.PATH}`, WFE_FIXTURE: root },
+      encoding: "utf8", timeout: 10_000,
+    });
+    const pass = run();
+    assert.equal(pass.status, 0, pass.stderr);
+    assert.match(pass.stdout, /SPEC 独审裁定：PASS/);
+    assert.ok(pass.stdout.includes(`证据：${reviewPath}`));
+    assert.equal(isSpecApproved({ number: 7, title: "SPEC: test", body, state: "OPEN", labels: [], assignees: [], blockedBy: 0,
+      comments: [{ author: "fixture", body: pass.stdout, createdAt: "2026-11-07T00:00:00Z" }] }, "fixture"), true);
+    writeFileSync(join(root, "body.json"), JSON.stringify({ body: body + "v2" }));
+    const stale = run();
+    assert.notEqual(stale.status, 0);
+    assert.equal(stale.stdout, "");
+    assert.match(stale.stderr, /正文已在独审后改动/);
+    assert.deepEqual(JSON.parse(readFileSync(reviewPath, "utf8")), review);
+    writeFileSync(join(root, "body.json"), JSON.stringify({ body }));
+    writeFileSync(reviewPath, JSON.stringify({ ...review, verdict: "BLOCK" }));
+    const block = run();
+    assert.equal(block.status, 0, block.stderr);
+    assert.match(block.stdout, /SPEC 独审裁定：BLOCK/);
+    rmSync(reviewPath);
+    const missing = run();
+    assert.notEqual(missing.status, 0);
+    assert.equal(missing.stdout, "");
+    assert.match(missing.stderr, /ENOENT/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

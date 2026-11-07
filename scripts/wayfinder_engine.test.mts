@@ -35,6 +35,11 @@ import {
   DEFAULT_SPEC_MODEL,
   DEFAULT_SPEC_PROVIDER,
   SUPPORTED_SPEC_MODELS,
+  parseSpecRuling,
+  specBodyDigest,
+  specRulingBody,
+  specRulingCli,
+  specRulingProblem,
 } from "./wayfinder_engine.mts";
 import type {
   ChildIssue,
@@ -89,8 +94,8 @@ function map(partial: Partial<MapState> & { number: number }): MapState {
   };
 }
 
-function approvalComment(body = "批准。照此执行。"): IssueComment {
-  return { author: ORCH, body, createdAt: "2026-08-18T12:00:00Z" };
+function approvalComment(specNumber = 500, specBody = ""): IssueComment {
+  return { author: ORCH, body: specRulingBody({ specNumber, verdict: "PASS", author: "draft-session-A", reviewer: "review-session-B", digest: specBodyDigest(specBody), evidence: "/fixtures/review.json" }), createdAt: "2026-08-18T12:00:00Z" };
 }
 
 function rejectComment(body = "不批准，打回重写。"): IssueComment {
@@ -107,13 +112,13 @@ test("图清态：决策票全关、无 spec/实装 → draft_spec", () => {
   assert.deepEqual(walkGraph(m, OPTS), [{ kind: "draft_spec", map: 42 }]);
 });
 
-test("批准态：spec 存在且被编排者批 → split_impl_tickets", () => {
+test("批准态：spec 已裁定放行（非作者独审 PASS） → split_impl_tickets", () => {
   const m = map({
     number: 42,
     children: [decision(101), spec(500, "OPEN", [approvalComment()])],
   });
   const a = analyzeMap(m, OPTS);
-  assert.equal(a.phase.includes("已批准"), true);
+  assert.equal(a.phase.includes("已裁定 PASS"), true);
   assert.deepEqual(a.actions, [{ kind: "split_impl_tickets", map: 42, spec: 500 }]);
 });
 
@@ -152,7 +157,7 @@ test("驳回后再批准（时间序推进）→ split", () => {
       decision(101),
       spec(500, "OPEN", [
         rejectComment(),
-        { author: ORCH, body: "批准，按此拆票。", createdAt: "2026-08-18T12:02:00Z" },
+        { ...approvalComment(), createdAt: "2026-08-18T12:02:00Z" },
       ]),
     ],
   });
@@ -175,7 +180,7 @@ test("批准后拆到一半（计划内缺票）→ 补拆（幂等再触发）"
     '{"tickets":[{"id":"S1","title":"a"},{"id":"S2","title":"b"}]}',
     "```",
   ].join("\n");
-  const s = spec(500, "OPEN", [approvalComment()]);
+  const s = spec(500, "OPEN", [approvalComment(500, planBody)]);
   s.body = planBody;
   const m = map({
     number: 42,
@@ -184,19 +189,22 @@ test("批准后拆到一半（计划内缺票）→ 补拆（幂等再触发）"
   assert.deepEqual(walkGraph(m, OPTS), [{ kind: "split_impl_tickets", map: 42, spec: 500 }]);
 });
 
-test("批准且拆齐（计划全覆盖）→ 不再拆，落入实装中", () => {
+test("批准且标题齐全但无发布凭据 → 恢复依赖与发布", () => {
   const planBody = [
     "<!-- wayfinder-split -->",
     "```json",
     '{"tickets":[{"id":"S1","title":"a"}]}',
     "```",
   ].join("\n");
-  const s = spec(500, "OPEN", [approvalComment()]);
+  const s = spec(500, "OPEN", [approvalComment(500, planBody)]);
   s.body = planBody;
   const m = map({
     number: 42,
     children: [decision(101), s, child({ number: 201, title: "[impl] S1 a", state: "OPEN" })],
   });
+  assert.deepEqual(walkGraph(m, OPTS), [{ kind: "split_impl_tickets", map: 42, spec: 500 }]);
+  m.children[2]!.body = `<!-- wayfinder-published:500:${specBodyDigest(planBody)}:S1 -->`;
+  m.children[2]!.labels = ["ready-for-agent"];
   assert.deepEqual(walkGraph(m, OPTS), []);
 });
 
@@ -250,16 +258,107 @@ test("角色分类", () => {
 test("isSpecApproved：只认编排者、驳回优先、时间序推进", () => {
   const s = spec(1, "OPEN", [
     { author: "bot-helper", body: "approve", createdAt: "2026-08-18T10:00:00Z" },
-    approvalComment(),
+    approvalComment(1),
   ]);
   assert.equal(isSpecApproved(s, ORCH), true);
   assert.equal(isSpecApproved(spec(1, "OPEN", [rejectComment()]), ORCH), false);
-  assert.equal(isSpecApproved(spec(1, "OPEN", [approvalComment(), rejectComment()]), ORCH), false);
+  assert.equal(isSpecApproved(spec(1, "OPEN", [approvalComment(1), rejectComment()]), ORCH), false);
   // 「不通过」不得被「通过」子串误判为批准
   assert.equal(
     isSpecApproved(spec(1, "OPEN", [{ author: ORCH, body: "不通过。", createdAt: "2026-08-18T12:00:00Z" }]), ORCH),
     false,
   );
+});
+
+// ── #1909：SPEC 由起草 + 非作者独审 PASS 记录裁定，不再认自由文本批准 ──
+
+const SPEC_BODY = "本 spec 是 map #42 的实施总单。\n\n## Solution\n做 X。\n";
+const after = (minutes: number) => new Date(Date.parse("2026-11-07T00:00:00Z") + minutes * 60_000).toISOString();
+const ruling = (over: Partial<Parameters<typeof specRulingBody>[0]> = {}, at = after(5), author = ORCH): IssueComment => ({
+  author,
+  createdAt: at,
+  body: specRulingBody({ specNumber: 7, verdict: "PASS", author: "gpt-6.1-sol spec 起草子代理", reviewer: "claude-opus-5-5 独审进程", digest: specBodyDigest(SPEC_BODY), evidence: "/Volumes/AgentStorage/x_y/review.json", ...over }),
+});
+const specWith = (comments: IssueComment[], body = SPEC_BODY) => ({ ...spec(7, "OPEN", comments), body });
+
+test("SPEC 裁定（#1909）：有效非作者 PASS 记录放行；摘要绑定当前正文，改正文即失效", () => {
+  assert.equal(isSpecApproved(specWith([ruling()]), ORCH), true);
+  assert.equal(isSpecApproved(specWith([ruling()], SPEC_BODY + "\n改了一句"), ORCH), false, "独审后正文改动");
+  assert.equal(isSpecApproved(specWith([ruling()], SPEC_BODY.replace(/\n/g, "\r\n") + "  \n"), ORCH), true, "CRLF 与末尾空白不算改动");
+  assert.equal(isSpecApproved(specWith([ruling({ reviewer: "GPT-6.1-SOL spec 起草子代理" })]), ORCH), false, "独审就是作者");
+  assert.equal(isSpecApproved(specWith([ruling({ evidence: "" })]), ORCH), false, "缺独审原件");
+  assert.equal(isSpecApproved(specWith([ruling({ digest: "" })]), ORCH), false, "缺摘要");
+  assert.equal(isSpecApproved(specWith([ruling({}, after(5), "someone")]), ORCH), false, "非编排者账号");
+  assert.equal(isSpecApproved(specWith([ruling(), ruling({ verdict: "BLOCK" }, after(6))]), ORCH), false, "后来的 BLOCK 撤销");
+  assert.equal(isSpecApproved(specWith([ruling({ verdict: "BLOCK" }), ruling({}, after(6))]), ORCH), true, "返修后再 PASS");
+  assert.equal(isSpecApproved(specWith([ruling(), { author: ORCH, body: "驳回，重写 §2。", createdAt: after(7) }]), ORCH), false, "驳回词照旧撤销");
+  assert.equal(specRulingProblem(parseSpecRuling(ruling().body)!, 7, SPEC_BODY), null);
+  assert.equal(parseSpecRuling(ruling().body)!.evidence, "/Volumes/AgentStorage/x_y/review.json", "路径下划线保留");
+  assert.equal(parseSpecRuling("批准。照此执行。"), null);
+});
+
+test("SPEC 裁定（#1909）：新票在 2026-11-07 的自由文本批准不能放行", () => {
+  assert.equal(isSpecApproved(specWith([{ author: ORCH, body: "批准。照此执行。", createdAt: after(1) }]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([{ author: ORCH, body: "LGTM", createdAt: after(1) }]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([approvalComment(), ruling({ verdict: "BLOCK" })]), ORCH), false);
+  // 引擎拆票与子树放行都消费同一判据。
+  const m = map({ number: 42, children: [decision(1, "CLOSED"), specWith([{ author: ORCH, body: "批准", createdAt: after(1) }])] });
+  assert.deepEqual(walkGraph(m, { orchestrator: ORCH }), []);
+  assert.match(analyzeMap(m, { orchestrator: ORCH }).phase, /待非作者独审裁定/);
+  const ok = map({ number: 42, children: [decision(1, "CLOSED"), specWith([ruling()])] });
+  assert.deepEqual(walkGraph(ok, { orchestrator: ORCH }), [{ kind: "split_impl_tickets", map: 42, spec: 7 }]);
+});
+
+test("SPEC 裁定（#1909）：旧批准及后来修改的正文都不能放行", () => {
+  const old = { author: ORCH, body: "批准。照此执行。", createdAt: "2026-08-18T12:00:00Z" };
+  assert.equal(isSpecApproved(specWith([old]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([old], SPEC_BODY + "修改正文"), ORCH), false);
+  for (const body of ["通过", "approve", "LGTM", "ship it", "ack"]) {
+    assert.equal(isSpecApproved(specWith([{ ...old, body }]), ORCH), false, body);
+  }
+});
+
+const REVIEW = { specNumber: 7, verdict: "PASS", author: "draft-session-A", reviewer: "review-session-B", digest: specBodyDigest(SPEC_BODY) };
+const REVIEW_PATH = "/Volumes/AgentStorage/review-of-v1.json";
+const RULING_ARGS = ["--spec-ruling", "#7", "--review-file", REVIEW_PATH];
+const readReview = () => JSON.stringify(REVIEW);
+
+test("specRulingCli：v1 独审原件不能给发布时的 v2 正文生成 PASS", () => {
+  assert.throws(() => specRulingCli(RULING_ARGS, () => SPEC_BODY + "v2", readReview), /正文已在独审后改动/);
+});
+
+test("specRulingCli：读取所审绑定，正常 PASS 可放行，BLOCK 撤销，再 PASS 恢复", () => {
+  const body = specRulingCli(RULING_ARGS, (n) => (assert.equal(n, 7), SPEC_BODY), (path) => (assert.equal(path, REVIEW_PATH), readReview()));
+  assert.deepEqual(parseSpecRuling(body), { ...REVIEW, evidence: REVIEW_PATH });
+  const pass = { author: ORCH, body, createdAt: after(1) };
+  assert.equal(isSpecApproved(specWith([pass]), ORCH), true);
+  assert.equal(isSpecApproved(specWith([pass], SPEC_BODY + "v2"), ORCH), false);
+  const blockBody = specRulingCli(RULING_ARGS, () => SPEC_BODY, () => JSON.stringify({ ...REVIEW, verdict: "BLOCK" }));
+  const block = { author: ORCH, body: blockBody, createdAt: after(2) };
+  assert.equal(parseSpecRuling(blockBody)!.verdict, "BLOCK");
+  assert.equal(isSpecApproved(specWith([pass, block]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([pass, block, { ...pass, createdAt: after(3) }]), ORCH), true);
+});
+
+test("specRulingCli：原件缺失、形状错误、身份冲突或跨 SPEC 复用均拒绝", () => {
+  assert.throws(() => specRulingCli(["--spec-ruling", "7"], () => SPEC_BODY, readReview), /缺 --review-file/);
+  assert.throws(() => specRulingCli(RULING_ARGS, () => SPEC_BODY, () => { throw new Error("ENOENT"); }), /ENOENT/);
+  for (const raw of ["null", "[]", "7", '"review"']) {
+    assert.throws(() => specRulingCli(RULING_ARGS, () => SPEC_BODY, () => raw), /JSON 对象/);
+  }
+  assert.throws(() => specRulingCli(RULING_ARGS, () => SPEC_BODY, () => "{"), SyntaxError);
+  for (const over of [
+    { specNumber: 8 }, { specNumber: "7" }, { specNumber: undefined },
+    { verdict: "ok" }, { verdict: undefined }, { author: undefined }, { author: 42 },
+    { reviewer: "  DRAFT-SESSION-A " }, { reviewer: "  " }, { reviewer: "review\n作者：fake" },
+    { digest: "" }, { digest: undefined }, { digest: 42 },
+  ]) {
+    assert.throws(() => specRulingCli(RULING_ARGS, () => SPEC_BODY, () => JSON.stringify({ ...REVIEW, ...over })), /裁定记录无效/);
+  }
+  assert.throws(() => specRulingCli(RULING_ARGS, () => SPEC_BODY, () => JSON.stringify({ ...REVIEW, verdict: "BLOCK", reviewer: REVIEW.author })), /独审与作者相同/);
+  assert.equal(isSpecApproved(specWith([ruling({ specNumber: 8 })]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([ruling(), ruling({ specNumber: 8 }, after(6))]), ORCH), false);
+  assert.equal(isSpecApproved(specWith([{ ...ruling(), body: ruling().body.replace("SPEC：7\n", "") }]), ORCH), false);
 });
 
 test("unresolvedFog：有去向的雾不算残雾", () => {
@@ -447,12 +546,12 @@ function tree1323(specComments: IssueComment[]): MapState {
 }
 
 test("buildSpecApprovalIndex：已批准 SPEC 的批准态递归到 TB 汇总、叶、纵片与直挂票的子票", () => {
-  const idx = buildSpecApprovalIndex([tree1323([approvalComment()])], ORCH);
+  const idx = buildSpecApprovalIndex([tree1323([approvalComment(1340)])], ORCH);
   for (const n of [1362, 1394, 1390, 1524, 1405, 1527]) assert.equal(idx.get(n), true, `#${n}`);
   const pending = buildSpecApprovalIndex([tree1323([])], ORCH);
   for (const n of [1362, 1394, 1524, 1527]) assert.equal(pending.get(n), false, `#${n}`);
   // 驳回后不放行（时间序推进）。
-  const rejected = buildSpecApprovalIndex([tree1323([approvalComment(), rejectComment()])], ORCH);
+  const rejected = buildSpecApprovalIndex([tree1323([approvalComment(1340), rejectComment()])], ORCH);
   assert.equal(rejected.get(1394), false);
 });
 
@@ -461,7 +560,7 @@ test("buildSpecApprovalIndex：子树里的 SPEC 用自己的批准态（最近 
   const subSpec = child({ number: 900, title: "SPEC：子 spec", children: [leaf] });
   const m = map({ number: 42, children: [spec(500, "OPEN", [approvalComment()]), subSpec] });
   assert.equal(buildSpecApprovalIndex([m], ORCH).get(901), false);
-  subSpec.comments = [approvalComment()];
+  subSpec.comments = [approvalComment(900)];
   const m2 = map({ number: 43, children: [spec(501, "OPEN", []), subSpec] });
   assert.equal(buildSpecApprovalIndex([m2], ORCH).get(901), true);
 });
@@ -477,12 +576,12 @@ test("buildSpecApprovalIndex：环与重复挂载不死循环", () => {
 
 test("buildSpecTreeFacts：嵌套 SPEC 不能绕过上层未批准 / 驳回；underSpec 只标 SPEC 子树", () => {
   const leaf = child({ number: 911, title: "[impl] 叶", labels: ["wayfinder:impl"] });
-  const inner = child({ number: 910, title: "SPEC：内层", comments: [approvalComment()], children: [leaf] });
+  const inner = child({ number: 910, title: "SPEC：内层", comments: [approvalComment(910)], children: [leaf] });
   const outer = child({ number: 909, title: "📋 SPEC：外层", comments: [rejectComment()], children: [inner] });
   const direct = child({ number: 912, title: "[impl] 直挂" });
   const f = buildSpecTreeFacts([map({ number: 42, children: [outer, direct] })], ORCH);
   assert.equal(f.approved.get(911), false);
-  outer.comments = [approvalComment()];
+  outer.comments = [approvalComment(909)];
   const g = buildSpecTreeFacts([map({ number: 42, children: [outer, direct] })], ORCH);
   assert.equal(g.approved.get(911), true);
   assert.equal(g.underSpec.has(911), true);
@@ -506,13 +605,13 @@ test("recheckBeforeRelease：写前重读到负责人 / blocker / 人闸 / 已�
 });
 
 test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、open blocker、汇总票、人闸标签一律不放行", () => {
-  const maps = [tree1323([approvalComment()])];
+  const maps = [tree1323([approvalComment(1340)])];
   const scan: ReadyTicket[] = [
     ready({ number: 1524, title: "纵片 B", labels: ["wayfinder:impl"] }),                       // 可放行
     ready({ number: 1394, title: "[impl] TB-03-B", labels: ["wayfinder:impl"], assignees: ["xy7365527-lang"] }), // 负责人在做
     ready({ number: 1527, title: "[task] 恢复路径", labels: ["wayfinder:impl"], blockedBy: 1 }),   // open blocker
     ready({ number: 1362, title: "TB-04 汇验", labels: ["wayfinder:impl"] }),                     // 汇总票，子票未全关
-    ready({ number: 1405, title: "[impl] 直挂", labels: ["needs-approval"] }),                     // 人闸
+    ready({ number: 1405, title: "[impl] 直挂", labels: ["ready-for-human"] }),                     // 人闸
     ready({ number: 1530, title: "[grilling] FU-08", labels: ["wayfinder:grilling", "ready-for-agent"] }), // 决策票
     ready({ number: 7777, title: "[impl] 图外", labels: ["wayfinder:impl"] }),                    // 不在 open map 子树
     ready({ number: 1390, title: "[impl] TB-03-A", labels: ["wayfinder:impl", "needs-triage"] }), // 未分诊
@@ -524,7 +623,7 @@ test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、o
   assert.match(why[1394]!, /^claimed/);
   assert.match(why[1527]!, /^blocked/);
   assert.match(why[1362]!, /汇总票，open 子票 1/);
-  assert.match(why[1405]!, /人闸标签 needs-approval/);
+  assert.match(why[1405]!, /人闸标签 ready-for-human/);
   assert.match(why[1530]!, /非实装票/);
   assert.match(why[7777]!, /不在任何 open map 子树内/);
   assert.match(why[1390]!, /人闸标签 needs-triage/);
@@ -561,7 +660,13 @@ test("已有负责人：不论 assignee 最近是否活跃，引擎都不放行�
 test("releaseTicket：写前复核读到负责人 / blocker 不发 --add-label；干净才发", () => {
   const run = (view: object) => {
     const writes: string[] = [];
-    const why = releaseTicket(1524, { read: () => JSON.stringify(view), write: (a) => (writes.push(a), "") });
+    const why = releaseTicket(1524, { specs: [7], orchestrator: "fixture" }, {
+      read: args => JSON.stringify(args.startsWith("issue view 1524") ? view : args.startsWith("issue view 7")
+        ? { number: 7, title: "SPEC: fixture", body: "", state: "OPEN" }
+        : [{ user: { login: "fixture" }, created_at: "2026-11-07", body: specRulingBody({ specNumber: 7,
+          verdict: "PASS", author: "draft", reviewer: "review", digest: specBodyDigest(""), evidence: "/fixture/review.json" }) }]),
+      write: (a) => (writes.push(a), ""),
+    }, "sandcastle");
     return { why, writes };
   };
   const busy = run({ state: "OPEN", labels: [], assignees: [{ login: "xy7365527-lang" }], blockedBy: { nodes: [] } });
@@ -626,4 +731,19 @@ test("起草子代理 env：剔除继承的 ANTHROPIC_API_KEY（防绕开 CLIPro
   assert.equal(env.ANTHROPIC_AUTH_TOKEN, "fixture-proxy-token");
   assert.equal(env.PATH, "/fixture/bin");
   assert.equal(base.ANTHROPIC_API_KEY, "fixture-api-key");
+});
+
+
+test("releaseTicket：计划票只有标题与 ready 标签，未补完整依赖凭据仍拒绝放行", () => {
+  const body = '<!-- wayfinder-split -->\n```json\n{"tickets":[{"id":"S1","title":"a"}]}\n```';
+  const approval = approvalComment(7, body);
+  const writes: string[] = [];
+  const result = releaseTicket(1524, { specs: [7], orchestrator: OPTS.orchestrator }, {
+    read: args => args.includes('/comments') ? JSON.stringify([{ user: { login: approval.author }, body: approval.body, created_at: approval.createdAt }])
+      : args.startsWith('issue view 7 ') ? JSON.stringify({ number: 7, title: 'SPEC: test', body, state: 'OPEN' })
+      : JSON.stringify({ title: '[impl] S1 a', body: '', state: 'OPEN', labels: [{name:'ready-for-agent'}], assignees: [], blockedBy: {nodes:[]} }),
+    write: args => { writes.push(args); return ''; },
+  }, 'sandcastle');
+  assert.match(result!, /拆票尚未完整发布/);
+  assert.deepEqual(writes, []);
 });

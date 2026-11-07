@@ -107,6 +107,24 @@ class Busy(Exception):
     """同一 run 已有控制进程持锁。"""
 
 
+# 实测一个 run 的写入峰值约 11.7 GiB：t1758-1 两份 checkout 共 7.0 GiB，t1863-1 的 Boat 回收 4.7 GiB。
+DISPATCH_FREE_BYTES = 16 << 30
+
+
+class InsufficientSpace(Exception):
+    """写入卷剩余空间低于新增资源门槛；保留已有工作，空间恢复后同一入口重试。"""
+
+
+def require_free_space(path: Path) -> None:
+    existing = path.absolute()
+    while not existing.exists():
+        existing = existing.parent
+    free = shutil.disk_usage(existing).free
+    if free < DISPATCH_FREE_BYTES:
+        raise InsufficientSpace(f"{existing} 所在卷可用 {free} bytes，低于派工门槛 {DISPATCH_FREE_BYTES} bytes；"
+                                "本次新增资源已阻止，已有工作可继续恢复")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -476,6 +494,7 @@ class PilotRun:
         run = cls(home, spec, executor=executor, **kw)
         run.acquire()
         try:
+            require_free_space(home)
             run.bind_claim()
             if not (run.dir / "run.json").exists():
                 _write_once(run.dir / "run.json", spec.to_json())
@@ -591,6 +610,7 @@ class PilotRun:
     def _ensure_checkout(self, role: Role, head: Sha) -> None:
         path, branch = self.spec.checkout_for(role), self.spec.branch_for(role)
         if not path.exists():
+            require_free_space(path.parent)
             path.parent.mkdir(parents=True, exist_ok=True)
             exists = subprocess.run(["git", "-C", str(self.source_repo), "rev-parse", "--verify", "-q",
                                      f"refs/heads/{branch}"], capture_output=True).returncode == 0
@@ -719,6 +739,7 @@ class PilotRun:
         return DEEPAGENTS_OUTPUT_PROTOCOL if declaration in source.splitlines() else "legacy"
 
     def _prepare_dispatch(self, key: WorkerKey, brief: str, facts: RunFacts) -> None:
+        require_free_space(self.dir)
         model = self.spec.model_for(key.role)
         checkout = self.spec.checkout_for(key.role)
         if key.role != "author":
@@ -748,6 +769,7 @@ class PilotRun:
                 self.execution.submit(key)
             self.trail("boat_dispatched", key=key.name)
             return
+        require_free_space(self.dir)
         intent = json.loads((self.dir / "intents" / f"{key.name}.json").read_text())
         out = self._key_dir(key)
         out.parent.mkdir(parents=True, exist_ok=True)

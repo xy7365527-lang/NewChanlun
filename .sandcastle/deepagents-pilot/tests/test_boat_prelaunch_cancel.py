@@ -309,7 +309,7 @@ def test_preparation_resources_block_generation_until_drained(tmp_path, monkeypa
     run = v2.run(unit)
     engine, key, cli = stage_prelaunch_resources(run, monkeypatch, submission, case)
     assert engine.is_drained(key) == (case == "cleaned" or (case == "unallocated" and submission == "creating"))
-    release_claim(ClaimStore(v2.claims_root), TICKET, unit.run_id, "controller released")
+    release_claim(ClaimStore(v2.claims_root), v2.gateway(), TICKET, unit.run_id, "controller released")
     next_unit = v2.register(f"t{TICKET}-2")
     if case == "cleaned" or (case == "unallocated" and submission == "creating"):
         second = v2.run(next_unit)
@@ -331,7 +331,7 @@ def test_preparation_resources_keep_queue_slot_until_drained(queued, monkeypatch
     run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit),
                       MODELS, launcher=FAKE, source_repo=v2.source)
     engine, key, cli = stage_prelaunch_resources(run, monkeypatch, submission, case)
-    release_claim(intake.claims, TICKET, unit.run_id, "controller released")
+    release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, "controller released")
     v2.github.issues[TICKET]["labels"].remove("deepagents:queue")
     v2.github.add_issue(TICKET + 1, body=f"Part of [SPEC #{SPEC}]", parent=SPEC,
                         labels=("ready-for-agent", "deepagents:queue"))

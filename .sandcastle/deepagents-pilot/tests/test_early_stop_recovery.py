@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pytest
 import test_queue
-from approval_signing.protocol import Decision
 from conftest import FAKE, MODELS, git
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from test_agent import call, scripted
 from test_boat import config
-from test_queue import SPEC, authorize, executor
+from test_queue import SPEC, authorize, executor, publish_ruling
 from v2env import TICKET, SimulatedCrash
 
 from pilot1742 import agent as agent_module
@@ -20,7 +19,13 @@ from pilot1742 import approval, boat_execution, cli
 from pilot1742 import run as run_module
 from pilot1742.boat_execution import ExecutionUnknown, ForkIntent, new_execution
 from pilot1742.domain import DEEPAGENTS_OUTPUT_PROTOCOL, EffectUnknown, WorkerKey
-from pilot1742.executor import ApprovalRequired, load_unit, open_v2_run, release_claim
+from pilot1742.executor import (
+    ApprovalRequired,
+    load_unit,
+    open_v2_run,
+    release_claim,
+    run_quiet,
+)
 from pilot1742.run import Halted, PilotRun
 
 SPEC_BODY = '# SPEC\ndeepagents-scope: demo/\n\n## 行为依据\n依据 EXECUTOR.md 与 BOAT.md。\n'
@@ -391,10 +396,13 @@ def test_signed_spec_is_frozen_only_after_an_approved_check(queued):
     with pytest.raises(ApprovalRequired):
         executor(v2, cutover, unit).claim(run_dir)
     assert not (run_dir / 'spec').exists()
-    signer.publish(run_dir / 'approvals' / 'spec_authorization.request', Decision.REJECT)
+    publish_ruling(v2, 'BLOCK')
     with pytest.raises(ApprovalRequired):
         executor(v2, cutover, unit).claim(run_dir)
     assert not (run_dir / 'spec').exists()
+    publish_ruling(v2)
+    executor(v2, cutover, unit).claim(run_dir)
+    assert (run_dir / f'spec/{SPEC}.md').read_bytes() == v2.github.issues[SPEC]['body'].encode()
 
 
 def approve_changed_spec(bench, body):
@@ -402,7 +410,7 @@ def approve_changed_spec(bench, body):
     bench.v2.github.issues[SPEC]['body'] = body
     with pytest.raises(ApprovalRequired):
         bench.open()
-    bench.signer.publish(bench.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+    publish_ruling(bench.v2)
 
 
 def packaged_request(bench):
@@ -567,7 +575,7 @@ def test_spec_resigned_between_publish_effects_stops_before_the_next_write(bench
             return
         bench.v2.github.issues[SPEC]['body'] = SPEC_BODY + f'\n发布中途（{resign_after} 之后）新增要求 B。\n'
         assert executor_.spec_approval(run.dir, run.generation) is not None
-        bench.signer.publish(run.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+        publish_ruling(bench.v2)
 
     executor_.crash = resign
     before = len(bench.v2.writes())
@@ -663,8 +671,8 @@ def test_older_spec_receipt_stops_formally_then_cancel_drains_for_the_next_gener
             owner.run_worker('author', '旧回执不得复活')
     finally:
         owner.release()
-    record = release_claim(bench.intake.claims, TICKET, bench.unit.run_id, '旧 SPEC 产物已废弃，换代')
-    executor(bench.v2, bench.cutover, bench.unit)._previous_run_quiet(record)
+    record = release_claim(bench.intake.claims, bench.v2.gateway(), TICKET, bench.unit.run_id, '旧 SPEC 产物已废弃，换代')
+    run_quiet(record)
     assert cache.read_bytes() == receipt and not (Path(owner.spec.author_checkout) / 'demo/a.py').exists()
 
 
@@ -682,7 +690,7 @@ def test_spec_freeze_interrupted_between_body_and_note_converges_on_the_next_app
     bench.v2.github.issues[SPEC]['body'] = SPEC_BODY + 'B\n'
     with pytest.raises(ApprovalRequired):
         bench.open()
-    bench.signer.publish(bench.dir / 'approvals/spec_authorization.request', Decision.APPROVE)
+    publish_ruling(bench.v2)
     monkeypatch.setattr(approval, '_replace_bytes', killed_before_note)
     with pytest.raises(SimulatedCrash):
         bench.open()

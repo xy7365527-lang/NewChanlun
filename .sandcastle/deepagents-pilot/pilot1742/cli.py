@@ -20,6 +20,7 @@ from .run import (
     PSTACK_MODELS,
     SOURCE_REPO,
     Busy,
+    InsufficientSpace,
     PilotRun,
     _fact_json,
     parse_task,
@@ -57,7 +58,7 @@ def _run(args: argparse.Namespace) -> int:
                                                          check=True, capture_output=True, text=True).stdout.strip())
             run = PilotRun.create(home, run_id, parse_task(Path(args.task).read_text()), base,
                                   PSTACK_MODELS.read_text(), **kw)
-    except Busy as error:
+    except (Busy, InsufficientSpace) as error:
         print(str(error), file=sys.stderr)
         return EXIT_BUSY
     return drive(run, recheck_approval=args.recheck_approval)

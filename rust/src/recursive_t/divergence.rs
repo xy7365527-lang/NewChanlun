@@ -48,7 +48,7 @@
 //! #874 推翻）。力度分量统一 ForceL（#873 经 #989 段→笔反查），与生产默认判据同口径。
 //! `leg_*` 的历史读数探针保留在测试/诊断侧（如 `t_engine_run` 的本地复刻），不进任何判定。
 //!
-//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//! ## 名分（`docs/adr/0004-generation-constitution.md` 「现役代码名分五态」，#761 C7-E2 执行票订正）
 //!
 //! - **名分**：**现役**——本文件的 `trend_diverging_segment`/`d_top`/
 //!   `CONSOL_DOWN_DIAG` 在 `rec_stream.rs:313,353,375,1408` 生产路径被直接调用，

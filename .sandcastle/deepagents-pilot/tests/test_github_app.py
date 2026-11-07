@@ -304,3 +304,24 @@ def test_token_diagnostic_only_names_failed_field(identity):
             client.verify()
     assert str(caught.value) == "短期只读授权不符，字段 permissions"
     assert "must-not-appear" not in str(caught.value)
+
+
+def test_jwt_claims_are_taken_after_blocking_key_read(identity, monkeypatch):
+    clock = [1_000_000.0]
+    monkeypatch.setattr(module.time, "time", lambda: clock[0])
+    read = module._read_private_key
+    def blocking_read(path):
+        clock[0] += 3600  # #1896：等系统授权一小时
+        return read(path)
+    monkeypatch.setattr(module, "_read_private_key", blocking_read)
+    signed = []
+    class Signed(Exception):
+        pass
+    def encode(claims, key, algorithm):
+        signed.append(claims)
+        raise Signed
+    monkeypatch.setattr(module.jwt, "encode", encode)
+    with GitHubAppClient(identity, transport=httpx.MockTransport(GitHubFixture(identity))) as client:
+        with pytest.raises(Signed):
+            client._ensure_token()
+    assert signed == [{"iat": 1_003_540, "exp": 1_004_140, "iss": str(identity.app_id)}]

@@ -10,7 +10,7 @@ import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -18,11 +18,13 @@ from approval_signing.protocol import CommitTarget, Scope, spec_target
 
 from .approval import (
     ApprovalDesk,
+    Approved,
     Pending,
     SignedApprovals,
     decision_json,
     freeze_signed_spec,
     spec_body,
+    spec_ruling,
 )
 from .boat_execution import ExecutionUnknown
 from .claims import (
@@ -69,6 +71,7 @@ from .github_app import WRITE_PERMISSIONS, AppIdentity, GitHubAppClient, Identit
 from .run import (
     Busy,
     Halted,
+    InsufficientSpace,
     PilotRun,
     TaskSpec,
     ToolRefusal,
@@ -79,6 +82,7 @@ from .run import (
 )
 from .workunit import (
     MIRROR_LABEL,
+    ORCHESTRATOR_LOGIN,
     REPO,
     DedicatedPilot,
     Ineligible,
@@ -105,10 +109,11 @@ class AdmissionRefused(ClaimRefused):
 
 
 class ApprovalRequired(Exception):
-    """动作需要的真人签批此刻不成立。不执行副作用，不转 halted；请求文件路径随异常给出。"""
+    """动作需要的授权此刻不成立。不执行副作用，不转 halted；请求文件路径随异常给出。"""
 
     def __init__(self, decision: Pending):
-        super().__init__(f"{decision.status}：{decision.reason}；请求 {decision.request_path}")
+        super().__init__(f"{decision.status}：{decision.reason}" +
+                         (f"；请求 {decision.request_path}" if decision.request_path else ""))
         self.decision = decision
 
 
@@ -209,13 +214,27 @@ class TicketExecutor:
         return ApprovalDesk(run_dir / "approvals", self.unit.ticket, self.unit.run_id, self.approvals)
 
     def spec_approval(self, run_dir: Path, generation: int) -> Pending | None:
-        """需要 SPEC 授权的准入：目标是 SPEC 票此刻正文的原始字节摘要，正文一变就换请求。"""
+        """Queued 读当前正文裁定，Takeover 保留签批；冻结与 scope 共用这次读取的原始正文。"""
         admission = self.unit.admission
         assert not isinstance(admission, DedicatedPilot)
         issue = admission.spec_auth.spec_issue
         body = spec_body(self.gateway.issue(issue))
-        decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, spec_target(issue, body))
-        freeze_signed_spec(run_dir, issue, body, decision, generation)
+        if isinstance(admission, Queued):
+            from .queue import approved_scope
+            source, reason = spec_ruling(issue, body.decode("utf-8"), self.gateway.comments(issue),
+                                        os.environ.get("WAYFINDER_ORCHESTRATOR", ORCHESTRATOR_LOGIN))
+            scope = approved_scope(body.decode("utf-8"))
+            if any(not any(prefix.startswith(allowed) for allowed in scope) for prefix in self.unit.allowed_prefixes):
+                raise AdmissionRefused("registered scope exceeds current SPEC deepagents-scope")
+            decision = Approved("", reason) if source else Pending("awaiting_review", "", reason, "spec_ruling")
+            _write_json(run_dir / "approvals" / "spec_authorization.status.json", {
+                "scope": "spec_authorization", "status": "approved" if source else "awaiting_review",
+                "source": "spec_ruling", "reason": reason, "target": spec_target(issue, body).encode(),
+                "claim_generation": generation, "checked_at": _now(), **(source or {})})
+            freeze_signed_spec(run_dir, issue, body, decision, generation, source_meta=source)
+        else:
+            decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, spec_target(issue, body))
+            freeze_signed_spec(run_dir, issue, body, decision, generation)
         return decision if isinstance(decision, Pending) else None
 
     def candidate_approval(self, run_dir: Path, generation: int, head: Sha) -> Pending | None:
@@ -243,50 +262,9 @@ class TicketExecutor:
         return self.cutover.frozen() if isinstance(self.unit.admission, Queued) else nullcontext()
 
     def _queue_check(self) -> None:
-        from .queue import approved_scope, prove_queue
+        from .queue import prove_queue
         assert isinstance(self.unit.admission, Queued)
         prove_queue(self.gateway, self.unit.ticket, self.cutover, self.unit.admission.proof)
-        scope = approved_scope(str(self.gateway.issue(self.unit.admission.spec_auth.spec_issue).get("body") or ""))
-        if any(not any(prefix.startswith(allowed) for allowed in scope) for prefix in self.unit.allowed_prefixes):
-            raise AdmissionRefused("registered scope exceeds current signed SPEC deepagents-scope")
-
-    def _previous_run_quiet(self, previous: TicketClaim) -> None:
-        run_dir = Path(previous.run_dir)
-        lock = run_dir / "owner.lock"
-        if lock.exists():
-            fd = os.open(lock, os.O_RDWR)
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise ClaimRefused(f"上一代次 run {previous.run_id} 的控制进程仍持锁") from None
-            finally:
-                os.close(fd)
-        needle = f"--output-dir {run_dir}/workers/"
-        if any(needle in cmd and not stat.startswith("Z") for _, _, stat, cmd in _ps_rows()):
-            raise ClaimRefused(f"上一代次 run {previous.run_id} 仍有工蜂在运行")
-        # Boat 工蜂不在本机 PID 表；仅观察冻结绑定，不恢复、收集或补提交旧工蜂。
-        try:
-            if not (run_dir / "run.json").exists():
-                if (run_dir / "boat").exists():
-                    raise ExecutionUnknown("缺少旧 run 清单")
-                return
-            run = PilotRun.open(run_dir.parent.parent, previous.run_id)
-            if run.execution is None:
-                if (run_dir / "boat").exists():
-                    raise ExecutionUnknown("旧执行后端与 Boat 绑定不符")
-                return
-            if (run.spec.run_id != previous.run_id or run.dir.resolve() != run_dir.resolve()
-                    or run.spec.ticket != previous.ticket or run.generation != previous.generation):
-                raise ExecutionUnknown("旧 run 的票号或持有代次不符")
-            keys = set(run._keys())
-            keys.update(parse_key_name(previous.run_id, p.stem) for p in (run_dir / "boat").glob("*.json")
-                        if "." not in p.stem)
-            for key in keys:
-                fact = run.execution.observe(key, reconcile=False)
-                if isinstance(fact, (NotStarted, Running, EffectUnknown)) and not run.execution.is_drained(key):
-                    raise ExecutionUnknown(f"{key.name}: {fact}")
-        except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError) as error:
-            raise ClaimRefused(f"上一代次 run {previous.run_id} 的 Boat 工蜂尚未排空：{error}") from None
 
     def claim(self, run_dir: Path) -> TicketClaim:
         """SPEC 7.4：intent → 镜像 → post-check → active，全程在票级动作锁内；崩溃后同 run 从记录处续做。"""
@@ -304,7 +282,7 @@ class TicketExecutor:
                 if record is not None and record.state != "released":
                     raise ClaimRefused(f"票 #{unit.ticket} 已由 {record.run_id} 持有（{record.state}）")
                 if record is not None:
-                    self._previous_run_quiet(record)
+                    run_quiet(record)
                 self.admit(run_dir, record.generation + 1 if record else 1)
                 labels = self.gateway.label_names(self.gateway.issue(unit.ticket))
                 if record is None and MIRROR_LABEL in labels:
@@ -313,12 +291,18 @@ class TicketExecutor:
                                               record.generation + 1 if record else 1, "intent",
                                               unit.admission.kind, False, None, None, _now()))
             if isinstance(unit.admission, Queued):
-                self.admit(run_dir, claim.generation)
+                try:
+                    self.admit(run_dir, claim.generation)
+                except (ClaimRefused, ValueError) as error:
+                    txn.write(advance(claim, "halt", reason=str(error)))
+                    raise Halted(str(error)) from error
             journal = Journal(claim_effects(self.claims, unit.ticket, claim.run_id, claim.generation))
             if claim.state == "intent":
                 journal.converge("label", lambda: self._label_probe(), lambda: self.gateway.add_label(
                     unit.ticket, MIRROR_LABEL), idempotent=True,
                     what={"kind": "label", "issue": unit.ticket, "name": MIRROR_LABEL}, crash=self.crash)
+                if isinstance(unit.admission, Queued):
+                    self.admit(run_dir, claim.generation)
                 text = self._marker("claim", claim.run_id, claim.generation, unit.base)
                 body = (f"[deepagents run={claim.run_id} gen={claim.generation}]\n\n"
                         f"新执行器（{self.gateway.bot}）持有本票，基线 `{unit.base}`。这是持有标记，不是批准。\n\n{text}")
@@ -395,7 +379,12 @@ class TicketExecutor:
             if pr_hits:
                 return "pr_forbidden_label:" + ",".join(pr_hits)
         if not isinstance(self.unit.admission, DedicatedPilot):
-            pending = self.spec_approval(run_dir, generation)
+            try:
+                pending = self.spec_approval(run_dir, generation)
+            except (ClaimRefused, ValueError) as error:
+                if isinstance(self.unit.admission, Queued):
+                    return str(error)
+                raise
             if pending is not None:
                 if isinstance(self.unit.admission, Queued):
                     raise ApprovalRequired(pending)
@@ -661,17 +650,67 @@ class TicketExecutor:
             raise boundary.halt(f"pr:{refused}") from None
 
 
+def run_quiet(previous: TicketClaim) -> None:
+    """持有的执行者已排空：控制锁空闲、本机无工蜂、Boat 绑定全部排空。换代与释放摘镜像共用这一判定。"""
+    run_dir = Path(previous.run_dir)
+    lock = run_dir / "owner.lock"
+    if lock.exists():
+        fd = os.open(lock, os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ClaimRefused(f"持有的 run {previous.run_id} 的控制进程仍持锁") from None
+        finally:
+            os.close(fd)
+    needle = f"--output-dir {run_dir}/workers/"
+    if any(needle in cmd and not stat.startswith("Z") for _, _, stat, cmd in _ps_rows()):
+        raise ClaimRefused(f"持有的 run {previous.run_id} 仍有工蜂在运行")
+    # Boat 工蜂不在本机 PID 表；仅观察冻结绑定，不恢复、收集或补提交旧工蜂。
+    try:
+        if not (run_dir / "run.json").exists():
+            if (run_dir / "boat").exists():
+                raise ExecutionUnknown("缺少旧 run 清单")
+            return
+        run = PilotRun.open(run_dir.parent.parent, previous.run_id)
+        if run.execution is None:
+            if (run_dir / "boat").exists():
+                raise ExecutionUnknown("旧执行后端与 Boat 绑定不符")
+            return
+        if (run.spec.run_id != previous.run_id or run.dir.resolve() != run_dir.resolve()
+                or run.spec.ticket != previous.ticket or run.generation != previous.generation):
+            raise ExecutionUnknown("旧 run 的票号或持有代次不符")
+        keys = set(run._keys())
+        keys.update(parse_key_name(previous.run_id, p.stem) for p in (run_dir / "boat").glob("*.json")
+                    if "." not in p.stem)
+        for key in keys:
+            fact = run.execution.observe(key, reconcile=False)
+            if isinstance(fact, (NotStarted, Running, EffectUnknown)) and not run.execution.is_drained(key):
+                raise ExecutionUnknown(f"{key.name}: {fact}")
+    except (ExecutionUnknown, OSError, ValueError, TypeError, KeyError) as error:
+        raise ClaimRefused(f"持有的 run {previous.run_id} 的 Boat 工蜂尚未排空：{error}") from None
+
+
 def claim_effects(store: ClaimStore, ticket: int, run_id: str, generation: int) -> Path:
     return store.root / f"{ticket}.effects" / f"{run_id}-g{generation}"
 
 
-def release_claim(store: ClaimStore, ticket: int, run_id: str, reason: str) -> TicketClaim:
-    """主控释放。等在飞副作用做完才拿到锁；旧控制进程此后在下一次锁内复核时停下。"""
+def release_claim(store: ClaimStore, gateway: RepoGateway, ticket: int, run_id: str, reason: str) -> TicketClaim:
+    """主控释放。等在飞副作用做完才拿到锁，先记 released 让旧控制进程在下一次锁内复核时停下；
+    执行者排空后才在同一把锁内摘票面镜像，持有结束由此在 GitHub 上可见。返回记录 mirror_label 仍为真
+    表示镜像保留，排空后重跑同一命令即可。记录已换成新 run 时拒绝，旧释放碰不到新代次的镜像。"""
     with store.locked(ticket) as txn:
         record = txn.record
         if record is None or record.run_id != run_id:
             raise ClaimRefused(f"票 #{ticket} 当前不由 {run_id} 持有")
-        return txn.write(advance(record, "release", reason=reason))
+        try:
+            run_quiet(record)
+        except ClaimRefused:
+            return txn.write(advance(record, "release", reason=reason, mirror_label=True))
+        released = txn.write(advance(record, "release", reason=reason))
+        gateway.remove_label(ticket, MIRROR_LABEL)
+        if MIRROR_LABEL in gateway.label_names(gateway.issue(ticket)):
+            return txn.write(replace(released, mirror_label=True))
+        return txn.write(replace(released, mirror_label=False))
 
 
 def reconcile_effect(state_root: Path, store: ClaimStore, run_id: str, effect: str, note: str) -> dict[str, Any]:
@@ -766,9 +805,9 @@ def _sigkill_at(point: str | None) -> Callable[[str], None]:
 
 
 def _client(args: argparse.Namespace) -> GitHubAppClient:
-    """登记只要读权限；run 才申请写权限。两者都先核 App、安装与仓库身份。"""
+    """登记只要读权限；run 与 release（摘镜像）才申请写权限。两者都先核 App、安装与仓库身份。"""
     identity = AppIdentity(5486877, 175617978, 1150335160, REPO, "newchanlun-deepagents-1742", args.private_key)
-    client = GitHubAppClient(identity, permissions=WRITE_PERMISSIONS if args.command == "run" else None)
+    client = GitHubAppClient(identity, permissions=WRITE_PERMISSIONS if args.command in ("run", "release") else None)
     client.verify()
     return client
 
@@ -827,12 +866,10 @@ def main(argv: list[str] | None = None) -> int:
     release.add_argument("--ticket", type=int, required=True)
     release.add_argument("--run-id", required=True)
     release.add_argument("--reason", required=True)
+    release.add_argument("--private-key", type=Path, required=True)
     args = parser.parse_args(argv)
     store = ClaimStore()
     try:
-        if args.command == "release":
-            print(json.dumps(asdict(release_claim(store, args.ticket, args.run_id, args.reason)), ensure_ascii=False))
-            return 0
         if args.command == "reconcile":
             try:
                 result = reconcile_effect(args.state_root, store, args.run_id, args.effect, args.note)
@@ -881,6 +918,14 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("cutover verify/record/audit-release 需要 --private-key 显式路径")
         with _client(args) as client:
             gateway = RepoGateway(client)
+            if args.command == "release":
+                released = release_claim(store, gateway, args.ticket, args.run_id, args.reason)
+                print(json.dumps(asdict(released), ensure_ascii=False))
+                if released.mirror_label:
+                    print("已记 released，旧控制进程在下一动作边界停下；执行者未排空或镜像未读回，"
+                          f"票面 {MIRROR_LABEL} 保留。排空后重跑同一 release 命令。", file=sys.stderr)
+                    return 75
+                return 0
             if args.command == "cutover":
                 data = json.loads(snapshot_path.read_text())
                 data["legacy_snapshot"] = tuple(LegacyProcess(**p) for p in data["legacy_snapshot"])
@@ -947,8 +992,14 @@ def main(argv: list[str] | None = None) -> int:
                 pilot.clear_interrupt()
             return drive(pilot, recheck_approval=args.resume or args.recheck_approval, resume=args.resume)
     except ApprovalRequired as required:
-        print(json.dumps({"phase": "awaiting_human", "approval": decision_json(required.decision)}, ensure_ascii=False))
+        phase = "awaiting_review" if required.decision.status == "awaiting_review" else "awaiting_human"
+        print(json.dumps({"phase": phase, "approval": decision_json(required.decision)}, ensure_ascii=False))
         return 0
+    except InsufficientSpace as error:
+        # 图运行中派工建 checkout 时也会触发；检查点停在该工具调用之前，下一轮恢复同一 run 重做。
+        from .cli import EXIT_BUSY
+        print(str(error), file=sys.stderr)
+        return EXIT_BUSY
     except (*EXECUTOR_ERRORS, Halted, ToolRefusal, ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f"{type(error).__name__}: {error}", file=sys.stderr)
         return 2

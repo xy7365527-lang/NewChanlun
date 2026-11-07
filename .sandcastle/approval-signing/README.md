@@ -1,10 +1,12 @@
 # Secure Enclave 真人签批（#1742 D8）
 
-执行器需要人批时写出一份待批请求。你运行 `newchanlun-approve sign`：终端先显示仓库、票号、范围、完整目标（commit SHA 或 SPEC 正文摘要）和批准或拒绝，系统随后要你用 Touch ID 或登录密码签名，再弹出 macOS 管理员认证窗口，认证后把这份决定发布到 root 所有的权威记录。**只有发布成功、且从权威记录读回确认的决定才生效。** 签名认证取消就不签名；签了但管理员认证取消或失败，终端会醒目地提示“未发布，尚未生效”，执行器也看不到它。
+本签名链用于显式开启的 `candidate_head` 批准，以及仍保留但不放行接管的 Takeover SPEC 请求。DedicatedPilot 保留原专用票准入，只有显式要求候选批准时才走签名链。依据 #1742 最新用户授权，普通 Queued SPEC 使用可信编排账号的非作者独审裁定，默认也不要求候选人工批准，见 [Queued 授权](../deepagents-pilot/EXECUTOR.md#为新队列-run-提供-spec-授权)。Takeover 即使签批有效仍因接管屏障未实施而拒绝。
+
+上述签名模式需要批准时，执行器写出一份待批请求。你运行 `newchanlun-approve sign`：终端先显示仓库、票号、范围、完整目标（commit SHA 或 SPEC 正文摘要）和批准或拒绝，系统随后要你用 Touch ID 或登录密码签名，再弹出 macOS 管理员认证窗口，认证后把这份决定发布到 root 所有的权威记录。**只有发布成功、且从权威记录读回确认的决定才生效。** 签名认证取消就不签名；签了但管理员认证取消或失败，终端会醒目地提示“未发布，尚未生效”，执行器也看不到它。
 
 签名钥在 Secure Enclave 内生成，不可导出，访问控制是 `privateKeyUsage + userPresence`。每次签名新建 `LAContext`，`touchIDAuthenticationAllowableReuseDuration = 0`，签完即 `invalidate`。
 
-权威记录在 `/Library/Application Support/NewChanlun/approval-receipts/<request_nonce>/<序号>.json`。目录和文件归 root 所有，只有以 root 运行的 `publish` 能往里追加。`publish` 先在同一 root 目录下的 `.staging/` 写临时文件，再原子改名进链目录，所以链目录里除了 `<序号>.json` 不该有任何东西；它只接受用信任公钥签过、恰好接在当前链头之后的下一条。执行器从这里读整条链，不以 GitHub 或任何用户可写文件为准。
+权威记录在 `/Library/Application Support/NewChanlun/approval-receipts/<request_nonce>/<序号>.json`。目录和文件归 root 所有，只有以 root 运行的 `publish` 能往里追加。`publish` 先在同一 root 目录下的 `.staging/` 写临时文件，再原子改名进链目录，所以链目录里除了 `<序号>.json` 不该有任何东西；它只接受用信任公钥签过、恰好接在当前链头之后的下一条。签名模式从这里读整条链，不以 GitHub 转贴或任何用户可写回执为准。
 
 ## 一次性安装（由你本人操作）
 
@@ -69,7 +71,7 @@ decide(request, current_target, *, now, trust_path=DEFAULT_TRUST_PATH, authority
 - `current_target` 是动作此刻真正作用的对象：`CommitTarget(<40 位 SHA>)`，或 `spec_target(spec_issue, GitHub 返回的正文原始字节)`。
 - 返回的 `releases` 为真才放行。`rejected` 表示最新已发布决定是拒绝；`awaiting_human` 表示还没有已发布决定、批准已过期或目标已变；`needs_reconciliation` 表示权威记录有异常，停下交人。
 
-`decide` 读该 nonce 的整条已发布链。路径任何一级不归 root 所有、组或其他人可写、或为符号链接，目录里有任何不是 `<序号>.json` 的条目（包括点文件），回执不是规范格式，签名无效，文件位置与内容不符，缺号或断链，一律返回 `needs_reconciliation`，从不跳过。信任配置缺失或不受 root 控制直接抛错。GitHub 可以转载回执供人查看，但执行器不以它为准。
+`decide` 读该 nonce 的整条已发布链。路径任何一级不归 root 所有、组或其他人可写、或为符号链接，目录里有任何不是 `<序号>.json` 的条目（包括点文件），回执不是规范格式，签名无效，文件位置与内容不符，缺号或断链，一律返回 `needs_reconciliation`，从不跳过。信任配置缺失或不受 root 控制直接抛错。GitHub 可以转载签名回执供人查看，但签名模式不以它为准。
 
 ## 字节格式 v1
 

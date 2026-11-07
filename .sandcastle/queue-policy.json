@@ -1,4 +1,6 @@
 {
   "release_label": "deepagents:queue",
-  "hold_labels": ["needs-approval", "ready-for-human", "needs-info", "needs-triage", "wontfix"]
+  "mirror_label": "deepagents",
+  "orchestrator_login": "xy7365527-lang",
+  "hold_labels": ["ready-for-human", "needs-info", "needs-triage", "wontfix"]
 }
