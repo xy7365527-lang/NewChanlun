@@ -31,7 +31,7 @@ def identity(tmp_path):
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption(),
     ))
     path.chmod(0o600)
-    return AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+    return AppIdentity(5486877, 179444545, 1150335160, "Newchanlun/NewChanlun",
                        "newchanlun-deepagents-1742", path)
 
 

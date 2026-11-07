@@ -25,9 +25,9 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.github_a
 
 - `--app-id` 为 `5486877`。
 - `--app-slug` 为 `newchanlun-deepagents-1742`。
-- `--installation-id` 为 `175617978`。
+- `--installation-id` 为 `179444545`。
 - `--repository-id` 为 `1150335160`。
-- `--repository` 为 `xy7365527-lang/NewChanlun`。
+- `--repository` 为 `Newchanlun/NewChanlun`。
 
 客户端先用明确 PEM 签名的 App JWT 核 App 和 installation，再请求限定到该仓库的 installation token。核验用 token 将全部六项权限缩到 read，即 actions、metadata、contents、issues、pull_requests、statuses。客户端随后核 token 实际可访问的仓库只有目标仓库，并回读仓库身份。
 

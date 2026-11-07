@@ -767,7 +767,7 @@ def _sigkill_at(point: str | None) -> Callable[[str], None]:
 
 def _client(args: argparse.Namespace) -> GitHubAppClient:
     """登记只要读权限；run 才申请写权限。两者都先核 App、安装与仓库身份。"""
-    identity = AppIdentity(5486877, 175617978, 1150335160, REPO, "newchanlun-deepagents-1742", args.private_key)
+    identity = AppIdentity(5486877, 179444545, 1150335160, REPO, "newchanlun-deepagents-1742", args.private_key)
     client = GitHubAppClient(identity, permissions=WRITE_PERMISSIONS if args.command == "run" else None)
     client.verify()
     return client
