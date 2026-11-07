@@ -352,7 +352,7 @@ def parse_approval_ledger(text: str) -> tuple[list[ApprovalRecord], list[str]]:
     """主控登记的人类批准账本。合成、代理来源或缺出处的行不计入，只进诊断。"""
     records: list[ApprovalRecord] = []
     problems: list[str] = []
-    comment_url = re.compile(rf"https://github\.com/xy7365527-lang/NewChanlun/issues/{TICKET}#issuecomment-\d+")
+    comment_url = re.compile(rf"https://github\.com/(?:xy7365527-lang|Newchanlun)/NewChanlun/issues/{TICKET}#issuecomment-\d+")
     for n, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue

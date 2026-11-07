@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
         print("分支不是 DeepAgents 交付分支", file=sys.stderr)
         return 2
     try:
-        identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+        identity = AppIdentity(5486877, 179444545, 1150335160, "Newchanlun/NewChanlun",
                                "newchanlun-deepagents-1742", args.private_key)
         repo = identity.repository
         with GitHubAppClient(identity, permissions=READ_PERMISSIONS) as client:
