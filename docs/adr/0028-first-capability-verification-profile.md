@@ -87,3 +87,13 @@ TB-08-A/B/C [#1382](https://github.com/xy7365527-lang/NewChanlun/issues/1382)/[#
 ## #1599 批复与受影响清单
 
 [用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。
+
+## 修订（#1540，受控场所、账户、权限，2026-11-07）
+
+（append-only：裁定一至四与以上各节原文不改。依据 #1540 主控裁定 [裁定评论 6702983888](https://github.com/Newchanlun/NewChanlun/issues/1540#issuecomment-6702983888)，正本 [ADR 0061](0061-fu18-venue-account-permission-binding.md)。）
+
+1. **credential_scope**（:22）在场所 profile 记录里写三项：`class`（`trade_no_transfer`）、`source`（来源类别）、`public_id`（API wallet 公开地址）。:46 所称「凭据作用域版本」= `(profile_id@version, venue_profile_sha256)`，取整份记录的 sha256（ADR 0061 裁定一）。
+2. **`trade_no_transfer` 不是场所保证。** HL 的 agent 钥匙可签 `agentSendAsset` 与 `vaultTransfer`；本字段值成立靠三条叠加：钥匙是 agent、对外提现与转他人需主钱包签名、X 写代码无 transfer 变体（ADR 0061 裁定三）。
+3. **机器层**（:46）对 `experiment` 同样生效，P1 产出的记录标 `experiment`，不读作生产有效（ADR 0061 裁定五）。
+4. **authorization**（:26）即 P1 授权记录，随 profile 版本签并计入记录哈希（ADR 0061 裁定四）。
+5. **account 与 public_id 不入仓**：仓内只放 `profile_id@version` 加 sha256，记录本体存部署状态目录（ADR 0061 裁定八）。
