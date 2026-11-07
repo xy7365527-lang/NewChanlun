@@ -63550,6 +63550,28 @@
         ".chanlun/review-results/issue1778-decision-20261028/review1779-sync.json"
       ],
       "reason": "两文件是 #1778 裁定七原件的逐字归档副本（不改正文）；archaeology.json 第 8–10 行与 review1779-sync.json 第 4–6 行均为 40 位 Git 提交号（git cat-file 核为 commit 对象），非凭据。只追加精确 rule|path|line 键，不作目录排除（同 #1657 先例）。"
+    },
+    {
+      "pull_request": 1945,
+      "source_head": "f43fac8f46",
+      "removed_findings": 71,
+      "rule_counts": {
+        "DS137138": 1,
+        "DS148264": 8,
+        "DS162092": 55,
+        "DS172411": 4,
+        "DS173237": 2,
+        "DS176209": 1
+      },
+      "scope": [
+        "topological-computation/**",
+        "scripts/ipfs_deploy.py",
+        "scripts/openclaw_scheduler.py",
+        "scripts/start_with_gateway.sh",
+        "prototypes/task68-ledger-adopt/**",
+        "prototypes/task72-gap-connector/**"
+      ],
+      "reason": "slim/out-of-repo-batch2（#1945）整体出仓 topological-computation/ 及其专属部署脚本、.scratch/、prototypes/、仓根个人文件；原样归档于 /Volumes/AgentStorage/repo-archive/f43fac8f46-batch2/，可逐字节恢复。清掉指向这些已删路径的存量条目；gate 只拦截基线外新发现，存量多删不改变门槛，纯粹清理。"
     }
   ]
 }
