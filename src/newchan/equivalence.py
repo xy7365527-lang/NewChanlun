@@ -272,6 +272,7 @@ def _aggregate_ratio_to_kline(
     ratio_series: pd.Series,
     volume_series: pd.Series | None,
     target_freq: str,
+    target_index: pd.Index,
 ) -> pd.DataFrame:
     """将 ratio 标量时间序列按目标频率聚合为 OHLCV K线。"""
     resampler = ratio_series.resample(target_freq)
@@ -283,6 +284,12 @@ def _aggregate_ratio_to_kline(
     })
     if volume_series is not None:
         result["volume"] = volume_series.resample(target_freq).sum()
+
+    target_dt_index = pd.DatetimeIndex(target_index)
+    target_periods = target_dt_index.to_period(target_freq)
+    result.index = result.index.to_period(target_freq)
+    result = result.reindex(target_periods)
+    result.index = target_dt_index
     result = result.dropna(subset=["open"])
     return result
 
@@ -323,7 +330,8 @@ def make_ratio_kline(
             )
             return _make_ratio_kline_naive(df_a, df_b)
 
-        return _aggregate_ratio_to_kline(ratio, volume, freq)
+        target_idx = df_a.index.intersection(df_b.index)
+        return _aggregate_ratio_to_kline(ratio, volume, freq, target_idx)
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
