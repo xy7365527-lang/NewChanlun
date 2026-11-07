@@ -570,8 +570,6 @@ jobs:
           do
             grep -Fx "test v3::admission_provider::control_lock_tests::$test ... ok" "$RUNNER_TEMP/1481-ledger.log"
           done
-          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
-          grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
           grep -Fx "test v3::writer_cli::tests::h1_admission_one_shot_requires_explicit_retention_resource_file ... ok" "$RUNNER_TEMP/1481-admission.log"
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" -- --exact v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate v3::admission_anchor::native_n1::tests::native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-e6.log"
           grep -Fx "test v3::admission_anchor::native_n1::tests::native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate ... ok" "$RUNNER_TEMP/1481-e6.log"
@@ -591,6 +589,16 @@ jobs:
           do
             grep -Fx "test $test ... ok" "$RUNNER_TEMP/1481-sqlite-commit-failure.log"
           done
+
+      # #1875：带 s_capture_native_testonly 的 release 构建单独放在所有 s_session,s_incremental release 命令之后。
+      #   原先它夹在 H1 三层对拍步骤中间，后面的 release 命令只好把 s_session,s_incremental 重新编一遍
+      #   （托管机 run 42340127421 实测多编 3m27s）。只调整顺序，覆盖面、features、档位与逐名核对不变。
+      - name: H1 Native-feature release lock（#1481 S1）
+        if: ${{ !cancelled() && (matrix.group == 'owned-h1' || (matrix.group == 'owned' && env.OWNED_SPLIT != '1')) }}
+        run: |
+          set -o pipefail
+          cargo test --release --locked --features s_session,s_incremental,s_capture_native_testonly --bin s_structure_session --jobs "${CI_CARGO_JOBS_RELEASE:-4}" h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration -- --test-threads 1 --show-output --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1481-ordinary.log"
+          grep -Fx "test v3::audit_owner::construction_tests::h1_admission_ordinary_prepolicy_bad_history_rejected_before_migration ... ok" "$RUNNER_TEMP/1481-ordinary.log"
 
       - name: H1 Native debug source suffix and receipt expiry locks（#1481 S1K）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
