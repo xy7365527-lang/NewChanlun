@@ -242,7 +242,7 @@ def test_set_status_retains_old_success_api():
 
 
 def test_token_requests_only_external_review_permissions(tmp_path, monkeypatch):
-    identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+    identity = AppIdentity(5486877, 179444545, 1150335160, "Newchanlun/NewChanlun",
                            "newchanlun-deepagents-1742", tmp_path / "unused.pem")
     captured = []
     import pilot1742.github_app as app
@@ -256,7 +256,7 @@ def test_token_requests_only_external_review_permissions(tmp_path, monkeypatch):
             value = {"token": "fixture", "permissions": TOKEN_PERMISSIONS, "expires_at": "2099-01-01T00:00:00Z"}
         else:
             value = {"id": identity.installation_id, "app_id": identity.app_id, "app_slug": identity.app_slug,
-                     "account": {"login": "xy7365527-lang"}, "repository_selection": "selected",
+                     "account": {"login": "Newchanlun"}, "repository_selection": "selected",
                      "suspended_at": None, "permissions": app.INSTALLATION_PERMISSIONS}
         return httpx.Response(200, json=value)
     with GitHubAppClient(identity, permissions=TOKEN_PERMISSIONS, transport=httpx.MockTransport(transport)) as client:
@@ -301,7 +301,7 @@ def test_new_attempt_supersedes_inflight_old_run(lane):
 def test_status_transport_pages_are_complete_and_failure_does_not_publish(lane):
     requests = []
     pr = lane.gateway.pr
-    identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+    identity = AppIdentity(5486877, 179444545, 1150335160, "Newchanlun/NewChanlun",
                            "newchanlun-deepagents-1742", Path("/unused-fixture.pem"))
     def transport(request):
         requests.append(request)

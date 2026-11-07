@@ -74,7 +74,7 @@ def _open_bound(run_id: RunId) -> PilotRun:
     if not key:
         raise ToolRefusal("Studio 服务未配置 PILOT1742_APP_PRIVATE_KEY，不能执行 v2 run")
     unit, task = load_unit(state_root(), run_id)
-    identity = AppIdentity(5486877, 175617978, 1150335160, REPO, "newchanlun-deepagents-1742", Path(key))
+    identity = AppIdentity(5486877, 179444545, 1150335160, REPO, "newchanlun-deepagents-1742", Path(key))
     client = GitHubAppClient(identity, permissions=WRITE_PERMISSIONS)
     client.verify()
     executor = TicketExecutor(unit, RepoGateway(client), claims=ClaimStore(), workers_log=WORKERS_LOG)

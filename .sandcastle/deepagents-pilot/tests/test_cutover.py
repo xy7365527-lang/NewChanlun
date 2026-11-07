@@ -125,7 +125,7 @@ def test_remote_barrier_reads_actions_and_variable_without_github_writes(monkeyp
         return SimpleNamespace(stdout='', stderr='Could not find service', returncode=113)
 
     monkeypatch.setattr('pilot1742.cutover.subprocess.run', command)
-    gateway = SimpleNamespace(repo='xy7365527-lang/NewChanlun', client=SimpleNamespace(api=api), _p=lambda p: p)
+    gateway = SimpleNamespace(repo='Newchanlun/NewChanlun', client=SimpleNamespace(api=api), _p=lambda p: p)
     observed = remote_barrier(gateway)
     assert observed.remote_jobs_idle and observed.remote_freeze_var == '1'
     assert observed.variable_source == 'user-token-readonly'

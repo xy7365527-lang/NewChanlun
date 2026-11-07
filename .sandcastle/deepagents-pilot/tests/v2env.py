@@ -46,7 +46,7 @@ class V2Env(Env):
         pem.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
                                           serialization.NoEncryption()))
         pem.chmod(0o600)
-        self.identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+        self.identity = AppIdentity(5486877, 179444545, 1150335160, "Newchanlun/NewChanlun",
                                     "newchanlun-deepagents-1742", pem)
         self.github = FakeGitHub(self.identity, self.bare)
         self.github.add_issue(TICKET, body=f"#1742 首证专用票\n\n{DEDICATED_MARKER}\n")
