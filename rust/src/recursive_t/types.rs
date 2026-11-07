@@ -9,7 +9,7 @@
 //!
 //! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
 //!
-//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//! ## 名分（`docs/adr/0004-generation-constitution.md` 「现役代码名分五态」，#761 C7-E2 执行票订正）
 //!
 //! - **名分**：**现役**——本文件是同目录 recursive_t/(b) T 引擎生产路径（`pub mod`：
 //!   backtest.rs/rec_driver.rs/rec_stream.rs/rec_engine.rs/stream.rs/ffi.rs，12062 行，

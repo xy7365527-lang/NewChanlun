@@ -1,5 +1,8 @@
 # ADR 0052：完整历史输入 profile 与 ModelOrderUnspecified
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是完整历史输入 profile（`history-input-profile/1` 六域清单）、`ModelOrderUnspecified` 终态与正式 launcher 验证判据的正本。
 > 最后裁定：#1536（FU-14，2026-10-28，#1323 Notes N-1 预授权 T 类判定）
 > 受影响代码清单：见本文「受影响票与 blocking 边变化」节

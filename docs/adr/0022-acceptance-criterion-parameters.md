@@ -1,5 +1,9 @@
 # ADR 0022：验收判据的参数——成本下降速率的定义、判读纪律与样本门槛
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+> #1742 归档指针：本文引用的历史纪律原件位于 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/`，保留原文件名及行号。当前开发与证据归档按 `AGENTS.md`；本次归档不改变本文产品裁定。
+
 **日期**：2026-08-14
 **裁定人**：编排者，走 [grilling 新验收判据的参数 #853](https://github.com/xy7365527-lang/NewChanlun/issues/853)（map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787)）六问全 A 当场拍板
 **状态**：已采纳。纯决策 ADR——实装归 SPEC [#847](https://github.com/xy7365527-lang/NewChanlun/issues/847) S8，本 ADR 只定口径与数字。
@@ -30,7 +34,7 @@
 - **主判据 = 单边 95% 置信下界**，算法 = **按月分块 block bootstrap**（下界 = bootstrap 分布的 5% 分位；块 = 日历月）。中位数/分位数**降级为报告读数，不作门**。
 - 依据：N-6 判例已立「门必须是下界不是点估计」；现有正态近似 LCB（`z=1.645` + 样本标准差 SE）对这条**单边截断、强右偏**（均值 ≈ 2–3× 中位数）分布左尾覆盖失真（事实 B.5 六条）；#907 在案「逐例与逐簇数字差 4 倍」⟹ 簇稳健必须。
 - 生产 `z_alpha` 默认 0.0（LCB 实为关着）同步打开，但现有正态路径只用于过渡，验收读数一律走 block bootstrap。
-- **方法标名**：凡出具读数必写「按月分块 block bootstrap，单边 95% 下界」（`docs/agents/stat-provenance.md` 轻档要求）。
+- **方法标名**：凡出具读数必写「按月分块 block bootstrap，单边 95% 下界」，并附实现位置及采用的规范版本。将读数用于裁定时，须核对独审覆盖的具体报告/代码位置；覆盖不足则补审或标为「未审」，不得充当已核实的决策依据。历史报告不批量补标。
 
 > 记录化（#1677）：本裁定的数值为 #1677/evidence-gate/v1 的默认值，字段与版本规则见文末修订节。
 

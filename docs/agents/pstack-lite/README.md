@@ -47,3 +47,7 @@ node scripts/pstack-lite/check-pstack-arena-contract.mjs
   `node scripts/pstack-lite/run-trigger-fixtures.mjs --item <id>`。
 - **升级上游**：开票 → 比较旧/新 SHA diff → 重做适配 → 更新总表固定 SHA → 重跑上述三组命令。
   不得自动跟随上游 `main`。
+
+## 历史验收记录
+
+E2E-1131、PILOT-1139、VERIFICATION-1130/1135/1138 已归档至 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/pstack-lite/`。许可证、来源、模板和实际 fixture 留在本目录；验证仍使用上面的现有脚本。

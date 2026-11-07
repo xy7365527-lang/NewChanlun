@@ -2,6 +2,11 @@
 > 最后裁定：#1530（2026-10-20）；修订：#1523（2026-10-28）、#1539（2026-11-02），见文末「修订」节
 > 受影响代码清单：见「二、生产入口完整清单」节
 
+
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+> #1742 归档指针：本文引用的历史纪律原件位于 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/docs/agents/`，保留原文件名及行号。当前开发与证据归档按 `AGENTS.md`；本次归档不改变本文产品裁定。
+
 ## 问题
 
 ADR 0027 定了「结构判定域 / 重操作程序」两个互斥的唯一 owner，但只管 owner、依赖方向和运行边界。它明写「本 ADR 不发明类型、API、事件 schema、目录或迁移步骤」（ADR 0027:89）。#1322 全链 scan 的结论是仓内还没有 ADR 0027 的端到端入口（#1323 票面正文第 88 行）。本票（FU-08）要在 #1340 已采纳的 R2 架构下裁三件事。R2 的四个域是：结构域 S、各重账 Bᵢ、经济域 E、唯一执行入口 X。

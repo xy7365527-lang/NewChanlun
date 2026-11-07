@@ -105,7 +105,7 @@ CONTEXT.md「运行边界」节（:364）补一条「同核 adapter（Shared-Cor
 - [ ] `for t in logical-bar/1 System TestOnly evidence_class recorded-venue-replay/1 重命名闭集 simulation_and_hl_adapters_share_the_x_call_edge E.CaptureExternal session_transport SchemaUnsupported InvalidDomain; do rg -F -q "$t" <ADR> || echo "MISSING $t"; done` 输出为空。
 - [ ] `rg -F -c '同核 adapter（Shared-Core Adapter）' CONTEXT.md` 输出 ≥ 1（当前为 0）。
 - [ ] 票状态：`gh issue view 1538 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `CLOSED`。
-- [ ] 票状态：`gh api repos/xy7365527-lang/NewChanlun/issues/1538/comments --paginate --jq '[.[]|select(.body|test("^用户 [0-9]{4}-[0-9]{2}-[0-9]{2} 批复"))]|length'` 输出 ≥ 1（P 类 resolution 首行格式，见 `.agents/skills/graph-approve/SKILL.md:16`）。
+- [ ] 票状态：`gh api repos/xy7365527-lang/NewChanlun/issues/1538/comments --paginate --jq '[.[]|select(.body|test("^用户 [0-9]{4}-[0-9]{2}-[0-9]{2} 批复"))]|length'` 输出 ≥ 1（核验 #1538 当年的用户批复事实，格式原属现已删除的 graph-approve；现行普通 P/SPEC 授权后继见 `.sandcastle/docs/graph-engineering.md`「授权记录」，不改写本票历史批复）。
 - [ ] 承接登记：`for n in 1329 1381 1382 1400 1523 1524 1525 1769 1770; do c=$(gh issue view $n -R xy7365527-lang/NewChanlun --comments | grep -c 'FU-16 承接登记'); [ "$c" -ge 1 ] || echo "MISSING #$n"; done` 输出为空（当前九票都是 0）。
 - [ ] #1329 不被关：`gh issue view 1329 -R xy7365527-lang/NewChanlun --json state --jq .state` 输出 `OPEN`。
 - [ ] 边不删：`gh api repos/xy7365527-lang/NewChanlun/issues/1538/dependencies/blocking --jq 'map(.number)|sort|map(tostring)|join(",")'` 输出 `1362,1366,1367,1525,1539,1540,1550`。

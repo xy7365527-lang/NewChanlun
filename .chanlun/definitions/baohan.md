@@ -1,5 +1,8 @@
 # K线包含处理（Baohan / Inclusion Merge）
 
+> #1742 引用迁移：本文旧 AGENTS 章节/行号保留为历史取证坐标（`git show 3d61fb7294:AGENTS.md`）；当前 #799/#804 完整限定与例外见 `docs/adr/0047-level-isomorphism-and-no-fallback-locks.md`，引文核验及教义三行头见 `docs/adr/0012-inference-layer-document-naming.md`「引用核验与教义正本」。
+
+
 > 正本：本文件是 K线包含处理 的教义正本。
 > 最后裁定：[#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565)（2026-10-20，未定前缀上 W 对象的发布与 `pending_since_cut`）；前次 [#1342](https://github.com/xy7365527-lang/NewChanlun/issues/1342)（2026-10-13，初始方向与全包含前缀）
 > 受影响代码清单：见正文「#1565 受影响代码清单」与「#1342 受影响代码清单」（后者工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1342-AFFECTED-CODE.md`，票关后随归档出仓）

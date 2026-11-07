@@ -19,7 +19,7 @@
 
 // GUARD-ROLE: toplevel-loose-files
 //
-// ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#764 C7-E5 执行票核定）
+// ## 名分（`docs/adr/0004-generation-constitution.md` 「现役代码名分五态」，#764 C7-E5 执行票核定）
 //
 // - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
 //   main 上）。适用于 `bi_engine`/`bi_zhongshu_bsp`/`buysellpoint`/`divergence`/`fractal`/
