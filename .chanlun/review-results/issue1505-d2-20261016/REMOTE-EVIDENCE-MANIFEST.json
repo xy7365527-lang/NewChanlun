@@ -1,0 +1,2279 @@
+{
+  "files": [
+    {
+      "path": "ARTIFACT.zip",
+      "bytes": 2451897,
+      "sha256": "6161c4eb94e4fb82eb11f5769cd56e4a95f40472513decaad873c10ad62a88a3"
+    },
+    {
+      "path": "ARTIFACTS.json",
+      "bytes": 767,
+      "sha256": "c191c8efbb53909d7499102a0d51d9219e8fac1fafdef2e4ea5562f51fca868e"
+    },
+    {
+      "path": "EXECUTION.json",
+      "bytes": 944,
+      "sha256": "523855bd1f00e691c5f59fda4a5a3f5f4c52087df1d7a6f750867b94aa346a25"
+    },
+    {
+      "path": "GIT-IDENTITY.json",
+      "bytes": 534,
+      "sha256": "37861533797f7441757c601d2a7247d9958bb2f0b1c53419ee2d8398c43a24a5"
+    },
+    {
+      "path": "JOB.log",
+      "bytes": 58323,
+      "sha256": "0ba3e141fa58d886e8d8fbca308691a2c91c3667e91e581293865abe349c80e5"
+    },
+    {
+      "path": "RESULT.json",
+      "bytes": 2547,
+      "sha256": "4ca51f6ab3d66e5b17ae6e0f1cc5de8f0dd63bf2f8fde7202adfa9c526809f1d"
+    },
+    {
+      "path": "REVIEW.md",
+      "bytes": 7342,
+      "sha256": "52cc9bf02d91823f1fb9ee91132690aeb0175b4d492a408e3a4b529487ddbbf6"
+    },
+    {
+      "path": "REVIEWED-RUNNER.py",
+      "bytes": 42098,
+      "sha256": "0ef124bd379fe6dcc14284f43ace57e90ce4c4051c301bc027dd7e676c17bf15"
+    },
+    {
+      "path": "RUN-API.json",
+      "bytes": 12834,
+      "sha256": "1df5bedc5f14e89250321765edcbf0c45a9e26ca1262f43399188d9172116ba9"
+    },
+    {
+      "path": "RUN.json",
+      "bytes": 2242,
+      "sha256": "96a2976a0f3d5a483c6a59ed55f2e519b454655dd670a6d3da6afe5815905adf"
+    },
+    {
+      "path": "VERIFIED.json",
+      "bytes": 19282,
+      "sha256": "a35788f6cb8819bfa87a35456d200c48f7d1db4eab14de3a7c06dc3034b91538"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/BINARY.json",
+      "bytes": 659,
+      "sha256": "1f46c746a59d3a5187e5a5fb80d4ba1cbe99ad66784936616ffab96ade785441"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/D2-SMALL-01.json",
+      "bytes": 245,
+      "sha256": "231f4447a50b9497c16836db5858d4364dcc8d4918efb11a50057ce3c78b5ed7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/ENVIRONMENT.json",
+      "bytes": 800,
+      "sha256": "6777150f88efadbf577407cfa0ab6e86d524e06ce55a37fa88177048936b9c78"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/FILES.SEAL.json",
+      "bytes": 146,
+      "sha256": "833af5541aa6cfd8cc5c52ee104eab3081ea43758515e74a139021bdbdd842be"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/FILES.json",
+      "bytes": 78465,
+      "sha256": "cdb780e0ecef80cdcce46b4fd20fc1927cba4dcd12b7838766576dbe60674b8e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/PRESERVATION.json",
+      "bytes": 219,
+      "sha256": "e8494c73d76cf2c1098d04cd1c4f094606223e10c65b385a4e5f0706474e379e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/RESULT.json",
+      "bytes": 1585,
+      "sha256": "18ada38e1b9aacf4e6d5c2f2bdc5a6cddb03dc16d682c26e20e4ad33051d7012"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/SOURCE.json",
+      "bytes": 460,
+      "sha256": "f4f25d6cf85eb6e0a22fa2288b32512cd71068993f1a8c11f6210b895f3c1c6e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/SUITE-VERIFIED.json",
+      "bytes": 232,
+      "sha256": "af1da23d5dcfca9658f90e83d366d96804d49e3afaa9412337516d8bad851b5d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/archive.json",
+      "bytes": 685,
+      "sha256": "2c7d19e64e7e2a1d015c79f32ec26a0c7eae0557d39952bf8403df437102bd95"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/archive.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/archive.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/build.json",
+      "bytes": 576,
+      "sha256": "574d4f22765decc82a5221f9fa63a3aff4daea87cc896cca281135457d6a4837"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/build.stderr",
+      "bytes": 23613,
+      "sha256": "c18d6cade9753480b841d88f571b0d4e46aad75ac5df7ec4c187add3fff7c928"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/build.stdout",
+      "bytes": 59954,
+      "sha256": "e0ada5bd4d58703ffc9b2c6c3db4da560b7e7a5e8f7393a903ba34c89abd8d77"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/cleanup.json",
+      "bytes": 572,
+      "sha256": "bc8b3e1ae3ee56a33ad7b3e0f4c947a7e22ec7edef51472ddb6d9fad2440d5dd"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/cleanup.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/cleanup.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/evidence.tar.gz",
+      "bytes": 1389427,
+      "sha256": "5f413bdc9dbf985cfe7babe22bf5894587d99a21165e8c240a1e1c60eb1cc09c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/evidence.tar.manifest.json",
+      "bytes": 68334,
+      "sha256": "044b124e49209a48b018a68ee280a7536671c37b7cf0a238140554c3a4d145d1"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/identity.json",
+      "bytes": 667,
+      "sha256": "daf015b7ca9d9942f0a4fcb8df54da8a36668dbd077384a162439c31ec0bf5b1"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/identity.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/identity.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/inventory.json",
+      "bytes": 609,
+      "sha256": "bf2cbba339c45644fd2feedd112e63051cabf82a8f9244ef4463e5a69cea5c50"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/inventory.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/inventory.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/preserve.json",
+      "bytes": 747,
+      "sha256": "c51b7d1fb24b2633285866fb3da0e882c43b4a6ef304a51bc540b446a9aa3cc8"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/preserve.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/preserve.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/RESULT.json",
+      "bytes": 53021,
+      "sha256": "fe8da41db1d288d5fd97e7601d234dfd5600c8751b2427706fc776bbe84dd0b4"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/byte-base",
+      "bytes": 12325,
+      "sha256": "4e25e39e06ebccaf12c235c7cd3846688a69bc989726b0cd4c11678ac0c6e046"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/byte-contract.json",
+      "bytes": 5344,
+      "sha256": "39ee24a98b621e7f4f9ebca2692de0459ab41d31667bd55ad5b55ecbb5885c5c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/byte-oracle",
+      "bytes": 1024,
+      "sha256": "5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/byte-short-base",
+      "bytes": 4096,
+      "sha256": "ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-case.json",
+      "bytes": 1361,
+      "sha256": "21be16073aa76bd21c623c483ebfa27c502a710b70d8351db21b0e02b103cd23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "7f75277070febea03b68408730677dfe2caa5d19e5fd6d64467099b1488ad9de"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "fe76cd22cf6c6d0d19b5773c5de81c736197de2889bf1c03fa1511dff310809c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-reader.json",
+      "bytes": 865629,
+      "sha256": "13b44c80fae62b6b827cf35bdf5df40248598549794d2ed6066d2f7ee6b6635d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-writer/baseline.json",
+      "bytes": 792133,
+      "sha256": "7089f9309ee34ef4a4ccfeb9b776c7277e8d3301dc6af1878eba485c774e8115"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-writer/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-writer/writer.json",
+      "bytes": 245,
+      "sha256": "71f6ac87310540b65c7693c0ab48a432115b01b2eb982430518d0276bd47b08a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-writer.process.json",
+      "bytes": 184,
+      "sha256": "601effc929e556f14adba34d1564b294011c9bfc1d866112aeb687c16ee2366d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-clean-writer.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-case.json",
+      "bytes": 2049,
+      "sha256": "cdfc671e0901760c14187210aab76eeb06018db48ebeb8de7b7ea71e8157b342"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-oracle/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "4e3cb83c7faa94ecc0846877e46168501c4e5ee231f5d04fb3c831bbad77c61f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "b50046df9512866e30d9fe3f4909870779e0fa6e86f420322f64b9c5cdab6bdd"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "ec5a1ccdb772b45384d3525211c6a1289fce9712b94200229ac49e366459f8a8"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-reader.json",
+      "bytes": 867419,
+      "sha256": "70cc766001b1e32773bb238d54aa3c5a9bd2bce24e6fa44134fd8e268dfd3697"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-source/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "4e3cb83c7faa94ecc0846877e46168501c4e5ee231f5d04fb3c831bbad77c61f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer/baseline.json",
+      "bytes": 792133,
+      "sha256": "7089f9309ee34ef4a4ccfeb9b776c7277e8d3301dc6af1878eba485c774e8115"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "4e3cb83c7faa94ecc0846877e46168501c4e5ee231f5d04fb3c831bbad77c61f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer/writer.json",
+      "bytes": 244,
+      "sha256": "2cf85ca824550461eefe5f8df20529afc3d8dc454799bdc25328e6f9bba4b389"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer.process.json",
+      "bytes": 184,
+      "sha256": "488e2e89ea7937fb899448ae949007fa04ff2561a4b0904266abb16ada889fce"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-cold-writer.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-case.json",
+      "bytes": 2054,
+      "sha256": "6a3d82c048501489ca33e366da6e5b6886374a15a35e57a467a95c84f785d797"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "a0f1de59b608cc244c5cd15754ab2c568aee4293bec80d07d0371d922aa6fb1e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "c1599373e5d527cfe87a5a48e65f127a126b3052f9f7dd3277d18e1db2b45be5"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-reader.json",
+      "bytes": 1372726,
+      "sha256": "26e9bab611b00052ad7d4f0224f26a5eb10786ffa1d40ed73b835fa322499f1c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer/baseline.json",
+      "bytes": 792133,
+      "sha256": "7089f9309ee34ef4a4ccfeb9b776c7277e8d3301dc6af1878eba485c774e8115"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer/writer.json",
+      "bytes": 5095,
+      "sha256": "a656593f16901728d91e54506c07bf8f7b3902dafeb7797e0e336e7b9884a73a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer.kill.json",
+      "bytes": 6262,
+      "sha256": "06cd70169793331ef282b67a39fdc8fe65048fad40e1b54b5c06e67947d9c6fa"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/current-hot-writer.stdout",
+      "bytes": 3132,
+      "sha256": "f4c1fe07dce3a4787332c2ed967e849a20bbc8e2122a7ef35c9609fbcaf10349"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-case.json",
+      "bytes": 2041,
+      "sha256": "d0b08cd34ea608067ee517c29ff56576c33e2eee93488baa4587c096d8788921"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-oracle/main.sqlite-journal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "5690ad7ec406d5db165f13f1925ffe831c7abefaad365fee42771111b3a865ca"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "0936cb049cb533ad06552122ecfdd51dc0cd370058bda50a707614202a47f14e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-reader.json",
+      "bytes": 867400,
+      "sha256": "df7f8424ffd69a5ce7191e0e17048178d862d292aceb94426b62db2f63b647e4"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/empty-journal-source/main.sqlite-journal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/external-super-sentinel",
+      "bytes": 43,
+      "sha256": "02a60a55220c156b67c238d01fe6ce2c0261f12ca82512a466ca728a20848ce7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-allocator-failure-reader.process.json",
+      "bytes": 184,
+      "sha256": "83813a74bbc0a734ddba8be93d04c99cf4838513ef74c8f800a528a2335c0b7f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-allocator-failure-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-allocator-failure-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-allocator-failure-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-allocator-failure-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-allocator-failure.json",
+      "bytes": 1441059,
+      "sha256": "b9bf41fac7227d472a0321163dd5599b25a2c351d13c3a58c36141a2179c1815"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-arena-oom-reader.process.json",
+      "bytes": 184,
+      "sha256": "b22754425a21ca644559a6bacfea8cc228a8801faae88c22e2d30084d27bf93e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-arena-oom-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-arena-oom-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-arena-oom-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-arena-oom-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-arena-oom.json",
+      "bytes": 2937,
+      "sha256": "5b3d4b67ce9719d8d123faa228f1ab9b2d1960ff6caaf44f1849d97e56f17476"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-callbacks-reader.process.json",
+      "bytes": 184,
+      "sha256": "a37d1b5316a52c94fbcd2f185c191723caa546cefda79a6554995951eee6d2c6"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-callbacks-reader.stderr",
+      "bytes": 184,
+      "sha256": "c7d75a04cf629109ae236f69825b8ad859ebe16de40fd95f4853b18acc62db6c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-callbacks-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-callbacks-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-callbacks-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-callbacks.json",
+      "bytes": 12117,
+      "sha256": "156277351a8e193aa87df1092bff83b934ffb0d41604628882145c923bc6de2f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-close-error-reader.process.json",
+      "bytes": 184,
+      "sha256": "934100f0d39bc33c203b6ec3eb8387f7030dd6044d792903e82e72149a64d00c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-close-error-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-close-error-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-close-error-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-close-error-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-close-error.json",
+      "bytes": 579886,
+      "sha256": "82d174727df27d14a8549d14d164802f1ae598065180f2bf1114e3e406e3d2ef"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-case.json",
+      "bytes": 1566,
+      "sha256": "06035e10c3bc699adbb0569435141456b12773dc32e9a53de08e2ecd722534ba"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-clean-case.json",
+      "bytes": 1025,
+      "sha256": "cff60247e8495124bade7be97d719544aaaae4e0ef7d7be92d84b0e394e41ff3"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-clean-reader.process.json",
+      "bytes": 184,
+      "sha256": "a857cbcde4c8f468c07090f4ebfc3714f4c2f192e09a3faa7489ed4992ad2592"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-clean-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-clean-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-clean-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-clean.json",
+      "bytes": 7995,
+      "sha256": "3b6d2052f5997d500d0cb4c4559b433bbec280d9047095b49d0696e2b7ba0249"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-reader.process.json",
+      "bytes": 184,
+      "sha256": "a4e1e173f15794978d42281617d4ab0ad7411e96116f4fdf18986937e291343e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-late-exclusive.json",
+      "bytes": 9687,
+      "sha256": "a1038d26388e3eb0356cc4f22ebf6a2677a9fdc1b0c062d14f338161ca29db62"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap-reader.process.json",
+      "bytes": 184,
+      "sha256": "4fa671d1742db2fd9561e231982ce71e5af3520de8a7836e59e228f684a7b189"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap-source/main.sqlite",
+      "bytes": 17,
+      "sha256": "1064c1702ac7df361bdc7e2c4d3b51d97c2b3ffbc55fb51fa907216531c9e077"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap-source.pinned/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap-source.pinned/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-path-swap.json",
+      "bytes": 1372754,
+      "sha256": "4d6e930c3e5dc932a0bc6799894d8c2125787ce4933fa3f64514f72e989be119"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-io-reader.process.json",
+      "bytes": 184,
+      "sha256": "051e5ee90282e3c064bcbf95fe6eac0bd717fb715758bb440ccb9aa33abcc2bb"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-io-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-io-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-io-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-io-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-io.json",
+      "bytes": 9647,
+      "sha256": "f51d8c7f10d3210fe756b0164cc5dcd726004d5fd51a7f3153260ee745de316c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-panic-reader.process.json",
+      "bytes": 184,
+      "sha256": "0f56cff2495db635f8943373213a32d913fab1c20e83e6cf37f635cbd7d3f8f1"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-panic-reader.stderr",
+      "bytes": 184,
+      "sha256": "dc9bf1606b064934167d8793b1fd667fd820a0329cf4426ee9d72dc05153b3c7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-panic-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-panic-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-panic-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-panic.json",
+      "bytes": 9645,
+      "sha256": "73e80478d0cddb0caab4d46b53a58fa88e748dd8cd059f24195792e59427499e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-short-reader.process.json",
+      "bytes": 184,
+      "sha256": "f3dbf047cf5c4f049e851e4df7bbfa078d89196581a2852e1e268762cc89858b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-short-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-short-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-short-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-short-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-read-short.json",
+      "bytes": 73781,
+      "sha256": "d072f8f558efaaff3a506aa4ae832762a20ffbd10807cf1b94802971081d0cf2"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-sql-denials-reader.process.json",
+      "bytes": 184,
+      "sha256": "428ec37336ea1662e5b01bad513964d1aba5cf72726d208b5fb45378fb6940f0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-sql-denials-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-sql-denials-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-sql-denials-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-sql-denials-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/fault-sql-denials.json",
+      "bytes": 1374153,
+      "sha256": "3db7b305076fb70522ec88491a941634770e289a4c474c2adefefbdc78911f67"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/limits-contract.json",
+      "bytes": 2147,
+      "sha256": "157ae3a749103575f6d35124f9fa984db9c0b4210054e48bb949d51d2753d9ee"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/limits.json",
+      "bytes": 244,
+      "sha256": "6a82fb1268e56c3f7e5085730e02e646a761437d7afa1949620f113322b97612"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-case.json",
+      "bytes": 1357,
+      "sha256": "913fe1b009957dd376673998e7f587d1b99952e249da583af138990ec4ad30be"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "6851538c5eacbab8ac7d46767bf746cdf57a722863158059b62b80feea970674"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-oracle.json",
+      "bytes": 792998,
+      "sha256": "0adee0547d9e99c71b8abbf3dfd051fd9426ee6c3c4fcb51e410a17c3b946e55"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "16b6f821982c9ea635c3faa182e11c0e7d137e7add94654850efd965191abdc0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-reader.json",
+      "bytes": 865620,
+      "sha256": "1f52e11efa8d83cbecfcc6e8af17ba37eb9c3c6cc56aecbb3909cc0aa4325a96"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-writer/baseline.json",
+      "bytes": 792123,
+      "sha256": "6115a4b2b02fcece48b608e5dc5a7b67bdd630b887fac7ae2d5ef91ce62b2af7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-writer/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-writer/writer.json",
+      "bytes": 245,
+      "sha256": "163d74534d141b8b62567ec83a99ffa6356a14c758bac71b8836e3ce689e1fa8"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-writer.process.json",
+      "bytes": 184,
+      "sha256": "f0f150b42b513fc2cf1fcba77259ee3dea81f40b8aef8e0522bcaabf25c0161e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-clean-writer.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-case.json",
+      "bytes": 2045,
+      "sha256": "fe88aba3b1f683dfefae388df4398116906af7438f4058b2bc1d01f39034c7ec"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-oracle/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "f344f1140ac42ace5f09c4a0714ad0823d5347503debd1575d7dca1a7d1b873d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "d451df93ffc98bbfc35150c4a9881b1d64435739b4e46fab9e961e8a1890a1eb"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-oracle.json",
+      "bytes": 792998,
+      "sha256": "0adee0547d9e99c71b8abbf3dfd051fd9426ee6c3c4fcb51e410a17c3b946e55"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "619bbe8393f64ac29d209aa30ec4a2b513b6c44ff66f76ef082b548387893284"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-reader.json",
+      "bytes": 867410,
+      "sha256": "44508ef958d89c0b49c5f40c258ff583c4c03eeee52b8f5ecad8b8addd5a0f12"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-source/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "f344f1140ac42ace5f09c4a0714ad0823d5347503debd1575d7dca1a7d1b873d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer/baseline.json",
+      "bytes": 792123,
+      "sha256": "6115a4b2b02fcece48b608e5dc5a7b67bdd630b887fac7ae2d5ef91ce62b2af7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "f344f1140ac42ace5f09c4a0714ad0823d5347503debd1575d7dca1a7d1b873d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer/writer.json",
+      "bytes": 244,
+      "sha256": "2aab8191a6b89b1309a89ca81e2b3050d129ba0ece612546b9eba0797915149c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer.process.json",
+      "bytes": 184,
+      "sha256": "50bf3a88f3abe28f667df58ff0178714563ea2c6f54313fd888f748b332c6189"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-cold-writer.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-case.json",
+      "bytes": 2050,
+      "sha256": "8799d7c6eeab5a9a75c1f7273f3fd199b588f84fc4c28f07706f29c4d1c25459"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "5b49adbac0568c90dedf6a958fa4d1de69ee683d9d04b866691dd346f4d35b40"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "4c922b83c582d6f39c4b69734a23a10feb641ab47c571b0a637edae87695d9c5"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-oracle.json",
+      "bytes": 792998,
+      "sha256": "0adee0547d9e99c71b8abbf3dfd051fd9426ee6c3c4fcb51e410a17c3b946e55"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "6fff8ae2a0c55b689a864b87139da11c1f1f798009d3f4c14ca3eea0bb26172a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-reader.json",
+      "bytes": 1372717,
+      "sha256": "3af4d553761f52dc3726ff4485340f4fc2709f19c0229d2050a5c86df3c1a8b3"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "7be6690586ba00458dcfd6e1d29eea9ebb6074cae0dcbcec646aaf1bd019d95a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "3166af5e7c42bf4fa85d3530f0f4c8793918f644e7e4390f2111c0aee9b44f8b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer/baseline.json",
+      "bytes": 792123,
+      "sha256": "6115a4b2b02fcece48b608e5dc5a7b67bdd630b887fac7ae2d5ef91ce62b2af7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer/main.sqlite",
+      "bytes": 467968,
+      "sha256": "7be6690586ba00458dcfd6e1d29eea9ebb6074cae0dcbcec646aaf1bd019d95a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "3166af5e7c42bf4fa85d3530f0f4c8793918f644e7e4390f2111c0aee9b44f8b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer/writer.json",
+      "bytes": 5095,
+      "sha256": "2aaacf15245d6f0a1f5fe1c5fd14f50a3dff4d88b8785a7c02774b17a42cca23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer.kill.json",
+      "bytes": 6262,
+      "sha256": "21c8875d0472846a885004d790c9796d4e6e7fe54a1fa6a16a771a890bf1adf5"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/old-hot-writer.stdout",
+      "bytes": 3132,
+      "sha256": "a54c1b06462d250af0ce6c6289c02bc7958677b04ad096cff54288ebda9af07b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-case.json",
+      "bytes": 2058,
+      "sha256": "2c22840dc16c9ae2f27c35e650f8e93cf0b7ea49691a4807479fa746ace3ce85"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-mutation.json",
+      "bytes": 1002,
+      "sha256": "956ae0a6aac39dae86afcc0f47a2310b853067873c24ecf5bd099bdf8eb360e0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "398495103b76af5674529b1803305bd465216734eb463073ee8c31b46c9d54d3"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "d2c3ff7e0f0f4e73c273f78556cdbe34bbab2cd866fc1831d4d1a20219b210dc"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-reader.json",
+      "bytes": 1372890,
+      "sha256": "19324da6464f6771a883e81b224b7d11ea217a426a7a5536fd4522422b1f9ee2"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-source/main.sqlite",
+      "bytes": 201728,
+      "sha256": "e72af52e614df36a85bccf6ba49855ac489ea70303f1bc365f17ba9894d64bd0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/original-longer-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-case.json",
+      "bytes": 2059,
+      "sha256": "20baabcaabd8764bdcbdcb572ab592bc23294fea572bb4f2d644fa96710afa2b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "a7c7917300575a6b171cea7cde66874ab05ab367332ec0c87f6dff5f3efce059"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "cfb939969c5b30dd50e18580701cdc86370b6d11daaf8f629b53892ce6dae6df"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/post-reader-kill-reader.json",
+      "bytes": 1372726,
+      "sha256": "bd56d272a13d4127e6e11888b296ed6d18a801176a53c171c7b4b957a4340161"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/reader-kill-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/reader-kill-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "44bfc88eabd471b5177c99592f1b3c809e897b05c611d87ef1f84d9ae9f0a910"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/reader-kill.kill.json",
+      "bytes": 352,
+      "sha256": "7587223d94ca4d954c0c5b06f7568cd20a93339dc087d331a7b249c7c49377be"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/reader-kill.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/reader-kill.stdout",
+      "bytes": 57,
+      "sha256": "541f904ac79e1090fdfd48ecb30c7fe39fa8bef7c5774e93dd86f9d00278b651"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-absolute/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-absolute/main.sqlite-journal",
+      "bytes": 795234,
+      "sha256": "b0d9f9c910dcd9d2510173772598af767e13edf56b079b6a632b4475c71788e0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-absolute-reader.process.json",
+      "bytes": 184,
+      "sha256": "2a1e72d6e0591d4dcb1336f0cda907658f57eae69c913a0580551fc5c28051f0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-absolute-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-absolute-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-absolute.json",
+      "bytes": 2945,
+      "sha256": "6b4598d58295fdba2002130c9b60393c8e6f17af28212f4859e2270c0efc8ebe"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum/main.sqlite-journal",
+      "bytes": 795174,
+      "sha256": "290ce3517325d742d91f0d6d688b910608439cb5ca537b19072d7eecdc7a792d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-case.json",
+      "bytes": 1578,
+      "sha256": "7a73124792a01bf506543a48a3877b2c6309de416564b9bbbb037359f12de49b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "47fdeaa12b2d6627e167c22feb08e095264973d276ddd0ffdbd41d578e1bdb1b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "fbc09ed782c0e3a486fd1782c1574d31d8b423be2b9c02d2b54cd327d8dc8cbf"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-checksum-boundary-reader.json",
+      "bytes": 1373688,
+      "sha256": "467e77be5e54a3540b58d9b492ffe1c1931eae7e50719fd1ba5176893adcb6f8"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic/main.sqlite-journal",
+      "bytes": 795176,
+      "sha256": "f4d3874c03e8d8d6c5668d70e4ad0f6615b5d2641a017e7b7ef981ff15341325"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-case.json",
+      "bytes": 1575,
+      "sha256": "84966f01795b41e4341a4804307038a680d7c76d9dc06e35bed6ae2572c2b102"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "00b88c06680b5fa36f351d7303c8c20e69ced8c163acd1ce36ea1ed6f7f5d500"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "36e1868113725907989bb6fc2a18b0450893d0d04591a10d2e5ab66fb5e00b19"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-bad-magic-boundary-reader.json",
+      "bytes": 1373366,
+      "sha256": "374a0c3183039fa046bf377f64adaf1f043a5d1f3dc70b30e47c2ae7bc684d01"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-embedded-nul/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-embedded-nul/main.sqlite-journal",
+      "bytes": 795175,
+      "sha256": "c2ea0cfaf3b39553e64db68ca4f1d0bcb10705b3d363644fbf54a389db664139"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-embedded-nul-reader.process.json",
+      "bytes": 184,
+      "sha256": "8de7017dcf74c9f19038e29060b57109ec71aaa69124ea99254ed3710a16b965"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-embedded-nul-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-embedded-nul-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-embedded-nul.json",
+      "bytes": 2945,
+      "sha256": "5efa8a0239b51c1af1490668ae281f5b842ed3a4919a99d920f68d6aab2f1238"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty/main.sqlite-journal",
+      "bytes": 795160,
+      "sha256": "1636f7afa3f405ed0a51e2d2caece0e94354e827e8c295a2ed59fa64c01025af"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-case.json",
+      "bytes": 1571,
+      "sha256": "9568e5e68d6db3c8c60c9c2ee0c7750b8cdc3adbc4c5a5166c6b89937fc9f749"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "e90793fc1098a71ea850a349a3258b58d3e4f2dad5b6eb6c5868448f83e8a7cb"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "301da8bcb1cdc08bc8f8f60f59d1aa8fe5c36915635dc1ee790c26b579506d31"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-empty-boundary-reader.json",
+      "bytes": 1372726,
+      "sha256": "3cef2c27a60770cfc9bff32941ba1864f9be20261f3134346d6ef1a208313299"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-journal-cases.json",
+      "bytes": 13100,
+      "sha256": "7cf3ebb8668787bfea6af3efd6b9a9c70fd09f5cb67bd08fe165ad5142ff5501"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-512/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-512/main.sqlite-journal",
+      "bytes": 795672,
+      "sha256": "fb046e1aab1ba64dda28ba499ea953631b1d51eaa64b0c8b8ad03f5f85394c31"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-512-reader.process.json",
+      "bytes": 184,
+      "sha256": "f4d8503f3ef2f7120545597e75464468f10f1d022dff4de6b6bf3c1df20d76df"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-512-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-512-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-512.json",
+      "bytes": 2945,
+      "sha256": "35983f85e8082ff81905d14e907057c04986c94ea31bd590c6ce65f86fb7b176"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513/main.sqlite-journal",
+      "bytes": 795673,
+      "sha256": "ff9eeda295dd301186d690163014fc65be00afa55145a903fe54dfee14339e79"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-case.json",
+      "bytes": 1576,
+      "sha256": "4ee0c28240229829a084e8092b97b0ab6458de73603c8273ad964eccd1beafcf"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "ddff7bd130b1ae75bf6fe22cb9e990c91e9d24feeefa90195f50f2bbe6d29c2f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "7bbfebfbc1ec88c454fd2006a8995a1e9f57c92e9bf8ec6a2615362ea44e8807"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-513-boundary-reader.json",
+      "bytes": 1372725,
+      "sha256": "af9c16941b372afc92e5394dc794497ab70be2531108d9bd059b3146c266478b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file/main.sqlite-journal",
+      "bytes": 795177,
+      "sha256": "428f4c1d210cac3a6e766507a8b568110269fc04dd4ce1c9ff767cb3439a17fa"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-case.json",
+      "bytes": 1584,
+      "sha256": "9369dd2d6a0e5f419b42eae021c62d81fa8dcf91255c48ca69ad3046af69f783"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "105aac2de5630d1d88e4bc458a3447a21b2dbf54952ab20aaba7529c7d237187"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "6e36ab43e7d2876aef975baadce3ddccb7e12ed913f1b079ded037fd46d25919"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-length-beyond-file-boundary-reader.json",
+      "bytes": 1372726,
+      "sha256": "f44b0a2f6fc03c436789757089ade647aaa2434267d1d5e939f220718b7fcc12"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-relative/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-relative/main.sqlite-journal",
+      "bytes": 795186,
+      "sha256": "78e0bd3759afb8eb3de169f221e7ca59eaf619d8aec3c6f21f176bef9d515756"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-relative-reader.process.json",
+      "bytes": 184,
+      "sha256": "89b7f01adc36b5a9764ef7400a2bd53de174dac23f1ac9bf48f8b28d2825d3e9"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-relative-reader.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-relative-reader.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-relative.json",
+      "bytes": 2945,
+      "sha256": "af7a8f3c6dfa4c6d05f0bc3b09a563081f488c0039f6aade501052ec0f5af511"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name/main.sqlite-journal",
+      "bytes": 795162,
+      "sha256": "8e601e659624b89c38ba22204723c886eaf19879e28ec5e83fe5707797de05a7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-case.json",
+      "bytes": 1581,
+      "sha256": "29428d4d22dbafdc355519d417cfc3523bf901e9715d88a9e14ebf88a7ae1880"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "f32f3c85cd2fa8d40be82d62779173e5ff31215f94b737d5956f7286825a1cc1"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "dd47e678e640ae211c890614cd0370a544d8137de2b7c0a4b5a6caff19e2ec2a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/super-zero-first-name-boundary-reader.json",
+      "bytes": 1373686,
+      "sha256": "80b1584bd10e287062639043e10e314d2046d7fdb37d08425aadf1ccfa2093ac"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "efb739363006438aed509e7a2f0514a023bf485e7a9f38a99bfe2c39f98babcb"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "91aaa2d5eaa46004e29f9582aeb1269fb303683d36b0d79468a5dbf5ccbf868e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-reader.json",
+      "bytes": 1372726,
+      "sha256": "e5efa3fadcf6086a12b00d7ce8a928193c66649f4b6e7858124ff43c0ba49f17"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-bad-last-byte-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "5ab80e93a064d3b2f5a5f4170bacec2745d83ed765e5b15798337747986be6a7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-boundaries.json",
+      "bytes": 2163,
+      "sha256": "112eb7782300191fa37d20e6aa8d5a3b03b45f6b82b0b793d1a92e6fc878f46e"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "93adb7f0db0433baa47060db45b9ad79002e2e46e1f40320be46811bee688f23"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "249301b383dadd551c5c0d733a96eaca535ede65ef3ac090b5d6b0a06f34fc74"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-oracle.json",
+      "bytes": 793008,
+      "sha256": "3fbc46fac8c137d641119c740e0e803079cd22e53305ef0c3ed1f0f20ac80e4f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "cb9ef329aed33cf354ecafd92e8643698fb114e985fa836634f9ac7ef309fc64"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-reader.json",
+      "bytes": 1372726,
+      "sha256": "b8cad98d7f2506f43c9d95f32acca681126cb4b9cdb3051825c3bcfcfaa93023"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "0c097ffca52529abe65274995a22619e4bb081bfe52b932d290fb9c813aa7a98"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/tail-truncate-seven-source/main.sqlite-journal",
+      "bytes": 795137,
+      "sha256": "53b920b018c8421bb6b2d8779ac958f15bd387290e35f713643c5db21ab0e953"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-case.json",
+      "bytes": 1361,
+      "sha256": "662638af201e25dbcbd417b0514f054cc46698e137d31b2d5d9ea61250893856"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "f97b15af11e8cfc6005f1750e83c69a00a1aad2d06e30c61bb2c48082b7486c3"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-oracle.json",
+      "bytes": 793002,
+      "sha256": "4799535c400ba30b52b1a24b76898bba9f9a94793fade6d81be7082fb0ec4e7c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "d1b0400f2410d97b144eec2c0c049f8f63f31efb62b44d9e0f1148984da954f7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-reader.json",
+      "bytes": 865624,
+      "sha256": "b84128d1f3e3673c1937836551d82fc0264f9c2ae085134708f297f1f3ab4828"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-writer/baseline.json",
+      "bytes": 792127,
+      "sha256": "e2160763b4c764c32a83fba263c207788921fd36727db1c90c6047236afcc3f0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-writer/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-writer/writer.json",
+      "bytes": 245,
+      "sha256": "626255aa8075baaa4b6b0b357aeb8f364024d2ff02c46c60b63c22e4ae630281"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-writer.process.json",
+      "bytes": 184,
+      "sha256": "1f07ff83529491338d186c163c4a6e2e28392d380ea899072c3f326ff0bdc05a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-clean-writer.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-case.json",
+      "bytes": 2049,
+      "sha256": "af49cb6d27b47990f1f9417ba42a6313d93472135d834e9f428320d999ab8abe"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-oracle/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "9855b6a80b44e138c8721eaf2b7318f9c84cf587d08330418a7c44a251bc111f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "10ae6db35a3f5485f7ac627677a6d84b7cc6c44466dcbdd5e5eff01aa63e11b7"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-oracle.json",
+      "bytes": 793002,
+      "sha256": "4799535c400ba30b52b1a24b76898bba9f9a94793fade6d81be7082fb0ec4e7c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "57e1e1ba19a0dc8423c3fa9161ec6b05c9a6f02ed6c53d92777d6cac34955b56"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-reader.json",
+      "bytes": 867414,
+      "sha256": "dcbcab8872319dd1d6c9abc3301f4c42248de2fcde2057a25851efae4782be7c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-source/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-source/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "9855b6a80b44e138c8721eaf2b7318f9c84cf587d08330418a7c44a251bc111f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer/baseline.json",
+      "bytes": 792127,
+      "sha256": "e2160763b4c764c32a83fba263c207788921fd36727db1c90c6047236afcc3f0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer/main.sqlite-journal",
+      "bytes": 5640,
+      "sha256": "9855b6a80b44e138c8721eaf2b7318f9c84cf587d08330418a7c44a251bc111f"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer/writer.json",
+      "bytes": 244,
+      "sha256": "afba9e909500675d966368bfc231ddf8e094088edf3e73363d7931915711ca6a"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer.process.json",
+      "bytes": 184,
+      "sha256": "65b6e423648e9e61ebf2a69e1fdf82b21bf4bcdbcd1aa8f6b917a0c8a6e709e5"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-cold-writer.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-case.json",
+      "bytes": 2054,
+      "sha256": "c6e036192772347b735eb3b1a647b362c62173f44d09cb3e902d972911d1b771"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-oracle/main.sqlite",
+      "bytes": 403456,
+      "sha256": "8d152cc5ec0defb784a6d02659d09e28f1c0987a5c661702b5055ea013bd448b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-oracle-process.process.json",
+      "bytes": 184,
+      "sha256": "3642a848caf9fd5c2ba29d8f95da49d6a60f151d816eb871a3641c1697762a36"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-oracle-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-oracle-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-oracle.json",
+      "bytes": 793002,
+      "sha256": "4799535c400ba30b52b1a24b76898bba9f9a94793fade6d81be7082fb0ec4e7c"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-reader-process.process.json",
+      "bytes": 184,
+      "sha256": "e223c20bba608db1f42dc9e07c65c931cf819387251c1c84d1ff96dc8fe8b51d"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-reader-process.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-reader-process.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-reader.json",
+      "bytes": 1372721,
+      "sha256": "c5a7a2b4c3d95c4872d96fa3070f77a35716b009b78a9185c680dde4cc0387ad"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-source/main.sqlite",
+      "bytes": 467968,
+      "sha256": "1a0da3ac4ef04c4d396fb5cf826850ce2076791577c630767163f0a02c463391"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-source/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "1af719618f3e59f40e7afc2ca2f347a329c800ce51d2f9e81f430e711c2cf858"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer/baseline.json",
+      "bytes": 792127,
+      "sha256": "e2160763b4c764c32a83fba263c207788921fd36727db1c90c6047236afcc3f0"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer/main.sqlite",
+      "bytes": 467968,
+      "sha256": "1a0da3ac4ef04c4d396fb5cf826850ce2076791577c630767163f0a02c463391"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer/main.sqlite-journal",
+      "bytes": 795144,
+      "sha256": "1af719618f3e59f40e7afc2ca2f347a329c800ce51d2f9e81f430e711c2cf858"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer/writer.json",
+      "bytes": 5095,
+      "sha256": "5422f06ffdade61d7e4a96731d807cdc1cdd23144196563c86f8567338a53447"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer.kill.json",
+      "bytes": 6262,
+      "sha256": "16e6230de7628564dce47510540ac4fdd48bd2a5fae4db4e022bf451af58474b"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/raw-evidence/unknown-hot-writer.stdout",
+      "bytes": 3132,
+      "sha256": "9c93693863c84712d25f878577327572047f8b290cd227236ddb8481c8f4b8e9"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/suite.json",
+      "bytes": 597,
+      "sha256": "296047f348a095fd38ce9e73d16aafc504b11dc6b438600af36bc4e2a6f11750"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/suite.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/suite.stdout",
+      "bytes": 74,
+      "sha256": "cdba06fee20796ebefb27bd618c095bcb825ec040ed516e47a5213a4247c73c3"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/verify-build.json",
+      "bytes": 852,
+      "sha256": "a418598f6e0b55560525a3f41ba4c9bb5a0b0a43f8bb56bb3fc5200c23a3d2ae"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/verify-build.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/verify-build.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/verify-suite.json",
+      "bytes": 861,
+      "sha256": "e87ca99094410493c5c67db8db1377f2b92d21ccfffeb1254d9d859c49024029"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/verify-suite.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifact/1505-d2-artifacts/verify-suite.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "verify_remote.py",
+      "bytes": 27949,
+      "sha256": "22c3639795ae0cea308b5ba9f8be66e6c90875e71d52a904462e5518973acb48"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-15T17:17:07.930436+00:00",
+  "status": "ACCEPT_D2_COMPONENT_ONLY",
+  "files_verified": 455,
+  "manifest_sha256": "e149074624a64a3c2feb7b5640db113c88860171bea55522d38a9f44d983197c",
+  "run": 38773444490,
+  "head": "b9d3ecde1838e0db3eb67bfd01d364d624ec8619",
+  "review": "PASS_D2_COMPONENT_ONLY_CONFIRMED",
+  "real_supervisor_cancellation": "NOT_RUN",
+  "production_v4": "BLOCK_NOT_MERGEABLE",
+  "remaining": [
+    "formal producer/R4/CLI",
+    "complete S store baseline",
+    "source RW final-open continuity",
+    "synchronous IO hard deadline",
+    "49GB history",
+    "64GiB/store",
+    "148GiB dual-run prerequisite",
+    "whole graph acceptance"
+  ],
+  "issue_1279": "OPEN",
+  "git_report": "PENDING_ARCHIVE"
+}
