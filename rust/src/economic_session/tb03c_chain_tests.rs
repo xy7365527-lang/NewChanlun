@@ -119,11 +119,7 @@ impl Chain {
         let (basis_path, _) = save(&dir, "s-basis.json", &basis);
         let stub = dir.join("s-stub.sh");
         let script = format!("#!/bin/sh\nexec cat '{basis_path}'\n");
-        std::fs::write(&stub, &script).unwrap();
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        crate::economic_session::write_test_executable(&stub, &script, 0o755);
         // ---- Voice 授权单位夹具（与 finance_tests 同式） ----
         let fk = book::fact_key(&opening["events"][0]).unwrap();
         let fh = opening_cov["fact_hash"].clone();
