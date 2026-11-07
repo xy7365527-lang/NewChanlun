@@ -4,6 +4,7 @@
 use super::business_json::{self as bj, RawEventsView};
 use super::generation::{Generated, SequenceMemo, WitnessRecord};
 use super::layout::Layout;
+use crate::content_store::{ReadSnapshot, SnapshotQuery};
 use crate::v3::audit_store::{CodecRead, CodecStore, NativeTree, RefValue};
 use crate::{content_store, meta_get_opt};
 use aj::JsonView;
@@ -16,7 +17,6 @@ use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
 };
-use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sc::{CodecVec, ValueView as VV};
@@ -2021,28 +2021,28 @@ fn verify_generated_members_in_view(
 /// 读取独立记录并验证闭包、身份、公开投影和小元数据。store 可为只读源+内存重算层。
 /// 完整生成来源/跨代成员审计仍由上层完成，索引自洽不能证明来源真实。
 pub(super) fn load(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     s: &mut (impl CodecStore + ?Sized),
     latest: i64,
 ) -> Result<Index, String> {
     let owned_budget = s.allocation_budget();
     let mut out = Index::new(owned_budget.clone());
     let mut rt = Runtime::default();
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::WITNESSES).map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let entry = audit_persisted_witness(&mut row, s, latest, owned_budget.as_ref(), &mut rt)?;
         s.native_codec_room(&mut out.witnesses, 1).map_err(err)?;
         out.witnesses.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::RELATIONS).map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let entry = audit_persisted_relation(&mut row, s, latest, owned_budget.as_ref())?;
         s.native_codec_room(&mut out.relations, 1).map_err(err)?;
         out.relations.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid").map_err(err)?;
+    let mut stmt = snap.prepare(SnapshotQuery::OBSERVATIONS).map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
         let entry = audit_persisted_observation(&mut row, s, latest, owned_budget.as_ref())?;
         s.native_codec_room(&mut out.observations, 1).map_err(err)?;
@@ -2070,7 +2070,8 @@ pub(super) fn update_from_owner(
                 1=>c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations WHERE rowid=?1",
                 _=>c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations WHERE rowid=?1",
             };
-            let mut stmt = CheckedStatement::prepare(tx, sql).map_err(err)?;
+            let mut stmt =
+                newchan_rust::sqlite_checked::CheckedStatement::prepare(tx, sql).map_err(err)?;
             stmt.bind_integer(1, *rowid).map_err(err)?;
             let mut row = stmt
                 .next()
@@ -2687,12 +2688,13 @@ mod tests {
         let capture = content_store::capture_for_prototype(&tx).unwrap();
         let mut plain = HashReader::captured_for_audit(&capture, None).unwrap();
         plain.enable_full_arrays_for_test();
-        let mut expected_objects = object_index::load_for_history(&tx, &mut plain, 4).unwrap();
+        let mut expected_objects =
+            object_index::load_for_history(&ReadSnapshot::new(&tx), &mut plain, 4).unwrap();
         let expected_entries = format!("{:?}", expected_objects.entries());
         let expected_dual = expected_objects
             .native_dual_at_cut(&mut plain, 4, &batch)
             .unwrap();
-        let expected_aux = load(&tx, &mut plain, 4).unwrap();
+        let expected_aux = load(&ReadSnapshot::new(&tx), &mut plain, 4).unwrap();
         let expected_rows = format!(
             "{:?}",
             (
@@ -2726,7 +2728,8 @@ mod tests {
                     .unwrap()
                     .with_codec_work(scope, &budget);
                 reader.enable_full_arrays_for_test();
-                let mut objects = object_index::load_for_history(&tx, &mut reader, 4)?;
+                let mut objects =
+                    object_index::load_for_history(&ReadSnapshot::new(&tx), &mut reader, 4)?;
                 assert_eq!(format!("{:?}", objects.entries()), expected_entries);
                 let sweep = objects.native_sweep_admitted(&reader)?.unwrap();
                 assert_eq!(
@@ -2734,7 +2737,7 @@ mod tests {
                     expected_dual
                 );
                 drop(sweep);
-                let index = load(&tx, &mut reader, 4)?;
+                let index = load(&ReadSnapshot::new(&tx), &mut reader, 4)?;
                 assert_eq!(
                     format!(
                         "{:?}",
@@ -3272,7 +3275,7 @@ mod tests {
         let mut conn = owned_aux_fixture();
         let tx = conn.transaction().unwrap();
         let mut normal = content_store::TxStore::new(&tx).unwrap();
-        let expected = load(&tx, &mut normal, 1).unwrap();
+        let expected = load(&ReadSnapshot::new(&tx), &mut normal, 1).unwrap();
         let expected_values = aux_values(&expected);
         let expected_members = cut_members(&expected, Layout::Sorted, 1, false).unwrap();
         let mut normal_runtime = Runtime::default();
@@ -3334,7 +3337,7 @@ mod tests {
             512 * 1024,
             |store| {
                 assert!(store.allocation_budget().is_some());
-                let actual = load(&tx, store, 1).unwrap();
+                let actual = load(&ReadSnapshot::new(&tx), store, 1).unwrap();
                 assert_eq!(aux_values(&actual), expected_values);
                 let mut runtime = Runtime::default();
                 let mut constructed = Index::new(store.allocation_budget());
@@ -3397,8 +3400,8 @@ mod tests {
                 drop(runtime);
                 tx.execute("UPDATE s_content_witnesses SET slot=1", [])
                     .unwrap();
-                let owned_error = load(&tx, store, 1).err().unwrap();
-                let normal_error = load(&tx, &mut normal, 1).err().unwrap();
+                let owned_error = load(&ReadSnapshot::new(&tx), store, 1).err().unwrap();
+                let normal_error = load(&ReadSnapshot::new(&tx), &mut normal, 1).err().unwrap();
                 assert_eq!(
                     owned_error, normal_error,
                     "同一错误SQL元数据的拒绝判据/错误不漂移"
@@ -3512,7 +3515,7 @@ mod tests {
             &budget,
             4096,
             512 * 1024,
-            |store| load(&tx, store, 1).unwrap(),
+            |store| load(&ReadSnapshot::new(&tx), store, 1).unwrap(),
         );
         let before = aux_values(&actual);
         let live = budget.snapshot().live_requested_layout_bytes;
@@ -3604,7 +3607,7 @@ mod tests {
             let frontier = raw.len() as i64 - 1;
             let tx = conn.transaction().unwrap();
             let mut s = content_store::TxStore::new(&tx).unwrap();
-            let old = load(&tx, &mut s, g - 1).unwrap();
+            let old = load(&ReadSnapshot::new(&tx), &mut s, g - 1).unwrap();
             let mut generator = GenerationRuntime::new(
                 format!("aux-test/{}/{g}", files.db().display()),
                 tb02a::PROFILE,
@@ -3688,7 +3691,7 @@ mod tests {
             }
             let batch = format!("batch3-{}", g.to_string().repeat(64));
             stage(&tx, &mut s, &p, &batch).unwrap();
-            let stored = load(&tx, &mut s, g).unwrap();
+            let stored = load(&ReadSnapshot::new(&tx), &mut s, g).unwrap();
             verify_generated_members(
                 &mut s,
                 &stored,
@@ -4147,7 +4150,7 @@ mod tests {
             let frontier = raw.len() as i64 - 1;
             let tx = conn.transaction().unwrap();
             let mut s = content_store::TxStore::new(&tx).unwrap();
-            let old = load(&tx, &mut s, g - 1).unwrap();
+            let old = load(&ReadSnapshot::new(&tx), &mut s, g - 1).unwrap();
             let mut generator = GenerationRuntime::new(
                 format!("aux-s3/{}/{g}", files.db().display()),
                 tb02a::PROFILE,
@@ -4299,7 +4302,13 @@ mod tests {
             let batch = format!("batch3-{}", "1".repeat(64));
             stage(&tx, &mut s, &p, &batch).unwrap();
             assert!(stage(&tx, &mut s, &p, &batch).is_err());
-            assert_eq!(load(&tx, &mut s, 1).unwrap().observations.len(), 1);
+            assert_eq!(
+                load(&ReadSnapshot::new(&tx), &mut s, 1)
+                    .unwrap()
+                    .observations
+                    .len(),
+                1
+            );
             tx.rollback().unwrap();
         }
         rt.discard();
@@ -4315,17 +4324,23 @@ mod tests {
         super::super::commit::publish_prepared(tx, &f.token, &m, &roots, &manifest).unwrap();
         let tx = f.conn.transaction().unwrap();
         let mut s = content_store::TxStore::new(&tx).unwrap();
-        assert_eq!(load(&tx, &mut s, 1).unwrap().observations.len(), 1);
+        assert_eq!(
+            load(&ReadSnapshot::new(&tx), &mut s, 1)
+                .unwrap()
+                .observations
+                .len(),
+            1
+        );
         tx.execute("UPDATE s_content_observations SET kind='wrong'", [])
             .unwrap();
-        assert!(load(&tx, &mut s, 1)
+        assert!(load(&ReadSnapshot::new(&tx), &mut s, 1)
             .unwrap_err()
             .contains("观察索引与出生原件不符"));
         tx.rollback().unwrap();
         let tx = f.conn.transaction().unwrap();
         tx.execute("DELETE FROM s_content_nodes WHERE digest=(SELECT generated_root FROM s_content_observations LIMIT 1)",[]).unwrap();
         let mut s = content_store::TxStore::new(&tx).unwrap();
-        assert!(load(&tx, &mut s, 1).is_err());
+        assert!(load(&ReadSnapshot::new(&tx), &mut s, 1).is_err());
         tx.rollback().unwrap();
         let tx = f.conn.transaction().unwrap();
         let mut s = content_store::TxStore::new(&tx).unwrap();
@@ -4334,7 +4349,7 @@ mod tests {
             [],
         )
         .unwrap();
-        assert!(load(&tx, &mut s, 1)
+        assert!(load(&ReadSnapshot::new(&tx), &mut s, 1)
             .unwrap_err()
             .contains("观察索引与出生原件不符"));
     }

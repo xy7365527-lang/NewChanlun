@@ -1,6 +1,7 @@
 //! #1394 单次封闭普通 audit 的当前 SQL raw 原件；不保存判据结果。
 //! 构造能力只由 state 发出，类型没有 tx getter/NodeSink/Clone 或外部材料入口。
 use super::{content_store, state::OrdinaryAuditSeal};
+use crate::content_store::ReadSnapshot;
 use newchan_rust::s_content::{
     self as sc, job::CheckedFrame, CodecError, NodeDigest, NodeRead, NodeSource,
 };
@@ -82,9 +83,9 @@ impl OrdinaryAuditMaterials {
     pub(super) fn new(_seal: OrdinaryAuditSeal) -> Self {
         Self::production_pool()
     }
-    pub(super) fn for_readonly_history(tx: &rusqlite::Transaction<'_>) -> Result<Self, CodecError> {
-        if !tx
-            .is_readonly(rusqlite::MAIN_DB)
+    pub(super) fn for_readonly_history(snap: &ReadSnapshot<'_>) -> Result<Self, CodecError> {
+        if !snap
+            .is_readonly_main()
             .map_err(|e| CodecError::new(sc::code::SOURCE, e.to_string()))?
         {
             return Err(CodecError::new(sc::code::SOURCE, "历史原件池需要只读事务"));

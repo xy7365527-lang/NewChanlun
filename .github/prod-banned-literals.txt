@@ -80,6 +80,7 @@ JSON真实载荷析构归还原许可
 Key 全部 Plain 文本及 Proof Vec 新块须先计入同父域
 K物理live恰好计一次
 Missing 不伪造首读起钟
+Missing 不入表，每次真读
 MissingDependency：Q3CaptureInvalid：x
 MissingDependency：R4
 MissingDependency：R6：
@@ -158,6 +159,7 @@ REQUEST_AUDIT_REPORT
 ROLLBACK TO shape_entry_fault; RELEASE shape_entry_fault
 ROLLBACK TO shape_leaf_fault; RELEASE shape_leaf_fault
 RUNTIME_ROOTS_OUTPUT
+ReadSnapshot 转发的读取写了库
 Recover前owner持有已提交构造资格
 Recover前当期token可绑定
 Recover后换了父账
@@ -266,6 +268,7 @@ actual 非数组先于 expected 重复
 admit已完成真实COMMIT
 advance 审计结果跨 prepare 存活并持续计费
 audit_owner/b2_source_fault_tests.rs
+authorizer 更换令读语句过期
 batch 字节长度与内容寻址 hash 必须与 Delta 域无关
 before-g 独立克隆及删除计费
 before-g和through-g必须共享一份事件表
@@ -722,6 +725,7 @@ writer/recover闭合后无SHM
 同一合同项不得重复入O
 同一合法字符串
 同一块在O与U中只计一次
+同一快照内同一摘要不再发 SQL
 同一新record在snapshot/delta只读取一次十字段
 同一时刻只有一个MoveIn
 同一请求同一回复
@@ -747,6 +751,7 @@ writer/recover闭合后无SHM
 后续根缺子节点必须拒绝
 命中不重算见证身份
 命中临时 key 和验证工作均归还，不重复持费
+命中仍重新执行 F
 命中副本各自拥有非空 ref 文本，不能共享或偷走 memo 的原件
 四代每个完整record恰好承接kind与core两个source字段定位
 四字段对象不得被当成引用再求值摘要
@@ -1513,6 +1518,7 @@ writer/recover闭合后无SHM
 读 Delta 域模式
 读上一代前沿
 读冻结原始账
+读快照内外部提交不可见
 读集加入即驱逐旧持久句柄
 调用间不得继承旧闭包
 负控前必须真命中缓存
@@ -1594,6 +1600,7 @@ writer/recover闭合后无SHM
 重新准备不同 raw 后，旧视图必须失效
 重新打开后即使配置回退，也只能读取结果实际使用的 v2 记录戳
 重新登记真实当前 source
+重新编译读语句询问了授权器
 重算后必须回到零重算
 重读根头不能增驻留
 错旧身份须先拒绝，不能解码或走全量
@@ -1603,6 +1610,7 @@ writer/recover闭合后无SHM
 错误后重试仍重新完整核验
 错误退出后，新load重新核判据
 键、身份文本及桶全部销毁后回基线
+门与命中都不调用授权器
 闭包 Ok 的纯预算不足
 闭包块会话与冷 CLI 逐字节相同
 闭包缺子节点必须拒绝
