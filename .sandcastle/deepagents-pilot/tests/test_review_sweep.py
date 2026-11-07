@@ -125,8 +125,15 @@ def test_process_identity_rejects_pid_reuse_and_zombies():
 
 
 class FakeMerge:
-    def __init__(self, required, states):
+    def __init__(self, required, states, files=None):
         self.required, self.states, self.calls = set(required), states, []
+        self.files = files or {}
+
+    def pr_files(self, number):
+        return self.files.get(number, [".sandcastle/x.py"])
+
+    def disable_auto_merge(self, number):
+        self.calls.append(("disable", number))
 
     def required_checks(self):
         return self.required
@@ -213,3 +220,27 @@ def test_stale_on_current_base_is_not_done(lane):
     (folder / "outcome.json").write_text(json.dumps({"run_id": target.run_id, "verdict": "STALE"}))
     host.rows.clear()
     assert [a["action"] for a in sweep.tick()] != ["done"]
+
+
+@pytest.mark.parametrize(("path", "category"), [
+    (".github/workflows/ci.yml", "ci-or-branch-protection"),
+    ("rust/src/trading/order.rs", "live-trading-or-funds"),
+    ("scripts/hl_paper_launcher.py", "live-trading-or-funds"),
+    ("docs/ci_secrets.md", "secrets-or-credentials"),
+    ("deploy/.env.production", "secrets-or-credentials"),
+])
+def test_human_gated_pr_is_never_auto_merged_and_existing_auto_merge_is_withdrawn(lane, path, category):
+    """用户选择的窄口子：实盘下单或资金、密钥或凭证、CI 与分支保护配置，须人工确认。"""
+    head = lane.gateway.pr["head"]["sha"]
+    merge = FakeMerge({"deepagents/review", "ci-ok"}, {1810: _merge_state(head, behind=True, auto=True)},
+                      files={1810: [".sandcastle/a.py", path]})
+    sweep, _ = make(lane, merge=merge, max_running=0)
+    action = sweep.tick()[-1]
+    assert action["action"] == "needs-human-confirm" and action["gated"] == {category: [path]}
+    assert merge.calls == [("disable", 1810)]  # 撤掉已开的 auto-merge，也不追平
+
+
+def test_ordinary_reviewer_code_is_not_human_gated():
+    from pilot1742.review_sweep import human_gated
+    assert human_gated([".sandcastle/deepagents-pilot/pilot1742/external_review.py",
+                        ".sandcastle/codex-child.ts", "docs/adr/0061-x.md"]) == {}

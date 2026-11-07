@@ -15,6 +15,10 @@ auto-merge——这样合入必等审查与整轮 CI，不会因审查单绿绕�
 strict 下落后的 PR，若当前 head 的审查与 ci-ok 都已 success，就追平（系统可证明无冲突的合并，审查按补丁沿用），
 每轮只追平一个，免得连锁重跑。
 
+人工确认的窄口子（用户 2026-11-07 选择）：改动触及实盘下单或资金、密钥或凭证、CI 与分支保护配置三类路径
+（HUMAN_GATED）的 PR 不自动合入、不自动追平，报 needs-human-confirm；之前已开的 auto-merge 会撤掉。
+普通审查器代码不在其中。
+
 范围：只处理 max_age 内有活动的非草稿、同仓 PR，不给陈年 PR 发起审查。
 不做的事：同一 head 的显式重审（新 attempt）仍由操作员发起；旧 head 不能覆盖新 head 的状态由
 StatusPublisher 负责。审查本身、沿用和并发都在 external_review。
@@ -24,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -41,6 +46,25 @@ Rows = list[tuple[int, int, str, str]]
 Spawn = Callable[[int, int, Path], int]
 Sync = Callable[[int, str, str], None]
 GATE = frozenset({"deepagents/review", "ci-ok"})
+# 按路径判定、宁宽勿窄：多判只是多一次人工确认，漏判才是风险。
+HUMAN_GATED: dict[str, re.Pattern[str]] = {
+    "ci-or-branch-protection": re.compile(r"^\.github/"),
+    "live-trading-or-funds": re.compile(
+        r"^(rust/src/trading/|src/newchan/trading/|trading_system/|rust/src/funding_record/)"
+        r"|launcher|risk[-_]?gate|hyperliquid|ibkr|broker", re.IGNORECASE),
+    "secrets-or-credentials": re.compile(
+        r"secret|credential|private[-_]?key|token|\.pem$|(^|/)\.env(\.|$)", re.IGNORECASE),
+}
+
+
+def human_gated(files: list[str]) -> dict[str, list[str]]:
+    """命中人工确认三类的文件，按类别列出；空表示不需要人工确认。"""
+    hits: dict[str, list[str]] = {}
+    for name in files:
+        for category, pattern in HUMAN_GATED.items():
+            if pattern.search(name):
+                hits.setdefault(category, []).append(name)
+    return hits
 
 
 class MergePort(Protocol):
@@ -48,7 +72,9 @@ class MergePort(Protocol):
     def required_checks(self) -> set[str]: ...
     def pr_state(self, number: int) -> dict[str, Any]: ...
     def enable_auto_merge(self, number: int, head: str) -> None: ...
+    def disable_auto_merge(self, number: int) -> None: ...
     def update_branch(self, number: int, head: str) -> None: ...
+    def pr_files(self, number: int) -> list[str]: ...
 
 
 class GhCli:
@@ -74,9 +100,17 @@ class GhCli:
     def enable_auto_merge(self, number: int, head: str) -> None:
         self._gh("pr", "merge", str(number), "-R", self.repository, "--auto", "--merge", "--match-head-commit", head)
 
+    def disable_auto_merge(self, number: int) -> None:
+        self._gh("pr", "merge", str(number), "-R", self.repository, "--disable-auto")
+
     def update_branch(self, number: int, head: str) -> None:
         self._gh("api", "-X", "PUT", f"repos/{self.repository}/pulls/{number}/update-branch",
                  "-f", f"expected_head_sha={head}")
+
+    def pr_files(self, number: int) -> list[str]:
+        out = self._gh("api", "--paginate", f"repos/{self.repository}/pulls/{number}/files?per_page=100",
+                       "--jq", ".[] | .filename, (.previous_filename // empty)")
+        return out.split()
 
 
 def review_command(number: int, attempt: int, private_key: Path) -> list[str]:
@@ -191,6 +225,12 @@ class Sweep:
             state = self.merge.pr_state(number)
             if state["head"] != head:
                 continue  # 本轮读到的 head 已变，下轮再说
+            gated = human_gated(self.merge.pr_files(number))
+            if gated:
+                if state["auto_merge"]:
+                    self.merge.disable_auto_merge(number)
+                actions.append({"pr": number, "head": head, "action": "needs-human-confirm", "gated": gated})
+                continue
             if not state["auto_merge"]:
                 self.merge.enable_auto_merge(number, head)
                 actions.append({"pr": number, "head": head, "action": "auto-merge-on"})
