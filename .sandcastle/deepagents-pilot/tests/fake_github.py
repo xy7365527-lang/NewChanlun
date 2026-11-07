@@ -148,6 +148,8 @@ class FakeGitHub:
                 return httpx.Response(500, json={"message": "fixture"})
             if fault.mode == "reject_422":
                 return httpx.Response(422, json={"message": "fixture"})
+            if fault.mode == "status_404":
+                return httpx.Response(404, json={"message": "Not Found"})
             if fault.mode == "hold":
                 fault.entered.set()
                 assert fault.release.wait(20)

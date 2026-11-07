@@ -31,7 +31,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { MAIN_MODEL } from "./main-model.mts";
 import { canonicalPath, parseCanonicalEdit, applyCanonicalEdit, readCanonicalTarget, canonicalDiff, validateCanonicalPlan, writeCanonicalPlan, type CanonicalPlan } from "./canonical-edit.mts";
 import { DRAIN_ROOT, DrainFrozenError } from "./drain-control.mts";
-import { graphAdmissionFrozen, withGraphAdmission } from "./deepagents-cutover.mts";
+import { ORCHESTRATOR_LOGIN, graphAdmissionFrozen, withGraphAdmission } from "./deepagents-cutover.mts";
 import { randomUUID } from "node:crypto";
 import { loadMainSession, openMainSession, type MainSession, type SessionRef } from "./main-session.mts";
 
@@ -664,8 +664,8 @@ export function loadTicket(gh: GhRunner, n: number): TicketContext {
   };
 }
 
-/** 用户批复与 resolution 只认编排者账号的评论（全仓代理与用户共用此账号，外部账号的评论不算）。 */
-export const ORCHESTRATOR = process.env.DECISION_ORCHESTRATOR ?? "xy7365527-lang";
+/** 用户批复与 resolution 只认编排者账号的评论（全仓代理与用户共用此账号，外部账号的评论不算）。默认读 queue-policy.json。 */
+export const ORCHESTRATOR = process.env.DECISION_ORCHESTRATOR ?? ORCHESTRATOR_LOGIN;
 
 /**
  * 去掉评论首行的 Markdown 前缀（引用、标题、强调、列表），只留正文。

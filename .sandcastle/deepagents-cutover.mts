@@ -11,6 +11,9 @@ export const HOLD_LABELS: string[] = POLICY.hold_labels;
 export const MIRROR_LABEL: string = POLICY.mirror_label;
 /** 发 SPEC 独审裁定评论的 GitHub 用户登录名，与仓库 owner 无关（workunit.py 读同一策略）。 */
 export const ORCHESTRATOR_LOGIN: string = POLICY.orchestrator_login;
+if (typeof ORCHESTRATOR_LOGIN !== "string" || ORCHESTRATOR_LOGIN === "") {
+  throw new Error(`queue-policy.json orchestrator_login 须为非空字符串，实为 ${JSON.stringify(ORCHESTRATOR_LOGIN)}`);
+}
 export const CLAIMS_ROOT = `${EXECUTOR_ROOT}/claims`;
 const SERVICES = ["com.newchanlun.sandcastle-claimer", "com.newchanlun.sandcastle-harvest"];
 const HELPER = fileURLToPath(new URL("./deepagents-pilot/pilot1742/cutover.py", import.meta.url));

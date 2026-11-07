@@ -1216,3 +1216,112 @@ def test_release_keeps_mirror_until_drained_and_old_release_cannot_strip_new_gen
         release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '旧释放重试')
     assert v2.writes() == before and 'deepagents' in v2.github.issues[TICKET]['labels'], '旧释放不碰新代次镜像'
     assert '正由' in engine_hold(v2)
+
+
+def _released_delivery(v2, cutover, intake, signer):
+    from conftest import FAKE, MODELS
+
+    from pilot1742.executor import load_unit, open_v2_run, release_claim
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit), MODELS,
+                      launcher=FAKE, source_repo=v2.source)
+    v2.to_pass(run)
+    pr = run.publish_candidate()['pr']['number']
+    v2.github.merge_pull(pr)
+    run.release()
+    release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '释放早于队列观察到合入')
+    return unit, pr
+
+
+@pytest.mark.parametrize('mode', ['status_500', 'status_404'])
+def test_merged_probe_read_failure_waits_on_that_ticket_and_the_round_continues(queued, mode):
+    v2, cutover, intake, signer = queued
+    _unit, pr = _released_delivery(v2, cutover, intake, signer)
+    other = TICKET + 1
+    v2.github.add_issue(other, body=f'Part of [SPEC #{SPEC}](https://github.com/xy7365527-lang/NewChanlun/issues/{SPEC})',
+                        labels=('ready-for-agent', 'deepagents:queue'), parent=SPEC)
+    v2.github.fault('GET', rf'/repos/[^/]+/[^/]+/pulls/{pr}', mode, times=1)
+    ran = []
+    rows = intake.once(lambda unit: ran.append(unit.ticket) or 0)
+    assert rows[TICKET]['phase'] == 'awaiting_human' and 'retry next round' in rows[TICKET]['reason']
+    assert ran == [other], '同轮其他票照常派'
+    assert len(list((v2.home / 'units').glob(f't{TICKET}-*.json'))) == 1, '读失败不换代'
+    rows = intake.once(lambda unit: ran.append(unit.ticket) or 0)
+    assert rows[TICKET]['phase'] == 'awaiting_human' and '已合入' in rows[TICKET]['reason']
+    assert TICKET not in ran
+
+
+@pytest.fixture
+def release_cli(queued, monkeypatch):
+    from pilot1742 import executor as cli
+    from pilot1742.github_app import RequestNotSent
+    v2, cutover, intake, signer = queued
+    reachable = {'up': False}
+
+    class App:
+        def __init__(self, _identity, **_kwargs):
+            self.client = v2.gateway().client
+
+        def verify(self):
+            if not reachable['up']:
+                raise RequestNotSent('GitHub 请求失败（连接未建立），未切换凭据来源')
+            return {}
+
+        def __enter__(self):
+            return self.client
+
+        def __exit__(self, *_exc):
+            return False
+
+    monkeypatch.setattr(cli, 'GitHubAppClient', App)
+    monkeypatch.setattr(cli, 'ClaimStore', lambda: ClaimStore(v2.claims_root))
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    assert executor(v2, cutover, unit).claim(PilotRun.run_dir(v2.home, unit.run_id)).state == 'active'
+    argv = ['release', '--ticket', str(TICKET), '--run-id', unit.run_id, '--reason', '主控退回',
+            '--private-key', str(v2.tmp / 'app.pem')]
+    return v2, cli, argv, reachable
+
+
+def test_release_records_released_locally_when_github_is_unreachable(release_cli, capsys):
+    v2, cli, argv, reachable = release_cli
+    assert cli.main(argv) == 75
+    assert v2.claim_record()['state'] == 'released' and v2.claim_record()['mirror_label'] is True
+    assert 'deepagents' in v2.github.issues[TICKET]['labels']
+    assert '重跑同一 release 命令' in capsys.readouterr().err
+    reachable['up'] = True
+    assert cli.main(argv) == 0
+    assert v2.claim_record()['mirror_label'] is False
+    assert 'deepagents' not in v2.github.issues[TICKET]['labels']
+
+
+def test_release_mirror_removal_failure_exits_75_for_retry(release_cli):
+    v2, cli, argv, reachable = release_cli
+    reachable['up'] = True
+    v2.github.fault('DELETE', r'/repos/[^/]+/[^/]+/issues/\d+/labels/deepagents', 'status_500', times=1)
+    assert cli.main(argv) == 75
+    assert v2.claim_record()['state'] == 'released' and 'deepagents' in v2.github.issues[TICKET]['labels']
+    assert cli.main(argv) == 0 and 'deepagents' not in v2.github.issues[TICKET]['labels']
+
+
+@pytest.mark.parametrize('login', [None, 123, '', ['xy7365527-lang']])
+def test_invalid_orchestrator_login_fails_at_import(tmp_path, login):
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+    pilot = Path(__file__).resolve().parents[1]
+    sandcastle = tmp_path / '.sandcastle'
+    shutil.copytree(pilot / 'pilot1742', sandcastle / 'deepagents-pilot' / 'pilot1742')
+    policy = json.loads((pilot.parent / 'queue-policy.json').read_text())
+
+    def imports(value):
+        (sandcastle / 'queue-policy.json').write_text(json.dumps({**policy, 'orchestrator_login': value}))
+        return subprocess.run([sys.executable, '-c', 'import pilot1742.workunit as w; print(w.ORCHESTRATOR_LOGIN)'],
+                              cwd=sandcastle / 'deepagents-pilot', capture_output=True, text=True)
+
+    control = imports('fixture-orchestrator')
+    assert control.returncode == 0 and control.stdout.strip() == 'fixture-orchestrator', control.stderr
+    result = imports(login)
+    assert result.returncode != 0 and 'orchestrator_login' in result.stderr

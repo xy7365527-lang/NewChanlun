@@ -82,7 +82,7 @@ executor status --run-id t<票号>-1
 
 **释放。** 主控退回一张票。释放会等正在执行的那一个外部写入做完，旧控制进程之后的派工、提交与发布都会停下，原工蜂仍可经 `cancel-worker` 取消。释放本身不代表远端工蜂已退出。重新持有要登记新的 run id；票级锁内确认旧控制锁、本机工蜂和所有旧 Boat 绑定均已排空后，代次才加一。`Running`、`EffectUnknown` 或不可读的 Boat 绑定通常阻止换代。唯一的失败排空路径要求原绑定已有 `stop_id`、回执身份完全匹配且明确证明失败退出或取消，详见 [取消后释放队列槽或换代](BOAT.md#取消后释放队列槽或换代)。手工入口与队列共享这一判定。检查只读本地冻结记录，不访问 Boat、不补提交，也不收集旧产物。
 
-释放先在本机记 `released`，再用同一排空判定决定能否摘票面的 `deepagents` 镜像。排空了就在同一把票级锁内摘掉并读回，持有结束由此在 GitHub 上可见，wayfinder 引擎据此恢复旧票迁移。没排空时镜像保留，命令退出 75，排空后重跑同一命令即可。本机记录已换成新 run 时释放被拒绝，旧 run 的重试碰不到新代次的镜像。交付 PR 已合入的票释放后不会被队列重派，状态页报 `awaiting_human`，由主控关票。
+释放先在本机记 `released`，这一步不访问 GitHub，GitHub 不可达时旧控制进程照样在下一个动作边界停下。之后才打开 App 客户端，用同一排空判定决定能否摘票面的 `deepagents` 镜像；连不上 GitHub 或摘镜像失败也退出 75。排空了就在同一把票级锁内摘掉并读回，持有结束由此在 GitHub 上可见，wayfinder 引擎据此恢复旧票迁移。没排空时镜像保留，命令退出 75，排空后重跑同一命令即可。本机记录已换成新 run 时释放被拒绝，旧 run 的重试碰不到新代次的镜像。交付 PR 已合入的票释放后不会被队列重派，状态页报 `awaiting_human`，由主控关票。
 
 ```sh
 executor release --ticket <票号> --run-id t<票号>-1 --reason "主控退回：……" --private-key "$PEM"
@@ -96,7 +96,7 @@ executor register --ticket <票号> --run-id t<票号>-2 --base "$BASE" ...
 `status` 的 `phase` 在发布后取以下值。
 
 - `awaiting_merge`。冻结 head 已在远端分支，draft PR 的 head 等于它，状态与交付标记都在。PR 链接在 `delivery.state.pr.url`。
-- `merged`。GitHub 已确认该 PR 合入，执行器不再写任何东西。
+- `merged`。GitHub 已确认该 PR 合入，执行器不再写任何东西。唯一例外是主控之后执行的 `release`：它照常记本机 `released` 并摘票面 `deepagents` 镜像（见上文释放段），不碰 PR。
 - `stale`。远端分支或 PR 的 head 不是冻结 head，后代也算。执行器不覆盖、不收养，`delivery.stale.observed` 是观察到的 SHA。由主控决定重新评审还是释放。
 - `halted`（持有记录）。锁内复核发现票被关、`deepagents` 标签被摘、票或 PR 被加了禁用标签，或持有 post-check 失败。远端 PR 不合交付合同时也转 halted：已关闭未合入、目标不是 main、open 时不是 draft、不是本 App 所开、正文缺本票 PR 标记。执行器不改动这个 PR，不重开、不改目标、不改回 draft。只有主控能释放。
 
