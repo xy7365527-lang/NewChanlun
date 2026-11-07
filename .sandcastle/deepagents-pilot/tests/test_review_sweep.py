@@ -550,10 +550,12 @@ def test_child_dying_before_registration_backs_off(lane):
     assert acts(sweep.tick()) == ["launch"] and len(host.spawned) == 2
 
 
-def test_loop_interval_must_respect_api_rate_limit():
-    """r3 Nit 2：每轮每个 PR 约 4 次读接口；循环间隔低于 3 分钟会超过 GitHub 每小时 5000 次的核心限额。"""
+@pytest.mark.parametrize("loop", ["60", "-5", "nan", "inf"])
+def test_loop_interval_must_respect_api_rate_limit(loop):
+    """r3 Nit 2：每轮每个 PR 约 4 次读接口；循环间隔低于 3 分钟会超过 GitHub 每小时 5000 次的核心限额。
+    负数不得被当成单轮，nan 不得混过校验到 sleep 才崩；inf 会让循环永不再跑，同样拒绝。"""
     with pytest.raises(SystemExit):
-        module.main(["--private-key", "/k", "--loop", "60"])
+        module.main(["--private-key", "/k", "--loop", loop])
 
 
 @pytest.mark.parametrize("path", ["deploy/.envrc", ".netrc", "web/.npmrc", "home/.ssh/id_ed25519", "id_rsa",

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -453,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--auto-merge", action="store_true",
                         help="用宿主 gh 凭据追平与合入（须 ci-ok 为必需检查；人工确认三类除外）")
     args = parser.parse_args(argv)
-    if 0 < args.loop < MIN_LOOP_SECONDS:
+    if not math.isfinite(args.loop) or not (args.loop == 0 or args.loop >= MIN_LOOP_SECONDS):  # 挡住负数、nan、inf
         parser.error(f"--loop 须为 0 或至少 {MIN_LOOP_SECONDS:g} 秒")
     sweep = Sweep(GhCli(), ExternalReview(None), spawner(args.private_key), max_running=args.max_running,
                   auto_merge=args.auto_merge)
