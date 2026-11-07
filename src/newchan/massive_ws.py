@@ -52,6 +52,9 @@ QUOTES_COLUMNS = [
 # flat-files quotes 文档：2025-11-03 起 SEC MDI 直报股数——若 WS 侧同步切换，
 # 此 ×100 须按标定票（#1051 系）订正；本模块先按文档自述 round lots 落地。
 ROUND_LOT = 100
+_STRING_COLS = frozenset({"id", "ticker", "decimal_size"})
+_LIST_COLS = frozenset({"conditions", "indicators"})
+_FLOAT_COLS = frozenset({"price", "ask_price", "bid_price"})
 
 
 def env_key() -> str:
@@ -158,16 +161,59 @@ class DayWriter:
         name = {"T": "trades.parquet", "Q": "quotes.parquet"}[schema]
         return self.root / self.ticker / f"dt={date}" / name
 
+    def _abandon_open_writers(self) -> None:
+        """关闭未转正的 .tmp，不覆盖已落盘分区（断线 REST 回补前调用）。"""
+        for w in self._writers.values():
+            if w is not None:
+                w.close()
+        for tmp in self._paths.values():
+            if tmp is not None and tmp.exists():
+                tmp.unlink()
+        self._writers = {}
+        self._paths = {}
+
+    def _promote_tmp(self, tmp: Path, final: Path) -> None:
+        """将当日 .tmp 转正。若 REST 回补已写入 final，则拼接而不是覆盖。"""
+        if final.exists():
+            merged = pa.concat_tables([pq.read_table(final), pq.read_table(tmp)])
+            merge_tmp = final.with_name(final.name + ".merge")
+            pq.write_table(merged, merge_tmp, compression="zstd")
+            merge_tmp.replace(final)
+            tmp.unlink(missing_ok=True)
+        else:
+            tmp.replace(final)
+
     def _finalize(self, date: str) -> None:
-        for schema in self._writers:
+        for schema in list(self._writers):
             w = self._writers[schema]
             if w is not None:
                 w.close()
             tmp = self._paths.get(schema)
             if tmp is not None and tmp.exists():
-                tmp.rename(self._partition(date, schema))
+                self._promote_tmp(tmp, self._partition(date, schema))
         self._writers = {}
         self._paths = {}
+
+    def overlay_rest(self, rows: list[dict], date: str, schema: str = "T") -> None:
+        """断线回补：丢弃当日未完成 WS .tmp，用 REST 全日重拉幂等覆盖分区。
+
+        回补前未转正的 live 行视为 REST 子集（ADR 0023 §三「该日全量重拉」）。
+        回补后新的 WS 行写入新的 .tmp，finalize 时与 REST 分区拼接。
+        """
+        if self._date and self._date != date:
+            self._finalize(self._date)
+        self._abandon_open_writers()
+        self._date = date
+        if not rows:
+            return
+        part = self._partition(date, schema)
+        part.parent.mkdir(parents=True, exist_ok=True)
+        tmp = part.parent / f".{part.name}.rest.{os.getpid()}"
+        pq.write_table(
+            pa.Table.from_pylist(rows, schema=_schema_for(schema)),
+            tmp, compression="zstd",
+        )
+        tmp.replace(part)
 
     def _roll(self, date: str) -> None:
         if self._date is None:
@@ -201,11 +247,19 @@ class DayWriter:
         self._date = None
 
 
+def _pa_type(col: str) -> pa.DataType:
+    if col in _STRING_COLS:
+        return pa.string()
+    if col in _LIST_COLS:
+        return pa.list_(pa.int64())
+    if col in _FLOAT_COLS:
+        return pa.float64()
+    return pa.int64()
+
+
 def _schema_for(schema: str) -> pa.Schema:
     cols = TRADES_COLUMNS if schema == "T" else QUOTES_COLUMNS
-    return pa.schema([(c, pa.string() if c in ("id", "ticker", "decimal_size") else
-                      pa.list_(pa.int64()) if c in ("conditions", "indicators") else
-                      pa.int64()) for c in cols])
+    return pa.schema([(c, _pa_type(c)) for c in cols])
 
 
 async def run_live(ticker: str, root: Path, schemas: str, key: str) -> None:
@@ -234,18 +288,16 @@ async def run_live(ticker: str, root: Path, schemas: str, key: str) -> None:
                         elif etype == "Q":
                             writer.write(map_quote(ev), "Q")
         except Exception:
-            # 断线：回补最近未完成日（含断线当日），再重连
+            # 断线：回补最近未完成日（含断线当日），再重连。
+            # REST 失败不得杀死直播环——网络闪断时 REST 同样可能超时。
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             if today not in backfilled:
-                rows = rest_fetch_day(ticker, today, key)
-                writer._roll(today)
-                part = writer._partition(today, "T")
-                part.parent.mkdir(parents=True, exist_ok=True)
-                pq.write_table(
-                    pa.Table.from_pylist(rows, schema=_schema_for("T")),
-                    part, compression="zstd",
-                )
-                backfilled.add(today)
+                try:
+                    rows = rest_fetch_day(ticker, today, key)
+                    writer.overlay_rest(rows, today, "T")
+                    backfilled.add(today)
+                except Exception:
+                    pass
             await asyncio.sleep(5)
 
 
