@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import {
-  assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
+  ALLOWED_MODELS, assertRoute, boundedCodex, CodexTranscript, EXTERNAL_REVIEW_MODELS, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, snapshotCheckout, workerEnvironment,
   DEEPAGENTS_OUTPUT_PROTOCOL, outputProtocol, workerOutputSchema, type OutputProtocol,
   type ChildOptions,
@@ -117,6 +117,39 @@ test("路由门：模型不得带 mf/、yd/ 等中转前缀，provider 只能是
   for (const provider of ["openai", "mf", "cliproxy"]) assert.throws(() => assertRoute(MODEL, provider), /cliproxy-local/);
   assert.equal(providerOverrides()[0], 'model_provider="cliproxy-local"');
   assert.ok(providerOverrides().every((item) => !item.includes(fixtureKey)));
+});
+
+test("deepagents/review 审查员与控制器 MODELS 相同、两家族不同，且无论主模型是否被覆盖都能派发", () => {
+  const source = readFileSync(join(__dirname, "deepagents-pilot/pilot1742/external_review.py"), "utf8");
+  const declared = /^MODELS = \(([^)]*)\)$/m.exec(source)?.[1].split(",").map((item) => item.trim().replace(/^"|"$/g, ""));
+  assert.deepEqual(declared, [...EXTERNAL_REVIEW_MODELS]);
+  assert.deepEqual(EXTERNAL_REVIEW_MODELS, ["kimi-k3.1-pro", "claude-opus-5-5"]);
+  assert.ok(ALLOWED_MODELS.includes(MODEL) && ALLOWED_MODELS.length === new Set(ALLOWED_MODELS).size);
+  const code = `
+    import assert from "node:assert/strict";
+    import {assertRoute, MODEL} from "./.sandcastle/codex-child.ts";
+    import {codexWorker} from "./.sandcastle/codex-route.mts";
+    import {modelFamily} from "./.sandcastle/docker-acceptance.mts";
+    assert.deepEqual(["kimi-k3.1-pro", "claude-opus-5-5"].map(modelFamily), ["moonshot", "anthropic"]);
+    for (const model of ["kimi-k3.1-pro", "claude-opus-5-5", MODEL]) {
+      assert.doesNotThrow(() => assertRoute(model));
+      const built = codexWorker({docker: true, model}).buildPrintCommand({prompt: "x", dangerouslySkipPermissions: true});
+      assert.ok(built.command.includes(" -m '" + model + "'") && built.command.includes('model_provider="cliproxy-local"'));
+    }
+    for (const model of ["mf/kimi-k3.1-pro", "yd/kimi-k3.1-pro", "moonshot/kimi-k3.1-pro"]) assert.throws(() => assertRoute(model), /中转前缀/);
+    for (const provider of ["openai", "kimi", "moonshot"]) assert.throws(() => assertRoute("kimi-k3.1-pro", provider), /cliproxy-local/);
+    assert.throws(() => assertRoute("kimi-k3.1-pro-highspeed"), /模型只能是/);
+    console.log(MODEL);
+  `;
+  for (const main of [undefined, "kimi-k3.1-pro"]) {
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env.SANDCASTLE_MAIN_MODEL;
+    if (main) env.SANDCASTLE_MAIN_MODEL = main;
+    const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", code],
+      { cwd: join(__dirname, ".."), encoding: "utf8", env });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), main ?? "gpt-6.1-sol");
+  }
 });
 
 test("#1742 显式模型只接白名单：gpt-6.1-sol 进入 -m，白名单外与中转前缀在建目录前失败", async () => {

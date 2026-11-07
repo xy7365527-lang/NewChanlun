@@ -17,8 +17,11 @@ const scheduler = useScheduler("codex-child", ["childEffort", "opusModel", "chil
 
 /** 与主控同型，经本机 CLIProxyLocal 的 OAuth 订阅路由；不带中转前缀（#1617）。缺省调用者使用它。 */
 export const MODEL = MAIN_MODEL;
+/** deepagents/review 的两位审查员，与 deepagents-pilot/pilot1742/external_review.py 的 MODELS 相同（测试核对）。
+ *  单列出来，主模型被 SANDCASTLE_MAIN_MODEL 换成别的值时审查员仍能派发。 */
+export const EXTERNAL_REVIEW_MODELS: readonly string[] = ["kimi-k3.1-pro", "claude-opus-5-5"];
 /** #1742：调用者可显式选的模型；缺省仍是 MODEL。GPT 作者配 Opus 独审需要两个家族同走本入口。 */
-export const ALLOWED_MODELS: readonly string[] = [MODEL, scheduler.opusModel];
+export const ALLOWED_MODELS: readonly string[] = [...new Set([MODEL, scheduler.opusModel, ...EXTERNAL_REVIEW_MODELS])];
 export type ChildModel = string;
 export const EFFORT = scheduler.childEffort;
 /** 命令带 --ignore-user-config，不读用户 config.toml；provider 由下方具名定义经 -c 显式给出。 */

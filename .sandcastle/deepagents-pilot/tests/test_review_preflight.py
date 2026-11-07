@@ -19,8 +19,8 @@ SHORT_VALID = "short7k"  # 正式 worker 接受的 7 字符 key
 OTHER_VALID = f"outer-{KEY}-tail"  # 含 KEY：两把 key 互为子串
 # 与报告字段名、枚举值相同或是其子串的合法 key（_clean_key 允许任意可见 ASCII）
 PROTOCOL_LIKE_KEYS = ("ok", "ready", "completed", "re", "name", "codex")
-SOL, OPUS = "gpt-6.1-sol", "claude-opus-5-5"
-OFFICIAL = {SOL: ("codex", "https://chatgpt.com/backend-api/codex/responses"),
+KIMI, OPUS = "kimi-k3.1-pro", "claude-opus-5-5"
+OFFICIAL = {KIMI: ("kimi", "https://api.kimi.com/coding/v1/responses"),
             OPUS: ("claude", "https://api.anthropic.com/v1/messages")}
 ANTIGRAVITY = ("antigravity", "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent")
 MODELFLARE = ("openai-compatible-modelflare-codex", "https://modelflare.dev/v1/responses")
@@ -232,7 +232,7 @@ def test_healthy_environment_is_ready_and_not_a_review(env, capsys):
     assert code == 0 and report["ready"] and failing(report) == set()
     assert report["is_review_result"] is False and report["kind"] == "review-preflight"
     assert KEY not in out
-    assert sorted(r["body"]["model"] for r in proxy.requests) == sorted([SOL, OPUS])
+    assert sorted(r["body"]["model"] for r in proxy.requests) == sorted([KIMI, OPUS])
     assert all(r["body"]["tool_choice"] == "auto" and r["body"]["tools"] for r in proxy.requests)
     assert all(r["auth"] == f"Bearer {KEY}" for r in proxy.requests)
 
@@ -379,14 +379,33 @@ def test_wrong_provider_blocks_even_when_round_trip_succeeds(env, capsys):
     assert code == 2 and failing(report) == {f"route:{OPUS}"}
 
 
-def test_sol_on_third_party_codex_route_blocks(env, capsys):
-    code, report, *_ = env(routes={**OFFICIAL, SOL: MODELFLARE}, status={SOL: 403}, capsys=capsys)
-    assert code == 2 and failing(report) == {f"route:{SOL}", f"roundtrip:{SOL}"}
+def test_kimi_on_third_party_route_blocks(env, capsys):
+    code, report, *_ = env(routes={**OFFICIAL, KIMI: MODELFLARE}, status={KIMI: 403}, capsys=capsys)
+    assert code == 2 and failing(report) == {f"route:{KIMI}", f"roundtrip:{KIMI}"}
+
+
+def test_kimi_international_upstream_is_an_official_route(env, capsys):
+    """CLIProxy 在国内 kimi 与国际 kimi-ai 之间按同型号候选池切换，两条都是正式路线。"""
+    code, report, *_ = env(routes={**OFFICIAL, KIMI: ("kimi-ai", "https://api.kimi.ai/coding/v1/responses")}, capsys=capsys)
+    assert code == 0 and failing(report) == set()
+    assert check(report, f"route:{KIMI}")["detail"]["actual"] == ["kimi-ai@api.kimi.ai"]
+    assert check(report, f"route:{KIMI}")["detail"]["expected"] == ["kimi-ai@api.kimi.ai", "kimi@api.kimi.com"]
+
+
+def test_kimi_routed_to_codex_blocks(env, capsys):
+    code, report, *_ = env(routes={**OFFICIAL, KIMI: ("codex", "https://chatgpt.com/backend-api/codex/responses")},
+                           capsys=capsys)
+    assert code == 2 and failing(report) == {f"route:{KIMI}"}
+
+
+def test_preflight_probes_the_controller_reviewer_pair():
+    assert preflight.MODELS == external_review.MODELS
+    assert set(preflight.MODELS) <= set(preflight.ROUTES)
 
 
 def test_route_unknown_without_request_log_blocks(env, capsys):
     code, report, *_ = env(write_log=False, capsys=capsys, extra=("--deadline", "6"))
-    assert code == 2 and failing(report) == {f"route:{SOL}", f"route:{OPUS}"}
+    assert code == 2 and failing(report) == {f"route:{KIMI}", f"route:{OPUS}"}
     assert all(not c["detail"]["log_found"] for c in report["checks"] if c["name"].startswith("route:"))
 
 
@@ -422,7 +441,7 @@ def test_unrelated_log_vanishing_mid_scan_does_not_block(env, capsys, tmp_path, 
 def test_unreadable_log_dir_does_not_crash(env, capsys, monkeypatch):
     monkeypatch.setattr(preflight.Path, "glob", lambda self, pattern: (_ for _ in ()).throw(PermissionError(13, "denied")))
     code, report, *_ = env(capsys=capsys, extra=("--deadline", "6"))
-    assert code == 2 and {f"route:{SOL}", f"route:{OPUS}"} <= failing(report)
+    assert code == 2 and {f"route:{KIMI}", f"route:{OPUS}"} <= failing(report)
 
 
 def test_log_with_non_utf8_byte_is_still_read(tmp_path):
@@ -437,7 +456,7 @@ def test_log_with_non_utf8_byte_is_still_read(tmp_path):
 def test_completed_event_with_failed_status_is_not_success(env, capsys):
     bad = b'data: {"type":"response.completed","response":{"status":"failed","error":{"message":"overloaded"}}}\n\n'
     code, report, *_ = env(terminal=bad, capsys=capsys)
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+    assert code == 2 and {f"roundtrip:{KIMI}", f"roundtrip:{OPUS}"} <= failing(report)
 
 
 def test_incomplete_without_error_still_passes(env, capsys):
@@ -450,13 +469,13 @@ def test_hanging_upstream_is_cut_at_deadline(env, capsys, monkeypatch):
     start = time.monotonic()
     code, report, *_ = env(hang=True, extra=("--deadline", "2"), capsys=capsys)
     assert time.monotonic() - start < 4
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+    assert code == 2 and {f"roundtrip:{KIMI}", f"roundtrip:{OPUS}"} <= failing(report)
 
 
 def test_proxy_down_blocks_without_waiting_out_the_log_window(env, capsys):
     start = time.monotonic()
     code, report, *_ = env(capsys=capsys, extra=("--proxy-url", LOCAL))  # 后给的 --proxy-url 覆盖假 proxy
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+    assert code == 2 and {f"roundtrip:{KIMI}", f"roundtrip:{OPUS}"} <= failing(report)
     assert time.monotonic() - start < 2
 
 
@@ -465,7 +484,7 @@ def test_no_probe_is_sent_once_the_work_deadline_has_passed(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: pytest.fail("不应发送"))
     deadline = preflight.Deadline(0.002)
     time.sleep(0.01)
-    assert preflight.round_trip(LOCAL, KEY, SOL, "s", deadline)["error"] == {"not_sent": "总时限已到"}
+    assert preflight.round_trip(LOCAL, KEY, KIMI, "s", deadline)["error"] == {"not_sent": "总时限已到"}
 
 
 # ---------------- 凭据：#1323 宿主缺 CLIPROXY_LOCAL_KEY ----------------
@@ -476,7 +495,7 @@ def test_env_key_provider_without_variable_blocks_before_any_probe(env, capsys, 
         '[model_providers.cliproxy-local]\nbase_url = "http://127.0.0.1:8318/v1"\nenv_key = "CLIPROXY_LOCAL_KEY"\n')  # DevSkim: ignore DS162092 有意使用本机回环（本地 CLIProxy / 测试假服务），非调试残留
     monkeypatch.setenv("CLIPROXY_LOCAL_KEY", KEY)  # 预检进程里有也不算：宿主进程里没有
     code, report, out, proxy = env(capsys=capsys)
-    assert code == 2 and failing(report) == {"credential:codex-host", f"roundtrip:{SOL}", f"roundtrip:{OPUS}"}
+    assert code == 2 and failing(report) == {"credential:codex-host", f"roundtrip:{KIMI}", f"roundtrip:{OPUS}"}
     assert "Missing environment variable: CLIPROXY_LOCAL_KEY" in check(report, "credential:codex-host")["detail"]["error"]
     assert KEY not in out and proxy.requests == []
 
@@ -550,7 +569,7 @@ def test_request_log_written_late_within_the_deadline_still_passes(env, capsys):
 def test_host_key_rejected_by_proxy_blocks(env, capsys, tmp_path):
     (tmp_path / "key.txt").write_text("revoked-key\n")
     code, report, *_ = env(capsys=capsys)
-    assert code == 2 and {f"roundtrip:{SOL}", f"roundtrip:{OPUS}"} <= failing(report)
+    assert code == 2 and {f"roundtrip:{KIMI}", f"roundtrip:{OPUS}"} <= failing(report)
 
 
 def _auth_command(tmp_path, command: str, args: list[str], timeout_ms: int = 5000) -> None:
@@ -604,7 +623,7 @@ def test_nested_keys_echoed_by_upstream_never_split_each_other(env, capsys, monk
     """请求用短 key（宿主），错误正文却回显包含它的长 key（环境变量）；只按短 key 先脱敏会把长 key 拆开。"""
     monkeypatch.setenv("CLIPROXY_LOCAL_KEY", OTHER_VALID)
     body = lambda auth: json.dumps({"error": {"message": f"other credential {OTHER_VALID} rejected"}})  # noqa: E731
-    code, report, out, _ = env(status={SOL: 400}, error_body=body, capsys=capsys)
+    code, report, out, _ = env(status={KIMI: 400}, error_body=body, capsys=capsys)
     assert code == 2 and KEY not in out and "outer-" not in out and "-tail" not in out
 
 
@@ -656,7 +675,7 @@ def test_structured_sse_error_never_reaches_the_report(monkeypatch):
             return False
 
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResp(line.encode()))
-    trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(30))
+    trip = preflight.round_trip(LOCAL, key, KIMI, "s", preflight.Deadline(30))
     out = json.dumps(preflight.sanitize(trip, [key]), ensure_ascii=True)
     assert "secret" not in out and "12345" not in out and trip["error"]["class"] == "auth"
 
@@ -780,7 +799,7 @@ def test_upstream_status_object_keyed_by_the_key_never_reaches_the_report(monkey
 
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda req, timeout=None: FakeResp(("data: " + json.dumps(event) + "\n\n").encode()))
-    trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(5))
+    trip = preflight.round_trip(LOCAL, key, KIMI, "s", preflight.Deadline(5))
     preflight._emit(trip, [key])
     assert key not in capsys.readouterr().out and trip["status"] == "other"
 
@@ -835,7 +854,7 @@ def test_unknown_upstream_status_is_normalised_and_never_carries_the_key(monkeyp
 
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda req, timeout=None: FakeResp(("data: " + json.dumps(event) + "\n\n").encode()))
-    trip = preflight.round_trip(LOCAL, key, SOL, "s", preflight.Deadline(5))
+    trip = preflight.round_trip(LOCAL, key, KIMI, "s", preflight.Deadline(5))
     assert trip["status"] == "other" and "1742" not in json.dumps(preflight.sanitize(trip, [key]))
 
 
@@ -873,7 +892,7 @@ def test_unknown_route_is_reported_as_other(tmp_path):
     import unittest.mock as mock
     with mock.patch.object(preflight.uuid, "uuid4", lambda: "unknown"), \
          mock.patch.object(preflight, "round_trip", lambda *a: {"ok": True}):
-        route = preflight.probe_model(args, SOL, "k", preflight.Deadline(5))[0]
+        route = preflight.probe_model(args, KIMI, "k", preflight.Deadline(5))[0]
     assert route["detail"]["actual"] == ["other"] and not route["ok"]
 
 
@@ -928,7 +947,7 @@ def test_slow_but_successful_round_trip_within_the_work_deadline_passes(monkeypa
         return FakeResp(b'data: {"type":"response.completed","response":{"status":"completed"}}\n\n')
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-    trip = preflight.round_trip(LOCAL, KEY, SOL, "s", preflight.Deadline(60))
+    trip = preflight.round_trip(LOCAL, KEY, KIMI, "s", preflight.Deadline(60))
     assert trip["ok"] and seen["timeout"] > 50
 
 
