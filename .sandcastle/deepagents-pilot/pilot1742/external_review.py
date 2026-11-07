@@ -907,23 +907,30 @@ class ExternalReview:
                       migration: dict | None = None) -> dict:
         """受管恢复：旧版本把 GitHub 认证/传输失败误记为 STALE（双审完整却没发布终态）。
         不重跑模型、不改旧记录：确认 PR 与 controller 仍是冻结目标，逐个重验已有回执且与原记录一致，
-        原 STALE 记录另存为历史，再发布终态。任何一项不满足就原样返回 STALE。"""
+        原 STALE 记录另存为历史，再发布终态。任何一项不满足就原样返回 STALE,
+        并把磁盘 outcome 写回这份 STALE（带上本次拒绝原因）——重试分支可能先把 `saved` 换成历史里更早的
+        STALE 记录（见 migrate_stale 的 history 回退），这时磁盘上留着的是上一次迁移写下、未发布的终态，
+        原样 `return saved` 不会动磁盘，返回值与磁盘就此分叉（#1944）。"""
+        def refuse(reason: str) -> dict:
+            refused = {**saved, "recovery_refused": reason}
+            _save(folder / "outcome.json", refused)
+            return refused
         try:
             publisher.check_current()  # 精确 head、base、目标与 controller；认证仍坏会上抛 EffectPending
-        except Stale:
-            return saved
+        except Stale as error:
+            return refuse(str(error))
         recorded = [(r.get("model"), r.get("verdict")) for r in saved.get("reviews", [])]
         outcomes = []
         for model in MODELS:
             worker = folder / model
             if not (worker / "launch.json").exists() or not (worker / "receipt.json").exists():
-                return saved
+                return refuse(f"{model} 缺少 launch.json 或 receipt.json，无法重验")
             outcomes.append(validate_review(target, _read(worker / "launch.json"), _read(worker / "receipt.json"), worker))
         if [(o.model, o.verdict) for o in outcomes] != recorded:
-            return saved
+            return refuse("重验结果与原记录不一致")
         sessions = [o.session_id for o in outcomes if o.session_id]
         if len(sessions) != len(set(sessions)):
-            return saved
+            return refuse("两独审复用了 session")
         verdict = ("FAILED" if any(o.verdict == "FAILED" for o in outcomes) else
                    "BLOCK" if any(o.verdict == "BLOCK" for o in outcomes) else "PASS")
         state = {"PASS": "success", "BLOCK": "failure", "FAILED": "error"}[verdict]
