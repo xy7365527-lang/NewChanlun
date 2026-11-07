@@ -512,7 +512,7 @@ test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、o
     ready({ number: 1394, title: "[impl] TB-03-B", labels: ["wayfinder:impl"], assignees: ["xy7365527-lang"] }), // 负责人在做
     ready({ number: 1527, title: "[task] 恢复路径", labels: ["wayfinder:impl"], blockedBy: 1 }),   // open blocker
     ready({ number: 1362, title: "TB-04 汇验", labels: ["wayfinder:impl"] }),                     // 汇总票，子票未全关
-    ready({ number: 1405, title: "[impl] 直挂", labels: ["needs-approval"] }),                     // 人闸
+    ready({ number: 1405, title: "[impl] 直挂", labels: ["ready-for-human"] }),                     // 人闸
     ready({ number: 1530, title: "[grilling] FU-08", labels: ["wayfinder:grilling", "ready-for-agent"] }), // 决策票
     ready({ number: 7777, title: "[impl] 图外", labels: ["wayfinder:impl"] }),                    // 不在 open map 子树
     ready({ number: 1390, title: "[impl] TB-03-A", labels: ["wayfinder:impl", "needs-triage"] }), // 未分诊
@@ -524,7 +524,7 @@ test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、o
   assert.match(why[1394]!, /^claimed/);
   assert.match(why[1527]!, /^blocked/);
   assert.match(why[1362]!, /汇总票，open 子票 1/);
-  assert.match(why[1405]!, /人闸标签 needs-approval/);
+  assert.match(why[1405]!, /人闸标签 ready-for-human/);
   assert.match(why[1530]!, /非实装票/);
   assert.match(why[7777]!, /不在任何 open map 子树内/);
   assert.match(why[1390]!, /人闸标签 needs-triage/);

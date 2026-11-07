@@ -46,11 +46,11 @@ class QueueWaiting(ValueError):
 def approved_scope(body: str) -> tuple[str, ...]:
     declarations = re.findall(r'^deepagents-scope:[ \t]*(.+)$', body, re.MULTILINE)
     if len(declarations) != 1:
-        raise QueueWaiting('awaiting_human: missing or ambiguous deepagents-scope in signed SPEC')
+        raise QueueWaiting('needs_info: missing or ambiguous deepagents-scope in SPEC')
     prefixes = tuple(declarations[0].split())
     if not prefixes or not all(p.endswith('/') and not p.startswith('/') and '..' not in p and p != './'
                                and '\\' not in p and '//' not in p for p in prefixes):
-        raise QueueWaiting('awaiting_human: deepagents-scope must contain explicit relative directory prefixes')
+        raise QueueWaiting('needs_info: deepagents-scope must contain explicit relative directory prefixes')
     return prefixes
 
 
@@ -145,7 +145,7 @@ class QueueIntake:
                 raise AdmissionRefused('main head unreadable')
             if subprocess.run(['git', '-C', str(self.source_repo), 'cat-file', '-e', f'{base}^{{commit}}'],
                               capture_output=True).returncode:
-                raise QueueWaiting(f'awaiting_human: source checkout lacks main commit {base}; deploy/fetch main')
+                raise QueueWaiting(f'environment: source checkout lacks main commit {base}; deploy/fetch main')
             run_id = parse_unit_run_id(ticket, f't{ticket}-{max([int(u.run_id.rsplit("-", 1)[1]) for u in existing], default=0) + 1}')
             labels = self.gateway.label_names(issue)
             graph = self.gateway.parent(proof.spec_issue)
@@ -291,7 +291,7 @@ class QueueIntake:
                         require_free_space(self.state_root)
                     except InsufficientSpace as error:
                         results[ticket] = {'phase': 'queued', 'run_id': unit.run_id, 'reason': str(error)}
-                        break
+                        continue
                     code = run(unit)
                     state = delivery_status(run_dir)
                     phase = state['phase']

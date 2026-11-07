@@ -149,6 +149,9 @@ class RepoGateway:
             raise IdentityError("票面标签读回不完整")
         return frozenset(x["name"] for x in labels)
 
+    def comments(self, number: int) -> list[dict[str, Any]]:
+        return self.client.paginate(self._p(f"/issues/{number}/comments"))
+
     def timeline(self, number: int) -> list[dict[str, Any]]:
         return self.client.paginate(self._p(f"/issues/{number}/timeline"))
 

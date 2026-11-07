@@ -18,11 +18,13 @@ from approval_signing.protocol import CommitTarget, Scope, spec_target
 
 from .approval import (
     ApprovalDesk,
+    Approved,
     Pending,
     SignedApprovals,
     decision_json,
     freeze_signed_spec,
     spec_body,
+    spec_ruling,
 )
 from .boat_execution import ExecutionUnknown
 from .claims import (
@@ -106,10 +108,11 @@ class AdmissionRefused(ClaimRefused):
 
 
 class ApprovalRequired(Exception):
-    """动作需要的真人签批此刻不成立。不执行副作用，不转 halted；请求文件路径随异常给出。"""
+    """动作需要的授权此刻不成立。不执行副作用，不转 halted；请求文件路径随异常给出。"""
 
     def __init__(self, decision: Pending):
-        super().__init__(f"{decision.status}：{decision.reason}；请求 {decision.request_path}")
+        super().__init__(f"{decision.status}：{decision.reason}" +
+                         (f"；请求 {decision.request_path}" if decision.request_path else ""))
         self.decision = decision
 
 
@@ -210,13 +213,27 @@ class TicketExecutor:
         return ApprovalDesk(run_dir / "approvals", self.unit.ticket, self.unit.run_id, self.approvals)
 
     def spec_approval(self, run_dir: Path, generation: int) -> Pending | None:
-        """需要 SPEC 授权的准入：目标是 SPEC 票此刻正文的原始字节摘要，正文一变就换请求。"""
+        """Queued 读当前正文裁定，Takeover 保留签批；冻结与 scope 共用这次读取的原始正文。"""
         admission = self.unit.admission
         assert not isinstance(admission, DedicatedPilot)
         issue = admission.spec_auth.spec_issue
         body = spec_body(self.gateway.issue(issue))
-        decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, spec_target(issue, body))
-        freeze_signed_spec(run_dir, issue, body, decision, generation)
+        if isinstance(admission, Queued):
+            from .queue import approved_scope
+            source, reason = spec_ruling(issue, body.decode("utf-8"), self.gateway.comments(issue),
+                                        os.environ.get("WAYFINDER_ORCHESTRATOR", self.gateway.owner))
+            scope = approved_scope(body.decode("utf-8"))
+            if any(not any(prefix.startswith(allowed) for allowed in scope) for prefix in self.unit.allowed_prefixes):
+                raise AdmissionRefused("registered scope exceeds current SPEC deepagents-scope")
+            decision = Approved("", reason) if source else Pending("rejected", "", reason, "spec_ruling")
+            _write_json(run_dir / "approvals" / "spec_authorization.status.json", {
+                "scope": "spec_authorization", "status": "approved" if source else "rejected",
+                "source": "spec_ruling", "reason": reason, "target": spec_target(issue, body).encode(),
+                "claim_generation": generation, "checked_at": _now(), **(source or {})})
+            freeze_signed_spec(run_dir, issue, body, decision, generation, source_meta=source)
+        else:
+            decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, spec_target(issue, body))
+            freeze_signed_spec(run_dir, issue, body, decision, generation)
         return decision if isinstance(decision, Pending) else None
 
     def candidate_approval(self, run_dir: Path, generation: int, head: Sha) -> Pending | None:
@@ -244,12 +261,9 @@ class TicketExecutor:
         return self.cutover.frozen() if isinstance(self.unit.admission, Queued) else nullcontext()
 
     def _queue_check(self) -> None:
-        from .queue import approved_scope, prove_queue
+        from .queue import prove_queue
         assert isinstance(self.unit.admission, Queued)
         prove_queue(self.gateway, self.unit.ticket, self.cutover, self.unit.admission.proof)
-        scope = approved_scope(str(self.gateway.issue(self.unit.admission.spec_auth.spec_issue).get("body") or ""))
-        if any(not any(prefix.startswith(allowed) for allowed in scope) for prefix in self.unit.allowed_prefixes):
-            raise AdmissionRefused("registered scope exceeds current signed SPEC deepagents-scope")
 
     def _previous_run_quiet(self, previous: TicketClaim) -> None:
         run_dir = Path(previous.run_dir)
@@ -320,6 +334,8 @@ class TicketExecutor:
                 journal.converge("label", lambda: self._label_probe(), lambda: self.gateway.add_label(
                     unit.ticket, MIRROR_LABEL), idempotent=True,
                     what={"kind": "label", "issue": unit.ticket, "name": MIRROR_LABEL}, crash=self.crash)
+                if isinstance(unit.admission, Queued):
+                    self.admit(run_dir, claim.generation)
                 text = self._marker("claim", claim.run_id, claim.generation, unit.base)
                 body = (f"[deepagents run={claim.run_id} gen={claim.generation}]\n\n"
                         f"新执行器（{self.gateway.bot}）持有本票，基线 `{unit.base}`。这是持有标记，不是批准。\n\n{text}")

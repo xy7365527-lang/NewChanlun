@@ -2,15 +2,14 @@ import json
 
 import pytest
 from approval_signing.protocol import Decision
-from signing_fixture import Signer
-from v2env import TICKET, V2Env
-
 from pilot1742.claims import ClaimStore
 from pilot1742.cutover import CutoverStore, FrozenSnapshot, RemoteBarrier
 from pilot1742.executor import AdmissionRefused, ApprovalRequired
 from pilot1742.queue import QueueIntake, QueueWaiting
 from pilot1742.run import Halted, PilotRun
 from pilot1742.workunit import DedicatedPilot, Queued, forbidden_for, parse_work_unit
+from signing_fixture import Signer
+from v2env import TICKET, V2Env
 
 SPEC = 1340
 
@@ -43,18 +42,30 @@ def executor(v2, cutover, unit):
     return result
 
 
+def publish_ruling(v2, verdict="PASS", **overrides):
+    from pilot1742.approval import spec_ruling_digest
+    fields = {"verdict": verdict, "specNumber": SPEC, "author": "author-session", "reviewer": "review-session",
+              "digest": spec_ruling_digest(v2.github.issues[SPEC]['body']), "evidence": "/fixture/review.json"}
+    fields.update(overrides)
+    comments = v2.github.issues[SPEC]['comments']
+    comments.append({"id": len(comments) + 100, "created_at": f"2026-11-07T00:00:{len(comments):02d}Z",
+                     "user": {"login": "xy7365527-lang", "type": "User"},
+                     "body": (f"**SPEC 独审裁定：{fields['verdict']}**\nSPEC：{fields['specNumber']}\n"
+                              f"作者：{fields['author']}\n独审：{fields['reviewer']}\n"
+                              f"正文 sha256：{fields['digest']}\n证据：{fields['evidence']}\n")})
+
+
 def authorize(v2, cutover, unit, signer):
     run_dir = PilotRun.run_dir(v2.home, unit.run_id)
     with pytest.raises(ApprovalRequired):
         executor(v2, cutover, unit).claim(run_dir)
-    signer.publish(run_dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+    publish_ruling(v2)
     assert v2.writes() == []
 
 
 @pytest.mark.parametrize('registered_before_restart', [False, True])
 def test_released_drained_run_advances_to_next_generation(queued, registered_before_restart):
     from conftest import FAKE, MODELS
-
     from pilot1742.claims import advance
     from pilot1742.executor import load_unit, open_v2_run
 
@@ -75,10 +86,6 @@ def test_released_drained_run_advances_to_next_generation(queued, registered_bef
         assert unit.run_id == f't{TICKET}-2'
         ex = executor(v2, cutover, unit)
         run_dir = PilotRun.run_dir(v2.home, unit.run_id)
-        if len(seen) == 1:
-            with pytest.raises(ApprovalRequired):
-                ex.claim(run_dir)
-            signer.publish(run_dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
         claim = ex.claim(run_dir)
         assert claim.generation == 2 and claim.state == 'active'
         return 75
@@ -101,7 +108,7 @@ def test_queue_roundtrip_does_not_change_dedicated_rules(queued):
     assert parse_work_unit(unit.to_json()) == unit
     assert forbidden_for(unit.admission, {'ready-for-agent', 'wayfinder:impl'}) == ()
     assert forbidden_for(unit.admission, {'needs-approval', 'agent:explore', 'sandcastle'}) == (
-        'agent:explore', 'needs-approval', 'sandcastle')
+        'agent:explore', 'sandcastle')
     proof = v2.github.issues[TICKET]
     proof.update(body='deepagents:dedicated-pilot #1742', parent=None, labels=[])
     dedicated = v2.register(f't{TICKET}-99')
@@ -109,7 +116,7 @@ def test_queue_roundtrip_does_not_change_dedicated_rules(queued):
     assert forbidden_for(dedicated.admission, {'ready-for-agent'}) == ('ready-for-agent',)
 
 
-@pytest.mark.parametrize('bad', ['sandcastle', 'agent:explore', 'needs-approval', 'assignee', 'parent', 'tail',
+@pytest.mark.parametrize('bad', ['sandcastle', 'agent:explore', 'ready-for-human', 'needs-info', 'needs-triage', 'wontfix', 'assignee', 'parent', 'tail',
                                  'scope', 'ticket_scope_only'])
 def test_queue_refuses_missing_contract_without_writes(queued, bad):
     v2, cutover, intake, signer = queued
@@ -131,14 +138,14 @@ def test_queue_refuses_missing_contract_without_writes(queued, bad):
     assert v2.writes() == []
 
 
-def test_signed_queue_delivers_exact_head_and_replays_without_duplicate_effects(queued):
+def test_unsigned_queue_delivers_exact_head_and_replays_without_duplicate_effects(queued, monkeypatch):
     from conftest import FAKE, MODELS
-
     from pilot1742.executor import load_unit, open_v2_run
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
     assert intake.register(TICKET) == unit
     authorize(v2, cutover, unit, signer)
+    monkeypatch.setattr('pilot1742.approval.SignedApprovals.evaluate', lambda *a, **kw: pytest.fail('signer called'))
     task = load_unit(v2.home, unit.run_id)[1]
     run = open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS, launcher=FAKE, source_repo=v2.source)
     head = v2.to_pass(run)
@@ -152,7 +159,7 @@ def test_signed_queue_delivers_exact_head_and_replays_without_duplicate_effects(
     assert results[TICKET]['head'] == v2.github.ref(unit.branch) == head
 
 
-def test_spec_changes_wait_for_new_signature_and_old_label_halts(queued):
+def test_spec_changes_wait_for_new_ruling_and_old_label_halts(queued):
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
     authorize(v2, cutover, unit, signer)
@@ -165,7 +172,7 @@ def test_spec_changes_wait_for_new_signature_and_old_label_halts(queued):
         with ex.action('dispatch', run_dir, claim.generation):
             pytest.fail('new SPEC body accepted')
     assert v2.writes() == before and v2.claim_record()['state'] == 'active'
-    signer.publish(run_dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+    publish_ruling(v2)
     v2.github.issues[TICKET]['labels'].append('sandcastle')
     with pytest.raises(Halted, match='forbidden'):
         with ex.action('dispatch', run_dir, claim.generation):
@@ -289,10 +296,9 @@ def test_spec_recheck_interrupts_graph_and_resume_payload_does_not_authorize(que
     from langchain_core.messages import AIMessage
     from langgraph.checkpoint.sqlite import SqliteSaver
     from langgraph.types import Command
-    from test_agent import call, scripted
-
     from pilot1742.agent import build_agent
     from pilot1742.executor import load_unit, open_v2_run
+    from test_agent import call, scripted
 
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -309,7 +315,7 @@ def test_spec_recheck_interrupts_graph_and_resume_payload_does_not_authorize(que
         assert agent.get_state(config).next and v2.claims() == []
         agent.invoke(Command(resume={'approved': True}), config, durability='sync')
         assert agent.get_state(config).next and v2.claims() == []
-        signer.publish(run.dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+        publish_ruling(v2)
         agent.invoke(Command(resume={}), config, durability='sync')
         assert not agent.get_state(config).next and v2.claims() == [f'author-{v2.base}']
     finally:
@@ -381,7 +387,6 @@ def test_queue_post_check_conflict_halts_and_withdraws_own_mirror(queued):
 @pytest.fixture
 def delivered(queued):
     from conftest import FAKE, MODELS
-
     from pilot1742.executor import load_unit, open_v2_run
 
     v2, cutover, intake, signer = queued
@@ -505,7 +510,6 @@ def test_bad_unit_is_isolated_without_stalling_unrelated_ticket(queued):
 @pytest.mark.parametrize('fact', ['running', 'effect_unknown'])
 def test_child_exit_cannot_release_unfinished_worker_slot(queued, monkeypatch, code, fact):
     from conftest import FAKE, MODELS
-
     from pilot1742 import run as module
     from pilot1742.domain import WorkerKey
     from pilot1742.executor import load_unit, open_v2_run
@@ -549,12 +553,11 @@ def test_existing_boat_worker_keeps_slot_across_skip_paths(queued, monkeypatch, 
     from dataclasses import replace
 
     from conftest import FAKE, MODELS
-    from test_boat import config
-
     from pilot1742.boat_execution import BoatBinding, BoatConfig, BoatExecution, BoatRun
     from pilot1742.claims import advance
     from pilot1742.domain import WorkerKey
     from pilot1742.executor import load_unit, open_v2_run
+    from test_boat import config
 
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -600,11 +603,10 @@ def test_background_approval_recheck_preserves_operator_interrupt(queued, monkey
     from conftest import FAKE, MODELS
     from langchain_core.messages import AIMessage
     from langgraph.checkpoint.sqlite import SqliteSaver
-    from test_agent import call, scripted
-
     from pilot1742 import agent as model_module
     from pilot1742 import executor as cli
     from pilot1742 import run as run_module
+    from test_agent import call, scripted
 
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -625,7 +627,7 @@ def test_background_approval_recheck_preserves_operator_interrupt(queued, monkey
     finally:
         pilot.release()
         connection.close()
-    signer.publish(pilot.dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+    publish_ruling(v2)
     models_path = v2.tmp / 'pstack-models.md'
     models_path.write_text(MODELS)
     monkeypatch.setattr(run_module, 'PSTACK_MODELS', models_path)
@@ -721,3 +723,153 @@ def test_low_disk_still_reconciles_delivered_run(delivered, monkeypatch):
     _low_disk(monkeypatch, 0)
     rows = intake.once(lambda _: pytest.fail('merged run dispatched again'))
     assert rows[TICKET]['delivery_phase'] == 'merged' and rows[TICKET]['phase'] == 'awaiting_merge'
+
+
+@pytest.mark.parametrize('bad', ['untrusted', 'same_author', 'evidence', 'digest', 'block', 'number', 'free_text'])
+@pytest.mark.parametrize('effect', ['claim', 'dispatch', 'commit', 'push', 'pr', 'status', 'deliver'])
+def test_ruling_refuses_every_boundary_without_signature_fallback(queued, bad, effect):
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    ex = executor(v2, cutover, unit)
+    run_dir = PilotRun.run_dir(v2.home, unit.run_id)
+    if effect != 'claim':
+        publish_ruling(v2)
+        claim = ex.claim(run_dir)
+    publish_ruling(v2)
+    comment = v2.github.issues[SPEC]['comments'][-1]
+    if bad == 'untrusted':
+        v2.github.issues[SPEC]['comments'] = [comment]
+        comment['user']['login'] = 'untrusted'
+    elif bad == 'same_author':
+        comment['body'] = comment['body'].replace('review-session', 'AUTHOR-SESSION')
+    elif bad == 'evidence':
+        comment['body'] = comment['body'].replace('/fixture/review.json', '')
+    elif bad == 'digest':
+        v2.github.issues[SPEC]['body'] += 'changed'
+    elif bad == 'block':
+        comment['body'] = comment['body'].replace('PASS', 'BLOCK')
+    elif bad == 'number':
+        comment['body'] = comment['body'].replace(f'SPEC：{SPEC}', 'SPEC：999')
+    else:
+        v2.github.issues[SPEC]['comments'] = [dict(comment, body='批准 通过 approved')]
+    before = v2.writes()
+    with pytest.raises(ApprovalRequired):
+        if effect == 'claim':
+            ex.claim(run_dir)
+        else:
+            with ex.action(effect, run_dir, claim.generation):
+                pytest.fail('invalid ruling crossed boundary')
+    assert before == v2.writes()
+    assert not (run_dir / 'approvals/spec_authorization.request').exists()
+    status = json.loads((run_dir / 'approvals/spec_authorization.status.json').read_text())
+    assert 'request_nonce' not in status and 'sign_command' not in status
+
+
+def test_low_disk_continues_reconciling_later_merged_ticket(delivered, monkeypatch):
+    from types import SimpleNamespace
+
+    from pilot1742 import run as module
+    from pilot1742.executor import delivery_status
+    v2, intake, unit, head, run_dir = delivered
+    lower = TICKET - 1
+    v2.github.add_issue(lower, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
+                        labels=('ready-for-agent', 'deepagents:queue'))
+    lower_unit = intake.register(lower)
+    executor(v2, intake.cutover, lower_unit).claim(PilotRun.run_dir(v2.home, lower_unit.run_id))
+    (pr,) = v2.github.pulls
+    v2.github.merge_pull(pr)
+    monkeypatch.setattr(module, 'DISPATCH_FREE_BYTES', 100)
+    monkeypatch.setattr(module.shutil, 'disk_usage', lambda _: SimpleNamespace(free=99))
+    for _ in range(2):
+        rows = intake.once(lambda _: pytest.fail('low disk dispatched work'))
+        assert rows[lower]['phase'] == 'queued'
+        assert rows[TICKET]['delivery_phase'] == 'merged'
+        assert delivery_status(run_dir)['phase'] == 'merged'
+
+
+def test_current_ruling_overwrites_historical_pending_and_preserves_raw_spec(queued):
+    from approval_signing.protocol import spec_target
+    from pilot1742.approval import signed_spec, spec_ruling_digest
+    v2, cutover, intake, signer = queued
+    v2.github.issues[SPEC]['body'] = '# 中文\r\ndeepagents-scope: demo/\r\n \t'
+    unit = intake.register(TICKET)
+    run_dir = PilotRun.run_dir(v2.home, unit.run_id)
+    folder = run_dir / 'approvals'
+    folder.mkdir(parents=True)
+    (folder / 'spec_authorization.status.json').write_text('{"status":"awaiting_human","request_nonce":"old"}')
+    publish_ruling(v2)
+    ex = executor(v2, cutover, unit)
+    ex.claim(run_dir)
+    body = v2.github.issues[SPEC]['body'].encode()
+    frozen = signed_spec(run_dir, SPEC)
+    assert frozen.body == body and frozen.target == spec_target(SPEC, body).encode()
+    note = json.loads((run_dir / f'spec/{SPEC}.json').read_text())
+    assert note['digest'] == spec_ruling_digest(body.decode()) and 'request_nonce' not in note
+    rows = intake.once(lambda _: 75)
+    assert rows[TICKET]['phase'] == 'active'
+
+
+@pytest.mark.parametrize('candidate_required', [False, True])
+def test_push_then_revocation_resumes_same_delivery_without_duplicate_upload(queued, candidate_required):
+    from dataclasses import replace
+
+    from conftest import FAKE, MODELS
+    from pilot1742.executor import load_unit, open_v2_run
+    v2, cutover, intake, signer = queued
+    unit = replace(intake.register(TICKET), candidate_approval=candidate_required)
+    publish_ruling(v2)
+    ex = executor(v2, cutover, unit)
+    task = load_unit(v2.home, unit.run_id)[1]
+    run = open_v2_run(v2.home, unit, task, ex, MODELS, launcher=FAKE, source_repo=v2.source)
+    try:
+        head = v2.to_pass(run)
+        if candidate_required:
+            assert run.publish_candidate()['decision'] == 'awaiting_approval'
+            assert v2.github.ref(unit.branch) is None
+            signer.publish(run.dir / 'approvals/candidate_head.request', Decision.APPROVE)
+        revoked = False
+        def revoke(point):
+            nonlocal revoked
+            if point == 'after_push_before_receipt' and not revoked:
+                revoked = True
+                publish_ruling(v2, 'BLOCK')
+        ex.crash = revoke
+        assert run.publish_candidate()['decision'] == 'awaiting_approval'
+        assert revoked and v2.github.ref(unit.branch) == head and not v2.github.pulls
+        before = v2.writes()
+        assert run.publish_candidate()['decision'] == 'awaiting_approval'
+        assert before == v2.writes()
+        publish_ruling(v2)
+        assert run.publish_candidate()['phase'] == 'awaiting_merge'
+        assert v2.github.count('POST', r'.*/git/refs') == 1
+        assert v2.github.count('POST', r'.*/pulls') == 1
+    finally:
+        run.release()
+
+
+@pytest.mark.parametrize('label', ['needs-approval', 'ready-for-human', 'needs-info', 'needs-triage', 'wontfix'])
+def test_typescript_release_and_python_intake_share_hold_policy(queued, label):
+    import subprocess
+    from pathlib import Path
+    v2, cutover, intake, signer = queued
+    module = Path(__file__).resolve().parents[3] / 'scripts/wayfinder_engine.mts'
+    script = """const m = await import(process.argv[1]);
+      let wrote = false;
+      m.releaseTicket(4242, {read: () => JSON.stringify({state:'OPEN',labels:[{name:process.argv[2]}],assignees:[]}),
+        write: () => {wrote = true; return ''; }}, 'deepagents:queue');
+      console.log(JSON.stringify(wrote));"""
+    result = subprocess.run(['node', '--experimental-strip-types', '--input-type=module', '-e', script,
+                             module.as_uri(), label], text=True, capture_output=True, check=True)
+    allowed = label == 'needs-approval'
+    assert json.loads(result.stdout) == allowed
+    v2.github.issues[TICKET]['labels'].append(label)
+    if allowed:
+        unit = intake.register(TICKET)
+        with pytest.raises(ApprovalRequired):
+            executor(v2, cutover, unit).claim(PilotRun.run_dir(v2.home, unit.run_id))
+        publish_ruling(v2)
+        assert executor(v2, cutover, unit).claim(PilotRun.run_dir(v2.home, unit.run_id)).state == 'active'
+    else:
+        with pytest.raises(AdmissionRefused):
+            intake.register(TICKET)
+        assert not v2.writes()

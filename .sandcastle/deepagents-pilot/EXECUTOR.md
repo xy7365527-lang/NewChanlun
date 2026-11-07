@@ -1,6 +1,6 @@
 # 用新执行器交付一张首证专用票
 
-新执行器把专用票或切流后的引擎放行票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。合入 main 由人在 GitHub 上完成。
+新执行器把专用票或切流后的引擎放行票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。合入 main 交给现有 hillclimb 审查与合入消费者。
 
 `register` 保留首证专用票入口。`serve` 接收切流后的引擎放行队列，见文末。接管旧 owner 手里的票仍一律拒绝。
 
@@ -140,7 +140,7 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 
 #1742 D6 的队列入口只在全局 `cutover.json` 有效且旧入口保持同代次 `draining` 时工作。切流准备与回退见 [冻结旧入口并让在飞任务收尾](../docs/migration-drain-1742.md)。切流不改变专用票准入，也不打开 `Takeover`。
 
-引擎只给合资格实装票挂 `deepagents:queue`。队列允许 `ready-for-agent` 和 `wayfinder:impl`，拒绝 `sandcastle`、`agent:*`、`wayfinder:grilling`、所有人闸标签、有负责人、有 blocker 或 SPEC 不在票的祖先链上，也不与票同属实际 map的票。旧日志的未知事件和未收尾 claim 也会阻止准入。
+引擎只给合资格实装票挂 `deepagents:queue`。队列允许 `ready-for-agent` 和 `wayfinder:impl`，拒绝 `sandcastle`、`agent:*`、`wayfinder:grilling`、`ready-for-human`、`needs-info`、`needs-triage`、`wontfix`、有负责人、有 blocker 或 SPEC 不在票的祖先链上，也不与票同属实际 map的票。旧日志的未知事件和未收尾 claim 也会阻止准入。
 
 所属 SPEC 正文必须声明写集。多个目录用空格分隔：
 
@@ -148,21 +148,19 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 deepagents-scope: rust/src/example/ rust/tests/example/
 ```
 
-队列只从受 SPEC 签名绑定的正文读取写集。切流记录同时绑定日志绝对路径与字节位置，所有队列动作都读取这份日志，包括 Studio 打开的新队列 run。实装票自己新增的 scope 行不授予权限。缺少声明时，状态页显示 `awaiting_human` 和 `deepagents-scope`，不会扩大到整个仓库。补正文会改变 SPEC 摘要，因此需要对新正文签批。登记时冻结 main 的当前 SHA、写集和任务，缺少该本地提交对象时要求先部署或 fetch，不在后台擅自更新源检出。
+队列从所属 SPEC 当前正文读取 `deepagents-scope`。每个动作锁内，scope 检查与冻结使用同一次读取的正文。实装票自行新增 scope 不授予权限，已有 WorkUnit 的写集也不能超出当前 SPEC。缺声明显示 `needs_info` 原因；源检出缺基线显示 `environment` 原因。切流记录、父链、负责人、blocker 和日志核验保持不变。
 
 ### 为新队列 run 提供 SPEC 授权
 
-D8 的请求绑定 `ticket`、`run_id`、`claim_generation`、`spec_authorization` 与 SPEC 正文原始字节。已有同绑定、同正文且未过期的已发布签批直接复用。历史评论关键词批准和另一个 run 的签批不能复制到新 run。它们的历史批准记录不改写。
+Queued 消费可信编排账号发布的「SPEC 独审裁定」。默认账号为 `xy7365527-lang`，可用 `WAYFINDER_ORCHESTRATOR` 与 Wayfinder 保持一致。非作者独审原件包含 `specNumber`、`digest`、`author`、`reviewer`、`verdict`，由 PR1915 的 `--spec-ruling <号> --review-file <原件>` helper 核对当前正文后发布，并附证据位置。裁定摘要按 CRLF→LF、trimEnd 后的 UTF-8 计算。无效 PASS、后续 BLOCK 或可信撤回都阻止动作，不回退旧签名。
 
-签批判定为 approved 后，宿主在同一次动作锁内把那份正文原始字节写入 `runs/<run>/spec/<SPEC 号>.md`，旁注 `spec/<SPEC 号>.json` 记签批目标与代次。两个文件之间崩溃留下的错配，在下一次 approved 判定时按读到的原字节重写收敛，不需要人工删目录。读出时重算摘要，与签批目标不符即拒绝。每个 Boat 工蜂的 request 附封包时的这份正文。主控的系统提示在 `build_agent` 时取快照，同一控制进程内重签不会刷新提示；下一次打开 run 才用新正文。放行不依赖提示，只看独审封包（见下文）。它是数据，不是批准：放行仍只看每个动作边界的签批与正文复核。工蜂没有 GitHub 凭据，不读票面。
+每次领取、派工、提交、推送、PR、状态和交付边界重新读取当前正文与完整评论。授权通过才冻结 `runs/<run>/spec/<号>.md` 原始 UTF-8 字节。旁注保留原始 `target`、代次及裁定 comment id、账号、作者、独审、证据和规范化 digest，不生成 nonce 或签批命令。worker 封包及 `_require_review_spec` 仍使用原始 target，不能改用规范化 digest。两个冻结文件间崩溃时，下一次有效裁定会重写收敛。
 
-宿主先完成旧 prompt 的路径映射，再原样附上这份正文，正文字节不改写。Boat 工蜂的封包在 `request.json` 的 `spec` 中记下所附正文的摘要。派工前（包括 `prepared` 续派和监督未认领时的补派）以及收集回执前，都在动作锁内核对它是否仍等于当前签批目标。不符时落 `execution_unknown` 停点，不重封包、不派工、不收集。派工前不符时，原包、绑定与 VM 都保留。收集前不符时，回执已经取回，按既有回收顺序删除 key 并停止 VM，原回执保留、checkout 不写。处置走既有入口：`cancel-worker` 把该绑定标为已取消，旧 SPEC 的完成回执作废但原样保留，不记成功，此后满足 [排空条件](BOAT.md#取消后释放队列槽或换代)，`release` 后换代。本版本之前封包、`request.json` 没有 `spec` 的 `prepared`、`submitted` 或已收集绑定都按不符处理，走同一条取消、排空、换代路径；t1863-1 当时尚未封包，按原身份恢复。
+旧 WorkUnit、SpecAuthorization JSON 和 checkpoint 不迁移。旧 SPEC pending 状态在本次实时裁定检查时替换，不遮蔽新 PASS。图的恢复载荷不授予权限。显式 `interrupt.request` 仍只有原 run 的 `--resume` 清除；未知副作用先对账，不重派。主控提示在打开 run 时取快照，后续动作权限只看边界重核。
 
-发布同样以此为判据：`publish_candidate` 在推送、PR、状态、交付四个动作锁内，等签批与正文重核之后，核对放行用的同 head 独审封包 `spec` 是否等于当前签批目标。不符时返回 `decision=refused`、`reasons=["review_spec_mismatch"]`，停在下一次写之前；已完成的写、原包、回执与候选都保留，日志重放时同样先核对。同 head 的独审键已收集，不能重派，要在新 SPEC 下取得独审须走 `release` 后换代。
+工蜂原始封包与当前 target 不符时，原有 `execution_unknown`、取消、排空、换代规则不变。发布独审封包不符仍返回 `review_spec_mismatch`，不能重派同 head 独审。push 后裁定撤销会停在 PR 前；恢复同一 run 时 Journal 读回已完成上传，不重复推送或建 PR。
 
-首次 `serve --once` 会登记 `t<票号>-1`，在任何票面写入前生成 `runs/<run>/approvals/spec_authorization.request`。状态页列出请求路径及签批命令。由批准人在受管签批工具中核对、签名并发布该请求，再运行下一轮。签名未发布、拒绝或已过期时保持等待。每个动作都重读权威决定链和 SPEC 正文。正文变化时暂停并生成新请求，模型恢复载荷不算批准。
-
-这条要求只作用于新的 `Queued` 准入。v1 账本、已持有 `DedicatedPilot` run 与原来的专用票交付条件不变。队列默认不要求 `candidate_head` 签批。它只交付到 `awaiting_merge(h)`，不合 main。
+普通 Queued 默认 `candidate_approval=false`，不调用人工 SPEC signer。显式候选批准仍绑定确切 head；Takeover 继续拒绝。DedicatedPilot 与 v1 原合同不变。队列只发布 draft PR 到 `awaiting_merge(h)`，自动审查/合入由现有 hillclimb 消费者负责。
 
 ### 运行队列
 
@@ -171,13 +169,13 @@ executor serve --once --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --priv
 executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
 ```
 
-`serve` 沿用旧 claim-loop 单票在飞的上限。票级 ClaimStore 和全局 serve 锁防止两个控制进程重复持有。返回 75 或被 SIGKILL 的子进程在下一轮恢复同一 run 和代次；返回 0 或 2 也不代表工蜂结束。队列在派下一票前只读原 run 的工蜂事实，也枚举没有 intent 的 Boat 绑定。`Running`、`EffectUnknown` 或无法读取的工蜂状态继续占槽，包括已中断、halted、released 或已摘队列标签的票；已满足 [失败排空条件](BOAT.md#取消后释放队列槽或换代) 的绑定可释放槽位。队列的检查不访问 Boat，不收集或重派工蜂；原控制入口负责恢复和收集。完成的 run 不重新派工，发布沿用逐效果 Journal 的读回去重。派工前状态根所在卷剩余空间低于派工门槛时，该票保持 `queued` 并写明可用与所需字节，本轮不再派工，下一轮重试；已交付 run 的读回对账、`cancel-worker`、`reconcile` 与 `release` 不经过这道门。
+`serve` 沿用旧 claim-loop 单票在飞的上限。票级 ClaimStore 和全局 serve 锁防止两个控制进程重复持有。返回 75 或被 SIGKILL 的子进程在下一轮恢复同一 run 和代次；返回 0 或 2 也不代表工蜂结束。队列在派下一票前只读原 run 的工蜂事实，也枚举没有 intent 的 Boat 绑定。`Running`、`EffectUnknown` 或无法读取的工蜂状态继续占槽，包括已中断、halted、released 或已摘队列标签的票；已满足 [失败排空条件](BOAT.md#取消后释放队列槽或换代) 的绑定可释放槽位。队列的检查不访问 Boat，不收集或重派工蜂；原控制入口负责恢复和收集。完成的 run 不重新派工，发布沿用逐效果 Journal 的读回去重。派工前状态根所在卷剩余空间低于派工门槛时，该票保持 `queued` 并写明可用与所需字节，跳过该票派工，继续遍历后续已交付票对账，下一轮重试；已交付 run 的读回对账、`cancel-worker`、`reconcile` 与 `release` 不经过这道门。
 
-旧 claim 已 `released` 且工蜂已排空时，仍在队列内的票登记或收养下一个 run；旧 run 的终态不阻止新 run 进入票级锁内的排空核验和换代。新 run 仍须取得绑定新 run 与代次的 SPEC 签批，之后才增加持有代次。未排空的旧 run 继续占槽，不登记下一代。
+旧 claim 已 `released` 且工蜂已排空时，仍在队列内的票登记或收养下一个 run；旧 run 的终态不阻止新 run 进入票级锁内的排空核验和换代。新 run 仍须重核当前正文的独审裁定，之后才增加持有代次。未排空的旧 run 继续占槽，不登记下一代。
 
 队列登记先完整写入并同步临时文件，再排他发布 `units/<run>.json`。旧版本遗留的损坏单元保留原件，在状态页按票显示路径和错误，不重建或覆盖该票。没有在途工蜂的坏单元不阻挡其他票；该票仍有运行中或未知工蜂时继续占槽。
 
-状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。队列子进程使用 `executor run --recheck-approval` 重读权威签批链。即使人工中断发生在队列检查之后，它也只恢复批准核验，不清除中断请求，本轮状态仍为 `awaiting_human`。CLI 中只有显式 `executor run --resume` 清除人工中断请求，再按权威签批链恢复同一 run。普通 `executor run` 不清除人工中断。Studio 的人工 Continue 入口保持不变。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
+状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。队列子进程使用 `executor run --recheck-approval` 重读当前正文与授权来源。即使人工中断发生在队列检查之后，它也只恢复批准核验，不清除中断请求，本轮状态仍为 `awaiting_human`。CLI 中只有显式 `executor run --resume` 清除人工中断请求，再按当前授权恢复同一 run。普通 `executor run` 不清除人工中断。Studio 的人工 Continue 入口保持不变。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
 
 launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。部署 owner 把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 全部替换为已核对的绝对路径后安装。后两个占位符分别设置 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。配置和控制端 key 文件的要求见 [Boat 受管配置](BOAT.md#受管配置)。
 
