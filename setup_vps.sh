@@ -18,7 +18,7 @@ npm install -g @anthropic-ai/claude-code
 
 echo "=== 5/7 克隆项目 ==="
 cd /root
-git clone https://github.com/xy7365527-lang/NewChanlun.git
+git clone https://github.com/Newchanlun/NewChanlun.git
 cd NewChanlun
 
 echo "=== 6/7 Python 虚拟环境 + 依赖 ==="

@@ -17,5 +17,5 @@ REPO="${SANDCASTLE_HOST_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 cd "$REPO"
 mkdir -p .sandcastle/logs
 export NO_COLOR=1 CLICOLOR=0 FORCE_COLOR=0 CLICOLOR_FORCE=0
-export GH_REPO="${GH_REPO:-xy7365527-lang/NewChanlun}"
+export GH_REPO="${GH_REPO:-Newchanlun/NewChanlun}"
 exec npx tsx .sandcastle/claim-loop.mts "$@"

@@ -19,5 +19,5 @@ mkdir -p .sandcastle/logs
 # spec 起草子代理调 claude CLI（~/.local/bin），launchd 的 PATH 不含它。
 export PATH="$HOME/.local/bin:$PATH"
 export NO_COLOR=1 CLICOLOR=0 FORCE_COLOR=0 CLICOLOR_FORCE=0
-export GH_REPO="${GH_REPO:-xy7365527-lang/NewChanlun}"
+export GH_REPO="${GH_REPO:-Newchanlun/NewChanlun}"
 exec npx tsx scripts/wayfinder_engine.mts "$@"

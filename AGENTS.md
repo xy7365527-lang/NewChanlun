@@ -136,7 +136,7 @@
 
 ## 协作设施
 
-- **Issue tracker**：GitHub `xy7365527-lang/NewChanlun`（private，`gh` 已认证）；操作口径 `docs/agents/issue-tracker.md`。
+- **Issue tracker**：GitHub `Newchanlun/NewChanlun`（private，`gh` 已认证）；操作口径 `docs/agents/issue-tracker.md`。
 - **Sandcastle 执行面**（[#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定，2026-08-16）：执行类工作（AFK 探针/跑批/实施票链）默认走 `.sandcastle/` 沙盒（工蜂跨进程不在宿主 harness 子代理列表——**可见性以 `.sandcastle/logs/workers.jsonl` + `STATUS.md`（watcher.sh 滚报，launchd 每 10 分钟）+ `.chanlun/agent-roster-*.md` 为准**；harvest.sh 自动验收合入）——两段式 `main.mts`（实装+独立评审双工蜂）与蜂群 `main-swarm.mts`（planner+扇出+merger 归并），工蜂 = Sandcastle `codex` 经本机 CLIProxy 统一路由，与当前主控同为 `gpt-6.1-sol`（唯一配置 `.sandcastle/main-model.mts`，[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547) / #1617）；拾取闸 = 专属 label `sandcastle`，已有负责人（assignee）的票不挂；例外三类与全貌见图 #1000 与 `.sandcastle/README.md`。
 - **Graph engineering**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)）：图从决策票到合入的自动化流程正本 = `.sandcastle/docs/graph-engineering.md`（决策票 T/P 分级、起草+独审、P 类 `needs-approval` 待批）。主控巡航用 `/graph-run <图号>`，用户批 P 类用 `/graph-approve`。
 - **Triage labels**：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。

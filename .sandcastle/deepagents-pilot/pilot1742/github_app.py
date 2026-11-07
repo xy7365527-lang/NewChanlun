@@ -268,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--app-id", type=int, default=5486877)
     parser.add_argument("--installation-id", type=int, default=175617978)
     parser.add_argument("--repository-id", type=int, default=1150335160)
-    parser.add_argument("--repository", default="xy7365527-lang/NewChanlun")
+    parser.add_argument("--repository", default="Newchanlun/NewChanlun")
     parser.add_argument("--app-slug", default="newchanlun-deepagents-1742")
     parser.add_argument("--private-key", required=True, type=Path, help="仓库外 PEM 的绝对路径，不接受内容或环境 token")
     args = parser.parse_args(argv)

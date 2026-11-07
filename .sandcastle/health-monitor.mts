@@ -46,7 +46,7 @@ const GH_ENV: NodeJS.ProcessEnv = {
   CLICOLOR: "0",
   FORCE_COLOR: "0",
   CLICOLOR_FORCE: "0",
-  GH_REPO: process.env.GH_REPO ?? "xy7365527-lang/NewChanlun",
+  GH_REPO: process.env.GH_REPO ?? "Newchanlun/NewChanlun",
 };
 
 export type Status = "healthy" | "red";

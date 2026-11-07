@@ -42,7 +42,7 @@
         <key>PATH</key>
         <string>/Users/silencehan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>GH_REPO</key>
-        <string>xy7365527-lang/NewChanlun</string>
+        <string>Newchanlun/NewChanlun</string>
         <key>NO_COLOR</key>
         <string>1</string>
         <key>CLICOLOR</key>

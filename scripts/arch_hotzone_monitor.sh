@@ -62,7 +62,7 @@ MAP_TITLE_FILTER="${ARCH_HOTZONE_MAP_TITLE_FILTER:-架构深化}" # C3：本线 
 REPORT_DIR="${ARCH_HOTZONE_REPORT_DIR:-.chanlun}"            # 报告落盘目录（相对 REPO）
 INTERVAL_SECONDS="${ARCH_HOTZONE_INTERVAL_SECONDS:-86400}"   # --live 轮询间隔（默认 24h）
 PARALLEL="${ARCH_HOTZONE_PARALLEL:-8}"                       # 逐文件 git log 并发度
-GH_REPO="${GH_REPO:-xy7365527-lang/NewChanlun}"
+GH_REPO="${GH_REPO:-Newchanlun/NewChanlun}"
 
 cd "$REPO"
 

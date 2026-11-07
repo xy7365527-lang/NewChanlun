@@ -33,7 +33,7 @@ const GH_CLEAN_ENV: NodeJS.ProcessEnv = {
   CLICOLOR: "0",
   FORCE_COLOR: "0",
   CLICOLOR_FORCE: "0",
-  GH_REPO: process.env.GH_REPO ?? "xy7365527-lang/NewChanlun",
+  GH_REPO: process.env.GH_REPO ?? "Newchanlun/NewChanlun",
 };
 
 // ── frontier 候选（纯函数吃这个归一化视图，可离线单测） ──────────────────────
