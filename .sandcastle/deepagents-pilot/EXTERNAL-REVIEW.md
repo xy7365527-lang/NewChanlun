@@ -16,7 +16,25 @@ export PYTHONPATH=.sandcastle/approval-signing:.sandcastle/deepagents-pilot
 
 审阅冻结 base、head 和 merge-base，范围为 `merge_base..head` 的完整修改，不只审最后一次提交。对象必须已在当前 controller 的本地对象库；缺失时返回 `needs_source_sync`，由原 owner 按其既有同步授权补齐。入口和 reviewer 都不 fetch。
 
-两位 reviewer 固定请求 `gpt-6.1-sol`、`claude-opus-5-5`，各自独立 checkout、进程和新 session，不要求作者自报模型。模型字段记录 launcher 所选路由；实际上游模型身份仍须由独立路由证据确认。
+两位 reviewer 固定请求 `external_review.MODELS` 中的两个模型（常规为 `gpt-6.1-sol`、`claude-opus-5-5`；当前是下节的临时组合 `kimi-k3.1-pro`、`claude-opus-5-5`），各自独立 checkout、进程和新 session，不要求作者自报模型。模型字段记录 launcher 所选路由；实际上游模型身份仍须由独立路由证据确认。
+
+## Codex 额度耗尽时的临时组合
+
+触发条件：CLIProxy 的 Codex/OpenAI 上游没有可用额度，`gpt-6.1-sol` 请求全部失败（2026-11-07 实测 401，唯一账号额度为 0，reset_at=2026-11-11T01:00Z），此时任何新审都无法得到两份 PASS。
+
+临时组合是 `MODELS = ("kimi-k3.1-pro", "claude-opus-5-5")`、`POLICY = "external-pr-v1-kimi"`。两位仍属不同家族（moonshot 与 anthropic），仍要两份 PASS 才发 success。`kimi-k3.1-pro` 经同一个 CLIProxyLocal 走 OAuth 直连，CLIProxy 在国内 `kimi@api.kimi.com` 与国际 `kimi-ai@api.kimi.ai` 两个上游间切换，预检两者都认。
+
+POLICY 与模型都进了 `REVIEW_CONTRACT`，换组合后旧组合的 PASS 不能沿用，旧组合的 STALE 也不能 `migrate-stale`，都须在新组合下重审。旧 run 里已退役 reviewer 留下的派发与 BLOCK 证据仍计入完结与否决判断：控制器按 run 目录里实有的 worker 读，不只读当前 `MODELS`。
+
+部署：Sandcastle 主模型另行切换，设 `SANDCASTLE_MAIN_MODEL=kimi-k3.1-pro`。审查员派发不依赖主模型取值，`.sandcastle/codex-child.ts` 的 `EXTERNAL_REVIEW_MODELS` 总在 `ALLOWED_MODELS` 里。部署后照常先跑 `review_preflight.py`，它探测的就是当前两位。
+
+到期条件：Codex 上游恢复（`gpt-6.1-sol` 预检的 `route` 与 `roundtrip` 都通过）后换回常规组合。改这三处，保持一致（测试核对）：
+
+- `pilot1742/external_review.py`：`MODELS = ("gpt-6.1-sol", "claude-opus-5-5")`、`POLICY = "external-pr-v1"`；
+- `review_preflight.py`：`MODELS` 同上；
+- `../codex-child.ts`：`EXTERNAL_REVIEW_MODELS = ["gpt-6.1-sol", "claude-opus-5-5"]`。
+
+同时改回测试里写死的临时组合（`tests/test_external_review.py` 的 `test_fallback_pair_*`、`tests/test_review_preflight.py` 的 `KIMI`/`OFFICIAL`、`../codex-child.test.ts` 的审查员用例）。换回同样会改变合同：本组合下的 PASS 不沿用，本组合的 STALE 不迁移。
 
 ## 启用前完成部署验收
 

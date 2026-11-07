@@ -1,7 +1,7 @@
 // #1456：CLI 只接一次已指定任务，不包含队列、认领、push 或合入动作。
 import { parseArgs } from "node:util";
 import { writeSync } from "node:fs";
-import { runCodexChild, SupervisionError, outputProtocol, type ChildMode, type ChildModel } from "./codex-child.ts";
+import { ALLOWED_MODELS, runCodexChild, SupervisionError, outputProtocol, type ChildMode, type ChildModel } from "./codex-child.ts";
 
 const { values } = parseArgs({
   options: {
@@ -24,7 +24,7 @@ const { values } = parseArgs({
 });
 
 if (values.help) {
-  writeSync(process.stdout.fd, "用法：node --import tsx .sandcastle/codex-child.mts --ticket <票号> --parent-thread-id <父任务ID> --manager-agent-id <原生子代理ID> --checkout <独立干净checkout绝对路径> --expected-head <40位SHA> --mode review|execute [--model claude-opus-5-5|gpt-6.1-sol] [--output-protocol legacy|deepagents-self-report-v1] --prompt-file <绝对路径> --output-dir <不存在的绝对目录>\n");
+  writeSync(process.stdout.fd, `用法：node --import tsx .sandcastle/codex-child.mts --ticket <票号> --parent-thread-id <父任务ID> --manager-agent-id <原生子代理ID> --checkout <独立干净checkout绝对路径> --expected-head <40位SHA> --mode review|execute [--model ${ALLOWED_MODELS.join("|")}] [--output-protocol legacy|deepagents-self-report-v1] --prompt-file <绝对路径> --output-dir <不存在的绝对目录>\n`);
 } else {
   const controller = new AbortController();
   const cancel = () => controller.abort();

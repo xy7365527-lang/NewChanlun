@@ -27,7 +27,7 @@ python3 -I .sandcastle/deepagents-pilot/review_preflight.py \
 |---|---|---|
 | `checkout_root_free_space` | PR1866 A1/A2、PR1868 A3（f9）：快照需 2.60GB，HOME 只剩 1.40–1.65GB | 逐字节复刻 `prepare_review` 的快照字节公式，要求 checkout_root 所在卷剩余 ≥ 2 份（两位 reviewer） |
 | `checkout_root_container_mount` | PR1868 A1：checkout 在未共享进 colima 的路径，容器里看到的是 VM 本地空目录 | 在 checkout_root 写一次性 nonce，用审阅镜像 `--network none --read-only` 只读 bind 挂载 checkout_root 读回；读不到或不一致即拦。探针目录与容器随即删除，删不掉报 `probe_cleanup`；`docker run` 超时或 docker 自身出错（退出 125）时，daemon 可能在 `rm -f` 之后才建出容器，也报 `probe_cleanup`（回收未确认） |
-| `route:<model>` | PR1883 A1：claude-opus-5-5 新会话被选到 Antigravity | 按本次唯一 `Session-Id` 在 CLIProxy request-log 里读每次上游尝试的 `Auth: provider` 与上游主机；要求 Sol=`codex@chatgpt.com`，Opus=`claude@api.anthropic.com`。找不到日志也拦 |
+| `route:<model>` | PR1883 A1：claude-opus-5-5 新会话被选到 Antigravity | 按本次唯一 `Session-Id` 在 CLIProxy request-log 里读每次上游尝试的 `Auth: provider` 与上游主机；要求 Sol=`codex@chatgpt.com`，Kimi=`kimi@api.kimi.com` 或 `kimi-ai@api.kimi.ai`（CLIProxy 在国内、国际两个上游间切换），Opus=`claude@api.anthropic.com`；只探测 `external_review.MODELS` 当前的两位。找不到日志也拦 |
 | `roundtrip:<model>` | 同上，上游 400 `tool_choice ... not supported` | 每家一次最小 `/v1/responses` 往返，带 tools、`tool_choice=auto`、JSON 输出格式、新会话，必须读到 `response.completed`/`incomplete` |
 | `credential:codex-host` | #1323：宿主缺 `CLIPROXY_LOCAL_KEY`，回合在调模型前报 `Missing environment variable` | 去掉该环境变量后，按 `$CODEX_HOME/config.toml` 的 `model_providers.cliproxy-local` 取 key（`auth.command` / `env_key`）。provider 配置是否合法以宿主自己的 codex 为准：先离线跑一次 `codex features list`（约 50ms，不发请求），Codex 拒绝加载就拦（如 `auth` 与 `env_key` 并存），报告只取 Codex 报错里的字段名。两家往返都用这把 key，所以通过即证明没有该变量时 provider 也能完成往返 |
 
