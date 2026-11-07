@@ -159,6 +159,7 @@ REQUEST_AUDIT_REPORT
 ROLLBACK TO shape_entry_fault; RELEASE shape_entry_fault
 ROLLBACK TO shape_leaf_fault; RELEASE shape_leaf_fault
 RUNTIME_ROOTS_OUTPUT
+ReadSnapshot 转发的读取写了库
 Recover前owner持有已提交构造资格
 Recover前当期token可绑定
 Recover后换了父账
