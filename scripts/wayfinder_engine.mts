@@ -1242,7 +1242,9 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: E
     let names = (existing.labels ?? []).map(l => typeof l === "string" ? l : l.name);
     const published = (existing.body ?? "").includes(receipt);
     if (!published) {
-      if ((existing.assignees ?? []).length) throw new Error(`未完整发布的 #${number} 已被认领，须先停止旧执行者`);
+      if ((existing.assignees ?? []).length || names.includes("deepagents")) {
+        throw new Error(`未完整发布的 #${number} 已被认领，等待现有执行者释放后再迁移`);
+      }
       // 回收旧版本留下的提前发布标签；不引入另一套 consumer 准入规则。
       const exposed = names.filter(l => ["ready-for-agent", "sandcastle", QUEUE_LABEL, IMPL_LABEL].includes(l));
       if (exposed.length) ghOnce(`issue edit ${number} --remove-label ${shellQuote(exposed.join(","))}`);
