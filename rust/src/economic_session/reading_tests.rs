@@ -111,8 +111,7 @@ impl FakeS {
             log = dir.join("argv.log").display(),
             reply = reply.display()
         );
-        std::fs::write(&script, &text).unwrap();
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        crate::economic_session::write_test_executable(&script, &text, 0o700);
         let sha = Sha256::digest(text.as_bytes())
             .iter()
             .map(|b| format!("{b:02x}"))
