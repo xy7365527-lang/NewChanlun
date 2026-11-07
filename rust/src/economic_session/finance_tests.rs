@@ -418,11 +418,13 @@ impl Fixture {
         }
         let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":db_of("e", 0),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":rev,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
         if v3.is_some() {
-            use std::os::unix::fs::PermissionsExt;
             let (basis_path, _) = save(&dir, "s-unit-basis-stub.json", &basis);
             let stub = dir.join("s-unit-stub.sh");
-            std::fs::write(&stub, format!("#!/bin/sh\nexec /bin/cat '{basis_path}'\n")).unwrap();
-            std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o700)).unwrap();
+            crate::economic_session::write_test_executable(
+                &stub,
+                &format!("#!/bin/sh\nexec /bin/cat '{basis_path}'\n"),
+                0o700,
+            );
             manifest["finance"]["structure"]["binary"] = json!(stub);
             manifest["finance"]["structure"]["binary_sha256"] =
                 json!(sha256_hex(&std::fs::read(&stub).unwrap()));

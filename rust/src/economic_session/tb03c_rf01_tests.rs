@@ -177,11 +177,7 @@ impl Rf01 {
         let (basis_path, _) = save(&dir, "s-basis.json", &basis);
         let stub = dir.join("s-stub.sh");
         let script = format!("#!/bin/sh\nexec cat '{basis_path}'\n");
-        std::fs::write(&stub, &script).unwrap();
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        crate::economic_session::write_test_executable(&stub, &script, 0o755);
         // ---- FIN/1 冻结输入：全部 TestOnly；baseline 预列两笔开局与两笔迟到成交的覆盖（见 S1 报告 F1） ----
         let slots: Vec<Value> = CHONGS
             .iter()

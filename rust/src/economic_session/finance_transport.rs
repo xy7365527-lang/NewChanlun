@@ -543,7 +543,6 @@ mod financial_reader_tests {
     use super::*;
     use crate::s_content::job::{Existing, JobLimits};
     use serde_json::json;
-    use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -562,8 +561,11 @@ mod financial_reader_tests {
             ));
             std::fs::create_dir(&dir).unwrap();
             let path = dir.join("reader.sh");
-            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+            crate::economic_session::write_test_executable(
+                &path,
+                &format!("#!/bin/sh\n{body}\n"),
+                0o700,
+            );
             Self { dir, path }
         }
         fn binary(&self) -> &str {
