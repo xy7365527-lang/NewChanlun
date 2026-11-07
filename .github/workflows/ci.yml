@@ -1225,7 +1225,8 @@ jobs:
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
       - name: node:test — Sandcastle + wayfinder
-        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
+        # #1915：wayfinder_engine 的测试按通配纳入（含 split-publication、action-recheck 等交错测试），新增同类测试无需再改这里。
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine*.test.mts
 
   deepagents-pilot:
     runs-on: ubuntu-latest
