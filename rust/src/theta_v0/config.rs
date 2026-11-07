@@ -1030,7 +1030,9 @@ mod tests {
     fn production_config_admits_signed_p0_and_awaits_other_symbols() {
         use super::super::backtest::data::SYMBOLS;
         use super::super::policy_records::PolicyVersion;
-        use super::super::run_records::{SLOT_COST_INPUTS, SLOT_VENUE_PROFILE, VENUE_PROFILE_P0_ID};
+        use super::super::run_records::{
+            SLOT_COST_INPUTS, SLOT_VENUE_PROFILE, VENUE_PROFILE_P0_ID,
+        };
         for (sym, _, _) in SYMBOLS {
             if sym == "BTC" {
                 continue;
