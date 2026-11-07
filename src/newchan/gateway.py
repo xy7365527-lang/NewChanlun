@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse
 
 from newchan.a_stroke import Stroke
 from newchan.backpressure import BackpressureQueue
+from newchan.b_timeframe import resample_ohlc
 from newchan.bi_engine import BiEngineSnapshot
 from newchan.orchestrator.recursive import (
     RecursiveOrchestrator,
@@ -134,12 +135,7 @@ def _load_bars(symbol: str, interval: str, tf: str) -> list[Bar]:
 
     # 如果目标周期与原始周期不同，做 resample
     if tf != interval and tf != _interval_to_tf(interval):
-        try:
-            from newchan.b_timeframe import resample_ohlc
-            df_raw = resample_ohlc(df_raw, tf)
-        except (ImportError, ValueError):
-            # resample 不可用或周期相同，直接使用原始数据
-            pass
+        df_raw = resample_ohlc(df_raw, tf)
 
     return _df_to_bars(df_raw)
 
@@ -375,18 +371,25 @@ async def _broadcast(session_id: str, message: dict) -> None:
 @app.post("/api/replay/start", response_model=ReplayStartResponse)
 async def replay_start(req: ReplayStartRequest):
     """创建回放会话（支持单 TF 或多 TF）。"""
+    # timeframes[0] 是 TFOrchestrator 的 base TF；必须与实际加载周期一致。
+    timeframes = list(req.timeframes) if req.timeframes else [req.tf]
+    if req.timeframes and timeframes[0] != req.tf:
+        raise HTTPException(
+            status_code=400,
+            detail="timeframes[0] 必须与 tf 一致，避免 base TF 与实际数据周期不一致",
+        )
+
     try:
         bars = _load_bars(req.symbol, req.interval, req.tf)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        msg = str(e)
+        status_code = 404 if "缓存" in msg and "不存在" in msg else 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
     if not bars:
         raise HTTPException(status_code=404, detail="数据为空")
 
     session_id = str(uuid.uuid4())
-
-    # 确定实际 TF 列表
-    timeframes = req.timeframes if req.timeframes else [req.tf]
 
     if len(timeframes) > 1:
         # 多 TF：创建 TFOrchestrator

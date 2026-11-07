@@ -45,7 +45,6 @@ from persistence import PersistentKFull, DEFAULT_PATH
 from block_topology_persistence import (
     BlockTopologyWriter,
     load_graph_from_block_topology,
-    rebuild_block_topology_from_jsonl,
     DAEMON_BT_BASE,
 )
 from encounter_log import (
@@ -259,7 +258,8 @@ class TopologicalDaemon:
         persist_path: str | Path | None = None,
         require_chain: bool = False,
     ) -> None:
-        # Persistence: block topology is primary, jsonl is backup
+        # Persistence: snapshot/incremental JSONL is primary; legacy block
+        # topology is only a backward-compatibility fallback.
         self._persist: BlockTopologyWriter | None = None
         self._persist_path: Path | None = None
         recovered_graph: Graph | None = None
@@ -268,40 +268,47 @@ class TopologicalDaemon:
             jsonl_p = Path(persist_path)
             snapshot_p = PersistentKFull.snapshot_path_for(jsonl_p)
 
-            # Primary: load from block topology
-            bt_graph, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
-            bt_vids = bt_graph.active_vertex_ids()
-
-            if bt_vids:
-                recovered_graph = bt_graph
-                print(f"Block topology: loaded {len(bt_vids)} active vertices", file=sys.stderr)
-            elif snapshot_p.exists():
-                # Snapshot + incremental replay (fast path)
-                snap_graph, _ = PersistentKFull.load_snapshot_then_incremental(
-                    snapshot_p, jsonl_p,
-                )
-                snap_vids = snap_graph.active_vertex_ids()
-                if snap_vids:
-                    recovered_graph = snap_graph
+            if snapshot_p.exists():
+                # Snapshot + incremental replay (fast path, current format)
+                try:
+                    snap_graph, _ = PersistentKFull.load_snapshot_then_incremental(
+                        snapshot_p, jsonl_p,
+                    )
+                    snap_vids = snap_graph.active_vertex_ids()
+                    if snap_vids:
+                        recovered_graph = snap_graph
+                        print(
+                            f"Snapshot recovery: {len(snap_vids)} active vertices",
+                            file=sys.stderr,
+                        )
+                except Exception as e:
                     print(
-                        f"Snapshot recovery: {len(snap_vids)} active vertices",
+                        f"Snapshot recovery failed ({e}); falling back to JSONL/legacy",
                         file=sys.stderr,
                     )
-            else:
-                # Fallback: full JSONL replay (slow path for legacy data)
-                jsonl_graph, _ = PersistentKFull.load(persist_path)
+
+            if recovered_graph is None and jsonl_p.exists() and jsonl_p.stat().st_size > 0:
+                # Fallback: full JSONL replay when no snapshot has been dumped yet.
+                jsonl_graph, _ = PersistentKFull.load(jsonl_p)
                 jsonl_vids = jsonl_graph.active_vertex_ids()
                 if jsonl_vids:
                     recovered_graph = jsonl_graph
                     print(
-                        f"Block topology empty, recovered {len(jsonl_vids)} vertices from jsonl. "
-                        f"Rebuilding block topology...",
+                        f"JSONL recovery: {len(jsonl_vids)} active vertices",
                         file=sys.stderr,
                     )
-                    count = rebuild_block_topology_from_jsonl(
-                        Path(persist_path), DAEMON_BT_BASE,
+
+            if recovered_graph is None:
+                # Legacy: pre-456 per-block files. Kept only for old installs.
+                bt_graph, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
+                bt_vids = bt_graph.active_vertex_ids()
+
+                if bt_vids:
+                    recovered_graph = bt_graph
+                    print(
+                        f"Legacy block topology recovery: {len(bt_vids)} active vertices",
+                        file=sys.stderr,
                     )
-                    print(f"Block topology rebuilt: {count} records", file=sys.stderr)
 
             if recovered_graph is not None:
                 recovered_vids = recovered_graph.active_vertex_ids()
