@@ -872,7 +872,9 @@ def test_ctrl_c_during_concurrent_review_returns_without_waiting_for_receipts(la
     def interrupted(futures):
         calls.append(1)
         if len(calls) == 1:
-            clock.sleep(1)  # 让两位都已派发
+            deadline = clock.monotonic() + 30  # 等两位都已派发（有 launch.json），不靠固定 sleep
+            while clock.monotonic() < deadline and len(list((lane.state_root / "runs").glob("*/*/launch.json"))) < 2:
+                clock.sleep(0.05)
             raise KeyboardInterrupt
         return real_wait(futures)
     monkeypatch.setattr(module, "wait", interrupted)
@@ -1152,3 +1154,81 @@ def test_real_drift_stale_is_left_alone(lane):
     saved["reason"] = "PR base、head 或目标已漂移"
     (folder / "outcome.json").write_text(json.dumps(saved))
     assert lane.review_pr(1810)["verdict"] == "STALE"
+
+
+def _interrupt_before_reuse_success(lane, env, monkeypatch):
+    """沿用路径：pending 已发、outcome 已存（PASS，reused_from），success 发布前被杀。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    real = module.StatusPublisher.publish
+    def publish(self, state, *args):
+        if state == "success":
+            raise KeyboardInterrupt
+        return real(self, state, *args)
+    monkeypatch.setattr(module.StatusPublisher, "publish", publish)
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810)
+    monkeypatch.setattr(module.StatusPublisher, "publish", real)
+    target = ReviewTarget(**json.loads(next(p for p in (lane.state_root / "runs").glob("*/target.json")
+                                              if json.loads(p.read_text())["head_sha"] == lane.gateway.pr["head"]["sha"]).read_text()))
+    folder = lane.state_root / "runs" / target.key
+    saved = json.loads((folder / "outcome.json").read_text())
+    assert "reused_from" in saved and not (folder / "effects" / "status-success.json").exists()
+    return folder
+
+
+def test_resumed_reuse_does_not_publish_after_newer_same_head_attempt(lane, env, monkeypatch):
+    """D5 b32b8b86 Sol P1：恢复旧 attempt 不得在同 head 新 attempt 登记后直接发布沿用 success。"""
+    _interrupt_before_reuse_success(lane, env, monkeypatch)
+    lane.target(1810, 2)                       # 同 head 新 attempt：已登记，尚未发 pending
+    sent = list(lane.gateway.sent)
+    result = lane.review_pr(1810, 1)
+    assert result["verdict"] != "PASS" and "success" not in lane.gateway.sent[len(sent):]
+
+
+def test_resumed_reuse_does_not_publish_after_admission_lost(lane, env, monkeypatch):
+    """同一序列的另一反例：恢复前部署准入失效，不得发布沿用 success。"""
+    _interrupt_before_reuse_success(lane, env, monkeypatch)
+    (lane.source / ".git" / "fake-admission").write_text("fail")
+    sent = list(lane.gateway.sent)
+    result = lane.review_pr(1810, 1)
+    assert result["verdict"] != "PASS" and "success" not in lane.gateway.sent[len(sent):]
+
+
+def test_completed_publication_is_only_reconciled_not_regated(lane, env):
+    """已完成发布的 run：之后即使有同 head 新 attempt 登记，再调用也只对账，不改写成 STALE。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    first = lane.review_pr(1810)
+    assert first["publication"]["state"] == "success"
+    lane.target(1810, 2)
+    again = lane.review_pr(1810, 1)
+    assert again["verdict"] == "PASS" and again["publication"] == first["publication"]
+
+
+def test_resume_after_planned_reuse_fell_back_is_not_blocked_by_total_admission(lane, env, monkeypatch):
+    """D5 b32b8b86 Opus 中：已转双审且有 worker 后，恢复不再按两份快照准入挡收养。"""
+    lane.review_pr(1810)
+    _advance_main(lane, env)
+    target = lane.target(1810, 1)
+    assert target.reuse_planned
+    (lane.source / ".git" / "fake-admission").write_text("fail")       # 派发时不能沿用 → 双审
+    real = _interrupt_before_aggregation(lane, monkeypatch)
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810)
+    monkeypatch.setattr(lane, "run_reviewers", real)
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))  # 恢复时空间偏紧
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and len(result["reviews"]) == len(MODELS)
+
+
+def test_wrongly_typed_history_outcome_does_not_block_registration(lane, env):
+    """D5 b32b8b86 Opus 低：合法 JSON 但 reviews/publication 类型错误，不沿用，登记照常。"""
+    first = lane.review_pr(1810)
+    outcome = lane.state_root / "runs" / ReviewTarget(**first["target"]).key / "outcome.json"
+    bad = json.loads(outcome.read_text())
+    bad["reviews"], bad["publication"] = ["x"], "y"
+    outcome.write_text(json.dumps(bad))
+    _advance_main(lane, env)
+    result = lane.review_pr(1810)
+    assert "reused_from" not in result and len(result["reviews"]) == len(MODELS)

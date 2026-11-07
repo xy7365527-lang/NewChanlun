@@ -540,12 +540,14 @@ class ExternalReview:
                 if result.get("status") == "blocked" or str(result.get("summary", "")).startswith("VERDICT: BLOCK"):
                     return True
                 if (worker / "events.jsonl").exists():
+                    final = None  # 只看最终消息；中间说明里提到 BLOCK 不算
                     for line in (worker / "events.jsonl").read_text().splitlines():
                         event = json.loads(line) if line.strip() else {}
                         item = event.get("item") or {}
-                        if (event.get("type") == "item.completed" and item.get("type") == "agent_message"
-                                and _message_blocks(str(item.get("text", "")))):
-                            return True
+                        if event.get("type") == "item.completed" and item.get("type") == "agent_message":
+                            final = str(item.get("text", ""))
+                    if final is not None and _message_blocks(final):
+                        return True
             except (OSError, ValueError, AttributeError, IdentityError):
                 return True  # 证据读不了（含 _read 的权限、属主、符号链接拒绝）按 BLOCK 处理
         return False
@@ -565,7 +567,7 @@ class ExternalReview:
         登记和双审照常进行。"""
         try:
             return self._reuse_source(target)
-        except (OSError, ValueError, KeyError, TypeError, IdentityError):
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, IdentityError):
             return None
 
     def _reuse_source(self, target: ReviewTarget) -> dict | None:
@@ -627,15 +629,15 @@ class ExternalReview:
             done = subprocess.run([*self.launcher, "--admission-only"], env=env, cwd=self.source, stdin=subprocess.DEVNULL,
                                   capture_output=True, text=True, timeout=300)
             admission = json.loads(done.stdout) if done.returncode == 0 else None
-        except (OSError, subprocess.TimeoutExpired, ValueError):
+        except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
             return None
         if (not isinstance(admission, dict) or admission.get("controller_code_head") != target.controller_code_head
                 or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(admission.get("image_id", "")))):
             return None
-        old_folder = self.state_root / "runs" / ReviewTarget(**source["target"]).key
         try:
+            old_folder = self.state_root / "runs" / ReviewTarget(**source["target"]).key
             images = {_read(old_folder / model / "receipt.json").get("image_id") for model in MODELS}
-        except (OSError, ValueError):
+        except (OSError, ValueError, TypeError, IdentityError):
             return None
         if images != {admission["image_id"]}:
             return None
@@ -728,6 +730,56 @@ class ExternalReview:
         self.cleanup_checkout(target, model, folder)
         return outcome
 
+    def _superseded_on_head(self, target: ReviewTarget) -> bool:
+        """同 head 上是否已有更晚登记的 attempt（显式重审）：有则本 run 的结论不再发布。"""
+        for path in (self.state_root / "runs").glob(f"r*-p{target.pr_number}-*/target.json"):
+            try:  # 只读 target.json；别的 run 的 outcome 损坏与此无关。读不了的无法证明同 head，跳过。
+                other = _read(path)
+                if (other.get("head_sha") == target.head_sha
+                        and int(other.get("registered_at_ns", 0)) > target.registered_at_ns):
+                    return True
+            except (OSError, ValueError, TypeError, IdentityError):
+                continue
+        return False
+
+    def _publish_final(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher, result: dict) -> dict:
+        """最终发布门（新审汇总、中断续发、STALE 恢复共用）：在 PR 锁内确认同 head 没有更晚登记的
+        attempt 再发布终态；有就记 STALE（原审查明细保留），由新 attempt 接手。"""
+        with self._pr_lock(target.pr_number):
+            if self._superseded_on_head(target):
+                raise Stale("同 head 已有更晚登记的 attempt，本 run 结论不再发布")
+            result["publication"] = publisher.publish(result["state"])
+        _save(folder / "outcome.json", result)
+        return result
+
+    def _resume_publication(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher, saved: dict) -> dict:
+        """outcome 已存在时：终态已发布的只对账（不重新判定、不改写）；尚未发布的按来源分别过门——
+        真实双审走 _publish_final；沿用结果重新做部署准入，并在 PR 锁内重读历史、确认来源未变，任何一项
+        失效都不发布 success，记 STALE（原 outcome 另存为历史），由新 attempt 接手。"""
+        reused = saved.get("reused_from") or {}
+        if Journal(folder / "effects").done(f"status-{saved['state']}"):
+            # 终态已发布：只对账（publish 在 journal done 时只 probe 核对远端，被覆盖则上抛待对账），不重新判定。
+            saved["publication"] = publisher.publish(saved["state"], reused.get("run_id"))
+            return saved
+        if not reused:
+            return self._publish_final(target, folder, publisher, saved)
+        source = self.reuse_source(target)
+        admission = self.reuse_admission(target, source) if source is not None else None
+        valid = source is not None and admission is not None and source["run_id"] == reused.get("run_id")
+        if valid:
+            with self._pr_lock(target.pr_number):
+                current = self.reuse_source(target)
+                if current is not None and current["run_id"] == reused.get("run_id"):
+                    saved["publication"] = publisher.publish("success", reused["run_id"])
+                    _save(folder / "outcome.json", saved)
+                    return saved
+        history = f"outcome.reuse-invalidated-{time.time_ns()}.json"
+        _save(folder / history, saved)
+        result = {**saved, "verdict": "STALE", "reason": "沿用在恢复时已失效（准入、历史或来源改变），未发布 success",
+                  "invalidated_reuse": {"history": history}}
+        _save(folder / "outcome.json", result)
+        return result
+
     def _publish_reuse(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher,
                        source: dict, admission: dict) -> dict:
         """在 _pr_lock 内调用：发布 pending、写 outcome、发布沿用 success。"""
@@ -791,9 +843,7 @@ class ExternalReview:
                         if _transport_failure(saved.get("reason", "")):
                             return self.recover_stale(target, folder, publisher, saved)
                         return saved
-                    reused = (saved.get("reused_from") or {}).get("run_id")
-                    saved["publication"] = publisher.publish(saved["state"], reused)
-                    return saved
+                    return self._resume_publication(target, folder, publisher, saved)
                 reuse = self.reusable(target) if target.reuse_planned else None
                 if reuse is not None:
                     source, admission = reuse
@@ -802,7 +852,7 @@ class ExternalReview:
                         current = self.reuse_source(target)
                         if current is not None and current["run_id"] == source["run_id"]:
                             return self._publish_reuse(target, folder, publisher, source, admission)
-                if target.reuse_planned:
+                if target.reuse_planned and not any((folder / model).exists() for model in MODELS):
                     self.admit_space(target)  # 登记时因可沿用跳过了总准入，现在退回双审，补做
                 publisher.publish("pending")
                 outcomes = self.run_reviewers(target, folder)
@@ -817,9 +867,7 @@ class ExternalReview:
                 result = {"run_id": target.run_id, "verdict": verdict, "state": state,
                           "target": asdict(target), "reviews": [asdict(o) for o in outcomes]}
                 _save(folder / "outcome.json", result)
-                result["publication"] = publisher.publish(state)
-                _save(folder / "outcome.json", result)
-                return result
+                return self._publish_final(target, folder, publisher, result)
             except Stale as error:
                 result = _read(folder / "outcome.json") if (folder / "outcome.json").exists() else {}
                 result.update(run_id=target.run_id, verdict="STALE", reason=str(error), target=asdict(target))
@@ -866,9 +914,7 @@ class ExternalReview:
                   "reviews": [asdict(o) for o in outcomes],
                   "recovered_from_stale": {"reason": saved.get("reason"), "history": history}}
         _save(folder / "outcome.json", result)
-        result["publication"] = publisher.publish(state)
-        _save(folder / "outcome.json", result)
-        return result
+        return self._publish_final(target, folder, publisher, result)
 
     def status(self, number: int) -> list[dict]:
         if number <= 0:
