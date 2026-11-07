@@ -31,6 +31,7 @@ struct Profile {
     endpoint: Option<String>,
     credential_env: String,
     tb09_fingerprint: Option<String>,
+    history_simulation: Option<newchan_rust::history_simulation::runtime::Profile>,
 }
 
 impl Profile {
@@ -69,7 +70,23 @@ impl Profile {
                 )),
             }
         };
+        let history_simulation = match v.get("history_simulation") {
+            None | Some(Value::Null) => None,
+            Some(value) => {
+                if mode != "simulation" {
+                    return Err(
+                        "InvalidDomain：history_simulation 仅允许 simulation profile".into(),
+                    );
+                }
+                let profile: newchan_rust::history_simulation::runtime::Profile =
+                    serde_json::from_value(value.clone())
+                        .map_err(|e| format!("InvalidDomain：模拟 profile：{e}"))?;
+                profile.validate()?;
+                Some(profile)
+            }
+        };
         Ok(Self {
+            history_simulation,
             revision,
             mode,
             endpoint: opt("endpoint")?,
@@ -98,6 +115,12 @@ fn meta_get(conn: &Connection, key: &str) -> Result<Option<String>, String> {
 fn persist(conn: &mut Connection, profile: &Profile, epoch: i64) -> Result<Value, String> {
     let tx = conn.transaction().map_err(err)?;
     tx.execute_batch(SCHEMA).map_err(err)?;
+    let simulation = profile.history_simulation.is_some();
+    let old_simulation = meta_get(&tx, "history_simulation")?;
+    let old_mode = meta_get(&tx, "profile_mode")?;
+    if old_mode.is_some() && (old_simulation.as_deref() == Some("true")) != simulation {
+        return Err("IdentityConflict：模拟原件执行域不可与其他 profile 共用 X 库".into());
+    }
     if let Some(stored) = meta_get(&tx, "writer_epoch")? {
         let stored: i64 = stored.parse().map_err(err)?;
         if epoch < stored {
@@ -105,6 +128,11 @@ fn persist(conn: &mut Connection, profile: &Profile, epoch: i64) -> Result<Value
                 "StaleWriter：X writer_epoch={epoch} 低于已持久化的 {stored}"
             ));
         }
+    }
+    if let Some(simulation) = &profile.history_simulation {
+        newchan_rust::history_simulation::runtime::initialize_in_transaction(
+            &tx, simulation, epoch,
+        )?;
     }
     let (send_state, reason) = if profile.mode == "production" && profile.tb09_fingerprint.is_none()
     {
@@ -114,6 +142,7 @@ fn persist(conn: &mut Connection, profile: &Profile, epoch: i64) -> Result<Value
     };
     let rows = [
         ("writer_epoch", epoch.to_string()),
+        ("history_simulation", simulation.to_string()),
         ("profile_revision", profile.revision.clone()),
         ("profile_mode", profile.mode.clone()),
         (
@@ -176,6 +205,11 @@ fn run() -> Result<(), String> {
             let _lock = process_lock(db, "X")?;
             let mut conn = Connection::open(db).map_err(err)?;
             let state = persist(&mut conn, &profile, epoch)?;
+            if let Some(simulation) = &profile.history_simulation {
+                return newchan_rust::history_simulation::runtime::serve(
+                    &mut conn, simulation, epoch,
+                );
+            }
             drop(conn);
             // 凭据门在任何传输构造之前：缺即 MissingDependency 非 0 退出，端点从未被连接。
             if profile.needs_credential()

@@ -103,6 +103,12 @@ pub(crate) fn fact_key(event: &Value) -> Result<String, String> {
 pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, Value), String> {
     let doc = strict_json(raw.as_bytes())?;
     no_float(&doc)?;
+    if doc["format"] == crate::history_simulation::store::RAW_FORMAT {
+        if !rules.is_tb03c() {
+            return Err("SchemaUnsupported：模拟原件须 tb03c 经济域".into());
+        }
+        return crate::history_simulation::intake::decode(&doc, pointer);
+    }
     if doc["format"] != "neutral TestOnly economic raw originals; not production transport wire" {
         return Err("SchemaUnsupported：仅已声明 TestOnly 经济原件 profile".into());
     }
@@ -397,6 +403,9 @@ pub(crate) fn apply_in(
     seq: i64,
     ns: &str,
 ) -> Result<(Value, bool), String> {
+    if record["event"]["event"] == crate::history_simulation::intake::EVENT {
+        return Err("MissingDependency：模拟原件尚无完整经济分量，不能应用持仓账".into());
+    }
     match rules(manifest)? {
         Rules::Tb03cV2 | Rules::Tb03cV3 => {
             let funding = super::tb03c_funding::Contract::of(manifest)?
@@ -415,6 +424,9 @@ pub(crate) fn apply(
     ns: &str,
     rules: Rules,
 ) -> Result<(Value, bool), String> {
+    if record["event"]["event"] == crate::history_simulation::intake::EVENT {
+        return Err("MissingDependency：模拟原件尚无完整经济分量，不能应用持仓账".into());
+    }
     match rules {
         Rules::Tb03cV1 => return super::tb03c_book::apply(image, record, seq, ns),
         Rules::Tb03cV2 | Rules::Tb03cV3 => {

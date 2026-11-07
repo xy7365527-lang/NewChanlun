@@ -2918,3 +2918,6 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
 /// #1374：正式 E/B 持久经济事实服务。
 #[cfg(feature = "s_session")]
 pub mod economic_session;
+
+#[cfg(feature = "s_session")]
+pub mod history_simulation;
